@@ -181,3 +181,5 @@ tests/**
 Chronicle_Android_raw_data_preprocessing_app_config.json
 *.log
 app_codebook_files/Chronicle_Android_raw_data_preprocessor_app_codebook - Copy.csv
+build-exe-example.yml
+ChronicleAndroidBulkDataDownloader.spec

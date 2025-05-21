@@ -801,8 +801,8 @@ class ChronicleAndroidRawDataPreprocessor:
                     if "plotting" in filename:
                         self.stats.errors[filename] = error
 
-            except Exception as e:
-                LOGGER.exception(f"Error during plotting process: {e}")
+            except Exception:
+                LOGGER.exception("Error during plotting process")
                 # Don't crash the whole process, just log the error
                 plot_output_folder = None
             finally:
@@ -810,7 +810,7 @@ class ChronicleAndroidRawDataPreprocessor:
                 plotting_completed_callback()
 
         results_dict = {
-            "raw_data_files": Chronicle_Android_raw_data_files,
+            "num_raw_data_files": len(Chronicle_Android_raw_data_files),
             "date_and_time": datetime.now().strftime("%m-%d-%Y %H:%M:%S"),
             "preprocessed_data_save_folder": str(preprocessed_data_save_folder),
             "plot_output_folder": str(plot_output_folder) if plot_output_folder else "Not generated",

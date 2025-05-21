@@ -19,73 +19,94 @@ from ui.windows.main_window import ChronicleAndroidRawDataPreprocessingGUI
 def setup_logging() -> logging.Logger:
     """
     Set up logging configuration with fallback to console-only logging if file creation fails.
-    
+
     Returns:
         logging.Logger: Configured logger for the main module
     """
-    # Configure root logger first with console only
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG)  # Capture all logs
-    
-    # Create formatters
-    default_formatter = logging.Formatter(LOG_FORMAT)
-    
-    # Always add console handler first as fallback
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(default_formatter)
-    root_logger.addHandler(console_handler)
-    
-    # Get logger for this module
-    logger = logging.getLogger(__name__)
-    
-    # Try to set up file logging
+    # Determine log file location based on platform and execution context
+    log_file = "Chronicle_Android_raw_data_preprocessing.log"
+    debug_log_file = "Chronicle_Android_raw_data_preprocessing_debug.log"
+
     try:
-        log_dir = Path("logs")
-        log_dir.mkdir(exist_ok=True)
+        if getattr(sys, "frozen", False):
+            # Running as PyInstaller bundle
+            bundle_dir = Path(sys.executable).parent
+            if sys.platform.startswith("darwin"):
+                # For macOS app bundles, use ~/Library/Logs/ChronicleAndroidRawDataPreprocessing/
+                log_dir = Path.home() / "Library" / "Logs" / "ChronicleAndroidRawDataPreprocessing"
+                log_dir.mkdir(parents=True, exist_ok=True)
+                log_file = log_dir / log_file
+                debug_log_file = log_dir / debug_log_file
+            else:
+                # For Windows, keep log in same directory as executable
+                log_file = bundle_dir / log_file
+                debug_log_file = bundle_dir / debug_log_file
+        # Running as script
+        elif sys.platform.startswith("darwin"):
+            # For macOS, use ~/Library/Logs/ChronicleAndroidRawDataPreprocessing/
+            log_dir = Path.home() / "Library" / "Logs" / "ChronicleAndroidRawDataPreprocessing"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log_file = log_dir / log_file
+            debug_log_file = log_dir / debug_log_file
+        else:
+            # For Windows, use local logs directory
+            log_dir = Path("logs")
+            log_dir.mkdir(exist_ok=True)
+            log_file = log_dir / log_file
+            debug_log_file = log_dir / debug_log_file
 
-        log_file = log_dir / "Chronicle_Android_raw_data_preprocessing.log"
-        debug_log_file = log_dir / "Chronicle_Android_raw_data_preprocessing_debug.log"
+        # Configure root logger
+        logging.basicConfig(
+            level=logging.INFO,
+            format=LOG_FORMAT,
+            handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
+        )
 
-        # Create file handlers
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setLevel(logging.INFO)
-        file_handler.setFormatter(default_formatter)
+        # Add debug file handler
+        root_logger = logging.getLogger()
+        debug_handler = logging.FileHandler(debug_log_file)
+        debug_handler.setLevel(logging.DEBUG)
+        debug_handler.setFormatter(logging.Formatter(LOG_FORMAT))
+        root_logger.addHandler(debug_handler)
 
-        debug_file_handler = logging.FileHandler(debug_log_file)
-        debug_file_handler.setLevel(logging.DEBUG)
-        debug_file_handler.setFormatter(default_formatter)
-
-        # Add file handlers to root logger
-        root_logger.addHandler(file_handler)
-        root_logger.addHandler(debug_file_handler)
-        
+        # Get logger for this module
+        logger = logging.getLogger(__name__)
         logger.info(f"Starting Chronicle Android Raw Data Preprocessing Application v{__version__} Build {__build_date__}")
-        logger.info(f"Log files created at: {log_dir.resolve()}")
-    except PermissionError as e:
-        logger.error(f"Permission denied when creating log files: {e}")
-        logger.warning("Continuing with console logging only")
-    except OSError as e:
-        logger.error(f"Failed to set up file logging: {e}")
-        logger.warning("Continuing with console logging only")
+        logger.info(f"Log files created at: {log_file.parent.resolve()}")
+
+        return logger
+
     except Exception as e:
-        logger.error(f"Unexpected error setting up logging: {e}")
+        # Set up console-only logging if file logging fails
+        logging.basicConfig(
+            level=logging.INFO,
+            format=LOG_FORMAT,
+            handlers=[logging.StreamHandler()],
+        )
+        logger = logging.getLogger(__name__)
+        logger.exception("Failed to set up file logging")
         logger.warning("Continuing with console logging only")
-    
-    return logger
+        return logger
 
 
 def main() -> None:
     """
     Main function to start the application
-    
+
     Returns:
         None
     """
     logger = setup_logging()
 
     try:
-        sys.argv += ["-platform", "windows:darkmode=1"]
+        # Use OS-specific platform plugin
+        if sys.platform.startswith("win"):
+            sys.argv += ["-platform", "windows:darkmode=1"]
+        elif sys.platform.startswith("darwin"):
+            # Ensure we're using the correct platform for macOS
+            sys.argv += ["-platform", "cocoa"]
+        logger.info("Using cocoa platform for macOS")
+
         app = QApplication(sys.argv)
         app.setStyle("Fusion")
         window = ChronicleAndroidRawDataPreprocessingGUI()
@@ -93,16 +114,41 @@ def main() -> None:
         sys.exit(app.exec())
     except Exception as e:
         logger.exception(f"Error starting application: {e}")
-        
+
         # Attempt to write error to file even if logging setup failed
         try:
-            error_file = Path("error_log.txt")
+            error_file_name = "Chronicle_Android_error_log.txt"
+
+            if getattr(sys, "frozen", False):
+                # Running as PyInstaller bundle
+                bundle_dir = Path(sys.executable).parent
+                if sys.platform.startswith("darwin"):
+                    # For macOS app bundles
+                    error_log_dir = Path.home() / "Library" / "Logs" / "ChronicleAndroidRawDataPreprocessing"
+                    error_log_dir.mkdir(parents=True, exist_ok=True)
+                    error_file = error_log_dir / error_file_name
+                else:
+                    # For Windows, keep log in same directory as executable
+                    error_file = bundle_dir / error_file_name
+            # Running as script
+            elif sys.platform.startswith("darwin"):
+                # For macOS
+                error_log_dir = Path.home() / "Library" / "Logs" / "ChronicleAndroidRawDataPreprocessing"
+                error_log_dir.mkdir(parents=True, exist_ok=True)
+                error_file = error_log_dir / error_file_name
+            else:
+                # For Windows, use current directory
+                error_file = Path(error_file_name)
+
             with error_file.open("w", encoding="utf-8") as f:
                 f.write(f"Application failed to start: {e}\n\n")
                 f.write(traceback.format_exc())
+
+            logger.info(f"Error log written to: {error_file}")
         except Exception:
-            pass  # Silently continue if error file can't be written
-        
+            logger.exception("Failed to write error log")
+            # Silently continue if error file can't be written
+
         raise
 
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import logging
 import sys
+import traceback
+import platform
 from pathlib import Path
 
 from PyQt6.QtCore import Qt
@@ -344,16 +346,45 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
         # Re-enable UI elements
         self.enable_ui_after_processing()
 
-        # Get the log file path
-        log_dir = Path("logs").resolve()
-        log_path = log_dir / "Chronicle_Android_raw_data_preprocessing.log"
+        # Get the log file path based on platform and execution context
+        log_file_name = "Chronicle_Android_raw_data_preprocessing.log"
 
-        # Create a simple error dialog with default size
+        if getattr(sys, "frozen", False):
+            # Running as PyInstaller bundle
+            bundle_dir = Path(sys.executable).parent
+            if sys.platform.startswith("darwin"):
+                # For macOS app bundles
+                log_dir = Path.home() / "Library" / "Logs" / "ChronicleAndroidRawDataPreprocessing"
+                log_path = log_dir / log_file_name
+            else:
+                # For Windows, keep log in same directory as executable
+                log_path = bundle_dir / log_file_name
+        # Running as script
+        elif sys.platform.startswith("darwin"):
+            # For macOS
+            log_dir = Path.home() / "Library" / "Logs" / "ChronicleAndroidRawDataPreprocessing"
+            log_path = log_dir / log_file_name
+        else:
+            # For Windows, use local logs directory
+            log_dir = Path("logs").resolve()
+            log_path = log_dir / log_file_name
+
+        # Format error message with traceback if available
+        detailed_message = error_message
+        if hasattr(sys, "last_traceback"):
+            detailed_message = f"{error_message}\n\nTraceback:\n{''.join(traceback.format_tb(sys.last_traceback))}"
+
+        # Create error dialog with traceback
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Preprocessing Error")
         msg_box.setIcon(QMessageBox.Icon.Critical)
         msg_box.setText("An error occurred during preprocessing.")
         msg_box.setInformativeText(f"Please check the log file for more details:\n{log_path}")
+        msg_box.setDetailedText(detailed_message)
+
+        # Set a reasonable size for the detail area
+        msg_box.setMinimumWidth(600)
+        msg_box.setMinimumHeight(400)
 
         # Add OK button
         msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)

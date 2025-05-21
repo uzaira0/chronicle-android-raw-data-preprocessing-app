@@ -2,7 +2,7 @@ name: Build, Version and Release
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, test-actions ]
     tags:
       - 'v*'
   pull_request:
@@ -100,7 +100,7 @@ jobs:
           config/version.py
           main.py
 
-  build:
+  build-windows:
     needs: determine-version
     runs-on: windows-latest
     
@@ -279,7 +279,7 @@ jobs:
           }
           
           # Create a temporary directory for all files
-          $tempDir = "ChronicleAndroidRawDataPreprocessingApp-full-$version"
+          $tempDir = "ChronicleAndroidRawDataPreprocessingApp-win-$version"
           New-Item -Path $tempDir -ItemType Directory
           
           # Copy all repository files (except .git, dist, build, etc.)
@@ -300,7 +300,7 @@ jobs:
           
           # Create ZIP with all content
           Write-Host "Creating ZIP archive..."
-          Compress-Archive -Path $tempDir/* -DestinationPath "ChronicleAndroidRawDataPreprocessingApp-$version.zip"
+          Compress-Archive -Path $tempDir/* -DestinationPath "ChronicleAndroidRawDataPreprocessingApp-win-$version.zip"
           
           # Clean up temporary directory
           Remove-Item -Path $tempDir -Recurse -Force
@@ -313,17 +313,179 @@ jobs:
     - name: Upload executable as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ChronicleAndroidRawDataPreprocessingApp
+        name: ChronicleAndroidRawDataPreprocessingApp-windows
         path: dist/ChronicleAndroidRawDataPreprocessingApp
         
     - name: Upload ZIP archive as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ChronicleAndroidRawDataPreprocessingApp-zip
-        path: ChronicleAndroidRawDataPreprocessingApp-*.zip
+        name: ChronicleAndroidRawDataPreprocessingApp-win-zip
+        path: ChronicleAndroidRawDataPreprocessingApp-win-*.zip
+
+  build-macos:
+    needs: determine-version
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+        cache: 'pip'
+    
+    - name: Download version info
+      uses: actions/download-artifact@v4
+      with:
+        name: version-info
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+        
+        # Display environment info for debugging
+        echo "Python version:"
+        python --version
+        echo "Python location: $pythonLocation"
+        echo "Current directory: $(pwd)"
+      
+    - name: Build with PyInstaller
+      run: |
+        # Ensure python is in PATH
+        export PATH="$pythonLocation/bin:$PATH"
+        
+        # Make script executable if needed
+        chmod +x main.py || true
+        
+        # Build macOS app bundle with debug output enabled
+        python -m PyInstaller --clean ChronicleAndroidRawDataPreprocessingApp.spec
+        
+        # Verbose output for directory contents
+        echo "Contents of dist directory:"
+        ls -la dist/
+        
+        # Verify the app bundle was created correctly
+        if [ -d "dist/ChronicleAndroidRawDataPreprocessingApp.app" ]; then
+          echo "App bundle created successfully"
+          echo "Directory structure of the app bundle:"
+          find "dist/ChronicleAndroidRawDataPreprocessingApp.app" -type f | sort
+          
+          # Check executable in MacOS directory
+          if [ -d "dist/ChronicleAndroidRawDataPreprocessingApp.app/Contents/MacOS" ]; then
+            echo "Contents of MacOS directory:"
+            ls -la "dist/ChronicleAndroidRawDataPreprocessingApp.app/Contents/MacOS"
+            
+            # Verify the executable exists and is executable
+            if [ -f "dist/ChronicleAndroidRawDataPreprocessingApp.app/Contents/MacOS/ChronicleAndroidRawDataPreprocessingApp" ]; then
+              echo "Executable found and should be runnable"
+              
+              # Check file permissions
+              ls -l "dist/ChronicleAndroidRawDataPreprocessingApp.app/Contents/MacOS/ChronicleAndroidRawDataPreprocessingApp"
+              
+              # Fix permissions if needed
+              chmod +x "dist/ChronicleAndroidRawDataPreprocessingApp.app/Contents/MacOS/ChronicleAndroidRawDataPreprocessingApp" || true
+            else
+              echo "ERROR: Executable not found in MacOS directory"
+              exit 1
+            fi
+          else
+            echo "ERROR: MacOS directory not found in app bundle"
+            mkdir -p "dist/ChronicleAndroidRawDataPreprocessingApp.app/Contents/MacOS"
+          fi
+        else
+          echo "ERROR: App bundle creation failed"
+          echo "Contents of dist directory:"
+          ls -la dist/
+          exit 1
+        fi
+      
+    - name: Create DMG package
+      run: |
+        # Extract version
+        VERSION=$(python3 -c "import re; match = re.search(r'VERSION = \"(.*)\"', open('main.py').read()); print(match.group(1) if match else '0.1.0')")
+        echo "Using version: $VERSION"
+        
+        # Create a temporary directory
+        TEMP_DIR="ChronicleAndroidRawDataPreprocessingApp-mac-$VERSION"
+        mkdir -p "$TEMP_DIR"
+        
+        # Copy repository files (except large/system directories)
+        echo "Copying repository files..."
+        rsync -a --exclude=".git" --exclude="dist" --exclude="build" --exclude="__pycache__" \
+              --exclude="*.spec" --exclude="*.zip" --exclude="*.dmg" --exclude="*.log" \
+              --exclude="README.txt" --exclude="$TEMP_DIR" \
+              --exclude="node_modules" \
+              . "$TEMP_DIR/"
+        
+        # Check if the app bundle exists and copy it
+        if [ -d "dist/ChronicleAndroidRawDataPreprocessingApp.app" ]; then
+          echo "Copying built application..."
+          # Using ditto to preserve permissions and metadata
+          ditto "dist/ChronicleAndroidRawDataPreprocessingApp.app" "$TEMP_DIR/ChronicleAndroidRawDataPreprocessingApp.app"
+          
+          # Verify the app was copied correctly
+          if [ -d "$TEMP_DIR/ChronicleAndroidRawDataPreprocessingApp.app" ]; then
+            echo "App bundle copied successfully"
+          else
+            echo "ERROR: App bundle copy failed"
+            exit 1
+          fi
+        else
+          echo "ERROR: App bundle not found at dist/ChronicleAndroidRawDataPreprocessingApp.app"
+          ls -la dist/
+          exit 1
+        fi
+        
+        # Create DMG using hdiutil directly
+        echo "Creating DMG..."
+        DMG_NAME="ChronicleAndroidRawDataPreprocessingApp-mac-$VERSION.dmg"
+        
+        # Create temporary DMG
+        hdiutil create -volname "ChronicleAndroidRawDataPreprocessingApp" \
+                       -srcfolder "$TEMP_DIR" \
+                       -ov -format UDRW \
+                       -fs HFS+ \
+                       "temp_$DMG_NAME" || { echo "Failed to create temporary DMG"; exit 1; }
+        
+        # Convert to compressed final DMG
+        hdiutil convert "temp_$DMG_NAME" \
+                        -format UDZO \
+                        -o "$DMG_NAME" || { echo "Failed to convert DMG"; exit 1; }
+        
+        # Clean up
+        rm -f "temp_$DMG_NAME"
+        rm -rf "$TEMP_DIR"
+        
+        # Verify DMG was created
+        if [ -f "$DMG_NAME" ]; then
+          echo "DMG created successfully: $DMG_NAME"
+          ls -la "$DMG_NAME"
+          # Get file size
+          du -h "$DMG_NAME"
+        else
+          echo "ERROR: DMG creation failed"
+          exit 1
+        fi
+      
+    - name: Upload app bundle as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ChronicleAndroidRawDataPreprocessingApp-mac-app
+        path: dist/ChronicleAndroidRawDataPreprocessingApp.app
+        if-no-files-found: warn
+        
+    - name: Upload DMG as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ChronicleAndroidRawDataPreprocessingApp-mac-dmg
+        path: ChronicleAndroidRawDataPreprocessingApp-mac-*.dmg
+        if-no-files-found: error
 
   release:
-    needs: [determine-version, build]
+    needs: [determine-version, build-windows, build-macos]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -337,16 +499,31 @@ jobs:
       with:
         name: version-info
     
-    - name: Download build artifact
+    - name: Download Windows ZIP artifact
       uses: actions/download-artifact@v4
       with:
-        name: ChronicleAndroidRawDataPreprocessingApp-zip
+        name: ChronicleAndroidRawDataPreprocessingApp-win-zip
+        path: artifacts
+    
+    - name: Download macOS DMG artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: ChronicleAndroidRawDataPreprocessingApp-mac-dmg
+        path: artifacts
+    
+    - name: List artifacts
+      run: |
+        echo "Available artifacts for release:"
+        find artifacts -type f | sort
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         name: Release ${{ needs.determine-version.outputs.version }}
-        files: ChronicleAndroidRawDataPreprocessingApp-*.zip
+        files: |
+          artifacts/ChronicleAndroidRawDataPreprocessingApp-win-*.zip
+          artifacts/ChronicleAndroidRawDataPreprocessingApp-mac-*.dmg
         draft: false
         prerelease: false
-        generate_release_notes: true 
+        generate_release_notes: true
+        fail_on_unmatched_files: false 

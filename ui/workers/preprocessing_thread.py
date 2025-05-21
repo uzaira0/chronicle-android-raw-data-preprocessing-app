@@ -5,6 +5,8 @@ Thread for running the preprocessing operations in the background.
 from __future__ import annotations
 
 import logging
+import sys
+import traceback
 from pathlib import Path
 
 from PyQt6.QtCore import QThread, pyqtSignal
@@ -74,8 +76,6 @@ class PreprocessingThread(QThread):
                         plotting_only=True,
                     )
                 except Exception as e:
-                    import traceback
-
                     error_str = traceback.format_exc()
                     self.error_signal.emit(f"Error generating plots: {str(e)}\n\n{error_str}", stats)
                     return
@@ -94,9 +94,17 @@ class PreprocessingThread(QThread):
             else:
                 error_msg = f"Operation completed but no output folder was returned.\n\n{stats.get_summary()}"
                 self.error_signal.emit(error_msg, stats)
-        except Exception:
-            import traceback
-
+        except Exception as e:
+            # Capture the full traceback
             error_str = traceback.format_exc()
+            sys.last_traceback = sys.exc_info()[2]
             LOGGER.exception("Unhandled exception in preprocessor thread")
-            self.error_signal.emit(error_str, None)
+
+            # Create a detailed error message with exception information
+            error_msg = f"Error: {type(e).__name__}: {str(e)}\n\n{error_str}"
+
+            # Create stats object if None (to avoid NoneType errors)
+            if stats is None:
+                stats = ProcessingStats()
+
+            self.error_signal.emit(error_msg, stats)
