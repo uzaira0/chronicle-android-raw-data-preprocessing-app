@@ -1,4 +1,4 @@
-# Chronicle Android Raw Data Preprocessor
+# Chronicle Android Raw Data Preprocessing App
 
 An application for preprocessing and plotting Chronicle Android raw data.
 
