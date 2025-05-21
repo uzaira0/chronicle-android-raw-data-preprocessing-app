@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QVBoxLayout,
     QWidget,
+    QScrollArea,
 )
 
 from config.constants import APP_DISPLAY_NAME, DialogMessage, TimezoneHandlingOption, UIStatus
@@ -92,11 +93,21 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
         Set up the user interface components using the new panel structure.
         """
         self.setWindowTitle(f"{APP_DISPLAY_NAME} v{__version__} Build {__build_date__}")
-        self.setFixedSize(int(500 * self.scale_factor), int(880 * self.scale_factor))
+
+        # Create scroll area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.setCentralWidget(scroll_area)
 
         # Create central widget and main layout
         central_widget = QWidget()
-        self.setCentralWidget(central_widget)
+        scroll_area.setWidget(central_widget)
+
+        # Set minimum size rather than fixed size to allow scrolling
+        self.setMinimumSize(int(500 * self.scale_factor), int(600 * self.scale_factor))
+
         main_layout = QVBoxLayout(central_widget)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(6)

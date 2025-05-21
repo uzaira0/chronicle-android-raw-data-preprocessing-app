@@ -810,7 +810,6 @@ class ChronicleAndroidRawDataPreprocessor:
                 plotting_completed_callback()
 
         results_dict = {
-            "num_raw_data_files": len(Chronicle_Android_raw_data_files),
             "date_and_time": datetime.now().strftime("%m-%d-%Y %H:%M:%S"),
             "preprocessed_data_save_folder": str(preprocessed_data_save_folder),
             "plot_output_folder": str(plot_output_folder) if plot_output_folder else "Not generated",
