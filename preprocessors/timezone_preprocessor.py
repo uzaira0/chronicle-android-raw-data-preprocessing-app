@@ -157,7 +157,7 @@ class TimezonePreprocessor(BasePreprocessor):
 
         return sorted(timezones)
 
-    def determine_primary_timezone(self, df: pd.DataFrame, timestamp_column: str = Column.EVENT_TIMESTAMP) -> tzinfo | None:
+    def determine_primary_timezone(self, df: pd.DataFrame, timestamp_column: str = Column.EVENT_TIMESTAMP) -> str | tzinfo | None:
         """
         Determines the primary timezone from the data.
 
@@ -166,15 +166,38 @@ class TimezonePreprocessor(BasePreprocessor):
             timestamp_column (str): The name of the timestamp column.
 
         Returns:
-            tzinfo | None: The primary timezone detected in the data.
+            str | tzinfo | None: The primary timezone detected in the data.
         """
         LOGGER.debug("Determining primary timezone...")
-        timezones_series = pd.to_datetime(df[timestamp_column], utc=False).apply(lambda x: x.tz)
-        if not timezones_series.empty:
-            self.current_data_primary_timezone = timezones_series.mode()[0]
-            LOGGER.debug(f"Primary timezone determined: {self.current_data_primary_timezone}")
-        else:
-            LOGGER.warning("No timezone information found in data")
+
+        # First check if we have a dedicated timezone column and use the most common value
+        if Column.TIMEZONE in df.columns and not df[Column.TIMEZONE].isna().all():
+            timezone_counts = df[Column.TIMEZONE].value_counts(dropna=True)
+            if not timezone_counts.empty:
+                primary_tz_str = str(timezone_counts.index[0])
+                self.current_data_primary_timezone = primary_tz_str
+                LOGGER.debug(f"Primary timezone determined from timezone column: {self.current_data_primary_timezone}")
+                return self.current_data_primary_timezone
+
+        # Next check timezone info embedded in timestamp column
+        if timestamp_column in df.columns:
+            timestamps = pd.to_datetime(df[timestamp_column], utc=False, errors="coerce")
+            if not timestamps.empty:
+                # Convert timezone objects to strings to avoid type issues
+                timezones_series = timestamps.apply(lambda x: str(x.tz) if hasattr(x, "tz") and x.tz else None)
+                if not timezones_series.dropna().empty:
+                    primary_tz = str(timezones_series.mode()[0])
+                    self.current_data_primary_timezone = primary_tz
+                    LOGGER.debug(f"Primary timezone determined from timestamp column: {self.current_data_primary_timezone}")
+                    return self.current_data_primary_timezone
+
+        # If no timezone information found, use UTC as fallback
+        if self.current_data_primary_timezone is None:
+            LOGGER.warning("No timezone information found in data, using UTC as fallback")
+            import pytz
+
+            self.current_data_primary_timezone = "UTC"
+
         return self.current_data_primary_timezone
 
     def apply_timezone_handling(
@@ -186,6 +209,7 @@ class TimezonePreprocessor(BasePreprocessor):
         Args:
             df: The dataframe to process
             timestamp_column: The name of the timestamp column
+            timezone_column: The name of the timezone column
 
         Returns:
             pd.DataFrame: The dataframe with applied timezone handling
@@ -195,7 +219,9 @@ class TimezonePreprocessor(BasePreprocessor):
         initial_row_count = len(df_copy)
         LOGGER.debug(f"Initial row count: {initial_row_count}")
 
+        # Determine primary timezone for this dataframe
         self.determine_primary_timezone(df_copy, timestamp_column)
+        primary_timezone = self.current_data_primary_timezone
 
         LOGGER.info(f"Selected timezone handling option: {self.options.timezone_handling_option}")
 
@@ -212,6 +238,7 @@ class TimezonePreprocessor(BasePreprocessor):
 
             LOGGER.warning(f"Removed {rows_removed} rows with non-specified timezones")
             LOGGER.info(f"Converting remaining rows to selected timezone: {self.options.selected_timezone}")
+            df_copy = self._convert_to_timezone(df_copy, self.options.selected_timezone, timestamp_column)
 
         elif self.options.timezone_handling_option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_SELECTED_TIMEZONE:
             if self.options.selected_timezone is None:
@@ -220,13 +247,36 @@ class TimezonePreprocessor(BasePreprocessor):
                 raise ValueError(msg)
 
             LOGGER.info(f"Converting all data to selected timezone: {self.options.selected_timezone}")
+            df_copy = self._convert_to_timezone(df_copy, self.options.selected_timezone, timestamp_column)
+
+        elif self.options.timezone_handling_option == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE:
+            if primary_timezone is None:
+                LOGGER.error("No primary timezone detected in file")
+                msg = "No primary timezone detected in file"
+                raise ValueError(msg)
+
+            LOGGER.info(f"Removing all data except those in primary timezone for this file: {primary_timezone}")
+            mask = (df_copy[timezone_column] == str(primary_timezone)) & df_copy[timezone_column].notna()
+            df_copy = df_copy[mask]
+            rows_removed = initial_row_count - len(df_copy)
+
+            LOGGER.warning(f"Removed {rows_removed} rows with non-primary timezones")
+            LOGGER.info(f"Converting remaining rows to primary timezone: {primary_timezone}")
+            df_copy = self._convert_to_timezone(df_copy, primary_timezone, timestamp_column)
+
+        elif self.options.timezone_handling_option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE:
+            if primary_timezone is None:
+                LOGGER.error("No primary timezone detected in file")
+                msg = "No primary timezone detected in file"
+                raise ValueError(msg)
+
+            LOGGER.info(f"Converting all data to primary timezone for this file: {primary_timezone}")
+            df_copy = self._convert_to_timezone(df_copy, primary_timezone, timestamp_column)
 
         else:
             LOGGER.error(f"Invalid timezone option: {self.options.timezone_handling_option}")
             msg = ErrorMessage.INVALID_TIMEZONE_OPTION.format(self.options.timezone_handling_option)
             raise ValueError(msg)
-
-        df_copy = self._convert_to_timezone(df_copy, self.options.selected_timezone, timestamp_column)
 
         LOGGER.debug("Timezone handling applied successfully")
         return df_copy
@@ -245,7 +295,25 @@ class TimezonePreprocessor(BasePreprocessor):
         """
         LOGGER.info(f"Converting {timestamp_column} to timezone: {timezone}")
         df_copy = df.copy()
-        df_copy[timestamp_column] = pd.to_datetime(df_copy[timestamp_column], utc=True).dt.tz_convert(timezone)
+
+        try:
+            # First try to parse timestamps preserving their original timezone info
+            df_copy[timestamp_column] = pd.to_datetime(df_copy[timestamp_column], utc=False)
+
+            # Then convert to the target timezone, properly handling timezone-aware and timezone-naive timestamps
+            # This will first convert all to UTC, then to the target timezone
+            df_copy[timestamp_column] = pd.to_datetime(df_copy[timestamp_column], utc=True).dt.tz_convert(timezone)
+
+            # Also update the timezone column if it exists
+            if Column.TIMEZONE in df_copy.columns:
+                target_tz_str = str(timezone)
+                df_copy[Column.TIMEZONE] = target_tz_str
+
+        except Exception as e:
+            LOGGER.warning(f"Error during timezone conversion: {e}. Falling back to simple conversion.")
+            # Fallback to simple conversion if the above fails
+            df_copy[timestamp_column] = pd.to_datetime(df_copy[timestamp_column], utc=True).dt.tz_convert(timezone)
+
         LOGGER.debug("Timezone conversion completed")
         return df_copy
 
@@ -264,18 +332,59 @@ class TimezonePreprocessor(BasePreprocessor):
             columns = [Column.START_TIMESTAMP, Column.STOP_TIMESTAMP]
         df_copy = df.copy()
 
-        for column in columns:
-            if column not in df_copy.columns or df_copy[column].isna().all():
-                continue
+        # Determine primary timezone if needed for per-file options
+        if self.options.timezone_handling_option in (
+            TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE,
+            TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE,
+        ):
+            self.determine_primary_timezone(df_copy)
 
-            if (
-                self.options.timezone_handling_option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_SELECTED_TIMEZONE
-                and self.options.selected_timezone
-            ):
-                df_copy[column] = pd.to_datetime(df_copy[column], utc=True).dt.tz_convert(self.options.selected_timezone)
-            elif self.options.timezone_handling_option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_SELECTED_TIMEZONE:
-                LOGGER.error("No timezone selected")
-                msg = "Timezone must be provided"
-                raise ValueError(msg)
+        # Determine which timezone to use based on the option
+        target_timezone = None
+        if self.options.timezone_handling_option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_SELECTED_TIMEZONE and self.options.selected_timezone:
+            target_timezone = self.options.selected_timezone
+        elif (
+            self.options.timezone_handling_option
+            in (
+                TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE,
+                TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE,
+            )
+            and self.current_data_primary_timezone
+        ):
+            target_timezone = self.current_data_primary_timezone
+        elif self.options.timezone_handling_option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_SELECTED_TIMEZONE:
+            LOGGER.error("No timezone selected")
+            msg = "Timezone must be provided"
+            raise ValueError(msg)
+        elif self.options.timezone_handling_option in (
+            TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE,
+            TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE,
+        ):
+            LOGGER.error("No primary timezone detected")
+            msg = "No primary timezone detected in file"
+            raise ValueError(msg)
+
+        # If we have a target timezone, convert each column directly
+        if target_timezone:
+            for column in columns:
+                if column not in df_copy.columns or df_copy[column].isna().all():
+                    continue
+
+                try:
+                    # First try to parse timestamps preserving their original timezone info
+                    df_copy[column] = pd.to_datetime(df_copy[column], utc=False)
+
+                    # Then convert to the target timezone
+                    df_copy[column] = pd.to_datetime(df_copy[column], utc=True).dt.tz_convert(target_timezone)
+
+                except Exception as e:
+                    LOGGER.warning(f"Error during timezone conversion for column {column}: {e}. Falling back to simple conversion.")
+                    # Fallback to simple conversion if the above fails
+                    df_copy[column] = pd.to_datetime(df_copy[column], utc=True).dt.tz_convert(target_timezone)
+
+            # Also update the timezone column if it exists
+            if Column.TIMEZONE in df_copy.columns:
+                target_tz_str = str(target_timezone)
+                df_copy[Column.TIMEZONE] = target_tz_str
 
         return df_copy

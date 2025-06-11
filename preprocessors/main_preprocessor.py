@@ -405,6 +405,11 @@ class ChronicleAndroidRawDataPreprocessor:
         """
         LOGGER.debug("Labeling filtered apps")
 
+        # Skip this step if use_filter_file is False
+        if not self.options.use_filter_file:
+            LOGGER.info("Skipping app filtering as use_filter_file is set to False")
+            return
+
         self.current_participant_raw_data_df = self.app_filter_processor.label_filtered_apps(self.current_participant_raw_data_df)
 
         LOGGER.debug("Filtered apps labeled successfully")
@@ -415,6 +420,11 @@ class ChronicleAndroidRawDataPreprocessor:
         timestamps for filtered app usage within a study period.
         """
         LOGGER.debug("Processing filtered app usage rows")
+
+        # Skip this step if use_filter_file is False
+        if not self.options.use_filter_file:
+            LOGGER.info("Skipping filtered app usage processing as use_filter_file is set to False")
+            return
 
         if (
             not self.current_participant_raw_data_df[Column.INTERACTION_TYPE]

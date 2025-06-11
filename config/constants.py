@@ -60,10 +60,18 @@ class TimezoneHandlingOption(Enum):
     """
     Enum representing different options for handling timezones in the data.
     Marked as enum specifically to correspond with radio buttons in the UI which use ints.
+
+    Options:
+    - REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE: Removes data with timezones different from the selected one
+    - CONVERT_ALL_DATA_TO_SELECTED_TIMEZONE: Keeps all data and converts to the selected timezone
+    - REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE: For each file, identifies primary timezone and removes data with different timezones
+    - CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE: For each file, identifies primary timezone and converts all data to that timezone
     """
 
     REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE = 0
     CONVERT_ALL_DATA_TO_SELECTED_TIMEZONE = 1
+    REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE = 2
+    CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE = 3
 
 
 class ChronicleDeviceType(StrEnum):
@@ -215,7 +223,7 @@ class DialogMessage(StrEnum):
 
     WARNING_STUDY_NAME = "Please enter a study name."
     WARNING_RAW_DATA_FOLDER = "Please select a raw data folder."
-    WARNING_TIMEZONE = "Please select a timezone after finding all available timezones."
+    WARNING_TIMEZONE = "Please select a timezone when using non per-file timezone options."
     WARNING_NO_RAW_DATA_FILES = "No raw data files found in {}. Please check that the folder contains raw data files ending with .csv"
 
 

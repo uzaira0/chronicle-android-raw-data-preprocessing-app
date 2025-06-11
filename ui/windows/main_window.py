@@ -166,7 +166,7 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
             # Create a message box to ask if the user wants to find all timezones in the selected folder
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle("Find All Timezones in Selected Folder?")
-            msg_box.setText("Would you like to find all timezones again in the folder you just selected?")
+            msg_box.setText("Would you like to find all timezones in the folder you just selected?")
             msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             msg_box.setDefaultButton(QMessageBox.StandardButton.Yes)
 
@@ -218,7 +218,13 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
                 QMessageBox.warning(self, "Warning", DialogMessage.WARNING_RAW_DATA_FOLDER)
                 return
 
-            if not self.options.selected_timezone:
+            # Only check for selected timezone when not using per-file mode
+            is_per_file_option = (
+                self.options.timezone_handling_option == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE
+                or self.options.timezone_handling_option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE
+            )
+
+            if not is_per_file_option and not self.options.selected_timezone:
                 QMessageBox.warning(self, "Warning", DialogMessage.WARNING_TIMEZONE)
                 return
 
@@ -309,8 +315,14 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
                     self.status_panel.show_plots_folder_button(plots_folder)
 
             # After successful preprocessing, add the selected timezone to custom_timezones if not in available_timezones
+            is_per_file_option = (
+                self.options.timezone_handling_option == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE
+                or self.options.timezone_handling_option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE
+            )
+
+            # Only save selected timezone to custom timezones when not in per-file mode
             current_timezone = self.options.selected_timezone
-            if current_timezone and current_timezone not in self.options.available_timezones:
+            if not is_per_file_option and current_timezone and current_timezone not in self.options.available_timezones:
                 LOGGER.debug(f"Adding verified custom timezone to custom_timezones: {current_timezone}")
                 if not hasattr(self.options, "custom_timezones"):
                     self.options.custom_timezones = []
