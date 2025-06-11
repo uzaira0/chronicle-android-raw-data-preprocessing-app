@@ -271,9 +271,9 @@ jobs:
       run: |
         # Ensure build was successful
         if (Test-Path dist/ChronicleAndroidRawDataPreprocessingApp) {
-          # Extract version safely
+          # Extract version safely from config/version.py for consistency
           try {
-            $version = python -c "import re; match = re.search(r'VERSION = \"(.*)\"', [System.IO.File]::ReadAllText('main.py')); print(match.Groups[1].Value if match else '0.1.0')"
+            $version = python -c "import re; match = re.search(r'__version__ = \"(.*)\"', [System.IO.File]::ReadAllText('config/version.py')); print(match.Groups[1].Value if match else '0.1.0')"
           } catch {
             $version = Get-Date -Format "yyyy.MM.dd"
           }
@@ -404,8 +404,8 @@ jobs:
       
     - name: Create DMG package
       run: |
-        # Extract version
-        VERSION=$(python3 -c "import re; match = re.search(r'VERSION = \"(.*)\"', open('main.py').read()); print(match.group(1) if match else '0.1.0')")
+        # Extract version from config/version.py to ensure consistency with the rest of the build
+        VERSION=$(python3 -c "import re; match = re.search(r'__version__ = \"(.*)\"', open('config/version.py').read()); print(match.group(1) if match else '0.1.0')")
         echo "Using version: $VERSION"
         
         # Create a temporary directory
