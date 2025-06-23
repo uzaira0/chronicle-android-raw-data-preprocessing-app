@@ -281,12 +281,26 @@ class ChronicleAndroidRawDataPreprocessor:
     def rename_interaction_types(self) -> None:
         """
         Renames interaction types in the dataframe based on the conversion dictionary.
+        Also handles unknown interaction types by preserving them as is.
         """
         LOGGER.debug("Renaming interaction types")
         self.current_participant_raw_data_df = self.current_participant_raw_data_df.reset_index(drop=True)
+
+        original_unique = set(self.current_participant_raw_data_df[Column.INTERACTION_TYPE].unique())
+
         self.current_participant_raw_data_df[Column.INTERACTION_TYPE] = self.current_participant_raw_data_df[Column.INTERACTION_TYPE].replace(
             ALL_INTERACTION_TYPES_MAP
         )
+
+        known_values = set(ALL_INTERACTION_TYPES_MAP.values())
+        current_unique = set(self.current_participant_raw_data_df[Column.INTERACTION_TYPE].unique())
+        unmapped_values = current_unique.difference(known_values).intersection(original_unique)
+
+        if unmapped_values:
+            for value in unmapped_values:
+                count = self.current_participant_raw_data_df[self.current_participant_raw_data_df[Column.INTERACTION_TYPE] == value].shape[0]
+                LOGGER.warning(f"Encountered unknown interaction type: {value} ({count} occurrences). Preserving as is.")
+
         LOGGER.debug("Interaction types renamed successfully")
 
     def remove_selected_interaction_types(self) -> None:
