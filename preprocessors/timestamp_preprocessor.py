@@ -124,6 +124,7 @@ class TimestampPreprocessor(BasePreprocessor):
         1. Activity Resumed
         2. Other
         3. All interaction types to stop usage that were selected in options
+        4. Unknown interaction types (not in the InteractionType enum)
 
         Args:
             df (pd.DataFrame): The dataframe containing the timestamp column.
@@ -135,10 +136,8 @@ class TimestampPreprocessor(BasePreprocessor):
         LOGGER.debug(f"Unaligning duplicate timestamps in column: {timestamp_column}")
         df_copy = df.copy().reset_index(drop=True)
 
-        # Get all interaction types that should stop usage
         stop_usage_types = self.options.same_app_interaction_types_to_stop_usage_at | self.options.other_interaction_types_to_stop_usage_at
 
-        # Define the sorting key function
         def get_event_priority(event_type: InteractionType) -> int:
             if event_type == InteractionType.ACTIVITY_RESUMED:
                 return 0
@@ -147,7 +146,6 @@ class TimestampPreprocessor(BasePreprocessor):
             else:
                 return 1
 
-        # Find groups of duplicate timestamps
         duplicate_indices_groups_list = (
             df_copy[df_copy.duplicated(subset=[timestamp_column], keep=False)]
             .groupby(timestamp_column)
@@ -166,11 +164,20 @@ class TimestampPreprocessor(BasePreprocessor):
                 interaction_type_str = str(df_copy.loc[idx, Column.INTERACTION_TYPE])
                 if interaction_type_str == "Screen Non-interactive":
                     interaction_type_str = "Screen Non-Interactive"
-                return get_event_priority(InteractionType(interaction_type_str))
 
-            sorted_indices = sorted(group, key=get_priority_for_index)
+                try:
+                    return get_event_priority(InteractionType(interaction_type_str))
+                except ValueError:
+                    LOGGER.warning(f"Unknown interaction type in timestamp sorting: {interaction_type_str} - assigning lowest priority")
+                    return 3
 
-            # Adjust timestamps based on sorted order
+            try:
+                sorted_indices = sorted(group, key=get_priority_for_index)
+            except Exception as e:
+                # If sorting fails for any reason, just use the original order
+                LOGGER.error(f"Error during timestamp priority sorting: {e}. Using original order.")
+                sorted_indices = group
+
             for i, idx in enumerate(sorted_indices):
                 timestamp_str = str(df_copy.loc[idx, timestamp_column])
                 current_timestamp = pd.to_datetime(timestamp_str)
