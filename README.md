@@ -6,9 +6,9 @@ Not affiliated with GetMethodic/Chronicle, please visit them here: https://getme
 
 Credits:
 - GetMethodic/Chronicle for their app, website, and providing their original preprocessing code: https://github.com/methodic-labs/chronicle-processing
-- Anil Kumar Vadathya for writing our original custom preprocessing code: https://github.com/anilrgukt
-- Heidi Weeks for writing the original plotting code in R
-- Josh Culverhouse for modifying and helping to convert the plotting code to Python, providing the initial app codebook, and helping to test the code significantly
+- Anil Kumar Vadathya, MS for writing our original custom preprocessing code (https://github.com/anilrgukt)
+- Heidi Weeks, PhD (https://radesky.lab.medicine.umich.edu/home) for writing the original plotting code in R and providing apps for the app codebook
+- Josh Culverhouse, PhD (https://sc.edu/study/colleges_schools/public_health/research/research_centers/acoi/) for modifying and helping to convert the plotting code to Python, providing apps for the app codebook, and helping to test the code significantly
 
 ## Preprocessing Features
 - Labeling usage differently for filtered apps defined in a file
@@ -19,6 +19,7 @@ Credits:
 - Custom configuration of which interaction types to stop usage at
 - Custom configuration of which interaction types to remove from the final preprocessed output
 - Various columns to help with sorting and filtering the final preprocessed output
+- App categorization columns
 
 ## Plotting Features
 - Including or excluding filtered app usage defined in the preprocessing
