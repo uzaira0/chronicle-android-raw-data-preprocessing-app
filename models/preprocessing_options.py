@@ -99,6 +99,11 @@ class ChronicleAndroidRawDataPreprocessingOptions:
     enable_preprocessing: bool = True  # Whether to perform preprocessing
     enable_plotting: bool = True  # Whether to generate plots
 
+    # Survey data and compliance options (internal functionality)
+    use_survey_data: bool = False  # Whether to enable survey data processing
+    survey_data_folder: Path | str = ""  # Path to folder containing survey data files
+    compliance_reporting: bool = False  # Whether to generate compliance reports
+
     def __post_init__(self) -> None:
         """
         Post-initialization processing.

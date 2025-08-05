@@ -191,13 +191,15 @@ def read_app_codebook(codebook_path: Path | str) -> pd.DataFrame | None:
         LOGGER.info(f"Successfully loaded app codebook with {len(app_codebook)} entries")
         LOGGER.debug(f"App codebook columns: {app_codebook.columns.tolist()}")
 
-        if "app_package_name" not in app_codebook.columns:
-            msg = "App codebook must contain an 'app_package_name' column"
+        from config.constants import AppCodebookColumn
+        
+        if AppCodebookColumn.APP_PACKAGE_NAME not in app_codebook.columns:
+            msg = f"App codebook must contain an '{AppCodebookColumn.APP_PACKAGE_NAME}' column"
             LOGGER.error(msg)
             raise CodebookFileError(msg)
 
         # Optimize codebook for lookups
-        app_codebook = app_codebook.set_index("app_package_name")
+        app_codebook = app_codebook.set_index(AppCodebookColumn.APP_PACKAGE_NAME)
         LOGGER.debug("Optimized app codebook for lookups using index")
 
     except EmptyDataError:

@@ -587,6 +587,16 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
         if "use_filter_file" in config:
             self.options.use_filter_file = config["use_filter_file"]
 
+        # Load survey data options (internal functionality)
+        if "use_survey_data" in config:
+            self.options.use_survey_data = config["use_survey_data"]
+
+        if "survey_data_folder" in config:
+            self.options.survey_data_folder = config["survey_data_folder"]
+
+        if "compliance_reporting" in config:
+            self.options.compliance_reporting = config["compliance_reporting"]
+
     def _update_ui_from_options(self) -> None:
         """
         Update the UI components based on the current options.
@@ -622,6 +632,14 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
         self.plotting_panel.set_use_app_codebook(self.options.use_app_codebook)
         self.plotting_panel.set_app_codebook_path(str(self.options.app_codebook_path))
         self.plotting_panel.set_include_filtered_app_usage(self.options.include_filtered_app_usage_in_plots)
+
+        # Update survey data options in config panel (internal functionality)
+        if hasattr(self.options, 'use_survey_data'):
+            self.config_panel.set_use_survey_data(self.options.use_survey_data)
+        if hasattr(self.options, 'survey_data_folder') and self.options.survey_data_folder:
+            self.config_panel.set_survey_data_folder(str(self.options.survey_data_folder))
+        if hasattr(self.options, 'compliance_reporting'):
+            self.config_panel.set_compliance_reporting(self.options.compliance_reporting)
 
     def _save_config(self) -> None:
         """

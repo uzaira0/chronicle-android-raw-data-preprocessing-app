@@ -83,10 +83,10 @@ class PlottingPanel(QWidget):
         self.use_app_codebook_checkbox.stateChanged.connect(self._on_use_app_codebook_changed)
         plotting_layout.addWidget(self.use_app_codebook_checkbox)
 
-        self.plot_only_target_child_checkbox = QCheckBox("Plot Only Target Child Data")
+        self.plot_only_target_child_checkbox = QCheckBox("Plot Only Target Child Data (Internal Research)")
         self.plot_only_target_child_checkbox.setChecked(self.options.plot_only_target_child_data)
         self.plot_only_target_child_checkbox.stateChanged.connect(self._on_plot_only_target_child_data_changed)
-        self.plot_only_target_child_checkbox.setVisible(False)
+        self.plot_only_target_child_checkbox.setVisible(self._check_internal_modules_available())
         plotting_layout.addWidget(self.plot_only_target_child_checkbox)
 
         self.app_codebook_placeholder = QWidget()
@@ -112,6 +112,26 @@ class PlottingPanel(QWidget):
         self.app_codebook_placeholder.setVisible(self.options.use_app_codebook)
 
         self.plotting_group.setLayout(plotting_layout)
+
+    def _check_internal_modules_available(self) -> bool:
+        """
+        Check if internal survey data modules are available.
+        
+        Returns:
+            bool: True if internal modules are available, False otherwise
+        """
+        try:
+            # Try to import the survey data preprocessor
+            from preprocessors.survey_data_preprocessor import SurveyDataPreprocessor
+            
+            # Also try to import key internal dependencies to ensure full functionality
+            from internal.P01_classes import DeviceSharingStatus, ParticipantID, TrackingSheet
+            from internal.P01_utils_functions import write_df_to_excel_and_format
+            
+            return True
+        except ImportError:
+            LOGGER.debug("Internal survey data functionality not available")
+            return False
 
     def _display_path_with_elide(self, line_edit: QLineEdit, path: str) -> None:
         """

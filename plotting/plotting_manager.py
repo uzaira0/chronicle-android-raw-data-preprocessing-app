@@ -53,7 +53,7 @@ class PlottingManager:
             "Education": "#800000",
             "Travel & Local": "#9a6324",
             "News & Magazines": "#dcbeff",
-            "Other": "yellow",
+            "Photography": "yellow",
             "Uncategorised": "#000000",
         }
 
@@ -122,16 +122,20 @@ class PlottingManager:
 
                 if app_codebook is not None:
                     LOGGER.debug(f"Applying app codebook to data for participant {participant_id}")
+                    from config.constants import AppCodebookColumn
+
                     # Use optimized lookup instead of merge
-                    dat2["broad_cat"] = dat2["app_package_name"].map(app_codebook["broad_cat"])
-                    uncategorized_count = dat2["broad_cat"].isna().sum()
+                    dat2[AppCodebookColumn.BROAD_APP_CATEGORY] = dat2["app_package_name"].map(app_codebook[AppCodebookColumn.BROAD_APP_CATEGORY])
+                    uncategorized_count = dat2[AppCodebookColumn.BROAD_APP_CATEGORY].isna().sum()
                     LOGGER.debug(f"Found {uncategorized_count} uncategorized apps for participant {participant_id}")
 
                     # Fill uncategorized apps in a vectorized way
-                    dat2["broad_cat"] = dat2["broad_cat"].fillna("Uncategorised")
+                    dat2[AppCodebookColumn.BROAD_APP_CATEGORY] = dat2[AppCodebookColumn.BROAD_APP_CATEGORY].fillna("Uncategorised")
                 else:
                     LOGGER.debug(f"No app codebook available - marking all apps as Uncategorised for participant {participant_id}")
-                    dat2["broad_cat"] = "Uncategorised"
+                    from config.constants import AppCodebookColumn
+
+                    dat2[AppCodebookColumn.BROAD_APP_CATEGORY] = "Uncategorised"
 
                 dat2["ds"] = pd.to_datetime(dat2["date"])
 
@@ -260,10 +264,25 @@ class PlottingManager:
 
         # Get app usage events based on whether to include filtered apps
         if self.options.include_filtered_app_usage_in_plots:
-            app_usage_events = data[data[Column.INTERACTION_TYPE].isin([InteractionType.APP_USAGE, InteractionType.FILTERED_APP_USAGE])]
+            interaction_types_to_plot = [InteractionType.APP_USAGE, InteractionType.FILTERED_APP_USAGE]
+
+            # Include non-target child usage if survey data processing is available
+            # This allows plotting of usage from non-target children on shared devices
+            try:
+                from internal.P01_classes import DeviceSharingStatus, ParticipantID, TrackingSheet
+
+                if hasattr(self.options, "use_survey_data") and getattr(self.options, "use_survey_data", False):
+                    interaction_types_to_plot.append(InteractionType.NON_TARGET_CHILD_APP_USAGE)
+            except ImportError:
+                # Internal modules not available - don't include non-target child usage
+                pass
+
+            app_usage_events = data[data[Column.INTERACTION_TYPE].isin(interaction_types_to_plot)]
         else:
             app_usage_events = data[data[Column.INTERACTION_TYPE] == InteractionType.APP_USAGE]
 
+        # Filter to only target child data if requested (applies to all interaction types above)
+        # This will exclude NON_TARGET_CHILD_APP_USAGE when plot_only_target_child_data = True
         if self.options.plot_only_target_child_data:
             app_usage_events = app_usage_events[app_usage_events[Column.USERNAME] == TARGET_CHILD_USERNAME]
 
@@ -278,7 +297,9 @@ class PlottingManager:
 
             days_span = (stop_date - start_date).days
 
-            color = self.manual_category_to_color_map.get(row["broad_cat"], self.manual_category_to_color_map["Uncategorised"])
+            color = self.manual_category_to_color_map.get(
+                row[AppCodebookColumn.BROAD_APP_CATEGORY], self.manual_category_to_color_map["Uncategorised"]
+            )
 
             # Plot a bar for each day the usage spans
             for day_offset in range(days_span + 1):

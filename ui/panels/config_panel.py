@@ -155,6 +155,9 @@ class ConfigPanel(QWidget):
         self.correct_duplicate_event_timestamps_checkbox.stateChanged.connect(self._on_correct_duplicate_event_timestamps_changed)
         config_layout.addWidget(self.correct_duplicate_event_timestamps_checkbox)
 
+        # Survey data options (internal functionality)
+        self._setup_survey_data_section(config_layout)
+
         # Set the config group layout
         self.config_group.setLayout(config_layout)
 
@@ -325,6 +328,145 @@ class ConfigPanel(QWidget):
         self.options.correct_duplicate_event_timestamps = checked
         self.options_updated.emit()
 
+    def _check_internal_modules_available(self) -> bool:
+        """
+        Check if internal survey data modules are available.
+        
+        Returns:
+            bool: True if internal modules are available, False otherwise
+        """
+        try:
+            # Try to import the survey data preprocessor
+            LOGGER.debug("Checking internal modules availability - attempting SurveyDataPreprocessor import")
+            from preprocessors.survey_data_preprocessor import SurveyDataPreprocessor
+            LOGGER.debug("SurveyDataPreprocessor import successful")
+            
+            # Also try to import key internal dependencies to ensure full functionality
+            LOGGER.debug("Attempting P01_classes import")
+            from internal.P01_classes import DeviceSharingStatus, ParticipantID, TrackingSheet
+            LOGGER.debug("P01_classes import successful")
+            
+            LOGGER.debug("Attempting P01_utils_functions import")
+            from internal.P01_utils_functions import write_df_to_excel_and_format
+            LOGGER.debug("P01_utils_functions import successful")
+            
+            LOGGER.debug("All internal module imports successful - internal functionality will be available")
+            return True
+        except ImportError as e:
+            LOGGER.debug(f"Internal module import failed: {e} - internal functionality will be hidden")
+            return False
+
+    def _setup_survey_data_section(self, layout: QVBoxLayout) -> None:
+        """
+        Set up the survey data options section (internal functionality).
+        Only shown if internal modules are available.
+        
+        Args:
+            layout: The layout to add the survey data section to
+        """
+        LOGGER.debug("_setup_survey_data_section called - checking internal module availability")
+        # Check if internal modules are available
+        if not self._check_internal_modules_available():
+            LOGGER.debug("Internal survey data functionality not available - hiding survey options")
+            return
+        
+        LOGGER.debug("Internal modules available - setting up survey data UI components")
+            
+        # Survey data checkbox
+        self.use_survey_data_checkbox = QCheckBox("Enable Survey Data Processing (Internal Research)")
+        self.use_survey_data_checkbox.setChecked(getattr(self.options, 'use_survey_data', False))
+        self.use_survey_data_checkbox.stateChanged.connect(self._on_use_survey_data_changed)
+        layout.addWidget(self.use_survey_data_checkbox)
+        
+        # Survey data folder section (only shown when checkbox is checked)
+        self.survey_data_widget = QWidget()
+        survey_data_layout = QHBoxLayout(self.survey_data_widget)
+        survey_data_layout.setContentsMargins(0, 0, 0, 0)
+        
+        survey_data_label = QLabel("Survey Data Folder:")
+        survey_data_layout.addWidget(survey_data_label)
+        
+        self.survey_data_folder_display = QLineEdit()
+        self.survey_data_folder_display.setReadOnly(True)
+        self.survey_data_folder_display.setFixedHeight(int(26 * self.scale_factor))
+        
+        self.survey_data_folder_button = QPushButton("Browse...")
+        self.survey_data_folder_button.setFixedSize(QSize(int(80 * self.scale_factor), int(26 * self.scale_factor)))
+        self.survey_data_folder_button.clicked.connect(self._on_select_survey_data_folder)
+        
+        survey_data_layout.addWidget(self.survey_data_folder_display)
+        survey_data_layout.addWidget(self.survey_data_folder_button)
+        
+        # Add survey data widget to main layout
+        layout.addWidget(self.survey_data_widget)
+        self.survey_data_widget.setVisible(getattr(self.options, 'use_survey_data', False))
+        
+        # Compliance reporting checkbox
+        self.compliance_reporting_checkbox = QCheckBox("Generate Compliance Reports (for Shared Devices)")
+        self.compliance_reporting_checkbox.setChecked(getattr(self.options, 'compliance_reporting', False))
+        self.compliance_reporting_checkbox.stateChanged.connect(self._on_compliance_reporting_changed)
+        layout.addWidget(self.compliance_reporting_checkbox)
+        self.compliance_reporting_checkbox.setVisible(getattr(self.options, 'use_survey_data', False))
+        
+        # Initialize survey data folder display if set
+        if hasattr(self.options, 'survey_data_folder') and self.options.survey_data_folder:
+            self._display_path_with_elide(self.survey_data_folder_display, str(self.options.survey_data_folder))
+
+    def _on_use_survey_data_changed(self, state: int) -> None:
+        """
+        Handle use survey data checkbox change.
+        
+        Args:
+            state: The new checkbox state
+        """
+        checked = state == Qt.CheckState.Checked.value
+        LOGGER.debug(f"Use survey data changed to: {checked}")
+        
+        # Set the option (create if it doesn't exist)
+        if not hasattr(self.options, 'use_survey_data'):
+            self.options.use_survey_data = False
+        self.options.use_survey_data = checked
+        
+        # Show/hide the survey data folder widget and compliance checkbox
+        if hasattr(self, 'survey_data_widget'):
+            self.survey_data_widget.setVisible(checked)
+        if hasattr(self, 'compliance_reporting_checkbox'):
+            self.compliance_reporting_checkbox.setVisible(checked)
+        
+        self.options_updated.emit()
+
+    def _on_select_survey_data_folder(self) -> None:
+        """
+        Open a dialog to select the survey data folder.
+        """
+        folder = QFileDialog.getExistingDirectory(self, "Select Survey Data Folder")
+        if folder:
+            self._display_path_with_elide(self.survey_data_folder_display, folder)
+            
+            # Set the option (create if it doesn't exist)
+            if not hasattr(self.options, 'survey_data_folder'):
+                self.options.survey_data_folder = ""
+            self.options.survey_data_folder = folder
+            
+            self.options_updated.emit()
+
+    def _on_compliance_reporting_changed(self, state: int) -> None:
+        """
+        Handle compliance reporting checkbox change.
+        
+        Args:
+            state: The new checkbox state
+        """
+        checked = state == Qt.CheckState.Checked.value
+        LOGGER.debug(f"Compliance reporting changed to: {checked}")
+        
+        # Set the option (create if it doesn't exist)
+        if not hasattr(self.options, 'compliance_reporting'):
+            self.options.compliance_reporting = False
+        self.options.compliance_reporting = checked
+        
+        self.options_updated.emit()
+
     def _display_path_with_elide(self, line_edit: QLineEdit, path: str) -> None:
         """
         Display a path in a line edit with elided text and tooltip.
@@ -441,6 +583,14 @@ class ConfigPanel(QWidget):
         self.long_usage_duration_thresholds_input.setEnabled(False)
         self.long_data_time_gap_thresholds_input.setEnabled(False)
         self.correct_duplicate_event_timestamps_checkbox.setEnabled(False)
+        
+        # Disable survey data elements if they exist
+        if hasattr(self, 'use_survey_data_checkbox'):
+            self.use_survey_data_checkbox.setEnabled(False)
+        if hasattr(self, 'survey_data_folder_button'):
+            self.survey_data_folder_button.setEnabled(False)
+        if hasattr(self, 'compliance_reporting_checkbox'):
+            self.compliance_reporting_checkbox.setEnabled(False)
 
     def enable_after_processing(self) -> None:
         """
@@ -455,3 +605,61 @@ class ConfigPanel(QWidget):
         self.long_usage_duration_thresholds_input.setEnabled(True)
         self.long_data_time_gap_thresholds_input.setEnabled(True)
         self.correct_duplicate_event_timestamps_checkbox.setEnabled(True)
+        
+        # Enable survey data elements if they exist
+        if hasattr(self, 'use_survey_data_checkbox'):
+            self.use_survey_data_checkbox.setEnabled(True)
+        if hasattr(self, 'survey_data_folder_button'):
+            self.survey_data_folder_button.setEnabled(True)
+        if hasattr(self, 'compliance_reporting_checkbox'):
+            self.compliance_reporting_checkbox.setEnabled(True)
+
+    def set_use_survey_data(self, checked: bool) -> None:
+        """
+        Set the use survey data checkbox.
+        Only works if internal modules are available.
+        
+        Args:
+            checked: Whether the checkbox should be checked
+        """
+        if not self._check_internal_modules_available():
+            LOGGER.debug("Internal modules not available - ignoring set_use_survey_data")
+            return
+            
+        if hasattr(self, 'use_survey_data_checkbox'):
+            self.use_survey_data_checkbox.setChecked(checked)
+            # Update visibility of related elements
+            if hasattr(self, 'survey_data_widget'):
+                self.survey_data_widget.setVisible(checked)
+            if hasattr(self, 'compliance_reporting_checkbox'):
+                self.compliance_reporting_checkbox.setVisible(checked)
+
+    def set_survey_data_folder(self, folder: str) -> None:
+        """
+        Set the survey data folder display.
+        Only works if internal modules are available.
+        
+        Args:
+            folder: The folder path to set
+        """
+        if not self._check_internal_modules_available():
+            LOGGER.debug("Internal modules not available - ignoring set_survey_data_folder")
+            return
+            
+        if folder and hasattr(self, 'survey_data_folder_display'):
+            self._display_path_with_elide(self.survey_data_folder_display, folder)
+
+    def set_compliance_reporting(self, checked: bool) -> None:
+        """
+        Set the compliance reporting checkbox.
+        Only works if internal modules are available.
+        
+        Args:
+            checked: Whether the checkbox should be checked
+        """
+        if not self._check_internal_modules_available():
+            LOGGER.debug("Internal modules not available - ignoring set_compliance_reporting")
+            return
+            
+        if hasattr(self, 'compliance_reporting_checkbox'):
+            self.compliance_reporting_checkbox.setChecked(checked)

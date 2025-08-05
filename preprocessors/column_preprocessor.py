@@ -61,9 +61,16 @@ class ColumnPreprocessor(BasePreprocessor):
 
         df_copy = df.copy()
 
-        # Standardize username values
-        if Column.USERNAME in df_copy.columns:
-            df_copy[Column.USERNAME] = df_copy[Column.USERNAME].replace("Target child", TARGET_CHILD_USERNAME)
+        # Only apply internal research username corrections when internal modules are available
+        try:
+            from internal.P01_classes import DeviceSharingStatus, ParticipantID, TrackingSheet
+            
+            # Internal modules available - apply username standardization
+            if Column.USERNAME in df_copy.columns:
+                df_copy[Column.USERNAME] = df_copy[Column.USERNAME].replace("Target child", TARGET_CHILD_USERNAME)
+                LOGGER.debug("Applied internal research username corrections")
+        except ImportError:
+            LOGGER.debug("Internal modules not available - skipping username corrections")
 
         LOGGER.debug("Username column corrected successfully")
         return df_copy

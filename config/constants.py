@@ -152,6 +152,15 @@ class TimestampFormat(StrEnum):
     DATETIME = "%m-%d-%Y %H:%M:%S"
 
 
+class AppCodebookColumn(StrEnum):
+    """Column names used in the app codebook file."""
+
+    APP_PACKAGE_NAME = "app_package_name"
+    BROAD_APP_CATEGORY = "broad_app_category"
+    GENRE_ID = "genreId"
+    DATASET = "dataset"
+
+
 class Column(StrEnum):
     """
     StrEnum representing column names used in dataframes.
@@ -181,7 +190,8 @@ class Column(StrEnum):
     WEEKDAY_SUTH = "weekdaySuTh"
     HOUR = "hour"
     QUARTER = "quarter"
-    BROAD_CAT = "broad_cat"
+    BROAD_APP_CATEGORY = "broad_app_category"
+    GENRE_ID_SCRAPED = "genreId_scraped"
 
     # App usage related columns
     APP_NEW_ENGAGE_30S = "app_new_engage_30s"
@@ -198,6 +208,10 @@ class Column(StrEnum):
     VALID_APP_USAGE_TIME_GAP_HOURS = "valid_app_usage_time_gap_hours"
     VALID_APP_NEW_ENGAGE_CUSTOM = "valid_app_new_engage_custom_{}s"
     ANY_APP_NEW_ENGAGE_CUSTOM = "any_app_new_engage_custom_{}s"
+
+    # Survey data and compliance columns (internal functionality)
+    DEVICE_SHARING_STATUS = "device_sharing_status"
+    COMPLIANCE = "compliance"
 
 
 class UIStatus(StrEnum):

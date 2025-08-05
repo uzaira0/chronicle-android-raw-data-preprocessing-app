@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
+import numpy as np
 import pandas as pd
 from openpyxl.styles import Alignment, PatternFill
 
@@ -233,6 +234,41 @@ class ChronicleAndroidRawDataPreprocessor:
         self.app_usage_processor = AppUsagePreprocessor(options)
         self.app_filter_processor = AppFilterPreprocessor(options)
         self.column_processor = ColumnPreprocessor(options)
+
+        # Optional survey data preprocessor (internal functionality)
+        self.survey_data_processor = self._initialize_survey_processor(options)
+
+    def _initialize_survey_processor(self, options: ChronicleAndroidRawDataPreprocessingOptions) -> Any | None:
+        """
+        Initialize the survey data preprocessor if available and enabled.
+
+        Args:
+            options: Preprocessing options
+
+        Returns:
+            SurveyDataPreprocessor instance if available and enabled, None otherwise
+        """
+        # Only initialize if survey data processing is enabled
+        if not getattr(options, "use_survey_data", False):
+            LOGGER.debug("Survey data processing disabled")
+            return None
+
+        try:
+            # Check for critical internal modules first
+            from internal.P01_classes import DeviceSharingStatus, ParticipantID, TrackingSheet
+            from internal.P01_utils_functions import write_df_to_excel_and_format
+
+            # Import survey preprocessor (internal modules are available)
+            from preprocessors.survey_data_preprocessor import SurveyDataPreprocessor
+
+            LOGGER.info("Survey data preprocessor initialized")
+            return SurveyDataPreprocessor(options)
+        except ImportError:
+            LOGGER.debug("Survey data preprocessor not available (internal modules not found)")
+            return None
+        except Exception as e:
+            LOGGER.warning(f"Failed to initialize survey data preprocessor: {e}")
+            return None
 
     def fix_timestamp_format(self, timestamp: Any) -> str | None:
         """
@@ -481,6 +517,55 @@ class ChronicleAndroidRawDataPreprocessor:
 
         LOGGER.debug("Disordered timestamps check completed")
 
+    def enrich_with_app_codebook_data(self) -> None:
+        """
+        Enriches the current dataframe with app codebook data (broad_app_category and genreId_scraped).
+        """
+        if not self.options.use_app_codebook or not self.options.app_codebook_path:
+            LOGGER.debug("App codebook not configured, skipping enrichment")
+            self.current_participant_raw_data_df[Column.BROAD_APP_CATEGORY] = "Unknown"
+            self.current_participant_raw_data_df[Column.GENRE_ID_SCRAPED] = "Unknown"
+            return
+
+        try:
+            from utils.file_utils import read_app_codebook
+
+            app_codebook = read_app_codebook(self.options.app_codebook_path)
+            if app_codebook is None:
+                LOGGER.warning("Failed to load app codebook, using default values")
+                self.current_participant_raw_data_df[Column.BROAD_APP_CATEGORY] = "Unknown"
+                self.current_participant_raw_data_df[Column.GENRE_ID_SCRAPED] = "Unknown"
+                return
+
+            LOGGER.debug(f"Enriching data with app codebook containing {len(app_codebook)} entries")
+
+            from config.constants import AppCodebookColumn
+
+            if AppCodebookColumn.BROAD_APP_CATEGORY in app_codebook.columns:
+                self.current_participant_raw_data_df[Column.BROAD_APP_CATEGORY] = (
+                    self.current_participant_raw_data_df[Column.APP_PACKAGE_NAME]
+                    .map(app_codebook[AppCodebookColumn.BROAD_APP_CATEGORY])
+                    .fillna("Unknown")
+                )
+            else:
+                LOGGER.warning(f"Column '{AppCodebookColumn.BROAD_APP_CATEGORY}' not found in app codebook")
+                self.current_participant_raw_data_df[Column.BROAD_APP_CATEGORY] = "Unknown"
+
+            if AppCodebookColumn.GENRE_ID in app_codebook.columns:
+                self.current_participant_raw_data_df[Column.GENRE_ID_SCRAPED] = (
+                    self.current_participant_raw_data_df[Column.APP_PACKAGE_NAME].map(app_codebook[AppCodebookColumn.GENRE_ID]).fillna("Unknown")
+                )
+            else:
+                LOGGER.warning(f"Column '{AppCodebookColumn.GENRE_ID}' not found in app codebook")
+                self.current_participant_raw_data_df[Column.GENRE_ID_SCRAPED] = "Unknown"
+
+            LOGGER.debug("App codebook enrichment completed")
+
+        except Exception as e:
+            LOGGER.exception(f"Error enriching data with app codebook: {e}")
+            self.current_participant_raw_data_df[Column.BROAD_APP_CATEGORY] = "Unknown"
+            self.current_participant_raw_data_df[Column.GENRE_ID_SCRAPED] = "Unknown"
+
     def finalize_and_save_preprocessed_data_df(self, raw_data_filename: str) -> Path:
         """
         This function prepares the preprocessed data for saving by:
@@ -524,6 +609,10 @@ class ChronicleAndroidRawDataPreprocessor:
                 Column.USERNAME,
             ]
 
+            # Only add survey-related columns if survey processing is available
+            if self.survey_data_processor is not None:
+                identification_columns.append(Column.DEVICE_SHARING_STATUS)  # Survey data column
+
             # Timestamp and time-related columns
             timestamp_columns = [
                 Column.EVENT_TIMESTAMP,
@@ -535,6 +624,8 @@ class ChronicleAndroidRawDataPreprocessor:
             app_core_columns = [
                 Column.APP_PACKAGE_NAME,
                 Column.APPLICATION_LABEL,
+                Column.BROAD_APP_CATEGORY,  # App codebook broad category
+                Column.GENRE_ID_SCRAPED,  # App codebook genre ID
                 Column.INTERACTION_TYPE,
             ]
 
@@ -557,13 +648,16 @@ class ChronicleAndroidRawDataPreprocessor:
 
             # App usage derived/calculated columns
             app_derived_columns = [
+                # Valid app usage columns
                 Column.VALID_APP_NEW_ENGAGE_30S,
                 Column.VALID_APP_NEW_ENGAGE_CUSTOM.format(self.options.custom_app_engagement_duration),
                 Column.VALID_APP_SWITCHED_APP,
                 Column.VALID_APP_USAGE_TIME_GAP_HOURS,
+                # Any app usage columns
                 Column.ANY_APP_NEW_ENGAGE_30S,
                 Column.ANY_APP_NEW_ENGAGE_CUSTOM.format(self.options.custom_app_engagement_duration),
                 Column.ANY_APP_SWITCHED_APP,
+                "any_app_usage_time_gap_hours",  # Use actual column name created by add_app_usage_details
             ]
 
             # Administrative/Metadata columns
@@ -571,6 +665,10 @@ class ChronicleAndroidRawDataPreprocessor:
                 Column.PREPROCESSOR_VERSION,
                 Column.DATETIME_OF_PREPROCESSING,
             ]
+
+            # Only add survey-related columns if survey processing is available
+            if self.survey_data_processor is not None:
+                admin_columns.append(Column.COMPLIANCE)  # Survey data compliance column
 
             # Combine all columns in the desired order
             columns_to_include = [
@@ -585,7 +683,13 @@ class ChronicleAndroidRawDataPreprocessor:
             # Filter to only include columns that exist in the dataframe
             available_columns = get_available_columns(columns_to_include)
 
-            LOGGER.debug(f"Including {len(available_columns)} columns in output")
+            # Debug: Check which columns are missing
+            missing_columns = [col for col in columns_to_include if col not in output_df.columns]
+            if missing_columns:
+                LOGGER.warning(f"Missing columns from dataframe: {missing_columns}")
+                LOGGER.debug(f"Available columns in dataframe: {list(output_df.columns)}")
+
+            LOGGER.debug(f"Including {len(available_columns)} of {len(columns_to_include)} requested columns in output")
             output_df = output_df[available_columns]
 
         self.check_data_for_disordered_timestamps()
@@ -608,7 +712,7 @@ class ChronicleAndroidRawDataPreprocessor:
         Add additional columns to the dataframe for app usage details.
         """
         LOGGER.debug("Adding app usage detail columns")
-        self.app_usage_processor.add_app_usage_details(self.current_participant_raw_data_df)
+        self.current_participant_raw_data_df = self.app_usage_processor.add_app_usage_details(self.current_participant_raw_data_df)
         LOGGER.debug("App usage detail columns added successfully")
 
     def create_target_child_only_df(self) -> None:
@@ -627,6 +731,82 @@ class ChronicleAndroidRawDataPreprocessor:
         LOGGER.debug("Marking app usage flags")
         self.app_usage_processor.add_app_usage_flags(self.current_participant_raw_data_df)
         LOGGER.debug("App usage flags marked successfully")
+
+    def process_survey_data(self, device_sharing_status: str = "Non-Shared") -> None:
+        """
+        Process survey data if survey preprocessor is available.
+
+        Args:
+            device_sharing_status: Device sharing status for this participant
+        """
+        if self.survey_data_processor is None:
+            LOGGER.debug("Survey data preprocessor not available, skipping survey processing")
+            return
+
+        try:
+            LOGGER.debug(f"Processing survey data for participant {self.current_participant_id}")
+            self.current_participant_raw_data_df = self.survey_data_processor.process_data_based_on_device_sharing_status(
+                self.current_participant_raw_data_df, device_sharing_status, self.current_participant_id
+            )
+            LOGGER.debug("Survey data processing completed successfully")
+        except Exception as e:
+            LOGGER.exception(f"Error processing survey data for participant {self.current_participant_id}: {e}")
+
+    def process_device_sharing_status(self) -> None:
+        """
+        Processes data based on device sharing status from the tracking sheet.
+        For shared devices, uses survey data to identify users when available.
+        """
+        if self.survey_data_processor is None:
+            LOGGER.debug("Survey data preprocessor not available, skipping device sharing status processing")
+            return
+
+        LOGGER.debug(f"Processing device sharing status for participant {self.current_participant_id}")
+
+        try:
+            # Get device sharing status dynamically
+            device_sharing_status = self.survey_data_processor.get_device_sharing_status(self.current_participant_id, default="Non-Shared")
+
+            # Process data based on device sharing status
+            self.current_participant_raw_data_df = self.survey_data_processor.process_data_based_on_device_sharing_status(
+                self.current_participant_raw_data_df,
+                device_sharing_status,
+                self.current_participant_id,
+            )
+
+            LOGGER.debug("Device sharing status processed successfully")
+        except Exception as e:
+            LOGGER.exception(f"Error processing device sharing status for participant {self.current_participant_id}: {e}")
+
+    def handle_non_target_child_app_usage(self) -> None:
+        """
+        For shared devices, modifies app usage entries that are not associated with the target child.
+        """
+        if self.survey_data_processor is None:
+            LOGGER.debug("Survey data preprocessor not available, skipping non-target child app usage handling")
+            return
+
+        try:
+            self.current_participant_raw_data_df = self.survey_data_processor.handle_non_target_child_app_usage(
+                self.current_participant_raw_data_df, self.current_participant_id
+            )
+        except Exception as e:
+            LOGGER.exception(f"Error handling non-target child app usage for participant {self.current_participant_id}: {e}")
+
+    def filter_data_to_study_dates_only(self) -> None:
+        """
+        Filters the data to include only records within the study period.
+        """
+        if self.survey_data_processor is None:
+            LOGGER.debug("Survey data preprocessor not available, skipping study date filtering")
+            return
+
+        try:
+            self.current_participant_raw_data_df = self.survey_data_processor.filter_data_to_study_dates(
+                self.current_participant_raw_data_df, self.current_participant_id
+            )
+        except Exception as e:
+            LOGGER.exception(f"Error filtering data to study dates for participant {self.current_participant_id}: {e}")
 
     def preprocess_Chronicle_Android_raw_data_file(self, raw_data_file: Path | str) -> tuple[Path, bool, dict | None]:
         """
@@ -660,9 +840,6 @@ class ChronicleAndroidRawDataPreprocessor:
             # Fix other original columns
             self.correct_original_columns()
 
-            # Mark data time gaps
-            self.mark_data_time_gaps()
-
             # Create additional columns
             self.create_additional_columns()
 
@@ -672,27 +849,104 @@ class ChronicleAndroidRawDataPreprocessor:
             # Handle filtered app usage
             self.process_filtered_app_usage_rows()
 
-            # Process valid app usage rows
-            self.process_valid_app_usage_rows()
+            # Try to process valid app usage rows (with EmptyDataError handling like internal version)
+            try:
+                self.process_valid_app_usage_rows()
 
-            # Check for disordered timestamps
-            self.check_data_for_disordered_timestamps()
+                # Check for disordered timestamps
+                self.check_data_for_disordered_timestamps()
 
-            # Add app usage detail columns
-            self.add_app_usage_detail_columns()
+                # Enrich data with app codebook information
+                self.enrich_with_app_codebook_data()
 
-            # Mark app usage flags
-            self.mark_app_usage_flags()
+                processing_successful = True
+
+            except pd.errors.EmptyDataError:
+                LOGGER.warning(f"{self.current_participant_id}: No valid app usage during the study period.")
+                file_name = Path(raw_data_file).name
+                self.stats.mark_empty_file(file_name)
+                processing_successful = False
+
+            # Process device sharing status from tracking sheet (survey data integration) - INTERNAL ONLY
+            if self.survey_data_processor:
+                self.process_device_sharing_status()
+
+            # Handle non-target child app usage for shared devices - INTERNAL ONLY
+            if self.survey_data_processor:
+                self.handle_non_target_child_app_usage()
+
+            # Calculate compliance data like internal version (even if no app usage for shared devices)
+            compliance_dict_entry = None
+            if self.survey_data_processor and getattr(self.options, "compliance_reporting", False):
+                try:
+                    # Get device sharing status to check if we should calculate compliance
+                    device_sharing_status = self.survey_data_processor.get_device_sharing_status(self.current_participant_id, default="Non-Shared")
+
+                    if device_sharing_status == "Shared":
+                        # Get study period length - default to 10, not 21
+                        study_period_length = 10  # Default as mentioned in conversation
+
+                        # Try to get actual study period length from tracking sheet if available
+                        try:
+                            from internal.P01_classes import ParticipantID
+
+                            validated_id = ParticipantID.validate_participant_id(self.current_participant_id)
+                            if hasattr(validated_id, "study") and validated_id.study and hasattr(validated_id.study, "study_period_length"):
+                                study_period_length = validated_id.study.study_period_length
+                        except:
+                            LOGGER.debug(f"Could not get study period length from tracking sheet, using default: {study_period_length}")
+
+                        # Use the survey data preprocessor's compliance calculation method
+                        compliance_metrics = self.survey_data_processor.calculate_compliance_for_shared_device(
+                            self.current_participant_raw_data_df,
+                            self.current_participant_id,
+                            study_period_length=study_period_length,
+                            start_date=None,  # Let it determine from data
+                            set_compliance_on_dataframe=True,
+                        )
+
+                        # Create compliance dictionary entry like internal version
+                        if compliance_metrics:
+                            device_type = self.get_possible_device_model()
+                            compliance_dict_entry = {
+                                "Study": getattr(self.options, "study_name", "Unknown Study"),
+                                "Participant ID": self.current_participant_id,
+                                "Device Type": device_type,
+                                "Device Sharing Status": device_sharing_status,
+                                **{f"Day {i + 1} Compliance Percentage": data for i, data in enumerate(compliance_metrics["compliance_percentages"])},
+                                **{f"Day {i + 1} Target Child Usage": data for i, data in enumerate(compliance_metrics["target_child_usage"])},
+                                **{f"Day {i + 1} Other Usage": data for i, data in enumerate(compliance_metrics["other_usage"])},
+                                **{f"Day {i + 1} Unknown Usage": data for i, data in enumerate(compliance_metrics["unknown_usage"])},
+                            }
+
+                        LOGGER.debug(f"Calculated compliance for shared device {self.current_participant_id}")
+                    else:
+                        LOGGER.debug(f"Non-shared device {self.current_participant_id}, skipping compliance calculation")
+
+                except Exception as e:
+                    LOGGER.exception(f"Error calculating compliance for {self.current_participant_id}: {e}")
+
+            # Only do analysis columns if we had successful app usage processing
+            if processing_successful:
+                # Add app usage detail columns (MUST happen AFTER survey processing)
+                self.add_app_usage_detail_columns()
+
+                # Mark app usage flags (MUST happen AFTER survey processing)
+                self.mark_app_usage_flags()
 
             # Remove unwanted interaction types
             self.remove_selected_interaction_types()
+
+            # Filter data to study dates only (final filtering step) - INTERNAL ONLY
+            if self.survey_data_processor:
+                self.filter_data_to_study_dates_only()
 
             # Finalize and save
             preprocessed_data_save_folder = self.finalize_and_save_preprocessed_data_df(raw_data_filename=Path(raw_data_file).name)
 
             LOGGER.debug(f"Preprocessed data for {raw_data_file} saved to {preprocessed_data_save_folder}")
             self.stats.mark_processed(Path(raw_data_file))
-            return Path(preprocessed_data_save_folder), True, None
+            return Path(preprocessed_data_save_folder), True, compliance_dict_entry
 
         except Exception as e:
             LOGGER.exception(f"Error preprocessing {raw_data_file}: {e}")
@@ -779,6 +1033,7 @@ class ChronicleAndroidRawDataPreprocessor:
             return Path(preprocessed_data_save_folder), self.stats
 
         # Dictionary to collect compliance data for all studies
+        compliance_data_all_studies = {}
         preprocessed_file_count = 0
         all_filenames = len(Chronicle_Android_raw_data_files)
 
@@ -789,13 +1044,31 @@ class ChronicleAndroidRawDataPreprocessor:
                 self.progress_callback(progress_message, i + 1, all_filenames)
 
             try:
-                preprocessed_data_save_folder, _, _ = self.preprocess_Chronicle_Android_raw_data_file(Path(raw_data_file))
-                preprocessed_file_count += 1
+                preprocessed_data_save_folder, success, compliance_dict_entry = self.preprocess_Chronicle_Android_raw_data_file(Path(raw_data_file))
+                if success:
+                    preprocessed_file_count += 1
+
+                    # Collect compliance data if available
+                    if compliance_dict_entry:
+                        study_name = compliance_dict_entry.get("Study", "Unknown Study")
+                        if study_name not in compliance_data_all_studies:
+                            compliance_data_all_studies[study_name] = []
+                        compliance_data_all_studies[study_name].append(compliance_dict_entry)
+                        LOGGER.debug(f"Collected compliance data for study {study_name}")
+
             except Exception as e:
                 LOGGER.exception(f"Error preprocessing {raw_data_file}: {e}")
                 self.stats.mark_error(Path(raw_data_file), str(e))
 
         LOGGER.info(f"Preprocessed {preprocessed_file_count} of {len(Chronicle_Android_raw_data_files)} raw data files")
+
+        # Save compliance reports if any data was collected
+        if compliance_data_all_studies and self.survey_data_processor:
+            try:
+                self.survey_data_processor.save_compliance_report(compliance_data_all_studies, self.options.output_folder)
+                LOGGER.info("Saved compliance reports for all studies")
+            except Exception as e:
+                LOGGER.exception(f"Error saving compliance reports: {e}")
 
         # Generate plots if enabled
         if callable(plotting_started_callback) and callable(plotting_completed_callback) and self.options.enable_plotting:

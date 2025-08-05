@@ -237,11 +237,8 @@ class AppUsagePreprocessor(BasePreprocessor):
             msg = "No valid app usage data during the study period"
             raise pd.errors.EmptyDataError(msg)
 
-        # # Get minimum threshold for long duration usage
-        # min_long_duration_threshold = min(self.options.long_usage_duration_thresholds) if self.options.long_usage_duration_thresholds else 3
-        # min_threshold_seconds = min_long_duration_threshold * 3600  # Convert hours to seconds
-
         long_duration_threshold_seconds = 12 * 3600
+
         # Create masks for different interaction types
         resumed_mask = df_copy[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_RESUMED
         stopped_mask = df_copy[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_STOPPED
@@ -255,9 +252,7 @@ class AppUsagePreprocessor(BasePreprocessor):
 
             # Find all potential stopping points in a single pass
             same_app_indices = df_copy.index[(df_copy.index > i) & (df_copy[Column.APP_PACKAGE_NAME] == current_app) & same_app_stop_mask].tolist()
-
             other_app_indices = df_copy.index[(df_copy.index > i) & (df_copy[Column.APP_PACKAGE_NAME] != current_app) & other_stop_mask].tolist()
-
             activity_stopped_indices = df_copy.index[(df_copy.index > i) & (df_copy[Column.APP_PACKAGE_NAME] == current_app) & stopped_mask].tolist()
 
             # Get the first occurrence of each type
@@ -430,7 +425,7 @@ class AppUsagePreprocessor(BasePreprocessor):
         Process app usage details for a single row.
 
         Args:
-            idx: The row index (must be an integer)
+            idx: The row index
             row: The row data
             first_app_set: Flag indicating if first app has been set
             df: The dataframe being processed
@@ -440,19 +435,36 @@ class AppUsagePreprocessor(BasePreprocessor):
         Returns:
             bool: Updated first_app_set flag
         """
-        # Index is already an integer
         index = idx
+        current_interaction_type = row[Column.INTERACTION_TYPE]
+
+        # Only handle ValueError for InteractionType enum conversion
+        try:
+            # Check if the interaction type string can be converted to enum
+            if isinstance(current_interaction_type, str) and current_interaction_type not in [
+                InteractionType.APP_USAGE,
+                InteractionType.FILTERED_APP_USAGE,
+            ]:
+                InteractionType(current_interaction_type)
+                is_valid_interaction = False
+            else:
+                is_valid_interaction = current_interaction_type in [InteractionType.APP_USAGE, InteractionType.FILTERED_APP_USAGE]
+        except ValueError:
+            # Just log that we found an unknown interaction type
+            LOGGER.warning(f"Unknown interaction type: {current_interaction_type}")
+            is_valid_interaction = False
 
         if not first_app_set:
-            if row[Column.INTERACTION_TYPE] in [InteractionType.APP_USAGE, InteractionType.FILTERED_APP_USAGE]:
-                self._set_first_app_use_engagement_values(
-                    df, index, self.options.custom_app_engagement_duration, row[Column.INTERACTION_TYPE] == InteractionType.APP_USAGE
-                )
+            if is_valid_interaction:
+                is_app_usage = current_interaction_type == InteractionType.APP_USAGE
+                self._set_first_app_use_engagement_values(df, index, self.options.custom_app_engagement_duration, is_app_usage)
                 first_app_set = True
 
-        elif index > 0 and row[Column.INTERACTION_TYPE] in [InteractionType.APP_USAGE, InteractionType.FILTERED_APP_USAGE]:
-            # Check if app_usage_row_indices is not empty before accessing first element
-            if len(app_usage_row_indices) > 0 and index == app_usage_row_indices[0] and row[Column.INTERACTION_TYPE] == InteractionType.APP_USAGE:
+        elif index > 0 and is_valid_interaction:
+            is_first_valid_app = len(app_usage_row_indices) > 0 and index == app_usage_row_indices[0]
+            is_app_usage = current_interaction_type == InteractionType.APP_USAGE
+
+            if is_first_valid_app and is_app_usage:
                 self._set_first_app_use_engagement_values(df, index, self.options.custom_app_engagement_duration, True)
             else:
                 self._traverse_backward_rows(df, index, row, interaction_types)
@@ -490,6 +502,10 @@ class AppUsagePreprocessor(BasePreprocessor):
             backward_row = df.loc[backward_index]
             backward_interaction_type = interaction_types[backward_index]
 
+            # Skip rows with invalid interaction types
+            if not isinstance(backward_interaction_type, InteractionType):
+                continue
+
             if backward_interaction_type not in [InteractionType.APP_USAGE, InteractionType.FILTERED_APP_USAGE]:
                 continue
 
@@ -498,7 +514,16 @@ class AppUsagePreprocessor(BasePreprocessor):
                 df.loc[index, "any_app_switched_app"] = 1
 
             # Calculate time since last app use
-            time_since_last_any_app_use = (row[Column.START_TIMESTAMP] - backward_row[Column.STOP_TIMESTAMP]).total_seconds()
+            start_ts = row[Column.START_TIMESTAMP]
+            stop_ts = backward_row[Column.STOP_TIMESTAMP]
+
+            # Skip rows with missing timestamps
+            if pd.isna(start_ts) or pd.isna(stop_ts):
+                LOGGER.warning(f"Missing timestamp at index {index} or {backward_index}")
+                continue
+
+            time_delta = start_ts - stop_ts
+            time_since_last_any_app_use = time_delta.total_seconds()
 
             # Set engagement flags based on time gap
             if time_since_last_any_app_use > 30:
@@ -538,7 +563,16 @@ class AppUsagePreprocessor(BasePreprocessor):
                 df.loc[index, "valid_app_switched_app"] = 1
 
             # Calculate time since last valid app use
-            time_since_last_valid_app_use = (row[Column.START_TIMESTAMP] - backward_row[Column.STOP_TIMESTAMP]).total_seconds()
+            start_ts = row[Column.START_TIMESTAMP]
+            stop_ts = backward_row[Column.STOP_TIMESTAMP]
+
+            # Skip if timestamps are missing
+            if pd.isna(start_ts) or pd.isna(stop_ts):
+                LOGGER.warning(f"Missing timestamp for valid app usage at index {index} or {backward_index}")
+                continue
+
+            time_delta = start_ts - stop_ts
+            time_since_last_valid_app_use = time_delta.total_seconds()
 
             # Set engagement flags based on time gap
             if time_since_last_valid_app_use > 30:

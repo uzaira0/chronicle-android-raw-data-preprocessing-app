@@ -159,7 +159,6 @@ class TimestampPreprocessor(BasePreprocessor):
             participant_id = df_copy[Column.PARTICIPANT_ID].iloc[0] if Column.PARTICIPANT_ID in df_copy.columns else "Unknown"
             LOGGER.debug(f"{participant_id}: duplicates found for {timestamp_column} {df_copy.loc[group[0], timestamp_column]}.")
 
-            # Sort the group based on event priority
             def get_priority_for_index(idx: int) -> int:
                 interaction_type_str = str(df_copy.loc[idx, Column.INTERACTION_TYPE])
                 if interaction_type_str == "Screen Non-interactive":
@@ -173,15 +172,15 @@ class TimestampPreprocessor(BasePreprocessor):
 
             try:
                 sorted_indices = sorted(group, key=get_priority_for_index)
-            except Exception as e:
-                # If sorting fails for any reason, just use the original order
-                LOGGER.error(f"Error during timestamp priority sorting: {e}. Using original order.")
-                sorted_indices = group
 
-            for i, idx in enumerate(sorted_indices):
-                timestamp_str = str(df_copy.loc[idx, timestamp_column])
-                current_timestamp = pd.to_datetime(timestamp_str)
-                df_copy.loc[idx, timestamp_column] = current_timestamp - pd.Timedelta(i + 1, unit="nanoseconds")
+                for i, idx in enumerate(sorted_indices):
+                    timestamp_str = str(df_copy.loc[idx, timestamp_column])
+                    current_timestamp = pd.to_datetime(timestamp_str)
+                    df_copy.loc[idx, timestamp_column] = current_timestamp - pd.Timedelta(i + 1, unit="nanoseconds")
+            except Exception as e:
+                # Log error but let it propagate up the call stack
+                LOGGER.error(f"Error during timestamp sorting: {e}")
+                raise
 
         df_copy = df_copy.sort_values(timestamp_column).reset_index(drop=True)
         LOGGER.debug("Duplicate timestamps unaligned successfully")

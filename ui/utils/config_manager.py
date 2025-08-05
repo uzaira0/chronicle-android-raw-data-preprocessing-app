@@ -131,12 +131,15 @@ class ConfigManager:
         if "enable_plotting" in config:
             options.enable_plotting = config["enable_plotting"]
 
-        # Survey data options
+        # Survey data options (internal functionality)
         if "use_survey_data" in config:
             options.use_survey_data = config["use_survey_data"]
 
         if "survey_data_folder" in config:
             options.survey_data_folder = config["survey_data_folder"]
+
+        if "compliance_reporting" in config:
+            options.compliance_reporting = config["compliance_reporting"]
 
         if "filter_file" in config:
             options.filter_file = config["filter_file"]

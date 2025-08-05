@@ -5,6 +5,7 @@ Main entry point for the Chronicle Android Raw Data Preprocessing Application
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import traceback
 from pathlib import Path
@@ -55,16 +56,26 @@ def setup_logging() -> logging.Logger:
             log_file = log_dir / log_file
             debug_log_file = log_dir / debug_log_file
 
+        # Configure root logger with UTF-8 encoding for Unicode support
+        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(logging.Formatter(LOG_FORMAT))
+
+        # Configure console handler with UTF-8 encoding
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(logging.Formatter(LOG_FORMAT))
+
         # Configure root logger
         logging.basicConfig(
             level=logging.INFO,
             format=LOG_FORMAT,
-            handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
+            handlers=[file_handler, console_handler],
         )
 
-        # Add debug file handler
+        # Add debug file handler with UTF-8 encoding
         root_logger = logging.getLogger()
-        debug_handler = logging.FileHandler(debug_log_file)
+        debug_handler = logging.FileHandler(debug_log_file, encoding="utf-8")
         debug_handler.setLevel(logging.DEBUG)
         debug_handler.setFormatter(logging.Formatter(LOG_FORMAT))
         root_logger.addHandler(debug_handler)
@@ -78,10 +89,14 @@ def setup_logging() -> logging.Logger:
 
     except Exception as e:
         # Set up console-only logging if file logging fails
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(logging.Formatter(LOG_FORMAT))
+
         logging.basicConfig(
             level=logging.INFO,
             format=LOG_FORMAT,
-            handlers=[logging.StreamHandler()],
+            handlers=[console_handler],
         )
         logger = logging.getLogger(__name__)
         logger.exception("Failed to set up file logging")
@@ -96,16 +111,21 @@ def main() -> None:
     Returns:
         None
     """
+    # Set environment variables for proper Unicode handling on Windows
+    if sys.platform.startswith("win"):
+        os.environ["PYTHONIOENCODING"] = "utf-8"
+
     logger = setup_logging()
 
     try:
         # Use OS-specific platform plugin
         if sys.platform.startswith("win"):
             sys.argv += ["-platform", "windows:darkmode=1"]
+            logger.info("Using windows platform for Windows")
         elif sys.platform.startswith("darwin"):
             # Ensure we're using the correct platform for macOS
             sys.argv += ["-platform", "cocoa"]
-        logger.info("Using cocoa platform for macOS")
+            logger.info("Using cocoa platform for macOS")
 
         app = QApplication(sys.argv)
         app.setStyle("Fusion")
