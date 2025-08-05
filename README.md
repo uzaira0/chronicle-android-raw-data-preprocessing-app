@@ -9,6 +9,7 @@ Credits:
 - Anil Kumar Vadathya, MS for writing our original custom preprocessing code (https://github.com/anilrgukt)
 - Heidi Weeks, PhD (https://radesky.lab.medicine.umich.edu/home) for writing the original plotting code in R and providing apps for the app codebook
 - Josh Culverhouse, PhD (https://sc.edu/study/colleges_schools/public_health/research/research_centers/acoi/) for modifying and helping to convert the plotting code to Python, providing apps for the app codebook, and helping to test the code significantly
+- Lindon Camaj, MS (https://github.com/lindoncamaj) for providing the app scraping code used to obtain app store categories and other info for apps
 
 ## Preprocessing Features
 - Labeling usage differently for filtered apps defined in a file
