@@ -5,10 +5,8 @@ File operations and utilities for Chronicle Android Raw Data Preprocessing Appli
 from __future__ import annotations
 
 import logging
-import os
 import re
 from pathlib import Path
-from typing import NoReturn
 
 import pandas as pd
 from pandas.errors import EmptyDataError, ParserError
@@ -46,7 +44,9 @@ def get_matching_files_from_folder(
         LOGGER.error(msg)
         raise ValueError(msg)
 
-    LOGGER.debug(f"Getting matching files from folder: {folder} with pattern: {file_matching_pattern}")
+    LOGGER.debug(
+        f"Getting matching files from folder: {folder} with pattern: {file_matching_pattern}"
+    )
 
     if not ignore_names:
         ignore_names = ["Preprocessed"]
@@ -55,7 +55,9 @@ def get_matching_files_from_folder(
         matching_files = [
             f
             for f in folder_path.rglob("*")
-            if f.is_file() and re.search(file_matching_pattern, f.name) and all(ignored not in str(f) for ignored in ignore_names)
+            if f.is_file()
+            and re.search(file_matching_pattern, f.name)
+            and all(ignored not in str(f) for ignored in ignore_names)
         ]
         LOGGER.debug(f"Found {len(matching_files)} matching files")
         return matching_files
@@ -140,7 +142,9 @@ def read_filter_file(file_path: Path | str) -> dict[str, str]:
             if package_name and package_name.lower() != "nan":
                 app_filters[package_name] = app_label
 
-        LOGGER.info(f"Successfully loaded {len(app_filters)} app filters from {file_path}")
+        LOGGER.info(
+            f"Successfully loaded {len(app_filters)} app filters from {file_path}"
+        )
         return app_filters
 
     except EmptyDataError:
@@ -188,15 +192,30 @@ def read_app_codebook(codebook_path: Path | str) -> pd.DataFrame | None:
             LOGGER.error(msg)
             raise CodebookFileError(msg)
 
-        LOGGER.info(f"Successfully loaded app codebook with {len(app_codebook)} entries")
+        LOGGER.info(
+            f"Successfully loaded app codebook with {len(app_codebook)} entries"
+        )
         LOGGER.debug(f"App codebook columns: {app_codebook.columns.tolist()}")
 
         from config.constants import AppCodebookColumn
-        
+
         if AppCodebookColumn.APP_PACKAGE_NAME not in app_codebook.columns:
             msg = f"App codebook must contain an '{AppCodebookColumn.APP_PACKAGE_NAME}' column"
             LOGGER.error(msg)
             raise CodebookFileError(msg)
+
+        # Check for duplicate package names and handle them
+        duplicate_packages = app_codebook.duplicated(
+            subset=[AppCodebookColumn.APP_PACKAGE_NAME], keep=False
+        )
+        if duplicate_packages.any():
+            num_duplicates = duplicate_packages.sum()
+            LOGGER.warning(
+                f"Found {num_duplicates} duplicate package names in app codebook. Keeping first occurrence of each."
+            )
+            app_codebook = app_codebook.drop_duplicates(
+                subset=[AppCodebookColumn.APP_PACKAGE_NAME], keep="first"
+            )
 
         # Optimize codebook for lookups
         app_codebook = app_codebook.set_index(AppCodebookColumn.APP_PACKAGE_NAME)

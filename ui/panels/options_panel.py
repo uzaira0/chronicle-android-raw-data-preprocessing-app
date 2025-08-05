@@ -11,7 +11,6 @@ from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QComboBox,
-    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -45,7 +44,12 @@ class OptionsPanel(QWidget):
     timezone_changed = pyqtSignal(str)
     options_updated = pyqtSignal()
 
-    def __init__(self, options: ChronicleAndroidRawDataPreprocessingOptions, parent: QWidget | None = None, scale_factor: float = 1.0) -> None:
+    def __init__(
+        self,
+        options: ChronicleAndroidRawDataPreprocessingOptions,
+        parent: QWidget | None = None,
+        scale_factor: float = 1.0,
+    ) -> None:
         super().__init__(parent)
         self.options = options
         self.scale_factor = scale_factor
@@ -83,14 +87,26 @@ class OptionsPanel(QWidget):
         self.timezone_option_button_group = QButtonGroup()
 
         # Create radio buttons with clearer labels
-        self.remove_all_without_timezone_radio = QRadioButton("Remove data with timezones other than the selected timezone in all files")
-        self.convert_all_to_timezone_radio = QRadioButton("Convert data to the selected timezone in all files")
-        self.remove_all_without_primary_timezone_radio = QRadioButton("Remove data with timezones other than the primary timezone within each file")
-        self.convert_all_to_primary_timezone_radio = QRadioButton("Convert data to the primary timezone within each file")
+        self.remove_all_without_timezone_radio = QRadioButton(
+            "Remove data with timezones other than the selected timezone in all files"
+        )
+        self.convert_all_to_timezone_radio = QRadioButton(
+            "Convert data to the selected timezone in all files"
+        )
+        self.remove_all_without_primary_timezone_radio = QRadioButton(
+            "Remove data with timezones other than the primary timezone within each file"
+        )
+        self.convert_all_to_primary_timezone_radio = QRadioButton(
+            "Convert data to the primary timezone within each file"
+        )
 
         # Add tooltips for each option
-        self.remove_all_without_timezone_radio.setToolTip("Keeps only data with the timezone you select above and removes all other data.")
-        self.convert_all_to_timezone_radio.setToolTip("Keeps all data and converts timestamps to the timezone you select above.")
+        self.remove_all_without_timezone_radio.setToolTip(
+            "Keeps only data with the timezone you select above and removes all other data."
+        )
+        self.convert_all_to_timezone_radio.setToolTip(
+            "Keeps all data and converts timestamps to the timezone you select above."
+        )
         self.remove_all_without_primary_timezone_radio.setToolTip(
             "For each file, determines the most common timezone and removes data with different timezones."
         )
@@ -99,27 +115,39 @@ class OptionsPanel(QWidget):
         )
 
         self.timezone_option_button_group.addButton(
-            self.remove_all_without_timezone_radio, TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE.value
+            self.remove_all_without_timezone_radio,
+            TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE.value,
         )
         self.timezone_option_button_group.addButton(
-            self.convert_all_to_timezone_radio, TimezoneHandlingOption.CONVERT_ALL_DATA_TO_SELECTED_TIMEZONE.value
+            self.convert_all_to_timezone_radio,
+            TimezoneHandlingOption.CONVERT_ALL_DATA_TO_SELECTED_TIMEZONE.value,
         )
         self.timezone_option_button_group.addButton(
-            self.remove_all_without_primary_timezone_radio, TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE.value
+            self.remove_all_without_primary_timezone_radio,
+            TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE.value,
         )
         self.timezone_option_button_group.addButton(
-            self.convert_all_to_primary_timezone_radio, TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE.value
+            self.convert_all_to_primary_timezone_radio,
+            TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE.value,
         )
 
         self.remove_all_without_timezone_radio.setChecked(True)
-        self.timezone_option_button_group.buttonClicked.connect(self._on_timezone_option_changed)
+        self.timezone_option_button_group.buttonClicked.connect(
+            self._on_timezone_option_changed
+        )
 
         # Timezone selection dropdown and input
-        self.timezone_selection_label = QLabel("Select Timezone (or type in a custom timezone):")
+        self.timezone_selection_label = QLabel(
+            "Select Timezone (or type in a custom timezone):"
+        )
         self.timezone_selection_dropdown = QComboBox()
         self.timezone_selection_dropdown.setEditable(True)
-        self.timezone_selection_dropdown.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        self.timezone_selection_dropdown.currentTextChanged.connect(self._on_timezone_changed)
+        self.timezone_selection_dropdown.setInsertPolicy(
+            QComboBox.InsertPolicy.NoInsert
+        )
+        self.timezone_selection_dropdown.currentTextChanged.connect(
+            self._on_timezone_changed
+        )
 
         radio_buttons_layout = QVBoxLayout()
         radio_buttons_layout.addWidget(self.remove_all_without_timezone_radio)
@@ -142,26 +170,56 @@ class OptionsPanel(QWidget):
         self.interaction_types_group = QGroupBox("Configure Interaction Types")
         interaction_types_layout = QVBoxLayout()
 
-        self.configure_same_app_interaction_types_button = QPushButton("Same App Interaction Types to Stop Usage At")
-        self.configure_same_app_interaction_types_button.clicked.connect(self._on_configure_same_app_interaction_types)
-        self.configure_same_app_interaction_types_button.setFixedHeight(int(30 * self.scale_factor))
-        self.configure_same_app_interaction_types_button.setStyleSheet("text-align: center;")
+        self.configure_same_app_interaction_types_button = QPushButton(
+            "Same App Interaction Types to Stop Usage At"
+        )
+        self.configure_same_app_interaction_types_button.clicked.connect(
+            self._on_configure_same_app_interaction_types
+        )
+        self.configure_same_app_interaction_types_button.setFixedHeight(
+            int(30 * self.scale_factor)
+        )
+        self.configure_same_app_interaction_types_button.setStyleSheet(
+            "text-align: center;"
+        )
 
-        self.configure_other_interaction_types_button = QPushButton("Other Interaction Types to Stop Usage At")
-        self.configure_other_interaction_types_button.clicked.connect(self._on_configure_other_interaction_types)
-        self.configure_other_interaction_types_button.setFixedHeight(int(30 * self.scale_factor))
-        self.configure_other_interaction_types_button.setStyleSheet("text-align: center;")
+        self.configure_other_interaction_types_button = QPushButton(
+            "Other Interaction Types to Stop Usage At"
+        )
+        self.configure_other_interaction_types_button.clicked.connect(
+            self._on_configure_other_interaction_types
+        )
+        self.configure_other_interaction_types_button.setFixedHeight(
+            int(30 * self.scale_factor)
+        )
+        self.configure_other_interaction_types_button.setStyleSheet(
+            "text-align: center;"
+        )
 
-        self.configure_interaction_types_to_remove_button = QPushButton("Interaction Types to Remove from Final Output")
-        self.configure_interaction_types_to_remove_button.clicked.connect(self._on_configure_interaction_types_to_remove)
-        self.configure_interaction_types_to_remove_button.setFixedHeight(int(30 * self.scale_factor))
-        self.configure_interaction_types_to_remove_button.setStyleSheet("text-align: center;")
+        self.configure_interaction_types_to_remove_button = QPushButton(
+            "Interaction Types to Remove from Final Output"
+        )
+        self.configure_interaction_types_to_remove_button.clicked.connect(
+            self._on_configure_interaction_types_to_remove
+        )
+        self.configure_interaction_types_to_remove_button.setFixedHeight(
+            int(30 * self.scale_factor)
+        )
+        self.configure_interaction_types_to_remove_button.setStyleSheet(
+            "text-align: center;"
+        )
 
-        interaction_types_layout.addWidget(self.configure_same_app_interaction_types_button)
+        interaction_types_layout.addWidget(
+            self.configure_same_app_interaction_types_button
+        )
         interaction_types_layout.addSpacing(5)
-        interaction_types_layout.addWidget(self.configure_other_interaction_types_button)
+        interaction_types_layout.addWidget(
+            self.configure_other_interaction_types_button
+        )
         interaction_types_layout.addSpacing(5)
-        interaction_types_layout.addWidget(self.configure_interaction_types_to_remove_button)
+        interaction_types_layout.addWidget(
+            self.configure_interaction_types_to_remove_button
+        )
 
         self.interaction_types_group.setLayout(interaction_types_layout)
 
@@ -188,8 +246,10 @@ class OptionsPanel(QWidget):
 
         # Show/hide timezone selection based on option
         is_per_file_option = (
-            self.options.timezone_handling_option == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE
-            or self.options.timezone_handling_option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE
+            self.options.timezone_handling_option
+            == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE
+            or self.options.timezone_handling_option
+            == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE
         )
 
         self.timezone_selection_label.setVisible(not is_per_file_option)
@@ -224,7 +284,10 @@ class OptionsPanel(QWidget):
             self.timezone_selection_dropdown.addItem(tz)
 
         # Restore the current selection if it exists
-        if current_selection and self.timezone_selection_dropdown.findText(current_selection) >= 0:
+        if (
+            current_selection
+            and self.timezone_selection_dropdown.findText(current_selection) >= 0
+        ):
             self.timezone_selection_dropdown.setCurrentText(current_selection)
         elif self.options.selected_timezone:
             # Convert to string if it's not already
@@ -236,7 +299,9 @@ class OptionsPanel(QWidget):
         Discover and set available timezones from the data folder.
         """
         if not self.options.raw_data_folder:
-            QMessageBox.warning(self.window(), "Warning", DialogMessage.WARNING_RAW_DATA_FOLDER)
+            QMessageBox.warning(
+                self.window(), "Warning", DialogMessage.WARNING_RAW_DATA_FOLDER
+            )
             return
 
         LOGGER.debug(f"Discovering timezones in folder: {self.options.raw_data_folder}")
@@ -263,11 +328,17 @@ class OptionsPanel(QWidget):
                 self.timezone_selection_dropdown.setCurrentText(str(current_timezone))
                 self.options.selected_timezone = current_timezone
 
-            QMessageBox.information(self.window(), "Timezones Found", f"Found {len(timezones)} timezones in the raw data files.")
+            QMessageBox.information(
+                self.window(),
+                "Timezones Found",
+                f"Found {len(timezones)} timezones in the raw data files.",
+            )
 
         except Exception as e:
             LOGGER.exception(msg="Error finding timezones")
-            QMessageBox.critical(self.window(), "Error", text=f"Failed to find timezones: {e!s}")
+            QMessageBox.critical(
+                self.window(), "Error", text=f"Failed to find timezones: {e!s}"
+            )
 
     def _on_configure_same_app_interaction_types(self) -> None:
         """
@@ -280,7 +351,9 @@ class OptionsPanel(QWidget):
             dialog = SameAppInteractionTypesDialog(parent, self.options)
             if dialog.exec() == QMessageBox.DialogCode.Accepted:
                 # Update options with the selected interaction types
-                self.options.same_app_interaction_types_to_stop_usage_at = dialog.get_selected_interaction_types()
+                self.options.same_app_interaction_types_to_stop_usage_at = (
+                    dialog.get_selected_interaction_types()
+                )
                 # Mark that these were specifically configured
                 self.options.same_app_interaction_types_configured = True
                 self.options_updated.emit()
@@ -296,7 +369,9 @@ class OptionsPanel(QWidget):
             dialog = OtherInteractionTypesDialog(parent, self.options)
             if dialog.exec() == QMessageBox.DialogCode.Accepted:
                 # Update options with the selected interaction types
-                self.options.other_interaction_types_to_stop_usage_at = dialog.get_selected_interaction_types()
+                self.options.other_interaction_types_to_stop_usage_at = (
+                    dialog.get_selected_interaction_types()
+                )
                 # Mark that these were specifically configured
                 self.options.other_interaction_types_configured = True
                 self.options_updated.emit()
@@ -312,7 +387,9 @@ class OptionsPanel(QWidget):
             dialog = InteractionTypesToRemoveDialog(parent, self.options)
             if dialog.exec() == QMessageBox.DialogCode.Accepted:
                 # Update options with the selected interaction types
-                self.options.interaction_types_to_remove = dialog.get_selected_interaction_types()
+                self.options.interaction_types_to_remove = (
+                    dialog.get_selected_interaction_types()
+                )
                 # Mark that these were specifically configured
                 self.options.interaction_types_to_remove_configured = True
                 self.options_updated.emit()
@@ -385,15 +462,23 @@ class OptionsPanel(QWidget):
             self.remove_all_without_timezone_radio.setChecked(True)
         elif option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_SELECTED_TIMEZONE:
             self.convert_all_to_timezone_radio.setChecked(True)
-        elif option == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE:
+        elif (
+            option
+            == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE
+        ):
             self.remove_all_without_primary_timezone_radio.setChecked(True)
-        elif option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE:
+        elif (
+            option
+            == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE
+        ):
             self.convert_all_to_primary_timezone_radio.setChecked(True)
 
         # Show/hide timezone selection based on option
         is_per_file_option = (
-            option == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE
-            or option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE
+            option
+            == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE
+            or option
+            == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE
         )
 
         self.timezone_selection_label.setVisible(not is_per_file_option)

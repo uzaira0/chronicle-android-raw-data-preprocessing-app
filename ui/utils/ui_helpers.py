@@ -27,7 +27,9 @@ def get_scale_factor() -> float:
     return 1.0
 
 
-def set_widget_size(widget: QWidget, width: int, height: int, scale_factor: float | None = None) -> None:
+def set_widget_size(
+    widget: QWidget, width: int, height: int, scale_factor: float | None = None
+) -> None:
     """
     Set the size of a widget with optional scaling.
 

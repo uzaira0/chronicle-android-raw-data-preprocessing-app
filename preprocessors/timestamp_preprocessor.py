@@ -8,7 +8,13 @@ import logging
 
 import pandas as pd
 
-from config.constants import EXPECTED_TIMESTAMP_LENGTH, Column, ErrorMessage, InteractionType, TimestampFormat
+from config.constants import (
+    EXPECTED_TIMESTAMP_LENGTH,
+    Column,
+    ErrorMessage,
+    InteractionType,
+    TimestampFormat,
+)
 from models.preprocessing_options import ChronicleAndroidRawDataPreprocessingOptions
 from preprocessors.base_preprocessor import BasePreprocessor
 
@@ -67,8 +73,17 @@ class TimestampPreprocessor(BasePreprocessor):
 
         # Add milliseconds if missing
         if "." not in timestamp:
-            timezone_part = timestamp[-6:] if len(timestamp) >= 6 and (timestamp[-6] == "+" or timestamp[-6] == "-") else ""
-            timestamp = timestamp[:-6] + ".000" + timezone_part if timezone_part else timestamp + ".000"
+            timezone_part = (
+                timestamp[-6:]
+                if len(timestamp) >= 6
+                and (timestamp[-6] == "+" or timestamp[-6] == "-")
+                else ""
+            )
+            timestamp = (
+                timestamp[:-6] + ".000" + timezone_part
+                if timezone_part
+                else timestamp + ".000"
+            )
 
         # Finally do the length check after making basic fixes
         if len(timestamp) < EXPECTED_TIMESTAMP_LENGTH:  # Minimum valid length
@@ -78,7 +93,9 @@ class TimestampPreprocessor(BasePreprocessor):
 
         return timestamp
 
-    def correct_timestamps(self, df: pd.DataFrame, timestamp_column: str = Column.EVENT_TIMESTAMP) -> pd.DataFrame:
+    def correct_timestamps(
+        self, df: pd.DataFrame, timestamp_column: str = Column.EVENT_TIMESTAMP
+    ) -> pd.DataFrame:
         """
         Correct the format of timestamps and handle duplicates if needed.
 
@@ -101,7 +118,9 @@ class TimestampPreprocessor(BasePreprocessor):
         LOGGER.debug("Timestamps corrected successfully")
         return df
 
-    def correct_timestamp_column(self, df: pd.DataFrame, column_name: str = Column.EVENT_TIMESTAMP) -> pd.DataFrame:
+    def correct_timestamp_column(
+        self, df: pd.DataFrame, column_name: str = Column.EVENT_TIMESTAMP
+    ) -> pd.DataFrame:
         """
         Corrects the format of a timestamp column.
 
@@ -114,10 +133,14 @@ class TimestampPreprocessor(BasePreprocessor):
         """
         LOGGER.debug(f"Correcting timestamp column: {column_name}")
         df_copy = df.copy()
-        df_copy[column_name] = df_copy[column_name].apply(TimestampPreprocessor.fix_timestamp_format)
+        df_copy[column_name] = df_copy[column_name].apply(
+            TimestampPreprocessor.fix_timestamp_format
+        )
         return df_copy
 
-    def unalign_duplicate_timestamps(self, df: pd.DataFrame, timestamp_column: str = Column.EVENT_TIMESTAMP) -> pd.DataFrame:
+    def unalign_duplicate_timestamps(
+        self, df: pd.DataFrame, timestamp_column: str = Column.EVENT_TIMESTAMP
+    ) -> pd.DataFrame:
         """
         Adjusts duplicate timestamps by adding nanoseconds to ensure uniqueness.
         Events are sorted in this order:
@@ -136,7 +159,10 @@ class TimestampPreprocessor(BasePreprocessor):
         LOGGER.debug(f"Unaligning duplicate timestamps in column: {timestamp_column}")
         df_copy = df.copy().reset_index(drop=True)
 
-        stop_usage_types = self.options.same_app_interaction_types_to_stop_usage_at | self.options.other_interaction_types_to_stop_usage_at
+        stop_usage_types = (
+            self.options.same_app_interaction_types_to_stop_usage_at
+            | self.options.other_interaction_types_to_stop_usage_at
+        )
 
         def get_event_priority(event_type: InteractionType) -> int:
             if event_type == InteractionType.ACTIVITY_RESUMED:
@@ -156,8 +182,14 @@ class TimestampPreprocessor(BasePreprocessor):
         )
 
         for group in duplicate_indices_groups_list:
-            participant_id = df_copy[Column.PARTICIPANT_ID].iloc[0] if Column.PARTICIPANT_ID in df_copy.columns else "Unknown"
-            LOGGER.debug(f"{participant_id}: duplicates found for {timestamp_column} {df_copy.loc[group[0], timestamp_column]}.")
+            participant_id = (
+                df_copy[Column.PARTICIPANT_ID].iloc[0]
+                if Column.PARTICIPANT_ID in df_copy.columns
+                else "Unknown"
+            )
+            LOGGER.debug(
+                f"{participant_id}: duplicates found for {timestamp_column} {df_copy.loc[group[0], timestamp_column]}."
+            )
 
             def get_priority_for_index(idx: int) -> int:
                 interaction_type_str = str(df_copy.loc[idx, Column.INTERACTION_TYPE])
@@ -167,7 +199,9 @@ class TimestampPreprocessor(BasePreprocessor):
                 try:
                     return get_event_priority(InteractionType(interaction_type_str))
                 except ValueError:
-                    LOGGER.warning(f"Unknown interaction type in timestamp sorting: {interaction_type_str} - assigning lowest priority")
+                    LOGGER.warning(
+                        f"Unknown interaction type in timestamp sorting: {interaction_type_str} - assigning lowest priority"
+                    )
                     return 3
 
             try:
@@ -176,7 +210,9 @@ class TimestampPreprocessor(BasePreprocessor):
                 for i, idx in enumerate(sorted_indices):
                     timestamp_str = str(df_copy.loc[idx, timestamp_column])
                     current_timestamp = pd.to_datetime(timestamp_str)
-                    df_copy.loc[idx, timestamp_column] = current_timestamp - pd.Timedelta(i + 1, unit="nanoseconds")
+                    df_copy.loc[idx, timestamp_column] = (
+                        current_timestamp - pd.Timedelta(i + 1, unit="nanoseconds")
+                    )
             except Exception as e:
                 # Log error but let it propagate up the call stack
                 LOGGER.error(f"Error during timestamp sorting: {e}")
@@ -188,7 +224,9 @@ class TimestampPreprocessor(BasePreprocessor):
 
     @staticmethod
     def check_for_disordered_timestamps(
-        df: pd.DataFrame, start_column: str = Column.START_TIMESTAMP, stop_column: str = Column.STOP_TIMESTAMP
+        df: pd.DataFrame,
+        start_column: str = Column.START_TIMESTAMP,
+        stop_column: str = Column.STOP_TIMESTAMP,
     ) -> None:
         """
         Checks the dataframe for occurrences where the start timestamp is later than the stop timestamp.
@@ -205,9 +243,13 @@ class TimestampPreprocessor(BasePreprocessor):
         disordered_timestamps = df[df[start_column] > df[stop_column]]
 
         if len(disordered_timestamps.index) > 0:
-            LOGGER.error(f"Found {len(disordered_timestamps.index)} disordered timestamps")
+            LOGGER.error(
+                f"Found {len(disordered_timestamps.index)} disordered timestamps"
+            )
             print(disordered_timestamps[[start_column, stop_column]])
-            msg = ErrorMessage.DISORDERED_TIMESTAMPS.format(len(disordered_timestamps.index))
+            msg = ErrorMessage.DISORDERED_TIMESTAMPS.format(
+                len(disordered_timestamps.index)
+            )
             raise ValueError(msg)
         LOGGER.debug("No disordered timestamps found")
 
@@ -245,7 +287,9 @@ class TimestampPreprocessor(BasePreprocessor):
         return df_copy
 
     @staticmethod
-    def calculate_duration_in_seconds(start_timestamp: pd.Timestamp, stop_timestamp: pd.Timestamp) -> float:
+    def calculate_duration_in_seconds(
+        start_timestamp: pd.Timestamp, stop_timestamp: pd.Timestamp
+    ) -> float:
         """
         Calculate the duration in seconds between two timestamps.
 
@@ -259,7 +303,10 @@ class TimestampPreprocessor(BasePreprocessor):
         return (stop_timestamp - start_timestamp).total_seconds()
 
     def mark_data_time_gaps(
-        self, df: pd.DataFrame, timestamp_column: str = Column.EVENT_TIMESTAMP, gap_column: str = Column.DATA_TIME_GAP_HOURS
+        self,
+        df: pd.DataFrame,
+        timestamp_column: str = Column.EVENT_TIMESTAMP,
+        gap_column: str = Column.DATA_TIME_GAP_HOURS,
     ) -> pd.DataFrame:
         """
         Marks gaps in the data by calculating the time difference between consecutive events.
@@ -291,7 +338,10 @@ class TimestampPreprocessor(BasePreprocessor):
         return df_copy
 
     def format_timestamps_for_output(
-        self, df: pd.DataFrame, timestamp_columns: list[str] | None = None, format_string: str = TimestampFormat.DATETIME
+        self,
+        df: pd.DataFrame,
+        timestamp_columns: list[str] | None = None,
+        format_string: str = TimestampFormat.DATETIME,
     ) -> pd.DataFrame:
         """
         Format timestamp columns as strings for output.

@@ -1,6 +1,5 @@
 import pandas as pd
 import argparse
-import os
 import sys
 from pathlib import Path
 
@@ -32,7 +31,11 @@ def map_genre_to_category(genre_id: str, category_dict: dict) -> str:
     return "Uncategorised"
 
 
-def process_genre_column(df: pd.DataFrame, genre_column: str = "genreId", output_column: str = "broad_app_category") -> pd.DataFrame:
+def process_genre_column(
+    df: pd.DataFrame,
+    genre_column: str = "genreId",
+    output_column: str = "broad_app_category",
+) -> pd.DataFrame:
     """
     Process a DataFrame to map genreId column to broad_app_category.
 
@@ -96,7 +99,9 @@ def process_genre_column(df: pd.DataFrame, genre_column: str = "genreId", output
         "PHOTOGRAPHY": "Photography",
     }
 
-    df[output_column] = df[genre_column].apply(lambda x: map_genre_to_category(x, category_consolidation))
+    df[output_column] = df[genre_column].apply(
+        lambda x: map_genre_to_category(x, category_consolidation)
+    )
     return df
 
 
@@ -122,7 +127,9 @@ def read_file(file_path: str) -> pd.DataFrame:
     elif file_extension == ".csv":
         return pd.read_csv(path_obj)
     else:
-        raise ValueError(f"Unsupported file format: {file_extension}. Supported formats: .xlsx, .xls, .csv")
+        raise ValueError(
+            f"Unsupported file format: {file_extension}. Supported formats: .xlsx, .xls, .csv"
+        )
 
 
 def write_file(df: pd.DataFrame, file_path: str, output_format: str | None = None):
@@ -146,10 +153,14 @@ def write_file(df: pd.DataFrame, file_path: str, output_format: str | None = Non
     elif file_extension == ".csv":
         df.to_csv(path_obj, index=False)
     else:
-        raise ValueError(f"Unsupported output format: {file_extension}. Supported formats: .xlsx, .xls, .csv")
+        raise ValueError(
+            f"Unsupported output format: {file_extension}. Supported formats: .xlsx, .xls, .csv"
+        )
 
 
-def insert_column_after(df: pd.DataFrame, new_column: str, after_column: str) -> pd.DataFrame:
+def insert_column_after(
+    df: pd.DataFrame, new_column: str, after_column: str
+) -> pd.DataFrame:
     """
     Insert a new column after a specified column.
 
@@ -195,7 +206,9 @@ def process_file(
 
     if genre_column not in df.columns:
         available_columns = ", ".join(df.columns)
-        raise ValueError(f"Column '{genre_column}' not found in the file. Available columns: {available_columns}")
+        raise ValueError(
+            f"Column '{genre_column}' not found in the file. Available columns: {available_columns}"
+        )
 
     print(f"Processing {len(df)} rows...")
     df = process_genre_column(df, genre_column, output_column)
@@ -204,7 +217,9 @@ def process_file(
 
     if output_file is None:
         input_path = Path(input_file)
-        output_file = str(input_path.parent / f"{input_path.stem}_with_categories{input_path.suffix}")
+        output_file = str(
+            input_path.parent / f"{input_path.stem}_with_categories{input_path.suffix}"
+        )
 
     print(f"Writing output file: {output_file}")
     write_file(df, output_file, output_format)
@@ -212,20 +227,35 @@ def process_file(
     print(f"Processing complete! Output saved to: {output_file}")
 
     category_counts = df[output_column].value_counts()
-    print(f"\nCategory distribution:")
+    print("\nCategory distribution:")
     for category, count in category_counts.items():
         print(f"  {category}: {count}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Map genre IDs to broad app categories")
+    parser = argparse.ArgumentParser(
+        description="Map genre IDs to broad app categories"
+    )
     parser.add_argument("input_file", help="Input file path (.xlsx, .xls, or .csv)")
     parser.add_argument("-o", "--output", help="Output file path (optional)")
-    parser.add_argument("-g", "--genre-column", default="genreId", help="Name of the column containing genre IDs (default: genreId)")
     parser.add_argument(
-        "-c", "--category-column", default="broad_app_category", help="Name of the output column for broad categories (default: broad_app_category)"
+        "-g",
+        "--genre-column",
+        default="genreId",
+        help="Name of the column containing genre IDs (default: genreId)",
     )
-    parser.add_argument("-f", "--format", choices=["xlsx", "csv"], help="Output format (auto-detected from output file extension if not specified)")
+    parser.add_argument(
+        "-c",
+        "--category-column",
+        default="broad_app_category",
+        help="Name of the output column for broad categories (default: broad_app_category)",
+    )
+    parser.add_argument(
+        "-f",
+        "--format",
+        choices=["xlsx", "csv"],
+        help="Output format (auto-detected from output file extension if not specified)",
+    )
 
     args = parser.parse_args()
 

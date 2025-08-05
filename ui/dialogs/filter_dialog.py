@@ -29,7 +29,11 @@ LOGGER = logging.getLogger(__name__)
 
 
 class BaseTableWindow(QDialog):
-    def __init__(self, parent: ChronicleAndroidRawDataPreprocessingGUI, title: str = "Table Dialog") -> None:
+    def __init__(
+        self,
+        parent: ChronicleAndroidRawDataPreprocessingGUI,
+        title: str = "Table Dialog",
+    ) -> None:
         super().__init__(parent)
         self.parent_ = parent
 
@@ -38,7 +42,9 @@ class BaseTableWindow(QDialog):
             self.scale_factor = parent.scale_factor  # type: ignore  # noqa: PGH003
 
         self.setWindowTitle(title)
-        self.setGeometry(100, 100, int(600 * self.scale_factor), int(400 * self.scale_factor))
+        self.setGeometry(
+            100, 100, int(600 * self.scale_factor), int(400 * self.scale_factor)
+        )
 
         if parent is not None:
             self.center_on_parent()
@@ -103,12 +109,18 @@ class BaseTableWindow(QDialog):
 
 
 class AppsFilterDialog(BaseTableWindow):
-    def __init__(self, parent: ChronicleAndroidRawDataPreprocessingGUI, options: ChronicleAndroidRawDataPreprocessingOptions) -> None:
+    def __init__(
+        self,
+        parent: ChronicleAndroidRawDataPreprocessingGUI,
+        options: ChronicleAndroidRawDataPreprocessingOptions,
+    ) -> None:
         super().__init__(parent, "Configure App Filters")
         self.options = options
         self.app_filters = {}
 
-        self.setGeometry(100, 100, int(600 * self.scale_factor), int(400 * self.scale_factor))
+        self.setGeometry(
+            100, 100, int(600 * self.scale_factor), int(400 * self.scale_factor)
+        )
 
         self.center_on_parent()
 
@@ -133,9 +145,16 @@ class AppsFilterDialog(BaseTableWindow):
             except Exception as e:
                 LOGGER.error(f"Error auto-loading filter file: {e}", exc_info=True)
 
-                if hasattr(options, "apps_to_filter_dict") and options.apps_to_filter_dict:
+                if (
+                    hasattr(options, "apps_to_filter_dict")
+                    and options.apps_to_filter_dict
+                ):
                     self.load_app_filters(options.apps_to_filter_dict)
-        elif options and hasattr(options, "apps_to_filter_dict") and options.apps_to_filter_dict:
+        elif (
+            options
+            and hasattr(options, "apps_to_filter_dict")
+            and options.apps_to_filter_dict
+        ):
             self.load_app_filters(options.apps_to_filter_dict)
 
     def load_app_filters(self, filters_dict: dict) -> None:
@@ -158,7 +177,9 @@ class AppsFilterDialog(BaseTableWindow):
         """
         Import app filters from a CSV or XLSX file.
         """
-        file_path, _ = QFileDialog.getOpenFileName(self, "Import App Filters", "", "Filter Files (*.csv *.xlsx)")
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Import App Filters", "", "Filter Files (*.csv *.xlsx)"
+        )
 
         if not file_path:
             return
@@ -170,7 +191,9 @@ class AppsFilterDialog(BaseTableWindow):
 
         except Exception as e:
             LOGGER.error(f"Error importing app filters: {e}", exc_info=True)
-            QMessageBox.critical(self, "Import Error", f"Failed to import app filters: {str(e)}")
+            QMessageBox.critical(
+                self, "Import Error", f"Failed to import app filters: {str(e)}"
+            )
 
     def add_row(self) -> None:
         """
@@ -234,7 +257,9 @@ class AppsFilterDialog(BaseTableWindow):
 
             self.app_filters = read_filter_file(file_path)
 
-            for row_idx, (package_name, app_label) in enumerate(self.app_filters.items()):
+            for row_idx, (package_name, app_label) in enumerate(
+                self.app_filters.items()
+            ):
                 self.table.insertRow(row_idx)
                 self.table.setItem(row_idx, 0, QTableWidgetItem(package_name))
                 self.table.setItem(row_idx, 1, QTableWidgetItem(app_label))
@@ -243,7 +268,9 @@ class AppsFilterDialog(BaseTableWindow):
                 self.resize_to_fit_content()
 
         except Exception as e:
-            LOGGER.error(f"Error importing app filters from file {file_path}: {e}", exc_info=True)
+            LOGGER.error(
+                f"Error importing app filters from file {file_path}: {e}", exc_info=True
+            )
             raise ValueError(f"Failed to import app filters from file: {e}")
 
     def resize_to_fit_content(self) -> None:
@@ -254,10 +281,17 @@ class AppsFilterDialog(BaseTableWindow):
         self.table.resizeColumnsToContents()
         self.table.resizeRowsToContents()
 
-        table_width = sum(self.table.columnWidth(i) for i in range(self.table.columnCount())) + 40  # Add margin
-        table_height = min(400, max(150, self.table.rowCount() * 25 + 40))  # Min/max height based on row count
+        table_width = (
+            sum(self.table.columnWidth(i) for i in range(self.table.columnCount())) + 40
+        )  # Add margin
+        table_height = min(
+            400, max(150, self.table.rowCount() * 25 + 40)
+        )  # Min/max height based on row count
 
         dialog_width = max(500, min(800, table_width + 80))
         dialog_height = table_height + 120
 
-        self.setFixedSize(int(dialog_width * self.scale_factor), int(dialog_height * self.scale_factor))
+        self.setFixedSize(
+            int(dialog_width * self.scale_factor),
+            int(dialog_height * self.scale_factor),
+        )

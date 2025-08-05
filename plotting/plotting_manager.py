@@ -9,11 +9,20 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
+import matplotlib
+
+matplotlib.use("Agg")  # Use non-interactive backend to avoid threading warnings
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.patches import Patch
 
-from config.constants import PLOTTED_FOLDER_SUFFIX, TARGET_CHILD_USERNAME, Column, InteractionType
+from config.constants import (
+    PLOTTED_FOLDER_SUFFIX,
+    TARGET_CHILD_USERNAME,
+    AppCodebookColumn,
+    Column,
+    InteractionType,
+)
 from models.preprocessing_options import ChronicleAndroidRawDataPreprocessingOptions
 from models.processing_stats import ProcessingStats
 from utils.file_utils import read_app_codebook
@@ -37,7 +46,9 @@ class PlottingManager:
     ) -> None:
         self.study_name = study_name
         self.base_output_folder = Path(output_folder).parent
-        self.plot_output_folder = self.base_output_folder / f"{self.study_name + ' ' + PLOTTED_FOLDER_SUFFIX}"
+        self.plot_output_folder = (
+            self.base_output_folder / f"{self.study_name + ' ' + PLOTTED_FOLDER_SUFFIX}"
+        )
         self.progress_callback = progress_callback
         self.options = options
         self.stats = ProcessingStats()
@@ -59,7 +70,9 @@ class PlottingManager:
 
         self.gap_color = "#FF00FF"  # Magenta
 
-    def create_all_app_usage_plots(self, preprocessed_folder: Path, codebook_path: Path | str) -> ProcessingStats:
+    def create_all_app_usage_plots(
+        self, preprocessed_folder: Path, codebook_path: Path | str
+    ) -> ProcessingStats:
         """
         Generate app usage plots for all preprocessed files.
 
@@ -82,7 +95,9 @@ class PlottingManager:
                 error_msg = f"Failed to load app codebook: {e}"
                 raise Exception(error_msg) from e
         else:
-            LOGGER.info("App codebook not being used - either disabled in options or file not found")
+            LOGGER.info(
+                "App codebook not being used - either disabled in options or file not found"
+            )
 
         date_str = datetime.today().strftime("%B %d, %Y")
 
@@ -96,17 +111,29 @@ class PlottingManager:
         for i, csv_file in enumerate(csv_files):
             try:
                 if self.progress_callback:
-                    progress_msg = f"Plotting file {i + 1} of {len(csv_files)}: {csv_file.name}"
+                    progress_msg = (
+                        f"Plotting file {i + 1} of {len(csv_files)}: {csv_file.name}"
+                    )
                     self.progress_callback(progress_msg, i + 1, len(csv_files))
 
                 dat1 = pd.read_csv(csv_file)
 
-                if dat1.empty or "start_timestamp" not in dat1.columns or "stop_timestamp" not in dat1.columns:
-                    LOGGER.warning(f"Skipping {csv_file.name}: Empty or missing required columns")
+                if (
+                    dat1.empty
+                    or "start_timestamp" not in dat1.columns
+                    or "stop_timestamp" not in dat1.columns
+                ):
+                    LOGGER.warning(
+                        f"Skipping {csv_file.name}: Empty or missing required columns"
+                    )
                     self.stats.mark_empty_plot_file(csv_file.name)
                     continue
 
-                participant_id = dat1["participant_id"].iloc[0] if "participant_id" in dat1.columns else "unknown"
+                participant_id = (
+                    dat1["participant_id"].iloc[0]
+                    if "participant_id" in dat1.columns
+                    else "unknown"
+                )
                 LOGGER.info(f"Plotting data for participant: {participant_id}")
 
                 dat1["start_timestamp"] = pd.to_datetime(dat1["start_timestamp"])
@@ -116,24 +143,36 @@ class PlottingManager:
                     dat1["date"] = dat1["start_timestamp"].dt.date
 
                 dat1["date"] = pd.to_datetime(dat1["date"])
-                all_dates = pd.date_range(start=dat1["date"].min(), end=dat1["date"].max(), freq="D")
+                all_dates = pd.date_range(
+                    start=dat1["date"].min(), end=dat1["date"].max(), freq="D"
+                )
 
                 dat2 = dat1.copy()
 
                 if app_codebook is not None:
-                    LOGGER.debug(f"Applying app codebook to data for participant {participant_id}")
-                    from config.constants import AppCodebookColumn
+                    LOGGER.debug(
+                        f"Applying app codebook to data for participant {participant_id}"
+                    )
 
                     # Use optimized lookup instead of merge
-                    dat2[AppCodebookColumn.BROAD_APP_CATEGORY] = dat2["app_package_name"].map(app_codebook[AppCodebookColumn.BROAD_APP_CATEGORY])
-                    uncategorized_count = dat2[AppCodebookColumn.BROAD_APP_CATEGORY].isna().sum()
-                    LOGGER.debug(f"Found {uncategorized_count} uncategorized apps for participant {participant_id}")
+                    dat2[AppCodebookColumn.BROAD_APP_CATEGORY] = dat2[
+                        "app_package_name"
+                    ].map(app_codebook[AppCodebookColumn.BROAD_APP_CATEGORY])
+                    uncategorized_count = (
+                        dat2[AppCodebookColumn.BROAD_APP_CATEGORY].isna().sum()
+                    )
+                    LOGGER.debug(
+                        f"Found {uncategorized_count} uncategorized apps for participant {participant_id}"
+                    )
 
                     # Fill uncategorized apps in a vectorized way
-                    dat2[AppCodebookColumn.BROAD_APP_CATEGORY] = dat2[AppCodebookColumn.BROAD_APP_CATEGORY].fillna("Uncategorised")
+                    dat2[AppCodebookColumn.BROAD_APP_CATEGORY] = dat2[
+                        AppCodebookColumn.BROAD_APP_CATEGORY
+                    ].fillna("Uncategorised")
                 else:
-                    LOGGER.debug(f"No app codebook available - marking all apps as Uncategorised for participant {participant_id}")
-                    from config.constants import AppCodebookColumn
+                    LOGGER.debug(
+                        f"No app codebook available - marking all apps as Uncategorised for participant {participant_id}"
+                    )
 
                     dat2[AppCodebookColumn.BROAD_APP_CATEGORY] = "Uncategorised"
 
@@ -166,19 +205,33 @@ class PlottingManager:
                 elif "empty" in str(e).lower():
                     error_type = "empty_data"
 
-                self.stats.mark_plot_failed(csv_file.name, str(e), error_type=error_type)
+                self.stats.mark_plot_failed(
+                    csv_file.name, str(e), error_type=error_type
+                )
                 if self.progress_callback:
-                    self.progress_callback(f"Error plotting {csv_file.name}: {e!s}", i + 1, len(csv_files))
+                    self.progress_callback(
+                        f"Error plotting {csv_file.name}: {e!s}", i + 1, len(csv_files)
+                    )
 
         if plot_errors:
-            error_details = "\n".join([f"- {filename}: {error}" for filename, error in plot_errors])
+            error_details = "\n".join(
+                [f"- {filename}: {error}" for filename, error in plot_errors]
+            )
             msg = f"Errors occurred while plotting {len(plot_errors)} file(s):\n{error_details}"
             raise Exception(msg)
 
-        LOGGER.info(f"Completed plotting all files. Output folder: {self.plot_output_folder}")
+        LOGGER.info(
+            f"Completed plotting all files. Output folder: {self.plot_output_folder}"
+        )
         return self.stats
 
-    def _create_app_usage_plot(self, data: pd.DataFrame, participant_id: str, all_dates: pd.DatetimeIndex, output_filename: str) -> None:
+    def _create_app_usage_plot(
+        self,
+        data: pd.DataFrame,
+        participant_id: str,
+        all_dates: pd.DatetimeIndex,
+        output_filename: str,
+    ) -> None:
         """
         Create an app usage plot for a single participant.
 
@@ -201,7 +254,9 @@ class PlottingManager:
             for _, row in data[data[Column.DATA_TIME_GAP_HOURS] > 0].iterrows():
                 date_ord = row["ds"].toordinal()
                 start_time = pd.to_datetime(row[Column.START_TIMESTAMP])
-                start_hours = start_time.hour + start_time.minute / 60 + start_time.second / 3600
+                start_hours = (
+                    start_time.hour + start_time.minute / 60 + start_time.second / 3600
+                )
                 gap_duration = row[Column.DATA_TIME_GAP_HOURS]
 
                 # ALWAYS plot a gap on the current day from 0 to start_time
@@ -212,7 +267,15 @@ class PlottingManager:
                     gap_labels_used[date_ord] = True
 
                 # Plot the current day's gap (always from 0 to start_time)
-                plt.barh(y=date_ord, width=start_hours, left=0, height=0.8, color=self.gap_color, alpha=0.5, label=gap_label)
+                plt.barh(
+                    y=date_ord,
+                    width=start_hours,
+                    left=0,
+                    height=0.8,
+                    color=self.gap_color,
+                    alpha=0.5,
+                    label=gap_label,
+                )
 
                 # Calculate full days and remaining hours for previous days
                 # First subtract the hours already accounted for on the current day
@@ -237,7 +300,15 @@ class PlottingManager:
                             gap_labels_used[current_date_ord] = True
 
                         # Plot full day
-                        plt.barh(y=current_date_ord, width=24, left=0, height=0.8, color=self.gap_color, alpha=0.5, label=prev_gap_label)
+                        plt.barh(
+                            y=current_date_ord,
+                            width=24,
+                            left=0,
+                            height=0.8,
+                            color=self.gap_color,
+                            alpha=0.5,
+                            label=prev_gap_label,
+                        )
 
                     # Plot any remaining hours on the earliest day
                     if remaining_hours > 0:
@@ -264,27 +335,44 @@ class PlottingManager:
 
         # Get app usage events based on whether to include filtered apps
         if self.options.include_filtered_app_usage_in_plots:
-            interaction_types_to_plot = [InteractionType.APP_USAGE, InteractionType.FILTERED_APP_USAGE]
+            interaction_types_to_plot = [
+                InteractionType.APP_USAGE,
+                InteractionType.FILTERED_APP_USAGE,
+            ]
 
             # Include non-target child usage if survey data processing is available
             # This allows plotting of usage from non-target children on shared devices
             try:
-                from internal.P01_classes import DeviceSharingStatus, ParticipantID, TrackingSheet
+                from internal.P01_classes import (
+                    DeviceSharingStatus,
+                    ParticipantID,
+                    TrackingSheet,
+                )
 
-                if hasattr(self.options, "use_survey_data") and getattr(self.options, "use_survey_data", False):
-                    interaction_types_to_plot.append(InteractionType.NON_TARGET_CHILD_APP_USAGE)
+                if hasattr(self.options, "use_survey_data") and getattr(
+                    self.options, "use_survey_data", False
+                ):
+                    interaction_types_to_plot.append(
+                        InteractionType.NON_TARGET_CHILD_APP_USAGE
+                    )
             except ImportError:
                 # Internal modules not available - don't include non-target child usage
                 pass
 
-            app_usage_events = data[data[Column.INTERACTION_TYPE].isin(interaction_types_to_plot)]
+            app_usage_events = data[
+                data[Column.INTERACTION_TYPE].isin(interaction_types_to_plot)
+            ]
         else:
-            app_usage_events = data[data[Column.INTERACTION_TYPE] == InteractionType.APP_USAGE]
+            app_usage_events = data[
+                data[Column.INTERACTION_TYPE] == InteractionType.APP_USAGE
+            ]
 
         # Filter to only target child data if requested (applies to all interaction types above)
         # This will exclude NON_TARGET_CHILD_APP_USAGE when plot_only_target_child_data = True
         if self.options.plot_only_target_child_data:
-            app_usage_events = app_usage_events[app_usage_events[Column.USERNAME] == TARGET_CHILD_USERNAME]
+            app_usage_events = app_usage_events[
+                app_usage_events[Column.USERNAME] == TARGET_CHILD_USERNAME
+            ]
 
         # Plot app usage bars
         for _, row in app_usage_events.iterrows():
@@ -298,7 +386,8 @@ class PlottingManager:
             days_span = (stop_date - start_date).days
 
             color = self.manual_category_to_color_map.get(
-                row[AppCodebookColumn.BROAD_APP_CATEGORY], self.manual_category_to_color_map["Uncategorised"]
+                row[AppCodebookColumn.BROAD_APP_CATEGORY],
+                self.manual_category_to_color_map["Uncategorised"],
             )
 
             # Plot a bar for each day the usage spans
@@ -311,8 +400,12 @@ class PlottingManager:
 
                 if day_offset == 0:
                     # First day: plot from start time to end of day
-                    start_hours = start_dt.hour + start_dt.minute / 60 + start_dt.second / 3600
-                    hours_to_plot = min(24 - start_hours, (stop_dt - start_dt).total_seconds() / 3600.0)
+                    start_hours = (
+                        start_dt.hour + start_dt.minute / 60 + start_dt.second / 3600
+                    )
+                    hours_to_plot = min(
+                        24 - start_hours, (stop_dt - start_dt).total_seconds() / 3600.0
+                    )
                     plt.barh(
                         current_date_ord,
                         hours_to_plot,
@@ -322,7 +415,9 @@ class PlottingManager:
                     )
                 elif day_offset == days_span:
                     # Last day: plot from start of day to stop time
-                    stop_hours = stop_dt.hour + stop_dt.minute / 60 + stop_dt.second / 3600
+                    stop_hours = (
+                        stop_dt.hour + stop_dt.minute / 60 + stop_dt.second / 3600
+                    )
                     plt.barh(
                         current_date_ord,
                         stop_hours,
@@ -341,14 +436,22 @@ class PlottingManager:
                     )
 
         # Plot device events with arrows
-        shutdown_events = data[data[Column.INTERACTION_TYPE] == InteractionType.DEVICE_SHUTDOWN]
-        startup_events = data[data[Column.INTERACTION_TYPE] == InteractionType.DEVICE_STARTUP]
-        missing_events = data[data[Column.INTERACTION_TYPE] == InteractionType.END_OF_USAGE_MISSING]
+        shutdown_events = data[
+            data[Column.INTERACTION_TYPE] == InteractionType.DEVICE_SHUTDOWN
+        ]
+        startup_events = data[
+            data[Column.INTERACTION_TYPE] == InteractionType.DEVICE_STARTUP
+        ]
+        missing_events = data[
+            data[Column.INTERACTION_TYPE] == InteractionType.END_OF_USAGE_MISSING
+        ]
 
         # Plot shutdown events with red arrows
         for _, row in shutdown_events.iterrows():
             event_time = pd.to_datetime(row[Column.EVENT_TIMESTAMP])
-            event_hours = event_time.hour + event_time.minute / 60 + event_time.second / 3600
+            event_hours = (
+                event_time.hour + event_time.minute / 60 + event_time.second / 3600
+            )
             date_ord = row["ds"].toordinal()
 
             plt.annotate(
@@ -369,7 +472,9 @@ class PlottingManager:
         # Plot startup events with green arrows
         for _, row in startup_events.iterrows():
             event_time = pd.to_datetime(row[Column.EVENT_TIMESTAMP])
-            event_hours = event_time.hour + event_time.minute / 60 + event_time.second / 3600
+            event_hours = (
+                event_time.hour + event_time.minute / 60 + event_time.second / 3600
+            )
             date_ord = row["ds"].toordinal()
 
             plt.annotate(
@@ -390,7 +495,9 @@ class PlottingManager:
         # Plot end of usage missing events with yellow arrows
         for _, row in missing_events.iterrows():
             event_time = pd.to_datetime(row[Column.EVENT_TIMESTAMP])
-            event_hours = event_time.hour + event_time.minute / 60 + event_time.second / 3600
+            event_hours = (
+                event_time.hour + event_time.minute / 60 + event_time.second / 3600
+            )
             date_ord = row["ds"].toordinal()
 
             plt.annotate(
@@ -412,7 +519,10 @@ class PlottingManager:
         plt.title(
             f"App Usage for {participant_id} {'(Including Filtered Apps)' if self.options.include_filtered_app_usage_in_plots else ''}{' (Target Child Only)' if self.options.plot_only_target_child_data else ''}"
         )
-        plt.xticks(ticks=[0, 4, 8, 12, 16, 20, 24], labels=["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "24:00"])
+        plt.xticks(
+            ticks=[0, 4, 8, 12, 16, 20, 24],
+            labels=["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "24:00"],
+        )
         plt.xlim(0, 24)
 
         all_ticks = [d.toordinal() for d in all_dates]
@@ -424,10 +534,15 @@ class PlottingManager:
 
         plt.grid(axis="x", linestyle="--", alpha=0.7)
 
-        legend_handles = [Patch(facecolor=color, label=label) for label, color in self.manual_category_to_color_map.items()]
+        legend_handles = [
+            Patch(facecolor=color, label=label)
+            for label, color in self.manual_category_to_color_map.items()
+        ]
 
         if has_gap_indicators and any(data[Column.DATA_TIME_GAP_HOURS] > 0):
-            legend_handles.append(Patch(facecolor=self.gap_color, label="Data Gap", alpha=0.5))
+            legend_handles.append(
+                Patch(facecolor=self.gap_color, label="Data Gap", alpha=0.5)
+            )
 
         # Add device events to legend
         if not shutdown_events.empty:
@@ -437,7 +552,12 @@ class PlottingManager:
         if not missing_events.empty:
             legend_handles.append(Patch(facecolor="gray", label="End of Usage Missing"))
 
-        plt.legend(handles=legend_handles, title="App Categories & Events", bbox_to_anchor=(1.05, 1), loc="upper left")
+        plt.legend(
+            handles=legend_handles,
+            title="App Categories & Events",
+            bbox_to_anchor=(1.05, 1),
+            loc="upper left",
+        )
 
         output_path = self.plot_output_folder / output_filename
         plt.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -465,8 +585,15 @@ def generate_plots(
     Returns:
         Tuple[Path, ProcessingStats]: Path to the folder containing generated plots and plotting statistics
     """
-    plotting_manager = PlottingManager(study_name=study_name, output_folder=preprocessed_folder, options=options, progress_callback=progress_callback)
+    plotting_manager = PlottingManager(
+        study_name=study_name,
+        output_folder=preprocessed_folder,
+        options=options,
+        progress_callback=progress_callback,
+    )
 
     # Call the create_all_app_usage_plots method
-    stats = plotting_manager.create_all_app_usage_plots(preprocessed_folder=preprocessed_folder, codebook_path=codebook_path)
+    stats = plotting_manager.create_all_app_usage_plots(
+        preprocessed_folder=preprocessed_folder, codebook_path=codebook_path
+    )
     return plotting_manager.plot_output_folder, stats

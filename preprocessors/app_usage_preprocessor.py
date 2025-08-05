@@ -85,7 +85,10 @@ class AppUsagePreprocessor(BasePreprocessor):
 
         df_copy = df.reset_index(drop=True)
 
-        filtered_interactions = [InteractionType.FILTERED_APP_RESUMED, InteractionType.FILTERED_APP_PAUSED]
+        filtered_interactions = [
+            InteractionType.FILTERED_APP_RESUMED,
+            InteractionType.FILTERED_APP_PAUSED,
+        ]
         if not df_copy[Column.INTERACTION_TYPE].isin(filtered_interactions).any():
             LOGGER.debug("No filtered app usage found")
             return df_copy
@@ -93,10 +96,18 @@ class AppUsagePreprocessor(BasePreprocessor):
         long_duration_threshold_seconds = 12 * 3600  # 12 hours in seconds
 
         # Create masks for different interaction types
-        resumed_mask = df_copy[Column.INTERACTION_TYPE] == InteractionType.FILTERED_APP_RESUMED
-        same_app_stop_mask = df_copy[Column.INTERACTION_TYPE].isin(self.options.filtered_same_app_interaction_types_to_stop_usage_at)
-        other_stop_mask = df_copy[Column.INTERACTION_TYPE].isin(self.options.filtered_other_interaction_types_to_stop_usage_at)
-        stopped_mask = df_copy[Column.INTERACTION_TYPE] == InteractionType.FILTERED_APP_STOPPED
+        resumed_mask = (
+            df_copy[Column.INTERACTION_TYPE] == InteractionType.FILTERED_APP_RESUMED
+        )
+        same_app_stop_mask = df_copy[Column.INTERACTION_TYPE].isin(
+            self.options.filtered_same_app_interaction_types_to_stop_usage_at
+        )
+        other_stop_mask = df_copy[Column.INTERACTION_TYPE].isin(
+            self.options.filtered_other_interaction_types_to_stop_usage_at
+        )
+        stopped_mask = (
+            df_copy[Column.INTERACTION_TYPE] == InteractionType.FILTERED_APP_STOPPED
+        )
 
         # For each resumed activity, find the corresponding stop
         for i in df_copy.index[resumed_mask].tolist():
@@ -104,19 +115,45 @@ class AppUsagePreprocessor(BasePreprocessor):
             current_timestamp = df_copy.loc[i, Column.EVENT_TIMESTAMP]
 
             # Find all potential stopping points in a single pass
-            same_app_indices = df_copy.index[(df_copy.index > i) & (df_copy[Column.APP_PACKAGE_NAME] == current_app) & same_app_stop_mask].tolist()
-            other_app_indices = df_copy.index[(df_copy.index > i) & (df_copy[Column.APP_PACKAGE_NAME] != current_app) & other_stop_mask].tolist()
-            activity_stopped_indices = df_copy.index[(df_copy.index > i) & (df_copy[Column.APP_PACKAGE_NAME] == current_app) & stopped_mask].tolist()
+            same_app_indices = df_copy.index[
+                (df_copy.index > i)
+                & (df_copy[Column.APP_PACKAGE_NAME] == current_app)
+                & same_app_stop_mask
+            ].tolist()
+            other_app_indices = df_copy.index[
+                (df_copy.index > i)
+                & (df_copy[Column.APP_PACKAGE_NAME] != current_app)
+                & other_stop_mask
+            ].tolist()
+            activity_stopped_indices = df_copy.index[
+                (df_copy.index > i)
+                & (df_copy[Column.APP_PACKAGE_NAME] == current_app)
+                & stopped_mask
+            ].tolist()
 
             # Get the first occurrence of each type
             same_app_stop_index = same_app_indices[0] if same_app_indices else None
             other_app_stop_index = other_app_indices[0] if other_app_indices else None
-            activity_stopped_index = activity_stopped_indices[0] if activity_stopped_indices else None
+            activity_stopped_index = (
+                activity_stopped_indices[0] if activity_stopped_indices else None
+            )
 
             # Get corresponding timestamps
-            same_app_stop_timestamp = df_copy.loc[same_app_stop_index, Column.EVENT_TIMESTAMP] if same_app_stop_index is not None else None
-            other_app_stop_timestamp = df_copy.loc[other_app_stop_index, Column.EVENT_TIMESTAMP] if other_app_stop_index is not None else None
-            activity_stopped_timestamp = df_copy.loc[activity_stopped_index, Column.EVENT_TIMESTAMP] if activity_stopped_index is not None else None
+            same_app_stop_timestamp = (
+                df_copy.loc[same_app_stop_index, Column.EVENT_TIMESTAMP]
+                if same_app_stop_index is not None
+                else None
+            )
+            other_app_stop_timestamp = (
+                df_copy.loc[other_app_stop_index, Column.EVENT_TIMESTAMP]
+                if other_app_stop_index is not None
+                else None
+            )
+            activity_stopped_timestamp = (
+                df_copy.loc[activity_stopped_index, Column.EVENT_TIMESTAMP]
+                if activity_stopped_index is not None
+                else None
+            )
 
             timestamp_to_use = None
 
@@ -128,11 +165,16 @@ class AppUsagePreprocessor(BasePreprocessor):
                 and isinstance(other_app_stop_timestamp, pd.Timestamp)
                 and isinstance(current_timestamp, pd.Timestamp)
             ):
-                same_app_diff = (same_app_stop_timestamp - current_timestamp).total_seconds()
-                other_app_diff = (other_app_stop_timestamp - current_timestamp).total_seconds()
+                same_app_diff = (
+                    same_app_stop_timestamp - current_timestamp
+                ).total_seconds()
+                other_app_diff = (
+                    other_app_stop_timestamp - current_timestamp
+                ).total_seconds()
                 activity_stopped_diff = (
                     (activity_stopped_timestamp - current_timestamp).total_seconds()
-                    if activity_stopped_timestamp is not None and isinstance(activity_stopped_timestamp, pd.Timestamp)
+                    if activity_stopped_timestamp is not None
+                    and isinstance(activity_stopped_timestamp, pd.Timestamp)
                     else float("inf")
                 )
 
@@ -168,8 +210,12 @@ class AppUsagePreprocessor(BasePreprocessor):
                     timestamp_to_use = activity_stopped_timestamp
                 else:
                     timestamp_to_use = None
-            elif activity_stopped_index is not None and isinstance(activity_stopped_timestamp, pd.Timestamp):
-                activity_stopped_diff = (activity_stopped_timestamp - current_timestamp).total_seconds()
+            elif activity_stopped_index is not None and isinstance(
+                activity_stopped_timestamp, pd.Timestamp
+            ):
+                activity_stopped_diff = (
+                    activity_stopped_timestamp - current_timestamp
+                ).total_seconds()
                 if activity_stopped_diff < long_duration_threshold_seconds:
                     timestamp_to_use = activity_stopped_timestamp
 
@@ -180,22 +226,40 @@ class AppUsagePreprocessor(BasePreprocessor):
                     df_copy.loc[i, Column.START_TIMESTAMP] = current_timestamp
                     df_copy.loc[i, Column.STOP_TIMESTAMP] = timestamp_to_use
 
-                if isinstance(timestamp_to_use, pd.Timestamp) and isinstance(current_timestamp, pd.Timestamp):
-                    time_diff_seconds = (timestamp_to_use - current_timestamp).total_seconds()
-                    LOGGER.debug(f"Using timestamp for filtered app {current_app}, time gap: {time_diff_seconds / 60:.2f} minutes")
+                if isinstance(timestamp_to_use, pd.Timestamp) and isinstance(
+                    current_timestamp, pd.Timestamp
+                ):
+                    time_diff_seconds = (
+                        timestamp_to_use - current_timestamp
+                    ).total_seconds()
+                    LOGGER.debug(
+                        f"Using timestamp for filtered app {current_app}, time gap: {time_diff_seconds / 60:.2f} minutes"
+                    )
             else:
-                LOGGER.warning("Missing end timestamp for filtered app usage, using timestamp of final entry in data.")
+                LOGGER.warning(
+                    "Missing end timestamp for filtered app usage, using timestamp of final entry in data."
+                )
                 with warnings.catch_warnings():
                     warnings.simplefilter(action="ignore", category=FutureWarning)
                     df_copy.loc[i, Column.START_TIMESTAMP] = current_timestamp
-                    df_copy.loc[i, Column.INTERACTION_TYPE] = InteractionType.END_OF_USAGE_MISSING
+                    df_copy.loc[i, Column.INTERACTION_TYPE] = (
+                        InteractionType.END_OF_USAGE_MISSING
+                    )
 
         # Remove paused events and invalid rows
-        df_copy = df_copy[~(df_copy[Column.INTERACTION_TYPE] == InteractionType.FILTERED_APP_PAUSED)]
+        df_copy = df_copy[
+            ~(df_copy[Column.INTERACTION_TYPE] == InteractionType.FILTERED_APP_PAUSED)
+        ]
         df_copy = df_copy[
             ~(
-                (df_copy[Column.INTERACTION_TYPE] == InteractionType.FILTERED_APP_RESUMED)
-                & (df_copy[Column.START_TIMESTAMP].isna() | df_copy[Column.STOP_TIMESTAMP].isna())
+                (
+                    df_copy[Column.INTERACTION_TYPE]
+                    == InteractionType.FILTERED_APP_RESUMED
+                )
+                & (
+                    df_copy[Column.START_TIMESTAMP].isna()
+                    | df_copy[Column.STOP_TIMESTAMP].isna()
+                )
             )
         ]
 
@@ -205,10 +269,14 @@ class AppUsagePreprocessor(BasePreprocessor):
         )
 
         # Convert timestamps to proper timezone
-        df_copy = self.timezone_preprocessor.convert_timestamp_columns(df_copy, [Column.START_TIMESTAMP, Column.STOP_TIMESTAMP])
+        df_copy = self.timezone_preprocessor.convert_timestamp_columns(
+            df_copy, [Column.START_TIMESTAMP, Column.STOP_TIMESTAMP]
+        )
 
         # Check for disordered timestamps
-        TimestampPreprocessor.check_for_disordered_timestamps(df_copy, Column.START_TIMESTAMP, Column.STOP_TIMESTAMP)
+        TimestampPreprocessor.check_for_disordered_timestamps(
+            df_copy, Column.START_TIMESTAMP, Column.STOP_TIMESTAMP
+        )
 
         df_copy = df_copy.reset_index(drop=True)
         LOGGER.debug("Filtered app usage rows processed successfully")
@@ -231,7 +299,10 @@ class AppUsagePreprocessor(BasePreprocessor):
 
         df_copy = df.reset_index(drop=True)
 
-        valid_interactions = [InteractionType.ACTIVITY_RESUMED, InteractionType.ACTIVITY_PAUSED]
+        valid_interactions = [
+            InteractionType.ACTIVITY_RESUMED,
+            InteractionType.ACTIVITY_PAUSED,
+        ]
         if not df_copy[Column.INTERACTION_TYPE].isin(valid_interactions).any():
             LOGGER.warning("No valid app usage found")
             msg = "No valid app usage data during the study period"
@@ -240,10 +311,18 @@ class AppUsagePreprocessor(BasePreprocessor):
         long_duration_threshold_seconds = 12 * 3600
 
         # Create masks for different interaction types
-        resumed_mask = df_copy[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_RESUMED
-        stopped_mask = df_copy[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_STOPPED
-        same_app_stop_mask = df_copy[Column.INTERACTION_TYPE].isin(self.options.same_app_interaction_types_to_stop_usage_at)
-        other_stop_mask = df_copy[Column.INTERACTION_TYPE].isin(self.options.other_interaction_types_to_stop_usage_at)
+        resumed_mask = (
+            df_copy[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_RESUMED
+        )
+        stopped_mask = (
+            df_copy[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_STOPPED
+        )
+        same_app_stop_mask = df_copy[Column.INTERACTION_TYPE].isin(
+            self.options.same_app_interaction_types_to_stop_usage_at
+        )
+        other_stop_mask = df_copy[Column.INTERACTION_TYPE].isin(
+            self.options.other_interaction_types_to_stop_usage_at
+        )
 
         # For each resumed activity, find the corresponding stop
         for i in df_copy.index[resumed_mask].tolist():
@@ -251,19 +330,45 @@ class AppUsagePreprocessor(BasePreprocessor):
             current_timestamp = df_copy.loc[i, Column.EVENT_TIMESTAMP]
 
             # Find all potential stopping points in a single pass
-            same_app_indices = df_copy.index[(df_copy.index > i) & (df_copy[Column.APP_PACKAGE_NAME] == current_app) & same_app_stop_mask].tolist()
-            other_app_indices = df_copy.index[(df_copy.index > i) & (df_copy[Column.APP_PACKAGE_NAME] != current_app) & other_stop_mask].tolist()
-            activity_stopped_indices = df_copy.index[(df_copy.index > i) & (df_copy[Column.APP_PACKAGE_NAME] == current_app) & stopped_mask].tolist()
+            same_app_indices = df_copy.index[
+                (df_copy.index > i)
+                & (df_copy[Column.APP_PACKAGE_NAME] == current_app)
+                & same_app_stop_mask
+            ].tolist()
+            other_app_indices = df_copy.index[
+                (df_copy.index > i)
+                & (df_copy[Column.APP_PACKAGE_NAME] != current_app)
+                & other_stop_mask
+            ].tolist()
+            activity_stopped_indices = df_copy.index[
+                (df_copy.index > i)
+                & (df_copy[Column.APP_PACKAGE_NAME] == current_app)
+                & stopped_mask
+            ].tolist()
 
             # Get the first occurrence of each type
             same_app_stop_index = same_app_indices[0] if same_app_indices else None
             other_app_stop_index = other_app_indices[0] if other_app_indices else None
-            activity_stopped_index = activity_stopped_indices[0] if activity_stopped_indices else None
+            activity_stopped_index = (
+                activity_stopped_indices[0] if activity_stopped_indices else None
+            )
 
             # Get corresponding timestamps
-            same_app_stop_timestamp = df_copy.loc[same_app_stop_index, Column.EVENT_TIMESTAMP] if same_app_stop_index is not None else None
-            other_app_stop_timestamp = df_copy.loc[other_app_stop_index, Column.EVENT_TIMESTAMP] if other_app_stop_index is not None else None
-            activity_stopped_timestamp = df_copy.loc[activity_stopped_index, Column.EVENT_TIMESTAMP] if activity_stopped_index is not None else None
+            same_app_stop_timestamp = (
+                df_copy.loc[same_app_stop_index, Column.EVENT_TIMESTAMP]
+                if same_app_stop_index is not None
+                else None
+            )
+            other_app_stop_timestamp = (
+                df_copy.loc[other_app_stop_index, Column.EVENT_TIMESTAMP]
+                if other_app_stop_index is not None
+                else None
+            )
+            activity_stopped_timestamp = (
+                df_copy.loc[activity_stopped_index, Column.EVENT_TIMESTAMP]
+                if activity_stopped_index is not None
+                else None
+            )
 
             timestamp_to_use = None
 
@@ -275,11 +380,16 @@ class AppUsagePreprocessor(BasePreprocessor):
                 and isinstance(other_app_stop_timestamp, pd.Timestamp)
                 and isinstance(current_timestamp, pd.Timestamp)
             ):
-                same_app_diff = (same_app_stop_timestamp - current_timestamp).total_seconds()
-                other_app_diff = (other_app_stop_timestamp - current_timestamp).total_seconds()
+                same_app_diff = (
+                    same_app_stop_timestamp - current_timestamp
+                ).total_seconds()
+                other_app_diff = (
+                    other_app_stop_timestamp - current_timestamp
+                ).total_seconds()
                 activity_stopped_diff = (
                     (activity_stopped_timestamp - current_timestamp).total_seconds()
-                    if activity_stopped_timestamp is not None and isinstance(activity_stopped_timestamp, pd.Timestamp)
+                    if activity_stopped_timestamp is not None
+                    and isinstance(activity_stopped_timestamp, pd.Timestamp)
                     else float("inf")
                 )
 
@@ -315,7 +425,9 @@ class AppUsagePreprocessor(BasePreprocessor):
                     timestamp_to_use = activity_stopped_timestamp
                 else:
                     timestamp_to_use = None
-            elif activity_stopped_index is not None and isinstance(activity_stopped_timestamp, pd.Timestamp):
+            elif activity_stopped_index is not None and isinstance(
+                activity_stopped_timestamp, pd.Timestamp
+            ):
                 timestamp_to_use = activity_stopped_timestamp
 
             # Apply the determined timestamp or mark as missing
@@ -325,38 +437,62 @@ class AppUsagePreprocessor(BasePreprocessor):
                     df_copy.loc[i, Column.START_TIMESTAMP] = current_timestamp
                     df_copy.loc[i, Column.STOP_TIMESTAMP] = timestamp_to_use
 
-                if isinstance(timestamp_to_use, pd.Timestamp) and isinstance(current_timestamp, pd.Timestamp):
-                    time_diff_seconds = (timestamp_to_use - current_timestamp).total_seconds()
-                    LOGGER.debug(f"Using timestamp for app {current_app}, time gap: {time_diff_seconds / 60:.2f} minutes")
+                if isinstance(timestamp_to_use, pd.Timestamp) and isinstance(
+                    current_timestamp, pd.Timestamp
+                ):
+                    time_diff_seconds = (
+                        timestamp_to_use - current_timestamp
+                    ).total_seconds()
+                    LOGGER.debug(
+                        f"Using timestamp for app {current_app}, time gap: {time_diff_seconds / 60:.2f} minutes"
+                    )
             else:
-                LOGGER.warning("Missing end timestamp for the final instance of app usage.")
+                LOGGER.warning(
+                    "Missing end timestamp for the final instance of app usage."
+                )
                 with warnings.catch_warnings():
                     warnings.simplefilter(action="ignore", category=FutureWarning)
-                    df_copy.loc[i, Column.INTERACTION_TYPE] = InteractionType.END_OF_USAGE_MISSING
+                    df_copy.loc[i, Column.INTERACTION_TYPE] = (
+                        InteractionType.END_OF_USAGE_MISSING
+                    )
 
-        df_copy = df_copy[~(df_copy[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_PAUSED)]
+        df_copy = df_copy[
+            ~(df_copy[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_PAUSED)
+        ]
 
         df_copy = df_copy[
             ~(
                 (df_copy[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_RESUMED)
-                & (df_copy[Column.START_TIMESTAMP].isna() | df_copy[Column.STOP_TIMESTAMP].isna())
+                & (
+                    df_copy[Column.START_TIMESTAMP].isna()
+                    | df_copy[Column.STOP_TIMESTAMP].isna()
+                )
             )
         ]
 
-        df_copy[Column.INTERACTION_TYPE] = df_copy[Column.INTERACTION_TYPE].replace(InteractionType.ACTIVITY_RESUMED, InteractionType.APP_USAGE)
+        df_copy[Column.INTERACTION_TYPE] = df_copy[Column.INTERACTION_TYPE].replace(
+            InteractionType.ACTIVITY_RESUMED, InteractionType.APP_USAGE
+        )
 
-        df_copy = self.timezone_preprocessor.convert_timestamp_columns(df_copy, [Column.START_TIMESTAMP, Column.STOP_TIMESTAMP])
+        df_copy = self.timezone_preprocessor.convert_timestamp_columns(
+            df_copy, [Column.START_TIMESTAMP, Column.STOP_TIMESTAMP]
+        )
 
-        TimestampPreprocessor.check_for_disordered_timestamps(df_copy, Column.START_TIMESTAMP, Column.STOP_TIMESTAMP)
+        TimestampPreprocessor.check_for_disordered_timestamps(
+            df_copy, Column.START_TIMESTAMP, Column.STOP_TIMESTAMP
+        )
 
         mask = df_copy[Column.INTERACTION_TYPE] == InteractionType.APP_USAGE
         df_copy.loc[mask, Column.DURATION_SECONDS] = df_copy.loc[mask].apply(
-            lambda row: TimestampPreprocessor.calculate_duration_in_seconds(row[Column.START_TIMESTAMP], row[Column.STOP_TIMESTAMP]), axis=1
+            lambda row: TimestampPreprocessor.calculate_duration_in_seconds(
+                row[Column.START_TIMESTAMP], row[Column.STOP_TIMESTAMP]
+            ),
+            axis=1,
         )
 
-        df_copy.loc[mask, Column.DURATION_SECONDS] = df_copy.loc[mask, Column.DURATION_SECONDS].apply(
-            lambda x: x if x >= self.options.minimum_usage_duration else None
-        )
+        df_copy.loc[mask, Column.DURATION_SECONDS] = df_copy.loc[
+            mask, Column.DURATION_SECONDS
+        ].apply(lambda x: x if x >= self.options.minimum_usage_duration else None)
 
         df_copy[Column.DURATION_MINUTES] = df_copy[Column.DURATION_SECONDS] / 60
 
@@ -393,13 +529,17 @@ class AppUsagePreprocessor(BasePreprocessor):
         # Set default values for engagement columns
         for column, default_value in columns_defaults.items():
             if "any_app" in column:
-                mask = df_copy[Column.INTERACTION_TYPE].isin([InteractionType.APP_USAGE, InteractionType.FILTERED_APP_USAGE])
+                mask = df_copy[Column.INTERACTION_TYPE].isin(
+                    [InteractionType.APP_USAGE, InteractionType.FILTERED_APP_USAGE]
+                )
                 df_copy.loc[mask, column] = default_value
             else:
                 mask = df_copy[Column.INTERACTION_TYPE] == InteractionType.APP_USAGE
                 df_copy.loc[mask, column] = default_value
 
-        app_usage_row_indices = df_copy[df_copy[Column.INTERACTION_TYPE] == InteractionType.APP_USAGE].index
+        app_usage_row_indices = df_copy[
+            df_copy[Column.INTERACTION_TYPE] == InteractionType.APP_USAGE
+        ].index
 
         interaction_types = df_copy[Column.INTERACTION_TYPE].to_numpy()
 
@@ -407,7 +547,9 @@ class AppUsagePreprocessor(BasePreprocessor):
         # Process each row individually to avoid type issues with iterrows
         for i in range(len(df_copy)):
             row = df_copy.iloc[i]
-            first_app_set = self._process_row_app_usage_details(i, row, first_app_set, df_copy, app_usage_row_indices, interaction_types)
+            first_app_set = self._process_row_app_usage_details(
+                i, row, first_app_set, df_copy, app_usage_row_indices, interaction_types
+            )
 
         LOGGER.debug("App usage detail columns added successfully")
         return df_copy
@@ -441,14 +583,19 @@ class AppUsagePreprocessor(BasePreprocessor):
         # Only handle ValueError for InteractionType enum conversion
         try:
             # Check if the interaction type string can be converted to enum
-            if isinstance(current_interaction_type, str) and current_interaction_type not in [
+            if isinstance(
+                current_interaction_type, str
+            ) and current_interaction_type not in [
                 InteractionType.APP_USAGE,
                 InteractionType.FILTERED_APP_USAGE,
             ]:
                 InteractionType(current_interaction_type)
                 is_valid_interaction = False
             else:
-                is_valid_interaction = current_interaction_type in [InteractionType.APP_USAGE, InteractionType.FILTERED_APP_USAGE]
+                is_valid_interaction = current_interaction_type in [
+                    InteractionType.APP_USAGE,
+                    InteractionType.FILTERED_APP_USAGE,
+                ]
         except ValueError:
             # Just log that we found an unknown interaction type
             LOGGER.warning(f"Unknown interaction type: {current_interaction_type}")
@@ -457,21 +604,29 @@ class AppUsagePreprocessor(BasePreprocessor):
         if not first_app_set:
             if is_valid_interaction:
                 is_app_usage = current_interaction_type == InteractionType.APP_USAGE
-                self._set_first_app_use_engagement_values(df, index, self.options.custom_app_engagement_duration, is_app_usage)
+                self._set_first_app_use_engagement_values(
+                    df, index, self.options.custom_app_engagement_duration, is_app_usage
+                )
                 first_app_set = True
 
         elif index > 0 and is_valid_interaction:
-            is_first_valid_app = len(app_usage_row_indices) > 0 and index == app_usage_row_indices[0]
+            is_first_valid_app = (
+                len(app_usage_row_indices) > 0 and index == app_usage_row_indices[0]
+            )
             is_app_usage = current_interaction_type == InteractionType.APP_USAGE
 
             if is_first_valid_app and is_app_usage:
-                self._set_first_app_use_engagement_values(df, index, self.options.custom_app_engagement_duration, True)
+                self._set_first_app_use_engagement_values(
+                    df, index, self.options.custom_app_engagement_duration, True
+                )
             else:
                 self._traverse_backward_rows(df, index, row, interaction_types)
 
         return first_app_set
 
-    def _set_first_app_use_engagement_values(self, df: pd.DataFrame, index: int, custom_gap: float, is_app_usage: bool) -> None:
+    def _set_first_app_use_engagement_values(
+        self, df: pd.DataFrame, index: int, custom_gap: float, is_app_usage: bool
+    ) -> None:
         """
         Set engagement values for the first app usage.
 
@@ -488,7 +643,13 @@ class AppUsagePreprocessor(BasePreprocessor):
             df.loc[index, f"valid_app_new_engage_custom_{custom_gap}s"] = 1
             df.loc[index, "valid_app_new_engage_30s"] = 1
 
-    def _traverse_backward_rows(self, df: pd.DataFrame, index: int, row: pd.Series, interaction_types: np.ndarray) -> None:
+    def _traverse_backward_rows(
+        self,
+        df: pd.DataFrame,
+        index: int,
+        row: pd.Series,
+        interaction_types: np.ndarray,
+    ) -> None:
         """
         Traverse backward through rows to find previous app usage.
 
@@ -506,7 +667,10 @@ class AppUsagePreprocessor(BasePreprocessor):
             if not isinstance(backward_interaction_type, InteractionType):
                 continue
 
-            if backward_interaction_type not in [InteractionType.APP_USAGE, InteractionType.FILTERED_APP_USAGE]:
+            if backward_interaction_type not in [
+                InteractionType.APP_USAGE,
+                InteractionType.FILTERED_APP_USAGE,
+            ]:
                 continue
 
             # Check if app switched
@@ -519,7 +683,9 @@ class AppUsagePreprocessor(BasePreprocessor):
 
             # Skip rows with missing timestamps
             if pd.isna(start_ts) or pd.isna(stop_ts):
-                LOGGER.warning(f"Missing timestamp at index {index} or {backward_index}")
+                LOGGER.warning(
+                    f"Missing timestamp at index {index} or {backward_index}"
+                )
                 continue
 
             time_delta = start_ts - stop_ts
@@ -529,19 +695,35 @@ class AppUsagePreprocessor(BasePreprocessor):
             if time_since_last_any_app_use > 30:
                 df.loc[index, "any_app_new_engage_30s"] = 1
 
-            if time_since_last_any_app_use > self.options.custom_app_engagement_duration:
-                df.loc[index, f"any_app_new_engage_custom_{self.options.custom_app_engagement_duration}s"] = 1
+            if (
+                time_since_last_any_app_use
+                > self.options.custom_app_engagement_duration
+            ):
+                df.loc[
+                    index,
+                    f"any_app_new_engage_custom_{self.options.custom_app_engagement_duration}s",
+                ] = 1
 
             # Set time gap in hours
-            df.loc[index, "any_app_usage_time_gap_hours"] = time_since_last_any_app_use // 3600
+            df.loc[index, "any_app_usage_time_gap_hours"] = (
+                time_since_last_any_app_use // 3600
+            )
 
             # If this is a valid app usage, also process valid app metrics
             if row[Column.INTERACTION_TYPE] == InteractionType.APP_USAGE:
-                self._traverse_app_usage_backward_rows(df, index, row, interaction_types)
+                self._traverse_app_usage_backward_rows(
+                    df, index, row, interaction_types
+                )
 
             break
 
-    def _traverse_app_usage_backward_rows(self, df: pd.DataFrame, index: int, row: pd.Series, interaction_types: np.ndarray) -> None:
+    def _traverse_app_usage_backward_rows(
+        self,
+        df: pd.DataFrame,
+        index: int,
+        row: pd.Series,
+        interaction_types: np.ndarray,
+    ) -> None:
         """
         Traverse backward to find previous valid app usage.
 
@@ -568,7 +750,9 @@ class AppUsagePreprocessor(BasePreprocessor):
 
             # Skip if timestamps are missing
             if pd.isna(start_ts) or pd.isna(stop_ts):
-                LOGGER.warning(f"Missing timestamp for valid app usage at index {index} or {backward_index}")
+                LOGGER.warning(
+                    f"Missing timestamp for valid app usage at index {index} or {backward_index}"
+                )
                 continue
 
             time_delta = start_ts - stop_ts
@@ -578,11 +762,19 @@ class AppUsagePreprocessor(BasePreprocessor):
             if time_since_last_valid_app_use > 30:
                 df.loc[index, "valid_app_new_engage_30s"] = 1
 
-            if time_since_last_valid_app_use > self.options.custom_app_engagement_duration:
-                df.loc[index, f"valid_app_new_engage_custom_{self.options.custom_app_engagement_duration}s"] = 1
+            if (
+                time_since_last_valid_app_use
+                > self.options.custom_app_engagement_duration
+            ):
+                df.loc[
+                    index,
+                    f"valid_app_new_engage_custom_{self.options.custom_app_engagement_duration}s",
+                ] = 1
 
             # Set time gap in hours
-            df.loc[index, "valid_app_usage_time_gap_hours"] = time_since_last_valid_app_use // 3600
+            df.loc[index, "valid_app_usage_time_gap_hours"] = (
+                time_since_last_valid_app_use // 3600
+            )
 
             break
 
@@ -593,8 +785,12 @@ class AppUsagePreprocessor(BasePreprocessor):
         Args:
             df: The dataframe to modify with app usage flags
         """
-        LOGGER.debug(f"Marking app usage with duration thresholds: {self.options.long_usage_duration_thresholds} hours")
-        LOGGER.debug(f"Marking app usage with time gap thresholds: {self.options.long_data_time_gap_thresholds} hours")
+        LOGGER.debug(
+            f"Marking app usage with duration thresholds: {self.options.long_usage_duration_thresholds} hours"
+        )
+        LOGGER.debug(
+            f"Marking app usage with time gap thresholds: {self.options.long_data_time_gap_thresholds} hours"
+        )
 
         thresholds_to_use = self.options.long_data_time_gap_thresholds
         duration_thresholds_to_use = self.options.long_usage_duration_thresholds

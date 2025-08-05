@@ -60,11 +60,15 @@ class BaseInteractionTypesDialog(QDialog):
         self.setWindowTitle(title)
         self.setMinimumWidth(int(500 * self.scale_factor))  # Smaller minimum width
         self.setFixedWidth(int(500 * self.scale_factor))  # Smaller fixed width
-        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)  # Allow height to adjust based on content
+        self.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred
+        )  # Allow height to adjust based on content
 
         self.main_layout = QVBoxLayout(self)
 
-        description_label = QLabel("Check the box for each interaction type you want to select for this category.")
+        description_label = QLabel(
+            "Check the box for each interaction type you want to select for this category."
+        )
         description_label.setWordWrap(True)
         description_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         description_label.setStyleSheet("font-size: 11pt; margin-bottom: 10px;")
@@ -72,7 +76,9 @@ class BaseInteractionTypesDialog(QDialog):
 
         if locked_selections:
             note_label = QLabel("Note: Items marked with (*) are selected by default.")
-            note_label.setStyleSheet("color: #606060; font-style: italic; margin-bottom: 10px;")
+            note_label.setStyleSheet(
+                "color: #606060; font-style: italic; margin-bottom: 10px;"
+            )
             note_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.main_layout.addWidget(note_label)
 
@@ -82,11 +88,15 @@ class BaseInteractionTypesDialog(QDialog):
 
         self.ok_button = QPushButton("OK")
         self.ok_button.clicked.connect(self.accept)
-        self.ok_button.setFixedSize(QSize(int(80 * self.scale_factor), int(30 * self.scale_factor)))
+        self.ok_button.setFixedSize(
+            QSize(int(80 * self.scale_factor), int(30 * self.scale_factor))
+        )
 
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.clicked.connect(self.reject)
-        self.cancel_button.setFixedSize(QSize(int(80 * self.scale_factor), int(30 * self.scale_factor)))
+        self.cancel_button.setFixedSize(
+            QSize(int(80 * self.scale_factor), int(30 * self.scale_factor))
+        )
 
         self.buttons_layout.addStretch()
         self.buttons_layout.addWidget(self.ok_button)
@@ -218,11 +228,20 @@ class BaseInteractionTypesDialog(QDialog):
 
 
 class SameAppInteractionTypesDialog(BaseInteractionTypesDialog):
-    def __init__(self, parent: ChronicleAndroidRawDataPreprocessingGUI, options: ChronicleAndroidRawDataPreprocessingOptions) -> None:
+    def __init__(
+        self,
+        parent: ChronicleAndroidRawDataPreprocessingGUI,
+        options: ChronicleAndroidRawDataPreprocessingOptions,
+    ) -> None:
         locked_selections = [InteractionType.ACTIVITY_PAUSED]
 
-        if options.same_app_interaction_types_configured and options.same_app_interaction_types_to_stop_usage_at:
-            default_selections = list(options.same_app_interaction_types_to_stop_usage_at)
+        if (
+            options.same_app_interaction_types_configured
+            and options.same_app_interaction_types_to_stop_usage_at
+        ):
+            default_selections = list(
+                options.same_app_interaction_types_to_stop_usage_at
+            )
         else:
             default_selections = [InteractionType.ACTIVITY_PAUSED]
 
@@ -237,10 +256,17 @@ class SameAppInteractionTypesDialog(BaseInteractionTypesDialog):
 
 
 class OtherInteractionTypesDialog(BaseInteractionTypesDialog):
-    def __init__(self, parent: ChronicleAndroidRawDataPreprocessingGUI, options: ChronicleAndroidRawDataPreprocessingOptions) -> None:
+    def __init__(
+        self,
+        parent: ChronicleAndroidRawDataPreprocessingGUI,
+        options: ChronicleAndroidRawDataPreprocessingOptions,
+    ) -> None:
         locked_selections = [InteractionType.DEVICE_SHUTDOWN]
 
-        if options.other_interaction_types_configured and options.other_interaction_types_to_stop_usage_at:
+        if (
+            options.other_interaction_types_configured
+            and options.other_interaction_types_to_stop_usage_at
+        ):
             default_selections = list(options.other_interaction_types_to_stop_usage_at)
         else:
             default_selections = [InteractionType.DEVICE_SHUTDOWN]
@@ -256,10 +282,17 @@ class OtherInteractionTypesDialog(BaseInteractionTypesDialog):
 
 
 class InteractionTypesToRemoveDialog(BaseInteractionTypesDialog):
-    def __init__(self, parent: ChronicleAndroidRawDataPreprocessingGUI, options: ChronicleAndroidRawDataPreprocessingOptions) -> None:
+    def __init__(
+        self,
+        parent: ChronicleAndroidRawDataPreprocessingGUI,
+        options: ChronicleAndroidRawDataPreprocessingOptions,
+    ) -> None:
         locked_selections = []
 
-        if options.interaction_types_to_remove_configured and options.interaction_types_to_remove:
+        if (
+            options.interaction_types_to_remove_configured
+            and options.interaction_types_to_remove
+        ):
             default_selections = list(options.interaction_types_to_remove)
         else:
             default_selections = []

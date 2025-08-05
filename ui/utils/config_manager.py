@@ -72,17 +72,27 @@ class ConfigManager:
             if key == "apps_to_filter_dict":
                 continue
 
-            if key == "same_app_interaction_types_to_stop_usage_at" and not getattr(options, "same_app_interaction_types_configured", False):
+            if key == "same_app_interaction_types_to_stop_usage_at" and not getattr(
+                options, "same_app_interaction_types_configured", False
+            ):
                 continue
-            if key == "other_interaction_types_to_stop_usage_at" and not getattr(options, "other_interaction_types_configured", False):
+            if key == "other_interaction_types_to_stop_usage_at" and not getattr(
+                options, "other_interaction_types_configured", False
+            ):
                 continue
-            if key == "interaction_types_to_remove" and not getattr(options, "interaction_types_to_remove_configured", False):
+            if key == "interaction_types_to_remove" and not getattr(
+                options, "interaction_types_to_remove_configured", False
+            ):
                 continue
 
             if key.endswith("_configured"):
                 continue
 
-            if key == "selected_timezone" and value is not None and not isinstance(value, str):
+            if (
+                key == "selected_timezone"
+                and value is not None
+                and not isinstance(value, str)
+            ):
                 config[key] = str(value)
             elif isinstance(value, (str, int, float, bool, type(None))):
                 config[key] = value
@@ -148,19 +158,29 @@ class ConfigManager:
             options.minimum_usage_duration = int(config["minimum_usage_duration"])
 
         if "custom_app_engagement_duration" in config:
-            options.custom_app_engagement_duration = int(config["custom_app_engagement_duration"])
+            options.custom_app_engagement_duration = int(
+                config["custom_app_engagement_duration"]
+            )
 
         if "long_usage_duration_thresholds" in config:
-            options.long_usage_duration_thresholds = config["long_usage_duration_thresholds"]
+            options.long_usage_duration_thresholds = config[
+                "long_usage_duration_thresholds"
+            ]
 
         if "long_data_time_gap_thresholds" in config:
-            options.long_data_time_gap_thresholds = config["long_data_time_gap_thresholds"]
+            options.long_data_time_gap_thresholds = config[
+                "long_data_time_gap_thresholds"
+            ]
 
         if "correct_duplicate_event_timestamps" in config:
-            options.correct_duplicate_event_timestamps = config["correct_duplicate_event_timestamps"]
+            options.correct_duplicate_event_timestamps = config[
+                "correct_duplicate_event_timestamps"
+            ]
 
         if "timezone_handling_option" in config:
-            options.timezone_handling_option = TimezoneHandlingOption(config["timezone_handling_option"])
+            options.timezone_handling_option = TimezoneHandlingOption(
+                config["timezone_handling_option"]
+            )
 
         if "available_timezones" in config:
             options.available_timezones = config["available_timezones"]
@@ -169,15 +189,21 @@ class ConfigManager:
             options.selected_timezone = config["selected_timezone"]
 
         if "same_app_interaction_types_to_stop_usage_at" in config:
-            options.same_app_interaction_types_to_stop_usage_at = set(config["same_app_interaction_types_to_stop_usage_at"])
+            options.same_app_interaction_types_to_stop_usage_at = set(
+                config["same_app_interaction_types_to_stop_usage_at"]
+            )
             options.same_app_interaction_types_configured = True
 
         if "other_interaction_types_to_stop_usage_at" in config:
-            options.other_interaction_types_to_stop_usage_at = set(config["other_interaction_types_to_stop_usage_at"])
+            options.other_interaction_types_to_stop_usage_at = set(
+                config["other_interaction_types_to_stop_usage_at"]
+            )
             options.other_interaction_types_configured = True
 
         if "interaction_types_to_remove" in config:
-            options.interaction_types_to_remove = set(config["interaction_types_to_remove"])
+            options.interaction_types_to_remove = set(
+                config["interaction_types_to_remove"]
+            )
             options.interaction_types_to_remove_configured = True
 
         if "use_app_codebook" in config:

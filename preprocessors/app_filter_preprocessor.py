@@ -59,7 +59,9 @@ class AppFilterPreprocessor(BasePreprocessor):
         df_copy = df.copy()
 
         # Find apps to filter
-        mask = df_copy[Column.APP_PACKAGE_NAME].isin(self.options.apps_to_filter_dict.keys())
+        mask = df_copy[Column.APP_PACKAGE_NAME].isin(
+            self.options.apps_to_filter_dict.keys()
+        )
 
         # Set to track unique unexpected app label matches
         unexpected_labels = set()
@@ -68,37 +70,68 @@ class AppFilterPreprocessor(BasePreprocessor):
         for index, row in df_copy[mask].iterrows():
             app_package_name = row[Column.APP_PACKAGE_NAME]
             app_label = row[Column.APPLICATION_LABEL]
-            expected_labels = [label.strip() for label in self.options.apps_to_filter_dict[app_package_name].split(",")]
+            expected_labels = [
+                label.strip()
+                for label in self.options.apps_to_filter_dict[app_package_name].split(
+                    ","
+                )
+            ]
 
             # Check if app label matches expected labels
             if app_label not in expected_labels:
                 # Use safe encoding for Unicode characters in logging
                 try:
-                    LOGGER.warning(f"App label mismatch for package {app_package_name}: expected any of '{expected_labels}', found '{app_label}'")
+                    LOGGER.warning(
+                        f"App label mismatch for package {app_package_name}: expected any of '{expected_labels}', found '{app_label}'"
+                    )
                 except UnicodeEncodeError:
                     # Fallback to ASCII-safe logging if Unicode fails
-                    safe_expected = [label.encode('ascii', 'replace').decode('ascii') for label in expected_labels]
-                    safe_app_label = app_label.encode('ascii', 'replace').decode('ascii')
-                    LOGGER.warning(f"App label mismatch for package {app_package_name}: expected any of '{safe_expected}', found '{safe_app_label}' (Unicode characters replaced)")
-                
+                    safe_expected = [
+                        label.encode("ascii", "replace").decode("ascii")
+                        for label in expected_labels
+                    ]
+                    safe_app_label = app_label.encode("ascii", "replace").decode(
+                        "ascii"
+                    )
+                    LOGGER.warning(
+                        f"App label mismatch for package {app_package_name}: expected any of '{safe_expected}', found '{safe_app_label}' (Unicode characters replaced)"
+                    )
+
                 try:
-                    unexpected_labels.add(f"{app_package_name}: expected any of '{expected_labels}', found '{app_label}'")
+                    unexpected_labels.add(
+                        f"{app_package_name}: expected any of '{expected_labels}', found '{app_label}'"
+                    )
                 except UnicodeEncodeError:
                     # Fallback for the unexpected_labels set as well
-                    safe_expected = [label.encode('ascii', 'replace').decode('ascii') for label in expected_labels]
-                    safe_app_label = app_label.encode('ascii', 'replace').decode('ascii')
-                    unexpected_labels.add(f"{app_package_name}: expected any of '{safe_expected}', found '{safe_app_label}' (Unicode characters replaced)")
+                    safe_expected = [
+                        label.encode("ascii", "replace").decode("ascii")
+                        for label in expected_labels
+                    ]
+                    safe_app_label = app_label.encode("ascii", "replace").decode(
+                        "ascii"
+                    )
+                    unexpected_labels.add(
+                        f"{app_package_name}: expected any of '{safe_expected}', found '{safe_app_label}' (Unicode characters replaced)"
+                    )
                 continue
 
             # Update interaction type for filtered apps
             if row[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_RESUMED:
-                df_copy.at[index, Column.INTERACTION_TYPE] = InteractionType.FILTERED_APP_RESUMED
+                df_copy.at[index, Column.INTERACTION_TYPE] = (
+                    InteractionType.FILTERED_APP_RESUMED
+                )
             elif row[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_PAUSED:
-                df_copy.at[index, Column.INTERACTION_TYPE] = InteractionType.FILTERED_APP_PAUSED
+                df_copy.at[index, Column.INTERACTION_TYPE] = (
+                    InteractionType.FILTERED_APP_PAUSED
+                )
             elif row[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_STOPPED:
-                df_copy.at[index, Column.INTERACTION_TYPE] = InteractionType.FILTERED_APP_STOPPED
+                df_copy.at[index, Column.INTERACTION_TYPE] = (
+                    InteractionType.FILTERED_APP_STOPPED
+                )
             elif row[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_DESTROYED:
-                df_copy.at[index, Column.INTERACTION_TYPE] = InteractionType.FILTERED_APP_DESTROYED
+                df_copy.at[index, Column.INTERACTION_TYPE] = (
+                    InteractionType.FILTERED_APP_DESTROYED
+                )
 
         # Record unexpected app labels to file if any found
         if unexpected_labels:
@@ -121,7 +154,10 @@ class AppFilterPreprocessor(BasePreprocessor):
         if app_package_name not in self.options.apps_to_filter_dict:
             return False
 
-        expected_labels = [label.strip() for label in self.options.apps_to_filter_dict[app_package_name].split(",")]
+        expected_labels = [
+            label.strip()
+            for label in self.options.apps_to_filter_dict[app_package_name].split(",")
+        ]
         return app_label in expected_labels
 
     def _save_unexpected_app_labels(self, unexpected_labels: set) -> None:

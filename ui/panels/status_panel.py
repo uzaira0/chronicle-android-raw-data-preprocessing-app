@@ -24,7 +24,6 @@ from PyQt6.QtWidgets import (
 
 from config.constants import UIStatus
 from models.preprocessing_options import ChronicleAndroidRawDataPreprocessingOptions
-from models.processing_stats import ProcessingStats
 
 LOGGER = logging.getLogger(__name__)
 
@@ -39,7 +38,12 @@ class StatusPanel(QWidget):
     # Signals
     start_clicked = pyqtSignal()
 
-    def __init__(self, options: ChronicleAndroidRawDataPreprocessingOptions, parent: QWidget | None = None, scale_factor: float = 1.0) -> None:
+    def __init__(
+        self,
+        options: ChronicleAndroidRawDataPreprocessingOptions,
+        parent: QWidget | None = None,
+        scale_factor: float = 1.0,
+    ) -> None:
         super().__init__(parent)
         self.options = options
         self.scale_factor = scale_factor
@@ -169,7 +173,9 @@ class StatusPanel(QWidget):
                 subprocess.call(["xdg-open", str(folder_path)])
         except Exception as e:
             LOGGER.exception(f"Error opening {folder_type.lower()} folder")
-            QMessageBox.warning(self, "Error", f"Could not open {folder_type.lower()} folder: {e}")
+            QMessageBox.warning(
+                self, "Error", f"Could not open {folder_type.lower()} folder: {e}"
+            )
 
     def _on_open_output_folder(self) -> None:
         """
@@ -248,7 +254,9 @@ class StatusPanel(QWidget):
                 }
             """)
 
-    def update_progress(self, message: str, current_file: int = 0, total_files: int = 0) -> None:
+    def update_progress(
+        self, message: str, current_file: int = 0, total_files: int = 0
+    ) -> None:
         """
         Update the progress label with file processing information.
 

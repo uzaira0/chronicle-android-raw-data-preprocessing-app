@@ -37,7 +37,12 @@ class PlottingPanel(QWidget):
     # Signals
     options_updated = pyqtSignal()
 
-    def __init__(self, options: ChronicleAndroidRawDataPreprocessingOptions, parent: QWidget | None = None, scale_factor: float = 1.0) -> None:
+    def __init__(
+        self,
+        options: ChronicleAndroidRawDataPreprocessingOptions,
+        parent: QWidget | None = None,
+        scale_factor: float = 1.0,
+    ) -> None:
         super().__init__(parent)
         self.options = options
         self.scale_factor = scale_factor
@@ -61,7 +66,9 @@ class PlottingPanel(QWidget):
 
         # Initialize UI elements from options
         if self.options.app_codebook_path:
-            self._display_path_with_elide(self.app_codebook_display, str(self.options.app_codebook_path))
+            self._display_path_with_elide(
+                self.app_codebook_display, str(self.options.app_codebook_path)
+            )
 
         # Initialize visibility based on options
         self.app_codebook_placeholder.setVisible(self.options.use_app_codebook)
@@ -73,20 +80,36 @@ class PlottingPanel(QWidget):
         self.plotting_group = QGroupBox("Plotting Options")
         plotting_layout = QVBoxLayout()
 
-        self.include_filtered_app_usage_checkbox = QCheckBox("Include Filtered App Usage in Plots")
-        self.include_filtered_app_usage_checkbox.setChecked(self.options.include_filtered_app_usage_in_plots)
-        self.include_filtered_app_usage_checkbox.stateChanged.connect(self._on_include_filtered_app_usage_changed)
+        self.include_filtered_app_usage_checkbox = QCheckBox(
+            "Include Filtered App Usage in Plots"
+        )
+        self.include_filtered_app_usage_checkbox.setChecked(
+            self.options.include_filtered_app_usage_in_plots
+        )
+        self.include_filtered_app_usage_checkbox.stateChanged.connect(
+            self._on_include_filtered_app_usage_changed
+        )
         plotting_layout.addWidget(self.include_filtered_app_usage_checkbox)
 
         self.use_app_codebook_checkbox = QCheckBox("Use App Codebook for Categories")
         self.use_app_codebook_checkbox.setChecked(self.options.use_app_codebook)
-        self.use_app_codebook_checkbox.stateChanged.connect(self._on_use_app_codebook_changed)
+        self.use_app_codebook_checkbox.stateChanged.connect(
+            self._on_use_app_codebook_changed
+        )
         plotting_layout.addWidget(self.use_app_codebook_checkbox)
 
-        self.plot_only_target_child_checkbox = QCheckBox("Plot Only Target Child Data (Internal Research)")
-        self.plot_only_target_child_checkbox.setChecked(self.options.plot_only_target_child_data)
-        self.plot_only_target_child_checkbox.stateChanged.connect(self._on_plot_only_target_child_data_changed)
-        self.plot_only_target_child_checkbox.setVisible(self._check_internal_modules_available())
+        self.plot_only_target_child_checkbox = QCheckBox(
+            "Plot Only Target Child Data (Internal Research)"
+        )
+        self.plot_only_target_child_checkbox.setChecked(
+            self.options.plot_only_target_child_data
+        )
+        self.plot_only_target_child_checkbox.stateChanged.connect(
+            self._on_plot_only_target_child_data_changed
+        )
+        self.plot_only_target_child_checkbox.setVisible(
+            self._check_internal_modules_available()
+        )
         plotting_layout.addWidget(self.plot_only_target_child_checkbox)
 
         self.app_codebook_placeholder = QWidget()
@@ -102,7 +125,9 @@ class PlottingPanel(QWidget):
         self.app_codebook_display.setFixedHeight(int(26 * self.scale_factor))
 
         self.app_codebook_button = QPushButton("Browse...")
-        self.app_codebook_button.setFixedSize(QSize(int(80 * self.scale_factor), int(26 * self.scale_factor)))
+        self.app_codebook_button.setFixedSize(
+            QSize(int(80 * self.scale_factor), int(26 * self.scale_factor))
+        )
         self.app_codebook_button.clicked.connect(self._on_select_app_codebook)
 
         self.app_codebook_layout.addWidget(app_codebook_label)
@@ -116,18 +141,22 @@ class PlottingPanel(QWidget):
     def _check_internal_modules_available(self) -> bool:
         """
         Check if internal survey data modules are available.
-        
+
         Returns:
             bool: True if internal modules are available, False otherwise
         """
         try:
             # Try to import the survey data preprocessor
             from preprocessors.survey_data_preprocessor import SurveyDataPreprocessor
-            
+
             # Also try to import key internal dependencies to ensure full functionality
-            from internal.P01_classes import DeviceSharingStatus, ParticipantID, TrackingSheet
+            from internal.P01_classes import (
+                DeviceSharingStatus,
+                ParticipantID,
+                TrackingSheet,
+            )
             from internal.P01_utils_functions import write_df_to_excel_and_format
-            
+
             return True
         except ImportError:
             LOGGER.debug("Internal survey data functionality not available")
@@ -198,7 +227,9 @@ class PlottingPanel(QWidget):
         """
         Open a dialog to select the app codebook file (CSV).
         """
-        file, _ = QFileDialog.getOpenFileName(self, "Select App Codebook File", "", "App Codebook Files (*.csv, *.xlsx)")
+        file, _ = QFileDialog.getOpenFileName(
+            self, "Select App Codebook File", "", "App Codebook Files (*.csv, *.xlsx)"
+        )
         if file:
             self._display_path_with_elide(self.app_codebook_display, file)
             self.options.app_codebook_path = file

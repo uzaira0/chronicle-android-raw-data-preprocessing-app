@@ -27,11 +27,17 @@ PREPROCESSED_FOLDER_SUFFIX = "Chronicle Android Automatically Preprocessed Data"
 PLOTTED_FOLDER_SUFFIX = "Chronicle Android Plotted Data"
 
 # Default file paths
-DEFAULT_APPS_TO_FILTER_FILE_PATH = "./apps_to_filter_files/Chronicle_Android_raw_data_preprocessor_apps_to_filter.xlsx"
-DEFAULT_APP_CODEBOOK_FILE_PATH = "./app_codebook_files/Chronicle_Android_raw_data_preprocessor_app_codebook.xlsx"
+DEFAULT_APPS_TO_FILTER_FILE_PATH = (
+    "./apps_to_filter_files/Chronicle_Android_raw_data_preprocessor_apps_to_filter.xlsx"
+)
+DEFAULT_APP_CODEBOOK_FILE_PATH = (
+    "./app_codebook_files/Chronicle_Android_raw_data_preprocessor_app_codebook.xlsx"
+)
 
 # Default device sharing status
-DEFAULT_DEVICE_SHARING_STATUS = "Non-Shared"  # Default to non-shared devices if not specified
+DEFAULT_DEVICE_SHARING_STATUS = (
+    "Non-Shared"  # Default to non-shared devices if not specified
+)
 
 
 # ====== Default int values =======
@@ -39,7 +45,9 @@ DEFAULT_MINIMUM_USAGE_DURATION = 0  # in seconds
 DEFAULT_CUSTOM_APP_ENGAGEMENT_DURATION = 300  # in seconds
 DEFAULT_DATA_TIME_GAP_THRESHOLD = 3  # default threshold for flagging gaps without data
 
-EXPECTED_TIMESTAMP_LENGTH = 25  # expected length of timestamp string from Chronicle data in characters
+EXPECTED_TIMESTAMP_LENGTH = (
+    25  # expected length of timestamp string from Chronicle data in characters
+)
 
 
 # ====== Enum classes =======
@@ -237,7 +245,9 @@ class DialogMessage(StrEnum):
 
     WARNING_STUDY_NAME = "Please enter a study name."
     WARNING_RAW_DATA_FOLDER = "Please select a raw data folder."
-    WARNING_TIMEZONE = "Please select a timezone when using non per-file timezone options."
+    WARNING_TIMEZONE = (
+        "Please select a timezone when using non per-file timezone options."
+    )
     WARNING_NO_RAW_DATA_FILES = "No raw data files found in {}. Please check that the folder contains raw data files ending with .csv"
 
 
