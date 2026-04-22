@@ -1,0 +1,10 @@
+include README.md
+include LICENSE
+include pyproject.toml
+
+recursive-include src *.py
+recursive-include app_codebook_files *.xlsx
+recursive-include apps_to_filter_files *.xlsx
+
+global-exclude *.pyc
+global-exclude __pycache__
