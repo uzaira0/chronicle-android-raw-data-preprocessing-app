@@ -202,3 +202,19 @@ preprocessors/survey_data_preprocessor.py
 
 # Local archives
 archive/
+
+# Codebook files — only the main distributable codebook xlsx is tracked
+*.csv
+app_codebook_files/App Codebook*.xlsx
+app_codebook_files/*backup*.xlsx
+app_codebook_files/Baby EMU*
+app_codebook_files/USC*
+
+# Secrets / environment
+.env
+.env.*
+secrets/
+
+# uv
+.venv/
+uv.lock
