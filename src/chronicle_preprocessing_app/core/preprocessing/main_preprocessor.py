@@ -975,7 +975,7 @@ class ChronicleAndroidRawDataPreprocessor:
             # Debug: Check which columns are missing
             missing_columns = [col for col in columns_to_include if col not in output_df.columns]
             if missing_columns:
-                LOGGER.warning(f"Missing columns from dataframe: {missing_columns}")
+                LOGGER.debug(f"Missing optional output columns from dataframe: {missing_columns}")
                 LOGGER.debug(f"Available columns in dataframe: {list(output_df.columns)}")
 
             LOGGER.debug(

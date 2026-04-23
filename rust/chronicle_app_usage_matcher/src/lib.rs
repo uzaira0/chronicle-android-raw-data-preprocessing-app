@@ -1,4 +1,4 @@
-use numpy::PyReadonlyArray1;
+use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
@@ -61,43 +61,35 @@ fn is_valid_duration(
     !enforce_threshold || duration_ns <= i128::from(threshold_ns)
 }
 
-fn compatible_open_starts_for_stop(
+fn is_compatible_open_start_for_stop(
     stop_index: usize,
+    start_index: usize,
     app_codes: &[i32],
     timestamp_ns: &[i64],
-    open_start_indices: &[usize],
     same_stop: &[bool],
     other_stop: &[bool],
     stopped: &[bool],
     options: MatchOptions,
-) -> Vec<usize> {
+) -> bool {
     let current_app = app_codes[stop_index];
     let normal_stop = same_stop[stop_index] || other_stop[stop_index];
     let fallback_stop = stopped[stop_index] && options.use_activity_stopped_as_fallback;
-    let mut compatible = Vec::new();
+    let start_app = app_codes[start_index];
+    let same_app_compatible = same_stop[stop_index] && start_app == current_app;
+    let other_app_compatible = other_stop[stop_index] && start_app != current_app;
+    let fallback_compatible = !normal_stop && fallback_stop && start_app == current_app;
 
-    for &start_index in open_start_indices {
-        let start_app = app_codes[start_index];
-        let same_app_compatible = same_stop[stop_index] && start_app == current_app;
-        let other_app_compatible = other_stop[stop_index] && start_app != current_app;
-        let fallback_compatible = !normal_stop && fallback_stop && start_app == current_app;
-
-        if !(same_app_compatible || other_app_compatible || fallback_compatible) {
-            continue;
-        }
-
-        let enforce_threshold = !fallback_compatible || options.apply_threshold_to_fallback;
-        if is_valid_duration(
-            timestamp_ns[start_index],
-            timestamp_ns[stop_index],
-            enforce_threshold,
-            options.long_duration_threshold_ns,
-        ) {
-            compatible.push(start_index);
-        }
+    if !(same_app_compatible || other_app_compatible || fallback_compatible) {
+        return false;
     }
 
-    compatible
+    let enforce_threshold = !fallback_compatible || options.apply_threshold_to_fallback;
+    is_valid_duration(
+        timestamp_ns[start_index],
+        timestamp_ns[stop_index],
+        enforce_threshold,
+        options.long_duration_threshold_ns,
+    )
 }
 
 fn nearest_compatible_open_start_for_stop(
@@ -110,32 +102,59 @@ fn nearest_compatible_open_start_for_stop(
     stopped: &[bool],
     options: MatchOptions,
 ) -> Option<usize> {
-    let current_app = app_codes[stop_index];
-    let normal_stop = same_stop[stop_index] || other_stop[stop_index];
-    let fallback_stop = stopped[stop_index] && options.use_activity_stopped_as_fallback;
-
-    for &start_index in open_start_indices.iter().rev() {
-        let start_app = app_codes[start_index];
-        let same_app_compatible = same_stop[stop_index] && start_app == current_app;
-        let other_app_compatible = other_stop[stop_index] && start_app != current_app;
-        let fallback_compatible = !normal_stop && fallback_stop && start_app == current_app;
-
-        if !(same_app_compatible || other_app_compatible || fallback_compatible) {
-            continue;
-        }
-
-        let enforce_threshold = !fallback_compatible || options.apply_threshold_to_fallback;
-        if is_valid_duration(
-            timestamp_ns[start_index],
-            timestamp_ns[stop_index],
-            enforce_threshold,
-            options.long_duration_threshold_ns,
+    for (position, &start_index) in open_start_indices.iter().enumerate().rev() {
+        if is_compatible_open_start_for_stop(
+            stop_index,
+            start_index,
+            app_codes,
+            timestamp_ns,
+            same_stop,
+            other_stop,
+            stopped,
+            options,
         ) {
-            return Some(start_index);
+            return Some(position);
         }
     }
 
     None
+}
+
+fn close_reused_starts<F>(
+    stop_index: usize,
+    app_codes: &[i32],
+    timestamp_ns: &[i64],
+    same_stop: &[bool],
+    other_stop: &[bool],
+    stopped: &[bool],
+    options: MatchOptions,
+    open_start_indices: &mut Vec<usize>,
+    mut close_start: F,
+) where
+    F: FnMut(usize),
+{
+    let mut write_index = 0;
+
+    for read_index in 0..open_start_indices.len() {
+        let start_index = open_start_indices[read_index];
+        if is_compatible_open_start_for_stop(
+            stop_index,
+            start_index,
+            app_codes,
+            timestamp_ns,
+            same_stop,
+            other_stop,
+            stopped,
+            options,
+        ) {
+            close_start(start_index);
+        } else {
+            open_start_indices[write_index] = start_index;
+            write_index += 1;
+        }
+    }
+
+    open_start_indices.truncate(write_index);
 }
 
 fn match_app_usage_core(
@@ -166,25 +185,19 @@ fn match_app_usage_core(
         let current_timestamp = timestamp_ns[index];
 
         if options.allow_stop_event_reuse && (is_normal_stop || is_fallback_stop) {
-            let compatible_open_starts = compatible_open_starts_for_stop(
+            close_reused_starts(
                 index,
                 app_codes,
                 timestamp_ns,
-                &open_start_indices,
                 same_stop,
                 other_stop,
                 stopped,
                 options,
+                &mut open_start_indices,
+                |start_index| stop_ns[start_index] = current_timestamp,
             );
-
-            for start_index in compatible_open_starts {
-                stop_ns[start_index] = current_timestamp;
-                if let Some(position) = open_start_indices.iter().position(|&i| i == start_index) {
-                    open_start_indices.remove(position);
-                }
-            }
         } else if is_normal_stop || is_fallback_stop {
-            if let Some(start_index) = nearest_compatible_open_start_for_stop(
+            if let Some(position) = nearest_compatible_open_start_for_stop(
                 index,
                 app_codes,
                 timestamp_ns,
@@ -194,10 +207,8 @@ fn match_app_usage_core(
                 stopped,
                 options,
             ) {
+                let start_index = open_start_indices.remove(position);
                 stop_ns[start_index] = current_timestamp;
-                if let Some(position) = open_start_indices.iter().position(|&i| i == start_index) {
-                    open_start_indices.remove(position);
-                }
             }
         }
 
@@ -263,26 +274,22 @@ fn match_app_usage_update_indices_core(
         let is_fallback_stop = stopped[index] && options.use_activity_stopped_as_fallback;
 
         if options.allow_stop_event_reuse && (is_normal_stop || is_fallback_stop) {
-            let compatible_open_starts = compatible_open_starts_for_stop(
+            close_reused_starts(
                 index,
                 app_codes,
                 timestamp_ns,
-                &open_start_indices,
                 same_stop,
                 other_stop,
                 stopped,
                 options,
+                &mut open_start_indices,
+                |start_index| {
+                    stop_start_indices.push(start_index);
+                    stop_event_indices.push(index);
+                },
             );
-
-            for start_index in compatible_open_starts {
-                stop_start_indices.push(start_index);
-                stop_event_indices.push(index);
-                if let Some(position) = open_start_indices.iter().position(|&i| i == start_index) {
-                    open_start_indices.remove(position);
-                }
-            }
         } else if is_normal_stop || is_fallback_stop {
-            if let Some(start_index) = nearest_compatible_open_start_for_stop(
+            if let Some(position) = nearest_compatible_open_start_for_stop(
                 index,
                 app_codes,
                 timestamp_ns,
@@ -292,11 +299,9 @@ fn match_app_usage_update_indices_core(
                 stopped,
                 options,
             ) {
+                let start_index = open_start_indices.remove(position);
                 stop_start_indices.push(start_index);
                 stop_event_indices.push(index);
-                if let Some(position) = open_start_indices.iter().position(|&i| i == start_index) {
-                    open_start_indices.remove(position);
-                }
             }
         }
 
@@ -404,6 +409,49 @@ fn match_app_usage_update_indices(
     ))
 }
 
+#[allow(clippy::type_complexity)]
+#[pyfunction]
+fn match_app_usage_update_arrays<'py>(
+    py: Python<'py>,
+    app_codes: PyReadonlyArray1<'_, i32>,
+    timestamp_ns: PyReadonlyArray1<'_, i64>,
+    resumed: PyReadonlyArray1<'_, bool>,
+    same_stop: PyReadonlyArray1<'_, bool>,
+    other_stop: PyReadonlyArray1<'_, bool>,
+    stopped: PyReadonlyArray1<'_, bool>,
+    allow_stop_event_reuse: bool,
+    use_activity_stopped_as_fallback: bool,
+    apply_threshold_to_fallback: bool,
+    long_duration_threshold_ns: i64,
+) -> PyResult<(
+    Bound<'py, PyArray1<usize>>,
+    Bound<'py, PyArray1<usize>>,
+    Bound<'py, PyArray1<usize>>,
+    Bound<'py, PyArray1<usize>>,
+)> {
+    let output = match_app_usage_update_indices_core(
+        app_codes.as_slice()?,
+        timestamp_ns.as_slice()?,
+        resumed.as_slice()?,
+        same_stop.as_slice()?,
+        other_stop.as_slice()?,
+        stopped.as_slice()?,
+        MatchOptions {
+            allow_stop_event_reuse,
+            use_activity_stopped_as_fallback,
+            apply_threshold_to_fallback,
+            long_duration_threshold_ns,
+        },
+    )?;
+
+    Ok((
+        output.start_indices.into_pyarray(py),
+        output.stop_start_indices.into_pyarray(py),
+        output.stop_event_indices.into_pyarray(py),
+        output.missing_indices.into_pyarray(py),
+    ))
+}
+
 #[pyfunction]
 fn match_app_usage_arrays(
     app_codes: PyReadonlyArray1<'_, i32>,
@@ -446,6 +494,7 @@ fn match_app_usage_arrays(
 fn _rust_app_usage_matcher(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(match_app_usage, m)?)?;
     m.add_function(wrap_pyfunction!(match_app_usage_update_indices, m)?)?;
+    m.add_function(wrap_pyfunction!(match_app_usage_update_arrays, m)?)?;
     m.add_function(wrap_pyfunction!(match_app_usage_arrays, m)?)?;
     Ok(())
 }
@@ -735,6 +784,46 @@ mod tests {
         let stopped = [false, false, false, false, false, false, false];
         let options = MatchOptions {
             allow_stop_event_reuse: false,
+            use_activity_stopped_as_fallback: true,
+            apply_threshold_to_fallback: true,
+            long_duration_threshold_ns: 1_000,
+        };
+
+        let dense = run(
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            options,
+        );
+        let sparse = run_update_indices(
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            options,
+        );
+
+        assert_eq!(
+            reconstruct_sparse_output(app_codes.len(), &timestamps, sparse),
+            dense
+        );
+    }
+
+    #[test]
+    fn sparse_update_indices_with_stop_reuse_reconstruct_dense_output() {
+        let app_codes = [1, 1, 2, 1, 2, 3, 3, 1];
+        let timestamps = [0, 50, 100, 150, 200, 250, 300, 400];
+        let resumed = [true, true, true, false, false, true, false, false];
+        let same_stop = [false, false, false, true, false, false, true, false];
+        let other_stop = [false, false, false, false, true, false, false, true];
+        let stopped = [false, false, false, false, false, false, false, false];
+        let options = MatchOptions {
+            allow_stop_event_reuse: true,
             use_activity_stopped_as_fallback: true,
             apply_threshold_to_fallback: true,
             long_duration_threshold_ns: 1_000,
