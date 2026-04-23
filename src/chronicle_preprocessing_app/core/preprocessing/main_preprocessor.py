@@ -1047,24 +1047,16 @@ class ChronicleAndroidRawDataPreprocessor:
                     if pd.api.types.is_datetime64_any_dtype(_write_df[col])
                     and not _write_df[col].isna().all()
                 ]
-                if datetime_columns:
-                    timestamp_formats = []
-                    for col in datetime_columns:
-                        col_format = (
-                            "%Y-%m-%d %H:%M:%S%.f%:z"
-                            if getattr(_write_df[col].dtype, "tz", None) is not None
-                            else "%Y-%m-%d %H:%M:%S%.f"
-                        )
-                        timestamp_formats.append(
-                            pl.col(col).dt.strftime(col_format).alias(col)
-                        )
-                    formatted_timestamps = (
-                        pl.from_pandas(_write_df[datetime_columns])
-                        .with_columns(timestamp_formats)
-                        .to_pandas()
+                timestamp_formats = [
+                    pl.col(col)
+                    .dt.strftime(
+                        "%Y-%m-%d %H:%M:%S%.f%:z"
+                        if getattr(_write_df[col].dtype, "tz", None) is not None
+                        else "%Y-%m-%d %H:%M:%S%.f"
                     )
-                    for col in datetime_columns:
-                        _write_df[col] = formatted_timestamps[col]
+                    .alias(col)
+                    for col in datetime_columns
+                ]
 
                 # Convert list columns to strings (Polars doesn't support nested data in CSV)
                 for col in _write_df.columns:
@@ -1099,7 +1091,10 @@ class ChronicleAndroidRawDataPreprocessor:
                             seen[col] = 0
                             new_cols.append(col)
                     _write_df.columns = new_cols
-                pl.from_pandas(_write_df).write_csv(save_name)
+                pl_df = pl.from_pandas(_write_df)
+                if timestamp_formats:
+                    pl_df = pl_df.with_columns(timestamp_formats)
+                pl_df.write_csv(save_name)
                 LOGGER.debug(
                     f"Polars CSV write completed in {time.perf_counter() - _start_write:.3f}s"
                 )
