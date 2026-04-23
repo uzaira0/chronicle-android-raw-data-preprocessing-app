@@ -4,17 +4,13 @@ Preprocessing module for Chronicle Android raw data.
 This module contains all preprocessing logic for transforming raw Chronicle Android
 data files. It is framework-agnostic and can be used independently of the GUI.
 
-The module supports both Pandas and Polars backends. Set CHRONICLE_USE_POLARS=true
-to use the Polars-accelerated I/O operations which provide significant performance
-improvements (4-12x faster for CSV reading and timestamp parsing).
+The module is Polars-first and uses the accelerated I/O/runtime path throughout
+the supported preprocessing flow.
 
 Usage:
     from chronicle_preprocessing_app.core.preprocessing import MainPreprocessor
     preprocessor = MainPreprocessor(options)
 
-To enable/disable Polars acceleration:
-    export CHRONICLE_USE_POLARS=true   # Enable (default)
-    export CHRONICLE_USE_POLARS=false  # Disable
 """
 
 from __future__ import annotations

@@ -4,11 +4,10 @@ import multiprocessing
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
-import pandas as pd
+import polars as pl
 
 from chronicle_preprocessing_app.config.constants import InteractionType, UsageSessionMode
-from chronicle_preprocessing_app.core.config import PreprocessingOptions
-from chronicle_preprocessing_app.core.config import ProcessingStats
+from chronicle_preprocessing_app.core.config import PreprocessingOptions, ProcessingStats
 from chronicle_preprocessing_app.core.preprocessing.main_preprocessor import (
     _build_parallel_options_dict,
     _merge_processing_stats,
@@ -51,7 +50,7 @@ def test_parallel_worker_options_preserve_behavior_settings() -> None:
         screen_usage_auto_lock_timeout_seconds=180,
         parallel_processing=True,
         parallel_max_workers=8,
-        survey_data_df=pd.DataFrame({"participant_id": ["p1"]}),
+        survey_data_df=pl.DataFrame({"participant_id": ["p1"]}),
     )
 
     worker_options = _build_parallel_options_dict(options)
@@ -78,7 +77,6 @@ def test_parallel_worker_options_preserve_behavior_settings() -> None:
 
 def test_parallel_worker_count_auto_and_user_limits_are_safe() -> None:
     auto_workers = _resolve_parallel_max_workers(None, file_count=10_000)
-
     assert auto_workers == max(1, multiprocessing.cpu_count() // 2)
     assert _resolve_parallel_max_workers(0, file_count=3) <= 3
     assert _resolve_parallel_max_workers(99, file_count=3) == 3
@@ -91,7 +89,6 @@ def test_config_manager_restores_parallel_settings() -> None:
         PreprocessingOptions(),
         {"parallel_processing": True, "parallel_max_workers": "6"},
     )
-
     assert options.parallel_processing is True
     assert options.parallel_max_workers == 6
 
@@ -101,7 +98,6 @@ def test_config_manager_restores_auto_parallel_workers() -> None:
         PreprocessingOptions(parallel_max_workers=4),
         {"parallel_processing": True, "parallel_max_workers": None},
     )
-
     assert options.parallel_processing is True
     assert options.parallel_max_workers is None
 

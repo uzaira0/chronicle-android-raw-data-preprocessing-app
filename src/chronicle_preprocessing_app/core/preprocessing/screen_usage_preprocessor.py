@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import bisect
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
-import pandas as pd
+import polars as pl
 
 from chronicle_preprocessing_app.config.constants import Column, InteractionType
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
@@ -16,8 +18,6 @@ LOGGER = logging.getLogger(__name__)
 
 
 class ScreenUsageEndReason:
-    """Stable string values for inferred screen-session end reasons."""
-
     PROBABLE_MANUAL_LOCK = "probable_manual_lock"
     PROBABLE_AUTO_LOCK = "probable_auto_lock"
     APP_KEPT_AWAKE_OR_EXTENDED = "app_kept_awake_or_extended"
@@ -30,12 +30,12 @@ class ScreenUsageEndReason:
 @dataclass
 class _ScreenSessionState:
     start_index: int
-    start_timestamp: pd.Timestamp
+    start_timestamp: datetime
     start_timezone: Any = None
     lock_screen_seen: bool = False
     unlocked_seen: bool = False
     foreground_app_package: str | None = None
-    last_meaningful_activity_timestamp: pd.Timestamp | None = None
+    last_meaningful_activity_timestamp: datetime | None = None
     last_meaningful_activity_package: str | None = None
 
 
@@ -49,87 +49,77 @@ class _EndReason:
 
 
 class ScreenUsagePreprocessor(BasePreprocessor):
-    """Derive screen-on sessions and inferred end reasons.
-
-    This preprocessor appends derived ``Screen Usage`` rows. It does not remove
-    or mutate raw screen/keyguard/app lifecycle events.
-    """
+    """Derive screen-on sessions and inferred end reasons."""
 
     SCREEN_START_EVENTS = {
-        InteractionType.SCREEN_INTERACTIVE,
-        InteractionType.SCREEN_INTERACTIVE_KEYGUARD_SHOWN,
+        str(InteractionType.SCREEN_INTERACTIVE),
+        str(InteractionType.SCREEN_INTERACTIVE_KEYGUARD_SHOWN),
     }
     SCREEN_STOP_EVENTS = {
-        InteractionType.SCREEN_NON_INTERACTIVE,
-        InteractionType.DEVICE_SCREEN_OFF,
-        InteractionType.SCREEN_NON_INTERACTIVE_KEYGUARD_HIDDEN,
+        str(InteractionType.SCREEN_NON_INTERACTIVE),
+        str(InteractionType.DEVICE_SCREEN_OFF),
+        str(InteractionType.SCREEN_NON_INTERACTIVE_KEYGUARD_HIDDEN),
     }
     LOCK_SCREEN_EVENTS = {
-        InteractionType.KEYGUARD_SHOWN,
-        InteractionType.SCREEN_INTERACTIVE_KEYGUARD_SHOWN,
+        str(InteractionType.KEYGUARD_SHOWN),
+        str(InteractionType.SCREEN_INTERACTIVE_KEYGUARD_SHOWN),
     }
     UNLOCK_EVENTS = {
-        InteractionType.KEYGUARD_HIDDEN,
-        InteractionType.USER_UNLOCKED,
-        InteractionType.SCREEN_NON_INTERACTIVE_KEYGUARD_HIDDEN,
+        str(InteractionType.KEYGUARD_HIDDEN),
+        str(InteractionType.USER_UNLOCKED),
+        str(InteractionType.SCREEN_NON_INTERACTIVE_KEYGUARD_HIDDEN),
     }
     FOREGROUND_EVENTS = {
-        InteractionType.ACTIVITY_RESUMED,
-        InteractionType.FILTERED_APP_RESUMED,
+        str(InteractionType.ACTIVITY_RESUMED),
+        str(InteractionType.FILTERED_APP_RESUMED),
     }
     MEANINGFUL_ACTIVITY_EVENTS = {
-        InteractionType.ACTIVITY_RESUMED,
-        InteractionType.FILTERED_APP_RESUMED,
-        InteractionType.USER_INTERACTION,
-        InteractionType.SHORTCUT_INVOCATION,
-        InteractionType.CHOOSER_ACTION,
-        InteractionType.APP_COMPONENT_USED,
-        InteractionType.USER_UNLOCKED,
-        InteractionType.KEYGUARD_HIDDEN,
+        str(InteractionType.ACTIVITY_RESUMED),
+        str(InteractionType.FILTERED_APP_RESUMED),
+        str(InteractionType.USER_INTERACTION),
+        str(InteractionType.SHORTCUT_INVOCATION),
+        str(InteractionType.CHOOSER_ACTION),
+        str(InteractionType.APP_COMPONENT_USED),
+        str(InteractionType.USER_UNLOCKED),
+        str(InteractionType.KEYGUARD_HIDDEN),
     }
 
-    def preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Append derived screen usage rows when enabled."""
+    def preprocess(self, df: pl.DataFrame) -> pl.DataFrame:
         return self.derive_screen_usage_sessions(df)
 
-    def derive_screen_usage_sessions(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Append screen usage rows derived from screen interactive/non-interactive events.
-
-        Returns the input rows plus derived rows sorted by event timestamp. If
-        ``derive_screen_usage_sessions`` is disabled, returns a shallow copy.
-        """
-        df_copy = df.reset_index(drop=True).copy()
+    def derive_screen_usage_sessions(self, df: pl.DataFrame) -> pl.DataFrame:
+        df_copy = df.clone()
         if not self.options.process_screen_usage_sessions:
             return df_copy
 
         required_columns = {Column.EVENT_TIMESTAMP, Column.INTERACTION_TYPE}
         missing_columns = required_columns - set(df_copy.columns)
         if missing_columns:
-            msg = (
-                "Cannot derive screen usage sessions because required columns are "
-                f"missing: {', '.join(sorted(missing_columns))}"
+            raise ValueError(
+                "Cannot derive screen usage sessions because required columns are missing: "
+                + ", ".join(sorted(missing_columns))
             )
-            raise ValueError(msg)
 
-        if not df_copy[Column.INTERACTION_TYPE].isin(self.SCREEN_START_EVENTS).any():
-            LOGGER.debug("No screen start events found")
+        interaction_values = df_copy.get_column(Column.INTERACTION_TYPE).cast(pl.String).to_list()
+        if not any(value in self.SCREEN_START_EVENTS for value in interaction_values):
             return df_copy
 
-        keyguard_shown_timestamps = [
-            pd.Timestamp(timestamp)
-            for timestamp in df_copy.loc[
-                df_copy[Column.INTERACTION_TYPE].isin(self.LOCK_SCREEN_EVENTS),
-                Column.EVENT_TIMESTAMP,
-            ]
-        ]
+        rows = list(df_copy.iter_rows(named=True))
+        keyguard_shown_timestamps = sorted(
+            row[Column.EVENT_TIMESTAMP]
+            for row in rows
+            if str(row[Column.INTERACTION_TYPE]) in self.LOCK_SCREEN_EVENTS
+            and row.get(Column.EVENT_TIMESTAMP) is not None
+        )
 
         sessions: list[dict[str, Any]] = []
         state: _ScreenSessionState | None = None
 
-        for index, row in df_copy.iterrows():
-            interaction_type = row[Column.INTERACTION_TYPE]
-            timestamp = pd.Timestamp(row[Column.EVENT_TIMESTAMP])
+        for index, row in enumerate(rows):
+            interaction_type = str(row[Column.INTERACTION_TYPE])
+            timestamp = row[Column.EVENT_TIMESTAMP]
+            if timestamp is None:
+                continue
             package_name = self._clean_package_name(row.get(Column.APP_PACKAGE_NAME))
 
             if interaction_type in self.SCREEN_START_EVENTS:
@@ -147,23 +137,19 @@ class ScreenUsagePreprocessor(BasePreprocessor):
 
             if interaction_type in self.LOCK_SCREEN_EVENTS:
                 state.lock_screen_seen = True
-
             if interaction_type in self.UNLOCK_EVENTS:
                 state.unlocked_seen = True
-
             if interaction_type in self.FOREGROUND_EVENTS:
                 state.foreground_app_package = package_name
-
             if interaction_type in self.MEANINGFUL_ACTIVITY_EVENTS:
                 state.last_meaningful_activity_timestamp = timestamp
-                state.last_meaningful_activity_package = (
-                    package_name or state.foreground_app_package
-                )
+                state.last_meaningful_activity_package = package_name or state.foreground_app_package
 
             if interaction_type in self.SCREEN_STOP_EVENTS:
                 sessions.append(
                     self._build_session_row(
-                        source_df=df_copy,
+                        source_rows=rows,
+                        source_columns=df_copy.columns,
                         state=state,
                         stop_timestamp=timestamp,
                         stop_event_type=interaction_type,
@@ -175,7 +161,8 @@ class ScreenUsagePreprocessor(BasePreprocessor):
         if state is not None:
             sessions.append(
                 self._build_session_row(
-                    source_df=df_copy,
+                    source_rows=rows,
+                    source_columns=df_copy.columns,
                     state=state,
                     stop_timestamp=None,
                     stop_event_type=None,
@@ -186,28 +173,62 @@ class ScreenUsagePreprocessor(BasePreprocessor):
         if not sessions:
             return df_copy
 
-        result = pd.concat([df_copy, pd.DataFrame(sessions)], ignore_index=True)
-        return result.sort_values(Column.EVENT_TIMESTAMP, kind="mergesort").reset_index(
-            drop=True
-        )
+        session_df = pl.DataFrame(sessions)
+        event_dtype = df_copy.schema[Column.EVENT_TIMESTAMP]
+        for frame_name, current in (("source", df_copy), ("session", session_df)):
+            timestamp_columns = [
+                column
+                for column in (
+                    Column.EVENT_TIMESTAMP,
+                    Column.START_TIMESTAMP,
+                    Column.STOP_TIMESTAMP,
+                    Column.SCREEN_USAGE_LAST_ACTIVITY_TIMESTAMP,
+                )
+                if column in current.columns
+            ]
+            if timestamp_columns:
+                cast_expressions = [
+                    pl.col(column).cast(event_dtype, strict=False).alias(column)
+                    for column in timestamp_columns
+                ]
+                if frame_name == "source":
+                    df_copy = current.with_columns(cast_expressions)
+                else:
+                    session_df = current.with_columns(cast_expressions)
+        return pl.concat([df_copy, session_df], how="diagonal").sort(Column.EVENT_TIMESTAMP)
 
     def _build_session_row(
         self,
         *,
-        source_df: pd.DataFrame,
+        source_rows: list[dict[str, Any]],
+        source_columns: list[str],
         state: _ScreenSessionState,
-        stop_timestamp: pd.Timestamp | None,
-        stop_event_type: InteractionType | None,
-        keyguard_shown_timestamps: list[pd.Timestamp],
+        stop_timestamp: datetime | None,
+        stop_event_type: str | None,
+        keyguard_shown_timestamps: list[datetime],
     ) -> dict[str, Any]:
         end_reason = self._classify_end_reason(
             state=state,
             stop_timestamp=stop_timestamp,
             keyguard_shown_timestamps=keyguard_shown_timestamps,
         )
+        session_columns = set(source_columns) | {
+            Column.START_TIMESTAMP,
+            Column.STOP_TIMESTAMP,
+            Column.DURATION_SECONDS,
+            Column.DURATION_MINUTES,
+            Column.SCREEN_USAGE_END_REASON,
+            Column.SCREEN_USAGE_END_REASON_CONFIDENCE,
+            Column.SCREEN_USAGE_STOP_EVENT_TYPE,
+            Column.SCREEN_USAGE_LAST_ACTIVITY_TIMESTAMP,
+            Column.SCREEN_USAGE_TAIL_GAP_SECONDS,
+            Column.SCREEN_USAGE_FOREGROUND_APP_PACKAGE,
+            Column.SCREEN_USAGE_KEEP_AWAKE_APP_LABEL,
+            Column.SCREEN_USAGE_LOCK_SCREEN_ONLY,
+        }
+        session_row = {column: None for column in session_columns}
+        start_row = source_rows[state.start_index]
 
-        session_row = {column: pd.NA for column in source_df.columns}
-        start_row = source_df.iloc[state.start_index]
         for column in (
             Column.STUDY_ID,
             Column.PARTICIPANT_ID,
@@ -216,15 +237,13 @@ class ScreenUsagePreprocessor(BasePreprocessor):
             Column.PREPROCESSOR_VERSION,
             Column.DATETIME_OF_PREPROCESSING,
         ):
-            if column in source_df.columns:
-                session_row[column] = start_row.get(column, pd.NA)
+            if column in start_row:
+                session_row[column] = start_row.get(column)
 
         session_row[Column.EVENT_TIMESTAMP] = state.start_timestamp
         session_row[Column.START_TIMESTAMP] = state.start_timestamp
-        session_row[Column.STOP_TIMESTAMP] = (
-            stop_timestamp if stop_timestamp is not None else pd.NaT
-        )
-        session_row[Column.INTERACTION_TYPE] = InteractionType.SCREEN_USAGE
+        session_row[Column.STOP_TIMESTAMP] = stop_timestamp
+        session_row[Column.INTERACTION_TYPE] = str(InteractionType.SCREEN_USAGE)
         session_row[Column.APP_PACKAGE_NAME] = state.foreground_app_package
         session_row[Column.SCREEN_USAGE_FOREGROUND_APP_PACKAGE] = state.foreground_app_package
         session_row[Column.SCREEN_USAGE_END_REASON] = end_reason.reason
@@ -232,177 +251,118 @@ class ScreenUsagePreprocessor(BasePreprocessor):
         session_row[Column.SCREEN_USAGE_STOP_EVENT_TYPE] = stop_event_type
         session_row[Column.SCREEN_USAGE_LAST_ACTIVITY_TIMESTAMP] = (
             state.last_meaningful_activity_timestamp
-            if state.last_meaningful_activity_timestamp is not None
-            else pd.NaT
         )
         session_row[Column.SCREEN_USAGE_TAIL_GAP_SECONDS] = end_reason.tail_gap_seconds
         session_row[Column.SCREEN_USAGE_KEEP_AWAKE_APP_LABEL] = end_reason.keep_awake_app_label
         session_row[Column.SCREEN_USAGE_LOCK_SCREEN_ONLY] = end_reason.lock_screen_only
-
-        if state.start_timezone is not None and Column.TIMEZONE in source_df.columns:
+        if state.start_timezone is not None:
             session_row[Column.TIMEZONE] = state.start_timezone
 
         if stop_timestamp is not None:
             duration_seconds = (stop_timestamp - state.start_timestamp).total_seconds()
             session_row[Column.DURATION_SECONDS] = duration_seconds
-            session_row[Column.DURATION_MINUTES] = duration_seconds / 60
-        else:
-            session_row[Column.DURATION_SECONDS] = pd.NA
-            session_row[Column.DURATION_MINUTES] = pd.NA
+            session_row[Column.DURATION_MINUTES] = duration_seconds / 60.0
 
-        self._populate_time_columns(session_row, state.start_timestamp, source_df)
+        self._populate_time_columns(session_row, state.start_timestamp)
         return session_row
 
     def _classify_end_reason(
         self,
         *,
         state: _ScreenSessionState,
-        stop_timestamp: pd.Timestamp | None,
-        keyguard_shown_timestamps: list[pd.Timestamp],
+        stop_timestamp: datetime | None,
+        keyguard_shown_timestamps: list[datetime],
     ) -> _EndReason:
-        keep_awake_app_label = self._keep_awake_app_label(state.foreground_app_package)
-        lock_screen_only = (
-            state.lock_screen_seen
-            and not state.unlocked_seen
-            and state.foreground_app_package is None
-        )
-
         if stop_timestamp is None:
-            return _EndReason(
-                ScreenUsageEndReason.MISSING_STOP,
-                1.0,
-                None,
-                keep_awake_app_label,
-                lock_screen_only,
-            )
+            return _EndReason(ScreenUsageEndReason.MISSING_STOP, 1.0, None, "", False)
 
-        if lock_screen_only:
-            return _EndReason(
-                ScreenUsageEndReason.LOCK_SCREEN_ONLY,
-                0.95,
-                None,
-                keep_awake_app_label,
-                True,
-            )
+        tail_gap_seconds = None
+        if state.last_meaningful_activity_timestamp is not None:
+            tail_gap_seconds = (
+                stop_timestamp - state.last_meaningful_activity_timestamp
+            ).total_seconds()
 
-        tail_gap_seconds = self._tail_gap_seconds(
-            stop_timestamp, state.last_meaningful_activity_timestamp
-        )
-        if tail_gap_seconds is None:
-            return _EndReason(
-                ScreenUsageEndReason.UNKNOWN,
-                0.25,
-                None,
-                keep_awake_app_label,
-                False,
-            )
+        keep_awake_label = ""
+        last_package = state.last_meaningful_activity_package or state.foreground_app_package
+        if last_package:
+            keep_awake_label = self.options.keep_awake_apps_dict.get(last_package, "")
 
-        auto_lock_timeout = self.options.screen_usage_auto_lock_timeout_seconds
-        auto_lock_tolerance = self.options.screen_usage_auto_lock_tolerance_seconds
-        manual_lock_max = self.options.screen_usage_manual_lock_max_tail_gap_seconds
-        keyguard_near_stop = self._has_keyguard_near_stop(
-            stop_timestamp, keyguard_shown_timestamps
-        )
+        if state.lock_screen_seen and not state.unlocked_seen and state.foreground_app_package is None:
+            return _EndReason(ScreenUsageEndReason.LOCK_SCREEN_ONLY, 0.95, None, "", True)
 
-        if keep_awake_app_label and tail_gap_seconds > auto_lock_timeout + auto_lock_tolerance:
-            return _EndReason(
-                ScreenUsageEndReason.APP_KEPT_AWAKE_OR_EXTENDED,
-                0.8,
-                tail_gap_seconds,
-                keep_awake_app_label,
-                False,
-            )
+        if tail_gap_seconds is not None:
+            if keep_awake_label and tail_gap_seconds > self.options.screen_usage_auto_lock_timeout_seconds:
+                return _EndReason(
+                    ScreenUsageEndReason.APP_KEPT_AWAKE_OR_EXTENDED,
+                    0.9,
+                    tail_gap_seconds,
+                    keep_awake_label,
+                    False,
+                )
+            if tail_gap_seconds <= self.options.screen_usage_manual_lock_max_tail_gap_seconds:
+                return _EndReason(
+                    ScreenUsageEndReason.PROBABLE_MANUAL_LOCK,
+                    0.85,
+                    tail_gap_seconds,
+                    keep_awake_label,
+                    False,
+                )
 
-        if keyguard_near_stop and tail_gap_seconds <= manual_lock_max:
-            return _EndReason(
-                ScreenUsageEndReason.PROBABLE_MANUAL_LOCK,
-                0.9,
-                tail_gap_seconds,
-                keep_awake_app_label,
-                False,
-            )
+            auto_lock = self.options.screen_usage_auto_lock_timeout_seconds
+            tolerance = self.options.screen_usage_auto_lock_tolerance_seconds
+            if abs(tail_gap_seconds - auto_lock) <= tolerance:
+                return _EndReason(
+                    ScreenUsageEndReason.PROBABLE_AUTO_LOCK,
+                    0.9,
+                    tail_gap_seconds,
+                    keep_awake_label,
+                    False,
+                )
 
-        if tail_gap_seconds <= manual_lock_max:
-            return _EndReason(
-                ScreenUsageEndReason.PROBABLE_MANUAL_LOCK,
-                0.85,
-                tail_gap_seconds,
-                keep_awake_app_label,
-                False,
-            )
+        if state.lock_screen_seen:
+            index = bisect.bisect_left(keyguard_shown_timestamps, stop_timestamp)
+            near_stop = False
+            for candidate_index in (index - 1, index):
+                if 0 <= candidate_index < len(keyguard_shown_timestamps):
+                    if abs(
+                        (keyguard_shown_timestamps[candidate_index] - stop_timestamp).total_seconds()
+                    ) <= self.options.screen_usage_keyguard_near_stop_seconds:
+                        near_stop = True
+                        break
+            if near_stop:
+                return _EndReason(
+                    ScreenUsageEndReason.PROBABLE_MANUAL_LOCK,
+                    0.7,
+                    tail_gap_seconds,
+                    keep_awake_label,
+                    False,
+                )
 
-        if abs(tail_gap_seconds - auto_lock_timeout) <= auto_lock_tolerance:
-            return _EndReason(
-                ScreenUsageEndReason.PROBABLE_AUTO_LOCK,
-                0.85,
-                tail_gap_seconds,
-                keep_awake_app_label,
-                False,
-            )
-
-        if tail_gap_seconds > auto_lock_timeout + auto_lock_tolerance:
+        if tail_gap_seconds is not None:
             return _EndReason(
                 ScreenUsageEndReason.EXTENDED_IDLE_OR_UNKNOWN,
-                0.45,
+                0.5,
                 tail_gap_seconds,
-                keep_awake_app_label,
+                keep_awake_label,
                 False,
             )
 
-        return _EndReason(
-            ScreenUsageEndReason.UNKNOWN,
-            0.35,
-            tail_gap_seconds,
-            keep_awake_app_label,
-            False,
-        )
-
-    def _has_keyguard_near_stop(
-        self, stop_timestamp: pd.Timestamp, keyguard_shown_timestamps: list[pd.Timestamp]
-    ) -> bool:
-        near_stop_seconds = self.options.screen_usage_keyguard_near_stop_seconds
-        return any(
-            abs((keyguard_timestamp - stop_timestamp).total_seconds()) <= near_stop_seconds
-            for keyguard_timestamp in keyguard_shown_timestamps
-        )
-
-    def _keep_awake_app_label(self, package_name: str | None) -> str:
-        if not package_name:
-            return ""
-        return self.options.keep_awake_apps_dict.get(package_name, "")
-
-    @staticmethod
-    def _tail_gap_seconds(
-        stop_timestamp: pd.Timestamp, last_activity_timestamp: pd.Timestamp | None
-    ) -> float | None:
-        if last_activity_timestamp is None or pd.isna(last_activity_timestamp):
-            return None
-        return (stop_timestamp - last_activity_timestamp).total_seconds()
+        return _EndReason(ScreenUsageEndReason.UNKNOWN, 0.25, None, keep_awake_label, False)
 
     @staticmethod
     def _clean_package_name(value: Any) -> str | None:
-        if value is None or pd.isna(value):
+        if value is None:
             return None
         package_name = str(value).strip()
         return package_name or None
 
     @staticmethod
-    def _populate_time_columns(
-        session_row: dict[str, Any], start_timestamp: pd.Timestamp, source_df: pd.DataFrame
-    ) -> None:
-        if Column.DATE in source_df.columns:
-            session_row[Column.DATE] = start_timestamp.date()
-        if Column.DAY in source_df.columns:
-            session_row[Column.DAY] = (start_timestamp.weekday() + 1) % 7 + 1
-        if Column.WEEKDAY_MF in source_df.columns:
-            session_row[Column.WEEKDAY_MF] = int(start_timestamp.weekday() < 5)
-        if Column.WEEKDAY_MTH in source_df.columns:
-            session_row[Column.WEEKDAY_MTH] = int(start_timestamp.weekday() < 4)
-        if Column.WEEKDAY_SUTH in source_df.columns:
-            session_row[Column.WEEKDAY_SUTH] = int(
-                start_timestamp.weekday() < 4 or start_timestamp.weekday() == 6
-            )
-        if Column.HOUR in source_df.columns:
-            session_row[Column.HOUR] = start_timestamp.hour
-        if Column.QUARTER in source_df.columns:
-            session_row[Column.QUARTER] = start_timestamp.quarter
+    def _populate_time_columns(session_row: dict[str, Any], timestamp: datetime) -> None:
+        session_row[Column.DATE] = timestamp.date()
+        weekday = timestamp.weekday()
+        session_row[Column.DAY] = ((weekday + 1) % 7) + 1
+        session_row[Column.WEEKDAY_MF] = int(weekday < 5)
+        session_row[Column.WEEKDAY_MTH] = int(weekday < 4)
+        session_row[Column.WEEKDAY_SUTH] = int(weekday < 4 or weekday == 6)
+        session_row[Column.HOUR] = timestamp.hour
+        session_row[Column.QUARTER] = ((timestamp.month - 1) // 3) + 1

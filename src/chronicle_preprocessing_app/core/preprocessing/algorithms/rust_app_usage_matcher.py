@@ -1,4 +1,4 @@
-"""Optional Rust app-usage matcher adapter."""
+"""Optional Rust app-usage matcher adapter for Polars dataframes."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import os
 from typing import Any
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from chronicle_preprocessing_app.config.constants import Column, InteractionType
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
@@ -16,22 +16,32 @@ LOGGER = logging.getLogger(__name__)
 
 RUST_MATCHER_ENV = "CHRONICLE_USE_RUST_APP_MATCHER"
 RUST_MATCHER_STRICT_ENV = "CHRONICLE_RUST_APP_MATCHER_STRICT"
-MISSING_TIMESTAMP_NS = -1
+MISSING_TIMESTAMP_NS = np.iinfo(np.int64).min
 
 
 def rust_matcher_enabled() -> bool:
-    """Return whether the optional Rust matcher should be attempted."""
     return os.getenv(RUST_MATCHER_ENV, "true").lower() not in {"0", "false", "no"}
 
 
 def rust_matcher_strict() -> bool:
-    """Return whether Rust matcher import/execution errors should be raised."""
     return os.getenv(RUST_MATCHER_STRICT_ENV, "false").lower() in {"1", "true", "yes"}
+
+
+def _stable_factorize(values: Any) -> np.ndarray:
+    codes = np.empty(len(values), dtype=np.int32)
+    lookup: dict[Any, int] = {}
+    next_code = 0
+    for index, value in enumerate(values):
+        if value not in lookup:
+            lookup[value] = next_code
+            next_code += 1
+        codes[index] = lookup[value]
+    return codes
 
 
 def process_app_usage_with_rust(
     *,
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     app_packages: Any,
     event_timestamps: Any,
     timestamp_nanoseconds: Any,
@@ -40,8 +50,7 @@ def process_app_usage_with_rust(
     other_stop_flags: Any,
     stopped_flags: Any,
     options: PreprocessingOptions,
-) -> pd.DataFrame | None:
-    """Run the Rust matcher if the extension is available and inputs are supported."""
+) -> pl.DataFrame | None:
     if not rust_matcher_enabled() or timestamp_nanoseconds is None:
         return None
 
@@ -53,8 +62,7 @@ def process_app_usage_with_rust(
         return None
 
     try:
-        app_codes, _ = pd.factorize(app_packages, sort=False)
-        app_code_array = np.ascontiguousarray(app_codes, dtype=np.int32)
+        app_code_array = np.ascontiguousarray(_stable_factorize(app_packages), dtype=np.int32)
         timestamp_array = np.ascontiguousarray(timestamp_nanoseconds, dtype=np.int64)
         resumed_array = np.ascontiguousarray(resumed_flags, dtype=bool)
         same_stop_array = np.ascontiguousarray(same_app_stop_flags, dtype=bool)
@@ -69,192 +77,91 @@ def process_app_usage_with_rust(
             "match_app_usage_update_arrays",
             None,
         ) or getattr(_rust_app_usage_matcher, "match_app_usage_update_indices", None)
-        if update_indices_fn is not None:
-            start_indices, stop_start_indices, stop_event_indices, missing_indices = (
-                update_indices_fn(
-                    app_code_array,
-                    timestamp_array,
-                    resumed_array,
-                    same_stop_array,
-                    other_stop_array,
-                    stopped_array,
-                    options.allow_stop_event_reuse,
-                    options.use_activity_stopped_as_fallback,
-                    options.apply_threshold_to_activity_stopped_fallback,
-                    long_duration_threshold_ns,
-                )
-            )
-            return _apply_rust_update_indices(
-                df=df,
-                event_timestamps=event_timestamps,
-                start_indices=start_indices,
-                stop_start_indices=stop_start_indices,
-                stop_event_indices=stop_event_indices,
-                missing_indices=missing_indices,
-            )
+        if update_indices_fn is None:
+            return None
 
-        if hasattr(_rust_app_usage_matcher, "match_app_usage_arrays"):
-            start_ns, stop_ns, missing = _rust_app_usage_matcher.match_app_usage_arrays(
-                app_code_array,
-                timestamp_array,
-                resumed_array,
-                same_stop_array,
-                other_stop_array,
-                stopped_array,
-                options.allow_stop_event_reuse,
-                options.use_activity_stopped_as_fallback,
-                options.apply_threshold_to_activity_stopped_fallback,
-                long_duration_threshold_ns,
-            )
-        else:
-            start_ns, stop_ns, missing = _rust_app_usage_matcher.match_app_usage(
-                app_codes.astype("int32", copy=False).tolist(),
-                np.asarray(timestamp_nanoseconds, dtype=np.int64).tolist(),
-                np.asarray(resumed_flags, dtype=bool).tolist(),
-                np.asarray(same_app_stop_flags, dtype=bool).tolist(),
-                np.asarray(other_stop_flags, dtype=bool).tolist(),
-                np.asarray(stopped_flags, dtype=bool).tolist(),
-                options.allow_stop_event_reuse,
-                options.use_activity_stopped_as_fallback,
-                options.apply_threshold_to_activity_stopped_fallback,
-                long_duration_threshold_ns,
-            )
+        start_indices, stop_start_indices, stop_event_indices, missing_indices = update_indices_fn(
+            app_code_array,
+            timestamp_array,
+            resumed_array,
+            same_stop_array,
+            other_stop_array,
+            stopped_array,
+            options.allow_stop_event_reuse,
+            options.use_activity_stopped_as_fallback,
+            options.apply_threshold_to_activity_stopped_fallback,
+            long_duration_threshold_ns,
+        )
     except Exception:
         if rust_matcher_strict():
             raise
         LOGGER.exception("Rust app usage matcher failed; falling back to Python matcher")
         return None
 
-    return _apply_rust_matcher_output(
+    return _apply_rust_update_indices(
         df=df,
-        event_timestamps=event_timestamps,
-        timestamp_nanoseconds=timestamp_nanoseconds,
-        start_ns=start_ns,
-        stop_ns=stop_ns,
-        missing=missing,
+        event_timestamps=np.asarray(event_timestamps),
+        start_indices=start_indices,
+        stop_start_indices=stop_start_indices,
+        stop_event_indices=stop_event_indices,
+        missing_indices=missing_indices,
+        timestamp_tz=df.schema[Column.EVENT_TIMESTAMP].time_zone,
     )
 
 
-def _apply_rust_update_indices(
-    *,
-    df: pd.DataFrame,
-    event_timestamps: Any,
-    start_indices: Any,
-    stop_start_indices: Any,
-    stop_event_indices: Any,
-    missing_indices: Any,
-) -> pd.DataFrame:
-    """Apply sparse Rust update indices with vectorized timestamp assignment."""
-    df_copy = df
-    start_index_array = _as_index_array(start_indices)
-    stop_start_index_array = _as_index_array(stop_start_indices)
-    missing_index_array = _as_index_array(missing_indices)
-
-    if start_index_array.size:
-        _assign_timestamp_updates(
-            df=df_copy,
-            column=Column.START_TIMESTAMP,
-            target_indices=start_index_array,
-            event_timestamps=event_timestamps,
-            event_indices=start_index_array,
-        )
-
-    if stop_start_index_array.size:
-        stop_event_index_array = _as_index_array(stop_event_indices)
-        _assign_timestamp_updates(
-            df=df_copy,
-            column=Column.STOP_TIMESTAMP,
-            target_indices=stop_start_index_array,
-            event_timestamps=event_timestamps,
-            event_indices=stop_event_index_array,
-        )
-
-    if missing_index_array.size:
-        df_copy.loc[missing_index_array, Column.INTERACTION_TYPE] = (
-            InteractionType.END_OF_USAGE_MISSING
-        )
-
-    return df_copy
-
-
 def _as_index_array(indices: Any) -> np.ndarray:
-    """Normalize Rust list/NumPy index output without copying when possible."""
     if isinstance(indices, np.ndarray) and indices.dtype == np.intp and indices.flags.c_contiguous:
         return indices
     return np.asarray(indices, dtype=np.intp)
 
 
-def _assign_timestamp_updates(
-    *,
-    df: pd.DataFrame,
-    column: str,
-    target_indices: np.ndarray,
-    event_timestamps: Any,
-    event_indices: np.ndarray,
-) -> None:
-    """Assign matched timestamps using native datetime arrays when possible."""
-    if pd.api.types.is_datetime64_any_dtype(df[column]):
-        timestamp_array = df[column].array.copy()
-        timestamp_array[target_indices] = _take_timestamps(event_timestamps, event_indices)
-        df[column] = timestamp_array
-        return
-
-    timestamp_array = df[column].to_numpy(copy=False)
-    timestamp_array[target_indices] = _take_timestamps(event_timestamps, event_indices)
-    df[column] = timestamp_array
-
-
-def _take_timestamps(event_timestamps: Any, indices: np.ndarray) -> Any:
-    """Take timestamp objects without materializing the full timestamp column as object."""
-    if hasattr(event_timestamps, "take") and not isinstance(event_timestamps, np.ndarray):
-        return event_timestamps.take(indices)
-    return np.asarray(event_timestamps, dtype=object)[indices]
-
-
-def _apply_rust_matcher_output(
-    *,
-    df: pd.DataFrame,
-    event_timestamps: Any,
-    timestamp_nanoseconds: Any,
-    start_ns: list[int],
-    stop_ns: list[int],
-    missing: list[bool],
-) -> pd.DataFrame:
-    """Apply Rust primitive outputs while preserving original timestamp objects."""
-    df_copy = df.copy()
-    timestamp_by_ns = {
-        int(timestamp_ns): event_timestamp
-        for timestamp_ns, event_timestamp in zip(
-            timestamp_nanoseconds,
-            event_timestamps,
-            strict=False,
+def _timestamp_series(timestamp_ns: np.ndarray, timezone_name: str | None) -> pl.Series:
+    values: list[object] = []
+    for value in timestamp_ns:
+        if int(value) == MISSING_TIMESTAMP_NS:
+            values.append(None)
+        else:
+            values.append(int(value))
+    if timezone_name:
+        return (
+            pl.Series(values, dtype=pl.Int64)
+            .cast(pl.Datetime("ns", "UTC"))
+            .dt.convert_time_zone(timezone_name)
         )
-    }
+    return pl.Series(values, dtype=pl.Int64).cast(pl.Datetime("ns"))
 
-    start_timestamps = df_copy[Column.START_TIMESTAMP].to_numpy(copy=True)
-    stop_timestamps = df_copy[Column.STOP_TIMESTAMP].to_numpy(copy=True)
 
-    has_start_updates = False
-    has_stop_updates = False
-    for index, timestamp_ns in enumerate(start_ns):
-        if timestamp_ns != MISSING_TIMESTAMP_NS:
-            start_timestamps[index] = timestamp_by_ns[timestamp_ns]
-            has_start_updates = True
+def _apply_rust_update_indices(
+    *,
+    df: pl.DataFrame,
+    event_timestamps: np.ndarray,
+    start_indices: Any,
+    stop_start_indices: Any,
+    stop_event_indices: Any,
+    missing_indices: Any,
+    timestamp_tz: str | None,
+) -> pl.DataFrame:
+    row_count = df.height
+    start_values = np.full(row_count, MISSING_TIMESTAMP_NS, dtype=np.int64)
+    stop_values = np.full(row_count, MISSING_TIMESTAMP_NS, dtype=np.int64)
+    interaction_values = df.get_column(Column.INTERACTION_TYPE).to_numpy()
 
-    for index, timestamp_ns in enumerate(stop_ns):
-        if timestamp_ns != MISSING_TIMESTAMP_NS:
-            stop_timestamps[index] = timestamp_by_ns[timestamp_ns]
-            has_stop_updates = True
+    start_index_array = _as_index_array(start_indices)
+    stop_start_index_array = _as_index_array(stop_start_indices)
+    stop_event_index_array = _as_index_array(stop_event_indices)
+    missing_index_array = _as_index_array(missing_indices)
 
-    if has_start_updates:
-        df_copy[Column.START_TIMESTAMP] = start_timestamps
-    if has_stop_updates:
-        df_copy[Column.STOP_TIMESTAMP] = stop_timestamps
+    if start_index_array.size:
+        start_values[start_index_array] = event_timestamps[start_index_array]
+    if stop_start_index_array.size:
+        stop_values[stop_start_index_array] = event_timestamps[stop_event_index_array]
+    if missing_index_array.size:
+        interaction_values[missing_index_array] = str(InteractionType.END_OF_USAGE_MISSING)
 
-    missing_indices = [index for index, is_missing in enumerate(missing) if is_missing]
-    if missing_indices:
-        df_copy.loc[missing_indices, Column.INTERACTION_TYPE] = (
-            InteractionType.END_OF_USAGE_MISSING
-        )
-
-    return df_copy
+    return df.with_columns(
+        [
+            _timestamp_series(start_values, timestamp_tz).alias(Column.START_TIMESTAMP),
+            _timestamp_series(stop_values, timestamp_tz).alias(Column.STOP_TIMESTAMP),
+            pl.Series(Column.INTERACTION_TYPE, interaction_values),
+        ]
+    )

@@ -1,8 +1,3 @@
-from __future__ import annotations
-
-import importlib
-import sys
-
 import pytest
 
 pl = pytest.importorskip("polars")
@@ -13,12 +8,8 @@ from chronicle_preprocessing_app.core import dataframe_provider
 from chronicle_preprocessing_app.core.dataframe_provider import PolarsProvider
 
 
-def test_get_dataframe_provider_honors_environment_flag(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("CHRONICLE_USE_POLARS", "true")
+def test_get_dataframe_provider_returns_polars_provider() -> None:
     assert dataframe_provider.get_dataframe_provider().name == "polars"
-
-    monkeypatch.setenv("CHRONICLE_USE_POLARS", "false")
-    assert dataframe_provider.get_dataframe_provider().name == "pandas"
 
 
 def test_polars_provider_read_csv_strips_headers_and_applies_schema_overrides(tmp_path) -> None:
@@ -56,27 +47,3 @@ def test_polars_provider_to_csv_round_trips_without_index(tmp_path) -> None:
     round_tripped = provider.read_csv(csv_path, dtypes={"age": "int64"})
 
     assert_frame_equal(round_tripped, original)
-
-
-def test_provider_module_can_load_without_pandas(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    original_pandas = sys.modules.get("pandas")
-    monkeypatch.setitem(sys.modules, "pandas", None)
-
-    reloaded = importlib.reload(dataframe_provider)
-
-    assert reloaded.pd is None
-    provider = reloaded.get_dataframe_provider()
-    assert provider.name == "polars"
-
-    csv_path = tmp_path / "input.csv"
-    csv_path.write_text("value\n1\n2\n", encoding="utf-8")
-
-    df = provider.read_csv(csv_path, dtypes={"value": "int64"})
-    assert df["value"].to_list() == [1, 2]
-
-    if original_pandas is None:
-        monkeypatch.delitem(sys.modules, "pandas", raising=False)
-    else:
-        monkeypatch.setitem(sys.modules, "pandas", original_pandas)
-
-    importlib.reload(reloaded)
