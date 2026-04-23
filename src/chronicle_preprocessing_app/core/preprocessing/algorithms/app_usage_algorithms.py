@@ -128,9 +128,10 @@ class OptimizedAppUsageAlgorithm:
         app_packages = df_copy[Column.APP_PACKAGE_NAME].values
         timestamps = df_copy[Column.EVENT_TIMESTAMP].array
 
-        same_app_stop_indices = set(df_copy.index[same_app_stop_mask].tolist())
-        other_stop_indices = set(df_copy.index[other_stop_mask].tolist())
-        stopped_indices = set(df_copy.index[stopped_mask].tolist())
+        resumed_flags = resumed_mask.to_numpy(dtype=bool)
+        same_app_stop_flags = same_app_stop_mask.to_numpy(dtype=bool)
+        other_stop_flags = other_stop_mask.to_numpy(dtype=bool)
+        stopped_flags = stopped_mask.to_numpy(dtype=bool)
 
         # Collect all updates to apply in batch at the end
         start_updates: list[tuple[int, Any]] = []
@@ -141,28 +142,41 @@ class OptimizedAppUsageAlgorithm:
         for index in df_copy.index:
             current_app = app_packages[index]
             current_timestamp = timestamps[index]
-
-            compatible_open_starts = self._compatible_open_starts_for_stop(
-                stop_index=index,
-                current_app=current_app,
-                app_packages=app_packages,
-                timestamps=timestamps,
-                open_start_indices=open_start_indices,
-                same_app_stop_indices=same_app_stop_indices,
-                other_stop_indices=other_stop_indices,
-                stopped_indices=stopped_indices,
+            is_normal_stop = same_app_stop_flags[index] or other_stop_flags[index]
+            is_fallback_stop = (
+                stopped_flags[index] and self.options.use_activity_stopped_as_fallback
             )
-            if compatible_open_starts:
-                starts_to_close = (
-                    compatible_open_starts
-                    if self.options.allow_stop_event_reuse
-                    else [compatible_open_starts[-1]]
+
+            if self.options.allow_stop_event_reuse and (is_normal_stop or is_fallback_stop):
+                compatible_open_starts = self._compatible_open_starts_for_stop(
+                    stop_index=index,
+                    current_app=current_app,
+                    app_packages=app_packages,
+                    timestamps=timestamps,
+                    open_start_indices=open_start_indices,
+                    same_app_stop_flags=same_app_stop_flags,
+                    other_stop_flags=other_stop_flags,
+                    stopped_flags=stopped_flags,
                 )
-                for start_index in starts_to_close:
+                for start_index in compatible_open_starts:
+                    stop_updates.append((start_index, current_timestamp))
+                    open_start_indices.remove(start_index)
+            elif is_normal_stop or is_fallback_stop:
+                start_index = self._nearest_compatible_open_start_for_stop(
+                    stop_index=index,
+                    current_app=current_app,
+                    app_packages=app_packages,
+                    timestamps=timestamps,
+                    open_start_indices=open_start_indices,
+                    same_app_stop_flags=same_app_stop_flags,
+                    other_stop_flags=other_stop_flags,
+                    stopped_flags=stopped_flags,
+                )
+                if start_index is not None:
                     stop_updates.append((start_index, current_timestamp))
                     open_start_indices.remove(start_index)
 
-            if bool(resumed_mask.iloc[index]):
+            if resumed_flags[index]:
                 start_updates.append((index, current_timestamp))
                 open_start_indices.append(index)
 
@@ -205,24 +219,24 @@ class OptimizedAppUsageAlgorithm:
         app_packages: Any,
         timestamps: Any,
         open_start_indices: list[int],
-        same_app_stop_indices: set[int],
-        other_stop_indices: set[int],
-        stopped_indices: set[int],
+        same_app_stop_flags: Any,
+        other_stop_flags: Any,
+        stopped_flags: Any,
     ) -> list[int]:
         """Return compatible open starts in chronological order for a stop row."""
-        normal_stop = stop_index in same_app_stop_indices or stop_index in other_stop_indices
+        normal_stop = same_app_stop_flags[stop_index] or other_stop_flags[stop_index]
         fallback_stop = (
-            stop_index in stopped_indices and self.options.use_activity_stopped_as_fallback
+            stopped_flags[stop_index] and self.options.use_activity_stopped_as_fallback
         )
 
         compatible_starts: list[int] = []
         for start_index in open_start_indices:
             start_app = app_packages[start_index]
             same_app_compatible = (
-                stop_index in same_app_stop_indices and start_app == current_app
+                same_app_stop_flags[stop_index] and start_app == current_app
             )
             other_app_compatible = (
-                stop_index in other_stop_indices and start_app != current_app
+                other_stop_flags[stop_index] and start_app != current_app
             )
             fallback_compatible = (
                 not normal_stop
@@ -246,6 +260,54 @@ class OptimizedAppUsageAlgorithm:
 
         return compatible_starts
 
+    def _nearest_compatible_open_start_for_stop(
+        self,
+        *,
+        stop_index: int,
+        current_app: Any,
+        app_packages: Any,
+        timestamps: Any,
+        open_start_indices: list[int],
+        same_app_stop_flags: Any,
+        other_stop_flags: Any,
+        stopped_flags: Any,
+    ) -> int | None:
+        """Return the nearest compatible open start for a stop row."""
+        normal_stop = same_app_stop_flags[stop_index] or other_stop_flags[stop_index]
+        fallback_stop = (
+            stopped_flags[stop_index] and self.options.use_activity_stopped_as_fallback
+        )
+
+        for start_index in reversed(open_start_indices):
+            start_app = app_packages[start_index]
+            same_app_compatible = (
+                same_app_stop_flags[stop_index] and start_app == current_app
+            )
+            other_app_compatible = (
+                other_stop_flags[stop_index] and start_app != current_app
+            )
+            fallback_compatible = (
+                not normal_stop
+                and fallback_stop
+                and start_app == current_app
+            )
+
+            if not (same_app_compatible or other_app_compatible or fallback_compatible):
+                continue
+
+            enforce_threshold = (
+                not fallback_compatible
+                or self.options.apply_threshold_to_activity_stopped_fallback
+            )
+            if self._is_valid_duration(
+                timestamps[start_index],
+                timestamps[stop_index],
+                enforce_threshold=enforce_threshold,
+            ):
+                return start_index
+
+        return None
+
     def _is_valid_duration(
         self,
         start_timestamp: Any,
@@ -254,10 +316,13 @@ class OptimizedAppUsageAlgorithm:
         enforce_threshold: bool,
     ) -> bool:
         """Return whether a candidate stop produces a valid non-negative duration."""
-        duration_seconds = safe_duration_seconds(
-            pd.Timestamp(stop_timestamp),
-            pd.Timestamp(start_timestamp),
-        )
+        try:
+            duration_seconds = (stop_timestamp - start_timestamp).total_seconds()
+        except (AttributeError, TypeError):
+            duration_seconds = safe_duration_seconds(
+                pd.Timestamp(stop_timestamp),
+                pd.Timestamp(start_timestamp),
+            )
         if duration_seconds < 0:
             return False
         return (
