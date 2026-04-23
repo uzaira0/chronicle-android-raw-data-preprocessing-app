@@ -484,6 +484,12 @@ class TimestampPreprocessor(BasePreprocessor):
                 col_data = df_copy[column]
                 # Check if column is datetime type
                 if pd.api.types.is_datetime64_any_dtype(col_data):
+                    if USE_POLARS:
+                        return TimestampPreprocessor._format_datetime_columns_polars(
+                            df_copy,
+                            timestamp_columns,
+                            format_string,
+                        )
                     df_copy[column] = col_data.dt.strftime(format_string)
                 elif hasattr(col_data.iloc[0], "strftime"):
                     # Handle datetime objects stored as object dtype
@@ -495,6 +501,67 @@ class TimestampPreprocessor(BasePreprocessor):
 
         LOGGER.debug("Timestamp columns converted to strings successfully")
         return df_copy
+
+    @staticmethod
+    def _format_datetime_columns_polars(
+        df: pd.DataFrame,
+        timestamp_columns: list[str],
+        format_string: str,
+    ) -> pd.DataFrame:
+        """Format native datetime columns via Polars, falling back to Pandas on errors."""
+        try:
+            datetime_columns = [
+                column
+                for column in timestamp_columns
+                if column in df.columns
+                and not df[column].isna().all()
+                and pd.api.types.is_datetime64_any_dtype(df[column])
+            ]
+            if not datetime_columns:
+                return df
+
+            formatted = df.copy()
+            formatted_timestamps = pl.from_pandas(df[datetime_columns]).with_columns(
+                [
+                    pl.col(column).dt.strftime(format_string).alias(column)
+                    for column in datetime_columns
+                ]
+            ).to_pandas()
+            for column in datetime_columns:
+                formatted[column] = formatted_timestamps[column]
+
+            for column in timestamp_columns:
+                if (
+                    column in formatted.columns
+                    and column not in datetime_columns
+                    and not formatted[column].isna().all()
+                ):
+                    col_data = formatted[column]
+                    if not pd.api.types.is_datetime64_any_dtype(col_data) and hasattr(
+                        col_data.iloc[0], "strftime"
+                    ):
+                        formatted[column] = col_data.apply(
+                            lambda x: x.strftime(format_string)
+                            if pd.notna(x) and hasattr(x, "strftime")
+                            else x
+                        )
+
+            return formatted
+        except Exception as e:
+            LOGGER.debug("Polars timestamp formatting failed; using Pandas fallback: %s", e)
+            fallback = df.copy()
+            for column in timestamp_columns:
+                if column in fallback.columns and not fallback[column].isna().all():
+                    col_data = fallback[column]
+                    if pd.api.types.is_datetime64_any_dtype(col_data):
+                        fallback[column] = col_data.dt.strftime(format_string)
+                    elif hasattr(col_data.iloc[0], "strftime"):
+                        fallback[column] = col_data.apply(
+                            lambda x: x.strftime(format_string)
+                            if pd.notna(x) and hasattr(x, "strftime")
+                            else x
+                        )
+            return fallback
 
     @staticmethod
     def calculate_duration_in_seconds(
