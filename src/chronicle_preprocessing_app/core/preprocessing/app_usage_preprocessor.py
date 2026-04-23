@@ -665,28 +665,30 @@ class AppUsagePreprocessor(BasePreprocessor):
         Returns:
             Series of lists containing applicable flags for each row
         """
-        # Sort thresholds once (descending order)
         sorted_time_gap_thresholds = sorted(time_gap_thresholds, reverse=True)
         sorted_duration_thresholds = sorted(duration_thresholds, reverse=True)
+        time_gap_values = time_gaps.to_numpy(dtype=float, copy=False, na_value=np.nan)
+        duration_values = (
+            durations_minutes.to_numpy(dtype=float, copy=False, na_value=np.nan) / 60
+        )
+        time_gap_flags = np.full(len(time_gap_values), None, dtype=object)
+        duration_flags = np.full(len(duration_values), None, dtype=object)
 
-        # Convert durations from minutes to hours
-        durations_hours = durations_minutes / 60
+        for threshold in sorted_time_gap_thresholds:
+            unflagged = time_gap_flags == None  # noqa: E711
+            time_gap_flags[
+                unflagged & np.isfinite(time_gap_values) & (time_gap_values >= threshold)
+            ] = f">{threshold}-HR TIME GAP"
 
-        # Initialize empty lists for all rows
-        all_flags = [[] for _ in range(len(time_gaps))]
+        for threshold in sorted_duration_thresholds:
+            unflagged = duration_flags == None  # noqa: E711
+            duration_flags[
+                unflagged & np.isfinite(duration_values) & (duration_values >= threshold)
+            ] = f">{threshold}-HR APP USAGE"
 
-        # Add time gap flags
-        for i, time_gap in enumerate(time_gaps):
-            for threshold in sorted_time_gap_thresholds:
-                if time_gap >= threshold:
-                    all_flags[i].append(f">{threshold}-HR TIME GAP")
-                    break
-
-        # Add duration flags
-        for i, duration in enumerate(durations_hours):
-            for threshold in sorted_duration_thresholds:
-                if duration >= threshold:
-                    all_flags[i].append(f">{threshold}-HR APP USAGE")
-                    break
+        all_flags = [
+            [flag for flag in (time_gap_flag, duration_flag) if flag is not None]
+            for time_gap_flag, duration_flag in zip(time_gap_flags, duration_flags, strict=True)
+        ]
 
         return pd.Series(all_flags, index=time_gaps.index)
