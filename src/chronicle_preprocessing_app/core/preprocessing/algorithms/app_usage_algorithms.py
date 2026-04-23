@@ -7,14 +7,28 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import numpy as np
 import pandas as pd
 from chronicle_preprocessing_app.config.constants import Column, InteractionType
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
 from chronicle_preprocessing_app.core.preprocessing.algorithms.rust_app_usage_matcher import (
     process_app_usage_with_rust,
+    rust_matcher_enabled,
 )
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _nat_object_array(row_count: int) -> np.ndarray:
+    """Return an object array filled with Pandas NaT without building a Python list."""
+    values = np.empty(row_count, dtype=object)
+    values.fill(pd.NaT)
+    return values
+
+
+def _can_use_datetime_columns(event_timestamp_series: pd.Series) -> bool:
+    """Return whether start/stop columns can use pandas' native datetime storage."""
+    return pd.api.types.is_datetime64_any_dtype(event_timestamp_series)
 
 
 def safe_timestamp_compare(ts1: pd.Timestamp, ts2: pd.Timestamp, op: str) -> bool:
@@ -124,20 +138,25 @@ class OptimizedAppUsageAlgorithm:
         )
         df_copy = df.reset_index(drop=True)
         row_count = len(df_copy.index)
+        event_timestamp_series = df_copy[Column.EVENT_TIMESTAMP]
 
         # Ensure timestamp columns can hold tz-aware timestamps without dtype warnings
+        use_datetime_columns = (
+            rust_matcher_enabled() and _can_use_datetime_columns(event_timestamp_series)
+        )
         for column in (Column.START_TIMESTAMP, Column.STOP_TIMESTAMP):
-            if column not in df_copy.columns:
-                df_copy[column] = pd.Series([pd.NaT] * row_count, dtype="object")
+            if column not in df_copy.columns or df_copy[column].isna().all():
+                df_copy[column] = (
+                    pd.Series(pd.NaT, index=df_copy.index, dtype=event_timestamp_series.dtype)
+                    if use_datetime_columns
+                    else pd.Series(_nat_object_array(row_count), dtype="object")
+                )
             else:
                 df_copy[column] = df_copy[column].astype("object")
 
         app_packages = df_copy[Column.APP_PACKAGE_NAME].values
-        event_timestamp_series = df_copy[Column.EVENT_TIMESTAMP]
-        timestamps = event_timestamp_series.astype("object").values
+        event_timestamps = event_timestamp_series.array
         timestamp_nanoseconds = getattr(event_timestamp_series.array, "asi8", None)
-        start_timestamps = df_copy[Column.START_TIMESTAMP].to_numpy(copy=True)
-        stop_timestamps = df_copy[Column.STOP_TIMESTAMP].to_numpy(copy=True)
 
         resumed_flags = resumed_mask.to_numpy(dtype=bool)
         same_app_stop_flags = same_app_stop_mask.to_numpy(dtype=bool)
@@ -147,7 +166,7 @@ class OptimizedAppUsageAlgorithm:
         rust_result = process_app_usage_with_rust(
             df=df_copy,
             app_packages=app_packages,
-            event_timestamps=timestamps,
+            event_timestamps=event_timestamps,
             timestamp_nanoseconds=timestamp_nanoseconds,
             resumed_flags=resumed_flags,
             same_app_stop_flags=same_app_stop_flags,
@@ -157,6 +176,10 @@ class OptimizedAppUsageAlgorithm:
         )
         if rust_result is not None:
             return rust_result
+
+        timestamps = event_timestamp_series.astype("object").values
+        start_timestamps = df_copy[Column.START_TIMESTAMP].to_numpy(copy=True)
+        stop_timestamps = df_copy[Column.STOP_TIMESTAMP].to_numpy(copy=True)
 
         has_start_updates = False
         has_stop_updates = False
