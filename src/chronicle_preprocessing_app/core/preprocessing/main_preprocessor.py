@@ -14,7 +14,7 @@ import multiprocessing
 import os
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -1959,6 +1959,45 @@ def _process_single_file_worker(args: tuple) -> tuple[Path, bool, dict | None, s
         return Path(""), False, None, Path(file_path).name
 
 
+def _resolve_parallel_max_workers(max_workers: int | None, file_count: int) -> int:
+    """Resolve the user worker limit to a safe process count."""
+    if max_workers is None or max_workers <= 0:
+        max_workers = max(1, multiprocessing.cpu_count() // 2)
+    if file_count > 0:
+        max_workers = min(max_workers, file_count)
+    return max(1, max_workers)
+
+
+def _parallel_option_value(value: Any) -> Any:
+    """Copy option values into a multiprocessing-friendly shape."""
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return dict(value)
+    if isinstance(value, list):
+        return list(value)
+    if isinstance(value, set):
+        return set(value)
+    if isinstance(value, tuple):
+        return tuple(value)
+    return value
+
+
+def _build_parallel_options_dict(options: PreprocessingOptions) -> dict[str, Any]:
+    """Build options for workers without dropping behavior-changing settings."""
+    worker_options = {
+        field.name: _parallel_option_value(getattr(options, field.name))
+        for field in fields(PreprocessingOptions)
+        if field.name != "survey_data_df"
+    }
+
+    # Each worker handles one file and the parent process handles optional plotting.
+    worker_options["enable_plotting"] = False
+    worker_options["parallel_processing"] = False
+    worker_options["parallel_max_workers"] = None
+    return worker_options
+
+
 def preprocess_files_parallel(
     files: list[Path],
     options: PreprocessingOptions,
@@ -1977,55 +2016,11 @@ def preprocess_files_parallel(
     Returns:
         Tuple of (list of results, ProcessingStats)
     """
-    if max_workers is None:
-        max_workers = max(1, multiprocessing.cpu_count() // 2)
+    max_workers = _resolve_parallel_max_workers(max_workers, len(files))
 
     LOGGER.info(f"Starting parallel processing with {max_workers} workers for {len(files)} files")
 
-    # Convert options to dict for serialization
-    # Only include serializable fields
-    options_dict = {
-        "study_name": options.study_name,
-        "raw_data_folder": str(options.raw_data_folder),
-        "raw_data_file_regex_pattern": options.raw_data_file_regex_pattern,
-        "use_app_codebook": options.use_app_codebook,
-        "app_codebook_path": str(options.app_codebook_path) if options.app_codebook_path else "",
-        "use_filter_file": options.use_filter_file,
-        "filter_file": str(options.filter_file) if options.filter_file else "",
-        "use_keep_awake_apps_file": options.use_keep_awake_apps_file,
-        "keep_awake_apps_file": (
-            str(options.keep_awake_apps_file) if options.keep_awake_apps_file else ""
-        ),
-        "keep_awake_apps_dict": options.keep_awake_apps_dict,
-        "usage_session_mode": options.usage_session_mode,
-        "derive_screen_usage_sessions": options.derive_screen_usage_sessions,
-        "screen_usage_auto_lock_timeout_seconds": (
-            options.screen_usage_auto_lock_timeout_seconds
-        ),
-        "screen_usage_auto_lock_tolerance_seconds": (
-            options.screen_usage_auto_lock_tolerance_seconds
-        ),
-        "screen_usage_manual_lock_max_tail_gap_seconds": (
-            options.screen_usage_manual_lock_max_tail_gap_seconds
-        ),
-        "screen_usage_keyguard_near_stop_seconds": (
-            options.screen_usage_keyguard_near_stop_seconds
-        ),
-        "minimum_usage_duration": options.minimum_usage_duration,
-        "custom_app_engagement_duration": options.custom_app_engagement_duration,
-        "long_usage_duration_thresholds": options.long_usage_duration_thresholds,
-        "long_data_time_gap_thresholds": options.long_data_time_gap_thresholds,
-        "timezone_handling_option": options.timezone_handling_option,
-        "correct_duplicate_event_timestamps": options.correct_duplicate_event_timestamps,
-        "enable_preprocessing": options.enable_preprocessing,
-        "enable_plotting": False,  # Disable plotting in parallel workers
-        "app_usage_algorithm": options.app_usage_algorithm,
-        "allow_stop_event_reuse": options.allow_stop_event_reuse,
-        "use_activity_stopped_as_fallback": options.use_activity_stopped_as_fallback,
-        "apply_threshold_to_activity_stopped_fallback": options.apply_threshold_to_activity_stopped_fallback,
-        "filter_zero_duration_sessions": options.filter_zero_duration_sessions,
-        "parallel_processing": False,  # Disable nested parallelism
-    }
+    options_dict = _build_parallel_options_dict(options)
 
     # Survey data handling for parallel processing
     # Pre-compute device sharing status map to avoid each worker accessing TrackingSheet

@@ -246,5 +246,12 @@ class ConfigManager:
         if "app_codebook_path" in config:
             options.app_codebook_path = config["app_codebook_path"]
 
+        if "parallel_processing" in config:
+            options.parallel_processing = bool(config["parallel_processing"])
+
+        if "parallel_max_workers" in config:
+            max_workers = config["parallel_max_workers"]
+            options.parallel_max_workers = int(max_workers) if max_workers else None
+
         LOGGER.debug("Configuration applied successfully")
         return options
