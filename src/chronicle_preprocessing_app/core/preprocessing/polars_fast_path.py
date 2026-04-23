@@ -28,7 +28,10 @@ from chronicle_preprocessing_app.config.constants import (
     InteractionType,
     TimezoneHandlingOption,
 )
-from chronicle_preprocessing_app.config.defaults import DEFAULT_LONG_DATA_TIME_GAP_THRESHOLDS
+from chronicle_preprocessing_app.config.defaults import (
+    DEFAULT_LONG_DATA_TIME_GAP_THRESHOLDS,
+    DEFAULT_LONG_USAGE_DURATION_THRESHOLDS,
+)
 from chronicle_preprocessing_app.config.version import __version__
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
 
@@ -163,14 +166,29 @@ class PolarsFastPathPreprocessor:
     def _correct_event_timestamp_column(self, df: pl.DataFrame) -> pl.DataFrame:
         timestamp_col = Column.EVENT_TIMESTAMP
         original_col = f"{timestamp_col}_original"
+        timestamp_text = pl.col(timestamp_col).cast(pl.Utf8)
 
         df = df.with_columns(pl.col(timestamp_col).alias(original_col))
+        has_explicit_timezone = df.select(
+            timestamp_text
+            .str.contains(r"(Z|[+-]\d{2}:\d{2})$")
+            .fill_null(False)
+            .any()
+        ).item()
+        timestamp_expr = (
+            timestamp_text.str.to_datetime(
+                format="%Y-%m-%d %H:%M:%S",
+                time_zone="UTC",
+                strict=False,
+            )
+            if not has_explicit_timezone
+            else timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
+                time_zone="UTC",
+                strict=False,
+            )
+        )
         df = df.with_columns(
-            pl.col(timestamp_col)
-            .cast(pl.Utf8)
-            .str.replace(r"Z$", "+00:00")
-            .str.to_datetime(time_zone="UTC", strict=False)
-            .alias(timestamp_col)
+            timestamp_expr.alias(timestamp_col)
         )
 
         null_mask = pl.col(timestamp_col).is_null() & pl.col(original_col).is_not_null()
@@ -849,31 +867,57 @@ class PolarsFastPathPreprocessor:
         if not thresholds_to_use:
             thresholds_to_use = list(DEFAULT_LONG_DATA_TIME_GAP_THRESHOLDS)
         if not duration_thresholds_to_use:
-            duration_thresholds_to_use = list(DEFAULT_LONG_DATA_TIME_GAP_THRESHOLDS)
+            duration_thresholds_to_use = list(DEFAULT_LONG_USAGE_DURATION_THRESHOLDS)
 
-        time_gap_values = (
-            df.get_column(Column.DATA_TIME_GAP_HOURS).cast(pl.Float64).fill_null(np.nan).to_numpy()
+        gap_label_column = "__chronicle_time_gap_flag"
+        duration_label_column = "__chronicle_duration_flag"
+
+        gap_label_expr = pl.coalesce(
+            [
+                pl.when(
+                    pl.col(Column.DATA_TIME_GAP_HOURS).cast(pl.Float64) >= float(threshold)
+                ).then(pl.lit(f">{threshold}-HR TIME GAP"))
+                for threshold in sorted(thresholds_to_use, reverse=True)
+            ]
+            + [pl.lit("")]
         )
-        duration_values = (
-            df.get_column(Column.DURATION_MINUTES).cast(pl.Float64).fill_null(np.nan).to_numpy() / 60.0
+        duration_hours_expr = pl.col(Column.DURATION_MINUTES).cast(pl.Float64) / 60.0
+        duration_label_expr = pl.coalesce(
+            [
+                pl.when(duration_hours_expr >= float(threshold)).then(
+                    pl.lit(f">{threshold}-HR APP USAGE")
+                )
+                for threshold in sorted(duration_thresholds_to_use, reverse=True)
+            ]
+            + [pl.lit("")]
         )
-        time_gap_flags = np.full(len(df), None, dtype=object)
-        duration_flags = np.full(len(df), None, dtype=object)
 
-        for threshold in sorted(thresholds_to_use, reverse=True):
-            mask = (time_gap_flags == None) & np.isfinite(time_gap_values) & (time_gap_values >= threshold)  # noqa: E711
-            time_gap_flags[mask] = f">{threshold}-HR TIME GAP"
-
-        for threshold in sorted(duration_thresholds_to_use, reverse=True):
-            mask = (duration_flags == None) & np.isfinite(duration_values) & (duration_values >= threshold)  # noqa: E711
-            duration_flags[mask] = f">{threshold}-HR APP USAGE"
-
-        all_flags = [
-            [flag for flag in (time_gap_flag, duration_flag) if flag is not None]
-            for time_gap_flag, duration_flag in zip(time_gap_flags, duration_flags, strict=True)
-        ]
-        return df.with_columns(
-            pl.Series(Column.ANY_APP_USAGE_FLAGS, all_flags, dtype=pl.List(pl.String))
+        return (
+            df.with_columns(
+                [
+                    gap_label_expr.alias(gap_label_column),
+                    duration_label_expr.alias(duration_label_column),
+                ]
+            )
+            .with_columns(
+                pl.when(
+                    (pl.col(gap_label_column) == "") & (pl.col(duration_label_column) == "")
+                )
+                .then(pl.lit("[]"))
+                .when(pl.col(duration_label_column) == "")
+                .then(pl.format("['{}']", pl.col(gap_label_column)))
+                .when(pl.col(gap_label_column) == "")
+                .then(pl.format("['{}']", pl.col(duration_label_column)))
+                .otherwise(
+                    pl.format(
+                        "['{}', '{}']",
+                        pl.col(gap_label_column),
+                        pl.col(duration_label_column),
+                    )
+                )
+                .alias(Column.ANY_APP_USAGE_FLAGS)
+            )
+            .drop([gap_label_column, duration_label_column])
         )
 
     def _remove_selected_interaction_types(self, df: pl.DataFrame) -> pl.DataFrame:
@@ -979,10 +1023,18 @@ class PolarsFastPathPreprocessor:
 
         for column in list_columns:
             expressions.append(
-                pl.col(column)
-                .map_elements(
-                    lambda value: "" if value is None else str(list(value)),
-                    return_dtype=pl.String,
+                pl.when(pl.col(column).is_null())
+                .then(pl.lit(""))
+                .otherwise(
+                    pl.concat_str(
+                        [
+                            pl.lit("["),
+                            pl.col(column)
+                            .list.eval(pl.format("'{}'", pl.element()))
+                            .list.join(", "),
+                            pl.lit("]"),
+                        ]
+                    )
                 )
                 .alias(column)
             )
