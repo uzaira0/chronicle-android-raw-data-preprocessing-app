@@ -117,16 +117,17 @@ class OptimizedAppUsageAlgorithm:
             f"(stop reuse: {self.options.allow_stop_event_reuse})"
         )
         df_copy = df.reset_index(drop=True)
+        row_count = len(df_copy.index)
 
         # Ensure timestamp columns can hold tz-aware timestamps without dtype warnings
         for column in (Column.START_TIMESTAMP, Column.STOP_TIMESTAMP):
             if column not in df_copy.columns:
-                df_copy[column] = pd.Series([pd.NaT] * len(df_copy), dtype="object")
+                df_copy[column] = pd.Series([pd.NaT] * row_count, dtype="object")
             else:
                 df_copy[column] = df_copy[column].astype("object")
 
         app_packages = df_copy[Column.APP_PACKAGE_NAME].values
-        timestamps = df_copy[Column.EVENT_TIMESTAMP].array
+        timestamps = df_copy[Column.EVENT_TIMESTAMP].astype("object").values
 
         resumed_flags = resumed_mask.to_numpy(dtype=bool)
         same_app_stop_flags = same_app_stop_mask.to_numpy(dtype=bool)
@@ -139,7 +140,7 @@ class OptimizedAppUsageAlgorithm:
         missing_indices: list[int] = []
         open_start_indices: list[int] = []
 
-        for index in df_copy.index:
+        for index in range(row_count):
             current_app = app_packages[index]
             current_timestamp = timestamps[index]
             is_normal_stop = same_app_stop_flags[index] or other_stop_flags[index]
@@ -181,7 +182,7 @@ class OptimizedAppUsageAlgorithm:
                 open_start_indices.append(index)
 
         if open_start_indices:
-            last_index = len(df_copy.index) - 1
+            last_index = row_count - 1
             last_timestamp = timestamps[last_index]
             for start_index in list(open_start_indices):
                 if last_index > start_index and self._is_valid_duration(
