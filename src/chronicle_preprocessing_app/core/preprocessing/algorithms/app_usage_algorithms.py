@@ -10,6 +10,9 @@ from typing import Any
 import pandas as pd
 from chronicle_preprocessing_app.config.constants import Column, InteractionType
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
+from chronicle_preprocessing_app.core.preprocessing.algorithms.rust_app_usage_matcher import (
+    process_app_usage_with_rust,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -140,6 +143,20 @@ class OptimizedAppUsageAlgorithm:
         same_app_stop_flags = same_app_stop_mask.to_numpy(dtype=bool)
         other_stop_flags = other_stop_mask.to_numpy(dtype=bool)
         stopped_flags = stopped_mask.to_numpy(dtype=bool)
+
+        rust_result = process_app_usage_with_rust(
+            df=df_copy,
+            app_packages=app_packages,
+            event_timestamps=timestamps,
+            timestamp_nanoseconds=timestamp_nanoseconds,
+            resumed_flags=resumed_flags,
+            same_app_stop_flags=same_app_stop_flags,
+            other_stop_flags=other_stop_flags,
+            stopped_flags=stopped_flags,
+            options=self.options,
+        )
+        if rust_result is not None:
+            return rust_result
 
         has_start_updates = False
         has_stop_updates = False

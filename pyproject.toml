@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0", "setuptools-rust>=1.12.1", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -64,6 +64,12 @@ packages = [
 
 [tool.setuptools.package-data]
 "*" = ["*.xlsx"]
+
+[[tool.setuptools-rust.ext-modules]]
+target = "chronicle_preprocessing_app._rust_app_usage_matcher"
+path = "rust/chronicle_app_usage_matcher/Cargo.toml"
+binding = "PyO3"
+optional = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

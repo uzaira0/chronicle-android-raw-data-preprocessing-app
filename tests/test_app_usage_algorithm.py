@@ -875,3 +875,34 @@ def test_zero_duration_sessions_are_dropped_when_config_enabled() -> None:
     result = AppUsagePreprocessor(options).process_valid_app_usage(df)
 
     assert _app_usage_rows(result).empty
+
+
+def test_rust_matcher_matches_python_on_multiweek_stress_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("chronicle_preprocessing_app._rust_app_usage_matcher")
+    options = _semantic_options(
+        same_app_interaction_types_to_stop_usage_at={
+            InteractionType.ACTIVITY_PAUSED,
+            InteractionType.ACTIVITY_STOPPED,
+            InteractionType.ACTIVITY_DESTROYED,
+        },
+        other_interaction_types_to_stop_usage_at={
+            InteractionType.ACTIVITY_RESUMED,
+            InteractionType.FILTERED_APP_RESUMED,
+            InteractionType.FILTERED_APP_USAGE,
+            InteractionType.DEVICE_SHUTDOWN,
+            InteractionType.USER_STOPPED,
+        },
+        allow_stop_event_reuse=False,
+    )
+    df = _generated_multiweek_dst_stress_data(include_screen_usage_stress=True)
+
+    monkeypatch.setenv("CHRONICLE_USE_RUST_APP_MATCHER", "false")
+    python_result = _optimized_valid_result(df, options)
+
+    monkeypatch.setenv("CHRONICLE_USE_RUST_APP_MATCHER", "true")
+    monkeypatch.setenv("CHRONICLE_RUST_APP_MATCHER_STRICT", "true")
+    rust_result = _optimized_valid_result(df, options)
+
+    pd.testing.assert_frame_equal(rust_result, python_result)
