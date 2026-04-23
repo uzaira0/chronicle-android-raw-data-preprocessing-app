@@ -1785,9 +1785,20 @@ class ChronicleAndroidRawDataPreprocessor:
         compliance_data_all_studies = {}
         preprocessed_file_count = 0
         all_filenames = len(Chronicle_Android_raw_data_files)
+        use_parallel_processing = self.options.parallel_processing and all_filenames > 1
+        if (
+            use_parallel_processing
+            and self.options.use_survey_data
+            and not self.options.device_sharing_status_map
+        ):
+            LOGGER.warning(
+                "Parallel preprocessing requires a precomputed device_sharing_status_map "
+                "when survey data is enabled; falling back to sequential processing."
+            )
+            use_parallel_processing = False
 
         # Choose parallel or sequential processing based on options
-        if self.options.parallel_processing and all_filenames > 1:
+        if use_parallel_processing:
             # Parallel processing
             LOGGER.info(
                 f"Using parallel processing for {all_filenames} files "
@@ -1928,7 +1939,9 @@ class ChronicleAndroidRawDataPreprocessor:
 MainPreprocessor = ChronicleAndroidRawDataPreprocessor
 
 
-def _process_single_file_worker(args: tuple) -> tuple[Path, bool, dict | None, str]:
+def _process_single_file_worker(
+    args: tuple,
+) -> tuple[int, Path, bool, dict | None, str, ProcessingStats]:
     """
     Worker function for parallel file processing.
 
@@ -1936,12 +1949,12 @@ def _process_single_file_worker(args: tuple) -> tuple[Path, bool, dict | None, s
     Each worker creates its own preprocessor instance to avoid shared state issues.
 
     Args:
-        args: Tuple of (file_path, options_dict)
+        args: Tuple of (input_index, file_path, options_dict)
 
     Returns:
-        Tuple of (output_folder, success, compliance_dict, file_name)
+        Tuple of (input_index, output_folder, success, compliance_dict, file_name, stats)
     """
-    file_path, options_dict = args
+    input_index, file_path, options_dict = args
 
     # Recreate options from dict (can't pickle PreprocessingOptions directly with some fields)
     options = PreprocessingOptions(**options_dict)
@@ -1953,10 +1966,29 @@ def _process_single_file_worker(args: tuple) -> tuple[Path, bool, dict | None, s
         output_folder, success, compliance_dict = (
             preprocessor.preprocess_Chronicle_Android_raw_data_file(Path(file_path))
         )
-        return output_folder, success, compliance_dict, Path(file_path).name
+        return (
+            input_index,
+            output_folder,
+            success,
+            compliance_dict,
+            Path(file_path).name,
+            preprocessor.stats,
+        )
     except Exception as e:
         LOGGER.exception(f"Error in parallel worker for {file_path}: {e}")
-        return Path(""), False, None, Path(file_path).name
+        preprocessor.stats.mark_error(Path(file_path), str(e))
+        return input_index, Path(""), False, None, Path(file_path).name, preprocessor.stats
+
+
+def _merge_processing_stats(destination: ProcessingStats, source: ProcessingStats) -> None:
+    """Merge per-worker processing stats into the parent aggregate."""
+    destination.processed_files += source.processed_files
+    destination.failed_files += source.failed_files
+    destination.empty_files += source.empty_files
+    destination.warnings.update(source.warnings)
+    destination.errors.update(source.errors)
+    destination.file_errors.update(source.file_errors)
+    destination.processed_file_paths.update(source.processed_file_paths)
 
 
 def _resolve_parallel_max_workers(max_workers: int | None, file_count: int) -> int:
@@ -2093,18 +2125,18 @@ def preprocess_files_parallel(
         options_dict["use_survey_data"] = False
 
     # Prepare arguments for workers
-    worker_args = [(str(f), options_dict) for f in files]
+    worker_args = [(index, str(file_path), options_dict) for index, file_path in enumerate(files)]
 
     stats = ProcessingStats()
     stats.total_files = len(files)
-    results = []
+    results_by_index: dict[int, tuple[Path, bool, dict | None]] = {}
 
     start_time = time.time()
 
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         # Submit all tasks
         future_to_file = {
-            executor.submit(_process_single_file_worker, args): args[0] for args in worker_args
+            executor.submit(_process_single_file_worker, args): args[1] for args in worker_args
         }
 
         # Collect results as they complete
@@ -2114,13 +2146,16 @@ def preprocess_files_parallel(
             completed += 1
 
             try:
-                output_folder, success, compliance_dict, file_name = future.result()
-                results.append((output_folder, success, compliance_dict))
-
-                if success:
-                    stats.processed_files += 1
-                else:
-                    stats.failed_files += 1
+                (
+                    input_index,
+                    output_folder,
+                    success,
+                    compliance_dict,
+                    file_name,
+                    worker_stats,
+                ) = future.result()
+                results_by_index[input_index] = (output_folder, success, compliance_dict)
+                _merge_processing_stats(stats, worker_stats)
 
                 if progress_callback:
                     progress_callback(
@@ -2132,7 +2167,6 @@ def preprocess_files_parallel(
             except Exception as e:
                 LOGGER.exception(f"Worker failed for {file_path}: {e}")
                 stats.failed_files += 1
-                results.append((Path(""), False, None))
 
     elapsed = time.time() - start_time
     LOGGER.info(
@@ -2140,4 +2174,5 @@ def preprocess_files_parallel(
         f"in {elapsed:.2f}s ({elapsed / len(files):.2f}s per file avg)"
     )
 
+    results = [results_by_index[index] for index in sorted(results_by_index)]
     return results, stats
