@@ -45,9 +45,14 @@ except ImportError:
     pl = None
 
 try:
-    from chronicle_preprocessing_app.config.constants import Column, InteractionType, TimezoneHandlingOption
+    from chronicle_preprocessing_app.config.constants import (
+        Column,
+        InteractionType,
+        TimezoneHandlingOption,
+        UsageSessionMode,
+    )
 except ImportError:
-    from ...config.constants import Column, InteractionType, TimezoneHandlingOption
+    from ...config.constants import Column, InteractionType, TimezoneHandlingOption, UsageSessionMode
 
 from ..config import PreprocessingOptions
 from .main_preprocessor import ChronicleAndroidRawDataPreprocessor
@@ -126,6 +131,15 @@ class DataFramePreprocessingConfig:
     app_codebook_path: str = ""
     use_filter_file: bool = False
     filter_file_path: str = ""
+    use_keep_awake_apps_file: bool = False
+    keep_awake_apps_file_path: str = ""
+    keep_awake_apps_dict: dict[str, str] | None = None
+    usage_session_mode: UsageSessionMode | str = UsageSessionMode.APP_USAGE
+    derive_screen_usage_sessions: bool = False
+    screen_usage_auto_lock_timeout_seconds: int = 120
+    screen_usage_auto_lock_tolerance_seconds: int = 30
+    screen_usage_manual_lock_max_tail_gap_seconds: int = 30
+    screen_usage_keyguard_near_stop_seconds: int = 2
     minimum_usage_duration: int = 0
     custom_app_engagement_duration: int = 30
     allow_stop_event_reuse: bool = False
@@ -465,6 +479,17 @@ def _build_preprocessing_options(
         app_codebook_path=config.app_codebook_path,
         use_filter_file=config.use_filter_file,
         filter_file=config.filter_file_path,
+        use_keep_awake_apps_file=config.use_keep_awake_apps_file,
+        keep_awake_apps_file=config.keep_awake_apps_file_path,
+        keep_awake_apps_dict=config.keep_awake_apps_dict or {},
+        usage_session_mode=config.usage_session_mode,
+        derive_screen_usage_sessions=config.derive_screen_usage_sessions,
+        screen_usage_auto_lock_timeout_seconds=config.screen_usage_auto_lock_timeout_seconds,
+        screen_usage_auto_lock_tolerance_seconds=config.screen_usage_auto_lock_tolerance_seconds,
+        screen_usage_manual_lock_max_tail_gap_seconds=(
+            config.screen_usage_manual_lock_max_tail_gap_seconds
+        ),
+        screen_usage_keyguard_near_stop_seconds=config.screen_usage_keyguard_near_stop_seconds,
         minimum_usage_duration=config.minimum_usage_duration,
         custom_app_engagement_duration=config.custom_app_engagement_duration,
         selected_timezone=config.selected_timezone,
@@ -975,4 +1000,3 @@ def _add_placeholder_rows_for_missing_days(
         )
 
     return df
-

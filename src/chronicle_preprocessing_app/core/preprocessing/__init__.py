@@ -19,33 +19,8 @@ To enable/disable Polars acceleration:
 
 from __future__ import annotations
 
-from .app_filter_preprocessor import AppFilterPreprocessor
-from .app_usage_preprocessor import AppUsagePreprocessor
-from .base_preprocessor import BasePreprocessor
-from .column_preprocessor import ColumnPreprocessor
-from .dataframe_api import (
-    DataFramePreprocessingConfig,
-    PreprocessingResult,
-    preprocess_chronicle_dataframe,
-)
-from .main_preprocessor import ChronicleAndroidRawDataPreprocessor, MainPreprocessor
-from .study_date_provider import StudyDateRangeProvider
-from .timestamp_preprocessor import TimestampPreprocessor
-
-# SurveyDataPreprocessor is an internal module that may not be available
-try:
-    from .survey_data_preprocessor import SurveyDataPreprocessor
-except ImportError:
-    SurveyDataPreprocessor = None  # type: ignore[assignment, misc]
-from .timezone_preprocessor import TimezonePreprocessor
-
-# Check if Polars is available
-try:
-    import polars  # noqa: F401
-
-    _POLARS_AVAILABLE = True
-except ImportError:
-    _POLARS_AVAILABLE = False
+from importlib import import_module
+from typing import TYPE_CHECKING, Any
 
 __all__ = [
     "AppFilterPreprocessor",
@@ -56,6 +31,7 @@ __all__ = [
     "DataFramePreprocessingConfig",
     "MainPreprocessor",
     "PreprocessingResult",
+    "ScreenUsagePreprocessor",
     "StudyDateRangeProvider",
     "SurveyDataPreprocessor",
     "TimestampPreprocessor",
@@ -64,7 +40,61 @@ __all__ = [
 ]
 
 
+_EXPORTS: dict[str, tuple[str, str]] = {
+    "AppFilterPreprocessor": (".app_filter_preprocessor", "AppFilterPreprocessor"),
+    "AppUsagePreprocessor": (".app_usage_preprocessor", "AppUsagePreprocessor"),
+    "BasePreprocessor": (".base_preprocessor", "BasePreprocessor"),
+    "ChronicleAndroidRawDataPreprocessor": (
+        ".main_preprocessor",
+        "ChronicleAndroidRawDataPreprocessor",
+    ),
+    "ColumnPreprocessor": (".column_preprocessor", "ColumnPreprocessor"),
+    "DataFramePreprocessingConfig": (".dataframe_api", "DataFramePreprocessingConfig"),
+    "MainPreprocessor": (".main_preprocessor", "MainPreprocessor"),
+    "PreprocessingResult": (".dataframe_api", "PreprocessingResult"),
+    "ScreenUsagePreprocessor": (".screen_usage_preprocessor", "ScreenUsagePreprocessor"),
+    "StudyDateRangeProvider": (".study_date_provider", "StudyDateRangeProvider"),
+    "SurveyDataPreprocessor": (".survey_data_preprocessor", "SurveyDataPreprocessor"),
+    "TimestampPreprocessor": (".timestamp_preprocessor", "TimestampPreprocessor"),
+    "TimezonePreprocessor": (".timezone_preprocessor", "TimezonePreprocessor"),
+    "preprocess_chronicle_dataframe": (".dataframe_api", "preprocess_chronicle_dataframe"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    """Load preprocessing exports lazily to keep submodule imports lightweight."""
+    if name not in _EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    module_name, attr_name = _EXPORTS[name]
+    module = import_module(module_name, __name__)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value
+
+
 def is_polars_available() -> bool:
     """Check if Polars-based preprocessing is available."""
-    return _POLARS_AVAILABLE
+    try:
+        import polars  # noqa: F401
+    except ImportError:
+        return False
+    return True
 
+
+if TYPE_CHECKING:
+    from .app_filter_preprocessor import AppFilterPreprocessor
+    from .app_usage_preprocessor import AppUsagePreprocessor
+    from .base_preprocessor import BasePreprocessor
+    from .column_preprocessor import ColumnPreprocessor
+    from .dataframe_api import (
+        DataFramePreprocessingConfig,
+        PreprocessingResult,
+        preprocess_chronicle_dataframe,
+    )
+    from .main_preprocessor import ChronicleAndroidRawDataPreprocessor, MainPreprocessor
+    from .screen_usage_preprocessor import ScreenUsagePreprocessor
+    from .study_date_provider import StudyDateRangeProvider
+    from .survey_data_preprocessor import SurveyDataPreprocessor
+    from .timestamp_preprocessor import TimestampPreprocessor
+    from .timezone_preprocessor import TimezonePreprocessor

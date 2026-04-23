@@ -5,7 +5,8 @@ App usage processing algorithm for Chronicle Android data.
 from __future__ import annotations
 
 import logging
-import warnings
+from bisect import bisect_right
+from typing import Any
 
 import pandas as pd
 from chronicle_preprocessing_app.config.constants import Column, InteractionType
@@ -89,11 +90,12 @@ def safe_duration_seconds(stop_time: pd.Timestamp, start_time: pd.Timestamp) -> 
         return (stop_naive - start_naive).total_seconds()
 
 
-class BaselineAlgorithm:
-    """Optimized O(n²) algorithm - pre-built indices and batched updates.
+class OptimizedAppUsageAlgorithm:
+    """Single supported app-usage pairing algorithm.
 
-    This algorithm pre-builds indices once instead of filtering the DataFrame repeatedly,
-    and batches all DataFrame updates at the end instead of individual df.loc calls.
+    The implementation pre-builds stop-event indices, uses binary search to avoid
+    rescanning old events, and batches DataFrame updates at the end instead of
+    writing row-by-row.
     """
 
     def __init__(self, options: PreprocessingOptions):
@@ -115,9 +117,9 @@ class BaselineAlgorithm:
         other_stop_mask: pd.Series,
         stopped_mask: pd.Series,
     ) -> pd.DataFrame:
-        """Optimized naive implementation - same logic, faster execution with batched updates."""
+        """Pair resumed events with the earliest valid stop event."""
         LOGGER.debug(
-            f"Using baseline algorithm (stop reuse: {self.options.allow_stop_event_reuse})"
+            f"Using optimized app usage algorithm (stop reuse: {self.options.allow_stop_event_reuse})"
         )
         df_copy = df.reset_index(drop=True)
 
@@ -164,8 +166,8 @@ class BaselineAlgorithm:
         resumed_indices = df_copy.index[resumed_mask].tolist()
 
         # Collect all updates to apply in batch at the end
-        start_updates: list[tuple[int, any]] = []  # (index, start_timestamp)
-        stop_updates: list[tuple[int, any]] = []  # (index, stop_timestamp)
+        start_updates: list[tuple[int, Any]] = []  # (index, start_timestamp)
+        stop_updates: list[tuple[int, Any]] = []  # (index, stop_timestamp)
         missing_indices: list[int] = []  # indices where stop is missing
 
         # For each resumed activity, find the corresponding stop
@@ -176,29 +178,34 @@ class BaselineAlgorithm:
             # Find first same-app stop after index i
             same_app_stop_index = None
             if current_app in same_app_stops_by_pkg:
-                for idx in same_app_stops_by_pkg[current_app]:
-                    if idx > i:
-                        if matched_stop_indices is None or idx not in matched_stop_indices:
-                            same_app_stop_index = idx
-                            break
+                candidate_indices = same_app_stops_by_pkg[current_app]
+                start_pos = bisect_right(candidate_indices, i)
+                for pos in range(start_pos, len(candidate_indices)):
+                    idx = candidate_indices[pos]
+                    if matched_stop_indices is None or idx not in matched_stop_indices:
+                        same_app_stop_index = idx
+                        break
 
             # Find first other-app stop after index i (different app)
             other_app_stop_index = None
-            for idx in other_stop_list:
-                if idx > i:
-                    if app_packages[idx] != current_app:
-                        if matched_stop_indices is None or idx not in matched_stop_indices:
-                            other_app_stop_index = idx
-                            break
+            start_pos = bisect_right(other_stop_list, i)
+            for pos in range(start_pos, len(other_stop_list)):
+                idx = other_stop_list[pos]
+                if app_packages[idx] != current_app:
+                    if matched_stop_indices is None or idx not in matched_stop_indices:
+                        other_app_stop_index = idx
+                        break
 
             # Find first activity stopped for same app after index i
             activity_stopped_index = None
             if current_app in stopped_by_pkg:
-                for idx in stopped_by_pkg[current_app]:
-                    if idx > i:
-                        if matched_stop_indices is None or idx not in matched_stop_indices:
-                            activity_stopped_index = idx
-                            break
+                candidate_indices = stopped_by_pkg[current_app]
+                start_pos = bisect_right(candidate_indices, i)
+                for pos in range(start_pos, len(candidate_indices)):
+                    idx = candidate_indices[pos]
+                    if matched_stop_indices is None or idx not in matched_stop_indices:
+                        activity_stopped_index = idx
+                        break
 
             # Get corresponding timestamps
             same_app_stop_timestamp = (
@@ -348,24 +355,3 @@ class BaselineAlgorithm:
                 timestamp_to_use = activity_stopped_timestamp
 
         return timestamp_to_use
-
-    def _apply_match(
-        self, df: pd.DataFrame, resumed_idx: int, stop_timestamp: pd.Timestamp | None
-    ) -> None:
-        """
-        Apply a match to the dataframe.
-
-        Args:
-            df: DataFrame to modify
-            resumed_idx: Index of the resumed event
-            stop_timestamp: Timestamp of the stop event (or None if missing)
-        """
-        with warnings.catch_warnings():
-            warnings.simplefilter(action="ignore", category=FutureWarning)
-            current_timestamp = df.loc[resumed_idx, Column.EVENT_TIMESTAMP]
-            df.loc[resumed_idx, Column.START_TIMESTAMP] = current_timestamp
-
-            if stop_timestamp is not None:
-                df.loc[resumed_idx, Column.STOP_TIMESTAMP] = stop_timestamp
-            else:
-                df.loc[resumed_idx, Column.INTERACTION_TYPE] = InteractionType.END_OF_USAGE_MISSING

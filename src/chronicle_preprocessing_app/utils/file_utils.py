@@ -83,6 +83,12 @@ class FilterFileError(FileOperationError):
     pass
 
 
+class KeepAwakeAppsFileError(FileOperationError):
+    """Exception raised for errors related to screen keep-awake app files."""
+
+    pass
+
+
 class CodebookFileError(FileOperationError):
     """Exception raised for errors related to codebook files"""
 
@@ -159,6 +165,89 @@ def read_filter_file(file_path: Path | str) -> dict[str, str]:
         msg = f"Failed to read filter file: {e}"
         LOGGER.exception(msg)
         raise FilterFileError(msg) from e
+
+
+def read_keep_awake_apps_file(file_path: Path | str) -> dict[str, str]:
+    """
+    Read a screen keep-awake app file.
+
+    The file may be .csv or .xlsx. The first column is the package name. The
+    optional second column is a label, category, or note that is preserved for
+    downstream screen-usage classification and audit output.
+
+    Args:
+        file_path: Path to the keep-awake app file (.csv or .xlsx)
+
+    Returns:
+        Dictionary mapping app package names to labels or notes
+
+    Raises:
+        KeepAwakeAppsFileError: If the file cannot be read or is invalid
+    """
+    file_path = Path(file_path)
+
+    if not file_path.exists():
+        msg = f"Keep-awake apps file does not exist: {file_path}"
+        LOGGER.error(msg)
+        raise KeepAwakeAppsFileError(msg)
+
+    file_extension = file_path.suffix.lower()
+    keep_awake_apps: dict[str, str] = {}
+
+    try:
+        if file_extension == ".csv":
+            df = pd.read_csv(file_path)
+        elif file_extension == ".xlsx":
+            df = pd.read_excel(file_path, sheet_name=0)
+        else:
+            msg = f"Unsupported file type: {file_extension}. Must be .csv or .xlsx"
+            LOGGER.error(msg)
+            raise KeepAwakeAppsFileError(msg)
+
+        if df.shape[1] < 1:
+            msg = "Keep-awake apps file must have at least one column (Package Name)"
+            LOGGER.error(msg)
+            raise KeepAwakeAppsFileError(msg)
+
+        package_col = df.columns[0]
+        label_col = df.columns[1] if df.shape[1] >= 2 else None
+
+        for _, row in df.iterrows():
+            package_name = str(row[package_col]).strip()
+            if (
+                not package_name
+                or package_name.lower() == "nan"
+                or package_name.startswith("#")
+            ):
+                continue
+
+            label = ""
+            if label_col is not None:
+                label = str(row[label_col]).strip()
+                if label.lower() == "nan":
+                    label = ""
+
+            keep_awake_apps[package_name] = label
+
+        LOGGER.info(
+            f"Successfully loaded {len(keep_awake_apps)} keep-awake apps from {file_path}"
+        )
+        return keep_awake_apps
+
+    except EmptyDataError:
+        msg = f"Keep-awake apps file is empty: {file_path}"
+        LOGGER.error(msg)
+        raise KeepAwakeAppsFileError(msg)
+    except ParserError:
+        msg = f"Keep-awake apps file has invalid format: {file_path}"
+        LOGGER.error(msg)
+        raise KeepAwakeAppsFileError(msg)
+    except KeepAwakeAppsFileError:
+        raise
+    except Exception as e:
+        msg = f"Failed to read keep-awake apps file: {e}"
+        LOGGER.exception(msg)
+        raise KeepAwakeAppsFileError(msg) from e
 
 
 def read_app_codebook(codebook_path: Path | str) -> pd.DataFrame | None:

@@ -22,6 +22,10 @@ from typing import Any, Callable
 import pandas as pd
 from openpyxl.styles import Alignment, PatternFill
 
+from chronicle_preprocessing_app.config.defaults import (
+    DEFAULT_LONG_DATA_TIME_GAP_THRESHOLDS,
+)
+
 # Conditional Polars import for high-performance I/O
 try:
     import polars as pl
@@ -64,21 +68,36 @@ except ImportError:
     )
 
 from chronicle_preprocessing_app.core.config import PreprocessingOptions, ProcessingStats
-from chronicle_preprocessing_app.core.plotting.plotting_manager import generate_plots
 
 from .app_filter_preprocessor import AppFilterPreprocessor
 from .app_usage_preprocessor import AppUsagePreprocessor
 from .column_preprocessor import ColumnPreprocessor
+from .screen_usage_preprocessor import ScreenUsagePreprocessor
 from .study_date_provider import StudyDateRangeProvider
 from .timestamp_preprocessor import TimestampPreprocessor
 from .timezone_preprocessor import TimezonePreprocessor
 
 try:
-    from chronicle_preprocessing_app.utils.file_utils import get_matching_files_from_folder, read_filter_file
+    from chronicle_preprocessing_app.utils.file_utils import (
+        get_matching_files_from_folder,
+        read_filter_file,
+        read_keep_awake_apps_file,
+    )
 except ImportError:
-    from ...utils.file_utils import get_matching_files_from_folder, read_filter_file
+    from ...utils.file_utils import (
+        get_matching_files_from_folder,
+        read_filter_file,
+        read_keep_awake_apps_file,
+    )
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _generate_plots(*args: Any, **kwargs: Any) -> Any:
+    """Import plotting only when plotting is requested."""
+    from chronicle_preprocessing_app.core.plotting.plotting_manager import generate_plots
+
+    return generate_plots(*args, **kwargs)
 
 
 @dataclass
@@ -265,6 +284,7 @@ class ChronicleAndroidRawDataPreprocessor:
         """
         self.options = options
         self.current_participant_raw_data_df = pd.DataFrame()
+        self.current_participant_screen_usage_df = pd.DataFrame()
         self.current_participant_id = ""
         self.current_data_primary_timezone = None
         self.progress_callback = progress_callback
@@ -285,10 +305,27 @@ class ChronicleAndroidRawDataPreprocessor:
             except Exception:
                 LOGGER.exception("Error loading filter file")
 
+        if (
+            options.use_keep_awake_apps_file
+            and options.keep_awake_apps_file
+            and isinstance(options.keep_awake_apps_file, (str, Path))
+            and len(str(options.keep_awake_apps_file)) > 0
+        ):
+            try:
+                options.keep_awake_apps_dict = read_keep_awake_apps_file(
+                    options.keep_awake_apps_file
+                )
+                LOGGER.info(
+                    f"Loaded {len(options.keep_awake_apps_dict)} keep-awake apps from {options.keep_awake_apps_file}"
+                )
+            except Exception:
+                LOGGER.exception("Error loading keep-awake apps file")
+
         self.timestamp_processor = TimestampPreprocessor(options)
         self.timezone_processor = TimezonePreprocessor(options)
         self.app_usage_processor = AppUsagePreprocessor(options)
         self.app_filter_processor = AppFilterPreprocessor(options)
+        self.screen_usage_processor = ScreenUsagePreprocessor(options)
         self.column_processor = ColumnPreprocessor(options)
 
         # Load and cache app codebook once during initialization
@@ -450,26 +487,38 @@ class ChronicleAndroidRawDataPreprocessor:
     def remove_selected_interaction_types(self) -> None:
         """
         Removes selected interaction types from the dataframe,
-        except for rows that have time gap flags.
+        except for rows that meet the configured long-gap threshold.
         """
-        LOGGER.debug("Removing selected interaction types while preserving time gap rows")
+        LOGGER.debug(
+            "Removing selected interaction types while preserving thresholded time gap rows"
+        )
+
+        time_gap_threshold_hours = min(
+            self.options.long_data_time_gap_thresholds,
+            default=min(DEFAULT_LONG_DATA_TIME_GAP_THRESHOLDS),
+        )
 
         # Keep rows that either:
         # 1. Have an interaction type that's not in the removal list, OR
-        # 2. Have a non-zero time gap flag
+        # 2. Meet the configured threshold for a long data gap
         self.current_participant_raw_data_df = self.current_participant_raw_data_df[
             (
                 ~self.current_participant_raw_data_df[Column.INTERACTION_TYPE].isin(
                     self.options.interaction_types_to_remove
                 )
             )
-            | (self.current_participant_raw_data_df[Column.DATA_TIME_GAP_HOURS] > 0)
+            | (
+                self.current_participant_raw_data_df[Column.DATA_TIME_GAP_HOURS]
+                >= time_gap_threshold_hours
+            )
         ]
 
         self.current_participant_raw_data_df = self.current_participant_raw_data_df.sort_values(
             Column.EVENT_TIMESTAMP
         ).reset_index(drop=True)
-        LOGGER.debug("Selected interaction types removed while preserving time gap rows")
+        LOGGER.debug(
+            "Selected interaction types removed while preserving thresholded time gap rows"
+        )
 
     def unalign_duplicate_event_timestamps(self) -> None:
         """
@@ -541,9 +590,6 @@ class ChronicleAndroidRawDataPreprocessor:
         self.correct_event_timestamp_column()
 
         self.mark_data_time_gaps()
-
-        # Now remove selected interaction types after time gaps have been marked
-        self.remove_selected_interaction_types()
 
         LOGGER.debug("Original columns corrected successfully")
 
@@ -644,6 +690,83 @@ class ChronicleAndroidRawDataPreprocessor:
             LOGGER.exception(msg)
             raise pd.errors.EmptyDataError(msg) from e
 
+    def run_app_usage_algorithm(self) -> None:
+        """
+        Run the single supported app usage event algorithm for the current file.
+
+        This delegates to the canonical orchestration method in AppUsagePreprocessor
+        so the file-processing pipeline does not maintain a parallel app-usage
+        algorithm path.
+
+        Raises:
+            pd.errors.EmptyDataError: If there is no valid app usage data during
+                the study period
+        """
+        LOGGER.debug("Running canonical app usage event algorithm")
+
+        try:
+            self.current_participant_raw_data_df = (
+                self.app_usage_processor.run_app_usage_algorithm(
+                    self.current_participant_raw_data_df,
+                    raise_on_no_valid_usage=True,
+                )
+            )
+            LOGGER.debug("Canonical app usage event algorithm completed successfully")
+        except pd.errors.EmptyDataError as e:
+            msg = (
+                f"{self.current_participant_id} had no apparent valid app usage within "
+                "the study period"
+            )
+            LOGGER.exception(msg)
+            raise pd.errors.EmptyDataError(msg) from e
+
+    def derive_screen_usage_sessions(self) -> None:
+        """Append derived screen usage sessions when configured."""
+        if not self.options.process_screen_usage_sessions:
+            return
+
+        LOGGER.debug("Deriving screen usage sessions")
+        screen_result_df = self.screen_usage_processor.derive_screen_usage_sessions(
+            self.current_participant_raw_data_df.copy()
+        )
+        self.current_participant_screen_usage_df = (
+            screen_result_df[
+                screen_result_df[Column.INTERACTION_TYPE] == InteractionType.SCREEN_USAGE
+            ]
+            .copy()
+            .reset_index(drop=True)
+        )
+        if not self.options.process_app_usage_sessions:
+            self.current_participant_raw_data_df = self.current_participant_screen_usage_df.copy()
+        LOGGER.debug("Screen usage session derivation completed")
+
+    def run_configured_usage_session_algorithms(self) -> None:
+        """
+        Run the configured usage-session derivation path.
+
+        App usage and screen usage are independent products: app usage derives
+        foreground-app sessions, while screen usage derives screen-on sessions.
+        The selected mode decides whether to run app only, screen only, or both.
+        """
+        self.derive_screen_usage_sessions()
+
+        if self.options.process_app_usage_sessions:
+            self.run_app_usage_algorithm()
+            return
+
+        if self.options.process_screen_usage_sessions:
+            has_screen_usage = self.current_participant_raw_data_df[
+                Column.INTERACTION_TYPE
+            ].eq(InteractionType.SCREEN_USAGE).any()
+            if has_screen_usage:
+                return
+
+            msg = (
+                f"{self.current_participant_id} had no apparent screen usage within "
+                "the study period"
+            )
+            raise pd.errors.EmptyDataError(msg)
+
     def check_data_for_disordered_timestamps(self) -> None:
         """
         Checks for disordered timestamps in the data.
@@ -726,9 +849,17 @@ class ChronicleAndroidRawDataPreprocessor:
         )
         preprocessed_data_save_folder.mkdir(parents=True, exist_ok=True)
 
+        output_file_suffix = (
+            "Screen Usage " + PREPROCESSED_FILE_SUFFIX
+            if (
+                self.options.process_screen_usage_sessions
+                and not self.options.process_app_usage_sessions
+            )
+            else PREPROCESSED_FILE_SUFFIX
+        )
         save_name = (
             preprocessed_data_save_folder
-            / f"{Path(raw_data_filename).stem.replace('Raw ', '') + ' ' + PREPROCESSED_FILE_SUFFIX}"
+            / f"{Path(raw_data_filename).stem.replace('Raw ', '') + ' ' + output_file_suffix}"
         )
         LOGGER.debug(f"Save name: {save_name}")
 
@@ -781,6 +912,14 @@ class ChronicleAndroidRawDataPreprocessor:
                 Column.STOP_TIMESTAMP,
                 Column.DURATION_SECONDS,
                 Column.DURATION_MINUTES,
+                Column.SCREEN_USAGE_END_REASON,
+                Column.SCREEN_USAGE_END_REASON_CONFIDENCE,
+                Column.SCREEN_USAGE_STOP_EVENT_TYPE,
+                Column.SCREEN_USAGE_LAST_ACTIVITY_TIMESTAMP,
+                Column.SCREEN_USAGE_TAIL_GAP_SECONDS,
+                Column.SCREEN_USAGE_FOREGROUND_APP_PACKAGE,
+                Column.SCREEN_USAGE_KEEP_AWAKE_APP_LABEL,
+                Column.SCREEN_USAGE_LOCK_SCREEN_ONLY,
                 Column.ANY_APP_USAGE_FLAGS,
                 Column.DATA_TIME_GAP_HOURS,
                 Column.DAY,
@@ -857,9 +996,43 @@ class ChronicleAndroidRawDataPreprocessor:
                     output_df, timestamp_columns, TimestampFormat.DATETIME.value
                 )
 
-        self.remove_selected_interaction_types()
+        self._write_output_csv(output_df, save_name)
+        LOGGER.debug(f"Preprocessed data saved to {save_name}")
 
-        # Write CSV - use Polars for faster I/O if available
+        if (
+            self.options.process_app_usage_sessions
+            and self.options.process_screen_usage_sessions
+            and not self.current_participant_screen_usage_df.empty
+        ):
+            screen_output_df = self.current_participant_screen_usage_df.copy()
+            screen_available_columns = [
+                col for col in columns_to_include if col in screen_output_df.columns
+            ]
+            screen_output_df = screen_output_df[screen_available_columns]
+            if not screen_output_df.empty:
+                timestamp_columns = [
+                    str(col)
+                    for col in [Column.START_TIMESTAMP, Column.STOP_TIMESTAMP]
+                    if col in screen_output_df.columns
+                ]
+                if timestamp_columns:
+                    screen_output_df = self.timestamp_processor.format_timestamps_as_strings(
+                        screen_output_df,
+                        timestamp_columns,
+                        TimestampFormat.DATETIME.value,
+                    )
+
+            screen_save_name = (
+                preprocessed_data_save_folder
+                / f"{Path(raw_data_filename).stem.replace('Raw ', '')} Screen Usage {PREPROCESSED_FILE_SUFFIX}"
+            )
+            self._write_output_csv(screen_output_df, screen_save_name)
+            LOGGER.debug(f"Screen usage data saved to {screen_save_name}")
+
+        return preprocessed_data_save_folder
+
+    def _write_output_csv(self, output_df: pd.DataFrame, save_name: Path) -> None:
+        """Write an output DataFrame as CSV using Polars when available."""
         if USE_POLARS:
             LOGGER.debug("Using Polars for CSV writing")
             _start_write = time.perf_counter()
@@ -909,9 +1082,6 @@ class ChronicleAndroidRawDataPreprocessor:
                 output_df.to_csv(save_name, index=False)
         else:
             output_df.to_csv(save_name, index=False)
-        LOGGER.debug(f"Preprocessed data saved to {save_name}")
-
-        return preprocessed_data_save_folder
 
     def add_app_usage_detail_columns(self) -> None:
         """
@@ -1323,12 +1493,11 @@ class ChronicleAndroidRawDataPreprocessor:
             # Label filtered apps
             self.label_filtered_apps()
 
-            # Handle filtered app usage
-            self.process_filtered_app_usage_rows()
-
-            # Try to process valid app usage rows (with EmptyDataError handling like internal version)
+            # Run the configured usage derivation mode. Screen usage is derived
+            # before app usage when both are enabled, so raw Activity Resumed rows
+            # are still available to the screen classifier.
             try:
-                self.process_valid_app_usage_rows()
+                self.run_configured_usage_session_algorithms()
 
                 # Check for disordered timestamps
                 self.check_data_for_disordered_timestamps()
@@ -1438,8 +1607,10 @@ class ChronicleAndroidRawDataPreprocessor:
                         f"Error calculating compliance for {self.current_participant_id}: {e}"
                     )
 
-            # Only do analysis columns if we had successful app usage processing
-            if processing_successful:
+            # Only do app analysis columns after successful app-usage processing.
+            # Screen-only output is a separate product and should not receive
+            # app-usage engagement/switch flags.
+            if processing_successful and self.options.process_app_usage_sessions:
                 # Add app usage detail columns (MUST happen AFTER survey processing)
                 self.add_app_usage_detail_columns()
 
@@ -1584,7 +1755,7 @@ class ChronicleAndroidRawDataPreprocessor:
                 plotting_started_callback()
 
                 # Generate plots
-                generate_plots(
+                _generate_plots(
                     study_name=self.options.study_name,
                     preprocessed_folder=Path(preprocessed_data_save_folder),
                     options=self.options,
@@ -1703,7 +1874,7 @@ class ChronicleAndroidRawDataPreprocessor:
 
             try:
                 # Generate plots
-                plot_output_folder, plot_stats = generate_plots(
+                plot_output_folder, plot_stats = _generate_plots(
                     study_name=self.options.study_name,
                     preprocessed_folder=Path(preprocessed_data_save_folder),
                     options=self.options,
@@ -1821,6 +1992,25 @@ def preprocess_files_parallel(
         "app_codebook_path": str(options.app_codebook_path) if options.app_codebook_path else "",
         "use_filter_file": options.use_filter_file,
         "filter_file": str(options.filter_file) if options.filter_file else "",
+        "use_keep_awake_apps_file": options.use_keep_awake_apps_file,
+        "keep_awake_apps_file": (
+            str(options.keep_awake_apps_file) if options.keep_awake_apps_file else ""
+        ),
+        "keep_awake_apps_dict": options.keep_awake_apps_dict,
+        "usage_session_mode": options.usage_session_mode,
+        "derive_screen_usage_sessions": options.derive_screen_usage_sessions,
+        "screen_usage_auto_lock_timeout_seconds": (
+            options.screen_usage_auto_lock_timeout_seconds
+        ),
+        "screen_usage_auto_lock_tolerance_seconds": (
+            options.screen_usage_auto_lock_tolerance_seconds
+        ),
+        "screen_usage_manual_lock_max_tail_gap_seconds": (
+            options.screen_usage_manual_lock_max_tail_gap_seconds
+        ),
+        "screen_usage_keyguard_near_stop_seconds": (
+            options.screen_usage_keyguard_near_stop_seconds
+        ),
         "minimum_usage_duration": options.minimum_usage_duration,
         "custom_app_engagement_duration": options.custom_app_engagement_duration,
         "long_usage_duration_thresholds": options.long_usage_duration_thresholds,
@@ -1956,4 +2146,3 @@ def preprocess_files_parallel(
     )
 
     return results, stats
-

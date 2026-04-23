@@ -17,6 +17,7 @@ from chronicle_preprocessing_app.config.constants import (
     DeviceSharingStatus,
     InteractionType,
     TimezoneHandlingOption,
+    UsageSessionMode,
 )
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -184,8 +185,30 @@ class PreprocessingRequest(BaseModel):
     app_codebook_path: Path | None = Field(None, description="Path to app codebook")
     use_filter_file: bool = Field(False, description="Use app filter file")
     filter_file_path: Path | None = Field(None, description="Path to filter file")
+    use_keep_awake_apps_file: bool = Field(
+        False, description="Use screen keep-awake app file"
+    )
+    keep_awake_apps_file_path: Path | None = Field(
+        None, description="Path to screen keep-awake app file"
+    )
+    usage_session_mode: UsageSessionMode = Field(
+        UsageSessionMode.APP_USAGE,
+        description="Which usage-session derivation path to run",
+    )
+    derive_screen_usage_sessions: bool = Field(
+        False, description="Append derived screen usage sessions"
+    )
+    screen_usage_auto_lock_timeout_seconds: int = Field(
+        120, description="Expected screen auto-lock timeout in seconds"
+    )
+    screen_usage_auto_lock_tolerance_seconds: int = Field(
+        30, description="Tolerance around auto-lock timeout in seconds"
+    )
+    screen_usage_manual_lock_max_tail_gap_seconds: int = Field(
+        30, description="Maximum tail gap treated as probable manual lock"
+    )
     enable_plotting: bool = Field(False, description="Generate plots after preprocessing")
-    algorithm: str = Field("baseline", description="App usage matching algorithm")
+    algorithm: str = Field("optimized", description="App usage matching algorithm")
 
     @field_validator("raw_data_folder")
     @classmethod

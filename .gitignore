@@ -177,7 +177,6 @@ cython_debug/
 *Chronicle Android Preprocessed Data*/**
 *Chronicle Android Plotted Data*/**
 *Chronicle Android Raw Data*/**
-tests/**
 Chronicle_Android_raw_data_preprocessing_app_config.json
 *.log
 app_codebook_files/Chronicle_Android_raw_data_preprocessor_app_codebook - Copy.csv
@@ -196,6 +195,8 @@ preprocessors/survey_data_preprocessor.py
 *analysis*
 
 *test*
+!tests/
+!tests/**/*.py
 *demo*
 *benchmark*
  Chronicle Android Automatically Preprocessed Data/
