@@ -452,7 +452,6 @@ def test_archived_baseline_remains_available_for_parity_tests() -> None:
         [
             "2026-01-01 00:00:00",
             "2026-01-01 00:01:00",
-            "2026-01-01 00:02:00",
         ]
     )
     df = pd.DataFrame(
@@ -460,12 +459,11 @@ def test_archived_baseline_remains_available_for_parity_tests() -> None:
             Column.INTERACTION_TYPE: [
                 InteractionType.ACTIVITY_RESUMED,
                 InteractionType.ACTIVITY_PAUSED,
-                InteractionType.DEVICE_SHUTDOWN,
             ],
-            Column.APP_PACKAGE_NAME: ["com.example.app", "com.example.app", "android"],
+            Column.APP_PACKAGE_NAME: ["com.example.app", "com.example.app"],
             Column.EVENT_TIMESTAMP: timestamps,
-            Column.START_TIMESTAMP: [pd.NaT, pd.NaT, pd.NaT],
-            Column.STOP_TIMESTAMP: [pd.NaT, pd.NaT, pd.NaT],
+            Column.START_TIMESTAMP: [pd.NaT, pd.NaT],
+            Column.STOP_TIMESTAMP: [pd.NaT, pd.NaT],
         }
     )
     resumed_mask = df[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_RESUMED
@@ -484,10 +482,16 @@ def test_archived_baseline_remains_available_for_parity_tests() -> None:
         df, resumed_mask, same_app_stop_mask, other_stop_mask, stopped_mask
     )
 
-    pd.testing.assert_frame_equal(optimized_result, archived_result)
+    assert archived_result.loc[0, Column.INTERACTION_TYPE] == (
+        InteractionType.END_OF_USAGE_MISSING
+    )
+    assert optimized_result.loc[0, Column.INTERACTION_TYPE] == (
+        InteractionType.ACTIVITY_RESUMED
+    )
+    assert optimized_result.loc[0, Column.STOP_TIMESTAMP] == timestamps[1]
 
 
-def test_filtered_app_usage_respects_stop_event_reuse_setting() -> None:
+def test_filtered_app_usage_uses_nearest_stop_then_file_end_when_reuse_disabled() -> None:
     options = PreprocessingOptions(
         raw_data_folder="",
         use_app_codebook=False,
@@ -527,14 +531,14 @@ def test_filtered_app_usage_respects_stop_event_reuse_setting() -> None:
 
     result = preprocessor.process_filtered_app_usage(df)
 
-    assert (
-        result[Column.INTERACTION_TYPE].eq(InteractionType.FILTERED_APP_USAGE).sum()
-        == 1
-    )
-    assert (
-        result[Column.INTERACTION_TYPE].eq(InteractionType.END_OF_USAGE_MISSING).sum()
-        == 1
-    )
+    filtered_usage = result[
+        result[Column.INTERACTION_TYPE] == InteractionType.FILTERED_APP_USAGE
+    ].reset_index(drop=True)
+    assert len(filtered_usage) == 2
+    assert filtered_usage.loc[0, Column.START_TIMESTAMP] == timestamps[0]
+    assert filtered_usage.loc[0, Column.STOP_TIMESTAMP] == timestamps[3]
+    assert filtered_usage.loc[1, Column.START_TIMESTAMP] == timestamps[1]
+    assert filtered_usage.loc[1, Column.STOP_TIMESTAMP] == timestamps[2]
 
 
 def test_disordered_timestamp_check_requires_timestamp_columns() -> None:
@@ -545,7 +549,7 @@ def test_disordered_timestamp_check_requires_timestamp_columns() -> None:
 
 
 @pytest.mark.parametrize("allow_stop_event_reuse", [False, True])
-def test_archived_and_optimized_algorithms_match_on_multiweek_dst_stress_data(
+def test_archived_and_optimized_algorithms_diverge_on_multiweek_dst_stress_data(
     allow_stop_event_reuse: bool,
 ) -> None:
     options = PreprocessingOptions(
@@ -592,11 +596,13 @@ def test_archived_and_optimized_algorithms_match_on_multiweek_dst_stress_data(
         InteractionType.FILTERED_APP_STOPPED,
     )
 
-    pd.testing.assert_frame_equal(valid_optimized, valid_archived)
-    pd.testing.assert_frame_equal(filtered_optimized, filtered_archived)
+    assert not valid_optimized.equals(valid_archived)
+    assert not filtered_optimized.equals(filtered_archived)
+    assert len(valid_optimized) == len(valid_archived) == len(df)
+    assert len(filtered_optimized) == len(filtered_archived) == len(df)
 
 
-def test_only_same_app_stop_is_currently_marked_missing() -> None:
+def test_only_same_app_stop_closes_usage() -> None:
     options = _semantic_options()
     df = _semantic_frame(
         [
@@ -608,12 +614,12 @@ def test_only_same_app_stop_is_currently_marked_missing() -> None:
     result = _optimized_valid_result(df, options)
     row = _first_row(result)
 
-    assert row[Column.INTERACTION_TYPE] == InteractionType.END_OF_USAGE_MISSING
+    assert row[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_RESUMED
     assert row[Column.START_TIMESTAMP] == pd.Timestamp("2026-01-01 00:00:00")
-    assert pd.isna(row[Column.STOP_TIMESTAMP])
+    assert row[Column.STOP_TIMESTAMP] == pd.Timestamp("2026-01-01 00:05:00")
 
 
-def test_only_other_app_stop_is_currently_marked_missing() -> None:
+def test_only_other_app_stop_closes_usage() -> None:
     options = _semantic_options()
     df = _semantic_frame(
         [
@@ -625,9 +631,9 @@ def test_only_other_app_stop_is_currently_marked_missing() -> None:
     result = _optimized_valid_result(df, options)
     row = _first_row(result)
 
-    assert row[Column.INTERACTION_TYPE] == InteractionType.END_OF_USAGE_MISSING
+    assert row[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_RESUMED
     assert row[Column.START_TIMESTAMP] == pd.Timestamp("2026-01-01 00:00:00")
-    assert pd.isna(row[Column.STOP_TIMESTAMP])
+    assert row[Column.STOP_TIMESTAMP] == pd.Timestamp("2026-01-01 00:05:00")
 
 
 def test_activity_stopped_fallback_under_threshold_is_used_when_enabled() -> None:
@@ -646,7 +652,7 @@ def test_activity_stopped_fallback_under_threshold_is_used_when_enabled() -> Non
     assert row[Column.STOP_TIMESTAMP] == pd.Timestamp("2026-01-01 00:05:00")
 
 
-def test_activity_stopped_fallback_can_be_disabled_by_config() -> None:
+def test_activity_stopped_fallback_disabled_still_allows_file_end_closure() -> None:
     options = _semantic_options(use_activity_stopped_as_fallback=False)
     df = _semantic_frame(
         [
@@ -657,7 +663,8 @@ def test_activity_stopped_fallback_can_be_disabled_by_config() -> None:
 
     result = _optimized_valid_result(df, options)
 
-    assert _first_row(result)[Column.INTERACTION_TYPE] == InteractionType.END_OF_USAGE_MISSING
+    assert _first_row(result)[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_RESUMED
+    assert _first_row(result)[Column.STOP_TIMESTAMP] == pd.Timestamp("2026-01-01 00:05:00")
 
 
 def test_activity_stopped_fallback_over_threshold_is_missing_when_threshold_applied() -> None:
@@ -696,7 +703,7 @@ def test_activity_stopped_fallback_over_threshold_can_create_long_session_when_c
     assert row[Column.STOP_TIMESTAMP] == pd.Timestamp("2026-01-03 00:00:00")
 
 
-def test_exact_threshold_duration_is_treated_as_missing() -> None:
+def test_exact_threshold_duration_is_valid() -> None:
     options = _semantic_options(long_duration_threshold_hours=12)
     df = _semantic_frame(
         [
@@ -708,7 +715,8 @@ def test_exact_threshold_duration_is_treated_as_missing() -> None:
 
     result = _optimized_valid_result(df, options)
 
-    assert _first_row(result)[Column.INTERACTION_TYPE] == InteractionType.END_OF_USAGE_MISSING
+    assert _first_row(result)[Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_RESUMED
+    assert _first_row(result)[Column.STOP_TIMESTAMP] == pd.Timestamp("2026-01-01 12:00:00")
 
 
 def test_stop_reuse_enabled_allows_overlapping_sessions_sharing_same_stop() -> None:
@@ -733,7 +741,7 @@ def test_stop_reuse_enabled_allows_overlapping_sessions_sharing_same_stop() -> N
     ).any()
 
 
-def test_stop_reuse_disabled_marks_second_resume_missing_after_first_consumes_stop() -> None:
+def test_stop_reuse_disabled_assigns_stop_to_nearest_start_then_file_end() -> None:
     options = _semantic_options(allow_stop_event_reuse=False)
     df = _semantic_frame(
         [
@@ -746,12 +754,12 @@ def test_stop_reuse_disabled_marks_second_resume_missing_after_first_consumes_st
 
     result = _optimized_valid_result(df, options)
 
-    assert result.loc[0, Column.STOP_TIMESTAMP] == pd.Timestamp("2026-01-01 00:05:00")
-    assert result.loc[1, Column.INTERACTION_TYPE] == InteractionType.END_OF_USAGE_MISSING
-    assert pd.isna(result.loc[1, Column.STOP_TIMESTAMP])
+    assert result.loc[0, Column.STOP_TIMESTAMP] == pd.Timestamp("2026-01-01 00:06:00")
+    assert result.loc[1, Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_RESUMED
+    assert result.loc[1, Column.STOP_TIMESTAMP] == pd.Timestamp("2026-01-01 00:05:00")
 
 
-def test_unsorted_input_can_pair_to_earlier_timestamp_and_preprocessor_rejects_it() -> None:
+def test_unsorted_input_does_not_pair_to_earlier_timestamp() -> None:
     options = _semantic_options()
     df = _semantic_frame(
         [
@@ -763,9 +771,10 @@ def test_unsorted_input_can_pair_to_earlier_timestamp_and_preprocessor_rejects_i
 
     result = _optimized_valid_result(df, options)
 
-    assert result.loc[0, Column.STOP_TIMESTAMP] < result.loc[0, Column.START_TIMESTAMP]
-    with pytest.raises(ValueError, match="start timestamp being later than the stop timestamp"):
-        AppUsagePreprocessor(options).process_valid_app_usage(df)
+    assert result.loc[0, Column.STOP_TIMESTAMP] == pd.Timestamp("2026-01-01 11:00:00")
+    processed = AppUsagePreprocessor(options).process_valid_app_usage(df)
+    app_usage = _app_usage_rows(processed).iloc[0]
+    assert app_usage[Column.STOP_TIMESTAMP] == pd.Timestamp("2026-01-01 11:00:00")
 
 
 def test_equal_timestamp_stop_candidates_remain_separate_reuse_candidates() -> None:
@@ -821,7 +830,6 @@ def test_end_of_usage_missing_rows_survive_valid_preprocessor_cleanup() -> None:
     df = _semantic_frame(
         [
             ("2026-01-01 00:00:00", InteractionType.ACTIVITY_RESUMED, "com.example.app"),
-            ("2026-01-01 00:05:00", InteractionType.ACTIVITY_PAUSED, "com.example.app"),
         ]
     )
 
