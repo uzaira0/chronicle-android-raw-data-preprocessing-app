@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import os
 
-from chronicle_preprocessing_app.config.constants import FileRegexPattern, InteractionType, TimezoneHandlingOption
+from chronicle_preprocessing_app.config.constants import (
+    FileRegexPattern,
+    InteractionType,
+    TimezoneHandlingOption,
+    UsageSessionMode,
+)
 
 # Core identification and input defaults
 DEFAULT_STUDY_NAME: str = ""
@@ -23,6 +28,29 @@ DEFAULT_APPS_TO_FILTER_FILE_PATH = (
     "./apps_to_filter_files/Chronicle_Android_raw_data_preprocessor_apps_to_filter.xlsx"
 )
 DEFAULT_APPS_TO_FILTER_DICT: dict[str, str] = {"": ""}
+
+# Screen-usage keep-awake app defaults
+DEFAULT_USE_KEEP_AWAKE_APPS_FILE: bool = False
+DEFAULT_KEEP_AWAKE_APPS_FILE_PATH = (
+    "./screen_awake_app_files/Chronicle_Android_raw_data_preprocessor_keep_awake_apps.csv"
+)
+DEFAULT_KEEP_AWAKE_APPS_DICT: dict[str, str] = {}
+
+# Screen usage session defaults
+DEFAULT_USAGE_SESSION_MODE: UsageSessionMode = UsageSessionMode.APP_USAGE
+DEFAULT_DERIVE_SCREEN_USAGE_SESSIONS: bool = False
+DEFAULT_SCREEN_USAGE_AUTO_LOCK_TIMEOUT_SECONDS: int = int(
+    os.getenv("CHRONICLE_SCREEN_USAGE_AUTO_LOCK_TIMEOUT_SECONDS", "120")
+)
+DEFAULT_SCREEN_USAGE_AUTO_LOCK_TOLERANCE_SECONDS: int = int(
+    os.getenv("CHRONICLE_SCREEN_USAGE_AUTO_LOCK_TOLERANCE_SECONDS", "30")
+)
+DEFAULT_SCREEN_USAGE_MANUAL_LOCK_MAX_TAIL_GAP_SECONDS: int = int(
+    os.getenv("CHRONICLE_SCREEN_USAGE_MANUAL_LOCK_MAX_TAIL_GAP_SECONDS", "30")
+)
+DEFAULT_SCREEN_USAGE_KEYGUARD_NEAR_STOP_SECONDS: int = int(
+    os.getenv("CHRONICLE_SCREEN_USAGE_KEYGUARD_NEAR_STOP_SECONDS", "2")
+)
 
 # Usage thresholds
 DEFAULT_MINIMUM_USAGE_DURATION: int = int(os.getenv("CHRONICLE_MIN_USAGE_DURATION", "0"))

@@ -229,14 +229,7 @@ class SameAppInteractionTypesDialog(BaseInteractionTypesDialog):
         options: PreprocessingOptions,
     ) -> None:
         locked_selections = [InteractionType.ACTIVITY_PAUSED]
-
-        if (
-            options.same_app_interaction_types_configured
-            and options.same_app_interaction_types_to_stop_usage_at
-        ):
-            default_selections = list(options.same_app_interaction_types_to_stop_usage_at)
-        else:
-            default_selections = [InteractionType.ACTIVITY_PAUSED]
+        default_selections = list(options.same_app_interaction_types_to_stop_usage_at)
 
         super().__init__(
             parent=parent,
@@ -255,14 +248,7 @@ class OtherInteractionTypesDialog(BaseInteractionTypesDialog):
         options: PreprocessingOptions,
     ) -> None:
         locked_selections = [InteractionType.DEVICE_SHUTDOWN]
-
-        if (
-            options.other_interaction_types_configured
-            and options.other_interaction_types_to_stop_usage_at
-        ):
-            default_selections = list(options.other_interaction_types_to_stop_usage_at)
-        else:
-            default_selections = [InteractionType.DEVICE_SHUTDOWN]
+        default_selections = list(options.other_interaction_types_to_stop_usage_at)
 
         super().__init__(
             parent=parent,
@@ -281,11 +267,7 @@ class InteractionTypesToRemoveDialog(BaseInteractionTypesDialog):
         options: PreprocessingOptions,
     ) -> None:
         locked_selections = []
-
-        if options.interaction_types_to_remove_configured and options.interaction_types_to_remove:
-            default_selections = list(options.interaction_types_to_remove)
-        else:
-            default_selections = []
+        default_selections = list(options.interaction_types_to_remove)
 
         super().__init__(
             parent=parent,
@@ -295,4 +277,3 @@ class InteractionTypesToRemoveDialog(BaseInteractionTypesDialog):
             default_selections=default_selections,
             locked_selections=locked_selections,
         )
-

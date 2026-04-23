@@ -13,7 +13,11 @@ from datetime import tzinfo  # noqa: TC003 - used at runtime in dataclass
 from pathlib import Path
 from typing import Any
 
-from chronicle_preprocessing_app.config.constants import InteractionType, TimezoneHandlingOption
+from chronicle_preprocessing_app.config.constants import (
+    InteractionType,
+    TimezoneHandlingOption,
+    UsageSessionMode,
+)
 from chronicle_preprocessing_app.config.defaults import (
     DEFAULT_ALLOW_STOP_EVENT_REUSE,
     DEFAULT_APP_CODEBOOK_FILE_PATH,
@@ -24,12 +28,15 @@ from chronicle_preprocessing_app.config.defaults import (
     DEFAULT_CORRECT_DUPLICATE_EVENT_TIMESTAMPS,
     DEFAULT_CUSTOM_APP_ENGAGEMENT_DURATION,
     DEFAULT_CUSTOM_TIMEZONES,
+    DEFAULT_DERIVE_SCREEN_USAGE_SESSIONS,
     DEFAULT_ENABLE_PLOTTING,
     DEFAULT_ENABLE_PREPROCESSING,
     DEFAULT_FILTERED_OTHER_INTERACTION_TYPES_TO_STOP_USAGE_AT,
     DEFAULT_FILTERED_SAME_APP_INTERACTION_TYPES_TO_STOP_USAGE_AT,
     DEFAULT_APPS_TO_FILTER_FILE_PATH,
     DEFAULT_FILTER_ZERO_DURATION_SESSIONS,
+    DEFAULT_KEEP_AWAKE_APPS_DICT,
+    DEFAULT_KEEP_AWAKE_APPS_FILE_PATH,
     DEFAULT_INCLUDE_FILTERED_APP_USAGE_IN_PLOTS,
     DEFAULT_INTERACTION_TYPES_TO_REMOVE,
     DEFAULT_INTERACTION_TYPES_TO_REMOVE_CONFIGURED,
@@ -44,15 +51,21 @@ from chronicle_preprocessing_app.config.defaults import (
     DEFAULT_PLOT_ONLY_TARGET_CHILD_DATA,
     DEFAULT_RAW_DATA_FILE_REGEX_PATTERN,
     DEFAULT_RAW_DATA_FOLDER,
+    DEFAULT_SCREEN_USAGE_AUTO_LOCK_TIMEOUT_SECONDS,
+    DEFAULT_SCREEN_USAGE_AUTO_LOCK_TOLERANCE_SECONDS,
+    DEFAULT_SCREEN_USAGE_KEYGUARD_NEAR_STOP_SECONDS,
+    DEFAULT_SCREEN_USAGE_MANUAL_LOCK_MAX_TAIL_GAP_SECONDS,
     DEFAULT_SAME_APP_INTERACTION_TYPES_CONFIGURED,
     DEFAULT_SAME_APP_INTERACTION_TYPES_TO_STOP_USAGE_AT,
     DEFAULT_SELECTED_TIMEZONE,
     DEFAULT_STUDY_DATE_MAP,
     DEFAULT_STUDY_NAME,
     DEFAULT_TIMEZONE_HANDLING_OPTION,
+    DEFAULT_USAGE_SESSION_MODE,
     DEFAULT_USE_ACTIVITY_STOPPED_AS_FALLBACK,
     DEFAULT_USE_APP_CODEBOOK,
     DEFAULT_USE_FILTER_FILE,
+    DEFAULT_USE_KEEP_AWAKE_APPS_FILE,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -75,6 +88,15 @@ class PreprocessingOptions:
         use_filter_file: Whether to use filter file for app filtering
         filter_file: Path to the file containing filter information
         apps_to_filter_dict: Dictionary of apps to filter
+        use_keep_awake_apps_file: Whether to load the screen-usage keep-awake app file
+        keep_awake_apps_file: Path to the file containing keep-awake app package names
+        keep_awake_apps_dict: Dictionary of keep-awake app package names to labels or notes
+        usage_session_mode: Which session derivation path to run
+        derive_screen_usage_sessions: Whether to append derived screen usage rows
+        screen_usage_auto_lock_timeout_seconds: Expected auto-lock timeout, defaulting to 2 minutes
+        screen_usage_auto_lock_tolerance_seconds: Window around auto-lock timeout classified as probable auto-lock
+        screen_usage_manual_lock_max_tail_gap_seconds: Maximum tail gap classified as probable manual lock
+        screen_usage_keyguard_near_stop_seconds: Window for keyguard/screen-off clustering
         minimum_usage_duration: Minimum usage duration in seconds
         custom_app_engagement_duration: Custom app engagement duration in seconds
         long_usage_duration_thresholds: List of long usage duration thresholds in hours
@@ -137,6 +159,23 @@ class PreprocessingOptions:
     apps_to_filter_dict: dict[str, str] = field(
         default_factory=lambda: dict(DEFAULT_APPS_TO_FILTER_DICT)
     )
+    use_keep_awake_apps_file: bool = DEFAULT_USE_KEEP_AWAKE_APPS_FILE
+    keep_awake_apps_file: Path | str = DEFAULT_KEEP_AWAKE_APPS_FILE_PATH
+    keep_awake_apps_dict: dict[str, str] = field(
+        default_factory=lambda: dict(DEFAULT_KEEP_AWAKE_APPS_DICT)
+    )
+    usage_session_mode: UsageSessionMode | str = DEFAULT_USAGE_SESSION_MODE
+    derive_screen_usage_sessions: bool = DEFAULT_DERIVE_SCREEN_USAGE_SESSIONS
+    screen_usage_auto_lock_timeout_seconds: int = (
+        DEFAULT_SCREEN_USAGE_AUTO_LOCK_TIMEOUT_SECONDS
+    )
+    screen_usage_auto_lock_tolerance_seconds: int = (
+        DEFAULT_SCREEN_USAGE_AUTO_LOCK_TOLERANCE_SECONDS
+    )
+    screen_usage_manual_lock_max_tail_gap_seconds: int = (
+        DEFAULT_SCREEN_USAGE_MANUAL_LOCK_MAX_TAIL_GAP_SECONDS
+    )
+    screen_usage_keyguard_near_stop_seconds: int = DEFAULT_SCREEN_USAGE_KEYGUARD_NEAR_STOP_SECONDS
     minimum_usage_duration: int = DEFAULT_MINIMUM_USAGE_DURATION
     custom_app_engagement_duration: int = DEFAULT_CUSTOM_APP_ENGAGEMENT_DURATION
     long_usage_duration_thresholds: list[int] = field(
@@ -181,9 +220,9 @@ class PreprocessingOptions:
     plot_only_target_child_data: bool = DEFAULT_PLOT_ONLY_TARGET_CHILD_DATA
     enable_preprocessing: bool = DEFAULT_ENABLE_PREPROCESSING
     enable_plotting: bool = DEFAULT_ENABLE_PLOTTING
-    # Kept for serialization compatibility only — the algorithm selection has been removed.
-    # BaselineAlgorithm is always used. Any value set here is silently ignored.
-    app_usage_algorithm: str = "baseline"
+    # Kept for serialization compatibility only: algorithm selection has been removed.
+    # OptimizedAppUsageAlgorithm is always used. Any value set here is silently ignored.
+    app_usage_algorithm: str = "optimized"
     allow_stop_event_reuse: bool = DEFAULT_ALLOW_STOP_EVENT_REUSE
     # This prevents artificially short sessions on Fire tablets where quick
     # Background→Foreground transitions generate spurious Activity Stopped events.
@@ -214,6 +253,16 @@ class PreprocessingOptions:
         """Post-initialization processing to map interaction types."""
         LOGGER.debug("Initialized PreprocessingOptions")
 
+        if not isinstance(self.usage_session_mode, UsageSessionMode):
+            self.usage_session_mode = UsageSessionMode(self.usage_session_mode)
+
+        # Backward compatibility for configs saved before usage_session_mode existed.
+        if (
+            self.derive_screen_usage_sessions
+            and self.usage_session_mode == UsageSessionMode.APP_USAGE
+        ):
+            self.usage_session_mode = UsageSessionMode.APP_AND_SCREEN_USAGE
+
         # Map valid app interaction types to their filtered counterparts
         filtered_same_app_types = set()
         for interaction_type in self.same_app_interaction_types_to_stop_usage_at:
@@ -232,6 +281,22 @@ class PreprocessingOptions:
         self.filtered_other_interaction_types_to_stop_usage_at = (
             self.other_interaction_types_to_stop_usage_at.copy()
         )
+
+    @property
+    def process_app_usage_sessions(self) -> bool:
+        """Whether configured preprocessing should derive app usage sessions."""
+        return self.usage_session_mode in {
+            UsageSessionMode.APP_USAGE,
+            UsageSessionMode.APP_AND_SCREEN_USAGE,
+        }
+
+    @property
+    def process_screen_usage_sessions(self) -> bool:
+        """Whether configured preprocessing should derive screen usage sessions."""
+        return self.usage_session_mode in {
+            UsageSessionMode.SCREEN_USAGE,
+            UsageSessionMode.APP_AND_SCREEN_USAGE,
+        }
 
     @property
     def output_folder(self) -> Path:

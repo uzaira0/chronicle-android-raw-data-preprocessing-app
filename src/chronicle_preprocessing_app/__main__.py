@@ -16,7 +16,7 @@ def main():
     print("    from chronicle_preprocessing_app.core import MainPreprocessor, PreprocessingOptions")
     print("    from chronicle_preprocessing_app.core import PlottingManager, ProcessingStats")
     print("    from chronicle_preprocessing_app.core.preprocessing import TimestampPreprocessor")
-    print("    from chronicle_preprocessing_app.core.preprocessing.algorithms import BaselineAlgorithm")
+    print("    from chronicle_preprocessing_app.core.preprocessing.algorithms import OptimizedAppUsageAlgorithm")
     print()
     print("Get help:")
     print("    >>> from chronicle_preprocessing_app.core import MainPreprocessor")
@@ -47,4 +47,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

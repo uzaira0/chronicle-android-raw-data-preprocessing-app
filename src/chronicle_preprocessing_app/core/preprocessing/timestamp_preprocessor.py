@@ -323,6 +323,8 @@ class TimestampPreprocessor(BasePreprocessor):
         # Pre-compute priority mapping for faster lookups
         priority_map = {InteractionType.ACTIVITY_RESUMED: 0}
         for t in stop_usage_types:
+            if t == InteractionType.ACTIVITY_RESUMED:
+                continue
             priority_map[t] = 2
 
         # Pre-extract arrays for fast access
@@ -427,11 +429,25 @@ class TimestampPreprocessor(BasePreprocessor):
             ValueError: If disordered timestamps are detected.
         """
         LOGGER.debug("Checking data for disordered timestamps")
+        missing_columns = [
+            column for column in (start_column, stop_column) if column not in df.columns
+        ]
+        if missing_columns:
+            msg = (
+                "Cannot check for disordered timestamps because required columns "
+                f"are missing: {', '.join(missing_columns)}"
+            )
+            LOGGER.error(msg)
+            raise ValueError(msg)
+
         disordered_timestamps = df[df[start_column] > df[stop_column]]
 
         if len(disordered_timestamps.index) > 0:
             LOGGER.error(f"Found {len(disordered_timestamps.index)} disordered timestamps")
-            print(disordered_timestamps[[start_column, stop_column]])
+            LOGGER.debug(
+                "Disordered timestamp rows:\n%s",
+                disordered_timestamps[[start_column, stop_column]].to_string(),
+            )
             msg = ErrorMessage.DISORDERED_TIMESTAMPS.format(len(disordered_timestamps.index))
             raise ValueError(msg)
         LOGGER.debug("No disordered timestamps found")
@@ -553,4 +569,3 @@ class TimestampPreprocessor(BasePreprocessor):
             timestamp_columns = [Column.START_TIMESTAMP, Column.STOP_TIMESTAMP]
 
         return self.format_timestamps_as_strings(df, timestamp_columns, format_string)
-

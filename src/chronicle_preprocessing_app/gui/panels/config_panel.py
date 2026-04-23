@@ -8,7 +8,14 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from chronicle_preprocessing_app.config.defaults import DEFAULT_APPS_TO_FILTER_FILE_PATH, DEFAULT_MINIMUM_USAGE_DURATION
+from chronicle_preprocessing_app.config.defaults import (
+    DEFAULT_APPS_TO_FILTER_FILE_PATH,
+    DEFAULT_KEEP_AWAKE_APPS_FILE_PATH,
+    DEFAULT_LONG_DATA_TIME_GAP_THRESHOLDS,
+    DEFAULT_LONG_USAGE_DURATION_THRESHOLDS,
+    DEFAULT_MINIMUM_USAGE_DURATION,
+)
+from chronicle_preprocessing_app.config.constants import UsageSessionMode
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QWheelEvent
 from PyQt6.QtWidgets import (
@@ -165,6 +172,104 @@ class ConfigPanel(QWidget):
         config_layout.addWidget(self.filter_file_widget)
         self.filter_file_widget.setVisible(self.options.use_filter_file)
 
+        self.keep_awake_apps_checkbox = QCheckBox(
+            "Use Keep-Awake App File for Screen Usage End-Reason Classification"
+        )
+        self.keep_awake_apps_checkbox.setChecked(self.options.use_keep_awake_apps_file)
+        self.keep_awake_apps_checkbox.stateChanged.connect(
+            self._on_use_keep_awake_apps_changed
+        )
+        config_layout.addWidget(self.keep_awake_apps_checkbox)
+
+        self.keep_awake_apps_file_widget = QWidget()
+        keep_awake_apps_file_layout = QHBoxLayout(self.keep_awake_apps_file_widget)
+        keep_awake_apps_file_layout.setContentsMargins(0, 0, 0, 0)
+
+        keep_awake_apps_file_label = QLabel("Keep-Awake Apps File:")
+        keep_awake_apps_file_layout.addWidget(keep_awake_apps_file_label)
+
+        self.keep_awake_apps_file_display = QLineEdit()
+        self.keep_awake_apps_file_display.setReadOnly(True)
+        self.keep_awake_apps_file_display.setFixedHeight(int(26 * self.scale_factor))
+
+        self.keep_awake_apps_file_button = QPushButton("Browse...")
+        self.keep_awake_apps_file_button.setFixedSize(
+            QSize(int(80 * self.scale_factor), int(26 * self.scale_factor))
+        )
+        self.keep_awake_apps_file_button.clicked.connect(self._on_select_keep_awake_apps_file)
+
+        keep_awake_apps_file_layout.addWidget(self.keep_awake_apps_file_display)
+        keep_awake_apps_file_layout.addWidget(self.keep_awake_apps_file_button)
+
+        config_layout.addWidget(self.keep_awake_apps_file_widget)
+        self.keep_awake_apps_file_widget.setVisible(self.options.use_keep_awake_apps_file)
+
+        self.app_usage_sessions_checkbox = QCheckBox("Generate App Usage File")
+        self.app_usage_sessions_checkbox.setChecked(self.options.process_app_usage_sessions)
+        self.app_usage_sessions_checkbox.stateChanged.connect(
+            self._on_usage_session_checkbox_changed
+        )
+        config_layout.addWidget(self.app_usage_sessions_checkbox)
+
+        self.screen_usage_sessions_checkbox = QCheckBox("Generate Screen Usage File")
+        self.screen_usage_sessions_checkbox.setChecked(self.options.process_screen_usage_sessions)
+        self.screen_usage_sessions_checkbox.stateChanged.connect(
+            self._on_usage_session_checkbox_changed
+        )
+        config_layout.addWidget(self.screen_usage_sessions_checkbox)
+
+        self.screen_usage_settings_widget = QWidget()
+        screen_usage_settings_layout = QFormLayout(self.screen_usage_settings_widget)
+        screen_usage_settings_layout.setContentsMargins(0, 0, 0, 0)
+        screen_usage_settings_layout.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
+        )
+
+        self.screen_usage_auto_lock_timeout_input = FocusOnlySpinBox()
+        self.screen_usage_auto_lock_timeout_input.setMinimum(1)
+        self.screen_usage_auto_lock_timeout_input.setMaximum(3600)
+        self.screen_usage_auto_lock_timeout_input.setValue(
+            self.options.screen_usage_auto_lock_timeout_seconds
+        )
+        self.screen_usage_auto_lock_timeout_input.valueChanged.connect(
+            self._on_screen_usage_auto_lock_timeout_changed
+        )
+        screen_usage_settings_layout.addRow(
+            "Screen Usage Auto-Lock Timeout (s):",
+            self.screen_usage_auto_lock_timeout_input,
+        )
+
+        self.screen_usage_auto_lock_tolerance_input = FocusOnlySpinBox()
+        self.screen_usage_auto_lock_tolerance_input.setMinimum(0)
+        self.screen_usage_auto_lock_tolerance_input.setMaximum(600)
+        self.screen_usage_auto_lock_tolerance_input.setValue(
+            self.options.screen_usage_auto_lock_tolerance_seconds
+        )
+        self.screen_usage_auto_lock_tolerance_input.valueChanged.connect(
+            self._on_screen_usage_auto_lock_tolerance_changed
+        )
+        screen_usage_settings_layout.addRow(
+            "Screen Usage Auto-Lock Tolerance (s):",
+            self.screen_usage_auto_lock_tolerance_input,
+        )
+
+        self.screen_usage_manual_lock_max_tail_gap_input = FocusOnlySpinBox()
+        self.screen_usage_manual_lock_max_tail_gap_input.setMinimum(0)
+        self.screen_usage_manual_lock_max_tail_gap_input.setMaximum(600)
+        self.screen_usage_manual_lock_max_tail_gap_input.setValue(
+            self.options.screen_usage_manual_lock_max_tail_gap_seconds
+        )
+        self.screen_usage_manual_lock_max_tail_gap_input.valueChanged.connect(
+            self._on_screen_usage_manual_lock_tail_gap_changed
+        )
+        screen_usage_settings_layout.addRow(
+            "Screen Usage Manual-Lock Max Tail Gap (s):",
+            self.screen_usage_manual_lock_max_tail_gap_input,
+        )
+
+        config_layout.addWidget(self.screen_usage_settings_widget)
+        self.screen_usage_settings_widget.setVisible(self.options.process_screen_usage_sessions)
+
         # Add second form layout for numeric fields
         form_layout2 = QFormLayout()
         form_layout2.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
@@ -257,6 +362,11 @@ class ConfigPanel(QWidget):
             )
         if self.options.filter_file:
             self._display_path_with_elide(self.filter_file_display, str(self.options.filter_file))
+        if self.options.keep_awake_apps_file:
+            self._display_path_with_elide(
+                self.keep_awake_apps_file_display,
+                str(self.options.keep_awake_apps_file),
+            )
 
     def _on_use_filter_changed(self, state: int) -> None:
         """
@@ -291,6 +401,103 @@ class ConfigPanel(QWidget):
             except Exception:
                 LOGGER.exception("Error loading default filter file")
 
+        self.options_updated.emit()
+
+    def _on_use_keep_awake_apps_changed(self, state: int) -> None:
+        """
+        Handle keep-awake apps file checkbox change.
+
+        Args:
+            state: The new checkbox state
+        """
+        checked = state == Qt.CheckState.Checked.value
+        LOGGER.debug(f"Use keep-awake apps file changed to: {checked}")
+        self.options.use_keep_awake_apps_file = checked
+        self.keep_awake_apps_file_widget.setVisible(checked)
+
+        if checked and not self.options.keep_awake_apps_file:
+            default_path = str(Path(DEFAULT_KEEP_AWAKE_APPS_FILE_PATH).absolute())
+            self.options.keep_awake_apps_file = default_path
+            self._display_path_with_elide(self.keep_awake_apps_file_display, default_path)
+
+            try:
+                from chronicle_preprocessing_app.utils.file_utils import (
+                    read_keep_awake_apps_file,
+                )
+
+                if Path(default_path).exists():
+                    self.options.keep_awake_apps_dict = read_keep_awake_apps_file(default_path)
+                    LOGGER.info(
+                        f"Loaded {len(self.options.keep_awake_apps_dict)} keep-awake apps from {default_path}"
+                    )
+            except Exception:
+                LOGGER.exception("Error loading default keep-awake apps file")
+
+        self.options_updated.emit()
+
+    def _on_usage_session_checkbox_changed(self, _state: int) -> None:
+        """
+        Handle app/screen usage output checkbox changes.
+
+        Args:
+            _state: The changed checkbox state
+        """
+        if (
+            not self.app_usage_sessions_checkbox.isChecked()
+            and not self.screen_usage_sessions_checkbox.isChecked()
+        ):
+            self.app_usage_sessions_checkbox.blockSignals(True)
+            self.app_usage_sessions_checkbox.setChecked(True)
+            self.app_usage_sessions_checkbox.blockSignals(False)
+
+        self._sync_usage_session_mode_from_checkboxes()
+        self.screen_usage_settings_widget.setVisible(
+            self.options.process_screen_usage_sessions
+        )
+        LOGGER.debug(f"Usage session mode changed to: {self.options.usage_session_mode}")
+        self.options_updated.emit()
+
+    def _sync_usage_session_mode_from_checkboxes(self) -> None:
+        app_enabled = self.app_usage_sessions_checkbox.isChecked()
+        screen_enabled = self.screen_usage_sessions_checkbox.isChecked()
+        if app_enabled and screen_enabled:
+            mode = UsageSessionMode.APP_AND_SCREEN_USAGE
+        elif screen_enabled:
+            mode = UsageSessionMode.SCREEN_USAGE
+        else:
+            mode = UsageSessionMode.APP_USAGE
+
+        self.options.usage_session_mode = mode
+        self.options.derive_screen_usage_sessions = screen_enabled
+
+    def _on_screen_usage_auto_lock_timeout_changed(self, value: int) -> None:
+        """
+        Handle screen usage auto-lock timeout change.
+
+        Args:
+            value: The new timeout in seconds
+        """
+        self.options.screen_usage_auto_lock_timeout_seconds = value
+        self.options_updated.emit()
+
+    def _on_screen_usage_auto_lock_tolerance_changed(self, value: int) -> None:
+        """
+        Handle screen usage auto-lock tolerance change.
+
+        Args:
+            value: The new tolerance in seconds
+        """
+        self.options.screen_usage_auto_lock_tolerance_seconds = value
+        self.options_updated.emit()
+
+    def _on_screen_usage_manual_lock_tail_gap_changed(self, value: int) -> None:
+        """
+        Handle screen usage manual-lock tail gap change.
+
+        Args:
+            value: The new maximum tail gap in seconds
+        """
+        self.options.screen_usage_manual_lock_max_tail_gap_seconds = value
         self.options_updated.emit()
 
     def _on_study_name_changed(self, text: str | None = None) -> None:
@@ -341,6 +548,30 @@ class ConfigPanel(QWidget):
             except Exception:
                 LOGGER.exception("Error loading filter file")
 
+    def _on_select_keep_awake_apps_file(self) -> None:
+        """
+        Open a dialog to select the keep-awake apps file.
+        """
+        file, _ = QFileDialog.getOpenFileName(
+            self, "Select Keep-Awake Apps File", "", "Keep-Awake App Files (*.csv *.xlsx)"
+        )
+        if file:
+            self._display_path_with_elide(self.keep_awake_apps_file_display, file)
+            self.options.keep_awake_apps_file = file
+            self.options_updated.emit()
+
+            try:
+                from chronicle_preprocessing_app.utils.file_utils import (
+                    read_keep_awake_apps_file,
+                )
+
+                self.options.keep_awake_apps_dict = read_keep_awake_apps_file(file)
+                LOGGER.info(
+                    f"Loaded {len(self.options.keep_awake_apps_dict)} keep-awake apps from {file}"
+                )
+            except Exception:
+                LOGGER.exception("Error loading keep-awake apps file")
+
     def _on_minimum_usage_duration_changed(self, value: int) -> None:
         """
         Handle minimum usage duration change.
@@ -380,13 +611,9 @@ class ConfigPanel(QWidget):
                 self.options_updated.emit()
             except ValueError:
                 LOGGER.warning(f"Invalid long usage duration thresholds: {thresholds_text}")
-                # Set default values
-                self.options.long_usage_duration_thresholds = [3, 6, 12, 24]
-                self.long_usage_duration_thresholds_input.setText("3, 6, 12, 24")
+                self._reset_long_usage_duration_thresholds()
         else:
-            # Set default values
-            self.options.long_usage_duration_thresholds = [3, 6, 12, 24]
-            self.long_usage_duration_thresholds_input.setText("3, 6, 12, 24")
+            self._reset_long_usage_duration_thresholds()
             self.options_updated.emit()
 
     def _on_long_data_time_gap_thresholds_changed(self) -> None:
@@ -406,14 +633,22 @@ class ConfigPanel(QWidget):
                 self.options_updated.emit()
             except ValueError:
                 LOGGER.warning(f"Invalid long data time gap thresholds: {thresholds_text}")
-                # Set default values
-                self.options.long_data_time_gap_thresholds = [3, 6, 12, 24]
-                self.long_data_time_gap_thresholds_input.setText("3, 6, 12, 24")
+                self._reset_long_data_time_gap_thresholds()
         else:
-            # Set default values
-            self.options.long_data_time_gap_thresholds = [3, 6, 12, 24]
-            self.long_data_time_gap_thresholds_input.setText("3, 6, 12, 24")
+            self._reset_long_data_time_gap_thresholds()
             self.options_updated.emit()
+
+    def _reset_long_usage_duration_thresholds(self) -> None:
+        """Reset long usage duration thresholds to application defaults."""
+        thresholds = list(DEFAULT_LONG_USAGE_DURATION_THRESHOLDS)
+        self.options.long_usage_duration_thresholds = thresholds
+        self.set_long_usage_duration_thresholds(thresholds)
+
+    def _reset_long_data_time_gap_thresholds(self) -> None:
+        """Reset long data time gap thresholds to application defaults."""
+        thresholds = list(DEFAULT_LONG_DATA_TIME_GAP_THRESHOLDS)
+        self.options.long_data_time_gap_thresholds = thresholds
+        self.set_long_data_time_gap_thresholds(thresholds)
 
     def _on_correct_duplicate_event_timestamps_changed(self, state: int) -> None:
         """
@@ -636,6 +871,16 @@ class ConfigPanel(QWidget):
         if file:
             self._display_path_with_elide(self.filter_file_display, file)
 
+    def set_keep_awake_apps_file(self, file: str) -> None:
+        """
+        Set the keep-awake apps file display.
+
+        Args:
+            file: The file path to set
+        """
+        if file:
+            self._display_path_with_elide(self.keep_awake_apps_file_display, file)
+
     def set_minimum_usage_duration(self, duration: int) -> None:
         """
         Set the minimum usage duration input.
@@ -696,6 +941,74 @@ class ConfigPanel(QWidget):
         self.filter_file_widget.setVisible(checked)
         self.options.use_filter_file = checked
 
+    def set_use_keep_awake_apps_file(self, checked: bool) -> None:
+        """
+        Set the use keep-awake apps file checkbox.
+
+        Args:
+            checked: Whether the checkbox should be checked
+        """
+        self.keep_awake_apps_checkbox.setChecked(checked)
+        self.keep_awake_apps_file_widget.setVisible(checked)
+        self.options.use_keep_awake_apps_file = checked
+
+    def set_usage_session_mode(self, mode: UsageSessionMode | str) -> None:
+        """
+        Set the usage session mode.
+
+        Args:
+            mode: Usage session mode to select
+        """
+        usage_session_mode = (
+            mode if isinstance(mode, UsageSessionMode) else UsageSessionMode(mode)
+        )
+        self.options.usage_session_mode = usage_session_mode
+        self.options.derive_screen_usage_sessions = (
+            usage_session_mode != UsageSessionMode.APP_USAGE
+        )
+        self.app_usage_sessions_checkbox.blockSignals(True)
+        self.screen_usage_sessions_checkbox.blockSignals(True)
+        self.app_usage_sessions_checkbox.setChecked(
+            usage_session_mode
+            in {UsageSessionMode.APP_USAGE, UsageSessionMode.APP_AND_SCREEN_USAGE}
+        )
+        self.screen_usage_sessions_checkbox.setChecked(
+            usage_session_mode
+            in {UsageSessionMode.SCREEN_USAGE, UsageSessionMode.APP_AND_SCREEN_USAGE}
+        )
+        self.app_usage_sessions_checkbox.blockSignals(False)
+        self.screen_usage_sessions_checkbox.blockSignals(False)
+        self.screen_usage_settings_widget.setVisible(
+            self.options.process_screen_usage_sessions
+        )
+
+    def set_screen_usage_auto_lock_timeout(self, value: int) -> None:
+        """
+        Set the screen usage auto-lock timeout.
+
+        Args:
+            value: Timeout in seconds
+        """
+        self.screen_usage_auto_lock_timeout_input.setValue(value)
+
+    def set_screen_usage_auto_lock_tolerance(self, value: int) -> None:
+        """
+        Set the screen usage auto-lock tolerance.
+
+        Args:
+            value: Tolerance in seconds
+        """
+        self.screen_usage_auto_lock_tolerance_input.setValue(value)
+
+    def set_screen_usage_manual_lock_max_tail_gap(self, value: int) -> None:
+        """
+        Set the screen usage manual-lock maximum tail gap.
+
+        Args:
+            value: Tail gap in seconds
+        """
+        self.screen_usage_manual_lock_max_tail_gap_input.setValue(value)
+
     def disable_during_processing(self) -> None:
         """
         Disable all interactive elements during processing.
@@ -704,6 +1017,13 @@ class ConfigPanel(QWidget):
         self.raw_data_folder_button.setEnabled(False)
         self.label_filtered_apps_checkbox.setEnabled(False)
         self.filter_file_button.setEnabled(False)
+        self.keep_awake_apps_checkbox.setEnabled(False)
+        self.keep_awake_apps_file_button.setEnabled(False)
+        self.app_usage_sessions_checkbox.setEnabled(False)
+        self.screen_usage_sessions_checkbox.setEnabled(False)
+        self.screen_usage_auto_lock_timeout_input.setEnabled(False)
+        self.screen_usage_auto_lock_tolerance_input.setEnabled(False)
+        self.screen_usage_manual_lock_max_tail_gap_input.setEnabled(False)
         self.minimum_usage_duration_input.setEnabled(False)
         self.custom_app_engagement_duration_input.setEnabled(False)
         self.long_usage_duration_thresholds_input.setEnabled(False)
@@ -726,6 +1046,13 @@ class ConfigPanel(QWidget):
         self.raw_data_folder_button.setEnabled(True)
         self.label_filtered_apps_checkbox.setEnabled(True)
         self.filter_file_button.setEnabled(True)
+        self.keep_awake_apps_checkbox.setEnabled(True)
+        self.keep_awake_apps_file_button.setEnabled(True)
+        self.app_usage_sessions_checkbox.setEnabled(True)
+        self.screen_usage_sessions_checkbox.setEnabled(True)
+        self.screen_usage_auto_lock_timeout_input.setEnabled(True)
+        self.screen_usage_auto_lock_tolerance_input.setEnabled(True)
+        self.screen_usage_manual_lock_max_tail_gap_input.setEnabled(True)
         self.minimum_usage_duration_input.setEnabled(True)
         self.custom_app_engagement_duration_input.setEnabled(True)
         self.long_usage_duration_thresholds_input.setEnabled(True)
@@ -789,4 +1116,3 @@ class ConfigPanel(QWidget):
 
         if hasattr(self, "compliance_reporting_checkbox"):
             self.compliance_reporting_checkbox.setChecked(checked)
-

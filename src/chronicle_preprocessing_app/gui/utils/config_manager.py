@@ -8,7 +8,7 @@ import json
 import logging
 from pathlib import Path
 
-from chronicle_preprocessing_app.config.constants import TimezoneHandlingOption
+from chronicle_preprocessing_app.config.constants import TimezoneHandlingOption, UsageSessionMode
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
 
 LOGGER = logging.getLogger(__name__)
@@ -69,7 +69,7 @@ class ConfigManager:
         config = {}
 
         for key, value in options.__dict__.items():
-            if key == "apps_to_filter_dict":
+            if key in {"apps_to_filter_dict", "keep_awake_apps_dict"}:
                 continue
 
             if key == "same_app_interaction_types_to_stop_usage_at" and not getattr(
@@ -154,6 +154,40 @@ class ConfigManager:
         if "filter_file" in config:
             options.filter_file = config["filter_file"]
 
+        if "use_keep_awake_apps_file" in config:
+            options.use_keep_awake_apps_file = config["use_keep_awake_apps_file"]
+
+        if "keep_awake_apps_file" in config:
+            options.keep_awake_apps_file = config["keep_awake_apps_file"]
+
+        if "usage_session_mode" in config:
+            options.usage_session_mode = UsageSessionMode(config["usage_session_mode"])
+
+        if "derive_screen_usage_sessions" in config:
+            options.derive_screen_usage_sessions = config["derive_screen_usage_sessions"]
+            if "usage_session_mode" not in config and options.derive_screen_usage_sessions:
+                options.usage_session_mode = UsageSessionMode.APP_AND_SCREEN_USAGE
+
+        if "screen_usage_auto_lock_timeout_seconds" in config:
+            options.screen_usage_auto_lock_timeout_seconds = int(
+                config["screen_usage_auto_lock_timeout_seconds"]
+            )
+
+        if "screen_usage_auto_lock_tolerance_seconds" in config:
+            options.screen_usage_auto_lock_tolerance_seconds = int(
+                config["screen_usage_auto_lock_tolerance_seconds"]
+            )
+
+        if "screen_usage_manual_lock_max_tail_gap_seconds" in config:
+            options.screen_usage_manual_lock_max_tail_gap_seconds = int(
+                config["screen_usage_manual_lock_max_tail_gap_seconds"]
+            )
+
+        if "screen_usage_keyguard_near_stop_seconds" in config:
+            options.screen_usage_keyguard_near_stop_seconds = int(
+                config["screen_usage_keyguard_near_stop_seconds"]
+            )
+
         if "minimum_usage_duration" in config:
             options.minimum_usage_duration = int(config["minimum_usage_duration"])
 
@@ -214,4 +248,3 @@ class ConfigManager:
 
         LOGGER.debug("Configuration applied successfully")
         return options
-

@@ -72,6 +72,20 @@ class ChronicleDeviceType(StrEnum):
     ANDROID = "Android"
 
 
+class UsageSessionMode(StrEnum):
+    """
+    StrEnum representing which usage-session derivation path should run.
+
+    APP_USAGE keeps the legacy app foreground/background interpretation.
+    SCREEN_USAGE derives screen-on sessions only.
+    APP_AND_SCREEN_USAGE appends screen sessions and also derives app usage.
+    """
+
+    APP_USAGE = "app_usage"
+    SCREEN_USAGE = "screen_usage"
+    APP_AND_SCREEN_USAGE = "app_and_screen_usage"
+
+
 class InteractionType(StrEnum):
     """
     StrEnum representing different types of interactions in the Chronicle data.
@@ -80,6 +94,7 @@ class InteractionType(StrEnum):
     ACTIVITY_RESUMED = "Activity Resumed"
     ACTIVITY_PAUSED = "Activity Paused"
     APP_USAGE = "App Usage"
+    SCREEN_USAGE = "Screen Usage"
     APP_LAUNCH = "App Launch"
     END_OF_DAY = "End of Day"
     CONTINUE_PREVIOUS_DAY = "Continue Previous Day"
@@ -165,6 +180,14 @@ class Column(StrEnum):
     USERNAME = "username"
     DURATION_SECONDS = "duration_seconds"
     DURATION_MINUTES = "duration_minutes"
+    SCREEN_USAGE_END_REASON = "screen_usage_end_reason"
+    SCREEN_USAGE_END_REASON_CONFIDENCE = "screen_usage_end_reason_confidence"
+    SCREEN_USAGE_STOP_EVENT_TYPE = "screen_usage_stop_event_type"
+    SCREEN_USAGE_LAST_ACTIVITY_TIMESTAMP = "screen_usage_last_activity_timestamp"
+    SCREEN_USAGE_TAIL_GAP_SECONDS = "screen_usage_tail_gap_seconds"
+    SCREEN_USAGE_FOREGROUND_APP_PACKAGE = "screen_usage_foreground_app_package"
+    SCREEN_USAGE_KEEP_AWAKE_APP_LABEL = "screen_usage_keep_awake_app_label"
+    SCREEN_USAGE_LOCK_SCREEN_ONLY = "screen_usage_lock_screen_only"
     TIMEZONE = "timezone"
     DATA_TIME_GAP_HOURS = "data_time_gap_hours"
     DATE = "date"
@@ -249,6 +272,7 @@ class ErrorMessage(StrEnum):
 
 ALL_INTERACTION_TYPES_MAP = {
     "Instance of Usage for an App": InteractionType.APP_USAGE,
+    "Screen Usage": InteractionType.SCREEN_USAGE,
     "Activity Resumed for a Filtered App": InteractionType.FILTERED_APP_RESUMED,
     "Activity Paused for a Filtered App": InteractionType.FILTERED_APP_PAUSED,
     "Instance of Usage for a Filtered App": InteractionType.FILTERED_APP_USAGE,

@@ -32,9 +32,9 @@ hidden_imports = [
     'chronicle_preprocessing_app.core.preprocessing.timestamp_preprocessor',
     'chronicle_preprocessing_app.core.preprocessing.timezone_preprocessor',
     'chronicle_preprocessing_app.core.preprocessing.app_usage_preprocessor',
+    'chronicle_preprocessing_app.core.preprocessing.screen_usage_preprocessor',
     'chronicle_preprocessing_app.core.preprocessing.app_filter_preprocessor',
     'chronicle_preprocessing_app.core.preprocessing.column_preprocessor',
-    'chronicle_preprocessing_app.core.preprocessing.survey_data_preprocessor',
     'chronicle_preprocessing_app.core.preprocessing.study_date_provider',
     'chronicle_preprocessing_app.core.preprocessing.dataframe_api',
     'chronicle_preprocessing_app.core.preprocessing.algorithms',
@@ -94,10 +94,17 @@ hidden_imports = [
     'pathlib',
 ]
 
+# Optional internal module: only bundle it when present in this checkout.
+if Path('src/chronicle_preprocessing_app/core/preprocessing/survey_data_preprocessor.py').exists():
+    hidden_imports.append(
+        'chronicle_preprocessing_app.core.preprocessing.survey_data_preprocessor'
+    )
+
 # Data files to bundle (non-Python files needed at runtime)
 datas = [
     ('app_codebook_files', 'app_codebook_files'),
     ('apps_to_filter_files', 'apps_to_filter_files'),
+    ('screen_awake_app_files', 'screen_awake_app_files'),
 ]
 
 a = Analysis(
@@ -200,4 +207,4 @@ if is_macos:
             'CFBundleDisplayName': 'Chronicle Android Raw Data Preprocessing App',
             'CFBundleName': 'ChronicleAndroidRawDataPreprocessingApp',
         },
-    ) 
+    )

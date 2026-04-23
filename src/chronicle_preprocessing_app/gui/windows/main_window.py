@@ -11,6 +11,7 @@ from chronicle_preprocessing_app.config.constants import (
     DialogMessage,
     TimezoneHandlingOption,
     UIStatus,
+    UsageSessionMode,
 )
 from chronicle_preprocessing_app.config.version import __build_date__, __version__
 from PyQt6.QtCore import Qt
@@ -555,6 +556,28 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
                 except Exception:
                     LOGGER.exception("Error loading filter file")
 
+        if "use_keep_awake_apps_file" in config:
+            self.options.use_keep_awake_apps_file = config["use_keep_awake_apps_file"]
+
+        if config.get("keep_awake_apps_file"):
+            keep_awake_apps_file = config["keep_awake_apps_file"]
+            self.options.keep_awake_apps_file = keep_awake_apps_file
+
+            if Path(keep_awake_apps_file).exists():
+                try:
+                    from chronicle_preprocessing_app.utils.file_utils import (
+                        read_keep_awake_apps_file,
+                    )
+
+                    self.options.keep_awake_apps_dict = read_keep_awake_apps_file(
+                        keep_awake_apps_file
+                    )
+                    LOGGER.info(
+                        f"Loaded {len(self.options.keep_awake_apps_dict)} keep-awake apps from {keep_awake_apps_file}"
+                    )
+                except Exception:
+                    LOGGER.exception("Error loading keep-awake apps file")
+
         # Set duration settings
         if "minimum_usage_duration" in config:
             self.options.minimum_usage_duration = int(config["minimum_usage_duration"])
@@ -639,6 +662,37 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
         if "use_filter_file" in config:
             self.options.use_filter_file = config["use_filter_file"]
 
+        if "use_keep_awake_apps_file" in config:
+            self.options.use_keep_awake_apps_file = config["use_keep_awake_apps_file"]
+
+        if "usage_session_mode" in config:
+            self.options.usage_session_mode = UsageSessionMode(config["usage_session_mode"])
+
+        if "derive_screen_usage_sessions" in config:
+            self.options.derive_screen_usage_sessions = config["derive_screen_usage_sessions"]
+            if "usage_session_mode" not in config and self.options.derive_screen_usage_sessions:
+                self.options.usage_session_mode = UsageSessionMode.APP_AND_SCREEN_USAGE
+
+        if "screen_usage_auto_lock_timeout_seconds" in config:
+            self.options.screen_usage_auto_lock_timeout_seconds = int(
+                config["screen_usage_auto_lock_timeout_seconds"]
+            )
+
+        if "screen_usage_auto_lock_tolerance_seconds" in config:
+            self.options.screen_usage_auto_lock_tolerance_seconds = int(
+                config["screen_usage_auto_lock_tolerance_seconds"]
+            )
+
+        if "screen_usage_manual_lock_max_tail_gap_seconds" in config:
+            self.options.screen_usage_manual_lock_max_tail_gap_seconds = int(
+                config["screen_usage_manual_lock_max_tail_gap_seconds"]
+            )
+
+        if "screen_usage_keyguard_near_stop_seconds" in config:
+            self.options.screen_usage_keyguard_near_stop_seconds = int(
+                config["screen_usage_keyguard_near_stop_seconds"]
+            )
+
         # Load survey data options (internal functionality)
         if "use_survey_data" in config:
             self.options.use_survey_data = config["use_survey_data"]
@@ -691,6 +745,18 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
         self.config_panel.set_raw_data_folder(str(self.options.raw_data_folder))
         self.config_panel.set_filter_file(str(self.options.filter_file))
         self.config_panel.set_use_filter_file(self.options.use_filter_file)
+        self.config_panel.set_keep_awake_apps_file(str(self.options.keep_awake_apps_file))
+        self.config_panel.set_use_keep_awake_apps_file(self.options.use_keep_awake_apps_file)
+        self.config_panel.set_usage_session_mode(self.options.usage_session_mode)
+        self.config_panel.set_screen_usage_auto_lock_timeout(
+            self.options.screen_usage_auto_lock_timeout_seconds
+        )
+        self.config_panel.set_screen_usage_auto_lock_tolerance(
+            self.options.screen_usage_auto_lock_tolerance_seconds
+        )
+        self.config_panel.set_screen_usage_manual_lock_max_tail_gap(
+            self.options.screen_usage_manual_lock_max_tail_gap_seconds
+        )
         self.config_panel.set_minimum_usage_duration(self.options.minimum_usage_duration)
         self.config_panel.set_custom_app_engagement_duration(
             self.options.custom_app_engagement_duration
@@ -774,8 +840,8 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
 
         # Add selected options from the options object
         for key, value in self.options.__dict__.items():
-            # Skip the apps_to_filter_dict as it's loaded from the filter_file
-            if key == "apps_to_filter_dict":
+            # Skip file-loaded dictionaries; persist the source paths instead.
+            if key in {"apps_to_filter_dict", "keep_awake_apps_dict"}:
                 continue
 
             # Skip interaction types that weren't specifically configured
@@ -885,4 +951,3 @@ if __name__ == "__main__":
     window = ChronicleAndroidRawDataPreprocessingGUI()
     window.show()
     sys.exit(app.exec())
-
