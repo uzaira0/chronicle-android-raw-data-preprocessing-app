@@ -1,0 +1,12 @@
+[package]
+name = "chronicle_app_usage_matcher"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "_rust_app_usage_matcher"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+numpy = "0.28.0"
+pyo3 = "0.28.3"
