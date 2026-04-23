@@ -102,6 +102,9 @@ class OptimizedAppUsageAlgorithm:
         self.options = options
         # Use threshold from options if set, otherwise fall back to constant
         self.long_duration_threshold_seconds = int(options.long_duration_threshold_hours * 3600)
+        self.long_duration_threshold_nanoseconds = (
+            self.long_duration_threshold_seconds * 1_000_000_000
+        )
 
     def process_app_usage(
         self,
@@ -127,83 +130,115 @@ class OptimizedAppUsageAlgorithm:
                 df_copy[column] = df_copy[column].astype("object")
 
         app_packages = df_copy[Column.APP_PACKAGE_NAME].values
-        timestamps = df_copy[Column.EVENT_TIMESTAMP].astype("object").values
+        event_timestamp_series = df_copy[Column.EVENT_TIMESTAMP]
+        timestamps = event_timestamp_series.astype("object").values
+        timestamp_nanoseconds = getattr(event_timestamp_series.array, "asi8", None)
+        start_timestamps = df_copy[Column.START_TIMESTAMP].to_numpy(copy=True)
+        stop_timestamps = df_copy[Column.STOP_TIMESTAMP].to_numpy(copy=True)
 
         resumed_flags = resumed_mask.to_numpy(dtype=bool)
         same_app_stop_flags = same_app_stop_mask.to_numpy(dtype=bool)
         other_stop_flags = other_stop_mask.to_numpy(dtype=bool)
         stopped_flags = stopped_mask.to_numpy(dtype=bool)
 
-        # Collect all updates to apply in batch at the end
-        start_updates: list[tuple[int, Any]] = []
-        stop_updates: list[tuple[int, Any]] = []
+        has_start_updates = False
+        has_stop_updates = False
         missing_indices: list[int] = []
         open_start_indices: list[int] = []
+        allow_stop_event_reuse = self.options.allow_stop_event_reuse
+        use_activity_stopped_as_fallback = self.options.use_activity_stopped_as_fallback
+        apply_threshold_to_fallback = self.options.apply_threshold_to_activity_stopped_fallback
+        is_valid_duration_at = self._is_valid_duration_at
 
         for index in range(row_count):
             current_app = app_packages[index]
             current_timestamp = timestamps[index]
             is_normal_stop = same_app_stop_flags[index] or other_stop_flags[index]
-            is_fallback_stop = (
-                stopped_flags[index] and self.options.use_activity_stopped_as_fallback
-            )
+            is_fallback_stop = stopped_flags[index] and use_activity_stopped_as_fallback
 
-            if self.options.allow_stop_event_reuse and (is_normal_stop or is_fallback_stop):
+            if allow_stop_event_reuse and (is_normal_stop or is_fallback_stop):
                 compatible_open_starts = self._compatible_open_starts_for_stop(
                     stop_index=index,
                     current_app=current_app,
                     app_packages=app_packages,
                     timestamps=timestamps,
+                    timestamp_nanoseconds=timestamp_nanoseconds,
                     open_start_indices=open_start_indices,
                     same_app_stop_flags=same_app_stop_flags,
                     other_stop_flags=other_stop_flags,
                     stopped_flags=stopped_flags,
                 )
                 for start_index in compatible_open_starts:
-                    stop_updates.append((start_index, current_timestamp))
+                    stop_timestamps[start_index] = current_timestamp
+                    has_stop_updates = True
                     open_start_indices.remove(start_index)
             elif is_normal_stop or is_fallback_stop:
-                start_index = self._nearest_compatible_open_start_for_stop(
-                    stop_index=index,
-                    current_app=current_app,
-                    app_packages=app_packages,
-                    timestamps=timestamps,
-                    open_start_indices=open_start_indices,
-                    same_app_stop_flags=same_app_stop_flags,
-                    other_stop_flags=other_stop_flags,
-                    stopped_flags=stopped_flags,
-                )
+                start_index = None
+                for candidate_start_index in reversed(open_start_indices):
+                    start_app = app_packages[candidate_start_index]
+                    same_app_compatible = (
+                        same_app_stop_flags[index] and start_app == current_app
+                    )
+                    other_app_compatible = (
+                        other_stop_flags[index] and start_app != current_app
+                    )
+                    fallback_compatible = (
+                        not is_normal_stop
+                        and is_fallback_stop
+                        and start_app == current_app
+                    )
+                    if not (
+                        same_app_compatible
+                        or other_app_compatible
+                        or fallback_compatible
+                    ):
+                        continue
+
+                    enforce_threshold = (
+                        not fallback_compatible or apply_threshold_to_fallback
+                    )
+                    if is_valid_duration_at(
+                        candidate_start_index,
+                        index,
+                        timestamps=timestamps,
+                        timestamp_nanoseconds=timestamp_nanoseconds,
+                        enforce_threshold=enforce_threshold,
+                    ):
+                        start_index = candidate_start_index
+                        break
+
                 if start_index is not None:
-                    stop_updates.append((start_index, current_timestamp))
+                    stop_timestamps[start_index] = current_timestamp
+                    has_stop_updates = True
                     open_start_indices.remove(start_index)
 
             if resumed_flags[index]:
-                start_updates.append((index, current_timestamp))
+                start_timestamps[index] = current_timestamp
+                has_start_updates = True
                 open_start_indices.append(index)
 
         if open_start_indices:
             last_index = row_count - 1
             last_timestamp = timestamps[last_index]
             for start_index in list(open_start_indices):
-                if last_index > start_index and self._is_valid_duration(
-                    timestamps[start_index],
-                    last_timestamp,
+                if last_index > start_index and is_valid_duration_at(
+                    start_index,
+                    last_index,
+                    timestamps=timestamps,
+                    timestamp_nanoseconds=timestamp_nanoseconds,
                     enforce_threshold=True,
                 ):
-                    stop_updates.append((start_index, last_timestamp))
+                    stop_timestamps[start_index] = last_timestamp
+                    has_stop_updates = True
                     open_start_indices.remove(start_index)
 
         missing_indices.extend(open_start_indices)
 
-        # Apply all updates in batch
-        # Don't specify dtype - let pandas handle conversion like the original code does
-        if start_updates:
-            start_indices, start_values = zip(*start_updates, strict=False)
-            df_copy.loc[list(start_indices), Column.START_TIMESTAMP] = list(start_values)
+        if has_start_updates:
+            df_copy[Column.START_TIMESTAMP] = start_timestamps
 
-        if stop_updates:
-            stop_indices, stop_values = zip(*stop_updates, strict=False)
-            df_copy.loc[list(stop_indices), Column.STOP_TIMESTAMP] = list(stop_values)
+        if has_stop_updates:
+            df_copy[Column.STOP_TIMESTAMP] = stop_timestamps
 
         if missing_indices:
             df_copy.loc[missing_indices, Column.INTERACTION_TYPE] = (
@@ -219,6 +254,7 @@ class OptimizedAppUsageAlgorithm:
         current_app: Any,
         app_packages: Any,
         timestamps: Any,
+        timestamp_nanoseconds: Any,
         open_start_indices: list[int],
         same_app_stop_flags: Any,
         other_stop_flags: Any,
@@ -252,62 +288,44 @@ class OptimizedAppUsageAlgorithm:
                 not fallback_compatible
                 or self.options.apply_threshold_to_activity_stopped_fallback
             )
-            if self._is_valid_duration(
-                timestamps[start_index],
-                timestamps[stop_index],
+            if self._is_valid_duration_at(
+                start_index,
+                stop_index,
+                timestamps=timestamps,
+                timestamp_nanoseconds=timestamp_nanoseconds,
                 enforce_threshold=enforce_threshold,
             ):
                 compatible_starts.append(start_index)
 
         return compatible_starts
 
-    def _nearest_compatible_open_start_for_stop(
+    def _is_valid_duration_at(
         self,
-        *,
+        start_index: int,
         stop_index: int,
-        current_app: Any,
-        app_packages: Any,
+        *,
         timestamps: Any,
-        open_start_indices: list[int],
-        same_app_stop_flags: Any,
-        other_stop_flags: Any,
-        stopped_flags: Any,
-    ) -> int | None:
-        """Return the nearest compatible open start for a stop row."""
-        normal_stop = same_app_stop_flags[stop_index] or other_stop_flags[stop_index]
-        fallback_stop = (
-            stopped_flags[stop_index] and self.options.use_activity_stopped_as_fallback
+        timestamp_nanoseconds: Any,
+        enforce_threshold: bool,
+    ) -> bool:
+        """Return whether indexed timestamps form a valid duration."""
+        if timestamp_nanoseconds is not None:
+            duration_nanoseconds = int(timestamp_nanoseconds[stop_index]) - int(
+                timestamp_nanoseconds[start_index]
+            )
+            if duration_nanoseconds < 0:
+                return False
+            return (
+                True
+                if not enforce_threshold
+                else duration_nanoseconds <= self.long_duration_threshold_nanoseconds
+            )
+
+        return self._is_valid_duration(
+            timestamps[start_index],
+            timestamps[stop_index],
+            enforce_threshold=enforce_threshold,
         )
-
-        for start_index in reversed(open_start_indices):
-            start_app = app_packages[start_index]
-            same_app_compatible = (
-                same_app_stop_flags[stop_index] and start_app == current_app
-            )
-            other_app_compatible = (
-                other_stop_flags[stop_index] and start_app != current_app
-            )
-            fallback_compatible = (
-                not normal_stop
-                and fallback_stop
-                and start_app == current_app
-            )
-
-            if not (same_app_compatible or other_app_compatible or fallback_compatible):
-                continue
-
-            enforce_threshold = (
-                not fallback_compatible
-                or self.options.apply_threshold_to_activity_stopped_fallback
-            )
-            if self._is_valid_duration(
-                timestamps[start_index],
-                timestamps[stop_index],
-                enforce_threshold=enforce_threshold,
-            ):
-                return start_index
-
-        return None
 
     def _is_valid_duration(
         self,
