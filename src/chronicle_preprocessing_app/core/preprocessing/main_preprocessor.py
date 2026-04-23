@@ -19,6 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
+import numpy as np
 import pandas as pd
 from openpyxl.styles import Alignment, PatternFill
 
@@ -1040,6 +1041,31 @@ class ChronicleAndroidRawDataPreprocessor:
                 # Reset index and ensure unique column names for Polars compatibility
                 _write_df = output_df.reset_index(drop=True)
 
+                datetime_columns = [
+                    col
+                    for col in _write_df.columns
+                    if pd.api.types.is_datetime64_any_dtype(_write_df[col])
+                    and not _write_df[col].isna().all()
+                ]
+                if datetime_columns:
+                    timestamp_formats = []
+                    for col in datetime_columns:
+                        col_format = (
+                            "%Y-%m-%d %H:%M:%S%.f%:z"
+                            if getattr(_write_df[col].dtype, "tz", None) is not None
+                            else "%Y-%m-%d %H:%M:%S%.f"
+                        )
+                        timestamp_formats.append(
+                            pl.col(col).dt.strftime(col_format).alias(col)
+                        )
+                    formatted_timestamps = (
+                        pl.from_pandas(_write_df[datetime_columns])
+                        .with_columns(timestamp_formats)
+                        .to_pandas()
+                    )
+                    for col in datetime_columns:
+                        _write_df[col] = formatted_timestamps[col]
+
                 # Convert list columns to strings (Polars doesn't support nested data in CSV)
                 for col in _write_df.columns:
                     col_series = _write_df[col]
@@ -1052,10 +1078,10 @@ class ChronicleAndroidRawDataPreprocessor:
                         non_null = col_series.dropna()
                         if not non_null.empty:
                             first_valid = non_null.iloc[0]
-                            if isinstance(first_valid, list):
+                            if isinstance(first_valid, (list, tuple, np.ndarray)):
                                 _write_df[col] = col_series.apply(
-                                    lambda x: "; ".join(str(item) for item in x)
-                                    if isinstance(x, list)
+                                    lambda x: str(x)
+                                    if isinstance(x, (list, tuple, np.ndarray))
                                     else (str(x) if pd.notna(x) else "")
                                 )
 
