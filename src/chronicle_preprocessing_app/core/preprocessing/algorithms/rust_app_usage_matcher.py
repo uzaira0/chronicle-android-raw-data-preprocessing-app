@@ -140,21 +140,28 @@ def _apply_rust_update_indices(
     missing_indices: list[int],
 ) -> pd.DataFrame:
     """Apply sparse Rust update indices with vectorized timestamp assignment."""
-    df_copy = df.copy()
-    event_timestamps = np.asarray(event_timestamps, dtype=object)
+    df_copy = df
 
     if start_indices:
         start_index_array = np.asarray(start_indices, dtype=np.intp)
-        start_timestamps = df_copy[Column.START_TIMESTAMP].to_numpy(copy=True)
-        start_timestamps[start_index_array] = event_timestamps[start_index_array]
-        df_copy[Column.START_TIMESTAMP] = start_timestamps
+        _assign_timestamp_updates(
+            df=df_copy,
+            column=Column.START_TIMESTAMP,
+            target_indices=start_index_array,
+            event_timestamps=event_timestamps,
+            event_indices=start_index_array,
+        )
 
     if stop_start_indices:
         stop_start_index_array = np.asarray(stop_start_indices, dtype=np.intp)
         stop_event_index_array = np.asarray(stop_event_indices, dtype=np.intp)
-        stop_timestamps = df_copy[Column.STOP_TIMESTAMP].to_numpy(copy=True)
-        stop_timestamps[stop_start_index_array] = event_timestamps[stop_event_index_array]
-        df_copy[Column.STOP_TIMESTAMP] = stop_timestamps
+        _assign_timestamp_updates(
+            df=df_copy,
+            column=Column.STOP_TIMESTAMP,
+            target_indices=stop_start_index_array,
+            event_timestamps=event_timestamps,
+            event_indices=stop_event_index_array,
+        )
 
     if missing_indices:
         df_copy.loc[missing_indices, Column.INTERACTION_TYPE] = (
@@ -162,6 +169,33 @@ def _apply_rust_update_indices(
         )
 
     return df_copy
+
+
+def _assign_timestamp_updates(
+    *,
+    df: pd.DataFrame,
+    column: str,
+    target_indices: np.ndarray,
+    event_timestamps: Any,
+    event_indices: np.ndarray,
+) -> None:
+    """Assign matched timestamps using native datetime arrays when possible."""
+    if pd.api.types.is_datetime64_any_dtype(df[column]):
+        timestamp_array = df[column].array.copy()
+        timestamp_array[target_indices] = _take_timestamps(event_timestamps, event_indices)
+        df[column] = timestamp_array
+        return
+
+    timestamp_array = df[column].to_numpy(copy=False)
+    timestamp_array[target_indices] = _take_timestamps(event_timestamps, event_indices)
+    df[column] = timestamp_array
+
+
+def _take_timestamps(event_timestamps: Any, indices: np.ndarray) -> Any:
+    """Take timestamp objects without materializing the full timestamp column as object."""
+    if hasattr(event_timestamps, "take") and not isinstance(event_timestamps, np.ndarray):
+        return event_timestamps.take(indices)
+    return np.asarray(event_timestamps, dtype=object)[indices]
 
 
 def _apply_rust_matcher_output(
