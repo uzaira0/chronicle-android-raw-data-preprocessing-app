@@ -6,7 +6,6 @@ This panel provides UI controls for timezone and interaction settings.
 from __future__ import annotations
 
 import logging
-import os
 
 from chronicle_preprocessing_app.config.constants import DialogMessage, TimezoneHandlingOption
 from PyQt6.QtCore import pyqtSignal
@@ -328,14 +327,12 @@ class OptionsPanel(QWidget):
         workers_layout.addWidget(workers_desc_label)
 
         self.parallel_workers_spinbox = QSpinBox()
-        self.parallel_workers_spinbox.setRange(1, 32)
+        self.parallel_workers_spinbox.setRange(0, 32)
         self.parallel_workers_spinbox.setSpecialValueText("Auto")
-        # Set initial value (0 = auto, which shows as "Auto")
-        default_workers = self.options.parallel_max_workers or (os.cpu_count() or 4) // 2
-        self.parallel_workers_spinbox.setValue(default_workers)
+        self.parallel_workers_spinbox.setValue(self.options.parallel_max_workers or 0)
         self.parallel_workers_spinbox.setToolTip(
             "Maximum number of parallel worker processes. "
-            "'Auto' uses half of CPU cores, which benchmarks show is optimal for I/O-bound work."
+            "'Auto' uses half of CPU cores. Lower this if preprocessing competes with other work."
         )
         self.parallel_workers_spinbox.valueChanged.connect(self._on_parallel_workers_changed)
         self.parallel_workers_spinbox.setEnabled(self.options.parallel_processing)
@@ -429,9 +426,11 @@ class OptionsPanel(QWidget):
         Args:
             value: The new worker count value
         """
-        # Value of 1 with "Auto" special text means auto (None)
         self.options.parallel_max_workers = value if value > 0 else None
-        LOGGER.debug(f"Parallel max workers changed to: {value}")
+        LOGGER.debug(
+            "Parallel max workers changed to: "
+            f"{self.options.parallel_max_workers if self.options.parallel_max_workers else 'auto'}"
+        )
         self.options_updated.emit()
 
     def _on_timezone_changed(self, timezone: str) -> None:
@@ -732,4 +731,3 @@ class OptionsPanel(QWidget):
         self.parallel_processing_checkbox.setEnabled(True)
         # Only enable workers spinbox if parallel processing is enabled
         self.parallel_workers_spinbox.setEnabled(self.options.parallel_processing)
-

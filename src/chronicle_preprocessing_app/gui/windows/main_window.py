@@ -801,8 +801,9 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
 
         # Update parallel processing settings in options panel
         self.options_panel.parallel_processing_checkbox.setChecked(self.options.parallel_processing)
-        if self.options.parallel_max_workers is not None:
-            self.options_panel.parallel_workers_spinbox.setValue(self.options.parallel_max_workers)
+        self.options_panel.parallel_workers_spinbox.setValue(
+            self.options.parallel_max_workers or 0
+        )
         self.options_panel.parallel_workers_spinbox.setEnabled(self.options.parallel_processing)
 
         # Update plotting options in plotting panel
