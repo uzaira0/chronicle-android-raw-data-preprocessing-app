@@ -724,10 +724,11 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
 
         # Load parallel processing settings
         if "parallel_processing" in config:
-            self.options.parallel_processing = config["parallel_processing"]
+            self.options.parallel_processing = bool(config["parallel_processing"])
 
         if "parallel_max_workers" in config:
-            self.options.parallel_max_workers = config["parallel_max_workers"]
+            max_workers = config["parallel_max_workers"]
+            self.options.parallel_max_workers = int(max_workers) if max_workers else None
 
     def _update_ui_from_options(self) -> None:
         """

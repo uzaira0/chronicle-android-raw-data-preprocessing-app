@@ -8,8 +8,10 @@ import pandas as pd
 
 from chronicle_preprocessing_app.config.constants import InteractionType, UsageSessionMode
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
+from chronicle_preprocessing_app.core.config import ProcessingStats
 from chronicle_preprocessing_app.core.preprocessing.main_preprocessor import (
     _build_parallel_options_dict,
+    _merge_processing_stats,
     _resolve_parallel_max_workers,
 )
 
@@ -102,3 +104,20 @@ def test_config_manager_restores_auto_parallel_workers() -> None:
 
     assert options.parallel_processing is True
     assert options.parallel_max_workers is None
+
+
+def test_parallel_stats_merge_preserves_worker_detail() -> None:
+    destination = ProcessingStats(total_files=2)
+    source = ProcessingStats()
+    source.mark_processed(Path("/tmp/raw-a.csv"))
+    source.add_warning("raw-a.csv", "warning")
+    source.add_file_error("raw-b.csv", "bad timestamp")
+
+    _merge_processing_stats(destination, source)
+
+    assert destination.total_files == 2
+    assert destination.processed_files == 1
+    assert destination.failed_files == 0
+    assert destination.processed_file_paths == {Path("/tmp/raw-a.csv")}
+    assert destination.warnings == {"raw-a.csv": ["warning"]}
+    assert destination.file_errors == {"raw-b.csv": ["bad timestamp"]}
