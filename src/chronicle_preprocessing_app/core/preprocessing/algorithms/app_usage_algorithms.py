@@ -5,7 +5,6 @@ App usage processing algorithm for Chronicle Android data.
 from __future__ import annotations
 
 import logging
-from bisect import bisect_right
 from typing import Any
 
 import pandas as pd
@@ -91,12 +90,7 @@ def safe_duration_seconds(stop_time: pd.Timestamp, start_time: pd.Timestamp) -> 
 
 
 class OptimizedAppUsageAlgorithm:
-    """Single supported app-usage pairing algorithm.
-
-    The implementation pre-builds stop-event indices, uses binary search to avoid
-    rescanning old events, and batches DataFrame updates at the end instead of
-    writing row-by-row.
-    """
+    """Single supported app-usage pairing algorithm."""
 
     def __init__(self, options: PreprocessingOptions):
         """
@@ -117,9 +111,10 @@ class OptimizedAppUsageAlgorithm:
         other_stop_mask: pd.Series,
         stopped_mask: pd.Series,
     ) -> pd.DataFrame:
-        """Pair resumed events with the earliest valid stop event."""
+        """Pair start events with semantically compatible stop events."""
         LOGGER.debug(
-            f"Using optimized app usage algorithm (stop reuse: {self.options.allow_stop_event_reuse})"
+            "Using optimized app usage algorithm "
+            f"(stop reuse: {self.options.allow_stop_event_reuse})"
         )
         df_copy = df.reset_index(drop=True)
 
@@ -130,131 +125,60 @@ class OptimizedAppUsageAlgorithm:
             else:
                 df_copy[column] = df_copy[column].astype("object")
 
-        # Pre-extract arrays for fast access (avoid repeated DataFrame lookups)
         app_packages = df_copy[Column.APP_PACKAGE_NAME].values
-        # Use .array instead of .values to preserve timezone info for datetime columns
         timestamps = df_copy[Column.EVENT_TIMESTAMP].array
 
-        # Pre-build index lists for each mask type
         same_app_stop_indices = set(df_copy.index[same_app_stop_mask].tolist())
         other_stop_indices = set(df_copy.index[other_stop_mask].tolist())
         stopped_indices = set(df_copy.index[stopped_mask].tolist())
 
-        # Pre-build same-app stop indices grouped by app package for O(1) lookup
-        same_app_stops_by_pkg: dict[str, list[int]] = {}
-        for idx in sorted(same_app_stop_indices):
-            pkg = app_packages[idx]
-            if pkg not in same_app_stops_by_pkg:
-                same_app_stops_by_pkg[pkg] = []
-            same_app_stops_by_pkg[pkg].append(idx)
-
-        # Pre-build activity stopped indices grouped by app package
-        stopped_by_pkg: dict[str, list[int]] = {}
-        for idx in sorted(stopped_indices):
-            pkg = app_packages[idx]
-            if pkg not in stopped_by_pkg:
-                stopped_by_pkg[pkg] = []
-            stopped_by_pkg[pkg].append(idx)
-
-        # Pre-build sorted list of other-app stop indices
-        other_stop_list = sorted(other_stop_indices)
-
-        # Track matched stops if reuse prevention is enabled
-        matched_stop_indices = set() if not self.options.allow_stop_event_reuse else None
-
-        # Get resumed indices
-        resumed_indices = df_copy.index[resumed_mask].tolist()
-
         # Collect all updates to apply in batch at the end
-        start_updates: list[tuple[int, Any]] = []  # (index, start_timestamp)
-        stop_updates: list[tuple[int, Any]] = []  # (index, stop_timestamp)
-        missing_indices: list[int] = []  # indices where stop is missing
+        start_updates: list[tuple[int, Any]] = []
+        stop_updates: list[tuple[int, Any]] = []
+        missing_indices: list[int] = []
+        open_start_indices: list[int] = []
 
-        # For each resumed activity, find the corresponding stop
-        for i in resumed_indices:
-            current_app = app_packages[i]
-            current_timestamp = timestamps[i]
+        for index in df_copy.index:
+            current_app = app_packages[index]
+            current_timestamp = timestamps[index]
 
-            # Find first same-app stop after index i
-            same_app_stop_index = None
-            if current_app in same_app_stops_by_pkg:
-                candidate_indices = same_app_stops_by_pkg[current_app]
-                start_pos = bisect_right(candidate_indices, i)
-                for pos in range(start_pos, len(candidate_indices)):
-                    idx = candidate_indices[pos]
-                    if matched_stop_indices is None or idx not in matched_stop_indices:
-                        same_app_stop_index = idx
-                        break
-
-            # Find first other-app stop after index i (different app)
-            other_app_stop_index = None
-            start_pos = bisect_right(other_stop_list, i)
-            for pos in range(start_pos, len(other_stop_list)):
-                idx = other_stop_list[pos]
-                if app_packages[idx] != current_app:
-                    if matched_stop_indices is None or idx not in matched_stop_indices:
-                        other_app_stop_index = idx
-                        break
-
-            # Find first activity stopped for same app after index i
-            activity_stopped_index = None
-            if current_app in stopped_by_pkg:
-                candidate_indices = stopped_by_pkg[current_app]
-                start_pos = bisect_right(candidate_indices, i)
-                for pos in range(start_pos, len(candidate_indices)):
-                    idx = candidate_indices[pos]
-                    if matched_stop_indices is None or idx not in matched_stop_indices:
-                        activity_stopped_index = idx
-                        break
-
-            # Get corresponding timestamps
-            same_app_stop_timestamp = (
-                timestamps[same_app_stop_index] if same_app_stop_index is not None else None
+            compatible_open_starts = self._compatible_open_starts_for_stop(
+                stop_index=index,
+                current_app=current_app,
+                app_packages=app_packages,
+                timestamps=timestamps,
+                open_start_indices=open_start_indices,
+                same_app_stop_indices=same_app_stop_indices,
+                other_stop_indices=other_stop_indices,
+                stopped_indices=stopped_indices,
             )
-            other_app_stop_timestamp = (
-                timestamps[other_app_stop_index] if other_app_stop_index is not None else None
-            )
-            activity_stopped_timestamp = (
-                timestamps[activity_stopped_index] if activity_stopped_index is not None else None
-            )
+            if compatible_open_starts:
+                starts_to_close = (
+                    compatible_open_starts
+                    if self.options.allow_stop_event_reuse
+                    else [compatible_open_starts[-1]]
+                )
+                for start_index in starts_to_close:
+                    stop_updates.append((start_index, current_timestamp))
+                    open_start_indices.remove(start_index)
 
-            # Determine best match using same logic as original
-            best_match_index = None
-            timestamp_to_use = self._determine_best_match(
-                current_timestamp,
-                same_app_stop_timestamp,
-                other_app_stop_timestamp,
-                activity_stopped_timestamp,
-            )
+            if bool(resumed_mask.iloc[index]):
+                start_updates.append((index, current_timestamp))
+                open_start_indices.append(index)
 
-            # Track which stop index was matched
-            if timestamp_to_use is not None:
-                if (
-                    same_app_stop_timestamp is not None
-                    and timestamp_to_use == same_app_stop_timestamp
+        if open_start_indices:
+            last_index = len(df_copy.index) - 1
+            last_timestamp = timestamps[last_index]
+            for start_index in list(open_start_indices):
+                if last_index > start_index and self._is_valid_duration(
+                    timestamps[start_index],
+                    last_timestamp,
+                    enforce_threshold=True,
                 ):
-                    best_match_index = same_app_stop_index
-                elif (
-                    other_app_stop_timestamp is not None
-                    and timestamp_to_use == other_app_stop_timestamp
-                ):
-                    best_match_index = other_app_stop_index
-                elif (
-                    activity_stopped_timestamp is not None
-                    and timestamp_to_use == activity_stopped_timestamp
-                ):
-                    best_match_index = activity_stopped_index
+                    stop_updates.append((start_index, last_timestamp))
+                    open_start_indices.remove(start_index)
 
-            # Collect updates instead of applying immediately
-            start_updates.append((i, current_timestamp))
-            if timestamp_to_use is not None:
-                stop_updates.append((i, timestamp_to_use))
-            else:
-                missing_indices.append(i)
-
-            # Add to matched indices if reuse prevention is enabled
-            if matched_stop_indices is not None and best_match_index is not None:
-                matched_stop_indices.add(best_match_index)
+        missing_indices.extend(open_start_indices)
 
         # Apply all updates in batch
         # Don't specify dtype - let pandas handle conversion like the original code does
@@ -273,85 +197,71 @@ class OptimizedAppUsageAlgorithm:
 
         return df_copy
 
-    def _determine_best_match(
+    def _compatible_open_starts_for_stop(
         self,
-        current_timestamp,
-        same_app_stop_timestamp,
-        other_app_stop_timestamp,
-        activity_stopped_timestamp,
-    ):
-        """Determine the best matching stop timestamp using priority rules.
+        *,
+        stop_index: int,
+        current_app: Any,
+        app_packages: Any,
+        timestamps: Any,
+        open_start_indices: list[int],
+        same_app_stop_indices: set[int],
+        other_stop_indices: set[int],
+        stopped_indices: set[int],
+    ) -> list[int]:
+        """Return compatible open starts in chronological order for a stop row."""
+        normal_stop = stop_index in same_app_stop_indices or stop_index in other_stop_indices
+        fallback_stop = (
+            stop_index in stopped_indices and self.options.use_activity_stopped_as_fallback
+        )
 
-        This method matches the OLD algorithm behavior by default:
-        - Only checks the case when BOTH same_app AND other_app stops exist
-        - Falls back to activity_stopped without threshold check when only it exists
-
-        When apply_threshold_to_activity_stopped_fallback is True, applies the
-        12-hour threshold check to activity_stopped as well.
-
-        When use_activity_stopped_as_fallback is False, activity_stopped is never used.
-        """
-        timestamp_to_use = None
-
-        # Check if Activity Stopped fallback is enabled
-        use_fallback = self.options.use_activity_stopped_as_fallback
-        apply_threshold = self.options.apply_threshold_to_activity_stopped_fallback
-
-        # If fallback is disabled, treat activity_stopped_timestamp as None
-        if not use_fallback:
-            activity_stopped_timestamp = None
-
-        # OLD algorithm behavior: Only handle case when BOTH same_app AND other_app exist
-        # Otherwise fall through to activity_stopped fallback
-        if same_app_stop_timestamp is not None and other_app_stop_timestamp is not None:
-            same_app_diff = (
-                pd.Timestamp(same_app_stop_timestamp) - pd.Timestamp(current_timestamp)
-            ).total_seconds()
-            other_app_diff = (
-                pd.Timestamp(other_app_stop_timestamp) - pd.Timestamp(current_timestamp)
-            ).total_seconds()
-            activity_stopped_diff = (
-                (
-                    pd.Timestamp(activity_stopped_timestamp) - pd.Timestamp(current_timestamp)
-                ).total_seconds()
-                if activity_stopped_timestamp is not None
-                else float("inf")
+        compatible_starts: list[int] = []
+        for start_index in open_start_indices:
+            start_app = app_packages[start_index]
+            same_app_compatible = (
+                stop_index in same_app_stop_indices and start_app == current_app
+            )
+            other_app_compatible = (
+                stop_index in other_stop_indices and start_app != current_app
+            )
+            fallback_compatible = (
+                not normal_stop
+                and fallback_stop
+                and start_app == current_app
             )
 
-            if same_app_diff < other_app_diff:
-                if same_app_diff < self.long_duration_threshold_seconds:
-                    timestamp_to_use = same_app_stop_timestamp
-                elif (
-                    activity_stopped_timestamp is not None
-                    and activity_stopped_diff < self.long_duration_threshold_seconds
-                ):
-                    timestamp_to_use = activity_stopped_timestamp
-            elif same_app_diff > other_app_diff:
-                if other_app_diff < self.long_duration_threshold_seconds:
-                    timestamp_to_use = other_app_stop_timestamp
-                elif (
-                    activity_stopped_timestamp is not None
-                    and activity_stopped_diff < self.long_duration_threshold_seconds
-                ):
-                    timestamp_to_use = activity_stopped_timestamp
-            elif same_app_diff < self.long_duration_threshold_seconds:
-                timestamp_to_use = same_app_stop_timestamp
-            elif (
-                activity_stopped_timestamp is not None
-                and activity_stopped_diff < self.long_duration_threshold_seconds
-            ):
-                timestamp_to_use = activity_stopped_timestamp
-        elif activity_stopped_timestamp is not None:
-            # OLD algorithm behavior: When only activity_stopped exists, use it
-            # Optionally apply threshold check if configured
-            if apply_threshold:
-                activity_stopped_diff = (
-                    pd.Timestamp(activity_stopped_timestamp) - pd.Timestamp(current_timestamp)
-                ).total_seconds()
-                if activity_stopped_diff < self.long_duration_threshold_seconds:
-                    timestamp_to_use = activity_stopped_timestamp
-            else:
-                # Match OLD behavior: use activity_stopped without threshold check
-                timestamp_to_use = activity_stopped_timestamp
+            if not (same_app_compatible or other_app_compatible or fallback_compatible):
+                continue
 
-        return timestamp_to_use
+            enforce_threshold = (
+                not fallback_compatible
+                or self.options.apply_threshold_to_activity_stopped_fallback
+            )
+            if self._is_valid_duration(
+                timestamps[start_index],
+                timestamps[stop_index],
+                enforce_threshold=enforce_threshold,
+            ):
+                compatible_starts.append(start_index)
+
+        return compatible_starts
+
+    def _is_valid_duration(
+        self,
+        start_timestamp: Any,
+        stop_timestamp: Any,
+        *,
+        enforce_threshold: bool,
+    ) -> bool:
+        """Return whether a candidate stop produces a valid non-negative duration."""
+        duration_seconds = safe_duration_seconds(
+            pd.Timestamp(stop_timestamp),
+            pd.Timestamp(start_timestamp),
+        )
+        if duration_seconds < 0:
+            return False
+        return (
+            True
+            if not enforce_threshold
+            else duration_seconds <= self.long_duration_threshold_seconds
+        )

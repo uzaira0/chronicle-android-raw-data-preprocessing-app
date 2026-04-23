@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pandas as pd
-import pytest
 
 from chronicle_preprocessing_app.config.constants import Column, InteractionType
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
@@ -10,15 +9,6 @@ from chronicle_preprocessing_app.core.preprocessing.algorithms import (
 )
 from chronicle_preprocessing_app.core.preprocessing.timestamp_preprocessor import (
     TimestampPreprocessor,
-)
-
-
-DESIRED_SEMANTIC_CHANGE = pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Desired semantic behavior; current optimized algorithm intentionally "
-        "preserves archived baseline semantics."
-    ),
 )
 
 
@@ -86,7 +76,6 @@ def _run(df: pd.DataFrame, options: PreprocessingOptions) -> pd.DataFrame:
     )
 
 
-@DESIRED_SEMANTIC_CHANGE
 def test_settled_same_app_stop_closes_session_when_it_is_the_only_stop() -> None:
     options = _options()
     result = _run(
@@ -113,7 +102,6 @@ def test_settled_same_app_stop_closes_session_when_it_is_the_only_stop() -> None
     assert result.loc[0, Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_RESUMED
 
 
-@DESIRED_SEMANTIC_CHANGE
 def test_settled_other_app_resume_closes_previous_app_when_same_app_stop_missing() -> None:
     options = _options()
     result = _run(
@@ -140,7 +128,6 @@ def test_settled_other_app_resume_closes_previous_app_when_same_app_stop_missing
     assert result.loc[0, Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_RESUMED
 
 
-@DESIRED_SEMANTIC_CHANGE
 def test_settled_filtered_app_resume_closes_previous_valid_app() -> None:
     options = _options()
     result = _run(
@@ -167,7 +154,6 @@ def test_settled_filtered_app_resume_closes_previous_valid_app() -> None:
     assert result.loc[0, Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_RESUMED
 
 
-@DESIRED_SEMANTIC_CHANGE
 def test_settled_device_shutdown_closes_session_as_default_stop() -> None:
     options = _options()
     result = _run(
@@ -224,7 +210,6 @@ def test_settled_earliest_valid_stop_wins_when_same_and_other_stops_exist() -> N
     )
 
 
-@DESIRED_SEMANTIC_CHANGE
 def test_settled_stop_reuse_disabled_assigns_stop_to_nearest_preceding_start() -> None:
     options = _options(allow_stop_event_reuse=False)
     result = _run(
@@ -245,13 +230,20 @@ def test_settled_stop_reuse_disabled_assigns_stop_to_nearest_preceding_start() -
                     InteractionType.ACTIVITY_PAUSED,
                     "com.example.app",
                 ),
+                (
+                    "2026-01-01 00:20:00",
+                    InteractionType.NOTIFICATION_SEEN,
+                    "android",
+                ),
             ]
         ),
         options,
     )
 
-    assert pd.isna(result.loc[0, Column.STOP_TIMESTAMP])
-    assert result.loc[0, Column.INTERACTION_TYPE] == InteractionType.END_OF_USAGE_MISSING
+    assert result.loc[0, Column.STOP_TIMESTAMP] == pd.Timestamp(
+        "2026-01-01 00:20:00"
+    )
+    assert result.loc[0, Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_RESUMED
     assert result.loc[1, Column.START_TIMESTAMP] == pd.Timestamp(
         "2026-01-01 00:10:00"
     )
@@ -261,7 +253,6 @@ def test_settled_stop_reuse_disabled_assigns_stop_to_nearest_preceding_start() -
     assert result.loc[1, Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_RESUMED
 
 
-@DESIRED_SEMANTIC_CHANGE
 def test_settled_file_end_closes_open_session_at_last_file_event_timestamp() -> None:
     options = _options()
     result = _run(
@@ -288,7 +279,6 @@ def test_settled_file_end_closes_open_session_at_last_file_event_timestamp() -> 
     assert result.loc[0, Column.INTERACTION_TYPE] == InteractionType.ACTIVITY_RESUMED
 
 
-@DESIRED_SEMANTIC_CHANGE
 def test_settled_exact_threshold_duration_is_valid_when_threshold_is_configured() -> None:
     options = _options(long_duration_threshold_hours=12)
     result = _run(
