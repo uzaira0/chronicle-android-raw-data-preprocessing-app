@@ -138,23 +138,24 @@ class ColumnPreprocessor(BasePreprocessor):
 
         # Date and time derived columns
         if Column.EVENT_TIMESTAMP in df_copy.columns:
-            df_copy[Column.DATE] = df_copy[Column.EVENT_TIMESTAMP].dt.date
-            df_copy[Column.DAY] = (df_copy[Column.EVENT_TIMESTAMP].dt.weekday + 1) % 7 + 1
-            df_copy[Column.WEEKDAY_MF] = (df_copy[Column.EVENT_TIMESTAMP].dt.weekday < 5).astype(
-                int
-            )
-            df_copy[Column.WEEKDAY_MTH] = (df_copy[Column.EVENT_TIMESTAMP].dt.weekday < 4).astype(
-                int
-            )
-            df_copy[Column.WEEKDAY_SUTH] = (
-                (df_copy[Column.EVENT_TIMESTAMP].dt.weekday < 4)
-                | (df_copy[Column.EVENT_TIMESTAMP].dt.weekday == 6)
-            ).astype(int)
-            df_copy[Column.HOUR] = df_copy[Column.EVENT_TIMESTAMP].dt.hour
-            df_copy[Column.QUARTER] = df_copy[Column.EVENT_TIMESTAMP].dt.quarter
+            event_timestamps = df_copy[Column.EVENT_TIMESTAMP]
+            if getattr(event_timestamps.dtype, "tz", None) is not None:
+                # Pandas recomputes localized timestamps for every .dt property on
+                # tz-aware columns; localize once and derive all calendar fields.
+                event_timestamps = event_timestamps.dt.tz_localize(None)
+
+            event_datetime = event_timestamps.dt
+            weekday = event_datetime.weekday
+
+            df_copy[Column.DATE] = event_datetime.date
+            df_copy[Column.DAY] = (weekday + 1) % 7 + 1
+            df_copy[Column.WEEKDAY_MF] = (weekday < 5).astype(int)
+            df_copy[Column.WEEKDAY_MTH] = (weekday < 4).astype(int)
+            df_copy[Column.WEEKDAY_SUTH] = ((weekday < 4) | (weekday == 6)).astype(int)
+            df_copy[Column.HOUR] = event_datetime.hour
+            df_copy[Column.QUARTER] = event_datetime.quarter
 
         LOGGER.debug(
             f"Successfully created {len(df_copy.columns) - len(df.columns)} additional columns"
         )
         return df_copy
-

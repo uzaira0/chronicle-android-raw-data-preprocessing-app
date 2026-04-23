@@ -64,9 +64,14 @@ def process_app_usage_with_rust(
             options.long_duration_threshold_hours * 3600 * 1_000_000_000
         )
 
-        if hasattr(_rust_app_usage_matcher, "match_app_usage_update_indices"):
+        update_indices_fn = getattr(
+            _rust_app_usage_matcher,
+            "match_app_usage_update_arrays",
+            None,
+        ) or getattr(_rust_app_usage_matcher, "match_app_usage_update_indices", None)
+        if update_indices_fn is not None:
             start_indices, stop_start_indices, stop_event_indices, missing_indices = (
-                _rust_app_usage_matcher.match_app_usage_update_indices(
+                update_indices_fn(
                     app_code_array,
                     timestamp_array,
                     resumed_array,
@@ -134,16 +139,18 @@ def _apply_rust_update_indices(
     *,
     df: pd.DataFrame,
     event_timestamps: Any,
-    start_indices: list[int],
-    stop_start_indices: list[int],
-    stop_event_indices: list[int],
-    missing_indices: list[int],
+    start_indices: Any,
+    stop_start_indices: Any,
+    stop_event_indices: Any,
+    missing_indices: Any,
 ) -> pd.DataFrame:
     """Apply sparse Rust update indices with vectorized timestamp assignment."""
     df_copy = df
+    start_index_array = _as_index_array(start_indices)
+    stop_start_index_array = _as_index_array(stop_start_indices)
+    missing_index_array = _as_index_array(missing_indices)
 
-    if start_indices:
-        start_index_array = np.asarray(start_indices, dtype=np.intp)
+    if start_index_array.size:
         _assign_timestamp_updates(
             df=df_copy,
             column=Column.START_TIMESTAMP,
@@ -152,9 +159,8 @@ def _apply_rust_update_indices(
             event_indices=start_index_array,
         )
 
-    if stop_start_indices:
-        stop_start_index_array = np.asarray(stop_start_indices, dtype=np.intp)
-        stop_event_index_array = np.asarray(stop_event_indices, dtype=np.intp)
+    if stop_start_index_array.size:
+        stop_event_index_array = _as_index_array(stop_event_indices)
         _assign_timestamp_updates(
             df=df_copy,
             column=Column.STOP_TIMESTAMP,
@@ -163,12 +169,19 @@ def _apply_rust_update_indices(
             event_indices=stop_event_index_array,
         )
 
-    if missing_indices:
-        df_copy.loc[missing_indices, Column.INTERACTION_TYPE] = (
+    if missing_index_array.size:
+        df_copy.loc[missing_index_array, Column.INTERACTION_TYPE] = (
             InteractionType.END_OF_USAGE_MISSING
         )
 
     return df_copy
+
+
+def _as_index_array(indices: Any) -> np.ndarray:
+    """Normalize Rust list/NumPy index output without copying when possible."""
+    if isinstance(indices, np.ndarray) and indices.dtype == np.intp and indices.flags.c_contiguous:
+        return indices
+    return np.asarray(indices, dtype=np.intp)
 
 
 def _assign_timestamp_updates(
