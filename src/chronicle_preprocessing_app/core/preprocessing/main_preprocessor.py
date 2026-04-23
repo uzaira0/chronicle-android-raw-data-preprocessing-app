@@ -79,6 +79,12 @@ from .timestamp_preprocessor import TimestampPreprocessor
 from .timezone_preprocessor import TimezonePreprocessor
 
 try:
+    from .polars_fast_path import PolarsFastPathPreprocessor, supports_polars_fast_path
+except ImportError:  # pragma: no cover - exercised in no-polars local environments
+    PolarsFastPathPreprocessor = None  # type: ignore[assignment]
+    supports_polars_fast_path = None  # type: ignore[assignment]
+
+try:
     from chronicle_preprocessing_app.utils.file_utils import (
         get_matching_files_from_folder,
         read_filter_file,
@@ -1416,6 +1422,33 @@ class ChronicleAndroidRawDataPreprocessor:
                 f"Error processing device sharing status for participant {self.current_participant_id}: {e}"
             )
 
+    def _run_polars_fast_path(
+        self, raw_data_file: Path | str
+    ) -> tuple[Path, bool, dict[str, Any] | None]:
+        """Run the Polars-native standard app-usage preprocessing path."""
+        app_codebook = None
+        if self.app_codebook is not None:
+            if isinstance(self.app_codebook, pl.DataFrame):
+                app_codebook = self.app_codebook
+            else:
+                app_codebook = pl.from_pandas(self.app_codebook)
+
+        fast_preprocessor = PolarsFastPathPreprocessor(
+            self.options,
+            app_codebook=app_codebook,
+        )
+        result = fast_preprocessor.preprocess_raw_data_file(raw_data_file)
+        self.current_participant_id = result.participant_id
+        self.current_participant_raw_data_df = result.data
+        preprocessed_data_save_folder = fast_preprocessor.save_preprocessed_output(
+            result.data,
+            raw_data_filename=Path(raw_data_file).name,
+            output_folder=self.options.output_folder,
+            study_name=self.options.study_name,
+        )
+        self.stats.mark_processed(Path(raw_data_file))
+        return preprocessed_data_save_folder, True, None
+
     def handle_non_target_child_app_usage(self) -> None:
         """
         For shared devices, modifies app usage entries that are not associated with the target child.
@@ -1475,6 +1508,19 @@ class ChronicleAndroidRawDataPreprocessor:
         preprocessed_data_save_folder = ""
 
         try:
+            if (
+                USE_POLARS
+                and PolarsFastPathPreprocessor is not None
+                and supports_polars_fast_path is not None
+                and supports_polars_fast_path(
+                self.options,
+                survey_data_processor_available=self.survey_data_processor is not None,
+                study_date_provider_available=self.study_date_provider.is_available,
+                )
+            ):
+                LOGGER.debug("Using Polars-native preprocessing fast path")
+                return self._run_polars_fast_path(raw_data_file)
+
             # Read the raw data file - use Polars for faster I/O if available
             if USE_POLARS:
                 LOGGER.debug("Using Polars for CSV reading")
