@@ -1,15 +1,15 @@
-"""
-File operations and utilities for Chronicle Android Raw Data Preprocessing Application
-"""
+"""File operations and small tabular readers."""
 
 from __future__ import annotations
 
+import csv
 import logging
 import re
 from pathlib import Path
+from typing import Any
 
-import pandas as pd
-from pandas.errors import EmptyDataError, ParserError
+import openpyxl
+import polars as pl
 
 LOGGER = logging.getLogger(__name__)
 
@@ -19,308 +19,168 @@ def get_matching_files_from_folder(
     file_matching_pattern: str,
     ignore_names: list[str] | None = None,
 ) -> list[Path]:
-    """
-    Get a list of files matching a pattern in a folder and its subfolders.
-
-    Args:
-        folder: Path to search in
-        file_matching_pattern: Regex pattern to match file names
-        ignore_names: List of strings to exclude from results (files containing these strings will be ignored)
-
-    Returns:
-        A list of Path objects matching the pattern and not containing ignore strings
-
-    Raises:
-        ValueError: If the folder doesn't exist or isn't accessible
-    """
+    """Return files matching a pattern under a folder tree."""
     folder_path = Path(folder)
     if not folder_path.exists():
         msg = f"Folder does not exist: {folder_path}"
-        LOGGER.error(msg)
         raise ValueError(msg)
-
     if not folder_path.is_dir():
         msg = f"Path is not a directory: {folder_path}"
-        LOGGER.error(msg)
         raise ValueError(msg)
 
-    LOGGER.debug(
-        f"Getting matching files from folder: {folder} with pattern: {file_matching_pattern}"
-    )
-
-    if not ignore_names:
-        ignore_names = ["Preprocessed"]
-
-    try:
-        matching_files = [
-            f
-            for f in folder_path.rglob("*")
-            if f.is_file()
-            and re.search(file_matching_pattern, f.name)
-            and all(ignored not in str(f) for ignored in ignore_names)
-        ]
-        LOGGER.debug(f"Found {len(matching_files)} matching files")
-        return matching_files
-    except PermissionError as e:
-        msg = f"Permission denied when accessing directory: {folder_path}. Error: {e}"
-        LOGGER.error(msg)
-        raise ValueError(msg) from e
-    except Exception as e:
-        msg = f"Error searching for files in {folder_path}: {e}"
-        LOGGER.exception(msg)
-        raise ValueError(msg) from e
+    ignored = ignore_names or ["Preprocessed"]
+    return [
+        path
+        for path in folder_path.rglob("*")
+        if path.is_file()
+        and re.search(file_matching_pattern, path.name)
+        and all(fragment not in str(path) for fragment in ignored)
+    ]
 
 
 class FileOperationError(Exception):
-    """Base exception for file operation errors"""
-
-    pass
+    """Base exception for file operation errors."""
 
 
 class FilterFileError(FileOperationError):
-    """Exception raised for errors related to filter files"""
-
-    pass
+    """Errors raised while reading app filter files."""
 
 
 class KeepAwakeAppsFileError(FileOperationError):
-    """Exception raised for errors related to screen keep-awake app files."""
-
-    pass
+    """Errors raised while reading keep-awake app files."""
 
 
 class CodebookFileError(FileOperationError):
-    """Exception raised for errors related to codebook files"""
+    """Errors raised while reading app codebooks."""
 
-    pass
+
+def _read_excel_rows(file_path: Path) -> tuple[list[str], list[list[Any]]]:
+    workbook = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    try:
+        worksheet = workbook.worksheets[0]
+        rows = list(worksheet.iter_rows(values_only=True))
+    finally:
+        workbook.close()
+
+    if not rows:
+        return [], []
+
+    header = ["" if value is None else str(value).strip() for value in rows[0]]
+    data = [[value for value in row] for row in rows[1:]]
+    return header, data
+
+
+def _read_small_table(file_path: Path) -> tuple[list[str], list[list[Any]]]:
+    suffix = file_path.suffix.lower()
+    if suffix == ".csv":
+        with file_path.open("r", encoding="utf-8", newline="") as handle:
+            reader = csv.reader(handle)
+            rows = list(reader)
+        if not rows:
+            return [], []
+        return rows[0], rows[1:]
+    if suffix in {".xlsx", ".xls"}:
+        return _read_excel_rows(file_path)
+
+    msg = f"Unsupported file type: {suffix}"
+    raise ValueError(msg)
+
+
+def _normalize_cell(value: Any) -> str:
+    if value is None:
+        return ""
+    value_str = str(value).strip()
+    return "" if value_str.lower() == "nan" else value_str
 
 
 def read_filter_file(file_path: Path | str) -> dict[str, str]:
-    """
-    Read a filter file and return a dictionary of app package names to app labels.
-
-    Args:
-        file_path: Path to the filter file (.csv or .xlsx)
-
-    Returns:
-        Dictionary mapping app package names to app labels
-
-    Raises:
-        FilterFileError: If the file cannot be read or is in an invalid format
-    """
-    file_path = Path(file_path)
-
-    if not file_path.exists():
-        msg = f"Filter file does not exist: {file_path}"
-        LOGGER.error(msg)
-        raise FilterFileError(msg)
-
-    file_extension = file_path.suffix.lower()
-    app_filters: dict[str, str] = {}
+    """Read app filters from a CSV/XLSX file."""
+    path = Path(file_path)
+    if not path.exists():
+        raise FilterFileError(f"Filter file does not exist: {path}")
 
     try:
-        if file_extension == ".csv":
-            # Read CSV file
-            df = pd.read_csv(file_path)
-        elif file_extension == ".xlsx":
-            # Read Excel file (first sheet)
-            df = pd.read_excel(file_path, sheet_name=0)
-        else:
-            msg = f"Unsupported file type: {file_extension}. Must be .csv or .xlsx"
-            LOGGER.error(msg)
-            raise FilterFileError(msg)
+        header, rows = _read_small_table(path)
+        if len(header) < 2:
+            raise FilterFileError(
+                "Filter file must have at least two columns (Package Name and App Label)"
+            )
 
-        # Check if the DataFrame has at least 2 columns
-        if df.shape[1] < 2:
-            msg = "Filter file must have at least two columns (Package Name and App Label)"
-            LOGGER.error(msg)
-            raise FilterFileError(msg)
-
-        # Use the first two columns regardless of their names
-        package_col = df.columns[0]
-        label_col = df.columns[1]
-
-        # Build the dictionary
-        for _, row in df.iterrows():
-            package_name = str(row[package_col]).strip()
-            app_label = str(row[label_col]).strip()
-
-            if package_name and package_name.lower() != "nan":
-                app_filters[package_name] = app_label
-
-        LOGGER.info(
-            f"Successfully loaded {len(app_filters)} app filters from {file_path}"
-        )
-        return app_filters
-
-    except EmptyDataError:
-        msg = f"Filter file is empty: {file_path}"
-        LOGGER.error(msg)
-        raise FilterFileError(msg)
-    except ParserError:
-        msg = f"Filter file has invalid format: {file_path}"
-        LOGGER.error(msg)
-        raise FilterFileError(msg)
-    except Exception as e:
-        msg = f"Failed to read filter file: {e}"
-        LOGGER.exception(msg)
-        raise FilterFileError(msg) from e
+        filters: dict[str, str] = {}
+        for row in rows:
+            if not row:
+                continue
+            package_name = _normalize_cell(row[0] if len(row) > 0 else None)
+            app_label = _normalize_cell(row[1] if len(row) > 1 else None)
+            if package_name:
+                filters[package_name] = app_label
+        return filters
+    except FilterFileError:
+        raise
+    except Exception as exc:
+        raise FilterFileError(f"Failed to read filter file: {exc}") from exc
 
 
 def read_keep_awake_apps_file(file_path: Path | str) -> dict[str, str]:
-    """
-    Read a screen keep-awake app file.
-
-    The file may be .csv or .xlsx. The first column is the package name. The
-    optional second column is a label, category, or note that is preserved for
-    downstream screen-usage classification and audit output.
-
-    Args:
-        file_path: Path to the keep-awake app file (.csv or .xlsx)
-
-    Returns:
-        Dictionary mapping app package names to labels or notes
-
-    Raises:
-        KeepAwakeAppsFileError: If the file cannot be read or is invalid
-    """
-    file_path = Path(file_path)
-
-    if not file_path.exists():
-        msg = f"Keep-awake apps file does not exist: {file_path}"
-        LOGGER.error(msg)
-        raise KeepAwakeAppsFileError(msg)
-
-    file_extension = file_path.suffix.lower()
-    keep_awake_apps: dict[str, str] = {}
+    """Read screen keep-awake app metadata from a CSV/XLSX file."""
+    path = Path(file_path)
+    if not path.exists():
+        raise KeepAwakeAppsFileError(f"Keep-awake apps file does not exist: {path}")
 
     try:
-        if file_extension == ".csv":
-            df = pd.read_csv(file_path)
-        elif file_extension == ".xlsx":
-            df = pd.read_excel(file_path, sheet_name=0)
-        else:
-            msg = f"Unsupported file type: {file_extension}. Must be .csv or .xlsx"
-            LOGGER.error(msg)
-            raise KeepAwakeAppsFileError(msg)
+        header, rows = _read_small_table(path)
+        if len(header) < 1:
+            raise KeepAwakeAppsFileError(
+                "Keep-awake apps file must have at least one column (Package Name)"
+            )
 
-        if df.shape[1] < 1:
-            msg = "Keep-awake apps file must have at least one column (Package Name)"
-            LOGGER.error(msg)
-            raise KeepAwakeAppsFileError(msg)
-
-        package_col = df.columns[0]
-        label_col = df.columns[1] if df.shape[1] >= 2 else None
-
-        for _, row in df.iterrows():
-            package_name = str(row[package_col]).strip()
-            if (
-                not package_name
-                or package_name.lower() == "nan"
-                or package_name.startswith("#")
-            ):
+        keep_awake_apps: dict[str, str] = {}
+        for row in rows:
+            package_name = _normalize_cell(row[0] if len(row) > 0 else None)
+            if not package_name or package_name.startswith("#"):
                 continue
-
-            label = ""
-            if label_col is not None:
-                label = str(row[label_col]).strip()
-                if label.lower() == "nan":
-                    label = ""
-
+            label = _normalize_cell(row[1] if len(row) > 1 else None)
             keep_awake_apps[package_name] = label
-
-        LOGGER.info(
-            f"Successfully loaded {len(keep_awake_apps)} keep-awake apps from {file_path}"
-        )
         return keep_awake_apps
-
-    except EmptyDataError:
-        msg = f"Keep-awake apps file is empty: {file_path}"
-        LOGGER.error(msg)
-        raise KeepAwakeAppsFileError(msg)
-    except ParserError:
-        msg = f"Keep-awake apps file has invalid format: {file_path}"
-        LOGGER.error(msg)
-        raise KeepAwakeAppsFileError(msg)
     except KeepAwakeAppsFileError:
         raise
-    except Exception as e:
-        msg = f"Failed to read keep-awake apps file: {e}"
-        LOGGER.exception(msg)
-        raise KeepAwakeAppsFileError(msg) from e
+    except Exception as exc:
+        raise KeepAwakeAppsFileError(f"Failed to read keep-awake apps file: {exc}") from exc
 
 
-def read_app_codebook(codebook_path: Path | str) -> pd.DataFrame | None:
-    """
-    Read and prepare an app codebook file for efficient lookups.
+def read_app_codebook(codebook_path: Path | str) -> pl.DataFrame | None:
+    """Read and normalize an app codebook into a Polars dataframe."""
+    from chronicle_preprocessing_app.config.constants import AppCodebookColumn
 
-    Args:
-        codebook_path: Path to the app codebook file (.csv, .xlsx, or .xls)
-
-    Returns:
-        DataFrame: Optimized app codebook with app_package_name as index, or None if file doesn't exist
-
-    Raises:
-        CodebookFileError: If the codebook cannot be read or processed
-    """
-    codebook_path = Path(codebook_path)
-
-    if not codebook_path.exists():
-        LOGGER.warning(f"App codebook file not found: {codebook_path}")
+    path = Path(codebook_path)
+    if not path.exists():
+        LOGGER.warning("App codebook file not found: %s", path)
         return None
 
     try:
-        LOGGER.debug(f"Loading app codebook from {codebook_path}")
-
-        if codebook_path.suffix.lower() == ".csv":
-            app_codebook = pd.read_csv(codebook_path)
-        elif codebook_path.suffix.lower() in (".xlsx", ".xls"):
-            app_codebook = pd.read_excel(codebook_path, sheet_name=0)
+        if path.suffix.lower() == ".csv":
+            app_codebook = pl.read_csv(path, infer_schema_length=10000)
+        elif path.suffix.lower() in {".xlsx", ".xls"}:
+            header, rows = _read_small_table(path)
+            app_codebook = pl.DataFrame(rows, schema=header, orient="row")
         else:
-            msg = f"Unsupported codebook file type: {codebook_path.suffix}. Must be .csv, .xlsx, or .xls"
-            LOGGER.error(msg)
+            msg = f"Unsupported codebook file type: {path.suffix}. Must be .csv, .xlsx, or .xls"
             raise CodebookFileError(msg)
-
-        LOGGER.info(
-            f"Successfully loaded app codebook with {len(app_codebook)} entries"
-        )
-        LOGGER.debug(f"App codebook columns: {app_codebook.columns.tolist()}")
-
-        from chronicle_preprocessing_app.config.constants import AppCodebookColumn
 
         if AppCodebookColumn.APP_PACKAGE_NAME not in app_codebook.columns:
-            msg = f"App codebook must contain an '{AppCodebookColumn.APP_PACKAGE_NAME}' column"
-            LOGGER.error(msg)
+            msg = (
+                f"App codebook must contain an "
+                f"'{AppCodebookColumn.APP_PACKAGE_NAME}' column"
+            )
             raise CodebookFileError(msg)
 
-        # Check for duplicate package names and handle them
-        duplicate_packages = app_codebook.duplicated(
-            subset=[AppCodebookColumn.APP_PACKAGE_NAME], keep=False
+        app_codebook = app_codebook.unique(
+            subset=[AppCodebookColumn.APP_PACKAGE_NAME],
+            keep="first",
+            maintain_order=True,
         )
-        if duplicate_packages.any():
-            num_duplicates = duplicate_packages.sum()
-            LOGGER.warning(
-                f"Found {num_duplicates} duplicate package names in app codebook. Keeping first occurrence of each."
-            )
-            app_codebook = app_codebook.drop_duplicates(
-                subset=[AppCodebookColumn.APP_PACKAGE_NAME], keep="first"
-            )
-
-        # Optimize codebook for lookups
-        app_codebook = app_codebook.set_index(AppCodebookColumn.APP_PACKAGE_NAME)
-        LOGGER.debug("Optimized app codebook for lookups using index")
-
-    except EmptyDataError:
-        msg = f"App codebook file is empty: {codebook_path}"
-        LOGGER.error(msg)
-        raise CodebookFileError(msg)
-    except ParserError:
-        msg = f"App codebook file has invalid format: {codebook_path}"
-        LOGGER.error(msg)
-        raise CodebookFileError(msg)
-    except Exception as e:
-        msg = f"Failed to load app codebook: {e}"
-        LOGGER.exception(msg)
-        raise CodebookFileError(msg) from e
-    else:
         return app_codebook
+    except CodebookFileError:
+        raise
+    except Exception as exc:
+        raise CodebookFileError(f"Failed to load app codebook: {exc}") from exc

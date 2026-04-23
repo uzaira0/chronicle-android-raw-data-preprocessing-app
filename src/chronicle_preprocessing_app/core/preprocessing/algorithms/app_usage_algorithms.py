@@ -1,175 +1,75 @@
-"""
-App usage processing algorithm for Chronicle Android data.
-"""
+"""Polars-backed app usage pairing algorithms."""
 
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import numpy as np
-import pandas as pd
+import polars as pl
+
 from chronicle_preprocessing_app.config.constants import Column, InteractionType
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
 from chronicle_preprocessing_app.core.preprocessing.algorithms.rust_app_usage_matcher import (
+    MISSING_TIMESTAMP_NS,
     process_app_usage_with_rust,
-    rust_matcher_enabled,
 )
 
 LOGGER = logging.getLogger(__name__)
 
 
-def _nat_object_array(row_count: int) -> np.ndarray:
-    """Return an object array filled with Pandas NaT without building a Python list."""
-    values = np.empty(row_count, dtype=object)
-    values.fill(pd.NaT)
-    return values
+def safe_timestamp_compare(ts1: object, ts2: object, op: str) -> bool:
+    left = None if ts1 is None else int(pl.Series([ts1]).dt.epoch("ns").item())
+    right = None if ts2 is None else int(pl.Series([ts2]).dt.epoch("ns").item())
+    if left is None or right is None:
+        return False
+    return {
+        "<": left < right,
+        ">": left > right,
+        "<=": left <= right,
+        ">=": left >= right,
+        "==": left == right,
+        "!=": left != right,
+    }[op]
 
 
-def _can_use_datetime_columns(event_timestamp_series: pd.Series) -> bool:
-    """Return whether start/stop columns can use pandas' native datetime storage."""
-    return pd.api.types.is_datetime64_any_dtype(event_timestamp_series)
-
-
-def safe_timestamp_compare(ts1: pd.Timestamp, ts2: pd.Timestamp, op: str) -> bool:
-    """
-    Safely compare two timestamps, handling timezone-aware vs naive comparisons.
-
-    Args:
-        ts1: First timestamp
-        ts2: Second timestamp
-        op: Operation ('<', '>', '<=', '>=', '==', '!=')
-
-    Returns:
-        bool: Result of comparison
-    """
-    try:
-        # Try direct comparison first
-        if op == "<":
-            return ts1 < ts2
-        elif op == ">":
-            return ts1 > ts2
-        elif op == "<=":
-            return ts1 <= ts2
-        elif op == ">=":
-            return ts1 >= ts2
-        elif op == "==":
-            return ts1 == ts2
-        elif op == "!=":
-            return ts1 != ts2
-    except TypeError:
-        # Handle timezone mismatch by converting both to naive
-        ts1_naive = ts1.replace(tzinfo=None) if hasattr(ts1, "tzinfo") and ts1.tzinfo else ts1
-        ts2_naive = ts2.replace(tzinfo=None) if hasattr(ts2, "tzinfo") and ts2.tzinfo else ts2
-
-        if op == "<":
-            return ts1_naive < ts2_naive
-        elif op == ">":
-            return ts1_naive > ts2_naive
-        elif op == "<=":
-            return ts1_naive <= ts2_naive
-        elif op == ">=":
-            return ts1_naive >= ts2_naive
-        elif op == "==":
-            return ts1_naive == ts2_naive
-        elif op == "!=":
-            return ts1_naive != ts2_naive
-
-    return False
-
-
-def safe_duration_seconds(stop_time: pd.Timestamp, start_time: pd.Timestamp) -> float:
-    """
-    Safely calculate duration between two timestamps, handling timezone issues.
-
-    Args:
-        stop_time: End timestamp
-        start_time: Start timestamp
-
-    Returns:
-        float: Duration in seconds
-    """
-    try:
-        return (stop_time - start_time).total_seconds()
-    except TypeError:
-        # Convert to naive if needed for duration calculation
-        stop_naive = (
-            stop_time.replace(tzinfo=None)
-            if hasattr(stop_time, "tzinfo") and stop_time.tzinfo
-            else stop_time
-        )
-        start_naive = (
-            start_time.replace(tzinfo=None)
-            if hasattr(start_time, "tzinfo") and start_time.tzinfo
-            else start_time
-        )
-        return (stop_naive - start_naive).total_seconds()
+def safe_duration_seconds(stop_time: object, start_time: object) -> float:
+    stop_ns = int(pl.Series([stop_time]).dt.epoch("ns").item())
+    start_ns = int(pl.Series([start_time]).dt.epoch("ns").item())
+    return (stop_ns - start_ns) / 1_000_000_000.0
 
 
 class OptimizedAppUsageAlgorithm:
     """Single supported app-usage pairing algorithm."""
 
     def __init__(self, options: PreprocessingOptions):
-        """
-        Initialize the algorithm with preprocessing options.
-
-        Args:
-            options: The preprocessing options
-        """
         self.options = options
-        # Use threshold from options if set, otherwise fall back to constant
-        self.long_duration_threshold_seconds = int(options.long_duration_threshold_hours * 3600)
-        self.long_duration_threshold_nanoseconds = (
-            self.long_duration_threshold_seconds * 1_000_000_000
+        self.long_duration_threshold_nanoseconds = int(
+            options.long_duration_threshold_hours * 3600 * 1_000_000_000
         )
 
     def process_app_usage(
         self,
-        df: pd.DataFrame,
-        resumed_mask: pd.Series,
-        same_app_stop_mask: pd.Series,
-        other_stop_mask: pd.Series,
-        stopped_mask: pd.Series,
-    ) -> pd.DataFrame:
-        """Pair start events with semantically compatible stop events."""
-        LOGGER.debug(
-            "Using optimized app usage algorithm "
-            f"(stop reuse: {self.options.allow_stop_event_reuse})"
-        )
-        df_copy = df.reset_index(drop=True)
-        row_count = len(df_copy.index)
-        event_timestamp_series = df_copy[Column.EVENT_TIMESTAMP]
-
-        # Ensure timestamp columns can hold tz-aware timestamps without dtype warnings
-        use_datetime_columns = (
-            rust_matcher_enabled() and _can_use_datetime_columns(event_timestamp_series)
-        )
-        for column in (Column.START_TIMESTAMP, Column.STOP_TIMESTAMP):
-            if column not in df_copy.columns or df_copy[column].isna().all():
-                df_copy[column] = (
-                    pd.Series(pd.NaT, index=df_copy.index, dtype=event_timestamp_series.dtype)
-                    if use_datetime_columns
-                    else pd.Series(_nat_object_array(row_count), dtype="object")
-                )
-            else:
-                df_copy[column] = df_copy[column].astype("object")
-
-        app_packages = df_copy[Column.APP_PACKAGE_NAME].values
-        event_timestamps = event_timestamp_series.array
-        timestamp_nanoseconds = getattr(event_timestamp_series.array, "asi8", None)
-
-        resumed_flags = resumed_mask.to_numpy(dtype=bool)
-        same_app_stop_flags = same_app_stop_mask.to_numpy(dtype=bool)
-        other_stop_flags = other_stop_mask.to_numpy(dtype=bool)
-        stopped_flags = stopped_mask.to_numpy(dtype=bool)
+        df: pl.DataFrame,
+        resumed_mask: pl.Series,
+        same_app_stop_mask: pl.Series,
+        other_stop_mask: pl.Series,
+        stopped_mask: pl.Series,
+    ) -> pl.DataFrame:
+        df_copy = df.clone()
+        timestamp_ns = df_copy.get_column(Column.EVENT_TIMESTAMP).dt.epoch("ns").to_numpy()
+        app_packages = df_copy.get_column(Column.APP_PACKAGE_NAME).fill_null("").to_numpy()
+        resumed_flags = resumed_mask.to_numpy().astype(bool, copy=False)
+        same_stop_flags = same_app_stop_mask.to_numpy().astype(bool, copy=False)
+        other_stop_flags = other_stop_mask.to_numpy().astype(bool, copy=False)
+        stopped_flags = stopped_mask.to_numpy().astype(bool, copy=False)
 
         rust_result = process_app_usage_with_rust(
             df=df_copy,
             app_packages=app_packages,
-            event_timestamps=event_timestamps,
-            timestamp_nanoseconds=timestamp_nanoseconds,
+            event_timestamps=timestamp_ns,
+            timestamp_nanoseconds=timestamp_ns,
             resumed_flags=resumed_flags,
-            same_app_stop_flags=same_app_stop_flags,
+            same_app_stop_flags=same_stop_flags,
             other_stop_flags=other_stop_flags,
             stopped_flags=stopped_flags,
             options=self.options,
@@ -177,215 +77,166 @@ class OptimizedAppUsageAlgorithm:
         if rust_result is not None:
             return rust_result
 
-        timestamps = event_timestamp_series.astype("object").values
-        start_timestamps = df_copy[Column.START_TIMESTAMP].to_numpy(copy=True)
-        stop_timestamps = df_copy[Column.STOP_TIMESTAMP].to_numpy(copy=True)
+        return self._apply_python_matcher(
+            df_copy,
+            app_packages=app_packages,
+            timestamp_ns=timestamp_ns,
+            resumed_flags=resumed_flags,
+            same_stop_flags=same_stop_flags,
+            other_stop_flags=other_stop_flags,
+            stopped_flags=stopped_flags,
+        )
 
-        has_start_updates = False
-        has_stop_updates = False
-        missing_indices: list[int] = []
+    def _apply_python_matcher(
+        self,
+        df: pl.DataFrame,
+        *,
+        app_packages: np.ndarray,
+        timestamp_ns: np.ndarray,
+        resumed_flags: np.ndarray,
+        same_stop_flags: np.ndarray,
+        other_stop_flags: np.ndarray,
+        stopped_flags: np.ndarray,
+    ) -> pl.DataFrame:
+        start_indices, stop_start_indices, stop_event_indices, missing_indices = (
+            self._match_usage_updates_python(
+                app_packages=app_packages,
+                timestamp_ns=timestamp_ns,
+                resumed_flags=resumed_flags,
+                same_stop_flags=same_stop_flags,
+                other_stop_flags=other_stop_flags,
+                stopped_flags=stopped_flags,
+            )
+        )
+
+        row_count = df.height
+        start_ns = np.full(row_count, MISSING_TIMESTAMP_NS, dtype=np.int64)
+        stop_ns = np.full(row_count, MISSING_TIMESTAMP_NS, dtype=np.int64)
+        interaction_values = df.get_column(Column.INTERACTION_TYPE).to_numpy()
+
+        if start_indices.size:
+            start_ns[start_indices] = timestamp_ns[start_indices]
+        if stop_start_indices.size:
+            stop_ns[stop_start_indices] = timestamp_ns[stop_event_indices]
+        if missing_indices.size:
+            interaction_values[missing_indices] = str(InteractionType.END_OF_USAGE_MISSING)
+
+        event_dtype = df.schema[Column.EVENT_TIMESTAMP]
+        timezone_name = event_dtype.time_zone if isinstance(event_dtype, pl.Datetime) else None
+        return df.with_columns(
+            [
+                _ns_to_datetime_series(Column.START_TIMESTAMP, start_ns, timezone_name),
+                _ns_to_datetime_series(Column.STOP_TIMESTAMP, stop_ns, timezone_name),
+                pl.Series(Column.INTERACTION_TYPE, interaction_values),
+            ]
+        )
+
+    def _match_usage_updates_python(
+        self,
+        *,
+        app_packages: np.ndarray,
+        timestamp_ns: np.ndarray,
+        resumed_flags: np.ndarray,
+        same_stop_flags: np.ndarray,
+        other_stop_flags: np.ndarray,
+        stopped_flags: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         open_start_indices: list[int] = []
-        allow_stop_event_reuse = self.options.allow_stop_event_reuse
-        use_activity_stopped_as_fallback = self.options.use_activity_stopped_as_fallback
-        apply_threshold_to_fallback = self.options.apply_threshold_to_activity_stopped_fallback
-        is_valid_duration_at = self._is_valid_duration_at
+        start_indices: list[int] = []
+        stop_start_indices: list[int] = []
+        stop_event_indices: list[int] = []
+        missing_indices: list[int] = []
 
-        for index in range(row_count):
+        def is_valid_duration(start_index: int, stop_index: int, *, enforce_threshold: bool) -> bool:
+            duration_ns = int(timestamp_ns[stop_index]) - int(timestamp_ns[start_index])
+            if duration_ns < 0:
+                return False
+            return not enforce_threshold or duration_ns <= self.long_duration_threshold_nanoseconds
+
+        for index in range(len(app_packages)):
             current_app = app_packages[index]
-            current_timestamp = timestamps[index]
-            is_normal_stop = same_app_stop_flags[index] or other_stop_flags[index]
-            is_fallback_stop = stopped_flags[index] and use_activity_stopped_as_fallback
+            is_normal_stop = bool(same_stop_flags[index] or other_stop_flags[index])
+            is_fallback_stop = bool(
+                stopped_flags[index] and self.options.use_activity_stopped_as_fallback
+            )
 
-            if allow_stop_event_reuse and (is_normal_stop or is_fallback_stop):
-                compatible_open_starts = self._compatible_open_starts_for_stop(
-                    stop_index=index,
-                    current_app=current_app,
-                    app_packages=app_packages,
-                    timestamps=timestamps,
-                    timestamp_nanoseconds=timestamp_nanoseconds,
-                    open_start_indices=open_start_indices,
-                    same_app_stop_flags=same_app_stop_flags,
-                    other_stop_flags=other_stop_flags,
-                    stopped_flags=stopped_flags,
-                )
-                for start_index in compatible_open_starts:
-                    stop_timestamps[start_index] = current_timestamp
-                    has_stop_updates = True
-                    open_start_indices.remove(start_index)
-            elif is_normal_stop or is_fallback_stop:
-                start_index = None
-                for candidate_start_index in reversed(open_start_indices):
-                    start_app = app_packages[candidate_start_index]
-                    same_app_compatible = (
-                        same_app_stop_flags[index] and start_app == current_app
+            if self.options.allow_stop_event_reuse and (is_normal_stop or is_fallback_stop):
+                still_open: list[int] = []
+                for start_index in open_start_indices:
+                    start_app = app_packages[start_index]
+                    same_app_compatible = bool(same_stop_flags[index] and start_app == current_app)
+                    other_app_compatible = bool(other_stop_flags[index] and start_app != current_app)
+                    fallback_compatible = bool(
+                        not is_normal_stop and is_fallback_stop and start_app == current_app
                     )
-                    other_app_compatible = (
-                        other_stop_flags[index] and start_app != current_app
-                    )
-                    fallback_compatible = (
-                        not is_normal_stop
-                        and is_fallback_stop
-                        and start_app == current_app
-                    )
-                    if not (
-                        same_app_compatible
-                        or other_app_compatible
-                        or fallback_compatible
-                    ):
+                    if not (same_app_compatible or other_app_compatible or fallback_compatible):
+                        still_open.append(start_index)
                         continue
-
                     enforce_threshold = (
-                        not fallback_compatible or apply_threshold_to_fallback
+                        not fallback_compatible
+                        or self.options.apply_threshold_to_activity_stopped_fallback
                     )
-                    if is_valid_duration_at(
-                        candidate_start_index,
-                        index,
-                        timestamps=timestamps,
-                        timestamp_nanoseconds=timestamp_nanoseconds,
-                        enforce_threshold=enforce_threshold,
-                    ):
-                        start_index = candidate_start_index
+                    if is_valid_duration(start_index, index, enforce_threshold=enforce_threshold):
+                        stop_start_indices.append(start_index)
+                        stop_event_indices.append(index)
+                    else:
+                        still_open.append(start_index)
+                open_start_indices = still_open
+            elif is_normal_stop or is_fallback_stop:
+                matched_position: int | None = None
+                for position in range(len(open_start_indices) - 1, -1, -1):
+                    start_index = open_start_indices[position]
+                    start_app = app_packages[start_index]
+                    same_app_compatible = bool(same_stop_flags[index] and start_app == current_app)
+                    other_app_compatible = bool(other_stop_flags[index] and start_app != current_app)
+                    fallback_compatible = bool(
+                        not is_normal_stop and is_fallback_stop and start_app == current_app
+                    )
+                    if not (same_app_compatible or other_app_compatible or fallback_compatible):
+                        continue
+                    enforce_threshold = (
+                        not fallback_compatible
+                        or self.options.apply_threshold_to_activity_stopped_fallback
+                    )
+                    if is_valid_duration(start_index, index, enforce_threshold=enforce_threshold):
+                        matched_position = position
                         break
-
-                if start_index is not None:
-                    stop_timestamps[start_index] = current_timestamp
-                    has_stop_updates = True
-                    open_start_indices.remove(start_index)
+                if matched_position is not None:
+                    start_index = open_start_indices.pop(matched_position)
+                    stop_start_indices.append(start_index)
+                    stop_event_indices.append(index)
 
             if resumed_flags[index]:
-                start_timestamps[index] = current_timestamp
-                has_start_updates = True
+                start_indices.append(index)
                 open_start_indices.append(index)
 
         if open_start_indices:
-            last_index = row_count - 1
-            last_timestamp = timestamps[last_index]
-            for start_index in list(open_start_indices):
-                if last_index > start_index and is_valid_duration_at(
+            last_index = len(app_packages) - 1
+            for start_index in open_start_indices:
+                if last_index > start_index and is_valid_duration(
                     start_index,
                     last_index,
-                    timestamps=timestamps,
-                    timestamp_nanoseconds=timestamp_nanoseconds,
                     enforce_threshold=True,
                 ):
-                    stop_timestamps[start_index] = last_timestamp
-                    has_stop_updates = True
-                    open_start_indices.remove(start_index)
+                    stop_start_indices.append(start_index)
+                    stop_event_indices.append(last_index)
+                else:
+                    missing_indices.append(start_index)
 
-        missing_indices.extend(open_start_indices)
-
-        if has_start_updates:
-            df_copy[Column.START_TIMESTAMP] = start_timestamps
-
-        if has_stop_updates:
-            df_copy[Column.STOP_TIMESTAMP] = stop_timestamps
-
-        if missing_indices:
-            df_copy.loc[missing_indices, Column.INTERACTION_TYPE] = (
-                InteractionType.END_OF_USAGE_MISSING
-            )
-
-        return df_copy
-
-    def _compatible_open_starts_for_stop(
-        self,
-        *,
-        stop_index: int,
-        current_app: Any,
-        app_packages: Any,
-        timestamps: Any,
-        timestamp_nanoseconds: Any,
-        open_start_indices: list[int],
-        same_app_stop_flags: Any,
-        other_stop_flags: Any,
-        stopped_flags: Any,
-    ) -> list[int]:
-        """Return compatible open starts in chronological order for a stop row."""
-        normal_stop = same_app_stop_flags[stop_index] or other_stop_flags[stop_index]
-        fallback_stop = (
-            stopped_flags[stop_index] and self.options.use_activity_stopped_as_fallback
-        )
-
-        compatible_starts: list[int] = []
-        for start_index in open_start_indices:
-            start_app = app_packages[start_index]
-            same_app_compatible = (
-                same_app_stop_flags[stop_index] and start_app == current_app
-            )
-            other_app_compatible = (
-                other_stop_flags[stop_index] and start_app != current_app
-            )
-            fallback_compatible = (
-                not normal_stop
-                and fallback_stop
-                and start_app == current_app
-            )
-
-            if not (same_app_compatible or other_app_compatible or fallback_compatible):
-                continue
-
-            enforce_threshold = (
-                not fallback_compatible
-                or self.options.apply_threshold_to_activity_stopped_fallback
-            )
-            if self._is_valid_duration_at(
-                start_index,
-                stop_index,
-                timestamps=timestamps,
-                timestamp_nanoseconds=timestamp_nanoseconds,
-                enforce_threshold=enforce_threshold,
-            ):
-                compatible_starts.append(start_index)
-
-        return compatible_starts
-
-    def _is_valid_duration_at(
-        self,
-        start_index: int,
-        stop_index: int,
-        *,
-        timestamps: Any,
-        timestamp_nanoseconds: Any,
-        enforce_threshold: bool,
-    ) -> bool:
-        """Return whether indexed timestamps form a valid duration."""
-        if timestamp_nanoseconds is not None:
-            duration_nanoseconds = int(timestamp_nanoseconds[stop_index]) - int(
-                timestamp_nanoseconds[start_index]
-            )
-            if duration_nanoseconds < 0:
-                return False
-            return (
-                True
-                if not enforce_threshold
-                else duration_nanoseconds <= self.long_duration_threshold_nanoseconds
-            )
-
-        return self._is_valid_duration(
-            timestamps[start_index],
-            timestamps[stop_index],
-            enforce_threshold=enforce_threshold,
-        )
-
-    def _is_valid_duration(
-        self,
-        start_timestamp: Any,
-        stop_timestamp: Any,
-        *,
-        enforce_threshold: bool,
-    ) -> bool:
-        """Return whether a candidate stop produces a valid non-negative duration."""
-        try:
-            duration_seconds = (stop_timestamp - start_timestamp).total_seconds()
-        except (AttributeError, TypeError):
-            duration_seconds = safe_duration_seconds(
-                pd.Timestamp(stop_timestamp),
-                pd.Timestamp(start_timestamp),
-            )
-        if duration_seconds < 0:
-            return False
         return (
-            True
-            if not enforce_threshold
-            else duration_seconds <= self.long_duration_threshold_seconds
+            np.asarray(start_indices, dtype=np.intp),
+            np.asarray(stop_start_indices, dtype=np.intp),
+            np.asarray(stop_event_indices, dtype=np.intp),
+            np.asarray(missing_indices, dtype=np.intp),
         )
+
+
+def _ns_to_datetime_series(name: str, values: np.ndarray, timezone_name: str | None) -> pl.Series:
+    converted: list[object] = [None if int(value) == MISSING_TIMESTAMP_NS else int(value) for value in values]
+    if timezone_name:
+        return (
+            pl.Series(name, converted, dtype=pl.Int64)
+            .cast(pl.Datetime("ns", "UTC"))
+            .dt.convert_time_zone(timezone_name)
+        )
+    return pl.Series(name, converted, dtype=pl.Int64).cast(pl.Datetime("ns"))

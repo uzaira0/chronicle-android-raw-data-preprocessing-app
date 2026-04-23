@@ -63,13 +63,11 @@ hidden_imports = [
     'chronicle_preprocessing_app.utils.file_utils',
     'chronicle_preprocessing_app.web',
     # Third-party dependencies
-    'pandas',
     'polars',
     'pyarrow',
     'numpy',
     'matplotlib',
     'pydantic',
-    'pandera',
     'openpyxl',
     'openpyxl.styles',
     'pytz',

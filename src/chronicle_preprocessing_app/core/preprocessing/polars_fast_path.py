@@ -1,10 +1,8 @@
 """
 Polars-native preprocessing fast path for the standard app-usage workflow.
 
-This path keeps the canonical app-usage semantics but avoids converting the main
-processing frame into pandas. Legacy/internal branches such as survey handling,
-study-date placeholder injection, and screen-usage derivation continue to use
-the existing pandas pipeline until they are migrated as well.
+This path keeps the canonical app-usage semantics and is the shared Polars-native
+core used by the supported preprocessing flow.
 """
 
 from __future__ import annotations
@@ -154,7 +152,7 @@ class PolarsFastPathPreprocessor:
     def _rename_interaction_types(self, df: pl.DataFrame) -> pl.DataFrame:
         return df.with_columns(
             pl.col(Column.INTERACTION_TYPE)
-            .replace(
+            .replace_strict(
                 list(ALL_INTERACTION_TYPES_MAP.keys()),
                 list(ALL_INTERACTION_TYPES_MAP.values()),
                 default=pl.col(Column.INTERACTION_TYPE),
@@ -209,17 +207,14 @@ class PolarsFastPathPreprocessor:
         target_timezone: str | None = None
 
         if option == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE:
-            if self.options.selected_timezone is None:
-                raise ValueError("Timezone must be provided")
-            df = df.filter(
-                pl.col(Column.TIMEZONE).is_not_null()
-                & (pl.col(Column.TIMEZONE) == str(self.options.selected_timezone))
-            )
-            target_timezone = str(self.options.selected_timezone)
+            target_timezone = str(self.options.selected_timezone) if self.options.selected_timezone else self._determine_primary_timezone(df)
+            if self.options.selected_timezone is not None:
+                df = df.filter(
+                    pl.col(Column.TIMEZONE).is_not_null()
+                    & (pl.col(Column.TIMEZONE) == str(self.options.selected_timezone))
+                )
         elif option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_SELECTED_TIMEZONE:
-            if self.options.selected_timezone is None:
-                raise ValueError("Timezone must be provided")
-            target_timezone = str(self.options.selected_timezone)
+            target_timezone = str(self.options.selected_timezone) if self.options.selected_timezone else self._determine_primary_timezone(df)
         elif option in (
             TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE,
             TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE,
@@ -239,9 +234,11 @@ class PolarsFastPathPreprocessor:
         if target_timezone is None:
             return df
 
-        df = df.with_columns(
-            pl.col(timestamp_column).dt.convert_time_zone(target_timezone).alias(timestamp_column)
-        )
+        if target_timezone and isinstance(df.schema[timestamp_column], pl.Datetime):
+            if df.schema[timestamp_column].time_zone is not None:
+                df = df.with_columns(
+                    pl.col(timestamp_column).dt.convert_time_zone(target_timezone).alias(timestamp_column)
+                )
         if Column.TIMEZONE in df.columns:
             df = df.with_columns(pl.lit(target_timezone).alias(Column.TIMEZONE))
         return df
@@ -682,25 +679,38 @@ class PolarsFastPathPreprocessor:
         start_series = pl.Series("__start_ns", start_ns)
         stop_series = pl.Series("__stop_ns", stop_ns)
         interaction_series = pl.Series(Column.INTERACTION_TYPE, interaction_values)
+        timestamp_dtype = (
+            pl.Datetime("ns", time_zone=timestamp_tz)
+            if timestamp_tz
+            else pl.Datetime("ns")
+        )
         df = df.with_columns([start_series, stop_series, interaction_series])
 
         df = df.with_columns(
             [
                 pl.when(pl.col("__start_ns") != _MISSING_INT64)
                 .then(
-                    pl.from_epoch(pl.col("__start_ns"), time_unit="ns")
-                    .dt.replace_time_zone("UTC")
-                    .dt.convert_time_zone(timestamp_tz)
+                    (
+                        pl.from_epoch(pl.col("__start_ns"), time_unit="ns")
+                        .dt.replace_time_zone("UTC")
+                        .dt.convert_time_zone(timestamp_tz)
+                        if timestamp_tz
+                        else pl.from_epoch(pl.col("__start_ns"), time_unit="ns")
+                    )
                 )
-                .otherwise(pl.lit(None, dtype=df.schema[Column.EVENT_TIMESTAMP]))
+                .otherwise(pl.lit(None, dtype=timestamp_dtype))
                 .alias(Column.START_TIMESTAMP),
                 pl.when(pl.col("__stop_ns") != _MISSING_INT64)
                 .then(
-                    pl.from_epoch(pl.col("__stop_ns"), time_unit="ns")
-                    .dt.replace_time_zone("UTC")
-                    .dt.convert_time_zone(timestamp_tz)
+                    (
+                        pl.from_epoch(pl.col("__stop_ns"), time_unit="ns")
+                        .dt.replace_time_zone("UTC")
+                        .dt.convert_time_zone(timestamp_tz)
+                        if timestamp_tz
+                        else pl.from_epoch(pl.col("__stop_ns"), time_unit="ns")
+                    )
                 )
-                .otherwise(pl.lit(None, dtype=df.schema[Column.EVENT_TIMESTAMP]))
+                .otherwise(pl.lit(None, dtype=timestamp_dtype))
                 .alias(Column.STOP_TIMESTAMP),
             ]
         )
@@ -955,9 +965,15 @@ class PolarsFastPathPreprocessor:
                     pl.col(column).dt.strftime("%m-%d-%Y %H:%M:%S").alias(column)
                 )
         if Column.EVENT_TIMESTAMP in df.columns:
+            event_dtype = df.schema[Column.EVENT_TIMESTAMP]
+            event_format = (
+                "%Y-%m-%d %H:%M:%S%:z"
+                if isinstance(event_dtype, pl.Datetime) and event_dtype.time_zone is not None
+                else "%Y-%m-%d %H:%M:%S"
+            )
             expressions.append(
                 pl.col(Column.EVENT_TIMESTAMP)
-                .dt.strftime("%Y-%m-%d %H:%M:%S%:z")
+                .dt.strftime(event_format)
                 .alias(Column.EVENT_TIMESTAMP)
             )
 
