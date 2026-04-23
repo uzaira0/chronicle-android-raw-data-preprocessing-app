@@ -14,23 +14,35 @@ Usage:
 
 from __future__ import annotations
 
+import csv
+import logging
 import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar, runtime_checkable
 
-import pandas as pd
+try:
+    import pandas as pd
+except ImportError:  # pragma: no cover - exercised in dedicated optional-dependency tests
+    pd = None
 
 # Conditional import for type checking
 if TYPE_CHECKING:
+    import pandas as pd
     import polars as pl
 
-# Type aliases for DataFrame types
-PandasDataFrame = pd.DataFrame
-PandasSeries = pd.Series
 
-# Environment variable to control which implementation to use
-USE_POLARS = os.getenv("CHRONICLE_USE_POLARS", "true").lower() == "true"
+LOGGER = logging.getLogger(__name__)
+
+
+def _require_pandas() -> Any:
+    if pd is None:
+        raise ImportError("Pandas is required for this operation")
+    return pd
+
+
+def _should_use_polars() -> bool:
+    return os.getenv("CHRONICLE_USE_POLARS", "true").lower() == "true"
 
 
 @runtime_checkable
@@ -114,7 +126,8 @@ class PandasProvider:
         dtypes: dict[str, Any] | None = None,
     ) -> pd.DataFrame:
         """Read a CSV file into a Pandas DataFrame."""
-        return pd.read_csv(
+        pandas = _require_pandas()
+        return pandas.read_csv(
             path,
             skipinitialspace=skipinitialspace,
             dtype=dtypes,
@@ -158,7 +171,8 @@ class PandasProvider:
 
     def concat(self, dfs: list[pd.DataFrame], *, ignore_index: bool = True) -> pd.DataFrame:
         """Concatenate multiple Pandas DataFrames."""
-        return pd.concat(dfs, ignore_index=ignore_index)
+        pandas = _require_pandas()
+        return pandas.concat(dfs, ignore_index=ignore_index)
 
     def to_pandas(self, df: pd.DataFrame) -> pd.DataFrame:
         """Return the Pandas DataFrame as-is."""
@@ -190,11 +204,15 @@ class PolarsProvider:
         dtypes: dict[str, Any] | None = None,
     ) -> "pl.DataFrame":
         """Read a CSV file into a Polars DataFrame."""
-        # Polars handles whitespace differently - use try_parse_dates for automatic parsing
+        # Polars handles whitespace differently, so normalize headers and string values when
+        # the caller requests pandas-like leading-space stripping.
         schema_overrides = None
         if dtypes:
-            # Convert pandas dtypes to polars dtypes
-            schema_overrides = self._convert_pandas_dtypes(dtypes)
+            schema_overrides = self._build_schema_overrides(
+                path,
+                dtypes,
+                skipinitialspace=skipinitialspace,
+            )
 
         df = self._pl.read_csv(
             path,
@@ -202,13 +220,59 @@ class PolarsProvider:
             try_parse_dates=False,  # We handle date parsing separately
         )
 
-        # Handle skipinitialspace by stripping string columns
         if skipinitialspace:
-            string_cols = [col for col in df.columns if df[col].dtype == self._pl.Utf8]
+            renamed_columns = {
+                column: column.strip()
+                for column in df.columns
+                if column != column.strip()
+            }
+            if renamed_columns:
+                df = df.rename(renamed_columns)
+
+            string_cols = [
+                column
+                for column, dtype in df.schema.items()
+                if dtype == self._pl.Utf8
+            ]
             if string_cols:
-                df = df.with_columns([self._pl.col(col).str.strip_chars() for col in string_cols])
+                df = df.with_columns(
+                    [
+                        self._pl.col(column).cast(self._pl.Utf8).str.strip_chars()
+                        for column in string_cols
+                    ]
+                )
 
         return df
+
+    def _build_schema_overrides(
+        self,
+        path: str | Path,
+        dtypes: dict[str, Any],
+        *,
+        skipinitialspace: bool,
+    ) -> dict[str, Any]:
+        schema_overrides = self._convert_pandas_dtypes(dtypes)
+        if not skipinitialspace or not schema_overrides:
+            return schema_overrides
+
+        header_map = self._read_csv_header_map(path)
+        if not header_map:
+            return schema_overrides
+
+        remapped_overrides: dict[str, Any] = {}
+        for column, dtype in schema_overrides.items():
+            remapped_overrides[header_map.get(column, column)] = dtype
+        return remapped_overrides
+
+    def _read_csv_header_map(self, path: str | Path) -> dict[str, str]:
+        try:
+            with Path(path).open(newline="", encoding="utf-8") as file_handle:
+                reader = csv.reader(file_handle)
+                header_row = next(reader, [])
+        except (FileNotFoundError, StopIteration, UnicodeDecodeError):
+            return {}
+
+        return {header.strip(): header for header in header_row if header.strip()}
 
     def _convert_pandas_dtypes(self, dtypes: dict[str, Any]) -> dict[str, Any]:
         """Convert pandas dtype specifications to Polars dtypes."""
@@ -216,19 +280,47 @@ class PolarsProvider:
         dtype_map = {
             "str": pl.Utf8,
             "string": pl.Utf8,
+            "object": pl.Utf8,
+            "utf8": pl.Utf8,
             "int": pl.Int64,
             "int64": pl.Int64,
             "int32": pl.Int32,
+            "int16": pl.Int16,
+            "int8": pl.Int8,
+            "uint": pl.UInt64,
+            "uint64": pl.UInt64,
+            "uint32": pl.UInt32,
             "float": pl.Float64,
             "float64": pl.Float64,
+            "float32": pl.Float32,
             "bool": pl.Boolean,
+            "boolean": pl.Boolean,
+            "date": pl.Date,
+            "datetime": pl.Datetime,
+            "datetime64[ns]": pl.Datetime,
+            "time": pl.Time,
+            "category": pl.Categorical,
         }
         result = {}
         for col, dtype in dtypes.items():
-            dtype_str = str(dtype).lower()
+            dtype_str = self._normalize_dtype_name(dtype)
             if dtype_str in dtype_map:
                 result[col] = dtype_map[dtype_str]
         return result
+
+    def _normalize_dtype_name(self, dtype: Any) -> str:
+        dtype_str = str(dtype).lower().strip()
+        if dtype_str.startswith("numpy."):
+            dtype_str = dtype_str.removeprefix("numpy.")
+        if dtype_str.startswith("pandas."):
+            dtype_str = dtype_str.removeprefix("pandas.")
+        if dtype_str.startswith("string["):
+            return "string"
+        if dtype_str.startswith("datetime64"):
+            return "datetime"
+        if dtype_str.startswith("timedelta"):
+            return "time"
+        return dtype_str
 
     def to_csv(
         self,
@@ -281,11 +373,13 @@ class PolarsProvider:
 
     def to_pandas(self, df: "pl.DataFrame") -> pd.DataFrame:
         """Convert a Polars DataFrame to Pandas."""
+        _require_pandas()
         return df.to_pandas()
 
     def from_pandas(self, df: pd.DataFrame) -> "pl.DataFrame":
         """Convert a Pandas DataFrame to Polars."""
         pl = self._pl
+        _require_pandas()
         return pl.from_pandas(df)
 
 
@@ -317,17 +411,19 @@ def get_dataframe_provider() -> PandasProvider | PolarsProvider:
     Returns:
         The active DataFrame provider (Pandas or Polars)
     """
-    if USE_POLARS:
+    if _should_use_polars():
         try:
             return get_polars_provider()
         except ImportError:
-            import logging
-
-            logging.getLogger(__name__).warning("Polars not available, falling back to Pandas")
+            LOGGER.warning("Polars not available, falling back to Pandas")
             return get_pandas_provider()
     return get_pandas_provider()
 
 
 # Type alias for DataFrame-like objects (works with both Pandas and Polars)
-DataFrameLike = TypeVar("DataFrameLike", pd.DataFrame, "pl.DataFrame")
+if TYPE_CHECKING:
+    import polars as pl
 
+    DataFrameLike = TypeVar("DataFrameLike", pd.DataFrame, pl.DataFrame)
+else:
+    DataFrameLike = Any
