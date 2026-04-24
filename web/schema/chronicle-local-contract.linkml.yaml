@@ -100,6 +100,7 @@ slots:
     required: true
   bytes_base64:
     required: true
+    description: Base64-encoded file contents.
   filter_file:
     range: BrowserSupportFile
   keep_awake_apps_file:

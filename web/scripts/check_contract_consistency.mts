@@ -11,7 +11,7 @@ import {
   BROWSER_SUPPORT_FILE_KEYS,
   TIMEZONE_HANDLING_VALUES,
   USAGE_SESSION_MODE_VALUES,
-} from "../src/lib/browserPipeline";
+} from "../src/lib/generatedContract";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const webDir = path.resolve(scriptDir, "..");

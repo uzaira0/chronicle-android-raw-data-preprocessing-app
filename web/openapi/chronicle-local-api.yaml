@@ -2,10 +2,10 @@ openapi: 3.1.0
 info:
   title: Chronicle Local Processing Contract
   version: 0.1.0
-  description: >
-    Boundary contract for the local-only browser preprocessing surface. The canonical
-    source-of-truth model lives in `web/schema/chronicle-local-contract.linkml.yaml`;
-    this OpenAPI document is a derived/request-response view of that same contract.
+  description: Boundary contract for the local-only browser preprocessing surface.
+    The canonical source-of-truth model lives in
+    `web/schema/chronicle-local-contract.linkml.yaml`; this OpenAPI document is
+    generated from that same contract.
 servers:
   - url: http://local.worker.invalid
 paths:
@@ -29,7 +29,8 @@ paths:
   /process-raw-csv:
     post:
       operationId: processRawCsv
-      summary: Process a raw Chronicle CSV file locally and return app and/or screen outputs.
+      summary: Process a raw Chronicle CSV file locally and return app and/or screen
+        outputs.
       requestBody:
         required: true
         content:
@@ -47,7 +48,9 @@ components:
   schemas:
     BrowserSupportFile:
       type: object
-      required: [name, bytesBase64]
+      required:
+        - name
+        - bytesBase64
       properties:
         name:
           type: string
@@ -65,11 +68,14 @@ components:
           $ref: "#/components/schemas/BrowserSupportFile"
     BrowserProcessingRuntime:
       type: object
-      description: Internal/test-only runtime metadata that should not be surfaced as end-user options.
       properties:
         datetimeOfPreprocessing:
           type: string
-          description: Fixed preprocessing timestamp for deterministic output stamping.
+          description: Internal/test-only fixed preprocessing timestamp used to make
+            output stamping deterministic across runtimes. This is not intended
+            as an end-user option.
+      description: Internal/test-only runtime metadata that should not be surfaced as
+        end-user options.
     BrowserProcessingOptions:
       type: object
       required:
@@ -103,7 +109,10 @@ components:
           type: string
         usageSessionMode:
           type: string
-          enum: [app_usage, screen_usage, app_and_screen_usage]
+          enum:
+            - app_usage
+            - screen_usage
+            - app_and_screen_usage
         allowStopEventReuse:
           type: boolean
         useActivityStoppedAsFallback:
@@ -118,7 +127,11 @@ components:
           type: string
         timezoneHandling:
           type: string
-          enum: [selected-filter, selected-convert, primary-filter, primary-convert]
+          enum:
+            - selected-filter
+            - selected-convert
+            - primary-filter
+            - primary-convert
         useFilterFile:
           type: boolean
         useKeepAwakeAppsFile:
@@ -153,7 +166,6 @@ components:
           type: boolean
         parallelMaxWorkers:
           type: integer
-          nullable: true
         sameAppInteractionTypesToStopUsageAt:
           type: array
           items:
@@ -168,7 +180,8 @@ components:
             type: string
     DiscoverTimezonesRequest:
       type: object
-      required: [csvText]
+      required:
+        - csvText
       properties:
         csvText:
           type: string
@@ -176,7 +189,8 @@ components:
           $ref: "#/components/schemas/BrowserProcessingRuntime"
     DiscoverTimezonesResponse:
       type: object
-      required: [timezones]
+      required:
+        - timezones
       properties:
         timezones:
           type: array
@@ -184,7 +198,10 @@ components:
             type: string
     ProcessRawCsvRequest:
       type: object
-      required: [inputFileName, csvText, options]
+      required:
+        - inputFileName
+        - csvText
+        - options
       properties:
         inputFileName:
           type: string
@@ -198,11 +215,17 @@ components:
           $ref: "#/components/schemas/BrowserProcessingRuntime"
     ProcessedOutputFileResult:
       type: object
-      required: [kind, outputFileName, csv, rowCount]
+      required:
+        - kind
+        - outputFileName
+        - csv
+        - rowCount
       properties:
         kind:
           type: string
-          enum: [app, screen]
+          enum:
+            - app
+            - screen
         outputFileName:
           type: string
         csv:

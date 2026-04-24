@@ -40,7 +40,7 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   screenUsageManualLockMaxTailGapSeconds: 30,
   screenUsageKeyguardNearStopSeconds: 2,
   parallelProcessing: false,
-  parallelMaxWorkers: null,
+  parallelMaxWorkers: undefined,
   sameAppInteractionTypesToStopUsageAt: ["Activity Paused", "Activity Resumed"],
   otherInteractionTypesToStopUsageAt: [
     "Activity Resumed",
@@ -56,9 +56,6 @@ export const USAGE_SESSION_MODE_OPTIONS = [
   { value: "screen_usage", label: "Generate screen usage file" },
   { value: "app_and_screen_usage", label: "Generate both app and screen files" },
 ] as const;
-export const USAGE_SESSION_MODE_VALUES = Object.freeze(
-  USAGE_SESSION_MODE_OPTIONS.map((option) => option.value),
-);
 
 export const TIMEZONE_HANDLING_OPTIONS = [
   {
@@ -78,18 +75,6 @@ export const TIMEZONE_HANDLING_OPTIONS = [
     label: "Convert data to the primary timezone per file",
   },
 ] as const;
-export const TIMEZONE_HANDLING_VALUES = Object.freeze(
-  TIMEZONE_HANDLING_OPTIONS.map((option) => option.value),
-);
-export const BROWSER_PROCESSING_OPTION_KEYS = Object.freeze(
-  Object.keys(DEFAULT_BROWSER_OPTIONS) as Array<keyof BrowserProcessingOptions>,
-);
-export const BROWSER_SUPPORT_FILE_KEYS = Object.freeze([
-  "filterFile",
-  "keepAwakeAppsFile",
-  "appCodebookFile",
-] as const);
-export const BROWSER_RUNTIME_KEYS = Object.freeze(["datetimeOfPreprocessing"] as const);
 
 export const BOOLEAN_OPTION_CONTROLS = [
   { key: "useFilterFile", label: "Use filter file" },

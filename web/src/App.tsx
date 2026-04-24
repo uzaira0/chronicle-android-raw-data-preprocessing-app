@@ -45,10 +45,7 @@ function parseThresholds(value: string): number[] {
     .filter((part) => Number.isFinite(part) && part > 0);
 }
 
-async function readSupportFile(file: File | null): Promise<BrowserSupportFile | null> {
-  if (!file) {
-    return null;
-  }
+async function readSupportFile(file: File): Promise<BrowserSupportFile> {
   return {
     name: file.name,
     bytes: await file.arrayBuffer(),
@@ -238,9 +235,15 @@ export default function App() {
   };
 
   const buildSupportFiles = async (): Promise<BrowserSupportFiles> => ({
-    filterFile: options.useFilterFile ? await readSupportFile(filterFile) : null,
-    keepAwakeAppsFile: options.useKeepAwakeAppsFile ? await readSupportFile(keepAwakeFile) : null,
-    appCodebookFile: options.useAppCodebook ? await readSupportFile(appCodebookFile) : null,
+    ...(options.useFilterFile && filterFile
+      ? { filterFile: await readSupportFile(filterFile) }
+      : {}),
+    ...(options.useKeepAwakeAppsFile && keepAwakeFile
+      ? { keepAwakeAppsFile: await readSupportFile(keepAwakeFile) }
+      : {}),
+    ...(options.useAppCodebook && appCodebookFile
+      ? { appCodebookFile: await readSupportFile(appCodebookFile) }
+      : {}),
   });
 
   const discoverAvailableTimezones = async () => {
@@ -697,7 +700,8 @@ export default function App() {
                 onChange={(event) =>
                   setOptions((current) => ({
                     ...current,
-                    parallelMaxWorkers: Number(event.target.value) > 0 ? Number(event.target.value) : null,
+                    parallelMaxWorkers:
+                      Number(event.target.value) > 0 ? Number(event.target.value) : undefined,
                   }))
                 }
               />
