@@ -55,7 +55,7 @@ jobs:
         
         if [[ "$GITHUB_REF_SAFE" == refs/tags/v* ]]; then
           # If this is a tag, use the tag name as version
-          VERSION=${GITHUB_REF#refs/tags/v}
+          VERSION=${GITHUB_REF_SAFE#refs/tags/v}
         elif [[ "$GITHUB_EVENT_NAME_SAFE" == "workflow_dispatch" ]]; then
           # For manual workflow, use the specified bump type
           BUMP_TYPE="$VERSION_BUMP_SAFE"
