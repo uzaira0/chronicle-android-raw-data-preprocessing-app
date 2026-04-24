@@ -175,6 +175,14 @@ def read_app_codebook(codebook_path: Path | str) -> pl.DataFrame | None:
             )
             raise CodebookFileError(msg)
 
+        string_columns = [
+            column for column, dtype in app_codebook.schema.items() if dtype == pl.Utf8
+        ]
+        if string_columns:
+            app_codebook = app_codebook.with_columns(
+                [pl.col(column).cast(pl.Utf8).str.strip_chars() for column in string_columns]
+            )
+
         app_codebook = app_codebook.unique(
             subset=[AppCodebookColumn.APP_PACKAGE_NAME],
             keep="first",

@@ -38,6 +38,36 @@ from chronicle_preprocessing_app.core.config import PreprocessingOptions
 LOGGER = logging.getLogger(__name__)
 
 _MISSING_INT64 = np.iinfo(np.int64).min
+_CODEBOOK_COLUMN_RENAME_MAP: dict[str, str] = {
+    AppCodebookColumn.APPLICATION_LABEL: Column.CODEBOOK_APPLICATION_LABEL,
+    AppCodebookColumn.PLAY_STORE_GENRE_ID: Column.PLAY_STORE_GENRE_ID,
+    AppCodebookColumn.PLAY_STORE_GENRE: Column.PLAY_STORE_GENRE,
+    AppCodebookColumn.PLAY_STORE_BROAD_APP_CATEGORY: Column.PLAY_STORE_BROAD_APP_CATEGORY,
+    AppCodebookColumn.PLAY_STORE_DEVELOPER: Column.PLAY_STORE_DEVELOPER,
+    AppCodebookColumn.PLAY_STORE_FREE: Column.PLAY_STORE_FREE,
+    AppCodebookColumn.PLAY_STORE_RATING: Column.PLAY_STORE_RATING,
+    AppCodebookColumn.PLAY_STORE_DOWNLOADS: Column.PLAY_STORE_DOWNLOADS,
+    AppCodebookColumn.USC_BROAD_APP_CATEGORY: Column.USC_BROAD_APP_CATEGORY,
+    AppCodebookColumn.USC_GENRE_ID: Column.USC_GENRE_ID,
+    AppCodebookColumn.UMICH_CHILD_APP_CATEGORY_CODE: Column.UMICH_CHILD_APP_CATEGORY_CODE,
+    AppCodebookColumn.UMICH_CHILD_APP_CATEGORY: Column.UMICH_CHILD_APP_CATEGORY,
+    AppCodebookColumn.UMICH_ADULT_APP_CATEGORY_CODE: Column.UMICH_ADULT_APP_CATEGORY_CODE,
+    AppCodebookColumn.UMICH_ADULT_APP_CATEGORY: Column.UMICH_ADULT_APP_CATEGORY,
+    AppCodebookColumn.UMICH_FREE: Column.UMICH_FREE,
+    AppCodebookColumn.UMICH_GAMBLING_APP: Column.UMICH_GAMBLING_APP,
+    AppCodebookColumn.UMICH_INAPPROPRIATE_APP: Column.UMICH_INAPPROPRIATE_APP,
+    AppCodebookColumn.BABYEMU_GENRE_ID_SCRAPED: Column.BABYEMU_GENRE_ID_SCRAPED,
+    AppCodebookColumn.BABYEMU_GENRE_ID_MANUAL: Column.BABYEMU_GENRE_ID_MANUAL,
+    AppCodebookColumn.BABYEMU_BROAD_APP_CATEGORY: Column.BABYEMU_BROAD_APP_CATEGORY,
+    AppCodebookColumn.BABYEMU_MEDIUM_APP_CATEGORY: Column.BABYEMU_MEDIUM_APP_CATEGORY,
+    AppCodebookColumn.BABYEMU_FINE_APP_CATEGORY: Column.BABYEMU_FINE_APP_CATEGORY,
+    AppCodebookColumn.BABYEMU_ALTERNATE_FINE_APP_CATEGORY: Column.BABYEMU_ALTERNATE_FINE_APP_CATEGORY,
+    AppCodebookColumn.BABYEMU_KIDS: Column.BABYEMU_KIDS,
+    AppCodebookColumn.BCM_CNRC_HEURISTIC_CATEGORY: Column.BCM_CNRC_HEURISTIC_CATEGORY,
+    AppCodebookColumn.BCM_CNRC_CATEGORIZATION_SOURCE: Column.BCM_CNRC_CATEGORIZATION_SOURCE,
+    AppCodebookColumn.DATASET: Column.CODEBOOK_DATASET,
+}
+_CODEBOOK_OUTPUT_COLUMNS: tuple[str, ...] = tuple(_CODEBOOK_COLUMN_RENAME_MAP.values())
 
 
 def polars_fast_path_enabled() -> bool:
@@ -783,33 +813,80 @@ class PolarsFastPathPreprocessor:
             raise ValueError("Disordered timestamps detected")
         return df
 
+    @staticmethod
+    def _blank_to_null_expr(column_name: str) -> pl.Expr:
+        return (
+            pl.when(pl.col(column_name).cast(pl.Utf8).str.strip_chars() == "")
+            .then(pl.lit(None))
+            .otherwise(pl.col(column_name))
+        )
+
     def _enrich_with_app_codebook_data(self, df: pl.DataFrame) -> pl.DataFrame:
+        if not self.options.use_app_codebook:
+            return df
+
         if self.app_codebook is None:
             return df.with_columns(
                 [
+                    *[pl.lit(None).cast(pl.String).alias(column) for column in _CODEBOOK_OUTPUT_COLUMNS],
                     pl.lit("Unknown").alias(Column.BROAD_APP_CATEGORY),
                     pl.lit("Unknown").alias(Column.GENRE_ID_SCRAPED),
                 ]
             )
 
-        codebook = self.app_codebook
-        join_columns = [Column.APP_PACKAGE_NAME]
-        if AppCodebookColumn.BROAD_APP_CATEGORY in codebook.columns:
-            codebook = codebook.rename(
-                {AppCodebookColumn.BROAD_APP_CATEGORY: Column.BROAD_APP_CATEGORY}
-            )
-            join_columns.append(Column.BROAD_APP_CATEGORY)
-        if AppCodebookColumn.GENRE_ID in codebook.columns:
-            codebook = codebook.rename({AppCodebookColumn.GENRE_ID: Column.GENRE_ID_SCRAPED})
-            join_columns.append(Column.GENRE_ID_SCRAPED)
-
-        df = df.join(codebook.select(join_columns), on=Column.APP_PACKAGE_NAME, how="left")
-        return df.with_columns(
+        available_source_columns = [
+            source_column
+            for source_column in _CODEBOOK_COLUMN_RENAME_MAP
+            if source_column in self.app_codebook.columns
+        ]
+        renamed_codebook = self.app_codebook.select(
             [
-                pl.col(Column.BROAD_APP_CATEGORY).fill_null("Unknown"),
-                pl.col(Column.GENRE_ID_SCRAPED).fill_null("Unknown"),
+                pl.col(AppCodebookColumn.APP_PACKAGE_NAME),
+                *[
+                    pl.col(source_column).alias(_CODEBOOK_COLUMN_RENAME_MAP[source_column])
+                    for source_column in available_source_columns
+                ],
             ]
         )
+        df = df.join(renamed_codebook, on=Column.APP_PACKAGE_NAME, how="left")
+
+        missing_output_columns = [
+            column for column in _CODEBOOK_OUTPUT_COLUMNS if column not in df.columns
+        ]
+        if missing_output_columns:
+            df = df.with_columns(
+                [pl.lit(None).cast(pl.String).alias(column) for column in missing_output_columns]
+            )
+
+        broad_category_candidates = [
+            column
+            for column in (
+                Column.PLAY_STORE_BROAD_APP_CATEGORY,
+                Column.USC_BROAD_APP_CATEGORY,
+                Column.BABYEMU_BROAD_APP_CATEGORY,
+                Column.BCM_CNRC_HEURISTIC_CATEGORY,
+                Column.BROAD_APP_CATEGORY,
+            )
+            if column in df.columns
+        ]
+        genre_id_candidates = [
+            column
+            for column in (
+                Column.BABYEMU_GENRE_ID_SCRAPED,
+                Column.BABYEMU_GENRE_ID_MANUAL,
+                Column.PLAY_STORE_GENRE_ID,
+                Column.USC_GENRE_ID,
+                Column.GENRE_ID_SCRAPED,
+            )
+            if column in df.columns
+        ]
+        broad_category_expr = pl.coalesce(
+            [*(self._blank_to_null_expr(column) for column in broad_category_candidates), pl.lit("Unknown")]
+        ).alias(Column.BROAD_APP_CATEGORY)
+        genre_id_expr = pl.coalesce(
+            [*(self._blank_to_null_expr(column) for column in genre_id_candidates), pl.lit("Unknown")]
+        ).alias(Column.GENRE_ID_SCRAPED)
+        return df.with_columns([broad_category_expr, genre_id_expr])
 
     def _add_app_usage_detail_columns(self, df: pl.DataFrame) -> pl.DataFrame:
         row_count = len(df)
@@ -984,6 +1061,7 @@ class PolarsFastPathPreprocessor:
             Column.APPLICATION_LABEL,
             Column.BROAD_APP_CATEGORY,
             Column.GENRE_ID_SCRAPED,
+            *_CODEBOOK_OUTPUT_COLUMNS,
             Column.INTERACTION_TYPE,
         ]
         timestamp_continuation = [
