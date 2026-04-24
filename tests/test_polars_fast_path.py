@@ -61,6 +61,49 @@ def _codebook_fixture() -> pl.DataFrame:
     )
 
 
+def _genre_consensus_fixture() -> pl.DataFrame:
+    return pl.DataFrame(
+        [
+            {
+                Column.PARTICIPANT_ID: "P01",
+                Column.EVENT_TIMESTAMP: "2026-03-07T10:00:00-06:00",
+                Column.INTERACTION_TYPE: str(InteractionType.ACTIVITY_RESUMED),
+                Column.APP_PACKAGE_NAME: "com.example.consensus",
+                Column.APPLICATION_LABEL: "Consensus App",
+                Column.USERNAME: "Target Child",
+                Column.TIMEZONE: "America/Chicago",
+            },
+            {
+                Column.PARTICIPANT_ID: "P01",
+                Column.EVENT_TIMESTAMP: "2026-03-07T10:05:00-06:00",
+                Column.INTERACTION_TYPE: str(InteractionType.ACTIVITY_PAUSED),
+                Column.APP_PACKAGE_NAME: "com.example.consensus",
+                Column.APPLICATION_LABEL: "Consensus App",
+                Column.USERNAME: "Target Child",
+                Column.TIMEZONE: "America/Chicago",
+            },
+            {
+                Column.PARTICIPANT_ID: "P01",
+                Column.EVENT_TIMESTAMP: "2026-03-07T11:00:00-06:00",
+                Column.INTERACTION_TYPE: str(InteractionType.ACTIVITY_RESUMED),
+                Column.APP_PACKAGE_NAME: "com.example.disagree",
+                Column.APPLICATION_LABEL: "Disagree App",
+                Column.USERNAME: "Target Child",
+                Column.TIMEZONE: "America/Chicago",
+            },
+            {
+                Column.PARTICIPANT_ID: "P01",
+                Column.EVENT_TIMESTAMP: "2026-03-07T11:05:00-06:00",
+                Column.INTERACTION_TYPE: str(InteractionType.ACTIVITY_PAUSED),
+                Column.APP_PACKAGE_NAME: "com.example.disagree",
+                Column.APPLICATION_LABEL: "Disagree App",
+                Column.USERNAME: "Target Child",
+                Column.TIMEZONE: "America/Chicago",
+            },
+        ]
+    )
+
+
 def test_default_codebook_path_points_to_unified_codebook() -> None:
     default_path = Path(DEFAULT_APP_CODEBOOK_FILE_PATH)
     assert default_path.exists()
@@ -141,7 +184,10 @@ def test_main_preprocessor_fast_path_matches_non_fast_path_output_with_default_c
 
     assert legacy_df.equals(fast_df)
     assert Column.BROAD_APP_CATEGORY not in legacy_df.columns
-    assert Column.GENRE_ID_SCRAPED not in legacy_df.columns
+    assert legacy_df.get_column(Column.GENRE_ID_SCRAPED).to_list() == ["VIDEO_PLAYERS"]
+    assert legacy_df.get_column(Column.PLAY_STORE_GENRE_ID).to_list() == [None]
+    assert legacy_df.get_column(Column.USC_GENRE_ID).to_list() == [None]
+    assert legacy_df.get_column(Column.BABYEMU_GENRE_ID_SCRAPED).to_list() == [None]
     assert legacy_df.get_column(Column.PLAY_STORE_BROAD_APP_CATEGORY).to_list() == [
         "Video Players (e.g. YouTube)"
     ]
@@ -149,3 +195,81 @@ def test_main_preprocessor_fast_path_matches_non_fast_path_output_with_default_c
     assert legacy_df.get_column(Column.CODEBOOK_DATASET).to_list() == [
         "USC Armstrong Lab, UMich MITTen/GDW, UW-Madison Baby EMU, BCM CNRC DAC"
     ]
+
+
+def test_codebook_genre_output_consolidates_only_when_sources_agree(
+    tmp_path, monkeypatch
+) -> None:
+    raw_folder = tmp_path / "raw"
+    raw_folder.mkdir()
+    raw_file = raw_folder / "Raw P01.csv"
+    _genre_consensus_fixture().write_csv(raw_file)
+
+    codebook_path = tmp_path / "app_codebook.csv"
+    pl.DataFrame(
+        [
+            {
+                "app_package_name": "com.example.consensus",
+                "application_label": "Consensus App",
+                "play_store_genreId": "EDUCATION",
+                "usc_genreId": "EDUCATION",
+                "babyemu_genreId_scraped": "EDUCATION",
+                "babyemu_genreId_manual": None,
+            },
+            {
+                "app_package_name": "com.example.disagree",
+                "application_label": "Disagree App",
+                "play_store_genreId": "NEWS_AND_MAGAZINES",
+                "usc_genreId": "SOCIAL",
+                "babyemu_genreId_scraped": "SOCIAL",
+                "babyemu_genreId_manual": None,
+            },
+        ]
+    ).write_csv(codebook_path)
+
+    options = PreprocessingOptions(
+        study_name="Smoke",
+        raw_data_folder=raw_folder,
+        use_app_codebook=True,
+        app_codebook_path=codebook_path,
+        use_filter_file=False,
+    )
+
+    monkeypatch.setenv("CHRONICLE_USE_POLARS_FAST_PATH", "false")
+    legacy = ChronicleAndroidRawDataPreprocessor(options)
+    legacy_folder, legacy_success, _ = legacy.preprocess_Chronicle_Android_raw_data_file(raw_file)
+    assert legacy_success
+
+    monkeypatch.setenv("CHRONICLE_USE_POLARS_FAST_PATH", "true")
+    fast = ChronicleAndroidRawDataPreprocessor(options)
+    fast_folder, fast_success, _ = fast.preprocess_Chronicle_Android_raw_data_file(raw_file)
+    assert fast_success
+
+    legacy_csv = next(legacy_folder.glob("*.csv"))
+    fast_csv = next(fast_folder.glob("*.csv"))
+    legacy_df = pl.read_csv(legacy_csv, infer_schema=False).drop(
+        Column.DATETIME_OF_PREPROCESSING, strict=False
+    )
+    fast_df = pl.read_csv(fast_csv, infer_schema=False).drop(
+        Column.DATETIME_OF_PREPROCESSING, strict=False
+    )
+
+    assert legacy_df.equals(fast_df)
+
+    app_usage_rows = legacy_df.filter(
+        pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)
+    ).sort(Column.APP_PACKAGE_NAME)
+    consensus_row = app_usage_rows.row(0, named=True)
+    disagree_row = app_usage_rows.row(1, named=True)
+
+    assert consensus_row[Column.APP_PACKAGE_NAME] == "com.example.consensus"
+    assert consensus_row[Column.GENRE_ID_SCRAPED] == "EDUCATION"
+    assert consensus_row[Column.PLAY_STORE_GENRE_ID] is None
+    assert consensus_row[Column.USC_GENRE_ID] is None
+    assert consensus_row[Column.BABYEMU_GENRE_ID_SCRAPED] is None
+
+    assert disagree_row[Column.APP_PACKAGE_NAME] == "com.example.disagree"
+    assert disagree_row[Column.GENRE_ID_SCRAPED] is None
+    assert disagree_row[Column.PLAY_STORE_GENRE_ID] == "NEWS_AND_MAGAZINES"
+    assert disagree_row[Column.USC_GENRE_ID] == "SOCIAL"
+    assert disagree_row[Column.BABYEMU_GENRE_ID_SCRAPED] == "SOCIAL"
