@@ -262,10 +262,20 @@ class PolarsFastPathPreprocessor:
         return df
 
     def _unalign_duplicate_timestamps(self, df: pl.DataFrame, timestamp_column: str) -> pl.DataFrame:
+        timestamps_ns = df.get_column(timestamp_column).dt.epoch("ns").to_numpy()
+        if len(timestamps_ns) <= 1:
+            return df
+        if np.all(timestamps_ns[1:] > timestamps_ns[:-1]):
+            return df
+
         dedup_columns = [timestamp_column, Column.INTERACTION_TYPE, Column.APP_PACKAGE_NAME]
         df = df.unique(subset=dedup_columns, keep="first", maintain_order=True)
-
         timestamps_ns = df.get_column(timestamp_column).dt.epoch("ns").to_numpy()
+        if len(timestamps_ns) <= 1:
+            return df
+        if np.all(timestamps_ns[1:] > timestamps_ns[:-1]):
+            return df
+
         interaction_types = df.get_column(Column.INTERACTION_TYPE).to_numpy()
         stop_usage_types = {
             str(value)
@@ -274,7 +284,7 @@ class PolarsFastPathPreprocessor:
                 | self.options.other_interaction_types_to_stop_usage_at
             )
         }
-
+        adjusted = timestamps_ns.copy()
         priority_map = {str(InteractionType.ACTIVITY_RESUMED): 0}
         for interaction_type in stop_usage_types:
             if interaction_type != str(InteractionType.ACTIVITY_RESUMED):
@@ -284,7 +294,6 @@ class PolarsFastPathPreprocessor:
         for index, timestamp_ns in enumerate(timestamps_ns):
             duplicate_groups.setdefault(int(timestamp_ns), []).append(index)
 
-        adjusted = timestamps_ns.copy()
         for group in duplicate_groups.values():
             if len(group) <= 1:
                 continue
