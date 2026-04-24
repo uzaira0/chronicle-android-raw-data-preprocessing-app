@@ -230,6 +230,7 @@ web/.vite/
 !web/src/lib/
 !web/src/lib/**
 !web/src/test-runtime.d.ts
+!web/vitest.config.ts
 !web/src/assets/
 !web/src/assets/defaults/
 !web/src/assets/defaults/*.csv
