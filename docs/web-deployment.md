@@ -2,34 +2,29 @@
 
 ## Chosen Host
 
-The production target for the local-first web app is **Cloudflare Pages**.
+For now, the deployment target is **GitHub Pages**.
 
-This repository uses the static `web/dist` artifact and deploys it with **Cloudflare Pages Direct Upload** from GitHub Actions instead of relying on server-side rendering or a backend API. That matches the current app shape:
+This repository builds a static Vite artifact from `web/dist`, repackages it for GitHub Pages, and deploys it with the official GitHub Pages Actions workflow. That matches the current app shape:
 
 - static Vite build output
 - service worker for offline use after first load
 - local-only browser processing
 - no server-side preprocessing path
 
-Cloudflare Pages is the preferred target here because it supports:
+## Why GitHub Pages For Now
 
-- custom response headers via a checked-in `web/public/_headers` file
-- preview deployments for non-production branches
-- custom domains for the production site
-- CI-driven direct uploads using Wrangler
+GitHub Pages is the simplest host to get live quickly because:
 
-## Required GitHub Settings
+- it is already tied directly to the repository
+- it works with the official `configure-pages`, `upload-pages-artifact`, and `deploy-pages` actions
+- it supports static hosting and custom domains
 
-Add the following repository settings before expecting automatic deployments:
+The tradeoff is important:
 
-- repository variable: `CLOUDFLARE_PAGES_PROJECT_NAME`
-- repository secret: `CLOUDFLARE_ACCOUNT_ID`
-- repository secret: `CLOUDFLARE_API_TOKEN`
+- GitHub Pages does **not** give us the same checked-in response-header control as Cloudflare Pages `_headers`
+- the app therefore relies on the CSP meta tag in `web/index.html` instead of host-enforced custom response headers
 
-The workflow is intentionally fail-safe:
-
-- build and verification still run without Cloudflare credentials
-- preview and production deploy steps print a skip message when the required settings are absent
+That is acceptable for now, but it is a weaker deployment posture than the Cloudflare Pages path.
 
 ## Workflow
 
@@ -44,57 +39,64 @@ It does the following:
 3. runs web unit tests
 4. verifies generated contract artifacts are current
 5. builds the static web app
-6. verifies the built deploy artifact and header policy
-7. runs deterministic browser-vs-desktop parity
-8. runs Playwright smoke coverage
-9. uploads `web/dist` as the release artifact
-10. deploys previews on pull requests when Cloudflare credentials are configured
-11. deploys production on `main` when Cloudflare credentials are configured
+6. validates the built `web/dist` artifact, including the Cloudflare-style header artifact we keep in-repo for future host flexibility
+7. prepares a GitHub Pages artifact in `web/.github-pages-dist`
+8. validates the GitHub Pages artifact
+9. runs deterministic browser-vs-desktop parity
+10. runs Playwright smoke coverage
+11. uploads the Pages artifact
+12. deploys it to GitHub Pages on non-PR runs
 
-## Header Policy
+Pull requests run verification and package the Pages artifact, but do not deploy.
 
-The checked-in host header policy lives at:
+## GitHub Pages Artifact Packaging
+
+The packaging step exists because GitHub Pages and Cloudflare Pages do not consume the same deploy artifact shape.
+
+The preparation script is:
+
+- `web/scripts/prepare_github_pages_artifact.mts`
+
+It:
+
+- copies `web/dist` to `web/.github-pages-dist`
+- removes the Cloudflare-only `_headers` file so it is not exposed as a static file
+- adds `.nojekyll`
+
+The `.nojekyll` file is included so the Pages artifact is served as plain static content without Jekyll interference.
+
+## Header Model
+
+The repository still keeps:
 
 - `web/public/_headers`
 
-That file is copied into the built static artifact and applied by Cloudflare Pages. It is the authoritative deployment-time policy for:
+That file is useful for hosts that support checked-in response headers, especially Cloudflare Pages. GitHub Pages does not apply it, so it is removed from the actual Pages deploy artifact.
 
-- `Content-Security-Policy`
-- `Cross-Origin-Opener-Policy`
-- `Cross-Origin-Embedder-Policy`
-- `Cross-Origin-Resource-Policy`
-- `Origin-Agent-Cluster`
-- `Referrer-Policy`
-- `X-Content-Type-Options`
-- `X-Frame-Options`
-- `Permissions-Policy`
-- `Strict-Transport-Security`
-- cache policy for `index.html`, `sw.js`, `manifest.webmanifest`, and hashed assets
+For the GitHub Pages deployment, the main browser protection is the CSP meta tag in:
 
-The CSP meta tag in `web/index.html` remains as a local fallback, but deployment headers are the stronger production control.
+- `web/index.html`
 
-## Cache Behavior
+That means:
 
-The current header strategy is:
-
-- `index.html`: `no-store`
-- `sw.js`: `no-cache, no-store, must-revalidate`
-- `manifest.webmanifest`: `no-cache`
-- `/assets/*`: `public, max-age=31536000, immutable`
-
-This keeps the app shell and service worker fresh while allowing hashed build assets to stay aggressively cached.
+- deploy-time cache and security headers are not as configurable on GitHub Pages
+- the GitHub Pages artifact checker only requires the in-document CSP fallback, not `_headers`
 
 ## Custom Domain Notes
 
-When attaching a custom domain:
+GitHub Pages supports custom domains. If you attach one, configure it through the repository Pages settings and DNS records for the chosen domain.
 
-- add the domain through the Cloudflare Pages dashboard first
-- then let Cloudflare create or validate the required DNS records
+GitHub’s docs also recommend verifying your custom domain to reduce takeover risk.
 
-If you only want a subdomain, a CNAME to `<project>.pages.dev` is sufficient after the domain is associated in the dashboard. For apex domains, the domain must be on the same Cloudflare account and use Cloudflare nameservers.
+## Privacy Note
 
-## Preview Notes
+The app still processes user files locally in the browser, but GitHub’s docs state that visits to GitHub Pages sites log the visitor IP address for security purposes.
 
-Preview deployments are created per branch or pull request when the deploy job runs with credentials configured. Preview URLs should be treated as temporary review surfaces, not stable public product URLs.
+So the strongest truthful statement remains:
 
-If preview exposure becomes a concern, enable Cloudflare Access on preview deployments in the Pages project settings.
+- the app code is served by GitHub Pages
+- the user’s uploaded files are processed locally in the browser and are not uploaded by the app
+
+## Future Switch Back
+
+If we later want stronger host-enforced browser policy control, the repo still retains the Cloudflare-oriented `_headers` path and can be switched back to Cloudflare Pages without rebuilding the browser app architecture.
