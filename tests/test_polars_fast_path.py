@@ -140,6 +140,8 @@ def test_main_preprocessor_fast_path_matches_non_fast_path_output_with_default_c
     )
 
     assert legacy_df.equals(fast_df)
+    assert Column.BROAD_APP_CATEGORY not in legacy_df.columns
+    assert Column.GENRE_ID_SCRAPED not in legacy_df.columns
     assert legacy_df.get_column(Column.PLAY_STORE_BROAD_APP_CATEGORY).to_list() == [
         "Video Players (e.g. YouTube)"
     ]

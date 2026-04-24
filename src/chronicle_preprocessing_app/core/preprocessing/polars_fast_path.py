@@ -1049,6 +1049,9 @@ class PolarsFastPathPreprocessor:
         ).sort(Column.EVENT_TIMESTAMP)
 
     def _build_output_columns(self, df: pl.DataFrame) -> list[str]:
+        include_legacy_codebook_aliases = not (
+            self.options.use_app_codebook and self.app_codebook is not None
+        )
         identification_columns = [
             Column.STUDY_ID,
             Column.PARTICIPANT_ID,
@@ -1059,8 +1062,11 @@ class PolarsFastPathPreprocessor:
         app_core_columns = [
             Column.APP_PACKAGE_NAME,
             Column.APPLICATION_LABEL,
-            Column.BROAD_APP_CATEGORY,
-            Column.GENRE_ID_SCRAPED,
+            *(
+                [Column.BROAD_APP_CATEGORY, Column.GENRE_ID_SCRAPED]
+                if include_legacy_codebook_aliases
+                else []
+            ),
             *_CODEBOOK_OUTPUT_COLUMNS,
             Column.INTERACTION_TYPE,
         ]
