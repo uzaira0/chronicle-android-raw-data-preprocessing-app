@@ -338,7 +338,7 @@ export default function App() {
 
           <div className="support-files">
             <label>
-              <span>Optional filter file (`.csv`, `.xlsx`, `.xls`)</span>
+              <span>Optional filter file (`.csv` or `.xlsx`; convert legacy `.xls` first)</span>
               <input
                 data-testid="filter-file-input"
                 type="file"
@@ -347,7 +347,7 @@ export default function App() {
               />
             </label>
             <label>
-              <span>Optional keep-awake apps file (`.csv`, `.xlsx`, `.xls`)</span>
+              <span>Optional keep-awake apps file (`.csv` or `.xlsx`; convert legacy `.xls` first)</span>
               <input
                 data-testid="keep-awake-file-input"
                 type="file"
@@ -356,7 +356,7 @@ export default function App() {
               />
             </label>
             <label>
-              <span>Optional app codebook file (`.csv`, `.xlsx`, `.xls`)</span>
+              <span>Optional app codebook file (`.csv` or `.xlsx`; convert legacy `.xls` first)</span>
               <input
                 data-testid="app-codebook-file-input"
                 type="file"
