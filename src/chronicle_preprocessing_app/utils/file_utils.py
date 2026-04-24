@@ -8,7 +8,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-import openpyxl
 import polars as pl
 
 LOGGER = logging.getLogger(__name__)
@@ -55,6 +54,8 @@ class CodebookFileError(FileOperationError):
 
 
 def _read_excel_rows(file_path: Path) -> tuple[list[str], list[list[Any]]]:
+    import openpyxl
+
     workbook = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
     try:
         worksheet = workbook.worksheets[0]

@@ -14,6 +14,9 @@ from chronicle_preprocessing_app.core.preprocessing.screen_usage_preprocessor im
     ScreenUsageEndReason,
     ScreenUsagePreprocessor,
 )
+from chronicle_preprocessing_app.core.preprocessing.timestamp_preprocessor import (
+    TimestampPreprocessor,
+)
 from chronicle_preprocessing_app.utils.pathological_fixture_builder import (
     FILTERED_APPS,
     KEEP_AWAKE_APPS,
@@ -155,3 +158,33 @@ def test_pathological_fixture_screen_usage_smoke_covers_expected_end_reasons() -
     assert ScreenUsageEndReason.APP_KEPT_AWAKE_OR_EXTENDED in end_reasons
     assert ScreenUsageEndReason.LOCK_SCREEN_ONLY in end_reasons
     assert ScreenUsageEndReason.MISSING_STOP in end_reasons
+
+
+def test_timestamp_preprocessor_handles_mixed_naive_and_offset_raw_strings() -> None:
+    df = pl.DataFrame(
+        [
+            {
+                Column.EVENT_TIMESTAMP: "2026-02-16 06:15:00",
+                Column.INTERACTION_TYPE: str(InteractionType.ACTIVITY_RESUMED),
+                Column.APP_PACKAGE_NAME: "com.example.naive",
+                Column.TIMEZONE: "America/Chicago",
+            },
+            {
+                Column.EVENT_TIMESTAMP: "2026-02-23T07:00:01-07:00",
+                Column.INTERACTION_TYPE: str(InteractionType.ACTIVITY_PAUSED),
+                Column.APP_PACKAGE_NAME: "com.example.offset",
+                Column.TIMEZONE: "America/Denver",
+            },
+            {
+                Column.EVENT_TIMESTAMP: "2026-02-23T14:00:03+00:00",
+                Column.INTERACTION_TYPE: str(InteractionType.DEVICE_SHUTDOWN),
+                Column.APP_PACKAGE_NAME: "android",
+                Column.TIMEZONE: "UTC",
+            },
+        ]
+    )
+
+    result = TimestampPreprocessor(
+        PreprocessingOptions(raw_data_folder="", use_app_codebook=False)
+    ).correct_timestamp_column(df)
+    assert result.filter(pl.col(Column.EVENT_TIMESTAMP).is_null()).is_empty()
