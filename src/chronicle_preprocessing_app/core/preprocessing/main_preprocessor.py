@@ -9,9 +9,7 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Callable
 
-import openpyxl
 import polars as pl
-from openpyxl.styles import Alignment, PatternFill
 
 from chronicle_preprocessing_app.config.constants import (
     PLOTTED_FOLDER_SUFFIX,
@@ -74,6 +72,8 @@ class CellFormatRule:
     vertical_alignment: str | None = None
 
     def apply(self, cell: Any) -> None:
+        from openpyxl.styles import Alignment, PatternFill
+
         if self.fill_color:
             cell.fill = PatternFill(
                 start_color=self.fill_color,
@@ -97,6 +97,8 @@ def write_df_to_excel_and_format(
     if_sheet_exists: str | None = None,
 ) -> None:
     """Write a Polars dataframe to Excel and apply lightweight formatting."""
+    import openpyxl
+
     save_path = Path(save_path)
     workbook = (
         openpyxl.load_workbook(save_path)

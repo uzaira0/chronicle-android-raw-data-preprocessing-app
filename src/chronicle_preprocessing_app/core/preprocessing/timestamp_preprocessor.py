@@ -57,13 +57,57 @@ class TimestampPreprocessor(BasePreprocessor):
         column_name: str = Column.EVENT_TIMESTAMP,
     ) -> pl.DataFrame:
         original_col = f"{column_name}_original"
+        timestamp_text = pl.col(column_name).cast(pl.Utf8)
         df = df.with_columns(pl.col(column_name).alias(original_col))
+        has_explicit_timezone = df.select(
+            timestamp_text
+            .str.contains(r"(Z|[+-]\d{2}:\d{2})$")
+            .fill_null(False)
+            .any()
+        ).item()
+        timestamp_expr = (
+            pl.coalesce(
+                [
+                    timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
+                        format="%Y-%m-%dT%H:%M:%S%#z",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
+                        format="%Y-%m-%d %H:%M:%S%#z",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.to_datetime(
+                        format="%Y-%m-%d %H:%M:%S",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.to_datetime(
+                        format="%Y-%m-%dT%H:%M:%S",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                ]
+            )
+            if has_explicit_timezone
+            else pl.coalesce(
+                [
+                    timestamp_text.str.to_datetime(
+                        format="%Y-%m-%d %H:%M:%S",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.to_datetime(
+                        format="%Y-%m-%dT%H:%M:%S",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                ]
+            )
+        )
         df = df.with_columns(
-            pl.col(column_name)
-            .cast(pl.Utf8)
-            .map_elements(self.fix_timestamp_format, return_dtype=pl.String)
-            .str.to_datetime(time_zone="UTC", strict=False)
-            .alias(column_name)
+            timestamp_expr.alias(column_name)
         )
         invalid_column_name = f"{column_name}_invalid_original"
         invalid_mask = pl.col(column_name).is_null() & pl.col(original_col).is_not_null()

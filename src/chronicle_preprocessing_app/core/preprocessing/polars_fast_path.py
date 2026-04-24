@@ -305,10 +305,21 @@ class PolarsFastPathPreprocessor:
             )
         }
         adjusted = timestamps_ns.copy()
-        priority_map = {str(InteractionType.ACTIVITY_RESUMED): 0}
-        for interaction_type in stop_usage_types:
-            if interaction_type != str(InteractionType.ACTIVITY_RESUMED):
-                priority_map[interaction_type] = 2
+        normalized_interaction_types = np.asarray(interaction_types, dtype=object)
+        normalized_interaction_types = np.where(
+            normalized_interaction_types == "Screen Non-interactive",
+            "Screen Non-Interactive",
+            normalized_interaction_types,
+        )
+        priorities = np.ones(len(normalized_interaction_types), dtype=np.int8)
+        priorities[normalized_interaction_types == str(InteractionType.ACTIVITY_RESUMED)] = 0
+        if stop_usage_types:
+            stop_mask = np.isin(normalized_interaction_types, tuple(stop_usage_types))
+            priorities[stop_mask] = np.where(
+                normalized_interaction_types[stop_mask] == str(InteractionType.ACTIVITY_RESUMED),
+                0,
+                2,
+            )
 
         duplicate_groups: dict[int, list[int]] = {}
         for index, timestamp_ns in enumerate(timestamps_ns):
@@ -318,15 +329,7 @@ class PolarsFastPathPreprocessor:
             if len(group) <= 1:
                 continue
 
-            sorted_indices = sorted(
-                group,
-                key=lambda idx: priority_map.get(
-                    str(interaction_types[idx]).replace(
-                        "Screen Non-interactive", "Screen Non-Interactive"
-                    ),
-                    1,
-                ),
-            )
+            sorted_indices = sorted(group, key=priorities.__getitem__)
             count = len(sorted_indices)
             for offset_index, row_index in enumerate(sorted_indices):
                 adjusted[row_index] -= (count - offset_index) * 1_000
