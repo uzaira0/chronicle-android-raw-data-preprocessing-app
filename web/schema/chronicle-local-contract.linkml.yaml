@@ -1,0 +1,220 @@
+id: https://chronicle.local/schemas/chronicle-local-contract
+name: chronicle_local_contract
+title: Chronicle Local Processing Contract
+description: >
+  Canonical schema for the local-only Chronicle browser preprocessing boundary.
+  This LinkML model is intended to be the source of truth for browser worker
+  contracts and derived artifacts such as OpenAPI or JSON Schema.
+license: https://opensource.org/licenses/MIT
+prefixes:
+  linkml: https://w3id.org/linkml/
+  chronicle: https://chronicle.local/schemas/
+default_prefix: chronicle
+default_range: string
+imports:
+  - linkml:types
+
+enums:
+  UsageSessionMode:
+    permissible_values:
+      app_usage:
+      screen_usage:
+      app_and_screen_usage:
+  TimezoneHandlingMode:
+    permissible_values:
+      selected-filter:
+      selected-convert:
+      primary-filter:
+      primary-convert:
+  OutputKind:
+    permissible_values:
+      app:
+      screen:
+
+classes:
+  BrowserSupportFile:
+    slots:
+      - name
+      - bytes_base64
+
+  BrowserSupportFiles:
+    slots:
+      - filter_file
+      - keep_awake_apps_file
+      - app_codebook_file
+
+  BrowserProcessingOptions:
+    slots:
+      - study_name
+      - usage_session_mode
+      - allow_stop_event_reuse
+      - use_activity_stopped_as_fallback
+      - apply_threshold_to_fallback
+      - long_duration_threshold_hours
+      - correct_duplicate_event_timestamps
+      - selected_timezone
+      - timezone_handling
+      - use_filter_file
+      - use_keep_awake_apps_file
+      - use_app_codebook
+      - include_filtered_app_usage_in_plots
+      - plot_only_target_child_data
+      - minimum_usage_duration
+      - custom_app_engagement_duration
+      - long_usage_duration_thresholds
+      - long_data_time_gap_thresholds
+      - screen_usage_auto_lock_timeout_seconds
+      - screen_usage_auto_lock_tolerance_seconds
+      - screen_usage_manual_lock_max_tail_gap_seconds
+      - screen_usage_keyguard_near_stop_seconds
+      - parallel_processing
+      - parallel_max_workers
+      - same_app_interaction_types_to_stop_usage_at
+      - other_interaction_types_to_stop_usage_at
+      - interaction_types_to_remove
+
+  ProcessedOutputFileResult:
+    slots:
+      - kind
+      - output_file_name
+      - csv
+      - row_count
+
+  ProcessedFileResult:
+    slots:
+      - input_file_name
+      - outputs
+      - original_row_count
+      - processed_row_count
+      - available_timezones
+      - timezone
+      - app_row_count
+      - screen_row_count
+
+slots:
+  name:
+    required: true
+  bytes_base64:
+    required: true
+  filter_file:
+    range: BrowserSupportFile
+  keep_awake_apps_file:
+    range: BrowserSupportFile
+  app_codebook_file:
+    range: BrowserSupportFile
+
+  study_name:
+    required: true
+  usage_session_mode:
+    range: UsageSessionMode
+    required: true
+  allow_stop_event_reuse:
+    range: boolean
+    required: true
+  use_activity_stopped_as_fallback:
+    range: boolean
+    required: true
+  apply_threshold_to_fallback:
+    range: boolean
+    required: true
+  long_duration_threshold_hours:
+    range: float
+    required: true
+  correct_duplicate_event_timestamps:
+    range: boolean
+    required: true
+  selected_timezone:
+    range: string
+  timezone_handling:
+    range: TimezoneHandlingMode
+    required: true
+  use_filter_file:
+    range: boolean
+    required: true
+  use_keep_awake_apps_file:
+    range: boolean
+    required: true
+  use_app_codebook:
+    range: boolean
+    required: true
+  include_filtered_app_usage_in_plots:
+    range: boolean
+    required: true
+  plot_only_target_child_data:
+    range: boolean
+    required: true
+  minimum_usage_duration:
+    range: integer
+    required: true
+  custom_app_engagement_duration:
+    range: integer
+    required: true
+  long_usage_duration_thresholds:
+    range: integer
+    multivalued: true
+    required: true
+  long_data_time_gap_thresholds:
+    range: integer
+    multivalued: true
+    required: true
+  screen_usage_auto_lock_timeout_seconds:
+    range: integer
+    required: true
+  screen_usage_auto_lock_tolerance_seconds:
+    range: integer
+    required: true
+  screen_usage_manual_lock_max_tail_gap_seconds:
+    range: integer
+    required: true
+  screen_usage_keyguard_near_stop_seconds:
+    range: integer
+    required: true
+  parallel_processing:
+    range: boolean
+    required: true
+  parallel_max_workers:
+    range: integer
+  same_app_interaction_types_to_stop_usage_at:
+    multivalued: true
+    required: true
+  other_interaction_types_to_stop_usage_at:
+    multivalued: true
+    required: true
+  interaction_types_to_remove:
+    multivalued: true
+    required: true
+
+  kind:
+    range: OutputKind
+    required: true
+  output_file_name:
+    required: true
+  csv:
+    required: true
+  row_count:
+    range: integer
+    required: true
+
+  input_file_name:
+    required: true
+  outputs:
+    range: ProcessedOutputFileResult
+    multivalued: true
+    required: true
+  original_row_count:
+    range: integer
+    required: true
+  processed_row_count:
+    range: integer
+    required: true
+  available_timezones:
+    multivalued: true
+    required: true
+  timezone:
+    required: true
+  app_row_count:
+    range: integer
+    required: true
+  screen_row_count:
+    range: integer
+    required: true

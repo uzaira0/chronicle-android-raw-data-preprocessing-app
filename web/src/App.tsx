@@ -1,17 +1,26 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
-import { getMatcherVersion, processRawCsv } from "@/lib/chronicleMatcher";
+import {
+  BOOLEAN_OPTION_CONTROLS,
+  DEFAULT_BROWSER_OPTIONS,
+  INTERACTION_TYPES_TO_REMOVE_OPTIONS,
+  OTHER_INTERACTION_TYPE_OPTIONS,
+  SAME_APP_INTERACTION_TYPE_OPTIONS,
+  TIMEZONE_HANDLING_OPTIONS,
+  USAGE_SESSION_MODE_OPTIONS,
+} from "@/lib/browserPipeline";
+import {
+  discoverTimezones,
+  getMatcherVersion,
+  processRawCsv,
+  processRawCsvIsolated,
+} from "@/lib/chronicleMatcher";
 import { sampleRawCsv } from "@/lib/sampleRawCsv";
-import type { BrowserProcessingOptions, ProcessedFileResult } from "@/lib/types";
-
-const DEFAULT_OPTIONS: BrowserProcessingOptions = {
-  allowStopEventReuse: false,
-  useActivityStoppedAsFallback: true,
-  applyThresholdToFallback: true,
-  longDurationThresholdHours: 12,
-  correctDuplicateEventTimestamps: true,
-  selectedTimezone: "",
-  timezoneHandling: "primary-filter",
-};
+import type {
+  BrowserProcessingOptions,
+  BrowserSupportFile,
+  BrowserSupportFiles,
+  ProcessedFileResult,
+} from "@/lib/types";
 
 function downloadTextFile(fileName: string, content: string): void {
   const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
@@ -23,6 +32,53 @@ function downloadTextFile(fileName: string, content: string): void {
   URL.revokeObjectURL(url);
 }
 
+function parseThresholds(value: string): number[] {
+  return value
+    .split(",")
+    .map((part) => Number(part.trim()))
+    .filter((part) => Number.isFinite(part) && part > 0);
+}
+
+async function readSupportFile(file: File | null): Promise<BrowserSupportFile | null> {
+  if (!file) {
+    return null;
+  }
+  return {
+    name: file.name,
+    bytes: await file.arrayBuffer(),
+  };
+}
+
+function ToggleGroup(props: {
+  title: string;
+  options: Array<{ label: string; value: string }>;
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const { title, options, selected, onChange } = props;
+  return (
+    <fieldset className="checklist">
+      <legend>{title}</legend>
+      {options.map((option) => (
+        <label key={option.value} className="check-item">
+          <input
+            type="checkbox"
+            checked={selected.includes(option.value)}
+            onChange={(event) => {
+              if (event.target.checked) {
+                onChange([...selected, option.value]);
+              } else {
+                onChange(selected.filter((value) => value !== option.value));
+              }
+            }}
+          />
+          <span>{option.label}</span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
 export default function App() {
   const [matcherVersion, setMatcherVersion] = useState<string>("loading");
   const [error, setError] = useState<string | null>(null);
@@ -30,15 +86,34 @@ export default function App() {
   const [isOffline, setIsOffline] = useState<boolean>(!navigator.onLine);
   const [results, setResults] = useState<ProcessedFileResult[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const [options, setOptions] = useState<BrowserProcessingOptions>(DEFAULT_OPTIONS);
+  const [filterFile, setFilterFile] = useState<File | null>(null);
+  const [keepAwakeFile, setKeepAwakeFile] = useState<File | null>(null);
+  const [appCodebookFile, setAppCodebookFile] = useState<File | null>(null);
+  const [discoveredTimezones, setDiscoveredTimezones] = useState<string[]>([]);
+  const [thresholdInputs, setThresholdInputs] = useState({
+    longUsageDurationThresholds: DEFAULT_BROWSER_OPTIONS.longUsageDurationThresholds.join(", "),
+    longDataTimeGapThresholds: DEFAULT_BROWSER_OPTIONS.longDataTimeGapThresholds.join(", "),
+  });
+  const [options, setOptions] = useState<BrowserProcessingOptions>(DEFAULT_BROWSER_OPTIONS);
 
   const summary = useMemo(() => {
-    const sessions = results.reduce((total, result) => total + result.sessionCount, 0);
-    return {
-      files: results.length,
-      sessions,
-    };
+    return results.reduce(
+      (totals, result) => ({
+        files: totals.files + 1,
+        appRows: totals.appRows + result.appRowCount,
+        screenRows: totals.screenRows + result.screenRowCount,
+      }),
+      { files: 0, appRows: 0, screenRows: 0 },
+    );
   }, [results]);
+
+  const knownTimezones = useMemo(() => {
+    const systemTimezones =
+      typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
+    return Array.from(new Set([...systemTimezones, ...discoveredTimezones])).sort((left, right) =>
+      left.localeCompare(right),
+    );
+  }, [discoveredTimezones]);
 
   useEffect(() => {
     void getMatcherVersion()
@@ -60,12 +135,56 @@ export default function App() {
     };
   }, []);
 
+  const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setUploadedFiles(Array.from(event.target.files ?? []));
+    setResults([]);
+    setError(null);
+  };
+
+  const onThresholdChange = (
+    key: "longUsageDurationThresholds" | "longDataTimeGapThresholds",
+    value: string,
+  ) => {
+    setThresholdInputs((current) => ({ ...current, [key]: value }));
+    const parsed = parseThresholds(value);
+    setOptions((current) => ({
+      ...current,
+      [key]: parsed.length ? parsed : DEFAULT_BROWSER_OPTIONS[key],
+    }));
+  };
+
+  const buildSupportFiles = async (): Promise<BrowserSupportFiles> => ({
+    filterFile: options.useFilterFile ? await readSupportFile(filterFile) : null,
+    keepAwakeAppsFile: options.useKeepAwakeAppsFile ? await readSupportFile(keepAwakeFile) : null,
+    appCodebookFile: options.useAppCodebook ? await readSupportFile(appCodebookFile) : null,
+  });
+
+  const discoverAvailableTimezones = async () => {
+    if (!uploadedFiles.length) {
+      setError("Choose one or more raw Chronicle CSV files first.");
+      return;
+    }
+    setError(null);
+    const discovered = new Set<string>();
+    for (const file of uploadedFiles) {
+      const text = await file.text();
+      const timezones = await discoverTimezones(text);
+      timezones.forEach((timezone) => discovered.add(timezone));
+    }
+    const next = Array.from(discovered).sort((left, right) => left.localeCompare(right));
+    setDiscoveredTimezones(next);
+    if (!options.selectedTimezone && next.length) {
+      setOptions((current) => ({ ...current, selectedTimezone: next[0] }));
+    }
+  };
+
   const runSample = async () => {
     setIsRunning(true);
     setError(null);
     try {
       const result = await processRawCsv("Sample Chronicle Raw.csv", sampleRawCsv, options);
       setResults([result]);
+      setDiscoveredTimezones(result.availableTimezones);
     } catch (runError) {
       setError(runError instanceof Error ? runError.message : String(runError));
     } finally {
@@ -81,12 +200,43 @@ export default function App() {
     setIsRunning(true);
     setError(null);
     try {
-      const nextResults: ProcessedFileResult[] = [];
-      for (const file of uploadedFiles) {
-        const text = await file.text();
-        nextResults.push(await processRawCsv(file.name, text, options));
-      }
+      const supportFiles = await buildSupportFiles();
+      const nextResults: ProcessedFileResult[] = new Array(uploadedFiles.length);
+      const concurrency =
+        options.parallelProcessing
+          ? Math.max(
+              1,
+              Math.min(
+                uploadedFiles.length,
+                options.parallelMaxWorkers && options.parallelMaxWorkers > 0
+                  ? options.parallelMaxWorkers
+                  : Math.max(1, Math.floor((navigator.hardwareConcurrency || 2) / 2)),
+              ),
+            )
+          : 1;
+      let cursor = 0;
+      const runner = async () => {
+        for (;;) {
+          const index = cursor;
+          cursor += 1;
+          if (index >= uploadedFiles.length) {
+            return;
+          }
+          const file = uploadedFiles[index]!;
+          const text = await file.text();
+          nextResults[index] =
+            concurrency > 1
+              ? await processRawCsvIsolated(file.name, text, options, supportFiles)
+              : await processRawCsv(file.name, text, options, supportFiles);
+        }
+      };
+      await Promise.all(Array.from({ length: concurrency }, () => runner()));
       setResults(nextResults);
+      setDiscoveredTimezones(
+        Array.from(
+          new Set(nextResults.flatMap((result) => result.availableTimezones)),
+        ).sort((left, right) => left.localeCompare(right)),
+      );
     } catch (runError) {
       setError(runError instanceof Error ? runError.message : String(runError));
     } finally {
@@ -94,46 +244,30 @@ export default function App() {
     }
   };
 
-  const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setUploadedFiles(Array.from(event.target.files ?? []));
-    setResults([]);
-    setError(null);
-  };
-
   return (
     <main className="app-shell">
       <section className="hero">
         <p className="eyebrow">Chronicle Local-First Web Port</p>
-        <h1>Raw Chronicle CSV in. Local preprocessing out.</h1>
+        <h1>Desktop preprocessing options, local browser execution.</h1>
         <p className="lede">
-          This browser build now accepts actual Chronicle raw data CSV files, preprocesses them
-          locally in a worker, runs the real Rust app-usage matcher in WASM, and generates
-          downloadable preprocessed CSV output without uploading your files anywhere.
+          This build is being pushed toward desktop parity: raw Chronicle CSV goes in, processing
+          happens locally in a worker with Rust/WASM matching, and the generated outputs stay on
+          this device.
         </p>
         <div className="badge-row">
-          <span>Local processing only</span>
+          <span>Files stay on this device</span>
           <span>No file uploads</span>
           <span>{isOffline ? "Offline now" : "Online-capable"}</span>
           <span>Matcher v{matcherVersion}</span>
         </div>
       </section>
 
-      <section className="panel-grid">
+      <section className="panel-grid wide-grid">
         <article className="panel">
-          <h2>Load Raw Files</h2>
-          <p>
-            Use Chronicle raw CSV files with the standard columns such as
-            <code> event_timestamp</code>, <code>interaction_type</code>, and
-            <code> app_package_name</code>.
-          </p>
+          <h2>Load Inputs</h2>
           <label className="upload">
             <span>Select one or more raw Chronicle CSV files</span>
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              multiple
-              onChange={onFileChange}
-            />
+            <input type="file" accept=".csv,text/csv" multiple onChange={onFileChange} />
           </label>
           <div className="button-row">
             <button
@@ -143,7 +277,7 @@ export default function App() {
               }}
               disabled={isRunning}
             >
-              {isRunning ? "Processing..." : "Process uploaded CSV files"}
+              {isRunning ? "Processing..." : "Process selected files"}
             </button>
             <button
               className="secondary"
@@ -152,17 +286,81 @@ export default function App() {
               }}
               disabled={isRunning}
             >
-              Run bundled sample raw CSV
+              Run bundled sample
+            </button>
+            <button
+              className="secondary"
+              onClick={() => {
+                void discoverAvailableTimezones();
+              }}
+              disabled={isRunning || uploadedFiles.length === 0}
+            >
+              Find timezones in selected files
             </button>
           </div>
           <p className="small-note">
-            Selected files: {uploadedFiles.length ? uploadedFiles.map((file) => file.name).join(", ") : "none"}
+            Selected raw files:{" "}
+            {uploadedFiles.length ? uploadedFiles.map((file) => file.name).join(", ") : "none"}
           </p>
+
+          <div className="support-files">
+            <label>
+              <span>Optional filter file (`.csv`, `.xlsx`, `.xls`)</span>
+              <input
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={(event) => setFilterFile(event.target.files?.[0] ?? null)}
+              />
+            </label>
+            <label>
+              <span>Optional keep-awake apps file (`.csv`, `.xlsx`, `.xls`)</span>
+              <input
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={(event) => setKeepAwakeFile(event.target.files?.[0] ?? null)}
+              />
+            </label>
+            <label>
+              <span>Optional app codebook file (`.csv`, `.xlsx`, `.xls`)</span>
+              <input
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={(event) => setAppCodebookFile(event.target.files?.[0] ?? null)}
+              />
+            </label>
+          </div>
         </article>
 
         <article className="panel">
-          <h2>Processing Settings</h2>
+          <h2>Core Options</h2>
           <div className="settings-grid">
+            <label>
+              <span>Study name</span>
+              <input
+                value={options.studyName}
+                onChange={(event) =>
+                  setOptions((current) => ({ ...current, studyName: event.target.value }))
+                }
+              />
+            </label>
+            <label>
+              <span>Usage output mode</span>
+              <select
+                value={options.usageSessionMode}
+                onChange={(event) =>
+                  setOptions((current) => ({
+                    ...current,
+                    usageSessionMode: event.target.value as BrowserProcessingOptions["usageSessionMode"],
+                  }))
+                }
+              >
+                {USAGE_SESSION_MODE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label>
               <span>Timezone handling</span>
               <select
@@ -174,27 +372,36 @@ export default function App() {
                   }))
                 }
               >
-                <option value="primary-filter">Filter to primary timezone per file</option>
-                <option value="selected-filter">Filter to selected timezone</option>
-                <option value="selected-convert">Convert all rows to selected timezone</option>
+                {TIMEZONE_HANDLING_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label>
               <span>Selected timezone</span>
               <input
+                list="known-timezones"
                 value={options.selectedTimezone ?? ""}
                 onChange={(event) =>
                   setOptions((current) => ({ ...current, selectedTimezone: event.target.value }))
                 }
                 placeholder="America/Chicago"
               />
+              <datalist id="known-timezones">
+                {knownTimezones.map((timezone) => (
+                  <option key={timezone} value={timezone} />
+                ))}
+              </datalist>
             </label>
             <label>
-              <span>Long duration threshold (hours)</span>
+              <span>Max session duration threshold (hours)</span>
               <input
                 type="number"
                 min="1"
                 max="48"
+                step="0.5"
                 value={options.longDurationThresholdHours}
                 onChange={(event) =>
                   setOptions((current) => ({
@@ -204,119 +411,249 @@ export default function App() {
                 }
               />
             </label>
-            <label className="toggle">
+            <label>
+              <span>Custom app engagement duration (seconds)</span>
               <input
-                type="checkbox"
-                checked={options.correctDuplicateEventTimestamps}
+                type="number"
+                min="1"
+                max="3600"
+                value={options.customAppEngagementDuration}
                 onChange={(event) =>
                   setOptions((current) => ({
                     ...current,
-                    correctDuplicateEventTimestamps: event.target.checked,
+                    customAppEngagementDuration: Number(event.target.value),
                   }))
                 }
               />
-              <span>Correct duplicate event timestamps</span>
             </label>
-            <label className="toggle">
+            <label>
+              <span>Long usage thresholds (hours)</span>
               <input
-                type="checkbox"
-                checked={options.allowStopEventReuse}
+                value={thresholdInputs.longUsageDurationThresholds}
                 onChange={(event) =>
-                  setOptions((current) => ({
-                    ...current,
-                    allowStopEventReuse: event.target.checked,
-                  }))
+                  onThresholdChange("longUsageDurationThresholds", event.target.value)
                 }
               />
-              <span>Allow stop-event reuse</span>
             </label>
-            <label className="toggle">
+            <label>
+              <span>Long data-gap thresholds (hours)</span>
               <input
-                type="checkbox"
-                checked={options.useActivityStoppedAsFallback}
+                value={thresholdInputs.longDataTimeGapThresholds}
                 onChange={(event) =>
-                  setOptions((current) => ({
-                    ...current,
-                    useActivityStoppedAsFallback: event.target.checked,
-                  }))
+                  onThresholdChange("longDataTimeGapThresholds", event.target.value)
                 }
               />
-              <span>Use Activity Stopped fallback</span>
             </label>
-            <label className="toggle">
+            <label>
+              <span>Minimum usage duration (currently compatibility-only)</span>
               <input
-                type="checkbox"
-                checked={options.applyThresholdToFallback}
+                type="number"
+                min="0"
+                max="3600"
+                value={options.minimumUsageDuration}
                 onChange={(event) =>
                   setOptions((current) => ({
                     ...current,
-                    applyThresholdToFallback: event.target.checked,
+                    minimumUsageDuration: Number(event.target.value),
                   }))
                 }
               />
-              <span>Apply threshold to fallback</span>
+            </label>
+            <label>
+              <span>Screen auto-lock timeout (seconds)</span>
+              <input
+                type="number"
+                min="1"
+                max="3600"
+                value={options.screenUsageAutoLockTimeoutSeconds}
+                onChange={(event) =>
+                  setOptions((current) => ({
+                    ...current,
+                    screenUsageAutoLockTimeoutSeconds: Number(event.target.value),
+                  }))
+                }
+              />
+            </label>
+            <label>
+              <span>Screen auto-lock tolerance (seconds)</span>
+              <input
+                type="number"
+                min="0"
+                max="600"
+                value={options.screenUsageAutoLockToleranceSeconds}
+                onChange={(event) =>
+                  setOptions((current) => ({
+                    ...current,
+                    screenUsageAutoLockToleranceSeconds: Number(event.target.value),
+                  }))
+                }
+              />
+            </label>
+            <label>
+              <span>Manual-lock max tail gap (seconds)</span>
+              <input
+                type="number"
+                min="0"
+                max="600"
+                value={options.screenUsageManualLockMaxTailGapSeconds}
+                onChange={(event) =>
+                  setOptions((current) => ({
+                    ...current,
+                    screenUsageManualLockMaxTailGapSeconds: Number(event.target.value),
+                  }))
+                }
+              />
+            </label>
+            <label>
+              <span>Keyguard-near-stop window (seconds)</span>
+              <input
+                type="number"
+                min="0"
+                max="60"
+                value={options.screenUsageKeyguardNearStopSeconds}
+                onChange={(event) =>
+                  setOptions((current) => ({
+                    ...current,
+                    screenUsageKeyguardNearStopSeconds: Number(event.target.value),
+                  }))
+                }
+              />
             </label>
           </div>
         </article>
 
         <article className="panel">
-          <h2>Run Summary</h2>
-          <dl className="key-values">
-            <div>
-              <dt>Processed files</dt>
-              <dd>{summary.files}</dd>
-            </div>
-            <div>
-              <dt>Derived sessions</dt>
-              <dd>{summary.sessions}</dd>
-            </div>
-          </dl>
-          <p className="small-note">
-            This web port currently runs the app-usage preprocessing path on raw Chronicle CSVs.
-          </p>
-          {error ? <p className="error-text">{error}</p> : null}
+          <h2>Toggles</h2>
+          <div className="toggle-stack">
+            {BOOLEAN_OPTION_CONTROLS.map(({ key, label }) => (
+              <label className="toggle" key={key}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(options[key as keyof BrowserProcessingOptions])}
+                  onChange={(event) =>
+                    setOptions((current) => ({
+                      ...current,
+                      [key]: event.target.checked,
+                    }))
+                  }
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+            <label>
+              <span>Max parallel workers</span>
+              <input
+                type="number"
+                min="0"
+                max="32"
+                value={options.parallelMaxWorkers ?? 0}
+                onChange={(event) =>
+                  setOptions((current) => ({
+                    ...current,
+                    parallelMaxWorkers: Number(event.target.value) > 0 ? Number(event.target.value) : null,
+                  }))
+                }
+              />
+            </label>
+          </div>
+        </article>
+
+        <article className="panel span-two">
+          <h2>Interaction Semantics</h2>
+          <div className="triple-grid">
+            <ToggleGroup
+              title="Same-app interaction types to stop usage at"
+              options={SAME_APP_INTERACTION_TYPE_OPTIONS}
+              selected={options.sameAppInteractionTypesToStopUsageAt}
+              onChange={(next) =>
+                setOptions((current) => ({
+                  ...current,
+                  sameAppInteractionTypesToStopUsageAt: next,
+                }))
+              }
+            />
+            <ToggleGroup
+              title="Other interaction types to stop usage at"
+              options={OTHER_INTERACTION_TYPE_OPTIONS}
+              selected={options.otherInteractionTypesToStopUsageAt}
+              onChange={(next) =>
+                setOptions((current) => ({
+                  ...current,
+                  otherInteractionTypesToStopUsageAt: next,
+                }))
+              }
+            />
+            <ToggleGroup
+              title="Interaction types to remove from final output"
+              options={INTERACTION_TYPES_TO_REMOVE_OPTIONS.map((value) => ({ label: value, value }))}
+              selected={options.interactionTypesToRemove}
+              onChange={(next) =>
+                setOptions((current) => ({
+                  ...current,
+                  interactionTypesToRemove: next,
+                }))
+              }
+            />
+          </div>
         </article>
       </section>
 
-      <section className="results-grid">
-        {results.map((result) => (
-          <article
-            key={result.outputFileName}
-            className="panel"
-          >
-            <div className="result-header">
-              <div>
-                <p className="eyebrow">Output</p>
-                <h2>{result.outputFileName}</h2>
-              </div>
-              <button
-                className="primary"
-                onClick={() => downloadTextFile(result.outputFileName, result.csv)}
-              >
-                Download CSV
-              </button>
-            </div>
-            <dl className="key-values">
-              <div>
-                <dt>Input rows</dt>
-                <dd>{result.originalRowCount}</dd>
-              </div>
-              <div>
-                <dt>Post-clean rows</dt>
-                <dd>{result.processedRowCount}</dd>
-              </div>
-              <div>
-                <dt>Sessions</dt>
-                <dd>{result.sessionCount}</dd>
-              </div>
-              <div>
-                <dt>Timezone</dt>
-                <dd>{result.timezone}</dd>
-              </div>
-            </dl>
-            <pre className="code-block">{result.csv.slice(0, 8000)}</pre>
-          </article>
-        ))}
+      <section className="panel">
+        <div className="result-header">
+          <div>
+            <h2>Results</h2>
+            <p className="small-note">
+              Files: {summary.files} | App rows: {summary.appRows} | Screen rows: {summary.screenRows}
+            </p>
+          </div>
+          {error ? <p className="error-text">{error}</p> : null}
+        </div>
+
+        {results.length === 0 ? (
+          <p className="empty-state">
+            No processed files yet. Load Chronicle raw CSV files, set options, and run the local
+            preprocessing pass.
+          </p>
+        ) : (
+          <div className="results-grid">
+            {results.map((result) => (
+              <article key={result.inputFileName} className="result-card">
+                <div className="key-values">
+                  <div>
+                    <dt>Input</dt>
+                    <dd>{result.inputFileName}</dd>
+                  </div>
+                  <div>
+                    <dt>Timezone</dt>
+                    <dd>{result.timezone}</dd>
+                  </div>
+                  <div>
+                    <dt>Original Rows</dt>
+                    <dd>{result.originalRowCount}</dd>
+                  </div>
+                  <div>
+                    <dt>Processed Rows</dt>
+                    <dd>{result.processedRowCount}</dd>
+                  </div>
+                </div>
+                <div className="button-row">
+                  {result.outputs.map((output) => (
+                    <button
+                      key={output.outputFileName}
+                      className="primary"
+                      onClick={() => downloadTextFile(output.outputFileName, output.csv)}
+                    >
+                      Download {output.kind} CSV ({output.rowCount} rows)
+                    </button>
+                  ))}
+                </div>
+                <pre className="code-block">
+                  {result.outputs[0]?.csv.slice(0, 4000) ?? ""}
+                </pre>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );
