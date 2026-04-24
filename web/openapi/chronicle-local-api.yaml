@@ -1,0 +1,232 @@
+openapi: 3.1.0
+info:
+  title: Chronicle Local Processing Contract
+  version: 0.1.0
+  description: >
+    Boundary contract for the local-only browser preprocessing surface. The canonical
+    source-of-truth model lives in `web/schema/chronicle-local-contract.linkml.yaml`;
+    this OpenAPI document is a derived/request-response view of that same contract.
+servers:
+  - url: http://local.worker.invalid
+paths:
+  /discover-timezones:
+    post:
+      operationId: discoverTimezones
+      summary: Discover distinct timezone values from a raw Chronicle CSV payload.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DiscoverTimezonesRequest"
+      responses:
+        "200":
+          description: Distinct timezone values found in the raw file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiscoverTimezonesResponse"
+  /process-raw-csv:
+    post:
+      operationId: processRawCsv
+      summary: Process a raw Chronicle CSV file locally and return app and/or screen outputs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProcessRawCsvRequest"
+      responses:
+        "200":
+          description: Preprocessing completed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcessedFileResult"
+components:
+  schemas:
+    BrowserSupportFile:
+      type: object
+      required: [name, bytesBase64]
+      properties:
+        name:
+          type: string
+        bytesBase64:
+          type: string
+          description: Base64-encoded file contents.
+    BrowserSupportFiles:
+      type: object
+      properties:
+        filterFile:
+          $ref: "#/components/schemas/BrowserSupportFile"
+        keepAwakeAppsFile:
+          $ref: "#/components/schemas/BrowserSupportFile"
+        appCodebookFile:
+          $ref: "#/components/schemas/BrowserSupportFile"
+    BrowserProcessingOptions:
+      type: object
+      required:
+        - studyName
+        - usageSessionMode
+        - allowStopEventReuse
+        - useActivityStoppedAsFallback
+        - applyThresholdToFallback
+        - longDurationThresholdHours
+        - correctDuplicateEventTimestamps
+        - timezoneHandling
+        - useFilterFile
+        - useKeepAwakeAppsFile
+        - useAppCodebook
+        - includeFilteredAppUsageInPlots
+        - plotOnlyTargetChildData
+        - minimumUsageDuration
+        - customAppEngagementDuration
+        - longUsageDurationThresholds
+        - longDataTimeGapThresholds
+        - screenUsageAutoLockTimeoutSeconds
+        - screenUsageAutoLockToleranceSeconds
+        - screenUsageManualLockMaxTailGapSeconds
+        - screenUsageKeyguardNearStopSeconds
+        - parallelProcessing
+        - sameAppInteractionTypesToStopUsageAt
+        - otherInteractionTypesToStopUsageAt
+        - interactionTypesToRemove
+      properties:
+        studyName:
+          type: string
+        usageSessionMode:
+          type: string
+          enum: [app_usage, screen_usage, app_and_screen_usage]
+        allowStopEventReuse:
+          type: boolean
+        useActivityStoppedAsFallback:
+          type: boolean
+        applyThresholdToFallback:
+          type: boolean
+        longDurationThresholdHours:
+          type: number
+        correctDuplicateEventTimestamps:
+          type: boolean
+        selectedTimezone:
+          type: string
+        timezoneHandling:
+          type: string
+          enum: [selected-filter, selected-convert, primary-filter, primary-convert]
+        useFilterFile:
+          type: boolean
+        useKeepAwakeAppsFile:
+          type: boolean
+        useAppCodebook:
+          type: boolean
+        includeFilteredAppUsageInPlots:
+          type: boolean
+        plotOnlyTargetChildData:
+          type: boolean
+        minimumUsageDuration:
+          type: integer
+        customAppEngagementDuration:
+          type: integer
+        longUsageDurationThresholds:
+          type: array
+          items:
+            type: integer
+        longDataTimeGapThresholds:
+          type: array
+          items:
+            type: integer
+        screenUsageAutoLockTimeoutSeconds:
+          type: integer
+        screenUsageAutoLockToleranceSeconds:
+          type: integer
+        screenUsageManualLockMaxTailGapSeconds:
+          type: integer
+        screenUsageKeyguardNearStopSeconds:
+          type: integer
+        parallelProcessing:
+          type: boolean
+        parallelMaxWorkers:
+          type: integer
+          nullable: true
+        sameAppInteractionTypesToStopUsageAt:
+          type: array
+          items:
+            type: string
+        otherInteractionTypesToStopUsageAt:
+          type: array
+          items:
+            type: string
+        interactionTypesToRemove:
+          type: array
+          items:
+            type: string
+    DiscoverTimezonesRequest:
+      type: object
+      required: [csvText]
+      properties:
+        csvText:
+          type: string
+    DiscoverTimezonesResponse:
+      type: object
+      required: [timezones]
+      properties:
+        timezones:
+          type: array
+          items:
+            type: string
+    ProcessRawCsvRequest:
+      type: object
+      required: [inputFileName, csvText, options]
+      properties:
+        inputFileName:
+          type: string
+        csvText:
+          type: string
+        options:
+          $ref: "#/components/schemas/BrowserProcessingOptions"
+        supportFiles:
+          $ref: "#/components/schemas/BrowserSupportFiles"
+    ProcessedOutputFileResult:
+      type: object
+      required: [kind, outputFileName, csv, rowCount]
+      properties:
+        kind:
+          type: string
+          enum: [app, screen]
+        outputFileName:
+          type: string
+        csv:
+          type: string
+        rowCount:
+          type: integer
+    ProcessedFileResult:
+      type: object
+      required:
+        - inputFileName
+        - outputs
+        - originalRowCount
+        - processedRowCount
+        - availableTimezones
+        - timezone
+        - appRowCount
+        - screenRowCount
+      properties:
+        inputFileName:
+          type: string
+        outputs:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProcessedOutputFileResult"
+        originalRowCount:
+          type: integer
+        processedRowCount:
+          type: integer
+        availableTimezones:
+          type: array
+          items:
+            type: string
+        timezone:
+          type: string
+        appRowCount:
+          type: integer
+        screenRowCount:
+          type: integer
