@@ -225,3 +225,8 @@ uv.lock
 web/node_modules/
 web/dist/
 web/.vite/
+!web/src/lib/
+!web/src/lib/**
+!web/src/assets/
+!web/src/assets/defaults/
+!web/src/assets/defaults/*.csv

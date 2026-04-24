@@ -1,6 +1,7 @@
 import * as Comlink from "comlink";
 import type {
   BrowserProcessingOptions,
+  BrowserProcessingRuntime,
   BrowserSupportFiles,
   ProcessedFileResult,
 } from "@/lib/types";
@@ -45,9 +46,12 @@ export async function getMatcherVersion(): Promise<string> {
   return api.matcherVersion();
 }
 
-export async function discoverTimezones(csvText: string): Promise<string[]> {
+export async function discoverTimezones(
+  csvText: string,
+  runtime?: BrowserProcessingRuntime,
+): Promise<string[]> {
   const api = await getWorkerApi();
-  return api.discoverTimezones(csvText);
+  return api.discoverTimezones(csvText, runtime);
 }
 
 export async function processRawCsv(
@@ -55,9 +59,10 @@ export async function processRawCsv(
   csvText: string,
   options?: Partial<BrowserProcessingOptions>,
   supportFiles?: BrowserSupportFiles,
+  runtime?: BrowserProcessingRuntime,
 ): Promise<ProcessedFileResult> {
   const api = await getWorkerApi();
-  return api.processRawCsv(inputFileName, csvText, options, supportFiles);
+  return api.processRawCsv(inputFileName, csvText, options, supportFiles, runtime);
 }
 
 export async function processRawCsvIsolated(
@@ -65,8 +70,9 @@ export async function processRawCsvIsolated(
   csvText: string,
   options?: Partial<BrowserProcessingOptions>,
   supportFiles?: BrowserSupportFiles,
+  runtime?: BrowserProcessingRuntime,
 ): Promise<ProcessedFileResult> {
   return withIsolatedWorker((api) =>
-    api.processRawCsv(inputFileName, csvText, options, supportFiles),
+    api.processRawCsv(inputFileName, csvText, options, supportFiles, runtime),
   );
 }

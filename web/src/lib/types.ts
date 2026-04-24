@@ -56,6 +56,10 @@ export type BrowserSupportFiles = {
   appCodebookFile?: BrowserSupportFile | null;
 };
 
+export type BrowserProcessingRuntime = {
+  datetimeOfPreprocessing?: string;
+};
+
 export type BrowserProcessingOptions = {
   studyName: string;
   usageSessionMode: BrowserUsageSessionMode;

@@ -114,6 +114,11 @@ class PolarsFastPathPreprocessor:
         self.options = options
         self.app_codebook = app_codebook
 
+    def _get_datetime_of_preprocessing(self) -> str:
+        return self.options.datetime_of_preprocessing_override or datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+
     def preprocess_raw_data_file(self, raw_data_file: Path | str) -> PolarsFastPathResult:
         df = self._read_raw_csv(Path(raw_data_file))
         if df.is_empty():
@@ -396,7 +401,7 @@ class PolarsFastPathPreprocessor:
         return df.with_columns(
             [
                 pl.lit(__version__).alias(Column.PREPROCESSOR_VERSION),
-                pl.lit(datetime.now().strftime("%Y-%m-%d %H:%M:%S")).alias(
+                pl.lit(self._get_datetime_of_preprocessing()).alias(
                     Column.DATETIME_OF_PREPROCESSING
                 ),
                 pl.lit(device_model.value).alias(Column.POSSIBLE_DEVICE_MODEL),

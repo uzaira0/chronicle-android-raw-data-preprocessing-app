@@ -1,0 +1,28 @@
+app_package_name,known_application_labels,app_filter_category,filter_bool
+com.sec.android.app.clockpackage,"Clock, Reloj",Alert,1
+com.android.deskclock,"Clock, Reloj",Alert,1
+com.android.cellbroadcastreceiver,"Wireless emergency alerts, Wireless Emergency Alerts, com.android.cellbroadcastreceiver",Alert,1
+android,"System, Android System, Sistema Android",Android System,1
+com.wssyncmldm,"Software update, Actualización de software",Background Process,1
+com.samsung.android.samsungpassautofill,"Autofill with Samsung Pass, Autorrellenar (Samsung Pass)",Background Process,1
+com.samsung.android.samsungpass,Samsung Pass,Background Process,1
+com.osp.app.signin,Samsung account,Background Process,1
+com.google.android.packageinstaller,"Package installer, Instalador de paquetes",Background Process,1
+com.verizon.mips.services,My Verizon Services,Background Process,1
+com.google.android.permissioncontroller,"Permission controller, Controlador de permisos",Background Process,1
+com.google.android.gms,"Google Play services, Servicios de Google Play",Background Process,1
+com.android.systemui,"System, System UI, UI sistema, IU del sistema, Keyguard",Background Process,1
+com.android.server.telecom,"Phone Calls, Phone calls, Llamadas telef�nicas, Llamadas telefonicas, Llamadas telefónicas, Call Management, Call management, Phone",Audio,1
+com.google.android.dialer,Phone,Audio,1
+com.samsung.android.incallui,"Call, Llamar",Audio,1
+com.spotify.music,Spotify,Audio,1
+com.openlattice.chronicle,chronicle,Chronicle,1
+com.amazon.firelauncher,"Home Pages, Amazon Fire Launcher",Home Screen,1
+com.sec.android.app.launcher,"One UI Home, Inicio de One UI",Home Screen,1
+com.motorola.launcher3,Moto App Launcher,Home Screen,1
+com.google.android.apps.nexuslauncher,Pixel Launcher,Home Screen,1
+com.anroid.launcher3,Quickstep,Home Screen,1
+com.lge.launcher3,Home,Home Screen,1
+com.android.settings,"Settings, Ajustes, Configuración",Settings,1
+com.android.settings.intelligence,"Settings Suggestions, Settings suggestions, Sugerencias de ajustes",Settings,1
+com.samsung.android.app.telephonyui,"Call settings, Ajustes de llamada",Settings,1
