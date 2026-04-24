@@ -1,24 +1,44 @@
-import { useEffect, useState, type ChangeEvent } from "react";
-import { getMatcherVersion, runMatcher } from "@/lib/chronicleMatcher";
-import { sampleInput } from "@/lib/sampleInput";
-import type { MatcherInput, MatcherOutput } from "@/lib/types";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { getMatcherVersion, processRawCsv } from "@/lib/chronicleMatcher";
+import { sampleRawCsv } from "@/lib/sampleRawCsv";
+import type { BrowserProcessingOptions, ProcessedFileResult } from "@/lib/types";
 
-function formatArray(values: number[]): string {
-  return values.length ? values.join(", ") : "none";
-}
+const DEFAULT_OPTIONS: BrowserProcessingOptions = {
+  allowStopEventReuse: false,
+  useActivityStoppedAsFallback: true,
+  applyThresholdToFallback: true,
+  longDurationThresholdHours: 12,
+  correctDuplicateEventTimestamps: true,
+  selectedTimezone: "",
+  timezoneHandling: "primary-filter",
+};
 
-async function loadJsonFile(file: File): Promise<MatcherInput> {
-  const text = await file.text();
-  return JSON.parse(text) as MatcherInput;
+function downloadTextFile(fileName: string, content: string): void {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function App() {
   const [matcherVersion, setMatcherVersion] = useState<string>("loading");
-  const [input, setInput] = useState<MatcherInput>(sampleInput);
-  const [result, setResult] = useState<MatcherOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [isOffline, setIsOffline] = useState<boolean>(!navigator.onLine);
+  const [results, setResults] = useState<ProcessedFileResult[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [options, setOptions] = useState<BrowserProcessingOptions>(DEFAULT_OPTIONS);
+
+  const summary = useMemo(() => {
+    const sessions = results.reduce((total, result) => total + result.sessionCount, 0);
+    return {
+      files: results.length,
+      sessions,
+    };
+  }, [results]);
 
   useEffect(() => {
     void getMatcherVersion()
@@ -40,12 +60,12 @@ export default function App() {
     };
   }, []);
 
-  const onRunSample = async () => {
+  const runSample = async () => {
     setIsRunning(true);
     setError(null);
     try {
-      const nextResult = await runMatcher(input);
-      setResult(nextResult);
+      const result = await processRawCsv("Sample Chronicle Raw.csv", sampleRawCsv, options);
+      setResults([result]);
     } catch (runError) {
       setError(runError instanceof Error ? runError.message : String(runError));
     } finally {
@@ -53,30 +73,42 @@ export default function App() {
     }
   };
 
-  const onFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
+  const processUploadedFiles = async () => {
+    if (!uploadedFiles.length) {
+      setError("Choose one or more Chronicle raw CSV files first.");
       return;
     }
+    setIsRunning(true);
+    setError(null);
     try {
-      const parsed = await loadJsonFile(file);
-      setInput(parsed);
-      setResult(null);
-      setError(null);
-    } catch (parseError) {
-      setError(parseError instanceof Error ? parseError.message : String(parseError));
+      const nextResults: ProcessedFileResult[] = [];
+      for (const file of uploadedFiles) {
+        const text = await file.text();
+        nextResults.push(await processRawCsv(file.name, text, options));
+      }
+      setResults(nextResults);
+    } catch (runError) {
+      setError(runError instanceof Error ? runError.message : String(runError));
+    } finally {
+      setIsRunning(false);
     }
+  };
+
+  const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setUploadedFiles(Array.from(event.target.files ?? []));
+    setResults([]);
+    setError(null);
   };
 
   return (
     <main className="app-shell">
       <section className="hero">
-        <p className="eyebrow">Chronicle Local-First Prototype</p>
-        <h1>Files stay on this device.</h1>
+        <p className="eyebrow">Chronicle Local-First Web Port</p>
+        <h1>Raw Chronicle CSV in. Local preprocessing out.</h1>
         <p className="lede">
-          This browser build is the first real WASM boundary for Chronicle preprocessing. It runs the
-          Rust app-usage matcher in a worker, keeps processing local, and is structured to become an
-          offline installable PWA.
+          This browser build now accepts actual Chronicle raw data CSV files, preprocesses them
+          locally in a worker, runs the real Rust app-usage matcher in WASM, and generates
+          downloadable preprocessed CSV output without uploading your files anywhere.
         </p>
         <div className="badge-row">
           <span>Local processing only</span>
@@ -88,81 +120,203 @@ export default function App() {
 
       <section className="panel-grid">
         <article className="panel">
-          <h2>Run The Real Rust Matcher</h2>
+          <h2>Load Raw Files</h2>
           <p>
-            Load a local JSON file matching the worker schema, or use the bundled sample event stream.
+            Use Chronicle raw CSV files with the standard columns such as
+            <code> event_timestamp</code>, <code>interaction_type</code>, and
+            <code> app_package_name</code>.
           </p>
           <label className="upload">
-            <span>Load local matcher input JSON</span>
+            <span>Select one or more raw Chronicle CSV files</span>
             <input
               type="file"
-              accept=".json,application/json"
+              accept=".csv,text/csv"
+              multiple
               onChange={onFileChange}
             />
           </label>
-          <button
-            className="primary"
-            onClick={() => {
-              void onRunSample();
-            }}
-            disabled={isRunning}
-          >
-            {isRunning ? "Running matcher..." : "Run matcher locally"}
-          </button>
+          <div className="button-row">
+            <button
+              className="primary"
+              onClick={() => {
+                void processUploadedFiles();
+              }}
+              disabled={isRunning}
+            >
+              {isRunning ? "Processing..." : "Process uploaded CSV files"}
+            </button>
+            <button
+              className="secondary"
+              onClick={() => {
+                void runSample();
+              }}
+              disabled={isRunning}
+            >
+              Run bundled sample raw CSV
+            </button>
+          </div>
+          <p className="small-note">
+            Selected files: {uploadedFiles.length ? uploadedFiles.map((file) => file.name).join(", ") : "none"}
+          </p>
         </article>
 
         <article className="panel">
-          <h2>Current Input</h2>
+          <h2>Processing Settings</h2>
+          <div className="settings-grid">
+            <label>
+              <span>Timezone handling</span>
+              <select
+                value={options.timezoneHandling}
+                onChange={(event) =>
+                  setOptions((current) => ({
+                    ...current,
+                    timezoneHandling: event.target.value as BrowserProcessingOptions["timezoneHandling"],
+                  }))
+                }
+              >
+                <option value="primary-filter">Filter to primary timezone per file</option>
+                <option value="selected-filter">Filter to selected timezone</option>
+                <option value="selected-convert">Convert all rows to selected timezone</option>
+              </select>
+            </label>
+            <label>
+              <span>Selected timezone</span>
+              <input
+                value={options.selectedTimezone ?? ""}
+                onChange={(event) =>
+                  setOptions((current) => ({ ...current, selectedTimezone: event.target.value }))
+                }
+                placeholder="America/Chicago"
+              />
+            </label>
+            <label>
+              <span>Long duration threshold (hours)</span>
+              <input
+                type="number"
+                min="1"
+                max="48"
+                value={options.longDurationThresholdHours}
+                onChange={(event) =>
+                  setOptions((current) => ({
+                    ...current,
+                    longDurationThresholdHours: Number(event.target.value),
+                  }))
+                }
+              />
+            </label>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={options.correctDuplicateEventTimestamps}
+                onChange={(event) =>
+                  setOptions((current) => ({
+                    ...current,
+                    correctDuplicateEventTimestamps: event.target.checked,
+                  }))
+                }
+              />
+              <span>Correct duplicate event timestamps</span>
+            </label>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={options.allowStopEventReuse}
+                onChange={(event) =>
+                  setOptions((current) => ({
+                    ...current,
+                    allowStopEventReuse: event.target.checked,
+                  }))
+                }
+              />
+              <span>Allow stop-event reuse</span>
+            </label>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={options.useActivityStoppedAsFallback}
+                onChange={(event) =>
+                  setOptions((current) => ({
+                    ...current,
+                    useActivityStoppedAsFallback: event.target.checked,
+                  }))
+                }
+              />
+              <span>Use Activity Stopped fallback</span>
+            </label>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={options.applyThresholdToFallback}
+                onChange={(event) =>
+                  setOptions((current) => ({
+                    ...current,
+                    applyThresholdToFallback: event.target.checked,
+                  }))
+                }
+              />
+              <span>Apply threshold to fallback</span>
+            </label>
+          </div>
+        </article>
+
+        <article className="panel">
+          <h2>Run Summary</h2>
           <dl className="key-values">
             <div>
-              <dt>Rows</dt>
-              <dd>{input.appCodes.length}</dd>
+              <dt>Processed files</dt>
+              <dd>{summary.files}</dd>
             </div>
             <div>
-              <dt>Allow stop reuse</dt>
-              <dd>{String(input.options.allowStopEventReuse)}</dd>
-            </div>
-            <div>
-              <dt>Fallback enabled</dt>
-              <dd>{String(input.options.useActivityStoppedAsFallback)}</dd>
-            </div>
-            <div>
-              <dt>Threshold hours</dt>
-              <dd>{input.options.longDurationThresholdNs / 3_600_000_000_000}</dd>
+              <dt>Derived sessions</dt>
+              <dd>{summary.sessions}</dd>
             </div>
           </dl>
-          <pre className="code-block">{JSON.stringify(input, null, 2)}</pre>
-        </article>
-
-        <article className="panel">
-          <h2>Matcher Output</h2>
-          {result ? (
-            <>
-              <dl className="key-values">
-                <div>
-                  <dt>Start rows</dt>
-                  <dd>{formatArray(result.startIndices)}</dd>
-                </div>
-                <div>
-                  <dt>Stopped starts</dt>
-                  <dd>{formatArray(result.stopStartIndices)}</dd>
-                </div>
-                <div>
-                  <dt>Stop events</dt>
-                  <dd>{formatArray(result.stopEventIndices)}</dd>
-                </div>
-                <div>
-                  <dt>Missing ends</dt>
-                  <dd>{formatArray(result.missingIndices)}</dd>
-                </div>
-              </dl>
-              <pre className="code-block">{JSON.stringify(result, null, 2)}</pre>
-            </>
-          ) : (
-            <p className="empty-state">Run the matcher to see real output from the browser WASM path.</p>
-          )}
+          <p className="small-note">
+            This web port currently runs the app-usage preprocessing path on raw Chronicle CSVs.
+          </p>
           {error ? <p className="error-text">{error}</p> : null}
         </article>
+      </section>
+
+      <section className="results-grid">
+        {results.map((result) => (
+          <article
+            key={result.outputFileName}
+            className="panel"
+          >
+            <div className="result-header">
+              <div>
+                <p className="eyebrow">Output</p>
+                <h2>{result.outputFileName}</h2>
+              </div>
+              <button
+                className="primary"
+                onClick={() => downloadTextFile(result.outputFileName, result.csv)}
+              >
+                Download CSV
+              </button>
+            </div>
+            <dl className="key-values">
+              <div>
+                <dt>Input rows</dt>
+                <dd>{result.originalRowCount}</dd>
+              </div>
+              <div>
+                <dt>Post-clean rows</dt>
+                <dd>{result.processedRowCount}</dd>
+              </div>
+              <div>
+                <dt>Sessions</dt>
+                <dd>{result.sessionCount}</dd>
+              </div>
+              <div>
+                <dt>Timezone</dt>
+                <dd>{result.timezone}</dd>
+              </div>
+            </dl>
+            <pre className="code-block">{result.csv.slice(0, 8000)}</pre>
+          </article>
+        ))}
       </section>
     </main>
   );

@@ -4,8 +4,8 @@ declare module "@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js"
   export default function init(): Promise<void>;
   export function matcherVersion(): string;
   export function matchAppUsageUpdateIndices(
-    appCodes: number[],
-    timestampNs: number[],
+    appCodes: Int32Array,
+    timestampNs: BigInt64Array,
     resumed: Uint8Array,
     sameStop: Uint8Array,
     otherStop: Uint8Array,
@@ -13,6 +13,6 @@ declare module "@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js"
     allowStopEventReuse: boolean,
     useActivityStoppedAsFallback: boolean,
     applyThresholdToFallback: boolean,
-    longDurationThresholdNs: number,
+    longDurationThresholdNs: bigint,
   ): unknown;
 }

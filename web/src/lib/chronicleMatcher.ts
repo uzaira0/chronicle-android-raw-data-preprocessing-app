@@ -1,5 +1,5 @@
 import * as Comlink from "comlink";
-import type { MatcherInput, MatcherOutput } from "@/lib/types";
+import type { BrowserProcessingOptions, ProcessedFileResult } from "@/lib/types";
 import type { ChronicleWorkerApi } from "@/workers/chronicle-worker";
 
 let workerApiPromise: Promise<Comlink.Remote<ChronicleWorkerApi>> | null = null;
@@ -22,7 +22,11 @@ export async function getMatcherVersion(): Promise<string> {
   return api.matcherVersion();
 }
 
-export async function runMatcher(input: MatcherInput): Promise<MatcherOutput> {
+export async function processRawCsv(
+  inputFileName: string,
+  csvText: string,
+  options?: Partial<BrowserProcessingOptions>,
+): Promise<ProcessedFileResult> {
   const api = await getWorkerApi();
-  return api.runMatcher(input);
+  return api.processRawCsv(inputFileName, csvText, options);
 }
