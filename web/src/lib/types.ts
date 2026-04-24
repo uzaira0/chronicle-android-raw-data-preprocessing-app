@@ -1,3 +1,9 @@
+import type {
+  BrowserTimezoneHandling,
+  BrowserUsageSessionMode,
+  OutputKind,
+} from "@/lib/generatedContract";
+
 export type MatcherInput = {
   appCodes: Int32Array;
   timestampNs: BigInt64Array;
@@ -34,26 +40,15 @@ export type RawChronicleRow = {
   timezone?: string;
 };
 
-export type BrowserTimezoneHandling =
-  | "selected-filter"
-  | "selected-convert"
-  | "primary-filter"
-  | "primary-convert";
-
-export type BrowserUsageSessionMode =
-  | "app_usage"
-  | "screen_usage"
-  | "app_and_screen_usage";
-
 export type BrowserSupportFile = {
   name: string;
   bytes: ArrayBuffer;
 };
 
 export type BrowserSupportFiles = {
-  filterFile?: BrowserSupportFile | null;
-  keepAwakeAppsFile?: BrowserSupportFile | null;
-  appCodebookFile?: BrowserSupportFile | null;
+  filterFile?: BrowserSupportFile;
+  keepAwakeAppsFile?: BrowserSupportFile;
+  appCodebookFile?: BrowserSupportFile;
 };
 
 export type BrowserProcessingRuntime = {
@@ -84,14 +79,14 @@ export type BrowserProcessingOptions = {
   screenUsageManualLockMaxTailGapSeconds: number;
   screenUsageKeyguardNearStopSeconds: number;
   parallelProcessing: boolean;
-  parallelMaxWorkers: number | null;
+  parallelMaxWorkers?: number;
   sameAppInteractionTypesToStopUsageAt: string[];
   otherInteractionTypesToStopUsageAt: string[];
   interactionTypesToRemove: string[];
 };
 
 export type ProcessedOutputFileResult = {
-  kind: "app" | "screen";
+  kind: OutputKind;
   outputFileName: string;
   csv: string;
   rowCount: number;

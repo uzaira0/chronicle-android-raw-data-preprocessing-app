@@ -25,9 +25,11 @@ type ProcessingSpec = {
   };
 };
 
-async function loadSupportFile(filePath: string | undefined): Promise<BrowserSupportFiles[keyof BrowserSupportFiles]> {
+async function loadSupportFile(
+  filePath: string | undefined,
+): Promise<BrowserSupportFiles[keyof BrowserSupportFiles] | undefined> {
   if (!filePath) {
-    return null;
+    return undefined;
   }
   const bytes = await readFile(filePath);
   return {
@@ -39,10 +41,13 @@ async function loadSupportFile(filePath: string | undefined): Promise<BrowserSup
 async function loadSupportFiles(
   supportFilePaths: ProcessingSpec["supportFilePaths"],
 ): Promise<BrowserSupportFiles> {
+  const filterFile = await loadSupportFile(supportFilePaths?.filterFile);
+  const keepAwakeAppsFile = await loadSupportFile(supportFilePaths?.keepAwakeAppsFile);
+  const appCodebookFile = await loadSupportFile(supportFilePaths?.appCodebookFile);
   return {
-    filterFile: await loadSupportFile(supportFilePaths?.filterFile),
-    keepAwakeAppsFile: await loadSupportFile(supportFilePaths?.keepAwakeAppsFile),
-    appCodebookFile: await loadSupportFile(supportFilePaths?.appCodebookFile),
+    ...(filterFile ? { filterFile } : {}),
+    ...(keepAwakeAppsFile ? { keepAwakeAppsFile } : {}),
+    ...(appCodebookFile ? { appCodebookFile } : {}),
   };
 }
 
