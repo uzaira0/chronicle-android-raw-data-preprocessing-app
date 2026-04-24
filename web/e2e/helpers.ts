@@ -37,7 +37,9 @@ export function trackExternalRequests(page: Page): ExternalRequestTracker {
 export async function gotoApp(page: Page): Promise<void> {
   await page.goto("/");
   await page.waitForLoadState("networkidle");
-  await expect(page.getByRole("heading", { name: /desktop preprocessing options/i })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" }),
+  ).toBeVisible();
 }
 
 export function assertNoExternalRequests(tracker: ExternalRequestTracker): void {
