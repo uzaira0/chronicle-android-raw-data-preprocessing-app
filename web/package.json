@@ -5,14 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "build": "node scripts/run-clean-env.mjs vite build",
+    "preview": "node scripts/run-clean-env.mjs vite preview --host 127.0.0.1 --port 4173",
     "host:local": "npm run build && npm run preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed",
-    "test:e2e:smoke": "playwright test --grep @smoke",
+    "test": "node scripts/run-clean-env.mjs vitest run",
+    "test:e2e": "node scripts/run-clean-env.mjs playwright test",
+    "test:e2e:headed": "node scripts/run-clean-env.mjs playwright test --headed",
+    "test:e2e:smoke": "node scripts/run-clean-env.mjs playwright test --grep @smoke",
     "process:browser": "vite-node scripts/run_browser_processing.mts",
     "build:wasm": "wasm-pack build ../rust/chronicle_app_usage_wasm --target web --out-dir src/wasm/chronicle_app_usage_wasm/pkg"
   },
@@ -20,7 +20,8 @@
     "comlink": "^4.4.2",
     "papaparse": "^5.5.3",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "read-excel-file": "^5.8.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
@@ -28,7 +29,7 @@
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.1.0",
-    "exceljs": "^3.4.0",
+    "read-excel-file": "^5.8.0",
     "typescript": "^5.9.3",
     "vite": "^7.1.12",
     "vite-node": "^3.2.4",

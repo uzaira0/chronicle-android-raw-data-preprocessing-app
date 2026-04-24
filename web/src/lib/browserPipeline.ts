@@ -343,6 +343,7 @@ type ScreenState = {
 };
 
 type SupportRows = Array<Record<string, string>>;
+type ReadXlsxRows = (input: ArrayBuffer) => Promise<unknown[][]>;
 
 function requireString(value: string | undefined, fallback = ""): string {
   return (value ?? fallback).trim();
@@ -393,39 +394,17 @@ function parseCsvRows(text: string): SupportRows {
 }
 
 async function parseWorkbookRows(bytes: ArrayBuffer): Promise<SupportRows> {
-  const excelModule = (await import("exceljs/dist/exceljs.js")) as Record<string, unknown>;
-  const WorkbookCtor =
-    (excelModule.Workbook as new () => {
-      xlsx: { load: (buffer: ArrayBuffer) => Promise<void> };
-      worksheets: Array<{
-        actualRowCount: number;
-        getRow: (index: number) => { values: unknown[] };
-      }>;
-    }) ??
-    ((excelModule.default as Record<string, unknown> | undefined)?.Workbook as new () => {
-      xlsx: { load: (buffer: ArrayBuffer) => Promise<void> };
-      worksheets: Array<{
-        actualRowCount: number;
-        getRow: (index: number) => { values: unknown[] };
-      }>;
-    });
-  if (!WorkbookCtor) {
-    throw new Error("Excel workbook parser is unavailable in this browser build.");
-  }
-  const workbook = new WorkbookCtor();
-  await workbook.xlsx.load(bytes);
-  const worksheet = workbook.worksheets[0];
-  if (!worksheet) {
+  const workbookRows = await readWorkbookRows(bytes);
+  if (workbookRows.length === 0) {
     return [];
   }
-  const headerRow = worksheet.getRow(1).values.slice(1).map((value) => requireString(String(value ?? "")));
+  const headerRow = workbookRows[0]?.map((value) => requireString(String(value ?? ""))) ?? [];
   const rows: SupportRows = [];
-  for (let rowIndex = 2; rowIndex <= worksheet.actualRowCount; rowIndex += 1) {
-    const rowValues = worksheet.getRow(rowIndex).values.slice(1);
+  for (const rowValues of workbookRows.slice(1)) {
     const row: Record<string, string> = {};
     headerRow.forEach((header, index) => {
       if (header) {
-        row[header] = requireString(rowValues[index] == null ? "" : String(rowValues[index]));
+        row[header] = requireString(rowValues?.[index] == null ? "" : String(rowValues[index]));
       }
     });
     if (Object.values(row).some((value) => value !== "")) {
@@ -435,20 +414,48 @@ async function parseWorkbookRows(bytes: ArrayBuffer): Promise<SupportRows> {
   return rows;
 }
 
+async function readWorkbookRows(bytes: ArrayBuffer): Promise<unknown[][]> {
+  const readXlsxFile = await loadWorkbookReader();
+  return (await readXlsxFile(bytes)) as unknown[][];
+}
+
+async function loadWorkbookReader(): Promise<ReadXlsxRows> {
+  if (typeof DOMParser !== "undefined") {
+    const module = (await import("read-excel-file")) as { default: ReadXlsxRows };
+    return module.default;
+  }
+  if (typeof self === "undefined") {
+    throw new Error("Spreadsheet uploads require a browser execution context. Use CSV support files for Node-only runs.");
+  }
+  const module = (await import("read-excel-file/web-worker")) as { default: ReadXlsxRows };
+  return module.default;
+}
+
+async function computeSupportFileCacheKey(file: BrowserSupportFile): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", file.bytes);
+  const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${file.name}:${hex}`;
+}
+
 async function parseSupportRowsFromFile(file: BrowserSupportFile): Promise<SupportRows> {
-  const cacheKey = `${file.name}:${file.bytes.byteLength}`;
+  const cacheKey = await computeSupportFileCacheKey(file);
   const cached = uploadedSupportCache.get(cacheKey);
   if (cached) {
     return cached;
   }
   const pending = (async () => {
-  if (/\.csv$/i.test(file.name)) {
-    return parseCsvRows(new TextDecoder("utf-8").decode(file.bytes));
-  }
-  if (/\.(xlsx|xls)$/i.test(file.name)) {
-    return parseWorkbookRows(file.bytes);
-  }
-  throw new Error(`Unsupported support file format: ${file.name}`);
+    if (/\.csv$/i.test(file.name)) {
+      return parseCsvRows(new TextDecoder("utf-8").decode(file.bytes));
+    }
+    if (/\.xlsx$/i.test(file.name)) {
+      return parseWorkbookRows(file.bytes);
+    }
+    if (/\.xls$/i.test(file.name)) {
+      throw new Error(
+        `Unsupported support file format: ${file.name}. Convert legacy .xls workbooks to .xlsx or CSV for the local web app.`,
+      );
+    }
+    throw new Error(`Unsupported support file format: ${file.name}`);
   })();
   uploadedSupportCache.set(cacheKey, pending);
   return pending;
@@ -460,11 +467,11 @@ async function fetchDefaultRows(url: string): Promise<SupportRows> {
     return cached;
   }
   const pending = (async () => {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to load bundled asset: ${url}`);
-  }
-  return parseCsvRows(await response.text());
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to load bundled asset: ${url}`);
+    }
+    return parseCsvRows(await response.text());
   })();
   defaultSupportCache.set(url, pending);
   return pending;
