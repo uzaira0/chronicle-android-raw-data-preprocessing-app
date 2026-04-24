@@ -63,6 +63,13 @@ components:
           $ref: "#/components/schemas/BrowserSupportFile"
         appCodebookFile:
           $ref: "#/components/schemas/BrowserSupportFile"
+    BrowserProcessingRuntime:
+      type: object
+      description: Internal/test-only runtime metadata that should not be surfaced as end-user options.
+      properties:
+        datetimeOfPreprocessing:
+          type: string
+          description: Fixed preprocessing timestamp for deterministic output stamping.
     BrowserProcessingOptions:
       type: object
       required:
@@ -165,6 +172,8 @@ components:
       properties:
         csvText:
           type: string
+        runtime:
+          $ref: "#/components/schemas/BrowserProcessingRuntime"
     DiscoverTimezonesResponse:
       type: object
       required: [timezones]
@@ -185,6 +194,8 @@ components:
           $ref: "#/components/schemas/BrowserProcessingOptions"
         supportFiles:
           $ref: "#/components/schemas/BrowserSupportFiles"
+        runtime:
+          $ref: "#/components/schemas/BrowserProcessingRuntime"
     ProcessedOutputFileResult:
       type: object
       required: [kind, outputFileName, csv, rowCount]

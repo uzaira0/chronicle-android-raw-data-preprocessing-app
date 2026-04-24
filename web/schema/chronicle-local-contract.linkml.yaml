@@ -43,6 +43,10 @@ classes:
       - keep_awake_apps_file
       - app_codebook_file
 
+  BrowserProcessingRuntime:
+    slots:
+      - datetime_of_preprocessing
+
   BrowserProcessingOptions:
     slots:
       - study_name
@@ -102,6 +106,10 @@ slots:
     range: BrowserSupportFile
   app_codebook_file:
     range: BrowserSupportFile
+  datetime_of_preprocessing:
+    description: >
+      Internal/test-only fixed preprocessing timestamp used to make output stamping
+      deterministic across runtimes. This is not intended as an end-user option.
 
   study_name:
     required: true

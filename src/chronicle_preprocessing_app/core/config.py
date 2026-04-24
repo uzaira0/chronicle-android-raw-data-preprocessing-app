@@ -238,6 +238,8 @@ class PreprocessingOptions:
     parallel_max_workers: int | None = DEFAULT_PARALLEL_MAX_WORKERS
     compliance_reporting: bool = DEFAULT_COMPLIANCE_REPORTING
     study_date_map: dict[str, tuple[Any, Any]] | None = DEFAULT_STUDY_DATE_MAP
+    # Internal/test-only override for deterministic output stamping.
+    datetime_of_preprocessing_override: str | None = None
 
     # --- Internal/pipeline-only fields (requires chronicle-preprocessing-internal) ---
     use_survey_data: Any = False

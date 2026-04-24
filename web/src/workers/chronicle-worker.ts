@@ -6,6 +6,7 @@ import {
 } from "@/lib/browserPipeline";
 import type {
   BrowserProcessingOptions,
+  BrowserProcessingRuntime,
   BrowserSupportFiles,
   MatcherInput,
   MatcherOutput,
@@ -48,17 +49,28 @@ const api = {
     const module = await import("@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
     return module.matcherVersion();
   },
-  async discoverTimezones(csvText: string): Promise<string[]> {
-    return discoverTimezonesFromRawCsv(csvText);
+  async discoverTimezones(
+    csvText: string,
+    runtime?: BrowserProcessingRuntime,
+  ): Promise<string[]> {
+    return discoverTimezonesFromRawCsv(csvText, runtime);
   },
   async processRawCsv(
     inputFileName: string,
     csvText: string,
     incomingOptions?: Partial<BrowserProcessingOptions>,
     supportFiles?: BrowserSupportFiles,
+    runtime?: BrowserProcessingRuntime,
   ): Promise<ProcessedFileResult> {
     const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
-    return processRawCsvContent(inputFileName, csvText, options, supportFiles, runMatcher);
+    return processRawCsvContent(
+      inputFileName,
+      csvText,
+      options,
+      supportFiles,
+      runMatcher,
+      runtime,
+    );
   },
 };
 
