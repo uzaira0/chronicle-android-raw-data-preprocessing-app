@@ -174,27 +174,25 @@ class ScreenUsagePreprocessor(BasePreprocessor):
             return df_copy
 
         session_df = pl.DataFrame(sessions)
-        event_dtype = df_copy.schema[Column.EVENT_TIMESTAMP]
-        for frame_name, current in (("source", df_copy), ("session", session_df)):
-            timestamp_columns = [
-                column
-                for column in (
-                    Column.EVENT_TIMESTAMP,
-                    Column.START_TIMESTAMP,
-                    Column.STOP_TIMESTAMP,
-                    Column.SCREEN_USAGE_LAST_ACTIVITY_TIMESTAMP,
-                )
-                if column in current.columns
-            ]
-            if timestamp_columns:
-                cast_expressions = [
-                    pl.col(column).cast(event_dtype, strict=False).alias(column)
-                    for column in timestamp_columns
-                ]
-                if frame_name == "source":
-                    df_copy = current.with_columns(cast_expressions)
+        shared_columns = [column for column in session_df.columns if column in df_copy.columns]
+        if shared_columns:
+            source_casts: list[pl.Expr] = []
+            session_casts: list[pl.Expr] = []
+            for column in shared_columns:
+                source_dtype = df_copy.schema[column]
+                session_dtype = session_df.schema[column]
+                if source_dtype == session_dtype:
+                    continue
+                if source_dtype == pl.Null and session_dtype != pl.Null:
+                    source_casts.append(pl.col(column).cast(session_dtype, strict=False).alias(column))
+                elif session_dtype == pl.Null and source_dtype != pl.Null:
+                    session_casts.append(pl.col(column).cast(source_dtype, strict=False).alias(column))
                 else:
-                    session_df = current.with_columns(cast_expressions)
+                    session_casts.append(pl.col(column).cast(source_dtype, strict=False).alias(column))
+            if source_casts:
+                df_copy = df_copy.with_columns(source_casts)
+            if session_casts:
+                session_df = session_df.with_columns(session_casts)
         return pl.concat([df_copy, session_df], how="diagonal").sort(Column.EVENT_TIMESTAMP)
 
     def _build_session_row(
