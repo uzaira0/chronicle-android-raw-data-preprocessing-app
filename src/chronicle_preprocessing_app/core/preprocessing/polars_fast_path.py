@@ -821,6 +821,10 @@ class PolarsFastPathPreprocessor:
             .otherwise(pl.col(column_name))
         )
 
+    @staticmethod
+    def _null_string_expr() -> pl.Expr:
+        return pl.lit(None).cast(pl.String)
+
     def _enrich_with_app_codebook_data(self, df: pl.DataFrame) -> pl.DataFrame:
         if not self.options.use_app_codebook:
             return df
@@ -876,16 +880,45 @@ class PolarsFastPathPreprocessor:
                 Column.BABYEMU_GENRE_ID_MANUAL,
                 Column.PLAY_STORE_GENRE_ID,
                 Column.USC_GENRE_ID,
-                Column.GENRE_ID_SCRAPED,
             )
             if column in df.columns
         ]
+        genre_value_list_column = "__chronicle_genre_values"
         broad_category_expr = pl.coalesce(
             [*(self._blank_to_null_expr(column) for column in broad_category_candidates), pl.lit("Unknown")]
         ).alias(Column.BROAD_APP_CATEGORY)
-        genre_id_expr = pl.coalesce(
-            [*(self._blank_to_null_expr(column) for column in genre_id_candidates), pl.lit("Unknown")]
-        ).alias(Column.GENRE_ID_SCRAPED)
+        if genre_id_candidates:
+            df = df.with_columns(
+                pl.concat_list(
+                    [
+                        self._blank_to_null_expr(column).cast(pl.String)
+                        for column in genre_id_candidates
+                    ]
+                )
+                .list.drop_nulls()
+                .alias(genre_value_list_column)
+            )
+            unanimous_genre_expr = pl.col(genre_value_list_column).list.n_unique() <= 1
+            genre_id_expr = (
+                pl.when(pl.col(genre_value_list_column).list.len() == 0)
+                .then(pl.lit("Unknown"))
+                .when(unanimous_genre_expr)
+                .then(pl.col(genre_value_list_column).list.first())
+                .otherwise(self._null_string_expr())
+                .alias(Column.GENRE_ID_SCRAPED)
+            )
+            source_genre_exprs = [
+                pl.when(unanimous_genre_expr)
+                .then(self._null_string_expr())
+                .otherwise(pl.col(column).cast(pl.String))
+                .alias(column)
+                for column in genre_id_candidates
+            ]
+            return df.with_columns([broad_category_expr, genre_id_expr, *source_genre_exprs]).drop(
+                genre_value_list_column
+            )
+
+        genre_id_expr = pl.lit("Unknown").alias(Column.GENRE_ID_SCRAPED)
         return df.with_columns([broad_category_expr, genre_id_expr])
 
     def _add_app_usage_detail_columns(self, df: pl.DataFrame) -> pl.DataFrame:
@@ -1062,8 +1095,9 @@ class PolarsFastPathPreprocessor:
         app_core_columns = [
             Column.APP_PACKAGE_NAME,
             Column.APPLICATION_LABEL,
+            Column.GENRE_ID_SCRAPED,
             *(
-                [Column.BROAD_APP_CATEGORY, Column.GENRE_ID_SCRAPED]
+                [Column.BROAD_APP_CATEGORY]
                 if include_legacy_codebook_aliases
                 else []
             ),
