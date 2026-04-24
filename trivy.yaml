@@ -1,0 +1,26 @@
+severity:
+  - HIGH
+  - CRITICAL
+scanners:
+  - vuln
+  - misconfig
+  - secret
+exit-code: 1
+format: table
+ignore-unfixed: true
+skip-dirs:
+  - .git
+  - .venv
+  - .tmp_benchmarks
+  - .tmp_pathological_one
+  - .tmp_pathological_rich_raw
+  - .tmp_pathological_smoke
+  - __pycache__
+  - archive
+  - build
+  - dist
+  - src/chronicle_android_preprocessor.egg-info
+skip-files:
+  - "**/*.csv"
+  - src/chronicle_preprocessing_app/_rust_app_usage_matcher.cpython-313-darwin.so
+  - src/chronicle_preprocessing_app/_rust_app_usage_matcher.cpython-314-darwin.so

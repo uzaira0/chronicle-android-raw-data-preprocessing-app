@@ -1,0 +1,16 @@
+.git/
+.venv/
+.tmp_benchmarks/
+.tmp_pathological_one/
+.tmp_pathological_rich_raw/
+.tmp_pathological_smoke/
+__pycache__/
+build/
+dist/
+archive/
+src/chronicle_android_preprocessor.egg-info/
+*.so
+*.csv
+OutputSize* Chronicle Android Automatically Preprocessed Data/
+Pathological* Chronicle Android Automatically Preprocessed Data/
+TrackedSmoke Chronicle Android Automatically Preprocessed Data/

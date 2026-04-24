@@ -37,6 +37,10 @@ jobs:
     
     - name: Determine version
       id: versioning
+      env:
+        GITHUB_REF_SAFE: ${{ github.ref }}
+        GITHUB_EVENT_NAME_SAFE: ${{ github.event_name }}
+        VERSION_BUMP_SAFE: ${{ github.event.inputs.version_bump || '' }}
       run: |
         # Get current version from version.py or default to 0.1.0
         CURRENT_VERSION=$(python3 -c "
@@ -49,12 +53,12 @@ jobs:
             print('0.1.0')
         ")
         
-        if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+        if [[ "$GITHUB_REF_SAFE" == refs/tags/v* ]]; then
           # If this is a tag, use the tag name as version
           VERSION=${GITHUB_REF#refs/tags/v}
-        elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+        elif [[ "$GITHUB_EVENT_NAME_SAFE" == "workflow_dispatch" ]]; then
           # For manual workflow, use the specified bump type
-          BUMP_TYPE="${{ github.event.inputs.version_bump }}"
+          BUMP_TYPE="$VERSION_BUMP_SAFE"
           
           # Parse version components (assuming format like 0.0.3)
           if [[ $CURRENT_VERSION =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
