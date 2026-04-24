@@ -199,6 +199,8 @@ preprocessors/survey_data_preprocessor.py
 !tests/**/*.py
 *demo*
 *benchmark*
+!scripts/benchmark_browser_pathological_fixture.py
+!web/scripts/benchmark_browser_processing.mjs
  Chronicle Android Automatically Preprocessed Data/
 
 # Local archives
