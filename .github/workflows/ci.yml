@@ -55,7 +55,15 @@ jobs:
         run: python -m pip install --upgrade semgrep
 
       - name: Run Semgrep
-        run: semgrep --config=auto --error .
+        run: semgrep --config .semgrep/chronicle-security.yml --error .
+
+  ast-grep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run ast-grep
+        uses: ast-grep/action@v1.4
 
   python-security:
     runs-on: ubuntu-latest
@@ -75,7 +83,7 @@ jobs:
           pip install bandit[toml] pip-audit
 
       - name: Run Bandit
-        run: bandit -r src/chronicle_preprocessing_app -ll
+        run: bandit -c bandit.yaml -r src/chronicle_preprocessing_app -ll
 
       - name: Audit Python dependencies
         run: pip-audit --strict
@@ -118,4 +126,4 @@ jobs:
         env:
           GITLEAKS_ENABLE_COMMENTS: "false"
         with:
-          args: detect --source . --max-target-megabytes 5 --redact --verbose
+          args: detect --source . --config .gitleaks.toml --max-target-megabytes 5 --redact --verbose

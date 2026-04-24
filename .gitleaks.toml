@@ -1,0 +1,14 @@
+title = "Chronicle Android Preprocessor Gitleaks Config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Generated benchmark and preprocessing artifacts"
+paths = [
+  '''^\.tmp_benchmarks/''',
+  '''^\.tmp_pathological_''',
+  '''^OutputSize.*''',
+  '''^Pathological.*''',
+  '''^TrackedSmoke.*''',
+]
