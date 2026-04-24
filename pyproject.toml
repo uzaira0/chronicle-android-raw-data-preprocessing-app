@@ -62,6 +62,7 @@ packages = [
 
 [tool.setuptools.package-data]
 "*" = ["*.xlsx"]
+"chronicle_preprocessing_app" = ["data/*.csv", "data/*.xlsx"]
 
 [[tool.setuptools-rust.ext-modules]]
 target = "chronicle_preprocessing_app._rust_app_usage_matcher"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from chronicle_preprocessing_app.config.constants import (
     FileRegexPattern,
@@ -17,10 +18,22 @@ DEFAULT_RAW_DATA_FOLDER: str = ""
 DEFAULT_RAW_DATA_FILE_REGEX_PATTERN: str = FileRegexPattern.RAW_DATA
 
 # App codebook defaults
+def _resolve_default_app_codebook_path() -> str:
+    package_root = Path(__file__).resolve().parents[1]
+    project_root = Path(__file__).resolve().parents[3]
+    candidates = [
+        package_root / "data" / "unified_app_codebook.csv",
+        project_root / "app_codebook_files" / "unified_app_codebook.csv",
+        project_root / "app_codebook_files" / "Chronicle_Android_raw_data_preprocessor_app_codebook.xlsx",
+    ]
+    for path in candidates:
+        if path.exists():
+            return str(path.resolve())
+    return str(candidates[0])
+
+
 DEFAULT_USE_APP_CODEBOOK: bool = True
-DEFAULT_APP_CODEBOOK_FILE_PATH = (
-    "./app_codebook_files/Chronicle_Android_raw_data_preprocessor_app_codebook.xlsx"
-)
+DEFAULT_APP_CODEBOOK_FILE_PATH = _resolve_default_app_codebook_path()
 
 # App filter defaults
 DEFAULT_USE_FILTER_FILE: bool = True

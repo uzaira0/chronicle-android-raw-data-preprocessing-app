@@ -15,6 +15,7 @@ from chronicle_preprocessing_app.config.constants import (
     TimezoneHandlingOption,
     UsageSessionMode,
 )
+from chronicle_preprocessing_app.config.defaults import DEFAULT_APP_CODEBOOK_FILE_PATH
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
 from chronicle_preprocessing_app.core.preprocessing.main_preprocessor import (
     ChronicleAndroidRawDataPreprocessor,
@@ -27,8 +28,8 @@ LOGGER = logging.getLogger(__name__)
 class DataFramePreprocessingConfig:
     study_name: str = ""
     selected_timezone: str | None = None
-    use_app_codebook: bool = False
-    app_codebook_path: str = ""
+    use_app_codebook: bool = True
+    app_codebook_path: str = DEFAULT_APP_CODEBOOK_FILE_PATH
     use_filter_file: bool = False
     filter_file_path: str = ""
     use_keep_awake_apps_file: bool = False

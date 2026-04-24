@@ -306,6 +306,7 @@ class ChronicleAndroidRawDataPreprocessor:
 
             if self.options.process_app_usage_sessions:
                 df = self.app_usage_processor.run_app_usage_algorithm(df)
+                df = self.fast_preprocessor._enrich_with_app_codebook_data(df)
                 df = self.app_usage_processor.add_app_usage_details(df)
                 df = self.app_usage_processor.add_app_usage_flags(df)
                 self.current_participant_raw_data_df = df

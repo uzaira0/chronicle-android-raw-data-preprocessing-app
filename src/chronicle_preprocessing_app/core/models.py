@@ -19,6 +19,7 @@ from chronicle_preprocessing_app.config.constants import (
     TimezoneHandlingOption,
     UsageSessionMode,
 )
+from chronicle_preprocessing_app.config.defaults import DEFAULT_APP_CODEBOOK_FILE_PATH
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 # =============================================================================
@@ -181,8 +182,11 @@ class PreprocessingRequest(BaseModel):
         TimezoneHandlingOption.CONVERT_ALL_DATA_TO_SELECTED_TIMEZONE,
         description="How to handle timezone differences",
     )
-    use_app_codebook: bool = Field(False, description="Use app codebook for categorization")
-    app_codebook_path: Path | None = Field(None, description="Path to app codebook")
+    use_app_codebook: bool = Field(True, description="Use app codebook for categorization")
+    app_codebook_path: Path | None = Field(
+        Path(DEFAULT_APP_CODEBOOK_FILE_PATH),
+        description="Path to app codebook",
+    )
     use_filter_file: bool = Field(False, description="Use app filter file")
     filter_file_path: Path | None = Field(None, description="Path to filter file")
     use_keep_awake_apps_file: bool = Field(
