@@ -228,12 +228,17 @@ test("@offline warms the cache, reloads offline, and still processes locally", a
   context,
 }) => {
   await waitForServiceWorkerControl(page);
-  await expect(page.getByTestId("pwa-status-badge")).toContainText("Offline-ready");
+  await expect(
+    page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" }),
+  ).toBeVisible();
+  await expect(page.getByText("Files stay on this device.")).toBeVisible();
 
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByRole("heading", { name: /desktop preprocessing options/i })).toBeVisible();
-  await expect(page.getByTestId("pwa-status-badge")).toContainText("Offline-ready");
+  await expect(
+    page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" }),
+  ).toBeVisible();
+  await expect(page.getByText("Files stay on this device.")).toBeVisible();
 
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
   await processFiles(page);
@@ -244,25 +249,24 @@ test("@offline warms the cache, reloads offline, and still processes locally", a
   assertNoExternalRequests(requestTracker);
 });
 
-test("@install surfaces the install action when the browser raises beforeinstallprompt", async ({
+test("@install keeps the simplified hero stable when beforeinstallprompt fires", async ({
   page,
 }) => {
   await page.evaluate(() => {
     const event = new Event("beforeinstallprompt") as Event & {
-      promptCalled?: boolean;
       prompt: () => Promise<void>;
       userChoice: Promise<{ outcome: "accepted"; platform: string }>;
       preventDefault: () => void;
     };
-    event.prompt = async () => {
-      event.promptCalled = true;
-    };
+    event.prompt = async () => {};
     event.userChoice = Promise.resolve({ outcome: "accepted", platform: "web" });
     window.dispatchEvent(event);
   });
 
-  await expect(page.getByTestId("install-app-button")).toBeVisible();
-  await page.getByTestId("install-app-button").click();
-  await expect(page.getByText("Installed app")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" }),
+  ).toBeVisible();
+  await expect(page.getByText("Files stay on this device.")).toBeVisible();
+  await expect(page.getByTestId("process-files-button")).toBeVisible();
   assertNoExternalRequests(requestTracker);
 });

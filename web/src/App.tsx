@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useMemo, useState, type ChangeEvent } from "react";
 import {
   BOOLEAN_OPTION_CONTROLS,
   DEFAULT_BROWSER_OPTIONS,
@@ -10,7 +10,6 @@ import {
 } from "@/lib/browserPipeline";
 import {
   discoverTimezones,
-  getMatcherVersion,
   processRawCsv,
   processRawCsvIsolated,
 } from "@/lib/chronicleMatcher";
@@ -22,11 +21,6 @@ import type {
   BrowserSupportFiles,
   ProcessedFileResult,
 } from "@/lib/types";
-
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
-};
 
 function downloadTextFile(fileName: string, content: string): void {
   const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
@@ -87,17 +81,8 @@ function ToggleGroup(props: {
 }
 
 export default function App() {
-  const [matcherVersion, setMatcherVersion] = useState<string>("loading");
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
-  const [isOffline, setIsOffline] = useState<boolean>(!navigator.onLine);
-  const [isPwaReady, setIsPwaReady] = useState(false);
-  const [isStandalone, setIsStandalone] = useState<boolean>(
-    window.matchMedia("(display-mode: standalone)").matches,
-  );
-  const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(
-    null,
-  );
   const [results, setResults] = useState<ProcessedFileResult[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [filterFile, setFilterFile] = useState<File | null>(null);
@@ -128,93 +113,6 @@ export default function App() {
       left.localeCompare(right),
     );
   }, [discoveredTimezones]);
-
-  useEffect(() => {
-    void getMatcherVersion()
-      .then(setMatcherVersion)
-      .catch((loadError: unknown) => {
-        setMatcherVersion("unavailable");
-        setError(loadError instanceof Error ? loadError.message : String(loadError));
-      });
-  }, []);
-
-  useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
-    const handleOffline = () => setIsOffline(true);
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!("serviceWorker" in navigator)) {
-      return;
-    }
-
-    let cancelled = false;
-    const syncState = async () => {
-      const registration = await navigator.serviceWorker.getRegistration();
-      if (!cancelled) {
-        setIsPwaReady(Boolean(registration?.active) && Boolean(navigator.serviceWorker.controller));
-      }
-    };
-
-    void syncState();
-    void navigator.serviceWorker.ready.then(() => {
-      if (!cancelled) {
-        setIsPwaReady(Boolean(navigator.serviceWorker.controller));
-      }
-    });
-
-    const handleControllerChange = () => {
-      setIsPwaReady(Boolean(navigator.serviceWorker.controller));
-    };
-    navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
-
-    return () => {
-      cancelled = true;
-      navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
-    };
-  }, []);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(display-mode: standalone)");
-    const handleDisplayMode = () => setIsStandalone(mediaQuery.matches);
-    const handleBeforeInstallPrompt = (event: Event) => {
-      event.preventDefault();
-      setInstallPromptEvent(event as BeforeInstallPromptEvent);
-    };
-    const handleInstalled = () => {
-      setInstallPromptEvent(null);
-      setIsStandalone(true);
-    };
-
-    handleDisplayMode();
-    mediaQuery.addEventListener("change", handleDisplayMode);
-    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-    window.addEventListener("appinstalled", handleInstalled);
-
-    return () => {
-      mediaQuery.removeEventListener("change", handleDisplayMode);
-      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-      window.removeEventListener("appinstalled", handleInstalled);
-    };
-  }, []);
-
-  const promptInstall = async () => {
-    if (!installPromptEvent) {
-      return;
-    }
-    await installPromptEvent.prompt();
-    const outcome = await installPromptEvent.userChoice;
-    if (outcome.outcome === "accepted") {
-      setInstallPromptEvent(null);
-      setIsStandalone(true);
-    }
-  };
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     setUploadedFiles(Array.from(event.target.files ?? []));
@@ -353,36 +251,11 @@ export default function App() {
   return (
     <main className="app-shell">
       <section className="hero">
-        <p className="eyebrow">Chronicle Local-First Web Port</p>
-        <h1>Desktop preprocessing options, local browser execution.</h1>
+        <h1>Chronicle Android Raw Data Preprocessor</h1>
         <p className="lede">
-          This build is being pushed toward desktop parity: raw Chronicle CSV goes in, processing
-          happens locally in a worker with Rust/WASM matching, and the generated outputs stay on
-          this device.
+          Files stay on this device. Raw Chronicle CSV files are processed locally in your browser,
+          and the generated outputs download locally.
         </p>
-        <div className="badge-row">
-          <span>Files stay on this device</span>
-          <span>No file uploads</span>
-          <span data-testid="pwa-status-badge">
-            {isPwaReady ? (isOffline ? "Offline-ready now" : "Offline-ready") : "Caching shell..."}
-          </span>
-          <span>{isStandalone ? "Installed app" : "Browser session"}</span>
-          <span>Matcher v{matcherVersion}</span>
-        </div>
-        {installPromptEvent ? (
-          <div className="button-row">
-            <button
-              type="button"
-              className="secondary"
-              data-testid="install-app-button"
-              onClick={() => {
-                void promptInstall();
-              }}
-            >
-              Install app
-            </button>
-          </div>
-        ) : null}
       </section>
 
       <section className="panel-grid wide-grid">
