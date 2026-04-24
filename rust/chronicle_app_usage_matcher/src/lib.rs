@@ -157,6 +157,266 @@ fn close_reused_starts<F>(
     open_start_indices.truncate(write_index);
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SparseStopMode {
+    SameApp,
+    OtherApp,
+    AnyApp,
+    FallbackSameApp,
+}
+
+fn sparse_stop_mode(
+    index: usize,
+    same_stop: &[bool],
+    other_stop: &[bool],
+    stopped: &[bool],
+    options: MatchOptions,
+) -> Option<SparseStopMode> {
+    let has_same_stop = same_stop[index];
+    let has_other_stop = other_stop[index];
+    let has_fallback_stop = stopped[index] && options.use_activity_stopped_as_fallback;
+
+    if has_same_stop && has_other_stop {
+        Some(SparseStopMode::AnyApp)
+    } else if has_same_stop {
+        Some(SparseStopMode::SameApp)
+    } else if has_other_stop {
+        Some(SparseStopMode::OtherApp)
+    } else if has_fallback_stop {
+        Some(SparseStopMode::FallbackSameApp)
+    } else {
+        None
+    }
+}
+
+fn sparse_stop_enforces_threshold(mode: SparseStopMode, options: MatchOptions) -> bool {
+    !matches!(mode, SparseStopMode::FallbackSameApp) || options.apply_threshold_to_fallback
+}
+
+#[derive(Debug)]
+struct SparseOpenStarts {
+    global_prev: Vec<i32>,
+    app_prev: Vec<i32>,
+    closed: Vec<bool>,
+    app_heads: Vec<i32>,
+    global_head: i32,
+}
+
+impl SparseOpenStarts {
+    fn new(len: usize, app_codes: &[i32]) -> PyResult<Self> {
+        if app_codes.iter().any(|&code| code < 0) {
+            return Err(PyValueError::new_err(
+                "app code arrays must contain only non-negative values",
+            ));
+        }
+        let max_app_code = app_codes.iter().copied().max().unwrap_or(0) as usize;
+        Ok(Self {
+            global_prev: vec![-1; len],
+            app_prev: vec![-1; len],
+            closed: vec![false; len],
+            app_heads: vec![-1; max_app_code.saturating_add(1)],
+            global_head: -1,
+        })
+    }
+
+    fn open(&mut self, index: usize, app_code: i32) {
+        let slot = app_code as usize;
+        self.global_prev[index] = self.global_head;
+        self.app_prev[index] = self.app_heads[slot];
+        self.global_head = index as i32;
+        self.app_heads[slot] = index as i32;
+    }
+
+    fn close(&mut self, index: usize) {
+        self.closed[index] = true;
+    }
+
+    fn prune_global_head(&mut self) {
+        while self.global_head >= 0 && self.closed[self.global_head as usize] {
+            self.global_head = self.global_prev[self.global_head as usize];
+        }
+    }
+
+    fn prune_app_head(&mut self, app_code: i32) {
+        let slot = app_code as usize;
+        while self.app_heads[slot] >= 0 && self.closed[self.app_heads[slot] as usize] {
+            self.app_heads[slot] = self.app_prev[self.app_heads[slot] as usize];
+        }
+    }
+
+    fn latest_same_app(
+        &mut self,
+        app_code: i32,
+        stop_timestamp_ns: i64,
+        enforce_threshold: bool,
+        threshold_ns: i64,
+        timestamp_ns: &[i64],
+    ) -> Option<usize> {
+        self.prune_app_head(app_code);
+        let slot = app_code as usize;
+        let cursor = self.app_heads[slot];
+        if cursor < 0 {
+            return None;
+        }
+
+        let index = cursor as usize;
+        if !is_valid_duration(
+            timestamp_ns[index],
+            stop_timestamp_ns,
+            enforce_threshold,
+            threshold_ns,
+        ) {
+            return None;
+        }
+        Some(index)
+    }
+
+    fn latest_matching_global<F>(
+        &mut self,
+        stop_timestamp_ns: i64,
+        enforce_threshold: bool,
+        threshold_ns: i64,
+        timestamp_ns: &[i64],
+        mut predicate: F,
+    ) -> Option<usize>
+    where
+        F: FnMut(usize) -> bool,
+    {
+        self.prune_global_head();
+        let mut cursor = self.global_head;
+        while cursor >= 0 {
+            let index = cursor as usize;
+            cursor = self.global_prev[index];
+
+            if self.closed[index] {
+                continue;
+            }
+            if !is_valid_duration(
+                timestamp_ns[index],
+                stop_timestamp_ns,
+                enforce_threshold,
+                threshold_ns,
+            ) {
+                return None;
+            }
+            if predicate(index) {
+                return Some(index);
+            }
+        }
+        None
+    }
+
+    fn close_same_app_matches<F>(
+        &mut self,
+        app_code: i32,
+        stop_timestamp_ns: i64,
+        enforce_threshold: bool,
+        threshold_ns: i64,
+        timestamp_ns: &[i64],
+        mut on_close: F,
+    ) where
+        F: FnMut(usize),
+    {
+        self.prune_app_head(app_code);
+        let slot = app_code as usize;
+        let mut cursor = self.app_heads[slot];
+        while cursor >= 0 {
+            let index = cursor as usize;
+            cursor = self.app_prev[index];
+
+            if self.closed[index] {
+                continue;
+            }
+            if !is_valid_duration(
+                timestamp_ns[index],
+                stop_timestamp_ns,
+                enforce_threshold,
+                threshold_ns,
+            ) {
+                break;
+            }
+
+            self.close(index);
+            on_close(index);
+        }
+        self.prune_app_head(app_code);
+        self.prune_global_head();
+    }
+
+    fn close_matching_global<P, F>(
+        &mut self,
+        stop_timestamp_ns: i64,
+        enforce_threshold: bool,
+        threshold_ns: i64,
+        timestamp_ns: &[i64],
+        mut predicate: P,
+        mut on_close: F,
+    ) where
+        P: FnMut(usize) -> bool,
+        F: FnMut(usize),
+    {
+        self.prune_global_head();
+        let mut cursor = self.global_head;
+        while cursor >= 0 {
+            let index = cursor as usize;
+            cursor = self.global_prev[index];
+
+            if self.closed[index] {
+                continue;
+            }
+            if !is_valid_duration(
+                timestamp_ns[index],
+                stop_timestamp_ns,
+                enforce_threshold,
+                threshold_ns,
+            ) {
+                break;
+            }
+            if predicate(index) {
+                self.close(index);
+                on_close(index);
+            }
+        }
+        self.prune_global_head();
+    }
+
+    fn finish_open_starts<F, G>(
+        &mut self,
+        last_index: usize,
+        timestamp_ns: &[i64],
+        threshold_ns: i64,
+        mut on_close: F,
+        mut on_missing: G,
+    ) where
+        F: FnMut(usize, usize),
+        G: FnMut(usize),
+    {
+        self.prune_global_head();
+        let mut cursor = self.global_head;
+        while cursor >= 0 {
+            let index = cursor as usize;
+            cursor = self.global_prev[index];
+
+            if self.closed[index] {
+                continue;
+            }
+            if last_index > index
+                && is_valid_duration(
+                    timestamp_ns[index],
+                    timestamp_ns[last_index],
+                    true,
+                    threshold_ns,
+                )
+            {
+                self.close(index);
+                on_close(index, last_index);
+            } else {
+                on_missing(index);
+            }
+        }
+    }
+}
+
 fn match_app_usage_core(
     app_codes: &[i32],
     timestamp_ns: &[i64],
@@ -267,70 +527,109 @@ fn match_app_usage_update_indices_core(
     let mut stop_start_indices = Vec::new();
     let mut stop_event_indices = Vec::new();
     let mut missing_indices = Vec::new();
-    let mut open_start_indices: Vec<usize> = Vec::new();
+    let mut open_starts = SparseOpenStarts::new(len, app_codes)?;
+    let threshold_ns = options.long_duration_threshold_ns;
 
     for index in 0..len {
-        let is_normal_stop = same_stop[index] || other_stop[index];
-        let is_fallback_stop = stopped[index] && options.use_activity_stopped_as_fallback;
+        if let Some(stop_mode) = sparse_stop_mode(index, same_stop, other_stop, stopped, options) {
+            let current_app = app_codes[index];
+            let stop_timestamp_ns = timestamp_ns[index];
+            let enforce_threshold = sparse_stop_enforces_threshold(stop_mode, options);
 
-        if options.allow_stop_event_reuse && (is_normal_stop || is_fallback_stop) {
-            close_reused_starts(
-                index,
-                app_codes,
-                timestamp_ns,
-                same_stop,
-                other_stop,
-                stopped,
-                options,
-                &mut open_start_indices,
-                |start_index| {
+            if options.allow_stop_event_reuse {
+                match stop_mode {
+                    SparseStopMode::SameApp | SparseStopMode::FallbackSameApp => {
+                        open_starts.close_same_app_matches(
+                            current_app,
+                            stop_timestamp_ns,
+                            enforce_threshold,
+                            threshold_ns,
+                            timestamp_ns,
+                            |start_index| {
+                                stop_start_indices.push(start_index);
+                                stop_event_indices.push(index);
+                            },
+                        );
+                    }
+                    SparseStopMode::OtherApp => {
+                        open_starts.close_matching_global(
+                            stop_timestamp_ns,
+                            enforce_threshold,
+                            threshold_ns,
+                            timestamp_ns,
+                            |start_index| app_codes[start_index] != current_app,
+                            |start_index| {
+                                stop_start_indices.push(start_index);
+                                stop_event_indices.push(index);
+                            },
+                        );
+                    }
+                    SparseStopMode::AnyApp => {
+                        open_starts.close_matching_global(
+                            stop_timestamp_ns,
+                            enforce_threshold,
+                            threshold_ns,
+                            timestamp_ns,
+                            |_start_index| true,
+                            |start_index| {
+                                stop_start_indices.push(start_index);
+                                stop_event_indices.push(index);
+                            },
+                        );
+                    }
+                }
+            } else {
+                let matched_start = match stop_mode {
+                    SparseStopMode::SameApp | SparseStopMode::FallbackSameApp => open_starts
+                        .latest_same_app(
+                            current_app,
+                            stop_timestamp_ns,
+                            enforce_threshold,
+                            threshold_ns,
+                            timestamp_ns,
+                        ),
+                    SparseStopMode::OtherApp => open_starts.latest_matching_global(
+                        stop_timestamp_ns,
+                        enforce_threshold,
+                        threshold_ns,
+                        timestamp_ns,
+                        |start_index| app_codes[start_index] != current_app,
+                    ),
+                    SparseStopMode::AnyApp => open_starts.latest_matching_global(
+                        stop_timestamp_ns,
+                        enforce_threshold,
+                        threshold_ns,
+                        timestamp_ns,
+                        |_start_index| true,
+                    ),
+                };
+
+                if let Some(start_index) = matched_start {
+                    open_starts.close(start_index);
                     stop_start_indices.push(start_index);
                     stop_event_indices.push(index);
-                },
-            );
-        } else if is_normal_stop || is_fallback_stop {
-            if let Some(position) = nearest_compatible_open_start_for_stop(
-                index,
-                app_codes,
-                timestamp_ns,
-                &open_start_indices,
-                same_stop,
-                other_stop,
-                stopped,
-                options,
-            ) {
-                let start_index = open_start_indices.remove(position);
-                stop_start_indices.push(start_index);
-                stop_event_indices.push(index);
+                }
             }
         }
 
         if resumed[index] {
             start_indices.push(index);
-            open_start_indices.push(index);
+            open_starts.open(index, app_codes[index]);
         }
     }
 
-    if !open_start_indices.is_empty() {
+    if len > 0 {
         let last_index = len - 1;
-        let last_timestamp = timestamp_ns[last_index];
-        let still_open = std::mem::take(&mut open_start_indices);
-
-        for start_index in still_open {
-            if last_index > start_index
-                && is_valid_duration(
-                    timestamp_ns[start_index],
-                    last_timestamp,
-                    true,
-                    options.long_duration_threshold_ns,
-                )
-            {
+        open_starts.finish_open_starts(
+            last_index,
+            timestamp_ns,
+            threshold_ns,
+            |start_index, stop_index| {
                 stop_start_indices.push(start_index);
-                stop_event_indices.push(last_index);
-            } else {
-                missing_indices.push(start_index);
-            }
-        }
+                stop_event_indices.push(stop_index);
+            },
+            |start_index| missing_indices.push(start_index),
+        );
     }
 
     Ok(MatchUpdateIndices {

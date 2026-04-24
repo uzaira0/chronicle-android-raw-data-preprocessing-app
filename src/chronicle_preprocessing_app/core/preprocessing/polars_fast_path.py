@@ -321,18 +321,23 @@ class PolarsFastPathPreprocessor:
                 2,
             )
 
-        duplicate_groups: dict[int, list[int]] = {}
-        for index, timestamp_ns in enumerate(timestamps_ns):
-            duplicate_groups.setdefault(int(timestamp_ns), []).append(index)
+        group_starts = np.concatenate(
+            (
+                np.array([0], dtype=np.intp),
+                np.flatnonzero(timestamps_ns[1:] != timestamps_ns[:-1]).astype(np.intp) + 1,
+            )
+        )
+        group_ends = np.concatenate((group_starts[1:], np.array([len(timestamps_ns)], dtype=np.intp)))
 
-        for group in duplicate_groups.values():
-            if len(group) <= 1:
+        for group_start, group_end in zip(group_starts, group_ends, strict=False):
+            count = int(group_end - group_start)
+            if count <= 1:
                 continue
 
-            sorted_indices = sorted(group, key=priorities.__getitem__)
-            count = len(sorted_indices)
-            for offset_index, row_index in enumerate(sorted_indices):
-                adjusted[row_index] -= (count - offset_index) * 1_000
+            group_priorities = priorities[group_start:group_end]
+            order = np.argsort(group_priorities, kind="stable")
+            row_indices = np.arange(group_start, group_end, dtype=np.intp)[order]
+            adjusted[row_indices] -= np.arange(count, 0, -1, dtype=np.int64) * 1_000
 
         tz_name = df.schema[timestamp_column].time_zone or "UTC"
         df = df.with_columns(
