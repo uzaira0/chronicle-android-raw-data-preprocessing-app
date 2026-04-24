@@ -182,9 +182,29 @@ class PolarsFastPathPreprocessor:
                 strict=False,
             )
             if not has_explicit_timezone
-            else timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
-                time_zone="UTC",
-                strict=False,
+            else pl.coalesce(
+                [
+                    timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
+                        format="%Y-%m-%dT%H:%M:%S%#z",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
+                        format="%Y-%m-%d %H:%M:%S%#z",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.to_datetime(
+                        format="%Y-%m-%d %H:%M:%S",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.to_datetime(
+                        format="%Y-%m-%dT%H:%M:%S",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                ]
             )
         )
         df = df.with_columns(
@@ -1013,7 +1033,7 @@ class PolarsFastPathPreprocessor:
 
         expressions = []
         for column in (Column.START_TIMESTAMP, Column.STOP_TIMESTAMP):
-            if column in df.columns:
+            if column in df.columns and isinstance(df.schema[column], pl.Datetime):
                 expressions.append(
                     pl.col(column).dt.strftime("%m-%d-%Y %H:%M:%S").alias(column)
                 )
