@@ -17,6 +17,7 @@ import {
 import { sampleRawCsv } from "@/lib/sampleRawCsv";
 import type {
   BrowserProcessingOptions,
+  BrowserProcessingRuntime,
   BrowserSupportFile,
   BrowserSupportFiles,
   ProcessedFileResult,
@@ -47,6 +48,10 @@ async function readSupportFile(file: File | null): Promise<BrowserSupportFile | 
     name: file.name,
     bytes: await file.arrayBuffer(),
   };
+}
+
+function getInjectedRuntime(): BrowserProcessingRuntime | undefined {
+  return window.__CHRONICLE_TEST_RUNTIME__;
 }
 
 function ToggleGroup(props: {
@@ -168,7 +173,7 @@ export default function App() {
     const discovered = new Set<string>();
     for (const file of uploadedFiles) {
       const text = await file.text();
-      const timezones = await discoverTimezones(text);
+      const timezones = await discoverTimezones(text, getInjectedRuntime());
       timezones.forEach((timezone) => discovered.add(timezone));
     }
     const next = Array.from(discovered).sort((left, right) => left.localeCompare(right));
@@ -182,7 +187,14 @@ export default function App() {
     setIsRunning(true);
     setError(null);
     try {
-      const result = await processRawCsv("Sample Chronicle Raw.csv", sampleRawCsv, options);
+      const runtime = getInjectedRuntime();
+      const result = await processRawCsv(
+        "Sample Chronicle Raw.csv",
+        sampleRawCsv,
+        options,
+        undefined,
+        runtime,
+      );
       setResults([result]);
       setDiscoveredTimezones(result.availableTimezones);
     } catch (runError) {
@@ -226,8 +238,20 @@ export default function App() {
           const text = await file.text();
           nextResults[index] =
             concurrency > 1
-              ? await processRawCsvIsolated(file.name, text, options, supportFiles)
-              : await processRawCsv(file.name, text, options, supportFiles);
+              ? await processRawCsvIsolated(
+                  file.name,
+                  text,
+                  options,
+                  supportFiles,
+                  getInjectedRuntime(),
+                )
+              : await processRawCsv(
+                  file.name,
+                  text,
+                  options,
+                  supportFiles,
+                  getInjectedRuntime(),
+                );
         }
       };
       await Promise.all(Array.from({ length: concurrency }, () => runner()));
@@ -267,10 +291,17 @@ export default function App() {
           <h2>Load Inputs</h2>
           <label className="upload">
             <span>Select one or more raw Chronicle CSV files</span>
-            <input type="file" accept=".csv,text/csv" multiple onChange={onFileChange} />
+            <input
+              data-testid="raw-file-input"
+              type="file"
+              accept=".csv,text/csv"
+              multiple
+              onChange={onFileChange}
+            />
           </label>
           <div className="button-row">
             <button
+              data-testid="process-files-button"
               className="primary"
               onClick={() => {
                 void processUploadedFiles();
@@ -280,6 +311,7 @@ export default function App() {
               {isRunning ? "Processing..." : "Process selected files"}
             </button>
             <button
+              data-testid="run-sample-button"
               className="secondary"
               onClick={() => {
                 void runSample();
@@ -289,6 +321,7 @@ export default function App() {
               Run bundled sample
             </button>
             <button
+              data-testid="discover-timezones-button"
               className="secondary"
               onClick={() => {
                 void discoverAvailableTimezones();
@@ -307,6 +340,7 @@ export default function App() {
             <label>
               <span>Optional filter file (`.csv`, `.xlsx`, `.xls`)</span>
               <input
+                data-testid="filter-file-input"
                 type="file"
                 accept=".csv,.xlsx,.xls"
                 onChange={(event) => setFilterFile(event.target.files?.[0] ?? null)}
@@ -315,6 +349,7 @@ export default function App() {
             <label>
               <span>Optional keep-awake apps file (`.csv`, `.xlsx`, `.xls`)</span>
               <input
+                data-testid="keep-awake-file-input"
                 type="file"
                 accept=".csv,.xlsx,.xls"
                 onChange={(event) => setKeepAwakeFile(event.target.files?.[0] ?? null)}
@@ -323,6 +358,7 @@ export default function App() {
             <label>
               <span>Optional app codebook file (`.csv`, `.xlsx`, `.xls`)</span>
               <input
+                data-testid="app-codebook-file-input"
                 type="file"
                 accept=".csv,.xlsx,.xls"
                 onChange={(event) => setAppCodebookFile(event.target.files?.[0] ?? null)}
@@ -337,6 +373,7 @@ export default function App() {
             <label>
               <span>Study name</span>
               <input
+                data-testid="study-name-input"
                 value={options.studyName}
                 onChange={(event) =>
                   setOptions((current) => ({ ...current, studyName: event.target.value }))
@@ -346,6 +383,7 @@ export default function App() {
             <label>
               <span>Usage output mode</span>
               <select
+                data-testid="usage-mode-select"
                 value={options.usageSessionMode}
                 onChange={(event) =>
                   setOptions((current) => ({
@@ -364,6 +402,7 @@ export default function App() {
             <label>
               <span>Timezone handling</span>
               <select
+                data-testid="timezone-handling-select"
                 value={options.timezoneHandling}
                 onChange={(event) =>
                   setOptions((current) => ({
@@ -382,6 +421,7 @@ export default function App() {
             <label>
               <span>Selected timezone</span>
               <input
+                data-testid="selected-timezone-input"
                 list="known-timezones"
                 value={options.selectedTimezone ?? ""}
                 onChange={(event) =>
@@ -398,6 +438,7 @@ export default function App() {
             <label>
               <span>Max session duration threshold (hours)</span>
               <input
+                data-testid="long-duration-threshold-input"
                 type="number"
                 min="1"
                 max="48"
@@ -414,6 +455,7 @@ export default function App() {
             <label>
               <span>Custom app engagement duration (seconds)</span>
               <input
+                data-testid="custom-engagement-duration-input"
                 type="number"
                 min="1"
                 max="3600"
@@ -429,6 +471,7 @@ export default function App() {
             <label>
               <span>Long usage thresholds (hours)</span>
               <input
+                data-testid="long-usage-thresholds-input"
                 value={thresholdInputs.longUsageDurationThresholds}
                 onChange={(event) =>
                   onThresholdChange("longUsageDurationThresholds", event.target.value)
@@ -438,6 +481,7 @@ export default function App() {
             <label>
               <span>Long data-gap thresholds (hours)</span>
               <input
+                data-testid="long-gap-thresholds-input"
                 value={thresholdInputs.longDataTimeGapThresholds}
                 onChange={(event) =>
                   onThresholdChange("longDataTimeGapThresholds", event.target.value)
@@ -447,6 +491,7 @@ export default function App() {
             <label>
               <span>Minimum usage duration (currently compatibility-only)</span>
               <input
+                data-testid="minimum-usage-duration-input"
                 type="number"
                 min="0"
                 max="3600"
@@ -462,6 +507,7 @@ export default function App() {
             <label>
               <span>Screen auto-lock timeout (seconds)</span>
               <input
+                data-testid="screen-autolock-timeout-input"
                 type="number"
                 min="1"
                 max="3600"
@@ -477,6 +523,7 @@ export default function App() {
             <label>
               <span>Screen auto-lock tolerance (seconds)</span>
               <input
+                data-testid="screen-autolock-tolerance-input"
                 type="number"
                 min="0"
                 max="600"
@@ -492,6 +539,7 @@ export default function App() {
             <label>
               <span>Manual-lock max tail gap (seconds)</span>
               <input
+                data-testid="screen-manual-lock-gap-input"
                 type="number"
                 min="0"
                 max="600"
@@ -507,6 +555,7 @@ export default function App() {
             <label>
               <span>Keyguard-near-stop window (seconds)</span>
               <input
+                data-testid="screen-keyguard-window-input"
                 type="number"
                 min="0"
                 max="60"
@@ -528,6 +577,7 @@ export default function App() {
             {BOOLEAN_OPTION_CONTROLS.map(({ key, label }) => (
               <label className="toggle" key={key}>
                 <input
+                  data-testid={`toggle-${key}`}
                   type="checkbox"
                   checked={Boolean(options[key as keyof BrowserProcessingOptions])}
                   onChange={(event) =>
@@ -543,6 +593,7 @@ export default function App() {
             <label>
               <span>Max parallel workers</span>
               <input
+                data-testid="parallel-max-workers-input"
                 type="number"
                 min="0"
                 max="32"
@@ -617,7 +668,11 @@ export default function App() {
         ) : (
           <div className="results-grid">
             {results.map((result) => (
-              <article key={result.inputFileName} className="result-card">
+              <article
+                key={result.inputFileName}
+                className="result-card"
+                data-testid="result-card"
+              >
                 <div className="key-values">
                   <div>
                     <dt>Input</dt>
@@ -641,6 +696,7 @@ export default function App() {
                     <button
                       key={output.outputFileName}
                       className="primary"
+                      data-testid={`download-${output.kind}-csv`}
                       onClick={() => downloadTextFile(output.outputFileName, output.csv)}
                     >
                       Download {output.kind} CSV ({output.rowCount} rows)
