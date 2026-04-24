@@ -1,29 +1,55 @@
+use std::error::Error;
+use std::fmt;
+
+#[cfg(feature = "python")]
 use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
+#[cfg(feature = "python")]
 use pyo3::exceptions::PyValueError;
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
+#[cfg(feature = "python")]
 use pyo3::types::PyModule;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MatcherError(String);
+
+impl MatcherError {
+    fn new(message: impl Into<String>) -> Self {
+        Self(message.into())
+    }
+}
+
+impl fmt::Display for MatcherError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl Error for MatcherError {}
+
+type MatcherResult<T> = Result<T, MatcherError>;
+
 #[derive(Debug, Clone, Copy)]
-struct MatchOptions {
-    allow_stop_event_reuse: bool,
-    use_activity_stopped_as_fallback: bool,
-    apply_threshold_to_fallback: bool,
-    long_duration_threshold_ns: i64,
+pub struct MatchOptions {
+    pub allow_stop_event_reuse: bool,
+    pub use_activity_stopped_as_fallback: bool,
+    pub apply_threshold_to_fallback: bool,
+    pub long_duration_threshold_ns: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct MatchOutput {
-    start_ns: Vec<i64>,
-    stop_ns: Vec<i64>,
-    missing: Vec<bool>,
+pub struct MatchOutput {
+    pub start_ns: Vec<i64>,
+    pub stop_ns: Vec<i64>,
+    pub missing: Vec<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct MatchUpdateIndices {
-    start_indices: Vec<usize>,
-    stop_start_indices: Vec<usize>,
-    stop_event_indices: Vec<usize>,
-    missing_indices: Vec<usize>,
+pub struct MatchUpdateIndices {
+    pub start_indices: Vec<usize>,
+    pub stop_start_indices: Vec<usize>,
+    pub stop_event_indices: Vec<usize>,
+    pub missing_indices: Vec<usize>,
 }
 
 fn validate_lengths(
@@ -33,7 +59,7 @@ fn validate_lengths(
     same_stop: &[bool],
     other_stop: &[bool],
     stopped: &[bool],
-) -> PyResult<usize> {
+) -> MatcherResult<usize> {
     let len = app_codes.len();
     if timestamp_ns.len() != len
         || resumed.len() != len
@@ -41,9 +67,7 @@ fn validate_lengths(
         || other_stop.len() != len
         || stopped.len() != len
     {
-        return Err(PyValueError::new_err(
-            "all input arrays must have the same length",
-        ));
+        return Err(MatcherError::new("all input arrays must have the same length"));
     }
     Ok(len)
 }
@@ -203,9 +227,9 @@ struct SparseOpenStarts {
 }
 
 impl SparseOpenStarts {
-    fn new(len: usize, app_codes: &[i32]) -> PyResult<Self> {
+    fn new(len: usize, app_codes: &[i32]) -> MatcherResult<Self> {
         if app_codes.iter().any(|&code| code < 0) {
-            return Err(PyValueError::new_err(
+            return Err(MatcherError::new(
                 "app code arrays must contain only non-negative values",
             ));
         }
@@ -417,7 +441,7 @@ impl SparseOpenStarts {
     }
 }
 
-fn match_app_usage_core(
+pub fn match_app_usage_core(
     app_codes: &[i32],
     timestamp_ns: &[i64],
     resumed: &[bool],
@@ -425,7 +449,7 @@ fn match_app_usage_core(
     other_stop: &[bool],
     stopped: &[bool],
     options: MatchOptions,
-) -> PyResult<MatchOutput> {
+) -> MatcherResult<MatchOutput> {
     let len = validate_lengths(
         app_codes,
         timestamp_ns,
@@ -506,7 +530,7 @@ fn match_app_usage_core(
     })
 }
 
-fn match_app_usage_update_indices_core(
+pub fn match_app_usage_update_indices_core(
     app_codes: &[i32],
     timestamp_ns: &[i64],
     resumed: &[bool],
@@ -514,7 +538,7 @@ fn match_app_usage_update_indices_core(
     other_stop: &[bool],
     stopped: &[bool],
     options: MatchOptions,
-) -> PyResult<MatchUpdateIndices> {
+) -> MatcherResult<MatchUpdateIndices> {
     let len = validate_lengths(
         app_codes,
         timestamp_ns,
@@ -640,6 +664,12 @@ fn match_app_usage_update_indices_core(
     })
 }
 
+#[cfg(feature = "python")]
+fn to_py_error(error: MatcherError) -> PyErr {
+    PyValueError::new_err(error.to_string())
+}
+
+#[cfg(feature = "python")]
 #[pyfunction]
 fn match_app_usage(
     app_codes: Vec<i32>,
@@ -666,12 +696,14 @@ fn match_app_usage(
             apply_threshold_to_fallback,
             long_duration_threshold_ns,
         },
-    )?;
+    )
+    .map_err(to_py_error)?;
 
     Ok((output.start_ns, output.stop_ns, output.missing))
 }
 
 #[allow(clippy::type_complexity)]
+#[cfg(feature = "python")]
 #[pyfunction]
 fn match_app_usage_update_indices(
     app_codes: PyReadonlyArray1<'_, i32>,
@@ -698,7 +730,8 @@ fn match_app_usage_update_indices(
             apply_threshold_to_fallback,
             long_duration_threshold_ns,
         },
-    )?;
+    )
+    .map_err(to_py_error)?;
 
     Ok((
         output.start_indices,
@@ -709,6 +742,7 @@ fn match_app_usage_update_indices(
 }
 
 #[allow(clippy::type_complexity)]
+#[cfg(feature = "python")]
 #[pyfunction]
 fn match_app_usage_update_arrays<'py>(
     py: Python<'py>,
@@ -741,7 +775,8 @@ fn match_app_usage_update_arrays<'py>(
             apply_threshold_to_fallback,
             long_duration_threshold_ns,
         },
-    )?;
+    )
+    .map_err(to_py_error)?;
 
     Ok((
         output.start_indices.into_pyarray(py),
@@ -751,6 +786,7 @@ fn match_app_usage_update_arrays<'py>(
     ))
 }
 
+#[cfg(feature = "python")]
 #[pyfunction]
 fn match_app_usage_arrays(
     app_codes: PyReadonlyArray1<'_, i32>,
@@ -784,11 +820,13 @@ fn match_app_usage_arrays(
             apply_threshold_to_fallback,
             long_duration_threshold_ns,
         },
-    )?;
+    )
+    .map_err(to_py_error)?;
 
     Ok((output.start_ns, output.stop_ns, output.missing))
 }
 
+#[cfg(feature = "python")]
 #[pymodule]
 fn _rust_app_usage_matcher(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(match_app_usage, m)?)?;

@@ -7,6 +7,10 @@ edition = "2021"
 name = "_rust_app_usage_matcher"
 crate-type = ["cdylib", "rlib"]
 
+[features]
+default = ["python"]
+python = ["dep:numpy", "dep:pyo3"]
+
 [dependencies]
-numpy = "0.28.0"
-pyo3 = "0.28.3"
+numpy = { version = "0.28.0", optional = true }
+pyo3 = { version = "0.28.3", optional = true }
