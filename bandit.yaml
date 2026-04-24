@@ -1,0 +1,11 @@
+exclude_dirs:
+  - tests
+  - .tmp_benchmarks
+  - .tmp_pathological_one
+  - .tmp_pathological_rich_raw
+  - .tmp_pathological_smoke
+  - build
+  - dist
+
+skips:
+  - B101

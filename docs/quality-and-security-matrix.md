@@ -45,12 +45,13 @@ Recommended test catalog for this stack:
 
 Implemented in this repository:
 
-- Semgrep SAST via `.github/workflows/ci.yml`
+- Semgrep SAST via `.semgrep/chronicle-security.yml`
+- ast-grep structural linting via `sgconfig.yml` and `.ast-grep/rules/`
 - Trivy filesystem scanning (`vuln`, `misconfig`, `secret`) via `trivy.yaml`
-- Bandit for Python security linting
+- Bandit for Python security linting via `bandit.yaml`
 - `pip-audit` for Python dependency vulnerabilities
 - `cargo-audit` for Rust dependency vulnerabilities
-- Gitleaks secret scanning
+- Gitleaks secret scanning via `.gitleaks.toml`
 - Dependabot for pip, cargo, and GitHub Actions dependencies
 
 ## Local Commands

@@ -1,0 +1,29 @@
+id: chronicle-python-no-eval
+language: python
+message: Avoid eval; use explicit parsing or a safe decoder instead.
+severity: error
+files:
+  - src/**/*.py
+  - scripts/**/*.py
+rule:
+  pattern: eval($VALUE)
+---
+id: chronicle-python-no-exec
+language: python
+message: Avoid exec; refactor to explicit callable dispatch or a parser.
+severity: error
+files:
+  - src/**/*.py
+  - scripts/**/*.py
+rule:
+  pattern: exec($VALUE)
+---
+id: chronicle-python-no-subprocess-shell-true
+language: python
+message: Avoid shell=True; prefer argument arrays and direct executable invocation.
+severity: error
+files:
+  - src/**/*.py
+  - scripts/**/*.py
+rule:
+  pattern: subprocess.$FUNC($$$ARGS, shell=True, $$$REST)
