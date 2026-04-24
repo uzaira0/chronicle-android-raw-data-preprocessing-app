@@ -229,6 +229,7 @@ web/dist/
 web/.vite/
 !web/src/lib/
 !web/src/lib/**
+!web/src/test-runtime.d.ts
 !web/src/assets/
 !web/src/assets/defaults/
 !web/src/assets/defaults/*.csv
