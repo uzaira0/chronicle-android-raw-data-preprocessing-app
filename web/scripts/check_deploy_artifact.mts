@@ -1,20 +1,16 @@
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
+import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const webDir = path.resolve(scriptDir, "..");
-const distDir = path.join(webDir, "dist");
+const artifactMode = process.argv[2] ?? "cloudflare";
 
-const requiredFiles = [
-  "_headers",
-  "index.html",
-  "manifest.webmanifest",
-  "sw.js",
-  ".vite/manifest.json",
-];
+const sharedRequiredFiles = ["index.html", "manifest.webmanifest", "sw.js", ".vite/manifest.json"];
 
-const requiredHeaderSnippets = [
+const cloudflareRequiredFiles = ["_headers", ...sharedRequiredFiles];
+const cloudflareRequiredHeaderSnippets = [
   "Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; font-src 'self' data:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
   "Cross-Origin-Opener-Policy: same-origin",
   "Cross-Origin-Embedder-Policy: credentialless",
@@ -35,44 +31,67 @@ const requiredHeaderSnippets = [
   "Cache-Control: public, max-age=31536000, immutable",
 ];
 
+function getArtifactDir(mode: string): string {
+  if (mode === "github-pages") {
+    return path.join(webDir, ".github-pages-dist");
+  }
+  return path.join(webDir, "dist");
+}
+
 async function main(): Promise<void> {
+  const artifactDir = getArtifactDir(artifactMode);
+  const requiredFiles = artifactMode === "github-pages" ? [".nojekyll", ...sharedRequiredFiles] : cloudflareRequiredFiles;
+
   for (const relativePath of requiredFiles) {
-    await access(path.join(distDir, relativePath));
+    await access(path.join(artifactDir, relativePath));
   }
 
-  const headersText = await readFile(path.join(distDir, "_headers"), "utf-8");
-  for (const snippet of requiredHeaderSnippets) {
-    if (!headersText.includes(snippet)) {
-      throw new Error(`dist/_headers is missing required snippet: ${snippet}`);
-    }
-  }
-
-  const cspMatch = headersText.match(/Content-Security-Policy: ([^\n]+)/);
-  if (!cspMatch) {
-    throw new Error("dist/_headers does not contain a Content-Security-Policy rule");
-  }
-  const headersCsp = cspMatch[1].trim();
-
-  const indexHtml = await readFile(path.join(distDir, "index.html"), "utf-8");
+  const indexHtml = await readFile(path.join(artifactDir, "index.html"), "utf-8");
   const metaCspMatch = indexHtml.match(
     /<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]+)"/,
   );
   if (!metaCspMatch) {
-    throw new Error("dist/index.html is missing the CSP meta tag fallback");
+    throw new Error(`${path.basename(artifactDir)}/index.html is missing the CSP meta tag fallback`);
   }
 
-  const metaCsp = metaCspMatch[1].trim();
-  if (headersCsp !== metaCsp) {
-    throw new Error(
-      `CSP mismatch between dist/_headers and dist/index.html\nheaders: ${headersCsp}\nmeta: ${metaCsp}`,
-    );
+  if (artifactMode === "github-pages") {
+    try {
+      await access(path.join(artifactDir, "_headers"));
+      throw new Error("GitHub Pages artifact should not contain Cloudflare-only _headers");
+    } catch (error) {
+      if (!(error instanceof Error) || !/should not contain/.test(error.message)) {
+        // File correctly absent.
+      } else {
+        throw error;
+      }
+    }
+  } else {
+    const headersText = await readFile(path.join(artifactDir, "_headers"), "utf-8");
+    for (const snippet of cloudflareRequiredHeaderSnippets) {
+      if (!headersText.includes(snippet)) {
+        throw new Error(`${path.basename(artifactDir)}/_headers is missing required snippet: ${snippet}`);
+      }
+    }
+
+    const cspMatch = headersText.match(/Content-Security-Policy: ([^\n]+)/);
+    if (!cspMatch) {
+      throw new Error(`${path.basename(artifactDir)}/_headers does not contain a Content-Security-Policy rule`);
+    }
+    const headersCsp = cspMatch[1].trim();
+    const metaCsp = metaCspMatch[1].trim();
+    if (headersCsp !== metaCsp) {
+      throw new Error(
+        `CSP mismatch between ${path.basename(artifactDir)}/_headers and ${path.basename(artifactDir)}/index.html\nheaders: ${headersCsp}\nmeta: ${metaCsp}`,
+      );
+    }
   }
 
   console.log(
     JSON.stringify(
       {
         status: "ok",
-        distDir,
+        mode: artifactMode,
+        artifactDir,
         verifiedFiles: requiredFiles,
       },
       null,
