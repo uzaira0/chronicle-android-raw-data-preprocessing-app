@@ -6,6 +6,10 @@ import Papa from "papaparse";
 import type { BrowserProcessingRuntime } from "../src/lib/types";
 import { FIXED_DATETIME } from "./fixtures";
 
+export type ExternalRequestTracker = {
+  externalRequests: string[];
+};
+
 export async function installDeterministicRuntime(
   page: Page,
   runtime: BrowserProcessingRuntime = { datetimeOfPreprocessing: FIXED_DATETIME },
@@ -15,8 +19,8 @@ export async function installDeterministicRuntime(
   }, runtime);
 }
 
-export async function gotoApp(page: Page): Promise<void> {
-  const externalRequests: string[] = [];
+export function trackExternalRequests(page: Page): ExternalRequestTracker {
+  const tracker: ExternalRequestTracker = { externalRequests: [] };
   page.on("request", (request) => {
     const url = request.url();
     if (!/^https?:/i.test(url)) {
@@ -24,13 +28,30 @@ export async function gotoApp(page: Page): Promise<void> {
     }
     const parsed = new URL(url);
     if (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") {
-      externalRequests.push(url);
+      tracker.externalRequests.push(url);
     }
   });
+  return tracker;
+}
+
+export async function gotoApp(page: Page): Promise<void> {
   await page.goto("/");
   await page.waitForLoadState("networkidle");
   await expect(page.getByRole("heading", { name: /desktop preprocessing options/i })).toBeVisible();
-  expect(externalRequests).toEqual([]);
+}
+
+export function assertNoExternalRequests(tracker: ExternalRequestTracker): void {
+  expect(tracker.externalRequests).toEqual([]);
+}
+
+export async function waitForServiceWorkerControl(page: Page): Promise<void> {
+  await page.waitForFunction(async () => {
+    if (!("serviceWorker" in navigator)) {
+      return false;
+    }
+    await navigator.serviceWorker.ready;
+    return navigator.serviceWorker.controller !== null;
+  });
 }
 
 export async function setInputFile(

@@ -1,12 +1,16 @@
 {
+  "id": "./",
   "name": "Chronicle Local Preprocessing",
   "short_name": "Chronicle",
   "description": "Local-first preprocessing. Files stay on this device.",
+  "display_override": ["standalone", "window-controls-overlay"],
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#111318",
   "theme_color": "#111318",
   "start_url": "./",
   "scope": "./",
+  "categories": ["productivity", "utilities", "health"],
   "icons": [
     {
       "src": "./icon.svg",

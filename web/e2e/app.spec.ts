@@ -13,6 +13,7 @@ import {
   MULTI_FILE_RAW_CSV_B,
 } from "./fixtures";
 import {
+  assertNoExternalRequests,
   csvHeaders,
   downloadCsv,
   gotoApp,
@@ -20,11 +21,17 @@ import {
   parseCsv,
   processFiles,
   setInputFile,
+  trackExternalRequests,
+  waitForServiceWorkerControl,
 } from "./helpers";
 
+let requestTracker: ReturnType<typeof trackExternalRequests>;
+
 test.beforeEach(async ({ page }) => {
+  requestTracker = trackExternalRequests(page);
   await installDeterministicRuntime(page);
   await gotoApp(page);
+  assertNoExternalRequests(requestTracker);
 });
 
 test("@smoke boots locally and processes the bundled sample entirely on localhost", async ({
@@ -36,6 +43,7 @@ test("@smoke boots locally and processes the bundled sample entirely on localhos
   const rows = parseCsv(appCsv);
   expect(rows.length).toBeGreaterThan(0);
   expect(rows[0]?.datetime_of_preprocessing).toBe("2026-04-24 00:32:53");
+  assertNoExternalRequests(requestTracker);
 });
 
 test("processes app and screen outputs with CSV support files and downloads both results", async ({
@@ -54,6 +62,7 @@ test("processes app and screen outputs with CSV support files and downloads both
   expect(csvHeaders(appCsv)).toContain("play_store_genreId");
   expect(appCsv).toContain("Filtered App Usage");
   expect(screenCsv).toContain("Screen Usage");
+  assertNoExternalRequests(requestTracker);
 });
 
 test("accepts an XLSX filter file and still produces filtered app usage locally", async ({
@@ -72,6 +81,7 @@ test("accepts an XLSX filter file and still produces filtered app usage locally"
 
   const appCsv = await downloadCsv(page, "download-app-csv");
   expect(appCsv).toContain("Filtered App Usage");
+  assertNoExternalRequests(requestTracker);
 });
 
 test("discovers timezones and honors selected-filter output behavior", async ({ page }) => {
@@ -92,6 +102,7 @@ test("discovers timezones and honors selected-filter output behavior", async ({ 
   expect(rows).toHaveLength(1);
   expect(rows[0]?.timezone).toBe("America/Chicago");
   expect(appCsv).not.toContain("America/New_York");
+  assertNoExternalRequests(requestTracker);
 });
 
 test("converts mixed-timezone data into the selected timezone", async ({ page }) => {
@@ -110,6 +121,7 @@ test("converts mixed-timezone data into the selected timezone", async ({ page })
   const rows = parseCsv(appCsv);
   expect(rows).toHaveLength(2);
   expect(new Set(rows.map((row) => row.timezone))).toEqual(new Set(["America/Chicago"]));
+  assertNoExternalRequests(requestTracker);
 });
 
 test("drops codebook-enriched columns when app codebook use is disabled", async ({ page }) => {
@@ -121,6 +133,7 @@ test("drops codebook-enriched columns when app codebook use is disabled", async 
   const headers = csvHeaders(appCsv);
   expect(headers).not.toContain("genreId_scraped");
   expect(headers).not.toContain("play_store_genreId");
+  assertNoExternalRequests(requestTracker);
 });
 
 test("classifies keep-awake screen sessions through the local screen pipeline", async ({
@@ -143,6 +156,7 @@ test("classifies keep-awake screen sessions through the local screen pipeline", 
   const screenCsv = await downloadCsv(page, "download-screen-csv");
   expect(screenCsv).toContain("app_kept_awake_or_extended");
   expect(screenCsv).toContain("Chat");
+  assertNoExternalRequests(requestTracker);
 });
 
 test("changes output semantics when Activity Stopped fallback is disabled", async ({ page }) => {
@@ -170,12 +184,14 @@ test("changes output semantics when Activity Stopped fallback is disabled", asyn
   const fallbackOffRows = parseCsv(fallbackOffCsv);
   expect(fallbackOffRows[0]?.interaction_type).toBe("App Usage");
   expect(fallbackOffRows[0]?.duration_seconds).toBe("600.0");
+  assertNoExternalRequests(requestTracker);
 });
 
 test("handles malformed raw CSV input with a visible local error", async ({ page }) => {
   await setInputFile(page, "raw-file-input", "Raw Broken.csv", MALFORMED_RAW_CSV, "text/csv");
   await page.getByTestId("process-files-button").click();
   await expect(page.locator(".error-text")).toContainText("Invalid event_timestamp");
+  assertNoExternalRequests(requestTracker);
 });
 
 test("processes multiple uploaded files with parallel workers enabled", async ({ page }) => {
@@ -195,4 +211,58 @@ test("processes multiple uploaded files with parallel workers enabled", async ({
   await page.getByTestId("parallel-max-workers-input").fill("2");
   await processFiles(page);
   await expect(page.getByTestId("result-card")).toHaveCount(2);
+  assertNoExternalRequests(requestTracker);
+});
+
+test("@privacy exposes a restrictive same-origin CSP policy", async ({ page }) => {
+  const csp = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute("content");
+  expect(csp).toContain("default-src 'self'");
+  expect(csp).toContain("connect-src 'self'");
+  expect(csp).toContain("worker-src 'self' blob:");
+  expect(csp).not.toContain("https://");
+  assertNoExternalRequests(requestTracker);
+});
+
+test("@offline warms the cache, reloads offline, and still processes locally", async ({
+  page,
+  context,
+}) => {
+  await waitForServiceWorkerControl(page);
+  await expect(page.getByTestId("pwa-status-badge")).toContainText("Offline-ready");
+
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: /desktop preprocessing options/i })).toBeVisible();
+  await expect(page.getByTestId("pwa-status-badge")).toContainText("Offline-ready");
+
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await processFiles(page);
+  const appCsv = await downloadCsv(page, "download-app-csv");
+  const rows = parseCsv(appCsv);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.interaction_type).toBe("App Usage");
+  assertNoExternalRequests(requestTracker);
+});
+
+test("@install surfaces the install action when the browser raises beforeinstallprompt", async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    const event = new Event("beforeinstallprompt") as Event & {
+      promptCalled?: boolean;
+      prompt: () => Promise<void>;
+      userChoice: Promise<{ outcome: "accepted"; platform: string }>;
+      preventDefault: () => void;
+    };
+    event.prompt = async () => {
+      event.promptCalled = true;
+    };
+    event.userChoice = Promise.resolve({ outcome: "accepted", platform: "web" });
+    window.dispatchEvent(event);
+  });
+
+  await expect(page.getByTestId("install-app-button")).toBeVisible();
+  await page.getByTestId("install-app-button").click();
+  await expect(page.getByText("Installed app")).toBeVisible();
+  assertNoExternalRequests(requestTracker);
 });
