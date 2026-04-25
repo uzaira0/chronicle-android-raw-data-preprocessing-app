@@ -16,6 +16,7 @@ import {
   assertNoExternalRequests,
   csvHeaders,
   downloadCsv,
+  expandSectionCard,
   gotoApp,
   installDeterministicRuntime,
   parseCsv,
@@ -207,6 +208,7 @@ test("processes multiple uploaded files with parallel workers enabled", async ({
       buffer: Buffer.from(MULTI_FILE_RAW_CSV_B, "utf-8"),
     },
   ]);
+  await expandSectionCard(page, "performance");
   await page.getByTestId("toggle-parallelProcessing").check();
   await page.getByTestId("parallel-max-workers-input").fill("2");
   await processFiles(page);

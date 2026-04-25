@@ -77,6 +77,21 @@ export async function processFiles(page: Page): Promise<void> {
   await expect(page.getByTestId("result-card").first()).toBeVisible();
 }
 
+/**
+ * Expand a collapsible section card by its id attribute so that controls
+ * inside (e.g. Performance, Interaction semantics) become actionable.
+ * No-op when the card is already expanded.
+ */
+export async function expandSectionCard(page: Page, id: string): Promise<void> {
+  const card = page.locator(`[data-section-id="${id}"]`);
+  await card.waitFor({ state: "attached" });
+  const header = card.locator(".section-card__header");
+  const expanded = await header.getAttribute("aria-expanded");
+  if (expanded === "false") {
+    await header.click();
+  }
+}
+
 export async function downloadCsv(page: Page, testId: string, index = 0): Promise<string> {
   const locator = page.getByTestId(testId).nth(index);
   const downloadPromise = page.waitForEvent("download");

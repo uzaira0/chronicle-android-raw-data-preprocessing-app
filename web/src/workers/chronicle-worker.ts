@@ -11,6 +11,7 @@ import type {
   MatcherInput,
   MatcherOutput,
   ProcessedFileResult,
+  ProgressEvent,
 } from "@/lib/types";
 
 let initPromise: Promise<void> | null = null;
@@ -70,6 +71,34 @@ const api = {
       supportFiles,
       runMatcher,
       runtime,
+    );
+  },
+  async processRawCsvWithProgress(
+    inputFileName: string,
+    csvText: string,
+    incomingOptions?: Partial<BrowserProcessingOptions>,
+    supportFiles?: BrowserSupportFiles,
+    runtime?: BrowserProcessingRuntime,
+    onProgress?: (event: ProgressEvent) => void,
+  ): Promise<ProcessedFileResult> {
+    const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
+    const forward = onProgress
+      ? (event: ProgressEvent) => {
+          try {
+            onProgress(event);
+          } catch {
+            // Ignore progress callback failures so they cannot abort processing.
+          }
+        }
+      : undefined;
+    return processRawCsvContent(
+      inputFileName,
+      csvText,
+      options,
+      supportFiles,
+      runMatcher,
+      runtime,
+      forward,
     );
   },
 };
