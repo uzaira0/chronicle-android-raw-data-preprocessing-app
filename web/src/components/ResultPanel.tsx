@@ -3,11 +3,13 @@ import type { ReactElement } from "react";
 
 import { createZipBlob } from "@/lib/zip";
 import type { OutputKind } from "@/lib/generatedContract";
-import type { ProcessedFileResult, ProcessedOutputFileResult } from "@/lib/types";
+import type { BrowserProcessingOptions, ProcessedFileResult, ProcessedOutputFileResult } from "@/lib/types";
+import { PREPROCESSOR_VERSION } from "@/lib/browserPipeline";
 
 type Props = {
   results: ProcessedFileResult[];
   error: string | null;
+  options: BrowserProcessingOptions;
 };
 
 type BatchOutput = {
@@ -38,17 +40,55 @@ function zipName(kind: "all" | OutputKind): string {
   return `chronicle-${suffix}.zip`;
 }
 
-async function downloadZip(kind: "all" | OutputKind, outputs: BatchOutput[]): Promise<void> {
+function buildProcessingReport(
+  results: ProcessedFileResult[],
+  options: BrowserProcessingOptions,
+): string {
+  return JSON.stringify(
+    {
+      generatedAt: new Date().toISOString(),
+      preprocessorVersion: PREPROCESSOR_VERSION,
+      options,
+      files: results.map((result) => ({
+        inputFileName: result.inputFileName,
+        timezone: result.timezone,
+        originalRowCount: result.originalRowCount,
+        processedRowCount: result.processedRowCount,
+        appRowCount: result.appRowCount,
+        screenRowCount: result.screenRowCount,
+        outputs: result.outputs.map((output) => ({
+          kind: output.kind,
+          outputFileName: output.outputFileName,
+          rowCount: output.rowCount,
+        })),
+      })),
+    },
+    null,
+    2,
+  );
+}
+
+async function downloadZip(
+  kind: "all" | OutputKind,
+  outputs: BatchOutput[],
+  reportText: string,
+): Promise<void> {
   const zip = await createZipBlob(
-    outputs.map(({ output }) => ({
-      fileName: output.outputFileName,
-      blob: output.blob,
-    })),
+    [
+      ...outputs.map(({ output }) => ({
+        fileName: output.outputFileName,
+        blob: output.blob,
+      })),
+      {
+        fileName: "chronicle-processing-report.json",
+        blob: new Blob([reportText], { type: "application/json" }),
+      },
+    ],
   );
   downloadBlob(zipName(kind), zip);
 }
 
-export function ResultPanel({ results, error }: Props): ReactElement | null {
+export function ResultPanel({ results, error, options }: Props): ReactElement | null {
   const [previewKind, setPreviewKind] = useState<OutputKind>("app");
   const summary = useMemo(() => {
     return results.reduce(
@@ -72,6 +112,7 @@ export function ResultPanel({ results, error }: Props): ReactElement | null {
     screenOutputs[0]?.output ??
     null;
   const previewRows = previewedOutput?.previewRows ?? null;
+  const reportText = useMemo(() => buildProcessingReport(results, options), [results, options]);
 
   if (error && !results.length) {
     return (
@@ -99,7 +140,7 @@ export function ResultPanel({ results, error }: Props): ReactElement | null {
             className="btn btn--primary"
             data-testid="download-all-zip"
             onClick={() => {
-              void downloadZip("all", allOutputs);
+              void downloadZip("all", allOutputs, reportText);
             }}
             disabled={!allOutputs.length}
           >
@@ -110,7 +151,7 @@ export function ResultPanel({ results, error }: Props): ReactElement | null {
             className="btn btn--secondary"
             data-testid="download-app-csv"
             onClick={() => {
-              void downloadZip("app", appOutputs);
+              void downloadZip("app", appOutputs, reportText);
             }}
             disabled={!appOutputs.length}
           >
@@ -121,11 +162,20 @@ export function ResultPanel({ results, error }: Props): ReactElement | null {
             className="btn btn--secondary"
             data-testid="download-screen-csv"
             onClick={() => {
-              void downloadZip("screen", screenOutputs);
+              void downloadZip("screen", screenOutputs, reportText);
             }}
             disabled={!screenOutputs.length}
           >
             Screen ZIP
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => {
+              void navigator.clipboard?.writeText(reportText);
+            }}
+          >
+            Copy report
           </button>
         </div>
       </header>

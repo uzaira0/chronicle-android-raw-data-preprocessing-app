@@ -33,6 +33,40 @@ describe("browserPipeline", () => {
     ]);
   });
 
+  it("interprets offset-less Chronicle timestamps in the row timezone before conversion", async () => {
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+    ].join("\n");
+
+    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+
+    const result = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        timezoneHandling: "selected-convert",
+        selectedTimezone: "America/New_York",
+        useFilterFile: false,
+        useKeepAwakeAppsFile: false,
+        useAppCodebook: false,
+      },
+      {},
+      matcher,
+    );
+
+    const output = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
+    expect(output).toContain("2026-03-07 11:00:00-05:00");
+    expect(output).toContain("03-07-2026 11:00:00");
+  });
+
   it("produces app and screen outputs from the shared pipeline", async () => {
     const csv = [
       "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",

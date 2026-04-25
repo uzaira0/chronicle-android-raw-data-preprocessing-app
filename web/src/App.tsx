@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
-import { resolveDefaultSupportFiles } from "@/lib/browserPipeline";
+import { PREPROCESSOR_VERSION, resolveDefaultSupportFiles } from "@/lib/browserPipeline";
 import {
   WorkerPool,
   discoverTimezones,
@@ -8,7 +8,8 @@ import {
 } from "@/lib/chronicleMatcher";
 import { sampleRawCsv, SAMPLE_FILE_NAME } from "@/lib/sampleRawCsv";
 import { ensureNotificationPermission, sendNotification } from "@/lib/notification";
-import { persistOptions, readPersistedOptions } from "@/lib/settingsPersistence";
+import { hasPersistedOptions, persistOptions, readPersistedOptions } from "@/lib/settingsPersistence";
+import { inspectRawFiles, type RawFileInspection } from "@/lib/fileInspection";
 import type {
   BrowserProcessingOptions,
   BrowserProcessingRuntime,
@@ -20,7 +21,6 @@ import type {
 } from "@/lib/types";
 
 import { DemoSampleCard } from "@/components/DemoSampleCard";
-import { RunBar } from "@/components/RunBar";
 import { FilesAndInputsCard } from "@/components/FilesAndInputsCard";
 import { TimezoneCard } from "@/components/TimezoneCard";
 import { SessionDetectionCard } from "@/components/SessionDetectionCard";
@@ -29,9 +29,14 @@ import { InteractionSemanticsCard } from "@/components/InteractionSemanticsCard"
 import { PerformanceCard } from "@/components/PerformanceCard";
 import { ResultPanel } from "@/components/ResultPanel";
 import { ResetDefaultsButton } from "@/components/ResetDefaultsButton";
-import { ProgressList, type FileProgress } from "@/components/ProgressList";
+import type { FileProgress } from "@/components/ProgressList";
 import { Toast } from "@/components/Toast";
 import { SettingsPersistenceControls } from "@/components/SettingsPersistenceControls";
+import { WorkflowNav } from "@/components/WorkflowNav";
+import { RawFilesCard } from "@/components/RawFilesCard";
+import { ProcessPanel } from "@/components/ProcessPanel";
+import { PresetManager } from "@/components/PresetManager";
+import { SettingsOverviewCard } from "@/components/SettingsOverviewCard";
 
 async function readSupportFile(file: File): Promise<BrowserSupportFile> {
   return {
@@ -123,6 +128,8 @@ export default function App(): ReactElement {
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState<ProcessedFileResult[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [fileInspections, setFileInspections] = useState<RawFileInspection[]>([]);
+  const [isInspectingFiles, setIsInspectingFiles] = useState(false);
   const [filterFile, setFilterFile] = useState<File | null>(null);
   const [keepAwakeFile, setKeepAwakeFile] = useState<File | null>(null);
   const [appCodebookFile, setAppCodebookFile] = useState<File | null>(null);
@@ -131,16 +138,48 @@ export default function App(): ReactElement {
   const [progressByFile, setProgressByFile] = useState<Record<string, FileProgress>>({});
   const [progressOrder, setProgressOrder] = useState<string[]>([]);
   const [toast, setToast] = useState<{ message: string; isError: boolean } | null>(null);
+  const [settingsQuery, setSettingsQuery] = useState("");
   const startTimeRef = useRef<number>(0);
+  const resultsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     persistOptions(options);
   }, [options]);
 
+  useEffect(() => {
+    if (hasPersistedOptions()) {
+      setToast({ message: "Last used settings restored.", isError: false });
+    }
+  }, []);
+
   const onFilesChange = (files: File[]) => {
     setUploadedFiles(files);
+    setFileInspections([]);
     setResults([]);
     setError(null);
+    if (!files.length) {
+      setIsInspectingFiles(false);
+      return;
+    }
+    setIsInspectingFiles(true);
+    void inspectRawFiles(files)
+      .then((inspections) => {
+        setFileInspections(inspections);
+        const timezones = Array.from(
+          new Set(inspections.flatMap((inspection) => inspection.timezones)),
+        ).sort((left, right) => left.localeCompare(right));
+        setDiscoveredTimezones(timezones);
+      })
+      .catch((inspectionError: unknown) => {
+        setToast({
+          message:
+            inspectionError instanceof Error
+              ? inspectionError.message
+              : "Could not inspect selected files.",
+          isError: true,
+        });
+      })
+      .finally(() => setIsInspectingFiles(false));
   };
 
   const buildSupportFiles = async (): Promise<BrowserSupportFiles> => ({
@@ -193,6 +232,12 @@ export default function App(): ReactElement {
       setIsRunning(false);
     }
   };
+
+  useEffect(() => {
+    if (!isRunning && results.length) {
+      resultsRef.current?.focus();
+    }
+  }, [isRunning, results.length]);
 
   const updateFileProgress = useCallback(
     (fileName: string, patch: Partial<FileProgress>) => {
@@ -348,6 +393,29 @@ export default function App(): ReactElement {
     }
   };
 
+  const progressRows = progressOrder.map(
+    (name) => progressByFile[name] ?? { fileName: name, status: "pending" },
+  );
+  const overallPercent =
+    progressOrder.length === 0
+      ? 0
+      : progressOrder.reduce(
+          (total, name) =>
+            total +
+            estimatedFilePercent(progressByFile[name] ?? { fileName: name, status: "pending" }),
+          0,
+        ) / progressOrder.length;
+  const activeWorkflow = isRunning || results.length ? "process" : uploadedFiles.length ? "files" : "settings";
+  const settingsSummary =
+    options.usageSessionMode === "app_usage"
+      ? "App output"
+      : options.usageSessionMode === "screen_usage"
+        ? "Screen output"
+        : "Both outputs";
+  const normalizedSettingsQuery = settingsQuery.trim().toLowerCase();
+  const shows = (text: string) =>
+    !normalizedSettingsQuery || text.toLowerCase().includes(normalizedSettingsQuery);
+
   return (
     <main className="app-shell">
       <header className="hero hero--with-demo">
@@ -367,64 +435,97 @@ export default function App(): ReactElement {
         />
       </header>
 
-      <RunBar
-        options={options}
-        setOptions={setOptions}
+      <WorkflowNav
+        active={activeWorkflow}
+        settingsSummary={settingsSummary}
+        fileCount={uploadedFiles.length}
+        isRunning={isRunning}
+      />
+
+      <section id="settings" className="workflow-section" aria-labelledby="settings-title">
+        <PresetManager
+          options={options}
+          onApply={setOptions}
+          onStatus={(message, isError = false) => setToast({ message, isError })}
+        />
+        <SettingsOverviewCard options={options} setOptions={setOptions} />
+        <label className="settings-search">
+          <span className="settings-field__label">Search settings</span>
+          <input
+            className="input"
+            placeholder="timezone, codebook, parallel..."
+            value={settingsQuery}
+            onChange={(event) => setSettingsQuery(event.target.value)}
+          />
+        </label>
+        <div className="settings-stack">
+          {shows("support files filter keep awake codebook") ? (
+            <FilesAndInputsCard
+              options={options}
+              setOptions={setOptions}
+              filterFile={filterFile}
+              setFilterFile={setFilterFile}
+              keepAwakeFile={keepAwakeFile}
+              setKeepAwakeFile={setKeepAwakeFile}
+              appCodebookFile={appCodebookFile}
+              setAppCodebookFile={setAppCodebookFile}
+            />
+          ) : null}
+          {shows("timezone conversion selected primary") ? (
+            <TimezoneCard
+              options={options}
+              setOptions={setOptions}
+              discoveredTimezones={discoveredTimezones}
+              hasFiles={uploadedFiles.length > 0}
+              isRunning={isRunning}
+              onDiscover={() => {
+                void discoverAvailableTimezones();
+              }}
+            />
+          ) : null}
+          {shows("session detection duration thresholds duplicate fallback stop") ? (
+            <SessionDetectionCard options={options} setOptions={setOptions} />
+          ) : null}
+          {shows("screen detection autolock keyguard manual") ? (
+            <ScreenDetectionCard options={options} setOptions={setOptions} />
+          ) : null}
+          {shows("interaction semantics remove stop usage") ? (
+            <InteractionSemanticsCard options={options} setOptions={setOptions} />
+          ) : null}
+          {shows("performance parallel workers") ? (
+            <PerformanceCard options={options} setOptions={setOptions} />
+          ) : null}
+        </div>
+      </section>
+
+      <RawFilesCard
         uploadedFiles={uploadedFiles}
+        inspections={fileInspections}
+        isInspecting={isInspectingFiles}
         onFilesChange={onFilesChange}
-        onProcess={() => {
-          void processUploadedFiles();
+        onClear={() => {
+          onFilesChange([]);
+          setProgressOrder([]);
+          setProgressByFile({});
         }}
         isRunning={isRunning}
       />
 
-      {progressOrder.length && isRunning ? (
-        <ProgressList
-          rows={progressOrder.map(
-            (name) => progressByFile[name] ?? { fileName: name, status: "pending" },
-          )}
-          overallPercent={
-            progressOrder.length === 0
-              ? 0
-              : progressOrder.reduce(
-                  (total, name) =>
-                    total +
-                    estimatedFilePercent(
-                      progressByFile[name] ?? { fileName: name, status: "pending" },
-                    ),
-                  0,
-                ) / progressOrder.length
-          }
-        />
-      ) : null}
+      <ProcessPanel
+        options={options}
+        setOptions={setOptions}
+        uploadedFiles={uploadedFiles}
+        inspections={fileInspections}
+        isRunning={isRunning}
+        onProcess={() => {
+          void processUploadedFiles();
+        }}
+        progressRows={progressRows}
+        overallPercent={overallPercent}
+      />
 
-      <ResultPanel results={results} error={error} />
-
-      <div className="settings-stack">
-        <FilesAndInputsCard
-          options={options}
-          setOptions={setOptions}
-          filterFile={filterFile}
-          setFilterFile={setFilterFile}
-          keepAwakeFile={keepAwakeFile}
-          setKeepAwakeFile={setKeepAwakeFile}
-          appCodebookFile={appCodebookFile}
-          setAppCodebookFile={setAppCodebookFile}
-        />
-        <TimezoneCard
-          options={options}
-          setOptions={setOptions}
-          discoveredTimezones={discoveredTimezones}
-          hasFiles={uploadedFiles.length > 0}
-          isRunning={isRunning}
-          onDiscover={() => {
-            void discoverAvailableTimezones();
-          }}
-        />
-        <SessionDetectionCard options={options} setOptions={setOptions} />
-        <ScreenDetectionCard options={options} setOptions={setOptions} />
-        <InteractionSemanticsCard options={options} setOptions={setOptions} />
-        <PerformanceCard options={options} setOptions={setOptions} />
+      <div ref={resultsRef} tabIndex={-1} aria-live="polite">
+        <ResultPanel results={results} error={error} options={options} />
       </div>
 
       <footer className="app-footer">
@@ -435,6 +536,12 @@ export default function App(): ReactElement {
             onImport={setOptions}
             onStatus={(message, isError = false) => setToast({ message, isError })}
           />
+          <details className="app-info">
+            <summary>App info</summary>
+            <span>Version {PREPROCESSOR_VERSION}</span>
+            <span>Build 2026-04-25</span>
+            <span>Bundled codebook available</span>
+          </details>
         </div>
       </footer>
       {toast ? (
