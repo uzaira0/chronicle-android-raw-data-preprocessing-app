@@ -63,10 +63,10 @@ export function PresetManager({ options, onApply, onStatus }: Props): ReactEleme
   };
 
   return (
-    <section className="preset-manager" aria-labelledby="settings-title">
+    <section className="preset-manager" aria-labelledby="presets-title">
       <div className="workflow-section__header">
         <div>
-          <h2 id="settings-title" className="workflow-section__title">Settings</h2>
+          <h3 id="presets-title" className="workflow-section__subtitle">Presets</h3>
           <p className="workflow-section__intro">
             Save your own option presets, load them later, or export/import a full preset set.
           </p>

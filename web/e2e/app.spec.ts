@@ -94,7 +94,9 @@ test("processes app and screen outputs with CSV support files and downloads both
 });
 
 test("searches individual settings and links to matching sections", async ({ page }) => {
-  await page.getByPlaceholder("Search every setting: timezone, codebook, parallel...").fill("parallel");
+  await expect(page.getByTestId("settings-search-input")).toBeVisible();
+  await expect(page.getByText("Full Settings Search")).toBeVisible();
+  await page.getByTestId("settings-search-input").fill("parallel");
   const results = page.locator(".settings-search-results");
   await expect(results).toContainText("2 settings found");
   await expect(results).toContainText("Parallel processing");
