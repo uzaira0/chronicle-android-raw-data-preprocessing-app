@@ -1,8 +1,5 @@
-import { useCallback, useRef, useState, type ReactElement } from "react";
-import {
-  DEFAULT_BROWSER_OPTIONS,
-  resolveDefaultSupportFiles,
-} from "@/lib/browserPipeline";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+import { resolveDefaultSupportFiles } from "@/lib/browserPipeline";
 import {
   WorkerPool,
   discoverTimezones,
@@ -11,6 +8,7 @@ import {
 } from "@/lib/chronicleMatcher";
 import { sampleRawCsv, SAMPLE_FILE_NAME } from "@/lib/sampleRawCsv";
 import { ensureNotificationPermission, sendNotification } from "@/lib/notification";
+import { persistOptions, readPersistedOptions } from "@/lib/settingsPersistence";
 import type {
   BrowserProcessingOptions,
   BrowserProcessingRuntime,
@@ -33,6 +31,7 @@ import { ResultPanel } from "@/components/ResultPanel";
 import { ResetDefaultsButton } from "@/components/ResetDefaultsButton";
 import { ProgressList, type FileProgress } from "@/components/ProgressList";
 import { Toast } from "@/components/Toast";
+import { SettingsPersistenceControls } from "@/components/SettingsPersistenceControls";
 
 async function readSupportFile(file: File): Promise<BrowserSupportFile> {
   return {
@@ -128,11 +127,15 @@ export default function App(): ReactElement {
   const [keepAwakeFile, setKeepAwakeFile] = useState<File | null>(null);
   const [appCodebookFile, setAppCodebookFile] = useState<File | null>(null);
   const [discoveredTimezones, setDiscoveredTimezones] = useState<string[]>([]);
-  const [options, setOptions] = useState<BrowserProcessingOptions>({ ...DEFAULT_BROWSER_OPTIONS });
+  const [options, setOptions] = useState<BrowserProcessingOptions>(() => readPersistedOptions());
   const [progressByFile, setProgressByFile] = useState<Record<string, FileProgress>>({});
   const [progressOrder, setProgressOrder] = useState<string[]>([]);
   const [toast, setToast] = useState<{ message: string; isError: boolean } | null>(null);
   const startTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    persistOptions(options);
+  }, [options]);
 
   const onFilesChange = (files: File[]) => {
     setUploadedFiles(files);
@@ -425,8 +428,14 @@ export default function App(): ReactElement {
       </div>
 
       <footer className="app-footer">
-        <ResetDefaultsButton options={options} onReset={setOptions} />
-        <span>Runs entirely in your browser. Your data never leaves your device.</span>
+        <div className="footer-actions">
+          <ResetDefaultsButton options={options} onReset={setOptions} />
+          <SettingsPersistenceControls
+            options={options}
+            onImport={setOptions}
+            onStatus={(message, isError = false) => setToast({ message, isError })}
+          />
+        </div>
       </footer>
       {toast ? (
         <Toast
