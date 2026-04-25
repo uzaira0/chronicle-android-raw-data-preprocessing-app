@@ -33,7 +33,7 @@ describe("browserPipeline", () => {
     ]);
   });
 
-  it("interprets offset-less Chronicle timestamps in the row timezone before conversion", async () => {
+  it("interprets offset-less Chronicle timestamps as UTC before conversion", async () => {
     const csv = [
       "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
       "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
@@ -63,8 +63,8 @@ describe("browserPipeline", () => {
     );
 
     const output = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
-    expect(output).toContain("2026-03-07 11:00:00-05:00");
-    expect(output).toContain("03-07-2026 11:00:00");
+    expect(output).toContain("2026-03-07 05:00:00-05:00");
+    expect(output).toContain("03-07-2026 05:00:00");
   });
 
   it("produces app and screen outputs from the shared pipeline", async () => {

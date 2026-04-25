@@ -376,30 +376,10 @@ function parsePlainTimestampParts(value: string):
   };
 }
 
-function timeZoneOffsetMs(utcMilliseconds: number, timeZone: string): number {
-  const date = new Date(utcMilliseconds);
-  const parts = eventFormatter(timeZone).formatToParts(date);
-  const values: Record<string, string> = {};
-  parts.forEach((part) => {
-    if (part.type !== "literal") {
-      values[part.type] = part.value;
-    }
-  });
-  const asUtc = Date.UTC(
-    Number(values.year),
-    Number(values.month) - 1,
-    Number(values.day),
-    Number(values.hour),
-    Number(values.minute),
-    Number(values.second),
-  );
-  return asUtc - utcMilliseconds;
-}
-
-function parseTimestampInTimeZoneNs(value: string, timeZone: string): bigint {
+function parseOffsetlessTimestampAsUtcNs(value: string): bigint {
   const parts = parsePlainTimestampParts(value);
   if (!parts) {
-    const milliseconds = Date.parse(value.replace(" ", "T"));
+    const milliseconds = Date.parse(`${value.replace(" ", "T")}Z`);
     if (Number.isNaN(milliseconds)) {
       throw new Error(`Invalid event_timestamp: ${value}`);
     }
@@ -415,17 +395,10 @@ function parseTimestampInTimeZoneNs(value: string, timeZone: string): bigint {
     parts.second,
     parts.millisecond,
   );
-  let offset = timeZoneOffsetMs(wallClockAsUtc, timeZone);
-  let resolved = wallClockAsUtc - offset;
-  const refinedOffset = timeZoneOffsetMs(resolved, timeZone);
-  if (refinedOffset !== offset) {
-    offset = refinedOffset;
-    resolved = wallClockAsUtc - offset;
-  }
-  return BigInt(resolved) * 1_000_000n;
+  return BigInt(wallClockAsUtc) * 1_000_000n;
 }
 
-function parseChronicleTimestampNs(value: string, timeZone = "UTC"): bigint {
+function parseChronicleTimestampNs(value: string): bigint {
   const text = value.trim();
   if (!text) {
     throw new Error("Missing event_timestamp");
@@ -433,7 +406,7 @@ function parseChronicleTimestampNs(value: string, timeZone = "UTC"): bigint {
   const explicitTimezone = /(Z|[+-]\d{2}:\d{2})$/.test(text);
   const normalized = text.replace(" ", "T");
   if (!explicitTimezone) {
-    return parseTimestampInTimeZoneNs(text, timeZone || "UTC");
+    return parseOffsetlessTimestampAsUtcNs(text);
   }
   const isoText = normalized;
   const milliseconds = Date.parse(isoText);
@@ -882,7 +855,7 @@ function createBaseRow(
     application_label: requireString(row.application_label),
     interaction_type: normalizeInteractionType(requireString(row.interaction_type)),
     app_package_name: requireString(row.app_package_name),
-    event_timestamp_ns: parseChronicleTimestampNs(requireString(row.event_timestamp), timezone),
+    event_timestamp_ns: parseChronicleTimestampNs(requireString(row.event_timestamp)),
     timezone,
     data_time_gap_hours: 0,
     preprocessor_version: PREPROCESSOR_VERSION,
