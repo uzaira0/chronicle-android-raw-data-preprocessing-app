@@ -331,4 +331,35 @@ describe("browserPipeline", () => {
     const csv0 = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
     expect(csv0).toContain("2026-04-24 00:32:53");
   });
+
+  it("labels default datetime_of_preprocessing as UTC", async () => {
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:01:00,America/Chicago",
+    ].join("\n");
+
+    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+
+    const result = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        useFilterFile: false,
+        useKeepAwakeAppsFile: false,
+        useAppCodebook: false,
+      },
+      {},
+      matcher,
+    );
+
+    const csv0 = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
+    expect(csv0).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC/);
+  });
 });

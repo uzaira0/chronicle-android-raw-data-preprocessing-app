@@ -5,11 +5,14 @@ import { createZipBlob } from "@/lib/zip";
 import type { OutputKind } from "@/lib/generatedContract";
 import type { BrowserProcessingOptions, ProcessedFileResult, ProcessedOutputFileResult } from "@/lib/types";
 import { PREPROCESSOR_VERSION } from "@/lib/browserPipeline";
+import type { FileProgress } from "@/components/ProgressList";
 
 type Props = {
   results: ProcessedFileResult[];
   error: string | null;
   options: BrowserProcessingOptions;
+  expectedFileCount: number;
+  progressRows: FileProgress[];
 };
 
 type BatchOutput = {
@@ -68,6 +71,64 @@ function buildProcessingReport(
   );
 }
 
+function buildResultWarnings(input: {
+  results: ProcessedFileResult[];
+  error: string | null;
+  options: BrowserProcessingOptions;
+  expectedFileCount: number;
+  progressRows: FileProgress[];
+}): string[] {
+  const { results, error, options, expectedFileCount, progressRows } = input;
+  const warnings: string[] = [];
+  if (error) {
+    warnings.push(error);
+  }
+  const failedRows = progressRows.filter((row) => row.status === "error");
+  failedRows.forEach((row) => {
+    warnings.push(`${row.fileName} failed: ${row.error ?? "Unknown processing error"}`);
+  });
+  if (expectedFileCount > 0 && results.length < expectedFileCount) {
+    warnings.push(`Only ${results.length}/${expectedFileCount} selected files produced results.`);
+  }
+  results.forEach((result) => {
+    if (!result.outputs.length) {
+      warnings.push(`${result.inputFileName} produced no downloadable outputs.`);
+    }
+    if (result.originalRowCount === 0) {
+      warnings.push(`${result.inputFileName} had zero input rows after parsing.`);
+    }
+    if (result.processedRowCount === 0) {
+      warnings.push(`${result.inputFileName} had zero rows after timezone/filter/session processing.`);
+    }
+    if (result.availableTimezones.length > 1) {
+      warnings.push(
+        `${result.inputFileName} contained ${result.availableTimezones.length} timezones: ${result.availableTimezones.join(", ")}`,
+      );
+    }
+    if (
+      (options.usageSessionMode === "app_usage" || options.usageSessionMode === "app_and_screen_usage") &&
+      result.appRowCount === 0
+    ) {
+      warnings.push(`${result.inputFileName} produced zero app-usage rows.`);
+    }
+    if (
+      (options.usageSessionMode === "screen_usage" || options.usageSessionMode === "app_and_screen_usage") &&
+      result.screenRowCount === 0
+    ) {
+      warnings.push(`${result.inputFileName} produced zero screen-usage rows.`);
+    }
+    result.outputs.forEach((output) => {
+      if (output.rowCount === 0) {
+        warnings.push(`${output.outputFileName} contains zero data rows.`);
+      }
+      if (output.blob.size === 0) {
+        warnings.push(`${output.outputFileName} is an empty file.`);
+      }
+    });
+  });
+  return Array.from(new Set(warnings));
+}
+
 async function downloadZip(
   kind: "all" | OutputKind,
   outputs: BatchOutput[],
@@ -88,7 +149,13 @@ async function downloadZip(
   downloadBlob(zipName(kind), zip);
 }
 
-export function ResultPanel({ results, error, options }: Props): ReactElement | null {
+export function ResultPanel({
+  results,
+  error,
+  options,
+  expectedFileCount,
+  progressRows,
+}: Props): ReactElement | null {
   const [previewKind, setPreviewKind] = useState<OutputKind>("app");
   const summary = useMemo(() => {
     return results.reduce(
@@ -113,6 +180,17 @@ export function ResultPanel({ results, error, options }: Props): ReactElement | 
     null;
   const previewRows = previewedOutput?.previewRows ?? null;
   const reportText = useMemo(() => buildProcessingReport(results, options), [results, options]);
+  const resultWarnings = useMemo(
+    () =>
+      buildResultWarnings({
+        results,
+        error,
+        options,
+        expectedFileCount,
+        progressRows,
+      }),
+    [results, error, options, expectedFileCount, progressRows],
+  );
 
   if (error && !results.length) {
     return (
@@ -180,6 +258,16 @@ export function ResultPanel({ results, error, options }: Props): ReactElement | 
         </div>
       </header>
       {error ? <p className="error-text u-mb-3">{error}</p> : null}
+      {resultWarnings.length ? (
+        <div className="result-warnings" role="alert">
+          <strong>{resultWarnings.length} warning{resultWarnings.length === 1 ? "" : "s"}</strong>
+          <ul>
+            {resultWarnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="result-summary-grid">
         <Stat label="Original rows" value={summary.originalRows} />

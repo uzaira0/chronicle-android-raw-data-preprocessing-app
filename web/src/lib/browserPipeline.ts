@@ -933,7 +933,7 @@ function getPossibleDeviceModel(rows: RawChronicleRow[]): string {
 function resolveDatetimeOfPreprocessing(
   runtime: BrowserProcessingRuntime | undefined,
 ): string {
-  return runtime?.datetimeOfPreprocessing ?? new Date().toISOString().slice(0, 19).replace("T", " ");
+  return runtime?.datetimeOfPreprocessing ?? `${new Date().toISOString().slice(0, 19).replace("T", " ")} UTC`;
 }
 
 function parseRawRows(
