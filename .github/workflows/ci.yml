@@ -86,7 +86,14 @@ jobs:
         run: bandit -c bandit.yaml -r src/chronicle_preprocessing_app -ll
 
       - name: Audit Python dependencies
-        run: pip-audit --strict --skip-editable
+        run: |
+          # Audit only third-party deps. The local project
+          # (chronicle-android-preprocessor) is installed editable for
+          # bandit's source resolution, but it is not on PyPI and
+          # cannot be audited. Exclude it from the freeze passed to
+          # pip-audit so --strict has nothing to choke on.
+          python -m pip freeze --exclude chronicle-android-preprocessor > /tmp/audit-requirements.txt
+          pip-audit --strict --requirement /tmp/audit-requirements.txt
 
   cargo-audit:
     runs-on: ubuntu-latest
