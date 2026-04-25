@@ -1,6 +1,7 @@
 import { useMemo, type Dispatch, type SetStateAction } from "react";
 import type { ReactElement } from "react";
 
+import { Combobox } from "@/components/Combobox";
 import { SectionCard } from "@/components/SectionCard";
 import { SettingsField } from "@/components/SettingsField";
 import { TIMEZONE_HANDLING_OPTIONS, DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
@@ -81,21 +82,14 @@ export function TimezoneCard({
           modified={!isOptionDefault("selectedTimezone", options.selectedTimezone)}
           onReset={() => reset("selectedTimezone")}
         >
-          <input
-            data-testid="selected-timezone-input"
-            className="input"
-            list="known-timezones"
+          <Combobox
+            testId="selected-timezone-input"
+            ariaLabel="Selected timezone"
             placeholder="America/Chicago"
-            autoComplete="off"
-            spellCheck={false}
             value={options.selectedTimezone ?? ""}
-            onChange={(event) => update("selectedTimezone", event.target.value)}
+            onChange={(next) => update("selectedTimezone", next)}
+            options={timezoneSuggestions}
           />
-          <datalist id="known-timezones">
-            {timezoneSuggestions.map((timezone) => (
-              <option key={timezone} value={timezone} />
-            ))}
-          </datalist>
         </SettingsField>
       </div>
       <div className="button-row">

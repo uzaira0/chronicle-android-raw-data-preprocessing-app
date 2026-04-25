@@ -9,7 +9,7 @@ import {
   processRawCsv,
   processRawCsvBytesViaPool,
 } from "@/lib/chronicleMatcher";
-import { sampleRawCsv } from "@/lib/sampleRawCsv";
+import { sampleRawCsv, SAMPLE_FILE_NAME } from "@/lib/sampleRawCsv";
 import { ensureNotificationPermission, sendNotification } from "@/lib/notification";
 import type {
   BrowserProcessingOptions,
@@ -21,6 +21,7 @@ import type {
   ProgressStepKind,
 } from "@/lib/types";
 
+import { DemoSampleCard } from "@/components/DemoSampleCard";
 import { RunBar } from "@/components/RunBar";
 import { FilesAndInputsCard } from "@/components/FilesAndInputsCard";
 import { TimezoneCard } from "@/components/TimezoneCard";
@@ -175,7 +176,7 @@ export default function App(): ReactElement {
     setError(null);
     try {
       const result = await processRawCsv(
-        "Sample Chronicle Raw.csv",
+        SAMPLE_FILE_NAME,
         sampleRawCsv,
         options,
         undefined,
@@ -346,13 +347,21 @@ export default function App(): ReactElement {
 
   return (
     <main className="app-shell">
-      <header className="hero">
-        <h1>Chronicle Android Raw Data Preprocessor</h1>
-        <p className="lede">
-          Drop one or more raw Chronicle CSVs to generate the preprocessed app-usage and
-          screen-usage outputs. This app runs entirely in your browser — your data never
-          leaves your device.
-        </p>
+      <header className="hero hero--with-demo">
+        <div className="hero__copy">
+          <h1>Chronicle Android Raw Data Preprocessor</h1>
+          <p className="lede">
+            Drop one or more raw Chronicle CSVs to generate the preprocessed app-usage and
+            screen-usage outputs. This app runs entirely in your browser — your data never
+            leaves your device.
+          </p>
+        </div>
+        <DemoSampleCard
+          isRunning={isRunning}
+          onRun={() => {
+            void runSample();
+          }}
+        />
       </header>
 
       <RunBar
@@ -362,9 +371,6 @@ export default function App(): ReactElement {
         onFilesChange={onFilesChange}
         onProcess={() => {
           void processUploadedFiles();
-        }}
-        onRunSample={() => {
-          void runSample();
         }}
         isRunning={isRunning}
       />

@@ -14,7 +14,6 @@ type Props = {
   uploadedFiles: File[];
   onFilesChange: (files: File[]) => void;
   onProcess: () => void;
-  onRunSample: () => void;
   isRunning: boolean;
 };
 
@@ -24,7 +23,6 @@ export function RunBar({
   uploadedFiles,
   onFilesChange,
   onProcess,
-  onRunSample,
   isRunning,
 }: Props): ReactElement {
   const [dragging, setDragging] = useState(false);
@@ -150,17 +148,8 @@ export function RunBar({
             >
               {isRunning ? "Processing…" : "Process files"}
             </button>
-            <Tooltip content={TOOLTIPS.runMode} label="Help: Process or sample" />
+            <Tooltip content={TOOLTIPS.runMode} label="Help: Process files" />
           </div>
-          <button
-            type="button"
-            className="btn btn--secondary"
-            data-testid="run-sample-button"
-            onClick={onRunSample}
-            disabled={isRunning}
-          >
-            Run bundled sample
-          </button>
         </div>
       </div>
     </div>
