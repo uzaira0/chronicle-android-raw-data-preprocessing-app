@@ -1,10 +1,13 @@
 import { useCallback, useRef, useState, type ReactElement } from "react";
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
+import {
+  DEFAULT_BROWSER_OPTIONS,
+  resolveDefaultSupportFiles,
+} from "@/lib/browserPipeline";
 import {
   WorkerPool,
   discoverTimezones,
   processRawCsv,
-  processRawCsvViaPool,
+  processRawCsvBytesViaPool,
 } from "@/lib/chronicleMatcher";
 import { sampleRawCsv } from "@/lib/sampleRawCsv";
 import { ensureNotificationPermission, sendNotification } from "@/lib/notification";
@@ -62,6 +65,44 @@ const STEP_ORDER: ProgressStepKind[] = [
   "enrich",
   "output",
 ];
+
+/**
+ * Compute a memory-safe parallel worker count.
+ *
+ * Each in-flight worker holds, at peak, roughly a 5–10× expansion of its
+ * file's input bytes (parsed `CanonicalRow[]`, intermediate matcher buffers,
+ * codebook-enriched rows, and a Blob being assembled). Hardcoding 8 workers
+ * regardless of input size is what crashes the tab on a 540 MB batch — the
+ * sum of in-flight expansions exceeds Chrome's renderer ceiling.
+ *
+ * Strategy:
+ *   - If the user pinned `parallelMaxWorkers`, respect it.
+ *   - Otherwise budget ~600 MB for in-flight worker state and divide by an
+ *     8× amplification of the average file size.
+ *   - Clamp to [1, hardwareConcurrency/2] and never exceed file count.
+ */
+const PEAK_AMPLIFICATION = 8;
+const IN_FLIGHT_BUDGET_BYTES = 600 * 1024 * 1024;
+
+function computeSafeConcurrency(input: {
+  fileCount: number;
+  totalInputBytes: number;
+  userCap: number | undefined;
+  hardwareConcurrency: number | undefined;
+}): number {
+  const { fileCount, totalInputBytes, userCap, hardwareConcurrency } = input;
+  if (fileCount <= 1) return 1;
+  if (userCap && userCap > 0) {
+    return Math.max(1, Math.min(fileCount, Math.floor(userCap)));
+  }
+  const cores = Math.max(1, Math.floor((hardwareConcurrency ?? 2) / 2));
+  const avgBytes = totalInputBytes > 0 ? totalInputBytes / fileCount : 1024;
+  const memoryCap = Math.max(
+    1,
+    Math.floor(IN_FLIGHT_BUDGET_BYTES / Math.max(1, avgBytes * PEAK_AMPLIFICATION)),
+  );
+  return Math.max(1, Math.min(fileCount, cores, memoryCap));
+}
 
 function estimatedFilePercent(current: FileProgress): number {
   if (current.status === "complete") return 1;
@@ -203,19 +244,21 @@ export default function App(): ReactElement {
 
     let pool: WorkerPool | null = null;
     try {
-      const supportFiles = await buildSupportFiles();
+      const userSupportFiles = await buildSupportFiles();
       const nextResults: ProcessedFileResult[] = new Array(uploadedFiles.length);
+      const totalInputBytes = uploadedFiles.reduce((sum, file) => sum + file.size, 0);
       const concurrency = options.parallelProcessing
-        ? Math.max(
-            1,
-            Math.min(
-              uploadedFiles.length,
-              options.parallelMaxWorkers && options.parallelMaxWorkers > 0
-                ? options.parallelMaxWorkers
-                : Math.max(1, Math.floor((navigator.hardwareConcurrency || 2) / 2)),
-            ),
-          )
+        ? computeSafeConcurrency({
+            fileCount: uploadedFiles.length,
+            totalInputBytes,
+            userCap: options.parallelMaxWorkers,
+            hardwareConcurrency: typeof navigator !== "undefined" ? navigator.hardwareConcurrency : undefined,
+          })
         : 1;
+      // Resolve bundled-default support files once on the main thread so
+      // every worker uses identical bytes (no per-worker fetches), and so
+      // the user's uploads win over defaults.
+      const supportFiles = await resolveDefaultSupportFiles(options, userSupportFiles);
       pool = concurrency > 1 ? new WorkerPool(concurrency) : null;
       let cursor = 0;
       const failures: string[] = [];
@@ -227,25 +270,31 @@ export default function App(): ReactElement {
           const file = uploadedFiles[index]!;
           handleProgressEvent({ type: "file-start", fileName: file.name });
           try {
-            const text = await file.text();
-            const result = pool
-              ? await processRawCsvViaPool(
-                  pool,
-                  file.name,
-                  text,
-                  options,
-                  supportFiles,
-                  getInjectedRuntime(),
-                  handleProgressEvent,
-                )
-              : await processRawCsv(
-                  file.name,
-                  text,
-                  options,
-                  supportFiles,
-                  getInjectedRuntime(),
-                  handleProgressEvent,
-                );
+            let result: ProcessedFileResult;
+            if (pool) {
+              // Zero-copy: transfer ArrayBuffer ownership to the worker so
+              // the main thread releases the file content immediately.
+              const bytes = await file.arrayBuffer();
+              result = await processRawCsvBytesViaPool(
+                pool,
+                file.name,
+                bytes,
+                options,
+                supportFiles,
+                getInjectedRuntime(),
+                handleProgressEvent,
+              );
+            } else {
+              const text = await file.text();
+              result = await processRawCsv(
+                file.name,
+                text,
+                options,
+                supportFiles,
+                getInjectedRuntime(),
+                handleProgressEvent,
+              );
+            }
             nextResults[index] = result;
             handleProgressEvent({ type: "file-complete", fileName: file.name, result });
           } catch (fileError) {
