@@ -104,12 +104,27 @@ async function main(): Promise<void> {
   );
 
   await mkdir(spec.outputDir, { recursive: true });
+  // Output bytes now live in a Blob (file-backed in browsers); on Node the
+  // Blob is in-memory but exposes the same async-stream API.
+  const serializableOutputs: Array<{
+    kind: string;
+    outputFileName: string;
+    rowCount: number;
+    previewRows: string[][];
+  }> = [];
   for (const output of result.outputs) {
-    await writeFile(path.join(spec.outputDir, output.outputFileName), output.csv, "utf-8");
+    const bytes = new Uint8Array(await output.blob.arrayBuffer());
+    await writeFile(path.join(spec.outputDir, output.outputFileName), bytes);
+    serializableOutputs.push({
+      kind: output.kind,
+      outputFileName: output.outputFileName,
+      rowCount: output.rowCount,
+      previewRows: output.previewRows,
+    });
   }
   await writeFile(
     path.join(spec.outputDir, "browser_result.json"),
-    JSON.stringify(result, null, 2),
+    JSON.stringify({ ...result, outputs: serializableOutputs }, null, 2),
     "utf-8",
   );
 }
