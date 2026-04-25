@@ -40,5 +40,10 @@ export default defineConfig({
     outDir: "dist",
     target: "esnext",
     manifest: true,
+    // The default 4 KB inline limit turns the small filter and keep-awake
+    // default CSVs into data: URIs. Production CSP forbids `connect-src
+    // data:`, so a `fetch()` against the inlined URI fails. Emit every
+    // asset as a separate file instead.
+    assetsInlineLimit: 0,
   },
 });
