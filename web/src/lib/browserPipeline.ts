@@ -11,6 +11,8 @@ import type {
   MatcherOutput,
   ProcessedFileResult,
   ProcessedOutputFileResult,
+  ProgressEvent,
+  ProgressStepKind,
   RawChronicleRow,
 } from "@/lib/types";
 
@@ -29,9 +31,6 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   useFilterFile: true,
   useKeepAwakeAppsFile: false,
   useAppCodebook: true,
-  includeFilteredAppUsageInPlots: false,
-  plotOnlyTargetChildData: true,
-  minimumUsageDuration: 0,
   customAppEngagementDuration: 300,
   longUsageDurationThresholds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
   longDataTimeGapThresholds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
@@ -80,8 +79,6 @@ export const BOOLEAN_OPTION_CONTROLS = [
   { key: "useFilterFile", label: "Use filter file" },
   { key: "useKeepAwakeAppsFile", label: "Use keep-awake apps file" },
   { key: "useAppCodebook", label: "Use app codebook" },
-  { key: "includeFilteredAppUsageInPlots", label: "Include filtered app usage in plots" },
-  { key: "plotOnlyTargetChildData", label: "Plot only target child data" },
   { key: "correctDuplicateEventTimestamps", label: "Correct duplicate event timestamps" },
   { key: "allowStopEventReuse", label: "Allow stop-event reuse" },
   { key: "useActivityStoppedAsFallback", label: "Use Activity Stopped fallback" },
@@ -1729,21 +1726,31 @@ export async function processRawCsvContent(
   supportFiles: BrowserSupportFiles | undefined,
   runMatcher: MatcherRunner,
   runtime?: BrowserProcessingRuntime,
+  onProgress?: (event: ProgressEvent) => void,
 ): Promise<ProcessedFileResult> {
+  const emit = (stepKind: ProgressStepKind, percent: number) => {
+    onProgress?.({ type: "step", fileName: inputFileName, stepKind, percent });
+  };
   const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
+
+  emit("parse", 0);
   const originalRows = parseRawRows(csvText, runtime);
   const originalRowCount = originalRows.length;
   const availableTimezones = Array.from(
     new Set(originalRows.map((row) => row.timezone).filter(Boolean)),
   ).sort((left, right) => left.localeCompare(right));
+  emit("parse", 1);
 
+  emit("timezone", 0);
   const { rows: timezoneHandledRows, timezone } = applyTimezoneHandling(originalRows, options);
   const deduped = dedupeExactRows(timezoneHandledRows);
   const duplicateCorrected = options.correctDuplicateEventTimestamps
     ? unalignDuplicateTimestamps(deduped, options)
     : deduped;
   let rows = markDataTimeGaps(duplicateCorrected);
+  emit("timezone", 1);
 
+  emit("filter", 0);
   let filterMap = new Map<string, Set<string>>();
   if (options.useFilterFile) {
     filterMap = buildFilterMap(
@@ -1758,20 +1765,25 @@ export async function processRawCsvContent(
       await loadSupportRows(supportFiles?.keepAwakeAppsFile, defaultKeepAwakeAppsUrl),
     );
   }
+  emit("filter", 1);
 
   const outputs: ProcessedOutputFileResult[] = [];
   let screenRows: CanonicalRow[] = [];
   if (options.usageSessionMode === "screen_usage" || options.usageSessionMode === "app_and_screen_usage") {
+    emit("screen", 0);
     screenRows = deriveScreenUsageSessions(rows, options, keepAwakeMap);
+    emit("screen", 1);
   }
 
   if (options.usageSessionMode === "screen_usage") {
+    emit("output", 0);
     outputs.push({
       kind: "screen",
       outputFileName: deriveOutputFileName(inputFileName, " Screen Usage Automatically Preprocessed.csv"),
       csv: toScreenCsv(screenRows),
       rowCount: screenRows.length,
     });
+    emit("output", 1);
     return {
       inputFileName,
       outputs,
@@ -1784,21 +1796,28 @@ export async function processRawCsvContent(
     };
   }
 
+  emit("matcher", 0);
   rows = await runAppUsageAlgorithm(rows, options, runMatcher);
+  emit("matcher", 1);
 
+  emit("codebook", 0);
   let codebookMap = new Map<string, CodebookRecord>();
   if (options.useAppCodebook) {
     codebookMap = buildCodebookMap(
       await loadSupportRows(supportFiles?.appCodebookFile, defaultAppCodebookUrl),
     );
   }
+  emit("codebook", 1);
 
+  emit("enrich", 0);
   rows = enrichWithCodebookData(rows, options, codebookMap);
   rows = addAppUsageDetailColumns(rows, options);
   rows = markAppUsageFlags(rows, options);
   rows = clearFilteredUsageTiming(rows);
   rows = removeSelectedInteractionTypes(rows, options);
+  emit("enrich", 1);
 
+  emit("output", 0);
   const includeCodebookAliases = !(options.useAppCodebook && codebookMap.size > 0);
   outputs.push({
     kind: "app",
@@ -1814,6 +1833,7 @@ export async function processRawCsvContent(
       rowCount: screenRows.length,
     });
   }
+  emit("output", 1);
 
   return {
     inputFileName,
