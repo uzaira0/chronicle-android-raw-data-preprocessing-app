@@ -192,12 +192,12 @@ a:hover {
    ========================================================================== */
 
 .app-shell {
-  width: min(1280px, calc(100% - var(--space-6)));
+  width: min(1360px, calc(100% - var(--space-5)));
   margin: 0 auto;
-  padding: var(--space-7) 0 var(--space-9);
+  padding: var(--space-5) 0 var(--space-7);
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-4);
 }
 
 .hero {
@@ -207,7 +207,7 @@ a:hover {
 .hero--with-demo {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
-  gap: var(--space-5);
+  gap: var(--space-4);
   align-items: start;
 }
 
@@ -236,7 +236,7 @@ a:hover {
   border: 1px solid var(--color-border);
   border-left: 3px solid var(--color-info);
   border-radius: var(--radius-md);
-  padding: var(--space-4) var(--space-5);
+  padding: var(--space-3) var(--space-4);
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
@@ -262,7 +262,7 @@ a:hover {
   margin: var(--space-2) 0 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-md);
-  line-height: var(--line-height-relaxed);
+  line-height: var(--line-height-normal);
 }
 
 /* ==========================================================================
@@ -277,7 +277,7 @@ a:hover {
   grid-template-columns: minmax(280px, 1fr) auto;
   gap: var(--space-4);
   align-items: stretch;
-  padding: var(--space-4);
+  padding: var(--space-3);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -295,7 +295,6 @@ a:hover {
   background: var(--color-surface-sunken);
   transition: border-color var(--duration-fast) var(--ease-standard),
     background var(--duration-fast) var(--ease-standard);
-  cursor: pointer;
   position: relative;
 }
 
@@ -305,24 +304,36 @@ a:hover {
   background: var(--color-accent-soft);
 }
 
-.run-bar__drop input[type="file"] {
+.visually-hidden-file-input {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.run-bar__choose {
+  position: absolute;
+  right: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .run-bar__drop-title {
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-strong);
   font-size: var(--font-size-md);
+  padding-right: 8.5rem;
 }
 
 .run-bar__drop-meta {
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
+  padding-right: 8.5rem;
 }
 
 .run-bar__controls {
@@ -366,6 +377,17 @@ a:hover {
 }
 
 @media (max-width: 640px) {
+  .run-bar__choose {
+    position: static;
+    transform: none;
+    width: max-content;
+  }
+
+  .run-bar__drop-title,
+  .run-bar__drop-meta {
+    padding-right: 0;
+  }
+
   .run-bar__controls {
     grid-template-columns: 1fr;
   }
@@ -432,9 +454,9 @@ a:hover {
 }
 
 .section-card__body {
-  padding: var(--space-5);
+  padding: var(--space-4);
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .section-card.is-collapsed .section-card__body {
@@ -523,7 +545,7 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-sm);
   transition: background var(--duration-fast) var(--ease-standard);
   position: relative;
@@ -1063,15 +1085,18 @@ a:hover {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
-  padding: var(--space-5);
+  padding: var(--space-4);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .result-panel__header {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
   margin-bottom: var(--space-4);
+  min-width: 0;
 }
 
 .result-panel__title {
@@ -1086,36 +1111,16 @@ a:hover {
   color: var(--color-text-muted);
 }
 
-.results-grid {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.result-card {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-sunken);
-  padding: var(--space-4);
-}
-
-.result-card__header {
+.result-panel__actions {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
 }
 
-.result-card__name {
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-strong);
-  word-break: break-all;
-}
-
-.result-card__stats {
+.result-summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-2);
   margin-bottom: var(--space-3);
 }
@@ -1125,6 +1130,7 @@ a:hover {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: var(--space-2) var(--space-3);
+  min-width: 0;
 }
 
 .stat-block__label {
@@ -1142,15 +1148,85 @@ a:hover {
   margin-top: var(--space-1);
 }
 
-.result-card__actions {
+.result-details {
+  margin-bottom: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.result-details summary {
+  width: max-content;
+  cursor: pointer;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin-bottom: var(--space-2);
+}
+
+.result-file-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.result-file-table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+  background: var(--color-surface);
+}
+
+.result-file-table th,
+.result-file-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.result-file-table th {
+  background: var(--color-surface-sunken);
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.result-file-table td:first-child {
+  max-width: 24rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.result-preview {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+  padding: var(--space-3);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.result-preview__header {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.result-preview__title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-strong);
 }
 
 .preview-table-wrap {
   margin-top: var(--space-3);
-  overflow: auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: auto;
   max-height: 26rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -1160,6 +1236,7 @@ a:hover {
 .preview-table {
   width: max-content;
   min-width: 100%;
+  max-width: none;
   border-collapse: collapse;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
@@ -1563,12 +1640,20 @@ a:hover {
   .panel-grid,
   .settings-grid,
   .triple-grid,
-  .key-values {
+  .key-values,
+  .result-summary-grid {
     grid-template-columns: 1fr;
   }
 
-  .result-header {
+  .result-header,
+  .result-panel__header,
+  .result-preview__header {
     flex-direction: column;
+    align-items: stretch;
+  }
+
+  .result-panel__actions {
+    justify-content: flex-start;
   }
 }
 
@@ -1615,7 +1700,7 @@ a:hover {
   grid-template-columns: 1fr auto;
   gap: var(--space-3);
   align-items: center;
-  padding: var(--space-3);
+  padding: var(--space-2);
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   background: var(--color-surface-sunken);
@@ -1631,11 +1716,19 @@ a:hover {
 .settings-stack {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
+  gap: var(--space-3);
   /* Without this, a collapsed card in the same row as an expanded sibling
      stretches to match the taller card's height, making the collapsed card
      look empty-but-open. align-items:start lets each card hug its content. */
   align-items: start;
+}
+
+.footer-actions,
+.settings-persistence {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 @media (max-width: 980px) {

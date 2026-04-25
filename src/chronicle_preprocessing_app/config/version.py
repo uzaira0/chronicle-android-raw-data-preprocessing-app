@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-__version__ = "0.2.0"
-__build_date__ = "2025-12-15"
+__version__ = "1.0.0"
+__build_date__ = "2026-04-25"
 
 # Version History:
+# 1.0.0 (2026-04-25): Browser app production release
 # 0.2.0 (2025-12-15): Algorithm configuration improvements
 #   - Changed default `allow_stop_event_reuse` to False (prevents artificially short sessions)
 #   - Changed default `apply_threshold_to_activity_stopped_fallback` to True (prevents inflated sessions)

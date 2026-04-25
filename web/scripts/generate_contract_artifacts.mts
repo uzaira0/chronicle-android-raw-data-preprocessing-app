@@ -163,7 +163,7 @@ function buildOpenApiDocument(document: LinkMlDocument): OpenApiDocument {
     openapi: "3.1.0",
     info: {
       title: "Chronicle Local Processing Contract",
-      version: "0.1.0",
+      version: "1.0.0",
       description:
         "Boundary contract for the local-only browser preprocessing surface. The canonical source-of-truth model lives in `web/schema/chronicle-local-contract.linkml.yaml`; this OpenAPI document is generated from that same contract.",
     },

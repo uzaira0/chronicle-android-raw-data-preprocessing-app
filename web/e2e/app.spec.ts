@@ -57,6 +57,22 @@ test("processes app and screen outputs with CSV support files and downloads both
   await setInputFile(page, "keep-awake-file-input", "keep_awake.csv", KEEP_AWAKE_CSV, "text/csv");
   await setInputFile(page, "app-codebook-file-input", "codebook.csv", CODEBOOK_CSV, "text/csv");
   await processFiles(page);
+  const previewMetrics = await page.locator(".preview-table-wrap").evaluate((element) => {
+    const panel = element.closest(".result-panel");
+    const elementRect = element.getBoundingClientRect();
+    const panelRect = panel?.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+    return {
+      overflowX: style.overflowX,
+      tableNeedsScroll: element.scrollWidth > element.clientWidth,
+      staysInsidePanel: panelRect ? elementRect.right <= panelRect.right + 1 : false,
+    };
+  });
+  expect(previewMetrics).toEqual({
+    overflowX: "auto",
+    tableNeedsScroll: true,
+    staysInsidePanel: true,
+  });
 
   const appCsv = await downloadCsv(page, "download-app-csv");
   const screenCsv = await downloadCsv(page, "download-screen-csv");
@@ -212,7 +228,62 @@ test("processes multiple uploaded files with parallel workers enabled", async ({
   await page.getByTestId("toggle-parallelProcessing").check();
   await page.getByTestId("parallel-max-workers-input").fill("2");
   await processFiles(page);
-  await expect(page.getByTestId("result-card")).toHaveCount(2);
+  await expect(page.getByTestId("result-panel")).toContainText("2 files processed");
+  assertNoExternalRequests(requestTracker);
+});
+
+test("persists all edited settings across reload and supports settings import", async ({ page }) => {
+  await page.getByTestId("study-name-input").fill("TECH pilot");
+  await page.getByTestId("usage-mode-select").selectOption("app_and_screen_usage");
+  await expandSectionCard(page, "timezone");
+  await page.getByTestId("timezone-handling-select").selectOption("selected-convert");
+  await page.getByTestId("selected-timezone-input").fill("America/Chicago");
+  await expandSectionCard(page, "session-detection");
+  await page.getByTestId("long-duration-threshold-input").fill("6");
+  await page.getByTestId("custom-engagement-duration-input").fill("45");
+  await page.getByTestId("long-usage-thresholds-input").fill("2, 4, 8");
+  await page.getByTestId("toggle-allowStopEventReuse").check();
+  await expandSectionCard(page, "performance");
+  await page.getByTestId("toggle-parallelProcessing").check();
+  await page.getByTestId("parallel-max-workers-input").fill("3");
+
+  await page.reload();
+  await installDeterministicRuntime(page);
+  await expect(page.getByTestId("study-name-input")).toHaveValue("TECH pilot");
+  await expect(page.getByTestId("usage-mode-select")).toHaveValue("app_and_screen_usage");
+  await expandSectionCard(page, "timezone");
+  await expect(page.getByTestId("timezone-handling-select")).toHaveValue("selected-convert");
+  await expect(page.getByTestId("selected-timezone-input")).toHaveValue("America/Chicago");
+  await expandSectionCard(page, "session-detection");
+  await expect(page.getByTestId("long-duration-threshold-input")).toHaveValue("6");
+  await expect(page.getByTestId("custom-engagement-duration-input")).toHaveValue("45");
+  await expect(page.getByTestId("long-usage-thresholds-input")).toHaveValue("2, 4, 8");
+  await expect(page.getByTestId("toggle-allowStopEventReuse")).toBeChecked();
+  await expandSectionCard(page, "performance");
+  await expect(page.getByTestId("toggle-parallelProcessing")).toBeChecked();
+  await expect(page.getByTestId("parallel-max-workers-input")).toHaveValue("3");
+
+  await page.getByTestId("import-settings-input").setInputFiles({
+    name: "settings.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({
+        options: {
+          studyName: "Imported study",
+          usageSessionMode: "screen_usage",
+          useAppCodebook: false,
+          longDataTimeGapThresholds: [1.5, 2.5],
+        },
+      }),
+      "utf-8",
+    ),
+  });
+
+  await expect(page.getByTestId("study-name-input")).toHaveValue("Imported study");
+  await expect(page.getByTestId("usage-mode-select")).toHaveValue("screen_usage");
+  await expect(page.getByTestId("toggle-useAppCodebook")).not.toBeChecked();
+  await expandSectionCard(page, "session-detection");
+  await expect(page.getByTestId("long-gap-thresholds-input")).toHaveValue("1.5, 2.5");
   assertNoExternalRequests(requestTracker);
 });
 
@@ -233,14 +304,14 @@ test("@offline warms the cache, reloads offline, and still processes locally", a
   await expect(
     page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" }),
   ).toBeVisible();
-  await expect(page.getByText("Files stay on this device.")).toBeVisible();
+  await expect(page.getByText(/your data never leaves your device/i)).toBeVisible();
 
   await context.setOffline(true);
   await page.reload();
   await expect(
     page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" }),
   ).toBeVisible();
-  await expect(page.getByText("Files stay on this device.")).toBeVisible();
+  await expect(page.getByText(/your data never leaves your device/i)).toBeVisible();
 
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
   await processFiles(page);
@@ -268,7 +339,7 @@ test("@install keeps the simplified hero stable when beforeinstallprompt fires",
   await expect(
     page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" }),
   ).toBeVisible();
-  await expect(page.getByText("Files stay on this device.")).toBeVisible();
+  await expect(page.getByText(/your data never leaves your device/i)).toBeVisible();
   await expect(page.getByTestId("process-files-button")).toBeVisible();
   assertNoExternalRequests(requestTracker);
 });

@@ -105,7 +105,55 @@ async function readDownload(download: Download): Promise<string> {
   if (!path) {
     throw new Error("Playwright did not provide a download path");
   }
-  return await readFile(path, "utf-8");
+  const bytes = await readFile(path);
+  if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
+    const entries = unzipStoredEntries(bytes);
+    const firstCsv = Array.from(entries.entries()).find(([name]) =>
+      name.toLowerCase().endsWith(".csv"),
+    );
+    if (!firstCsv) {
+      throw new Error("Downloaded ZIP did not contain a CSV");
+    }
+    return firstCsv[1];
+  }
+  return bytes.toString("utf-8");
+}
+
+function readUint16(bytes: Uint8Array, offset: number): number {
+  return bytes[offset]! | (bytes[offset + 1]! << 8);
+}
+
+function readUint32(bytes: Uint8Array, offset: number): number {
+  return (
+    bytes[offset]! |
+    (bytes[offset + 1]! << 8) |
+    (bytes[offset + 2]! << 16) |
+    (bytes[offset + 3]! << 24)
+  ) >>> 0;
+}
+
+function unzipStoredEntries(bytes: Uint8Array): Map<string, string> {
+  const decoder = new TextDecoder();
+  const entries = new Map<string, string>();
+  let offset = 0;
+
+  while (offset + 30 <= bytes.byteLength && readUint32(bytes, offset) === 0x04034b50) {
+    const compressionMethod = readUint16(bytes, offset + 8);
+    const compressedSize = readUint32(bytes, offset + 18);
+    const nameLength = readUint16(bytes, offset + 26);
+    const extraLength = readUint16(bytes, offset + 28);
+    const nameStart = offset + 30;
+    const dataStart = nameStart + nameLength + extraLength;
+    const dataEnd = dataStart + compressedSize;
+    const fileName = decoder.decode(bytes.slice(nameStart, nameStart + nameLength));
+    if (compressionMethod !== 0) {
+      throw new Error(`Unsupported ZIP compression method ${compressionMethod}`);
+    }
+    entries.set(fileName, decoder.decode(bytes.slice(dataStart, dataEnd)));
+    offset = dataEnd;
+  }
+
+  return entries;
 }
 
 export function parseCsv(csvText: string): Array<Record<string, string>> {
