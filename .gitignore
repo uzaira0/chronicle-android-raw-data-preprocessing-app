@@ -228,6 +228,8 @@ uv.lock
 web/node_modules/
 web/dist/
 web/.vite/
+web/.tmp/
+.superpowers/
 !web/src/lib/
 !web/src/lib/**
 !web/src/test-runtime.d.ts
