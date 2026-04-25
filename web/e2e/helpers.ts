@@ -100,6 +100,23 @@ export async function downloadCsv(page: Page, testId: string, index = 0): Promis
   return readDownload(download);
 }
 
+export async function downloadZipEntries(
+  page: Page,
+  testId: string,
+  index = 0,
+): Promise<Map<string, string>> {
+  const locator = page.getByTestId(testId).nth(index);
+  const downloadPromise = page.waitForEvent("download");
+  await locator.click();
+  const download = await downloadPromise;
+  const path = await download.path();
+  if (!path) {
+    throw new Error("Playwright did not provide a download path");
+  }
+  const bytes = await readFile(path);
+  return unzipStoredEntries(bytes);
+}
+
 async function readDownload(download: Download): Promise<string> {
   const path = await download.path();
   if (!path) {
