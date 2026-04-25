@@ -37,6 +37,7 @@ import { RawFilesCard } from "@/components/RawFilesCard";
 import { ProcessPanel } from "@/components/ProcessPanel";
 import { PresetManager } from "@/components/PresetManager";
 import { SettingsOverviewCard } from "@/components/SettingsOverviewCard";
+import { SettingsSearchResults } from "@/components/SettingsSearchResults";
 
 async function readSupportFile(file: File): Promise<BrowserSupportFile> {
   return {
@@ -453,11 +454,12 @@ export default function App(): ReactElement {
           <span className="settings-field__label">Search settings</span>
           <input
             className="input"
-            placeholder="timezone, codebook, parallel..."
+            placeholder="Search every setting: timezone, codebook, parallel..."
             value={settingsQuery}
             onChange={(event) => setSettingsQuery(event.target.value)}
           />
         </label>
+        <SettingsSearchResults query={settingsQuery} />
         <div className="settings-stack">
           {shows("support files filter keep awake codebook") ? (
             <FilesAndInputsCard
@@ -525,7 +527,13 @@ export default function App(): ReactElement {
       />
 
       <div ref={resultsRef} tabIndex={-1} aria-live="polite">
-        <ResultPanel results={results} error={error} options={options} />
+        <ResultPanel
+          results={results}
+          error={error}
+          options={options}
+          expectedFileCount={uploadedFiles.length}
+          progressRows={progressRows}
+        />
       </div>
 
       <footer className="app-footer">
