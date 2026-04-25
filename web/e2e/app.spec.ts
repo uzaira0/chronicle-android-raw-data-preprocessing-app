@@ -16,6 +16,7 @@ import {
   assertNoExternalRequests,
   csvHeaders,
   downloadCsv,
+  downloadZipEntries,
   expandSectionCard,
   gotoApp,
   installDeterministicRuntime,
@@ -74,11 +75,52 @@ test("processes app and screen outputs with CSV support files and downloads both
     staysInsidePanel: true,
   });
 
+  const zipEntries = await downloadZipEntries(page, "download-all-zip");
+  expect(Array.from(zipEntries.keys())).toContain("chronicle-processing-report.json");
+  const report = JSON.parse(zipEntries.get("chronicle-processing-report.json") ?? "{}");
+  expect(report.preprocessorVersion).toBe("1.0.0");
+  expect(report.files).toHaveLength(1);
+  expect(report.files[0].outputs.map((output: { kind: string }) => output.kind)).toEqual([
+    "app",
+    "screen",
+  ]);
+
   const appCsv = await downloadCsv(page, "download-app-csv");
   const screenCsv = await downloadCsv(page, "download-screen-csv");
   expect(csvHeaders(appCsv)).toContain("play_store_genreId");
   expect(appCsv).toContain("Filtered App Usage");
   expect(screenCsv).toContain("Screen Usage");
+  assertNoExternalRequests(requestTracker);
+});
+
+test("searches individual settings and links to matching sections", async ({ page }) => {
+  await page.getByPlaceholder("Search every setting: timezone, codebook, parallel...").fill("parallel");
+  const results = page.locator(".settings-search-results");
+  await expect(results).toContainText("2 settings found");
+  await expect(results).toContainText("Parallel processing");
+  await expect(results).toContainText("Max parallel workers");
+  await expect(results.getByRole("link", { name: /Max parallel workers/i })).toHaveAttribute(
+    "href",
+    /#performance$/,
+  );
+  assertNoExternalRequests(requestTracker);
+});
+
+test("validates selected raw files before processing", async ({ page }) => {
+  const badRawCsv = [
+    "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone,timezone",
+    "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,not-a-date,Not/AZone,Not/AZone",
+    "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,,America/Chicago,America/Chicago",
+    "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:00:00,,",
+    "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:00:00,America/Chicago,America/Chicago",
+  ].join("\n");
+
+  await setInputFile(page, "raw-file-input", "Raw P01.txt", badRawCsv, "text/plain");
+
+  await expect(page.getByText("File extension is not .csv.")).toBeVisible();
+  await expect(page.getByText("Duplicate column headers found.")).toBeVisible();
+  await expect(page.getByText(/rows have invalid event_timestamp values/)).toBeVisible();
+  await expect(page.getByText(/Invalid timezone values/)).toBeVisible();
   assertNoExternalRequests(requestTracker);
 });
 
@@ -150,6 +192,16 @@ test("drops codebook-enriched columns when app codebook use is disabled", async 
   const headers = csvHeaders(appCsv);
   expect(headers).not.toContain("genreId_scraped");
   expect(headers).not.toContain("play_store_genreId");
+  assertNoExternalRequests(requestTracker);
+});
+
+test("shows result warnings for suspicious successful outputs", async ({ page }) => {
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await page.getByTestId("usage-mode-select").selectOption("app_and_screen_usage");
+  await processFiles(page);
+
+  await expect(page.locator(".result-warnings")).toContainText("zero screen-usage rows");
+  await expect(page.locator(".result-warnings")).toContainText("contains zero data rows");
   assertNoExternalRequests(requestTracker);
 });
 

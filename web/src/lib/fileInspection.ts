@@ -59,6 +59,9 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
     skipEmptyLines: true,
   });
   const columns = parsed.meta.fields ?? [];
+  const renamedHeaders = (
+    parsed.meta as typeof parsed.meta & { renamedHeaders?: Record<string, string> }
+  ).renamedHeaders;
   const columnSet = humanColumnSet(columns);
   const missing = REQUIRED_RAW_COLUMNS.filter((column) => !columnSet.has(column));
   const timezoneValues = parsed.data.map((row) => (row.timezone ?? "").trim());
@@ -86,7 +89,7 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
   if (missing.length) {
     warnings.push(`Missing required columns: ${missing.join(", ")}`);
   }
-  if (columns.length !== new Set(columns).size) {
+  if (columns.length !== new Set(columns).size || (renamedHeaders && Object.keys(renamedHeaders).length > 0)) {
     warnings.push("Duplicate column headers found.");
   }
   if (!timezones.length && !missing.includes("timezone")) {
