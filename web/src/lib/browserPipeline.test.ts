@@ -4,7 +4,12 @@ import {
   discoverTimezonesFromRawCsv,
   processRawCsvContent,
 } from "@/lib/browserPipeline";
-import type { MatcherInput, MatcherOutput } from "@/lib/types";
+import type {
+  MatcherInput,
+  MatcherOutput,
+  ProgressEvent,
+  ProgressStepKind,
+} from "@/lib/types";
 
 function csvBytes(text: string): ArrayBuffer {
   return new TextEncoder().encode(text).buffer;
@@ -194,6 +199,64 @@ describe("browserPipeline", () => {
     expect(rows[0]?.[10]).toBe("");
     expect(rows[1]?.[9]).toBe("End of Usage Missing");
     expect(rows[1]?.[10]).not.toBe("");
+  });
+
+  it("emits progress events for every pipeline phase when onProgress is supplied", async () => {
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:01:00,America/Chicago",
+    ].join("\n");
+
+    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+
+    const events: ProgressEvent[] = [];
+    await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        usageSessionMode: "app_and_screen_usage",
+        useFilterFile: false,
+        useKeepAwakeAppsFile: false,
+        useAppCodebook: false,
+      },
+      {},
+      matcher,
+      undefined,
+      (event) => events.push(event),
+    );
+
+    const stepKinds = new Set(
+      events
+        .filter((event): event is Extract<ProgressEvent, { type: "step" }> => event.type === "step")
+        .map((event) => event.stepKind),
+    );
+    const expectedKinds: ProgressStepKind[] = [
+      "parse",
+      "timezone",
+      "filter",
+      "screen",
+      "matcher",
+      "codebook",
+      "enrich",
+      "output",
+    ];
+    expectedKinds.forEach((kind) => {
+      expect(stepKinds.has(kind)).toBe(true);
+    });
+    events.forEach((event) => {
+      if (event.type === "step") {
+        expect(event.fileName).toBe("Raw P01.csv");
+        expect(event.percent).toBeGreaterThanOrEqual(0);
+        expect(event.percent).toBeLessThanOrEqual(1);
+      }
+    });
   });
 
   it("uses injected datetime_of_preprocessing when provided via runtime metadata", async () => {

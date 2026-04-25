@@ -68,9 +68,12 @@ export type BrowserProcessingOptions = {
   useFilterFile: boolean;
   useKeepAwakeAppsFile: boolean;
   useAppCodebook: boolean;
-  includeFilteredAppUsageInPlots: boolean;
-  plotOnlyTargetChildData: boolean;
-  minimumUsageDuration: number;
+  /** @deprecated Plotting is desktop-only. The web pipeline ignores this. */
+  includeFilteredAppUsageInPlots?: boolean;
+  /** @deprecated Plotting is desktop-only. The web pipeline ignores this. */
+  plotOnlyTargetChildData?: boolean;
+  /** @deprecated Compatibility-only — never read by the pipeline. */
+  minimumUsageDuration?: number;
   customAppEngagementDuration: number;
   longUsageDurationThresholds: number[];
   longDataTimeGapThresholds: number[];
@@ -84,6 +87,21 @@ export type BrowserProcessingOptions = {
   otherInteractionTypesToStopUsageAt: string[];
   interactionTypesToRemove: string[];
 };
+
+export type ProgressStepKind =
+  | "parse"
+  | "timezone"
+  | "filter"
+  | "screen"
+  | "matcher"
+  | "codebook"
+  | "enrich"
+  | "output";
+
+export type ProgressEvent =
+  | { type: "file-start"; fileName: string }
+  | { type: "step"; fileName: string; stepKind: ProgressStepKind; percent: number }
+  | { type: "file-complete"; fileName: string; result?: ProcessedFileResult; error?: string };
 
 export type ProcessedOutputFileResult = {
   kind: OutputKind;
