@@ -3,12 +3,27 @@ import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 const STORAGE_KEY = "chronicle.processingOptions.v1";
+const PRESETS_STORAGE_KEY = "chronicle.processingPresets.v1";
 const SETTINGS_SCHEMA_VERSION = 1;
 
 type SettingsEnvelope = {
   schemaVersion: number;
   savedAt: string;
   options: BrowserProcessingOptions;
+};
+
+export type SettingsPreset = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  options: BrowserProcessingOptions;
+};
+
+type PresetsEnvelope = {
+  schemaVersion: number;
+  exportedAt: string;
+  presets: SettingsPreset[];
 };
 
 const optionKeys = new Set<string>(BROWSER_PROCESSING_OPTION_KEYS);
@@ -118,6 +133,15 @@ export function readPersistedOptions(): BrowserProcessingOptions {
   }
 }
 
+export function hasPersistedOptions(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(STORAGE_KEY) !== null;
+  } catch {
+    return false;
+  }
+}
+
 export function persistOptions(options: BrowserProcessingOptions): void {
   if (typeof window === "undefined") return;
   try {
@@ -143,4 +167,65 @@ export function buildOptionsExportBlob(options: BrowserProcessingOptions): Blob 
     options: sanitizeOptions(options),
   };
   return new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
+}
+
+export function readPersistedPresets(): SettingsPreset[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(PRESETS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    const presets = isRecord(parsed) && Array.isArray(parsed.presets) ? parsed.presets : parsed;
+    if (!Array.isArray(presets)) return [];
+    return presets
+      .filter(isRecord)
+      .map((preset) => ({
+        id: typeof preset.id === "string" ? preset.id : crypto.randomUUID(),
+        name: typeof preset.name === "string" ? preset.name : "Imported preset",
+        createdAt: typeof preset.createdAt === "string" ? preset.createdAt : new Date().toISOString(),
+        updatedAt: typeof preset.updatedAt === "string" ? preset.updatedAt : new Date().toISOString(),
+        options: sanitizeOptions(preset.options),
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export function persistPresets(presets: SettingsPreset[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    const envelope: PresetsEnvelope = {
+      schemaVersion: SETTINGS_SCHEMA_VERSION,
+      exportedAt: new Date().toISOString(),
+      presets,
+    };
+    window.localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(envelope));
+  } catch {
+    // Ignore storage failures; import/export remains available.
+  }
+}
+
+export function buildPresetsExportBlob(presets: SettingsPreset[]): Blob {
+  const envelope: PresetsEnvelope = {
+    schemaVersion: SETTINGS_SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    presets,
+  };
+  return new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
+}
+
+export async function readPresetsFile(file: File): Promise<SettingsPreset[]> {
+  const parsed = JSON.parse(await file.text());
+  const presets = isRecord(parsed) && Array.isArray(parsed.presets) ? parsed.presets : parsed;
+  if (!Array.isArray(presets)) {
+    throw new Error("Preset file must contain a presets array.");
+  }
+  const now = new Date().toISOString();
+  return presets.filter(isRecord).map((preset) => ({
+    id: crypto.randomUUID(),
+    name: typeof preset.name === "string" ? preset.name : "Imported preset",
+    createdAt: now,
+    updatedAt: now,
+    options: sanitizeOptions(preset.options),
+  }));
 }

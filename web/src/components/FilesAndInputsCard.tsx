@@ -8,6 +8,9 @@ import { TOOLTIPS } from "@/lib/tooltipText";
 import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
 import type { BrowserProcessingOptions } from "@/lib/types";
+import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
+import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
+import defaultKeepAwakeAppsUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_keep_awake_apps.csv?url";
 
 const KEYS: readonly OptionKey[] = ["useFilterFile", "useKeepAwakeAppsFile", "useAppCodebook"];
 
@@ -65,6 +68,7 @@ export function FilesAndInputsCard(props: Props): ReactElement {
         onToggle={(value) => update("useFilterFile", value)}
         onResetToggle={() => reset("useFilterFile")}
         testId="filter-file-input"
+        defaultUrl={defaultAppsToFilterUrl}
       />
       <SupportFileRow
         title="Keep-awake apps file"
@@ -78,6 +82,7 @@ export function FilesAndInputsCard(props: Props): ReactElement {
         onToggle={(value) => update("useKeepAwakeAppsFile", value)}
         onResetToggle={() => reset("useKeepAwakeAppsFile")}
         testId="keep-awake-file-input"
+        defaultUrl={defaultKeepAwakeAppsUrl}
       />
       <SupportFileRow
         title="App codebook file"
@@ -91,6 +96,7 @@ export function FilesAndInputsCard(props: Props): ReactElement {
         onToggle={(value) => update("useAppCodebook", value)}
         onResetToggle={() => reset("useAppCodebook")}
         testId="app-codebook-file-input"
+        defaultUrl={defaultAppCodebookUrl}
       />
     </SectionCard>
   );
@@ -108,6 +114,7 @@ type SupportFileRowProps = {
   onToggle: (value: boolean) => void;
   onResetToggle: () => void;
   testId: string;
+  defaultUrl: string;
 };
 
 function SupportFileRow(props: SupportFileRowProps): ReactElement {
@@ -122,6 +129,7 @@ function SupportFileRow(props: SupportFileRowProps): ReactElement {
     onToggle,
     onResetToggle,
     testId,
+    defaultUrl,
   } = props;
   const tooltip = TOOLTIPS[toggleKey];
   return (
@@ -141,9 +149,16 @@ function SupportFileRow(props: SupportFileRowProps): ReactElement {
             event.currentTarget.value = "";
           }}
         />
-        <span className="text-faint u-meta-xs">
-          {file ? `Selected: ${file.name}` : "No file selected — bundled default will be used"}
+        <span className={`support-file-state${checked ? " is-enabled" : ""}`}>
+          {checked
+            ? file
+              ? `Enabled with uploaded file: ${file.name}`
+              : "Enabled with bundled default"
+            : "Disabled"}
         </span>
+        <a className="u-meta-xs" href={defaultUrl} download>
+          Download bundled default
+        </a>
       </div>
       <ToggleField
         label="Enabled"

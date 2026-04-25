@@ -350,14 +350,92 @@ function normalizeInteractionType(value: string): string {
   return ALL_INTERACTION_TYPES_MAP[value] ?? value;
 }
 
-function parseChronicleTimestampNs(value: string): bigint {
+function parsePlainTimestampParts(value: string):
+  | {
+      year: number;
+      month: number;
+      day: number;
+      hour: number;
+      minute: number;
+      second: number;
+      millisecond: number;
+    }
+  | null {
+  const match = value
+    .trim()
+    .match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?$/);
+  if (!match) return null;
+  return {
+    year: Number(match[1]),
+    month: Number(match[2]),
+    day: Number(match[3]),
+    hour: Number(match[4]),
+    minute: Number(match[5]),
+    second: Number(match[6]),
+    millisecond: Number((match[7] ?? "0").padEnd(3, "0").slice(0, 3)),
+  };
+}
+
+function timeZoneOffsetMs(utcMilliseconds: number, timeZone: string): number {
+  const date = new Date(utcMilliseconds);
+  const parts = eventFormatter(timeZone).formatToParts(date);
+  const values: Record<string, string> = {};
+  parts.forEach((part) => {
+    if (part.type !== "literal") {
+      values[part.type] = part.value;
+    }
+  });
+  const asUtc = Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    Number(values.hour),
+    Number(values.minute),
+    Number(values.second),
+  );
+  return asUtc - utcMilliseconds;
+}
+
+function parseTimestampInTimeZoneNs(value: string, timeZone: string): bigint {
+  const parts = parsePlainTimestampParts(value);
+  if (!parts) {
+    const milliseconds = Date.parse(value.replace(" ", "T"));
+    if (Number.isNaN(milliseconds)) {
+      throw new Error(`Invalid event_timestamp: ${value}`);
+    }
+    return BigInt(milliseconds) * 1_000_000n;
+  }
+
+  const wallClockAsUtc = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+    parts.millisecond,
+  );
+  let offset = timeZoneOffsetMs(wallClockAsUtc, timeZone);
+  let resolved = wallClockAsUtc - offset;
+  const refinedOffset = timeZoneOffsetMs(resolved, timeZone);
+  if (refinedOffset !== offset) {
+    offset = refinedOffset;
+    resolved = wallClockAsUtc - offset;
+  }
+  return BigInt(resolved) * 1_000_000n;
+}
+
+function parseChronicleTimestampNs(value: string, timeZone = "UTC"): bigint {
   const text = value.trim();
   if (!text) {
     throw new Error("Missing event_timestamp");
   }
   const explicitTimezone = /(Z|[+-]\d{2}:\d{2})$/.test(text);
   const normalized = text.replace(" ", "T");
-  const isoText = explicitTimezone ? normalized : `${normalized}Z`;
+  if (!explicitTimezone) {
+    return parseTimestampInTimeZoneNs(text, timeZone || "UTC");
+  }
+  const isoText = normalized;
   const milliseconds = Date.parse(isoText);
   if (Number.isNaN(milliseconds)) {
     throw new Error(`Invalid event_timestamp: ${value}`);
@@ -804,7 +882,7 @@ function createBaseRow(
     application_label: requireString(row.application_label),
     interaction_type: normalizeInteractionType(requireString(row.interaction_type)),
     app_package_name: requireString(row.app_package_name),
-    event_timestamp_ns: parseChronicleTimestampNs(requireString(row.event_timestamp)),
+    event_timestamp_ns: parseChronicleTimestampNs(requireString(row.event_timestamp), timezone),
     timezone,
     data_time_gap_hours: 0,
     preprocessor_version: PREPROCESSOR_VERSION,
