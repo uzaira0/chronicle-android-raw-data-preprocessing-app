@@ -20,8 +20,8 @@ export const TOOLTIPS = {
     body: "Choose whether to generate the app-usage file, the screen-usage file, or both. Each output is downloaded as a separate CSV.",
   },
   runMode: {
-    title: "Process or sample",
-    body: "Process selected files runs the pipeline on your uploads. Run bundled sample processes a small built-in fixture so you can verify the app works without uploading anything.",
+    title: "Process files",
+    body: "Runs the preprocessing pipeline on your uploaded raw Chronicle CSVs. The demo card on the top-right runs the same pipeline on a built-in sample so you can demo the output without uploading anything.",
   },
 
   selectedTimezone: {
