@@ -86,7 +86,7 @@ export function RunBar({
                 .map((file) => file.name)
                 .join(", ") +
               (uploadedFiles.length > 3 ? `, +${uploadedFiles.length - 3} more` : "")
-            : "or click to choose · files stay on this device"}
+            : "or click to choose · processed in your browser"}
         </span>
       </div>
 

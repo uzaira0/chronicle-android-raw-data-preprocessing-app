@@ -49,7 +49,7 @@ export function TimezoneCard({
       accent="timezone"
       modified={anyOptionModified(options, KEYS)}
     >
-      <div className="settings-grid-2">
+      <div className="settings-grid-1">
         <SettingsField
           label="Timezone handling"
           tooltip={TOOLTIPS.timezoneHandling}
@@ -86,6 +86,8 @@ export function TimezoneCard({
             className="input"
             list="known-timezones"
             placeholder="America/Chicago"
+            autoComplete="off"
+            spellCheck={false}
             value={options.selectedTimezone ?? ""}
             onChange={(event) => update("selectedTimezone", event.target.value)}
           />
