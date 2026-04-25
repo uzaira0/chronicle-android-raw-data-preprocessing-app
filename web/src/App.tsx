@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+import { useCallback, useRef, useState, type ReactElement } from "react";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
 import {
   WorkerPool,
   discoverTimezones,
-  getMatcherVersion,
   processRawCsv,
   processRawCsvViaPool,
 } from "@/lib/chronicleMatcher";
@@ -88,25 +87,10 @@ export default function App(): ReactElement {
   const [appCodebookFile, setAppCodebookFile] = useState<File | null>(null);
   const [discoveredTimezones, setDiscoveredTimezones] = useState<string[]>([]);
   const [options, setOptions] = useState<BrowserProcessingOptions>({ ...DEFAULT_BROWSER_OPTIONS });
-  const [matcherVersion, setMatcherVersion] = useState<string>("");
   const [progressByFile, setProgressByFile] = useState<Record<string, FileProgress>>({});
   const [progressOrder, setProgressOrder] = useState<string[]>([]);
   const [toast, setToast] = useState<{ message: string; isError: boolean } | null>(null);
   const startTimeRef = useRef<number>(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    void getMatcherVersion()
-      .then((version) => {
-        if (!cancelled) setMatcherVersion(version);
-      })
-      .catch(() => {
-        // Ignore — matcher version is informational only.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const onFilesChange = (files: File[]) => {
     setUploadedFiles(files);
@@ -317,7 +301,8 @@ export default function App(): ReactElement {
         <h1>Chronicle Android Raw Data Preprocessor</h1>
         <p className="lede">
           Drop one or more raw Chronicle CSVs to generate the preprocessed app-usage and
-          screen-usage outputs locally. Files never leave this device.
+          screen-usage outputs. This app runs entirely in your browser — your data never
+          leaves your device.
         </p>
       </header>
 
@@ -386,10 +371,7 @@ export default function App(): ReactElement {
 
       <footer className="app-footer">
         <ResetDefaultsButton options={options} onReset={setOptions} />
-        <span>
-          Files stay on this device.
-          {matcherVersion ? ` · Matcher ${matcherVersion}` : ""}
-        </span>
+        <span>Runs entirely in your browser. Your data never leaves your device.</span>
       </footer>
       {toast ? (
         <Toast

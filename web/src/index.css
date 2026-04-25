@@ -571,6 +571,23 @@ a:hover {
   box-shadow: 0 0 0 3px rgba(91, 108, 243, 0.15);
 }
 
+/* Suppress browser autofill styling that flips the input to white-on-white
+   (Chrome's yellow/blue autofill tint becomes illegible against our light
+   surface). Force tokens, not the UA-injected colors. */
+.input:-webkit-autofill,
+.input:-webkit-autofill:hover,
+.input:-webkit-autofill:focus,
+.input:-webkit-autofill:active,
+.select:-webkit-autofill,
+.select:-webkit-autofill:hover,
+.select:-webkit-autofill:focus,
+.select:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--color-text);
+  -webkit-box-shadow: 0 0 0 1000px var(--color-surface) inset;
+  caret-color: var(--color-text);
+  transition: background-color 5000s ease-in-out 0s;
+}
+
 .select {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'><path d='M1 1.5L6 6.5L11 1.5' stroke='%237a8195' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
   background-repeat: no-repeat;
@@ -1516,6 +1533,10 @@ a:hover {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
+  /* Without this, a collapsed card in the same row as an expanded sibling
+     stretches to match the taller card's height, making the collapsed card
+     look empty-but-open. align-items:start lets each card hug its content. */
+  align-items: start;
 }
 
 @media (max-width: 980px) {
