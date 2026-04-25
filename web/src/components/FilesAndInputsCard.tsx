@@ -136,7 +136,10 @@ function SupportFileRow(props: SupportFileRowProps): ReactElement {
           type="file"
           accept={accept}
           data-testid={testId}
-          onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
+          onChange={(event) => {
+            onFileChange(event.target.files?.[0] ?? null);
+            event.currentTarget.value = "";
+          }}
         />
         <span className="text-faint u-meta-xs">
           {file ? `Selected: ${file.name}` : "No file selected — bundled default will be used"}

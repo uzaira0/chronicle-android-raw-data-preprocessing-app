@@ -54,23 +54,20 @@ export function RunBar({
           setDragging(false);
           handleFilesPicked(event.dataTransfer.files);
         }}
-        onClick={() => inputRef.current?.click()}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            inputRef.current?.click();
-          }
-        }}
       >
         <input
           ref={inputRef}
           data-testid="raw-file-input"
+          className="visually-hidden-file-input"
           type="file"
           accept=".csv,text/csv"
           multiple
-          onChange={(event) => handleFilesPicked(event.target.files)}
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={(event) => {
+            handleFilesPicked(event.target.files);
+            event.currentTarget.value = "";
+          }}
         />
         <span className="run-bar__drop-title">
           {uploadedFiles.length
@@ -84,8 +81,16 @@ export function RunBar({
                 .map((file) => file.name)
                 .join(", ") +
               (uploadedFiles.length > 3 ? `, +${uploadedFiles.length - 3} more` : "")
-            : "or click to choose · processed in your browser"}
+            : "or choose files · processed in your browser"}
         </span>
+        <button
+          type="button"
+          className="btn btn--secondary run-bar__choose"
+          onClick={() => inputRef.current?.click()}
+          disabled={isRunning}
+        >
+          Choose files
+        </button>
       </div>
 
       <div className="run-bar__controls">
