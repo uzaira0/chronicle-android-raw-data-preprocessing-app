@@ -444,22 +444,31 @@ export default function App(): ReactElement {
       />
 
       <section id="settings" className="workflow-section" aria-labelledby="settings-title">
+        <div className="settings-command">
+          <div>
+            <h2 id="settings-title" className="workflow-section__title">Settings</h2>
+            <p className="workflow-section__intro">
+              Search every option, then save custom presets once the settings are right.
+            </p>
+          </div>
+          <label className="settings-search settings-search--command">
+            <span className="settings-search__eyebrow">Full Settings Search</span>
+            <input
+              className="input settings-search__input"
+              placeholder="Search timezone, codebook, parallel, screen, session..."
+              value={settingsQuery}
+              data-testid="settings-search-input"
+              onChange={(event) => setSettingsQuery(event.target.value)}
+            />
+          </label>
+        </div>
+        <SettingsSearchResults query={settingsQuery} />
         <PresetManager
           options={options}
           onApply={setOptions}
           onStatus={(message, isError = false) => setToast({ message, isError })}
         />
         <SettingsOverviewCard options={options} setOptions={setOptions} />
-        <label className="settings-search">
-          <span className="settings-field__label">Search settings</span>
-          <input
-            className="input"
-            placeholder="Search every setting: timezone, codebook, parallel..."
-            value={settingsQuery}
-            onChange={(event) => setSettingsQuery(event.target.value)}
-          />
-        </label>
-        <SettingsSearchResults query={settingsQuery} />
         <div className="settings-stack">
           {shows("support files filter keep awake codebook") ? (
             <FilesAndInputsCard
