@@ -14,6 +14,17 @@ import type {
   ProgressEvent,
 } from "@/lib/types";
 
+/**
+ * Decode an ArrayBuffer to UTF-8 string and immediately drop the buffer
+ * reference. The buffer was transferred (zero-copy) from the main thread,
+ * so the main thread no longer holds the bytes. Decoding produces a JS
+ * string that we then feed into the existing CSV pipeline. Net peak memory
+ * for the input phase: one copy of the file content (vs. two before).
+ */
+function decodeCsvBytes(bytes: ArrayBuffer): string {
+  return new TextDecoder("utf-8").decode(bytes);
+}
+
 let initPromise: Promise<void> | null = null;
 
 async function ensureInit(): Promise<void> {
@@ -82,6 +93,40 @@ const api = {
     onProgress?: (event: ProgressEvent) => void,
   ): Promise<ProcessedFileResult> {
     const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
+    const forward = onProgress
+      ? (event: ProgressEvent) => {
+          try {
+            onProgress(event);
+          } catch {
+            // Ignore progress callback failures so they cannot abort processing.
+          }
+        }
+      : undefined;
+    return processRawCsvContent(
+      inputFileName,
+      csvText,
+      options,
+      supportFiles,
+      runMatcher,
+      runtime,
+      forward,
+    );
+  },
+  /**
+   * Zero-copy variant: caller transfers ownership of the raw CSV bytes.
+   * Worker decodes them once and drops the ArrayBuffer; main thread no
+   * longer holds the file content while processing is in flight.
+   */
+  async processRawCsvBytes(
+    inputFileName: string,
+    csvBytes: ArrayBuffer,
+    incomingOptions?: Partial<BrowserProcessingOptions>,
+    supportFiles?: BrowserSupportFiles,
+    runtime?: BrowserProcessingRuntime,
+    onProgress?: (event: ProgressEvent) => void,
+  ): Promise<ProcessedFileResult> {
+    const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
+    const csvText = decodeCsvBytes(csvBytes);
     const forward = onProgress
       ? (event: ProgressEvent) => {
           try {

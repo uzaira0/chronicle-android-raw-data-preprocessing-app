@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
 
-import Papa from "papaparse";
 import type { ProcessedFileResult } from "@/lib/types";
 
 type Props = {
@@ -9,14 +8,15 @@ type Props = {
   error: string | null;
 };
 
-function downloadTextFile(fileName: string, content: string): void {
-  const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
+function downloadBlob(fileName: string, blob: Blob): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = fileName;
   anchor.click();
-  URL.revokeObjectURL(url);
+  // Revoke on the next tick — Chrome holds onto the URL through the click
+  // event but releases it once the download has been initiated.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 export function ResultPanel({ results, error }: Props): ReactElement | null {
@@ -65,13 +65,7 @@ function ResultCard({ result }: { result: ProcessedFileResult }): ReactElement {
 
   const previewedOutput = result.outputs.find((output) => output.kind === previewKind) ?? null;
   const previewRows = useMemo(() => {
-    if (!previewedOutput) return null;
-    const parsed = Papa.parse<string[]>(previewedOutput.csv, {
-      header: false,
-      skipEmptyLines: true,
-      preview: 51,
-    });
-    return parsed.data ?? [];
+    return previewedOutput?.previewRows ?? null;
   }, [previewedOutput]);
 
   return (
@@ -95,7 +89,7 @@ function ResultCard({ result }: { result: ProcessedFileResult }): ReactElement {
             type="button"
             className="btn btn--primary"
             data-testid={`download-${output.kind}-csv`}
-            onClick={() => downloadTextFile(output.outputFileName, output.csv)}
+            onClick={() => downloadBlob(output.outputFileName, output.blob)}
           >
             Download {output.kind} CSV ({output.rowCount.toLocaleString()} rows)
           </button>

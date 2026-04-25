@@ -103,11 +103,20 @@ export type ProgressEvent =
   | { type: "step"; fileName: string; stepKind: ProgressStepKind; percent: number }
   | { type: "file-complete"; fileName: string; result?: ProcessedFileResult; error?: string };
 
+/**
+ * One generated output file (app or screen). The CSV bytes live in `blob`
+ * (file-backed in Chrome once it exceeds the in-memory threshold), so the
+ * main thread keeps only a cheap reference instead of pinning the full CSV
+ * string in the JS heap. `previewRows` is precomputed by the pipeline (first
+ * 1 header + up to 50 data rows already split into cells) so the result
+ * panel can render the preview without re-parsing the blob.
+ */
 export type ProcessedOutputFileResult = {
   kind: OutputKind;
   outputFileName: string;
-  csv: string;
+  blob: Blob;
   rowCount: number;
+  previewRows: string[][];
 };
 
 export type ProcessedFileResult = {

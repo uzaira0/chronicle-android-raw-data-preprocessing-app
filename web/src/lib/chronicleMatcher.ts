@@ -174,6 +174,34 @@ export async function processRawCsvViaPool(
 }
 
 /**
+ * Zero-copy variant: pass the raw bytes (typically `await file.arrayBuffer()`)
+ * and ownership transfers to the worker. The main thread no longer holds the
+ * file's byte content, halving peak memory under parallel processing of
+ * large batches.
+ */
+export async function processRawCsvBytesViaPool(
+  pool: WorkerPool,
+  inputFileName: string,
+  csvBytes: ArrayBuffer,
+  options?: Partial<BrowserProcessingOptions>,
+  supportFiles?: BrowserSupportFiles,
+  runtime?: BrowserProcessingRuntime,
+  onProgress?: (event: ProgressEvent) => void,
+): Promise<ProcessedFileResult> {
+  return pool.submit(async (api) => {
+    const proxied = onProgress ? Comlink.proxy(onProgress) : undefined;
+    return api.processRawCsvBytes(
+      inputFileName,
+      Comlink.transfer(csvBytes, [csvBytes]),
+      options,
+      supportFiles,
+      runtime,
+      proxied,
+    );
+  });
+}
+
+/**
  * Backwards-compatible wrapper. Older call sites used `processRawCsvIsolated`
  * which spun up and tore down a fresh worker per call. That pattern caused the
  * 90-file hang. The replacement creates a one-shot pool of size 1 so behavior

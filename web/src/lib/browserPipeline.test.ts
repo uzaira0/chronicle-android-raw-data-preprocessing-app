@@ -15,6 +15,10 @@ function csvBytes(text: string): ArrayBuffer {
   return new TextEncoder().encode(text).buffer;
 }
 
+async function readOutputCsv(blob: Blob): Promise<string> {
+  return await blob.text();
+}
+
 describe("browserPipeline", () => {
   it("discovers timezones from raw Chronicle CSV", () => {
     const csv = [
@@ -61,10 +65,11 @@ describe("browserPipeline", () => {
 
     expect(result.outputs).toHaveLength(2);
     expect(result.outputs[0]?.kind).toBe("app");
-    expect(result.outputs[0]?.csv).toContain("App Usage");
+    expect(await readOutputCsv(result.outputs[0]!.blob)).toContain("App Usage");
     expect(result.outputs[1]?.kind).toBe("screen");
-    expect(result.outputs[1]?.csv).toContain("Screen Usage");
-    expect(result.outputs[1]?.csv).toContain("probable_manual_lock");
+    const screenCsv = await readOutputCsv(result.outputs[1]!.blob);
+    expect(screenCsv).toContain("Screen Usage");
+    expect(screenCsv).toContain("probable_manual_lock");
   });
 
   it("only populates consolidated genreId_scraped when source genres agree", async () => {
@@ -107,7 +112,7 @@ describe("browserPipeline", () => {
       matcher,
     );
 
-    const output = result.outputs[0]?.csv ?? "";
+    const output = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
     expect(output).toContain("genreId_scraped");
     expect(output).toContain("EDUCATION");
     expect(output).toContain("NEWS_AND_MAGAZINES");
@@ -141,7 +146,8 @@ describe("browserPipeline", () => {
       matcher,
     );
 
-    const header = (result.outputs[0]?.csv ?? "").split("\n", 1)[0] ?? "";
+    const fullCsv = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
+    const header = fullCsv.split("\n", 1)[0] ?? "";
     expect(header).not.toContain("genreId_scraped");
     expect(header).not.toContain("play_store_genreId");
     expect(header).not.toContain("broad_app_category");
@@ -189,11 +195,12 @@ describe("browserPipeline", () => {
       matcher,
     );
 
-    const rows = (result.outputs[0]?.csv ?? "")
+    const csvText = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
+    const rows = csvText
       .trim()
       .split("\n")
       .slice(1)
-      .map((line) => line.split(","));
+      .map((line: string) => line.split(","));
     expect(rows).toHaveLength(2);
     expect(rows[0]?.[9]).toBe("End of Usage Missing");
     expect(rows[0]?.[10]).toBe("");
@@ -287,6 +294,7 @@ describe("browserPipeline", () => {
       { datetimeOfPreprocessing: "2026-04-24 00:32:53" },
     );
 
-    expect(result.outputs[0]?.csv).toContain("2026-04-24 00:32:53");
+    const csv0 = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
+    expect(csv0).toContain("2026-04-24 00:32:53");
   });
 });

@@ -458,6 +458,75 @@ async function parseSupportRowsFromFile(file: BrowserSupportFile): Promise<Suppo
   return pending;
 }
 
+/**
+ * Fetch the bundled-default CSVs once on the main thread (HTTP-cached by
+ * the browser) and return them as `BrowserSupportFile` byte payloads. The
+ * caller passes these payloads through to every worker so each worker can
+ * skip the network fetch and reuse its own parse cache. User-uploaded files
+ * always win over defaults.
+ */
+const defaultBytesCache = new Map<string, Promise<ArrayBuffer>>();
+
+async function fetchDefaultBytes(url: string): Promise<ArrayBuffer> {
+  const cached = defaultBytesCache.get(url);
+  if (cached) return cached;
+  const pending = (async () => {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Failed to load bundled asset: ${url}`);
+    return response.arrayBuffer();
+  })();
+  defaultBytesCache.set(url, pending);
+  return pending;
+}
+
+function fileNameFromUrl(url: string): string {
+  const tail = url.split("/").pop() ?? "default.csv";
+  return tail.split("?")[0] ?? "default.csv";
+}
+
+export async function resolveDefaultSupportFiles(
+  options: BrowserProcessingOptions,
+  uploads?: BrowserSupportFiles,
+): Promise<BrowserSupportFiles> {
+  const result: BrowserSupportFiles = {};
+  const tasks: Array<Promise<void>> = [];
+  if (options.useFilterFile) {
+    if (uploads?.filterFile) {
+      result.filterFile = uploads.filterFile;
+    } else {
+      tasks.push(
+        fetchDefaultBytes(defaultAppsToFilterUrl).then((bytes) => {
+          result.filterFile = { name: fileNameFromUrl(defaultAppsToFilterUrl), bytes };
+        }),
+      );
+    }
+  }
+  if (options.useKeepAwakeAppsFile) {
+    if (uploads?.keepAwakeAppsFile) {
+      result.keepAwakeAppsFile = uploads.keepAwakeAppsFile;
+    } else {
+      tasks.push(
+        fetchDefaultBytes(defaultKeepAwakeAppsUrl).then((bytes) => {
+          result.keepAwakeAppsFile = { name: fileNameFromUrl(defaultKeepAwakeAppsUrl), bytes };
+        }),
+      );
+    }
+  }
+  if (options.useAppCodebook) {
+    if (uploads?.appCodebookFile) {
+      result.appCodebookFile = uploads.appCodebookFile;
+    } else {
+      tasks.push(
+        fetchDefaultBytes(defaultAppCodebookUrl).then((bytes) => {
+          result.appCodebookFile = { name: fileNameFromUrl(defaultAppCodebookUrl), bytes };
+        }),
+      );
+    }
+  }
+  await Promise.all(tasks);
+  return result;
+}
+
 async function fetchDefaultRows(url: string): Promise<SupportRows> {
   const cached = defaultSupportCache.get(url);
   if (cached) {
@@ -1685,34 +1754,84 @@ function rowToScreenCsvRecord(row: CanonicalRow): Record<string, string | number
   };
 }
 
-function toAppCsv(
+type OutputBundle = {
+  blob: Blob;
+  rowCount: number;
+  previewRows: string[][];
+};
+
+const PREVIEW_ROW_LIMIT = 50;
+const CSV_MIME = "text/csv;charset=utf-8";
+
+/**
+ * Build a `Blob` from a streaming sequence of line fragments without
+ * materializing the full CSV as one JS string. Pushing many small strings
+ * into the Blob constructor lets the browser store them as separate parts;
+ * Chrome promotes large blobs to disk-backed storage so the JS heap never
+ * carries the full output.
+ */
+function buildAppOutputBundle(
   rows: CanonicalRow[],
   options: BrowserProcessingOptions,
   includeCodebookAliases: boolean,
-): string {
-  if (!rows.length) {
-    return "";
-  }
+): OutputBundle {
   const columns = buildAppOutputColumns(options, includeCodebookAliases);
-  const lines = [columns.join(",")];
-  rows.forEach((row) => {
-    const record = rowToAppCsvRecord(row, options, includeCodebookAliases);
-    lines.push(columns.map((column) => csvEscape(record[column])).join(","));
-  });
-  return `${lines.join("\n")}\n`;
+  const previewRows: string[][] = [columns];
+  if (!rows.length) {
+    return { blob: new Blob([], { type: CSV_MIME }), rowCount: 0, previewRows };
+  }
+  const blobParts: BlobPart[] = [];
+  blobParts.push(columns.join(","), "\n");
+  for (let i = 0; i < rows.length; i += 1) {
+    const record = rowToAppCsvRecord(rows[i]!, options, includeCodebookAliases);
+    const rawCells = columns.map((column) => {
+      const value = record[column];
+      return value == null ? "" : String(value);
+    });
+    blobParts.push(rawCells.map(csvEscapeCell).join(","), "\n");
+    if (previewRows.length <= PREVIEW_ROW_LIMIT) {
+      previewRows.push(rawCells);
+    }
+  }
+  return {
+    blob: new Blob(blobParts, { type: CSV_MIME }),
+    rowCount: rows.length,
+    previewRows,
+  };
 }
 
-function toScreenCsv(rows: CanonicalRow[]): string {
-  if (!rows.length) {
-    return "";
-  }
+function buildScreenOutputBundle(rows: CanonicalRow[]): OutputBundle {
   const columns = buildScreenOutputColumns();
-  const lines = [columns.join(",")];
-  rows.forEach((row) => {
-    const record = rowToScreenCsvRecord(row);
-    lines.push(columns.map((column) => csvEscape(record[column])).join(","));
-  });
-  return `${lines.join("\n")}\n`;
+  const previewRows: string[][] = [columns];
+  if (!rows.length) {
+    return { blob: new Blob([], { type: CSV_MIME }), rowCount: 0, previewRows };
+  }
+  const blobParts: BlobPart[] = [];
+  blobParts.push(columns.join(","), "\n");
+  for (let i = 0; i < rows.length; i += 1) {
+    const record = rowToScreenCsvRecord(rows[i]!);
+    const rawCells = columns.map((column) => {
+      const value = record[column];
+      return value == null ? "" : String(value);
+    });
+    blobParts.push(rawCells.map(csvEscapeCell).join(","), "\n");
+    if (previewRows.length <= PREVIEW_ROW_LIMIT) {
+      previewRows.push(rawCells);
+    }
+  }
+  return {
+    blob: new Blob(blobParts, { type: CSV_MIME }),
+    rowCount: rows.length,
+    previewRows,
+  };
+}
+
+/** Same escape rule as csvEscape, but takes an already-stringified cell. */
+function csvEscapeCell(text: string): string {
+  if (/[",\n]/.test(text)) {
+    return `"${text.replaceAll('"', '""')}"`;
+  }
+  return text;
 }
 
 function deriveOutputFileName(inputFileName: string, suffix: string): string {
@@ -1777,11 +1896,13 @@ export async function processRawCsvContent(
 
   if (options.usageSessionMode === "screen_usage") {
     emit("output", 0);
+    const screenBundle = buildScreenOutputBundle(screenRows);
     outputs.push({
       kind: "screen",
       outputFileName: deriveOutputFileName(inputFileName, " Screen Usage Automatically Preprocessed.csv"),
-      csv: toScreenCsv(screenRows),
-      rowCount: screenRows.length,
+      blob: screenBundle.blob,
+      rowCount: screenBundle.rowCount,
+      previewRows: screenBundle.previewRows,
     });
     emit("output", 1);
     return {
@@ -1819,18 +1940,22 @@ export async function processRawCsvContent(
 
   emit("output", 0);
   const includeCodebookAliases = !(options.useAppCodebook && codebookMap.size > 0);
+  const appBundle = buildAppOutputBundle(rows, options, includeCodebookAliases);
   outputs.push({
     kind: "app",
     outputFileName: deriveOutputFileName(inputFileName, " Automatically Preprocessed.csv"),
-    csv: toAppCsv(rows, options, includeCodebookAliases),
-    rowCount: rows.length,
+    blob: appBundle.blob,
+    rowCount: appBundle.rowCount,
+    previewRows: appBundle.previewRows,
   });
   if (options.usageSessionMode === "app_and_screen_usage") {
+    const screenBundle = buildScreenOutputBundle(screenRows);
     outputs.push({
       kind: "screen",
       outputFileName: deriveOutputFileName(inputFileName, " Screen Usage Automatically Preprocessed.csv"),
-      csv: toScreenCsv(screenRows),
-      rowCount: screenRows.length,
+      blob: screenBundle.blob,
+      rowCount: screenBundle.rowCount,
+      previewRows: screenBundle.previewRows,
     });
   }
   emit("output", 1);
