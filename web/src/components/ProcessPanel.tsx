@@ -68,21 +68,29 @@ export function ProcessPanel({
           onChange={(value) => setOptions((current) => ({ ...current, parallelProcessing: value }))}
           testId="toggle-parallelProcessing-process"
         />
-        <SettingsField label="Mode" htmlFor="process-mode-select" tooltip={TOOLTIPS.parallelMaxWorkers}>
-          <select
-            id="process-mode-select"
-            className="select"
-            value={options.parallelProcessing ? "parallel" : "sequential"}
-            onChange={(event) =>
+        <SettingsField
+          label="Max parallel workers"
+          htmlFor="process-max-workers-input"
+          tooltip={TOOLTIPS.parallelMaxWorkers}
+          hint="Synced with Settings. Leave at 0 to auto-pick."
+        >
+          <input
+            id="process-max-workers-input"
+            type="number"
+            className="input"
+            data-testid="parallel-max-workers-process-input"
+            min={0}
+            max={32}
+            value={options.parallelMaxWorkers ?? 0}
+            onChange={(event) => {
+              const next = Number(event.target.value);
               setOptions((current) => ({
                 ...current,
-                parallelProcessing: event.target.value === "parallel",
-              }))
-            }
-          >
-            <option value="sequential">Sequential</option>
-            <option value="parallel">Parallel</option>
-          </select>
+                parallelMaxWorkers: next > 0 ? next : undefined,
+              }));
+            }}
+            disabled={!options.parallelProcessing}
+          />
         </SettingsField>
       </div>
 

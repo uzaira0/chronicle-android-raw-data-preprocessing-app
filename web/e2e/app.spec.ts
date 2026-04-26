@@ -134,6 +134,34 @@ test("switches workflow tabs as SPA views while preserving state", async ({ page
   assertNoExternalRequests(requestTracker);
 });
 
+test("syncs process performance controls without a redundant mode dropdown", async ({ page }) => {
+  await expandSectionCard(page, "performance");
+  await page.getByTestId("toggle-parallelProcessing").check();
+  await page.getByTestId("parallel-max-workers-input").fill("5");
+
+  await page.getByRole("tab", { name: /Process/i }).click();
+  await expect(page.locator("#process-mode-select")).toHaveCount(0);
+  await expect(page.getByTestId("parallel-max-workers-process-input")).toHaveValue("5");
+  await expect(page.getByTestId("parallel-max-workers-process-input")).toBeEnabled();
+
+  await page.getByTestId("toggle-parallelProcessing-process").uncheck();
+  await expect(page.getByTestId("parallel-max-workers-process-input")).toBeDisabled();
+
+  await page.getByRole("tab", { name: /Settings/i }).click();
+  await expect(page.getByTestId("toggle-parallelProcessing")).not.toBeChecked();
+  await expect(page.getByTestId("parallel-max-workers-input")).toHaveValue("5");
+  await expect(page.getByTestId("parallel-max-workers-input")).toBeDisabled();
+
+  await page.getByRole("tab", { name: /Process/i }).click();
+  await page.getByTestId("toggle-parallelProcessing-process").check();
+  await page.getByTestId("parallel-max-workers-process-input").fill("3");
+
+  await page.getByRole("tab", { name: /Settings/i }).click();
+  await expect(page.getByTestId("toggle-parallelProcessing")).toBeChecked();
+  await expect(page.getByTestId("parallel-max-workers-input")).toHaveValue("3");
+  assertNoExternalRequests(requestTracker);
+});
+
 test("has no automated axe accessibility violations across workflow tabs", async ({ page }) => {
   for (const tabName of ["Settings", "Files", "Process"]) {
     await page.getByRole("tab", { name: new RegExp(tabName, "i") }).click();
