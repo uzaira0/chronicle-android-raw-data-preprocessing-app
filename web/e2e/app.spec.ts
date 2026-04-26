@@ -108,6 +108,31 @@ test("searches individual settings and links to matching sections", async ({ pag
   assertNoExternalRequests(requestTracker);
 });
 
+test("switches workflow tabs as SPA views while preserving state", async ({ page }) => {
+  await expect(page.getByRole("tabpanel", { name: /Settings/i })).toBeVisible();
+  await expect(page.getByRole("tabpanel", { name: /Files/i })).toBeHidden();
+  await expect(page.getByRole("tabpanel", { name: /Process/i })).toBeHidden();
+
+  await page.getByRole("tab", { name: /Files/i }).click();
+  await expect(page.getByRole("tabpanel", { name: /Files/i })).toBeVisible();
+  await expect(page.getByTestId("settings-search-input")).toBeHidden();
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await expect(page.getByText("1 raw file ready")).toBeVisible();
+
+  await page.getByRole("tab", { name: /Process/i }).click();
+  const processPanel = page.getByRole("tabpanel", { name: /Process/i });
+  await expect(processPanel).toBeVisible();
+  await expect(processPanel.getByText("Raw P01.csv")).toBeVisible();
+  await expect(processPanel.getByText("Ready")).toBeVisible();
+
+  await page.getByRole("tab", { name: /Settings/i }).click();
+  await expect(page.getByTestId("settings-search-input")).toBeVisible();
+  await page.getByRole("tab", { name: /Process/i }).click();
+  await expect(processPanel.getByText("Raw P01.csv")).toBeVisible();
+  await expect(processPanel.getByText("Ready")).toBeVisible();
+  assertNoExternalRequests(requestTracker);
+});
+
 test("validates selected raw files before processing", async ({ page }) => {
   const badRawCsv = [
     "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone,timezone",
@@ -119,10 +144,12 @@ test("validates selected raw files before processing", async ({ page }) => {
 
   await setInputFile(page, "raw-file-input", "Raw P01.txt", badRawCsv, "text/plain");
 
-  await expect(page.getByText("File extension is not .csv.")).toBeVisible();
-  await expect(page.getByText("Duplicate column headers found.")).toBeVisible();
-  await expect(page.getByText(/rows have invalid event_timestamp values/)).toBeVisible();
-  await expect(page.getByText(/Invalid timezone values/)).toBeVisible();
+  await page.getByRole("tab", { name: /Files/i }).click();
+  const filesPanel = page.getByRole("tabpanel", { name: /Files/i });
+  await expect(filesPanel.getByText("File extension is not .csv.")).toBeVisible();
+  await expect(filesPanel.getByText("Duplicate column headers found.")).toBeVisible();
+  await expect(filesPanel.getByText(/rows have invalid event_timestamp values/)).toBeVisible();
+  await expect(filesPanel.getByText(/Invalid timezone values/)).toBeVisible();
   assertNoExternalRequests(requestTracker);
 });
 
@@ -260,6 +287,7 @@ test("changes output semantics when Activity Stopped fallback is disabled", asyn
 
 test("handles malformed raw CSV input with a visible local error", async ({ page }) => {
   await setInputFile(page, "raw-file-input", "Raw Broken.csv", MALFORMED_RAW_CSV, "text/csv");
+  await page.getByRole("tab", { name: /Process/i }).click();
   await page.getByTestId("process-files-button").click();
   await expect(page.locator(".error-text")).toContainText("Invalid event_timestamp");
   assertNoExternalRequests(requestTracker);
@@ -394,6 +422,9 @@ test("@install keeps the simplified hero stable when beforeinstallprompt fires",
     page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" }),
   ).toBeVisible();
   await expect(page.getByText(/your data never leaves your device/i)).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Settings/i })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Files/i })).toBeVisible();
+  await page.getByRole("tab", { name: /Process/i }).click();
   await expect(page.getByTestId("process-files-button")).toBeVisible();
   assertNoExternalRequests(requestTracker);
 });

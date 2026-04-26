@@ -36,9 +36,10 @@ const SETTINGS: SettingSearchItem[] = [
 
 type Props = {
   query: string;
+  onNavigate?: (href: string) => void;
 };
 
-export function SettingsSearchResults({ query }: Props): ReactElement | null {
+export function SettingsSearchResults({ query, onNavigate }: Props): ReactElement | null {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return null;
 
@@ -56,7 +57,11 @@ export function SettingsSearchResults({ query }: Props): ReactElement | null {
       {matches.length ? (
         <div className="settings-search-results__grid">
           {matches.map((item) => (
-            <a key={`${item.section}-${item.label}`} href={item.href}>
+            <a
+              key={`${item.section}-${item.label}`}
+              href={item.href}
+              onClick={() => onNavigate?.(item.href)}
+            >
               <span>{item.label}</span>
               <small>{item.section}</small>
             </a>
