@@ -20,7 +20,7 @@
   --color-text: #0f1729;
   --color-text-strong: #060912;
   --color-text-muted: #4b5670;
-  --color-text-faint: #7a8195;
+  --color-text-faint: #5f687d;
   --color-text-inverse: #ffffff;
 
   /* Color: borders */
@@ -319,7 +319,7 @@ a:hover {
 .workflow-nav__meta {
   font-size: var(--font-size-xs);
   color: currentColor;
-  opacity: 0.78;
+  opacity: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -608,7 +608,7 @@ a:hover {
 .status-pill.is-success,
 .support-file-state.is-enabled {
   background: var(--color-success-soft);
-  color: var(--color-success);
+  color: #087455;
 }
 
 .status-pill.is-warning {
@@ -856,7 +856,7 @@ a:hover {
 
 .section-card__badge.is-default {
   background: var(--color-surface-tint);
-  color: var(--color-text-faint);
+  color: var(--color-text-muted);
 }
 
 .section-card__badge .dot {

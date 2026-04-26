@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { AxeBuilder } from "@axe-core/playwright";
 
 import {
   APP_AND_SCREEN_RAW_CSV,
@@ -130,6 +131,15 @@ test("switches workflow tabs as SPA views while preserving state", async ({ page
   await page.getByRole("tab", { name: /Process/i }).click();
   await expect(processPanel.getByText("Raw P01.csv")).toBeVisible();
   await expect(processPanel.getByText("Ready")).toBeVisible();
+  assertNoExternalRequests(requestTracker);
+});
+
+test("has no automated axe accessibility violations across workflow tabs", async ({ page }) => {
+  for (const tabName of ["Settings", "Files", "Process"]) {
+    await page.getByRole("tab", { name: new RegExp(tabName, "i") }).click();
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  }
   assertNoExternalRequests(requestTracker);
 });
 

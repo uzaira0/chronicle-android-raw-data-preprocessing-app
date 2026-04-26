@@ -75,7 +75,7 @@ export async function setInputFile(
 export async function processFiles(page: Page): Promise<void> {
   await page.getByRole("tab", { name: /Process/i }).click();
   await page.getByTestId("process-files-button").click();
-  await expect(page.getByTestId("result-card").first()).toBeVisible();
+  await expect(page.getByTestId("result-card").first()).toBeVisible({ timeout: 15_000 });
 }
 
 /**

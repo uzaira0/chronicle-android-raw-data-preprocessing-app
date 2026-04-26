@@ -68,8 +68,9 @@ export function ProcessPanel({
           onChange={(value) => setOptions((current) => ({ ...current, parallelProcessing: value }))}
           testId="toggle-parallelProcessing-process"
         />
-        <SettingsField label="Mode" tooltip={TOOLTIPS.parallelMaxWorkers}>
+        <SettingsField label="Mode" htmlFor="process-mode-select" tooltip={TOOLTIPS.parallelMaxWorkers}>
           <select
+            id="process-mode-select"
             className="select"
             value={options.parallelProcessing ? "parallel" : "sequential"}
             onChange={(event) =>

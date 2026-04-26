@@ -144,6 +144,7 @@ function SupportFileRow(props: SupportFileRowProps): ReactElement {
           type="file"
           accept={accept}
           data-testid={testId}
+          aria-label={`Upload ${title}`}
           onChange={(event) => {
             onFileChange(event.target.files?.[0] ?? null);
             event.currentTarget.value = "";

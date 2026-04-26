@@ -53,11 +53,13 @@ export function TimezoneCard({
       <div className="settings-grid-1">
         <SettingsField
           label="Timezone handling"
+          htmlFor="timezone-handling-select"
           tooltip={TOOLTIPS.timezoneHandling}
           modified={!isOptionDefault("timezoneHandling", options.timezoneHandling)}
           onReset={() => reset("timezoneHandling")}
         >
           <select
+            id="timezone-handling-select"
             data-testid="timezone-handling-select"
             className="select"
             value={options.timezoneHandling}
