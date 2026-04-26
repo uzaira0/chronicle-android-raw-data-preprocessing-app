@@ -117,7 +117,7 @@ export function RawFilesCard({
                 </div>
                 <div className="raw-file-row__meta">
                   <span className={`status-pill${warnings.length ? " is-warning" : " is-success"}`}>
-                    {inspection ? (warnings.length ? "Review" : "Ready") : "Inspecting"}
+                    {inspection ? (warnings.length ? "Warning: Review" : "Success: Ready") : "Status: Inspecting"}
                   </span>
                   {inspection?.timezones.length ? (
                     <span className="text-faint u-meta-xs">
