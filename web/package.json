@@ -30,6 +30,7 @@
     "read-excel-file": "^5.8.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.2",
     "@playwright/test": "^1.59.1",
     "@types/papaparse": "^5.3.16",
     "@types/react": "^19.2.2",
