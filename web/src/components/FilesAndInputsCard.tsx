@@ -153,9 +153,9 @@ function SupportFileRow(props: SupportFileRowProps): ReactElement {
         <span className={`support-file-state${checked ? " is-enabled" : ""}`}>
           {checked
             ? file
-              ? `Enabled with uploaded file: ${file.name}`
-              : "Enabled with bundled default"
-            : "Disabled"}
+              ? `Success: Enabled with uploaded file: ${file.name}`
+              : "Success: Enabled with bundled default"
+            : "Disabled: Not used"}
         </span>
         <a className="u-meta-xs" href={defaultUrl} download>
           Download bundled default
