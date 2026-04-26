@@ -119,11 +119,11 @@ export const TOOLTIPS = {
 
   parallelProcessing: {
     title: "Enable parallel file processing",
-    body: "Uses a pool of background workers to process multiple files in parallel. No effect when only one file is selected.",
+    body: "When this is on, the app can process more than one uploaded raw file at the same time. It usually helps only when you upload multiple files; one file still runs by itself.",
   },
   parallelMaxWorkers: {
     title: "Max parallel workers",
-    body: "Hard cap on the worker pool size. Leave 0 to auto-pick (≈ half of available CPU cores). The pool is shared across files in a batch — workers are warm-started once and reused.",
+    body: "The maximum number of files the app may process at the same time. Use 0 to let the app choose a safe number based on file sizes and browser capacity. Lower it if the browser becomes slow or memory-heavy.",
   },
 } as const satisfies Record<string, TooltipContent>;
 

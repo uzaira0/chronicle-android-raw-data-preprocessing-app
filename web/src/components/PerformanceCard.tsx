@@ -34,8 +34,9 @@ export function PerformanceCard({ options, setOptions }: Props): ReactElement {
       modified={anyOptionModified(options, KEYS)}
     >
       <p className="u-card-intro">
-        Controls the worker pool used when processing many files at once. The pool warm-starts
-        each worker exactly once per batch, so values of 2–4 are usually plenty.
+        Use this for batches with more than one raw file. Parallel processing can finish a batch
+        faster by working on several files at the same time. If the browser slows down or uses too
+        much memory, turn it off or lower the max workers number.
       </p>
       <ToggleField
         label="Enable parallel file processing"
@@ -51,7 +52,7 @@ export function PerformanceCard({ options, setOptions }: Props): ReactElement {
         tooltip={TOOLTIPS.parallelMaxWorkers}
         modified={isMod("parallelMaxWorkers")}
         onReset={() => reset("parallelMaxWorkers")}
-        hint="Leave at 0 to auto-pick (~ half of available CPU cores)."
+        hint="0 lets the app choose a safe limit based on your files and browser."
       >
         <input
           type="number"
