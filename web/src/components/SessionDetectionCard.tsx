@@ -45,11 +45,13 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
       <div className="settings-grid-2">
         <SettingsField
           label="Max session duration threshold (hours)"
+          htmlFor="long-duration-threshold-input"
           tooltip={TOOLTIPS.longDurationThresholdHours}
           modified={isMod("longDurationThresholdHours")}
           onReset={() => reset("longDurationThresholdHours")}
         >
           <input
+            id="long-duration-threshold-input"
             data-testid="long-duration-threshold-input"
             type="number"
             className="input"
@@ -65,11 +67,13 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
 
         <SettingsField
           label="Custom app engagement duration (seconds)"
+          htmlFor="custom-engagement-duration-input"
           tooltip={TOOLTIPS.customAppEngagementDuration}
           modified={isMod("customAppEngagementDuration")}
           onReset={() => reset("customAppEngagementDuration")}
         >
           <input
+            id="custom-engagement-duration-input"
             data-testid="custom-engagement-duration-input"
             type="number"
             className="input"
