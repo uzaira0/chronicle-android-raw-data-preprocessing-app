@@ -72,7 +72,7 @@ export function ProcessPanel({
           label="Max parallel workers"
           htmlFor="process-max-workers-input"
           tooltip={TOOLTIPS.parallelMaxWorkers}
-          hint="Synced with Settings. Leave at 0 to auto-pick."
+          hint="Synced with Settings. 0 lets the app choose a safe limit."
         >
           <input
             id="process-max-workers-input"
