@@ -280,18 +280,30 @@ a:hover {
 }
 
 .workflow-nav__item {
+  appearance: none;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 2px;
   padding: var(--space-2) var(--space-3);
+  border: 0;
   border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--color-text-muted);
+  cursor: pointer;
   text-decoration: none;
+  text-align: left;
 }
 
-.workflow-nav__item:hover {
+.workflow-nav__item:hover,
+.workflow-nav__item:focus-visible {
   text-decoration: none;
   background: var(--color-surface-sunken);
+}
+
+.workflow-nav__item:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
 }
 
 .workflow-nav__item.is-active {
@@ -311,6 +323,16 @@ a:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.workflow-panels {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.workflow-panels > [role="tabpanel"] {
+  min-width: 0;
 }
 
 .workflow-section {
