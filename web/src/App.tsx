@@ -430,180 +430,183 @@ export default function App(): ReactElement {
   };
 
   return (
-    <main className="app-shell">
-      <header className="hero hero--with-demo">
-        <div className="hero__copy">
-          <h1>Chronicle Android Raw Data Preprocessor</h1>
-          <p className="lede">
-            Drop one or more raw Chronicle CSVs to generate the preprocessed app-usage and
-            screen-usage outputs. This app runs entirely in your browser — your data never
-            leaves your device.
-          </p>
-        </div>
-        <DemoSampleCard
+    <>
+      <a className="skip-link" href="#workflow-panels">Skip to workflow tabs</a>
+      <main className="app-shell">
+        <header className="hero hero--with-demo">
+          <div className="hero__copy">
+            <h1>Chronicle Android Raw Data Preprocessor</h1>
+            <p className="lede">
+              Drop one or more raw Chronicle CSVs to generate the preprocessed app-usage and
+              screen-usage outputs. This app runs entirely in your browser — your data never
+              leaves your device.
+            </p>
+          </div>
+          <DemoSampleCard
+            isRunning={isRunning}
+            onRun={() => {
+              void runSample();
+            }}
+          />
+        </header>
+
+        <WorkflowNav
+          active={activeWorkflow}
+          settingsSummary={settingsSummary}
+          fileCount={uploadedFiles.length}
           isRunning={isRunning}
-          onRun={() => {
-            void runSample();
-          }}
+          onSelect={setActiveWorkflow}
         />
-      </header>
 
-      <WorkflowNav
-        active={activeWorkflow}
-        settingsSummary={settingsSummary}
-        fileCount={uploadedFiles.length}
-        isRunning={isRunning}
-        onSelect={setActiveWorkflow}
-      />
-
-      <div className="workflow-panels">
-        <div
-          id="settings-panel"
-          role="tabpanel"
-          aria-labelledby="settings-tab"
-          hidden={activeWorkflow !== "settings"}
-        >
-          <section id="settings" className="workflow-section" aria-labelledby="settings-title">
-            <div className="settings-command">
-              <div>
-                <h2 id="settings-title" className="workflow-section__title">Settings</h2>
-                <p className="workflow-section__intro">
-                  Search every option, then save custom presets once the settings are right.
-                </p>
+        <div id="workflow-panels" className="workflow-panels" tabIndex={-1}>
+          <div
+            id="settings-panel"
+            role="tabpanel"
+            aria-labelledby="settings-tab"
+            hidden={activeWorkflow !== "settings"}
+          >
+            <section id="settings" className="workflow-section" aria-labelledby="settings-title">
+              <div className="settings-command">
+                <div>
+                  <h2 id="settings-title" className="workflow-section__title">Settings</h2>
+                  <p className="workflow-section__intro">
+                    Search every option, then save custom presets once the settings are right.
+                  </p>
+                </div>
+                <label className="settings-search settings-search--command">
+                  <span className="settings-search__eyebrow">Full Settings Search</span>
+                  <input
+                    className="input settings-search__input"
+                    placeholder="Search timezone, codebook, parallel, screen, session..."
+                    value={settingsQuery}
+                    data-testid="settings-search-input"
+                    onChange={(event) => setSettingsQuery(event.target.value)}
+                  />
+                </label>
               </div>
-              <label className="settings-search settings-search--command">
-                <span className="settings-search__eyebrow">Full Settings Search</span>
-                <input
-                  className="input settings-search__input"
-                  placeholder="Search timezone, codebook, parallel, screen, session..."
-                  value={settingsQuery}
-                  data-testid="settings-search-input"
-                  onChange={(event) => setSettingsQuery(event.target.value)}
-                />
-              </label>
-            </div>
-            <SettingsSearchResults query={settingsQuery} onNavigate={navigateFromSettingsSearch} />
-            <PresetManager
-              options={options}
-              onApply={setOptions}
-              onStatus={(message, isError = false) => setToast({ message, isError })}
-            />
-            <SettingsOverviewCard options={options} setOptions={setOptions} />
-            <div className="settings-stack">
-              {shows("support files filter keep awake codebook") ? (
-                <FilesAndInputsCard
-                  options={options}
-                  setOptions={setOptions}
-                  filterFile={filterFile}
-                  setFilterFile={setFilterFile}
-                  keepAwakeFile={keepAwakeFile}
-                  setKeepAwakeFile={setKeepAwakeFile}
-                  appCodebookFile={appCodebookFile}
-                  setAppCodebookFile={setAppCodebookFile}
-                />
-              ) : null}
-              {shows("timezone conversion selected primary") ? (
-                <TimezoneCard
-                  options={options}
-                  setOptions={setOptions}
-                  discoveredTimezones={discoveredTimezones}
-                  hasFiles={uploadedFiles.length > 0}
-                  isRunning={isRunning}
-                  onDiscover={() => {
-                    void discoverAvailableTimezones();
-                  }}
-                />
-              ) : null}
-              {shows("session detection duration thresholds duplicate fallback stop") ? (
-                <SessionDetectionCard options={options} setOptions={setOptions} />
-              ) : null}
-              {shows("screen detection autolock keyguard manual") ? (
-                <ScreenDetectionCard options={options} setOptions={setOptions} />
-              ) : null}
-              {shows("interaction semantics remove stop usage") ? (
-                <InteractionSemanticsCard options={options} setOptions={setOptions} />
-              ) : null}
-              {shows("performance parallel workers") ? (
-                <PerformanceCard options={options} setOptions={setOptions} />
-              ) : null}
-            </div>
-          </section>
-        </div>
+              <SettingsSearchResults query={settingsQuery} onNavigate={navigateFromSettingsSearch} />
+              <PresetManager
+                options={options}
+                onApply={setOptions}
+                onStatus={(message, isError = false) => setToast({ message, isError })}
+              />
+              <SettingsOverviewCard options={options} setOptions={setOptions} />
+              <div className="settings-stack">
+                {shows("support files filter keep awake codebook") ? (
+                  <FilesAndInputsCard
+                    options={options}
+                    setOptions={setOptions}
+                    filterFile={filterFile}
+                    setFilterFile={setFilterFile}
+                    keepAwakeFile={keepAwakeFile}
+                    setKeepAwakeFile={setKeepAwakeFile}
+                    appCodebookFile={appCodebookFile}
+                    setAppCodebookFile={setAppCodebookFile}
+                  />
+                ) : null}
+                {shows("timezone conversion selected primary") ? (
+                  <TimezoneCard
+                    options={options}
+                    setOptions={setOptions}
+                    discoveredTimezones={discoveredTimezones}
+                    hasFiles={uploadedFiles.length > 0}
+                    isRunning={isRunning}
+                    onDiscover={() => {
+                      void discoverAvailableTimezones();
+                    }}
+                  />
+                ) : null}
+                {shows("session detection duration thresholds duplicate fallback stop") ? (
+                  <SessionDetectionCard options={options} setOptions={setOptions} />
+                ) : null}
+                {shows("screen detection autolock keyguard manual") ? (
+                  <ScreenDetectionCard options={options} setOptions={setOptions} />
+                ) : null}
+                {shows("interaction semantics remove stop usage") ? (
+                  <InteractionSemanticsCard options={options} setOptions={setOptions} />
+                ) : null}
+                {shows("performance parallel workers") ? (
+                  <PerformanceCard options={options} setOptions={setOptions} />
+                ) : null}
+              </div>
+            </section>
+          </div>
 
-        <div
-          id="files-panel"
-          role="tabpanel"
-          aria-labelledby="files-tab"
-          hidden={activeWorkflow !== "files"}
-        >
-          <RawFilesCard
-            uploadedFiles={uploadedFiles}
-            inspections={fileInspections}
-            isInspecting={isInspectingFiles}
-            onFilesChange={onFilesChange}
-            onClear={() => {
-              onFilesChange([]);
-              setProgressOrder([]);
-              setProgressByFile({});
-            }}
-            isRunning={isRunning}
-          />
-        </div>
-
-        <div
-          id="process-panel"
-          role="tabpanel"
-          aria-labelledby="process-tab"
-          hidden={activeWorkflow !== "process"}
-        >
-          <ProcessPanel
-            options={options}
-            setOptions={setOptions}
-            uploadedFiles={uploadedFiles}
-            inspections={fileInspections}
-            isRunning={isRunning}
-            onProcess={() => {
-              void processUploadedFiles();
-            }}
-            progressRows={progressRows}
-            overallPercent={overallPercent}
-          />
-
-          <div ref={resultsRef} tabIndex={-1} aria-live="polite">
-            <ResultPanel
-              results={results}
-              error={error}
-              options={options}
-              expectedFileCount={uploadedFiles.length}
-              progressRows={progressRows}
+          <div
+            id="files-panel"
+            role="tabpanel"
+            aria-labelledby="files-tab"
+            hidden={activeWorkflow !== "files"}
+          >
+            <RawFilesCard
+              uploadedFiles={uploadedFiles}
+              inspections={fileInspections}
+              isInspecting={isInspectingFiles}
+              onFilesChange={onFilesChange}
+              onClear={() => {
+                onFilesChange([]);
+                setProgressOrder([]);
+                setProgressByFile({});
+              }}
+              isRunning={isRunning}
             />
           </div>
-        </div>
-      </div>
 
-      <footer className="app-footer">
-        <div className="footer-actions">
-          <ResetDefaultsButton options={options} onReset={setOptions} />
-          <SettingsPersistenceControls
-            options={options}
-            onImport={setOptions}
-            onStatus={(message, isError = false) => setToast({ message, isError })}
-          />
-          <details className="app-info">
-            <summary>App info</summary>
-            <span>Version {PREPROCESSOR_VERSION}</span>
-            <span>Build 2026-04-25</span>
-            <span>Bundled codebook available</span>
-          </details>
+          <div
+            id="process-panel"
+            role="tabpanel"
+            aria-labelledby="process-tab"
+            hidden={activeWorkflow !== "process"}
+          >
+            <ProcessPanel
+              options={options}
+              setOptions={setOptions}
+              uploadedFiles={uploadedFiles}
+              inspections={fileInspections}
+              isRunning={isRunning}
+              onProcess={() => {
+                void processUploadedFiles();
+              }}
+              progressRows={progressRows}
+              overallPercent={overallPercent}
+            />
+
+            <div ref={resultsRef} tabIndex={-1} aria-live="polite">
+              <ResultPanel
+                results={results}
+                error={error}
+                options={options}
+                expectedFileCount={uploadedFiles.length}
+                progressRows={progressRows}
+              />
+            </div>
+          </div>
         </div>
-      </footer>
-      {toast ? (
-        <Toast
-          message={toast.message}
-          isError={toast.isError}
-          onDismiss={() => setToast(null)}
-        />
-      ) : null}
-    </main>
+
+        <footer className="app-footer">
+          <div className="footer-actions">
+            <ResetDefaultsButton options={options} onReset={setOptions} />
+            <SettingsPersistenceControls
+              options={options}
+              onImport={setOptions}
+              onStatus={(message, isError = false) => setToast({ message, isError })}
+            />
+            <details className="app-info">
+              <summary>App info</summary>
+              <span>Version {PREPROCESSOR_VERSION}</span>
+              <span>Build 2026-04-25</span>
+              <span>Bundled codebook available</span>
+            </details>
+          </div>
+        </footer>
+        {toast ? (
+          <Toast
+            message={toast.message}
+            isError={toast.isError}
+            onDismiss={() => setToast(null)}
+          />
+        ) : null}
+      </main>
+    </>
   );
 }

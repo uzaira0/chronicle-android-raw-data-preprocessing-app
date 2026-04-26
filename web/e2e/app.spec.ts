@@ -143,6 +143,109 @@ test("has no automated axe accessibility violations across workflow tabs", async
   assertNoExternalRequests(requestTracker);
 });
 
+test("supports keyboard-only skip and workflow tab navigation", async ({ page }) => {
+  const settingsTab = page.getByRole("tab", { name: /Settings/i });
+  const filesTab = page.getByRole("tab", { name: /Files/i });
+  const processTab = page.getByRole("tab", { name: /Process/i });
+
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: /Skip to workflow tabs/i })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#workflow-panels")).toBeFocused();
+
+  await settingsTab.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(filesTab).toBeFocused();
+  await expect(filesTab).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("End");
+  await expect(processTab).toBeFocused();
+  await expect(processTab).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Home");
+  await expect(settingsTab).toBeFocused();
+  await expect(settingsTab).toHaveAttribute("aria-selected", "true");
+  assertNoExternalRequests(requestTracker);
+});
+
+test("does not rely on color alone for file status", async ({ page }) => {
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await page.getByRole("tab", { name: /Files/i }).click();
+  const filesPanel = page.getByRole("tabpanel", { name: /Files/i });
+  await expect(filesPanel.getByText("Success: Ready")).toBeVisible();
+
+  await setInputFile(page, "raw-file-input", "Raw Bad.txt", "not,a,raw,file", "text/plain");
+  await expect(filesPanel.getByText("Warning: Review")).toBeVisible();
+  assertNoExternalRequests(requestTracker);
+});
+
+test("supports reduced motion, forced colors, and practical pointer targets", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const reducedMotion = await page.locator(".btn").first().evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    return {
+      transitionDuration: style.transitionDuration,
+      animationName: style.animationName,
+    };
+  });
+  expect(reducedMotion).toEqual({ transitionDuration: "0s", animationName: "none" });
+
+  await page.emulateMedia({ forcedColors: "active" });
+  await page.getByRole("tab", { name: /Process/i }).click();
+  const forcedColors = await page.getByRole("tab", { name: /Process/i }).evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    return {
+      backgroundColor: style.backgroundColor,
+      color: style.color,
+      borderColor: style.borderColor,
+    };
+  });
+  expect(forcedColors.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+  expect(forcedColors.color).not.toBe(forcedColors.backgroundColor);
+  expect(forcedColors.borderColor).not.toBe("rgba(0, 0, 0, 0)");
+
+  const targetFailures = await page.evaluate(() => {
+    const selectors = [".btn", ".input", ".select", "[role='tab']", "input[type='file']"];
+    return selectors.flatMap((selector) =>
+      Array.from(document.querySelectorAll<HTMLElement>(selector))
+        .filter((element) => {
+          const rect = element.getBoundingClientRect();
+          const style = window.getComputedStyle(element);
+          return (
+            rect.width > 0 &&
+            rect.height > 0 &&
+            style.visibility !== "hidden" &&
+            element.getAttribute("aria-hidden") !== "true" &&
+            !element.classList.contains("visually-hidden-file-input")
+          );
+        })
+        .filter((element) => {
+          const rect = element.getBoundingClientRect();
+          return rect.width < 44 || rect.height < 44;
+        })
+        .map((element) => {
+          const label = element.textContent?.trim() || element.getAttribute("data-testid") || element.tagName;
+          return `${selector}: ${label}`;
+        }),
+    );
+  });
+  expect(targetFailures).toEqual([]);
+  assertNoExternalRequests(requestTracker);
+});
+
+test("reflows at narrow widths without page-level horizontal scrolling", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  for (const tabName of ["Settings", "Files", "Process"]) {
+    await page.getByRole("tab", { name: new RegExp(tabName, "i") }).click();
+    const overflow = await page.evaluate(() => ({
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: document.documentElement.clientWidth,
+      bodyWidth: document.body.scrollWidth,
+    }));
+    expect(overflow.documentWidth).toBeLessThanOrEqual(overflow.viewportWidth + 1);
+    expect(overflow.bodyWidth).toBeLessThanOrEqual(overflow.viewportWidth + 1);
+  }
+  assertNoExternalRequests(requestTracker);
+});
+
 test("validates selected raw files before processing", async ({ page }) => {
   const badRawCsv = [
     "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone,timezone",

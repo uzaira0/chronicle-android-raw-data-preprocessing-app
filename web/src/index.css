@@ -157,6 +157,10 @@ textarea {
   color: inherit;
 }
 
+input[type="file"] {
+  min-height: 44px;
+}
+
 button {
   cursor: pointer;
   background: none;
@@ -181,6 +185,25 @@ a:hover {
   outline: 2px solid var(--color-border-focus);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
+}
+
+.skip-link {
+  position: fixed;
+  top: var(--space-3);
+  left: var(--space-3);
+  z-index: 1000;
+  transform: translateY(calc(-100% - var(--space-5)));
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--color-border-focus);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-strong);
+  font-weight: var(--font-weight-bold);
+  box-shadow: var(--shadow-pop);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
 }
 
 ::selection {
@@ -285,6 +308,7 @@ a:hover {
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
+  min-height: 44px;
   padding: var(--space-2) var(--space-3);
   border: 0;
   border-radius: var(--radius-sm);
@@ -508,7 +532,7 @@ a:hover {
 }
 
 .segmented-control button {
-  min-height: 34px;
+  min-height: 44px;
   border-radius: var(--radius-sm);
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
@@ -987,6 +1011,7 @@ a:hover {
 .select {
   appearance: none;
   width: 100%;
+  min-height: 44px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
@@ -1065,6 +1090,7 @@ a:hover {
 }
 
 .combobox__option {
+  min-height: 44px;
   padding: var(--space-2) var(--space-3);
   font-size: var(--font-size-sm);
   color: var(--color-text);
@@ -1100,6 +1126,7 @@ a:hover {
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: var(--space-3);
+  min-height: 44px;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
   transition: background var(--duration-fast) var(--ease-standard);
@@ -1209,6 +1236,8 @@ a:hover {
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
+  min-height: 44px;
+  min-width: 44px;
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-sm);
   font-size: var(--font-size-sm);
@@ -1292,8 +1321,8 @@ a:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  min-width: 32px;
+  min-height: 32px;
   border-radius: 50%;
   background: var(--color-surface-tint);
   color: var(--color-text-faint);
@@ -2189,7 +2218,61 @@ a:hover {
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   * {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  :root {
+    color-scheme: light dark;
+  }
+
+  .workflow-nav,
+  .workflow-nav__item,
+  .section-card,
+  .settings-command,
+  .result-panel,
+  .raw-drop,
+  .raw-file-row,
+  .support-file-row,
+  .input,
+  .select,
+  .combobox__listbox,
+  .btn,
+  .status-pill,
+  .support-file-state,
+  .warning-text,
+  .result-warnings,
+  .error-text {
+    forced-color-adjust: auto;
+    border-color: CanvasText;
+  }
+
+  .workflow-nav__item.is-active,
+  .segmented-control button.is-selected,
+  .btn--primary {
+    background: Highlight;
+    color: HighlightText;
+    border-color: Highlight;
+  }
+
+  .status-pill.is-success,
+  .support-file-state.is-enabled {
+    color: CanvasText;
+    border: 1px solid CanvasText;
+  }
+
+  .status-pill.is-warning,
+  .warning-text,
+  .result-warnings,
+  .error-text {
+    color: CanvasText;
+    border: 1px solid CanvasText;
+  }
+
+  .select {
+    background-image: none;
   }
 }
