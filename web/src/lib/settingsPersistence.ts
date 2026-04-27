@@ -20,9 +20,15 @@ export type SettingsPreset = {
   options: BrowserProcessingOptions;
 };
 
-type PresetsEnvelope = {
+type ConfigEnvelope = {
   schemaVersion: number;
   exportedAt: string;
+  currentSettings: BrowserProcessingOptions;
+  presets: SettingsPreset[];
+};
+
+export type ImportedConfig = {
+  options: BrowserProcessingOptions;
   presets: SettingsPreset[];
 };
 
@@ -156,19 +162,6 @@ export function persistOptions(options: BrowserProcessingOptions): void {
   }
 }
 
-export async function readOptionsFile(file: File): Promise<BrowserProcessingOptions> {
-  return sanitizeOptions(unwrapOptions(JSON.parse(await file.text())));
-}
-
-export function buildOptionsExportBlob(options: BrowserProcessingOptions): Blob {
-  const envelope: SettingsEnvelope = {
-    schemaVersion: SETTINGS_SCHEMA_VERSION,
-    savedAt: new Date().toISOString(),
-    options: sanitizeOptions(options),
-  };
-  return new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
-}
-
 export function readPersistedPresets(): SettingsPreset[] {
   if (typeof window === "undefined") return [];
   try {
@@ -194,38 +187,54 @@ export function readPersistedPresets(): SettingsPreset[] {
 export function persistPresets(presets: SettingsPreset[]): void {
   if (typeof window === "undefined") return;
   try {
-    const envelope: PresetsEnvelope = {
-      schemaVersion: SETTINGS_SCHEMA_VERSION,
-      exportedAt: new Date().toISOString(),
-      presets,
-    };
-    window.localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(envelope));
+    window.localStorage.setItem(
+      PRESETS_STORAGE_KEY,
+      JSON.stringify({
+        schemaVersion: SETTINGS_SCHEMA_VERSION,
+        exportedAt: new Date().toISOString(),
+        presets,
+      }),
+    );
   } catch {
-    // Ignore storage failures; import/export remains available.
+    // Ignore storage failures; the app keeps working without persisted presets.
   }
 }
 
-export function buildPresetsExportBlob(presets: SettingsPreset[]): Blob {
-  const envelope: PresetsEnvelope = {
+function sanitizePresets(value: unknown): SettingsPreset[] {
+  if (!Array.isArray(value)) return [];
+  const now = new Date().toISOString();
+  return value.filter(isRecord).map((preset) => ({
+    id: typeof preset.id === "string" ? preset.id : crypto.randomUUID(),
+    name: typeof preset.name === "string" ? preset.name : "Imported preset",
+    createdAt: typeof preset.createdAt === "string" ? preset.createdAt : now,
+    updatedAt: typeof preset.updatedAt === "string" ? preset.updatedAt : now,
+    options: sanitizeOptions(preset.options),
+  }));
+}
+
+export function buildConfigExportBlob(
+  options: BrowserProcessingOptions,
+  presets: SettingsPreset[],
+): Blob {
+  const envelope: ConfigEnvelope = {
     schemaVersion: SETTINGS_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
+    currentSettings: sanitizeOptions(options),
     presets,
   };
   return new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
 }
 
-export async function readPresetsFile(file: File): Promise<SettingsPreset[]> {
+export async function readConfigFile(file: File): Promise<ImportedConfig> {
   const parsed = JSON.parse(await file.text());
-  const presets = isRecord(parsed) && Array.isArray(parsed.presets) ? parsed.presets : parsed;
-  if (!Array.isArray(presets)) {
-    throw new Error("Preset file must contain a presets array.");
+  if (!isRecord(parsed) || !("currentSettings" in parsed) || !("presets" in parsed)) {
+    throw new Error(
+      "Config file must contain currentSettings and presets. " +
+        "Old preset-only or settings-only files are no longer supported.",
+    );
   }
-  const now = new Date().toISOString();
-  return presets.filter(isRecord).map((preset) => ({
-    id: crypto.randomUUID(),
-    name: typeof preset.name === "string" ? preset.name : "Imported preset",
-    createdAt: now,
-    updatedAt: now,
-    options: sanitizeOptions(preset.options),
-  }));
+  return {
+    options: sanitizeOptions(parsed.currentSettings),
+    presets: sanitizePresets(parsed.presets),
+  };
 }
