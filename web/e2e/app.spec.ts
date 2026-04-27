@@ -619,6 +619,7 @@ test("duplicate timestamps stop blocking readiness when correction is enabled", 
 });
 
 test("results table is the primary post-processing surface and preview is gone", async ({ page }) => {
+  // Default usageSessionMode is app_usage, so Screen rows column is hidden.
   await page.getByTestId("run-sample-button").click();
   const table = page.getByTestId("result-file-table");
   await expect(table).toBeVisible();
@@ -628,7 +629,6 @@ test("results table is the primary post-processing surface and preview is gone",
     "Input rows",
     "Processed rows",
     "App rows",
-    "Screen rows",
     "Input timezones",
     "Timezone action",
     "Final timezone",
@@ -636,9 +636,20 @@ test("results table is the primary post-processing surface and preview is gone",
     "Warnings",
     "Outputs",
   ]);
+  await expect(table.locator("thead th", { hasText: /^Screen rows$/ })).toHaveCount(0);
   expect(await page.locator(".result-preview").count()).toBe(0);
   expect(await page.locator(".preview-table").count()).toBe(0);
   expect(await page.locator(".result-details").count()).toBe(0);
+  assertNoExternalRequests(requestTracker);
+});
+
+test("results table shows both app and screen columns when output mode is both", async ({ page }) => {
+  await page.getByTestId("usage-mode-app_and_screen_usage").click();
+  await page.getByTestId("run-sample-button").click();
+  const table = page.getByTestId("result-file-table");
+  await expect(table).toBeVisible();
+  await expect(table.locator("thead th", { hasText: /^App rows$/ })).toHaveCount(1);
+  await expect(table.locator("thead th", { hasText: /^Screen rows$/ })).toHaveCount(1);
   assertNoExternalRequests(requestTracker);
 });
 

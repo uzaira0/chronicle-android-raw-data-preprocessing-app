@@ -85,9 +85,9 @@ export function SettingsManagementCard({
           </h3>
           <p className="workflow-section__intro">
             <strong>Current settings</strong> is the single configuration the next run will use —
-            it auto-saves in this browser and there is only one. The <strong>preset library</strong>
-            is a list of named copies you save off and load back later when you want to switch
-            between configurations.
+            it auto-saves in this browser and there is only one. The{" "}
+            <strong>preset library</strong> is a list of named copies you save off and load back
+            later when you want to switch between configurations.
           </p>
         </div>
       </header>
