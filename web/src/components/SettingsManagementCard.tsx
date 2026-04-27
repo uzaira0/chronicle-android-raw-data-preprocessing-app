@@ -2,12 +2,10 @@ import { useEffect, useRef, useState, type ReactElement } from "react";
 
 import { ResetDefaultsButton } from "@/components/ResetDefaultsButton";
 import {
-  buildOptionsExportBlob,
-  buildPresetsExportBlob,
+  buildConfigExportBlob,
   persistPresets,
-  readOptionsFile,
+  readConfigFile,
   readPersistedPresets,
-  readPresetsFile,
   type SettingsPreset,
 } from "@/lib/settingsPersistence";
 import type { BrowserProcessingOptions } from "@/lib/types";
@@ -34,8 +32,7 @@ export function SettingsManagementCard({
 }: Props): ReactElement {
   const [presets, setPresets] = useState<SettingsPreset[]>(() => readPersistedPresets());
   const [presetName, setPresetName] = useState("");
-  const importSettingsRef = useRef<HTMLInputElement | null>(null);
-  const importPresetsRef = useRef<HTMLInputElement | null>(null);
+  const importConfigRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     persistPresets(presets);
@@ -84,49 +81,50 @@ export function SettingsManagementCard({
             Settings management
           </h3>
           <p className="workflow-section__intro">
-            <strong>Current settings</strong> is the single configuration the next run will use —
-            it auto-saves in this browser and there is only one. The{" "}
-            <strong>preset library</strong> is a list of named copies you save off and load back
-            later when you want to switch between configurations.
+            One config file holds everything: the active settings the next run will use, plus your
+            saved presets. Export downloads the whole config; import replaces it. Active settings
+            and presets both auto-save in this browser, so import/export is only for moving between
+            machines or sharing.
           </p>
         </div>
       </header>
 
-      <div className="settings-management__group" aria-labelledby="current-settings-title">
-        <h4 id="current-settings-title" className="settings-management__group-title">
-          Current settings
+      <div className="settings-management__group" aria-labelledby="config-io-title">
+        <h4 id="config-io-title" className="settings-management__group-title">
+          Config (active settings + presets)
         </h4>
         <p className="text-faint u-meta-xs">
-          The single active configuration. Auto-saved in this browser. Export downloads exactly
-          this one configuration as a JSON file; import replaces it. (For the named-snapshot
-          collection, use the preset library below — different file, different scope.)
+          Export writes one JSON file containing the active settings and every saved preset.
+          Import replaces both. Reset defaults only touches the active settings, not the preset
+          library.
         </p>
         <div className="button-row">
           <button
             type="button"
             className="btn btn--ghost"
-            data-testid="export-settings-button"
+            data-testid="export-config-button"
             onClick={() => {
               downloadBlob(
-                "chronicle-current-settings.json",
-                buildOptionsExportBlob(options),
+                "chronicle-config.json",
+                buildConfigExportBlob(options, presets),
               );
             }}
           >
-            Export current settings (1 config)
+            Export config ({presets.length} preset{presets.length === 1 ? "" : "s"})
           </button>
           <button
             type="button"
             className="btn btn--ghost"
-            onClick={() => importSettingsRef.current?.click()}
+            data-testid="import-config-button"
+            onClick={() => importConfigRef.current?.click()}
           >
-            Import current settings (1 config)
+            Import config (replaces both)
           </button>
           <ResetDefaultsButton options={options} onReset={setOptions} />
           <input
-            ref={importSettingsRef}
+            ref={importConfigRef}
             className="visually-hidden-file-input"
-            data-testid="import-settings-input"
+            data-testid="import-config-input"
             type="file"
             accept="application/json,.json"
             tabIndex={-1}
@@ -135,14 +133,18 @@ export function SettingsManagementCard({
               const file = event.target.files?.[0] ?? null;
               event.currentTarget.value = "";
               if (!file) return;
-              void readOptionsFile(file)
+              void readConfigFile(file)
                 .then((next) => {
-                  setOptions(next);
-                  onStatus("Settings imported.");
+                  setOptions(next.options);
+                  setPresets(next.presets);
+                  onStatus(
+                    `Config imported: active settings replaced, ${next.presets.length} preset` +
+                      `${next.presets.length === 1 ? "" : "s"} loaded.`,
+                  );
                 })
                 .catch((error: unknown) => {
                   const message = error instanceof Error ? error.message : String(error);
-                  onStatus(`Could not import settings: ${message}`, true);
+                  onStatus(`Could not import config: ${message}`, true);
                 });
             }}
           />
@@ -154,10 +156,9 @@ export function SettingsManagementCard({
           Preset library
         </h4>
         <p className="text-faint u-meta-xs">
-          A collection of named configurations you keep around. Save snapshots of the current
-          settings under any name, then load them later to swap configurations. Export downloads
-          the whole library (every saved preset) as one JSON file; import merges presets in by
-          name. This file is not the same as the current-settings file above.
+          Snapshots of named configurations you keep locally for quick switching. Save preset
+          captures the current active settings under a name. Load applies one back. Presets
+          travel inside the config file above — there is no separate file for them.
         </p>
         <div className="preset-manager__save">
           <input
@@ -175,62 +176,6 @@ export function SettingsManagementCard({
           >
             Save preset
           </button>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            onClick={() =>
-              downloadBlob("chronicle-preset-library.json", buildPresetsExportBlob(presets))
-            }
-            disabled={!presets.length}
-          >
-            Export preset library ({presets.length} preset{presets.length === 1 ? "" : "s"})
-          </button>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            onClick={() => importPresetsRef.current?.click()}
-          >
-            Import preset library (merge by name)
-          </button>
-          <input
-            ref={importPresetsRef}
-            className="visually-hidden-file-input"
-            data-testid="import-presets-input"
-            type="file"
-            accept="application/json,.json"
-            tabIndex={-1}
-            aria-hidden="true"
-            onChange={(event) => {
-              const file = event.target.files?.[0] ?? null;
-              event.currentTarget.value = "";
-              if (!file) return;
-              void readPresetsFile(file)
-                .then((imported) => {
-                  setPresets((current) => {
-                    const byName = new Map(
-                      current.map((preset) => [preset.name.toLowerCase(), preset] as const),
-                    );
-                    let replaced = 0;
-                    for (const preset of imported) {
-                      const key = preset.name.toLowerCase();
-                      if (byName.has(key)) replaced += 1;
-                      byName.set(key, preset);
-                    }
-                    const merged = Array.from(byName.values());
-                    const added = imported.length - replaced;
-                    onStatus(
-                      `Imported ${imported.length} preset${imported.length === 1 ? "" : "s"}: ` +
-                        `${added} new, ${replaced} replaced.`,
-                    );
-                    return merged;
-                  });
-                })
-                .catch((error: unknown) => {
-                  const message = error instanceof Error ? error.message : String(error);
-                  onStatus(`Could not import presets: ${message}`, true);
-                });
-            }}
-          />
         </div>
         {presets.length ? (
           <div className="preset-list" data-testid="preset-list">
