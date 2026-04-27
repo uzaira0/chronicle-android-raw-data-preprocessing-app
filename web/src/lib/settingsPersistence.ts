@@ -227,14 +227,9 @@ export function buildConfigExportBlob(
 
 export async function readConfigFile(file: File): Promise<ImportedConfig> {
   const parsed = JSON.parse(await file.text());
-  if (!isRecord(parsed) || !("currentSettings" in parsed) || !("presets" in parsed)) {
-    throw new Error(
-      "Config file must contain currentSettings and presets. " +
-        "Old preset-only or settings-only files are no longer supported.",
-    );
-  }
+  const source = isRecord(parsed) ? parsed : {};
   return {
-    options: sanitizeOptions(parsed.currentSettings),
-    presets: sanitizePresets(parsed.presets),
+    options: sanitizeOptions(source.currentSettings),
+    presets: sanitizePresets(source.presets),
   };
 }
