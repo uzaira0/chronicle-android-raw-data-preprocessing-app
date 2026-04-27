@@ -97,8 +97,9 @@ export function SettingsManagementCard({
           Current settings
         </h4>
         <p className="text-faint u-meta-xs">
-          The single active configuration. Auto-saved in this browser. Export saves these exact
-          values to a JSON file; import replaces them.
+          The single active configuration. Auto-saved in this browser. Export downloads exactly
+          this one configuration as a JSON file; import replaces it. (For the named-snapshot
+          collection, use the preset library below — different file, different scope.)
         </p>
         <div className="button-row">
           <button
@@ -107,19 +108,19 @@ export function SettingsManagementCard({
             data-testid="export-settings-button"
             onClick={() => {
               downloadBlob(
-                "chronicle-preprocessor-settings.json",
+                "chronicle-current-settings.json",
                 buildOptionsExportBlob(options),
               );
             }}
           >
-            Export settings
+            Export current settings (1 config)
           </button>
           <button
             type="button"
             className="btn btn--ghost"
             onClick={() => importSettingsRef.current?.click()}
           >
-            Import settings
+            Import current settings (1 config)
           </button>
           <ResetDefaultsButton options={options} onReset={setOptions} />
           <input
@@ -154,8 +155,9 @@ export function SettingsManagementCard({
         </h4>
         <p className="text-faint u-meta-xs">
           A collection of named configurations you keep around. Save snapshots of the current
-          settings under any name, then load them later to swap configurations. Export/import here
-          moves the entire library — not the active settings above.
+          settings under any name, then load them later to swap configurations. Export downloads
+          the whole library (every saved preset) as one JSON file; import merges presets in by
+          name. This file is not the same as the current-settings file above.
         </p>
         <div className="preset-manager__save">
           <input
@@ -177,18 +179,18 @@ export function SettingsManagementCard({
             type="button"
             className="btn btn--ghost"
             onClick={() =>
-              downloadBlob("chronicle-presets.json", buildPresetsExportBlob(presets))
+              downloadBlob("chronicle-preset-library.json", buildPresetsExportBlob(presets))
             }
             disabled={!presets.length}
           >
-            Export preset library
+            Export preset library ({presets.length} preset{presets.length === 1 ? "" : "s"})
           </button>
           <button
             type="button"
             className="btn btn--ghost"
             onClick={() => importPresetsRef.current?.click()}
           >
-            Import preset library
+            Import preset library (merge by name)
           </button>
           <input
             ref={importPresetsRef}
