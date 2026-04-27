@@ -474,17 +474,20 @@ test("persists all edited settings across reload and supports settings import", 
   await expect(page.getByTestId("toggle-parallelProcessing")).toBeChecked();
   await expect(page.getByTestId("parallel-max-workers-input")).toHaveValue("3");
 
-  await page.getByTestId("import-settings-input").setInputFiles({
-    name: "settings.json",
+  await page.getByTestId("import-config-input").setInputFiles({
+    name: "config.json",
     mimeType: "application/json",
     buffer: Buffer.from(
       JSON.stringify({
-        options: {
+        schemaVersion: 1,
+        exportedAt: "2026-04-27T00:00:00.000Z",
+        currentSettings: {
           studyName: "Imported study",
           usageSessionMode: "screen_usage",
           useAppCodebook: false,
           longDataTimeGapThresholds: [1.5, 2.5],
         },
+        presets: [],
       }),
       "utf-8",
     ),
@@ -570,15 +573,20 @@ test("workflow tabs are labels only without subtitles", async ({ page }) => {
 test("settings management lives in Settings and footer has only About info", async ({ page }) => {
   const card = page.getByTestId("settings-management");
   await expect(card).toBeVisible();
-  await expect(card.getByRole("heading", { level: 4, name: /Current settings/i })).toBeVisible();
+  await expect(card.getByRole("heading", { level: 4, name: /Config/i })).toBeVisible();
   await expect(card.getByRole("heading", { level: 4, name: /Preset library/i })).toBeVisible();
-  await expect(card.getByTestId("export-settings-button")).toBeVisible();
-  await expect(card.getByTestId("import-settings-input")).toBeAttached();
+  await expect(card.getByTestId("export-config-button")).toBeVisible();
+  await expect(card.getByTestId("import-config-input")).toBeAttached();
   await expect(card.getByTestId("save-preset-button")).toBeVisible();
+
+  // Single config import/export — no separate preset file IO surface.
+  expect(await card.getByTestId("import-presets-input").count()).toBe(0);
+  expect(await card.getByText(/Export preset library/i).count()).toBe(0);
+  expect(await card.getByText(/Import preset library/i).count()).toBe(0);
 
   const footer = page.getByTestId("app-footer");
   await expect(footer).toBeVisible();
-  expect(await footer.getByTestId("export-settings-button").count()).toBe(0);
+  expect(await footer.getByTestId("export-config-button").count()).toBe(0);
   expect(await footer.getByRole("button", { name: /reset all to defaults/i }).count()).toBe(0);
   await expect(footer.getByText(/^Version /)).toBeVisible();
   assertNoExternalRequests(requestTracker);
@@ -654,15 +662,63 @@ test("results table shows both app and screen columns when output mode is both",
 });
 
 test("legacy useKeepAwakeAppsFile imports are dropped, not silently mapped", async ({ page }) => {
-  await page.getByTestId("import-settings-input").setInputFiles({
-    name: "legacy-settings.json",
+  await page.getByTestId("import-config-input").setInputFiles({
+    name: "legacy-config.json",
     mimeType: "application/json",
     buffer: Buffer.from(
-      JSON.stringify({ options: { useKeepAwakeAppsFile: true, studyName: "Legacy" } }),
+      JSON.stringify({
+        schemaVersion: 1,
+        exportedAt: "2026-04-27T00:00:00.000Z",
+        currentSettings: { useKeepAwakeAppsFile: true, studyName: "Legacy" },
+        presets: [],
+      }),
       "utf-8",
     ),
   });
   await expect(page.getByTestId("study-name-input")).toHaveValue("Legacy");
   await expect(page.getByTestId("toggle-useAppsForcingScreenOpenFile")).not.toBeChecked();
+  assertNoExternalRequests(requestTracker);
+});
+
+test("preset-only or settings-only legacy files are rejected, not auto-coerced", async ({ page }) => {
+  // Old settings-only shape: { options: { ... } } — must not silently load.
+  await page.getByTestId("import-config-input").setInputFiles({
+    name: "old-settings.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify({ options: { studyName: "ShouldNotLoad" } }), "utf-8"),
+  });
+  await expect(page.getByTestId("study-name-input")).not.toHaveValue("ShouldNotLoad");
+
+  // Old preset-only shape: { presets: [...] } — also rejected.
+  await page.getByTestId("import-config-input").setInputFiles({
+    name: "old-presets.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({
+        presets: [{ name: "Lonely", options: { studyName: "PresetOnly" } }],
+      }),
+      "utf-8",
+    ),
+  });
+  await expect(page.getByTestId("preset-list")).toHaveCount(0);
+  assertNoExternalRequests(requestTracker);
+});
+
+test("config export round-trips both active settings and the preset library", async ({ page }) => {
+  await page.getByTestId("study-name-input").fill("RoundTrip");
+  await page.getByTestId("preset-name-input").fill("Snapshot A");
+  await page.getByTestId("save-preset-button").click();
+  await expect(page.getByTestId("preset-list")).toContainText("Snapshot A");
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByTestId("export-config-button").click();
+  const download = await downloadPromise;
+  const stream = await download.createReadStream();
+  if (!stream) throw new Error("download stream missing");
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  const exported = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+  expect(exported.currentSettings.studyName).toBe("RoundTrip");
+  expect(exported.presets.map((p: { name: string }) => p.name)).toContain("Snapshot A");
   assertNoExternalRequests(requestTracker);
 });
