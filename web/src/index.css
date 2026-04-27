@@ -2126,6 +2126,15 @@ a:hover {
   align-self: start;
 }
 
+/* Interaction semantics is by far the largest card (32+ checkboxes); pairing
+   it with the small Performance card under align-items: stretch leaves a huge
+   dead zone in Performance. Give both their own row so neither stretches to
+   match a much larger sibling. */
+.settings-stack > .section-card.accent-interaction,
+.settings-stack > .section-card.accent-performance {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 980px) {
   .settings-stack {
     grid-template-columns: 1fr;
