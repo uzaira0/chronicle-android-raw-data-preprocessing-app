@@ -214,6 +214,8 @@ export default function App(): ReactElement {
   };
 
   const runSample = async () => {
+    const sampleFile = new File([sampleRawCsv], SAMPLE_FILE_NAME, { type: "text/csv" });
+    onFilesChange([sampleFile]);
     setActiveWorkflow("process");
     setIsRunning(true);
     setError(null);

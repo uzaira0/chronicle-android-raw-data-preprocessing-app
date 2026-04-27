@@ -212,6 +212,13 @@ export function ResultPanel({
 
   if (!results.length) return null;
 
+  const showAppColumns =
+    options.usageSessionMode === "app_usage" ||
+    options.usageSessionMode === "app_and_screen_usage";
+  const showScreenColumns =
+    options.usageSessionMode === "screen_usage" ||
+    options.usageSessionMode === "app_and_screen_usage";
+
   return (
     <section className="result-panel" aria-label="Processing results" data-testid="result-panel">
       <header className="result-panel__header">
@@ -282,8 +289,8 @@ export function ResultPanel({
       <div className="result-summary-grid">
         <Stat label="Original rows" value={summary.originalRows} />
         <Stat label="Processed rows" value={summary.processedRows} />
-        <Stat label="App rows" value={summary.appRows} />
-        <Stat label="Screen rows" value={summary.screenRows} />
+        {showAppColumns ? <Stat label="App rows" value={summary.appRows} /> : null}
+        {showScreenColumns ? <Stat label="Screen rows" value={summary.screenRows} /> : null}
       </div>
 
       <div className="result-file-table-wrap">
@@ -294,8 +301,8 @@ export function ResultPanel({
               <th scope="col">Status</th>
               <th scope="col">Input rows</th>
               <th scope="col">Processed rows</th>
-              <th scope="col">App rows</th>
-              <th scope="col">Screen rows</th>
+              {showAppColumns ? <th scope="col">App rows</th> : null}
+              {showScreenColumns ? <th scope="col">Screen rows</th> : null}
               <th scope="col">Input timezones</th>
               <th scope="col">Timezone action</th>
               <th scope="col">Final timezone</th>
@@ -326,8 +333,8 @@ export function ResultPanel({
                   </td>
                   <td>{result.originalRowCount.toLocaleString()}</td>
                   <td>{result.processedRowCount.toLocaleString()}</td>
-                  <td>{result.appRowCount.toLocaleString()}</td>
-                  <td>{result.screenRowCount.toLocaleString()}</td>
+                  {showAppColumns ? <td>{result.appRowCount.toLocaleString()}</td> : null}
+                  {showScreenColumns ? <td>{result.screenRowCount.toLocaleString()}</td> : null}
                   <td>
                     {result.availableTimezones.length ? (
                       <ul className="result-file-table__timezones">
