@@ -19,7 +19,7 @@ from chronicle_preprocessing_app.core.preprocessing.timestamp_preprocessor impor
 )
 from chronicle_preprocessing_app.utils.pathological_fixture_builder import (
     FILTERED_APPS,
-    KEEP_AWAKE_APPS,
+    APPS_FORCING_SCREEN_OPEN,
     FixtureBuildConfig,
     build_pathological_algorithm_dataframe,
     build_pathological_raw_dataframe,
@@ -106,7 +106,7 @@ def test_pathological_raw_fixture_contains_expected_android_pathologies() -> Non
     assert any("+" in value[10:] or "-" in value[10:] for value in timestamps)
     assert any("+" not in value[10:] and "-" not in value[10:] for value in timestamps)
     assert set(FILTERED_APPS).issubset(set(raw_df.get_column(Column.APP_PACKAGE_NAME).unique().to_list()))
-    assert set(KEEP_AWAKE_APPS).issubset(set(raw_df.get_column(Column.APP_PACKAGE_NAME).unique().to_list()))
+    assert set(APPS_FORCING_SCREEN_OPEN).issubset(set(raw_df.get_column(Column.APP_PACKAGE_NAME).unique().to_list()))
     assert {str(value) for value in InteractionType}.issubset(interactions)
 
 
@@ -141,7 +141,7 @@ def test_pathological_fixture_screen_usage_smoke_covers_expected_end_reasons() -
         raw_data_folder="",
         use_app_codebook=False,
         derive_screen_usage_sessions=True,
-        keep_awake_apps_dict=dict(KEEP_AWAKE_APPS),
+        apps_forcing_screen_open_dict=dict(APPS_FORCING_SCREEN_OPEN),
         screen_usage_auto_lock_timeout_seconds=120,
         screen_usage_auto_lock_tolerance_seconds=30,
         screen_usage_manual_lock_max_tail_gap_seconds=30,

@@ -70,13 +70,13 @@ def main() -> int:
                     ),
                 ]
             )
-        if args.use_keep_awake_file:
+        if args.use_apps_forcing_screen_open_file:
             command.extend(
                 [
                     "--keep-awake",
                     str(
                         REPO_ROOT
-                        / "screen_awake_app_files/Chronicle_Android_raw_data_preprocessor_keep_awake_apps.csv"
+                        / "apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv"
                     ),
                 ]
             )

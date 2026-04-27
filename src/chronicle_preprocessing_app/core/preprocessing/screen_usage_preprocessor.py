@@ -44,7 +44,7 @@ class _EndReason:
     reason: str
     confidence: float
     tail_gap_seconds: float | None
-    keep_awake_app_label: str
+    apps_forcing_screen_open_label: str
     lock_screen_only: bool
 
 
@@ -221,7 +221,7 @@ class ScreenUsagePreprocessor(BasePreprocessor):
             Column.SCREEN_USAGE_LAST_ACTIVITY_TIMESTAMP,
             Column.SCREEN_USAGE_TAIL_GAP_SECONDS,
             Column.SCREEN_USAGE_FOREGROUND_APP_PACKAGE,
-            Column.SCREEN_USAGE_KEEP_AWAKE_APP_LABEL,
+            Column.SCREEN_USAGE_APPS_FORCING_SCREEN_OPEN_LABEL,
             Column.SCREEN_USAGE_LOCK_SCREEN_ONLY,
         }
         session_row = {column: None for column in session_columns}
@@ -251,7 +251,7 @@ class ScreenUsagePreprocessor(BasePreprocessor):
             state.last_meaningful_activity_timestamp
         )
         session_row[Column.SCREEN_USAGE_TAIL_GAP_SECONDS] = end_reason.tail_gap_seconds
-        session_row[Column.SCREEN_USAGE_KEEP_AWAKE_APP_LABEL] = end_reason.keep_awake_app_label
+        session_row[Column.SCREEN_USAGE_APPS_FORCING_SCREEN_OPEN_LABEL] = end_reason.apps_forcing_screen_open_label
         session_row[Column.SCREEN_USAGE_LOCK_SCREEN_ONLY] = end_reason.lock_screen_only
         if state.start_timezone is not None:
             session_row[Column.TIMEZONE] = state.start_timezone
@@ -280,21 +280,21 @@ class ScreenUsagePreprocessor(BasePreprocessor):
                 stop_timestamp - state.last_meaningful_activity_timestamp
             ).total_seconds()
 
-        keep_awake_label = ""
+        apps_forcing_screen_open_label = ""
         last_package = state.last_meaningful_activity_package or state.foreground_app_package
         if last_package:
-            keep_awake_label = self.options.keep_awake_apps_dict.get(last_package, "")
+            apps_forcing_screen_open_label = self.options.apps_forcing_screen_open_dict.get(last_package, "")
 
         if state.lock_screen_seen and not state.unlocked_seen and state.foreground_app_package is None:
             return _EndReason(ScreenUsageEndReason.LOCK_SCREEN_ONLY, 0.95, None, "", True)
 
         if tail_gap_seconds is not None:
-            if keep_awake_label and tail_gap_seconds > self.options.screen_usage_auto_lock_timeout_seconds:
+            if apps_forcing_screen_open_label and tail_gap_seconds > self.options.screen_usage_auto_lock_timeout_seconds:
                 return _EndReason(
                     ScreenUsageEndReason.APP_KEPT_AWAKE_OR_EXTENDED,
                     0.9,
                     tail_gap_seconds,
-                    keep_awake_label,
+                    apps_forcing_screen_open_label,
                     False,
                 )
             if tail_gap_seconds <= self.options.screen_usage_manual_lock_max_tail_gap_seconds:
@@ -302,7 +302,7 @@ class ScreenUsagePreprocessor(BasePreprocessor):
                     ScreenUsageEndReason.PROBABLE_MANUAL_LOCK,
                     0.85,
                     tail_gap_seconds,
-                    keep_awake_label,
+                    apps_forcing_screen_open_label,
                     False,
                 )
 
@@ -313,7 +313,7 @@ class ScreenUsagePreprocessor(BasePreprocessor):
                     ScreenUsageEndReason.PROBABLE_AUTO_LOCK,
                     0.9,
                     tail_gap_seconds,
-                    keep_awake_label,
+                    apps_forcing_screen_open_label,
                     False,
                 )
 
@@ -332,7 +332,7 @@ class ScreenUsagePreprocessor(BasePreprocessor):
                     ScreenUsageEndReason.PROBABLE_MANUAL_LOCK,
                     0.7,
                     tail_gap_seconds,
-                    keep_awake_label,
+                    apps_forcing_screen_open_label,
                     False,
                 )
 
@@ -341,11 +341,11 @@ class ScreenUsagePreprocessor(BasePreprocessor):
                 ScreenUsageEndReason.EXTENDED_IDLE_OR_UNKNOWN,
                 0.5,
                 tail_gap_seconds,
-                keep_awake_label,
+                apps_forcing_screen_open_label,
                 False,
             )
 
-        return _EndReason(ScreenUsageEndReason.UNKNOWN, 0.25, None, keep_awake_label, False)
+        return _EndReason(ScreenUsageEndReason.UNKNOWN, 0.25, None, apps_forcing_screen_open_label, False)
 
     @staticmethod
     def _clean_package_name(value: Any) -> str | None:

@@ -62,7 +62,7 @@ components:
       properties:
         filterFile:
           $ref: "#/components/schemas/BrowserSupportFile"
-        keepAwakeAppsFile:
+        appsForcingScreenOpenFile:
           $ref: "#/components/schemas/BrowserSupportFile"
         appCodebookFile:
           $ref: "#/components/schemas/BrowserSupportFile"
@@ -88,7 +88,7 @@ components:
         - correctDuplicateEventTimestamps
         - timezoneHandling
         - useFilterFile
-        - useKeepAwakeAppsFile
+        - useAppsForcingScreenOpenFile
         - useAppCodebook
         - includeFilteredAppUsageInPlots
         - plotOnlyTargetChildData
@@ -134,7 +134,7 @@ components:
             - primary-convert
         useFilterFile:
           type: boolean
-        useKeepAwakeAppsFile:
+        useAppsForcingScreenOpenFile:
           type: boolean
         useAppCodebook:
           type: boolean
@@ -243,6 +243,11 @@ components:
         - timezone
         - appRowCount
         - screenRowCount
+        - timezoneAction
+        - rowsBeforeTimezoneHandling
+        - rowsAfterTimezoneHandling
+        - rowsRemovedByTimezone
+        - duplicateTimestampsCorrected
       properties:
         inputFileName:
           type: string
@@ -263,4 +268,22 @@ components:
         appRowCount:
           type: integer
         screenRowCount:
+          type: integer
+        timezoneAction:
+          type: string
+          enum:
+            - none
+            - filtered_to_selected
+            - converted_to_selected
+            - filtered_to_primary
+            - converted_to_primary
+          description: What the pipeline did with rows whose timezones did not match the
+            selected/primary one.
+        rowsBeforeTimezoneHandling:
+          type: integer
+        rowsAfterTimezoneHandling:
+          type: integer
+        rowsRemovedByTimezone:
+          type: integer
+        duplicateTimestampsCorrected:
           type: integer

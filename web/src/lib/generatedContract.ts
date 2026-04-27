@@ -30,7 +30,7 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "selectedTimezone",
   "timezoneHandling",
   "useFilterFile",
-  "useKeepAwakeAppsFile",
+  "useAppsForcingScreenOpenFile",
   "useAppCodebook",
   "includeFilteredAppUsageInPlots",
   "plotOnlyTargetChildData",
@@ -59,7 +59,7 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "correctDuplicateEventTimestamps",
   "timezoneHandling",
   "useFilterFile",
-  "useKeepAwakeAppsFile",
+  "useAppsForcingScreenOpenFile",
   "useAppCodebook",
   "includeFilteredAppUsageInPlots",
   "plotOnlyTargetChildData",
@@ -79,7 +79,7 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
 
 export const BROWSER_SUPPORT_FILE_KEYS = [
   "filterFile",
-  "keepAwakeAppsFile",
+  "appsForcingScreenOpenFile",
   "appCodebookFile",
 ] as const;
 

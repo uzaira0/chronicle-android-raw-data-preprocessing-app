@@ -189,10 +189,10 @@ class PreprocessingRequest(BaseModel):
     )
     use_filter_file: bool = Field(False, description="Use app filter file")
     filter_file_path: Path | None = Field(None, description="Path to filter file")
-    use_keep_awake_apps_file: bool = Field(
+    use_apps_forcing_screen_open_file: bool = Field(
         False, description="Use screen keep-awake app file"
     )
-    keep_awake_apps_file_path: Path | None = Field(
+    apps_forcing_screen_open_file_path: Path | None = Field(
         None, description="Path to screen keep-awake app file"
     )
     usage_session_mode: UsageSessionMode = Field(

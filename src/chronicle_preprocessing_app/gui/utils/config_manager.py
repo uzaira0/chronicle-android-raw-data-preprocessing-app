@@ -69,7 +69,7 @@ class ConfigManager:
         config = {}
 
         for key, value in options.__dict__.items():
-            if key in {"apps_to_filter_dict", "keep_awake_apps_dict"}:
+            if key in {"apps_to_filter_dict", "apps_forcing_screen_open_dict"}:
                 continue
 
             if key == "same_app_interaction_types_to_stop_usage_at" and not getattr(
@@ -154,11 +154,11 @@ class ConfigManager:
         if "filter_file" in config:
             options.filter_file = config["filter_file"]
 
-        if "use_keep_awake_apps_file" in config:
-            options.use_keep_awake_apps_file = config["use_keep_awake_apps_file"]
+        if "use_apps_forcing_screen_open_file" in config:
+            options.use_apps_forcing_screen_open_file = config["use_apps_forcing_screen_open_file"]
 
-        if "keep_awake_apps_file" in config:
-            options.keep_awake_apps_file = config["keep_awake_apps_file"]
+        if "apps_forcing_screen_open_file" in config:
+            options.apps_forcing_screen_open_file = config["apps_forcing_screen_open_file"]
 
         if "usage_session_mode" in config:
             options.usage_session_mode = UsageSessionMode(config["usage_session_mode"])

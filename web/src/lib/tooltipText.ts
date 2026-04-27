@@ -13,7 +13,7 @@ import type { TooltipContent } from "@/components/Tooltip";
 export const TOOLTIPS = {
   studyName: {
     title: "Study name",
-    body: "Optional label written into the metadata of generated CSVs. Useful for tracking which study a batch belongs to.",
+    body: "Your label for this study. Written into the `study_name` column of every output row. This is your own naming, not the `study_id` column from the raw data — that is preserved unchanged.",
   },
   usageSessionMode: {
     title: "Output mode",
@@ -37,9 +37,9 @@ export const TOOLTIPS = {
     title: "Use filter file",
     body: "If on, the pipeline labels apps in your filter list as filtered (instead of dropping them). Without an uploaded file the app falls back to the bundled default.",
   },
-  useKeepAwakeAppsFile: {
-    title: "Use keep-awake apps file",
-    body: "Marks the listed apps as keep-awake during screen-usage derivation, which influences how locks/unlocks are interpreted.",
+  useAppsForcingScreenOpenFile: {
+    title: "Use apps-forcing-screen-open file",
+    body: "Apps in this list are treated as ones that force the screen to stay on during screen-usage derivation, which influences how locks/unlocks are interpreted.",
   },
   useAppCodebook: {
     title: "Use app codebook",

@@ -1,5 +1,7 @@
 import Papa from "papaparse";
 
+import type { BrowserProcessingOptions } from "@/lib/types";
+
 export type RawFileInspection = {
   fileName: string;
   sizeBytes: number;
@@ -13,6 +15,22 @@ export type RawFileInspection = {
   duplicateTimestampCount: number;
   warnings: string[];
 };
+
+export function effectiveWarnings(
+  inspection: RawFileInspection,
+  options: BrowserProcessingOptions,
+): string[] {
+  const warnings = [...inspection.warnings];
+  if (
+    inspection.duplicateTimestampCount > 0 &&
+    !options.correctDuplicateEventTimestamps
+  ) {
+    warnings.push(
+      `${inspection.duplicateTimestampCount.toLocaleString()} event timestamps appear more than once.`,
+    );
+  }
+  return warnings;
+}
 
 const REQUIRED_RAW_COLUMNS = [
   "study_id",
@@ -106,9 +124,6 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
   }
   if (invalidTimestampCount > 0) {
     warnings.push(`${invalidTimestampCount.toLocaleString()} rows have invalid event_timestamp values.`);
-  }
-  if (duplicateTimestampCount > 0) {
-    warnings.push(`${duplicateTimestampCount.toLocaleString()} event timestamps appear more than once.`);
   }
   if (timezones.length > 1) {
     warnings.push(`${timezones.length} timezone values found.`);
