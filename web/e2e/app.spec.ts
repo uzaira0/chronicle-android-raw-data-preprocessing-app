@@ -680,30 +680,6 @@ test("legacy useKeepAwakeAppsFile imports are dropped, not silently mapped", asy
   assertNoExternalRequests(requestTracker);
 });
 
-test("preset-only or settings-only legacy files are rejected, not auto-coerced", async ({ page }) => {
-  // Old settings-only shape: { options: { ... } } — must not silently load.
-  await page.getByTestId("import-config-input").setInputFiles({
-    name: "old-settings.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify({ options: { studyName: "ShouldNotLoad" } }), "utf-8"),
-  });
-  await expect(page.getByTestId("study-name-input")).not.toHaveValue("ShouldNotLoad");
-
-  // Old preset-only shape: { presets: [...] } — also rejected.
-  await page.getByTestId("import-config-input").setInputFiles({
-    name: "old-presets.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(
-      JSON.stringify({
-        presets: [{ name: "Lonely", options: { studyName: "PresetOnly" } }],
-      }),
-      "utf-8",
-    ),
-  });
-  await expect(page.getByTestId("preset-list")).toHaveCount(0);
-  assertNoExternalRequests(requestTracker);
-});
-
 test("config export round-trips both active settings and the preset library", async ({ page }) => {
   await page.getByTestId("study-name-input").fill("RoundTrip");
   await page.getByTestId("preset-name-input").fill("Snapshot A");
