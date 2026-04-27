@@ -10,17 +10,17 @@ import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
 import type { BrowserProcessingOptions } from "@/lib/types";
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
 import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
-import defaultKeepAwakeAppsUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_keep_awake_apps.csv?url";
+import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
 
-const KEYS: readonly OptionKey[] = ["useFilterFile", "useKeepAwakeAppsFile", "useAppCodebook"];
+const KEYS: readonly OptionKey[] = ["useFilterFile", "useAppsForcingScreenOpenFile", "useAppCodebook"];
 
 type Props = {
   options: BrowserProcessingOptions;
   setOptions: Dispatch<SetStateAction<BrowserProcessingOptions>>;
   filterFile: File | null;
   setFilterFile: (file: File | null) => void;
-  keepAwakeFile: File | null;
-  setKeepAwakeFile: (file: File | null) => void;
+  appsForcingScreenOpenFile: File | null;
+  setAppsForcingScreenOpenFile: (file: File | null) => void;
   appCodebookFile: File | null;
   setAppCodebookFile: (file: File | null) => void;
 };
@@ -31,8 +31,8 @@ export function FilesAndInputsCard(props: Props): ReactElement {
     setOptions,
     filterFile,
     setFilterFile,
-    keepAwakeFile,
-    setKeepAwakeFile,
+    appsForcingScreenOpenFile,
+    setAppsForcingScreenOpenFile,
     appCodebookFile,
     setAppCodebookFile,
   } = props;
@@ -71,18 +71,18 @@ export function FilesAndInputsCard(props: Props): ReactElement {
         defaultUrl={defaultAppsToFilterUrl}
       />
       <SupportFileRow
-        title="Keep-awake apps file"
+        title="Apps forcing the screen open"
         accept=".csv,.xlsx,.xls"
-        file={keepAwakeFile}
-        onFileChange={setKeepAwakeFile}
-        toggleLabel="Use keep-awake apps file"
-        toggleKey="useKeepAwakeAppsFile"
-        checked={options.useKeepAwakeAppsFile}
-        modified={!isOptionDefault("useKeepAwakeAppsFile", options.useKeepAwakeAppsFile)}
-        onToggle={(value) => update("useKeepAwakeAppsFile", value)}
-        onResetToggle={() => reset("useKeepAwakeAppsFile")}
-        testId="keep-awake-file-input"
-        defaultUrl={defaultKeepAwakeAppsUrl}
+        file={appsForcingScreenOpenFile}
+        onFileChange={setAppsForcingScreenOpenFile}
+        toggleLabel="Use apps-forcing-screen-open file"
+        toggleKey="useAppsForcingScreenOpenFile"
+        checked={options.useAppsForcingScreenOpenFile}
+        modified={!isOptionDefault("useAppsForcingScreenOpenFile", options.useAppsForcingScreenOpenFile)}
+        onToggle={(value) => update("useAppsForcingScreenOpenFile", value)}
+        onResetToggle={() => reset("useAppsForcingScreenOpenFile")}
+        testId="apps-forcing-screen-open-file-input"
+        defaultUrl={defaultAppsForcingScreenOpenUrl}
       />
       <SupportFileRow
         title="App codebook file"
@@ -108,7 +108,7 @@ type SupportFileRowProps = {
   file: File | null;
   onFileChange: (next: File | null) => void;
   toggleLabel: string;
-  toggleKey: "useFilterFile" | "useKeepAwakeAppsFile" | "useAppCodebook";
+  toggleKey: "useFilterFile" | "useAppsForcingScreenOpenFile" | "useAppCodebook";
   checked: boolean;
   modified: boolean;
   onToggle: (value: boolean) => void;

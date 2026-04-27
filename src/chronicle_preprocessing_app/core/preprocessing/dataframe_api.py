@@ -32,9 +32,9 @@ class DataFramePreprocessingConfig:
     app_codebook_path: str = DEFAULT_APP_CODEBOOK_FILE_PATH
     use_filter_file: bool = False
     filter_file_path: str = ""
-    use_keep_awake_apps_file: bool = False
-    keep_awake_apps_file_path: str = ""
-    keep_awake_apps_dict: dict[str, str] | None = None
+    use_apps_forcing_screen_open_file: bool = False
+    apps_forcing_screen_open_file_path: str = ""
+    apps_forcing_screen_open_dict: dict[str, str] | None = None
     usage_session_mode: UsageSessionMode | str = UsageSessionMode.APP_USAGE
     derive_screen_usage_sessions: bool = False
     screen_usage_auto_lock_timeout_seconds: int = 120
@@ -79,9 +79,9 @@ def _build_preprocessing_options(config: DataFramePreprocessingConfig) -> Prepro
         app_codebook_path=config.app_codebook_path,
         use_filter_file=config.use_filter_file,
         filter_file=config.filter_file_path,
-        use_keep_awake_apps_file=config.use_keep_awake_apps_file,
-        keep_awake_apps_file=config.keep_awake_apps_file_path,
-        keep_awake_apps_dict=config.keep_awake_apps_dict or {},
+        use_apps_forcing_screen_open_file=config.use_apps_forcing_screen_open_file,
+        apps_forcing_screen_open_file=config.apps_forcing_screen_open_file_path,
+        apps_forcing_screen_open_dict=config.apps_forcing_screen_open_dict or {},
         usage_session_mode=config.usage_session_mode,
         derive_screen_usage_sessions=config.derive_screen_usage_sessions,
         screen_usage_auto_lock_timeout_seconds=config.screen_usage_auto_lock_timeout_seconds,

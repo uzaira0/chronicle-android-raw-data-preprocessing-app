@@ -70,7 +70,7 @@ export function sanitizeOptions(value: unknown): BrowserProcessingOptions {
       case "applyThresholdToFallback":
       case "correctDuplicateEventTimestamps":
       case "useFilterFile":
-      case "useKeepAwakeAppsFile":
+      case "useAppsForcingScreenOpenFile":
       case "useAppCodebook":
       case "includeFilteredAppUsageInPlots":
       case "plotOnlyTargetChildData":

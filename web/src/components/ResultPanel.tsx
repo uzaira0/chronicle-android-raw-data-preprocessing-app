@@ -1,9 +1,14 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { ReactElement } from "react";
 
 import { createZipBlob } from "@/lib/zip";
 import type { OutputKind } from "@/lib/generatedContract";
-import type { BrowserProcessingOptions, ProcessedFileResult, ProcessedOutputFileResult } from "@/lib/types";
+import type {
+  BrowserProcessingOptions,
+  ProcessedFileResult,
+  ProcessedOutputFileResult,
+  TimezoneAction,
+} from "@/lib/types";
 import { PREPROCESSOR_VERSION } from "@/lib/browserPipeline";
 import type { FileProgress } from "@/components/ProgressList";
 
@@ -18,6 +23,14 @@ type Props = {
 type BatchOutput = {
   inputFileName: string;
   output: ProcessedOutputFileResult;
+};
+
+const TIMEZONE_ACTION_LABEL: Record<TimezoneAction, string> = {
+  none: "No action",
+  filtered_to_selected: "Filtered to selected",
+  converted_to_selected: "Converted to selected",
+  filtered_to_primary: "Filtered to primary",
+  converted_to_primary: "Converted to primary",
 };
 
 function downloadBlob(fileName: string, blob: Blob): void {
@@ -55,10 +68,16 @@ function buildProcessingReport(
       files: results.map((result) => ({
         inputFileName: result.inputFileName,
         timezone: result.timezone,
+        availableTimezones: result.availableTimezones,
         originalRowCount: result.originalRowCount,
         processedRowCount: result.processedRowCount,
         appRowCount: result.appRowCount,
         screenRowCount: result.screenRowCount,
+        timezoneAction: result.timezoneAction,
+        rowsBeforeTimezoneHandling: result.rowsBeforeTimezoneHandling,
+        rowsAfterTimezoneHandling: result.rowsAfterTimezoneHandling,
+        rowsRemovedByTimezone: result.rowsRemovedByTimezone,
+        duplicateTimestampsCorrected: result.duplicateTimestampsCorrected,
         outputs: result.outputs.map((output) => ({
           kind: output.kind,
           outputFileName: output.outputFileName,
@@ -71,14 +90,52 @@ function buildProcessingReport(
   );
 }
 
-function buildResultWarnings(input: {
+function buildPerFileWarnings(
+  result: ProcessedFileResult,
+  options: BrowserProcessingOptions,
+): string[] {
+  const warnings: string[] = [];
+  if (!result.outputs.length) {
+    warnings.push("No downloadable outputs.");
+  }
+  if (result.originalRowCount === 0) {
+    warnings.push("Zero input rows after parsing.");
+  }
+  if (result.processedRowCount === 0) {
+    warnings.push("Zero rows after timezone/filter/session processing.");
+  }
+  if (
+    (options.usageSessionMode === "app_usage" ||
+      options.usageSessionMode === "app_and_screen_usage") &&
+    result.appRowCount === 0
+  ) {
+    warnings.push("Zero app-usage rows.");
+  }
+  if (
+    (options.usageSessionMode === "screen_usage" ||
+      options.usageSessionMode === "app_and_screen_usage") &&
+    result.screenRowCount === 0
+  ) {
+    warnings.push("Zero screen-usage rows.");
+  }
+  result.outputs.forEach((output) => {
+    if (output.rowCount === 0) {
+      warnings.push(`${output.outputFileName} contains zero data rows.`);
+    }
+    if (output.blob.size === 0) {
+      warnings.push(`${output.outputFileName} is an empty file.`);
+    }
+  });
+  return warnings;
+}
+
+function buildBatchWarnings(input: {
   results: ProcessedFileResult[];
   error: string | null;
-  options: BrowserProcessingOptions;
   expectedFileCount: number;
   progressRows: FileProgress[];
 }): string[] {
-  const { results, error, options, expectedFileCount, progressRows } = input;
+  const { results, error, expectedFileCount, progressRows } = input;
   const warnings: string[] = [];
   if (error) {
     warnings.push(error);
@@ -90,43 +147,7 @@ function buildResultWarnings(input: {
   if (expectedFileCount > 0 && results.length < expectedFileCount) {
     warnings.push(`Only ${results.length}/${expectedFileCount} selected files produced results.`);
   }
-  results.forEach((result) => {
-    if (!result.outputs.length) {
-      warnings.push(`${result.inputFileName} produced no downloadable outputs.`);
-    }
-    if (result.originalRowCount === 0) {
-      warnings.push(`${result.inputFileName} had zero input rows after parsing.`);
-    }
-    if (result.processedRowCount === 0) {
-      warnings.push(`${result.inputFileName} had zero rows after timezone/filter/session processing.`);
-    }
-    if (result.availableTimezones.length > 1) {
-      warnings.push(
-        `${result.inputFileName} contained ${result.availableTimezones.length} timezones: ${result.availableTimezones.join(", ")}`,
-      );
-    }
-    if (
-      (options.usageSessionMode === "app_usage" || options.usageSessionMode === "app_and_screen_usage") &&
-      result.appRowCount === 0
-    ) {
-      warnings.push(`${result.inputFileName} produced zero app-usage rows.`);
-    }
-    if (
-      (options.usageSessionMode === "screen_usage" || options.usageSessionMode === "app_and_screen_usage") &&
-      result.screenRowCount === 0
-    ) {
-      warnings.push(`${result.inputFileName} produced zero screen-usage rows.`);
-    }
-    result.outputs.forEach((output) => {
-      if (output.rowCount === 0) {
-        warnings.push(`${output.outputFileName} contains zero data rows.`);
-      }
-      if (output.blob.size === 0) {
-        warnings.push(`${output.outputFileName} is an empty file.`);
-      }
-    });
-  });
-  return Array.from(new Set(warnings));
+  return warnings;
 }
 
 async function downloadZip(
@@ -134,18 +155,16 @@ async function downloadZip(
   outputs: BatchOutput[],
   reportText: string,
 ): Promise<void> {
-  const zip = await createZipBlob(
-    [
-      ...outputs.map(({ output }) => ({
-        fileName: output.outputFileName,
-        blob: output.blob,
-      })),
-      {
-        fileName: "chronicle-processing-report.json",
-        blob: new Blob([reportText], { type: "application/json" }),
-      },
-    ],
-  );
+  const zip = await createZipBlob([
+    ...outputs.map(({ output }) => ({
+      fileName: output.outputFileName,
+      blob: output.blob,
+    })),
+    {
+      fileName: "chronicle-processing-report.json",
+      blob: new Blob([reportText], { type: "application/json" }),
+    },
+  ]);
   downloadBlob(zipName(kind), zip);
 }
 
@@ -156,7 +175,6 @@ export function ResultPanel({
   expectedFileCount,
   progressRows,
 }: Props): ReactElement | null {
-  const [previewKind, setPreviewKind] = useState<OutputKind>("app");
   const summary = useMemo(() => {
     return results.reduce(
       (totals, result) => ({
@@ -173,24 +191,16 @@ export function ResultPanel({
   const allOutputs = useMemo(() => collectOutputs(results), [results]);
   const appOutputs = useMemo(() => collectOutputs(results, "app"), [results]);
   const screenOutputs = useMemo(() => collectOutputs(results, "screen"), [results]);
-  const previewedOutput =
-    (previewKind === "app" ? appOutputs[0]?.output : screenOutputs[0]?.output) ??
-    appOutputs[0]?.output ??
-    screenOutputs[0]?.output ??
-    null;
-  const previewRows = previewedOutput?.previewRows ?? null;
   const reportText = useMemo(() => buildProcessingReport(results, options), [results, options]);
-  const resultWarnings = useMemo(
-    () =>
-      buildResultWarnings({
-        results,
-        error,
-        options,
-        expectedFileCount,
-        progressRows,
-      }),
-    [results, error, options, expectedFileCount, progressRows],
+  const batchWarnings = useMemo(
+    () => buildBatchWarnings({ results, error, expectedFileCount, progressRows }),
+    [results, error, expectedFileCount, progressRows],
   );
+  const progressByFile = useMemo(() => {
+    const map = new Map<string, FileProgress>();
+    progressRows.forEach((row) => map.set(row.fileName, row));
+    return map;
+  }, [progressRows]);
 
   if (error && !results.length) {
     return (
@@ -258,11 +268,11 @@ export function ResultPanel({
         </div>
       </header>
       {error ? <p className="error-text u-mb-3">{error}</p> : null}
-      {resultWarnings.length ? (
+      {batchWarnings.length ? (
         <div className="result-warnings" role="alert">
-          <strong>{resultWarnings.length} warning{resultWarnings.length === 1 ? "" : "s"}</strong>
+          <strong>{batchWarnings.length} warning{batchWarnings.length === 1 ? "" : "s"}</strong>
           <ul>
-            {resultWarnings.map((warning) => (
+            {batchWarnings.map((warning) => (
               <li key={warning}>{warning}</li>
             ))}
           </ul>
@@ -276,81 +286,101 @@ export function ResultPanel({
         <Stat label="Screen rows" value={summary.screenRows} />
       </div>
 
-      <details className="result-details">
-        <summary>File counts</summary>
-        <div className="result-file-table-wrap">
-          <table className="result-file-table">
-            <thead>
-              <tr>
-                <th>Input file</th>
-                <th>Timezone</th>
-                <th>Original</th>
-                <th>Processed</th>
-                <th>App</th>
-                <th>Screen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {results.map((result) => (
-                <tr key={result.inputFileName}>
+      <div className="result-file-table-wrap">
+        <table className="result-file-table" data-testid="result-file-table">
+          <thead>
+            <tr>
+              <th scope="col">Input file</th>
+              <th scope="col">Status</th>
+              <th scope="col">Input rows</th>
+              <th scope="col">Processed rows</th>
+              <th scope="col">App rows</th>
+              <th scope="col">Screen rows</th>
+              <th scope="col">Input timezones</th>
+              <th scope="col">Timezone action</th>
+              <th scope="col">Final timezone</th>
+              <th scope="col">Duplicate timestamps corrected</th>
+              <th scope="col">Warnings</th>
+              <th scope="col">Outputs</th>
+            </tr>
+          </thead>
+          <tbody>
+            {results.map((result) => {
+              const progress = progressByFile.get(result.inputFileName);
+              const failed = progress?.status === "error";
+              const fileWarnings = buildPerFileWarnings(result, options);
+              const tzAction = TIMEZONE_ACTION_LABEL[result.timezoneAction];
+              const tzActionDetail =
+                result.timezoneAction === "none"
+                  ? ""
+                  : ` (${result.rowsBeforeTimezoneHandling.toLocaleString()} → ${result.rowsAfterTimezoneHandling.toLocaleString()}, removed ${result.rowsRemovedByTimezone.toLocaleString()})`;
+              return (
+                <tr key={result.inputFileName} data-testid="result-row">
                   <td>{result.inputFileName}</td>
-                  <td>{result.timezone || "-"}</td>
+                  <td>
+                    <span
+                      className={`status-pill ${failed ? "is-warning" : fileWarnings.length ? "is-warning" : "is-success"}`}
+                    >
+                      {failed ? "Failed" : fileWarnings.length ? "Review" : "Success"}
+                    </span>
+                  </td>
                   <td>{result.originalRowCount.toLocaleString()}</td>
                   <td>{result.processedRowCount.toLocaleString()}</td>
                   <td>{result.appRowCount.toLocaleString()}</td>
                   <td>{result.screenRowCount.toLocaleString()}</td>
+                  <td>
+                    {result.availableTimezones.length ? (
+                      <ul className="result-file-table__timezones">
+                        {result.availableTimezones.map((zone) => (
+                          <li key={zone}>{zone}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td>
+                    {tzAction}
+                    {tzActionDetail ? (
+                      <span className="text-faint u-meta-xs">{tzActionDetail}</span>
+                    ) : null}
+                  </td>
+                  <td>{result.timezone || "—"}</td>
+                  <td>{result.duplicateTimestampsCorrected.toLocaleString()}</td>
+                  <td>
+                    {fileWarnings.length ? (
+                      <ul className="result-file-table__warnings">
+                        {fileWarnings.map((warning) => (
+                          <li key={warning}>{warning}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td>
+                    {result.outputs.length ? (
+                      <ul className="result-file-table__outputs">
+                        {result.outputs.map((output) => (
+                          <li key={output.outputFileName}>
+                            <code>{output.outputFileName}</code>
+                            <span className="text-faint u-meta-xs">
+                              {" "}
+                              · {output.rowCount.toLocaleString()} rows
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </details>
-
-      {previewRows ? (
-        <div className="result-preview" data-testid="result-card">
-          <div className="result-preview__header">
-            <h3 className="result-preview__title">Preview</h3>
-            <div className="button-row">
-              <button
-                type="button"
-                className={`btn ${previewKind === "app" ? "btn--primary" : "btn--ghost"}`}
-                onClick={() => setPreviewKind("app")}
-                disabled={!appOutputs.length}
-              >
-                App
-              </button>
-              <button
-                type="button"
-                className={`btn ${previewKind === "screen" ? "btn--primary" : "btn--ghost"}`}
-                onClick={() => setPreviewKind("screen")}
-                disabled={!screenOutputs.length}
-              >
-                Screen
-              </button>
-            </div>
-          </div>
-          <div className="preview-table-wrap">
-            <table className="preview-table">
-              <thead>
-                <tr>
-                  {(previewRows[0] ?? []).map((cell, index) => (
-                    <th key={index}>{cell}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {previewRows.slice(1).map((row, rowIndex) => (
-                  <tr key={rowIndex}>
-                    {row.map((cell, cellIndex) => (
-                      <td key={cellIndex}>{cell}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : null}
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

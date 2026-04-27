@@ -30,6 +30,13 @@ enums:
     permissible_values:
       app:
       screen:
+  TimezoneAction:
+    permissible_values:
+      none:
+      filtered_to_selected:
+      converted_to_selected:
+      filtered_to_primary:
+      converted_to_primary:
 
 classes:
   BrowserSupportFile:
@@ -40,7 +47,7 @@ classes:
   BrowserSupportFiles:
     slots:
       - filter_file
-      - keep_awake_apps_file
+      - apps_forcing_screen_open_file
       - app_codebook_file
 
   BrowserProcessingRuntime:
@@ -59,7 +66,7 @@ classes:
       - selected_timezone
       - timezone_handling
       - use_filter_file
-      - use_keep_awake_apps_file
+      - use_apps_forcing_screen_open_file
       - use_app_codebook
       - include_filtered_app_usage_in_plots
       - plot_only_target_child_data
@@ -94,6 +101,11 @@ classes:
       - timezone
       - app_row_count
       - screen_row_count
+      - timezone_action
+      - rows_before_timezone_handling
+      - rows_after_timezone_handling
+      - rows_removed_by_timezone
+      - duplicate_timestamps_corrected
 
 slots:
   name:
@@ -103,7 +115,7 @@ slots:
     description: Base64-encoded file contents.
   filter_file:
     range: BrowserSupportFile
-  keep_awake_apps_file:
+  apps_forcing_screen_open_file:
     range: BrowserSupportFile
   app_codebook_file:
     range: BrowserSupportFile
@@ -140,7 +152,7 @@ slots:
   use_filter_file:
     range: boolean
     required: true
-  use_keep_awake_apps_file:
+  use_apps_forcing_screen_open_file:
     range: boolean
     required: true
   use_app_codebook:
@@ -225,5 +237,21 @@ slots:
     range: integer
     required: true
   screen_row_count:
+    range: integer
+    required: true
+  timezone_action:
+    range: TimezoneAction
+    required: true
+    description: What the pipeline did with rows whose timezones did not match the selected/primary one.
+  rows_before_timezone_handling:
+    range: integer
+    required: true
+  rows_after_timezone_handling:
+    range: integer
+    required: true
+  rows_removed_by_timezone:
+    range: integer
+    required: true
+  duplicate_timestamps_corrected:
     range: integer
     required: true

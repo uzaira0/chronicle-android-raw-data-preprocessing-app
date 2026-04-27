@@ -45,7 +45,7 @@ class FilterFileError(FileOperationError):
     """Errors raised while reading app filter files."""
 
 
-class KeepAwakeAppsFileError(FileOperationError):
+class AppsForcingScreenOpenFileError(FileOperationError):
     """Errors raised while reading keep-awake app files."""
 
 
@@ -122,31 +122,31 @@ def read_filter_file(file_path: Path | str) -> dict[str, str]:
         raise FilterFileError(f"Failed to read filter file: {exc}") from exc
 
 
-def read_keep_awake_apps_file(file_path: Path | str) -> dict[str, str]:
+def read_apps_forcing_screen_open_file(file_path: Path | str) -> dict[str, str]:
     """Read screen keep-awake app metadata from a CSV/XLSX file."""
     path = Path(file_path)
     if not path.exists():
-        raise KeepAwakeAppsFileError(f"Keep-awake apps file does not exist: {path}")
+        raise AppsForcingScreenOpenFileError(f"Apps-forcing-screen-open file does not exist: {path}")
 
     try:
         header, rows = _read_small_table(path)
         if len(header) < 1:
-            raise KeepAwakeAppsFileError(
-                "Keep-awake apps file must have at least one column (Package Name)"
+            raise AppsForcingScreenOpenFileError(
+                "Apps-forcing-screen-open file must have at least one column (Package Name)"
             )
 
-        keep_awake_apps: dict[str, str] = {}
+        apps_forcing_screen_open: dict[str, str] = {}
         for row in rows:
             package_name = _normalize_cell(row[0] if len(row) > 0 else None)
             if not package_name or package_name.startswith("#"):
                 continue
             label = _normalize_cell(row[1] if len(row) > 1 else None)
-            keep_awake_apps[package_name] = label
-        return keep_awake_apps
-    except KeepAwakeAppsFileError:
+            apps_forcing_screen_open[package_name] = label
+        return apps_forcing_screen_open
+    except AppsForcingScreenOpenFileError:
         raise
     except Exception as exc:
-        raise KeepAwakeAppsFileError(f"Failed to read keep-awake apps file: {exc}") from exc
+        raise AppsForcingScreenOpenFileError(f"Failed to read apps-forcing-screen-open file: {exc}") from exc
 
 
 def read_app_codebook(codebook_path: Path | str) -> pl.DataFrame | None:

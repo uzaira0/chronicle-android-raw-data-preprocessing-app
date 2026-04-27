@@ -38,7 +38,7 @@ def _screen_options(**overrides: object) -> PreprocessingOptions:
         "screen_usage_auto_lock_tolerance_seconds": 30,
         "screen_usage_manual_lock_max_tail_gap_seconds": 30,
         "screen_usage_keyguard_near_stop_seconds": 2,
-        "keep_awake_apps_dict": {
+        "apps_forcing_screen_open_dict": {
             "com.google.android.youtube": "Video",
             "com.google.android.apps.maps": "Navigation",
         },

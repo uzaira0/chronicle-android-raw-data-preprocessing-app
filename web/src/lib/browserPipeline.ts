@@ -1,7 +1,7 @@
 import Papa from "papaparse";
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
 import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
-import defaultKeepAwakeAppsUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_keep_awake_apps.csv?url";
+import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
 import type {
   BrowserProcessingOptions,
   BrowserProcessingRuntime,
@@ -14,6 +14,7 @@ import type {
   ProgressEvent,
   ProgressStepKind,
   RawChronicleRow,
+  TimezoneAction,
 } from "@/lib/types";
 
 export const PREPROCESSOR_VERSION = "1.0.0";
@@ -29,7 +30,7 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   selectedTimezone: "",
   timezoneHandling: "selected-filter",
   useFilterFile: true,
-  useKeepAwakeAppsFile: false,
+  useAppsForcingScreenOpenFile: false,
   useAppCodebook: true,
   customAppEngagementDuration: 300,
   longUsageDurationThresholds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
@@ -77,7 +78,7 @@ export const TIMEZONE_HANDLING_OPTIONS = [
 
 export const BOOLEAN_OPTION_CONTROLS = [
   { key: "useFilterFile", label: "Use filter file" },
-  { key: "useKeepAwakeAppsFile", label: "Use keep-awake apps file" },
+  { key: "useAppsForcingScreenOpenFile", label: "Use apps-forcing-screen-open file" },
   { key: "useAppCodebook", label: "Use app codebook" },
   { key: "correctDuplicateEventTimestamps", label: "Correct duplicate event timestamps" },
   { key: "allowStopEventReuse", label: "Allow stop-event reuse" },
@@ -283,7 +284,7 @@ type CanonicalRow = {
   screen_usage_last_activity_timestamp_ns: bigint | null;
   screen_usage_tail_gap_seconds: number | null;
   screen_usage_foreground_app_package: string | null;
-  screen_usage_keep_awake_app_label: string | null;
+  screen_usage_apps_forcing_screen_open_label: string | null;
   screen_usage_lock_screen_only: number | null;
   any_app_usage_flags: string;
   valid_app_new_engage_30s: number;
@@ -552,13 +553,13 @@ export async function resolveDefaultSupportFiles(
       );
     }
   }
-  if (options.useKeepAwakeAppsFile) {
-    if (uploads?.keepAwakeAppsFile) {
-      result.keepAwakeAppsFile = uploads.keepAwakeAppsFile;
+  if (options.useAppsForcingScreenOpenFile) {
+    if (uploads?.appsForcingScreenOpenFile) {
+      result.appsForcingScreenOpenFile = uploads.appsForcingScreenOpenFile;
     } else {
       tasks.push(
-        fetchDefaultBytes(defaultKeepAwakeAppsUrl).then((bytes) => {
-          result.keepAwakeAppsFile = { name: fileNameFromUrl(defaultKeepAwakeAppsUrl), bytes };
+        fetchDefaultBytes(defaultAppsForcingScreenOpenUrl).then((bytes) => {
+          result.appsForcingScreenOpenFile = { name: fileNameFromUrl(defaultAppsForcingScreenOpenUrl), bytes };
         }),
       );
     }
@@ -627,7 +628,7 @@ function buildFilterMap(rows: SupportRows): Map<string, Set<string>> {
   return map;
 }
 
-function buildKeepAwakeMap(rows: SupportRows): Map<string, string> {
+function buildAppsForcingScreenOpenMap(rows: SupportRows): Map<string, string> {
   const map = new Map<string, string>();
   for (const row of rows) {
     const packageName = requireString(row.package_name ?? row.app_package_name);
@@ -877,7 +878,7 @@ function createBaseRow(
     screen_usage_last_activity_timestamp_ns: null,
     screen_usage_tail_gap_seconds: null,
     screen_usage_foreground_app_package: null,
-    screen_usage_keep_awake_app_label: null,
+    screen_usage_apps_forcing_screen_open_label: null,
     screen_usage_lock_screen_only: null,
     any_app_usage_flags: "[]",
     valid_app_new_engage_30s: 0,
@@ -966,28 +967,48 @@ function dominantTimezone(rows: CanonicalRow[]): string {
 function applyTimezoneHandling(
   rows: CanonicalRow[],
   options: BrowserProcessingOptions,
-): { rows: CanonicalRow[]; timezone: string } {
+): {
+  rows: CanonicalRow[];
+  timezone: string;
+  action: TimezoneAction;
+  rowsBefore: number;
+  rowsAfter: number;
+  rowsRemoved: number;
+} {
   const selected = options.selectedTimezone?.trim();
   const primary = dominantTimezone(rows);
+  const rowsBefore = rows.length;
   let nextRows = rows;
   let targetTimezone = primary;
+  let action: TimezoneAction = "none";
   if (options.timezoneHandling === "selected-filter" && selected) {
     nextRows = rows.filter((row) => row.timezone === selected);
     targetTimezone = selected;
+    action = "filtered_to_selected";
   } else if (options.timezoneHandling === "selected-convert" && selected) {
     targetTimezone = selected;
+    action = "converted_to_selected";
   } else if (options.timezoneHandling === "primary-filter") {
     nextRows = rows.filter((row) => row.timezone === primary);
     targetTimezone = primary;
+    action = "filtered_to_primary";
   } else if (options.timezoneHandling === "primary-convert") {
     targetTimezone = primary;
+    action = "converted_to_primary";
   }
   const adjustedRows = nextRows.map((row) => {
     const updated = { ...row, timezone: targetTimezone };
     populateTimeColumns(updated, updated.event_timestamp_ns, targetTimezone);
     return updated;
   });
-  return { rows: adjustedRows, timezone: targetTimezone };
+  return {
+    rows: adjustedRows,
+    timezone: targetTimezone,
+    action,
+    rowsBefore,
+    rowsAfter: adjustedRows.length,
+    rowsRemoved: Math.max(0, rowsBefore - adjustedRows.length),
+  };
 }
 
 function dedupeExactRows(rows: CanonicalRow[]): CanonicalRow[] {
@@ -1278,7 +1299,7 @@ function secondsBetween(left: bigint, right: bigint): number {
 function deriveScreenUsageSessions(
   rows: CanonicalRow[],
   options: BrowserProcessingOptions,
-  keepAwakeApps: Map<string, string>,
+  appsForcingScreenOpen: Map<string, string>,
 ): CanonicalRow[] {
   if (!rows.some((row) => SCREEN_START_EVENTS.has(row.interaction_type))) {
     return [];
@@ -1310,7 +1331,7 @@ function deriveScreenUsageSessions(
       screen_usage_stop_event_type: stopEventType,
       screen_usage_last_activity_timestamp_ns: currentState.lastMeaningfulActivityTimestampNs,
       screen_usage_tail_gap_seconds: null,
-      screen_usage_keep_awake_app_label: null,
+      screen_usage_apps_forcing_screen_open_label: null,
       screen_usage_lock_screen_only: 0,
       data_time_gap_hours: 0,
       event_timestamp_ns: currentState.startTimestampNs,
@@ -1328,14 +1349,14 @@ function deriveScreenUsageSessions(
 
     const lastPackage =
       currentState.lastMeaningfulActivityPackage ?? currentState.foregroundAppPackage ?? "";
-    const keepAwakeLabel = keepAwakeApps.get(lastPackage) ?? "";
+    const appsForcingScreenOpenLabel = appsForcingScreenOpen.get(lastPackage) ?? "";
     const tailGapSeconds =
       currentState.lastMeaningfulActivityTimestampNs == null
         ? null
         : secondsBetween(currentState.lastMeaningfulActivityTimestampNs, stopTimestampNs);
 
     screenRow.screen_usage_tail_gap_seconds = tailGapSeconds;
-    screenRow.screen_usage_keep_awake_app_label = keepAwakeLabel || null;
+    screenRow.screen_usage_apps_forcing_screen_open_label = appsForcingScreenOpenLabel || null;
 
     if (
       currentState.lockScreenSeen &&
@@ -1350,7 +1371,7 @@ function deriveScreenUsageSessions(
     }
 
     if (tailGapSeconds != null) {
-      if (keepAwakeLabel && tailGapSeconds > options.screenUsageAutoLockTimeoutSeconds) {
+      if (appsForcingScreenOpenLabel && tailGapSeconds > options.screenUsageAutoLockTimeoutSeconds) {
         screenRow.screen_usage_end_reason = "app_kept_awake_or_extended";
         screenRow.screen_usage_end_reason_confidence = 0.9;
         sessions.push(screenRow);
@@ -1628,6 +1649,7 @@ function buildAppOutputColumns(
   const includeCodebookColumns = options.useAppCodebook;
   return [
     "study_id",
+    "study_name",
     "participant_id",
     "possible_device_model",
     "username",
@@ -1668,6 +1690,7 @@ function buildAppOutputColumns(
 function buildScreenOutputColumns(): string[] {
   return [
     "study_id",
+    "study_name",
     "participant_id",
     "possible_device_model",
     "username",
@@ -1687,7 +1710,7 @@ function buildScreenOutputColumns(): string[] {
     "screen_usage_last_activity_timestamp",
     "screen_usage_tail_gap_seconds",
     "screen_usage_foreground_app_package",
-    "screen_usage_keep_awake_app_label",
+    "screen_usage_apps_forcing_screen_open_label",
     "screen_usage_lock_screen_only",
     "data_time_gap_hours",
     "day",
@@ -1708,6 +1731,7 @@ function rowToAppCsvRecord(
 ): Record<string, string | number> {
   const record: Record<string, string | number> = {
     study_id: row.study_id,
+    study_name: options.studyName,
     participant_id: row.participant_id,
     possible_device_model: row.possible_device_model,
     username: row.username,
@@ -1758,9 +1782,13 @@ function rowToAppCsvRecord(
   return record;
 }
 
-function rowToScreenCsvRecord(row: CanonicalRow): Record<string, string | number | boolean> {
+function rowToScreenCsvRecord(
+  row: CanonicalRow,
+  options: BrowserProcessingOptions,
+): Record<string, string | number | boolean> {
   return {
     study_id: row.study_id,
+    study_name: options.studyName,
     participant_id: row.participant_id,
     possible_device_model: row.possible_device_model,
     username: row.username,
@@ -1788,7 +1816,7 @@ function rowToScreenCsvRecord(row: CanonicalRow): Record<string, string | number
       floatStyle: true,
     }),
     screen_usage_foreground_app_package: row.screen_usage_foreground_app_package ?? "",
-    screen_usage_keep_awake_app_label: row.screen_usage_keep_awake_app_label ?? "",
+    screen_usage_apps_forcing_screen_open_label: row.screen_usage_apps_forcing_screen_open_label ?? "",
     screen_usage_lock_screen_only:
       row.screen_usage_lock_screen_only == null
         ? ""
@@ -1851,7 +1879,10 @@ function buildAppOutputBundle(
   };
 }
 
-function buildScreenOutputBundle(rows: CanonicalRow[]): OutputBundle {
+function buildScreenOutputBundle(
+  rows: CanonicalRow[],
+  options: BrowserProcessingOptions,
+): OutputBundle {
   const columns = buildScreenOutputColumns();
   const previewRows: string[][] = [columns];
   if (!rows.length) {
@@ -1860,7 +1891,7 @@ function buildScreenOutputBundle(rows: CanonicalRow[]): OutputBundle {
   const blobParts: BlobPart[] = [];
   blobParts.push(columns.join(","), "\n");
   for (let i = 0; i < rows.length; i += 1) {
-    const record = rowToScreenCsvRecord(rows[i]!);
+    const record = rowToScreenCsvRecord(rows[i]!, options);
     const rawCells = columns.map((column) => {
       const value = record[column];
       return value == null ? "" : String(value);
@@ -1912,11 +1943,15 @@ export async function processRawCsvContent(
   emit("parse", 1);
 
   emit("timezone", 0);
-  const { rows: timezoneHandledRows, timezone } = applyTimezoneHandling(originalRows, options);
+  const timezoneResult = applyTimezoneHandling(originalRows, options);
+  const { rows: timezoneHandledRows, timezone } = timezoneResult;
   const deduped = dedupeExactRows(timezoneHandledRows);
+  const duplicatesBefore = countDuplicateTimestampGroups(deduped);
   const duplicateCorrected = options.correctDuplicateEventTimestamps
     ? unalignDuplicateTimestamps(deduped, options)
     : deduped;
+  const duplicateTimestampsCorrected =
+    options.correctDuplicateEventTimestamps ? duplicatesBefore : 0;
   let rows = markDataTimeGaps(duplicateCorrected);
   emit("timezone", 1);
 
@@ -1929,10 +1964,10 @@ export async function processRawCsvContent(
     rows = labelFilteredApps(rows, filterMap);
   }
 
-  let keepAwakeMap = new Map<string, string>();
-  if (options.useKeepAwakeAppsFile) {
-    keepAwakeMap = buildKeepAwakeMap(
-      await loadSupportRows(supportFiles?.keepAwakeAppsFile, defaultKeepAwakeAppsUrl),
+  let appsForcingScreenOpenMap = new Map<string, string>();
+  if (options.useAppsForcingScreenOpenFile) {
+    appsForcingScreenOpenMap = buildAppsForcingScreenOpenMap(
+      await loadSupportRows(supportFiles?.appsForcingScreenOpenFile, defaultAppsForcingScreenOpenUrl),
     );
   }
   emit("filter", 1);
@@ -1941,13 +1976,13 @@ export async function processRawCsvContent(
   let screenRows: CanonicalRow[] = [];
   if (options.usageSessionMode === "screen_usage" || options.usageSessionMode === "app_and_screen_usage") {
     emit("screen", 0);
-    screenRows = deriveScreenUsageSessions(rows, options, keepAwakeMap);
+    screenRows = deriveScreenUsageSessions(rows, options, appsForcingScreenOpenMap);
     emit("screen", 1);
   }
 
   if (options.usageSessionMode === "screen_usage") {
     emit("output", 0);
-    const screenBundle = buildScreenOutputBundle(screenRows);
+    const screenBundle = buildScreenOutputBundle(screenRows, options);
     outputs.push({
       kind: "screen",
       outputFileName: deriveOutputFileName(inputFileName, " Screen Usage Automatically Preprocessed.csv"),
@@ -1965,6 +2000,11 @@ export async function processRawCsvContent(
       timezone,
       appRowCount: 0,
       screenRowCount: screenRows.length,
+      timezoneAction: timezoneResult.action,
+      rowsBeforeTimezoneHandling: timezoneResult.rowsBefore,
+      rowsAfterTimezoneHandling: timezoneResult.rowsAfter,
+      rowsRemovedByTimezone: timezoneResult.rowsRemoved,
+      duplicateTimestampsCorrected,
     };
   }
 
@@ -2000,7 +2040,7 @@ export async function processRawCsvContent(
     previewRows: appBundle.previewRows,
   });
   if (options.usageSessionMode === "app_and_screen_usage") {
-    const screenBundle = buildScreenOutputBundle(screenRows);
+    const screenBundle = buildScreenOutputBundle(screenRows, options);
     outputs.push({
       kind: "screen",
       outputFileName: deriveOutputFileName(inputFileName, " Screen Usage Automatically Preprocessed.csv"),
@@ -2020,5 +2060,26 @@ export async function processRawCsvContent(
     timezone,
     appRowCount: rows.length,
     screenRowCount: screenRows.length,
+    timezoneAction: timezoneResult.action,
+    rowsBeforeTimezoneHandling: timezoneResult.rowsBefore,
+    rowsAfterTimezoneHandling: timezoneResult.rowsAfter,
+    rowsRemovedByTimezone: timezoneResult.rowsRemoved,
+    duplicateTimestampsCorrected,
   };
+}
+
+function countDuplicateTimestampGroups(rows: CanonicalRow[]): number {
+  if (rows.length <= 1) return 0;
+  let duplicates = 0;
+  let runStart = 0;
+  for (let index = 1; index < rows.length; index += 1) {
+    if (rows[index]!.event_timestamp_ns !== rows[runStart]!.event_timestamp_ns) {
+      const runLength = index - runStart;
+      if (runLength > 1) duplicates += runLength - 1;
+      runStart = index;
+    }
+  }
+  const finalRunLength = rows.length - runStart;
+  if (finalRunLength > 1) duplicates += finalRunLength - 1;
+  return duplicates;
 }

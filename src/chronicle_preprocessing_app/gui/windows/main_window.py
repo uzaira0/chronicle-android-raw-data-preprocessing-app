@@ -556,27 +556,27 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
                 except Exception:
                     LOGGER.exception("Error loading filter file")
 
-        if "use_keep_awake_apps_file" in config:
-            self.options.use_keep_awake_apps_file = config["use_keep_awake_apps_file"]
+        if "use_apps_forcing_screen_open_file" in config:
+            self.options.use_apps_forcing_screen_open_file = config["use_apps_forcing_screen_open_file"]
 
-        if config.get("keep_awake_apps_file"):
-            keep_awake_apps_file = config["keep_awake_apps_file"]
-            self.options.keep_awake_apps_file = keep_awake_apps_file
+        if config.get("apps_forcing_screen_open_file"):
+            apps_forcing_screen_open_file = config["apps_forcing_screen_open_file"]
+            self.options.apps_forcing_screen_open_file = apps_forcing_screen_open_file
 
-            if Path(keep_awake_apps_file).exists():
+            if Path(apps_forcing_screen_open_file).exists():
                 try:
                     from chronicle_preprocessing_app.utils.file_utils import (
-                        read_keep_awake_apps_file,
+                        read_apps_forcing_screen_open_file,
                     )
 
-                    self.options.keep_awake_apps_dict = read_keep_awake_apps_file(
-                        keep_awake_apps_file
+                    self.options.apps_forcing_screen_open_dict = read_apps_forcing_screen_open_file(
+                        apps_forcing_screen_open_file
                     )
                     LOGGER.info(
-                        f"Loaded {len(self.options.keep_awake_apps_dict)} keep-awake apps from {keep_awake_apps_file}"
+                        f"Loaded {len(self.options.apps_forcing_screen_open_dict)} keep-awake apps from {apps_forcing_screen_open_file}"
                     )
                 except Exception:
-                    LOGGER.exception("Error loading keep-awake apps file")
+                    LOGGER.exception("Error loading apps-forcing-screen-open file")
 
         # Set duration settings
         if "minimum_usage_duration" in config:
@@ -662,8 +662,8 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
         if "use_filter_file" in config:
             self.options.use_filter_file = config["use_filter_file"]
 
-        if "use_keep_awake_apps_file" in config:
-            self.options.use_keep_awake_apps_file = config["use_keep_awake_apps_file"]
+        if "use_apps_forcing_screen_open_file" in config:
+            self.options.use_apps_forcing_screen_open_file = config["use_apps_forcing_screen_open_file"]
 
         if "usage_session_mode" in config:
             self.options.usage_session_mode = UsageSessionMode(config["usage_session_mode"])
@@ -746,8 +746,8 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
         self.config_panel.set_raw_data_folder(str(self.options.raw_data_folder))
         self.config_panel.set_filter_file(str(self.options.filter_file))
         self.config_panel.set_use_filter_file(self.options.use_filter_file)
-        self.config_panel.set_keep_awake_apps_file(str(self.options.keep_awake_apps_file))
-        self.config_panel.set_use_keep_awake_apps_file(self.options.use_keep_awake_apps_file)
+        self.config_panel.set_apps_forcing_screen_open_file(str(self.options.apps_forcing_screen_open_file))
+        self.config_panel.set_use_apps_forcing_screen_open_file(self.options.use_apps_forcing_screen_open_file)
         self.config_panel.set_usage_session_mode(self.options.usage_session_mode)
         self.config_panel.set_screen_usage_auto_lock_timeout(
             self.options.screen_usage_auto_lock_timeout_seconds
@@ -843,7 +843,7 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
         # Add selected options from the options object
         for key, value in self.options.__dict__.items():
             # Skip file-loaded dictionaries; persist the source paths instead.
-            if key in {"apps_to_filter_dict", "keep_awake_apps_dict"}:
+            if key in {"apps_to_filter_dict", "apps_forcing_screen_open_dict"}:
                 continue
 
             # Skip interaction types that weren't specifically configured

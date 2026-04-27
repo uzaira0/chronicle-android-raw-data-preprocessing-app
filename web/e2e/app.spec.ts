@@ -7,7 +7,7 @@ import {
   CODEBOOK_CSV,
   createFilterWorkbookBytes,
   FILTER_FILE_CSV,
-  KEEP_AWAKE_CSV,
+  APPS_FORCING_SCREEN_OPEN_CSV,
   MALFORMED_RAW_CSV,
   MIXED_TIMEZONE_RAW_CSV,
   MULTI_FILE_RAW_CSV_A,
@@ -41,7 +41,8 @@ test("@smoke boots locally and processes the bundled sample entirely on localhos
   page,
 }) => {
   await page.getByTestId("run-sample-button").click();
-  await expect(page.getByTestId("result-card")).toHaveCount(1);
+  await expect(page.getByTestId("result-panel")).toHaveCount(1);
+  await expect(page.getByTestId("result-file-table")).toBeVisible();
   const appCsv = await downloadCsv(page, "download-app-csv");
   const rows = parseCsv(appCsv);
   expect(rows.length).toBeGreaterThan(0);
@@ -54,27 +55,13 @@ test("processes app and screen outputs with CSV support files and downloads both
 }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
   await page.getByTestId("usage-mode-select").selectOption("app_and_screen_usage");
-  await page.getByTestId("toggle-useKeepAwakeAppsFile").check();
+  await page.getByTestId("toggle-useAppsForcingScreenOpenFile").check();
   await setInputFile(page, "filter-file-input", "filter.csv", FILTER_FILE_CSV, "text/csv");
-  await setInputFile(page, "keep-awake-file-input", "keep_awake.csv", KEEP_AWAKE_CSV, "text/csv");
+  await setInputFile(page, "apps-forcing-screen-open-file-input", "apps_forcing_screen_open.csv", APPS_FORCING_SCREEN_OPEN_CSV, "text/csv");
   await setInputFile(page, "app-codebook-file-input", "codebook.csv", CODEBOOK_CSV, "text/csv");
   await processFiles(page);
-  const previewMetrics = await page.locator(".preview-table-wrap").evaluate((element) => {
-    const panel = element.closest(".result-panel");
-    const elementRect = element.getBoundingClientRect();
-    const panelRect = panel?.getBoundingClientRect();
-    const style = window.getComputedStyle(element);
-    return {
-      overflowX: style.overflowX,
-      tableNeedsScroll: element.scrollWidth > element.clientWidth,
-      staysInsidePanel: panelRect ? elementRect.right <= panelRect.right + 1 : false,
-    };
-  });
-  expect(previewMetrics).toEqual({
-    overflowX: "auto",
-    tableNeedsScroll: true,
-    staysInsidePanel: true,
-  });
+  await expect(page.getByTestId("result-file-table")).toBeVisible();
+  await expect(page.locator(".preview-table-wrap")).toHaveCount(0);
 
   const zipEntries = await downloadZipEntries(page, "download-all-zip");
   expect(Array.from(zipEntries.keys())).toContain("chronicle-processing-report.json");
@@ -370,15 +357,16 @@ test("shows result warnings for suspicious successful outputs", async ({ page })
   await page.getByTestId("usage-mode-select").selectOption("app_and_screen_usage");
   await processFiles(page);
 
-  await expect(page.locator(".result-warnings")).toContainText("zero screen-usage rows");
-  await expect(page.locator(".result-warnings")).toContainText("contains zero data rows");
+  const row = page.getByTestId("result-row").first();
+  await expect(row).toContainText("Zero screen-usage rows");
+  await expect(row).toContainText("contains zero data rows");
   assertNoExternalRequests(requestTracker);
 });
 
 test("classifies keep-awake screen sessions through the local screen pipeline", async ({
   page,
 }) => {
-  const keepAwakeRawCsv = [
+  const appsForcingScreenOpenRawCsv = [
     "study_id,participant_id,possible_device_model,username,application_label,interaction_type,app_package_name,event_timestamp,start_timestamp,stop_timestamp,timezone",
     "study,P01,Android,Target Child,System,Unknown importance: 15,android,2026-03-07 10:00:00,,,America/Chicago",
     "study,P01,Android,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:05,,,America/Chicago",
@@ -386,10 +374,10 @@ test("classifies keep-awake screen sessions through the local screen pipeline", 
     "study,P01,Android,Target Child,System,Unknown importance: 16,android,2026-03-07 10:02:30,,,America/Chicago",
   ].join("\n");
 
-  await setInputFile(page, "raw-file-input", "Raw P01.csv", keepAwakeRawCsv, "text/csv");
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", appsForcingScreenOpenRawCsv, "text/csv");
   await page.getByTestId("usage-mode-select").selectOption("app_and_screen_usage");
-  await page.getByTestId("toggle-useKeepAwakeAppsFile").check();
-  await setInputFile(page, "keep-awake-file-input", "keep_awake.csv", KEEP_AWAKE_CSV, "text/csv");
+  await page.getByTestId("toggle-useAppsForcingScreenOpenFile").check();
+  await setInputFile(page, "apps-forcing-screen-open-file-input", "apps_forcing_screen_open.csv", APPS_FORCING_SCREEN_OPEN_CSV, "text/csv");
   await processFiles(page);
 
   const screenCsv = await downloadCsv(page, "download-screen-csv");
@@ -567,5 +555,103 @@ test("@install keeps the simplified hero stable when beforeinstallprompt fires",
   await expect(page.getByRole("tab", { name: /Files/i })).toBeVisible();
   await page.getByRole("tab", { name: /Process/i }).click();
   await expect(page.getByTestId("process-files-button")).toBeVisible();
+  assertNoExternalRequests(requestTracker);
+});
+
+test("workflow tabs are labels only without subtitles", async ({ page }) => {
+  for (const tabName of ["Settings", "Files", "Process"]) {
+    const tab = page.getByRole("tab", { name: new RegExp(`^${tabName}$`, "i") });
+    await expect(tab).toBeVisible();
+    expect(await tab.locator(".workflow-nav__meta").count()).toBe(0);
+  }
+  assertNoExternalRequests(requestTracker);
+});
+
+test("settings management lives in Settings and footer has only About info", async ({ page }) => {
+  const card = page.getByTestId("settings-management");
+  await expect(card).toBeVisible();
+  await expect(card.getByRole("heading", { level: 4, name: /Current settings/i })).toBeVisible();
+  await expect(card.getByRole("heading", { level: 4, name: /Preset library/i })).toBeVisible();
+  await expect(card.getByTestId("export-settings-button")).toBeVisible();
+  await expect(card.getByTestId("import-settings-input")).toBeAttached();
+  await expect(card.getByTestId("save-preset-button")).toBeVisible();
+
+  const footer = page.getByTestId("app-footer");
+  await expect(footer).toBeVisible();
+  expect(await footer.getByTestId("export-settings-button").count()).toBe(0);
+  expect(await footer.getByRole("button", { name: /reset all to defaults/i }).count()).toBe(0);
+  await expect(footer.getByText(/^Version /)).toBeVisible();
+  assertNoExternalRequests(requestTracker);
+});
+
+test("files tab lists every timezone instead of summarizing as N timezones", async ({ page }) => {
+  await page.getByRole("tab", { name: /Files/i }).click();
+  await setInputFile(page, "raw-file-input", "Mixed.csv", MIXED_TIMEZONE_RAW_CSV, "text/csv");
+  const row = page.getByTestId("raw-file-row").first();
+  await expect(row).toBeVisible();
+  await expect(row).not.toContainText(/\d+ timezones/);
+  await expect(row.locator(".raw-file-row__timezones li")).toHaveCount(2);
+  assertNoExternalRequests(requestTracker);
+});
+
+test("duplicate timestamps stop blocking readiness when correction is enabled", async ({ page }) => {
+  await expandSectionCard(page, "session-detection");
+  await expect(page.getByTestId("toggle-correctDuplicateEventTimestamps")).toBeChecked();
+
+  await page.getByRole("tab", { name: /Files/i }).click();
+  const dupCsv = [
+    "study_id,participant_id,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+    "S,P,Foo,Activity Resumed,com.foo,2024-01-01 10:00:00,America/Chicago",
+    "S,P,Foo,Activity Resumed,com.foo,2024-01-01 10:00:00,America/Chicago",
+  ].join("\n");
+  await setInputFile(page, "raw-file-input", "dup.csv", dupCsv, "text/csv");
+  const row = page.getByTestId("raw-file-row").first();
+  await expect(row).toBeVisible();
+  await expect(row.locator(".status-pill")).toContainText(/Success/i);
+  await expect(row).toContainText(/will be corrected/);
+
+  await page.getByRole("tab", { name: /Settings/i }).click();
+  await page.getByTestId("toggle-correctDuplicateEventTimestamps").uncheck();
+  await page.getByRole("tab", { name: /Files/i }).click();
+  await expect(row.locator(".status-pill")).toContainText(/Warning|Review/i);
+  await expect(row).toContainText(/not corrected/);
+  assertNoExternalRequests(requestTracker);
+});
+
+test("results table is the primary post-processing surface and preview is gone", async ({ page }) => {
+  await page.getByTestId("run-sample-button").click();
+  const table = page.getByTestId("result-file-table");
+  await expect(table).toBeVisible();
+  await expect(table.locator("thead th")).toContainText([
+    "Input file",
+    "Status",
+    "Input rows",
+    "Processed rows",
+    "App rows",
+    "Screen rows",
+    "Input timezones",
+    "Timezone action",
+    "Final timezone",
+    "Duplicate timestamps corrected",
+    "Warnings",
+    "Outputs",
+  ]);
+  expect(await page.locator(".result-preview").count()).toBe(0);
+  expect(await page.locator(".preview-table").count()).toBe(0);
+  expect(await page.locator(".result-details").count()).toBe(0);
+  assertNoExternalRequests(requestTracker);
+});
+
+test("legacy useKeepAwakeAppsFile imports are dropped, not silently mapped", async ({ page }) => {
+  await page.getByTestId("import-settings-input").setInputFiles({
+    name: "legacy-settings.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({ options: { useKeepAwakeAppsFile: true, studyName: "Legacy" } }),
+      "utf-8",
+    ),
+  });
+  await expect(page.getByTestId("study-name-input")).toHaveValue("Legacy");
+  await expect(page.getByTestId("toggle-useAppsForcingScreenOpenFile")).not.toBeChecked();
   assertNoExternalRequests(requestTracker);
 });

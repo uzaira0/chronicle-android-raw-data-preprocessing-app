@@ -5,7 +5,7 @@ import { ToggleField } from "@/components/ToggleField";
 import { SettingsField } from "@/components/SettingsField";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import type { BrowserProcessingOptions } from "@/lib/types";
-import type { RawFileInspection } from "@/lib/fileInspection";
+import { effectiveWarnings, type RawFileInspection } from "@/lib/fileInspection";
 
 type Props = {
   options: BrowserProcessingOptions;
@@ -35,7 +35,10 @@ export function ProcessPanel({
   overallPercent,
 }: Props): ReactElement {
   const etaSeconds = estimateSeconds(uploadedFiles, options.parallelProcessing);
-  const warningCount = inspections.reduce((sum, inspection) => sum + inspection.warnings.length, 0);
+  const warningCount = inspections.reduce(
+    (sum, inspection) => sum + effectiveWarnings(inspection, options).length,
+    0,
+  );
   const rowCount = inspections.reduce((sum, inspection) => sum + inspection.rowCount, 0);
 
   return (

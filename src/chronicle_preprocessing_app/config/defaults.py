@@ -43,11 +43,11 @@ DEFAULT_APPS_TO_FILTER_FILE_PATH = (
 DEFAULT_APPS_TO_FILTER_DICT: dict[str, str] = {"": ""}
 
 # Screen-usage keep-awake app defaults
-DEFAULT_USE_KEEP_AWAKE_APPS_FILE: bool = False
-DEFAULT_KEEP_AWAKE_APPS_FILE_PATH = (
-    "./screen_awake_app_files/Chronicle_Android_raw_data_preprocessor_keep_awake_apps.csv"
+DEFAULT_USE_APPS_FORCING_SCREEN_OPEN_FILE: bool = False
+DEFAULT_APPS_FORCING_SCREEN_OPEN_FILE_PATH = (
+    "./apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv"
 )
-DEFAULT_KEEP_AWAKE_APPS_DICT: dict[str, str] = {}
+DEFAULT_APPS_FORCING_SCREEN_OPEN_DICT: dict[str, str] = {}
 
 # Screen usage session defaults
 DEFAULT_USAGE_SESSION_MODE: UsageSessionMode = UsageSessionMode.APP_USAGE
