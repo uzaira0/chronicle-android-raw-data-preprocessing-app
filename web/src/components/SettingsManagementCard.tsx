@@ -84,8 +84,10 @@ export function SettingsManagementCard({
             Settings management
           </h3>
           <p className="workflow-section__intro">
-            Your active settings are saved automatically in this browser. Use the preset library to
-            keep named snapshots you can switch between.
+            <strong>Current settings</strong> is the single configuration the next run will use —
+            it auto-saves in this browser and there is only one. The <strong>preset library</strong>
+            is a list of named copies you save off and load back later when you want to switch
+            between configurations.
           </p>
         </div>
       </header>
@@ -95,7 +97,8 @@ export function SettingsManagementCard({
           Current settings
         </h4>
         <p className="text-faint u-meta-xs">
-          The configuration that will be used for the next run.
+          The single active configuration. Auto-saved in this browser. Export saves these exact
+          values to a JSON file; import replaces them.
         </p>
         <div className="button-row">
           <button
@@ -150,7 +153,9 @@ export function SettingsManagementCard({
           Preset library
         </h4>
         <p className="text-faint u-meta-xs">
-          Named snapshots of settings. Loading a preset replaces your current settings.
+          A collection of named configurations you keep around. Save snapshots of the current
+          settings under any name, then load them later to swap configurations. Export/import here
+          moves the entire library — not the active settings above.
         </p>
         <div className="preset-manager__save">
           <input
