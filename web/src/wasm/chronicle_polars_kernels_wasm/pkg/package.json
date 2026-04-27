@@ -1,0 +1,15 @@
+{
+  "name": "chronicle_polars_kernels_wasm",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "chronicle_polars_kernels_wasm_bg.wasm",
+    "chronicle_polars_kernels_wasm.js",
+    "chronicle_polars_kernels_wasm.d.ts"
+  ],
+  "main": "chronicle_polars_kernels_wasm.js",
+  "types": "chronicle_polars_kernels_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
