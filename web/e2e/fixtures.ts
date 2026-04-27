@@ -44,7 +44,7 @@ export const FILTER_FILE_CSV = [
   "com.example.filtered,Filtered Reader",
 ].join("\n");
 
-export const KEEP_AWAKE_CSV = [
+export const APPS_FORCING_SCREEN_OPEN_CSV = [
   "package_name,label_or_note",
   "com.example.chat,Chat",
 ].join("\n");

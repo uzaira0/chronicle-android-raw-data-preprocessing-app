@@ -10,7 +10,7 @@ from pathlib import Path
 
 from chronicle_preprocessing_app.config.defaults import (
     DEFAULT_APPS_TO_FILTER_FILE_PATH,
-    DEFAULT_KEEP_AWAKE_APPS_FILE_PATH,
+    DEFAULT_APPS_FORCING_SCREEN_OPEN_FILE_PATH,
     DEFAULT_LONG_DATA_TIME_GAP_THRESHOLDS,
     DEFAULT_LONG_USAGE_DURATION_THRESHOLDS,
     DEFAULT_MINIMUM_USAGE_DURATION,
@@ -172,37 +172,37 @@ class ConfigPanel(QWidget):
         config_layout.addWidget(self.filter_file_widget)
         self.filter_file_widget.setVisible(self.options.use_filter_file)
 
-        self.keep_awake_apps_checkbox = QCheckBox(
+        self.apps_forcing_screen_open_checkbox = QCheckBox(
             "Use Keep-Awake App File for Screen Usage End-Reason Classification"
         )
-        self.keep_awake_apps_checkbox.setChecked(self.options.use_keep_awake_apps_file)
-        self.keep_awake_apps_checkbox.stateChanged.connect(
-            self._on_use_keep_awake_apps_changed
+        self.apps_forcing_screen_open_checkbox.setChecked(self.options.use_apps_forcing_screen_open_file)
+        self.apps_forcing_screen_open_checkbox.stateChanged.connect(
+            self._on_use_apps_forcing_screen_open_changed
         )
-        config_layout.addWidget(self.keep_awake_apps_checkbox)
+        config_layout.addWidget(self.apps_forcing_screen_open_checkbox)
 
-        self.keep_awake_apps_file_widget = QWidget()
-        keep_awake_apps_file_layout = QHBoxLayout(self.keep_awake_apps_file_widget)
-        keep_awake_apps_file_layout.setContentsMargins(0, 0, 0, 0)
+        self.apps_forcing_screen_open_file_widget = QWidget()
+        apps_forcing_screen_open_file_layout = QHBoxLayout(self.apps_forcing_screen_open_file_widget)
+        apps_forcing_screen_open_file_layout.setContentsMargins(0, 0, 0, 0)
 
-        keep_awake_apps_file_label = QLabel("Keep-Awake Apps File:")
-        keep_awake_apps_file_layout.addWidget(keep_awake_apps_file_label)
+        apps_forcing_screen_open_file_label = QLabel("Apps-Forcing-Screen-Open File:")
+        apps_forcing_screen_open_file_layout.addWidget(apps_forcing_screen_open_file_label)
 
-        self.keep_awake_apps_file_display = QLineEdit()
-        self.keep_awake_apps_file_display.setReadOnly(True)
-        self.keep_awake_apps_file_display.setFixedHeight(int(26 * self.scale_factor))
+        self.apps_forcing_screen_open_file_display = QLineEdit()
+        self.apps_forcing_screen_open_file_display.setReadOnly(True)
+        self.apps_forcing_screen_open_file_display.setFixedHeight(int(26 * self.scale_factor))
 
-        self.keep_awake_apps_file_button = QPushButton("Browse...")
-        self.keep_awake_apps_file_button.setFixedSize(
+        self.apps_forcing_screen_open_file_button = QPushButton("Browse...")
+        self.apps_forcing_screen_open_file_button.setFixedSize(
             QSize(int(80 * self.scale_factor), int(26 * self.scale_factor))
         )
-        self.keep_awake_apps_file_button.clicked.connect(self._on_select_keep_awake_apps_file)
+        self.apps_forcing_screen_open_file_button.clicked.connect(self._on_select_apps_forcing_screen_open_file)
 
-        keep_awake_apps_file_layout.addWidget(self.keep_awake_apps_file_display)
-        keep_awake_apps_file_layout.addWidget(self.keep_awake_apps_file_button)
+        apps_forcing_screen_open_file_layout.addWidget(self.apps_forcing_screen_open_file_display)
+        apps_forcing_screen_open_file_layout.addWidget(self.apps_forcing_screen_open_file_button)
 
-        config_layout.addWidget(self.keep_awake_apps_file_widget)
-        self.keep_awake_apps_file_widget.setVisible(self.options.use_keep_awake_apps_file)
+        config_layout.addWidget(self.apps_forcing_screen_open_file_widget)
+        self.apps_forcing_screen_open_file_widget.setVisible(self.options.use_apps_forcing_screen_open_file)
 
         self.app_usage_sessions_checkbox = QCheckBox("Generate App Usage File")
         self.app_usage_sessions_checkbox.setChecked(self.options.process_app_usage_sessions)
@@ -362,10 +362,10 @@ class ConfigPanel(QWidget):
             )
         if self.options.filter_file:
             self._display_path_with_elide(self.filter_file_display, str(self.options.filter_file))
-        if self.options.keep_awake_apps_file:
+        if self.options.apps_forcing_screen_open_file:
             self._display_path_with_elide(
-                self.keep_awake_apps_file_display,
-                str(self.options.keep_awake_apps_file),
+                self.apps_forcing_screen_open_file_display,
+                str(self.options.apps_forcing_screen_open_file),
             )
 
     def _on_use_filter_changed(self, state: int) -> None:
@@ -403,35 +403,35 @@ class ConfigPanel(QWidget):
 
         self.options_updated.emit()
 
-    def _on_use_keep_awake_apps_changed(self, state: int) -> None:
+    def _on_use_apps_forcing_screen_open_changed(self, state: int) -> None:
         """
-        Handle keep-awake apps file checkbox change.
+        Handle apps-forcing-screen-open file checkbox change.
 
         Args:
             state: The new checkbox state
         """
         checked = state == Qt.CheckState.Checked.value
-        LOGGER.debug(f"Use keep-awake apps file changed to: {checked}")
-        self.options.use_keep_awake_apps_file = checked
-        self.keep_awake_apps_file_widget.setVisible(checked)
+        LOGGER.debug(f"Use apps-forcing-screen-open file changed to: {checked}")
+        self.options.use_apps_forcing_screen_open_file = checked
+        self.apps_forcing_screen_open_file_widget.setVisible(checked)
 
-        if checked and not self.options.keep_awake_apps_file:
-            default_path = str(Path(DEFAULT_KEEP_AWAKE_APPS_FILE_PATH).absolute())
-            self.options.keep_awake_apps_file = default_path
-            self._display_path_with_elide(self.keep_awake_apps_file_display, default_path)
+        if checked and not self.options.apps_forcing_screen_open_file:
+            default_path = str(Path(DEFAULT_APPS_FORCING_SCREEN_OPEN_FILE_PATH).absolute())
+            self.options.apps_forcing_screen_open_file = default_path
+            self._display_path_with_elide(self.apps_forcing_screen_open_file_display, default_path)
 
             try:
                 from chronicle_preprocessing_app.utils.file_utils import (
-                    read_keep_awake_apps_file,
+                    read_apps_forcing_screen_open_file,
                 )
 
                 if Path(default_path).exists():
-                    self.options.keep_awake_apps_dict = read_keep_awake_apps_file(default_path)
+                    self.options.apps_forcing_screen_open_dict = read_apps_forcing_screen_open_file(default_path)
                     LOGGER.info(
-                        f"Loaded {len(self.options.keep_awake_apps_dict)} keep-awake apps from {default_path}"
+                        f"Loaded {len(self.options.apps_forcing_screen_open_dict)} keep-awake apps from {default_path}"
                     )
             except Exception:
-                LOGGER.exception("Error loading default keep-awake apps file")
+                LOGGER.exception("Error loading default apps-forcing-screen-open file")
 
         self.options_updated.emit()
 
@@ -548,29 +548,29 @@ class ConfigPanel(QWidget):
             except Exception:
                 LOGGER.exception("Error loading filter file")
 
-    def _on_select_keep_awake_apps_file(self) -> None:
+    def _on_select_apps_forcing_screen_open_file(self) -> None:
         """
-        Open a dialog to select the keep-awake apps file.
+        Open a dialog to select the apps-forcing-screen-open file.
         """
         file, _ = QFileDialog.getOpenFileName(
             self, "Select Keep-Awake Apps File", "", "Keep-Awake App Files (*.csv *.xlsx)"
         )
         if file:
-            self._display_path_with_elide(self.keep_awake_apps_file_display, file)
-            self.options.keep_awake_apps_file = file
+            self._display_path_with_elide(self.apps_forcing_screen_open_file_display, file)
+            self.options.apps_forcing_screen_open_file = file
             self.options_updated.emit()
 
             try:
                 from chronicle_preprocessing_app.utils.file_utils import (
-                    read_keep_awake_apps_file,
+                    read_apps_forcing_screen_open_file,
                 )
 
-                self.options.keep_awake_apps_dict = read_keep_awake_apps_file(file)
+                self.options.apps_forcing_screen_open_dict = read_apps_forcing_screen_open_file(file)
                 LOGGER.info(
-                    f"Loaded {len(self.options.keep_awake_apps_dict)} keep-awake apps from {file}"
+                    f"Loaded {len(self.options.apps_forcing_screen_open_dict)} keep-awake apps from {file}"
                 )
             except Exception:
-                LOGGER.exception("Error loading keep-awake apps file")
+                LOGGER.exception("Error loading apps-forcing-screen-open file")
 
     def _on_minimum_usage_duration_changed(self, value: int) -> None:
         """
@@ -871,15 +871,15 @@ class ConfigPanel(QWidget):
         if file:
             self._display_path_with_elide(self.filter_file_display, file)
 
-    def set_keep_awake_apps_file(self, file: str) -> None:
+    def set_apps_forcing_screen_open_file(self, file: str) -> None:
         """
-        Set the keep-awake apps file display.
+        Set the apps-forcing-screen-open file display.
 
         Args:
             file: The file path to set
         """
         if file:
-            self._display_path_with_elide(self.keep_awake_apps_file_display, file)
+            self._display_path_with_elide(self.apps_forcing_screen_open_file_display, file)
 
     def set_minimum_usage_duration(self, duration: int) -> None:
         """
@@ -941,16 +941,16 @@ class ConfigPanel(QWidget):
         self.filter_file_widget.setVisible(checked)
         self.options.use_filter_file = checked
 
-    def set_use_keep_awake_apps_file(self, checked: bool) -> None:
+    def set_use_apps_forcing_screen_open_file(self, checked: bool) -> None:
         """
-        Set the use keep-awake apps file checkbox.
+        Set the use apps-forcing-screen-open file checkbox.
 
         Args:
             checked: Whether the checkbox should be checked
         """
-        self.keep_awake_apps_checkbox.setChecked(checked)
-        self.keep_awake_apps_file_widget.setVisible(checked)
-        self.options.use_keep_awake_apps_file = checked
+        self.apps_forcing_screen_open_checkbox.setChecked(checked)
+        self.apps_forcing_screen_open_file_widget.setVisible(checked)
+        self.options.use_apps_forcing_screen_open_file = checked
 
     def set_usage_session_mode(self, mode: UsageSessionMode | str) -> None:
         """
@@ -1017,8 +1017,8 @@ class ConfigPanel(QWidget):
         self.raw_data_folder_button.setEnabled(False)
         self.label_filtered_apps_checkbox.setEnabled(False)
         self.filter_file_button.setEnabled(False)
-        self.keep_awake_apps_checkbox.setEnabled(False)
-        self.keep_awake_apps_file_button.setEnabled(False)
+        self.apps_forcing_screen_open_checkbox.setEnabled(False)
+        self.apps_forcing_screen_open_file_button.setEnabled(False)
         self.app_usage_sessions_checkbox.setEnabled(False)
         self.screen_usage_sessions_checkbox.setEnabled(False)
         self.screen_usage_auto_lock_timeout_input.setEnabled(False)
@@ -1046,8 +1046,8 @@ class ConfigPanel(QWidget):
         self.raw_data_folder_button.setEnabled(True)
         self.label_filtered_apps_checkbox.setEnabled(True)
         self.filter_file_button.setEnabled(True)
-        self.keep_awake_apps_checkbox.setEnabled(True)
-        self.keep_awake_apps_file_button.setEnabled(True)
+        self.apps_forcing_screen_open_checkbox.setEnabled(True)
+        self.apps_forcing_screen_open_file_button.setEnabled(True)
         self.app_usage_sessions_checkbox.setEnabled(True)
         self.screen_usage_sessions_checkbox.setEnabled(True)
         self.screen_usage_auto_lock_timeout_input.setEnabled(True)

@@ -20,7 +20,7 @@ type ProcessingSpec = {
   runtime?: BrowserProcessingRuntime;
   supportFilePaths?: {
     filterFile?: string;
-    keepAwakeAppsFile?: string;
+    appsForcingScreenOpenFile?: string;
     appCodebookFile?: string;
   };
 };
@@ -42,11 +42,11 @@ async function loadSupportFiles(
   supportFilePaths: ProcessingSpec["supportFilePaths"],
 ): Promise<BrowserSupportFiles> {
   const filterFile = await loadSupportFile(supportFilePaths?.filterFile);
-  const keepAwakeAppsFile = await loadSupportFile(supportFilePaths?.keepAwakeAppsFile);
+  const appsForcingScreenOpenFile = await loadSupportFile(supportFilePaths?.appsForcingScreenOpenFile);
   const appCodebookFile = await loadSupportFile(supportFilePaths?.appCodebookFile);
   return {
     ...(filterFile ? { filterFile } : {}),
-    ...(keepAwakeAppsFile ? { keepAwakeAppsFile } : {}),
+    ...(appsForcingScreenOpenFile ? { appsForcingScreenOpenFile } : {}),
     ...(appCodebookFile ? { appCodebookFile } : {}),
   };
 }

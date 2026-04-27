@@ -28,14 +28,12 @@ import { ScreenDetectionCard } from "@/components/ScreenDetectionCard";
 import { InteractionSemanticsCard } from "@/components/InteractionSemanticsCard";
 import { PerformanceCard } from "@/components/PerformanceCard";
 import { ResultPanel } from "@/components/ResultPanel";
-import { ResetDefaultsButton } from "@/components/ResetDefaultsButton";
 import type { FileProgress } from "@/components/ProgressList";
 import { Toast } from "@/components/Toast";
-import { SettingsPersistenceControls } from "@/components/SettingsPersistenceControls";
 import { WorkflowNav, type WorkflowTab } from "@/components/WorkflowNav";
 import { RawFilesCard } from "@/components/RawFilesCard";
 import { ProcessPanel } from "@/components/ProcessPanel";
-import { PresetManager } from "@/components/PresetManager";
+import { SettingsManagementCard } from "@/components/SettingsManagementCard";
 import { SettingsOverviewCard } from "@/components/SettingsOverviewCard";
 import { SettingsSearchResults } from "@/components/SettingsSearchResults";
 
@@ -132,7 +130,7 @@ export default function App(): ReactElement {
   const [fileInspections, setFileInspections] = useState<RawFileInspection[]>([]);
   const [isInspectingFiles, setIsInspectingFiles] = useState(false);
   const [filterFile, setFilterFile] = useState<File | null>(null);
-  const [keepAwakeFile, setKeepAwakeFile] = useState<File | null>(null);
+  const [appsForcingScreenOpenFile, setAppsForcingScreenOpenFile] = useState<File | null>(null);
   const [appCodebookFile, setAppCodebookFile] = useState<File | null>(null);
   const [discoveredTimezones, setDiscoveredTimezones] = useState<string[]>([]);
   const [options, setOptions] = useState<BrowserProcessingOptions>(() => readPersistedOptions());
@@ -188,8 +186,8 @@ export default function App(): ReactElement {
     ...(options.useFilterFile && filterFile
       ? { filterFile: await readSupportFile(filterFile) }
       : {}),
-    ...(options.useKeepAwakeAppsFile && keepAwakeFile
-      ? { keepAwakeAppsFile: await readSupportFile(keepAwakeFile) }
+    ...(options.useAppsForcingScreenOpenFile && appsForcingScreenOpenFile
+      ? { appsForcingScreenOpenFile: await readSupportFile(appsForcingScreenOpenFile) }
       : {}),
     ...(options.useAppCodebook && appCodebookFile
       ? { appCodebookFile: await readSupportFile(appCodebookFile) }
@@ -410,12 +408,6 @@ export default function App(): ReactElement {
             estimatedFilePercent(progressByFile[name] ?? { fileName: name, status: "pending" }),
           0,
         ) / progressOrder.length;
-  const settingsSummary =
-    options.usageSessionMode === "app_usage"
-      ? "App output"
-      : options.usageSessionMode === "screen_usage"
-        ? "Screen output"
-        : "Both outputs";
   const normalizedSettingsQuery = settingsQuery.trim().toLowerCase();
   const shows = (text: string) =>
     !normalizedSettingsQuery || text.toLowerCase().includes(normalizedSettingsQuery);
@@ -450,13 +442,7 @@ export default function App(): ReactElement {
           />
         </header>
 
-        <WorkflowNav
-          active={activeWorkflow}
-          settingsSummary={settingsSummary}
-          fileCount={uploadedFiles.length}
-          isRunning={isRunning}
-          onSelect={setActiveWorkflow}
-        />
+        <WorkflowNav active={activeWorkflow} onSelect={setActiveWorkflow} />
 
         <div id="workflow-panels" className="workflow-panels" tabIndex={-1}>
           <div
@@ -485,21 +471,21 @@ export default function App(): ReactElement {
                 </label>
               </div>
               <SettingsSearchResults query={settingsQuery} onNavigate={navigateFromSettingsSearch} />
-              <PresetManager
+              <SettingsManagementCard
                 options={options}
-                onApply={setOptions}
+                setOptions={setOptions}
                 onStatus={(message, isError = false) => setToast({ message, isError })}
               />
               <SettingsOverviewCard options={options} setOptions={setOptions} />
               <div className="settings-stack">
-                {shows("support files filter keep awake codebook") ? (
+                {shows("support files filter keep awake prevent screen sleep codebook") ? (
                   <FilesAndInputsCard
                     options={options}
                     setOptions={setOptions}
                     filterFile={filterFile}
                     setFilterFile={setFilterFile}
-                    keepAwakeFile={keepAwakeFile}
-                    setKeepAwakeFile={setKeepAwakeFile}
+                    appsForcingScreenOpenFile={appsForcingScreenOpenFile}
+                    setAppsForcingScreenOpenFile={setAppsForcingScreenOpenFile}
                     appCodebookFile={appCodebookFile}
                     setAppCodebookFile={setAppCodebookFile}
                   />
@@ -542,6 +528,7 @@ export default function App(): ReactElement {
               uploadedFiles={uploadedFiles}
               inspections={fileInspections}
               isInspecting={isInspectingFiles}
+              options={options}
               onFilesChange={onFilesChange}
               onClear={() => {
                 onFilesChange([]);
@@ -583,20 +570,15 @@ export default function App(): ReactElement {
           </div>
         </div>
 
-        <footer className="app-footer">
-          <div className="footer-actions">
-            <ResetDefaultsButton options={options} onReset={setOptions} />
-            <SettingsPersistenceControls
-              options={options}
-              onImport={setOptions}
-              onStatus={(message, isError = false) => setToast({ message, isError })}
-            />
-            <details className="app-info">
-              <summary>App info</summary>
-              <span>Version {PREPROCESSOR_VERSION}</span>
-              <span>Build 2026-04-25</span>
-              <span>Bundled codebook available</span>
-            </details>
+        <footer className="app-footer" data-testid="app-footer">
+          <div className="app-footer__about" aria-label="App info">
+            <span>Version {PREPROCESSOR_VERSION}</span>
+            <span aria-hidden="true">·</span>
+            <span>Build 2026-04-26</span>
+            <span aria-hidden="true">·</span>
+            <span>Bundled codebook available</span>
+            <span aria-hidden="true">·</span>
+            <span>Runs entirely in your browser</span>
           </div>
         </footer>
         {toast ? (

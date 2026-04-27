@@ -50,7 +50,7 @@ from chronicle_preprocessing_app.utils.file_utils import (
     get_matching_files_from_folder,
     read_app_codebook,
     read_filter_file,
-    read_keep_awake_apps_file,
+    read_apps_forcing_screen_open_file,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -174,9 +174,9 @@ class ChronicleAndroidRawDataPreprocessor:
 
         if self.options.use_filter_file and not self.options.apps_to_filter_dict:
             self.options.apps_to_filter_dict = read_filter_file(self.options.filter_file)
-        if self.options.use_keep_awake_apps_file and not self.options.keep_awake_apps_dict:
-            self.options.keep_awake_apps_dict = read_keep_awake_apps_file(
-                self.options.keep_awake_apps_file
+        if self.options.use_apps_forcing_screen_open_file and not self.options.apps_forcing_screen_open_dict:
+            self.options.apps_forcing_screen_open_dict = read_apps_forcing_screen_open_file(
+                self.options.apps_forcing_screen_open_file
             )
 
     def get_participant_id_from_data(self) -> str:
@@ -211,6 +211,9 @@ class ChronicleAndroidRawDataPreprocessor:
                 output_df = self.current_participant_raw_data_df
                 output_file_suffix = PREPROCESSED_FILE_SUFFIX
 
+            output_df = output_df.with_columns(
+                pl.lit(self.options.study_name).alias(Column.STUDY_NAME)
+            )
             app_save_name = (
                 preprocessed_data_save_folder
                 / f"{Path(raw_data_filename).stem.replace('Raw ', '')} {output_file_suffix}"
@@ -235,14 +238,15 @@ class ChronicleAndroidRawDataPreprocessor:
                 preprocessed_data_save_folder
                 / f"{Path(raw_data_filename).stem.replace('Raw ', '')} Screen Usage {PREPROCESSED_FILE_SUFFIX}"
             )
+            screen_df = self.current_participant_screen_usage_df.with_columns(
+                pl.lit(self.options.study_name).alias(Column.STUDY_NAME)
+            )
             formatted_screen = self.fast_preprocessor._format_output_frame(
-                self.current_participant_screen_usage_df.select(
+                screen_df.select(
                     [
                         column
-                        for column in self.fast_preprocessor._build_output_columns(
-                            self.current_participant_screen_usage_df
-                        )
-                        if column in self.current_participant_screen_usage_df.columns
+                        for column in self.fast_preprocessor._build_output_columns(screen_df)
+                        if column in screen_df.columns
                     ]
                 )
             )

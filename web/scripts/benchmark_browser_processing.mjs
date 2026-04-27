@@ -155,8 +155,8 @@ async function main() {
         await page.getByTestId("filter-file-input").setInputFiles(args.filter);
       }
       if (args.keepAwake) {
-        await page.getByTestId("toggle-useKeepAwakeAppsFile").check();
-        await page.getByTestId("keep-awake-file-input").setInputFiles(args.keepAwake);
+        await page.getByTestId("toggle-useAppsForcingScreenOpenFile").check();
+        await page.getByTestId("apps-forcing-screen-open-file-input").setInputFiles(args.keepAwake);
       }
       if (args.codebook) {
         await page.getByTestId("toggle-useAppCodebook").check();

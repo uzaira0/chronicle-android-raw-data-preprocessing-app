@@ -11,7 +11,7 @@ const SETTINGS: SettingSearchItem[] = [
   { label: "Study name", section: "Core", href: "#settings", keywords: "study name id output metadata" },
   { label: "Output mode", section: "Core", href: "#settings", keywords: "app screen both usage session csv" },
   { label: "Filter file", section: "Support files", href: "#files", keywords: "support filter bundled default apps upload" },
-  { label: "Keep-awake apps file", section: "Support files", href: "#files", keywords: "support keep awake screen upload bundled default" },
+  { label: "Apps-forcing-screen-open file", section: "Support files", href: "#files", keywords: "support apps forcing screen open upload bundled default" },
   { label: "App codebook file", section: "Support files", href: "#files", keywords: "support codebook genre category upload bundled default" },
   { label: "Timezone handling", section: "Timezone", href: "#timezone", keywords: "timezone selected primary filter convert conversion" },
   { label: "Selected timezone", section: "Timezone", href: "#timezone", keywords: "timezone america chicago conversion selected" },

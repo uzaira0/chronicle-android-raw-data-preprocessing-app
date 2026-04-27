@@ -55,7 +55,7 @@ describe("browserPipeline", () => {
         timezoneHandling: "selected-convert",
         selectedTimezone: "America/New_York",
         useFilterFile: false,
-        useKeepAwakeAppsFile: false,
+        useAppsForcingScreenOpenFile: false,
         useAppCodebook: false,
       },
       {},
@@ -90,7 +90,7 @@ describe("browserPipeline", () => {
         ...DEFAULT_BROWSER_OPTIONS,
         usageSessionMode: "app_and_screen_usage",
         useFilterFile: false,
-        useKeepAwakeAppsFile: false,
+        useAppsForcingScreenOpenFile: false,
         useAppCodebook: false,
       },
       {},
@@ -134,7 +134,7 @@ describe("browserPipeline", () => {
       {
         ...DEFAULT_BROWSER_OPTIONS,
         useFilterFile: false,
-        useKeepAwakeAppsFile: false,
+        useAppsForcingScreenOpenFile: false,
         useAppCodebook: true,
       },
       {
@@ -173,7 +173,7 @@ describe("browserPipeline", () => {
       {
         ...DEFAULT_BROWSER_OPTIONS,
         useFilterFile: false,
-        useKeepAwakeAppsFile: false,
+        useAppsForcingScreenOpenFile: false,
         useAppCodebook: false,
       },
       {},
@@ -217,7 +217,7 @@ describe("browserPipeline", () => {
       {
         ...DEFAULT_BROWSER_OPTIONS,
         useFilterFile: true,
-        useKeepAwakeAppsFile: false,
+        useAppsForcingScreenOpenFile: false,
         useAppCodebook: false,
       },
       {
@@ -230,16 +230,18 @@ describe("browserPipeline", () => {
     );
 
     const csvText = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
-    const rows = csvText
-      .trim()
-      .split("\n")
+    const lines = csvText.trim().split("\n");
+    const headers = (lines[0] ?? "").split(",");
+    const rows = lines
       .slice(1)
       .map((line: string) => line.split(","));
+    const interactionIndex = headers.indexOf("interaction_type");
+    const startTimestampIndex = headers.indexOf("start_timestamp");
     expect(rows).toHaveLength(2);
-    expect(rows[0]?.[9]).toBe("End of Usage Missing");
-    expect(rows[0]?.[10]).toBe("");
-    expect(rows[1]?.[9]).toBe("End of Usage Missing");
-    expect(rows[1]?.[10]).not.toBe("");
+    expect(rows[0]?.[interactionIndex]).toBe("End of Usage Missing");
+    expect(rows[0]?.[startTimestampIndex]).toBe("");
+    expect(rows[1]?.[interactionIndex]).toBe("End of Usage Missing");
+    expect(rows[1]?.[startTimestampIndex]).not.toBe("");
   });
 
   it("emits progress events for every pipeline phase when onProgress is supplied", async () => {
@@ -264,7 +266,7 @@ describe("browserPipeline", () => {
         ...DEFAULT_BROWSER_OPTIONS,
         usageSessionMode: "app_and_screen_usage",
         useFilterFile: false,
-        useKeepAwakeAppsFile: false,
+        useAppsForcingScreenOpenFile: false,
         useAppCodebook: false,
       },
       {},
@@ -320,7 +322,7 @@ describe("browserPipeline", () => {
       {
         ...DEFAULT_BROWSER_OPTIONS,
         useFilterFile: false,
-        useKeepAwakeAppsFile: false,
+        useAppsForcingScreenOpenFile: false,
         useAppCodebook: false,
       },
       {},
@@ -352,7 +354,7 @@ describe("browserPipeline", () => {
       {
         ...DEFAULT_BROWSER_OPTIONS,
         useFilterFile: false,
-        useKeepAwakeAppsFile: false,
+        useAppsForcingScreenOpenFile: false,
         useAppCodebook: false,
       },
       {},

@@ -47,7 +47,7 @@ export type BrowserSupportFile = {
 
 export type BrowserSupportFiles = {
   filterFile?: BrowserSupportFile;
-  keepAwakeAppsFile?: BrowserSupportFile;
+  appsForcingScreenOpenFile?: BrowserSupportFile;
   appCodebookFile?: BrowserSupportFile;
 };
 
@@ -66,7 +66,7 @@ export type BrowserProcessingOptions = {
   selectedTimezone?: string;
   timezoneHandling: BrowserTimezoneHandling;
   useFilterFile: boolean;
-  useKeepAwakeAppsFile: boolean;
+  useAppsForcingScreenOpenFile: boolean;
   useAppCodebook: boolean;
   /** @deprecated Plotting is desktop-only. The web pipeline ignores this. */
   includeFilteredAppUsageInPlots?: boolean;
@@ -119,6 +119,13 @@ export type ProcessedOutputFileResult = {
   previewRows: string[][];
 };
 
+export type TimezoneAction =
+  | "none"
+  | "filtered_to_selected"
+  | "converted_to_selected"
+  | "filtered_to_primary"
+  | "converted_to_primary";
+
 export type ProcessedFileResult = {
   inputFileName: string;
   outputs: ProcessedOutputFileResult[];
@@ -128,4 +135,9 @@ export type ProcessedFileResult = {
   timezone: string;
   appRowCount: number;
   screenRowCount: number;
+  timezoneAction: TimezoneAction;
+  rowsBeforeTimezoneHandling: number;
+  rowsAfterTimezoneHandling: number;
+  rowsRemovedByTimezone: number;
+  duplicateTimestampsCorrected: number;
 };

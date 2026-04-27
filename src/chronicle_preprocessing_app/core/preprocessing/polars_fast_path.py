@@ -156,6 +156,7 @@ class PolarsFastPathPreprocessor:
             / f"{Path(raw_data_filename).stem.replace('Raw ', '') + ' ' + PREPROCESSED_FILE_SUFFIX}"
         )
 
+        df = df.with_columns(pl.lit(study_name).alias(Column.STUDY_NAME))
         columns_to_include = self._build_output_columns(df)
         output_df = df.select([col for col in columns_to_include if col in df.columns])
         output_df = self._format_output_frame(output_df)
@@ -1092,6 +1093,7 @@ class PolarsFastPathPreprocessor:
         )
         identification_columns = [
             Column.STUDY_ID,
+            Column.STUDY_NAME,
             Column.PARTICIPANT_ID,
             Column.POSSIBLE_DEVICE_MODEL,
             Column.USERNAME,
@@ -1120,7 +1122,7 @@ class PolarsFastPathPreprocessor:
             Column.SCREEN_USAGE_LAST_ACTIVITY_TIMESTAMP,
             Column.SCREEN_USAGE_TAIL_GAP_SECONDS,
             Column.SCREEN_USAGE_FOREGROUND_APP_PACKAGE,
-            Column.SCREEN_USAGE_KEEP_AWAKE_APP_LABEL,
+            Column.SCREEN_USAGE_APPS_FORCING_SCREEN_OPEN_LABEL,
             Column.SCREEN_USAGE_LOCK_SCREEN_ONLY,
             Column.ANY_APP_USAGE_FLAGS,
             Column.DATA_TIME_GAP_HOURS,

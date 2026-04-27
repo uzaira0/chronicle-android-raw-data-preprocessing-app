@@ -70,7 +70,7 @@ TIMEZONES = (
     "America/Los_Angeles",
     "UTC",
 )
-KEEP_AWAKE_APPS = {
+APPS_FORCING_SCREEN_OPEN = {
     "com.google.android.youtube": "YouTube",
     "com.google.android.apps.maps": "Maps",
 }
@@ -129,7 +129,7 @@ def _permuted_package(package_name: str, file_index: int, repetition_index: int)
     if (
         package_name in SYSTEM_APPS
         or package_name in FILTERED_APPS
-        or package_name in KEEP_AWAKE_APPS
+        or package_name in APPS_FORCING_SCREEN_OPEN
         or package_name in AMAZON_APPS
     ):
         return package_name
@@ -205,7 +205,7 @@ def build_pathological_raw_block(
             valid_app = STORE_APPS[(week * 7 + day) % len(STORE_APPS)]
             alt_app = STORE_APPS[(week * 7 + day + 3) % len(STORE_APPS)]
             filtered_app = FILTERED_APPS[(week + day) % len(FILTERED_APPS)]
-            keep_awake_app = tuple(KEEP_AWAKE_APPS)[(week + day) % len(KEEP_AWAKE_APPS)]
+            apps_forcing_screen_open_app = tuple(APPS_FORCING_SCREEN_OPEN)[(week + day) % len(APPS_FORCING_SCREEN_OPEN)]
 
             duplicate_ts = base + timedelta(minutes=15)
             duplicate_cluster = [
@@ -317,7 +317,7 @@ def build_pathological_raw_block(
             add_row(InteractionType.SCREEN_NON_INTERACTIVE, "android", base + timedelta(hours=7, minutes=2, seconds=15), primary_timezone)
 
             add_row(InteractionType.SCREEN_INTERACTIVE, "android", base + timedelta(hours=8), primary_timezone)
-            add_row(InteractionType.ACTIVITY_RESUMED, keep_awake_app, base + timedelta(hours=8, seconds=10), primary_timezone)
+            add_row(InteractionType.ACTIVITY_RESUMED, apps_forcing_screen_open_app, base + timedelta(hours=8, seconds=10), primary_timezone)
             add_row(InteractionType.SCREEN_NON_INTERACTIVE, "android", base + timedelta(hours=8, minutes=30, seconds=10), primary_timezone)
 
             add_row(InteractionType.SCREEN_INTERACTIVE, "android", base + timedelta(hours=9), primary_timezone)
@@ -373,7 +373,7 @@ def build_pathological_raw_block(
             package_name = (
                 FILTERED_APPS[offset % len(FILTERED_APPS)]
                 if "Filtered" in str(interaction_type)
-                else (tuple(KEEP_AWAKE_APPS)[offset % len(KEEP_AWAKE_APPS)] if "Screen" in str(interaction_type) else (STORE_APPS[offset % len(STORE_APPS)] if offset % 2 else "android"))
+                else (tuple(APPS_FORCING_SCREEN_OPEN)[offset % len(APPS_FORCING_SCREEN_OPEN)] if "Screen" in str(interaction_type) else (STORE_APPS[offset % len(STORE_APPS)] if offset % 2 else "android"))
             )
             add_row(interaction_type, package_name, timestamp, timezone_name, explicit_offset=explicit_offset)
 

@@ -1,11 +1,13 @@
 import { useRef, useState, type ReactElement } from "react";
 
-import type { RawFileInspection } from "@/lib/fileInspection";
+import { effectiveWarnings, type RawFileInspection } from "@/lib/fileInspection";
+import type { BrowserProcessingOptions } from "@/lib/types";
 
 type Props = {
   uploadedFiles: File[];
   inspections: RawFileInspection[];
   isInspecting: boolean;
+  options: BrowserProcessingOptions;
   onFilesChange: (files: File[]) => void;
   onClear: () => void;
   isRunning: boolean;
@@ -27,6 +29,7 @@ export function RawFilesCard({
   uploadedFiles,
   inspections,
   isInspecting,
+  options,
   onFilesChange,
   onClear,
   isRunning,
@@ -44,7 +47,7 @@ export function RawFilesCard({
         <div>
           <h2 id="files-title" className="workflow-section__title">Files</h2>
           <p className="workflow-section__intro">
-            Add raw Chronicle CSV files and review basic file readiness before processing.
+            Add raw Chronicle CSV files and review file readiness before processing.
           </p>
         </div>
         <button
@@ -99,41 +102,74 @@ export function RawFilesCard({
       </div>
 
       {uploadedFiles.length ? (
-        <div className="raw-file-list" aria-live="polite">
-          {uploadedFiles.map((file) => {
-            const inspection = inspections.find((entry) => entry.fileName === file.name);
-            const warnings = inspection?.warnings ?? [];
-            return (
-              <article
-                className={`raw-file-row${warnings.length ? " has-warning" : ""}`}
-                key={`${file.name}-${file.size}-${file.lastModified}`}
-              >
-                <div className="raw-file-row__main">
-                  <strong>{file.name}</strong>
-                  <span className="text-faint u-meta-xs">
-                    {formatBytes(file.size)}
-                    {inspection ? ` · ${inspection.rowCount.toLocaleString()} rows · ${inspection.columns.length} columns` : ""}
-                  </span>
-                </div>
-                <div className="raw-file-row__meta">
-                  <span className={`status-pill${warnings.length ? " is-warning" : " is-success"}`}>
-                    {inspection ? (warnings.length ? "Warning: Review" : "Success: Ready") : "Status: Inspecting"}
-                  </span>
-                  {inspection?.timezones.length ? (
-                    <span className="text-faint u-meta-xs">
-                      {inspection.timezones.length === 1
-                        ? inspection.timezones[0]
-                        : `${inspection.timezones.length} timezones`}
-                    </span>
-                  ) : null}
-                </div>
-                {warnings.length ? (
-                  <p className="raw-file-row__warning">{warnings.join(" ")}</p>
-                ) : null}
-              </article>
-            );
-          })}
-        </div>
+        <table className="raw-file-table" aria-live="polite">
+          <thead>
+            <tr>
+              <th scope="col">File</th>
+              <th scope="col">Size</th>
+              <th scope="col">Rows</th>
+              <th scope="col">Columns</th>
+              <th scope="col">Timezones</th>
+              <th scope="col">Duplicate timestamps</th>
+              <th scope="col">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {uploadedFiles.map((file) => {
+              const inspection = inspections.find((entry) => entry.fileName === file.name);
+              const warnings = inspection ? effectiveWarnings(inspection, options) : [];
+              const status = inspection
+                ? warnings.length
+                  ? { label: "Warning: Review", className: "is-warning" }
+                  : { label: "Success: Ready", className: "is-success" }
+                : { label: "Status: Inspecting", className: "" };
+              const dupCount = inspection?.duplicateTimestampCount ?? 0;
+              const dupCorrected = options.correctDuplicateEventTimestamps && dupCount > 0;
+              return (
+                <tr
+                  className={`raw-file-row${warnings.length ? " has-warning" : ""}`}
+                  key={`${file.name}-${file.size}-${file.lastModified}`}
+                  data-testid="raw-file-row"
+                >
+                  <td>
+                    <strong>{file.name}</strong>
+                    {warnings.length ? (
+                      <p className="raw-file-row__warning">{warnings.join(" ")}</p>
+                    ) : null}
+                  </td>
+                  <td className="text-faint u-meta-xs">{formatBytes(file.size)}</td>
+                  <td className="text-faint u-meta-xs">
+                    {inspection ? inspection.rowCount.toLocaleString() : "—"}
+                  </td>
+                  <td className="text-faint u-meta-xs">
+                    {inspection ? inspection.columns.length : "—"}
+                  </td>
+                  <td className="text-faint u-meta-xs">
+                    {inspection?.timezones.length ? (
+                      <ul className="raw-file-row__timezones">
+                        {inspection.timezones.map((zone) => (
+                          <li key={zone}>{zone}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="text-faint u-meta-xs">
+                    {dupCount === 0
+                      ? "0"
+                      : dupCorrected
+                        ? `${dupCount.toLocaleString()} (will be corrected)`
+                        : `${dupCount.toLocaleString()} (not corrected)`}
+                  </td>
+                  <td>
+                    <span className={`status-pill ${status.className}`}>{status.label}</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       ) : (
         <p className="empty-state">No raw files selected yet.</p>
       )}

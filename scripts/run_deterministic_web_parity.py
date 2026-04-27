@@ -17,7 +17,7 @@ from chronicle_preprocessing_app.core.preprocessing.main_preprocessor import (
 )
 from chronicle_preprocessing_app.utils.file_utils import (
     read_filter_file,
-    read_keep_awake_apps_file,
+    read_apps_forcing_screen_open_file,
 )
 from chronicle_preprocessing_app.utils.pathological_fixture_builder import (
     FixtureBuildConfig,
@@ -124,7 +124,7 @@ def _build_options(
     raw_data_folder: Path,
     use_app_codebook: bool,
     use_filter_file: bool,
-    use_keep_awake_apps_file: bool,
+    use_apps_forcing_screen_open_file: bool,
     usage_session_mode: UsageSessionMode,
     datetime_override: str,
 ) -> PreprocessingOptions:
@@ -136,9 +136,9 @@ def _build_options(
         use_filter_file=use_filter_file,
         filter_file=REPO_ROOT
         / "apps_to_filter_files/Chronicle_Android_raw_data_preprocessor_apps_to_filter.xlsx",
-        use_keep_awake_apps_file=use_keep_awake_apps_file,
-        keep_awake_apps_file=REPO_ROOT
-        / "screen_awake_app_files/Chronicle_Android_raw_data_preprocessor_keep_awake_apps.csv",
+        use_apps_forcing_screen_open_file=use_apps_forcing_screen_open_file,
+        apps_forcing_screen_open_file=REPO_ROOT
+        / "apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv",
         usage_session_mode=usage_session_mode,
         selected_timezone="America/Chicago",
         timezone_handling_option=TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE,
@@ -146,21 +146,21 @@ def _build_options(
     )
     if options.use_filter_file:
         options.apps_to_filter_dict = read_filter_file(options.filter_file)
-    if options.use_keep_awake_apps_file:
-        options.keep_awake_apps_dict = read_keep_awake_apps_file(options.keep_awake_apps_file)
+    if options.use_apps_forcing_screen_open_file:
+        options.apps_forcing_screen_open_dict = read_apps_forcing_screen_open_file(options.apps_forcing_screen_open_file)
     return options
 
 
 def _run_desktop(raw_csv_path: Path, options: PreprocessingOptions, output_root: Path) -> tuple[Path, Path | None]:
+    del output_root  # output_folder is derived from raw_data_folder.parent
     preprocessor = ChronicleAndroidRawDataPreprocessor(options)
-    preprocessor.options.study_name = output_root.name
     preprocessor.options.raw_data_folder = raw_csv_path.parent
     preprocessor.options.enable_plotting = False
     preprocessor.options.parallel_processing = False
     preprocessor.options.parallel_max_workers = None
     preprocessor.options.datetime_of_preprocessing_override = options.datetime_of_preprocessing_override
     preprocessor.options.use_filter_file = options.use_filter_file
-    preprocessor.options.use_keep_awake_apps_file = options.use_keep_awake_apps_file
+    preprocessor.options.use_apps_forcing_screen_open_file = options.use_apps_forcing_screen_open_file
     preprocessor.options.use_app_codebook = options.use_app_codebook
     output_folder, success, _ = preprocessor.preprocess_Chronicle_Android_raw_data_file(raw_csv_path)
     if not success:
@@ -187,7 +187,7 @@ def main() -> int:
             raw_data_folder=desktop_full_raw_dir,
             use_app_codebook=True,
             use_filter_file=True,
-            use_keep_awake_apps_file=True,
+            use_apps_forcing_screen_open_file=True,
             usage_session_mode=UsageSessionMode.APP_AND_SCREEN_USAGE,
             datetime_override=args.datetime,
         )
@@ -206,7 +206,7 @@ def main() -> int:
             raw_data_folder=desktop_core_raw_dir,
             use_app_codebook=False,
             use_filter_file=False,
-            use_keep_awake_apps_file=False,
+            use_apps_forcing_screen_open_file=False,
             usage_session_mode=UsageSessionMode.APP_USAGE,
             datetime_override=args.datetime,
         )
@@ -230,7 +230,7 @@ def main() -> int:
                 "selectedTimezone": "America/Chicago",
                 "timezoneHandling": "selected-filter",
                 "useFilterFile": True,
-                "useKeepAwakeAppsFile": True,
+                "useAppsForcingScreenOpenFile": True,
                 "useAppCodebook": True,
             },
             datetime_override=args.datetime,
@@ -239,9 +239,9 @@ def main() -> int:
                     REPO_ROOT
                     / "web/src/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv"
                 ),
-                "keepAwakeAppsFile": str(
+                "appsForcingScreenOpenFile": str(
                     REPO_ROOT
-                    / "screen_awake_app_files/Chronicle_Android_raw_data_preprocessor_keep_awake_apps.csv"
+                    / "apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv"
                 ),
                 "appCodebookFile": str(
                     REPO_ROOT / "src/chronicle_preprocessing_app/data/unified_app_codebook.csv"
@@ -261,7 +261,7 @@ def main() -> int:
                 "selectedTimezone": "America/Chicago",
                 "timezoneHandling": "selected-filter",
                 "useFilterFile": False,
-                "useKeepAwakeAppsFile": False,
+                "useAppsForcingScreenOpenFile": False,
                 "useAppCodebook": False,
             },
             datetime_override=args.datetime,

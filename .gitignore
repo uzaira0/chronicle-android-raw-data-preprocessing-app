@@ -210,7 +210,7 @@ archive/
 # Codebook files — only the main distributable codebook xlsx is tracked
 *.csv
 !src/chronicle_preprocessing_app/data/*.csv
-!screen_awake_app_files/Chronicle_Android_raw_data_preprocessor_keep_awake_apps.csv
+!apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv
 app_codebook_files/App Codebook*.xlsx
 app_codebook_files/*backup*.xlsx
 app_codebook_files/Baby EMU*
@@ -230,6 +230,7 @@ web/node_modules/
 web/dist/
 web/.vite/
 web/.tmp/
+web/.github-pages-dist/
 .superpowers/
 !web/src/lib/
 !web/src/lib/**
