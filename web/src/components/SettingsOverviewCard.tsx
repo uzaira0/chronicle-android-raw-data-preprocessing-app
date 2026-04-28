@@ -1,7 +1,8 @@
 import type { Dispatch, ReactElement, SetStateAction } from "react";
 
 import { SettingsField } from "@/components/SettingsField";
-import { DEFAULT_BROWSER_OPTIONS, USAGE_SESSION_MODE_OPTIONS } from "@/lib/browserPipeline";
+import { ToggleField } from "@/components/ToggleField";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { isOptionDefault } from "@/lib/optionDefaults";
 import type { BrowserProcessingOptions } from "@/lib/types";
@@ -33,57 +34,34 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
         />
       </SettingsField>
 
-      <SettingsField
-        label="Output mode"
-        tooltip={TOOLTIPS.usageSessionMode}
-        modified={!isOptionDefault("usageSessionMode", options.usageSessionMode)}
-        onReset={() =>
-          setOptions((current) => ({
-            ...current,
-            usageSessionMode: DEFAULT_BROWSER_OPTIONS.usageSessionMode,
-          }))
-        }
-      >
-        <div className="segmented-control" role="group" aria-label="Output mode">
-          {USAGE_SESSION_MODE_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={options.usageSessionMode === option.value ? "is-selected" : ""}
-              data-testid={`usage-mode-${option.value}`}
-              onClick={() =>
-                setOptions((current) => ({
-                  ...current,
-                  usageSessionMode: option.value,
-                }))
-              }
-            >
-              {option.value === "app_usage"
-                ? "App"
-                : option.value === "screen_usage"
-                  ? "Screen"
-                  : "Both"}
-            </button>
-          ))}
-        </div>
-        <select
-          data-testid="usage-mode-select"
-          className="select u-visually-compatible-select"
-          value={options.usageSessionMode}
-          onChange={(event) =>
-            setOptions((current) => ({
-              ...current,
-              usageSessionMode: event.target.value as BrowserProcessingOptions["usageSessionMode"],
-            }))
-          }
-          aria-label="Output mode compatibility select"
-        >
-          {USAGE_SESSION_MODE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+      <SettingsField label="Output mode">
+        <ToggleField
+          label="App usage"
+          checked={options.processAppUsage}
+          onChange={(value) => setOptions((current) => ({ ...current, processAppUsage: value }))}
+          testId="toggle-processAppUsage"
+          tooltip={TOOLTIPS.processAppUsage}
+          modified={!isOptionDefault("processAppUsage", options.processAppUsage)}
+          onReset={() => setOptions((current) => ({ ...current, processAppUsage: DEFAULT_BROWSER_OPTIONS.processAppUsage }))}
+        />
+        <ToggleField
+          label="Screen usage"
+          checked={options.processScreenUsage}
+          onChange={(value) => setOptions((current) => ({ ...current, processScreenUsage: value }))}
+          testId="toggle-processScreenUsage"
+          tooltip={TOOLTIPS.processScreenUsage}
+          modified={!isOptionDefault("processScreenUsage", options.processScreenUsage)}
+          onReset={() => setOptions((current) => ({ ...current, processScreenUsage: DEFAULT_BROWSER_OPTIONS.processScreenUsage }))}
+        />
+        <ToggleField
+          label="Plots"
+          checked={options.enablePlotting}
+          onChange={(value) => setOptions((current) => ({ ...current, enablePlotting: value }))}
+          testId="toggle-enablePlotting"
+          tooltip={TOOLTIPS.enablePlotting}
+          modified={!isOptionDefault("enablePlotting", options.enablePlotting)}
+          onReset={() => setOptions((current) => ({ ...current, enablePlotting: DEFAULT_BROWSER_OPTIONS.enablePlotting }))}
+        />
       </SettingsField>
     </section>
   );

@@ -54,7 +54,7 @@ test("processes app and screen outputs with CSV support files and downloads both
   page,
 }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
-  await page.getByTestId("usage-mode-select").selectOption("app_and_screen_usage");
+  await page.getByTestId("toggle-processScreenUsage").check();
   await page.getByTestId("toggle-useAppsForcingScreenOpenFile").check();
   await setInputFile(page, "filter-file-input", "filter.csv", FILTER_FILE_CSV, "text/csv");
   await setInputFile(page, "apps-forcing-screen-open-file-input", "apps_forcing_screen_open.csv", APPS_FORCING_SCREEN_OPEN_CSV, "text/csv");
@@ -354,7 +354,7 @@ test("drops codebook-enriched columns when app codebook use is disabled", async 
 
 test("shows result warnings for suspicious successful outputs", async ({ page }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
-  await page.getByTestId("usage-mode-select").selectOption("app_and_screen_usage");
+  await page.getByTestId("toggle-processScreenUsage").check();
   await processFiles(page);
 
   const row = page.getByTestId("result-row").first();
@@ -375,7 +375,7 @@ test("classifies keep-awake screen sessions through the local screen pipeline", 
   ].join("\n");
 
   await setInputFile(page, "raw-file-input", "Raw P01.csv", appsForcingScreenOpenRawCsv, "text/csv");
-  await page.getByTestId("usage-mode-select").selectOption("app_and_screen_usage");
+  await page.getByTestId("toggle-processScreenUsage").check();
   await page.getByTestId("toggle-useAppsForcingScreenOpenFile").check();
   await setInputFile(page, "apps-forcing-screen-open-file-input", "apps_forcing_screen_open.csv", APPS_FORCING_SCREEN_OPEN_CSV, "text/csv");
   await processFiles(page);
@@ -445,7 +445,7 @@ test("processes multiple uploaded files with parallel workers enabled", async ({
 
 test("persists all edited settings across reload and supports settings import", async ({ page }) => {
   await page.getByTestId("study-name-input").fill("TECH pilot");
-  await page.getByTestId("usage-mode-select").selectOption("app_and_screen_usage");
+  await page.getByTestId("toggle-processScreenUsage").check();
   await expandSectionCard(page, "timezone");
   await page.getByTestId("timezone-handling-select").selectOption("selected-convert");
   await page.getByTestId("selected-timezone-input").fill("America/Chicago");
@@ -461,7 +461,8 @@ test("persists all edited settings across reload and supports settings import", 
   await page.reload();
   await installDeterministicRuntime(page);
   await expect(page.getByTestId("study-name-input")).toHaveValue("TECH pilot");
-  await expect(page.getByTestId("usage-mode-select")).toHaveValue("app_and_screen_usage");
+  await expect(page.getByTestId("toggle-processScreenUsage")).toBeChecked();
+  await expect(page.getByTestId("toggle-processAppUsage")).toBeChecked();
   await expandSectionCard(page, "timezone");
   await expect(page.getByTestId("timezone-handling-select")).toHaveValue("selected-convert");
   await expect(page.getByTestId("selected-timezone-input")).toHaveValue("America/Chicago");
@@ -483,7 +484,8 @@ test("persists all edited settings across reload and supports settings import", 
         exportedAt: "2026-04-27T00:00:00.000Z",
         currentSettings: {
           studyName: "Imported study",
-          usageSessionMode: "screen_usage",
+          processAppUsage: false,
+          processScreenUsage: true,
           useAppCodebook: false,
           longDataTimeGapThresholds: [1.5, 2.5],
         },
@@ -494,7 +496,8 @@ test("persists all edited settings across reload and supports settings import", 
   });
 
   await expect(page.getByTestId("study-name-input")).toHaveValue("Imported study");
-  await expect(page.getByTestId("usage-mode-select")).toHaveValue("screen_usage");
+  await expect(page.getByTestId("toggle-processAppUsage")).not.toBeChecked();
+  await expect(page.getByTestId("toggle-processScreenUsage")).toBeChecked();
   await expect(page.getByTestId("toggle-useAppCodebook")).not.toBeChecked();
   await expandSectionCard(page, "session-detection");
   await expect(page.getByTestId("long-gap-thresholds-input")).toHaveValue("1.5, 2.5");
@@ -627,7 +630,7 @@ test("duplicate timestamps stop blocking readiness when correction is enabled", 
 });
 
 test("results table is the primary post-processing surface and preview is gone", async ({ page }) => {
-  // Default usageSessionMode is app_usage, so Screen rows column is hidden.
+  // Default processScreenUsage is false, so Screen rows column is hidden.
   await page.getByTestId("run-sample-button").click();
   const table = page.getByTestId("result-file-table");
   await expect(table).toBeVisible();
@@ -652,7 +655,7 @@ test("results table is the primary post-processing surface and preview is gone",
 });
 
 test("results table shows both app and screen columns when output mode is both", async ({ page }) => {
-  await page.getByTestId("usage-mode-app_and_screen_usage").click();
+  await page.getByTestId("toggle-processScreenUsage").check();
   await page.getByTestId("run-sample-button").click();
   const table = page.getByTestId("result-file-table");
   await expect(table).toBeVisible();

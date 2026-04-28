@@ -2,8 +2,9 @@ import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { ReactElement } from "react";
 
 import { SettingsField } from "@/components/SettingsField";
+import { ToggleField } from "@/components/ToggleField";
 import { Tooltip } from "@/components/Tooltip";
-import { DEFAULT_BROWSER_OPTIONS, USAGE_SESSION_MODE_OPTIONS } from "@/lib/browserPipeline";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { isOptionDefault } from "@/lib/optionDefaults";
 import type { BrowserProcessingOptions } from "@/lib/types";
@@ -38,7 +39,6 @@ export function RunBar({
   };
 
   const studyNameModified = !isOptionDefault("studyName", options.studyName);
-  const usageModeModified = !isOptionDefault("usageSessionMode", options.usageSessionMode);
 
   return (
     <div className="run-bar">
@@ -112,34 +112,34 @@ export function RunBar({
             }
           />
         </SettingsField>
-        <SettingsField
-          label="Output mode"
-          tooltip={TOOLTIPS.usageSessionMode}
-          modified={usageModeModified}
-          onReset={() =>
-            setOptions((current) => ({
-              ...current,
-              usageSessionMode: DEFAULT_BROWSER_OPTIONS.usageSessionMode,
-            }))
-          }
-        >
-          <select
-            data-testid="usage-mode-select"
-            className="select"
-            value={options.usageSessionMode}
-            onChange={(event) =>
-              setOptions((current) => ({
-                ...current,
-                usageSessionMode: event.target.value as BrowserProcessingOptions["usageSessionMode"],
-              }))
-            }
-          >
-            {USAGE_SESSION_MODE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+        <SettingsField label="Output mode">
+          <ToggleField
+            label="App usage"
+            checked={options.processAppUsage}
+            onChange={(value) => setOptions((current) => ({ ...current, processAppUsage: value }))}
+            testId="toggle-processAppUsage"
+            tooltip={TOOLTIPS.processAppUsage}
+            modified={!isOptionDefault("processAppUsage", options.processAppUsage)}
+            onReset={() => setOptions((current) => ({ ...current, processAppUsage: DEFAULT_BROWSER_OPTIONS.processAppUsage }))}
+          />
+          <ToggleField
+            label="Screen usage"
+            checked={options.processScreenUsage}
+            onChange={(value) => setOptions((current) => ({ ...current, processScreenUsage: value }))}
+            testId="toggle-processScreenUsage"
+            tooltip={TOOLTIPS.processScreenUsage}
+            modified={!isOptionDefault("processScreenUsage", options.processScreenUsage)}
+            onReset={() => setOptions((current) => ({ ...current, processScreenUsage: DEFAULT_BROWSER_OPTIONS.processScreenUsage }))}
+          />
+          <ToggleField
+            label="Plots"
+            checked={options.enablePlotting}
+            onChange={(value) => setOptions((current) => ({ ...current, enablePlotting: value }))}
+            testId="toggle-enablePlotting"
+            tooltip={TOOLTIPS.enablePlotting}
+            modified={!isOptionDefault("enablePlotting", options.enablePlotting)}
+            onReset={() => setOptions((current) => ({ ...current, enablePlotting: DEFAULT_BROWSER_OPTIONS.enablePlotting }))}
+          />
         </SettingsField>
 
         <div className="run-bar__actions">

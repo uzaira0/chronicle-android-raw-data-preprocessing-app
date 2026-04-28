@@ -59,18 +59,26 @@ export function sanitizeOptions(value: unknown): BrowserProcessingOptions {
   const source = isRecord(value) ? value : {};
   const next: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS };
 
+  // Backward compat: convert legacy usageSessionMode enum to independent booleans.
+  if ("usageSessionMode" in source && !("processAppUsage" in source) && !("processScreenUsage" in source)) {
+    const mode = source.usageSessionMode;
+    next.processAppUsage = mode !== "screen_usage";
+    next.processScreenUsage = mode === "screen_usage" || mode === "app_and_screen_usage";
+  }
+
   for (const key of optionKeys) {
     if (!(key in source)) continue;
     const incoming = source[key];
     switch (key) {
       case "studyName":
       case "selectedTimezone":
-      case "usageSessionMode":
       case "timezoneHandling":
         if (typeof incoming === "string") {
           (next as Record<string, unknown>)[key] = incoming;
         }
         break;
+      case "processAppUsage":
+      case "processScreenUsage":
       case "allowStopEventReuse":
       case "useActivityStoppedAsFallback":
       case "applyThresholdToFallback":
