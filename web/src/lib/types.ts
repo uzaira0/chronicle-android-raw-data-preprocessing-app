@@ -1,6 +1,5 @@
 import type {
   BrowserTimezoneHandling,
-  BrowserUsageSessionMode,
   OutputKind,
 } from "@/lib/generatedContract";
 
@@ -57,7 +56,8 @@ export type BrowserProcessingRuntime = {
 
 export type BrowserProcessingOptions = {
   studyName: string;
-  usageSessionMode: BrowserUsageSessionMode;
+  processAppUsage: boolean;
+  processScreenUsage: boolean;
   allowStopEventReuse: boolean;
   useActivityStoppedAsFallback: boolean;
   applyThresholdToFallback: boolean;

@@ -15,11 +15,6 @@ imports:
   - linkml:types
 
 enums:
-  UsageSessionMode:
-    permissible_values:
-      app_usage:
-      screen_usage:
-      app_and_screen_usage:
   TimezoneHandlingMode:
     permissible_values:
       selected-filter:
@@ -58,7 +53,8 @@ classes:
   BrowserProcessingOptions:
     slots:
       - study_name
-      - usage_session_mode
+      - process_app_usage
+      - process_screen_usage
       - allow_stop_event_reuse
       - use_activity_stopped_as_fallback
       - apply_threshold_to_fallback
@@ -127,8 +123,11 @@ slots:
 
   study_name:
     required: true
-  usage_session_mode:
-    range: UsageSessionMode
+  process_app_usage:
+    range: boolean
+    required: true
+  process_screen_usage:
+    range: boolean
     required: true
   allow_stop_event_reuse:
     range: boolean

@@ -1,5 +1,5 @@
 import Papa from "papaparse";
-import { generateAllPlots } from "@/lib/plotGenerator";
+import { generateAllPlots, generateAllScreenPlots } from "@/lib/plotGenerator";
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
 import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
 import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
@@ -22,7 +22,8 @@ export const PREPROCESSOR_VERSION = "1.0.0";
 
 export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   studyName: "",
-  usageSessionMode: "app_usage",
+  processAppUsage: true,
+  processScreenUsage: false,
   allowStopEventReuse: false,
   useActivityStoppedAsFallback: true,
   applyThresholdToFallback: true,
@@ -53,12 +54,6 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   ],
   interactionTypesToRemove: [],
 };
-
-export const USAGE_SESSION_MODE_OPTIONS = [
-  { value: "app_usage", label: "Generate app usage file" },
-  { value: "screen_usage", label: "Generate screen usage file" },
-  { value: "app_and_screen_usage", label: "Generate both app and screen files" },
-] as const;
 
 export const TIMEZONE_HANDLING_OPTIONS = [
   {
@@ -1977,13 +1972,83 @@ export async function processRawCsvContent(
 
   const outputs: ProcessedOutputFileResult[] = [];
   let screenRows: CanonicalRow[] = [];
-  if (options.usageSessionMode === "screen_usage" || options.usageSessionMode === "app_and_screen_usage") {
+  let appRows: CanonicalRow[] = [];
+
+  // Screen usage derivation (independent of app usage)
+  if (options.processScreenUsage) {
     emit("screen", 0);
     screenRows = deriveScreenUsageSessions(rows, options, appsForcingScreenOpenMap);
     emit("screen", 1);
   }
 
-  if (options.usageSessionMode === "screen_usage") {
+  // App usage algorithm + enrichment
+  const preAlgoTsByParticipant = new Map<string, bigint[]>();
+  if (options.processAppUsage) {
+    // Capture all raw event timestamps per participant before the algorithm
+    // transforms rows into session-level output types. Used for gap detection so
+    // that any activity in the raw data (all 30+ interaction types) prevents a
+    // window from being marked as a data gap.
+    for (const row of rows) {
+      const pid = row.participant_id || "unknown";
+      let arr = preAlgoTsByParticipant.get(pid);
+      if (!arr) { arr = []; preAlgoTsByParticipant.set(pid, arr); }
+      arr.push(row.event_timestamp_ns);
+    }
+
+    emit("matcher", 0);
+    appRows = await runAppUsageAlgorithm(rows, options, runMatcher);
+    emit("matcher", 1);
+
+    emit("codebook", 0);
+    let codebookMap = new Map<string, CodebookRecord>();
+    if (options.useAppCodebook) {
+      codebookMap = buildCodebookMap(
+        await loadSupportRows(supportFiles?.appCodebookFile, defaultAppCodebookUrl),
+      );
+    }
+    emit("codebook", 1);
+
+    emit("enrich", 0);
+    appRows = enrichWithCodebookData(appRows, options, codebookMap);
+    appRows = addAppUsageDetailColumns(appRows, options);
+    appRows = markAppUsageFlags(appRows, options);
+    appRows = clearFilteredUsageTiming(appRows);
+    appRows = removeSelectedInteractionTypes(appRows, options);
+    emit("enrich", 1);
+
+    emit("output", 0);
+    const includeCodebookAliases = !(options.useAppCodebook && codebookMap.size > 0);
+    const appBundle = buildAppOutputBundle(appRows, options, includeCodebookAliases);
+    outputs.push({
+      kind: "app",
+      outputFileName: deriveOutputFileName(inputFileName, " Automatically Preprocessed.csv"),
+      blob: appBundle.blob,
+      rowCount: appBundle.rowCount,
+      previewRows: appBundle.previewRows,
+    });
+    emit("output", 1);
+
+    if (options.enablePlotting) {
+      const plotBlobs = await generateAllPlots(
+        appRows as Parameters<typeof generateAllPlots>[0],
+        timezone,
+        options,
+        preAlgoTsByParticipant,
+      );
+      for (const [pid, blob] of plotBlobs) {
+        outputs.push({
+          kind: "plot",
+          outputFileName: deriveOutputFileName(inputFileName, ` ${pid} App Usage Plot.png`),
+          blob,
+          rowCount: 0,
+          previewRows: [],
+        });
+      }
+    }
+  }
+
+  // Screen output
+  if (options.processScreenUsage) {
     emit("output", 0);
     const screenBundle = buildScreenOutputBundle(screenRows, options);
     outputs.push({
@@ -1994,89 +2059,21 @@ export async function processRawCsvContent(
       previewRows: screenBundle.previewRows,
     });
     emit("output", 1);
-    return {
-      inputFileName,
-      outputs,
-      originalRowCount,
-      processedRowCount: rows.length,
-      availableTimezones,
-      timezone,
-      appRowCount: 0,
-      screenRowCount: screenRows.length,
-      timezoneAction: timezoneResult.action,
-      rowsBeforeTimezoneHandling: timezoneResult.rowsBefore,
-      rowsAfterTimezoneHandling: timezoneResult.rowsAfter,
-      rowsRemovedByTimezone: timezoneResult.rowsRemoved,
-      duplicateTimestampsCorrected,
-    };
-  }
 
-  // Capture all raw event timestamps per participant before the algorithm
-  // transforms rows into session-level output types. Used for gap detection so
-  // that any activity in the raw data (all 30+ interaction types) prevents a
-  // window from being marked as a data gap.
-  const preAlgoTsByParticipant = new Map<string, bigint[]>();
-  for (const row of rows) {
-    const pid = row.participant_id || "unknown";
-    let arr = preAlgoTsByParticipant.get(pid);
-    if (!arr) { arr = []; preAlgoTsByParticipant.set(pid, arr); }
-    arr.push(row.event_timestamp_ns);
-  }
-
-  emit("matcher", 0);
-  rows = await runAppUsageAlgorithm(rows, options, runMatcher);
-  emit("matcher", 1);
-
-  emit("codebook", 0);
-  let codebookMap = new Map<string, CodebookRecord>();
-  if (options.useAppCodebook) {
-    codebookMap = buildCodebookMap(
-      await loadSupportRows(supportFiles?.appCodebookFile, defaultAppCodebookUrl),
-    );
-  }
-  emit("codebook", 1);
-
-  emit("enrich", 0);
-  rows = enrichWithCodebookData(rows, options, codebookMap);
-  rows = addAppUsageDetailColumns(rows, options);
-  rows = markAppUsageFlags(rows, options);
-  rows = clearFilteredUsageTiming(rows);
-  rows = removeSelectedInteractionTypes(rows, options);
-  emit("enrich", 1);
-
-  emit("output", 0);
-  const includeCodebookAliases = !(options.useAppCodebook && codebookMap.size > 0);
-  const appBundle = buildAppOutputBundle(rows, options, includeCodebookAliases);
-  outputs.push({
-    kind: "app",
-    outputFileName: deriveOutputFileName(inputFileName, " Automatically Preprocessed.csv"),
-    blob: appBundle.blob,
-    rowCount: appBundle.rowCount,
-    previewRows: appBundle.previewRows,
-  });
-  if (options.usageSessionMode === "app_and_screen_usage") {
-    const screenBundle = buildScreenOutputBundle(screenRows, options);
-    outputs.push({
-      kind: "screen",
-      outputFileName: deriveOutputFileName(inputFileName, " Screen Usage Automatically Preprocessed.csv"),
-      blob: screenBundle.blob,
-      rowCount: screenBundle.rowCount,
-      previewRows: screenBundle.previewRows,
-    });
-  }
-  emit("output", 1);
-
-  if (options.enablePlotting) {
-    const plotBlobs = await generateAllPlots(rows as Parameters<typeof generateAllPlots>[0], timezone, options, preAlgoTsByParticipant);
-    for (const [pid, blob] of plotBlobs) {
-      const baseName = deriveOutputFileName(inputFileName, ` ${pid} App Usage Plot.png`);
-      outputs.push({
-        kind: "plot",
-        outputFileName: baseName,
-        blob,
-        rowCount: 0,
-        previewRows: [],
-      });
+    if (options.enablePlotting) {
+      const screenPlotBlobs = await generateAllScreenPlots(
+        screenRows as Parameters<typeof generateAllScreenPlots>[0],
+        timezone,
+      );
+      for (const [pid, blob] of screenPlotBlobs) {
+        outputs.push({
+          kind: "plot",
+          outputFileName: deriveOutputFileName(inputFileName, ` ${pid} Screen Usage Plot.png`),
+          blob,
+          rowCount: 0,
+          previewRows: [],
+        });
+      }
     }
   }
 
@@ -2087,7 +2084,7 @@ export async function processRawCsvContent(
     processedRowCount: rows.length,
     availableTimezones,
     timezone,
-    appRowCount: rows.length,
+    appRowCount: appRows.length,
     screenRowCount: screenRows.length,
     timezoneAction: timezoneResult.action,
     rowsBeforeTimezoneHandling: timezoneResult.rowsBefore,

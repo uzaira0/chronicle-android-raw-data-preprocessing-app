@@ -8,20 +8,22 @@ import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/option
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
-const KEYS: readonly OptionKey[] = ["enablePlotting", "includeFilteredAppUsageInPlots"];
+const KEYS: readonly OptionKey[] = ["includeFilteredAppUsageInPlots"];
 
 type Props = {
   options: BrowserProcessingOptions;
   setOptions: Dispatch<SetStateAction<BrowserProcessingOptions>>;
 };
 
-export function PlottingCard({ options, setOptions }: Props): ReactElement {
+export function PlottingCard({ options, setOptions }: Props): ReactElement | null {
   const update = <K extends OptionKey>(key: K, value: BrowserProcessingOptions[K]) => {
     setOptions((current) => ({ ...current, [key]: value }));
   };
   const reset = (key: OptionKey) => {
     setOptions((current) => ({ ...current, [key]: DEFAULT_BROWSER_OPTIONS[key] }));
   };
+
+  if (!options.enablePlotting) return null;
 
   return (
     <SectionCard
@@ -31,43 +33,26 @@ export function PlottingCard({ options, setOptions }: Props): ReactElement {
       modified={anyOptionModified(options, KEYS)}
     >
       <p className="u-card-intro">
-        Generates one PNG app-usage timeline per participant and adds them to the output ZIP.
+        Generates PNG timeline charts per participant and adds them to the output ZIP. App-usage plots are always included when plots are on; screen-usage plots are included when screen usage is also on.
       </p>
 
       <div className="settings-field">
         <div className="u-inline-cluster">
-          <span className="settings-field__label">Generate plots</span>
-          <Tooltip content={TOOLTIPS.enablePlotting} label="Help: Generate app-usage plots" />
+          <span className="settings-field__label">Include filtered apps in plots</span>
+          <Tooltip
+            content={TOOLTIPS.includeFilteredAppUsageInPlots}
+            label="Help: Include filtered apps in plots"
+          />
         </div>
         <ToggleField
           label="Enabled"
-          checked={options.enablePlotting}
-          onChange={(value) => update("enablePlotting", value)}
-          testId="toggle-enablePlotting"
-          modified={!isOptionDefault("enablePlotting", options.enablePlotting)}
-          onReset={() => reset("enablePlotting")}
+          checked={options.includeFilteredAppUsageInPlots}
+          onChange={(value) => update("includeFilteredAppUsageInPlots", value)}
+          testId="toggle-includeFilteredAppUsageInPlots"
+          modified={!isOptionDefault("includeFilteredAppUsageInPlots", options.includeFilteredAppUsageInPlots)}
+          onReset={() => reset("includeFilteredAppUsageInPlots")}
         />
       </div>
-
-      {options.enablePlotting && (
-        <div className="settings-field">
-          <div className="u-inline-cluster">
-            <span className="settings-field__label">Include filtered apps in plots</span>
-            <Tooltip
-              content={TOOLTIPS.includeFilteredAppUsageInPlots}
-              label="Help: Include filtered apps in plots"
-            />
-          </div>
-          <ToggleField
-            label="Enabled"
-            checked={options.includeFilteredAppUsageInPlots}
-            onChange={(value) => update("includeFilteredAppUsageInPlots", value)}
-            testId="toggle-includeFilteredAppUsageInPlots"
-            modified={!isOptionDefault("includeFilteredAppUsageInPlots", options.includeFilteredAppUsageInPlots)}
-            onReset={() => reset("includeFilteredAppUsageInPlots")}
-          />
-        </div>
-      )}
     </SectionCard>
   );
 }

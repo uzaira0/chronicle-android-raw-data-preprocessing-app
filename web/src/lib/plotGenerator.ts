@@ -519,6 +519,226 @@ async function canvasToBlob(canvas: OffscreenCanvas | HTMLCanvasElement): Promis
   });
 }
 
+// ─── screen-usage plot ────────────────────────────────────────────────────────
+
+type ScreenPlotRow = {
+  date: string;
+  start_timestamp_ns: bigint | null;
+  stop_timestamp_ns: bigint | null;
+  event_timestamp_ns: bigint;
+  screen_usage_end_reason?: string | null;
+};
+
+const SCREEN_REASON_COLORS: Record<string, string> = {
+  probable_manual_lock: "#4CAF50",
+  probable_auto_lock: "#2196F3",
+  app_kept_awake_or_extended: "#FF9800",
+  lock_screen_only: "#9C27B0",
+  extended_idle_or_unknown: "#607D8B",
+  unknown: "#9E9E9E",
+  missing_stop: "#F44336",
+};
+
+const SCREEN_REASON_LABELS: Record<string, string> = {
+  probable_manual_lock: "Probable manual lock",
+  probable_auto_lock: "Probable auto-lock",
+  app_kept_awake_or_extended: "App kept awake / extended",
+  lock_screen_only: "Lock screen only",
+  extended_idle_or_unknown: "Extended idle / unknown",
+  unknown: "Unknown",
+  missing_stop: "Missing stop",
+};
+
+async function generateParticipantScreenPlotBlob(
+  participantId: string,
+  rows: ScreenPlotRow[],
+  timezone: string,
+): Promise<Blob> {
+  const dateSet = new Set<string>();
+  for (const row of rows) {
+    if (row.date) dateSet.add(row.date);
+  }
+  const sortedDates = [...dateSet].sort();
+  if (sortedDates.length === 0) {
+    const fallback = buildCanvas(1);
+    const ctx2 = fallback.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+    ctx2.clearRect(0, 0, 1, 1);
+    return canvasToBlob(fallback);
+  }
+
+  const plotAreaHeight = sortedDates.length * ROW_HEIGHT;
+  const totalHeight = MARGIN.top + plotAreaHeight + MARGIN.bottom;
+  const canvas = buildCanvas(totalHeight);
+  const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+  drawBackground(ctx, totalHeight);
+
+  const dateStr = new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  ctx.font = "bold 16px system-ui, sans-serif";
+  ctx.fillStyle = "#111";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(`Screen Usage for ${participantId}`, CANVAS_WIDTH / 2, 28);
+  ctx.font = FONT_SMALL;
+  ctx.fillStyle = "#666";
+  ctx.fillText(`Created on ${dateStr}`, CANVAS_WIDTH / 2, 46);
+
+  const plotTop = MARGIN.top;
+  const plotBottom = MARGIN.top + plotAreaHeight;
+
+  const dateToY = new Map<string, number>();
+  sortedDates.forEach((d, i) => {
+    dateToY.set(d, plotTop + i * ROW_HEIGHT + ROW_HEIGHT / 2);
+  });
+
+  ctx.font = FONT;
+  ctx.textBaseline = "middle";
+  sortedDates.forEach((d, i) => {
+    const y = plotTop + i * ROW_HEIGHT;
+    if (i % 2 === 0) {
+      ctx.fillStyle = "#f8f8f8";
+      ctx.fillRect(MARGIN.left, y, plotWidth(), ROW_HEIGHT);
+    }
+    ctx.fillStyle = "#555";
+    ctx.textAlign = "right";
+    ctx.fillText(formatDateLabel(d), MARGIN.left - 8, y + ROW_HEIGHT / 2);
+  });
+
+  drawXAxis(ctx, plotTop, plotBottom);
+
+  const nsToHoursCache = new Map<bigint, number>();
+  const nsToIsoCache = new Map<bigint, string>();
+  const hoursFmt = getHoursFormatter(timezone);
+  const dateFmt = getDateFormatter(timezone);
+
+  function nsToLocalHours(ns: bigint): number {
+    let v = nsToHoursCache.get(ns);
+    if (v === undefined) {
+      const ms = Number(ns / 1_000_000n);
+      try {
+        const parts = hoursFmt.formatToParts(new Date(ms));
+        const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+        const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+        const s = Number(parts.find((p) => p.type === "second")?.value ?? 0);
+        v = (h % 24) + m / 60 + s / 3600;
+      } catch {
+        v = (ms / 3_600_000) % 24;
+      }
+      nsToHoursCache.set(ns, v);
+    }
+    return v;
+  }
+
+  function nsToIso(ns: bigint): string {
+    let v = nsToIsoCache.get(ns);
+    if (v === undefined) {
+      const ms = Number(ns / 1_000_000n);
+      v = dateFmt.format(new Date(ms));
+      nsToIsoCache.set(ns, v);
+    }
+    return v;
+  }
+
+  for (const row of rows) {
+    if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) continue;
+
+    const reason = row.screen_usage_end_reason ?? "unknown";
+    const color = SCREEN_REASON_COLORS[reason] ?? SCREEN_REASON_COLORS["unknown"]!;
+
+    const startIso = nsToIso(row.start_timestamp_ns);
+    const stopIso = nsToIso(row.stop_timestamp_ns);
+    const startSerial = dateSerial(startIso);
+    const stopSerial = dateSerial(stopIso);
+
+    for (let s = startSerial; s <= stopSerial; s++) {
+      const isoD = s === startSerial ? startIso : new Date(s * 86_400_000).toISOString().slice(0, 10);
+      const yCenter = dateToY.get(isoD);
+      if (yCenter === undefined) continue;
+
+      let x1: number, barW: number;
+      if (s === startSerial && s === stopSerial) {
+        x1 = hoursToX(nsToLocalHours(row.start_timestamp_ns));
+        barW = hoursToX(Math.min(nsToLocalHours(row.stop_timestamp_ns), 24)) - x1;
+      } else if (s === startSerial) {
+        x1 = hoursToX(nsToLocalHours(row.start_timestamp_ns));
+        barW = hoursToX(24) - x1;
+      } else if (s === stopSerial) {
+        x1 = MARGIN.left;
+        barW = hoursToX(nsToLocalHours(row.stop_timestamp_ns)) - x1;
+      } else {
+        x1 = MARGIN.left;
+        barW = plotWidth();
+      }
+
+      if (barW > 0) {
+        ctx.fillStyle = color;
+        ctx.fillRect(x1, yCenter - ROW_HEIGHT * 0.35, Math.max(barW, 1), ROW_HEIGHT * 0.7);
+      }
+    }
+  }
+
+  ctx.strokeStyle = "#ccc";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([]);
+  ctx.strokeRect(MARGIN.left, plotTop, plotWidth(), plotAreaHeight);
+
+  ctx.font = FONT;
+  ctx.fillStyle = "#444";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText("Time of Day (Hours)", MARGIN.left + plotWidth() / 2, totalHeight - 10);
+
+  // Legend
+  const lx = CANVAS_WIDTH - MARGIN.right + 16;
+  let ly = plotTop;
+  const swatchSize = 12;
+  const lineH = 20;
+  ctx.font = "bold 12px system-ui, sans-serif";
+  ctx.fillStyle = "#333";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillText("End Reason", lx, ly);
+  ly += lineH + 4;
+  ctx.font = FONT_SMALL;
+  for (const [reason, color] of Object.entries(SCREEN_REASON_COLORS)) {
+    const label = SCREEN_REASON_LABELS[reason] ?? reason;
+    ctx.fillStyle = color;
+    ctx.fillRect(lx, ly - swatchSize / 2, swatchSize, swatchSize);
+    ctx.strokeStyle = "#aaa";
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(lx, ly - swatchSize / 2, swatchSize, swatchSize);
+    ctx.fillStyle = "#333";
+    ctx.fillText(label, lx + swatchSize + 5, ly);
+    ly += lineH;
+  }
+
+  return canvasToBlob(canvas);
+}
+
+export async function generateAllScreenPlots(
+  rows: ScreenPlotRow[],
+  timezone: string,
+): Promise<Map<string, Blob>> {
+  const byParticipant = new Map<string, ScreenPlotRow[]>();
+  for (const row of rows) {
+    const pid = (row as unknown as Record<string, unknown>)["participant_id"] as string ?? "unknown";
+    const arr = byParticipant.get(pid) ?? [];
+    arr.push(row);
+    byParticipant.set(pid, arr);
+  }
+
+  const result = new Map<string, Blob>();
+  for (const [pid, pRows] of byParticipant) {
+    result.set(pid, await generateParticipantScreenPlotBlob(pid, pRows, timezone));
+  }
+  return result;
+}
+
 // ─── batch entry point ────────────────────────────────────────────────────────
 
 export async function generateAllPlots(
