@@ -10,7 +10,6 @@ import {
   BROWSER_RUNTIME_KEYS,
   BROWSER_SUPPORT_FILE_KEYS,
   TIMEZONE_HANDLING_VALUES,
-  USAGE_SESSION_MODE_VALUES,
 } from "../src/lib/generatedContract";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -139,24 +138,6 @@ async function main(): Promise<void> {
     "ProcessRawCsvRequest fields",
     processRawCsvRequestProperties,
     ["inputFileName", "csvText", "options", "supportFiles", "runtime"],
-  );
-
-  const linkmlUsageSessionValues = Object.keys(
-    linkml.enums.UsageSessionMode?.permissible_values ?? {},
-  );
-  const openapiUsageSessionValues =
-    (openapi.components.schemas.BrowserProcessingOptions?.properties?.usageSessionMode as {
-      enum?: string[];
-    })?.enum ?? [];
-  expectEqual(
-    "UsageSessionMode enum values",
-    USAGE_SESSION_MODE_VALUES as string[],
-    linkmlUsageSessionValues,
-  );
-  expectEqual(
-    "OpenAPI UsageSessionMode enum values",
-    openapiUsageSessionValues,
-    USAGE_SESSION_MODE_VALUES as string[],
   );
 
   const linkmlTimezoneValues = Object.keys(

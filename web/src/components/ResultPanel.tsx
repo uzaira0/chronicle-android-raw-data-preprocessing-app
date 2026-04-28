@@ -107,18 +107,10 @@ function buildPerFileWarnings(
   if (result.processedRowCount === 0) {
     warnings.push("Zero rows after timezone/filter/session processing.");
   }
-  if (
-    (options.usageSessionMode === "app_usage" ||
-      options.usageSessionMode === "app_and_screen_usage") &&
-    result.appRowCount === 0
-  ) {
+  if (options.processAppUsage && result.appRowCount === 0) {
     warnings.push("Zero app-usage rows.");
   }
-  if (
-    (options.usageSessionMode === "screen_usage" ||
-      options.usageSessionMode === "app_and_screen_usage") &&
-    result.screenRowCount === 0
-  ) {
+  if (options.processScreenUsage && result.screenRowCount === 0) {
     warnings.push("Zero screen-usage rows.");
   }
   result.outputs.forEach((output) => {
@@ -216,12 +208,8 @@ export function ResultPanel({
 
   if (!results.length) return null;
 
-  const showAppColumns =
-    options.usageSessionMode === "app_usage" ||
-    options.usageSessionMode === "app_and_screen_usage";
-  const showScreenColumns =
-    options.usageSessionMode === "screen_usage" ||
-    options.usageSessionMode === "app_and_screen_usage";
+  const showAppColumns = options.processAppUsage;
+  const showScreenColumns = options.processScreenUsage;
 
   return (
     <section className="result-panel" aria-label="Processing results" data-testid="result-panel">

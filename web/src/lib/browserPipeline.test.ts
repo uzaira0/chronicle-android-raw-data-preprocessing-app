@@ -93,7 +93,8 @@ describe("browserPipeline", () => {
       csv,
       {
         ...DEFAULT_BROWSER_OPTIONS,
-        usageSessionMode: "app_and_screen_usage",
+        processAppUsage: true,
+        processScreenUsage: true,
         useFilterFile: false,
         useAppsForcingScreenOpenFile: false,
         useAppCodebook: false,
@@ -269,7 +270,8 @@ describe("browserPipeline", () => {
       csv,
       {
         ...DEFAULT_BROWSER_OPTIONS,
-        usageSessionMode: "app_and_screen_usage",
+        processAppUsage: true,
+        processScreenUsage: true,
         useFilterFile: false,
         useAppsForcingScreenOpenFile: false,
         useAppCodebook: false,

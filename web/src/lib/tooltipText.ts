@@ -15,9 +15,13 @@ export const TOOLTIPS = {
     title: "Study name",
     body: "Your label for this study. Written into the `study_name` column of every output row. This is your own naming, not the `study_id` column from the raw data — that is preserved unchanged.",
   },
-  usageSessionMode: {
-    title: "Output mode",
-    body: "Choose whether to generate the app-usage file, the screen-usage file, or both. Each output is downloaded as a separate CSV.",
+  processAppUsage: {
+    title: "App usage output",
+    body: "Run the app-usage algorithm and include the app-usage CSV in the output ZIP. Each session spans from an Activity Resumed to its matching stop event.",
+  },
+  processScreenUsage: {
+    title: "Screen usage output",
+    body: "Derive screen-usage sessions and include the screen-usage CSV in the output ZIP. Sessions are inferred from Screen Interactive / Screen Non-Interactive events.",
   },
   runMode: {
     title: "Process files",

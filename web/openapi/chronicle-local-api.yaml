@@ -80,7 +80,8 @@ components:
       type: object
       required:
         - studyName
-        - usageSessionMode
+        - processAppUsage
+        - processScreenUsage
         - allowStopEventReuse
         - useActivityStoppedAsFallback
         - applyThresholdToFallback
@@ -107,12 +108,10 @@ components:
       properties:
         studyName:
           type: string
-        usageSessionMode:
-          type: string
-          enum:
-            - app_usage
-            - screen_usage
-            - app_and_screen_usage
+        processAppUsage:
+          type: boolean
+        processScreenUsage:
+          type: boolean
         allowStopEventReuse:
           type: boolean
         useActivityStoppedAsFallback:
