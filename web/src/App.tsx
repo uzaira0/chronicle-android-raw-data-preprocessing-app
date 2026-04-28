@@ -27,6 +27,7 @@ import { SessionDetectionCard } from "@/components/SessionDetectionCard";
 import { ScreenDetectionCard } from "@/components/ScreenDetectionCard";
 import { InteractionSemanticsCard } from "@/components/InteractionSemanticsCard";
 import { PerformanceCard } from "@/components/PerformanceCard";
+import { PlottingCard } from "@/components/PlottingCard";
 import { ResultPanel } from "@/components/ResultPanel";
 import type { FileProgress } from "@/components/ProgressList";
 import { Toast } from "@/components/Toast";
@@ -515,6 +516,9 @@ export default function App(): ReactElement {
                 ) : null}
                 {shows("performance parallel workers") ? (
                   <PerformanceCard options={options} setOptions={setOptions} />
+                ) : null}
+                {shows("plot output plotting png charts") ? (
+                  <PlottingCard options={options} setOptions={setOptions} />
                 ) : null}
               </div>
             </section>

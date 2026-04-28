@@ -7,8 +7,13 @@ import polars as pl
 from chronicle_preprocessing_app.config.constants import Column, InteractionType
 from chronicle_preprocessing_app.config.defaults import DEFAULT_APP_CODEBOOK_FILE_PATH
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
+from chronicle_preprocessing_app.config.constants import GAP_TIMESTAMPS_SIDECAR_SUFFIX
+from chronicle_preprocessing_app.core.plotting.plotting_manager import PlottingManager
 from chronicle_preprocessing_app.core.preprocessing.main_preprocessor import (
     ChronicleAndroidRawDataPreprocessor,
+)
+from chronicle_preprocessing_app.core.preprocessing.polars_fast_path import (
+    PolarsFastPathPreprocessor,
 )
 
 def _raw_fixture() -> pl.DataFrame:
@@ -273,3 +278,87 @@ def test_codebook_genre_output_consolidates_only_when_sources_agree(
     assert disagree_row[Column.PLAY_STORE_GENRE_ID] == "NEWS_AND_MAGAZINES"
     assert disagree_row[Column.USC_GENRE_ID] == "SOCIAL"
     assert disagree_row[Column.BABYEMU_GENRE_ID_SCRAPED] == "SOCIAL"
+
+
+def test_fast_path_pre_algo_timestamps_include_all_raw_event_types(tmp_path: Path) -> None:
+    raw_file = tmp_path / "Raw P01.csv"
+    _raw_fixture().write_csv(raw_file)
+
+    result = PolarsFastPathPreprocessor(PreprocessingOptions()).preprocess_raw_data_file(raw_file)
+
+    assert result.pre_algo_event_timestamps is not None
+    # Fixture has 2 raw rows (ACTIVITY_RESUMED + ACTIVITY_PAUSED). The algorithm
+    # collapses them into one APP_USAGE session, so the pre-algo capture must be larger.
+    assert len(result.pre_algo_event_timestamps) == 2
+    app_usage_rows = result.data.filter(
+        pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)
+    )
+    assert len(app_usage_rows) < len(result.pre_algo_event_timestamps)
+
+
+def test_fast_path_save_writes_gap_sidecar(tmp_path: Path) -> None:
+    raw_file = tmp_path / "Raw P01.csv"
+    _raw_fixture().write_csv(raw_file)
+
+    preprocessor = PolarsFastPathPreprocessor(PreprocessingOptions())
+    result = preprocessor.preprocess_raw_data_file(raw_file)
+    out_folder = preprocessor.save_preprocessed_output(
+        result.data,
+        raw_data_filename=raw_file.name,
+        output_folder=tmp_path,
+        study_name="test",
+        pre_algo_event_timestamps=result.pre_algo_event_timestamps,
+    )
+
+    sidecars = list(out_folder.glob(f"*{GAP_TIMESTAMPS_SIDECAR_SUFFIX}"))
+    assert len(sidecars) == 1
+    loaded = pl.read_parquet(sidecars[0])
+    assert Column.EVENT_TIMESTAMP in loaded.columns
+    assert len(loaded) == 2
+
+
+def test_fast_path_save_no_sidecar_when_timestamps_absent(tmp_path: Path) -> None:
+    raw_file = tmp_path / "Raw P01.csv"
+    _raw_fixture().write_csv(raw_file)
+
+    preprocessor = PolarsFastPathPreprocessor(PreprocessingOptions())
+    result = preprocessor.preprocess_raw_data_file(raw_file)
+    out_folder = preprocessor.save_preprocessed_output(
+        result.data,
+        raw_data_filename=raw_file.name,
+        output_folder=tmp_path,
+        study_name="test",
+        pre_algo_event_timestamps=None,
+    )
+
+    assert not list(out_folder.glob(f"*{GAP_TIMESTAMPS_SIDECAR_SUFFIX}"))
+
+
+def test_plotting_manager_loads_gap_sidecar(tmp_path: Path) -> None:
+    import datetime
+
+    csv_path = tmp_path / "P01 Automatically Preprocessed.csv"
+    csv_path.write_text("header\n")
+
+    ts = pl.Series(
+        Column.EVENT_TIMESTAMP,
+        [datetime.datetime(2026, 3, 7, 10, 0, 0), datetime.datetime(2026, 3, 7, 10, 5, 0)],
+        dtype=pl.Datetime,
+    )
+    sidecar_path = tmp_path / f"P01 Automatically Preprocessed{GAP_TIMESTAMPS_SIDECAR_SUFFIX}"
+    pl.DataFrame({Column.EVENT_TIMESTAMP: ts}).write_parquet(sidecar_path)
+
+    pm = PlottingManager("test", tmp_path / "dummy.csv", PreprocessingOptions())
+    loaded = pm._load_gap_timestamps_sidecar(csv_path)
+
+    assert loaded is not None
+    assert Column.EVENT_TIMESTAMP in loaded.columns
+    assert len(loaded) == 2
+
+
+def test_plotting_manager_returns_none_when_no_sidecar(tmp_path: Path) -> None:
+    csv_path = tmp_path / "P01 Automatically Preprocessed.csv"
+    csv_path.write_text("header\n")
+
+    pm = PlottingManager("test", tmp_path / "dummy.csv", PreprocessingOptions())
+    assert pm._load_gap_timestamps_sidecar(csv_path) is None

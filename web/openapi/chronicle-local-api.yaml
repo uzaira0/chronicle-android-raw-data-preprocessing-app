@@ -90,8 +90,8 @@ components:
         - useFilterFile
         - useAppsForcingScreenOpenFile
         - useAppCodebook
+        - enablePlotting
         - includeFilteredAppUsageInPlots
-        - plotOnlyTargetChildData
         - minimumUsageDuration
         - customAppEngagementDuration
         - longUsageDurationThresholds
@@ -138,9 +138,9 @@ components:
           type: boolean
         useAppCodebook:
           type: boolean
-        includeFilteredAppUsageInPlots:
+        enablePlotting:
           type: boolean
-        plotOnlyTargetChildData:
+        includeFilteredAppUsageInPlots:
           type: boolean
         minimumUsageDuration:
           type: integer
@@ -226,6 +226,7 @@ components:
           enum:
             - app
             - screen
+            - plot
         outputFileName:
           type: string
         csv:

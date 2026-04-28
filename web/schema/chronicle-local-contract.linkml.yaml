@@ -30,6 +30,7 @@ enums:
     permissible_values:
       app:
       screen:
+      plot:
   TimezoneAction:
     permissible_values:
       none:
@@ -68,8 +69,8 @@ classes:
       - use_filter_file
       - use_apps_forcing_screen_open_file
       - use_app_codebook
+      - enable_plotting
       - include_filtered_app_usage_in_plots
-      - plot_only_target_child_data
       - minimum_usage_duration
       - custom_app_engagement_duration
       - long_usage_duration_thresholds
@@ -156,6 +157,9 @@ slots:
     range: boolean
     required: true
   use_app_codebook:
+    range: boolean
+    required: true
+  enable_plotting:
     range: boolean
     required: true
   include_filtered_app_usage_in_plots:

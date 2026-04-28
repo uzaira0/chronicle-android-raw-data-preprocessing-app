@@ -25,6 +25,7 @@ TARGET_CHILD_USERNAME = "Target Child"
 PREPROCESSED_FILE_SUFFIX = "Automatically Preprocessed.csv"
 PREPROCESSED_FOLDER_SUFFIX = "Chronicle Android Automatically Preprocessed Data"
 PLOTTED_FOLDER_SUFFIX = "Chronicle Android Plotted Data"
+GAP_TIMESTAMPS_SIDECAR_SUFFIX = ".gap_timestamps.parquet"
 
 EXPECTED_TIMESTAMP_LENGTH = (
     25  # expected length of timestamp string from Chronicle data in characters

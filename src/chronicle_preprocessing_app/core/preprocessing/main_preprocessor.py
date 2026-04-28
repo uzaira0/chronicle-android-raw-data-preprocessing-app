@@ -12,6 +12,7 @@ from typing import Any, Callable
 import polars as pl
 
 from chronicle_preprocessing_app.config.constants import (
+    GAP_TIMESTAMPS_SIDECAR_SUFFIX,
     PLOTTED_FOLDER_SUFFIX,
     PREPROCESSED_FILE_SUFFIX,
     PREPROCESSED_FOLDER_SUFFIX,
@@ -190,7 +191,11 @@ class ChronicleAndroidRawDataPreprocessor:
             self.current_participant_raw_data_df
         )
 
-    def finalize_and_save_preprocessed_data_df(self, raw_data_filename: str) -> Path:
+    def finalize_and_save_preprocessed_data_df(
+        self,
+        raw_data_filename: str,
+        pre_algo_event_timestamps: pl.Series | None = None,
+    ) -> Path:
         preprocessed_data_save_folder = (
             Path(self.options.output_folder)
             / f"{self.options.study_name + ' ' + PREPROCESSED_FOLDER_SUFFIX}"
@@ -214,10 +219,8 @@ class ChronicleAndroidRawDataPreprocessor:
             output_df = output_df.with_columns(
                 pl.lit(self.options.study_name).alias(Column.STUDY_NAME)
             )
-            app_save_name = (
-                preprocessed_data_save_folder
-                / f"{Path(raw_data_filename).stem.replace('Raw ', '')} {output_file_suffix}"
-            )
+            stem = Path(raw_data_filename).stem.replace("Raw ", "")
+            app_save_name = preprocessed_data_save_folder / f"{stem} {output_file_suffix}"
             formatted = self.fast_preprocessor._format_output_frame(
                 output_df.select(
                     [
@@ -228,6 +231,10 @@ class ChronicleAndroidRawDataPreprocessor:
                 )
             )
             formatted.write_csv(app_save_name)
+
+            if pre_algo_event_timestamps is not None and len(pre_algo_event_timestamps) > 0:
+                sidecar_path = app_save_name.with_name(app_save_name.stem + GAP_TIMESTAMPS_SIDECAR_SUFFIX)
+                pl.DataFrame({Column.EVENT_TIMESTAMP: pre_algo_event_timestamps}).write_parquet(sidecar_path)
 
         if (
             self.options.process_app_usage_sessions
@@ -273,6 +280,7 @@ class ChronicleAndroidRawDataPreprocessor:
                     raw_data_filename=raw_path.name,
                     output_folder=self.options.output_folder,
                     study_name=self.options.study_name,
+                    pre_algo_event_timestamps=result.pre_algo_event_timestamps,
                 )
                 self.stats.mark_processed(raw_path)
                 return output_folder, True, None
@@ -308,7 +316,9 @@ class ChronicleAndroidRawDataPreprocessor:
                     self.stats.mark_processed(raw_path)
                     return output_folder, True, None
 
+            pre_algo_ts: pl.Series | None = None
             if self.options.process_app_usage_sessions:
+                pre_algo_ts = df.get_column(Column.EVENT_TIMESTAMP).drop_nulls()
                 df = self.app_usage_processor.run_app_usage_algorithm(df)
                 df = self.fast_preprocessor._enrich_with_app_codebook_data(df)
                 df = self.app_usage_processor.add_app_usage_details(df)
@@ -318,7 +328,7 @@ class ChronicleAndroidRawDataPreprocessor:
                 self.current_participant_raw_data_df = df
 
             self.remove_selected_interaction_types()
-            output_folder = self.finalize_and_save_preprocessed_data_df(raw_path.name)
+            output_folder = self.finalize_and_save_preprocessed_data_df(raw_path.name, pre_algo_ts)
             self.stats.mark_processed(raw_path)
             return output_folder, True, None
         except NoAppUsageDataError:
