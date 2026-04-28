@@ -52,7 +52,10 @@ function collectOutputs(results: ProcessedFileResult[], kind?: OutputKind): Batc
 
 function zipName(kind: "all" | OutputKind): string {
   const suffix =
-    kind === "all" ? "all-outputs" : kind === "app" ? "app-usage-outputs" : "screen-usage-outputs";
+    kind === "all" ? "all-outputs"
+    : kind === "app" ? "app-usage-outputs"
+    : kind === "screen" ? "screen-usage-outputs"
+    : "plots";
   return `chronicle-${suffix}.zip`;
 }
 
@@ -191,6 +194,7 @@ export function ResultPanel({
   const allOutputs = useMemo(() => collectOutputs(results), [results]);
   const appOutputs = useMemo(() => collectOutputs(results, "app"), [results]);
   const screenOutputs = useMemo(() => collectOutputs(results, "screen"), [results]);
+  const plotOutputs = useMemo(() => collectOutputs(results, "plot"), [results]);
   const reportText = useMemo(() => buildProcessingReport(results, options), [results, options]);
   const batchWarnings = useMemo(
     () => buildBatchWarnings({ results, error, expectedFileCount, progressRows }),
@@ -263,6 +267,18 @@ export function ResultPanel({
           >
             Screen ZIP
           </button>
+          {plotOutputs.length > 0 && (
+            <button
+              type="button"
+              className="btn btn--secondary"
+              data-testid="download-plots-zip"
+              onClick={() => {
+                void downloadZip("plot", plotOutputs, reportText);
+              }}
+            >
+              Plots ZIP ({plotOutputs.length})
+            </button>
+          )}
           <button
             type="button"
             className="btn btn--ghost"

@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
   DEFAULT_BROWSER_OPTIONS,
   discoverTimezonesFromRawCsv,
   processRawCsvContent,
 } from "@/lib/browserPipeline";
+import { generateAllPlots } from "@/lib/plotGenerator";
+
+vi.mock("@/lib/plotGenerator", () => ({
+  generateAllPlots: vi.fn(),
+}));
 import type {
   MatcherInput,
   MatcherOutput,
@@ -363,5 +368,101 @@ describe("browserPipeline", () => {
 
     const csv0 = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
     expect(csv0).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC/);
+  });
+
+  describe("gap-detection pre-algo timestamp capture and plotting", () => {
+    beforeEach(() => {
+      vi.mocked(generateAllPlots).mockClear();
+      vi.mocked(generateAllPlots).mockResolvedValue(new Map());
+    });
+
+    it("produces a plot output for each participant when enablePlotting is true", async () => {
+      const csv = [
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+        "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+        "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+      ].join("\n");
+
+      const mockBlob = new Blob(["fake-png"], { type: "image/png" });
+      vi.mocked(generateAllPlots).mockResolvedValue(new Map([["P01", mockBlob]]));
+
+      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+        startIndices: [0],
+        stopStartIndices: [0],
+        stopEventIndices: [1],
+        missingIndices: [],
+      });
+
+      const result = await processRawCsvContent(
+        "Raw P01.csv",
+        csv,
+        { ...DEFAULT_BROWSER_OPTIONS, enablePlotting: true, useFilterFile: false, useAppsForcingScreenOpenFile: false, useAppCodebook: false },
+        {},
+        matcher,
+      );
+
+      const plotOutputs = result.outputs.filter((o) => o.kind === "plot");
+      expect(plotOutputs).toHaveLength(1);
+      expect(plotOutputs[0]?.outputFileName).toContain("P01");
+      expect(plotOutputs[0]?.outputFileName).toContain("App Usage Plot");
+    });
+
+    it("skips generateAllPlots when enablePlotting is false", async () => {
+      const csv = [
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+        "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+        "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+      ].join("\n");
+
+      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+        startIndices: [0], stopStartIndices: [0], stopEventIndices: [1], missingIndices: [],
+      });
+
+      const result = await processRawCsvContent(
+        "Raw P01.csv",
+        csv,
+        { ...DEFAULT_BROWSER_OPTIONS, enablePlotting: false, useFilterFile: false, useAppsForcingScreenOpenFile: false, useAppCodebook: false },
+        {},
+        matcher,
+      );
+
+      expect(vi.mocked(generateAllPlots)).not.toHaveBeenCalled();
+      expect(result.outputs.filter((o) => o.kind === "plot")).toHaveLength(0);
+    });
+
+    it("passes all pre-algorithm event timestamps to generateAllPlots", async () => {
+      // 4 raw rows: the algorithm produces 1 APP_USAGE session.
+      // The pre-algo capture must include all 4 rows (all event types).
+      const csv = [
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+        "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+        "Study,P01,Target Child,System,Unknown importance: 15,android,2026-03-07 10:02:00,America/Chicago",
+        "Study,P01,Target Child,System,Unknown importance: 16,android,2026-03-07 10:04:00,America/Chicago",
+        "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+      ].join("\n");
+
+      let capturedPreAlgoTs: Map<string, bigint[]> | undefined;
+      vi.mocked(generateAllPlots).mockImplementation(
+        async (_rows, _tz, _opts, preAlgoTs) => {
+          capturedPreAlgoTs = preAlgoTs as Map<string, bigint[]>;
+          return new Map();
+        },
+      );
+
+      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+        startIndices: [0], stopStartIndices: [0], stopEventIndices: [3], missingIndices: [],
+      });
+
+      await processRawCsvContent(
+        "Raw P01.csv",
+        csv,
+        { ...DEFAULT_BROWSER_OPTIONS, enablePlotting: true, useFilterFile: false, useAppsForcingScreenOpenFile: false, useAppCodebook: false },
+        {},
+        matcher,
+      );
+
+      // All 4 raw events captured for P01 before the algorithm ran
+      expect(capturedPreAlgoTs?.get("P01")).toHaveLength(4);
+    });
   });
 });

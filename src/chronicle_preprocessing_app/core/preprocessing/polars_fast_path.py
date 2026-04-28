@@ -19,6 +19,7 @@ import polars as pl
 from chronicle_preprocessing_app.config.constants import (
     ALL_INTERACTION_TYPES_MAP,
     AMAZON_APPS,
+    GAP_TIMESTAMPS_SIDECAR_SUFFIX,
     PREPROCESSED_FILE_SUFFIX,
     PREPROCESSED_FOLDER_SUFFIX,
     TARGET_CHILD_USERNAME,
@@ -83,6 +84,7 @@ def polars_fast_path_enabled() -> bool:
 class PolarsFastPathResult:
     participant_id: str
     data: pl.DataFrame
+    pre_algo_event_timestamps: pl.Series | None = None
 
 
 def supports_polars_fast_path(
@@ -131,13 +133,16 @@ class PolarsFastPathPreprocessor:
         df = self._correct_event_timestamp_column(df)
         df = self._create_additional_columns(df)
         df = self._label_filtered_apps(df)
+        # Capture after timestamp/TZ/dedup corrections but before the algorithm
+        # removes rows. These timestamps power gap detection in the plotter.
+        pre_algo_ts = df.get_column(Column.EVENT_TIMESTAMP).drop_nulls()
         df = self._run_app_usage_algorithm(df)
         df = self._check_for_disordered_timestamps(df)
         df = self._enrich_with_app_codebook_data(df)
         df = self._add_app_usage_detail_columns(df)
         df = self._mark_app_usage_flags(df)
         df = self._remove_selected_interaction_types(df)
-        return PolarsFastPathResult(participant_id=participant_id, data=df)
+        return PolarsFastPathResult(participant_id=participant_id, data=df, pre_algo_event_timestamps=pre_algo_ts)
 
     def save_preprocessed_output(
         self,
@@ -146,21 +151,25 @@ class PolarsFastPathPreprocessor:
         raw_data_filename: str,
         output_folder: str | Path,
         study_name: str,
+        pre_algo_event_timestamps: pl.Series | None = None,
     ) -> Path:
         preprocessed_data_save_folder = (
             Path(output_folder) / f"{study_name + ' ' + PREPROCESSED_FOLDER_SUFFIX}"
         )
         preprocessed_data_save_folder.mkdir(parents=True, exist_ok=True)
-        save_name = (
-            preprocessed_data_save_folder
-            / f"{Path(raw_data_filename).stem.replace('Raw ', '') + ' ' + PREPROCESSED_FILE_SUFFIX}"
-        )
+        stem = Path(raw_data_filename).stem.replace("Raw ", "")
+        save_name = preprocessed_data_save_folder / f"{stem} {PREPROCESSED_FILE_SUFFIX}"
 
         df = df.with_columns(pl.lit(study_name).alias(Column.STUDY_NAME))
         columns_to_include = self._build_output_columns(df)
         output_df = df.select([col for col in columns_to_include if col in df.columns])
         output_df = self._format_output_frame(output_df)
         output_df.write_csv(save_name)
+
+        if pre_algo_event_timestamps is not None and len(pre_algo_event_timestamps) > 0:
+            sidecar_path = save_name.with_name(save_name.stem + GAP_TIMESTAMPS_SIDECAR_SUFFIX)
+            pl.DataFrame({Column.EVENT_TIMESTAMP: pre_algo_event_timestamps}).write_parquet(sidecar_path)
+
         return preprocessed_data_save_folder
 
     def _read_raw_csv(self, raw_data_file: Path) -> pl.DataFrame:

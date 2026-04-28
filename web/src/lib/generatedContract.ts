@@ -17,6 +17,7 @@ export const TIMEZONE_HANDLING_VALUES = [
 export const OUTPUT_KIND_VALUES = [
   "app",
   "screen",
+  "plot",
 ] as const;
 
 export const BROWSER_PROCESSING_OPTION_KEYS = [
@@ -32,8 +33,8 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "useFilterFile",
   "useAppsForcingScreenOpenFile",
   "useAppCodebook",
+  "enablePlotting",
   "includeFilteredAppUsageInPlots",
-  "plotOnlyTargetChildData",
   "minimumUsageDuration",
   "customAppEngagementDuration",
   "longUsageDurationThresholds",
@@ -61,8 +62,8 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "useFilterFile",
   "useAppsForcingScreenOpenFile",
   "useAppCodebook",
+  "enablePlotting",
   "includeFilteredAppUsageInPlots",
-  "plotOnlyTargetChildData",
   "minimumUsageDuration",
   "customAppEngagementDuration",
   "longUsageDurationThresholds",

@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import { generateAllPlots } from "@/lib/plotGenerator";
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
 import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
 import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
@@ -32,6 +33,8 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   useFilterFile: true,
   useAppsForcingScreenOpenFile: false,
   useAppCodebook: true,
+  enablePlotting: false,
+  includeFilteredAppUsageInPlots: false,
   customAppEngagementDuration: 300,
   longUsageDurationThresholds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
   longDataTimeGapThresholds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
@@ -2008,6 +2011,18 @@ export async function processRawCsvContent(
     };
   }
 
+  // Capture all raw event timestamps per participant before the algorithm
+  // transforms rows into session-level output types. Used for gap detection so
+  // that any activity in the raw data (all 30+ interaction types) prevents a
+  // window from being marked as a data gap.
+  const preAlgoTsByParticipant = new Map<string, bigint[]>();
+  for (const row of rows) {
+    const pid = row.participant_id || "unknown";
+    let arr = preAlgoTsByParticipant.get(pid);
+    if (!arr) { arr = []; preAlgoTsByParticipant.set(pid, arr); }
+    arr.push(row.event_timestamp_ns);
+  }
+
   emit("matcher", 0);
   rows = await runAppUsageAlgorithm(rows, options, runMatcher);
   emit("matcher", 1);
@@ -2050,6 +2065,20 @@ export async function processRawCsvContent(
     });
   }
   emit("output", 1);
+
+  if (options.enablePlotting) {
+    const plotBlobs = await generateAllPlots(rows as Parameters<typeof generateAllPlots>[0], timezone, options, preAlgoTsByParticipant);
+    for (const [pid, blob] of plotBlobs) {
+      const baseName = deriveOutputFileName(inputFileName, ` ${pid} App Usage Plot.png`);
+      outputs.push({
+        kind: "plot",
+        outputFileName: baseName,
+        blob,
+        rowCount: 0,
+        previewRows: [],
+      });
+    }
+  }
 
   return {
     inputFileName,
