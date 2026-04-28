@@ -78,8 +78,8 @@ export function sanitizeOptions(value: unknown): BrowserProcessingOptions {
       case "useFilterFile":
       case "useAppsForcingScreenOpenFile":
       case "useAppCodebook":
+      case "enablePlotting":
       case "includeFilteredAppUsageInPlots":
-      case "plotOnlyTargetChildData":
       case "parallelProcessing":
         if (typeof incoming === "boolean") {
           (next as Record<string, unknown>)[key] = incoming;

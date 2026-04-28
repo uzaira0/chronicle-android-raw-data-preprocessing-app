@@ -68,10 +68,8 @@ export type BrowserProcessingOptions = {
   useFilterFile: boolean;
   useAppsForcingScreenOpenFile: boolean;
   useAppCodebook: boolean;
-  /** @deprecated Plotting is desktop-only. The web pipeline ignores this. */
-  includeFilteredAppUsageInPlots?: boolean;
-  /** @deprecated Plotting is desktop-only. The web pipeline ignores this. */
-  plotOnlyTargetChildData?: boolean;
+  enablePlotting: boolean;
+  includeFilteredAppUsageInPlots: boolean;
   /** @deprecated Compatibility-only — never read by the pipeline. */
   minimumUsageDuration?: number;
   customAppEngagementDuration: number;

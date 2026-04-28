@@ -125,6 +125,15 @@ export const TOOLTIPS = {
     title: "Max parallel workers",
     body: "The maximum number of files the app may process at the same time. Use 0 to let the app choose a safe number based on file sizes and browser capacity. Lower it if the browser becomes slow or memory-heavy.",
   },
+
+  enablePlotting: {
+    title: "Generate app-usage plots",
+    body: "After preprocessing, renders one horizontal-bar timeline chart per participant and includes the PNGs in the output ZIP. Each bar is coloured by app category.",
+  },
+  includeFilteredAppUsageInPlots: {
+    title: "Include filtered apps in plots",
+    body: "When on, bars for apps that were filtered (but retained in the output) are drawn alongside normal app-usage bars.",
+  },
 } as const satisfies Record<string, TooltipContent>;
 
 export type TooltipKey = keyof typeof TOOLTIPS;
