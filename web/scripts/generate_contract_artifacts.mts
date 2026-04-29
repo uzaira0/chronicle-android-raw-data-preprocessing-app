@@ -7,6 +7,9 @@ import { stringify as stringifyYaml, parse as parseYaml } from "yaml";
 
 type LinkMlSlot = {
   description?: string;
+  title?: string;
+  example?: string;
+  default?: unknown;
   multivalued?: boolean;
   range?: string;
   required?: boolean;
@@ -70,6 +73,122 @@ function assertClassSlots(document: LinkMlDocument, className: string): string[]
     throw new Error(`LinkML class ${className} has no slots`);
   }
   return slots;
+}
+
+// Maps LinkML enum names to the TypeScript type alias emitted in generatedContract.ts.
+const ENUM_TYPE_ALIASES: Record<string, string> = {
+  TimezoneHandlingMode: "BrowserTimezoneHandling",
+  OutputKind: "OutputKind",
+};
+
+function resolveTsBaseType(document: LinkMlDocument, range: string | undefined): string {
+  const r = range ?? "string";
+  switch (r) {
+    case "boolean": return "boolean";
+    case "integer": return "number";
+    case "float": return "number";
+    case "string": return "string";
+    default:
+      if (document.enums[r]) return ENUM_TYPE_ALIASES[r] ?? "string";
+      if (document.classes[r]) return r;
+      throw new Error(`Unknown LinkML range: ${r}`);
+  }
+}
+
+function buildTsInterface(document: LinkMlDocument, className: string): string {
+  const slots = assertClassSlots(document, className);
+  const lines = slots.map((slotName) => {
+    const slot = document.slots[slotName];
+    if (!slot) throw new Error(`Missing slot definition for ${slotName}`);
+    const propName = snakeToCamel(slotName);
+    const baseType = resolveTsBaseType(document, slot.range);
+    const tsType = slot.multivalued ? `${baseType}[]` : baseType;
+    const optional = slot.required ? "" : "?";
+    return `  ${propName}${optional}: ${tsType};`;
+  });
+  return `export type ${className} = {\n${lines.join("\n")}\n};`;
+}
+
+type SlotCategory = "boolean" | "number" | "number[]" | "string" | "string[]";
+
+function categorizeSlot(document: LinkMlDocument, slotName: string): SlotCategory | null {
+  const slot = document.slots[slotName];
+  if (!slot) return null;
+  const range = slot.range ?? "string";
+  const multivalued = slot.multivalued ?? false;
+  const required = slot.required ?? false;
+
+  if (range === "boolean") return "boolean";
+  if (range === "integer" || range === "float") {
+    if (multivalued) return "number[]";
+    // non-required non-multivalued numbers are special-cased in the sanitizer
+    if (!required) return null;
+    return "number";
+  }
+  if (multivalued) return "string[]";
+  return "string"; // string, enum, or other range
+}
+
+function buildTsOptionKeysByCategory(
+  document: LinkMlDocument,
+  className: string,
+): Record<SlotCategory, string[]> {
+  const result: Record<SlotCategory, string[]> = {
+    "boolean": [],
+    "number": [],
+    "number[]": [],
+    "string": [],
+    "string[]": [],
+  };
+  for (const slotName of assertClassSlots(document, className)) {
+    const category = categorizeSlot(document, slotName);
+    if (category !== null) result[category].push(snakeToCamel(slotName));
+  }
+  return result;
+}
+
+function toTsValue(value: unknown): string {
+  if (value === undefined || value === null) return "undefined";
+  if (typeof value === "boolean") return String(value);
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "[]";
+    return `[${value.map(toTsValue).join(", ")}]`;
+  }
+  throw new Error(`Cannot convert value to TypeScript literal: ${JSON.stringify(value)}`);
+}
+
+function buildDefaultBrowserOptions(document: LinkMlDocument, className: string): string {
+  const slots = assertClassSlots(document, className);
+  const entries: string[] = [];
+  for (const slotName of slots) {
+    const slot = document.slots[slotName];
+    if (!slot) throw new Error(`Missing slot definition for ${slotName}`);
+    const propName = snakeToCamel(slotName);
+    const value = "default" in slot ? toTsValue(slot.default) : "undefined";
+    entries.push(`  ${propName}: ${value}`);
+  }
+  return `export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {\n${entries.join(",\n")},\n};`;
+}
+
+function buildBrowserOptionTooltips(document: LinkMlDocument, className: string): string {
+  const slots = assertClassSlots(document, className);
+  const entries: string[] = [];
+  for (const slotName of slots) {
+    const slot = document.slots[slotName];
+    if (!slot || (!slot.title && !slot.description)) continue;
+    const propName = snakeToCamel(slotName);
+    const fields: string[] = [];
+    if (slot.title) fields.push(`    title: ${JSON.stringify(slot.title)}`);
+    if (slot.description) {
+      const body = slot.description.trim().replace(/\s+/g, " ");
+      fields.push(`    body: ${JSON.stringify(body)}`);
+    }
+    if (slot.example) fields.push(`    example: ${JSON.stringify(slot.example)}`);
+    entries.push(`  ${propName}: {\n${fields.join(",\n")},\n  }`);
+  }
+  return `export const BROWSER_OPTION_TOOLTIPS = {\n${entries.join(",\n")},\n} as const;`;
 }
 
 function getEnumValues(document: LinkMlDocument, enumName: string): string[] {
@@ -293,6 +412,10 @@ function buildGeneratedTypeScript(document: LinkMlDocument): string {
   const browserRuntimeSlots = assertClassSlots(document, "BrowserProcessingRuntime").map(snakeToCamel);
   const timezoneHandlingValues = getEnumValues(document, "TimezoneHandlingMode");
   const outputKindValues = getEnumValues(document, "OutputKind");
+  const optionsInterface = buildTsInterface(document, "BrowserProcessingOptions");
+  const keysByCategory = buildTsOptionKeysByCategory(document, "BrowserProcessingOptions");
+  const defaultOptions = buildDefaultBrowserOptions(document, "BrowserProcessingOptions");
+  const optionTooltips = buildBrowserOptionTooltips(document, "BrowserProcessingOptions");
 
   return `// This file is generated by web/scripts/generate_contract_artifacts.mts.
 // Do not edit by hand; update the LinkML contract instead.
@@ -311,6 +434,19 @@ export const BROWSER_RUNTIME_KEYS = ${toConstArray(browserRuntimeSlots)};
 
 export type BrowserTimezoneHandling = (typeof TIMEZONE_HANDLING_VALUES)[number];
 export type OutputKind = (typeof OUTPUT_KIND_VALUES)[number];
+
+${optionsInterface}
+
+// Key arrays by sanitization type — used by settingsPersistence to stay in sync with the schema.
+export const BOOLEAN_BROWSER_OPTION_KEYS = ${toConstArray(keysByCategory["boolean"])};
+export const NUMBER_BROWSER_OPTION_KEYS = ${toConstArray(keysByCategory["number"])};
+export const NUMBER_ARRAY_BROWSER_OPTION_KEYS = ${toConstArray(keysByCategory["number[]"])};
+export const STRING_BROWSER_OPTION_KEYS = ${toConstArray(keysByCategory["string"])};
+export const STRING_ARRAY_BROWSER_OPTION_KEYS = ${toConstArray(keysByCategory["string[]"])};
+
+${defaultOptions}
+
+${optionTooltips}
 `;
 }
 

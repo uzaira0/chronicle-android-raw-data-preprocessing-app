@@ -68,6 +68,7 @@ classes:
       - enable_plotting
       - include_filtered_app_usage_in_plots
       - minimum_usage_duration
+      - filter_zero_duration_sessions
       - custom_app_engagement_duration
       - long_usage_duration_thresholds
       - long_data_time_gap_thresholds
@@ -123,90 +124,278 @@ slots:
 
   study_name:
     required: true
+    title: "Study name"
+    description: >-
+      Your label for this study. Written into the `study_name` column of every output row.
+      This is your own naming, not the `study_id` column from the raw data — that is preserved unchanged.
+    default: ""
   process_app_usage:
     range: boolean
     required: true
+    title: "App usage output"
+    description: >-
+      Run the app-usage algorithm and include the app-usage CSV in the output ZIP.
+      Each session spans from an Activity Resumed to its matching stop event.
+    default: true
   process_screen_usage:
     range: boolean
     required: true
+    title: "Screen usage output"
+    description: >-
+      Derive screen-usage sessions and include the screen-usage CSV in the output ZIP.
+      Sessions are inferred from Screen Interactive / Screen Non-Interactive events.
+    default: false
   allow_stop_event_reuse:
     range: boolean
     required: true
+    title: "Allow stop-event reuse"
+    description: >-
+      Lets a single stop event close multiple overlapping sessions.
+      Off by default — stop events are consumed once.
+    default: false
   use_activity_stopped_as_fallback:
     range: boolean
     required: true
+    title: "Use Activity Stopped fallback"
+    description: >-
+      If a session has no explicit stop, fall back to the next Activity Stopped event for the same app.
+      Helps with noisy traces.
+    default: true
   apply_threshold_to_fallback:
     range: boolean
     required: true
+    title: "Apply threshold to fallback"
+    description: >-
+      When the fallback path is used and the implied session is longer than the max threshold above,
+      treat it as a missing-end-of-usage instead of a real session.
+    default: true
   long_duration_threshold_hours:
     range: float
     required: true
+    title: "Max session duration threshold"
+    description: >-
+      Sessions longer than this many hours are flagged as suspiciously long,
+      which may indicate an instrumentation gap rather than real use.
+    example: "default 12 hours"
+    default: 12
   correct_duplicate_event_timestamps:
     range: boolean
     required: true
+    title: "Correct duplicate timestamps"
+    description: >-
+      When two events share the same timestamp, nudge the second one forward by microseconds
+      so ordering is preserved deterministically.
+    default: true
   selected_timezone:
     range: string
+    title: "Selected timezone"
+    description: >-
+      Pick from the typical IANA names (e.g. America/Chicago).
+      When discovery runs, found timezones from your file are added to the suggestions.
+    default: ""
   timezone_handling:
     range: TimezoneHandlingMode
     required: true
+    title: "Timezone handling"
+    description: >-
+      Decides what happens to rows with timezones that differ from the selected one —
+      keep only the matching rows, convert mixed rows to a common zone,
+      or anchor on the file's primary zone.
+    default: "selected-filter"
   use_filter_file:
     range: boolean
     required: true
+    title: "Use filter file"
+    description: >-
+      If on, the pipeline labels apps in your filter list as filtered (instead of dropping them).
+      Without an uploaded file the app falls back to the bundled default.
+    default: true
   use_apps_forcing_screen_open_file:
     range: boolean
     required: true
+    title: "Use apps-forcing-screen-open file"
+    description: >-
+      Apps in this list are treated as ones that force the screen to stay on during screen-usage derivation,
+      which influences how locks/unlocks are interpreted.
+    default: false
   use_app_codebook:
     range: boolean
     required: true
+    title: "Use app codebook"
+    description: >-
+      Enriches each output row with category metadata from the codebook
+      (Play Store genre, USC category, UMich classifications, etc.).
+      Without an uploaded codebook the bundled default is used.
+    default: true
   enable_plotting:
     range: boolean
     required: true
+    title: "Generate app-usage plots"
+    description: >-
+      After preprocessing, renders one horizontal-bar timeline chart per participant
+      and includes the PNGs in the output ZIP. Each bar is coloured by app category.
+    default: false
   include_filtered_app_usage_in_plots:
     range: boolean
     required: true
+    title: "Include filtered apps in plots"
+    description: >-
+      When on, bars for apps that were filtered (but retained in the output)
+      are drawn alongside normal app-usage bars.
+    default: false
   plot_only_target_child_data:
     range: boolean
     required: true
   minimum_usage_duration:
     range: integer
     required: true
+    title: "Minimum usage duration (seconds)"
+    description: >-
+      Sessions shorter than this threshold have their duration_seconds and duration_minutes
+      set to null in the output. The session row is retained. Set to 0 to disable.
+    example: "default 0 (disabled)"
+    default: 0
+  filter_zero_duration_sessions:
+    range: boolean
+    required: true
+    title: "Filter zero-duration sessions"
+    description: >-
+      Removes app-usage session rows whose computed duration is exactly zero or negative.
+      These arise from duplicate events at the same millisecond, common on Fire tablets.
+    default: false
   custom_app_engagement_duration:
     range: integer
     required: true
+    title: "Custom app engagement duration"
+    description: >-
+      Window in seconds within which two consecutive activities on the same app
+      count as continued engagement. Affects how first new engagement is detected.
+    example: "default 300 seconds"
+    default: 300
   long_usage_duration_thresholds:
     range: integer
     multivalued: true
     required: true
+    title: "Long-usage thresholds (hours)"
+    description: >-
+      Comma-separated hour values. For each value the pipeline emits a column
+      flagging sessions whose duration exceeds it.
+    example: "default 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12"
+    default:
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
   long_data_time_gap_thresholds:
     range: integer
     multivalued: true
     required: true
+    title: "Long data-gap thresholds (hours)"
+    description: >-
+      Comma-separated hour values. For each value the pipeline emits a column
+      flagging time gaps between events that exceed it.
+    example: "default 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12"
+    default:
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
   screen_usage_auto_lock_timeout_seconds:
     range: integer
     required: true
+    title: "Auto-lock timeout (seconds)"
+    description: >-
+      Idle period after which the screen is assumed to have auto-locked.
+      Used to infer screen-off time when an explicit lock is missing.
+    example: "default 120 seconds"
+    default: 120
   screen_usage_auto_lock_tolerance_seconds:
     range: integer
     required: true
+    title: "Auto-lock tolerance (seconds)"
+    description: >-
+      Slack window around the auto-lock timeout to absorb small clock skews
+      when classifying lock events.
+    example: "default 30 seconds"
+    default: 30
   screen_usage_manual_lock_max_tail_gap_seconds:
     range: integer
     required: true
+    title: "Manual-lock max tail gap (seconds)"
+    description: >-
+      Maximum allowed gap between the last meaningful activity and an explicit lock event
+      for the lock to count as manual.
+    example: "default 30 seconds"
+    default: 30
   screen_usage_keyguard_near_stop_seconds:
     range: integer
     required: true
+    title: "Keyguard-near-stop window (seconds)"
+    description: >-
+      If the keyguard appears within this many seconds of a session stop,
+      treat it as part of the same lock event.
+    example: "default 2 seconds"
+    default: 2
   parallel_processing:
     range: boolean
     required: true
+    title: "Enable parallel file processing"
+    description: >-
+      When this is on, the app can process more than one uploaded raw file at the same time.
+      It usually helps only when you upload multiple files; one file still runs by itself.
+    default: false
   parallel_max_workers:
     range: integer
+    title: "Max parallel workers"
+    description: >-
+      The maximum number of files the app may process at the same time.
+      Use 0 to let the app choose a safe number based on file sizes and browser capacity.
+      Lower it if the browser becomes slow or memory-heavy.
   same_app_interaction_types_to_stop_usage_at:
     multivalued: true
     required: true
+    title: "Same-app stop types"
+    description: >-
+      Interaction types that, when seen for the same app as the current session, end that session.
+    default:
+      - "Activity Paused"
+      - "Activity Resumed"
   other_interaction_types_to_stop_usage_at:
     multivalued: true
     required: true
+    title: "Other-app stop types"
+    description: >-
+      Interaction types from any other source that close the current session —
+      e.g. a different app coming to the foreground or the device shutting down.
+    default:
+      - "Activity Resumed"
+      - "Filtered App Resumed"
+      - "Filtered App Usage"
+      - "Device Shutdown"
   interaction_types_to_remove:
     multivalued: true
     required: true
+    title: "Interaction types to remove"
+    description: >-
+      Rows of these types are dropped from the final output.
+      Useful for stripping noisy events you don't want surfaced in the CSV.
+    default: []
 
   kind:
     range: OutputKind
