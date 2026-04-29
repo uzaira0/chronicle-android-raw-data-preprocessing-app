@@ -1,5 +1,11 @@
-import { BROWSER_PROCESSING_OPTION_KEYS } from "@/lib/generatedContract";
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
+import {
+  BOOLEAN_BROWSER_OPTION_KEYS,
+  NUMBER_BROWSER_OPTION_KEYS,
+  NUMBER_ARRAY_BROWSER_OPTION_KEYS,
+  STRING_BROWSER_OPTION_KEYS,
+  STRING_ARRAY_BROWSER_OPTION_KEYS,
+} from "@/lib/generatedContract";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 const STORAGE_KEY = "chronicle.processingOptions.v1";
@@ -31,8 +37,6 @@ export type ImportedConfig = {
   options: BrowserProcessingOptions;
   presets: SettingsPreset[];
 };
-
-const optionKeys = new Set<string>(BROWSER_PROCESSING_OPTION_KEYS);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -66,64 +70,24 @@ export function sanitizeOptions(value: unknown): BrowserProcessingOptions {
     next.processScreenUsage = mode === "screen_usage" || mode === "app_and_screen_usage";
   }
 
-  for (const key of optionKeys) {
-    if (!(key in source)) continue;
-    const incoming = source[key];
-    switch (key) {
-      case "studyName":
-      case "selectedTimezone":
-      case "timezoneHandling":
-        if (typeof incoming === "string") {
-          (next as Record<string, unknown>)[key] = incoming;
-        }
-        break;
-      case "processAppUsage":
-      case "processScreenUsage":
-      case "allowStopEventReuse":
-      case "useActivityStoppedAsFallback":
-      case "applyThresholdToFallback":
-      case "correctDuplicateEventTimestamps":
-      case "useFilterFile":
-      case "useAppsForcingScreenOpenFile":
-      case "useAppCodebook":
-      case "enablePlotting":
-      case "includeFilteredAppUsageInPlots":
-      case "parallelProcessing":
-        if (typeof incoming === "boolean") {
-          (next as Record<string, unknown>)[key] = incoming;
-        }
-        break;
-      case "longDurationThresholdHours":
-      case "minimumUsageDuration":
-      case "customAppEngagementDuration":
-      case "screenUsageAutoLockTimeoutSeconds":
-      case "screenUsageAutoLockToleranceSeconds":
-      case "screenUsageManualLockMaxTailGapSeconds":
-      case "screenUsageKeyguardNearStopSeconds":
-        if (typeof incoming === "number" && Number.isFinite(incoming)) {
-          (next as Record<string, unknown>)[key] = incoming;
-        }
-        break;
-      case "parallelMaxWorkers":
-        next.parallelMaxWorkers = optionalPositiveInteger(incoming);
-        break;
-      case "longUsageDurationThresholds":
-      case "longDataTimeGapThresholds":
-        (next as Record<string, unknown>)[key] = numberArray(
-          incoming,
-          DEFAULT_BROWSER_OPTIONS[key],
-        );
-        break;
-      case "sameAppInteractionTypesToStopUsageAt":
-      case "otherInteractionTypesToStopUsageAt":
-      case "interactionTypesToRemove":
-        (next as Record<string, unknown>)[key] = stringArray(
-          incoming,
-          DEFAULT_BROWSER_OPTIONS[key],
-        );
-        break;
-    }
+  const src = source as Record<string, unknown>;
+  for (const key of BOOLEAN_BROWSER_OPTION_KEYS) {
+    if (typeof src[key] === "boolean") (next as Record<string, unknown>)[key] = src[key];
   }
+  for (const key of NUMBER_BROWSER_OPTION_KEYS) {
+    if (typeof src[key] === "number" && Number.isFinite(src[key])) (next as Record<string, unknown>)[key] = src[key];
+  }
+  for (const key of NUMBER_ARRAY_BROWSER_OPTION_KEYS) {
+    (next as Record<string, unknown>)[key] = numberArray(src[key], DEFAULT_BROWSER_OPTIONS[key]);
+  }
+  for (const key of STRING_BROWSER_OPTION_KEYS) {
+    if (typeof src[key] === "string") (next as Record<string, unknown>)[key] = src[key];
+  }
+  for (const key of STRING_ARRAY_BROWSER_OPTION_KEYS) {
+    (next as Record<string, unknown>)[key] = stringArray(src[key], DEFAULT_BROWSER_OPTIONS[key]);
+  }
+  // parallelMaxWorkers has unique semantics (optional, positive-only) so stays explicit.
+  next.parallelMaxWorkers = optionalPositiveInteger(src.parallelMaxWorkers);
 
   return next;
 }
