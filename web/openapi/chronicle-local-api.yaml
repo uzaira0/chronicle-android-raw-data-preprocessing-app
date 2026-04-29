@@ -94,6 +94,7 @@ components:
         - enablePlotting
         - includeFilteredAppUsageInPlots
         - minimumUsageDuration
+        - filterZeroDurationSessions
         - customAppEngagementDuration
         - longUsageDurationThresholds
         - longDataTimeGapThresholds
@@ -108,22 +109,46 @@ components:
       properties:
         studyName:
           type: string
+          description: Your label for this study. Written into the `study_name` column of
+            every output row. This is your own naming, not the `study_id` column
+            from the raw data — that is preserved unchanged.
         processAppUsage:
           type: boolean
+          description: Run the app-usage algorithm and include the app-usage CSV in the
+            output ZIP. Each session spans from an Activity Resumed to its
+            matching stop event.
         processScreenUsage:
           type: boolean
+          description: Derive screen-usage sessions and include the screen-usage CSV in
+            the output ZIP. Sessions are inferred from Screen Interactive /
+            Screen Non-Interactive events.
         allowStopEventReuse:
           type: boolean
+          description: Lets a single stop event close multiple overlapping sessions. Off
+            by default — stop events are consumed once.
         useActivityStoppedAsFallback:
           type: boolean
+          description: If a session has no explicit stop, fall back to the next Activity
+            Stopped event for the same app. Helps with noisy traces.
         applyThresholdToFallback:
           type: boolean
+          description: When the fallback path is used and the implied session is longer
+            than the max threshold above, treat it as a missing-end-of-usage
+            instead of a real session.
         longDurationThresholdHours:
           type: number
+          description: Sessions longer than this many hours are flagged as suspiciously
+            long, which may indicate an instrumentation gap rather than real
+            use.
         correctDuplicateEventTimestamps:
           type: boolean
+          description: When two events share the same timestamp, nudge the second one
+            forward by microseconds so ordering is preserved deterministically.
         selectedTimezone:
           type: string
+          description: Pick from the typical IANA names (e.g. America/Chicago). When
+            discovery runs, found timezones from your file are added to the
+            suggestions.
         timezoneHandling:
           type: string
           enum:
@@ -131,52 +156,106 @@ components:
             - selected-convert
             - primary-filter
             - primary-convert
+          description: Decides what happens to rows with timezones that differ from the
+            selected one — keep only the matching rows, convert mixed rows to a
+            common zone, or anchor on the file's primary zone.
         useFilterFile:
           type: boolean
+          description: If on, the pipeline labels apps in your filter list as filtered
+            (instead of dropping them). Without an uploaded file the app falls
+            back to the bundled default.
         useAppsForcingScreenOpenFile:
           type: boolean
+          description: Apps in this list are treated as ones that force the screen to stay
+            on during screen-usage derivation, which influences how
+            locks/unlocks are interpreted.
         useAppCodebook:
           type: boolean
+          description: Enriches each output row with category metadata from the codebook
+            (Play Store genre, USC category, UMich classifications, etc.).
+            Without an uploaded codebook the bundled default is used.
         enablePlotting:
           type: boolean
+          description: After preprocessing, renders one horizontal-bar timeline chart per
+            participant and includes the PNGs in the output ZIP. Each bar is
+            coloured by app category.
         includeFilteredAppUsageInPlots:
           type: boolean
+          description: When on, bars for apps that were filtered (but retained in the
+            output) are drawn alongside normal app-usage bars.
         minimumUsageDuration:
           type: integer
+          description: Sessions shorter than this threshold have their duration_seconds
+            and duration_minutes set to null in the output. The session row is
+            retained. Set to 0 to disable.
+        filterZeroDurationSessions:
+          type: boolean
+          description: Removes app-usage session rows whose computed duration is exactly
+            zero or negative. These arise from duplicate events at the same
+            millisecond, common on Fire tablets.
         customAppEngagementDuration:
           type: integer
+          description: Window in seconds within which two consecutive activities on the
+            same app count as continued engagement. Affects how first new
+            engagement is detected.
         longUsageDurationThresholds:
           type: array
           items:
             type: integer
+          description: Comma-separated hour values. For each value the pipeline emits a
+            column flagging sessions whose duration exceeds it.
         longDataTimeGapThresholds:
           type: array
           items:
             type: integer
+          description: Comma-separated hour values. For each value the pipeline emits a
+            column flagging time gaps between events that exceed it.
         screenUsageAutoLockTimeoutSeconds:
           type: integer
+          description: Idle period after which the screen is assumed to have auto-locked.
+            Used to infer screen-off time when an explicit lock is missing.
         screenUsageAutoLockToleranceSeconds:
           type: integer
+          description: Slack window around the auto-lock timeout to absorb small clock
+            skews when classifying lock events.
         screenUsageManualLockMaxTailGapSeconds:
           type: integer
+          description: Maximum allowed gap between the last meaningful activity and an
+            explicit lock event for the lock to count as manual.
         screenUsageKeyguardNearStopSeconds:
           type: integer
+          description: If the keyguard appears within this many seconds of a session stop,
+            treat it as part of the same lock event.
         parallelProcessing:
           type: boolean
+          description: When this is on, the app can process more than one uploaded raw
+            file at the same time. It usually helps only when you upload
+            multiple files; one file still runs by itself.
         parallelMaxWorkers:
           type: integer
+          description: The maximum number of files the app may process at the same time.
+            Use 0 to let the app choose a safe number based on file sizes and
+            browser capacity. Lower it if the browser becomes slow or
+            memory-heavy.
         sameAppInteractionTypesToStopUsageAt:
           type: array
           items:
             type: string
+          description: Interaction types that, when seen for the same app as the current
+            session, end that session.
         otherInteractionTypesToStopUsageAt:
           type: array
           items:
             type: string
+          description: Interaction types from any other source that close the current
+            session — e.g. a different app coming to the foreground or the
+            device shutting down.
         interactionTypesToRemove:
           type: array
           items:
             type: string
+          description: Rows of these types are dropped from the final output. Useful for
+            stripping noisy events you don't want surfaced in the CSV.
     DiscoverTimezonesRequest:
       type: object
       required:

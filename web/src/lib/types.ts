@@ -1,7 +1,5 @@
-import type {
-  BrowserTimezoneHandling,
-  OutputKind,
-} from "@/lib/generatedContract";
+export type { BrowserProcessingOptions, BrowserTimezoneHandling, OutputKind } from "@/lib/generatedContract";
+import type { OutputKind } from "@/lib/generatedContract";
 
 export type MatcherInput = {
   appCodes: Int32Array;
@@ -54,37 +52,6 @@ export type BrowserProcessingRuntime = {
   datetimeOfPreprocessing?: string;
 };
 
-export type BrowserProcessingOptions = {
-  studyName: string;
-  processAppUsage: boolean;
-  processScreenUsage: boolean;
-  allowStopEventReuse: boolean;
-  useActivityStoppedAsFallback: boolean;
-  applyThresholdToFallback: boolean;
-  longDurationThresholdHours: number;
-  correctDuplicateEventTimestamps: boolean;
-  selectedTimezone?: string;
-  timezoneHandling: BrowserTimezoneHandling;
-  useFilterFile: boolean;
-  useAppsForcingScreenOpenFile: boolean;
-  useAppCodebook: boolean;
-  enablePlotting: boolean;
-  includeFilteredAppUsageInPlots: boolean;
-  /** @deprecated Compatibility-only — never read by the pipeline. */
-  minimumUsageDuration?: number;
-  customAppEngagementDuration: number;
-  longUsageDurationThresholds: number[];
-  longDataTimeGapThresholds: number[];
-  screenUsageAutoLockTimeoutSeconds: number;
-  screenUsageAutoLockToleranceSeconds: number;
-  screenUsageManualLockMaxTailGapSeconds: number;
-  screenUsageKeyguardNearStopSeconds: number;
-  parallelProcessing: boolean;
-  parallelMaxWorkers?: number;
-  sameAppInteractionTypesToStopUsageAt: string[];
-  otherInteractionTypesToStopUsageAt: string[];
-  interactionTypesToRemove: string[];
-};
 
 export type ProgressStepKind =
   | "parse"

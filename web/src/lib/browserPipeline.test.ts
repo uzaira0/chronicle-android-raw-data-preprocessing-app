@@ -372,6 +372,122 @@ describe("browserPipeline", () => {
     expect(csv0).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC/);
   });
 
+  it("nulls duration fields for sessions below minimumUsageDuration but keeps the row", async () => {
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:00:03,America/Chicago",
+    ].join("\n");
+
+    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+
+    const result = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        minimumUsageDuration: 5,
+        useFilterFile: false,
+        useAppsForcingScreenOpenFile: false,
+        useAppCodebook: false,
+      },
+      {},
+      matcher,
+    );
+
+    const csvText = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
+    const lines = csvText.trim().split("\n");
+    const headers = (lines[0] ?? "").split(",");
+    const dataRows = lines.slice(1).filter(Boolean);
+    const durationSecondsIdx = headers.indexOf("duration_seconds");
+    const durationMinutesIdx = headers.indexOf("duration_minutes");
+
+    // The row is kept in the output
+    expect(dataRows).toHaveLength(1);
+    expect(csvText).toContain("App Usage");
+    // But duration fields are empty (null → empty CSV cell)
+    expect(dataRows[0]?.split(",")[durationSecondsIdx]).toBe("");
+    expect(dataRows[0]?.split(",")[durationMinutesIdx]).toBe("");
+  });
+
+  it("populates duration fields normally when session meets minimumUsageDuration", async () => {
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:00:10,America/Chicago",
+    ].join("\n");
+
+    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+
+    const result = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        minimumUsageDuration: 5,
+        useFilterFile: false,
+        useAppsForcingScreenOpenFile: false,
+        useAppCodebook: false,
+      },
+      {},
+      matcher,
+    );
+
+    const csvText = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
+    const lines = csvText.trim().split("\n");
+    const headers = (lines[0] ?? "").split(",");
+    const dataRows = lines.slice(1).filter(Boolean);
+    const durationSecondsIdx = headers.indexOf("duration_seconds");
+
+    expect(dataRows).toHaveLength(1);
+    expect(Number(dataRows[0]?.split(",")[durationSecondsIdx])).toBe(10);
+  });
+
+  it("removes zero-duration App Usage rows when filterZeroDurationSessions is true", async () => {
+    // Disable duplicate correction so same-timestamp start/stop yields exactly 0 duration.
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+    ].join("\n");
+
+    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+
+    const baseOpts = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      correctDuplicateEventTimestamps: false,
+      useFilterFile: false,
+      useAppsForcingScreenOpenFile: false,
+      useAppCodebook: false,
+    };
+
+    const withFilter = await processRawCsvContent("Raw P01.csv", csv, { ...baseOpts, filterZeroDurationSessions: true }, {}, matcher);
+    const withoutFilter = await processRawCsvContent("Raw P01.csv", csv, { ...baseOpts, filterZeroDurationSessions: false }, {}, matcher);
+
+    const filteredCsv = withFilter.outputs[0]?.blob ? await readOutputCsv(withFilter.outputs[0].blob) : "";
+    const unfilteredCsv = withoutFilter.outputs[0]?.blob ? await readOutputCsv(withoutFilter.outputs[0].blob) : "";
+
+    // Without filter: App Usage row is present
+    expect(unfilteredCsv).toContain("App Usage");
+    // With filter: App Usage row removed (only header remains)
+    expect(filteredCsv).not.toContain("App Usage");
+  });
+
   describe("gap-detection pre-algo timestamp capture and plotting", () => {
     beforeEach(() => {
       vi.mocked(generateAllPlots).mockClear();

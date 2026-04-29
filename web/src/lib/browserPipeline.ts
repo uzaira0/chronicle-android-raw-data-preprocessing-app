@@ -3,6 +3,7 @@ import { generateAllPlots, generateAllScreenPlots } from "@/lib/plotGenerator";
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
 import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
 import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import type {
   BrowserProcessingOptions,
   BrowserProcessingRuntime,
@@ -20,40 +21,7 @@ import type {
 
 export const PREPROCESSOR_VERSION = "1.0.0";
 
-export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
-  studyName: "",
-  processAppUsage: true,
-  processScreenUsage: false,
-  allowStopEventReuse: false,
-  useActivityStoppedAsFallback: true,
-  applyThresholdToFallback: true,
-  longDurationThresholdHours: 12,
-  correctDuplicateEventTimestamps: true,
-  selectedTimezone: "",
-  timezoneHandling: "selected-filter",
-  useFilterFile: true,
-  useAppsForcingScreenOpenFile: false,
-  useAppCodebook: true,
-  enablePlotting: false,
-  includeFilteredAppUsageInPlots: false,
-  customAppEngagementDuration: 300,
-  longUsageDurationThresholds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-  longDataTimeGapThresholds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-  screenUsageAutoLockTimeoutSeconds: 120,
-  screenUsageAutoLockToleranceSeconds: 30,
-  screenUsageManualLockMaxTailGapSeconds: 30,
-  screenUsageKeyguardNearStopSeconds: 2,
-  parallelProcessing: false,
-  parallelMaxWorkers: undefined,
-  sameAppInteractionTypesToStopUsageAt: ["Activity Paused", "Activity Resumed"],
-  otherInteractionTypesToStopUsageAt: [
-    "Activity Resumed",
-    "Filtered App Resumed",
-    "Filtered App Usage",
-    "Device Shutdown",
-  ],
-  interactionTypesToRemove: [],
-};
+export { DEFAULT_BROWSER_OPTIONS };
 
 export const TIMEZONE_HANDLING_OPTIONS = [
   {
@@ -1227,8 +1195,13 @@ async function processUsageRows(
         } else {
           const durationSeconds =
             Number(updated.stop_timestamp_ns! - updated.start_timestamp_ns!) / 1_000_000_000;
-          updated.duration_seconds = durationSeconds;
-          updated.duration_minutes = durationSeconds / 60;
+          if (options.minimumUsageDuration > 0 && durationSeconds < options.minimumUsageDuration) {
+            updated.duration_seconds = null;
+            updated.duration_minutes = null;
+          } else {
+            updated.duration_seconds = durationSeconds;
+            updated.duration_minutes = durationSeconds / 60;
+          }
         }
         return updated;
       }
@@ -2014,6 +1987,11 @@ export async function processRawCsvContent(
     appRows = markAppUsageFlags(appRows, options);
     appRows = clearFilteredUsageTiming(appRows);
     appRows = removeSelectedInteractionTypes(appRows, options);
+    if (options.filterZeroDurationSessions) {
+      appRows = appRows.filter(
+        (row) => row.interaction_type !== "App Usage" || row.duration_seconds === null || row.duration_seconds > 0,
+      );
+    }
     emit("enrich", 1);
 
     emit("output", 0);

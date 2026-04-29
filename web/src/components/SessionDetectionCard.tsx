@@ -12,6 +12,8 @@ import type { BrowserProcessingOptions } from "@/lib/types";
 
 const KEYS: readonly OptionKey[] = [
   "longDurationThresholdHours",
+  "minimumUsageDuration",
+  "filterZeroDurationSessions",
   "customAppEngagementDuration",
   "longUsageDurationThresholds",
   "longDataTimeGapThresholds",
@@ -61,6 +63,27 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
             value={options.longDurationThresholdHours}
             onChange={(event) =>
               update("longDurationThresholdHours", Number(event.target.value))
+            }
+          />
+        </SettingsField>
+
+        <SettingsField
+          label="Minimum usage duration (seconds)"
+          htmlFor="minimum-usage-duration-input"
+          tooltip={TOOLTIPS.minimumUsageDuration}
+          modified={isMod("minimumUsageDuration")}
+          onReset={() => reset("minimumUsageDuration")}
+        >
+          <input
+            id="minimum-usage-duration-input"
+            data-testid="minimum-usage-duration-input"
+            type="number"
+            className="input"
+            min={0}
+            max={3600}
+            value={options.minimumUsageDuration}
+            onChange={(event) =>
+              update("minimumUsageDuration", Number(event.target.value))
             }
           />
         </SettingsField>
@@ -153,6 +176,15 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           testId="toggle-applyThresholdToFallback"
           modified={isMod("applyThresholdToFallback")}
           onReset={() => reset("applyThresholdToFallback")}
+        />
+        <ToggleField
+          label="Filter zero-duration sessions"
+          tooltip={TOOLTIPS.filterZeroDurationSessions}
+          checked={options.filterZeroDurationSessions}
+          onChange={(value) => update("filterZeroDurationSessions", value)}
+          testId="toggle-filterZeroDurationSessions"
+          modified={isMod("filterZeroDurationSessions")}
+          onReset={() => reset("filterZeroDurationSessions")}
         />
       </div>
     </SectionCard>
