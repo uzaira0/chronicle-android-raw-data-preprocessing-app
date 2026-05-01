@@ -90,7 +90,7 @@ jobs:
         run: npm run test:e2e:smoke
 
       - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: web/.github-pages-dist
 
