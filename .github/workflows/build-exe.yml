@@ -102,7 +102,7 @@ jobs:
         echo "Version set to: $VERSION"
     
     - name: Upload version artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: version-info
         path: src/chronicle_preprocessing_app/config/version.py
@@ -312,13 +312,13 @@ jobs:
       shell: pwsh
       
     - name: Upload executable as artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: ChronicleAndroidRawDataPreprocessingApp-windows
         path: dist/ChronicleAndroidRawDataPreprocessingApp
         
     - name: Upload ZIP archive as artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: ChronicleAndroidRawDataPreprocessingApp-win-zip
         path: ChronicleAndroidRawDataPreprocessingApp-win-*.zip
@@ -470,14 +470,14 @@ jobs:
         fi
       
     - name: Upload app bundle as artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: ChronicleAndroidRawDataPreprocessingApp-mac-app
         path: dist/ChronicleAndroidRawDataPreprocessingApp.app
         if-no-files-found: warn
         
     - name: Upload DMG as artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: ChronicleAndroidRawDataPreprocessingApp-mac-dmg
         path: ChronicleAndroidRawDataPreprocessingApp-mac-*.dmg
