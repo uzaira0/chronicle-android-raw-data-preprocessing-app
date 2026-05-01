@@ -121,7 +121,7 @@ jobs:
         cache: 'pip'
     
     - name: Download version info
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: version-info
     
@@ -337,7 +337,7 @@ jobs:
         cache: 'pip'
     
     - name: Download version info
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: version-info
     
@@ -494,18 +494,18 @@ jobs:
     - uses: actions/checkout@v6
     
     - name: Download version info
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: version-info
     
     - name: Download Windows ZIP artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: ChronicleAndroidRawDataPreprocessingApp-win-zip
         path: artifacts
     
     - name: Download macOS DMG artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: ChronicleAndroidRawDataPreprocessingApp-mac-dmg
         path: artifacts
