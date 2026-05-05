@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Dependency vulnerability scanning — all three surfaces (Python, npm, Rust).
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PYTHON="${PYTHON:-$REPO_ROOT/.venv/bin/python}"
+if [ ! -x "$PYTHON" ]; then
+  PYTHON="python3"
+fi
+
+FAIL=0
+
+# ---------------------------------------------------------------------------
+# Python — pip-audit
+# ---------------------------------------------------------------------------
+echo "=== Python dependency audit ==="
+if "$PYTHON" -m pip_audit --version &>/dev/null; then
+  # Audit installed packages, ignore vulnerabilities with no known fix
+  "$PYTHON" -m pip_audit \
+    --desc \
+    --fix-type setup \
+    2>&1 || FAIL=1
+else
+  echo "pip-audit not installed — skipping Python audit" >&2
+fi
+echo
+
+# ---------------------------------------------------------------------------
+# npm — npm audit
+# ---------------------------------------------------------------------------
+echo "=== npm dependency audit ==="
+if [ -d "$REPO_ROOT/web/node_modules" ]; then
+  (
+    cd "$REPO_ROOT/web"
+    npm audit --audit-level=high --omit=dev 2>&1 || FAIL=1
+  )
+else
+  echo "web/node_modules not found — run 'npm ci' in web/ first" >&2
+  FAIL=1
+fi
+echo
+
+# ---------------------------------------------------------------------------
+# Rust — cargo audit
+# ---------------------------------------------------------------------------
+echo "=== Rust dependency audit ==="
+if command -v cargo-audit &>/dev/null || [ -x "$HOME/.cargo/bin/cargo-audit" ]; then
+  CARGO_AUDIT="${HOME}/.cargo/bin/cargo-audit"
+  if ! command -v cargo-audit &>/dev/null; then
+    export PATH="$HOME/.cargo/bin:$PATH"
+  fi
+  (
+    cd "$REPO_ROOT"
+    cargo audit 2>&1 || FAIL=1
+  )
+else
+  echo "cargo-audit not found — install with: cargo install cargo-audit --locked" >&2
+  FAIL=1
+fi
+echo
+
+if [ "$FAIL" -ne 0 ]; then
+  echo "Dependency audit FAILED — review vulnerabilities above." >&2
+  exit 1
+fi
+
+echo "All dependency audits passed."

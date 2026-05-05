@@ -182,6 +182,20 @@ check_file \
   "test_study_date_provider.py" \
   || FAIL=1
 
+echo
+
+check_file \
+  "app_filter_preprocessor.py" \
+  "test_app_filter_preprocessor.py" \
+  || FAIL=1
+
+echo
+
+check_file \
+  "screen_usage_preprocessor.py" \
+  "test_screen_usage_preprocessor.py" \
+  || FAIL=1
+
 if [ "$FAIL" -ne 0 ]; then
   echo
   echo "Mutation testing FAILED. One or more files fell below ${THRESHOLD}% kill rate." >&2

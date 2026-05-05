@@ -131,9 +131,13 @@ repos:
           (?x)^(
             src/chronicle_preprocessing_app/core/preprocessing/timestamp_preprocessor\.py|
             src/chronicle_preprocessing_app/core/preprocessing/timezone_preprocessor\.py|
+            src/chronicle_preprocessing_app/core/preprocessing/app_filter_preprocessor\.py|
+            src/chronicle_preprocessing_app/core/preprocessing/screen_usage_preprocessor\.py|
             tests/test_timestamp_properties\.py|
             tests/test_timestamp_timezone_preprocessors\.py|
-            tests/test_study_date_provider\.py
+            tests/test_study_date_provider\.py|
+            tests/test_app_filter_preprocessor\.py|
+            tests/test_screen_usage_preprocessor\.py
           )$
 
       - id: visual-regression
@@ -151,3 +155,77 @@ repos:
         pass_filenames: false
         stages: [pre-push]
         files: ^web/
+
+      - id: python-coverage
+        name: Python critical path coverage (≥90%)
+        language: script
+        entry: scripts/check-python-critical-coverage.sh
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^src/chronicle_preprocessing_app/
+
+      - id: wasm-size
+        name: WASM binary size ceilings
+        language: script
+        entry: scripts/check-wasm-size.sh
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^web/src/wasm/
+
+      - id: bundle-size
+        name: JS bundle size ceiling (2MB)
+        language: script
+        entry: scripts/check-bundle-size.sh
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^web/src/
+
+      - id: dependency-audit
+        name: Dependency vulnerability audit (Python + npm + Rust)
+        language: script
+        entry: scripts/check-dependencies.sh
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: semgrep-security
+        name: Semgrep — chronicle security rules
+        language: script
+        entry: scripts/check-semgrep.sh
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^src/
+
+  # Dead code detection — commit stage (fast)
+  - repo: local
+    hooks:
+      - id: vulture
+        name: Python dead code (vulture, ≥80% confidence)
+        language: script
+        entry: scripts/check-vulture.sh
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^src/chronicle_preprocessing_app/
+
+      - id: knip
+        name: Web/TS dead code (knip)
+        language: script
+        entry: scripts/check-knip.sh
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^web/src/
+
+  # Contract drift detection — commit stage
+  - repo: local
+    hooks:
+      - id: contract-check
+        name: Generated contract artifacts in sync
+        language: script
+        entry: scripts/check-contract.sh
+        pass_filenames: false
+        stages: [pre-push]
+        files: |
+          (?x)^(
+            src/chronicle_preprocessing_app/core/config\.py|
+            web/src/lib/generatedContract\.ts|
+            web/src/lib/types\.ts
+          )

@@ -55,6 +55,7 @@ dev = [
     "hypothesis>=6.152.0",
     "mutmut>=3.5.0",
     "vulture>=2.14",
+    "pip-audit>=2.7.0",
     "pyinstaller>=6.16.0",
     "radon>=6.0.1",
     "pip-licenses>=5.0.0",
