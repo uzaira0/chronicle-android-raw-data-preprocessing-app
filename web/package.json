@@ -12,6 +12,7 @@
     "prepare:github-pages": "node scripts/run-clean-env.mjs vite-node scripts/prepare_github_pages_artifact.mts",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/run-clean-env.mjs vitest run",
+    "test:coverage:critical": "../scripts/check-web-critical-coverage.sh",
     "check:contract": "node scripts/run-clean-env.mjs vite-node scripts/generate_contract_artifacts.mts --check && node scripts/run-clean-env.mjs vite-node scripts/check_contract_consistency.mts",
     "check:deploy-artifact": "node scripts/run-clean-env.mjs vite-node scripts/check_deploy_artifact.mts",
     "check:github-pages-artifact": "node scripts/run-clean-env.mjs vite-node scripts/check_deploy_artifact.mts github-pages",
@@ -20,7 +21,9 @@
     "test:e2e:smoke": "node scripts/run-clean-env.mjs playwright test --grep @smoke",
     "process:browser": "vite-node scripts/run_browser_processing.mts",
     "benchmark:browser": "node scripts/benchmark_browser_processing.mjs",
-    "build:wasm": "wasm-pack build ../rust/chronicle_app_usage_wasm --target web --out-dir src/wasm/chronicle_app_usage_wasm/pkg"
+    "build:wasm": "wasm-pack build ../rust/chronicle_app_usage_wasm --target web --out-dir src/wasm/chronicle_app_usage_wasm/pkg",
+    "check:size": "size-limit",
+    "check:dead-code": "knip"
   },
   "dependencies": {
     "comlink": "^4.4.2",
@@ -32,15 +35,25 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.11.2",
     "@playwright/test": "^1.59.1",
+    "@size-limit/preset-app": "^11.0.0",
     "@types/papaparse": "^5.3.16",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.1.0",
+    "@vitest/coverage-v8": "^4.1.5",
+    "knip": "^5.0.0",
     "read-excel-file": "^5.8.0",
+    "size-limit": "^11.0.0",
     "typescript": "^5.9.3",
     "vite": "^7.1.12",
     "vite-node": "^3.2.4",
     "vitest": "^4.1.5",
     "yaml": "^2.8.3"
-  }
+  },
+  "size-limit": [
+    {
+      "path": "dist/**/*.js",
+      "limit": "2 MB"
+    }
+  ]
 }

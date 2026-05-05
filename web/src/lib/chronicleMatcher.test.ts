@@ -107,4 +107,14 @@ describe("WorkerPool", () => {
     expect(workers).toHaveLength(1);
     pool.terminate();
   });
+
+  it("rejects new work after termination", async () => {
+    const { spawn } = makeSpawn();
+    const pool = new WorkerPool(1, spawn);
+
+    expect(pool.size).toBe(1);
+    pool.terminate();
+
+    await expect(pool.submit(async () => "late")).rejects.toThrow(/terminated/);
+  });
 });

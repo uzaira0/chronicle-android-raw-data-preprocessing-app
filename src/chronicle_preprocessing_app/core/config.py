@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import tzinfo  # noqa: TC003 - used at runtime in dataclass
+from datetime import tzinfo
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +22,10 @@ from chronicle_preprocessing_app.config.defaults import (
     DEFAULT_ALLOW_STOP_EVENT_REUSE,
     DEFAULT_APP_CODEBOOK_FILE_PATH,
     DEFAULT_APPLY_THRESHOLD_TO_ACTIVITY_STOPPED_FALLBACK,
+    DEFAULT_APPS_FORCING_SCREEN_OPEN_DICT,
+    DEFAULT_APPS_FORCING_SCREEN_OPEN_FILE_PATH,
     DEFAULT_APPS_TO_FILTER_DICT,
+    DEFAULT_APPS_TO_FILTER_FILE_PATH,
     DEFAULT_AVAILABLE_TIMEZONES,
     DEFAULT_COMPLIANCE_REPORTING,
     DEFAULT_CORRECT_DUPLICATE_EVENT_TIMESTAMPS,
@@ -31,12 +34,9 @@ from chronicle_preprocessing_app.config.defaults import (
     DEFAULT_DERIVE_SCREEN_USAGE_SESSIONS,
     DEFAULT_ENABLE_PLOTTING,
     DEFAULT_ENABLE_PREPROCESSING,
+    DEFAULT_FILTER_ZERO_DURATION_SESSIONS,
     DEFAULT_FILTERED_OTHER_INTERACTION_TYPES_TO_STOP_USAGE_AT,
     DEFAULT_FILTERED_SAME_APP_INTERACTION_TYPES_TO_STOP_USAGE_AT,
-    DEFAULT_APPS_TO_FILTER_FILE_PATH,
-    DEFAULT_FILTER_ZERO_DURATION_SESSIONS,
-    DEFAULT_APPS_FORCING_SCREEN_OPEN_DICT,
-    DEFAULT_APPS_FORCING_SCREEN_OPEN_FILE_PATH,
     DEFAULT_INCLUDE_FILTERED_APP_USAGE_IN_PLOTS,
     DEFAULT_INTERACTION_TYPES_TO_REMOVE,
     DEFAULT_INTERACTION_TYPES_TO_REMOVE_CONFIGURED,
@@ -51,12 +51,12 @@ from chronicle_preprocessing_app.config.defaults import (
     DEFAULT_PLOT_ONLY_TARGET_CHILD_DATA,
     DEFAULT_RAW_DATA_FILE_REGEX_PATTERN,
     DEFAULT_RAW_DATA_FOLDER,
+    DEFAULT_SAME_APP_INTERACTION_TYPES_CONFIGURED,
+    DEFAULT_SAME_APP_INTERACTION_TYPES_TO_STOP_USAGE_AT,
     DEFAULT_SCREEN_USAGE_AUTO_LOCK_TIMEOUT_SECONDS,
     DEFAULT_SCREEN_USAGE_AUTO_LOCK_TOLERANCE_SECONDS,
     DEFAULT_SCREEN_USAGE_KEYGUARD_NEAR_STOP_SECONDS,
     DEFAULT_SCREEN_USAGE_MANUAL_LOCK_MAX_TAIL_GAP_SECONDS,
-    DEFAULT_SAME_APP_INTERACTION_TYPES_CONFIGURED,
-    DEFAULT_SAME_APP_INTERACTION_TYPES_TO_STOP_USAGE_AT,
     DEFAULT_SELECTED_TIMEZONE,
     DEFAULT_STUDY_DATE_MAP,
     DEFAULT_STUDY_NAME,
@@ -64,8 +64,8 @@ from chronicle_preprocessing_app.config.defaults import (
     DEFAULT_USAGE_SESSION_MODE,
     DEFAULT_USE_ACTIVITY_STOPPED_AS_FALLBACK,
     DEFAULT_USE_APP_CODEBOOK,
-    DEFAULT_USE_FILTER_FILE,
     DEFAULT_USE_APPS_FORCING_SCREEN_OPEN_FILE,
+    DEFAULT_USE_FILTER_FILE,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -156,38 +156,22 @@ class PreprocessingOptions:
     app_codebook_path: Path | str = DEFAULT_APP_CODEBOOK_FILE_PATH
     use_filter_file: bool = DEFAULT_USE_FILTER_FILE
     filter_file: Path | str = DEFAULT_APPS_TO_FILTER_FILE_PATH
-    apps_to_filter_dict: dict[str, str] = field(
-        default_factory=lambda: dict(DEFAULT_APPS_TO_FILTER_DICT)
-    )
+    apps_to_filter_dict: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_APPS_TO_FILTER_DICT))
     use_apps_forcing_screen_open_file: bool = DEFAULT_USE_APPS_FORCING_SCREEN_OPEN_FILE
     apps_forcing_screen_open_file: Path | str = DEFAULT_APPS_FORCING_SCREEN_OPEN_FILE_PATH
-    apps_forcing_screen_open_dict: dict[str, str] = field(
-        default_factory=lambda: dict(DEFAULT_APPS_FORCING_SCREEN_OPEN_DICT)
-    )
+    apps_forcing_screen_open_dict: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_APPS_FORCING_SCREEN_OPEN_DICT))
     usage_session_mode: UsageSessionMode | str = DEFAULT_USAGE_SESSION_MODE
     derive_screen_usage_sessions: bool = DEFAULT_DERIVE_SCREEN_USAGE_SESSIONS
-    screen_usage_auto_lock_timeout_seconds: int = (
-        DEFAULT_SCREEN_USAGE_AUTO_LOCK_TIMEOUT_SECONDS
-    )
-    screen_usage_auto_lock_tolerance_seconds: int = (
-        DEFAULT_SCREEN_USAGE_AUTO_LOCK_TOLERANCE_SECONDS
-    )
-    screen_usage_manual_lock_max_tail_gap_seconds: int = (
-        DEFAULT_SCREEN_USAGE_MANUAL_LOCK_MAX_TAIL_GAP_SECONDS
-    )
+    screen_usage_auto_lock_timeout_seconds: int = DEFAULT_SCREEN_USAGE_AUTO_LOCK_TIMEOUT_SECONDS
+    screen_usage_auto_lock_tolerance_seconds: int = DEFAULT_SCREEN_USAGE_AUTO_LOCK_TOLERANCE_SECONDS
+    screen_usage_manual_lock_max_tail_gap_seconds: int = DEFAULT_SCREEN_USAGE_MANUAL_LOCK_MAX_TAIL_GAP_SECONDS
     screen_usage_keyguard_near_stop_seconds: int = DEFAULT_SCREEN_USAGE_KEYGUARD_NEAR_STOP_SECONDS
     minimum_usage_duration: int = DEFAULT_MINIMUM_USAGE_DURATION
     custom_app_engagement_duration: int = DEFAULT_CUSTOM_APP_ENGAGEMENT_DURATION
-    long_usage_duration_thresholds: list[int] = field(
-        default_factory=lambda: list(DEFAULT_LONG_USAGE_DURATION_THRESHOLDS)
-    )
-    long_data_time_gap_thresholds: list[int] = field(
-        default_factory=lambda: list(DEFAULT_LONG_DATA_TIME_GAP_THRESHOLDS)
-    )
+    long_usage_duration_thresholds: list[int] = field(default_factory=lambda: list(DEFAULT_LONG_USAGE_DURATION_THRESHOLDS))
+    long_data_time_gap_thresholds: list[int] = field(default_factory=lambda: list(DEFAULT_LONG_DATA_TIME_GAP_THRESHOLDS))
     timezone_handling_option: TimezoneHandlingOption = DEFAULT_TIMEZONE_HANDLING_OPTION
-    available_timezones: list[str] = field(
-        default_factory=lambda: list(DEFAULT_AVAILABLE_TIMEZONES)
-    )
+    available_timezones: list[str] = field(default_factory=lambda: list(DEFAULT_AVAILABLE_TIMEZONES))
     custom_timezones: list[str] = field(default_factory=lambda: list(DEFAULT_CUSTOM_TIMEZONES))
     selected_timezone: str | tzinfo | None = DEFAULT_SELECTED_TIMEZONE
     correct_duplicate_event_timestamps: bool = DEFAULT_CORRECT_DUPLICATE_EVENT_TIMESTAMPS
@@ -200,9 +184,7 @@ class PreprocessingOptions:
         default_factory=lambda: set(DEFAULT_OTHER_INTERACTION_TYPES_TO_STOP_USAGE_AT)
     )
 
-    interaction_types_to_remove: set[InteractionType] = field(
-        default_factory=lambda: set(DEFAULT_INTERACTION_TYPES_TO_REMOVE)
-    )
+    interaction_types_to_remove: set[InteractionType] = field(default_factory=lambda: set(DEFAULT_INTERACTION_TYPES_TO_REMOVE))
 
     same_app_interaction_types_configured: bool = DEFAULT_SAME_APP_INTERACTION_TYPES_CONFIGURED
     other_interaction_types_configured: bool = DEFAULT_OTHER_INTERACTION_TYPES_CONFIGURED
@@ -227,9 +209,7 @@ class PreprocessingOptions:
     # This prevents artificially short sessions on Fire tablets where quick
     # Background→Foreground transitions generate spurious Activity Stopped events.
     use_activity_stopped_as_fallback: bool = DEFAULT_USE_ACTIVITY_STOPPED_AS_FALLBACK
-    apply_threshold_to_activity_stopped_fallback: bool = (
-        DEFAULT_APPLY_THRESHOLD_TO_ACTIVITY_STOPPED_FALLBACK
-    )
+    apply_threshold_to_activity_stopped_fallback: bool = DEFAULT_APPLY_THRESHOLD_TO_ACTIVITY_STOPPED_FALLBACK
     long_duration_threshold_hours: float = DEFAULT_LONG_DURATION_THRESHOLD_HOURS
     # Sessions exceeding this threshold are considered unrealistic and are capped or
     # closed using fallback stop events. Default is 12 hours.
@@ -259,10 +239,7 @@ class PreprocessingOptions:
             self.usage_session_mode = UsageSessionMode(self.usage_session_mode)
 
         # Backward compatibility for configs saved before usage_session_mode existed.
-        if (
-            self.derive_screen_usage_sessions
-            and self.usage_session_mode == UsageSessionMode.APP_USAGE
-        ):
+        if self.derive_screen_usage_sessions and self.usage_session_mode == UsageSessionMode.APP_USAGE:
             self.usage_session_mode = UsageSessionMode.APP_AND_SCREEN_USAGE
 
         # Map valid app interaction types to their filtered counterparts
@@ -280,9 +257,7 @@ class PreprocessingOptions:
         self.filtered_same_app_interaction_types_to_stop_usage_at = filtered_same_app_types
 
         # For other interaction types, we use the same types since they're not app-specific
-        self.filtered_other_interaction_types_to_stop_usage_at = (
-            self.other_interaction_types_to_stop_usage_at.copy()
-        )
+        self.filtered_other_interaction_types_to_stop_usage_at = self.other_interaction_types_to_stop_usage_at.copy()
 
     @property
     def process_app_usage_sessions(self) -> bool:
@@ -426,9 +401,7 @@ class ProcessingStats:
             self.plot_success_types[success_type] = 0
         self.plot_success_types[success_type] += 1
 
-    def mark_plot_failed(
-        self, filename: str, error_message: str, error_type: str = "general"
-    ) -> None:
+    def mark_plot_failed(self, filename: str, error_message: str, error_type: str = "general") -> None:
         """Mark a file as failed during plotting.
 
         Args:
@@ -496,9 +469,7 @@ class ProcessingStats:
 
         return "\n".join(summary)
 
-    def add_plot_error(
-        self, filename: str, error_message: str, error_type: str = "general"
-    ) -> None:
+    def add_plot_error(self, filename: str, error_message: str, error_type: str = "general") -> None:
         """Add a specific error related to plot generation.
 
         Args:
@@ -526,13 +497,9 @@ class ProcessingStats:
             str: A short summary message
         """
         success_pct = self.success_rate()
-        plot_success_pct = (
-            (self.plotted_files / self.processed_files) * 100.0 if self.processed_files > 0 else 0.0
-        )
+        plot_success_pct = (self.plotted_files / self.processed_files) * 100.0 if self.processed_files > 0 else 0.0
 
-        summary_text = (
-            f"Processed {self.processed_files}/{self.total_files} files ({success_pct:.1f}%)"
-        )
+        summary_text = f"Processed {self.processed_files}/{self.total_files} files ({success_pct:.1f}%)"
 
         if self.plotted_files > 0:
             summary_text += f", Plotted {self.plotted_files}/{self.processed_files} files ({plot_success_pct:.1f}%)"

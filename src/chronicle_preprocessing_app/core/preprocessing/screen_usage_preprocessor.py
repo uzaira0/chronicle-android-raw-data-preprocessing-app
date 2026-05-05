@@ -11,7 +11,6 @@ from typing import Any
 import polars as pl
 
 from chronicle_preprocessing_app.config.constants import Column, InteractionType
-from chronicle_preprocessing_app.core.config import PreprocessingOptions
 from chronicle_preprocessing_app.core.preprocessing.base_preprocessor import BasePreprocessor
 
 LOGGER = logging.getLogger(__name__)
@@ -51,38 +50,50 @@ class _EndReason:
 class ScreenUsagePreprocessor(BasePreprocessor):
     """Derive screen-on sessions and inferred end reasons."""
 
-    SCREEN_START_EVENTS = {
-        str(InteractionType.SCREEN_INTERACTIVE),
-        str(InteractionType.SCREEN_INTERACTIVE_KEYGUARD_SHOWN),
-    }
-    SCREEN_STOP_EVENTS = {
-        str(InteractionType.SCREEN_NON_INTERACTIVE),
-        str(InteractionType.DEVICE_SCREEN_OFF),
-        str(InteractionType.SCREEN_NON_INTERACTIVE_KEYGUARD_HIDDEN),
-    }
-    LOCK_SCREEN_EVENTS = {
-        str(InteractionType.KEYGUARD_SHOWN),
-        str(InteractionType.SCREEN_INTERACTIVE_KEYGUARD_SHOWN),
-    }
-    UNLOCK_EVENTS = {
-        str(InteractionType.KEYGUARD_HIDDEN),
-        str(InteractionType.USER_UNLOCKED),
-        str(InteractionType.SCREEN_NON_INTERACTIVE_KEYGUARD_HIDDEN),
-    }
-    FOREGROUND_EVENTS = {
-        str(InteractionType.ACTIVITY_RESUMED),
-        str(InteractionType.FILTERED_APP_RESUMED),
-    }
-    MEANINGFUL_ACTIVITY_EVENTS = {
-        str(InteractionType.ACTIVITY_RESUMED),
-        str(InteractionType.FILTERED_APP_RESUMED),
-        str(InteractionType.USER_INTERACTION),
-        str(InteractionType.SHORTCUT_INVOCATION),
-        str(InteractionType.CHOOSER_ACTION),
-        str(InteractionType.APP_COMPONENT_USED),
-        str(InteractionType.USER_UNLOCKED),
-        str(InteractionType.KEYGUARD_HIDDEN),
-    }
+    SCREEN_START_EVENTS: frozenset[str] = frozenset(
+        {
+            str(InteractionType.SCREEN_INTERACTIVE),
+            str(InteractionType.SCREEN_INTERACTIVE_KEYGUARD_SHOWN),
+        }
+    )
+    SCREEN_STOP_EVENTS: frozenset[str] = frozenset(
+        {
+            str(InteractionType.SCREEN_NON_INTERACTIVE),
+            str(InteractionType.DEVICE_SCREEN_OFF),
+            str(InteractionType.SCREEN_NON_INTERACTIVE_KEYGUARD_HIDDEN),
+        }
+    )
+    LOCK_SCREEN_EVENTS: frozenset[str] = frozenset(
+        {
+            str(InteractionType.KEYGUARD_SHOWN),
+            str(InteractionType.SCREEN_INTERACTIVE_KEYGUARD_SHOWN),
+        }
+    )
+    UNLOCK_EVENTS: frozenset[str] = frozenset(
+        {
+            str(InteractionType.KEYGUARD_HIDDEN),
+            str(InteractionType.USER_UNLOCKED),
+            str(InteractionType.SCREEN_NON_INTERACTIVE_KEYGUARD_HIDDEN),
+        }
+    )
+    FOREGROUND_EVENTS: frozenset[str] = frozenset(
+        {
+            str(InteractionType.ACTIVITY_RESUMED),
+            str(InteractionType.FILTERED_APP_RESUMED),
+        }
+    )
+    MEANINGFUL_ACTIVITY_EVENTS: frozenset[str] = frozenset(
+        {
+            str(InteractionType.ACTIVITY_RESUMED),
+            str(InteractionType.FILTERED_APP_RESUMED),
+            str(InteractionType.USER_INTERACTION),
+            str(InteractionType.SHORTCUT_INVOCATION),
+            str(InteractionType.CHOOSER_ACTION),
+            str(InteractionType.APP_COMPONENT_USED),
+            str(InteractionType.USER_UNLOCKED),
+            str(InteractionType.KEYGUARD_HIDDEN),
+        }
+    )
 
     def preprocess(self, df: pl.DataFrame) -> pl.DataFrame:
         return self.derive_screen_usage_sessions(df)
@@ -95,10 +106,7 @@ class ScreenUsagePreprocessor(BasePreprocessor):
         required_columns = {Column.EVENT_TIMESTAMP, Column.INTERACTION_TYPE}
         missing_columns = required_columns - set(df_copy.columns)
         if missing_columns:
-            raise ValueError(
-                "Cannot derive screen usage sessions because required columns are missing: "
-                + ", ".join(sorted(missing_columns))
-            )
+            raise ValueError("Cannot derive screen usage sessions because required columns are missing: " + ", ".join(sorted(missing_columns)))
 
         interaction_values = df_copy.get_column(Column.INTERACTION_TYPE).cast(pl.String).to_list()
         if not any(value in self.SCREEN_START_EVENTS for value in interaction_values):
@@ -108,8 +116,7 @@ class ScreenUsagePreprocessor(BasePreprocessor):
         keyguard_shown_timestamps = sorted(
             row[Column.EVENT_TIMESTAMP]
             for row in rows
-            if str(row[Column.INTERACTION_TYPE]) in self.LOCK_SCREEN_EVENTS
-            and row.get(Column.EVENT_TIMESTAMP) is not None
+            if str(row[Column.INTERACTION_TYPE]) in self.LOCK_SCREEN_EVENTS and row.get(Column.EVENT_TIMESTAMP) is not None
         )
 
         sessions: list[dict[str, Any]] = []
@@ -224,7 +231,7 @@ class ScreenUsagePreprocessor(BasePreprocessor):
             Column.SCREEN_USAGE_APPS_FORCING_SCREEN_OPEN_LABEL,
             Column.SCREEN_USAGE_LOCK_SCREEN_ONLY,
         }
-        session_row = {column: None for column in session_columns}
+        session_row = dict.fromkeys(session_columns)
         start_row = source_rows[state.start_index]
 
         for column in (
@@ -247,9 +254,7 @@ class ScreenUsagePreprocessor(BasePreprocessor):
         session_row[Column.SCREEN_USAGE_END_REASON] = end_reason.reason
         session_row[Column.SCREEN_USAGE_END_REASON_CONFIDENCE] = end_reason.confidence
         session_row[Column.SCREEN_USAGE_STOP_EVENT_TYPE] = stop_event_type
-        session_row[Column.SCREEN_USAGE_LAST_ACTIVITY_TIMESTAMP] = (
-            state.last_meaningful_activity_timestamp
-        )
+        session_row[Column.SCREEN_USAGE_LAST_ACTIVITY_TIMESTAMP] = state.last_meaningful_activity_timestamp
         session_row[Column.SCREEN_USAGE_TAIL_GAP_SECONDS] = end_reason.tail_gap_seconds
         session_row[Column.SCREEN_USAGE_APPS_FORCING_SCREEN_OPEN_LABEL] = end_reason.apps_forcing_screen_open_label
         session_row[Column.SCREEN_USAGE_LOCK_SCREEN_ONLY] = end_reason.lock_screen_only
@@ -276,9 +281,7 @@ class ScreenUsagePreprocessor(BasePreprocessor):
 
         tail_gap_seconds = None
         if state.last_meaningful_activity_timestamp is not None:
-            tail_gap_seconds = (
-                stop_timestamp - state.last_meaningful_activity_timestamp
-            ).total_seconds()
+            tail_gap_seconds = (stop_timestamp - state.last_meaningful_activity_timestamp).total_seconds()
 
         apps_forcing_screen_open_label = ""
         last_package = state.last_meaningful_activity_package or state.foreground_app_package
@@ -322,9 +325,10 @@ class ScreenUsagePreprocessor(BasePreprocessor):
             near_stop = False
             for candidate_index in (index - 1, index):
                 if 0 <= candidate_index < len(keyguard_shown_timestamps):
-                    if abs(
-                        (keyguard_shown_timestamps[candidate_index] - stop_timestamp).total_seconds()
-                    ) <= self.options.screen_usage_keyguard_near_stop_seconds:
+                    if (
+                        abs((keyguard_shown_timestamps[candidate_index] - stop_timestamp).total_seconds())
+                        <= self.options.screen_usage_keyguard_near_stop_seconds
+                    ):
                         near_stop = True
                         break
             if near_stop:

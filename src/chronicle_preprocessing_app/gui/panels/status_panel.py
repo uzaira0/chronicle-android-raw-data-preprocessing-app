@@ -173,9 +173,7 @@ class StatusPanel(QWidget):
                 subprocess.call(["xdg-open", str(folder_path)])
         except Exception as e:
             LOGGER.exception(f"Error opening {folder_type.lower()} folder")
-            QMessageBox.warning(
-                self, "Error", f"Could not open {folder_type.lower()} folder: {e}"
-            )
+            QMessageBox.warning(self, "Error", f"Could not open {folder_type.lower()} folder: {e}")
 
     def _on_open_output_folder(self) -> None:
         """
@@ -254,9 +252,7 @@ class StatusPanel(QWidget):
                 }
             """)
 
-    def update_progress(
-        self, message: str, current_file: int = 0, total_files: int = 0
-    ) -> None:
+    def update_progress(self, message: str, current_file: int = 0, total_files: int = 0) -> None:
         """
         Update the progress label with file processing information.
 
@@ -352,4 +348,3 @@ class StatusPanel(QWidget):
         if self.plots_folder:
             self.show_plots_folder_button()
         self.hide_progress()
-

@@ -39,9 +39,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-import polars as pl
-
 import _rust_chrono_kernel as kernel  # type: ignore[import-not-found]
+import polars as pl
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURE_DIR = REPO_ROOT / "web" / ".tmp" / "test-csvs"
@@ -104,12 +103,7 @@ def polars_format(ts_ns: list[int], tz: str) -> list[str]:
     """The shape of formatting work the Python pipeline currently does."""
     df = pl.DataFrame({"ts": pl.Series("ts", ts_ns, dtype=pl.Int64)})
     df = df.with_columns(pl.col("ts").cast(pl.Datetime("ns", time_zone="UTC")))
-    df = df.with_columns(
-        pl.col("ts")
-        .dt.convert_time_zone(tz)
-        .dt.strftime("%Y-%m-%d %H:%M:%S%z")
-        .alias("ts_str")
-    )
+    df = df.with_columns(pl.col("ts").dt.convert_time_zone(tz).dt.strftime("%Y-%m-%d %H:%M:%S%z").alias("ts_str"))
     return df.get_column("ts_str").to_list()
 
 
@@ -133,18 +127,10 @@ def polars_e2e(csv_bytes: bytes, tz: str) -> bytes:
     timestamp_text = pl.col("event_timestamp").cast(pl.Utf8)
     parsed = pl.coalesce(
         [
-            timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
-                format="%Y-%m-%dT%H:%M:%S%#z", time_zone="UTC", strict=False
-            ),
-            timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
-                format="%Y-%m-%d %H:%M:%S%#z", time_zone="UTC", strict=False
-            ),
-            timestamp_text.str.to_datetime(
-                format="%Y-%m-%d %H:%M:%S", time_zone="UTC", strict=False
-            ),
-            timestamp_text.str.to_datetime(
-                format="%Y-%m-%dT%H:%M:%S", time_zone="UTC", strict=False
-            ),
+            timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(format="%Y-%m-%dT%H:%M:%S%#z", time_zone="UTC", strict=False),
+            timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(format="%Y-%m-%d %H:%M:%S%#z", time_zone="UTC", strict=False),
+            timestamp_text.str.to_datetime(format="%Y-%m-%d %H:%M:%S", time_zone="UTC", strict=False),
+            timestamp_text.str.to_datetime(format="%Y-%m-%dT%H:%M:%S", time_zone="UTC", strict=False),
         ]
     )
     df = df.with_columns(parsed.alias("event_timestamp"))
@@ -215,12 +201,8 @@ def bench_fixture(path: Path) -> FixtureBench:
         if i == 0:
             pyo3_strs = list(out["event_timestamp_strings"])
 
-    parity_fmt = (
-        len(polars_strs) == len(pyo3_strs)
-        and all(
-            normalize_offset(a) == normalize_offset(b)
-            for a, b in zip(polars_strs, pyo3_strs)
-        )
+    parity_fmt = len(polars_strs) == len(pyo3_strs) and all(
+        normalize_offset(a) == normalize_offset(b) for a, b in zip(polars_strs, pyo3_strs, strict=False)
     )
 
     # ---- sort_by_timestamp_stable --------------------------------------
@@ -284,10 +266,7 @@ def fmt_summary_line(label: str, polars_t: list[float], pyo3_t: list[float], par
     r_med = statistics.median(pyo3_t)
     speedup = p_med / r_med if r_med > 0 else float("inf")
     parity_str = "OK" if parity else "MISMATCH"
-    return (
-        f"  {label:<28} polars={fmt_ms(p_med)}  pyo3={fmt_ms(r_med)}  "
-        f"speedup={speedup:5.2f}x  parity={parity_str}"
-    )
+    return f"  {label:<28} polars={fmt_ms(p_med)}  pyo3={fmt_ms(r_med)}  speedup={speedup:5.2f}x  parity={parity_str}"
 
 
 def main() -> int:
@@ -321,7 +300,7 @@ def main() -> int:
         if not path.exists():
             emit(f"SKIP {name} (not found)")
             continue
-        emit(f"Benching {name} ({os.path.getsize(path) / (1024*1024):.1f} MB)...")
+        emit(f"Benching {name} ({os.path.getsize(path) / (1024 * 1024):.1f} MB)...")
         r = bench_fixture(path)
         results.append(r)
         emit(f"  rows: {r.n_rows}")
@@ -345,10 +324,7 @@ def main() -> int:
             speedup = p_med / r_med if r_med > 0 else float("inf")
             parity_all = all(getattr(r, parity_attr) for r in results)
             parity_str = "OK" if parity_all else "MISMATCH"
-            emit(
-                f"  {op_name:<28} polars={fmt_ms(p_med)}  pyo3={fmt_ms(r_med)}  "
-                f"speedup={speedup:5.2f}x  parity={parity_str}"
-            )
+            emit(f"  {op_name:<28} polars={fmt_ms(p_med)}  pyo3={fmt_ms(r_med)}  speedup={speedup:5.2f}x  parity={parity_str}")
 
     # Write outputs.
     log_path.write_text("\n".join(log_lines) + "\n")
@@ -366,9 +342,7 @@ def main() -> int:
                     "pyo3_seconds": r.fmt_pyo3,
                     "polars_median_ms": statistics.median(r.fmt_polars) * 1000,
                     "pyo3_median_ms": statistics.median(r.fmt_pyo3) * 1000,
-                    "speedup": (statistics.median(r.fmt_polars) / statistics.median(r.fmt_pyo3))
-                    if statistics.median(r.fmt_pyo3) > 0
-                    else None,
+                    "speedup": (statistics.median(r.fmt_polars) / statistics.median(r.fmt_pyo3)) if statistics.median(r.fmt_pyo3) > 0 else None,
                     "parity": r.parity_fmt_match,
                 },
                 "sort_by_timestamp_stable": {
@@ -376,9 +350,7 @@ def main() -> int:
                     "pyo3_seconds": r.sort_pyo3,
                     "polars_median_ms": statistics.median(r.sort_polars) * 1000,
                     "pyo3_median_ms": statistics.median(r.sort_pyo3) * 1000,
-                    "speedup": (statistics.median(r.sort_polars) / statistics.median(r.sort_pyo3))
-                    if statistics.median(r.sort_pyo3) > 0
-                    else None,
+                    "speedup": (statistics.median(r.sort_polars) / statistics.median(r.sort_pyo3)) if statistics.median(r.sort_pyo3) > 0 else None,
                     "parity": r.parity_sort_match,
                 },
                 "process_pipeline_e2e": {
@@ -386,9 +358,7 @@ def main() -> int:
                     "pyo3_seconds": r.e2e_pyo3,
                     "polars_median_ms": statistics.median(r.e2e_polars) * 1000,
                     "pyo3_median_ms": statistics.median(r.e2e_pyo3) * 1000,
-                    "speedup": (statistics.median(r.e2e_polars) / statistics.median(r.e2e_pyo3))
-                    if statistics.median(r.e2e_pyo3) > 0
-                    else None,
+                    "speedup": (statistics.median(r.e2e_polars) / statistics.median(r.e2e_pyo3)) if statistics.median(r.e2e_pyo3) > 0 else None,
                     "parity": r.parity_e2e_match,
                 },
             }

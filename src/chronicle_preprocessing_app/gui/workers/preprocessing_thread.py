@@ -35,9 +35,7 @@ class PreprocessingThread(QThread):
         Run the preprocessing operation in a separate thread.
         """
 
-        def progress_callback(
-            message: str, current_file: int, total_files: int
-        ) -> None:
+        def progress_callback(message: str, current_file: int, total_files: int) -> None:
             self.file_progress_signal.emit(message, current_file, total_files)
 
         self.preprocessor.progress_callback = progress_callback
@@ -50,16 +48,10 @@ class PreprocessingThread(QThread):
             # Run preprocessing if enabled
             if options.enable_preprocessing:
                 self.progress_signal.emit("Processing raw data files...")
-                output_folder, stats = (
-                    self.preprocessor.preprocess_Chronicle_Android_raw_data_folder(
-                        plotting_started_callback=lambda: self.plotting_started_signal.emit()
-                        if options.enable_plotting
-                        else None,
-                        plotting_completed_callback=lambda: self.plotting_completed_signal.emit()
-                        if options.enable_plotting
-                        else None,
-                        plotting_only=False,
-                    )
+                output_folder, stats = self.preprocessor.preprocess_Chronicle_Android_raw_data_folder(
+                    plotting_started_callback=lambda: self.plotting_started_signal.emit() if options.enable_plotting else None,
+                    plotting_completed_callback=lambda: self.plotting_completed_signal.emit() if options.enable_plotting else None,
+                    plotting_only=False,
                 )
             # Run plotting only if preprocessing is disabled but plotting is enabled
             elif options.enable_plotting:
@@ -67,10 +59,7 @@ class PreprocessingThread(QThread):
                 from chronicle_preprocessing_app.config.constants import PREPROCESSED_FOLDER_SUFFIX
 
                 # Determine the preprocessed folder path
-                preprocessed_folder = (
-                    Path(options.output_folder)
-                    / f"{options.study_name + ' ' + PREPROCESSED_FOLDER_SUFFIX}"
-                )
+                preprocessed_folder = Path(options.output_folder) / f"{options.study_name + ' ' + PREPROCESSED_FOLDER_SUFFIX}"
 
                 if not preprocessed_folder.exists():
                     error_msg = f"Preprocessed folder not found: {preprocessed_folder}"
@@ -81,18 +70,14 @@ class PreprocessingThread(QThread):
 
                 # Use the preprocess_Chronicle_Android_raw_data_folder method with plotting_only=True
                 try:
-                    output_folder, stats = (
-                        self.preprocessor.preprocess_Chronicle_Android_raw_data_folder(
-                            plotting_started_callback=lambda: self.plotting_started_signal.emit(),
-                            plotting_completed_callback=lambda: self.plotting_completed_signal.emit(),
-                            plotting_only=True,
-                        )
+                    output_folder, stats = self.preprocessor.preprocess_Chronicle_Android_raw_data_folder(
+                        plotting_started_callback=lambda: self.plotting_started_signal.emit(),
+                        plotting_completed_callback=lambda: self.plotting_completed_signal.emit(),
+                        plotting_only=True,
                     )
                 except Exception as e:
                     error_str = traceback.format_exc()
-                    self.error_signal.emit(
-                        f"Error generating plots: {str(e)}\n\n{error_str}", stats
-                    )
+                    self.error_signal.emit(f"Error generating plots: {e!s}\n\n{error_str}", stats)
                     return
 
             if output_folder:
@@ -116,11 +101,10 @@ class PreprocessingThread(QThread):
             LOGGER.exception("Unhandled exception in preprocessor thread")
 
             # Create a detailed error message with exception information
-            error_msg = f"Error: {type(e).__name__}: {str(e)}\n\n{error_str}"
+            error_msg = f"Error: {type(e).__name__}: {e!s}\n\n{error_str}"
 
             # Create stats object if None (to avoid NoneType errors)
             if stats is None:
                 stats = ProcessingStats()
 
             self.error_signal.emit(error_msg, stats)
-

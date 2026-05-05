@@ -17,10 +17,10 @@ from .app_usage_details_optimizer import (
 __all__ = [
     # Algorithm implementation
     "OptimizedAppUsageAlgorithm",
-    # Utility functions
-    "safe_timestamp_compare",
-    "safe_duration_seconds",
     # Optimizer
     "OptimizedAppUsageDetailsProcessor",
     "create_optimized_processor",
+    "safe_duration_seconds",
+    # Utility functions
+    "safe_timestamp_compare",
 ]

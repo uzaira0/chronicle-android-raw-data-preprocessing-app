@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import logging
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import polars as pl
 
 from chronicle_preprocessing_app.config.constants import (
-    Column,
     TimezoneHandlingOption,
     UsageSessionMode,
 )
@@ -86,9 +86,7 @@ def _build_preprocessing_options(config: DataFramePreprocessingConfig) -> Prepro
         derive_screen_usage_sessions=config.derive_screen_usage_sessions,
         screen_usage_auto_lock_timeout_seconds=config.screen_usage_auto_lock_timeout_seconds,
         screen_usage_auto_lock_tolerance_seconds=config.screen_usage_auto_lock_tolerance_seconds,
-        screen_usage_manual_lock_max_tail_gap_seconds=(
-            config.screen_usage_manual_lock_max_tail_gap_seconds
-        ),
+        screen_usage_manual_lock_max_tail_gap_seconds=(config.screen_usage_manual_lock_max_tail_gap_seconds),
         screen_usage_keyguard_near_stop_seconds=config.screen_usage_keyguard_near_stop_seconds,
         minimum_usage_duration=config.minimum_usage_duration,
         custom_app_engagement_duration=config.custom_app_engagement_duration,

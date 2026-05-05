@@ -126,12 +126,7 @@ def _parse_timestamp_text(value: str) -> datetime:
 
 
 def _permuted_package(package_name: str, file_index: int, repetition_index: int) -> str:
-    if (
-        package_name in SYSTEM_APPS
-        or package_name in FILTERED_APPS
-        or package_name in APPS_FORCING_SCREEN_OPEN
-        or package_name in AMAZON_APPS
-    ):
+    if package_name in SYSTEM_APPS or package_name in FILTERED_APPS or package_name in APPS_FORCING_SCREEN_OPEN or package_name in AMAZON_APPS:
         return package_name
     suffix = (file_index * 101) + (repetition_index * 17)
     return f"{package_name}.v{suffix:03d}"
@@ -193,9 +188,7 @@ def build_pathological_raw_block(
             rows.append(dict(row))
 
     for week in range(config.weeks):
-        week_anchor = datetime(2026, 2, 16, 6, 0, tzinfo=ZoneInfo("America/Chicago")) + timedelta(
-            weeks=week
-        )
+        week_anchor = datetime(2026, 2, 16, 6, 0, tzinfo=ZoneInfo("America/Chicago")) + timedelta(weeks=week)
         primary_timezone = TIMEZONES[week % len(TIMEZONES)]
         primary_zoneinfo = ZoneInfo(primary_timezone)
         day_anchor = week_anchor.astimezone(primary_zoneinfo)
@@ -362,18 +355,26 @@ def build_pathological_raw_block(
         for offset, interaction_type in enumerate(InteractionType):
             timezone_name = TIMEZONES[offset % len(TIMEZONES)]
             timestamp = parade_anchor.astimezone(ZoneInfo(timezone_name)) + timedelta(seconds=offset)
-            explicit_offset = interaction_type in {
-                InteractionType.SCREEN_INTERACTIVE,
-                InteractionType.SCREEN_NON_INTERACTIVE,
-                InteractionType.KEYGUARD_SHOWN,
-                InteractionType.KEYGUARD_HIDDEN,
-                InteractionType.ACTIVITY_STOPPED,
-                InteractionType.FILTERED_APP_USAGE,
-            } or timezone_name != "America/Chicago"
+            explicit_offset = (
+                interaction_type
+                in {
+                    InteractionType.SCREEN_INTERACTIVE,
+                    InteractionType.SCREEN_NON_INTERACTIVE,
+                    InteractionType.KEYGUARD_SHOWN,
+                    InteractionType.KEYGUARD_HIDDEN,
+                    InteractionType.ACTIVITY_STOPPED,
+                    InteractionType.FILTERED_APP_USAGE,
+                }
+                or timezone_name != "America/Chicago"
+            )
             package_name = (
                 FILTERED_APPS[offset % len(FILTERED_APPS)]
                 if "Filtered" in str(interaction_type)
-                else (tuple(APPS_FORCING_SCREEN_OPEN)[offset % len(APPS_FORCING_SCREEN_OPEN)] if "Screen" in str(interaction_type) else (STORE_APPS[offset % len(STORE_APPS)] if offset % 2 else "android"))
+                else (
+                    tuple(APPS_FORCING_SCREEN_OPEN)[offset % len(APPS_FORCING_SCREEN_OPEN)]
+                    if "Screen" in str(interaction_type)
+                    else (STORE_APPS[offset % len(STORE_APPS)] if offset % 2 else "android")
+                )
             )
             add_row(interaction_type, package_name, timestamp, timezone_name, explicit_offset=explicit_offset)
 
@@ -501,9 +502,7 @@ def write_pathological_raw_folder(
             participant_id=f"P{file_index + 1:04d}",
             weeks=weeks,
             seed=seed + file_index,
-            possible_device_model=(
-                ChronicleDeviceType.AMAZON.value if file_index % 3 == 0 else ChronicleDeviceType.ANDROID.value
-            ),
+            possible_device_model=(ChronicleDeviceType.AMAZON.value if file_index % 3 == 0 else ChronicleDeviceType.ANDROID.value),
         )
         base_rows = build_pathological_raw_block(config=config)
         save_path = output_path / f"Raw_pathological_{file_index + 1}.csv"

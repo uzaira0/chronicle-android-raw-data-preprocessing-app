@@ -7,12 +7,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from chronicle_preprocessing_app.config.constants import (
-    POSSIBLE_INTERACTION_TYPES_TO_REMOVE,
-    POSSIBLE_OTHER_INTERACTION_TYPES_TO_STOP_USAGE_AT,
-    POSSIBLE_SAME_APP_INTERACTION_TYPES_TO_STOP_USAGE_AT,
-    InteractionType,
-)
 from PyQt6.QtCore import QSize, Qt, QTimer
 from PyQt6.QtGui import QShowEvent
 from PyQt6.QtWidgets import (
@@ -26,6 +20,13 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QVBoxLayout,
     QWidget,
+)
+
+from chronicle_preprocessing_app.config.constants import (
+    POSSIBLE_INTERACTION_TYPES_TO_REMOVE,
+    POSSIBLE_OTHER_INTERACTION_TYPES_TO_STOP_USAGE_AT,
+    POSSIBLE_SAME_APP_INTERACTION_TYPES_TO_STOP_USAGE_AT,
+    InteractionType,
 )
 
 if TYPE_CHECKING:
@@ -54,20 +55,16 @@ class BaseInteractionTypesDialog(QDialog):
 
         self.scale_factor = 1.0
         if hasattr(parent, "scale_factor"):
-            self.scale_factor = parent.scale_factor  # type: ignore  # noqa: PGH003
+            self.scale_factor = parent.scale_factor  # type: ignore
 
         self.setWindowTitle(title)
         self.setMinimumWidth(int(500 * self.scale_factor))  # Smaller minimum width
         self.setFixedWidth(int(500 * self.scale_factor))  # Smaller fixed width
-        self.setSizePolicy(
-            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred
-        )  # Allow height to adjust based on content
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)  # Allow height to adjust based on content
 
         self.main_layout = QVBoxLayout(self)
 
-        description_label = QLabel(
-            "Check the box for each interaction type you want to select for this category."
-        )
+        description_label = QLabel("Check the box for each interaction type you want to select for this category.")
         description_label.setWordWrap(True)
         description_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         description_label.setStyleSheet("font-size: 11pt; margin-bottom: 10px;")
@@ -89,9 +86,7 @@ class BaseInteractionTypesDialog(QDialog):
 
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.clicked.connect(self.reject)
-        self.cancel_button.setFixedSize(
-            QSize(int(80 * self.scale_factor), int(30 * self.scale_factor))
-        )
+        self.cancel_button.setFixedSize(QSize(int(80 * self.scale_factor), int(30 * self.scale_factor)))
 
         self.buttons_layout.addStretch()
         self.buttons_layout.addWidget(self.ok_button)

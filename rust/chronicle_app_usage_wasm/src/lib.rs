@@ -63,3 +63,6 @@ pub fn match_app_usage_update_indices(
     serde_wasm_bindgen::to_value(&response)
         .map_err(|error| JsValue::from_str(&format!("failed to serialize matcher output: {error}")))
 }
+
+#[cfg(test)]
+mod tests;

@@ -6,6 +6,9 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
 [dependencies]
 chronicle_app_usage_matcher = { path = "../chronicle_app_usage_matcher", default-features = false }
 serde = { version = "1.0", features = ["derive"] }

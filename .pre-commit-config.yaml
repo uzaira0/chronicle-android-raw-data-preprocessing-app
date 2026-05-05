@@ -1,0 +1,74 @@
+repos:
+  # File hygiene — fast, commit stage
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.md$'
+      - id: end-of-file-fixer
+        exclude: 'web/src/wasm/'
+      - id: check-yaml
+        exclude: '\.ast-grep/'
+      - id: check-toml
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # Python linting + formatting — fast, commit stage
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.12
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # Rust formatting — fast, commit stage
+  - repo: local
+    hooks:
+      - id: cargo-fmt-matcher
+        name: cargo fmt (matcher)
+        entry: cargo fmt --manifest-path rust/chronicle_app_usage_matcher/Cargo.toml --
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: cargo-fmt-wasm
+        name: cargo fmt (wasm)
+        entry: cargo fmt --manifest-path rust/chronicle_app_usage_wasm/Cargo.toml --
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+  # Slower checks — push stage only
+  - repo: local
+    hooks:
+      - id: basedpyright
+        name: basedpyright
+        entry: basedpyright
+        language: python
+        additional_dependencies: [basedpyright==1.39.3]
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: cargo-clippy-matcher
+        name: cargo clippy (matcher)
+        entry: cargo clippy --manifest-path rust/chronicle_app_usage_matcher/Cargo.toml --no-default-features -- -D warnings
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: cargo-clippy-wasm
+        name: cargo clippy (wasm)
+        entry: cargo clippy --manifest-path rust/chronicle_app_usage_wasm/Cargo.toml -- -D warnings
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: tsc
+        name: tsc (web)
+        entry: npm run --prefix web typecheck
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

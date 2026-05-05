@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from chronicle_preprocessing_app.config.defaults import DEFAULT_APP_CODEBOOK_FILE_PATH
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -21,6 +20,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from chronicle_preprocessing_app.config.defaults import DEFAULT_APP_CODEBOOK_FILE_PATH
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
 
 LOGGER = logging.getLogger(__name__)
@@ -65,9 +66,7 @@ class PlottingPanel(QWidget):
 
         # Initialize UI elements from options
         if self.options.app_codebook_path:
-            self._display_path_with_elide(
-                self.app_codebook_display, str(self.options.app_codebook_path)
-            )
+            self._display_path_with_elide(self.app_codebook_display, str(self.options.app_codebook_path))
 
         # Initialize visibility based on options
         self.app_codebook_placeholder.setVisible(self.options.use_app_codebook)
@@ -80,12 +79,8 @@ class PlottingPanel(QWidget):
         plotting_layout = QVBoxLayout()
 
         self.include_filtered_app_usage_checkbox = QCheckBox("Include Filtered App Usage in Plots")
-        self.include_filtered_app_usage_checkbox.setChecked(
-            self.options.include_filtered_app_usage_in_plots
-        )
-        self.include_filtered_app_usage_checkbox.stateChanged.connect(
-            self._on_include_filtered_app_usage_changed
-        )
+        self.include_filtered_app_usage_checkbox.setChecked(self.options.include_filtered_app_usage_in_plots)
+        self.include_filtered_app_usage_checkbox.stateChanged.connect(self._on_include_filtered_app_usage_changed)
         plotting_layout.addWidget(self.include_filtered_app_usage_checkbox)
 
         self.use_app_codebook_checkbox = QCheckBox("Use App Codebook for Categories")
@@ -93,13 +88,9 @@ class PlottingPanel(QWidget):
         self.use_app_codebook_checkbox.stateChanged.connect(self._on_use_app_codebook_changed)
         plotting_layout.addWidget(self.use_app_codebook_checkbox)
 
-        self.plot_only_target_child_checkbox = QCheckBox(
-            "Plot Only Target Child Data (Internal Research)"
-        )
+        self.plot_only_target_child_checkbox = QCheckBox("Plot Only Target Child Data (Internal Research)")
         self.plot_only_target_child_checkbox.setChecked(self.options.plot_only_target_child_data)
-        self.plot_only_target_child_checkbox.stateChanged.connect(
-            self._on_plot_only_target_child_data_changed
-        )
+        self.plot_only_target_child_checkbox.stateChanged.connect(self._on_plot_only_target_child_data_changed)
         self.plot_only_target_child_checkbox.setVisible(self._check_internal_modules_available())
         plotting_layout.addWidget(self.plot_only_target_child_checkbox)
 
@@ -116,9 +107,7 @@ class PlottingPanel(QWidget):
         self.app_codebook_display.setFixedHeight(int(26 * self.scale_factor))
 
         self.app_codebook_button = QPushButton("Browse...")
-        self.app_codebook_button.setFixedSize(
-            QSize(int(80 * self.scale_factor), int(26 * self.scale_factor))
-        )
+        self.app_codebook_button.setFixedSize(QSize(int(80 * self.scale_factor), int(26 * self.scale_factor)))
         self.app_codebook_button.clicked.connect(self._on_select_app_codebook)
 
         self.app_codebook_layout.addWidget(app_codebook_label)
@@ -139,13 +128,14 @@ class PlottingPanel(QWidget):
         try:
             # Try to import the survey data preprocessor
             # Also try to import key internal dependencies to ensure full functionality
-            from chronicle_preprocessing_internal import (
+            from chronicle_preprocessing_internal import (  # noqa: F401
                 DeviceSharingStatus,
                 ParticipantID,
                 TrackingSheet,
                 write_df_to_excel_and_format,
             )
-            from chronicle_preprocessing_app.core.preprocessing import SurveyDataPreprocessor
+
+            from chronicle_preprocessing_app.core.preprocessing import SurveyDataPreprocessor  # noqa: F401
 
             return True
         except ImportError:
@@ -217,9 +207,7 @@ class PlottingPanel(QWidget):
         """
         Open a dialog to select the app codebook file (CSV).
         """
-        file, _ = QFileDialog.getOpenFileName(
-            self, "Select App Codebook File", "", "App Codebook Files (*.csv, *.xlsx)"
-        )
+        file, _ = QFileDialog.getOpenFileName(self, "Select App Codebook File", "", "App Codebook Files (*.csv, *.xlsx)")
         if file:
             self._display_path_with_elide(self.app_codebook_display, file)
             self.options.app_codebook_path = file
@@ -292,4 +280,3 @@ class PlottingPanel(QWidget):
         self.plot_only_target_child_checkbox.setChecked(checked)
         self.options.plot_only_target_child_data = checked
         self.options_updated.emit()
-

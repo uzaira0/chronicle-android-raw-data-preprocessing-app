@@ -16,14 +16,7 @@ from chronicle_preprocessing_app.core.preprocessing.main_preprocessor import (
 
 
 def _config_manager_class() -> type:
-    module_path = (
-        Path(__file__).resolve().parents[1]
-        / "src"
-        / "chronicle_preprocessing_app"
-        / "gui"
-        / "utils"
-        / "config_manager.py"
-    )
+    module_path = Path(__file__).resolve().parents[1] / "src" / "chronicle_preprocessing_app" / "gui" / "utils" / "config_manager.py"
     spec = spec_from_file_location("config_manager_under_test", module_path)
     assert spec is not None
     assert spec.loader is not None
@@ -57,12 +50,8 @@ def test_parallel_worker_options_preserve_behavior_settings() -> None:
     recreated = PreprocessingOptions(**worker_options)
 
     assert "survey_data_df" not in worker_options
-    assert recreated.same_app_interaction_types_to_stop_usage_at == {
-        InteractionType.ACTIVITY_DESTROYED
-    }
-    assert recreated.other_interaction_types_to_stop_usage_at == {
-        InteractionType.DEVICE_SHUTDOWN
-    }
+    assert recreated.same_app_interaction_types_to_stop_usage_at == {InteractionType.ACTIVITY_DESTROYED}
+    assert recreated.other_interaction_types_to_stop_usage_at == {InteractionType.DEVICE_SHUTDOWN}
     assert recreated.interaction_types_to_remove == {InteractionType.NOTIFICATION_SEEN}
     assert recreated.allow_stop_event_reuse is True
     assert recreated.use_activity_stopped_as_fallback is False

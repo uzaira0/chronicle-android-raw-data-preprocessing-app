@@ -9,9 +9,6 @@ import polars as pl
 from chronicle_preprocessing_app.config.constants import Column, TimestampFormat
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
 from chronicle_preprocessing_app.core.preprocessing.base_preprocessor import BasePreprocessor
-from chronicle_preprocessing_app.core.preprocessing.polars_fast_path import (
-    PolarsFastPathPreprocessor,
-)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -21,6 +18,10 @@ class TimestampPreprocessor(BasePreprocessor):
 
     def __init__(self, options: PreprocessingOptions) -> None:
         super().__init__(options)
+        from chronicle_preprocessing_app.core.preprocessing.polars_fast_path import (
+            PolarsFastPathPreprocessor,
+        )
+
         self._helper = PolarsFastPathPreprocessor(options)
 
     def preprocess(self, df: pl.DataFrame) -> pl.DataFrame:
@@ -30,7 +31,7 @@ class TimestampPreprocessor(BasePreprocessor):
     def fix_timestamp_format(timestamp: str) -> str | None:
         if timestamp is None:
             return None
-        value = str(timestamp)
+        value = str(timestamp).strip()
         if not value:
             return None
         if value.endswith("Z"):
@@ -57,14 +58,17 @@ class TimestampPreprocessor(BasePreprocessor):
         column_name: str = Column.EVENT_TIMESTAMP,
     ) -> pl.DataFrame:
         original_col = f"{column_name}_original"
-        timestamp_text = pl.col(column_name).cast(pl.Utf8)
-        df = df.with_columns(pl.col(column_name).alias(original_col))
-        has_explicit_timezone = df.select(
-            timestamp_text
-            .str.contains(r"(Z|[+-]\d{2}:\d{2})$")
-            .fill_null(False)
-            .any()
-        ).item()
+        clean_col = f"{column_name}_cleaned"
+        df = df.with_columns(
+            pl.col(column_name).alias(original_col),
+            pl.when(pl.col(column_name).is_null())
+            .then(pl.lit(None, dtype=pl.String))
+            .otherwise(pl.col(column_name).cast(pl.String).str.strip_chars())
+            .replace("", None)
+            .alias(clean_col),
+        )
+        timestamp_text = pl.col(clean_col)
+        has_explicit_timezone = df.select(timestamp_text.str.contains(r"(Z|[+-]\d{2}:\d{2})$").fill_null(False).any()).item()
         timestamp_expr = (
             pl.coalesce(
                 [
@@ -106,19 +110,12 @@ class TimestampPreprocessor(BasePreprocessor):
                 ]
             )
         )
-        df = df.with_columns(
-            timestamp_expr.alias(column_name)
-        )
+        df = df.with_columns(timestamp_expr.alias(column_name))
         invalid_column_name = f"{column_name}_invalid_original"
-        invalid_mask = pl.col(column_name).is_null() & pl.col(original_col).is_not_null()
+        invalid_mask = pl.col(column_name).is_null() & pl.col(clean_col).is_not_null()
         if df.select(invalid_mask.any()).item():
-            df = df.with_columns(
-                pl.when(invalid_mask)
-                .then(pl.col(original_col))
-                .otherwise(pl.lit(None))
-                .alias(invalid_column_name)
-            )
-        return df.drop(original_col)
+            df = df.with_columns(pl.when(invalid_mask).then(pl.col(original_col)).otherwise(pl.lit(None)).alias(invalid_column_name))
+        return df.drop(original_col, clean_col)
 
     def unalign_duplicate_timestamps(
         self,
@@ -135,11 +132,7 @@ class TimestampPreprocessor(BasePreprocessor):
     ) -> None:
         if start_column not in df.columns or stop_column not in df.columns:
             return
-        disordered = df.filter(
-            pl.col(start_column).is_not_null()
-            & pl.col(stop_column).is_not_null()
-            & (pl.col(start_column) > pl.col(stop_column))
-        )
+        disordered = df.filter(pl.col(start_column).is_not_null() & pl.col(stop_column).is_not_null() & (pl.col(start_column) > pl.col(stop_column)))
         if not disordered.is_empty():
             raise ValueError("Disordered timestamps detected")
 

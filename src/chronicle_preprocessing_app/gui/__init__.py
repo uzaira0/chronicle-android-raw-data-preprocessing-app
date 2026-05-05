@@ -19,7 +19,7 @@ from chronicle_preprocessing_app.config.version import __build_date__, __version
 
 from .windows.main_window import ChronicleAndroidRawDataPreprocessingGUI
 
-__all__ = ["main", "ChronicleAndroidRawDataPreprocessingGUI"]
+__all__ = ["ChronicleAndroidRawDataPreprocessingGUI", "main"]
 
 
 def setup_logging() -> logging.Logger:
@@ -39,12 +39,7 @@ def setup_logging() -> logging.Logger:
             bundle_dir = Path(sys.executable).parent
             if sys.platform.startswith("darwin"):
                 # For macOS app bundles, use ~/Library/Logs/ChronicleAndroidRawDataPreprocessing/
-                log_dir = (
-                    Path.home()
-                    / "Library"
-                    / "Logs"
-                    / "ChronicleAndroidRawDataPreprocessing"
-                )
+                log_dir = Path.home() / "Library" / "Logs" / "ChronicleAndroidRawDataPreprocessing"
                 log_dir.mkdir(parents=True, exist_ok=True)
                 log_file = log_dir / log_file
                 debug_log_file = log_dir / debug_log_file
@@ -55,12 +50,7 @@ def setup_logging() -> logging.Logger:
         # Running as script
         elif sys.platform.startswith("darwin"):
             # For macOS, use ~/Library/Logs/ChronicleAndroidRawDataPreprocessing/
-            log_dir = (
-                Path.home()
-                / "Library"
-                / "Logs"
-                / "ChronicleAndroidRawDataPreprocessing"
-            )
+            log_dir = Path.home() / "Library" / "Logs" / "ChronicleAndroidRawDataPreprocessing"
             log_dir.mkdir(parents=True, exist_ok=True)
             log_file = log_dir / log_file
             debug_log_file = log_dir / debug_log_file
@@ -97,9 +87,7 @@ def setup_logging() -> logging.Logger:
 
         # Get logger for this module
         logger = logging.getLogger(__name__)
-        logger.info(
-            f"Starting Chronicle Android Raw Data Preprocessing Application v{__version__} Build {__build_date__}"
-        )
+        logger.info(f"Starting Chronicle Android Raw Data Preprocessing Application v{__version__} Build {__build_date__}")
         logger.info(f"Log files created at: {log_file.parent.resolve()}")
 
         return logger
@@ -161,12 +149,7 @@ def main() -> None:
                 bundle_dir = Path(sys.executable).parent
                 if sys.platform.startswith("darwin"):
                     # For macOS app bundles
-                    error_log_dir = (
-                        Path.home()
-                        / "Library"
-                        / "Logs"
-                        / "ChronicleAndroidRawDataPreprocessing"
-                    )
+                    error_log_dir = Path.home() / "Library" / "Logs" / "ChronicleAndroidRawDataPreprocessing"
                     error_log_dir.mkdir(parents=True, exist_ok=True)
                     error_file = error_log_dir / error_file_name
                 else:
@@ -175,12 +158,7 @@ def main() -> None:
             # Running as script
             elif sys.platform.startswith("darwin"):
                 # For macOS
-                error_log_dir = (
-                    Path.home()
-                    / "Library"
-                    / "Logs"
-                    / "ChronicleAndroidRawDataPreprocessing"
-                )
+                error_log_dir = Path.home() / "Library" / "Logs" / "ChronicleAndroidRawDataPreprocessing"
                 error_log_dir.mkdir(parents=True, exist_ok=True)
                 error_file = error_log_dir / error_file_name
             else:

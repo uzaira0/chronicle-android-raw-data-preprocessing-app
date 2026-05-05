@@ -6,14 +6,6 @@ import sys
 import traceback
 from pathlib import Path
 
-from chronicle_preprocessing_app.config.constants import (
-    APP_DISPLAY_NAME,
-    DialogMessage,
-    TimezoneHandlingOption,
-    UIStatus,
-    UsageSessionMode,
-)
-from chronicle_preprocessing_app.config.version import __build_date__, __version__
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import (
@@ -27,6 +19,15 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from chronicle_preprocessing_app.config.constants import (
+    APP_DISPLAY_NAME,
+    DialogMessage,
+    TimezoneHandlingOption,
+    UIStatus,
+    UsageSessionMode,
+)
+from chronicle_preprocessing_app.config.version import __build_date__, __version__
 from chronicle_preprocessing_app.core.config import PreprocessingOptions, ProcessingStats
 from chronicle_preprocessing_app.core.preprocessing import ChronicleAndroidRawDataPreprocessor
 from chronicle_preprocessing_app.gui.dialogs.filter_dialog import AppsFilterDialog
@@ -170,9 +171,7 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle("Find All Timezones in Selected Folder?")
             msg_box.setText("Would you like to find all timezones in the folder you just selected?")
-            msg_box.setStandardButtons(
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
+            msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             msg_box.setDefaultButton(QMessageBox.StandardButton.Yes)
 
             if msg_box.exec() == QMessageBox.StandardButton.Yes:
@@ -229,10 +228,8 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
 
             # Only check for selected timezone when not using per-file mode
             is_per_file_option = (
-                self.options.timezone_handling_option
-                == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE
-                or self.options.timezone_handling_option
-                == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE
+                self.options.timezone_handling_option == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE
+                or self.options.timezone_handling_option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE
             )
 
             if not is_per_file_option and not self.options.selected_timezone:
@@ -296,9 +293,7 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
         """
         self.status_panel.update_progress(message, current_file, total_files)
 
-    def _on_preprocessing_completed(
-        self, message: str, output_folder: Path, stats: ProcessingStats
-    ) -> None:
+    def _on_preprocessing_completed(self, message: str, output_folder: Path, stats: ProcessingStats) -> None:
         """
         Handle completion of preprocessing.
 
@@ -323,31 +318,20 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
                 # Determine the plots folder path based on the study name
                 from chronicle_preprocessing_app.config.constants import PLOTTED_FOLDER_SUFFIX
 
-                plots_folder = (
-                    Path(output_folder.parent)
-                    / f"{self.options.study_name + ' ' + PLOTTED_FOLDER_SUFFIX}"
-                )
+                plots_folder = Path(output_folder.parent) / f"{self.options.study_name + ' ' + PLOTTED_FOLDER_SUFFIX}"
                 if plots_folder.exists():
                     self.status_panel.show_plots_folder_button(plots_folder)
 
             # After successful preprocessing, add the selected timezone to custom_timezones if not in available_timezones
             is_per_file_option = (
-                self.options.timezone_handling_option
-                == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE
-                or self.options.timezone_handling_option
-                == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE
+                self.options.timezone_handling_option == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE
+                or self.options.timezone_handling_option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE
             )
 
             # Only save selected timezone to custom timezones when not in per-file mode
             current_timezone = self.options.selected_timezone
-            if (
-                not is_per_file_option
-                and current_timezone
-                and current_timezone not in self.options.available_timezones
-            ):
-                LOGGER.debug(
-                    f"Adding verified custom timezone to custom_timezones: {current_timezone}"
-                )
+            if not is_per_file_option and current_timezone and current_timezone not in self.options.available_timezones:
+                LOGGER.debug(f"Adding verified custom timezone to custom_timezones: {current_timezone}")
                 if not hasattr(self.options, "custom_timezones"):
                     self.options.custom_timezones = []
                 # Make sure to convert to string if it's a tzinfo object
@@ -368,10 +352,7 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
             success_message = message
 
             # If there were any issues, update the title
-            if self.processing_stats and (
-                self.processing_stats.failed_files > 0
-                or self.processing_stats.plot_failed_files > 0
-            ):
+            if self.processing_stats and (self.processing_stats.failed_files > 0 or self.processing_stats.plot_failed_files > 0):
                 success_title = "Processing Completed with Some Issues"
 
             QMessageBox.information(self, success_title, success_message)
@@ -422,9 +403,7 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
         # Format error message with traceback if available
         detailed_message = error_message
         if hasattr(sys, "last_traceback"):
-            detailed_message = (
-                f"{error_message}\n\nTraceback:\n{''.join(traceback.format_tb(sys.last_traceback))}"
-            )
+            detailed_message = f"{error_message}\n\nTraceback:\n{''.join(traceback.format_tb(sys.last_traceback))}"
 
         # Create error dialog with traceback
         msg_box = QMessageBox(self)
@@ -494,9 +473,7 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
                 config = json.load(f)
             LOGGER.debug("Configuration file loaded successfully.")
         except PermissionError as e:
-            LOGGER.error(
-                f"Permission denied when accessing configuration file: {config_file}. Error: {e}"
-            )
+            LOGGER.error(f"Permission denied when accessing configuration file: {config_file}. Error: {e}")
             return
         except json.JSONDecodeError as e:
             LOGGER.error(f"Configuration file is corrupted or invalid JSON: {e}")
@@ -550,9 +527,7 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
                     from chronicle_preprocessing_app.utils.file_utils import read_filter_file
 
                     self.options.apps_to_filter_dict = read_filter_file(filter_file)
-                    LOGGER.info(
-                        f"Loaded {len(self.options.apps_to_filter_dict)} app filters from {filter_file}"
-                    )
+                    LOGGER.info(f"Loaded {len(self.options.apps_to_filter_dict)} app filters from {filter_file}")
                 except Exception:
                     LOGGER.exception("Error loading filter file")
 
@@ -569,12 +544,8 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
                         read_apps_forcing_screen_open_file,
                     )
 
-                    self.options.apps_forcing_screen_open_dict = read_apps_forcing_screen_open_file(
-                        apps_forcing_screen_open_file
-                    )
-                    LOGGER.info(
-                        f"Loaded {len(self.options.apps_forcing_screen_open_dict)} keep-awake apps from {apps_forcing_screen_open_file}"
-                    )
+                    self.options.apps_forcing_screen_open_dict = read_apps_forcing_screen_open_file(apps_forcing_screen_open_file)
+                    LOGGER.info(f"Loaded {len(self.options.apps_forcing_screen_open_dict)} keep-awake apps from {apps_forcing_screen_open_file}")
                 except Exception:
                     LOGGER.exception("Error loading apps-forcing-screen-open file")
 
@@ -583,9 +554,7 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
             self.options.minimum_usage_duration = int(config["minimum_usage_duration"])
 
         if "custom_app_engagement_duration" in config:
-            self.options.custom_app_engagement_duration = int(
-                config["custom_app_engagement_duration"]
-            )
+            self.options.custom_app_engagement_duration = int(config["custom_app_engagement_duration"])
 
         if "long_usage_duration_thresholds" in config:
             self.options.long_usage_duration_thresholds = config["long_usage_duration_thresholds"]
@@ -595,15 +564,11 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
 
         # Set the correct duplicate event timestamps option from the configuration
         if "correct_duplicate_event_timestamps" in config:
-            self.options.correct_duplicate_event_timestamps = config[
-                "correct_duplicate_event_timestamps"
-            ]
+            self.options.correct_duplicate_event_timestamps = config["correct_duplicate_event_timestamps"]
 
         # Set timezone options
         if "timezone_handling_option" in config:
-            self.options.timezone_handling_option = TimezoneHandlingOption(
-                config["timezone_handling_option"]
-            )
+            self.options.timezone_handling_option = TimezoneHandlingOption(config["timezone_handling_option"])
 
         if config.get("available_timezones"):
             self.options.available_timezones = config["available_timezones"]
@@ -616,15 +581,11 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
 
         # Set the interaction types if available
         if "same_app_interaction_types_to_stop_usage_at" in config:
-            self.options.same_app_interaction_types_to_stop_usage_at = set(
-                config["same_app_interaction_types_to_stop_usage_at"]
-            )
+            self.options.same_app_interaction_types_to_stop_usage_at = set(config["same_app_interaction_types_to_stop_usage_at"])
             self.options.same_app_interaction_types_configured = True
 
         if "other_interaction_types_to_stop_usage_at" in config:
-            self.options.other_interaction_types_to_stop_usage_at = set(
-                config["other_interaction_types_to_stop_usage_at"]
-            )
+            self.options.other_interaction_types_to_stop_usage_at = set(config["other_interaction_types_to_stop_usage_at"])
             self.options.other_interaction_types_configured = True
 
         if "interaction_types_to_remove" in config:
@@ -637,18 +598,12 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
             LOGGER.debug(f"Loaded enable_plotting: {self.options.enable_plotting}")
 
         if "include_filtered_app_usage_in_plots" in config:
-            self.options.include_filtered_app_usage_in_plots = config[
-                "include_filtered_app_usage_in_plots"
-            ]
-            LOGGER.debug(
-                f"Loaded include_filtered_app_usage_in_plots: {self.options.include_filtered_app_usage_in_plots}"
-            )
+            self.options.include_filtered_app_usage_in_plots = config["include_filtered_app_usage_in_plots"]
+            LOGGER.debug(f"Loaded include_filtered_app_usage_in_plots: {self.options.include_filtered_app_usage_in_plots}")
 
         if "plot_only_target_child_data" in config:
             self.options.plot_only_target_child_data = config["plot_only_target_child_data"]
-            LOGGER.debug(
-                f"Loaded plot_only_target_child_data: {self.options.plot_only_target_child_data}"
-            )
+            LOGGER.debug(f"Loaded plot_only_target_child_data: {self.options.plot_only_target_child_data}")
 
         if "app_codebook_path" in config:
             self.options.app_codebook_path = config["app_codebook_path"]
@@ -674,24 +629,16 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
                 self.options.usage_session_mode = UsageSessionMode.APP_AND_SCREEN_USAGE
 
         if "screen_usage_auto_lock_timeout_seconds" in config:
-            self.options.screen_usage_auto_lock_timeout_seconds = int(
-                config["screen_usage_auto_lock_timeout_seconds"]
-            )
+            self.options.screen_usage_auto_lock_timeout_seconds = int(config["screen_usage_auto_lock_timeout_seconds"])
 
         if "screen_usage_auto_lock_tolerance_seconds" in config:
-            self.options.screen_usage_auto_lock_tolerance_seconds = int(
-                config["screen_usage_auto_lock_tolerance_seconds"]
-            )
+            self.options.screen_usage_auto_lock_tolerance_seconds = int(config["screen_usage_auto_lock_tolerance_seconds"])
 
         if "screen_usage_manual_lock_max_tail_gap_seconds" in config:
-            self.options.screen_usage_manual_lock_max_tail_gap_seconds = int(
-                config["screen_usage_manual_lock_max_tail_gap_seconds"]
-            )
+            self.options.screen_usage_manual_lock_max_tail_gap_seconds = int(config["screen_usage_manual_lock_max_tail_gap_seconds"])
 
         if "screen_usage_keyguard_near_stop_seconds" in config:
-            self.options.screen_usage_keyguard_near_stop_seconds = int(
-                config["screen_usage_keyguard_near_stop_seconds"]
-            )
+            self.options.screen_usage_keyguard_near_stop_seconds = int(config["screen_usage_keyguard_near_stop_seconds"])
 
         # Load survey data options (internal functionality)
         if "use_survey_data" in config:
@@ -708,19 +655,13 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
             self.options.allow_stop_event_reuse = config["allow_stop_event_reuse"]
 
         if "use_activity_stopped_as_fallback" in config:
-            self.options.use_activity_stopped_as_fallback = config[
-                "use_activity_stopped_as_fallback"
-            ]
+            self.options.use_activity_stopped_as_fallback = config["use_activity_stopped_as_fallback"]
 
         if "apply_threshold_to_activity_stopped_fallback" in config:
-            self.options.apply_threshold_to_activity_stopped_fallback = config[
-                "apply_threshold_to_activity_stopped_fallback"
-            ]
+            self.options.apply_threshold_to_activity_stopped_fallback = config["apply_threshold_to_activity_stopped_fallback"]
 
         if "long_duration_threshold_hours" in config:
-            self.options.long_duration_threshold_hours = float(
-                config["long_duration_threshold_hours"]
-            )
+            self.options.long_duration_threshold_hours = float(config["long_duration_threshold_hours"])
 
         # Load parallel processing settings
         if "parallel_processing" in config:
@@ -749,28 +690,14 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
         self.config_panel.set_apps_forcing_screen_open_file(str(self.options.apps_forcing_screen_open_file))
         self.config_panel.set_use_apps_forcing_screen_open_file(self.options.use_apps_forcing_screen_open_file)
         self.config_panel.set_usage_session_mode(self.options.usage_session_mode)
-        self.config_panel.set_screen_usage_auto_lock_timeout(
-            self.options.screen_usage_auto_lock_timeout_seconds
-        )
-        self.config_panel.set_screen_usage_auto_lock_tolerance(
-            self.options.screen_usage_auto_lock_tolerance_seconds
-        )
-        self.config_panel.set_screen_usage_manual_lock_max_tail_gap(
-            self.options.screen_usage_manual_lock_max_tail_gap_seconds
-        )
+        self.config_panel.set_screen_usage_auto_lock_timeout(self.options.screen_usage_auto_lock_timeout_seconds)
+        self.config_panel.set_screen_usage_auto_lock_tolerance(self.options.screen_usage_auto_lock_tolerance_seconds)
+        self.config_panel.set_screen_usage_manual_lock_max_tail_gap(self.options.screen_usage_manual_lock_max_tail_gap_seconds)
         self.config_panel.set_minimum_usage_duration(self.options.minimum_usage_duration)
-        self.config_panel.set_custom_app_engagement_duration(
-            self.options.custom_app_engagement_duration
-        )
-        self.config_panel.set_long_usage_duration_thresholds(
-            self.options.long_usage_duration_thresholds
-        )
-        self.config_panel.set_long_data_time_gap_thresholds(
-            self.options.long_data_time_gap_thresholds
-        )
-        self.config_panel.set_correct_duplicate_event_timestamps(
-            self.options.correct_duplicate_event_timestamps
-        )
+        self.config_panel.set_custom_app_engagement_duration(self.options.custom_app_engagement_duration)
+        self.config_panel.set_long_usage_duration_thresholds(self.options.long_usage_duration_thresholds)
+        self.config_panel.set_long_data_time_gap_thresholds(self.options.long_data_time_gap_thresholds)
+        self.config_panel.set_correct_duplicate_event_timestamps(self.options.correct_duplicate_event_timestamps)
 
         # Update OptionsPanel fields
         if self.options.available_timezones:
@@ -787,35 +714,21 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
         else:
             self.options_panel.prevent_stop_reuse_radio.setChecked(True)
 
-        self.options_panel.activity_stopped_fallback_checkbox.setChecked(
-            self.options.use_activity_stopped_as_fallback
-        )
-        self.options_panel.apply_threshold_to_fallback_checkbox.setChecked(
-            self.options.apply_threshold_to_activity_stopped_fallback
-        )
-        self.options_panel.long_duration_threshold_spinbox.setValue(
-            self.options.long_duration_threshold_hours
-        )
-        self.options_panel.threshold_layout_widget.setVisible(
-            self.options.apply_threshold_to_activity_stopped_fallback
-        )
+        self.options_panel.activity_stopped_fallback_checkbox.setChecked(self.options.use_activity_stopped_as_fallback)
+        self.options_panel.apply_threshold_to_fallback_checkbox.setChecked(self.options.apply_threshold_to_activity_stopped_fallback)
+        self.options_panel.long_duration_threshold_spinbox.setValue(self.options.long_duration_threshold_hours)
+        self.options_panel.threshold_layout_widget.setVisible(self.options.apply_threshold_to_activity_stopped_fallback)
 
         # Update parallel processing settings in options panel
         self.options_panel.parallel_processing_checkbox.setChecked(self.options.parallel_processing)
-        self.options_panel.parallel_workers_spinbox.setValue(
-            self.options.parallel_max_workers or 0
-        )
+        self.options_panel.parallel_workers_spinbox.setValue(self.options.parallel_max_workers or 0)
         self.options_panel.parallel_workers_spinbox.setEnabled(self.options.parallel_processing)
 
         # Update plotting options in plotting panel
         self.plotting_panel.set_use_app_codebook(self.options.use_app_codebook)
         self.plotting_panel.set_app_codebook_path(str(self.options.app_codebook_path))
-        self.plotting_panel.set_include_filtered_app_usage(
-            self.options.include_filtered_app_usage_in_plots
-        )
-        self.plotting_panel.set_plot_only_target_child_data(
-            self.options.plot_only_target_child_data
-        )
+        self.plotting_panel.set_include_filtered_app_usage(self.options.include_filtered_app_usage_in_plots)
+        self.plotting_panel.set_plot_only_target_child_data(self.options.plot_only_target_child_data)
 
         # Update survey data options in config panel (internal functionality)
         if hasattr(self.options, "use_survey_data"):
@@ -847,17 +760,11 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
                 continue
 
             # Skip interaction types that weren't specifically configured
-            if key == "same_app_interaction_types_to_stop_usage_at" and not getattr(
-                self.options, "same_app_interaction_types_configured", False
-            ):
+            if key == "same_app_interaction_types_to_stop_usage_at" and not getattr(self.options, "same_app_interaction_types_configured", False):
                 continue
-            if key == "other_interaction_types_to_stop_usage_at" and not getattr(
-                self.options, "other_interaction_types_configured", False
-            ):
+            if key == "other_interaction_types_to_stop_usage_at" and not getattr(self.options, "other_interaction_types_configured", False):
                 continue
-            if key == "interaction_types_to_remove" and not getattr(
-                self.options, "interaction_types_to_remove_configured", False
-            ):
+            if key == "interaction_types_to_remove" and not getattr(self.options, "interaction_types_to_remove_configured", False):
                 continue
 
             # Skip the configuration flags themselves
@@ -871,10 +778,7 @@ class ChronicleAndroidRawDataPreprocessingGUI(QMainWindow):
                 config[key] = value
             elif isinstance(value, (list, tuple, set)):
                 # Ensure we have string representations for all elements in lists
-                config[key] = [
-                    str(item) if not isinstance(item, (str, int, float, bool, type(None))) else item
-                    for item in value
-                ]
+                config[key] = [str(item) if not isinstance(item, (str, int, float, bool, type(None))) else item for item in value]
             elif hasattr(value, "value"):  # Handle Enum types
                 config[key] = value.value
             else:

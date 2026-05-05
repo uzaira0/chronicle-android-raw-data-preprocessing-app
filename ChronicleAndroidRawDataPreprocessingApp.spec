@@ -122,7 +122,7 @@ a = Analysis(
 )
 
 pyz = PYZ(
-    a.pure, 
+    a.pure,
     a.zipped_data,
     cipher=block_cipher,
     compress=True
@@ -182,7 +182,7 @@ if is_macos:
         entitlements_file=None,
         icon='ui/resources/icon.ico' if Path('ui/resources/icon.ico').exists() else None,
     )
-    
+
     coll = COLLECT(
         exe,
         a.binaries,
@@ -192,7 +192,7 @@ if is_macos:
         upx=True,
         name='ChronicleAndroidRawDataPreprocessingApp',
     )
-    
+
     app = BUNDLE(
         coll,
         name='ChronicleAndroidRawDataPreprocessingApp.app',

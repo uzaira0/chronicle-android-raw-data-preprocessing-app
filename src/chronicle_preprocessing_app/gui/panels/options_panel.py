@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 
-from chronicle_preprocessing_app.config.constants import DialogMessage, TimezoneHandlingOption
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QButtonGroup,
@@ -24,6 +23,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from chronicle_preprocessing_app.config.constants import DialogMessage, TimezoneHandlingOption
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
 from chronicle_preprocessing_app.core.preprocessing import TimezonePreprocessor
 from chronicle_preprocessing_app.gui.dialogs.interaction_dialogs import (
@@ -93,26 +94,14 @@ class OptionsPanel(QWidget):
         self.timezone_option_button_group = QButtonGroup()
 
         # Create radio buttons with clearer labels
-        self.remove_all_without_timezone_radio = QRadioButton(
-            "Remove data with timezones other than the selected timezone in all files"
-        )
-        self.convert_all_to_timezone_radio = QRadioButton(
-            "Convert data to the selected timezone in all files"
-        )
-        self.remove_all_without_primary_timezone_radio = QRadioButton(
-            "Remove data with timezones other than the primary timezone within each file"
-        )
-        self.convert_all_to_primary_timezone_radio = QRadioButton(
-            "Convert data to the primary timezone within each file"
-        )
+        self.remove_all_without_timezone_radio = QRadioButton("Remove data with timezones other than the selected timezone in all files")
+        self.convert_all_to_timezone_radio = QRadioButton("Convert data to the selected timezone in all files")
+        self.remove_all_without_primary_timezone_radio = QRadioButton("Remove data with timezones other than the primary timezone within each file")
+        self.convert_all_to_primary_timezone_radio = QRadioButton("Convert data to the primary timezone within each file")
 
         # Add tooltips for each option
-        self.remove_all_without_timezone_radio.setToolTip(
-            "Keeps only data with the timezone you select above and removes all other data."
-        )
-        self.convert_all_to_timezone_radio.setToolTip(
-            "Keeps all data and converts timestamps to the timezone you select above."
-        )
+        self.remove_all_without_timezone_radio.setToolTip("Keeps only data with the timezone you select above and removes all other data.")
+        self.convert_all_to_timezone_radio.setToolTip("Keeps all data and converts timestamps to the timezone you select above.")
         self.remove_all_without_primary_timezone_radio.setToolTip(
             "For each file, determines the most common timezone and removes data with different timezones."
         )
@@ -168,33 +157,19 @@ class OptionsPanel(QWidget):
         self.interaction_types_group = QGroupBox("Configure Interaction Types")
         interaction_types_layout = QVBoxLayout()
 
-        self.configure_same_app_interaction_types_button = QPushButton(
-            "Same App Interaction Types to Stop Usage At"
-        )
-        self.configure_same_app_interaction_types_button.clicked.connect(
-            self._on_configure_same_app_interaction_types
-        )
+        self.configure_same_app_interaction_types_button = QPushButton("Same App Interaction Types to Stop Usage At")
+        self.configure_same_app_interaction_types_button.clicked.connect(self._on_configure_same_app_interaction_types)
         self.configure_same_app_interaction_types_button.setFixedHeight(int(30 * self.scale_factor))
         self.configure_same_app_interaction_types_button.setStyleSheet("text-align: center;")
 
-        self.configure_other_interaction_types_button = QPushButton(
-            "Other Interaction Types to Stop Usage At"
-        )
-        self.configure_other_interaction_types_button.clicked.connect(
-            self._on_configure_other_interaction_types
-        )
+        self.configure_other_interaction_types_button = QPushButton("Other Interaction Types to Stop Usage At")
+        self.configure_other_interaction_types_button.clicked.connect(self._on_configure_other_interaction_types)
         self.configure_other_interaction_types_button.setFixedHeight(int(30 * self.scale_factor))
         self.configure_other_interaction_types_button.setStyleSheet("text-align: center;")
 
-        self.configure_interaction_types_to_remove_button = QPushButton(
-            "Interaction Types to Remove from Final Output"
-        )
-        self.configure_interaction_types_to_remove_button.clicked.connect(
-            self._on_configure_interaction_types_to_remove
-        )
-        self.configure_interaction_types_to_remove_button.setFixedHeight(
-            int(30 * self.scale_factor)
-        )
+        self.configure_interaction_types_to_remove_button = QPushButton("Interaction Types to Remove from Final Output")
+        self.configure_interaction_types_to_remove_button.clicked.connect(self._on_configure_interaction_types_to_remove)
+        self.configure_interaction_types_to_remove_button.setFixedHeight(int(30 * self.scale_factor))
         self.configure_interaction_types_to_remove_button.setStyleSheet("text-align: center;")
 
         interaction_types_layout.addWidget(self.configure_same_app_interaction_types_button)
@@ -220,12 +195,8 @@ class OptionsPanel(QWidget):
         self.stop_reuse_button_group = QButtonGroup()
 
         # Create radio buttons for stop reuse handling
-        self.allow_stop_reuse_radio = QRadioButton(
-            "Allow stop event reuse (original behavior - faster, may match one stop to multiple resumes)"
-        )
-        self.prevent_stop_reuse_radio = QRadioButton(
-            "Prevent stop event reuse (improved accuracy - each stop matches only one resume)"
-        )
+        self.allow_stop_reuse_radio = QRadioButton("Allow stop event reuse (original behavior - faster, may match one stop to multiple resumes)")
+        self.prevent_stop_reuse_radio = QRadioButton("Prevent stop event reuse (improved accuracy - each stop matches only one resume)")
 
         # Set initial state based on options
         if self.options.allow_stop_event_reuse:
@@ -250,37 +221,25 @@ class OptionsPanel(QWidget):
         fallback_label.setStyleSheet("font-weight: bold;")
         algorithm_layout.addWidget(fallback_label)
 
-        self.activity_stopped_fallback_checkbox = QCheckBox(
-            "Use Activity Stopped as fallback stop event (when other stops exceed threshold)"
-        )
+        self.activity_stopped_fallback_checkbox = QCheckBox("Use Activity Stopped as fallback stop event (when other stops exceed threshold)")
         self.activity_stopped_fallback_checkbox.setToolTip(
             "When enabled, Activity Stopped events are used as a fallback to end usage sessions "
             "when configured stop events (Activity Paused, Activity Resumed, etc.) exceed the "
             "long duration threshold. When disabled, only explicitly configured stop events are used."
         )
-        self.activity_stopped_fallback_checkbox.setChecked(
-            self.options.use_activity_stopped_as_fallback
-        )
-        self.activity_stopped_fallback_checkbox.stateChanged.connect(
-            self._on_activity_stopped_fallback_changed
-        )
+        self.activity_stopped_fallback_checkbox.setChecked(self.options.use_activity_stopped_as_fallback)
+        self.activity_stopped_fallback_checkbox.stateChanged.connect(self._on_activity_stopped_fallback_changed)
         algorithm_layout.addWidget(self.activity_stopped_fallback_checkbox)
 
         # Apply threshold to Activity Stopped fallback option
-        self.apply_threshold_to_fallback_checkbox = QCheckBox(
-            "Apply threshold to Activity Stopped fallback"
-        )
+        self.apply_threshold_to_fallback_checkbox = QCheckBox("Apply threshold to Activity Stopped fallback")
         self.apply_threshold_to_fallback_checkbox.setToolTip(
             "When enabled (recommended), the long duration threshold is also applied to Activity Stopped "
             "events used as fallback. This prevents unrealistic long sessions. "
             "When disabled (legacy behavior), Activity Stopped is used without threshold check."
         )
-        self.apply_threshold_to_fallback_checkbox.setChecked(
-            self.options.apply_threshold_to_activity_stopped_fallback
-        )
-        self.apply_threshold_to_fallback_checkbox.stateChanged.connect(
-            self._on_apply_threshold_to_fallback_changed
-        )
+        self.apply_threshold_to_fallback_checkbox.setChecked(self.options.apply_threshold_to_activity_stopped_fallback)
+        self.apply_threshold_to_fallback_checkbox.stateChanged.connect(self._on_apply_threshold_to_fallback_changed)
         algorithm_layout.addWidget(self.apply_threshold_to_fallback_checkbox)
 
         # Long duration threshold setting (only visible when apply_threshold_to_fallback is checked)
@@ -299,16 +258,12 @@ class OptionsPanel(QWidget):
             "Maximum duration for valid app usage sessions. Sessions exceeding this threshold "
             "are considered unrealistic and are capped or closed using fallback stop events."
         )
-        self.long_duration_threshold_spinbox.valueChanged.connect(
-            self._on_long_duration_threshold_changed
-        )
+        self.long_duration_threshold_spinbox.valueChanged.connect(self._on_long_duration_threshold_changed)
         threshold_layout.addWidget(self.long_duration_threshold_spinbox)
         threshold_layout.addStretch()
         algorithm_layout.addWidget(self.threshold_layout_widget)
         # Set initial visibility based on checkbox state
-        self.threshold_layout_widget.setVisible(
-            self.options.apply_threshold_to_activity_stopped_fallback
-        )
+        self.threshold_layout_widget.setVisible(self.options.apply_threshold_to_activity_stopped_fallback)
         algorithm_layout.addSpacing(10)
 
         # Parallel processing settings
@@ -331,8 +286,7 @@ class OptionsPanel(QWidget):
         self.parallel_workers_spinbox.setSpecialValueText("Auto")
         self.parallel_workers_spinbox.setValue(self.options.parallel_max_workers or 0)
         self.parallel_workers_spinbox.setToolTip(
-            "Maximum number of parallel worker processes. "
-            "'Auto' uses half of CPU cores. Lower this if preprocessing competes with other work."
+            "Maximum number of parallel worker processes. 'Auto' uses half of CPU cores. Lower this if preprocessing competes with other work."
         )
         self.parallel_workers_spinbox.valueChanged.connect(self._on_parallel_workers_changed)
         self.parallel_workers_spinbox.setEnabled(self.options.parallel_processing)
@@ -353,9 +307,7 @@ class OptionsPanel(QWidget):
         if checked:
             # button_id 0 = allow reuse, button_id 1 = prevent reuse
             self.options.allow_stop_event_reuse = button_id == 0
-            LOGGER.debug(
-                f"Stop event reuse changed to: {'allowed' if button_id == 0 else 'prevented'}"
-            )
+            LOGGER.debug(f"Stop event reuse changed to: {'allowed' if button_id == 0 else 'prevented'}")
             self.options_updated.emit()
 
     def _on_long_duration_threshold_changed(self, value: float) -> None:
@@ -380,9 +332,7 @@ class OptionsPanel(QWidget):
 
         checked = state == Qt.CheckState.Checked.value
         self.options.use_activity_stopped_as_fallback = checked
-        LOGGER.debug(
-            f"Activity Stopped fallback changed to: {'enabled' if checked else 'disabled'}"
-        )
+        LOGGER.debug(f"Activity Stopped fallback changed to: {'enabled' if checked else 'disabled'}")
         self.options_updated.emit()
 
     def _on_apply_threshold_to_fallback_changed(self, state: int) -> None:
@@ -398,9 +348,7 @@ class OptionsPanel(QWidget):
         self.options.apply_threshold_to_activity_stopped_fallback = checked
         # Show/hide the threshold spinbox based on checkbox state
         self.threshold_layout_widget.setVisible(checked)
-        LOGGER.debug(
-            f"Apply threshold to Activity Stopped fallback changed to: {'enabled' if checked else 'disabled'}"
-        )
+        LOGGER.debug(f"Apply threshold to Activity Stopped fallback changed to: {'enabled' if checked else 'disabled'}")
         self.options_updated.emit()
 
     def _on_parallel_processing_changed(self, state: int) -> None:
@@ -427,10 +375,7 @@ class OptionsPanel(QWidget):
             value: The new worker count value
         """
         self.options.parallel_max_workers = value if value > 0 else None
-        LOGGER.debug(
-            "Parallel max workers changed to: "
-            f"{self.options.parallel_max_workers if self.options.parallel_max_workers else 'auto'}"
-        )
+        LOGGER.debug(f"Parallel max workers changed to: {self.options.parallel_max_workers if self.options.parallel_max_workers else 'auto'}")
         self.options_updated.emit()
 
     def _on_timezone_changed(self, timezone: str) -> None:
@@ -456,10 +401,8 @@ class OptionsPanel(QWidget):
 
         # Show/hide timezone selection based on option
         is_per_file_option = (
-            self.options.timezone_handling_option
-            == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE
-            or self.options.timezone_handling_option
-            == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE
+            self.options.timezone_handling_option == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE
+            or self.options.timezone_handling_option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE
         )
 
         self.timezone_selection_label.setVisible(not is_per_file_option)
@@ -554,9 +497,7 @@ class OptionsPanel(QWidget):
             dialog = SameAppInteractionTypesDialog(parent, self.options)
             if dialog.exec() == QMessageBox.DialogCode.Accepted:
                 # Update options with the selected interaction types
-                self.options.same_app_interaction_types_to_stop_usage_at = (
-                    dialog.get_selected_interaction_types()
-                )
+                self.options.same_app_interaction_types_to_stop_usage_at = dialog.get_selected_interaction_types()
                 # Mark that these were specifically configured
                 self.options.same_app_interaction_types_configured = True
                 self.options_updated.emit()
@@ -572,9 +513,7 @@ class OptionsPanel(QWidget):
             dialog = OtherInteractionTypesDialog(parent, self.options)
             if dialog.exec() == QMessageBox.DialogCode.Accepted:
                 # Update options with the selected interaction types
-                self.options.other_interaction_types_to_stop_usage_at = (
-                    dialog.get_selected_interaction_types()
-                )
+                self.options.other_interaction_types_to_stop_usage_at = dialog.get_selected_interaction_types()
                 # Mark that these were specifically configured
                 self.options.other_interaction_types_configured = True
                 self.options_updated.emit()

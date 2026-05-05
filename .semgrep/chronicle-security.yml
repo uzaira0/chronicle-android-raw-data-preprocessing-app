@@ -40,3 +40,154 @@ rules:
         - /.github/workflows/*.yml
         - /.github/workflows/*.yaml
     pattern-regex: '(?s)run:\\s*\\|.*\\$\\{\\{\\s*github\\.'
+
+  # ── Python: Polars-specific ──────────────────────────────────────────────
+
+  - id: chronicle-polars-dataframe-in-loop
+    message: "Constructing pl.DataFrame inside a loop is slow; accumulate rows and construct once after the loop."
+    severity: WARNING
+    languages: [python]
+    pattern-inside: |
+      for ... in ...:
+        ...
+    pattern: pl.DataFrame(...)
+
+  - id: chronicle-polars-drop-nulls-no-subset
+    message: "drop_nulls() without a subset= argument drops rows with nulls in ANY column; pass subset=[...] to be explicit."
+    severity: WARNING
+    languages: [python]
+    paths:
+      include:
+        - src/**/*.py
+    pattern: $DF.drop_nulls()
+
+  - id: chronicle-polars-read-csv-no-schema
+    message: "pl.read_csv with a bare path and no schema= or infer_schema_length= may mistype columns on small samples; be explicit."
+    severity: WARNING
+    languages: [python]
+    paths:
+      include:
+        - src/**/*.py
+    pattern: pl.read_csv($PATH)
+
+  - id: chronicle-polars-utf8-deprecated-alias
+    message: "pl.Utf8 is a deprecated alias for pl.String; replace with pl.String."
+    severity: WARNING
+    languages: [python]
+    paths:
+      include:
+        - src/**/*.py
+    pattern: $DF.cast(pl.Utf8)
+
+  # ── Python: exception / error handling ──────────────────────────────────
+
+  - id: chronicle-python-bare-except
+    message: "Bare `except:` swallows KeyboardInterrupt and SystemExit; use `except Exception:` or a specific exception type."
+    severity: ERROR
+    languages: [python]
+    pattern: |
+      try:
+        ...
+      except:
+        ...
+
+  - id: chronicle-python-json-loads-unguarded
+    message: "json.loads can raise JSONDecodeError; wrap in try/except or use a safe parser."
+    severity: WARNING
+    languages: [python]
+    pattern-not-inside: |
+      try:
+        ...
+      except ...:
+        ...
+    pattern: json.loads(...)
+
+  - id: chronicle-python-subprocess-no-check
+    message: "subprocess.run without check=True silently ignores non-zero exit codes; add check=True or inspect returncode."
+    severity: WARNING
+    languages: [python]
+    patterns:
+      - pattern: subprocess.run(...)
+      - pattern-not: subprocess.run(..., check=True, ...)
+      - pattern-not: subprocess.run(..., check=..., ...)
+
+  # ── Python: API / encoding footguns ─────────────────────────────────────
+
+  - id: chronicle-python-mutable-default-dict
+    message: "Mutable default dict argument; use None and initialise inside the function body."
+    severity: WARNING
+    languages: [python]
+    pattern: "def $FUNC(..., $ARG={}, ...): ..."
+
+  - id: chronicle-python-mutable-default-list
+    message: "Mutable default list argument; use None and initialise inside the function body."
+    severity: WARNING
+    languages: [python]
+    pattern: "def $FUNC(..., $ARG=[], ...): ..."
+
+  - id: chronicle-python-open-no-encoding
+    message: "open() without encoding= uses the platform default; specify encoding='utf-8'."
+    severity: WARNING
+    languages: [python]
+    paths:
+      include:
+        - src/**/*.py
+        - scripts/**/*.py
+    patterns:
+      - pattern-either:
+          - pattern: open($PATH, $MODE)
+          - pattern: open($PATH)
+      - pattern-not: open(..., encoding=..., ...)
+      - pattern-not: open(..., ..., encoding=...)
+
+  - id: chronicle-python-write-text-no-encoding
+    message: "Path.write_text without encoding= uses the platform default; specify encoding='utf-8'."
+    severity: WARNING
+    languages: [python]
+    patterns:
+      - pattern: $PATH.write_text($TEXT)
+      - pattern-not: $PATH.write_text($TEXT, encoding=...)
+
+  # ── TypeScript ───────────────────────────────────────────────────────────
+
+  - id: chronicle-ts-console-log
+    message: "Remove console.log before committing; use structured logging or remove the statement."
+    severity: WARNING
+    languages: [typescript]
+    paths:
+      include:
+        - web/src/**/*.ts
+        - web/src/**/*.tsx
+    pattern: console.log(...)
+
+  - id: chronicle-ts-localstorage-unguarded
+    message: "localStorage access can throw in Safari private mode or when storage is full; wrap in try/catch."
+    severity: WARNING
+    languages: [typescript]
+    paths:
+      include:
+        - web/src/**/*.ts
+        - web/src/**/*.tsx
+    pattern-not-inside: |
+      try {
+        ...
+      } catch (...) {
+        ...
+      }
+    pattern: localStorage.$METHOD(...)
+
+  - id: chronicle-ts-window-localstorage-unguarded
+    message: "window.localStorage access can throw in Safari private mode or when storage is full; wrap in try/catch."
+    severity: WARNING
+    languages: [typescript]
+    paths:
+      include:
+        - web/src/**/*.ts
+        - web/src/**/*.tsx
+    pattern-not-inside: |
+      try {
+        ...
+      } catch (...) {
+        ...
+      }
+    pattern: window.localStorage.$METHOD(...)

@@ -18,7 +18,7 @@ from chronicle_preprocessing_app.core.preprocessing.algorithms.rust_app_usage_ma
 from chronicle_preprocessing_app.core.preprocessing.app_usage_preprocessor import (
     AppUsagePreprocessor,
 )
-from tests.polars_helpers import cell, frame, is_null, ts, td
+from tests.polars_helpers import cell, frame, is_null, td, ts
 
 SYSTEM_APPS = [
     "android",
@@ -73,12 +73,8 @@ def _options(**overrides: object) -> PreprocessingOptions:
 
 def _run_algorithm(algorithm: object, df: pl.DataFrame, options: PreprocessingOptions) -> pl.DataFrame:
     resumed_mask = df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_RESUMED)
-    same_app_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in(
-        [str(value) for value in options.same_app_interaction_types_to_stop_usage_at]
-    )
-    other_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in(
-        [str(value) for value in options.other_interaction_types_to_stop_usage_at]
-    )
+    same_app_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in([str(value) for value in options.same_app_interaction_types_to_stop_usage_at])
+    other_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in([str(value) for value in options.other_interaction_types_to_stop_usage_at])
     stopped_mask = df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_STOPPED)
     return algorithm.process_app_usage(
         df,
@@ -194,12 +190,12 @@ def test_rust_and_python_matchers_produce_identical_sparse_updates() -> None:
             app_packages=df.get_column(Column.APP_PACKAGE_NAME).fill_null("").to_numpy(),
             timestamp_ns=df.get_column(Column.EVENT_TIMESTAMP).dt.epoch("ns").to_numpy(),
             resumed_flags=(df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_RESUMED)).to_numpy(),
-            same_stop_flags=df.get_column(Column.INTERACTION_TYPE).is_in(
-                [str(value) for value in options.same_app_interaction_types_to_stop_usage_at]
-            ).to_numpy(),
-            other_stop_flags=df.get_column(Column.INTERACTION_TYPE).is_in(
-                [str(value) for value in options.other_interaction_types_to_stop_usage_at]
-            ).to_numpy(),
+            same_stop_flags=df.get_column(Column.INTERACTION_TYPE)
+            .is_in([str(value) for value in options.same_app_interaction_types_to_stop_usage_at])
+            .to_numpy(),
+            other_stop_flags=df.get_column(Column.INTERACTION_TYPE)
+            .is_in([str(value) for value in options.other_interaction_types_to_stop_usage_at])
+            .to_numpy(),
             stopped_flags=(df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_STOPPED)).to_numpy(),
         )
         assert _normalize(rust_result).equals(_normalize(optimized_result))

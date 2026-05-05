@@ -9,15 +9,25 @@ from pathlib import Path
 
 import polars as pl
 
-from chronicle_preprocessing_app.config.constants import Column, TimezoneHandlingOption
+from chronicle_preprocessing_app.config.constants import Column
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
 from chronicle_preprocessing_app.core.preprocessing.base_preprocessor import BasePreprocessor
-from chronicle_preprocessing_app.core.preprocessing.polars_fast_path import (
-    PolarsFastPathPreprocessor,
-)
 from chronicle_preprocessing_app.utils.file_utils import get_matching_files_from_folder
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _normalize_timezone_value(value: object) -> str | None:
+    if value is None:
+        return None
+    timezone = str(value).strip()
+    if not timezone or timezone == "None":
+        return None
+    return timezone
+
+
+def _normalize_timezone_expr(col_expr: pl.Expr) -> pl.Expr:
+    return col_expr.cast(pl.String).str.strip_chars().replace("", None).replace("None", None)
 
 
 class TimezonePreprocessor(BasePreprocessor):
@@ -25,6 +35,10 @@ class TimezonePreprocessor(BasePreprocessor):
 
     def __init__(self, options: PreprocessingOptions) -> None:
         super().__init__(options)
+        from chronicle_preprocessing_app.core.preprocessing.polars_fast_path import (
+            PolarsFastPathPreprocessor,
+        )
+
         self.local_timezone = self.get_local_timezone()
         self.current_data_primary_timezone: str | None = None
         self._helper = PolarsFastPathPreprocessor(options)
@@ -57,9 +71,9 @@ class TimezonePreprocessor(BasePreprocessor):
             if Column.TIMEZONE not in df.columns:
                 continue
             timezones.update(
-                value
+                timezone
                 for value in df.get_column(Column.TIMEZONE).drop_nulls().cast(pl.String).unique().to_list()
-                if value and value != "None"
+                if (timezone := _normalize_timezone_value(value)) is not None
             )
         return sorted(timezones)
 
@@ -71,9 +85,9 @@ class TimezonePreprocessor(BasePreprocessor):
         timezones: set[str] = set()
         if Column.TIMEZONE in df.columns:
             timezones.update(
-                value
+                timezone
                 for value in df.get_column(Column.TIMEZONE).drop_nulls().cast(pl.String).unique().to_list()
-                if value and value != "None"
+                if (timezone := _normalize_timezone_value(value)) is not None
             )
         if timestamp_column in df.columns:
             tz_name = df.schema[timestamp_column].time_zone
@@ -87,14 +101,16 @@ class TimezonePreprocessor(BasePreprocessor):
         timestamp_column: str = Column.EVENT_TIMESTAMP,
     ) -> str | None:
         if Column.TIMEZONE in df.columns:
+            normalized_timezone_column = "__chronicle_timezone_normalized"
             timezone_values = (
-                df.filter(pl.col(Column.TIMEZONE).is_not_null() & (pl.col(Column.TIMEZONE) != "None"))
-                .group_by(Column.TIMEZONE)
+                df.with_columns(_normalize_timezone_expr(pl.col(Column.TIMEZONE)).alias(normalized_timezone_column))
+                .filter(pl.col(normalized_timezone_column).is_not_null())
+                .group_by(normalized_timezone_column)
                 .len()
                 .sort("len", descending=True)
             )
             if not timezone_values.is_empty():
-                self.current_data_primary_timezone = str(timezone_values[0, Column.TIMEZONE])
+                self.current_data_primary_timezone = str(timezone_values[0, normalized_timezone_column])
                 return self.current_data_primary_timezone
 
         tz_name = df.schema.get(timestamp_column)
@@ -128,10 +144,14 @@ class TimezonePreprocessor(BasePreprocessor):
         for column in target_columns:
             if column not in result.columns:
                 continue
+            source_dtype = result.schema[column]
+            if not isinstance(source_dtype, pl.Datetime):
+                continue
+            target_dtype = pl.Datetime(source_dtype.time_unit, target_timezone)
             result = result.with_columns(
                 pl.when(pl.col(column).is_not_null())
                 .then(pl.col(column).dt.convert_time_zone(target_timezone))
-                .otherwise(pl.lit(None, dtype=result.schema[column]))
+                .otherwise(pl.lit(None, dtype=target_dtype))
                 .alias(column)
             )
         if Column.TIMEZONE in result.columns:

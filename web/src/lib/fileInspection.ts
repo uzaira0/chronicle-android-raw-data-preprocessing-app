@@ -61,7 +61,7 @@ function isValidTimezone(timezone: string): boolean {
   }
 }
 
-function isValidChronicleTimestamp(value: string): boolean {
+export function isValidChronicleTimestamp(value: string): boolean {
   const text = value.trim();
   if (!text) return false;
   if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?$/.test(text)) {

@@ -31,9 +31,7 @@ def get_matching_files_from_folder(
     return [
         path
         for path in folder_path.rglob("*")
-        if path.is_file()
-        and re.search(file_matching_pattern, path.name)
-        and all(fragment not in str(path) for fragment in ignored)
+        if path.is_file() and re.search(file_matching_pattern, path.name) and all(fragment not in str(path) for fragment in ignored)
     ]
 
 
@@ -67,7 +65,7 @@ def _read_excel_rows(file_path: Path) -> tuple[list[str], list[list[Any]]]:
         return [], []
 
     header = ["" if value is None else str(value).strip() for value in rows[0]]
-    data = [[value for value in row] for row in rows[1:]]
+    data = [list(row) for row in rows[1:]]
     return header, data
 
 
@@ -103,9 +101,7 @@ def read_filter_file(file_path: Path | str) -> dict[str, str]:
     try:
         header, rows = _read_small_table(path)
         if len(header) < 2:
-            raise FilterFileError(
-                "Filter file must have at least two columns (Package Name and App Label)"
-            )
+            raise FilterFileError("Filter file must have at least two columns (Package Name and App Label)")
 
         filters: dict[str, str] = {}
         for row in rows:
@@ -131,9 +127,7 @@ def read_apps_forcing_screen_open_file(file_path: Path | str) -> dict[str, str]:
     try:
         header, rows = _read_small_table(path)
         if len(header) < 1:
-            raise AppsForcingScreenOpenFileError(
-                "Apps-forcing-screen-open file must have at least one column (Package Name)"
-            )
+            raise AppsForcingScreenOpenFileError("Apps-forcing-screen-open file must have at least one column (Package Name)")
 
         apps_forcing_screen_open: dict[str, str] = {}
         for row in rows:
@@ -169,19 +163,12 @@ def read_app_codebook(codebook_path: Path | str) -> pl.DataFrame | None:
             raise CodebookFileError(msg)
 
         if AppCodebookColumn.APP_PACKAGE_NAME not in app_codebook.columns:
-            msg = (
-                f"App codebook must contain an "
-                f"'{AppCodebookColumn.APP_PACKAGE_NAME}' column"
-            )
+            msg = f"App codebook must contain an '{AppCodebookColumn.APP_PACKAGE_NAME}' column"
             raise CodebookFileError(msg)
 
-        string_columns = [
-            column for column, dtype in app_codebook.schema.items() if dtype == pl.Utf8
-        ]
+        string_columns = [column for column, dtype in app_codebook.schema.items() if dtype == pl.String]
         if string_columns:
-            app_codebook = app_codebook.with_columns(
-                [pl.col(column).cast(pl.Utf8).str.strip_chars() for column in string_columns]
-            )
+            app_codebook = app_codebook.with_columns([pl.col(column).cast(pl.String).str.strip_chars() for column in string_columns])
 
         app_codebook = app_codebook.unique(
             subset=[AppCodebookColumn.APP_PACKAGE_NAME],

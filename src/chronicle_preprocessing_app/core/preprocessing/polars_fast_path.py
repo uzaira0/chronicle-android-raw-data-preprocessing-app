@@ -96,8 +96,7 @@ def supports_polars_fast_path(
     """Return whether the standard preprocessing request can stay Polars-native."""
     return (
         polars_fast_path_enabled()
-        and
-        options.process_app_usage_sessions
+        and options.process_app_usage_sessions
         and not options.process_screen_usage_sessions
         and not survey_data_processor_available
         and not study_date_provider_available
@@ -117,9 +116,7 @@ class PolarsFastPathPreprocessor:
         self.app_codebook = app_codebook
 
     def _get_datetime_of_preprocessing(self) -> str:
-        return self.options.datetime_of_preprocessing_override or datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+        return self.options.datetime_of_preprocessing_override or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     def preprocess_raw_data_file(self, raw_data_file: Path | str) -> PolarsFastPathResult:
         df = self._read_raw_csv(Path(raw_data_file))
@@ -153,9 +150,7 @@ class PolarsFastPathPreprocessor:
         study_name: str,
         pre_algo_event_timestamps: pl.Series | None = None,
     ) -> Path:
-        preprocessed_data_save_folder = (
-            Path(output_folder) / f"{study_name + ' ' + PREPROCESSED_FOLDER_SUFFIX}"
-        )
+        preprocessed_data_save_folder = Path(output_folder) / f"{study_name + ' ' + PREPROCESSED_FOLDER_SUFFIX}"
         preprocessed_data_save_folder.mkdir(parents=True, exist_ok=True)
         stem = Path(raw_data_filename).stem.replace("Raw ", "")
         save_name = preprocessed_data_save_folder / f"{stem} {PREPROCESSED_FILE_SUFFIX}"
@@ -174,13 +169,9 @@ class PolarsFastPathPreprocessor:
 
     def _read_raw_csv(self, raw_data_file: Path) -> pl.DataFrame:
         df = pl.read_csv(raw_data_file, infer_schema_length=10000)
-        string_columns = [
-            column for column, dtype in df.schema.items() if dtype == pl.Utf8
-        ]
+        string_columns = [column for column, dtype in df.schema.items() if dtype == pl.String]
         if string_columns:
-            df = df.with_columns(
-                [pl.col(column).cast(pl.Utf8).str.strip_chars() for column in string_columns]
-            )
+            df = df.with_columns([pl.col(column).cast(pl.String).str.strip_chars() for column in string_columns])
         return df
 
     def _get_participant_id(self, df: pl.DataFrame) -> str:
@@ -191,11 +182,7 @@ class PolarsFastPathPreprocessor:
     def _correct_username_column(self, df: pl.DataFrame) -> pl.DataFrame:
         if Column.USERNAME not in df.columns:
             return df
-        return df.with_columns(
-            pl.col(Column.USERNAME).replace("Target child", TARGET_CHILD_USERNAME).alias(
-                Column.USERNAME
-            )
-        )
+        return df.with_columns(pl.col(Column.USERNAME).replace("Target child", TARGET_CHILD_USERNAME).alias(Column.USERNAME))
 
     def _rename_interaction_types(self, df: pl.DataFrame) -> pl.DataFrame:
         return df.with_columns(
@@ -211,15 +198,10 @@ class PolarsFastPathPreprocessor:
     def _correct_event_timestamp_column(self, df: pl.DataFrame) -> pl.DataFrame:
         timestamp_col = Column.EVENT_TIMESTAMP
         original_col = f"{timestamp_col}_original"
-        timestamp_text = pl.col(timestamp_col).cast(pl.Utf8)
+        timestamp_text = pl.col(timestamp_col).cast(pl.String)
 
         df = df.with_columns(pl.col(timestamp_col).alias(original_col))
-        has_explicit_timezone = df.select(
-            timestamp_text
-            .str.contains(r"(Z|[+-]\d{2}:\d{2})$")
-            .fill_null(False)
-            .any()
-        ).item()
+        has_explicit_timezone = df.select(timestamp_text.str.contains(r"(Z|[+-]\d{2}:\d{2})$").fill_null(False).any()).item()
         timestamp_expr = (
             timestamp_text.str.to_datetime(
                 format="%Y-%m-%d %H:%M:%S",
@@ -252,19 +234,12 @@ class PolarsFastPathPreprocessor:
                 ]
             )
         )
-        df = df.with_columns(
-            timestamp_expr.alias(timestamp_col)
-        )
+        df = df.with_columns(timestamp_expr.alias(timestamp_col))
 
         null_mask = pl.col(timestamp_col).is_null() & pl.col(original_col).is_not_null()
         if df.select(null_mask.any()).item():
             invalid_column_name = f"{timestamp_col}_invalid_original"
-            df = df.with_columns(
-                pl.when(null_mask)
-                .then(pl.col(original_col))
-                .otherwise(pl.lit(None))
-                .alias(invalid_column_name)
-            )
+            df = df.with_columns(pl.when(null_mask).then(pl.col(original_col)).otherwise(pl.lit(None)).alias(invalid_column_name))
 
         df = df.drop(original_col)
         df = self._apply_timezone_handling(df, timestamp_col)
@@ -292,10 +267,7 @@ class PolarsFastPathPreprocessor:
         if option == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE:
             target_timezone = str(self.options.selected_timezone) if self.options.selected_timezone else self._determine_primary_timezone(df)
             if self.options.selected_timezone is not None:
-                df = df.filter(
-                    pl.col(Column.TIMEZONE).is_not_null()
-                    & (pl.col(Column.TIMEZONE) == str(self.options.selected_timezone))
-                )
+                df = df.filter(pl.col(Column.TIMEZONE).is_not_null() & (pl.col(Column.TIMEZONE) == str(self.options.selected_timezone)))
         elif option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_SELECTED_TIMEZONE:
             target_timezone = str(self.options.selected_timezone) if self.options.selected_timezone else self._determine_primary_timezone(df)
         elif option in (
@@ -303,14 +275,8 @@ class PolarsFastPathPreprocessor:
             TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE,
         ):
             target_timezone = self._determine_primary_timezone(df)
-            if (
-                option
-                == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE
-            ):
-                df = df.filter(
-                    pl.col(Column.TIMEZONE).is_not_null()
-                    & (pl.col(Column.TIMEZONE) == target_timezone)
-                )
+            if option == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE:
+                df = df.filter(pl.col(Column.TIMEZONE).is_not_null() & (pl.col(Column.TIMEZONE) == target_timezone))
         else:
             raise ValueError(f"Invalid timezone option: {option}")
 
@@ -319,9 +285,7 @@ class PolarsFastPathPreprocessor:
 
         if target_timezone and isinstance(df.schema[timestamp_column], pl.Datetime):
             if df.schema[timestamp_column].time_zone is not None:
-                df = df.with_columns(
-                    pl.col(timestamp_column).dt.convert_time_zone(target_timezone).alias(timestamp_column)
-                )
+                df = df.with_columns(pl.col(timestamp_column).dt.convert_time_zone(target_timezone).alias(timestamp_column))
         if Column.TIMEZONE in df.columns:
             df = df.with_columns(pl.lit(target_timezone).alias(Column.TIMEZONE))
         return df
@@ -343,11 +307,7 @@ class PolarsFastPathPreprocessor:
 
         interaction_types = df.get_column(Column.INTERACTION_TYPE).to_numpy()
         stop_usage_types = {
-            str(value)
-            for value in (
-                self.options.same_app_interaction_types_to_stop_usage_at
-                | self.options.other_interaction_types_to_stop_usage_at
-            )
+            str(value) for value in (self.options.same_app_interaction_types_to_stop_usage_at | self.options.other_interaction_types_to_stop_usage_at)
         }
         adjusted = timestamps_ns.copy()
         normalized_interaction_types = np.asarray(interaction_types, dtype=object)
@@ -393,16 +353,8 @@ class PolarsFastPathPreprocessor:
         )
         return df.sort(timestamp_column)
 
-    def _mark_data_time_gaps(
-        self, df: pl.DataFrame, timestamp_column: str, gap_column: str
-    ) -> pl.DataFrame:
-        gap_expr = (
-            pl.col(timestamp_column)
-            .diff()
-            .dt.total_microseconds()
-            .cast(pl.Float64)
-            / 3_600_000_000.0
-        )
+    def _mark_data_time_gaps(self, df: pl.DataFrame, timestamp_column: str, gap_column: str) -> pl.DataFrame:
+        gap_expr = pl.col(timestamp_column).diff().dt.total_microseconds().cast(pl.Float64) / 3_600_000_000.0
         return df.with_columns(gap_expr.round(2).fill_null(0.0).alias(gap_column))
 
     def _create_additional_columns(self, df: pl.DataFrame) -> pl.DataFrame:
@@ -411,9 +363,7 @@ class PolarsFastPathPreprocessor:
         return df.with_columns(
             [
                 pl.lit(__version__).alias(Column.PREPROCESSOR_VERSION),
-                pl.lit(self._get_datetime_of_preprocessing()).alias(
-                    Column.DATETIME_OF_PREPROCESSING
-                ),
+                pl.lit(self._get_datetime_of_preprocessing()).alias(Column.DATETIME_OF_PREPROCESSING),
                 pl.lit(device_model.value).alias(Column.POSSIBLE_DEVICE_MODEL),
                 pl.col(Column.EVENT_TIMESTAMP).dt.date().alias(Column.DATE),
                 ((weekday % 7) + 1).alias(Column.DAY),
@@ -451,9 +401,7 @@ class PolarsFastPathPreprocessor:
             return df
 
         lookup_df = pl.DataFrame(filter_rows).unique()
-        df = df.with_columns(
-            pl.col(Column.APP_PACKAGE_NAME).is_in(package_names).alias("__filter_candidate")
-        ).join(
+        df = df.with_columns(pl.col(Column.APP_PACKAGE_NAME).is_in(package_names).alias("__filter_candidate")).join(
             lookup_df,
             on=[Column.APP_PACKAGE_NAME, Column.APPLICATION_LABEL],
             how="left",
@@ -461,11 +409,7 @@ class PolarsFastPathPreprocessor:
 
         mismatch_df = df.filter(pl.col("__filter_candidate") & pl.col("__valid_filter_match").is_null())
         if not mismatch_df.is_empty():
-            unexpected = (
-                mismatch_df.select([Column.APP_PACKAGE_NAME, Column.APPLICATION_LABEL])
-                .unique()
-                .iter_rows()
-            )
+            unexpected = mismatch_df.select([Column.APP_PACKAGE_NAME, Column.APPLICATION_LABEL]).unique().iter_rows()
             for package_name, app_label in unexpected:
                 LOGGER.warning(
                     "App label mismatch for package %s: found '%s'",
@@ -514,14 +458,8 @@ class PolarsFastPathPreprocessor:
             paused_type=str(InteractionType.FILTERED_APP_PAUSED),
             usage_type=str(InteractionType.FILTERED_APP_USAGE),
             stopped_type=str(InteractionType.FILTERED_APP_STOPPED),
-            same_stop_types={
-                str(value)
-                for value in self.options.filtered_same_app_interaction_types_to_stop_usage_at
-            },
-            other_stop_types={
-                str(value)
-                for value in self.options.filtered_other_interaction_types_to_stop_usage_at
-            },
+            same_stop_types={str(value) for value in self.options.filtered_same_app_interaction_types_to_stop_usage_at},
+            other_stop_types={str(value) for value in self.options.filtered_other_interaction_types_to_stop_usage_at},
         )
         return df
 
@@ -539,12 +477,8 @@ class PolarsFastPathPreprocessor:
             paused_type=str(InteractionType.ACTIVITY_PAUSED),
             usage_type=str(InteractionType.APP_USAGE),
             stopped_type=str(InteractionType.ACTIVITY_STOPPED),
-            same_stop_types={
-                str(value) for value in self.options.same_app_interaction_types_to_stop_usage_at
-            },
-            other_stop_types={
-                str(value) for value in self.options.other_interaction_types_to_stop_usage_at
-            },
+            same_stop_types={str(value) for value in self.options.same_app_interaction_types_to_stop_usage_at},
+            other_stop_types={str(value) for value in self.options.other_interaction_types_to_stop_usage_at},
         )
 
     def _process_usage_rows(
@@ -559,9 +493,7 @@ class PolarsFastPathPreprocessor:
         other_stop_types: set[str],
     ) -> pl.DataFrame:
         interactions = df.get_column(Column.INTERACTION_TYPE).to_numpy()
-        app_packages = (
-            df.get_column(Column.APP_PACKAGE_NAME).fill_null("").cast(pl.Categorical).to_physical().to_numpy()
-        )
+        app_packages = df.get_column(Column.APP_PACKAGE_NAME).fill_null("").cast(pl.Categorical).to_physical().to_numpy()
         timestamp_ns = df.get_column(Column.EVENT_TIMESTAMP).dt.epoch("ns").to_numpy()
         resumed_flags = interactions == resumed_type
         same_stop_flags = np.isin(interactions, list(same_stop_types))
@@ -605,17 +537,8 @@ class PolarsFastPathPreprocessor:
                 & (pl.col(Column.START_TIMESTAMP).is_null() | pl.col(Column.STOP_TIMESTAMP).is_null())
             )
         )
-        df = df.with_columns(
-            pl.col(Column.INTERACTION_TYPE).replace(resumed_type, usage_type).alias(
-                Column.INTERACTION_TYPE
-            )
-        )
-        duration_expr = (
-            (pl.col(Column.STOP_TIMESTAMP) - pl.col(Column.START_TIMESTAMP))
-            .dt.total_microseconds()
-            .cast(pl.Float64)
-            / 1_000_000.0
-        )
+        df = df.with_columns(pl.col(Column.INTERACTION_TYPE).replace(resumed_type, usage_type).alias(Column.INTERACTION_TYPE))
+        duration_expr = (pl.col(Column.STOP_TIMESTAMP) - pl.col(Column.START_TIMESTAMP)).dt.total_microseconds().cast(pl.Float64) / 1_000_000.0
         df = df.with_columns(
             [
                 duration_expr.alias(Column.DURATION_SECONDS),
@@ -637,11 +560,14 @@ class PolarsFastPathPreprocessor:
         try:
             from chronicle_preprocessing_app import _rust_app_usage_matcher
 
-            update_fn = getattr(
-                _rust_app_usage_matcher,
-                "match_app_usage_update_arrays",
-                None,
-            ) or getattr(_rust_app_usage_matcher, "match_app_usage_update_indices")
+            update_fn = (
+                getattr(
+                    _rust_app_usage_matcher,
+                    "match_app_usage_update_arrays",
+                    None,
+                )
+                or _rust_app_usage_matcher.match_app_usage_update_indices
+            )
             outputs = update_fn(
                 app_codes,
                 timestamp_ns,
@@ -686,17 +612,12 @@ class PolarsFastPathPreprocessor:
             duration_ns = int(timestamp_ns[stop_index]) - int(timestamp_ns[start_index])
             if duration_ns < 0:
                 return False
-            return (
-                not enforce_threshold
-                or duration_ns <= int(self.options.long_duration_threshold_hours * 3600 * 1_000_000_000)
-            )
+            return not enforce_threshold or duration_ns <= int(self.options.long_duration_threshold_hours * 3600 * 1_000_000_000)
 
         for index in range(len(app_codes)):
             current_app = app_codes[index]
             is_normal_stop = bool(same_stop_flags[index] or other_stop_flags[index])
-            is_fallback_stop = bool(
-                stopped_flags[index] and self.options.use_activity_stopped_as_fallback
-            )
+            is_fallback_stop = bool(stopped_flags[index] and self.options.use_activity_stopped_as_fallback)
 
             if self.options.allow_stop_event_reuse and (is_normal_stop or is_fallback_stop):
                 still_open: list[int] = []
@@ -704,16 +625,11 @@ class PolarsFastPathPreprocessor:
                     start_app = app_codes[start_index]
                     same_app_compatible = bool(same_stop_flags[index] and start_app == current_app)
                     other_app_compatible = bool(other_stop_flags[index] and start_app != current_app)
-                    fallback_compatible = bool(
-                        not is_normal_stop and is_fallback_stop and start_app == current_app
-                    )
+                    fallback_compatible = bool(not is_normal_stop and is_fallback_stop and start_app == current_app)
                     if not (same_app_compatible or other_app_compatible or fallback_compatible):
                         still_open.append(start_index)
                         continue
-                    enforce_threshold = (
-                        not fallback_compatible
-                        or self.options.apply_threshold_to_activity_stopped_fallback
-                    )
+                    enforce_threshold = not fallback_compatible or self.options.apply_threshold_to_activity_stopped_fallback
                     if is_valid_duration(start_index, index, enforce_threshold=enforce_threshold):
                         stop_start_indices.append(start_index)
                         stop_event_indices.append(index)
@@ -727,15 +643,10 @@ class PolarsFastPathPreprocessor:
                     start_app = app_codes[start_index]
                     same_app_compatible = bool(same_stop_flags[index] and start_app == current_app)
                     other_app_compatible = bool(other_stop_flags[index] and start_app != current_app)
-                    fallback_compatible = bool(
-                        not is_normal_stop and is_fallback_stop and start_app == current_app
-                    )
+                    fallback_compatible = bool(not is_normal_stop and is_fallback_stop and start_app == current_app)
                     if not (same_app_compatible or other_app_compatible or fallback_compatible):
                         continue
-                    enforce_threshold = (
-                        not fallback_compatible
-                        or self.options.apply_threshold_to_activity_stopped_fallback
-                    )
+                    enforce_threshold = not fallback_compatible or self.options.apply_threshold_to_activity_stopped_fallback
                     if is_valid_duration(start_index, index, enforce_threshold=enforce_threshold):
                         matched_position = position
                         break
@@ -752,9 +663,7 @@ class PolarsFastPathPreprocessor:
             last_index = len(app_codes) - 1
             still_open = list(open_start_indices)
             for start_index in still_open:
-                if last_index > start_index and is_valid_duration(
-                    start_index, last_index, enforce_threshold=True
-                ):
+                if last_index > start_index and is_valid_duration(start_index, last_index, enforce_threshold=True):
                     stop_start_indices.append(start_index)
                     stop_event_indices.append(last_index)
                 else:
@@ -779,36 +688,24 @@ class PolarsFastPathPreprocessor:
         start_series = pl.Series("__start_ns", start_ns)
         stop_series = pl.Series("__stop_ns", stop_ns)
         interaction_series = pl.Series(Column.INTERACTION_TYPE, interaction_values)
-        timestamp_dtype = (
-            pl.Datetime("ns", time_zone=timestamp_tz)
-            if timestamp_tz
-            else pl.Datetime("ns")
-        )
+        timestamp_dtype = pl.Datetime("ns", time_zone=timestamp_tz) if timestamp_tz else pl.Datetime("ns")
         df = df.with_columns([start_series, stop_series, interaction_series])
 
         df = df.with_columns(
             [
                 pl.when(pl.col("__start_ns") != _MISSING_INT64)
                 .then(
-                    (
-                        pl.from_epoch(pl.col("__start_ns"), time_unit="ns")
-                        .dt.replace_time_zone("UTC")
-                        .dt.convert_time_zone(timestamp_tz)
-                        if timestamp_tz
-                        else pl.from_epoch(pl.col("__start_ns"), time_unit="ns")
-                    )
+                    pl.from_epoch(pl.col("__start_ns"), time_unit="ns").dt.replace_time_zone("UTC").dt.convert_time_zone(timestamp_tz)
+                    if timestamp_tz
+                    else pl.from_epoch(pl.col("__start_ns"), time_unit="ns")
                 )
                 .otherwise(pl.lit(None, dtype=timestamp_dtype))
                 .alias(Column.START_TIMESTAMP),
                 pl.when(pl.col("__stop_ns") != _MISSING_INT64)
                 .then(
-                    (
-                        pl.from_epoch(pl.col("__stop_ns"), time_unit="ns")
-                        .dt.replace_time_zone("UTC")
-                        .dt.convert_time_zone(timestamp_tz)
-                        if timestamp_tz
-                        else pl.from_epoch(pl.col("__stop_ns"), time_unit="ns")
-                    )
+                    pl.from_epoch(pl.col("__stop_ns"), time_unit="ns").dt.replace_time_zone("UTC").dt.convert_time_zone(timestamp_tz)
+                    if timestamp_tz
+                    else pl.from_epoch(pl.col("__stop_ns"), time_unit="ns")
                 )
                 .otherwise(pl.lit(None, dtype=timestamp_dtype))
                 .alias(Column.STOP_TIMESTAMP),
@@ -830,11 +727,7 @@ class PolarsFastPathPreprocessor:
 
     @staticmethod
     def _blank_to_null_expr(column_name: str) -> pl.Expr:
-        return (
-            pl.when(pl.col(column_name).cast(pl.Utf8).str.strip_chars() == "")
-            .then(pl.lit(None))
-            .otherwise(pl.col(column_name))
-        )
+        return pl.when(pl.col(column_name).cast(pl.String).str.strip_chars() == "").then(pl.lit(None)).otherwise(pl.col(column_name))
 
     @staticmethod
     def _null_string_expr() -> pl.Expr:
@@ -853,29 +746,18 @@ class PolarsFastPathPreprocessor:
                 ]
             )
 
-        available_source_columns = [
-            source_column
-            for source_column in _CODEBOOK_COLUMN_RENAME_MAP
-            if source_column in self.app_codebook.columns
-        ]
+        available_source_columns = [source_column for source_column in _CODEBOOK_COLUMN_RENAME_MAP if source_column in self.app_codebook.columns]
         renamed_codebook = self.app_codebook.select(
             [
                 pl.col(AppCodebookColumn.APP_PACKAGE_NAME),
-                *[
-                    pl.col(source_column).alias(_CODEBOOK_COLUMN_RENAME_MAP[source_column])
-                    for source_column in available_source_columns
-                ],
+                *[pl.col(source_column).alias(_CODEBOOK_COLUMN_RENAME_MAP[source_column]) for source_column in available_source_columns],
             ]
         )
         df = df.join(renamed_codebook, on=Column.APP_PACKAGE_NAME, how="left")
 
-        missing_output_columns = [
-            column for column in _CODEBOOK_OUTPUT_COLUMNS if column not in df.columns
-        ]
+        missing_output_columns = [column for column in _CODEBOOK_OUTPUT_COLUMNS if column not in df.columns]
         if missing_output_columns:
-            df = df.with_columns(
-                [pl.lit(None).cast(pl.String).alias(column) for column in missing_output_columns]
-            )
+            df = df.with_columns([pl.lit(None).cast(pl.String).alias(column) for column in missing_output_columns])
 
         broad_category_candidates = [
             column
@@ -899,17 +781,12 @@ class PolarsFastPathPreprocessor:
             if column in df.columns
         ]
         genre_value_list_column = "__chronicle_genre_values"
-        broad_category_expr = pl.coalesce(
-            [*(self._blank_to_null_expr(column) for column in broad_category_candidates), pl.lit("Unknown")]
-        ).alias(Column.BROAD_APP_CATEGORY)
+        broad_category_expr = pl.coalesce([*(self._blank_to_null_expr(column) for column in broad_category_candidates), pl.lit("Unknown")]).alias(
+            Column.BROAD_APP_CATEGORY
+        )
         if genre_id_candidates:
             df = df.with_columns(
-                pl.concat_list(
-                    [
-                        self._blank_to_null_expr(column).cast(pl.String)
-                        for column in genre_id_candidates
-                    ]
-                )
+                pl.concat_list([self._blank_to_null_expr(column).cast(pl.String) for column in genre_id_candidates])
                 .list.drop_nulls()
                 .alias(genre_value_list_column)
             )
@@ -923,15 +800,10 @@ class PolarsFastPathPreprocessor:
                 .alias(Column.GENRE_ID_SCRAPED)
             )
             source_genre_exprs = [
-                pl.when(unanimous_genre_expr)
-                .then(self._null_string_expr())
-                .otherwise(pl.col(column).cast(pl.String))
-                .alias(column)
+                pl.when(unanimous_genre_expr).then(self._null_string_expr()).otherwise(pl.col(column).cast(pl.String)).alias(column)
                 for column in genre_id_candidates
             ]
-            return df.with_columns([broad_category_expr, genre_id_expr, *source_genre_exprs]).drop(
-                genre_value_list_column
-            )
+            return df.with_columns([broad_category_expr, genre_id_expr, *source_genre_exprs]).drop(genre_value_list_column)
 
         genre_id_expr = pl.lit("Unknown").alias(Column.GENRE_ID_SCRAPED)
         return df.with_columns([broad_category_expr, genre_id_expr])
@@ -940,12 +812,8 @@ class PolarsFastPathPreprocessor:
         row_count = len(df)
         interaction_values = df.get_column(Column.INTERACTION_TYPE).to_numpy()
         app_packages = df.get_column(Column.APP_PACKAGE_NAME).fill_null("").to_numpy()
-        start_ns = (
-            df.get_column(Column.START_TIMESTAMP).dt.epoch("ns").fill_null(_MISSING_INT64).to_numpy()
-        )
-        stop_ns = (
-            df.get_column(Column.STOP_TIMESTAMP).dt.epoch("ns").fill_null(_MISSING_INT64).to_numpy()
-        )
+        start_ns = df.get_column(Column.START_TIMESTAMP).dt.epoch("ns").fill_null(_MISSING_INT64).to_numpy()
+        stop_ns = df.get_column(Column.STOP_TIMESTAMP).dt.epoch("ns").fill_null(_MISSING_INT64).to_numpy()
 
         custom_duration = self.options.custom_app_engagement_duration
         any_engage_30 = np.zeros(row_count, dtype=np.int64)
@@ -1036,9 +904,7 @@ class PolarsFastPathPreprocessor:
 
         gap_label_expr = pl.coalesce(
             [
-                pl.when(
-                    pl.col(Column.DATA_TIME_GAP_HOURS).cast(pl.Float64) >= float(threshold)
-                ).then(pl.lit(f">{threshold}-HR TIME GAP"))
+                pl.when(pl.col(Column.DATA_TIME_GAP_HOURS).cast(pl.Float64) >= float(threshold)).then(pl.lit(f">{threshold}-HR TIME GAP"))
                 for threshold in sorted(thresholds_to_use, reverse=True)
             ]
             + [pl.lit("")]
@@ -1046,9 +912,7 @@ class PolarsFastPathPreprocessor:
         duration_hours_expr = pl.col(Column.DURATION_MINUTES).cast(pl.Float64) / 60.0
         duration_label_expr = pl.coalesce(
             [
-                pl.when(duration_hours_expr >= float(threshold)).then(
-                    pl.lit(f">{threshold}-HR APP USAGE")
-                )
+                pl.when(duration_hours_expr >= float(threshold)).then(pl.lit(f">{threshold}-HR APP USAGE"))
                 for threshold in sorted(duration_thresholds_to_use, reverse=True)
             ]
             + [pl.lit("")]
@@ -1062,9 +926,7 @@ class PolarsFastPathPreprocessor:
                 ]
             )
             .with_columns(
-                pl.when(
-                    (pl.col(gap_label_column) == "") & (pl.col(duration_label_column) == "")
-                )
+                pl.when((pl.col(gap_label_column) == "") & (pl.col(duration_label_column) == ""))
                 .then(pl.lit("[]"))
                 .when(pl.col(duration_label_column) == "")
                 .then(pl.format("['{}']", pl.col(gap_label_column)))
@@ -1090,16 +952,12 @@ class PolarsFastPathPreprocessor:
         if not self.options.interaction_types_to_remove:
             return df
         return df.filter(
-            ~pl.col(Column.INTERACTION_TYPE).is_in(
-                [str(value) for value in self.options.interaction_types_to_remove]
-            )
+            ~pl.col(Column.INTERACTION_TYPE).is_in([str(value) for value in self.options.interaction_types_to_remove])
             | (pl.col(Column.DATA_TIME_GAP_HOURS) >= threshold_hours)
         ).sort(Column.EVENT_TIMESTAMP)
 
     def _build_output_columns(self, df: pl.DataFrame) -> list[str]:
-        include_legacy_codebook_aliases = not (
-            self.options.use_app_codebook and self.app_codebook is not None
-        )
+        include_legacy_codebook_aliases = not (self.options.use_app_codebook and self.app_codebook is not None)
         identification_columns = [
             Column.STUDY_ID,
             Column.STUDY_NAME,
@@ -1112,11 +970,7 @@ class PolarsFastPathPreprocessor:
             Column.APP_PACKAGE_NAME,
             Column.APPLICATION_LABEL,
             Column.GENRE_ID_SCRAPED,
-            *(
-                [Column.BROAD_APP_CATEGORY]
-                if include_legacy_codebook_aliases
-                else []
-            ),
+            *([Column.BROAD_APP_CATEGORY] if include_legacy_codebook_aliases else []),
             *_CODEBOOK_OUTPUT_COLUMNS,
             Column.INTERACTION_TYPE,
         ]
@@ -1144,15 +998,11 @@ class PolarsFastPathPreprocessor:
         ]
         app_derived_columns = [
             Column.VALID_APP_NEW_ENGAGE_30S,
-            Column.VALID_APP_NEW_ENGAGE_CUSTOM.format(
-                self.options.custom_app_engagement_duration
-            ),
+            Column.VALID_APP_NEW_ENGAGE_CUSTOM.format(self.options.custom_app_engagement_duration),
             Column.VALID_APP_SWITCHED_APP,
             Column.VALID_APP_USAGE_TIME_GAP_HOURS,
             Column.ANY_APP_NEW_ENGAGE_30S,
-            Column.ANY_APP_NEW_ENGAGE_CUSTOM.format(
-                self.options.custom_app_engagement_duration
-            ),
+            Column.ANY_APP_NEW_ENGAGE_CUSTOM.format(self.options.custom_app_engagement_duration),
             Column.ANY_APP_SWITCHED_APP,
             Column.ANY_APP_USAGE_TIME_GAP_HOURS,
         ]
@@ -1167,30 +1017,18 @@ class PolarsFastPathPreprocessor:
         ]
 
     def _format_output_frame(self, df: pl.DataFrame) -> pl.DataFrame:
-        list_columns = [
-            column
-            for column, dtype in df.schema.items()
-            if dtype.base_type() == pl.List
-        ]
+        list_columns = [column for column, dtype in df.schema.items() if dtype.base_type() == pl.List]
 
         expressions = []
         for column in (Column.START_TIMESTAMP, Column.STOP_TIMESTAMP):
             if column in df.columns and isinstance(df.schema[column], pl.Datetime):
-                expressions.append(
-                    pl.col(column).dt.strftime("%m-%d-%Y %H:%M:%S").alias(column)
-                )
+                expressions.append(pl.col(column).dt.strftime("%m-%d-%Y %H:%M:%S").alias(column))
         if Column.EVENT_TIMESTAMP in df.columns:
             event_dtype = df.schema[Column.EVENT_TIMESTAMP]
             event_format = (
-                "%Y-%m-%d %H:%M:%S%:z"
-                if isinstance(event_dtype, pl.Datetime) and event_dtype.time_zone is not None
-                else "%Y-%m-%d %H:%M:%S"
+                "%Y-%m-%d %H:%M:%S%:z" if isinstance(event_dtype, pl.Datetime) and event_dtype.time_zone is not None else "%Y-%m-%d %H:%M:%S"
             )
-            expressions.append(
-                pl.col(Column.EVENT_TIMESTAMP)
-                .dt.strftime(event_format)
-                .alias(Column.EVENT_TIMESTAMP)
-            )
+            expressions.append(pl.col(Column.EVENT_TIMESTAMP).dt.strftime(event_format).alias(Column.EVENT_TIMESTAMP))
 
         for column in list_columns:
             expressions.append(
@@ -1200,9 +1038,7 @@ class PolarsFastPathPreprocessor:
                     pl.concat_str(
                         [
                             pl.lit("["),
-                            pl.col(column)
-                            .list.eval(pl.format("'{}'", pl.element()))
-                            .list.join(", "),
+                            pl.col(column).list.eval(pl.format("'{}'", pl.element())).list.join(", "),
                             pl.lit("]"),
                         ]
                     )

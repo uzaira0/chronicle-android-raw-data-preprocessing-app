@@ -1,0 +1,55 @@
+id: chronicle-python-swallowed-exception
+language: python
+message: "except Exception: pass silently swallows the error; log it or re-raise."
+severity: warning
+files:
+  - src/**/*.py
+  - scripts/**/*.py
+rule:
+  pattern: |
+    try:
+      $$$BODY
+    except Exception:
+      pass
+---
+id: chronicle-python-len-zero-check
+language: python
+message: "Use 'if not $X:' instead of 'if len($X) == 0:' — more idiomatic and works on all sized containers."
+severity: warning
+files:
+  - src/**/*.py
+  - scripts/**/*.py
+rule:
+  pattern: "if len($X) == 0:"
+---
+id: chronicle-python-len-nonzero-check
+language: python
+message: "Use 'if $X:' instead of 'if len($X) > 0:' — more idiomatic and works on all sized containers."
+severity: warning
+files:
+  - src/**/*.py
+  - scripts/**/*.py
+rule:
+  pattern: "if len($X) > 0:"
+---
+id: chronicle-python-eq-none
+language: python
+message: "Use 'is None' / 'is not None' for None comparisons, not == or !=."
+severity: warning
+files:
+  - src/**/*.py
+  - scripts/**/*.py
+rule:
+  any:
+    - pattern: $X == None
+    - pattern: $X != None
+---
+id: chronicle-ts-as-any
+language: typescript
+message: "'as any' disables type safety; use a proper type assertion or narrow the type instead."
+severity: warning
+files:
+  - web/src/**/*.ts
+  - web/src/**/*.tsx
+rule:
+  pattern: $X as any

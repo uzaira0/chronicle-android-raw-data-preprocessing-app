@@ -26,8 +26,41 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Run Python tests
-        run: python -m pytest -q
+      - name: Run critical coverage checks
+        run: bash scripts/check-python-critical-coverage.sh
+
+      - name: Run mutation smoke tests
+        run: bash scripts/check-python-mutation-smoke.sh
+
+  web-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci --prefix web
+
+      - name: Run web typecheck, contracts, and critical coverage
+        run: |
+          npm run --prefix web typecheck
+          npm run --prefix web check:contract
+          npm run --prefix web test:coverage:critical
+
+      - name: Build web bundle
+        run: npm run --prefix web build
+
+      - name: Check web bundle size
+        run: npx --prefix web size-limit
+
+      - name: Check TypeScript dead code
+        run: npm run --prefix web check:dead-code
 
   rust-tests:
     runs-on: ubuntu-latest
@@ -39,6 +72,30 @@ jobs:
 
       - name: Run Rust tests
         run: cargo test --manifest-path rust/chronicle_app_usage_matcher/Cargo.toml
+
+      - name: Verify Rust benchmarks compile
+        run: cargo build --benches --manifest-path rust/chronicle_app_usage_matcher/Cargo.toml
+
+  wasm-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Run WASM tests
+        run: wasm-pack test --node rust/chronicle_app_usage_wasm
 
   semgrep:
     runs-on: ubuntu-latest
@@ -92,8 +149,9 @@ jobs:
           # bandit's source resolution, but it is not on PyPI and
           # cannot be audited. Exclude it from the freeze passed to
           # pip-audit so --strict has nothing to choke on.
-          python -m pip freeze --exclude chronicle-android-preprocessor > /tmp/audit-requirements.txt
-          pip-audit --strict --requirement /tmp/audit-requirements.txt
+          mkdir -p .mutation-scratch
+          python -m pip freeze --exclude chronicle-android-preprocessor > .mutation-scratch/audit-requirements.txt
+          pip-audit --strict --requirement .mutation-scratch/audit-requirements.txt
 
   cargo-audit:
     runs-on: ubuntu-latest
@@ -120,6 +178,25 @@ jobs:
           scan-type: fs
           scan-ref: .
           trivy-config: trivy.yaml
+
+  python-dead-code:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run vulture
+        run: vulture src/chronicle_preprocessing_app .vulture_whitelist.py --min-confidence 80
 
   gitleaks:
     runs-on: ubuntu-latest

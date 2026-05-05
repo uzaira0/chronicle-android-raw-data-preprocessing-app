@@ -18,8 +18,8 @@ from chronicle_preprocessing_app.core.preprocessing.timestamp_preprocessor impor
     TimestampPreprocessor,
 )
 from chronicle_preprocessing_app.utils.pathological_fixture_builder import (
-    FILTERED_APPS,
     APPS_FORCING_SCREEN_OPEN,
+    FILTERED_APPS,
     FixtureBuildConfig,
     build_pathological_algorithm_dataframe,
     build_pathological_raw_dataframe,
@@ -55,12 +55,8 @@ def _algorithm_options(**overrides: object) -> PreprocessingOptions:
 
 def _run_algorithm(algorithm: object, df: pl.DataFrame, options: PreprocessingOptions) -> pl.DataFrame:
     resumed_mask = df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_RESUMED)
-    same_app_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in(
-        [str(value) for value in options.same_app_interaction_types_to_stop_usage_at]
-    )
-    other_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in(
-        [str(value) for value in options.other_interaction_types_to_stop_usage_at]
-    )
+    same_app_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in([str(value) for value in options.same_app_interaction_types_to_stop_usage_at])
+    other_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in([str(value) for value in options.other_interaction_types_to_stop_usage_at])
     stopped_mask = df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_STOPPED)
     return algorithm.process_app_usage(
         df,
@@ -85,13 +81,7 @@ def test_pathological_raw_fixture_contains_expected_android_pathologies() -> Non
     raw_df = build_pathological_raw_dataframe(config=FixtureBuildConfig(weeks=2))
 
     duplicate_timestamps = raw_df.group_by(Column.EVENT_TIMESTAMP).len().filter(pl.col("len") > 1)
-    exact_duplicates = (
-        raw_df.group_by(
-            [Column.EVENT_TIMESTAMP, Column.INTERACTION_TYPE, Column.APP_PACKAGE_NAME]
-        )
-        .len()
-        .filter(pl.col("len") > 1)
-    )
+    exact_duplicates = raw_df.group_by([Column.EVENT_TIMESTAMP, Column.INTERACTION_TYPE, Column.APP_PACKAGE_NAME]).len().filter(pl.col("len") > 1)
 
     timestamps = raw_df.get_column(Column.EVENT_TIMESTAMP).cast(pl.String).to_list()
     interactions = set(raw_df.get_column(Column.INTERACTION_TYPE).unique().to_list())
@@ -184,7 +174,5 @@ def test_timestamp_preprocessor_handles_mixed_naive_and_offset_raw_strings() -> 
         ]
     )
 
-    result = TimestampPreprocessor(
-        PreprocessingOptions(raw_data_folder="", use_app_codebook=False)
-    ).correct_timestamp_column(df)
+    result = TimestampPreprocessor(PreprocessingOptions(raw_data_folder="", use_app_codebook=False)).correct_timestamp_column(df)
     assert result.filter(pl.col(Column.EVENT_TIMESTAMP).is_null()).is_empty()

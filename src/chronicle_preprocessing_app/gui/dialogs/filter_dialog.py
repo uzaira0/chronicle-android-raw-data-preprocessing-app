@@ -39,7 +39,7 @@ class BaseTableWindow(QDialog):
 
         self.scale_factor = 1.0
         if hasattr(parent, "scale_factor"):
-            self.scale_factor = parent.scale_factor  # type: ignore  # noqa: PGH003
+            self.scale_factor = parent.scale_factor  # type: ignore
 
         self.setWindowTitle(title)
         self.setGeometry(100, 100, int(600 * self.scale_factor), int(400 * self.scale_factor))
@@ -166,9 +166,7 @@ class AppsFilterDialog(BaseTableWindow):
         """
         Import app filters from a CSV or XLSX file.
         """
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Import App Filters", "", "Filter Files (*.csv *.xlsx)"
-        )
+        file_path, _ = QFileDialog.getOpenFileName(self, "Import App Filters", "", "Filter Files (*.csv *.xlsx)")
 
         if not file_path:
             return
@@ -180,7 +178,7 @@ class AppsFilterDialog(BaseTableWindow):
 
         except Exception as e:
             LOGGER.error(f"Error importing app filters: {e}", exc_info=True)
-            QMessageBox.critical(self, "Import Error", f"Failed to import app filters: {str(e)}")
+            QMessageBox.critical(self, "Import Error", f"Failed to import app filters: {e!s}")
 
     def add_row(self) -> None:
         """
@@ -254,7 +252,7 @@ class AppsFilterDialog(BaseTableWindow):
 
         except Exception as e:
             LOGGER.error(f"Error importing app filters from file {file_path}: {e}", exc_info=True)
-            raise ValueError(f"Failed to import app filters from file: {e}")
+            raise ValueError(f"Failed to import app filters from file: {e}") from e
 
     def resize_to_fit_content(self) -> None:
         """
@@ -264,12 +262,8 @@ class AppsFilterDialog(BaseTableWindow):
         self.table.resizeColumnsToContents()
         self.table.resizeRowsToContents()
 
-        table_width = (
-            sum(self.table.columnWidth(i) for i in range(self.table.columnCount())) + 40
-        )  # Add margin
-        table_height = min(
-            400, max(150, self.table.rowCount() * 25 + 40)
-        )  # Min/max height based on row count
+        table_width = sum(self.table.columnWidth(i) for i in range(self.table.columnCount())) + 40  # Add margin
+        table_height = min(400, max(150, self.table.rowCount() * 25 + 40))  # Min/max height based on row count
 
         dialog_width = max(500, min(800, table_width + 80))
         dialog_height = table_height + 120
@@ -278,4 +272,3 @@ class AppsFilterDialog(BaseTableWindow):
             int(dialog_width * self.scale_factor),
             int(dialog_height * self.scale_factor),
         )
-

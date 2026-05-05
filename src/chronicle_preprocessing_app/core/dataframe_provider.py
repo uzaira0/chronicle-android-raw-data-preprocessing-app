@@ -12,7 +12,7 @@ DataFrameLike: TypeAlias = pl.DataFrame
 
 
 def _strip_string_columns(df: pl.DataFrame) -> pl.DataFrame:
-    string_columns = [name for name, dtype in df.schema.items() if dtype == pl.Utf8]
+    string_columns = [name for name, dtype in df.schema.items() if dtype == pl.String]
     if not string_columns:
         return df
     return df.with_columns([pl.col(name).str.strip_chars().alias(name) for name in string_columns])
@@ -30,9 +30,9 @@ def _normalize_schema(dtypes: dict[str, Any] | None) -> dict[str, pl.DataType] |
 
         dtype_name = str(dtype).lower()
         mapping = {
-            "str": pl.Utf8,
-            "string": pl.Utf8,
-            "utf8": pl.Utf8,
+            "str": pl.String,
+            "string": pl.String,
+            "utf8": pl.String,
             "int": pl.Int64,
             "int64": pl.Int64,
             "integer": pl.Int64,
@@ -60,8 +60,7 @@ class DataFrameProviderProtocol(Protocol):
         *,
         skipinitialspace: bool = True,
         dtypes: dict[str, Any] | None = None,
-    ) -> pl.DataFrame:
-        ...
+    ) -> pl.DataFrame: ...
 
     def to_csv(
         self,
@@ -69,33 +68,24 @@ class DataFrameProviderProtocol(Protocol):
         path: str | Path,
         *,
         index: bool = False,
-    ) -> None:
-        ...
+    ) -> None: ...
 
-    def is_empty(self, df: pl.DataFrame) -> bool:
-        ...
+    def is_empty(self, df: pl.DataFrame) -> bool: ...
 
-    def get_column(self, df: pl.DataFrame, column: str) -> pl.Series:
-        ...
+    def get_column(self, df: pl.DataFrame, column: str) -> pl.Series: ...
 
-    def set_column(self, df: pl.DataFrame, column: str, values: Any) -> pl.DataFrame:
-        ...
+    def set_column(self, df: pl.DataFrame, column: str, values: Any) -> pl.DataFrame: ...
 
-    def filter(self, df: pl.DataFrame, mask: pl.Series) -> pl.DataFrame:
-        ...
+    def filter(self, df: pl.DataFrame, mask: pl.Series) -> pl.DataFrame: ...
 
-    def sort_by(self, df: pl.DataFrame, column: str, *, descending: bool = False) -> pl.DataFrame:
-        ...
+    def sort_by(self, df: pl.DataFrame, column: str, *, descending: bool = False) -> pl.DataFrame: ...
 
-    def reset_index(self, df: pl.DataFrame) -> pl.DataFrame:
-        ...
+    def reset_index(self, df: pl.DataFrame) -> pl.DataFrame: ...
 
-    def concat(self, dfs: list[pl.DataFrame], *, ignore_index: bool = True) -> pl.DataFrame:
-        ...
+    def concat(self, dfs: list[pl.DataFrame], *, ignore_index: bool = True) -> pl.DataFrame: ...
 
     @property
-    def name(self) -> str:
-        ...
+    def name(self) -> str: ...
 
 
 class PolarsProvider:
@@ -120,11 +110,7 @@ class PolarsProvider:
         if skipinitialspace:
             df = _strip_string_columns(df)
         if schema_overrides:
-            cast_exprs = [
-                pl.col(name).cast(dtype).alias(name)
-                for name, dtype in schema_overrides.items()
-                if name in df.columns
-            ]
+            cast_exprs = [pl.col(name).cast(dtype).alias(name) for name, dtype in schema_overrides.items() if name in df.columns]
             if cast_exprs:
                 df = df.with_columns(cast_exprs)
         return df

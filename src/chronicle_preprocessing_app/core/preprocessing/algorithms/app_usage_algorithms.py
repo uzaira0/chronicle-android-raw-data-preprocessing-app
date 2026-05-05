@@ -43,9 +43,7 @@ class OptimizedAppUsageAlgorithm:
 
     def __init__(self, options: PreprocessingOptions):
         self.options = options
-        self.long_duration_threshold_nanoseconds = int(
-            options.long_duration_threshold_hours * 3600 * 1_000_000_000
-        )
+        self.long_duration_threshold_nanoseconds = int(options.long_duration_threshold_hours * 3600 * 1_000_000_000)
 
     def process_app_usage(
         self,
@@ -98,15 +96,13 @@ class OptimizedAppUsageAlgorithm:
         other_stop_flags: np.ndarray,
         stopped_flags: np.ndarray,
     ) -> pl.DataFrame:
-        start_indices, stop_start_indices, stop_event_indices, missing_indices = (
-            self._match_usage_updates_python(
-                app_packages=app_packages,
-                timestamp_ns=timestamp_ns,
-                resumed_flags=resumed_flags,
-                same_stop_flags=same_stop_flags,
-                other_stop_flags=other_stop_flags,
-                stopped_flags=stopped_flags,
-            )
+        start_indices, stop_start_indices, stop_event_indices, missing_indices = self._match_usage_updates_python(
+            app_packages=app_packages,
+            timestamp_ns=timestamp_ns,
+            resumed_flags=resumed_flags,
+            same_stop_flags=same_stop_flags,
+            other_stop_flags=other_stop_flags,
+            stopped_flags=stopped_flags,
         )
 
         row_count = df.height
@@ -156,9 +152,7 @@ class OptimizedAppUsageAlgorithm:
         for index in range(len(app_packages)):
             current_app = app_packages[index]
             is_normal_stop = bool(same_stop_flags[index] or other_stop_flags[index])
-            is_fallback_stop = bool(
-                stopped_flags[index] and self.options.use_activity_stopped_as_fallback
-            )
+            is_fallback_stop = bool(stopped_flags[index] and self.options.use_activity_stopped_as_fallback)
 
             if self.options.allow_stop_event_reuse and (is_normal_stop or is_fallback_stop):
                 still_open: list[int] = []
@@ -166,16 +160,11 @@ class OptimizedAppUsageAlgorithm:
                     start_app = app_packages[start_index]
                     same_app_compatible = bool(same_stop_flags[index] and start_app == current_app)
                     other_app_compatible = bool(other_stop_flags[index] and start_app != current_app)
-                    fallback_compatible = bool(
-                        not is_normal_stop and is_fallback_stop and start_app == current_app
-                    )
+                    fallback_compatible = bool(not is_normal_stop and is_fallback_stop and start_app == current_app)
                     if not (same_app_compatible or other_app_compatible or fallback_compatible):
                         still_open.append(start_index)
                         continue
-                    enforce_threshold = (
-                        not fallback_compatible
-                        or self.options.apply_threshold_to_activity_stopped_fallback
-                    )
+                    enforce_threshold = not fallback_compatible or self.options.apply_threshold_to_activity_stopped_fallback
                     if is_valid_duration(start_index, index, enforce_threshold=enforce_threshold):
                         stop_start_indices.append(start_index)
                         stop_event_indices.append(index)
@@ -189,15 +178,10 @@ class OptimizedAppUsageAlgorithm:
                     start_app = app_packages[start_index]
                     same_app_compatible = bool(same_stop_flags[index] and start_app == current_app)
                     other_app_compatible = bool(other_stop_flags[index] and start_app != current_app)
-                    fallback_compatible = bool(
-                        not is_normal_stop and is_fallback_stop and start_app == current_app
-                    )
+                    fallback_compatible = bool(not is_normal_stop and is_fallback_stop and start_app == current_app)
                     if not (same_app_compatible or other_app_compatible or fallback_compatible):
                         continue
-                    enforce_threshold = (
-                        not fallback_compatible
-                        or self.options.apply_threshold_to_activity_stopped_fallback
-                    )
+                    enforce_threshold = not fallback_compatible or self.options.apply_threshold_to_activity_stopped_fallback
                     if is_valid_duration(start_index, index, enforce_threshold=enforce_threshold):
                         matched_position = position
                         break
@@ -234,9 +218,5 @@ class OptimizedAppUsageAlgorithm:
 def _ns_to_datetime_series(name: str, values: np.ndarray, timezone_name: str | None) -> pl.Series:
     converted: list[object] = [None if int(value) == MISSING_TIMESTAMP_NS else int(value) for value in values]
     if timezone_name:
-        return (
-            pl.Series(name, converted, dtype=pl.Int64)
-            .cast(pl.Datetime("ns", "UTC"))
-            .dt.convert_time_zone(timezone_name)
-        )
+        return pl.Series(name, converted, dtype=pl.Int64).cast(pl.Datetime("ns", "UTC")).dt.convert_time_zone(timezone_name)
     return pl.Series(name, converted, dtype=pl.Int64).cast(pl.Datetime("ns"))

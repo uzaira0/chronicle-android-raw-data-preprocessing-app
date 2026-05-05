@@ -68,9 +68,7 @@ def process_app_usage_with_rust(
         same_stop_array = np.ascontiguousarray(same_app_stop_flags, dtype=bool)
         other_stop_array = np.ascontiguousarray(other_stop_flags, dtype=bool)
         stopped_array = np.ascontiguousarray(stopped_flags, dtype=bool)
-        long_duration_threshold_ns = int(
-            options.long_duration_threshold_hours * 3600 * 1_000_000_000
-        )
+        long_duration_threshold_ns = int(options.long_duration_threshold_hours * 3600 * 1_000_000_000)
 
         update_indices_fn = getattr(
             _rust_app_usage_matcher,
@@ -123,11 +121,7 @@ def _timestamp_series(timestamp_ns: np.ndarray, timezone_name: str | None) -> pl
         else:
             values.append(int(value))
     if timezone_name:
-        return (
-            pl.Series(values, dtype=pl.Int64)
-            .cast(pl.Datetime("ns", "UTC"))
-            .dt.convert_time_zone(timezone_name)
-        )
+        return pl.Series(values, dtype=pl.Int64).cast(pl.Datetime("ns", "UTC")).dt.convert_time_zone(timezone_name)
     return pl.Series(values, dtype=pl.Int64).cast(pl.Datetime("ns"))
 
 

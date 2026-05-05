@@ -16,14 +16,13 @@ from chronicle_preprocessing_app.core.preprocessing.main_preprocessor import (
     ChronicleAndroidRawDataPreprocessor,
 )
 from chronicle_preprocessing_app.utils.file_utils import (
-    read_filter_file,
     read_apps_forcing_screen_open_file,
+    read_filter_file,
 )
 from chronicle_preprocessing_app.utils.pathological_fixture_builder import (
     FixtureBuildConfig,
     build_pathological_raw_dataframe,
 )
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = REPO_ROOT / "web"
@@ -96,7 +95,7 @@ def _compare_csvs(desktop_csv: Path, browser_csv: Path) -> dict:
     for column in common_columns:
         count = 0
         sample = None
-        for index, (desktop_row, browser_row) in enumerate(zip(desktop_rows, browser_rows)):
+        for index, (desktop_row, browser_row) in enumerate(zip(desktop_rows, browser_rows, strict=False)):
             if desktop_row[column] != browser_row[column]:
                 count += 1
                 if sample is None:
@@ -134,8 +133,7 @@ def _build_options(
         use_app_codebook=use_app_codebook,
         app_codebook_path=REPO_ROOT / "src/chronicle_preprocessing_app/data/unified_app_codebook.csv",
         use_filter_file=use_filter_file,
-        filter_file=REPO_ROOT
-        / "apps_to_filter_files/Chronicle_Android_raw_data_preprocessor_apps_to_filter.xlsx",
+        filter_file=REPO_ROOT / "apps_to_filter_files/Chronicle_Android_raw_data_preprocessor_apps_to_filter.xlsx",
         use_apps_forcing_screen_open_file=use_apps_forcing_screen_open_file,
         apps_forcing_screen_open_file=REPO_ROOT
         / "apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv",
@@ -226,7 +224,8 @@ def main() -> int:
             output_dir=browser_full_output_dir,
             options={
                 "studyName": "Deterministic Parity",
-                "usageSessionMode": "app_and_screen_usage",
+                "processAppUsage": True,
+                "processScreenUsage": True,
                 "selectedTimezone": "America/Chicago",
                 "timezoneHandling": "selected-filter",
                 "useFilterFile": True,
@@ -235,17 +234,11 @@ def main() -> int:
             },
             datetime_override=args.datetime,
             support_file_paths={
-                "filterFile": str(
-                    REPO_ROOT
-                    / "web/src/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv"
-                ),
+                "filterFile": str(REPO_ROOT / "web/src/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv"),
                 "appsForcingScreenOpenFile": str(
-                    REPO_ROOT
-                    / "apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv"
+                    REPO_ROOT / "apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv"
                 ),
-                "appCodebookFile": str(
-                    REPO_ROOT / "src/chronicle_preprocessing_app/data/unified_app_codebook.csv"
-                ),
+                "appCodebookFile": str(REPO_ROOT / "src/chronicle_preprocessing_app/data/unified_app_codebook.csv"),
             },
         )
         _run_browser_processing(full_spec_path)
@@ -257,7 +250,8 @@ def main() -> int:
             output_dir=browser_core_output_dir,
             options={
                 "studyName": "Deterministic Parity",
-                "usageSessionMode": "app_usage",
+                "processAppUsage": True,
+                "processScreenUsage": False,
                 "selectedTimezone": "America/Chicago",
                 "timezoneHandling": "selected-filter",
                 "useFilterFile": False,

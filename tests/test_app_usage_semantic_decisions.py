@@ -36,9 +36,7 @@ def _options(**overrides: object) -> PreprocessingOptions:
     values = {
         "raw_data_folder": "",
         "use_app_codebook": False,
-        "same_app_interaction_types_to_stop_usage_at": {
-            InteractionType.ACTIVITY_PAUSED
-        },
+        "same_app_interaction_types_to_stop_usage_at": {InteractionType.ACTIVITY_PAUSED},
         "other_interaction_types_to_stop_usage_at": {
             InteractionType.ACTIVITY_RESUMED,
             InteractionType.FILTERED_APP_RESUMED,
@@ -55,12 +53,8 @@ def _options(**overrides: object) -> PreprocessingOptions:
 
 def _run(df: pl.DataFrame, options: PreprocessingOptions) -> pl.DataFrame:
     resumed_mask = df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_RESUMED)
-    same_app_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in(
-        [str(value) for value in options.same_app_interaction_types_to_stop_usage_at]
-    )
-    other_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in(
-        [str(value) for value in options.other_interaction_types_to_stop_usage_at]
-    )
+    same_app_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in([str(value) for value in options.same_app_interaction_types_to_stop_usage_at])
+    other_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in([str(value) for value in options.other_interaction_types_to_stop_usage_at])
     stopped_mask = df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_STOPPED)
 
     return OptimizedAppUsageAlgorithm(options).process_app_usage(

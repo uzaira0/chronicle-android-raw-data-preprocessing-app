@@ -200,6 +200,8 @@ preprocessors/survey_data_preprocessor.py
 *demo*
 !web/src/components/DemoSampleCard.tsx
 *benchmark*
+!tests/benchmarks/
+!tests/benchmarks/**
 !scripts/benchmark_browser_pathological_fixture.py
 !web/scripts/benchmark_browser_processing.mjs
  Chronicle Android Automatically Preprocessed Data/
@@ -232,6 +234,7 @@ web/.vite/
 web/.tmp/
 web/.github-pages-dist/
 .superpowers/
+.mutation-scratch/
 !web/src/lib/
 !web/src/lib/**
 !web/src/test-runtime.d.ts
@@ -239,3 +242,4 @@ web/.github-pages-dist/
 !web/src/assets/
 !web/src/assets/defaults/
 !web/src/assets/defaults/*.csv
+web/coverage/

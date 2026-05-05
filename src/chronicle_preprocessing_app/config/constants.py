@@ -27,9 +27,7 @@ PREPROCESSED_FOLDER_SUFFIX = "Chronicle Android Automatically Preprocessed Data"
 PLOTTED_FOLDER_SUFFIX = "Chronicle Android Plotted Data"
 GAP_TIMESTAMPS_SIDECAR_SUFFIX = ".gap_timestamps.parquet"
 
-EXPECTED_TIMESTAMP_LENGTH = (
-    25  # expected length of timestamp string from Chronicle data in characters
-)
+EXPECTED_TIMESTAMP_LENGTH = 25  # expected length of timestamp string from Chronicle data in characters
 
 
 # ====== Enum classes =======
@@ -304,9 +302,7 @@ class DialogMessage(StrEnum):
 
     WARNING_STUDY_NAME = "Please enter a study name."
     WARNING_RAW_DATA_FOLDER = "Please select a raw data folder."
-    WARNING_TIMEZONE = (
-        "Please select a timezone when using non per-file timezone options."
-    )
+    WARNING_TIMEZONE = "Please select a timezone when using non per-file timezone options."
     WARNING_NO_RAW_DATA_FILES = "No raw data files found in {}. Please check that the folder contains raw data files ending with .csv"
 
 
