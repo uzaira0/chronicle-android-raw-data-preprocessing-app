@@ -196,6 +196,18 @@ check_file \
   "test_screen_usage_preprocessor.py" \
   || FAIL=1
 
+echo
+
+# app_usage_preprocessor.py: targets the pure-Python fallback path
+# (_get_app_usage_flags and run_app_usage_algorithm control flow).
+# The Rust extension algorithm is covered by Rust unit tests.
+check_file \
+  "app_usage_preprocessor.py" \
+  "test_app_usage_flags.py" \
+  "test_app_usage_algorithm.py" \
+  "test_app_usage_semantic_decisions.py" \
+  || FAIL=1
+
 if [ "$FAIL" -ne 0 ]; then
   echo
   echo "Mutation testing FAILED. One or more files fell below ${THRESHOLD}% kill rate." >&2

@@ -164,6 +164,27 @@ repos:
         stages: [pre-push]
         files: ^src/chronicle_preprocessing_app/
 
+      - id: web-coverage
+        name: Web/TS test coverage (vitest thresholds)
+        language: script
+        entry: scripts/check-web-critical-coverage.sh
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^web/src/
+
+      - id: benchmark-regression
+        name: Benchmark regression gate (≤20% slower than baseline)
+        language: script
+        entry: scripts/check-benchmark-regression.sh
+        pass_filenames: false
+        stages: [pre-push]
+        files: |
+          (?x)^(
+            src/chronicle_preprocessing_app/|
+            rust/chronicle_app_usage_matcher/|
+            tests/benchmarks/
+          )
+
       - id: wasm-size
         name: WASM binary size ceilings
         language: script

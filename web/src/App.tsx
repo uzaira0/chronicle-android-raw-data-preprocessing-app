@@ -400,7 +400,7 @@ export default function App(): ReactElement {
   };
 
   const progressRows = progressOrder.map(
-    (name) => progressByFile[name] ?? { fileName: name, status: "pending" },
+    (name) => progressByFile[name] ?? { fileName: name, status: "pending" as const },
   );
   const overallPercent =
     progressOrder.length === 0
@@ -408,7 +408,7 @@ export default function App(): ReactElement {
       : progressOrder.reduce(
           (total, name) =>
             total +
-            estimatedFilePercent(progressByFile[name] ?? { fileName: name, status: "pending" }),
+            estimatedFilePercent(progressByFile[name] ?? { fileName: name, status: "pending" as const }),
           0,
         ) / progressOrder.length;
   const normalizedSettingsQuery = settingsQuery.trim().toLowerCase();

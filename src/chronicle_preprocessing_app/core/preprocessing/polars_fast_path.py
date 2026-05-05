@@ -427,7 +427,7 @@ class PolarsFastPathPreprocessor:
         df = df.with_columns(
             pl.when(pl.col("__valid_filter_match").fill_null(False))
             .then(
-                pl.col(Column.INTERACTION_TYPE).replace(
+                pl.col(Column.INTERACTION_TYPE).replace_strict(
                     list(interaction_mapping.keys()),
                     list(interaction_mapping.values()),
                     default=pl.col(Column.INTERACTION_TYPE),
@@ -537,7 +537,11 @@ class PolarsFastPathPreprocessor:
                 & (pl.col(Column.START_TIMESTAMP).is_null() | pl.col(Column.STOP_TIMESTAMP).is_null())
             )
         )
-        df = df.with_columns(pl.col(Column.INTERACTION_TYPE).replace(resumed_type, usage_type).alias(Column.INTERACTION_TYPE))
+        df = df.with_columns(
+            pl.col(Column.INTERACTION_TYPE)
+            .replace_strict(resumed_type, usage_type, default=pl.col(Column.INTERACTION_TYPE))
+            .alias(Column.INTERACTION_TYPE)
+        )
         duration_expr = (pl.col(Column.STOP_TIMESTAMP) - pl.col(Column.START_TIMESTAMP)).dt.total_microseconds().cast(pl.Float64) / 1_000_000.0
         df = df.with_columns(
             [

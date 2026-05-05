@@ -1528,15 +1528,15 @@ function addAppUsageDetailColumns(rows: CanonicalRow[], options: BrowserProcessi
     if (!indices.length) {
       return;
     }
-    update(nextRows[indices[0]]!, {
+    update(nextRows[indices[0]!]!, {
       engage30: 1,
       engageCustom: 1,
       switched: 0,
       gapHours: 0,
     });
     for (let i = 1; i < indices.length; i += 1) {
-      const current = nextRows[indices[i]]!;
-      const previous = nextRows[indices[i - 1]]!;
+      const current = nextRows[indices[i]!]!;
+      const previous = nextRows[indices[i - 1]!]!;
       const currentStartNs = current.start_timestamp_ns ?? MISSING_INT64;
       const previousStopNs = previous.stop_timestamp_ns ?? MISSING_INT64;
       const gapDeltaNs = wrapInt64(currentStartNs - previousStopNs);

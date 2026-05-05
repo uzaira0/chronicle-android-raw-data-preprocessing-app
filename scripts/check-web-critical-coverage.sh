@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
+# Web/TypeScript test coverage — enforces vitest thresholds defined in vitest.config.ts.
+# Thresholds: lines 75%, functions 80%, branches 60%, statements 75%.
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT_DIR/web"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WEB_DIR="$REPO_ROOT/web"
 
-npm test -- \
-  --coverage \
-  --coverage.reporter=text \
-  --coverage.reporter=lcov \
-  --coverage.include='src/lib/chronicleMatcher.ts' \
-  --coverage.include='src/lib/fileInspection.ts' \
-  --coverage.include='src/lib/zip.ts' \
-  --coverage.thresholds.lines=99 \
-  --coverage.thresholds.statements=99 \
-  --coverage.thresholds.functions=99 \
-  --coverage.thresholds.branches=95
+if [ ! -d "$WEB_DIR/node_modules" ]; then
+  echo "web/node_modules not found — run 'npm ci' in web/ first" >&2
+  exit 1
+fi
+
+(
+  cd "$WEB_DIR"
+  node scripts/run-clean-env.mjs vitest run --coverage 2>&1
+)

@@ -196,7 +196,7 @@ describe("Property 1: discoverTimezonesFromRawCsv — deterministic and sorted",
           }
 
           // Must be a deduplicated subset of the input timezones.
-          const inputSet = new Set(pairs.map(([, tz]) => tz));
+          const inputSet = new Set<string>(pairs.map(([, tz]) => tz));
           result.forEach((tz) => expect(inputSet.has(tz)).toBe(true));
 
           // Calling it a second time gives the same result.
