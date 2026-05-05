@@ -40,6 +40,25 @@ repos:
         types: [rust]
         pass_filenames: false
 
+  # Code complexity ceilings — commit stage (prevent regressions)
+  - repo: local
+    hooks:
+      - id: python-complexity
+        name: Python cyclomatic complexity (radon, ceiling 50)
+        language: script
+        entry: scripts/check-python-complexity.sh
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^src/chronicle_preprocessing_app/
+
+      - id: web-complexity
+        name: Web/TS cyclomatic complexity (ESLint, ceiling 37)
+        language: script
+        entry: scripts/check-web-complexity.sh
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^web/src/
+
   # Slower checks — push stage only
   - repo: local
     hooks:
@@ -72,3 +91,63 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-push]
+
+      - id: license-compliance
+        name: License compliance (Python + npm + Rust)
+        language: script
+        entry: scripts/check-licenses.sh
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: run-parity-check
+        name: Python↔WASM parity check
+        language: script
+        entry: scripts/run-parity-check.sh
+        pass_filenames: false
+        stages: [pre-push]
+        files: |
+          (?x)^(
+            src/chronicle_preprocessing_app/|
+            web/src/wasm/|
+            web/src/lib/browserPipeline\.ts|
+            rust/chronicle_app_usage_wasm/
+          )
+
+      - id: run-fuzz-sanity
+        name: Fuzz sanity — match_core (10s)
+        language: script
+        entry: scripts/run-fuzz-sanity.sh
+        stages: [pre-push]
+        pass_filenames: false
+        files: ^rust/chronicle_app_usage_matcher/
+
+      - id: check-python-mutation
+        name: Mutation testing (timestamp + timezone preprocessors ≥ 80%)
+        language: script
+        entry: scripts/check-python-mutation.sh
+        stages: [pre-push]
+        pass_filenames: false
+        files: |
+          (?x)^(
+            src/chronicle_preprocessing_app/core/preprocessing/timestamp_preprocessor\.py|
+            src/chronicle_preprocessing_app/core/preprocessing/timezone_preprocessor\.py|
+            tests/test_timestamp_properties\.py|
+            tests/test_timestamp_timezone_preprocessors\.py|
+            tests/test_study_date_provider\.py
+          )$
+
+      - id: visual-regression
+        name: Visual regression (chromium)
+        language: script
+        entry: scripts/run-visual-regression.sh
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^web/
+
+      - id: e2e-all-browsers
+        name: E2E smoke — all browsers
+        language: script
+        entry: scripts/run-e2e-all-browsers.sh
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^web/

@@ -1,0 +1,54 @@
+# Pre-push hook stanzas for .pre-commit-config.yaml
+#
+# These three hooks run at the pre-push stage.  Add them to the `repos:` list
+# in .pre-commit-config.yaml.  Each hook is a local script so no external
+# repo or rev is required.
+#
+# IMPORTANT: the mutation hook is slow (several minutes).  If you gate every
+# push on it, consider using a separate "nightly" or "manual" stage instead:
+#   stages: [manual]
+# and invoke manually with:
+#   pre-commit run check-python-mutation --hook-stage manual
+
+  - repo: local
+    hooks:
+      - id: check-python-mutation
+        name: Mutation testing (timestamp + timezone preprocessors ≥ 80%)
+        language: script
+        entry: scripts/check-python-mutation.sh
+        stages: [pre-push]
+        pass_filenames: false
+        # Only re-run when the preprocessors or their tests change
+        files: |
+          (?x)^(
+            src/chronicle_preprocessing_app/core/preprocessing/timestamp_preprocessor\.py|
+            src/chronicle_preprocessing_app/core/preprocessing/timezone_preprocessor\.py|
+            tests/test_timestamp_properties\.py|
+            tests/test_timestamp_timezone_preprocessors\.py|
+            tests/test_timestamp_comprehensive\.py|
+            tests/test_study_date_provider\.py
+          )$
+
+      - id: run-fuzz-sanity
+        name: Fuzz sanity — match_core (10s)
+        language: script
+        entry: scripts/run-fuzz-sanity.sh
+        stages: [pre-push]
+        pass_filenames: false
+        # Only re-run when the Rust core matcher changes
+        files: ^rust/chronicle_app_usage_matcher/
+
+      - id: run-parity-check
+        name: Python↔WASM parity check
+        language: script
+        entry: scripts/run-parity-check.sh
+        stages: [pre-push]
+        pass_filenames: false
+        # Re-run when the Python pipeline, WASM package, or web pipeline changes
+        files: |
+          (?x)^(
+            src/chronicle_preprocessing_app/|
+            web/src/wasm/|
+            web/src/lib/browserPipeline\.ts|
+            rust/chronicle_app_usage_wasm/
+          )

@@ -1,0 +1,50 @@
+Pre-commit hook stanzas to add to .pre-commit-config.yaml
+==========================================================
+
+Add these two hooks under the appropriate `repo: local` entry (or create a new
+`repo: local` block if one does not exist).
+
+----------------------------------------------------------------------
+HOOK 1 — Visual regression (chromium only, fast, pre-push guard)
+----------------------------------------------------------------------
+
+  - id: visual-regression
+    name: Visual regression (chromium)
+    language: script
+    entry: scripts/run-visual-regression.sh
+    pass_filenames: false
+    stages: [pre-push]
+    files: ^web/
+
+----------------------------------------------------------------------
+HOOK 2 — Cross-browser smoke tests (all three browsers, @smoke tag)
+----------------------------------------------------------------------
+
+  - id: e2e-all-browsers
+    name: E2E smoke — all browsers
+    language: script
+    entry: scripts/run-e2e-all-browsers.sh
+    pass_filenames: false
+    stages: [pre-push]
+    files: ^web/
+
+----------------------------------------------------------------------
+Notes
+----------------------------------------------------------------------
+
+- Both hooks use `stages: [pre-push]` so they only run on `git push`,
+  not on every `git commit`.
+
+- The `files: ^web/` pattern gates each hook so it only fires when web/
+  source files are in the changeset.
+
+- The `SMOKE_BROWSERS` env var in playwright.config.ts is for
+  programmatic callers that want to restrict the project list; the
+  run-e2e-all-browsers.sh script passes `--grep @smoke` instead, which
+  achieves the same result without needing the env var.
+
+- Snapshot baseline PNGs live in:
+    web/e2e/visual.spec.ts-snapshots/
+  They must be committed alongside the spec. When UI changes are
+  intentional, regenerate with:
+    cd web && npx playwright test --project=chromium --grep "@visual" --update-snapshots

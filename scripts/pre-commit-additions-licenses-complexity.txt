@@ -1,0 +1,39 @@
+# Hook stanzas to add to .pre-commit-config.yaml
+#
+# These are the exact YAML blocks to paste into .pre-commit-config.yaml
+# under the top-level `repos:` key.
+#
+# Python complexity (radon) — runs at pre-commit stage
+# Web/TS complexity (ESLint) — runs at pre-commit stage
+# License compliance (all surfaces) — runs at pre-push stage (slower, network-free)
+#
+# Requires:
+#   Python:  .venv must exist with radon>=6.0.1 and pip-licenses>=5.0.0 installed
+#   Web:     web/node_modules must exist (npm install in web/)
+#   Rust:    cargo-license must be on PATH (cargo install cargo-license --locked)
+# ---------------------------------------------------------------------------
+
+  - repo: local
+    hooks:
+      - id: python-complexity
+        name: Python cyclomatic complexity (radon, ceiling 50)
+        language: script
+        entry: scripts/check-python-complexity.sh
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^src/chronicle_preprocessing_app/
+
+      - id: web-complexity
+        name: Web/TS cyclomatic complexity (ESLint, ceiling 37)
+        language: script
+        entry: scripts/check-web-complexity.sh
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^web/src/
+
+      - id: license-compliance
+        name: License compliance (Python + npm + Rust)
+        language: script
+        entry: scripts/check-licenses.sh
+        pass_filenames: false
+        stages: [pre-push]

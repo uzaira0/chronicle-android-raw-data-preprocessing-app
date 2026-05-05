@@ -2,6 +2,19 @@ import { defineConfig, devices } from "@playwright/test";
 
 delete process.env.FORCE_COLOR;
 
+const SMOKE_BROWSERS = Boolean(process.env.SMOKE_BROWSERS);
+
+const allBrowserProjects = [
+  { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+  { name: "firefox", use: { ...devices["Desktop Firefox"] } },
+  { name: "webkit", use: { ...devices["Desktop Safari"] } },
+];
+
+const smokeBrowserProjects = allBrowserProjects.map((p) => ({
+  ...p,
+  grep: /@smoke/,
+}));
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
@@ -21,10 +34,5 @@ export default defineConfig({
     timeout: 120_000,
     cwd: ".",
   },
-  projects: [
-    {
-      name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
-    },
-  ],
+  projects: SMOKE_BROWSERS ? smokeBrowserProjects : allBrowserProjects,
 });
