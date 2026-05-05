@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import multiprocessing
+import time
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, fields
@@ -55,6 +56,22 @@ from chronicle_preprocessing_app.utils.file_utils import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+# Columns that must be present in any raw Chronicle Android CSV before
+# preprocessing can proceed.  These are the columns the pipeline reads from the
+# raw file — not derived/output columns like start_timestamp or
+# possible_device_model that the pipeline generates itself.
+REQUIRED_RAW_COLUMNS: frozenset[str] = frozenset(
+    {
+        Column.PARTICIPANT_ID,
+        Column.USERNAME,
+        Column.APPLICATION_LABEL,
+        Column.INTERACTION_TYPE,
+        Column.APP_PACKAGE_NAME,
+        Column.EVENT_TIMESTAMP,
+        Column.TIMEZONE,
+    }
+)
 
 
 def _generate_plots(*args: Any, **kwargs: Any) -> Any:
@@ -180,6 +197,14 @@ class ChronicleAndroidRawDataPreprocessor:
         series = self.current_participant_raw_data_df.get_column(Column.PARTICIPANT_ID)
         return str(series[1 if len(series) > 1 else 0])
 
+    @staticmethod
+    def _validate_required_columns(df: pl.DataFrame) -> None:
+        """Raise ValueError if any required raw input columns are absent."""
+        found = set(df.columns)
+        missing = sorted(REQUIRED_RAW_COLUMNS - found)
+        if missing:
+            raise ValueError(f"Missing required columns: [{', '.join(missing)}]. Found: [{', '.join(sorted(found))}]")
+
     def remove_selected_interaction_types(self) -> None:
         self.current_participant_raw_data_df = self.fast_preprocessor._remove_selected_interaction_types(self.current_participant_raw_data_df)
 
@@ -236,6 +261,12 @@ class ChronicleAndroidRawDataPreprocessor:
         raw_data_file: Path | str,
     ) -> tuple[Path, bool, dict[str, Any] | None]:
         raw_path = Path(raw_data_file)
+        t_start = time.monotonic()
+        LOGGER.debug(
+            "Starting %s",
+            self.__class__.__name__,
+            extra={"row_count": None, "file": raw_path.name},
+        )
         try:
             if supports_polars_fast_path(
                 self.options,
@@ -253,9 +284,20 @@ class ChronicleAndroidRawDataPreprocessor:
                     pre_algo_event_timestamps=result.pre_algo_event_timestamps,
                 )
                 self.stats.mark_processed(raw_path)
+                elapsed = time.monotonic() - t_start
+                final_rows = len(self.current_participant_raw_data_df)
+                LOGGER.info(
+                    "Preprocessed %s: %d → %d rows in %.2fs",
+                    raw_path.name,
+                    len(result.data),
+                    final_rows,
+                    elapsed,
+                )
                 return output_folder, True, None
 
             raw_df = pl.read_csv(raw_path, infer_schema_length=10000)
+            original_rows = len(raw_df)
+            self._validate_required_columns(raw_df)
             self.current_participant_raw_data_df = raw_df
             self.current_participant_id = self.get_participant_id_from_data()
 
@@ -287,6 +329,15 @@ class ChronicleAndroidRawDataPreprocessor:
                     self.current_participant_raw_data_df = self.current_participant_screen_usage_df
                     output_folder = self.finalize_and_save_preprocessed_data_df(raw_path.name)
                     self.stats.mark_processed(raw_path)
+                    elapsed = time.monotonic() - t_start
+                    final_rows = len(self.current_participant_raw_data_df)
+                    LOGGER.info(
+                        "Preprocessed %s: %d → %d rows in %.2fs",
+                        raw_path.name,
+                        original_rows,
+                        final_rows,
+                        elapsed,
+                    )
                     return output_folder, True, None
 
             pre_algo_ts: pl.Series | None = None
@@ -303,6 +354,20 @@ class ChronicleAndroidRawDataPreprocessor:
             self.remove_selected_interaction_types()
             output_folder = self.finalize_and_save_preprocessed_data_df(raw_path.name, pre_algo_ts)
             self.stats.mark_processed(raw_path)
+            elapsed = time.monotonic() - t_start
+            final_rows = len(self.current_participant_raw_data_df)
+            LOGGER.info(
+                "Preprocessed %s: %d → %d rows in %.2fs",
+                raw_path.name,
+                original_rows,
+                final_rows,
+                elapsed,
+            )
+            LOGGER.debug(
+                "Completed %s",
+                self.__class__.__name__,
+                extra={"rows_in": original_rows, "rows_out": final_rows},
+            )
             return output_folder, True, None
         except NoAppUsageDataError:
             self.stats.mark_empty_file(raw_path.name)

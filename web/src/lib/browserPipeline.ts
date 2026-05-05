@@ -4,6 +4,8 @@ import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?ur
 import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
 import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
+import { validateRawCsvColumns } from "@/lib/validation";
+export { validateRawCsvColumns } from "@/lib/validation";
 import type {
   BrowserProcessingOptions,
   BrowserProcessingRuntime,
@@ -887,6 +889,7 @@ function parseRawRows(
   if (parsed.errors.length > 0) {
     throw new Error(parsed.errors[0]?.message ?? "Failed to parse CSV");
   }
+  validateRawCsvColumns(parsed.meta.fields ?? []);
   const filtered = parsed.data.filter((row) => requireString(row.event_timestamp).length > 0);
   const possibleDeviceModel = getPossibleDeviceModel(filtered);
   const nowText = resolveDatetimeOfPreprocessing(runtime);

@@ -67,7 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Set up Rust
+      - name: Set up Rust (stable)
         uses: dtolnay/rust-toolchain@stable
 
       - name: Run Rust tests
@@ -75,6 +75,26 @@ jobs:
 
       - name: Verify Rust benchmarks compile
         run: cargo build --benches --manifest-path rust/chronicle_app_usage_matcher/Cargo.toml
+
+      - name: Set up Rust (nightly, for fuzz target)
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Verify fuzz target compiles
+        run: cargo test --no-run --manifest-path rust/chronicle_app_usage_matcher/fuzz/Cargo.toml
+
+      - name: Install cargo-criterion
+        run: cargo install cargo-criterion --locked
+
+      - name: Set up Python for benchmark regression check
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Run benchmark regression check
+        run: |
+          rustup override set stable
+          cargo criterion --manifest-path rust/chronicle_app_usage_matcher/Cargo.toml --message-format=json 2>/dev/null \
+            | python3 scripts/check_bench_regression.py
 
   wasm-tests:
     runs-on: ubuntu-latest

@@ -4,16 +4,38 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    groups:
+      python-deps:
+        patterns: ["*"]
 
   - package-ecosystem: "cargo"
     directory: "/rust/chronicle_app_usage_matcher"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    groups:
+      rust-matcher-deps:
+        patterns: ["*"]
+
+  - package-ecosystem: "cargo"
+    directory: "/rust/chronicle_app_usage_wasm"
+    schedule:
+      interval: "weekly"
+    groups:
+      rust-wasm-deps:
+        patterns: ["*"]
+
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "weekly"
+    groups:
+      web-deps:
+        patterns: ["*"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ["*"]

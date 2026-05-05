@@ -96,7 +96,11 @@ class ScreenUsagePreprocessor(BasePreprocessor):
     )
 
     def preprocess(self, df: pl.DataFrame) -> pl.DataFrame:
-        return self.derive_screen_usage_sessions(df)
+        rows_in = len(df)
+        LOGGER.debug("Starting %s", self.__class__.__name__, extra={"row_count": rows_in, "file": getattr(self, "_current_file", None)})
+        result = self.derive_screen_usage_sessions(df)
+        LOGGER.debug("Completed %s", self.__class__.__name__, extra={"rows_in": rows_in, "rows_out": len(result)})
+        return result
 
     def derive_screen_usage_sessions(self, df: pl.DataFrame) -> pl.DataFrame:
         df_copy = df.clone()

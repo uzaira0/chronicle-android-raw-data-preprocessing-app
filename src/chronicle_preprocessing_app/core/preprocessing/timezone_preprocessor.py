@@ -48,7 +48,11 @@ class TimezonePreprocessor(BasePreprocessor):
         df: pl.DataFrame,
         timestamp_column: str = Column.EVENT_TIMESTAMP,
     ) -> pl.DataFrame:
-        return self.apply_timezone_handling(df, timestamp_column)
+        rows_in = len(df)
+        LOGGER.debug("Starting %s", self.__class__.__name__, extra={"row_count": rows_in, "file": getattr(self, "_current_file", None)})
+        result = self.apply_timezone_handling(df, timestamp_column)
+        LOGGER.debug("Completed %s", self.__class__.__name__, extra={"rows_in": rows_in, "rows_out": len(result)})
+        return result
 
     @staticmethod
     def get_local_timezone() -> str:
