@@ -152,7 +152,7 @@ rules:
 
   - id: chronicle-ts-console-log
     message: "Remove console.log before committing; use structured logging or remove the statement."
-    severity: WARNING
+    severity: ERROR
     languages: [typescript]
     paths:
       include:

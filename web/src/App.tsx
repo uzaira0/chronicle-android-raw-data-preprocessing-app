@@ -5,6 +5,7 @@ import {
   discoverTimezones,
   processRawCsv,
   processRawCsvBytesViaPool,
+  warmUpWorker,
 } from "@/lib/chronicleMatcher";
 import { sampleRawCsv, SAMPLE_FILE_NAME } from "@/lib/sampleRawCsv";
 import { ensureNotificationPermission, sendNotification } from "@/lib/notification";
@@ -20,6 +21,7 @@ import type {
   ProgressStepKind,
 } from "@/lib/types";
 
+import { UpdateBanner } from "@/components/UpdateBanner";
 import { DemoSampleCard } from "@/components/DemoSampleCard";
 import { FilesAndInputsCard } from "@/components/FilesAndInputsCard";
 import { TimezoneCard } from "@/components/TimezoneCard";
@@ -124,6 +126,8 @@ function estimatedFilePercent(current: FileProgress): number {
 }
 
 export default function App(): ReactElement {
+  const [wasmReady, setWasmReady] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState<ProcessedFileResult[]>([]);
@@ -146,6 +150,16 @@ export default function App(): ReactElement {
   useEffect(() => {
     persistOptions(options);
   }, [options]);
+
+  useEffect(() => {
+    void warmUpWorker().then(() => setWasmReady(true));
+  }, []);
+
+  useEffect(() => {
+    const handler = () => setUpdateAvailable(true);
+    window.addEventListener("sw-update-available", handler);
+    return () => window.removeEventListener("sw-update-available", handler);
+  }, []);
 
   useEffect(() => {
     if (hasPersistedOptions()) {
@@ -556,6 +570,7 @@ export default function App(): ReactElement {
               setOptions={setOptions}
               uploadedFiles={uploadedFiles}
               inspections={fileInspections}
+              wasmReady={wasmReady}
               isRunning={isRunning}
               onProcess={() => {
                 void processUploadedFiles();
@@ -587,6 +602,9 @@ export default function App(): ReactElement {
             <span>Runs entirely in your browser</span>
           </div>
         </footer>
+        {updateAvailable ? (
+          <UpdateBanner onDismiss={() => setUpdateAvailable(false)} />
+        ) : null}
         {toast ? (
           <Toast
             message={toast.message}

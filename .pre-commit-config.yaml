@@ -201,6 +201,14 @@ repos:
         stages: [pre-push]
         files: ^web/src/
 
+      - id: lighthouse
+        name: Lighthouse Core Web Vitals (local)
+        language: script
+        entry: scripts/check-lighthouse.sh
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^web/
+
       - id: dependency-audit
         name: Dependency vulnerability audit (Python + npm + Rust)
         language: script
@@ -214,7 +222,11 @@ repos:
         entry: scripts/check-semgrep.sh
         pass_filenames: false
         stages: [pre-push]
-        files: ^src/
+        files: |
+          (?x)^(
+            src/|
+            web/src/
+          )
 
   # Dead code detection — commit stage (fast)
   - repo: local

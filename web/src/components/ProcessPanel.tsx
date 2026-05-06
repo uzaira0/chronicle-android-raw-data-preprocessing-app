@@ -12,6 +12,7 @@ type Props = {
   setOptions: Dispatch<SetStateAction<BrowserProcessingOptions>>;
   uploadedFiles: File[];
   inspections: RawFileInspection[];
+  wasmReady?: boolean;
   isRunning: boolean;
   onProcess: () => void;
   progressRows: FileProgress[];
@@ -29,6 +30,7 @@ export function ProcessPanel({
   setOptions,
   uploadedFiles,
   inspections,
+  wasmReady = true,
   isRunning,
   onProcess,
   progressRows,
@@ -57,9 +59,9 @@ export function ProcessPanel({
           className="btn btn--primary btn--lg"
           data-testid="process-files-button"
           onClick={onProcess}
-          disabled={isRunning || !uploadedFiles.length}
+          disabled={!wasmReady || isRunning || !uploadedFiles.length}
         >
-          {isRunning ? "Processing..." : "Process files"}
+          {!wasmReady ? "Initializing…" : isRunning ? "Processing..." : "Process files"}
         </button>
       </div>
 

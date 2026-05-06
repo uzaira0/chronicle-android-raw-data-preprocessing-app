@@ -1,7 +1,17 @@
-const CACHE_NAME = "chronicle-local-shell-v2";
+const CACHE_NAME = "chronicle-local-shell-v3";
 const MANIFEST_URL = "./.vite/manifest.json";
-const SHELL_URLS = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg", "./sw.js"];
+const SHELL_URLS = [
+  "./",
+  "./index.html",
+  "./offline.html",
+  "./manifest.webmanifest",
+  "./icon.svg",
+  "./icon-192.png",
+  "./icon-512.png",
+  "./sw.js",
+];
 const APP_SHELL_FALLBACK = new URL("./index.html", self.location.href).toString();
+const OFFLINE_FALLBACK = new URL("./offline.html", self.location.href).toString();
 
 function toAbsoluteScopeUrl(path) {
   return new URL(path, self.location.href).toString();
@@ -94,6 +104,7 @@ self.addEventListener("fetch", (event) => {
           return (
             (await caches.match(event.request)) ??
             (await caches.match(APP_SHELL_FALLBACK)) ??
+            (await caches.match(OFFLINE_FALLBACK)) ??
             Response.error()
           );
         }

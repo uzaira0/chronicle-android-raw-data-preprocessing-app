@@ -249,6 +249,7 @@ web/.github-pages-dist/
 !web/src/assets/defaults/
 !web/src/assets/defaults/*.csv
 web/coverage/
+web/.lighthouse-results/
 
 # Cargo fuzz artifacts (crash inputs, corpus) — never commit
 rust/chronicle_app_usage_matcher/fuzz/artifacts/

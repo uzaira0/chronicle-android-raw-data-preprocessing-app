@@ -231,32 +231,32 @@ def _filtered_raw() -> pl.DataFrame:
 
 
 def test_golden_app_only_output(tmp_path, request) -> None:
-    """Full app-only preprocessed CSV matches the golden file byte-for-byte."""
+    """Full app-only preprocessed CSV matches the golden file byte-for-byte (text comparison)."""
     outputs = _run_preprocessor(_app_only_raw(), tmp_path)
     app_csv = next(v for k, v in outputs.items() if "Screen" not in k)
-    _assert_golden(app_csv, "app_only_app_usage.csv", request)
+    _assert_golden(app_csv, "text_app_only_app_usage.csv", request)
 
 
 def test_golden_app_and_screen_app_output(tmp_path, request) -> None:
-    """App-usage CSV from app+screen mode matches golden."""
+    """App-usage CSV from app+screen mode matches golden (text comparison)."""
     outputs = _run_preprocessor(
         _app_and_screen_raw(),
         tmp_path,
         usage_session_mode=UsageSessionMode.APP_AND_SCREEN_USAGE,
     )
     app_csv = next(v for k, v in outputs.items() if "Screen" not in k)
-    _assert_golden(app_csv, "app_and_screen_app_usage.csv", request)
+    _assert_golden(app_csv, "text_app_and_screen_app_usage.csv", request)
 
 
 def test_golden_app_and_screen_screen_output(tmp_path, request) -> None:
-    """Screen-usage CSV from app+screen mode matches golden."""
+    """Screen-usage CSV from app+screen mode matches golden (text comparison)."""
     outputs = _run_preprocessor(
         _app_and_screen_raw(),
         tmp_path,
         usage_session_mode=UsageSessionMode.APP_AND_SCREEN_USAGE,
     )
     screen_csv = next(v for k, v in outputs.items() if "Screen" in k)
-    _assert_golden(screen_csv, "app_and_screen_screen_usage.csv", request)
+    _assert_golden(screen_csv, "text_app_and_screen_screen_usage.csv", request)
 
 
 def test_golden_filtered_app_output(tmp_path, request) -> None:

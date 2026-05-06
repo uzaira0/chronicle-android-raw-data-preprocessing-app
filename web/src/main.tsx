@@ -2,6 +2,7 @@ import * as Sentry from "@sentry/browser";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./index.css";
 
 if (import.meta.env.VITE_SENTRY_DSN) {
@@ -11,14 +12,8 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     integrations: [Sentry.browserTracingIntegration()],
     tracesSampleRate: 0.1,
     beforeSend(event) {
-      // Strip any file content from breadcrumbs — raw CSV data must never leave the device.
-      if (event.breadcrumbs?.values) {
-        event.breadcrumbs.values = event.breadcrumbs.values.map((b) => ({
-          ...b,
-          data: undefined,
-        }));
-      }
-      return event;
+      // Drop all breadcrumbs — raw CSV data must never leave the device.
+      return { ...event, breadcrumbs: undefined };
     },
   });
 }
@@ -26,7 +21,19 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 if ("serviceWorker" in navigator) {
   if (import.meta.env.PROD) {
     window.addEventListener("load", () => {
-      void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
+      void navigator.serviceWorker
+        .register(`${import.meta.env.BASE_URL}sw.js`)
+        .then((registration) => {
+          registration.addEventListener("updatefound", () => {
+            const newWorker = registration.installing;
+            if (!newWorker) return;
+            newWorker.addEventListener("statechange", () => {
+              if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                window.dispatchEvent(new CustomEvent("sw-update-available"));
+              }
+            });
+          });
+        });
     });
   } else {
     // In dev, evict any service worker registered by an earlier production
@@ -55,6 +62,8 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );

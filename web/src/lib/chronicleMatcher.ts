@@ -117,6 +117,10 @@ export async function getMatcherVersion(): Promise<string> {
   return api.matcherVersion();
 }
 
+export async function warmUpWorker(): Promise<void> {
+  await getSharedWorkerApi();
+}
+
 export async function discoverTimezones(
   csvText: string,
   runtime?: BrowserProcessingRuntime,
