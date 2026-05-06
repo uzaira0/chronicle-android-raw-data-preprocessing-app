@@ -128,8 +128,13 @@ class PlottingManager:
                 else:
                     dat = dat.with_columns(pl.col("date").str.to_date(strict=False).alias("date"))
 
-                min_date: DateType = dat["date"].min()
-                max_date: DateType = dat["date"].max()
+                _min_date = dat["date"].min()
+                _max_date = dat["date"].max()
+                if not isinstance(_min_date, DateType) or not isinstance(_max_date, DateType):
+                    continue
+                # Polars Date.min()/max() returns date, not datetime — cast to be precise
+                min_date: DateType = DateType(_min_date.year, _min_date.month, _min_date.day)
+                max_date: DateType = DateType(_max_date.year, _max_date.month, _max_date.day)
                 all_dates = [min_date + timedelta(days=d) for d in range((max_date - min_date).days + 1)]
 
                 if codebook_old is not None and codebook_new is not None:

@@ -283,8 +283,9 @@ class PolarsFastPathPreprocessor:
         if target_timezone is None:
             return df
 
-        if target_timezone and isinstance(df.schema[timestamp_column], pl.Datetime):
-            if df.schema[timestamp_column].time_zone is not None:
+        _ts_dtype = df.schema[timestamp_column]
+        if target_timezone and isinstance(_ts_dtype, pl.Datetime):
+            if _ts_dtype.time_zone is not None:
                 df = df.with_columns(pl.col(timestamp_column).dt.convert_time_zone(target_timezone).alias(timestamp_column))
         if Column.TIMEZONE in df.columns:
             df = df.with_columns(pl.lit(target_timezone).alias(Column.TIMEZONE))
@@ -344,7 +345,8 @@ class PolarsFastPathPreprocessor:
             row_indices = np.arange(group_start, group_end, dtype=np.intp)[order]
             adjusted[row_indices] -= np.arange(count, 0, -1, dtype=np.int64) * 1_000
 
-        tz_name = df.schema[timestamp_column].time_zone or "UTC"
+        _ts_dtype_2 = df.schema[timestamp_column]
+        tz_name = (_ts_dtype_2.time_zone if isinstance(_ts_dtype_2, pl.Datetime) else None) or "UTC"
         df = df.with_columns(
             pl.from_epoch(pl.Series("__event_timestamp_ns", adjusted), time_unit="ns")
             .dt.replace_time_zone("UTC")
@@ -521,7 +523,8 @@ class PolarsFastPathPreprocessor:
         if missing_indices.size:
             interaction_updates[missing_indices] = str(InteractionType.END_OF_USAGE_MISSING)
 
-        timestamp_tz = df.schema[Column.EVENT_TIMESTAMP].time_zone or "UTC"
+        _event_dtype = df.schema[Column.EVENT_TIMESTAMP]
+        timestamp_tz = (_event_dtype.time_zone if isinstance(_event_dtype, pl.Datetime) else None) or "UTC"
         df = self._apply_timestamp_update_arrays(
             df,
             start_ns=start_ns,
@@ -584,7 +587,8 @@ class PolarsFastPathPreprocessor:
                 self.options.apply_threshold_to_activity_stopped_fallback,
                 int(self.options.long_duration_threshold_hours * 3600 * 1_000_000_000),
             )
-            return tuple(np.asarray(output, dtype=np.intp) for output in outputs)
+            _out = [np.asarray(output, dtype=np.intp) for output in outputs]
+            return _out[0], _out[1], _out[2], _out[3]
         except Exception:
             LOGGER.debug("Rust matcher unavailable in Polars fast path; falling back to Python")
             return self._match_usage_updates_python(

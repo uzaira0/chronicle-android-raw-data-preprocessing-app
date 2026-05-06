@@ -125,6 +125,7 @@ def write_df_to_excel_and_format(
         else:
             del workbook[sheet_name]
     active = workbook.active
+    assert active is not None, "Workbook has no active sheet"
     is_blank = active.max_row == 1 and active.max_column == 1 and active["A1"].value is None
     worksheet = active if is_blank else workbook.create_sheet(sheet_name)
     worksheet.title = sheet_name

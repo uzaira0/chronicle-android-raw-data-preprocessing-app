@@ -507,7 +507,7 @@ def write_pathological_raw_folder(
         base_rows = build_pathological_raw_block(config=config)
         save_path = output_path / f"Raw_pathological_{file_index + 1}.csv"
         with save_path.open("w", encoding="utf-8", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=RAW_COLUMNS)
+            writer = csv.DictWriter(handle, fieldnames=[str(c) for c in RAW_COLUMNS])
             writer.writeheader()
             writer.writerows(
                 iter_scaled_pathological_rows(

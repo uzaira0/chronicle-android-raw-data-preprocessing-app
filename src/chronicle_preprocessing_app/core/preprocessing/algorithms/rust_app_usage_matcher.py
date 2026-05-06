@@ -96,6 +96,7 @@ def process_app_usage_with_rust(
         LOGGER.exception("Rust app usage matcher failed; falling back to Python matcher")
         return None
 
+    _event_ts_dtype = df.schema[Column.EVENT_TIMESTAMP]
     return _apply_rust_update_indices(
         df=df,
         event_timestamps=np.asarray(event_timestamps),
@@ -103,7 +104,7 @@ def process_app_usage_with_rust(
         stop_start_indices=stop_start_indices,
         stop_event_indices=stop_event_indices,
         missing_indices=missing_indices,
-        timestamp_tz=df.schema[Column.EVENT_TIMESTAMP].time_zone,
+        timestamp_tz=_event_ts_dtype.time_zone if isinstance(_event_ts_dtype, pl.Datetime) else None,
     )
 
 

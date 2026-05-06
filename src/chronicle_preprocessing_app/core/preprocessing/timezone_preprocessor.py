@@ -94,7 +94,8 @@ class TimezonePreprocessor(BasePreprocessor):
                 if (timezone := _normalize_timezone_value(value)) is not None
             )
         if timestamp_column in df.columns:
-            tz_name = df.schema[timestamp_column].time_zone
+            _ts_dtype = df.schema[timestamp_column]
+            tz_name = _ts_dtype.time_zone if isinstance(_ts_dtype, pl.Datetime) else None
             if tz_name:
                 timezones.add(tz_name)
         return sorted(timezones)
