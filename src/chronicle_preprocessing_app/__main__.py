@@ -23,7 +23,7 @@ def main():
     print("    >>> help(MainPreprocessor)")
     print()
     print("Entry points:")
-    print("    chronicle-preprocess-gui    # GUI interface")
+    print("    python -m chronicle_preprocessing_app  # this output")
     print()
     print("Example usage (programmatic):")
     print("    from pathlib import Path")

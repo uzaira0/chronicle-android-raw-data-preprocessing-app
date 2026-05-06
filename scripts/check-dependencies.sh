@@ -59,6 +59,23 @@ else
 fi
 echo
 
+# ---------------------------------------------------------------------------
+# Trivy — filesystem scan (catches OS-level CVEs, misconfigs, and secrets)
+# ---------------------------------------------------------------------------
+echo "=== Trivy filesystem scan ==="
+if command -v trivy &>/dev/null; then
+  trivy fs \
+    --exit-code 1 \
+    --severity HIGH,CRITICAL \
+    --ignore-unfixed \
+    --scanners vuln,secret \
+    --skip-dirs ".venv,web/node_modules,web/dist,target" \
+    "$REPO_ROOT" 2>&1 || FAIL=1
+else
+  echo "trivy not found — install with: brew install trivy" >&2
+fi
+echo
+
 if [ "$FAIL" -ne 0 ]; then
   echo "Dependency audit FAILED — review vulnerabilities above." >&2
   exit 1

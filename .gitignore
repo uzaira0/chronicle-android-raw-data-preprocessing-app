@@ -218,6 +218,7 @@ archive/
 *.csv
 !src/chronicle_preprocessing_app/data/*.csv
 !apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv
+!tests/golden/*.csv
 app_codebook_files/App Codebook*.xlsx
 app_codebook_files/*backup*.xlsx
 app_codebook_files/Baby EMU*
