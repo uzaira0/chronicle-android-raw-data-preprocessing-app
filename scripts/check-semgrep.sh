@@ -11,6 +11,8 @@ fi
 
 semgrep \
   --config "$REPO_ROOT/.semgrep/chronicle-security.yml" \
+  --config "$REPO_ROOT/.semgrep/chronicle-domain.yml" \
   --error \
   "$REPO_ROOT/src/" \
+  "$REPO_ROOT/web/src/" \
   2>&1

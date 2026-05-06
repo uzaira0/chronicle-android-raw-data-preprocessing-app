@@ -1,7 +1,7 @@
 import type { KnipConfig } from "knip";
 
 const config: KnipConfig = {
-  entry: ["src/main.tsx", "src/workers/**/*.ts"],
+  entry: ["src/workers/**/*.ts"],
   project: ["src/**/*.{ts,tsx}"],
   // papaparse and read-excel-file: used via dynamic imports, knip can't trace them
   // @types/papaparse: companion types for the above

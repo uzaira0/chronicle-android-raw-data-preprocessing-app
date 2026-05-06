@@ -1,0 +1,205 @@
+rules:
+  # ── Polars API regression guards ────────────────────────────────────────────
+
+  - id: chronicle-polars-replace-default-deprecated
+    message: >
+      replace() with default= is deprecated since Polars 0.20 and was removed
+      in later releases. Use replace_strict(keys, values, default=...) instead.
+      This exact pattern caused a silent data-corruption regression in this repo.
+    severity: ERROR
+    languages: [python]
+    paths:
+      include:
+        - src/**/*.py
+        - scripts/**/*.py
+    pattern: $EXPR.replace($KEYS, $VALS, default=...)
+
+  - id: chronicle-polars-replace-strict-missing
+    message: >
+      Two-argument .replace(mapping, mapping) on a Series silently passes
+      through unmapped values. If every input value must map to an output,
+      use replace_strict() so unmapped values raise instead of slipping through.
+    severity: WARNING
+    languages: [python]
+    paths:
+      include:
+        - src/chronicle_preprocessing_app/core/**/*.py
+    patterns:
+      - pattern: $EXPR.replace($A, $B)
+      - pattern-not: $EXPR.replace($A, $B, ...)
+      - pattern-not-inside: |
+          $X = {$$$}
+          ...
+          $EXPR.replace($X, ...)
+
+  - id: chronicle-polars-cast-strict-false
+    message: >
+      cast(strict=False) silently turns cast failures into nulls, hiding
+      data quality issues. Omit strict= (defaults to True) or use
+      try_parse on string→numeric paths explicitly.
+    severity: WARNING
+    languages: [python]
+    paths:
+      include:
+        - src/**/*.py
+    pattern: $EXPR.cast($DTYPE, strict=False)
+
+  # ── Datetime / timezone regression guards ───────────────────────────────────
+
+  - id: chronicle-datetime-utcnow-deprecated
+    message: >
+      datetime.utcnow() returns a NAIVE UTC datetime and has been deprecated
+      since Python 3.12. Use datetime.now(timezone.utc) which returns an
+      AWARE datetime and avoids DST/conversion bugs in preprocessing.
+    severity: ERROR
+    languages: [python]
+    paths:
+      include:
+        - src/**/*.py
+        - scripts/**/*.py
+    pattern-either:
+      - pattern: datetime.datetime.utcnow()
+      - pattern: datetime.utcnow()
+
+  - id: chronicle-naive-datetime-now-in-preprocessing
+    message: >
+      datetime.now() without a tz= argument returns a naive local-time
+      datetime. In preprocessing pipelines every datetime should carry
+      timezone information. Pass tz=timezone.utc or a named pytz timezone.
+    severity: WARNING
+    languages: [python]
+    paths:
+      include:
+        - src/chronicle_preprocessing_app/core/**/*.py
+    patterns:
+      - pattern: datetime.datetime.now()
+      - pattern-not: datetime.datetime.now(...)
+
+  - id: chronicle-pytz-replace-tzinfo-wrong
+    message: >
+      dt.replace(tzinfo=pytz.timezone(X)) attaches the LMT (historical local
+      mean time) offset instead of the correct wall-clock offset for the given
+      date, producing wrong UTC conversions during DST transitions.
+      Use tz.localize(dt) or datetime.now(tz) instead.
+    severity: ERROR
+    languages: [python]
+    paths:
+      include:
+        - src/**/*.py
+        - scripts/**/*.py
+    pattern: $DT.replace(tzinfo=pytz.timezone($TZ))
+
+  - id: chronicle-pytz-utc-replace-tzinfo
+    message: >
+      dt.replace(tzinfo=pytz.utc) is valid for UTC. However if this is
+      inside a loop or function that might receive a non-UTC zone, the
+      pattern is dangerous. Prefer tz.localize(dt) consistently.
+    severity: WARNING
+    languages: [python]
+    paths:
+      include:
+        - src/chronicle_preprocessing_app/core/**/*.py
+    pattern: $DT.replace(tzinfo=pytz.utc)
+
+  - id: chronicle-strptime-no-timezone
+    message: >
+      datetime.strptime() always returns a naive datetime. In preprocessing
+      code, attach the correct timezone immediately with .replace(tzinfo=...) or
+      .astimezone() before storing or comparing the result.
+    severity: WARNING
+    languages: [python]
+    paths:
+      include:
+        - src/chronicle_preprocessing_app/core/**/*.py
+    pattern: datetime.datetime.strptime(...)
+
+  # ── Config / encoding safety ─────────────────────────────────────────────
+
+  - id: chronicle-python-json-load-unguarded
+    message: >
+      json.load() can raise JSONDecodeError on malformed input. Wrap in
+      try/except JSONDecodeError to give users a readable error message
+      instead of a traceback.
+    severity: WARNING
+    languages: [python]
+    paths:
+      include:
+        - src/**/*.py
+    pattern-not-inside: |
+      try:
+        ...
+      except ...:
+        ...
+    pattern: json.load(...)
+
+  - id: chronicle-python-pathlib-read-text-no-encoding
+    message: "Path.read_text() uses platform default encoding; specify encoding='utf-8'."
+    severity: WARNING
+    languages: [python]
+    paths:
+      include:
+        - src/**/*.py
+        - scripts/**/*.py
+    patterns:
+      - pattern: $P.read_text()
+      - pattern-not: $P.read_text(encoding=...)
+      - pattern-not: $P.read_text($ENC)
+
+  # ── TypeScript domain guards ─────────────────────────────────────────────
+
+  - id: chronicle-ts-parseint-radix-missing
+    message: >
+      parseInt() without a radix defaults to base 10 in modern JS but is
+      ambiguous with leading-zero strings. Always pass radix 10 explicitly.
+    severity: WARNING
+    languages: [typescript]
+    paths:
+      include:
+        - web/src/**/*.ts
+        - web/src/**/*.tsx
+    patterns:
+      - pattern: parseInt($STR)
+      - pattern-not: parseInt($STR, ...)
+
+  - id: chronicle-ts-number-nan-equality
+    message: >
+      NaN !== NaN — comparing a value to NaN with === or !== always returns
+      false. Use Number.isNaN() or isNaN() to test for NaN.
+    severity: ERROR
+    languages: [typescript]
+    paths:
+      include:
+        - web/src/**/*.ts
+        - web/src/**/*.tsx
+    pattern-either:
+      - pattern: $X === NaN
+      - pattern: $X !== NaN
+      - pattern: NaN === $X
+      - pattern: NaN !== $X
+
+  - id: chronicle-ts-unguarded-worker-postmessage
+    message: >
+      Posting large objects (CSV strings, ArrayBuffers) via postMessage
+      without Transferable objects copies the data. Pass Transferables as
+      the second argument to avoid double-buffering in the WASM pipeline.
+    severity: WARNING
+    languages: [typescript]
+    paths:
+      include:
+        - web/src/workers/**/*.ts
+    patterns:
+      - pattern: $WORKER.postMessage($MSG)
+      - pattern-not: $WORKER.postMessage($MSG, ...)
+
+  - id: chronicle-ts-json-parse-cast
+    message: >
+      JSON.parse returns unknown. Casting directly to a specific type with
+      'as T' bypasses runtime validation. Use a Zod schema or a type guard
+      to validate the parsed structure before use.
+    severity: WARNING
+    languages: [typescript]
+    paths:
+      include:
+        - web/src/**/*.ts
+        - web/src/**/*.tsx
+    pattern: JSON.parse($STR) as $T

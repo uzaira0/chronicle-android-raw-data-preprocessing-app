@@ -42,30 +42,21 @@ Repository = "https://github.com/uzaira0/chronicle-android-raw-data-preprocessin
 "Bug Tracker" = "https://github.com/uzaira0/chronicle-android-raw-data-preprocessing-app/issues"
 
 [project.optional-dependencies]
-gui = [
-    "PyQt6>=6.10.0",
-]
-internal = [
-    "chronicle-preprocessing-internal>=0.1.0",
-]
 dev = [
     "pytest>=9.0.1",
     "pytest-cov>=7.0.0",
     "pytest-benchmark>=5.1.0",
     "hypothesis>=6.152.0",
+    "syrupy>=4.0.0",
     "mutmut>=3.5.0",
     "vulture>=2.14",
     "pip-audit>=2.7.0",
-    "pyinstaller>=6.16.0",
     "radon>=6.0.1",
     "pip-licenses>=5.0.0",
 ]
 all = [
-    "chronicle-android-preprocessor[internal,gui,dev]",
+    "chronicle-android-preprocessor[dev]",
 ]
-
-[project.scripts]
-chronicle-preprocess-gui = "chronicle_preprocessing_app.gui:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -75,14 +66,7 @@ packages = [
     "chronicle_preprocessing_app.core.preprocessing",
     "chronicle_preprocessing_app.core.preprocessing.algorithms",
     "chronicle_preprocessing_app.core.plotting",
-    "chronicle_preprocessing_app.gui",
-    "chronicle_preprocessing_app.gui.windows",
-    "chronicle_preprocessing_app.gui.panels",
-    "chronicle_preprocessing_app.gui.dialogs",
-    "chronicle_preprocessing_app.gui.workers",
-    "chronicle_preprocessing_app.gui.utils",
     "chronicle_preprocessing_app.cli",
-    "chronicle_preprocessing_app.web",
     "chronicle_preprocessing_app.config",
     "chronicle_preprocessing_app.utils",
 ]
@@ -99,6 +83,7 @@ optional = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+addopts = "--snapshot-warn-unused"
 
 [tool.ruff]
 line-length = 150

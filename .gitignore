@@ -203,6 +203,7 @@ preprocessors/survey_data_preprocessor.py
 !tests/benchmarks/
 !tests/benchmarks/**
 !scripts/benchmark_browser_pathological_fixture.py
+!scripts/check-benchmark-regression.sh
 !web/scripts/benchmark_browser_processing.mjs
  Chronicle Android Automatically Preprocessed Data/
 
@@ -251,3 +252,6 @@ web/coverage/
 # Cargo fuzz artifacts (crash inputs, corpus) — never commit
 rust/chronicle_app_usage_matcher/fuzz/artifacts/
 rust/chronicle_app_usage_matcher/fuzz/corpus/
+
+# Automation proposals — design docs, not source code
+automation-proposals/

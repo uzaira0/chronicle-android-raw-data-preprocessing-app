@@ -32,6 +32,11 @@ jobs:
       - name: Run mutation smoke tests
         run: bash scripts/check-python-mutation-smoke.sh
 
+      - name: basedpyright type check
+        run: |
+          pip install basedpyright==1.39.3
+          basedpyright
+
   web-tests:
     runs-on: ubuntu-latest
     steps:
@@ -54,6 +59,8 @@ jobs:
           npm run --prefix web test:coverage:critical
 
       - name: Build web bundle
+        env:
+          VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: npm run --prefix web build
 
       - name: Check web bundle size
@@ -61,6 +68,9 @@ jobs:
 
       - name: Check TypeScript dead code
         run: npm run --prefix web check:dead-code
+
+      - name: npm audit
+        run: npm audit --audit-level=high --prefix web
 
   rust-tests:
     runs-on: ubuntu-latest
@@ -72,6 +82,12 @@ jobs:
 
       - name: Run Rust tests
         run: cargo test --manifest-path rust/chronicle_app_usage_matcher/Cargo.toml
+
+      - name: cargo clippy (matcher)
+        run: cargo clippy --manifest-path rust/chronicle_app_usage_matcher/Cargo.toml --no-default-features -- -D warnings
+
+      - name: cargo clippy (wasm)
+        run: cargo clippy --manifest-path rust/chronicle_app_usage_wasm/Cargo.toml -- -D warnings
 
       - name: Verify Rust benchmarks compile
         run: cargo build --benches --manifest-path rust/chronicle_app_usage_matcher/Cargo.toml
@@ -132,7 +148,8 @@ jobs:
         run: python -m pip install --upgrade semgrep
 
       - name: Run Semgrep
-        run: semgrep --config .semgrep/chronicle-security.yml --error .
+        run: |
+          semgrep --config .semgrep/chronicle-security.yml --config .semgrep/chronicle-domain.yml --error src/ web/src/
 
   ast-grep:
     runs-on: ubuntu-latest

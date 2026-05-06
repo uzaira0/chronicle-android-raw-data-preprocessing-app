@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import multiprocessing
-from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
 import polars as pl
@@ -13,16 +12,6 @@ from chronicle_preprocessing_app.core.preprocessing.main_preprocessor import (
     _merge_processing_stats,
     _resolve_parallel_max_workers,
 )
-
-
-def _config_manager_class() -> type:
-    module_path = Path(__file__).resolve().parents[1] / "src" / "chronicle_preprocessing_app" / "gui" / "utils" / "config_manager.py"
-    spec = spec_from_file_location("config_manager_under_test", module_path)
-    assert spec is not None
-    assert spec.loader is not None
-    module = module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.ConfigManager
 
 
 def test_parallel_worker_options_preserve_behavior_settings() -> None:
@@ -73,20 +62,14 @@ def test_parallel_worker_count_auto_and_user_limits_are_safe() -> None:
     assert _resolve_parallel_max_workers(-5, file_count=1) == 1
 
 
-def test_config_manager_restores_parallel_settings() -> None:
-    options = _config_manager_class()().apply_config_to_options(
-        PreprocessingOptions(),
-        {"parallel_processing": True, "parallel_max_workers": "6"},
-    )
+def test_preprocessing_options_accepts_parallel_settings() -> None:
+    options = PreprocessingOptions(parallel_processing=True, parallel_max_workers=6)
     assert options.parallel_processing is True
     assert options.parallel_max_workers == 6
 
 
-def test_config_manager_restores_auto_parallel_workers() -> None:
-    options = _config_manager_class()().apply_config_to_options(
-        PreprocessingOptions(parallel_max_workers=4),
-        {"parallel_processing": True, "parallel_max_workers": None},
-    )
+def test_preprocessing_options_auto_parallel_workers_stays_none() -> None:
+    options = PreprocessingOptions(parallel_processing=True, parallel_max_workers=None)
     assert options.parallel_processing is True
     assert options.parallel_max_workers is None
 
