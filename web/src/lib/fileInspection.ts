@@ -1,6 +1,7 @@
 import Papa from "papaparse";
 
 import type { BrowserProcessingOptions } from "@/lib/types";
+import { REQUIRED_RAW_CSV_COLUMNS } from "@/lib/validation";
 
 export type RawFileInspection = {
   fileName: string;
@@ -31,16 +32,6 @@ export function effectiveWarnings(
   }
   return warnings;
 }
-
-const REQUIRED_RAW_COLUMNS = [
-  "study_id",
-  "participant_id",
-  "application_label",
-  "interaction_type",
-  "app_package_name",
-  "event_timestamp",
-  "timezone",
-];
 
 function humanColumnSet(columns: string[]): Set<string> {
   return new Set(columns.map((column) => column.trim()));
@@ -81,7 +72,7 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
     parsed.meta as typeof parsed.meta & { renamedHeaders?: Record<string, string> }
   ).renamedHeaders;
   const columnSet = humanColumnSet(columns);
-  const missing = REQUIRED_RAW_COLUMNS.filter((column) => !columnSet.has(column));
+  const missing = REQUIRED_RAW_CSV_COLUMNS.filter((column) => !columnSet.has(column));
   const timezoneValues = parsed.data.map((row) => (row.timezone ?? "").trim());
   const timezones = Array.from(new Set(timezoneValues.filter(Boolean))).sort((left, right) =>
     left.localeCompare(right),
@@ -117,7 +108,7 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
     warnings.push(`${missingTimezoneCount.toLocaleString()} rows are missing timezone values.`);
   }
   if (invalidTimezones.length) {
-    warnings.push(`Invalid timezone values: ${invalidTimezones.slice(0, 5).join(", ")}`);
+    warnings.push(`${invalidTimezones.length} unrecognised timezone value${invalidTimezones.length === 1 ? "" : "s"} found.`);
   }
   if (missingTimestampCount > 0 && !missing.includes("event_timestamp")) {
     warnings.push(`${missingTimestampCount.toLocaleString()} rows are missing event_timestamp values.`);
@@ -129,7 +120,8 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
     warnings.push(`${timezones.length} timezone values found.`);
   }
   if (parsed.errors.length) {
-    warnings.push(parsed.errors[0]?.message ?? "CSV parse warning.");
+    const e = parsed.errors[0];
+    warnings.push(`CSV parse warning (${e?.type ?? "unknown"}/${e?.code ?? "unknown"}).`);
   }
 
   return {

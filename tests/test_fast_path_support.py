@@ -11,10 +11,7 @@ from chronicle_preprocessing_app.core.preprocessing.polars_fast_path import (
     polars_fast_path_enabled,
     supports_polars_fast_path,
 )
-
-
-def _options(**overrides: object) -> PreprocessingOptions:
-    return PreprocessingOptions(**{"raw_data_folder": "", "use_app_codebook": False, **overrides})  # type: ignore[arg-type]
+from tests.polars_helpers import options as _options
 
 
 def _supports(options: PreprocessingOptions, *, survey: bool = False, study_date: bool = False) -> bool:

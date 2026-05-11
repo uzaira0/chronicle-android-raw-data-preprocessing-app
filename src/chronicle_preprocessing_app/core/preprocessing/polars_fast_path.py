@@ -589,8 +589,34 @@ class PolarsFastPathPreprocessor:
             )
             _out = [np.asarray(output, dtype=np.intp) for output in outputs]
             return _out[0], _out[1], _out[2], _out[3]
+        except ModuleNotFoundError:
+            LOGGER.debug("Rust matcher not installed; using Python matcher")
+            return self._match_usage_updates_python(
+                app_codes=app_codes,
+                timestamp_ns=timestamp_ns,
+                resumed_flags=resumed_flags,
+                same_stop_flags=same_stop_flags,
+                other_stop_flags=other_stop_flags,
+                stopped_flags=stopped_flags,
+            )
+        except ImportError:
+            LOGGER.warning(
+                "Rust matcher extension found but failed to load; falling back to Python matcher",
+                exc_info=True,
+            )
+            return self._match_usage_updates_python(
+                app_codes=app_codes,
+                timestamp_ns=timestamp_ns,
+                resumed_flags=resumed_flags,
+                same_stop_flags=same_stop_flags,
+                other_stop_flags=other_stop_flags,
+                stopped_flags=stopped_flags,
+            )
         except Exception:
-            LOGGER.debug("Rust matcher unavailable in Polars fast path; falling back to Python")
+            LOGGER.warning(
+                "Rust matcher raised an unexpected error; falling back to Python matcher",
+                exc_info=True,
+            )
             return self._match_usage_updates_python(
                 app_codes=app_codes,
                 timestamp_ns=timestamp_ns,

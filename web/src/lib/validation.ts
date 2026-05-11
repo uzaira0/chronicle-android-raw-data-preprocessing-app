@@ -28,7 +28,7 @@ export const REQUIRED_RAW_CSV_COLUMNS: readonly string[] = [
 export function validateRawCsvColumns(headers: string[]): void {
   if (headers.length === 0) {
     throw new Error(
-      `Missing required columns: [${REQUIRED_RAW_CSV_COLUMNS.join(", ")}]. Found: []`,
+      `Missing required columns: [${REQUIRED_RAW_CSV_COLUMNS.join(", ")}]`,
     );
   }
 
@@ -37,7 +37,7 @@ export function validateRawCsvColumns(headers: string[]): void {
 
   if (missing.length > 0) {
     throw new Error(
-      `Missing required columns: [${missing.join(", ")}]. Found: [${headers.join(", ")}]`,
+      `Missing required columns: [${missing.join(", ")}]`,
     );
   }
 }

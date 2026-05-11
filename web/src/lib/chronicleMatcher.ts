@@ -118,7 +118,8 @@ export async function getMatcherVersion(): Promise<string> {
 }
 
 export async function warmUpWorker(): Promise<void> {
-  await getSharedWorkerApi();
+  const api = await getSharedWorkerApi();
+  await api.matcherVersion();
 }
 
 export async function discoverTimezones(

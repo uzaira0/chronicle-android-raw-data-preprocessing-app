@@ -26,6 +26,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BrowserProcessingOptions, BrowserProcessingRuntime } from "@/lib/types";
 import type { ProcessedFileResult } from "@/lib/types";
+import type { ChronicleWorkerApi } from "@/workers/chronicle-worker";
+import { REQUIRED_RAW_CSV_COLUMNS } from "@/lib/validation";
+
+const MINIMAL_CSV_HEADER = ["study_id", ...REQUIRED_RAW_CSV_COLUMNS, "timezone"].join(",");
 
 // ---------------------------------------------------------------------------
 // WASM mock — must be declared before any dynamic import of the module
@@ -98,7 +102,7 @@ function makeResult(fileName = "test.csv"): ProcessedFileResult {
 }
 
 const MINIMAL_CSV = [
-  "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+  MINIMAL_CSV_HEADER,
   "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
 ].join("\n");
 
@@ -109,10 +113,28 @@ const MINIMAL_CSV = [
 
 beforeEach(() => {
   vi.resetModules();
+  vi.clearAllMocks();
   mockWasmDefault.mockResolvedValue(undefined);
+  mockMatcherVersion.mockReturnValue("test-wasm-version-1.0.0");
+  mockMatchAppUsageUpdateIndices.mockReturnValue({
+    startIndices: [0],
+    stopStartIndices: [0],
+    stopEventIndices: [0],
+    missingIndices: [],
+  });
   mockDiscoverTimezones.mockReturnValue(["America/Chicago"]);
   mockProcessRawCsvContent.mockResolvedValue(makeResult());
 });
+
+async function importWorkerApi(): Promise<ChronicleWorkerApi> {
+  await import("@/workers/chronicle-worker");
+  const comlink = await import("comlink");
+  const exposed = vi.mocked(comlink.expose).mock.calls.at(-1)?.[0];
+  if (!exposed) {
+    throw new Error("Worker API was not exposed");
+  }
+  return exposed as ChronicleWorkerApi;
+}
 
 // ---------------------------------------------------------------------------
 // Tests for the worker api behaviours (inline, no actual Worker thread)
@@ -143,6 +165,20 @@ describe("chronicle worker — WASM initialisation", () => {
     // we called it twice ourselves; the worker's dedup is tested by the
     // "processes multiple files" scenario below).
     expect(mockWasmDefault).toHaveBeenCalled();
+  });
+
+  it("clears failed WASM initialisation so a later call can retry", async () => {
+    mockWasmDefault
+      .mockRejectedValueOnce(new Error("init failed"))
+      .mockResolvedValueOnce(undefined);
+    mockMatcherVersion.mockReturnValueOnce("retry-ok");
+    const api = await importWorkerApi();
+
+    await expect(api.matcherVersion()).rejects.toThrow("init failed");
+    await expect(api.matcherVersion()).resolves.toBe("retry-ok");
+
+    expect(mockWasmDefault).toHaveBeenCalledTimes(2);
+    expect(mockMatcherVersion).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -7,18 +7,24 @@ each private method with specific, minimal inputs that make assertions obvious.
 
 from __future__ import annotations
 
+import logging
+import sys
+import types
+
+import numpy as np
 import polars as pl
 import pytest
 
+import chronicle_preprocessing_app
 from chronicle_preprocessing_app.config.constants import (
     AppCodebookColumn,
     Column,
     InteractionType,
 )
-from chronicle_preprocessing_app.core.config import PreprocessingOptions
 from chronicle_preprocessing_app.core.preprocessing.polars_fast_path import (
     PolarsFastPathPreprocessor,
 )
+from tests.polars_helpers import options as _options
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -26,7 +32,18 @@ from chronicle_preprocessing_app.core.preprocessing.polars_fast_path import (
 
 
 def _make_preprocessor(**kwargs) -> PolarsFastPathPreprocessor:
-    return PolarsFastPathPreprocessor(PreprocessingOptions(**kwargs))
+    return PolarsFastPathPreprocessor(_options(**kwargs))
+
+
+def _matcher_arrays() -> dict[str, np.ndarray]:
+    return {
+        "app_codes": np.asarray([0, 0], dtype=np.intp),
+        "timestamp_ns": np.asarray([1_700_000_000_000_000_000, 1_700_000_060_000_000_000], dtype=np.int64),
+        "resumed_flags": np.asarray([True, False]),
+        "same_stop_flags": np.asarray([False, True]),
+        "other_stop_flags": np.asarray([False, False]),
+        "stopped_flags": np.asarray([False, False]),
+    }
 
 
 def _usage_df(
@@ -67,6 +84,57 @@ def _usage_df(
             Column.DURATION_MINUTES: duration_minutes or [1.0] * n,
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# _match_usage_updates
+# ---------------------------------------------------------------------------
+
+
+class TestMatchUsageUpdates:
+    def test_missing_rust_matcher_falls_back_to_python_without_warning(
+        self,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        sentinel = (np.asarray([10]), np.asarray([11]), np.asarray([12]), np.asarray([13]))
+        preprocessor = _make_preprocessor()
+
+        def fake_python(**_kwargs: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+            return sentinel
+
+        monkeypatch.delattr(chronicle_preprocessing_app, "_rust_app_usage_matcher", raising=False)
+        monkeypatch.setitem(sys.modules, "chronicle_preprocessing_app._rust_app_usage_matcher", None)
+        monkeypatch.setattr(preprocessor, "_match_usage_updates_python", fake_python)
+
+        with caplog.at_level(logging.DEBUG):
+            result = preprocessor._match_usage_updates(**_matcher_arrays())
+
+        assert result == sentinel
+        assert "Rust matcher raised an unexpected error" not in caplog.text
+
+    def test_unexpected_rust_matcher_error_warns_and_falls_back_to_python(
+        self,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        sentinel = (np.asarray([20]), np.asarray([21]), np.asarray([22]), np.asarray([23]))
+        rust_module = types.SimpleNamespace(
+            match_app_usage_update_indices=lambda *_args: (_ for _ in ()).throw(RuntimeError("boom")),
+        )
+        preprocessor = _make_preprocessor()
+
+        def fake_python(**_kwargs: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+            return sentinel
+
+        monkeypatch.setattr(chronicle_preprocessing_app, "_rust_app_usage_matcher", rust_module, raising=False)
+        monkeypatch.setattr(preprocessor, "_match_usage_updates_python", fake_python)
+
+        with caplog.at_level(logging.WARNING):
+            result = preprocessor._match_usage_updates(**_matcher_arrays())
+
+        assert result == sentinel
+        assert "Rust matcher raised an unexpected error; falling back to Python matcher" in caplog.text
 
 
 # ---------------------------------------------------------------------------
@@ -554,7 +622,7 @@ class TestEnrichWithAppCodebookData:
             }
         )
         preprocessor = PolarsFastPathPreprocessor(
-            PreprocessingOptions(use_app_codebook=True),
+            _options(use_app_codebook=True),
             app_codebook=codebook,
         )
         result = preprocessor._enrich_with_app_codebook_data(df)
@@ -570,7 +638,7 @@ class TestEnrichWithAppCodebookData:
             }
         )
         preprocessor = PolarsFastPathPreprocessor(
-            PreprocessingOptions(use_app_codebook=True),
+            _options(use_app_codebook=True),
             app_codebook=codebook,
         )
         result = preprocessor._enrich_with_app_codebook_data(df)
@@ -588,7 +656,7 @@ class TestEnrichWithAppCodebookData:
             }
         )
         preprocessor = PolarsFastPathPreprocessor(
-            PreprocessingOptions(use_app_codebook=True),
+            _options(use_app_codebook=True),
             app_codebook=codebook,
         )
         result = preprocessor._enrich_with_app_codebook_data(df)
@@ -607,7 +675,7 @@ class TestEnrichWithAppCodebookData:
             }
         )
         preprocessor = PolarsFastPathPreprocessor(
-            PreprocessingOptions(use_app_codebook=True),
+            _options(use_app_codebook=True),
             app_codebook=codebook,
         )
         result = preprocessor._enrich_with_app_codebook_data(df)

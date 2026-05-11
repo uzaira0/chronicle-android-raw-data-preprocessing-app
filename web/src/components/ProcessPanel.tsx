@@ -30,7 +30,7 @@ export function ProcessPanel({
   setOptions,
   uploadedFiles,
   inspections,
-  wasmReady = true,
+  wasmReady = false,
   isRunning,
   onProcess,
   progressRows,

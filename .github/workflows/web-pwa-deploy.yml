@@ -89,6 +89,10 @@ jobs:
         working-directory: web
         run: npm run test:e2e:smoke
 
+      - name: Run Lighthouse CI
+        working-directory: web
+        run: npx --yes @lhci/cli@0.14 autorun --config=lighthouserc.json
+
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:

@@ -6,6 +6,8 @@ from zoneinfo import ZoneInfo
 
 import polars as pl
 
+from chronicle_preprocessing_app.core.config import PreprocessingOptions
+
 
 def ts(value: str, tz: str | None = None) -> datetime:
     parsed = datetime.fromisoformat(value)
@@ -38,6 +40,12 @@ def cell(df: pl.DataFrame, row_index: int, column: str) -> object:
 
 def first_row(df: pl.DataFrame) -> dict[str, object]:
     return df.row(0, named=True)
+
+
+def options(**overrides: object) -> PreprocessingOptions:
+    values: dict[str, object] = {"raw_data_folder": "", "use_app_codebook": False}
+    values.update(overrides)
+    return PreprocessingOptions(**values)
 
 
 def rows_where(df: pl.DataFrame, column: str, value: object) -> pl.DataFrame:

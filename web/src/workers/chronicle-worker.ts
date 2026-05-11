@@ -26,22 +26,32 @@ function decodeCsvBytes(bytes: ArrayBuffer): string {
 }
 
 let initPromise: Promise<void> | null = null;
+let wasmModule: Awaited<typeof import("@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js")> | null = null;
 
 async function ensureInit(): Promise<void> {
   if (initPromise) {
     return initPromise;
   }
-  initPromise = (async () => {
-    const module = await import("@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
-    await module.default();
+  const p = (async () => {
+    const m = await import("@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
+    await m.default();
+    wasmModule = m;
   })();
-  return initPromise;
+  initPromise = p;
+  // Clear only if no newer attempt has already replaced initPromise.
+  p.catch(() => {
+    if (initPromise === p) {
+      initPromise = null;
+      wasmModule = null;
+    }
+  });
+  return p;
 }
 
 async function runMatcher(input: MatcherInput): Promise<MatcherOutput> {
   await ensureInit();
-  const module = await import("@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
-  return module.matchAppUsageUpdateIndices(
+  if (!wasmModule) throw new Error("WASM module failed to initialize");
+  return wasmModule.matchAppUsageUpdateIndices(
     input.appCodes,
     input.timestampNs,
     input.resumed,
@@ -58,8 +68,8 @@ async function runMatcher(input: MatcherInput): Promise<MatcherOutput> {
 const api = {
   async matcherVersion(): Promise<string> {
     await ensureInit();
-    const module = await import("@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
-    return module.matcherVersion();
+    if (!wasmModule) throw new Error("WASM module failed to initialize");
+    return wasmModule.matcherVersion();
   },
   async discoverTimezones(
     csvText: string,

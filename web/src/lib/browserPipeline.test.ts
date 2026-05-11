@@ -5,6 +5,13 @@ import {
   processRawCsvContent,
 } from "@/lib/browserPipeline";
 import { generateAllPlots } from "@/lib/plotGenerator";
+import { REQUIRED_RAW_CSV_COLUMNS } from "@/lib/validation";
+
+// Canonical test headers derived from the validation source-of-truth so any
+// change to REQUIRED_RAW_CSV_COLUMNS is automatically reflected here.
+// study_id is a passthrough output column; timezone is optional (defaults to UTC).
+const FULL_TEST_HEADER = ["study_id", ...REQUIRED_RAW_CSV_COLUMNS, "timezone"].join(",");
+const FULL_TEST_HEADER_NO_TZ = ["study_id", ...REQUIRED_RAW_CSV_COLUMNS].join(",");
 
 vi.mock("@/lib/plotGenerator", () => ({
   generateAllPlots: vi.fn(),
@@ -27,7 +34,7 @@ async function readOutputCsv(blob: Blob): Promise<string> {
 describe("browserPipeline", () => {
   it("discovers timezones from raw Chronicle CSV", () => {
     const csv = [
-      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      FULL_TEST_HEADER,
       "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:01:00,America/New_York",
     ].join("\n");
@@ -40,7 +47,7 @@ describe("browserPipeline", () => {
 
   it("interprets offset-less Chronicle timestamps as UTC before conversion", async () => {
     const csv = [
-      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      FULL_TEST_HEADER,
       "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,America/Chicago",
     ].join("\n");
@@ -74,7 +81,7 @@ describe("browserPipeline", () => {
 
   it("produces app and screen outputs from the shared pipeline", async () => {
     const csv = [
-      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      FULL_TEST_HEADER,
       "Study,P01,Target Child,System,Unknown importance: 15,android,2026-03-07 10:00:00,America/Chicago",
       "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:05,America/Chicago",
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:00:15,America/Chicago",
@@ -114,7 +121,7 @@ describe("browserPipeline", () => {
 
   it("only populates consolidated genreId_scraped when source genres agree", async () => {
     const csv = [
-      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      FULL_TEST_HEADER,
       "Study,P01,Target Child,Consensus,Unknown importance: 1,com.example.consensus,2026-03-07 10:00:00,America/Chicago",
       "Study,P01,Target Child,Consensus,Unknown importance: 2,com.example.consensus,2026-03-07 10:01:00,America/Chicago",
       "Study,P01,Target Child,Disagree,Unknown importance: 1,com.example.disagree,2026-03-07 11:00:00,America/Chicago",
@@ -161,7 +168,7 @@ describe("browserPipeline", () => {
 
   it("omits codebook columns from the app output when codebook use is disabled", async () => {
     const csv = [
-      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      FULL_TEST_HEADER,
       "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:01:00,America/Chicago",
     ].join("\n");
@@ -195,7 +202,7 @@ describe("browserPipeline", () => {
 
   it("retains valid missing start timestamps while keeping filtered missing timestamps blank", async () => {
     const csv = [
-      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      FULL_TEST_HEADER,
       "Study,P01,Target Child,Filtered,Unknown importance: 1,com.example.filtered,2026-03-07 10:00:00,America/Chicago",
       "Study,P01,Target Child,Valid,Unknown importance: 1,com.example.valid,2026-03-07 10:10:00,America/Chicago",
     ].join("\n");
@@ -252,7 +259,7 @@ describe("browserPipeline", () => {
 
   it("emits progress events for every pipeline phase when onProgress is supplied", async () => {
     const csv = [
-      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      FULL_TEST_HEADER,
       "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:01:00,America/Chicago",
     ].join("\n");
@@ -311,7 +318,7 @@ describe("browserPipeline", () => {
 
   it("uses injected datetime_of_preprocessing when provided via runtime metadata", async () => {
     const csv = [
-      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      FULL_TEST_HEADER,
       "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:01:00,America/Chicago",
     ].join("\n");
@@ -343,7 +350,7 @@ describe("browserPipeline", () => {
 
   it("labels default datetime_of_preprocessing as UTC", async () => {
     const csv = [
-      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      FULL_TEST_HEADER,
       "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:01:00,America/Chicago",
     ].join("\n");
@@ -374,7 +381,7 @@ describe("browserPipeline", () => {
 
   it("nulls duration fields for sessions below minimumUsageDuration but keeps the row", async () => {
     const csv = [
-      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      FULL_TEST_HEADER,
       "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:00:03,America/Chicago",
     ].join("\n");
@@ -417,7 +424,7 @@ describe("browserPipeline", () => {
 
   it("populates duration fields normally when session meets minimumUsageDuration", async () => {
     const csv = [
-      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      FULL_TEST_HEADER,
       "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:00:10,America/Chicago",
     ].join("\n");
@@ -456,7 +463,7 @@ describe("browserPipeline", () => {
   it("removes zero-duration App Usage rows when filterZeroDurationSessions is true", async () => {
     // Disable duplicate correction so same-timestamp start/stop yields exactly 0 duration.
     const csv = [
-      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      FULL_TEST_HEADER,
       "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:00:00,America/Chicago",
     ].join("\n");
@@ -496,7 +503,7 @@ describe("browserPipeline", () => {
 
     it("produces a plot output for each participant when enablePlotting is true", async () => {
       const csv = [
-        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+        FULL_TEST_HEADER,
         "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
         "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,America/Chicago",
       ].join("\n");
@@ -527,7 +534,7 @@ describe("browserPipeline", () => {
 
     it("skips generateAllPlots when enablePlotting is false", async () => {
       const csv = [
-        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+        FULL_TEST_HEADER,
         "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
         "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,America/Chicago",
       ].join("\n");
@@ -552,7 +559,7 @@ describe("browserPipeline", () => {
       // 4 raw rows: the algorithm produces 1 APP_USAGE session.
       // The pre-algo capture must include all 4 rows (all event types).
       const csv = [
-        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+        FULL_TEST_HEADER,
         "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
         "Study,P01,Target Child,System,Unknown importance: 15,android,2026-03-07 10:02:00,America/Chicago",
         "Study,P01,Target Child,System,Unknown importance: 16,android,2026-03-07 10:04:00,America/Chicago",
@@ -586,8 +593,7 @@ describe("browserPipeline", () => {
 
   // ─── helpers shared by the extended tests ──────────────────────────────────
 
-  const HEADER =
-    "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone";
+  const HEADER = FULL_TEST_HEADER;
 
   function buildCsv(
     rows: Array<{
@@ -644,7 +650,7 @@ describe("browserPipeline", () => {
       // The source does: requireString(row.timezone, "UTC") || "UTC"
       // so a missing timezone column falls back to the string "UTC".
       const csv = [
-        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp",
+        FULL_TEST_HEADER_NO_TZ,
         "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00",
       ].join("\n");
       expect(discoverTimezonesFromRawCsv(csv)).toEqual(["UTC"]);

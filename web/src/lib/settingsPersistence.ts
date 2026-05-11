@@ -207,7 +207,12 @@ export function buildConfigExportBlob(
 }
 
 export async function readConfigFile(file: File): Promise<ImportedConfig> {
-  const parsed = JSON.parse(await file.text());
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    throw new Error("The selected file is not valid JSON. Make sure you're importing a Chronicle config file.");
+  }
   const source = isRecord(parsed) ? parsed : {};
   return {
     options: sanitizeOptions(source.currentSettings),

@@ -18,6 +18,7 @@ from chronicle_preprocessing_app.core.preprocessing.app_usage_preprocessor impor
     AppUsagePreprocessor,
 )
 from tests.polars_helpers import frame
+from tests.polars_helpers import options as _base_options
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -38,22 +39,21 @@ _PACKAGES = st.sampled_from(["com.example.a", "com.example.b", "android"])
 
 
 def _options(**overrides: object) -> PreprocessingOptions:
-    values: dict[str, object] = {
-        "raw_data_folder": "",
-        "use_app_codebook": False,
-        "same_app_interaction_types_to_stop_usage_at": {InteractionType.ACTIVITY_PAUSED},
-        "other_interaction_types_to_stop_usage_at": {
-            InteractionType.ACTIVITY_RESUMED,
-            InteractionType.FILTERED_APP_RESUMED,
-            InteractionType.FILTERED_APP_USAGE,
-            InteractionType.DEVICE_SHUTDOWN,
-        },
-        "use_activity_stopped_as_fallback": True,
-        "apply_threshold_to_activity_stopped_fallback": True,
-        "long_duration_threshold_hours": 12,
-    }
-    values.update(overrides)
-    return PreprocessingOptions(**values)
+    return _base_options(
+        **{
+            "same_app_interaction_types_to_stop_usage_at": {InteractionType.ACTIVITY_PAUSED},
+            "other_interaction_types_to_stop_usage_at": {
+                InteractionType.ACTIVITY_RESUMED,
+                InteractionType.FILTERED_APP_RESUMED,
+                InteractionType.FILTERED_APP_USAGE,
+                InteractionType.DEVICE_SHUTDOWN,
+            },
+            "use_activity_stopped_as_fallback": True,
+            "apply_threshold_to_activity_stopped_fallback": True,
+            "long_duration_threshold_hours": 12,
+            **overrides,
+        }
+    )
 
 
 def _run_algorithm(df: pl.DataFrame, options: PreprocessingOptions) -> pl.DataFrame:

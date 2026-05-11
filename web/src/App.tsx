@@ -10,6 +10,7 @@ import {
 import { sampleRawCsv, SAMPLE_FILE_NAME } from "@/lib/sampleRawCsv";
 import { ensureNotificationPermission, sendNotification } from "@/lib/notification";
 import { hasPersistedOptions, persistOptions, readPersistedOptions } from "@/lib/settingsPersistence";
+import { clearSwCachesAndReload } from "@/lib/swCache";
 import { inspectRawFiles, type RawFileInspection } from "@/lib/fileInspection";
 import type {
   BrowserProcessingOptions,
@@ -128,6 +129,7 @@ function estimatedFilePercent(current: FileProgress): number {
 export default function App(): ReactElement {
   const [wasmReady, setWasmReady] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState<ProcessedFileResult[]>([]);
@@ -152,13 +154,28 @@ export default function App(): ReactElement {
   }, [options]);
 
   useEffect(() => {
-    void warmUpWorker().then(() => setWasmReady(true));
+    void warmUpWorker()
+      .then(() => setWasmReady(true))
+      .catch((err: unknown) => {
+        setError(`Failed to initialize the processing engine. Try reloading the page. (${String(err)})`);
+      });
   }, []);
 
   useEffect(() => {
     const handler = () => setUpdateAvailable(true);
     window.addEventListener("sw-update-available", handler);
     return () => window.removeEventListener("sw-update-available", handler);
+  }, []);
+
+  useEffect(() => {
+    const goOnline = () => setIsOffline(false);
+    const goOffline = () => setIsOffline(true);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
   }, []);
 
   useEffect(() => {
@@ -600,10 +617,28 @@ export default function App(): ReactElement {
             <span>Bundled codebook available</span>
             <span aria-hidden="true">·</span>
             <span>Runs entirely in your browser</span>
+            <span aria-hidden="true">·</span>
+            <button
+              type="button"
+              className="app-footer__cache-reset"
+              onClick={() => {
+                void clearSwCachesAndReload().catch(() => {
+                  setError("Could not clear the cache. Try a hard reload (Ctrl+Shift+R / Cmd+Shift+R).");
+                });
+              }}
+              title="Clear service worker caches and reload"
+            >
+              Trouble loading?
+            </button>
           </div>
         </footer>
         {updateAvailable ? (
           <UpdateBanner onDismiss={() => setUpdateAvailable(false)} />
+        ) : null}
+        {isOffline ? (
+          <div className="offline-banner" role="status" aria-live="polite">
+            You are offline — processing still works, downloads are local only.
+          </div>
         ) : null}
         {toast ? (
           <Toast

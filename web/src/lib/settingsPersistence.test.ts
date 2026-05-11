@@ -391,7 +391,9 @@ describe("settingsPersistence", () => {
 
   it("readConfigFile with non-JSON content throws", async () => {
     const file = new File(["not json {{{"], "bad.json", { type: "application/json" });
-    await expect(readConfigFile(file)).rejects.toThrow();
+    await expect(readConfigFile(file)).rejects.toThrow(
+      "The selected file is not valid JSON. Make sure you're importing a Chronicle config file.",
+    );
   });
 
   it("readConfigFile with missing currentSettings key returns sanitized defaults", async () => {

@@ -1,22 +1,9 @@
-import * as Sentry from "@sentry/browser";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { clearSwCaches, clearSwCachesAndReload } from "./lib/swCache";
 import "./index.css";
-
-if (import.meta.env.VITE_SENTRY_DSN) {
-  Sentry.init({
-    dsn: import.meta.env.VITE_SENTRY_DSN,
-    environment: import.meta.env.MODE,
-    integrations: [Sentry.browserTracingIntegration()],
-    tracesSampleRate: 0.1,
-    beforeSend(event) {
-      // Drop all breadcrumbs — raw CSV data must never leave the device.
-      return { ...event, breadcrumbs: undefined };
-    },
-  });
-}
 
 if ("serviceWorker" in navigator) {
   if (import.meta.env.PROD) {
@@ -27,12 +14,19 @@ if ("serviceWorker" in navigator) {
           registration.addEventListener("updatefound", () => {
             const newWorker = registration.installing;
             if (!newWorker) return;
-            newWorker.addEventListener("statechange", () => {
-              if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-                window.dispatchEvent(new CustomEvent("sw-update-available"));
-              }
-            });
+            newWorker.addEventListener(
+              "statechange",
+              () => {
+                if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                  window.dispatchEvent(new CustomEvent("sw-update-available"));
+                }
+              },
+              { once: true },
+            );
           });
+        })
+        .catch((err: unknown) => {
+          console.warn("Chronicle: service worker registration failed — offline caching unavailable", err);
         });
     });
   } else {
@@ -40,15 +34,8 @@ if ("serviceWorker" in navigator) {
     // build that might be cached by the browser. The SW aggressively caches
     // index.html and the bundled JS/CSS, which silently masks dev edits.
     window.addEventListener("load", () => {
-      void navigator.serviceWorker.getRegistrations().then((registrations) => {
-        registrations.forEach((registration) => {
-          void registration.unregister();
-        });
-      });
-      void caches?.keys().then((keys) => {
-        keys.forEach((key) => {
-          void caches.delete(key);
-        });
+      void clearSwCaches().catch(() => {
+        // Dev-mode SW eviction failure is non-fatal.
       });
     });
   }

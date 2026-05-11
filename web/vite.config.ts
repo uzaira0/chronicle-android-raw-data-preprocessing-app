@@ -1,3 +1,4 @@
+import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
@@ -25,9 +26,33 @@ function devCspPlugin(): Plugin {
   };
 }
 
+/**
+ * Generates dist/favicon.ico (ICO containing the PNG image) at build time so
+ * browsers' automatic GET /favicon.ico requests resolve instead of 404-ing.
+ * The format is a single-image Vista-style ICO that embeds a PNG payload.
+ */
+function faviconIcoPlugin(): Plugin {
+  return {
+    name: "chronicle-favicon-ico",
+    apply: "build",
+    async closeBundle() {
+      const png = await readFile(new URL("./public/icon-192.png", import.meta.url));
+      const header = Buffer.from([0, 0, 1, 0, 1, 0]);
+      // ICONDIRENTRY: bytes 0-3 (width=0→256, height=0→256, colorCount=0, reserved=0)
+      // are already zero from Buffer.alloc; only the numeric fields need explicit writes.
+      const entry = Buffer.alloc(16);
+      entry.writeUInt16LE(1, 4); // planes
+      entry.writeUInt16LE(32, 6); // bit depth
+      entry.writeUInt32LE(png.length, 8); // PNG size
+      entry.writeUInt32LE(6 + 16, 12); // PNG offset in file
+      await writeFile(new URL("./dist/favicon.ico", import.meta.url), Buffer.concat([header, entry, png]));
+    },
+  };
+}
+
 export default defineConfig({
   base: "./",
-  plugins: [react(), devCspPlugin()],
+  plugins: [react(), devCspPlugin(), faviconIcoPlugin()],
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),

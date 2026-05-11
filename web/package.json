@@ -30,7 +30,6 @@
     "check:licenses": "license-checker --production --onlyAllow 'MIT;MIT*;BSD-2-Clause;BSD-3-Clause;Apache-2.0;ISC;CC0-1.0;Unlicense;CC-BY-4.0;Python-2.0;0BSD;BlueOak-1.0.0' --excludePrivatePackages --excludePackages 'buffers@0.1.1' --summary"
   },
   "dependencies": {
-    "@sentry/browser": "^10.51.0",
     "comlink": "^4.4.2",
     "papaparse": "^5.5.3",
     "react": "^19.2.0",
@@ -40,6 +39,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.11.2",
     "@eslint/js": "^10.0.1",
+    "@lhci/cli": "^0.14.0",
     "@playwright/test": "^1.59.1",
     "@size-limit/preset-app": "^11.0.0",
     "@types/papaparse": "^5.3.16",
@@ -58,8 +58,7 @@
     "vite": "^7.1.12",
     "vite-node": "^3.2.4",
     "vitest": "^4.1.5",
-    "yaml": "^2.8.3",
-    "@lhci/cli": "^0.14.0"
+    "yaml": "^2.8.3"
   },
   "size-limit": [
     {

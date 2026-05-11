@@ -73,6 +73,15 @@ describe("shared Chronicle worker wrappers", () => {
     expect(api.processRawCsv).toHaveBeenCalledWith("Raw P01.csv", "csv", undefined, undefined, undefined);
   });
 
+  it("warmUpWorker forces WASM initialisation through matcherVersion", async () => {
+    const matcher = await import("@/lib/chronicleMatcher");
+
+    await matcher.warmUpWorker();
+
+    expect(workers).toHaveLength(1);
+    expect(api.matcherVersion).toHaveBeenCalledTimes(1);
+  });
+
   it("proxies progress callbacks for shared and pooled processing", async () => {
     const matcher = await import("@/lib/chronicleMatcher");
     const onProgress = vi.fn();

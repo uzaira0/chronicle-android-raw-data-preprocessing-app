@@ -19,6 +19,7 @@ from chronicle_preprocessing_app.core.preprocessing.app_usage_preprocessor impor
     AppUsagePreprocessor,
 )
 from tests.polars_helpers import cell, frame, is_null, td, ts
+from tests.polars_helpers import options as _base_options
 
 SYSTEM_APPS = [
     "android",
@@ -53,22 +54,21 @@ def _frame(rows: list[tuple[str, InteractionType, str]]) -> pl.DataFrame:
 
 
 def _options(**overrides: object) -> PreprocessingOptions:
-    values = {
-        "raw_data_folder": "",
-        "use_app_codebook": False,
-        "same_app_interaction_types_to_stop_usage_at": {InteractionType.ACTIVITY_PAUSED},
-        "other_interaction_types_to_stop_usage_at": {
-            InteractionType.ACTIVITY_RESUMED,
-            InteractionType.FILTERED_APP_RESUMED,
-            InteractionType.FILTERED_APP_USAGE,
-            InteractionType.DEVICE_SHUTDOWN,
-        },
-        "use_activity_stopped_as_fallback": True,
-        "apply_threshold_to_activity_stopped_fallback": True,
-        "long_duration_threshold_hours": 12,
-    }
-    values.update(overrides)
-    return PreprocessingOptions(**values)
+    return _base_options(
+        **{
+            "same_app_interaction_types_to_stop_usage_at": {InteractionType.ACTIVITY_PAUSED},
+            "other_interaction_types_to_stop_usage_at": {
+                InteractionType.ACTIVITY_RESUMED,
+                InteractionType.FILTERED_APP_RESUMED,
+                InteractionType.FILTERED_APP_USAGE,
+                InteractionType.DEVICE_SHUTDOWN,
+            },
+            "use_activity_stopped_as_fallback": True,
+            "apply_threshold_to_activity_stopped_fallback": True,
+            "long_duration_threshold_hours": 12,
+            **overrides,
+        }
+    )
 
 
 def _run_algorithm(algorithm: object, df: pl.DataFrame, options: PreprocessingOptions) -> pl.DataFrame:
@@ -159,6 +159,21 @@ def test_process_valid_app_usage_converts_resumed_rows_to_usage_rows() -> None:
 
     assert cell(result, 0, Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)
     assert cell(result, 0, Column.DURATION_SECONDS) == 300.0
+
+
+def test_spring_forward_session_duration_uses_elapsed_time_not_wall_clock_gap() -> None:
+    options = _options()
+    result = AppUsagePreprocessor(options).process_valid_app_usage(
+        frame(
+            [
+                _row(ts("2026-03-08 01:55:00", "America/Chicago"), InteractionType.ACTIVITY_RESUMED, "com.dst.app"),
+                _row(ts("2026-03-08 03:05:00", "America/Chicago"), InteractionType.ACTIVITY_PAUSED, "com.dst.app"),
+            ]
+        )
+    )
+
+    assert cell(result, 0, Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)
+    assert cell(result, 0, Column.DURATION_SECONDS) == 600.0
 
 
 def test_missing_stop_remains_explicitly_missing_instead_of_extending_multiple_days() -> None:

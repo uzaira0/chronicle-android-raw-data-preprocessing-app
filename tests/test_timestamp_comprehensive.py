@@ -4,19 +4,13 @@ import polars as pl
 import pytest
 
 from chronicle_preprocessing_app.config.constants import Column, TimezoneHandlingOption
-from chronicle_preprocessing_app.core.config import PreprocessingOptions
 from chronicle_preprocessing_app.core.preprocessing.timestamp_preprocessor import TimestampPreprocessor
 from chronicle_preprocessing_app.core.preprocessing.timezone_preprocessor import (
     TimezonePreprocessor,
     _normalize_timezone_expr,
 )
 from tests.polars_helpers import cell, frame, is_null, rows_where, ts
-
-
-def _options(**overrides: object) -> PreprocessingOptions:
-    values = {"raw_data_folder": "", "use_app_codebook": False}
-    values.update(overrides)
-    return PreprocessingOptions(**values)
+from tests.polars_helpers import options as _options
 
 
 def _ts_preprocessor(**overrides: object) -> TimestampPreprocessor:

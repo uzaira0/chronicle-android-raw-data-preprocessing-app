@@ -55,7 +55,7 @@ describe("fileInspection", () => {
     expect(inspection.duplicateTimestampCount).toBe(1);
     expect(inspection.warnings.join(" ")).toContain("File extension is not .csv");
     expect(inspection.warnings.join(" ")).toContain("Duplicate column headers found");
-    expect(inspection.warnings.join(" ")).toContain("Invalid timezone values");
+    expect(inspection.warnings.join(" ")).toContain("unrecognised timezone value");
     expect(inspection.warnings.join(" ")).toContain("rows have invalid event_timestamp values");
   });
 
@@ -83,7 +83,7 @@ describe("fileInspection", () => {
 
     expect(inspection.timezones).toEqual(["America/Chicago", "UTC"]);
     expect(inspection.warnings.join(" ")).toContain("2 timezone values found");
-    expect(inspection.warnings.join(" ")).toContain("Quoted field unterminated");
+    expect(inspection.warnings.join(" ")).toContain("CSV parse warning");
   });
 
   it("adds effective duplicate warnings only when correction is disabled", () => {
@@ -231,12 +231,30 @@ describe("fileInspection", () => {
       fileFromText(
         "Raw P01.csv",
         [
-          "study_id,participant_id,application_label,interaction_type,app_package_name,event_timestamp,timezone",
-          "Study,P01,App,Type,com.pkg,2026-03-07T10:00:00Z,America/Chicago",
+          "participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+          "P01,user1,App,Type,com.pkg,2026-03-07T10:00:00Z,America/Chicago",
         ].join("\n"),
       ),
     );
     expect(inspection.hasRequiredColumns).toBe(true);
+  });
+
+  it("inspectRawFile: missing timezone column is accepted as UTC fallback input", async () => {
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P01.csv",
+        [
+          "participant_id,username,application_label,interaction_type,app_package_name,event_timestamp",
+          "P01,user1,App,Type,com.pkg,2026-03-07T10:00:00Z",
+        ].join("\n"),
+      ),
+    );
+
+    expect(inspection.hasRequiredColumns).toBe(true);
+    expect(inspection.missingTimezoneCount).toBe(1);
+    expect(inspection.warnings).toContain("No timezone values found.");
+    expect(inspection.warnings).toContain("1 rows are missing timezone values.");
+    expect(inspection.warnings.join(" ")).not.toContain("Missing required columns");
   });
 
   it("inspectRawFile: file with extra unknown columns → still hasRequiredColumns=true", async () => {
@@ -244,8 +262,8 @@ describe("fileInspection", () => {
       fileFromText(
         "Raw P01.csv",
         [
-          "study_id,participant_id,application_label,interaction_type,app_package_name,event_timestamp,timezone,extra_column,another_extra",
-          "Study,P01,App,Type,com.pkg,2026-03-07T10:00:00Z,America/Chicago,foo,bar",
+          "participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone,extra_column,another_extra",
+          "P01,user1,App,Type,com.pkg,2026-03-07T10:00:00Z,America/Chicago,foo,bar",
         ].join("\n"),
       ),
     );
@@ -257,8 +275,8 @@ describe("fileInspection", () => {
       fileFromText(
         "data_export.csv",
         [
-          "study_id,participant_id,application_label,interaction_type,app_package_name,event_timestamp,timezone",
-          "Study,P01,App,Type,com.pkg,2026-03-07T10:00:00Z,America/Chicago",
+          "participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+          "P01,user1,App,Type,com.pkg,2026-03-07T10:00:00Z,America/Chicago",
         ].join("\n"),
       ),
     );
@@ -412,7 +430,7 @@ describe("fileInspection", () => {
     // "None" is not a valid IANA timezone, so it should appear in invalidTimezones warning
     // and missingTimezoneCount stays 0 (the value is present, just invalid)
     expect(inspection.missingTimezoneCount).toBe(0);
-    expect(inspection.warnings.some((w) => w.includes("Invalid timezone values"))).toBe(true);
+    expect(inspection.warnings.some((w) => w.includes("unrecognised timezone value"))).toBe(true);
   });
 
   it("inspectRawFile: blank timezone column entries count as missing timezone", async () => {

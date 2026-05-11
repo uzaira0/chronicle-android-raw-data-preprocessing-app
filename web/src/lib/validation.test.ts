@@ -14,6 +14,11 @@ describe("validateRawCsvColumns", () => {
     ).not.toThrow();
   });
 
+  it("does not require timezone because missing row timezones fall back to UTC", () => {
+    expect(ALL_REQUIRED).not.toContain("timezone");
+    expect(() => validateRawCsvColumns(ALL_REQUIRED)).not.toThrow();
+  });
+
   it("throws with the missing column name when one required column is absent", () => {
     const headers = ALL_REQUIRED.filter((col) => col !== "event_timestamp");
     expect(() => validateRawCsvColumns(headers)).toThrowError(/event_timestamp/);
@@ -28,10 +33,12 @@ describe("validateRawCsvColumns", () => {
     expect(fn).toThrowError(/app_package_name/);
   });
 
-  it("throws showing found headers in the error message", () => {
+  it("throws listing only the missing required columns (not the found headers)", () => {
     const headers = ["EventTimestamp", "App", "SomeOtherCol"];
     const fn = () => validateRawCsvColumns(headers);
-    expect(fn).toThrowError(/Found: \[EventTimestamp, App, SomeOtherCol\]/);
+    expect(fn).toThrowError(/Missing required columns/);
+    expect(fn).not.toThrowError(/EventTimestamp/);
+    expect(fn).not.toThrowError(/SomeOtherCol/);
   });
 
   it("throws when headers array is empty", () => {

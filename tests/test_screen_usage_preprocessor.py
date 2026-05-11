@@ -9,7 +9,23 @@ from chronicle_preprocessing_app.core.preprocessing.screen_usage_preprocessor im
     ScreenUsageEndReason,
     ScreenUsagePreprocessor,
 )
-from tests.polars_helpers import cell, frame, is_null, rows_where, td, ts
+from tests.polars_helpers import cell, frame, is_null, options, rows_where, td, ts
+
+_SCREEN_DEFAULTS: dict[str, object] = {
+    "derive_screen_usage_sessions": True,
+    "screen_usage_auto_lock_timeout_seconds": 120,
+    "screen_usage_auto_lock_tolerance_seconds": 30,
+    "screen_usage_manual_lock_max_tail_gap_seconds": 30,
+    "screen_usage_keyguard_near_stop_seconds": 2,
+    "apps_forcing_screen_open_dict": {
+        "com.google.android.youtube": "Video",
+        "com.google.android.apps.maps": "Navigation",
+    },
+}
+
+
+def _screen_options(**overrides: object) -> PreprocessingOptions:
+    return options(**{**_SCREEN_DEFAULTS, **overrides})
 
 
 def _screen_row(
@@ -25,24 +41,6 @@ def _screen_row(
         Column.STOP_TIMESTAMP: None,
         Column.TIMEZONE: "America/Chicago",
     }
-
-
-def _screen_options(**overrides: object) -> PreprocessingOptions:
-    values = {
-        "raw_data_folder": "",
-        "use_app_codebook": False,
-        "derive_screen_usage_sessions": True,
-        "screen_usage_auto_lock_timeout_seconds": 120,
-        "screen_usage_auto_lock_tolerance_seconds": 30,
-        "screen_usage_manual_lock_max_tail_gap_seconds": 30,
-        "screen_usage_keyguard_near_stop_seconds": 2,
-        "apps_forcing_screen_open_dict": {
-            "com.google.android.youtube": "Video",
-            "com.google.android.apps.maps": "Navigation",
-        },
-    }
-    values.update(overrides)
-    return PreprocessingOptions(**values)
 
 
 def test_screen_usage_derivation_truth_table_outputs_expected_end_reasons() -> None:

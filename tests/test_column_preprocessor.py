@@ -6,15 +6,9 @@ import polars as pl
 import pytest
 
 from chronicle_preprocessing_app.config.constants import ChronicleDeviceType, Column
-from chronicle_preprocessing_app.core.config import PreprocessingOptions
 from chronicle_preprocessing_app.core.preprocessing.column_preprocessor import ColumnPreprocessor
 from tests.polars_helpers import frame, ts
-
-
-def _options(**overrides: object) -> PreprocessingOptions:
-    values: dict[str, object] = {"raw_data_folder": "", "use_app_codebook": False}
-    values.update(overrides)
-    return PreprocessingOptions(**values)
+from tests.polars_helpers import options as _options
 
 
 def _preprocessor(**overrides: object) -> ColumnPreprocessor:

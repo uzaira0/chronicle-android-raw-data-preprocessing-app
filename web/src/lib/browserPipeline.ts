@@ -350,7 +350,7 @@ function parseOffsetlessTimestampAsUtcNs(value: string): bigint {
   if (!parts) {
     const milliseconds = Date.parse(`${value.replace(" ", "T")}Z`);
     if (Number.isNaN(milliseconds)) {
-      throw new Error(`Invalid event_timestamp: ${value}`);
+      throw new Error("Invalid event_timestamp: value could not be parsed as a date");
     }
     return BigInt(milliseconds) * 1_000_000n;
   }
@@ -380,17 +380,14 @@ function parseChronicleTimestampNs(value: string): bigint {
   const isoText = normalized;
   const milliseconds = Date.parse(isoText);
   if (Number.isNaN(milliseconds)) {
-    throw new Error(`Invalid event_timestamp: ${value}`);
+    throw new Error("Invalid event_timestamp: value could not be parsed as a date");
   }
   return BigInt(milliseconds) * 1_000_000n;
 }
 
-function csvEscape(value: string | number | boolean | null | undefined): string {
-  const text = value == null ? "" : String(value);
-  if (/[",\n]/.test(text)) {
-    return `"${text.replaceAll("\"", "\"\"")}"`;
-  }
-  return text;
+function throwCsvParseError(errors: Papa.ParseError[]): never {
+  const e = errors[0];
+  throw new Error(`Failed to parse CSV: ${e?.type ?? "unknown"} ${e?.code ?? ""}`.trimEnd());
 }
 
 function parseCsvRows(text: string): SupportRows {
@@ -399,7 +396,7 @@ function parseCsvRows(text: string): SupportRows {
     skipEmptyLines: true,
   });
   if (parsed.errors.length > 0) {
-    throw new Error(parsed.errors[0]?.message ?? "Failed to parse CSV");
+    throwCsvParseError(parsed.errors);
   }
   return parsed.data.map((row) => {
     const normalized: Record<string, string> = {};
@@ -469,10 +466,10 @@ async function parseSupportRowsFromFile(file: BrowserSupportFile): Promise<Suppo
     }
     if (/\.xls$/i.test(file.name)) {
       throw new Error(
-        `Unsupported support file format: ${file.name}. Convert legacy .xls workbooks to .xlsx or CSV for the local web app.`,
+        "Unsupported support file format (.xls). Convert legacy workbooks to .xlsx or CSV.",
       );
     }
-    throw new Error(`Unsupported support file format: ${file.name}`);
+    throw new Error("Unsupported support file format. Use .csv or .xlsx.");
   })();
   uploadedSupportCache.set(cacheKey, pending);
   return pending;
@@ -492,7 +489,7 @@ async function fetchDefaultBytes(url: string): Promise<ArrayBuffer> {
   if (cached) return cached;
   const pending = (async () => {
     const response = await fetch(url);
-    if (!response.ok) throw new Error(`Failed to load bundled asset: ${url}`);
+    if (!response.ok) throw new Error("Failed to load a bundled default asset");
     return response.arrayBuffer();
   })();
   defaultBytesCache.set(url, pending);
@@ -555,7 +552,7 @@ async function fetchDefaultRows(url: string): Promise<SupportRows> {
   const pending = (async () => {
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`Failed to load bundled asset: ${url}`);
+      throw new Error("Failed to load a bundled default asset");
     }
     return parseCsvRows(await response.text());
   })();
@@ -887,7 +884,7 @@ function parseRawRows(
     skipEmptyLines: true,
   });
   if (parsed.errors.length > 0) {
-    throw new Error(parsed.errors[0]?.message ?? "Failed to parse CSV");
+    throwCsvParseError(parsed.errors);
   }
   validateRawCsvColumns(parsed.meta.fields ?? []);
   const filtered = parsed.data.filter((row) => requireString(row.event_timestamp).length > 0);

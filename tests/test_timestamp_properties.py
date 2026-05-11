@@ -7,8 +7,8 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from chronicle_preprocessing_app.config.constants import Column, InteractionType, TimestampFormat
-from chronicle_preprocessing_app.core.config import PreprocessingOptions
 from chronicle_preprocessing_app.core.preprocessing.timestamp_preprocessor import TimestampPreprocessor
+from tests.polars_helpers import options as _options
 from tests.polars_helpers import ts
 
 # ---------------------------------------------------------------------------
@@ -27,12 +27,6 @@ _timestamp_str = st.one_of(
 )
 
 _timestamp_list = st.lists(_timestamp_str, min_size=0, max_size=20)
-
-
-def _options(**overrides: object) -> PreprocessingOptions:
-    values: dict[str, object] = {"raw_data_folder": "", "use_app_codebook": False}
-    values.update(overrides)
-    return PreprocessingOptions(**values)
 
 
 def _preprocessor(**overrides: object) -> TimestampPreprocessor:
