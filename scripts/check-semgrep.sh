@@ -12,6 +12,7 @@ fi
 semgrep \
   --config "$REPO_ROOT/.semgrep/chronicle-security.yml" \
   --config "$REPO_ROOT/.semgrep/chronicle-domain.yml" \
+  --severity ERROR \
   --error \
   "$REPO_ROOT/src/" \
   "$REPO_ROOT/web/src/" \

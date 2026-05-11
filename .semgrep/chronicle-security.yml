@@ -58,7 +58,7 @@ rules:
     languages: [python]
     paths:
       include:
-        - src/**/*.py
+        - "**/src/**/*.py"
     pattern: $DF.drop_nulls()
 
   - id: chronicle-polars-read-csv-no-schema
@@ -67,7 +67,7 @@ rules:
     languages: [python]
     paths:
       include:
-        - src/**/*.py
+        - "**/src/**/*.py"
     pattern: pl.read_csv($PATH)
 
   - id: chronicle-polars-utf8-deprecated-alias
@@ -76,7 +76,7 @@ rules:
     languages: [python]
     paths:
       include:
-        - src/**/*.py
+        - "**/src/**/*.py"
     pattern: $DF.cast(pl.Utf8)
 
   # ── Python: exception / error handling ──────────────────────────────────
@@ -131,8 +131,8 @@ rules:
     languages: [python]
     paths:
       include:
-        - src/**/*.py
-        - scripts/**/*.py
+        - "**/src/**/*.py"
+        - "**/scripts/**/*.py"
     patterns:
       - pattern-either:
           - pattern: open($PATH, $MODE)
@@ -156,8 +156,8 @@ rules:
     languages: [typescript]
     paths:
       include:
-        - web/src/**/*.ts
-        - web/src/**/*.tsx
+        - "**/web/src/**/*.ts"
+        - "**/web/src/**/*.tsx"
     pattern: console.log(...)
 
   - id: chronicle-ts-localstorage-unguarded
@@ -166,8 +166,8 @@ rules:
     languages: [typescript]
     paths:
       include:
-        - web/src/**/*.ts
-        - web/src/**/*.tsx
+        - "**/web/src/**/*.ts"
+        - "**/web/src/**/*.tsx"
     pattern-not-inside: |
       try {
         ...
@@ -182,8 +182,8 @@ rules:
     languages: [typescript]
     paths:
       include:
-        - web/src/**/*.ts
-        - web/src/**/*.tsx
+        - "**/web/src/**/*.ts"
+        - "**/web/src/**/*.tsx"
     pattern-not-inside: |
       try {
         ...

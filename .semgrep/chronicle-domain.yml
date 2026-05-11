@@ -10,8 +10,8 @@ rules:
     languages: [python]
     paths:
       include:
-        - src/**/*.py
-        - scripts/**/*.py
+        - "**/src/**/*.py"
+        - "**/scripts/**/*.py"
     pattern: $EXPR.replace($KEYS, $VALS, default=...)
 
   - id: chronicle-polars-replace-strict-missing
@@ -23,14 +23,10 @@ rules:
     languages: [python]
     paths:
       include:
-        - src/chronicle_preprocessing_app/core/**/*.py
+        - "**/src/chronicle_preprocessing_app/core/**/*.py"
     patterns:
       - pattern: $EXPR.replace($A, $B)
       - pattern-not: $EXPR.replace($A, $B, ...)
-      - pattern-not-inside: |
-          $X = {$$$}
-          ...
-          $EXPR.replace($X, ...)
 
   - id: chronicle-polars-cast-strict-false
     message: >
@@ -41,7 +37,7 @@ rules:
     languages: [python]
     paths:
       include:
-        - src/**/*.py
+        - "**/src/**/*.py"
     pattern: $EXPR.cast($DTYPE, strict=False)
 
   # ── Datetime / timezone regression guards ───────────────────────────────────
@@ -55,8 +51,8 @@ rules:
     languages: [python]
     paths:
       include:
-        - src/**/*.py
-        - scripts/**/*.py
+        - "**/src/**/*.py"
+        - "**/scripts/**/*.py"
     pattern-either:
       - pattern: datetime.datetime.utcnow()
       - pattern: datetime.utcnow()
@@ -70,7 +66,7 @@ rules:
     languages: [python]
     paths:
       include:
-        - src/chronicle_preprocessing_app/core/**/*.py
+        - "**/src/chronicle_preprocessing_app/core/**/*.py"
     patterns:
       - pattern: datetime.datetime.now()
       - pattern-not: datetime.datetime.now(...)
@@ -85,8 +81,8 @@ rules:
     languages: [python]
     paths:
       include:
-        - src/**/*.py
-        - scripts/**/*.py
+        - "**/src/**/*.py"
+        - "**/scripts/**/*.py"
     pattern: $DT.replace(tzinfo=pytz.timezone($TZ))
 
   - id: chronicle-pytz-utc-replace-tzinfo
@@ -98,7 +94,7 @@ rules:
     languages: [python]
     paths:
       include:
-        - src/chronicle_preprocessing_app/core/**/*.py
+        - "**/src/chronicle_preprocessing_app/core/**/*.py"
     pattern: $DT.replace(tzinfo=pytz.utc)
 
   - id: chronicle-strptime-no-timezone
@@ -110,7 +106,7 @@ rules:
     languages: [python]
     paths:
       include:
-        - src/chronicle_preprocessing_app/core/**/*.py
+        - "**/src/chronicle_preprocessing_app/core/**/*.py"
     pattern: datetime.datetime.strptime(...)
 
   # ── Config / encoding safety ─────────────────────────────────────────────
@@ -124,7 +120,7 @@ rules:
     languages: [python]
     paths:
       include:
-        - src/**/*.py
+        - "**/src/**/*.py"
     pattern-not-inside: |
       try:
         ...
@@ -138,8 +134,8 @@ rules:
     languages: [python]
     paths:
       include:
-        - src/**/*.py
-        - scripts/**/*.py
+        - "**/src/**/*.py"
+        - "**/scripts/**/*.py"
     patterns:
       - pattern: $P.read_text()
       - pattern-not: $P.read_text(encoding=...)
@@ -155,8 +151,8 @@ rules:
     languages: [typescript]
     paths:
       include:
-        - web/src/**/*.ts
-        - web/src/**/*.tsx
+        - "**/web/src/**/*.ts"
+        - "**/web/src/**/*.tsx"
     patterns:
       - pattern: parseInt($STR)
       - pattern-not: parseInt($STR, ...)
@@ -169,8 +165,8 @@ rules:
     languages: [typescript]
     paths:
       include:
-        - web/src/**/*.ts
-        - web/src/**/*.tsx
+        - "**/web/src/**/*.ts"
+        - "**/web/src/**/*.tsx"
     pattern-either:
       - pattern: $X === NaN
       - pattern: $X !== NaN
@@ -186,7 +182,7 @@ rules:
     languages: [typescript]
     paths:
       include:
-        - web/src/workers/**/*.ts
+        - "**/web/src/workers/**/*.ts"
     patterns:
       - pattern: $WORKER.postMessage($MSG)
       - pattern-not: $WORKER.postMessage($MSG, ...)
@@ -200,6 +196,6 @@ rules:
     languages: [typescript]
     paths:
       include:
-        - web/src/**/*.ts
-        - web/src/**/*.tsx
+        - "**/web/src/**/*.ts"
+        - "**/web/src/**/*.tsx"
     pattern: JSON.parse($STR) as $T

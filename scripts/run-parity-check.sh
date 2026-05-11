@@ -19,7 +19,10 @@ if [ ! -f "$WASM_JS" ]; then
 fi
 
 # Detect stale WASM: fail if any Rust source is newer than the built binary
-STALE=$(find "$REPO_ROOT/rust" \( -name "*.rs" -o -name "Cargo.toml" \) -newer "$WASM_JS" -not -path "*/target/*" 2>/dev/null | head -5)
+STALE=$(find "$REPO_ROOT/rust" \( -name "*.rs" -o -name "Cargo.toml" \) -newer "$WASM_JS" \
+  -not -path "*/target/*" \
+  -not -path "*/tests/*" \
+  2>/dev/null | head -5)
 if [ -n "$STALE" ]; then
   echo "WASM binary is stale — these Rust sources are newer than the built pkg:" >&2
   echo "$STALE" | sed 's|^|  |' >&2

@@ -141,11 +141,20 @@ check_file() {
   shift
   local test_files=("$@")
 
-  rm -f "$SCORE_FILE"
-  run_mutation "$source_file" "${test_files[@]}"
+  for attempt in 1 2; do
+    rm -f "$SCORE_FILE"
+    run_mutation "$source_file" "${test_files[@]}" && true
+
+    if [ -f "$SCORE_FILE" ]; then
+      break
+    fi
+    if [ "$attempt" -eq 1 ]; then
+      echo "Retrying mutation run for $(basename "$source_file") (attempt 2)..." >&2
+    fi
+  done
 
   if [ ! -f "$SCORE_FILE" ]; then
-    echo "No score produced for $(basename "$source_file")" >&2
+    echo "No score produced for $(basename "$source_file") after 2 attempts" >&2
     return 1
   fi
   local score
