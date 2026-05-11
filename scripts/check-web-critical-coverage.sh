@@ -13,5 +13,5 @@ fi
 
 (
   cd "$WEB_DIR"
-  node scripts/run-clean-env.mjs vitest run --coverage 2>&1
+  node scripts/run-clean-env.mjs ./node_modules/.bin/vitest run --coverage 2>&1
 )
