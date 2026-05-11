@@ -37,3 +37,52 @@ test.describe("Visual regression", { tag: "@visual" }, () => {
     await expect(page).toHaveScreenshot({ maxDiffPixels: 50 });
   });
 });
+
+// Viewport visual tests — run on mobile-chrome, mobile-safari, and tablet projects
+// (those projects have grep: /@visual|@viewport/ so these tests only execute there).
+// To generate snapshot baselines for the first time, run:
+//   npx playwright test --grep "@visual|@viewport" --update-snapshots
+test.describe("Viewport visual regression", { tag: ["@visual", "@viewport"] }, () => {
+  test("initial load at mobile (390×844)", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await installDeterministicRuntime(page);
+    await gotoApp(page);
+    await expect(page).toHaveScreenshot({ fullPage: false, maxDiffPixels: 80 });
+  });
+
+  test("initial load at tablet (768×1024)", async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await installDeterministicRuntime(page);
+    await gotoApp(page);
+    await expect(page).toHaveScreenshot({ fullPage: false, maxDiffPixels: 80 });
+  });
+
+  test("initial load at desktop (1440×900)", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await installDeterministicRuntime(page);
+    await gotoApp(page);
+    await expect(page).toHaveScreenshot({ fullPage: false, maxDiffPixels: 80 });
+  });
+
+  test("Files tab at mobile viewport shows no horizontal scroll", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await gotoApp(page);
+    await page.getByRole("tab", { name: /Files/i }).click();
+    const overflow = await page.evaluate(() => ({
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: document.documentElement.clientWidth,
+      bodyWidth: document.body.scrollWidth,
+    }));
+    expect(overflow.documentWidth).toBeLessThanOrEqual(overflow.viewportWidth + 1);
+    expect(overflow.bodyWidth).toBeLessThanOrEqual(overflow.viewportWidth + 1);
+  });
+
+  test("Process tab at mobile viewport renders correctly", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await installDeterministicRuntime(page);
+    await gotoApp(page);
+    await page.getByRole("tab", { name: /Process/i }).click();
+    await expect(page.getByTestId("process-files-button")).toBeVisible();
+    await expect(page).toHaveScreenshot({ fullPage: false, maxDiffPixels: 80 });
+  });
+});

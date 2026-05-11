@@ -246,6 +246,22 @@ test("supports reduced motion, forced colors, and practical pointer targets", as
   assertNoExternalRequests(requestTracker);
 });
 
+test("prefers-contrast: more does not break layout or hide content", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light", forcedColors: "none" });
+  // Inject a style tag that simulates high-contrast preference so layout
+  // responses to prefers-contrast are exercised even in non-supporting browsers.
+  await page.addStyleTag({
+    content: "@media (prefers-contrast: more) { * { outline: 2px solid red !important; } }",
+  });
+  await gotoApp(page);
+  await expect(page.getByRole("tab", { name: /Settings/i })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Files/i })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Process/i })).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+  assertNoExternalRequests(requestTracker);
+});
+
 test("reflows at narrow widths without page-level horizontal scrolling", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 900 });
   for (const tabName of ["Settings", "Files", "Process"]) {

@@ -292,6 +292,14 @@ class PolarsFastPathPreprocessor:
         return df
 
     def _unalign_duplicate_timestamps(self, df: pl.DataFrame, timestamp_column: str) -> pl.DataFrame:
+        if df.get_column(timestamp_column).null_count() > 0:
+            valid_df = df.filter(pl.col(timestamp_column).is_not_null())
+            if valid_df.is_empty():
+                return df
+            null_df = df.filter(pl.col(timestamp_column).is_null())
+            adjusted_valid_df = self._unalign_duplicate_timestamps(valid_df, timestamp_column)
+            return pl.concat([adjusted_valid_df, null_df], how="diagonal_relaxed").sort(timestamp_column)
+
         timestamps_ns = df.get_column(timestamp_column).dt.epoch("ns").to_numpy()
         if len(timestamps_ns) <= 1:
             return df
@@ -496,11 +504,12 @@ class PolarsFastPathPreprocessor:
     ) -> pl.DataFrame:
         interactions = df.get_column(Column.INTERACTION_TYPE).to_numpy()
         app_packages = df.get_column(Column.APP_PACKAGE_NAME).fill_null("").cast(pl.Categorical).to_physical().to_numpy()
-        timestamp_ns = df.get_column(Column.EVENT_TIMESTAMP).dt.epoch("ns").to_numpy()
-        resumed_flags = interactions == resumed_type
-        same_stop_flags = np.isin(interactions, list(same_stop_types))
-        other_stop_flags = np.isin(interactions, list(other_stop_types))
-        stopped_flags = interactions == stopped_type
+        timestamp_ns = df.get_column(Column.EVENT_TIMESTAMP).dt.epoch("ns").fill_null(_MISSING_INT64).to_numpy()
+        valid_timestamp_flags = timestamp_ns != _MISSING_INT64
+        resumed_flags = (interactions == resumed_type) & valid_timestamp_flags
+        same_stop_flags = np.isin(interactions, list(same_stop_types)) & valid_timestamp_flags
+        other_stop_flags = np.isin(interactions, list(other_stop_types)) & valid_timestamp_flags
+        stopped_flags = (interactions == stopped_type) & valid_timestamp_flags
 
         start_indices, stop_start_indices, stop_event_indices, missing_indices = self._match_usage_updates(
             app_codes=np.ascontiguousarray(app_packages, dtype=np.int32),
@@ -963,14 +972,18 @@ class PolarsFastPathPreprocessor:
                 pl.when((pl.col(gap_label_column) == "") & (pl.col(duration_label_column) == ""))
                 .then(pl.lit("[]"))
                 .when(pl.col(duration_label_column) == "")
-                .then(pl.format("['{}']", pl.col(gap_label_column)))
+                .then(pl.concat_str([pl.lit("['"), pl.col(gap_label_column), pl.lit("']")]))
                 .when(pl.col(gap_label_column) == "")
-                .then(pl.format("['{}']", pl.col(duration_label_column)))
+                .then(pl.concat_str([pl.lit("['"), pl.col(duration_label_column), pl.lit("']")]))
                 .otherwise(
-                    pl.format(
-                        "['{}', '{}']",
-                        pl.col(gap_label_column),
-                        pl.col(duration_label_column),
+                    pl.concat_str(
+                        [
+                            pl.lit("['"),
+                            pl.col(gap_label_column),
+                            pl.lit("', '"),
+                            pl.col(duration_label_column),
+                            pl.lit("']"),
+                        ]
                     )
                 )
                 .alias(Column.ANY_APP_USAGE_FLAGS)

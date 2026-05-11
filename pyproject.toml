@@ -53,6 +53,7 @@ dev = [
     "pip-audit>=2.7.0",
     "radon>=6.0.1",
     "pip-licenses>=5.0.0",
+    "atheris>=2.3.0",  # Python <=3.12 and Linux only — silently skipped on 3.13+
 ]
 all = [
     "chronicle-android-preprocessor[dev]",

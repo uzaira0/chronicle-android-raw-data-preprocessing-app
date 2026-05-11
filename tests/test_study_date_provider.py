@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from typing import ClassVar
 
 import polars as pl
+import pytest
 
 from chronicle_preprocessing_app.config.constants import Column
+from chronicle_preprocessing_app.core.preprocessing import study_date_provider as study_date_provider_module
 from chronicle_preprocessing_app.core.preprocessing.study_date_provider import (
     StudyDateRangeProvider,
 )
@@ -176,6 +179,85 @@ def test_get_study_date_range_cross_prefix_numeric_match() -> None:
     # P03-9900 extracts "9900" and P02-9900 also extracts "9900" → match
     result = provider.get_study_date_range("P03-9900")
     assert result is not None
+
+
+def test_get_study_date_range_uses_cached_tech_tracking_sheet(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeTechParticipantID:
+        def __init__(self, raw_id: str) -> None:
+            self.raw_id = raw_id
+
+    class FakeParticipantID:
+        @staticmethod
+        def validate_participant_id(participant_id: str) -> FakeTechParticipantID:
+            return FakeTechParticipantID(participant_id)
+
+    class FakeProjectOneProjectTwoTrackingSheet:
+        init_count = 0
+        requested_ids: ClassVar[list[str]] = []
+
+        def __init__(self, *, force_redownload: bool) -> None:
+            FakeProjectOneProjectTwoTrackingSheet.init_count += 1
+            self.force_redownload = force_redownload
+
+        def get_specific_participant_study_date_range(self, *, participant_id: FakeTechParticipantID) -> pl.Series:
+            FakeProjectOneProjectTwoTrackingSheet.requested_ids.append(participant_id.raw_id)
+            return pl.Series([date(2026, 2, 5), date(2026, 2, 7)])
+
+    monkeypatch.setattr(study_date_provider_module, "INTERNAL_MODULES_AVAILABLE", True)
+    monkeypatch.setattr(study_date_provider_module, "ParticipantID", FakeParticipantID, raising=False)
+    monkeypatch.setattr(study_date_provider_module, "TECHParticipantID", FakeTechParticipantID, raising=False)
+    monkeypatch.setattr(
+        study_date_provider_module,
+        "ProjectOneProjectTwoTrackingSheet",
+        FakeProjectOneProjectTwoTrackingSheet,
+        raising=False,
+    )
+
+    provider = StudyDateRangeProvider()
+
+    assert provider.get_study_date_range("TECH-001") == (date(2026, 2, 5), date(2026, 2, 7))
+    assert provider.get_study_date_range("TECH-002") == (date(2026, 2, 5), date(2026, 2, 7))
+    assert FakeProjectOneProjectTwoTrackingSheet.init_count == 1
+    assert FakeProjectOneProjectTwoTrackingSheet.requested_ids == ["TECH-001", "TECH-002"]
+
+
+def test_get_study_date_range_uses_cached_standard_tracking_sheet(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeTechParticipantID:
+        pass
+
+    class FakeStandardParticipantID:
+        def __init__(self, raw_id: str) -> None:
+            self.raw_id = raw_id
+
+    class FakeParticipantID:
+        @staticmethod
+        def validate_participant_id(participant_id: str) -> FakeStandardParticipantID:
+            return FakeStandardParticipantID(participant_id)
+
+    class FakeTrackingSheet:
+        factory_ids: ClassVar[list[str]] = []
+        requested_ids: ClassVar[list[str]] = []
+
+        @staticmethod
+        def get_correct_tracking_sheet_for_participant(participant_id: FakeStandardParticipantID) -> FakeTrackingSheet:
+            FakeTrackingSheet.factory_ids.append(participant_id.raw_id)
+            return FakeTrackingSheet()
+
+        def get_specific_participant_study_date_range(self, *, participant_id: FakeStandardParticipantID) -> pl.Series:
+            FakeTrackingSheet.requested_ids.append(participant_id.raw_id)
+            return pl.Series([datetime(2026, 4, 3, tzinfo=UTC), datetime(2026, 4, 9, tzinfo=UTC)])
+
+    monkeypatch.setattr(study_date_provider_module, "INTERNAL_MODULES_AVAILABLE", True)
+    monkeypatch.setattr(study_date_provider_module, "ParticipantID", FakeParticipantID, raising=False)
+    monkeypatch.setattr(study_date_provider_module, "TECHParticipantID", FakeTechParticipantID, raising=False)
+    monkeypatch.setattr(study_date_provider_module, "TrackingSheet", FakeTrackingSheet, raising=False)
+
+    provider = StudyDateRangeProvider()
+
+    assert provider.get_study_date_range("P01-111") == (datetime(2026, 4, 3, tzinfo=UTC), datetime(2026, 4, 9, tzinfo=UTC))
+    assert provider.get_study_date_range("P01-222") == (datetime(2026, 4, 3, tzinfo=UTC), datetime(2026, 4, 9, tzinfo=UTC))
+    assert FakeTrackingSheet.factory_ids == ["P01-111"]
+    assert FakeTrackingSheet.requested_ids == ["P01-111", "P01-222"]
 
 
 # ---------------------------------------------------------------------------

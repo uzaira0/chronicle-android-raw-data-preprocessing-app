@@ -27,7 +27,9 @@
     "check:size": "size-limit",
     "check:dead-code": "knip",
     "lint:complexity": "eslint src --ext .ts,.tsx --ignore-pattern 'src/wasm/**'",
-    "check:licenses": "license-checker --production --onlyAllow 'MIT;MIT*;BSD-2-Clause;BSD-3-Clause;Apache-2.0;ISC;CC0-1.0;Unlicense;CC-BY-4.0;Python-2.0;0BSD;BlueOak-1.0.0' --excludePrivatePackages --excludePackages 'buffers@0.1.1' --summary"
+    "check:licenses": "license-checker --production --onlyAllow 'MIT;MIT*;BSD-2-Clause;BSD-3-Clause;Apache-2.0;ISC;CC0-1.0;Unlicense;CC-BY-4.0;Python-2.0;0BSD;BlueOak-1.0.0' --excludePrivatePackages --excludePackages 'buffers@0.1.1' --summary",
+    "test:mutation": "stryker run",
+    "bench": "vitest bench"
   },
   "dependencies": {
     "comlink": "^4.4.2",
@@ -38,6 +40,8 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.2",
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/vitest-runner": "^9.6.1",
     "@eslint/js": "^10.0.1",
     "@lhci/cli": "^0.14.0",
     "@playwright/test": "^1.59.1",
@@ -62,8 +66,24 @@
   },
   "size-limit": [
     {
+      "path": "dist/assets/index-*.js",
+      "limit": "500 KB",
+      "name": "main bundle"
+    },
+    {
+      "path": "dist/assets/chronicle-worker-*.js",
+      "limit": "200 KB",
+      "name": "worker bundle"
+    },
+    {
+      "path": "dist/assets/readXlsxFileContents-*.js",
+      "limit": "100 KB",
+      "name": "xlsx chunk"
+    },
+    {
       "path": "dist/**/*.js",
-      "limit": "2 MB"
+      "limit": "2 MB",
+      "name": "total JS"
     }
   ]
 }

@@ -10,6 +10,8 @@ from __future__ import annotations
 import logging
 import sys
 import types
+import warnings
+from datetime import UTC, datetime
 
 import numpy as np
 import polars as pl
@@ -582,6 +584,68 @@ class TestRemoveSelectedInteractionTypes:
         # Row with gap=99 h should be retained despite being a "removed" type
         assert len(result) == 1
         assert result.get_column(Column.DATA_TIME_GAP_HOURS).to_list()[0] == pytest.approx(99.0)
+
+
+# ---------------------------------------------------------------------------
+# _unalign_duplicate_timestamps
+# ---------------------------------------------------------------------------
+
+
+class TestUnalignDuplicateTimestamps:
+    def test_null_timestamps_are_preserved_when_duplicate_valid_timestamps_adjusted(self) -> None:
+        df = pl.DataFrame(
+            {
+                Column.EVENT_TIMESTAMP: [
+                    datetime(2026, 3, 7, 8, 0, tzinfo=UTC),
+                    datetime(2026, 3, 7, 8, 0, tzinfo=UTC),
+                    None,
+                ],
+                Column.INTERACTION_TYPE: [
+                    str(InteractionType.ACTIVITY_RESUMED),
+                    str(InteractionType.ACTIVITY_PAUSED),
+                    str(InteractionType.ACTIVITY_RESUMED),
+                ],
+                Column.APP_PACKAGE_NAME: ["com.example", "com.example", "com.invalid"],
+            },
+            schema_overrides={Column.EVENT_TIMESTAMP: pl.Datetime("us", "UTC")},
+        )
+
+        result = _make_preprocessor()._unalign_duplicate_timestamps(df, Column.EVENT_TIMESTAMP)
+        non_null_timestamps = result.get_column(Column.EVENT_TIMESTAMP).drop_nulls()
+
+        assert result.get_column(Column.EVENT_TIMESTAMP).null_count() == 1
+        assert len(non_null_timestamps.unique()) == 2
+
+    def test_process_usage_rows_ignores_null_timestamp_events_without_runtime_warning(self) -> None:
+        df = pl.DataFrame(
+            {
+                Column.EVENT_TIMESTAMP: [
+                    None,
+                    datetime(2026, 3, 7, 8, 5, tzinfo=UTC),
+                ],
+                Column.INTERACTION_TYPE: [
+                    str(InteractionType.ACTIVITY_RESUMED),
+                    str(InteractionType.ACTIVITY_PAUSED),
+                ],
+                Column.APP_PACKAGE_NAME: ["com.example", "com.example"],
+            },
+            schema_overrides={Column.EVENT_TIMESTAMP: pl.Datetime("us", "UTC")},
+        )
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", RuntimeWarning)
+            result = _make_preprocessor()._process_usage_rows(
+                df,
+                resumed_type=str(InteractionType.ACTIVITY_RESUMED),
+                paused_type=str(InteractionType.ACTIVITY_PAUSED),
+                usage_type=str(InteractionType.APP_USAGE),
+                stopped_type=str(InteractionType.ACTIVITY_STOPPED),
+                same_stop_types={str(InteractionType.ACTIVITY_PAUSED)},
+                other_stop_types=set(),
+            )
+
+        assert result.is_empty()
+        assert [warning for warning in caught if issubclass(warning.category, RuntimeWarning)] == []
 
 
 # ---------------------------------------------------------------------------

@@ -247,6 +247,21 @@ repos:
         stages: [pre-commit]
         files: ^web/src/
 
+  # Memory regression gate — pre-push
+  - repo: local
+    hooks:
+      - id: memory-regression
+        name: Python memory regression (peak ≤ 150 MB)
+        language: script
+        entry: scripts/check-memory-regression.sh
+        pass_filenames: false
+        stages: [pre-push]
+        files: |
+          (?x)^(
+            src/chronicle_preprocessing_app/core/preprocessing/|
+            tests/test_memory_regression\.py
+          )
+
   # Contract drift detection — commit stage
   - repo: local
     hooks:

@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: "0 3 * * 1"  # Monday 03:00 UTC
 
 permissions:
   contents: read
@@ -69,6 +71,41 @@ jobs:
 
       - name: npm audit
         run: npm audit --audit-level=high --prefix web
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [web-tests]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci --prefix web
+
+      - name: Install Playwright browsers
+        run: npx --prefix web playwright install --with-deps chromium firefox webkit
+
+      - name: Build web app
+        run: npm run --prefix web build
+
+      - name: Run e2e smoke tests (all browsers)
+        run: npx --prefix web playwright test --grep "@smoke"
+        env:
+          CI: "true"
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          retention-days: 7
 
   rust-tests:
     runs-on: ubuntu-latest
@@ -246,3 +283,39 @@ jobs:
           GITLEAKS_ENABLE_COMMENTS: "false"
         with:
           args: detect --source . --config .gitleaks.toml --max-target-megabytes 5 --redact --verbose
+
+  sbom:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Generate SBOM (Trivy)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          format: cyclonedx
+          output: sbom.json
+          scan-ref: .
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
+          retention-days: 90
+
+  rust-udeps:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install cargo-udeps
+        run: cargo install cargo-udeps --locked
+
+      - name: Check unused dependencies
+        run: cargo +nightly udeps --manifest-path rust/chronicle_app_usage_matcher/Cargo.toml --all-targets
+        continue-on-error: true
