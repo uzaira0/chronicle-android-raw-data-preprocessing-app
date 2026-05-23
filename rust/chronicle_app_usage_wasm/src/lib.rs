@@ -121,26 +121,52 @@ pub fn split_overlapping_sessions_wasm(
 mod tests {
     use super::*;
 
-    /// Mirror of the `enclosed_session_makes_outer_secondary_during_overlap`
-    /// test in chronicle_app_usage_matcher. Verifies the WASM-facing wrapper
-    /// emits the correct `usage_layer` strings for overlapping sessions.
+    /// Verifies the WASM-facing wrapper `split_overlapping_sessions_wasm`
+    /// and the underlying split logic for overlapping sessions.
+    ///
+    /// Session 0: 0..100 (outer)
+    /// Session 1: 20..60 (inner, enclosed by outer)
+    ///
+    /// Expected sub-intervals ordered by (session_index, start_ns):
+    ///   session 0: [0,20) primary, [20,60) secondary, [60,100) primary
+    ///   session 1: [20,60) primary
+    ///
+    /// The WASM wrapper (`split_overlapping_sessions_wasm`) calls
+    /// `serde_wasm_bindgen` which invokes `js-sys` internally. `js-sys` calls
+    /// into the wasm-bindgen JS runtime, which panics in a native `cargo test`
+    /// build. The wrapper call is therefore guarded by `#[cfg(target_arch =
+    /// "wasm32")]`; it is exercised by `wasm-pack test` (browser/Node target).
+    /// The structural assertions below run in both native and wasm contexts and
+    /// cover the split logic, `LayeredSessionRow` mapping, and `UsageLayer`
+    /// serialization strings that the wrapper encodes.
     #[test]
     fn split_overlapping_sessions_wasm_unit() {
-        // Session 0: 0..100 (outer)
-        // Session 1: 20..60 (inner, enclosed by outer)
-        //
-        // Expected sub-intervals ordered by (session_index, start_ns):
-        //   session 0: [0,20) secondary, [20,60) secondary, [60,100) primary
-        //   session 1: [20,60) primary
         let starts = vec![0i64, 20i64];
         let stops = vec![100i64, 60i64];
-        let result = split_overlapping_sessions(&starts, &stops)
-            .expect("split should succeed");
 
+        // In a real wasm32 target the full wrapper — serialization, BigInt
+        // mapping, and error propagation — is exercised here. In native test
+        // mode the call is skipped because js-sys panics outside a wasm runtime.
+        #[cfg(target_arch = "wasm32")]
+        {
+            let wasm_result = split_overlapping_sessions_wasm(starts.clone(), stops.clone());
+            assert!(
+                wasm_result.is_ok(),
+                "WASM wrapper should return Ok; got Err: {:?}",
+                wasm_result.err(),
+            );
+        }
+
+        // Structural validation via the inner function. This covers the same
+        // code path the wrapper calls (same `split_overlapping_sessions` call +
+        // `LayeredSessionRow::from` mapping) and is inspectable in native mode.
+        //
         // Primary = greatest start_ns in the sub-interval.
         // [0,20)  : only session 0 open  -> session 0 is primary
         // [20,60) : both open; session 1 has greater start (20 > 0) -> session 1 primary, session 0 secondary
         // [60,100): only session 0 open  -> session 0 is primary
+        let result = split_overlapping_sessions(&starts, &stops)
+            .expect("inner split should succeed");
 
         // session 0 intervals
         let s0: Vec<_> = result.iter().filter(|r| r.session_index == 0).collect();

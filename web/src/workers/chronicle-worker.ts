@@ -60,17 +60,14 @@ async function runMatcher(input: MatcherInput): Promise<MatcherOutput> {
 async function runSplitter(input: SplitterInput): Promise<SplitterOutput> {
   await ensureInit();
   const module = await import("@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
-  // splitOverlappingSessions returns { sessionIndex, startNs, stopNs, layer }[]
-  // startNs / stopNs are BigInt (serialised via serialize_large_number_types_as_bigints).
-  // Cast to unknown first because the generated .d.ts may lag behind the built
-  // WASM bundle — the function is present at runtime in the .js and .wasm files.
+  // The pkg .d.ts declares splitOverlappingSessions(BigInt64Array, BigInt64Array),
+  // but TS cannot resolve it on this dynamic import's module type under our
+  // Bundler-resolution / @ts-self-types configuration. Keep a minimal cast
+  // with the correct BigInt64Array signature (no-copy, no Array.from).
   const wasmModule = module as unknown as {
-    splitOverlappingSessions: (starts: bigint[], stops: bigint[]) => SplitterOutput;
+    splitOverlappingSessions: (starts: BigInt64Array, stops: BigInt64Array) => SplitterOutput;
   };
-  return wasmModule.splitOverlappingSessions(
-    Array.from(input.starts),
-    Array.from(input.stops),
-  );
+  return wasmModule.splitOverlappingSessions(input.starts, input.stops);
 }
 
 const api = {

@@ -2028,9 +2028,15 @@ export async function processRawCsvContent(
       arr.push(row.event_timestamp_ns);
     }
 
-    // Provide a no-op splitter when none is supplied (modelConcurrentUsage=false path).
-    const effectiveSplitter: SplitterRunner =
-      runSplitter ?? (() => Promise.resolve([]));
+    // Guard: concurrent-usage mode requires a real splitter; a no-op would
+    // silently drop every App Usage row (nonUsageRows excludes them and the
+    // no-op returns nothing).
+    if (options.modelConcurrentUsage && !runSplitter) {
+      throw new Error(
+        "runSplitter must be supplied when modelConcurrentUsage is true; got undefined",
+      );
+    }
+    const effectiveSplitter: SplitterRunner = runSplitter ?? (() => Promise.resolve([]));
     emit("matcher", 0);
     appRows = await runAppUsageAlgorithm(rows, options, runMatcher, effectiveSplitter);
     emit("matcher", 1);

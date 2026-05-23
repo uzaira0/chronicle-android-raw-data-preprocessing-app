@@ -10,10 +10,13 @@ vi.mock("@/lib/plotGenerator", () => ({
   generateAllPlots: vi.fn(),
 }));
 import type {
+  LayeredSessionRow,
   MatcherInput,
   MatcherOutput,
   ProgressEvent,
   ProgressStepKind,
+  SplitterInput,
+  SplitterOutput,
 } from "@/lib/types";
 
 function csvBytes(text: string): ArrayBuffer {
@@ -581,6 +584,110 @@ describe("browserPipeline", () => {
 
       // All 4 raw events captured for P01 before the algorithm ran
       expect(capturedPreAlgoTs?.get("P01")).toHaveLength(4);
+    });
+  });
+
+  describe("modelConcurrentUsage flag", () => {
+    it("adds usage_layer column with primary/secondary values when flag is on", async () => {
+      // Two overlapping app sessions:
+      //   Session 0: 10:00:00 — 10:05:00 (outer, 300s)
+      //   Session 1: 10:01:00 — 10:03:00 (inner, 120s)
+      const csv = [
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+        "Study,P01,Target Child,Outer,Unknown importance: 1,com.example.outer,2026-03-07 10:00:00,America/Chicago",
+        "Study,P01,Target Child,Inner,Unknown importance: 1,com.example.inner,2026-03-07 10:01:00,America/Chicago",
+        "Study,P01,Target Child,Inner,Unknown importance: 2,com.example.inner,2026-03-07 10:03:00,America/Chicago",
+        "Study,P01,Target Child,Outer,Unknown importance: 2,com.example.outer,2026-03-07 10:05:00,America/Chicago",
+      ].join("\n");
+
+      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+        startIndices: [0, 1],
+        stopStartIndices: [0, 1],
+        stopEventIndices: [3, 2],
+        missingIndices: [],
+      });
+
+      // Mock splitter: returns a fixed set of LayeredSessionRow objects
+      // representing the outer session split into 3 sub-intervals and the
+      // inner session as a single primary sub-interval.
+      const mockSplitter = async (_input: SplitterInput): Promise<SplitterOutput> => {
+        const rows: LayeredSessionRow[] = [
+          // session 0 (outer): [0,60s) primary, [60,180s) secondary, [180,300s) primary
+          { sessionIndex: 0, startNs: 1741341600000000000n, stopNs: 1741341660000000000n, layer: "primary" },
+          { sessionIndex: 0, startNs: 1741341660000000000n, stopNs: 1741341780000000000n, layer: "secondary" },
+          { sessionIndex: 0, startNs: 1741341780000000000n, stopNs: 1741341900000000000n, layer: "primary" },
+          // session 1 (inner): [0,120s) primary
+          { sessionIndex: 1, startNs: 1741341660000000000n, stopNs: 1741341780000000000n, layer: "primary" },
+        ];
+        return rows;
+      };
+
+      const result = await processRawCsvContent(
+        "Raw P01.csv",
+        csv,
+        {
+          ...DEFAULT_BROWSER_OPTIONS,
+          modelConcurrentUsage: true,
+          useFilterFile: false,
+          useAppsForcingScreenOpenFile: false,
+          useAppCodebook: false,
+        },
+        {},
+        matcher,
+        undefined,
+        undefined,
+        mockSplitter,
+      );
+
+      const csvText = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
+      const lines = csvText.trim().split("\n");
+      const headers = (lines[0] ?? "").split(",");
+
+      // usage_layer column must be present
+      expect(headers).toContain("usage_layer");
+
+      const usageLayerIdx = headers.indexOf("usage_layer");
+      const dataRows = lines.slice(1).filter(Boolean);
+
+      // Every App Usage row must have a non-empty layer value
+      const layers = dataRows.map((line) => line.split(",")[usageLayerIdx]);
+      expect(layers.every((v) => v === "primary" || v === "secondary")).toBe(true);
+
+      // Both primary and secondary values must appear in the output
+      expect(layers).toContain("primary");
+      expect(layers).toContain("secondary");
+    });
+
+    it("throws when modelConcurrentUsage is true but no runSplitter is provided", async () => {
+      const csv = [
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+        "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+        "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:01:00,America/Chicago",
+      ].join("\n");
+
+      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+        startIndices: [0],
+        stopStartIndices: [0],
+        stopEventIndices: [1],
+        missingIndices: [],
+      });
+
+      await expect(
+        processRawCsvContent(
+          "Raw P01.csv",
+          csv,
+          {
+            ...DEFAULT_BROWSER_OPTIONS,
+            modelConcurrentUsage: true,
+            useFilterFile: false,
+            useAppsForcingScreenOpenFile: false,
+            useAppCodebook: false,
+          },
+          {},
+          matcher,
+          // no runSplitter
+        ),
+      ).rejects.toThrow("runSplitter must be supplied when modelConcurrentUsage is true");
     });
   });
 });
