@@ -20,6 +20,7 @@ from chronicle_preprocessing_app.config.constants import (
 )
 from chronicle_preprocessing_app.config.defaults import (
     DEFAULT_ALLOW_STOP_EVENT_REUSE,
+    DEFAULT_MODEL_CONCURRENT_USAGE,
     DEFAULT_APP_CODEBOOK_FILE_PATH,
     DEFAULT_APPLY_THRESHOLD_TO_ACTIVITY_STOPPED_FALLBACK,
     DEFAULT_APPS_TO_FILTER_DICT,
@@ -106,6 +107,7 @@ class PreprocessingOptions:
         custom_timezones: List of custom timezones added by user
         selected_timezone: Selected timezone to use
         correct_duplicate_event_timestamps: Whether to correct duplicate event timestamps
+        model_concurrent_usage: When True, model overlapping (PiP) usage as primary/secondary layers.
         same_app_interaction_types_to_stop_usage_at: Set of interaction types to stop usage at for the same app
         other_interaction_types_to_stop_usage_at: Set of other interaction types to stop usage at
         interaction_types_to_remove: Set of interaction types to remove from final output
@@ -191,6 +193,7 @@ class PreprocessingOptions:
     custom_timezones: list[str] = field(default_factory=lambda: list(DEFAULT_CUSTOM_TIMEZONES))
     selected_timezone: str | tzinfo | None = DEFAULT_SELECTED_TIMEZONE
     correct_duplicate_event_timestamps: bool = DEFAULT_CORRECT_DUPLICATE_EVENT_TIMESTAMPS
+    model_concurrent_usage: bool = DEFAULT_MODEL_CONCURRENT_USAGE
 
     same_app_interaction_types_to_stop_usage_at: set[InteractionType] = field(
         default_factory=lambda: set(DEFAULT_SAME_APP_INTERACTION_TYPES_TO_STOP_USAGE_AT)
