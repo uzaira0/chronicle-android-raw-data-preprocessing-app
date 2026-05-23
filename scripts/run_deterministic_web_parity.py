@@ -36,6 +36,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--weeks", type=int, default=2)
     parser.add_argument("--datetime", default=FIXED_DATETIME)
     parser.add_argument("--report-json", type=Path)
+    parser.add_argument(
+        "--model-concurrent-usage",
+        action="store_true",
+        default=False,
+        help="Enable concurrent (PiP) usage modeling for the flag-on parity entry.",
+    )
     return parser.parse_args()
 
 
@@ -127,6 +133,7 @@ def _build_options(
     use_apps_forcing_screen_open_file: bool,
     usage_session_mode: UsageSessionMode,
     datetime_override: str,
+    model_concurrent_usage: bool = False,
 ) -> PreprocessingOptions:
     options = PreprocessingOptions(
         study_name="Deterministic Parity",
@@ -143,6 +150,7 @@ def _build_options(
         selected_timezone="America/Chicago",
         timezone_handling_option=TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE,
         datetime_of_preprocessing_override=datetime_override,
+        model_concurrent_usage=model_concurrent_usage,
     )
     if options.use_filter_file:
         options.apps_to_filter_dict = read_filter_file(options.filter_file)
@@ -282,6 +290,48 @@ def main() -> int:
             desktop_core_app,
             browser_core_output_dir / "Raw P01 Automatically Preprocessed.csv",
         )
+
+        if args.model_concurrent_usage:
+            desktop_pip_root = temp_root / "desktop_pip"
+            desktop_pip_raw_dir = desktop_pip_root / "raw"
+            desktop_pip_raw_dir.mkdir(parents=True)
+            desktop_pip_raw_path = desktop_pip_raw_dir / RAW_FILE_NAME
+            raw_df.write_csv(desktop_pip_raw_path)
+            pip_options = _build_options(
+                raw_data_folder=desktop_pip_raw_dir,
+                use_app_codebook=False,
+                use_filter_file=False,
+                use_apps_forcing_screen_open_file=False,
+                usage_session_mode=UsageSessionMode.APP_USAGE,
+                datetime_override=args.datetime,
+                model_concurrent_usage=True,
+            )
+            desktop_pip_app, _ = _run_desktop(desktop_pip_raw_path, pip_options, desktop_pip_root)
+
+            browser_pip_output_dir = temp_root / "browser_pip"
+            browser_pip_output_dir.mkdir()
+            pip_spec_path = temp_root / "browser_pip_spec.json"
+            _write_browser_spec(
+                pip_spec_path,
+                raw_csv_path=browser_raw_path,
+                output_dir=browser_pip_output_dir,
+                options={
+                    "studyName": "Deterministic Parity",
+                    "usageSessionMode": "app_usage",
+                    "selectedTimezone": "America/Chicago",
+                    "timezoneHandling": "selected-filter",
+                    "useFilterFile": False,
+                    "useAppsForcingScreenOpenFile": False,
+                    "useAppCodebook": False,
+                    "modelConcurrentUsage": True,
+                },
+                datetime_override=args.datetime,
+            )
+            _run_browser_processing(pip_spec_path)
+            report["pip_app"] = _compare_csvs(
+                desktop_pip_app,
+                browser_pip_output_dir / "Raw P01 Automatically Preprocessed.csv",
+            )
 
         if args.report_json:
             args.report_json.write_text(json.dumps(report, indent=2), encoding="utf-8")
