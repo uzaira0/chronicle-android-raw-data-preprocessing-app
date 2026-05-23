@@ -158,6 +158,7 @@ slots:
     range: boolean
     required: false
     ifabsent: "boolean(false)"
+    default: false
     title: "Model concurrent (Picture-in-Picture) usage"
     description: >
       When enabled, an app session runs to its own stop event instead of ending

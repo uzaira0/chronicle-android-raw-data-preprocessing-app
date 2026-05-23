@@ -193,7 +193,7 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   parallelMaxWorkers: undefined,
   sameAppInteractionTypesToStopUsageAt: ["Activity Paused", "Activity Resumed"],
   otherInteractionTypesToStopUsageAt: ["Activity Resumed", "Filtered App Resumed", "Filtered App Usage", "Device Shutdown"],
-  modelConcurrentUsage: undefined,
+  modelConcurrentUsage: false,
   interactionTypesToRemove: [],
 };
 
