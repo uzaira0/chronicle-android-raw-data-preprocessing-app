@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 from chronicle_preprocessing_app.core.preprocessing.algorithms.overlap_split import (
@@ -46,11 +47,14 @@ def test_mismatched_lengths_raise():
         split_overlapping_sessions([0], [1, 2])
 
 
+def test_inverted_bounds_raise():
+    with pytest.raises(ValueError):
+        split_overlapping_sessions([10], [5])
+
+
 def test_python_matches_rust_on_random_inputs():
     """Python mirror must equal the Rust core on randomized sessions."""
     import random
-
-    import numpy as np
 
     rust = pytest.importorskip("_rust_app_usage_matcher._rust_app_usage_matcher")
     rng = random.Random(20260522)
