@@ -931,10 +931,11 @@ fn match_app_usage_arrays(
 #[cfg(feature = "python")]
 #[pyfunction]
 fn split_overlapping_sessions_py(
-    starts: Vec<i64>,
-    stops: Vec<i64>,
+    starts: PyReadonlyArray1<'_, i64>,
+    stops: PyReadonlyArray1<'_, i64>,
 ) -> PyResult<(Vec<usize>, Vec<i64>, Vec<i64>, Vec<bool>)> {
-    let rows = split_overlapping_sessions(&starts, &stops).map_err(to_py_error)?;
+    let rows = split_overlapping_sessions(starts.as_slice()?, stops.as_slice()?)
+        .map_err(to_py_error)?;
     let mut session_index = Vec::with_capacity(rows.len());
     let mut start_ns = Vec::with_capacity(rows.len());
     let mut stop_ns = Vec::with_capacity(rows.len());
@@ -1377,5 +1378,49 @@ mod tests {
     #[test]
     fn rejects_mismatched_lengths() {
         assert!(split_overlapping_sessions(&[0], &[1, 2]).is_err());
+    }
+
+    #[test]
+    fn adjacent_same_layer_intervals_are_coalesced() {
+        // A:[0,40], B:[10,20], C:[20,30]
+        // Sub-intervals: [0,10) A only -> A primary; [10,20) A+B open, B starts later -> B primary, A secondary;
+        // [20,30) A+C open, C starts later -> C primary, A secondary; [30,40) A only -> A primary.
+        // After coalesce, A's two adjacent secondary windows [10,20) and [20,30) merge into [10,30).
+        let out = split(&[0, 10, 20], &[40, 20, 30]);
+        let a_secondary: Vec<_> = out
+            .iter()
+            .filter(|r| r.session_index == 0 && r.layer == UsageLayer::Secondary)
+            .collect();
+        assert_eq!(
+            a_secondary.len(),
+            1,
+            "two adjacent secondary intervals should coalesce to one"
+        );
+        assert_eq!(a_secondary[0].start_ns, 10);
+        assert_eq!(a_secondary[0].stop_ns, 30);
+    }
+
+    #[test]
+    fn empty_input_returns_empty() {
+        assert_eq!(split(&[], &[]), Vec::<LayeredSession>::new());
+    }
+
+    #[test]
+    fn inverted_bounds_rejected() {
+        assert!(split_overlapping_sessions(&[10], &[5]).is_err());
+    }
+
+    #[test]
+    fn three_way_coincident_highest_index_wins_primary() {
+        // Three identical intervals: greatest index (2) must be primary; 0 and 1 secondary.
+        let out = split(&[0, 0, 0], &[100, 100, 100]);
+        assert_eq!(
+            out,
+            vec![
+                LayeredSession { session_index: 0, start_ns: 0, stop_ns: 100, layer: UsageLayer::Secondary },
+                LayeredSession { session_index: 1, start_ns: 0, stop_ns: 100, layer: UsageLayer::Secondary },
+                LayeredSession { session_index: 2, start_ns: 0, stop_ns: 100, layer: UsageLayer::Primary },
+            ]
+        );
     }
 }
