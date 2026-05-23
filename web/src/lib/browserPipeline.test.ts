@@ -658,6 +658,61 @@ describe("browserPipeline", () => {
       expect(layers).toContain("secondary");
     });
 
+    it("nulls duration fields for sub-intervals below minimumUsageDuration", async () => {
+      // One session, splitter returns a 2-second sub-interval; threshold is 5s.
+      const csv = [
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+        "Study,P01,Target Child,Outer,Unknown importance: 1,com.example.outer,2026-03-07 10:00:00,America/Chicago",
+        "Study,P01,Target Child,Outer,Unknown importance: 2,com.example.outer,2026-03-07 10:00:10,America/Chicago",
+      ].join("\n");
+
+      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+        startIndices: [0],
+        stopStartIndices: [0],
+        stopEventIndices: [1],
+        missingIndices: [],
+      });
+
+      // Sub-interval that is only 2 seconds long (below minimumUsageDuration=5)
+      const shortSubIntervalSplitter = async (_input: SplitterInput): Promise<SplitterOutput> => {
+        const rows: LayeredSessionRow[] = [
+          // 2-second primary sub-interval
+          { sessionIndex: 0, startNs: 1741341600000000000n, stopNs: 1741341602000000000n, layer: "primary" },
+        ];
+        return rows;
+      };
+
+      const result = await processRawCsvContent(
+        "Raw P01.csv",
+        csv,
+        {
+          ...DEFAULT_BROWSER_OPTIONS,
+          modelConcurrentUsage: true,
+          minimumUsageDuration: 5,
+          useFilterFile: false,
+          useAppsForcingScreenOpenFile: false,
+          useAppCodebook: false,
+        },
+        {},
+        matcher,
+        undefined,
+        undefined,
+        shortSubIntervalSplitter,
+      );
+
+      const csvText = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
+      const lines = csvText.trim().split("\n");
+      const headers = (lines[0] ?? "").split(",");
+      const dataRows = lines.slice(1).filter(Boolean);
+      const durationSecondsIdx = headers.indexOf("duration_seconds");
+      const durationMinutesIdx = headers.indexOf("duration_minutes");
+
+      // Row is kept but duration fields are nulled (empty CSV cell)
+      expect(dataRows).toHaveLength(1);
+      expect(dataRows[0]?.split(",")[durationSecondsIdx]).toBe("");
+      expect(dataRows[0]?.split(",")[durationMinutesIdx]).toBe("");
+    });
+
     it("throws when modelConcurrentUsage is true but no runSplitter is provided", async () => {
       const csv = [
         "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",

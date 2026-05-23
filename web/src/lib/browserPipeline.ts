@@ -1246,12 +1246,14 @@ async function processUsageRows(
       const expanded: CanonicalRow[] = layered.map((ls: LayeredSessionRow) => {
         const source = appUsageRows[ls.sessionIndex]!;
         const durationSeconds = Number(ls.stopNs - ls.startNs) / 1_000_000_000;
+        const durationBelowThreshold =
+          options.minimumUsageDuration > 0 && durationSeconds < options.minimumUsageDuration;
         return {
           ...source,
           start_timestamp_ns: ls.startNs,
           stop_timestamp_ns: ls.stopNs,
-          duration_seconds: durationSeconds,
-          duration_minutes: durationSeconds / 60,
+          duration_seconds: durationBelowThreshold ? null : durationSeconds,
+          duration_minutes: durationBelowThreshold ? null : durationSeconds / 60,
           usage_layer: ls.layer,
         };
       });

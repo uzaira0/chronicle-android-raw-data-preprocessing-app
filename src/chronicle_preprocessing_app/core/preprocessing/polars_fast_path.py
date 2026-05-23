@@ -1188,6 +1188,11 @@ class PolarsFastPathPreprocessor:
             Column.STOP_TIMESTAMP,
             Column.DURATION_SECONDS,
             Column.DURATION_MINUTES,
+            *(
+                [Column.USAGE_LAYER]
+                if self.options.model_concurrent_usage
+                else []
+            ),
             Column.SCREEN_USAGE_END_REASON,
             Column.SCREEN_USAGE_END_REASON_CONFIDENCE,
             Column.SCREEN_USAGE_STOP_EVENT_TYPE,

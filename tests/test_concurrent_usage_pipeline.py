@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from chronicle_preprocessing_app.config.constants import Column, UsageLayer
+from chronicle_preprocessing_app.config.constants import Column, InteractionType, UsageLayer
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
 from chronicle_preprocessing_app.core.preprocessing.polars_fast_path import (
     PolarsFastPathPreprocessor,
@@ -28,6 +28,76 @@ def _two_overlapping_apps_raw() -> pl.DataFrame:
             ).str.to_datetime(time_zone="UTC"),
         }
     )
+
+
+def _two_overlapping_apps_raw_file(tmp_path):
+    """Write the two-overlapping-apps fixture to a CSV file and return the path."""
+    rows = [
+        ("P01", "Activity Resumed", "com.a", "App A", "Target Child", "America/Chicago", "2026-01-01T08:00:00+00:00"),
+        ("P01", "Activity Resumed", "com.b", "App B", "Target Child", "America/Chicago", "2026-01-01T08:10:00+00:00"),
+        ("P01", "Activity Stopped", "com.b", "App B", "Target Child", "America/Chicago", "2026-01-01T08:20:00+00:00"),
+        ("P01", "Activity Stopped", "com.a", "App A", "Target Child", "America/Chicago", "2026-01-01T08:30:00+00:00"),
+    ]
+    df = pl.DataFrame(
+        {
+            Column.PARTICIPANT_ID: [r[0] for r in rows],
+            Column.INTERACTION_TYPE: [r[1] for r in rows],
+            Column.APP_PACKAGE_NAME: [r[2] for r in rows],
+            Column.APPLICATION_LABEL: [r[3] for r in rows],
+            Column.USERNAME: [r[4] for r in rows],
+            Column.TIMEZONE: [r[5] for r in rows],
+            Column.EVENT_TIMESTAMP: [r[6] for r in rows],
+        }
+    )
+    raw_file = tmp_path / "Raw P01.csv"
+    df.write_csv(raw_file)
+    return raw_file
+
+
+def test_flag_off_csv_does_not_contain_usage_layer_column(tmp_path):
+    """save_preprocessed_output must NOT emit usage_layer when flag is off."""
+    raw_file = _two_overlapping_apps_raw_file(tmp_path)
+    preprocessor = PolarsFastPathPreprocessor(
+        PreprocessingOptions(raw_data_folder="", model_concurrent_usage=False)
+    )
+    result = preprocessor.preprocess_raw_data_file(raw_file)
+    out_folder = preprocessor.save_preprocessed_output(
+        result.data,
+        raw_data_filename=raw_file.name,
+        output_folder=tmp_path,
+        study_name="test",
+        pre_algo_event_timestamps=result.pre_algo_event_timestamps,
+    )
+    csv_files = list(out_folder.glob("*.csv"))
+    assert len(csv_files) == 1
+    written = pl.read_csv(csv_files[0])
+    assert Column.USAGE_LAYER not in written.columns
+
+
+def test_flag_on_csv_contains_usage_layer_column_with_primary_and_secondary(tmp_path):
+    """save_preprocessed_output must emit usage_layer with primary/secondary when flag is on."""
+    raw_file = _two_overlapping_apps_raw_file(tmp_path)
+    preprocessor = PolarsFastPathPreprocessor(
+        PreprocessingOptions(raw_data_folder="", model_concurrent_usage=True)
+    )
+    result = preprocessor.preprocess_raw_data_file(raw_file)
+    out_folder = preprocessor.save_preprocessed_output(
+        result.data,
+        raw_data_filename=raw_file.name,
+        output_folder=tmp_path,
+        study_name="test",
+        pre_algo_event_timestamps=result.pre_algo_event_timestamps,
+    )
+    csv_files = list(out_folder.glob("*.csv"))
+    assert len(csv_files) == 1
+    written = pl.read_csv(csv_files[0])
+    assert Column.USAGE_LAYER in written.columns
+    app_usage = written.filter(
+        pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)
+    )
+    layers = set(app_usage.get_column(Column.USAGE_LAYER).drop_nulls().to_list())
+    assert str(UsageLayer.PRIMARY) in layers
+    assert str(UsageLayer.SECONDARY) in layers
 
 
 def test_flag_off_keeps_single_foreground_behavior():
