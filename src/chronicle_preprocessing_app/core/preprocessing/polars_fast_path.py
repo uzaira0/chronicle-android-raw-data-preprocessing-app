@@ -28,6 +28,7 @@ from chronicle_preprocessing_app.config.constants import (
     Column,
     InteractionType,
     TimezoneHandlingOption,
+    UsageLayer,
 )
 from chronicle_preprocessing_app.config.defaults import (
     DEFAULT_LONG_DATA_TIME_GAP_THRESHOLDS,
@@ -533,6 +534,14 @@ class PolarsFastPathPreprocessor:
         ).any():
             raise ValueError("No valid app usage data during the study period")
 
+        other_stop_types: set[str]
+        if self.options.model_concurrent_usage:
+            other_stop_types = set()
+        else:
+            other_stop_types = {
+                str(value) for value in self.options.other_interaction_types_to_stop_usage_at
+            }
+
         return self._process_usage_rows(
             df,
             resumed_type=str(InteractionType.ACTIVITY_RESUMED),
@@ -542,10 +551,57 @@ class PolarsFastPathPreprocessor:
             same_stop_types={
                 str(value) for value in self.options.same_app_interaction_types_to_stop_usage_at
             },
-            other_stop_types={
-                str(value) for value in self.options.other_interaction_types_to_stop_usage_at
-            },
+            other_stop_types=other_stop_types,
         )
+
+    def _apply_concurrent_usage_split(self, df: pl.DataFrame, usage_type: str) -> pl.DataFrame:
+        """Expand overlapping App-Usage rows into primary/secondary layer rows.
+
+        Non-usage rows pass through unchanged with usage_layer = null. Each
+        usage row whose [start, stop] interval overlaps another usage row is
+        replaced by one row per primary/secondary sub-interval.
+        """
+        usage_mask = df.get_column(Column.INTERACTION_TYPE) == usage_type
+        usage = df.filter(usage_mask).with_row_index("_session_index")
+        non_usage = df.filter(~usage_mask).with_columns(
+            pl.lit(None, dtype=pl.String).alias(Column.USAGE_LAYER)
+        )
+        if usage.height == 0:
+            return non_usage.drop("_session_index", strict=False)
+
+        from chronicle_preprocessing_app.core.preprocessing.algorithms.overlap_split import (  # noqa: PLC0415
+            split_overlapping_sessions,
+        )
+
+        starts = usage.get_column(Column.START_TIMESTAMP).dt.epoch("ns").to_list()
+        stops = usage.get_column(Column.STOP_TIMESTAMP).dt.epoch("ns").to_list()
+        layered = split_overlapping_sessions(starts, stops)
+
+        tz = df.schema[Column.EVENT_TIMESTAMP].time_zone or "UTC"
+        layered_df = pl.DataFrame(
+            {
+                "_session_index": pl.Series(
+                    [r.session_index for r in layered], dtype=pl.UInt32
+                ),
+                Column.START_TIMESTAMP: pl.Series(
+                    [r.start_ns for r in layered], dtype=pl.Int64
+                )
+                .cast(pl.Datetime("ns", "UTC"))
+                .dt.convert_time_zone(tz),
+                Column.STOP_TIMESTAMP: pl.Series(
+                    [r.stop_ns for r in layered], dtype=pl.Int64
+                )
+                .cast(pl.Datetime("ns", "UTC"))
+                .dt.convert_time_zone(tz),
+                Column.USAGE_LAYER: pl.Series([r.layer for r in layered], dtype=pl.String),
+            }
+        )
+        expanded = (
+            usage.drop([Column.START_TIMESTAMP, Column.STOP_TIMESTAMP])
+            .join(layered_df, on="_session_index", how="right")
+        )
+        combined = pl.concat([expanded, non_usage], how="diagonal_relaxed")
+        return combined.drop("_session_index", strict=False)
 
     def _process_usage_rows(
         self,
@@ -610,6 +666,8 @@ class PolarsFastPathPreprocessor:
                 Column.INTERACTION_TYPE
             )
         )
+        if self.options.model_concurrent_usage and usage_type == str(InteractionType.APP_USAGE):
+            df = self._apply_concurrent_usage_split(df, usage_type)
         duration_expr = (
             (pl.col(Column.STOP_TIMESTAMP) - pl.col(Column.START_TIMESTAMP))
             .dt.total_microseconds()
