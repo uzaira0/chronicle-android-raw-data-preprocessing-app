@@ -52,6 +52,108 @@ pub struct MatchUpdateIndices {
     pub missing_indices: Vec<usize>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UsageLayer {
+    Primary,
+    Secondary,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LayeredSession {
+    pub session_index: usize,
+    pub start_ns: i64,
+    pub stop_ns: i64,
+    pub layer: UsageLayer,
+}
+
+/// Split possibly-overlapping app sessions into primary/secondary sub-interval
+/// rows. `starts[i]`/`stops[i]` are the bounds of paired session `i`
+/// (`stops[i] >= starts[i]`). In any sub-interval the open session with the
+/// greatest `start_ns` is `primary` (tie broken by greatest input index);
+/// every other open session is `secondary`. Adjacent same-session same-layer
+/// sub-intervals are coalesced. Output is ordered by `session_index`, then by
+/// `start_ns`.
+pub fn split_overlapping_sessions(
+    starts: &[i64],
+    stops: &[i64],
+) -> MatcherResult<Vec<LayeredSession>> {
+    if starts.len() != stops.len() {
+        return Err(MatcherError::new(
+            "starts and stops must have the same length",
+        ));
+    }
+    for i in 0..starts.len() {
+        if stops[i] < starts[i] {
+            return Err(MatcherError::new("stop must be >= start for every session"));
+        }
+    }
+
+    // Boundary timestamps: every distinct start and stop, sorted.
+    let mut boundaries: Vec<i64> = Vec::with_capacity(starts.len() * 2);
+    boundaries.extend_from_slice(starts);
+    boundaries.extend_from_slice(stops);
+    boundaries.sort_unstable();
+    boundaries.dedup();
+
+    // For each sub-interval [boundaries[k], boundaries[k+1]) emit a row per
+    // open session. Coalesce per session afterwards.
+    let mut raw: Vec<LayeredSession> = Vec::new();
+    for window in boundaries.windows(2) {
+        let (t0, t1) = (window[0], window[1]);
+        if t1 <= t0 {
+            continue;
+        }
+        // Open sessions in [t0, t1): start <= t0 and stop >= t1.
+        let mut open: Vec<usize> = Vec::new();
+        for i in 0..starts.len() {
+            if starts[i] <= t0 && stops[i] >= t1 {
+                open.push(i);
+            }
+        }
+        if open.is_empty() {
+            continue;
+        }
+        // Primary = greatest start_ns, tie broken by greatest index.
+        let primary = *open
+            .iter()
+            .max_by(|&&a, &&b| starts[a].cmp(&starts[b]).then(a.cmp(&b)))
+            .expect("open is non-empty");
+        for &i in &open {
+            raw.push(LayeredSession {
+                session_index: i,
+                start_ns: t0,
+                stop_ns: t1,
+                layer: if i == primary {
+                    UsageLayer::Primary
+                } else {
+                    UsageLayer::Secondary
+                },
+            });
+        }
+    }
+
+    // Stable order by (session_index, start_ns), then coalesce adjacency.
+    raw.sort_by(|a, b| {
+        a.session_index
+            .cmp(&b.session_index)
+            .then(a.start_ns.cmp(&b.start_ns))
+    });
+    let mut out: Vec<LayeredSession> = Vec::with_capacity(raw.len());
+    for row in raw {
+        if let Some(last) = out.last_mut() {
+            if last.session_index == row.session_index
+                && last.layer == row.layer
+                && last.stop_ns == row.start_ns
+            {
+                last.stop_ns = row.stop_ns;
+                continue;
+            }
+        }
+        out.push(row);
+    }
+    Ok(out)
+}
+
 fn validate_lengths(
     app_codes: &[i32],
     timestamp_ns: &[i64],
@@ -827,12 +929,33 @@ fn match_app_usage_arrays(
 }
 
 #[cfg(feature = "python")]
+#[pyfunction]
+fn split_overlapping_sessions_py(
+    starts: Vec<i64>,
+    stops: Vec<i64>,
+) -> PyResult<(Vec<usize>, Vec<i64>, Vec<i64>, Vec<bool>)> {
+    let rows = split_overlapping_sessions(&starts, &stops).map_err(to_py_error)?;
+    let mut session_index = Vec::with_capacity(rows.len());
+    let mut start_ns = Vec::with_capacity(rows.len());
+    let mut stop_ns = Vec::with_capacity(rows.len());
+    let mut is_primary = Vec::with_capacity(rows.len());
+    for row in rows {
+        session_index.push(row.session_index);
+        start_ns.push(row.start_ns);
+        stop_ns.push(row.stop_ns);
+        is_primary.push(row.layer == UsageLayer::Primary);
+    }
+    Ok((session_index, start_ns, stop_ns, is_primary))
+}
+
+#[cfg(feature = "python")]
 #[pymodule]
 fn _rust_app_usage_matcher(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(match_app_usage, m)?)?;
     m.add_function(wrap_pyfunction!(match_app_usage_update_indices, m)?)?;
     m.add_function(wrap_pyfunction!(match_app_usage_update_arrays, m)?)?;
     m.add_function(wrap_pyfunction!(match_app_usage_arrays, m)?)?;
+    m.add_function(wrap_pyfunction!(split_overlapping_sessions_py, m)?)?;
     Ok(())
 }
 
@@ -1189,5 +1312,70 @@ mod tests {
             reconstruct_sparse_output(app_codes.len(), &timestamps, sparse),
             dense
         );
+    }
+
+    // ── split_overlapping_sessions tests ────────────────────────────────────
+
+    fn split(starts: &[i64], stops: &[i64]) -> Vec<LayeredSession> {
+        split_overlapping_sessions(starts, stops).expect("split should succeed")
+    }
+
+    #[test]
+    fn no_overlap_yields_one_primary_row_each() {
+        let out = split(&[0, 100], &[50, 150]);
+        assert_eq!(
+            out,
+            vec![
+                LayeredSession { session_index: 0, start_ns: 0, stop_ns: 50, layer: UsageLayer::Primary },
+                LayeredSession { session_index: 1, start_ns: 100, stop_ns: 150, layer: UsageLayer::Primary },
+            ]
+        );
+    }
+
+    #[test]
+    fn enclosed_session_makes_outer_secondary_during_overlap() {
+        // A: [0,100]  B: [40,60]  -> A primary [0,40), B primary [40,60), A secondary [40,60), A primary [60,100)
+        let out = split(&[0, 40], &[100, 60]);
+        assert_eq!(
+            out,
+            vec![
+                LayeredSession { session_index: 0, start_ns: 0, stop_ns: 40, layer: UsageLayer::Primary },
+                LayeredSession { session_index: 0, start_ns: 40, stop_ns: 60, layer: UsageLayer::Secondary },
+                LayeredSession { session_index: 0, start_ns: 60, stop_ns: 100, layer: UsageLayer::Primary },
+                LayeredSession { session_index: 1, start_ns: 40, stop_ns: 60, layer: UsageLayer::Primary },
+            ]
+        );
+    }
+
+    #[test]
+    fn partial_overlap_splits_both() {
+        // A: [0,60]  B: [40,100]
+        let out = split(&[0, 40], &[60, 100]);
+        assert_eq!(
+            out,
+            vec![
+                LayeredSession { session_index: 0, start_ns: 0, stop_ns: 40, layer: UsageLayer::Primary },
+                LayeredSession { session_index: 0, start_ns: 40, stop_ns: 60, layer: UsageLayer::Secondary },
+                LayeredSession { session_index: 1, start_ns: 40, stop_ns: 100, layer: UsageLayer::Primary },
+            ]
+        );
+    }
+
+    #[test]
+    fn identical_start_resolves_by_input_order() {
+        // A and B both [0,100]; later input index wins primary.
+        let out = split(&[0, 0], &[100, 100]);
+        assert_eq!(
+            out,
+            vec![
+                LayeredSession { session_index: 0, start_ns: 0, stop_ns: 100, layer: UsageLayer::Secondary },
+                LayeredSession { session_index: 1, start_ns: 0, stop_ns: 100, layer: UsageLayer::Primary },
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_mismatched_lengths() {
+        assert!(split_overlapping_sessions(&[0], &[1, 2]).is_err());
     }
 }
