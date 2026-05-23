@@ -12,6 +12,8 @@ import type {
   MatcherOutput,
   ProcessedFileResult,
   ProgressEvent,
+  SplitterInput,
+  SplitterOutput,
 } from "@/lib/types";
 
 /**
@@ -55,6 +57,22 @@ async function runMatcher(input: MatcherInput): Promise<MatcherOutput> {
   ) as MatcherOutput;
 }
 
+async function runSplitter(input: SplitterInput): Promise<SplitterOutput> {
+  await ensureInit();
+  const module = await import("@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
+  // splitOverlappingSessions returns { sessionIndex, startNs, stopNs, layer }[]
+  // startNs / stopNs are BigInt (serialised via serialize_large_number_types_as_bigints).
+  // Cast to unknown first because the generated .d.ts may lag behind the built
+  // WASM bundle — the function is present at runtime in the .js and .wasm files.
+  const wasmModule = module as unknown as {
+    splitOverlappingSessions: (starts: bigint[], stops: bigint[]) => SplitterOutput;
+  };
+  return wasmModule.splitOverlappingSessions(
+    Array.from(input.starts),
+    Array.from(input.stops),
+  );
+}
+
 const api = {
   async matcherVersion(): Promise<string> {
     await ensureInit();
@@ -82,6 +100,8 @@ const api = {
       supportFiles,
       runMatcher,
       runtime,
+      undefined,
+      runSplitter,
     );
   },
   async processRawCsvWithProgress(
@@ -110,6 +130,7 @@ const api = {
       runMatcher,
       runtime,
       forward,
+      runSplitter,
     );
   },
   /**
@@ -144,6 +165,7 @@ const api = {
       runMatcher,
       runtime,
       forward,
+      runSplitter,
     );
   },
 };
