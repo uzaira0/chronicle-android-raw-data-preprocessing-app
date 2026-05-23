@@ -250,6 +250,13 @@ components:
           description: Interaction types from any other source that close the current
             session — e.g. a different app coming to the foreground or the
             device shutting down.
+        modelConcurrentUsage:
+          type: boolean
+          description: When enabled, an app session runs to its own stop event instead of
+            ending when another app is foregrounded. Overlapping sessions are
+            split into a primary (sole-foreground) layer and a secondary
+            (running-underneath / PiP) layer, reported via the usage_layer
+            column. Default off; output is unchanged when off.
         interactionTypesToRemove:
           type: array
           items:

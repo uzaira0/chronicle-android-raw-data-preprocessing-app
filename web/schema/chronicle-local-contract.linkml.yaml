@@ -80,6 +80,7 @@ classes:
       - parallel_max_workers
       - same_app_interaction_types_to_stop_usage_at
       - other_interaction_types_to_stop_usage_at
+      - model_concurrent_usage
       - interaction_types_to_remove
 
   ProcessedOutputFileResult:
@@ -153,6 +154,17 @@ slots:
       Lets a single stop event close multiple overlapping sessions.
       Off by default — stop events are consumed once.
     default: false
+  model_concurrent_usage:
+    range: boolean
+    required: false
+    ifabsent: "boolean(false)"
+    title: "Model concurrent (Picture-in-Picture) usage"
+    description: >
+      When enabled, an app session runs to its own stop event instead of ending
+      when another app is foregrounded. Overlapping sessions are split into a
+      primary (sole-foreground) layer and a secondary (running-underneath / PiP)
+      layer, reported via the usage_layer column. Default off; output is
+      unchanged when off.
   use_activity_stopped_as_fallback:
     range: boolean
     required: true
@@ -447,3 +459,11 @@ slots:
   duplicate_timestamps_corrected:
     range: integer
     required: true
+
+  usage_layer:
+    range: string
+    required: false
+    description: >
+      For concurrent-usage output only: 'primary' when the app was the sole
+      foreground app for the row's sub-interval, 'secondary' when it was running
+      underneath another app. Absent when model_concurrent_usage is off.
