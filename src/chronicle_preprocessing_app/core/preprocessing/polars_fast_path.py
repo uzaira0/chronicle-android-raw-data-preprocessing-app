@@ -557,9 +557,11 @@ class PolarsFastPathPreprocessor:
     def _apply_concurrent_usage_split(self, df: pl.DataFrame, usage_type: str) -> pl.DataFrame:
         """Expand overlapping App-Usage rows into primary/secondary layer rows.
 
-        Non-usage rows pass through unchanged with usage_layer = null. Each
-        usage row whose [start, stop] interval overlaps another usage row is
-        replaced by one row per primary/secondary sub-interval.
+        Non-usage rows pass through with usage_layer = null. Usage rows that
+        do not overlap any other usage row are emitted as a single
+        primary-layer row. Usage rows that overlap are split into one
+        sub-interval row per primary/secondary segment. All sub-interval rows
+        have new START/STOP timestamps and an assigned usage_layer.
         """
         usage_mask = df.get_column(Column.INTERACTION_TYPE) == usage_type
         usage = df.filter(usage_mask).with_row_index("_session_index")
@@ -569,6 +571,9 @@ class PolarsFastPathPreprocessor:
         if usage.height == 0:
             return non_usage.drop("_session_index", strict=False)
 
+        # Deferred: importing overlap_split eagerly triggers algorithms/__init__.py
+        # which imports app_usage_details_optimizer -> polars_fast_path, creating
+        # a circular import at module init time.
         from chronicle_preprocessing_app.core.preprocessing.algorithms.overlap_split import (  # noqa: PLC0415
             split_overlapping_sessions,
         )
