@@ -105,6 +105,7 @@ components:
         - parallelProcessing
         - sameAppInteractionTypesToStopUsageAt
         - otherInteractionTypesToStopUsageAt
+        - modelConcurrentUsage
         - interactionTypesToRemove
       properties:
         studyName:

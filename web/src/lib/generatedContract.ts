@@ -74,6 +74,7 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "parallelProcessing",
   "sameAppInteractionTypesToStopUsageAt",
   "otherInteractionTypesToStopUsageAt",
+  "modelConcurrentUsage",
   "interactionTypesToRemove",
 ] as const;
 
@@ -119,7 +120,7 @@ export type BrowserProcessingOptions = {
   parallelMaxWorkers?: number;
   sameAppInteractionTypesToStopUsageAt: string[];
   otherInteractionTypesToStopUsageAt: string[];
-  modelConcurrentUsage?: boolean;
+  modelConcurrentUsage: boolean;
   interactionTypesToRemove: string[];
 };
 
