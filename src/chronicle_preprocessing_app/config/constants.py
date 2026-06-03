@@ -280,6 +280,16 @@ class Column(StrEnum):
     DEVICE_SHARING_STATUS = "device_sharing_status"
     COMPLIANCE = "compliance"
 
+    # Concurrent (PiP) usage layer column
+    USAGE_LAYER = "usage_layer"
+
+
+class UsageLayer(StrEnum):
+    """Concurrent-usage layer for a split app-usage row."""
+
+    PRIMARY = "primary"
+    SECONDARY = "secondary"
+
 
 class UIStatus(StrEnum):
     """

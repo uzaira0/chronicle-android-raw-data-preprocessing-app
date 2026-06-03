@@ -33,6 +33,16 @@ enums:
       converted_to_selected:
       filtered_to_primary:
       converted_to_primary:
+  UsageLayer:
+    description: >-
+      Concurrent-usage layer for an App Usage output row. Canonical source for the
+      'primary'/'secondary' values mirrored by the Rust (UsageLayer) and Python
+      (UsageLayer StrEnum) enums.
+    permissible_values:
+      primary:
+        description: The app was the sole foreground app for the sub-interval.
+      secondary:
+        description: The app was running underneath another foreground app.
 
 classes:
   BrowserSupportFile:
@@ -80,6 +90,8 @@ classes:
       - parallel_max_workers
       - same_app_interaction_types_to_stop_usage_at
       - other_interaction_types_to_stop_usage_at
+      - model_concurrent_usage
+      - apply_minimum_usage_duration_to_concurrent_subintervals
       - interaction_types_to_remove
 
   ProcessedOutputFileResult:
@@ -153,6 +165,27 @@ slots:
       Lets a single stop event close multiple overlapping sessions.
       Off by default — stop events are consumed once.
     default: false
+  model_concurrent_usage:
+    range: boolean
+    required: true
+    default: false
+    title: "Model concurrent (Picture-in-Picture) usage"
+    description: >-
+      When enabled, an app session runs to its own stop event instead of ending
+      when another app is foregrounded. Overlapping sessions are split into a
+      primary (sole-foreground) layer and a secondary (running-underneath / PiP)
+      layer, reported via the usage_layer column. Default off; output is
+      unchanged when off.
+  apply_minimum_usage_duration_to_concurrent_subintervals:
+    range: boolean
+    required: true
+    default: false
+    title: "Apply minimum usage duration to concurrent sub-intervals"
+    description: >-
+      Only relevant when model_concurrent_usage is on. When enabled, a split
+      primary/secondary sub-interval shorter than minimum_usage_duration has its
+      duration_seconds/duration_minutes nulled (the row is kept). Off by default,
+      so sub-interval durations are always populated, matching every surface.
   use_activity_stopped_as_fallback:
     range: boolean
     required: true
@@ -447,3 +480,11 @@ slots:
   duplicate_timestamps_corrected:
     range: integer
     required: true
+
+  usage_layer:
+    range: UsageLayer
+    required: false
+    description: >-
+      For concurrent-usage output only: 'primary' when the app was the sole
+      foreground app for the row's sub-interval, 'secondary' when it was running
+      underneath another app. Absent when model_concurrent_usage is off.

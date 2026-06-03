@@ -10,6 +10,8 @@ import type {
   BrowserSupportFiles,
   MatcherInput,
   MatcherOutput,
+  SplitterInput,
+  SplitterOutput,
 } from "../src/lib/types";
 
 type ProcessingSpec = {
@@ -85,6 +87,15 @@ async function runMatcher(input: MatcherInput): Promise<MatcherOutput> {
   ) as MatcherOutput;
 }
 
+async function runSplitter(input: SplitterInput): Promise<SplitterOutput> {
+  await ensureInit();
+  const module = await import("../src/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
+  const wasmModule = module as unknown as {
+    splitOverlappingSessions: (starts: BigInt64Array, stops: BigInt64Array) => SplitterOutput;
+  };
+  return wasmModule.splitOverlappingSessions(input.starts, input.stops);
+}
+
 async function main(): Promise<void> {
   const specPath = process.argv[2];
   if (!specPath) {
@@ -101,6 +112,8 @@ async function main(): Promise<void> {
     supportFiles,
     runMatcher,
     spec.runtime,
+    undefined,
+    runSplitter,
   );
 
   await mkdir(spec.outputDir, { recursive: true });

@@ -23,6 +23,26 @@ export type MatcherOutput = {
   missingIndices: number[];
 };
 
+/** One row returned by the WASM `splitOverlappingSessions` export. */
+export type LayeredSessionRow = {
+  sessionIndex: number;
+  startNs: bigint;
+  stopNs: bigint;
+  layer: "primary" | "secondary";
+};
+
+/**
+ * Input to `splitOverlappingSessions`: parallel arrays of start/stop
+ * nanosecond timestamps for the already-paired app sessions.
+ */
+export type SplitterInput = {
+  starts: BigInt64Array;
+  stops: BigInt64Array;
+};
+
+/** Output of `splitOverlappingSessions`. */
+export type SplitterOutput = LayeredSessionRow[];
+
 export type RawChronicleRow = {
   study_id?: string;
   participant_id?: string;

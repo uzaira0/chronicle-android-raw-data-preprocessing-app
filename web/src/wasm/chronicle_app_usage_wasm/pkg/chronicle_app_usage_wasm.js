@@ -48,6 +48,33 @@ export function matcherVersion() {
         wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
     }
 }
+
+/**
+ * Split paired app sessions into primary/secondary sub-interval rows.
+ *
+ * `starts` and `stops` are parallel arrays of session boundary nanosecond
+ * timestamps (one entry per session, stops[i] >= starts[i]). Returns an
+ * array of `{ sessionIndex, startNs, stopNs, layer }` objects where `layer`
+ * is `"primary"` or `"secondary"`.
+ *
+ * When `modelConcurrentUsage` is false callers should NOT call this — the
+ * regular matcher output is used unchanged. When it is true, callers pass
+ * the matched `start_ns` / `stop_ns` arrays and use the expanded rows.
+ * @param {BigInt64Array} starts
+ * @param {BigInt64Array} stops
+ * @returns {any}
+ */
+export function splitOverlappingSessions(starts, stops) {
+    const ptr0 = passArray64ToWasm0(starts, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray64ToWasm0(stops, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.splitOverlappingSessions(ptr0, len0, ptr1, len1);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
@@ -84,12 +111,17 @@ function __wbg_get_imports() {
             const ret = arg0;
             return ret;
         },
-        __wbindgen_cast_0000000000000002: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000002: function(arg0) {
+            // Cast intrinsic for `I64 -> Externref`.
+            const ret = arg0;
+            return ret;
+        },
+        __wbindgen_cast_0000000000000003: function(arg0, arg1) {
             // Cast intrinsic for `Ref(String) -> Externref`.
             const ret = getStringFromWasm0(arg0, arg1);
             return ret;
         },
-        __wbindgen_cast_0000000000000003: function(arg0) {
+        __wbindgen_cast_0000000000000004: function(arg0) {
             // Cast intrinsic for `U64 -> Externref`.
             const ret = BigInt.asUintN(64, arg0);
             return ret;
