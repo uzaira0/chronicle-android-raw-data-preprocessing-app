@@ -236,6 +236,10 @@ def main() -> int:
                 "studyName": "Deterministic Parity",
                 "processAppUsage": True,
                 "processScreenUsage": True,
+                # Parity compares CSV outputs only; plotting renders a canvas
+                # (no DOM under vite-node) and the desktop side also disables it.
+                "enablePlotting": False,
+                "parallelProcessing": False,
                 "selectedTimezone": "America/Chicago",
                 "timezoneHandling": "selected-filter",
                 "useFilterFile": True,
@@ -268,6 +272,8 @@ def main() -> int:
                 "studyName": "Deterministic Parity",
                 "processAppUsage": True,
                 "processScreenUsage": False,
+                "enablePlotting": False,
+                "parallelProcessing": False,
                 "selectedTimezone": "America/Chicago",
                 "timezoneHandling": "selected-filter",
                 "useFilterFile": False,
