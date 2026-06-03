@@ -12,6 +12,8 @@ import type {
   MatcherOutput,
   ProcessedFileResult,
   ProgressEvent,
+  SplitterInput,
+  SplitterOutput,
 } from "@/lib/types";
 
 /**
@@ -55,6 +57,19 @@ async function runMatcher(input: MatcherInput): Promise<MatcherOutput> {
   ) as MatcherOutput;
 }
 
+async function runSplitter(input: SplitterInput): Promise<SplitterOutput> {
+  await ensureInit();
+  const module = await import("@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
+  // The pkg .d.ts declares splitOverlappingSessions(BigInt64Array, BigInt64Array),
+  // but TS cannot resolve it on this dynamic import's module type under our
+  // Bundler-resolution / @ts-self-types configuration. Keep a minimal cast
+  // with the correct BigInt64Array signature (no-copy, no Array.from).
+  const wasmModule = module as unknown as {
+    splitOverlappingSessions: (starts: BigInt64Array, stops: BigInt64Array) => SplitterOutput;
+  };
+  return wasmModule.splitOverlappingSessions(input.starts, input.stops);
+}
+
 const api = {
   async matcherVersion(): Promise<string> {
     await ensureInit();
@@ -82,6 +97,8 @@ const api = {
       supportFiles,
       runMatcher,
       runtime,
+      undefined,
+      runSplitter,
     );
   },
   async processRawCsvWithProgress(
@@ -110,6 +127,7 @@ const api = {
       runMatcher,
       runtime,
       forward,
+      runSplitter,
     );
   },
   /**
@@ -144,6 +162,7 @@ const api = {
       runMatcher,
       runtime,
       forward,
+      runSplitter,
     );
   },
 };

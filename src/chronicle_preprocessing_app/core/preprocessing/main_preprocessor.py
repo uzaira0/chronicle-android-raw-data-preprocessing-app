@@ -285,6 +285,24 @@ class ChronicleAndroidRawDataPreprocessor:
                 self.stats.mark_processed(raw_path)
                 return output_folder, True, None
 
+            if self.options.model_concurrent_usage:
+                message = (
+                    "model_concurrent_usage is only supported on the Polars fast "
+                    "path, but the current options route to the legacy path "
+                    "(e.g. survey-data or study-date providers active)."
+                )
+                if not self.options.allow_concurrent_usage_fallback:
+                    raise ValueError(
+                        f"{message} Refusing to silently ignore the flag and emit "
+                        "non-concurrent output. Set allow_concurrent_usage_fallback="
+                        "True to proceed without concurrent-usage modeling."
+                    )
+                LOGGER.warning(
+                    "%s Proceeding without concurrent-usage modeling "
+                    "(allow_concurrent_usage_fallback is set).",
+                    message,
+                )
+
             raw_df = pl.read_csv(raw_path, infer_schema_length=10000)
             self.current_participant_raw_data_df = raw_df
             self.current_participant_id = self.get_participant_id_from_data()

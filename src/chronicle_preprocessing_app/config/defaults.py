@@ -137,6 +137,13 @@ DEFAULT_ENABLE_PLOTTING: bool = True
 
 # Algorithm defaults
 DEFAULT_ALLOW_STOP_EVENT_REUSE: bool = False
+DEFAULT_MODEL_CONCURRENT_USAGE: bool = False
+# When concurrent usage is on, null durations of split sub-intervals shorter than
+# minimum_usage_duration (the row is kept). Off = durations always populated.
+DEFAULT_APPLY_MINIMUM_USAGE_DURATION_TO_CONCURRENT_SUBINTERVALS: bool = False
+# When model_concurrent_usage is requested but the fast path is unavailable: False
+# raises (no silent non-concurrent output); True logs a warning and proceeds.
+DEFAULT_ALLOW_CONCURRENT_USAGE_FALLBACK: bool = False
 DEFAULT_USE_ACTIVITY_STOPPED_AS_FALLBACK: bool = True
 DEFAULT_APPLY_THRESHOLD_TO_ACTIVITY_STOPPED_FALLBACK: bool = True
 DEFAULT_LONG_DURATION_THRESHOLD_HOURS: float = 12.0

@@ -5,12 +5,27 @@ export function matchAppUsageUpdateIndices(app_codes: Int32Array, timestamp_ns: 
 
 export function matcherVersion(): string;
 
+/**
+ * Split paired app sessions into primary/secondary sub-interval rows.
+ *
+ * `starts` and `stops` are parallel arrays of session boundary nanosecond
+ * timestamps (one entry per session, stops[i] >= starts[i]). Returns an
+ * array of `{ sessionIndex, startNs, stopNs, layer }` objects where `layer`
+ * is `"primary"` or `"secondary"`.
+ *
+ * When `modelConcurrentUsage` is false callers should NOT call this — the
+ * regular matcher output is used unchanged. When it is true, callers pass
+ * the matched `start_ns` / `stop_ns` arrays and use the expanded rows.
+ */
+export function splitOverlappingSessions(starts: BigInt64Array, stops: BigInt64Array): any;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly matchAppUsageUpdateIndices: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: bigint) => [number, number, number];
     readonly matcherVersion: () => [number, number];
+    readonly splitOverlappingSessions: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;

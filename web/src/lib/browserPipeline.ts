@@ -9,6 +9,7 @@ import type {
   BrowserProcessingRuntime,
   BrowserSupportFile,
   BrowserSupportFiles,
+  LayeredSessionRow,
   MatcherInput,
   MatcherOutput,
   ProcessedFileResult,
@@ -16,6 +17,8 @@ import type {
   ProgressEvent,
   ProgressStepKind,
   RawChronicleRow,
+  SplitterInput,
+  SplitterOutput,
   TimezoneAction,
 } from "@/lib/types";
 
@@ -291,10 +294,13 @@ type CanonicalRow = {
   bcm_cnrc_categorization_source?: string | null;
   codebook_dataset?: string | null;
   __index: number;
+  /** Present only when modelConcurrentUsage is on. "primary" or "secondary". */
+  usage_layer?: string | null;
 };
 
 type CodebookRecord = Record<string, string | null>;
 type MatcherRunner = (input: MatcherInput) => Promise<MatcherOutput>;
+type SplitterRunner = (input: SplitterInput) => Promise<SplitterOutput>;
 type ScreenState = {
   startIndex: number;
   startTimestampNs: bigint;
@@ -876,6 +882,15 @@ function resolveDatetimeOfPreprocessing(
   return runtime?.datetimeOfPreprocessing ?? `${new Date().toISOString().slice(0, 19).replace("T", " ")} UTC`;
 }
 
+function compareByEventThenIndex(
+  left: { event_timestamp_ns: bigint; __index: number },
+  right: { event_timestamp_ns: bigint; __index: number },
+): number {
+  if (left.event_timestamp_ns < right.event_timestamp_ns) return -1;
+  if (left.event_timestamp_ns > right.event_timestamp_ns) return 1;
+  return left.__index - right.__index;
+}
+
 function parseRawRows(
   csvText: string,
   runtime?: BrowserProcessingRuntime,
@@ -892,13 +907,7 @@ function parseRawRows(
   const nowText = resolveDatetimeOfPreprocessing(runtime);
   return filtered
     .map((row, index) => createBaseRow(row, index, nowText, possibleDeviceModel))
-    .sort((left, right) =>
-      left.event_timestamp_ns < right.event_timestamp_ns
-        ? -1
-        : left.event_timestamp_ns > right.event_timestamp_ns
-          ? 1
-          : left.__index - right.__index,
-    );
+    .sort(compareByEventThenIndex);
 }
 
 export function discoverTimezonesFromRawCsv(
@@ -1056,13 +1065,7 @@ function unalignDuplicateTimestamps(
     start = end;
   }
 
-  return adjusted.sort((left, right) =>
-    left.event_timestamp_ns < right.event_timestamp_ns
-      ? -1
-      : left.event_timestamp_ns > right.event_timestamp_ns
-        ? 1
-        : left.__index - right.__index,
-  );
+  return adjusted.sort(compareByEventThenIndex);
 }
 
 function markDataTimeGaps(rows: CanonicalRow[]): CanonicalRow[] {
@@ -1125,12 +1128,17 @@ function buildMatcherInput(
 ): MatcherInput {
   const appPackages = rows.map((row) => row.app_package_name);
   const interactionTypes = rows.map((row) => row.interaction_type);
+  // Phase 1: when modelConcurrentUsage is on, every app session runs to its
+  // own stop event — other-app resumes must not be treated as stops.
+  const otherStopMask = options.modelConcurrentUsage
+    ? new Uint8Array(rows.length)
+    : Uint8Array.from(interactionTypes.map((value) => (otherStopTypes.has(value) ? 1 : 0)));
   return {
     appCodes: stableFactorize(appPackages),
     timestampNs: BigInt64Array.from(rows.map((row) => row.event_timestamp_ns)),
     resumed: Uint8Array.from(interactionTypes.map((value) => (value === resumedType ? 1 : 0))),
     sameStop: Uint8Array.from(interactionTypes.map((value) => (sameStopTypes.has(value) ? 1 : 0))),
-    otherStop: Uint8Array.from(interactionTypes.map((value) => (otherStopTypes.has(value) ? 1 : 0))),
+    otherStop: otherStopMask,
     stopped: Uint8Array.from(interactionTypes.map((value) => (value === stoppedType ? 1 : 0))),
     options: {
       allowStopEventReuse: options.allowStopEventReuse,
@@ -1151,6 +1159,7 @@ async function processUsageRows(
   otherStopTypes: Set<string>,
   options: BrowserProcessingOptions,
   runMatcher: MatcherRunner,
+  runSplitter: SplitterRunner,
 ): Promise<CanonicalRow[]> {
   const matcherOutput = await runMatcher(
     buildMatcherInput(rows, resumedType, stoppedType, sameStopTypes, otherStopTypes, options),
@@ -1208,19 +1217,56 @@ async function processUsageRows(
       return row;
     });
 
-  return filtered.sort((left, right) =>
-    left.event_timestamp_ns < right.event_timestamp_ns
-      ? -1
-      : left.event_timestamp_ns > right.event_timestamp_ns
-        ? 1
-        : left.__index - right.__index,
-  );
+  const sorted = filtered.sort(compareByEventThenIndex);
+
+  // Phase 2: split overlapping sessions. Only for App Usage (not Filtered App
+  // Usage — that path has no timing to split) and only when flag is on.
+  if (options.modelConcurrentUsage && usageType !== "Filtered App Usage") {
+    const appUsageRows = sorted.filter((row) => row.interaction_type === usageType);
+    const nonUsageRows = sorted.filter((row) => row.interaction_type !== usageType);
+
+    if (appUsageRows.length > 0) {
+      const starts = BigInt64Array.from(
+        appUsageRows.map((row) => row.start_timestamp_ns ?? 0n),
+      );
+      const stops = BigInt64Array.from(
+        appUsageRows.map((row) => row.stop_timestamp_ns ?? 0n),
+      );
+      const layered: SplitterOutput = await runSplitter({ starts, stops });
+
+      const expanded: CanonicalRow[] = layered.map((ls: LayeredSessionRow) => {
+        const source = appUsageRows[ls.sessionIndex]!;
+        const durationSeconds = Number(ls.stopNs - ls.startNs) / 1_000_000_000;
+        // Concurrent-usage option (default off): null — but keep — split
+        // sub-intervals shorter than minimumUsageDuration. Gated so all three
+        // surfaces agree; off means durations are always populated (parity with
+        // desktop/Rust).
+        const durationBelowThreshold =
+          options.applyMinimumUsageDurationToConcurrentSubintervals &&
+          options.minimumUsageDuration > 0 &&
+          durationSeconds < options.minimumUsageDuration;
+        return {
+          ...source,
+          start_timestamp_ns: ls.startNs,
+          stop_timestamp_ns: ls.stopNs,
+          duration_seconds: durationBelowThreshold ? null : durationSeconds,
+          duration_minutes: durationBelowThreshold ? null : durationSeconds / 60,
+          usage_layer: ls.layer,
+        };
+      });
+
+      return [...nonUsageRows, ...expanded].sort(compareByEventThenIndex);
+    }
+  }
+
+  return sorted;
 }
 
 async function runAppUsageAlgorithm(
   rows: CanonicalRow[],
   options: BrowserProcessingOptions,
   runMatcher: MatcherRunner,
+  runSplitter: SplitterRunner,
 ): Promise<CanonicalRow[]> {
   let nextRows = rows;
   if (options.useFilterFile) {
@@ -1243,6 +1289,7 @@ async function runAppUsageAlgorithm(
       new Set(options.otherInteractionTypesToStopUsageAt),
       options,
       runMatcher,
+      runSplitter,
     );
   }
 
@@ -1260,6 +1307,7 @@ async function runAppUsageAlgorithm(
     new Set(options.otherInteractionTypesToStopUsageAt),
     options,
     runMatcher,
+    runSplitter,
   );
 }
 
@@ -1655,6 +1703,7 @@ function buildAppOutputColumns(
     "any_app_usage_time_gap_hours",
     "preprocessor_version",
     "datetime_of_preprocessing",
+    ...(options.modelConcurrentUsage ? ["usage_layer"] : []),
   ];
 }
 
@@ -1742,6 +1791,9 @@ function rowToAppCsvRecord(
     preprocessor_version: row.preprocessor_version,
     datetime_of_preprocessing: row.datetime_of_preprocessing,
   };
+  if (options.modelConcurrentUsage) {
+    record.usage_layer = row.usage_layer ?? "";
+  }
   if (includeCodebookAliases) {
     record.broad_app_category = row.broad_app_category ?? "";
   }
@@ -1899,6 +1951,7 @@ export async function processRawCsvContent(
   runMatcher: MatcherRunner,
   runtime?: BrowserProcessingRuntime,
   onProgress?: (event: ProgressEvent) => void,
+  runSplitter?: SplitterRunner,
 ): Promise<ProcessedFileResult> {
   const emit = (stepKind: ProgressStepKind, percent: number) => {
     onProgress?.({ type: "step", fileName: inputFileName, stepKind, percent });
@@ -1968,8 +2021,17 @@ export async function processRawCsvContent(
       arr.push(row.event_timestamp_ns);
     }
 
+    // Guard: concurrent-usage mode requires a real splitter; a no-op would
+    // silently drop every App Usage row (nonUsageRows excludes them and the
+    // no-op returns nothing).
+    if (options.modelConcurrentUsage && !runSplitter) {
+      throw new Error(
+        "runSplitter must be supplied when modelConcurrentUsage is true; got undefined",
+      );
+    }
+    const effectiveSplitter: SplitterRunner = runSplitter ?? (() => Promise.resolve([]));
     emit("matcher", 0);
-    appRows = await runAppUsageAlgorithm(rows, options, runMatcher);
+    appRows = await runAppUsageAlgorithm(rows, options, runMatcher, effectiveSplitter);
     emit("matcher", 1);
 
     emit("codebook", 0);
