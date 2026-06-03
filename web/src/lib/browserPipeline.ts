@@ -1,5 +1,5 @@
 import Papa from "papaparse";
-import { generateAllPlots, generateAllScreenPlots } from "@/lib/plotGenerator";
+import { CATEGORY_COLORS, generateAllPlots, generateAllScreenPlots } from "@/lib/plotGenerator";
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
 import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
 import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
@@ -1486,6 +1486,66 @@ function deriveScreenUsageSessions(
   return sessions;
 }
 
+// The plot palette (CATEGORY_COLORS) is keyed by a fixed set of broad app
+// categories. The public unified codebook does not ship a single curated
+// `broad_app_category` column; instead it has several per-source columns whose
+// vocabularies differ — notably babyemu uses UPPERCASE enums (GAMING, SOCIAL,
+// …) and bcm/usc add non-app buckets (System/OEM, Other). Without normalisation
+// the majority of apps fall through to a single fallback colour, so plots look
+// uncoloured. This map folds every known non-palette value onto a palette
+// category. Every value here MUST be a CATEGORY_COLORS key (enforced by test).
+const BROAD_CATEGORY_ALIASES: Record<string, string> = {
+  // babyemu_broad_app_category (UPPERCASE enum)
+  GAMING: "Games",
+  SOCIAL: "Social & Communication",
+  COMMUNICATION: "Social & Communication",
+  VIDEO: "Video Players (e.g. YouTube)",
+  LIFESTYLE_MANAGEMENT: "Lifestyle",
+  PRODUCTIVITY_AND_BUSINESS: "Productivity & Business",
+  ARTS_AND_LEISURE: "Entertainment",
+  KNOWLEDGE_AND_INFORMATION: "Education",
+  UTILITIES: "Productivity & Business",
+  // non-app buckets from bcm_cnrc_heuristic_category / usc_broad_app_category
+  "System/OEM": "Uncategorised",
+  Other: "Uncategorised",
+};
+
+// Assignable palette categories — every CATEGORY_COLORS key except the "Unknown"
+// sentinel (which means "no category data at all", not a real category).
+const PALETTE_CATEGORIES = new Set(
+  Object.keys(CATEGORY_COLORS).filter((key) => key !== "Unknown"),
+);
+
+/** Fold a raw codebook category value onto a palette category, or null if the
+ * value is not a recognised category vocabulary. */
+function normalizeBroadAppCategory(raw: string): string | null {
+  const value = raw.trim();
+  if (PALETTE_CATEGORIES.has(value)) return value;
+  if (value in BROAD_CATEGORY_ALIASES) return BROAD_CATEGORY_ALIASES[value]!;
+  return null;
+}
+
+/** Pick the best palette category from ordered candidate columns. The first
+ * candidate that yields a *specific* palette category wins; a value that only
+ * maps to "Uncategorised" is kept as a fallback so a later, more specific source
+ * can still win. Returns "Unknown" only when no source supplies any category. */
+export function deriveBroadAppCategory(
+  candidates: Array<string | null | undefined>,
+): string {
+  let sawUncategorised = false;
+  for (const raw of candidates) {
+    const value = (raw ?? "").trim();
+    if (!value) continue;
+    const normalized = normalizeBroadAppCategory(value);
+    if (normalized === null) continue;
+    if (normalized !== "Uncategorised") return normalized;
+    sawUncategorised = true;
+  }
+  return sawUncategorised ? "Uncategorised" : "Unknown";
+}
+
+export { BROAD_CATEGORY_ALIASES };
+
 function enrichWithCodebookData(
   rows: CanonicalRow[],
   options: BrowserProcessingOptions,
@@ -1518,14 +1578,17 @@ function enrichWithCodebookData(
       (updated as unknown as Record<string, string | number | null>)[targetColumn] =
         codebook[sourceColumn] ?? null;
     });
-    const broadCategoryCandidates = [
+    // The unified codebook spreads categories across per-source columns; the old
+    // single broad_app_category column is deprecated and intentionally not read.
+    // play_store/usc/bcm already use the plot palette's vocabulary; babyemu uses
+    // UPPERCASE enums. deriveBroadAppCategory coalesces them in the desktop's
+    // order and normalises each onto the palette so bars are colour-coded.
+    updated.broad_app_category = deriveBroadAppCategory([
       updated.play_store_broad_app_category,
       updated.usc_broad_app_category,
       updated.babyemu_broad_app_category,
       updated.bcm_cnrc_heuristic_category,
-      updated.broad_app_category ?? null,
-    ].filter((value): value is string => Boolean(value && value.trim()));
-    updated.broad_app_category = broadCategoryCandidates[0] ?? "Unknown";
+    ]);
 
     const genreValues = [
       updated.babyemu_genreId_scraped,

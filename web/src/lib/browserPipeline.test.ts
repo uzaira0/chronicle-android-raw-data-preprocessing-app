@@ -6,7 +6,12 @@ import {
 } from "@/lib/browserPipeline";
 import { generateAllPlots } from "@/lib/plotGenerator";
 
-vi.mock("@/lib/plotGenerator", () => ({
+// Spread the real module and stub only generateAllPlots: browserPipeline now
+// imports CATEGORY_COLORS at module scope (PALETTE_CATEGORIES is built from it
+// at load time), so a bare mock that omits it would crash on import. Keep the
+// spread when touching this mock.
+vi.mock("@/lib/plotGenerator", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/plotGenerator")>()),
   generateAllPlots: vi.fn(),
 }));
 import type {
