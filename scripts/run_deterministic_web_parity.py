@@ -234,7 +234,8 @@ def main() -> int:
             output_dir=browser_full_output_dir,
             options={
                 "studyName": "Deterministic Parity",
-                "usageSessionMode": "app_and_screen_usage",
+                "processAppUsage": True,
+                "processScreenUsage": True,
                 "selectedTimezone": "America/Chicago",
                 "timezoneHandling": "selected-filter",
                 "useFilterFile": True,
@@ -265,7 +266,8 @@ def main() -> int:
             output_dir=browser_core_output_dir,
             options={
                 "studyName": "Deterministic Parity",
-                "usageSessionMode": "app_usage",
+                "processAppUsage": True,
+                "processScreenUsage": False,
                 "selectedTimezone": "America/Chicago",
                 "timezoneHandling": "selected-filter",
                 "useFilterFile": False,
@@ -317,7 +319,8 @@ def main() -> int:
                 output_dir=browser_pip_output_dir,
                 options={
                     "studyName": "Deterministic Parity",
-                    "usageSessionMode": "app_usage",
+                    "processAppUsage": True,
+                "processScreenUsage": False,
                     "selectedTimezone": "America/Chicago",
                     "timezoneHandling": "selected-filter",
                     "useFilterFile": False,
