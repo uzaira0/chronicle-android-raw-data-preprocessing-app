@@ -43,6 +43,8 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "parallelMaxWorkers",
   "sameAppInteractionTypesToStopUsageAt",
   "otherInteractionTypesToStopUsageAt",
+  "modelConcurrentUsage",
+  "applyMinimumUsageDurationToConcurrentSubintervals",
   "interactionTypesToRemove",
 ] as const;
 
@@ -73,6 +75,8 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "parallelProcessing",
   "sameAppInteractionTypesToStopUsageAt",
   "otherInteractionTypesToStopUsageAt",
+  "modelConcurrentUsage",
+  "applyMinimumUsageDurationToConcurrentSubintervals",
   "interactionTypesToRemove",
 ] as const;
 
@@ -118,6 +122,8 @@ export type BrowserProcessingOptions = {
   parallelMaxWorkers?: number;
   sameAppInteractionTypesToStopUsageAt: string[];
   otherInteractionTypesToStopUsageAt: string[];
+  modelConcurrentUsage: boolean;
+  applyMinimumUsageDurationToConcurrentSubintervals: boolean;
   interactionTypesToRemove: string[];
 };
 
@@ -136,6 +142,8 @@ export const BOOLEAN_BROWSER_OPTION_KEYS = [
   "includeFilteredAppUsageInPlots",
   "filterZeroDurationSessions",
   "parallelProcessing",
+  "modelConcurrentUsage",
+  "applyMinimumUsageDurationToConcurrentSubintervals",
 ] as const;
 export const NUMBER_BROWSER_OPTION_KEYS = [
   "longDurationThresholdHours",
@@ -190,6 +198,8 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   parallelMaxWorkers: undefined,
   sameAppInteractionTypesToStopUsageAt: ["Activity Paused", "Activity Resumed"],
   otherInteractionTypesToStopUsageAt: ["Activity Resumed", "Filtered App Resumed", "Filtered App Usage", "Device Shutdown"],
+  modelConcurrentUsage: false,
+  applyMinimumUsageDurationToConcurrentSubintervals: false,
   interactionTypesToRemove: [],
 };
 
@@ -314,6 +324,14 @@ export const BROWSER_OPTION_TOOLTIPS = {
   otherInteractionTypesToStopUsageAt: {
     title: "Other-app stop types",
     body: "Interaction types from any other source that close the current session — e.g. a different app coming to the foreground or the device shutting down.",
+  },
+  modelConcurrentUsage: {
+    title: "Model concurrent (Picture-in-Picture) usage",
+    body: "When enabled, an app session runs to its own stop event instead of ending when another app is foregrounded. Overlapping sessions are split into a primary (sole-foreground) layer and a secondary (running-underneath / PiP) layer, reported via the usage_layer column. Default off; output is unchanged when off.",
+  },
+  applyMinimumUsageDurationToConcurrentSubintervals: {
+    title: "Apply minimum usage duration to concurrent sub-intervals",
+    body: "Only relevant when model_concurrent_usage is on. When enabled, a split primary/secondary sub-interval shorter than minimum_usage_duration has its duration_seconds/duration_minutes nulled (the row is kept). Off by default, so sub-interval durations are always populated, matching every surface.",
   },
   interactionTypesToRemove: {
     title: "Interaction types to remove",
