@@ -451,6 +451,13 @@ a:hover {
   grid-template-columns: minmax(220px, 0.7fr) minmax(280px, 1fr);
 }
 
+/* Plot sub-option nested under the "Plots" output-mode toggle. */
+.settings-overview__subfield {
+  margin-left: var(--space-4);
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--color-border, #2a2a2a);
+}
+
 .settings-command {
   display: grid;
   grid-template-columns: minmax(240px, 0.8fr) minmax(320px, 1.2fr);
