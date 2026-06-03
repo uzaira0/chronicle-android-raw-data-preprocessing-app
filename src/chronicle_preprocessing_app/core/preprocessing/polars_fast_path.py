@@ -719,6 +719,13 @@ class PolarsFastPathPreprocessor:
         )
         if self.options.model_concurrent_usage and usage_type == str(InteractionType.APP_USAGE):
             df = self._apply_concurrent_usage_split(df, usage_type)
+        # Durations are derived from microseconds (not nanoseconds) on purpose.
+        # Polars lowers `/ const` to a reciprocal multiply, and µs/1e6 reproduces
+        # the browser's exact f64 for whole-second durations (e.g. 60.0), whereas
+        # ns/1e9 yields 60.00000000000001 and breaks cross-surface parity on the
+        # common case. (A residual 15th-digit duration_minutes diff remains only on
+        # sub-microsecond concurrent sub-intervals — same value, not worth a
+        # regression to chase.)
         duration_expr = (
             (pl.col(Column.STOP_TIMESTAMP) - pl.col(Column.START_TIMESTAMP))
             .dt.total_microseconds()
