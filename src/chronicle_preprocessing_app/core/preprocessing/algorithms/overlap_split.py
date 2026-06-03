@@ -72,4 +72,14 @@ def split_overlapping_sessions(
             )
         else:
             out.append(row)
+
+    # Zero-width sessions (start == stop) are covered by no positive sub-interval
+    # window, so they produced no row above. Emit a single primary row for each so
+    # the session is preserved (matching the non-concurrent path, which keeps a
+    # 0-duration row) rather than being silently dropped.
+    present = {row.session_index for row in out}
+    for i in range(len(starts)):
+        if i not in present:
+            out.append(LayeredRow(i, starts[i], stops[i], "primary"))
+    out.sort(key=lambda r: (r.session_index, r.start_ns))
     return out

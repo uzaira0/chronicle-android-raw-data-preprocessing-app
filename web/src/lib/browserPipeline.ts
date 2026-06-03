@@ -882,6 +882,15 @@ function resolveDatetimeOfPreprocessing(
   return runtime?.datetimeOfPreprocessing ?? `${new Date().toISOString().slice(0, 19).replace("T", " ")} UTC`;
 }
 
+function compareByEventThenIndex(
+  left: { event_timestamp_ns: bigint; __index: number },
+  right: { event_timestamp_ns: bigint; __index: number },
+): number {
+  if (left.event_timestamp_ns < right.event_timestamp_ns) return -1;
+  if (left.event_timestamp_ns > right.event_timestamp_ns) return 1;
+  return left.__index - right.__index;
+}
+
 function parseRawRows(
   csvText: string,
   runtime?: BrowserProcessingRuntime,
@@ -898,13 +907,7 @@ function parseRawRows(
   const nowText = resolveDatetimeOfPreprocessing(runtime);
   return filtered
     .map((row, index) => createBaseRow(row, index, nowText, possibleDeviceModel))
-    .sort((left, right) =>
-      left.event_timestamp_ns < right.event_timestamp_ns
-        ? -1
-        : left.event_timestamp_ns > right.event_timestamp_ns
-          ? 1
-          : left.__index - right.__index,
-    );
+    .sort(compareByEventThenIndex);
 }
 
 export function discoverTimezonesFromRawCsv(
@@ -1062,13 +1065,7 @@ function unalignDuplicateTimestamps(
     start = end;
   }
 
-  return adjusted.sort((left, right) =>
-    left.event_timestamp_ns < right.event_timestamp_ns
-      ? -1
-      : left.event_timestamp_ns > right.event_timestamp_ns
-        ? 1
-        : left.__index - right.__index,
-  );
+  return adjusted.sort(compareByEventThenIndex);
 }
 
 function markDataTimeGaps(rows: CanonicalRow[]): CanonicalRow[] {
@@ -1220,13 +1217,7 @@ async function processUsageRows(
       return row;
     });
 
-  const sorted = filtered.sort((left, right) =>
-    left.event_timestamp_ns < right.event_timestamp_ns
-      ? -1
-      : left.event_timestamp_ns > right.event_timestamp_ns
-        ? 1
-        : left.__index - right.__index,
-  );
+  const sorted = filtered.sort(compareByEventThenIndex);
 
   // Phase 2: split overlapping sessions. Only for App Usage (not Filtered App
   // Usage — that path has no timing to split) and only when flag is on.
@@ -1246,8 +1237,14 @@ async function processUsageRows(
       const expanded: CanonicalRow[] = layered.map((ls: LayeredSessionRow) => {
         const source = appUsageRows[ls.sessionIndex]!;
         const durationSeconds = Number(ls.stopNs - ls.startNs) / 1_000_000_000;
+        // Concurrent-usage option (default off): null — but keep — split
+        // sub-intervals shorter than minimumUsageDuration. Gated so all three
+        // surfaces agree; off means durations are always populated (parity with
+        // desktop/Rust).
         const durationBelowThreshold =
-          options.minimumUsageDuration > 0 && durationSeconds < options.minimumUsageDuration;
+          options.applyMinimumUsageDurationToConcurrentSubintervals &&
+          options.minimumUsageDuration > 0 &&
+          durationSeconds < options.minimumUsageDuration;
         return {
           ...source,
           start_timestamp_ns: ls.startNs,
@@ -1258,13 +1255,7 @@ async function processUsageRows(
         };
       });
 
-      return [...nonUsageRows, ...expanded].sort((left, right) =>
-        left.event_timestamp_ns < right.event_timestamp_ns
-          ? -1
-          : left.event_timestamp_ns > right.event_timestamp_ns
-            ? 1
-            : left.__index - right.__index,
-      );
+      return [...nonUsageRows, ...expanded].sort(compareByEventThenIndex);
     }
   }
 

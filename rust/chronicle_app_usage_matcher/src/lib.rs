@@ -151,6 +151,29 @@ pub fn split_overlapping_sessions(
         }
         out.push(row);
     }
+
+    // Zero-width sessions (start == stop) are covered by no positive sub-interval
+    // window, so they produced no row above. Emit a single primary row for each
+    // so the session is preserved (matching the non-concurrent path, which keeps
+    // a 0-duration row) rather than being silently dropped.
+    let present: std::collections::HashSet<usize> =
+        out.iter().map(|r| r.session_index).collect();
+    for i in 0..starts.len() {
+        if !present.contains(&i) {
+            out.push(LayeredSession {
+                session_index: i,
+                start_ns: starts[i],
+                stop_ns: stops[i],
+                layer: UsageLayer::Primary,
+            });
+        }
+    }
+    out.sort_by(|a, b| {
+        a.session_index
+            .cmp(&b.session_index)
+            .then(a.start_ns.cmp(&b.start_ns))
+    });
+
     Ok(out)
 }
 

@@ -658,8 +658,10 @@ describe("browserPipeline", () => {
       expect(layers).toContain("secondary");
     });
 
-    it("nulls duration fields for sub-intervals below minimumUsageDuration", async () => {
+    it("computes split sub-interval durations unconditionally (parity: minimumUsageDuration is not applied to split rows on any surface)", async () => {
       // One session, splitter returns a 2-second sub-interval; threshold is 5s.
+      // Desktop (Python) and Rust do not null sub-threshold split durations, so
+      // web must not either — the duration is populated regardless of threshold.
       const csv = [
         "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
         "Study,P01,Target Child,Outer,Unknown importance: 1,com.example.outer,2026-03-07 10:00:00,America/Chicago",
@@ -707,7 +709,62 @@ describe("browserPipeline", () => {
       const durationSecondsIdx = headers.indexOf("duration_seconds");
       const durationMinutesIdx = headers.indexOf("duration_minutes");
 
-      // Row is kept but duration fields are nulled (empty CSV cell)
+      // Row is kept and duration fields are populated with the real 2s value
+      // (NOT nulled) — matching the desktop and Rust split paths.
+      expect(dataRows).toHaveLength(1);
+      const durSec = dataRows[0]?.split(",")[durationSecondsIdx];
+      const durMin = dataRows[0]?.split(",")[durationMinutesIdx];
+      expect(durSec).not.toBe("");
+      expect(Number(durSec)).toBeCloseTo(2);
+      expect(Number(durMin)).toBeCloseTo(2 / 60);
+    });
+
+    it("nulls split sub-interval durations below minimumUsageDuration when applyMinimumUsageDurationToConcurrentSubintervals is on", async () => {
+      const csv = [
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+        "Study,P01,Target Child,Outer,Unknown importance: 1,com.example.outer,2026-03-07 10:00:00,America/Chicago",
+        "Study,P01,Target Child,Outer,Unknown importance: 2,com.example.outer,2026-03-07 10:00:10,America/Chicago",
+      ].join("\n");
+
+      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+        startIndices: [0],
+        stopStartIndices: [0],
+        stopEventIndices: [1],
+        missingIndices: [],
+      });
+
+      // 2-second sub-interval, below minimumUsageDuration = 5.
+      const shortSubIntervalSplitter = async (_input: SplitterInput): Promise<SplitterOutput> => [
+        { sessionIndex: 0, startNs: 1741341600000000000n, stopNs: 1741341602000000000n, layer: "primary" },
+      ];
+
+      const result = await processRawCsvContent(
+        "Raw P01.csv",
+        csv,
+        {
+          ...DEFAULT_BROWSER_OPTIONS,
+          modelConcurrentUsage: true,
+          applyMinimumUsageDurationToConcurrentSubintervals: true,
+          minimumUsageDuration: 5,
+          useFilterFile: false,
+          useAppsForcingScreenOpenFile: false,
+          useAppCodebook: false,
+        },
+        {},
+        matcher,
+        undefined,
+        undefined,
+        shortSubIntervalSplitter,
+      );
+
+      const csvText = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
+      const lines = csvText.trim().split("\n");
+      const headers = (lines[0] ?? "").split(",");
+      const dataRows = lines.slice(1).filter(Boolean);
+      const durationSecondsIdx = headers.indexOf("duration_seconds");
+      const durationMinutesIdx = headers.indexOf("duration_minutes");
+
+      // Row kept; duration fields nulled (empty CSV cell) because the option is on.
       expect(dataRows).toHaveLength(1);
       expect(dataRows[0]?.split(",")[durationSecondsIdx]).toBe("");
       expect(dataRows[0]?.split(",")[durationMinutesIdx]).toBe("");

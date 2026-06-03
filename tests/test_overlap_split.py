@@ -73,3 +73,16 @@ def test_python_matches_rust_on_random_inputs():
             for i, a, b, p in zip(idx, r_start, r_stop, is_primary, strict=True)
         ]
         assert py == rust_rows, f"mismatch for starts={starts} stops={stops}"
+
+
+def test_zero_width_session_emits_single_primary_row():
+    # start == stop: previously produced no row (silently dropped); now preserved
+    # as a single 0-duration primary row, matching the non-concurrent path.
+    assert split_overlapping_sessions([5], [5]) == [LayeredRow(0, 5, 5, "primary")]
+
+
+def test_zero_width_session_nested_in_another_is_preserved():
+    # Session 1 ([5, 5]) is zero-width inside session 0 ([0, 10]); it must survive.
+    rows = split_overlapping_sessions([0, 5], [10, 5])
+    assert LayeredRow(1, 5, 5, "primary") in rows
+    assert any(r.session_index == 0 for r in rows)

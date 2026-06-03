@@ -28,7 +28,6 @@ from chronicle_preprocessing_app.config.constants import (
     Column,
     InteractionType,
     TimezoneHandlingOption,
-    UsageLayer,
 )
 from chronicle_preprocessing_app.config.defaults import (
     DEFAULT_LONG_DATA_TIME_GAP_THRESHOLDS,
@@ -509,6 +508,18 @@ class PolarsFastPathPreprocessor:
         ).any():
             return df
 
+        # Phase 1: when model_concurrent_usage is on, another app resuming does
+        # not stop the prior session — empty the other-stop set, matching the
+        # valid-app path and the web/Rust surfaces (which empty it for the
+        # filtered path too).
+        if self.options.model_concurrent_usage:
+            other_stop_types: set[str] = set()
+        else:
+            other_stop_types = {
+                str(value)
+                for value in self.options.filtered_other_interaction_types_to_stop_usage_at
+            }
+
         df = self._process_usage_rows(
             df,
             resumed_type=str(InteractionType.FILTERED_APP_RESUMED),
@@ -519,10 +530,7 @@ class PolarsFastPathPreprocessor:
                 str(value)
                 for value in self.options.filtered_same_app_interaction_types_to_stop_usage_at
             },
-            other_stop_types={
-                str(value)
-                for value in self.options.filtered_other_interaction_types_to_stop_usage_at
-            },
+            other_stop_types=other_stop_types,
         )
         return df
 
@@ -554,6 +562,55 @@ class PolarsFastPathPreprocessor:
             other_stop_types=other_stop_types,
         )
 
+    @staticmethod
+    def _compute_layered_sessions(
+        starts_ns: list[int],
+        stops_ns: list[int],
+    ) -> tuple[list[int], list[int], list[int], list[str]]:
+        """Split overlapping sessions into layered sub-intervals (Rust-first).
+
+        Uses the compiled Rust ``split_overlapping_sessions_py`` (the same crate
+        the matcher uses) when the extension is available, and falls back to the
+        pure-Python mirror otherwise. Returns parallel lists
+        ``(session_index, start_ns, stop_ns, layer)`` ordered by
+        ``(session_index, start_ns)`` — identical on both paths (enforced by the
+        randomized parity test in tests/test_overlap_split.py).
+        """
+        try:
+            from chronicle_preprocessing_app import _rust_app_usage_matcher  # noqa: PLC0415
+
+            split_fn = getattr(
+                _rust_app_usage_matcher, "split_overlapping_sessions_py", None
+            )
+            if split_fn is not None:
+                idx, start, stop, is_primary = split_fn(
+                    np.asarray(starts_ns, dtype=np.int64),
+                    np.asarray(stops_ns, dtype=np.int64),
+                )
+                return (
+                    [int(i) for i in idx],
+                    [int(s) for s in start],
+                    [int(s) for s in stop],
+                    ["primary" if p else "secondary" for p in is_primary],
+                )
+        except (ImportError, AttributeError):
+            pass
+
+        # Pure-Python fallback. Imported lazily because algorithms/__init__.py
+        # eagerly imports app_usage_details_optimizer -> polars_fast_path (this
+        # module), creating an import cycle at module-init time.
+        from chronicle_preprocessing_app.core.preprocessing.algorithms.overlap_split import (  # noqa: PLC0415
+            split_overlapping_sessions,
+        )
+
+        rows = split_overlapping_sessions(list(starts_ns), list(stops_ns))
+        return (
+            [r.session_index for r in rows],
+            [r.start_ns for r in rows],
+            [r.stop_ns for r in rows],
+            [r.layer for r in rows],
+        )
+
     def _apply_concurrent_usage_split(self, df: pl.DataFrame, usage_type: str) -> pl.DataFrame:
         """Expand overlapping App-Usage rows into primary/secondary layer rows.
 
@@ -571,34 +628,23 @@ class PolarsFastPathPreprocessor:
         if usage.height == 0:
             return non_usage.drop("_session_index", strict=False)
 
-        # Deferred: importing overlap_split eagerly triggers algorithms/__init__.py
-        # which imports app_usage_details_optimizer -> polars_fast_path, creating
-        # a circular import at module init time.
-        from chronicle_preprocessing_app.core.preprocessing.algorithms.overlap_split import (  # noqa: PLC0415
-            split_overlapping_sessions,
-        )
-
         starts = usage.get_column(Column.START_TIMESTAMP).dt.epoch("ns").to_list()
         stops = usage.get_column(Column.STOP_TIMESTAMP).dt.epoch("ns").to_list()
-        layered = split_overlapping_sessions(starts, stops)
+        session_idx, layer_starts, layer_stops, layers = self._compute_layered_sessions(
+            starts, stops
+        )
 
         tz = df.schema[Column.EVENT_TIMESTAMP].time_zone or "UTC"
         layered_df = pl.DataFrame(
             {
-                "_session_index": pl.Series(
-                    [r.session_index for r in layered], dtype=pl.UInt32
-                ),
-                Column.START_TIMESTAMP: pl.Series(
-                    [r.start_ns for r in layered], dtype=pl.Int64
-                )
+                "_session_index": pl.Series(session_idx, dtype=pl.UInt32),
+                Column.START_TIMESTAMP: pl.Series(layer_starts, dtype=pl.Int64)
                 .cast(pl.Datetime("ns", "UTC"))
                 .dt.convert_time_zone(tz),
-                Column.STOP_TIMESTAMP: pl.Series(
-                    [r.stop_ns for r in layered], dtype=pl.Int64
-                )
+                Column.STOP_TIMESTAMP: pl.Series(layer_stops, dtype=pl.Int64)
                 .cast(pl.Datetime("ns", "UTC"))
                 .dt.convert_time_zone(tz),
-                Column.USAGE_LAYER: pl.Series([r.layer for r in layered], dtype=pl.String),
+                Column.USAGE_LAYER: pl.Series(layers, dtype=pl.String),
             }
         )
         expanded = (
@@ -685,6 +731,47 @@ class PolarsFastPathPreprocessor:
                 (duration_expr / 60.0).alias(Column.DURATION_MINUTES),
             ]
         )
+        apply_min_duration = (
+            usage_type == str(InteractionType.APP_USAGE)
+            and self.options.minimum_usage_duration > 0
+            and (
+                # Non-concurrent: apply the threshold to full sessions.
+                not self.options.model_concurrent_usage
+                # Concurrent: only when the sub-interval option opts in.
+                or self.options.apply_minimum_usage_duration_to_concurrent_subintervals
+            )
+        )
+        if apply_min_duration:
+            # Null (but keep) App Usage rows shorter than minimum_usage_duration.
+            # Non-concurrent path nulls full sessions; the concurrent path (when
+            # apply_minimum_usage_duration_to_concurrent_subintervals is on) nulls
+            # each split sub-interval. Mirrors web browserPipeline.ts processUsageRows
+            # and the SSOT contract (minimum_usage_duration slot).
+            below_threshold = (pl.col(Column.INTERACTION_TYPE) == usage_type) & (
+                pl.col(Column.DURATION_SECONDS) < float(self.options.minimum_usage_duration)
+            )
+            null_f64 = pl.lit(None, dtype=pl.Float64)
+            df = df.with_columns(
+                pl.when(below_threshold)
+                .then(null_f64)
+                .otherwise(pl.col(Column.DURATION_SECONDS))
+                .alias(Column.DURATION_SECONDS),
+                pl.when(below_threshold)
+                .then(null_f64)
+                .otherwise(pl.col(Column.DURATION_MINUTES))
+                .alias(Column.DURATION_MINUTES),
+            )
+        if self.options.filter_zero_duration_sessions:
+            # Drop only genuine zero/negative-duration USAGE sessions; keep non-usage
+            # rows and rows whose duration was suppressed to null above. Honors the
+            # previously-unwired option.
+            df = df.filter(
+                ~(
+                    (pl.col(Column.INTERACTION_TYPE) == usage_type)
+                    & pl.col(Column.DURATION_SECONDS).is_not_null()
+                    & (pl.col(Column.DURATION_SECONDS) <= 0.0)
+                )
+            )
         return df.sort(Column.EVENT_TIMESTAMP)
 
     def _match_usage_updates(
@@ -1188,11 +1275,6 @@ class PolarsFastPathPreprocessor:
             Column.STOP_TIMESTAMP,
             Column.DURATION_SECONDS,
             Column.DURATION_MINUTES,
-            *(
-                [Column.USAGE_LAYER]
-                if self.options.model_concurrent_usage
-                else []
-            ),
             Column.SCREEN_USAGE_END_REASON,
             Column.SCREEN_USAGE_END_REASON_CONFIDENCE,
             Column.SCREEN_USAGE_STOP_EVENT_TYPE,
@@ -1232,6 +1314,13 @@ class PolarsFastPathPreprocessor:
             *timestamp_continuation,
             *app_derived_columns,
             *admin_columns,
+            # usage_layer is appended last to match the web (browserPipeline) and
+            # Rust (pipeline_v2) output column order.
+            *(
+                [Column.USAGE_LAYER]
+                if self.options.model_concurrent_usage
+                else []
+            ),
         ]
 
     def _format_output_frame(self, df: pl.DataFrame) -> pl.DataFrame:

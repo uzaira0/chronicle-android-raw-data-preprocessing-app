@@ -123,3 +123,103 @@ def test_flag_on_emits_primary_and_secondary_rows():
     )
     assert a_secondary.height == 1
     assert a_secondary.get_column(Column.DURATION_SECONDS).to_list() == [600.0]
+
+
+def test_apply_min_duration_to_concurrent_subintervals_nulls_short_durations():
+    # All sub-intervals here are 600s; with the option on and a 601s threshold,
+    # every sub-interval is below threshold so durations are nulled but rows kept.
+    options = PreprocessingOptions(
+        raw_data_folder="",
+        model_concurrent_usage=True,
+        apply_minimum_usage_duration_to_concurrent_subintervals=True,
+        minimum_usage_duration=601,
+    )
+    helper = PolarsFastPathPreprocessor(options)
+    out = helper._process_valid_app_usage(_two_overlapping_apps_raw())
+    usage = out.filter(pl.col(Column.INTERACTION_TYPE) == "App Usage")
+    assert usage.height >= 2  # rows kept
+    assert usage.get_column(Column.DURATION_SECONDS).null_count() == usage.height
+    assert usage.get_column(Column.DURATION_MINUTES).null_count() == usage.height
+    # Layer labels are preserved even though durations were suppressed.
+    assert Column.USAGE_LAYER in out.columns
+    assert set(usage.get_column(Column.USAGE_LAYER).to_list()) == {
+        str(UsageLayer.PRIMARY),
+        str(UsageLayer.SECONDARY),
+    }
+
+
+def test_min_duration_gate_default_off_keeps_durations():
+    # Option defaults off: minimum_usage_duration alone must NOT null fast-path
+    # split durations (proves the new flag is what gates the behavior).
+    options = PreprocessingOptions(
+        raw_data_folder="",
+        model_concurrent_usage=True,
+        minimum_usage_duration=601,
+    )
+    helper = PolarsFastPathPreprocessor(options)
+    out = helper._process_valid_app_usage(_two_overlapping_apps_raw())
+    usage = out.filter(pl.col(Column.INTERACTION_TYPE) == "App Usage")
+    assert usage.get_column(Column.DURATION_SECONDS).null_count() == 0
+
+
+def _single_short_session_raw(stop: str) -> pl.DataFrame:
+    """One app resumed at 08:00:00 then stopped at ``stop`` (same day)."""
+    rows = [
+        ("Activity Resumed", "com.a", "2026-01-01 08:00:00"),
+        ("Activity Stopped", "com.a", f"2026-01-01 {stop}"),
+    ]
+    return pl.DataFrame(
+        {
+            Column.INTERACTION_TYPE: [r[0] for r in rows],
+            Column.APP_PACKAGE_NAME: [r[1] for r in rows],
+            Column.EVENT_TIMESTAMP: pl.Series(
+                [r[2] for r in rows]
+            ).str.to_datetime(time_zone="UTC"),
+        }
+    )
+
+
+def test_minimum_usage_duration_nulls_short_nonconcurrent_session():
+    # Non-concurrent (default) path must now mirror web browserPipeline.ts: a
+    # session shorter than minimum_usage_duration has its duration nulled but the
+    # row is kept. 3s session, threshold 5 -> nulled.
+    options = PreprocessingOptions(
+        raw_data_folder="",
+        model_concurrent_usage=False,
+        minimum_usage_duration=5,
+    )
+    helper = PolarsFastPathPreprocessor(options)
+    out = helper._process_valid_app_usage(_single_short_session_raw("08:00:03"))
+    usage = out.filter(pl.col(Column.INTERACTION_TYPE) == "App Usage")
+    assert usage.height == 1  # row kept
+    assert usage.get_column(Column.DURATION_SECONDS).null_count() == 1
+    assert usage.get_column(Column.DURATION_MINUTES).null_count() == 1
+    # No usage_layer column when concurrent usage is off.
+    assert Column.USAGE_LAYER not in out.columns
+
+
+def test_minimum_usage_duration_keeps_session_at_or_above_threshold():
+    # 3s session, threshold 2 -> at/above threshold, duration retained.
+    options = PreprocessingOptions(
+        raw_data_folder="",
+        model_concurrent_usage=False,
+        minimum_usage_duration=2,
+    )
+    helper = PolarsFastPathPreprocessor(options)
+    out = helper._process_valid_app_usage(_single_short_session_raw("08:00:03"))
+    usage = out.filter(pl.col(Column.INTERACTION_TYPE) == "App Usage")
+    assert usage.height == 1
+    assert usage.get_column(Column.DURATION_SECONDS).to_list() == [3.0]
+
+
+def test_minimum_usage_duration_zero_keeps_all_nonconcurrent_durations():
+    # Default threshold 0 disables nulling entirely (Set to 0 to disable).
+    options = PreprocessingOptions(
+        raw_data_folder="",
+        model_concurrent_usage=False,
+        minimum_usage_duration=0,
+    )
+    helper = PolarsFastPathPreprocessor(options)
+    out = helper._process_valid_app_usage(_single_short_session_raw("08:00:03"))
+    usage = out.filter(pl.col(Column.INTERACTION_TYPE) == "App Usage")
+    assert usage.get_column(Column.DURATION_SECONDS).to_list() == [3.0]

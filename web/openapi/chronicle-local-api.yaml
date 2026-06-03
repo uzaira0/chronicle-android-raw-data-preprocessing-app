@@ -106,6 +106,7 @@ components:
         - sameAppInteractionTypesToStopUsageAt
         - otherInteractionTypesToStopUsageAt
         - modelConcurrentUsage
+        - applyMinimumUsageDurationToConcurrentSubintervals
         - interactionTypesToRemove
       properties:
         studyName:
@@ -258,6 +259,13 @@ components:
             split into a primary (sole-foreground) layer and a secondary
             (running-underneath / PiP) layer, reported via the usage_layer
             column. Default off; output is unchanged when off.
+        applyMinimumUsageDurationToConcurrentSubintervals:
+          type: boolean
+          description: Only relevant when model_concurrent_usage is on. When enabled, a
+            split primary/secondary sub-interval shorter than
+            minimum_usage_duration has its duration_seconds/duration_minutes
+            nulled (the row is kept). Off by default, so sub-interval durations
+            are always populated, matching every surface.
         interactionTypesToRemove:
           type: array
           items:

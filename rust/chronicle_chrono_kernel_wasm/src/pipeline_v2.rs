@@ -141,6 +141,8 @@ pub struct PipelineV2Options {
     pub screen_keyguard_near_stop_seconds: f64,
     pub datetime_of_preprocessing: String,
     pub model_concurrent_usage: bool,
+    pub minimum_usage_duration: f64,
+    pub apply_minimum_usage_duration_to_concurrent_subintervals: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -880,6 +882,10 @@ pub struct PipelineV2OptionsJson {
     pub datetime_of_preprocessing: String,
     #[serde(default)]
     pub model_concurrent_usage: bool,
+    #[serde(default)]
+    pub minimum_usage_duration: f64,
+    #[serde(default)]
+    pub apply_minimum_usage_duration_to_concurrent_subintervals: bool,
 }
 
 impl PipelineV2OptionsJson {
@@ -915,6 +921,9 @@ impl PipelineV2OptionsJson {
             screen_keyguard_near_stop_seconds: self.screen_keyguard_near_stop_seconds,
             datetime_of_preprocessing: self.datetime_of_preprocessing,
             model_concurrent_usage: self.model_concurrent_usage,
+            minimum_usage_duration: self.minimum_usage_duration,
+            apply_minimum_usage_duration_to_concurrent_subintervals: self
+                .apply_minimum_usage_duration_to_concurrent_subintervals,
         }
     }
 }
@@ -1470,8 +1479,17 @@ fn process_usage_rows(
                     let start = r.start_timestamp_ns.unwrap();
                     let stop = r.stop_timestamp_ns.unwrap();
                     let dur_s = (stop - start) as f64 / 1_000_000_000.0;
-                    r.duration_seconds = Some(dur_s);
-                    r.duration_minutes = Some(dur_s / 60.0);
+                    // Null (but keep) sessions shorter than minimum_usage_duration,
+                    // matching browserPipeline.ts processUsageRows and the SSOT
+                    // contract. When concurrent usage is on these durations are
+                    // recomputed per sub-interval in Phase 2 below.
+                    if opts.minimum_usage_duration > 0.0 && dur_s < opts.minimum_usage_duration {
+                        r.duration_seconds = None;
+                        r.duration_minutes = None;
+                    } else {
+                        r.duration_seconds = Some(dur_s);
+                        r.duration_minutes = Some(dur_s / 60.0);
+                    }
                 }
             }
             r
@@ -1518,8 +1536,19 @@ fn process_usage_rows(
             let dur_s = (stop - start) as f64 / 1_000_000_000.0;
             row.start_timestamp_ns = Some(start);
             row.stop_timestamp_ns = Some(stop);
-            row.duration_seconds = Some(dur_s);
-            row.duration_minutes = Some(dur_s / 60.0);
+            // Concurrent-usage option (default off): null — but keep — split
+            // sub-intervals shorter than minimum_usage_duration.
+            let below_threshold = opts
+                .apply_minimum_usage_duration_to_concurrent_subintervals
+                && opts.minimum_usage_duration > 0.0
+                && dur_s < opts.minimum_usage_duration;
+            if below_threshold {
+                row.duration_seconds = None;
+                row.duration_minutes = None;
+            } else {
+                row.duration_seconds = Some(dur_s);
+                row.duration_minutes = Some(dur_s / 60.0);
+            }
             row.usage_layer = Some(match ls.layer {
                 UsageLayer::Primary => "primary".to_string(),
                 UsageLayer::Secondary => "secondary".to_string(),
