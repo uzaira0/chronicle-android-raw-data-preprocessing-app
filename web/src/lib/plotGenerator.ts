@@ -23,7 +23,7 @@ type PlotRow = {
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
-const CATEGORY_COLORS: Record<string, string> = {
+export const CATEGORY_COLORS: Record<string, string> = {
   "Games": "#e6194b",
   "Video Players (e.g. YouTube)": "#4363d8",
   "Social & Communication": "#fabed4",
