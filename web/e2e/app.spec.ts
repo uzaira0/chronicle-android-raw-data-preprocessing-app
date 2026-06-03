@@ -68,10 +68,11 @@ test("processes app and screen outputs with CSV support files and downloads both
   const report = JSON.parse(zipEntries.get("chronicle-processing-report.json") ?? "{}");
   expect(report.preprocessorVersion).toBe("1.0.0");
   expect(report.files).toHaveLength(1);
-  expect(report.files[0].outputs.map((output: { kind: string }) => output.kind)).toEqual([
-    "app",
-    "screen",
-  ]);
+  // Plots are on by default, so outputs also include "plot" entries; assert the
+  // CSV kinds are present rather than pinning the exact set.
+  const outputKinds = report.files[0].outputs.map((output: { kind: string }) => output.kind);
+  expect(outputKinds).toContain("app");
+  expect(outputKinds).toContain("screen");
 
   const appCsv = await downloadCsv(page, "download-app-csv");
   const screenCsv = await downloadCsv(page, "download-screen-csv");
@@ -630,7 +631,8 @@ test("duplicate timestamps stop blocking readiness when correction is enabled", 
 });
 
 test("results table is the primary post-processing surface and preview is gone", async ({ page }) => {
-  // Default processScreenUsage is false, so Screen rows column is hidden.
+  // Disable screen output so the Screen rows column is hidden for this case.
+  await page.getByTestId("toggle-processScreenUsage").uncheck();
   await page.getByTestId("run-sample-button").click();
   const table = page.getByTestId("result-file-table");
   await expect(table).toBeVisible();

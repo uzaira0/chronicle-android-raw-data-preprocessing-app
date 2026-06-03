@@ -156,7 +156,7 @@ slots:
     description: >-
       Derive screen-usage sessions and include the screen-usage CSV in the output ZIP.
       Sessions are inferred from Screen Interactive / Screen Non-Interactive events.
-    default: false
+    default: true
   allow_stop_event_reuse:
     range: boolean
     required: true
@@ -267,7 +267,7 @@ slots:
     description: >-
       After preprocessing, renders one horizontal-bar timeline chart per participant
       and includes the PNGs in the output ZIP. Each bar is coloured by app category.
-    default: false
+    default: true
   include_filtered_app_usage_in_plots:
     range: boolean
     required: true
@@ -392,7 +392,7 @@ slots:
     description: >-
       When this is on, the app can process more than one uploaded raw file at the same time.
       It usually helps only when you upload multiple files; one file still runs by itself.
-    default: false
+    default: true
   parallel_max_workers:
     range: integer
     title: "Max parallel workers"

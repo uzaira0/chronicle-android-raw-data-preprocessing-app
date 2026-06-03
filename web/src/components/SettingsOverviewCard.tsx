@@ -62,6 +62,26 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
           modified={!isOptionDefault("enablePlotting", options.enablePlotting)}
           onReset={() => setOptions((current) => ({ ...current, enablePlotting: DEFAULT_BROWSER_OPTIONS.enablePlotting }))}
         />
+        {options.enablePlotting ? (
+          <div className="settings-overview__subfield">
+            <ToggleField
+              label="Include filtered apps in plots"
+              checked={options.includeFilteredAppUsageInPlots}
+              onChange={(value) =>
+                setOptions((current) => ({ ...current, includeFilteredAppUsageInPlots: value }))
+              }
+              testId="toggle-includeFilteredAppUsageInPlots"
+              tooltip={TOOLTIPS.includeFilteredAppUsageInPlots}
+              modified={!isOptionDefault("includeFilteredAppUsageInPlots", options.includeFilteredAppUsageInPlots)}
+              onReset={() =>
+                setOptions((current) => ({
+                  ...current,
+                  includeFilteredAppUsageInPlots: DEFAULT_BROWSER_OPTIONS.includeFilteredAppUsageInPlots,
+                }))
+              }
+            />
+          </div>
+        ) : null}
       </SettingsField>
     </section>
   );
