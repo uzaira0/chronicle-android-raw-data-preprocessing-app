@@ -80,4 +80,81 @@ describe("fileInspection", () => {
     expect(inspection.warnings.join(" ")).toContain("File is empty");
     expect(inspection.warnings.join(" ")).toContain("Missing required columns");
   });
+
+  const HEADER =
+    "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone";
+  const row = (interaction: string, ts: string): string =>
+    `Study,P09,Target Child,Chat,${interaction},com.example.chat,${ts},America/Chicago`;
+
+  it("flags out-of-order event timestamps with the first offending data row", async () => {
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P09 ooo.csv",
+        [
+          HEADER,
+          row("Unknown importance: 1", "2026-03-07 10:00:00"),
+          row("Unknown importance: 2", "2026-03-07 09:00:00"), // earlier than row 1
+          row("Unknown importance: 1", "2026-03-07 11:00:00"),
+        ].join("\n"),
+      ),
+    );
+
+    expect(inspection.outOfOrderTimestampCount).toBe(1);
+    expect(inspection.firstOutOfOrderRow).toBe(2);
+    expect(inspection.warnings.join(" ")).toContain("out of chronological order");
+    expect(inspection.warnings.join(" ")).toContain("data row 2");
+  });
+
+  it("does not flag chronologically ordered timestamps", async () => {
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P09 ok.csv",
+        [
+          HEADER,
+          row("Unknown importance: 1", "2026-03-07 10:00:00"),
+          row("Unknown importance: 2", "2026-03-07 10:00:00"), // equal is in order
+          row("Unknown importance: 1", "2026-03-07 10:05:00"),
+        ].join("\n"),
+      ),
+    );
+
+    expect(inspection.outOfOrderTimestampCount).toBe(0);
+    expect(inspection.firstOutOfOrderRow).toBeNull();
+  });
+
+  it("flags unrecognized interaction types and points at remapping", async () => {
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P09 unknown.csv",
+        [
+          HEADER,
+          row("Unknown importance: 1", "2026-03-07 10:00:00"),
+          row("Custom Vendor Event", "2026-03-07 10:05:00"),
+          row("Unknown importance: 99", "2026-03-07 10:06:00"), // newer Android code
+        ].join("\n"),
+      ),
+    );
+
+    expect(inspection.unrecognizedInteractionTypes).toEqual([
+      "Custom Vendor Event",
+      "Unknown importance: 99",
+    ]);
+    expect(inspection.warnings.join(" ")).toContain("unrecognized interaction type");
+    expect(inspection.warnings.join(" ")).toContain("interaction-type remapping");
+  });
+
+  it("does not flag canonical interaction-type names as unrecognized", async () => {
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P09 canonical.csv",
+        [
+          HEADER,
+          row("Activity Resumed", "2026-03-07 10:00:00"), // a map VALUE
+          row("Move to Foreground", "2026-03-07 10:05:00"), // a map KEY
+        ].join("\n"),
+      ),
+    );
+
+    expect(inspection.unrecognizedInteractionTypes).toEqual([]);
+  });
 });

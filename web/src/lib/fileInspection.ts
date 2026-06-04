@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 
+import { ALL_INTERACTION_TYPES_MAP } from "@/lib/interactionTypes";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 export type RawFileInspection = {
@@ -13,8 +14,24 @@ export type RawFileInspection = {
   missingTimestampCount: number;
   missingTimezoneCount: number;
   duplicateTimestampCount: number;
+  /** Rows whose event_timestamp is earlier than a preceding row (as parsed). */
+  outOfOrderTimestampCount: number;
+  /** 1-based data-row ordinal of the first out-of-order timestamp, if any. */
+  firstOutOfOrderRow: number | null;
+  /** Distinct interaction_type values not recognized by the pipeline's map. */
+  unrecognizedInteractionTypes: string[];
   warnings: string[];
 };
+
+/**
+ * Raw interaction-type strings the pipeline understands: both the raw input
+ * keys (e.g. "Unknown importance: 23") and their canonical names (e.g.
+ * "Activity Stopped"). Anything outside this set is vendor-specific / unknown.
+ */
+const RECOGNIZED_INTERACTION_TYPES = new Set<string>([
+  ...Object.keys(ALL_INTERACTION_TYPES_MAP),
+  ...Object.values(ALL_INTERACTION_TYPES_MAP),
+]);
 
 export function effectiveWarnings(
   inspection: RawFileInspection,
@@ -96,6 +113,41 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
     timestampCounts.set(value, (timestampCounts.get(value) ?? 0) + 1);
   });
   const duplicateTimestampCount = Array.from(timestampCounts.values()).filter((count) => count > 1).length;
+
+  // Out-of-order detection over the rows as parsed. Raw Chronicle exports are
+  // typically a single participant in event order, so a timestamp earlier than
+  // one already seen signals a sorting/export problem worth surfacing.
+  let outOfOrderTimestampCount = 0;
+  let firstOutOfOrderRow: number | null = null;
+  let maxSeenMs = Number.NEGATIVE_INFINITY;
+  // A plain loop (not forEach) so TS tracks the firstOutOfOrderRow assignment
+  // for narrowing at the warning site below.
+  for (let index = 0; index < timestampValues.length; index += 1) {
+    const value = timestampValues[index];
+    if (!value || !isValidChronicleTimestamp(value)) continue;
+    const ms = Date.parse(value.replace(" ", "T"));
+    if (Number.isNaN(ms)) continue;
+    if (ms < maxSeenMs) {
+      outOfOrderTimestampCount += 1;
+      if (firstOutOfOrderRow === null) firstOutOfOrderRow = index + 1;
+    } else {
+      maxSeenMs = ms;
+    }
+  }
+
+  // Interaction types the pipeline doesn't recognize (vendor-specific exports,
+  // newer Android event codes). These are not dropped but won't drive session
+  // logic until mapped — point the user at interaction-type remapping.
+  const unrecognizedInteractionTypes = columnSet.has("interaction_type")
+    ? Array.from(
+        new Set(
+          parsed.data
+            .map((row) => (row.interaction_type ?? "").trim())
+            .filter((value) => value && !RECOGNIZED_INTERACTION_TYPES.has(value)),
+        ),
+      ).sort((left, right) => left.localeCompare(right))
+    : [];
+
   const warnings: string[] = [];
 
   if (!file.name.toLowerCase().endsWith(".csv")) {
@@ -125,6 +177,22 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
   if (invalidTimestampCount > 0) {
     warnings.push(`${invalidTimestampCount.toLocaleString()} rows have invalid event_timestamp values.`);
   }
+  if (outOfOrderTimestampCount > 0) {
+    warnings.push(
+      `${outOfOrderTimestampCount.toLocaleString()} event_timestamp values are out of chronological order` +
+        (firstOutOfOrderRow !== null ? ` (first at data row ${firstOutOfOrderRow.toLocaleString()})` : "") +
+        ".",
+    );
+  }
+  if (unrecognizedInteractionTypes.length) {
+    const sample = unrecognizedInteractionTypes.slice(0, 5).join(", ");
+    const more = unrecognizedInteractionTypes.length > 5 ? ", …" : "";
+    warnings.push(
+      `${unrecognizedInteractionTypes.length.toLocaleString()} unrecognized interaction type` +
+        `${unrecognizedInteractionTypes.length === 1 ? "" : "s"}: ${sample}${more}. ` +
+        "These won't drive session logic until mapped via interaction-type remapping.",
+    );
+  }
   // Multiple timezones are normal (a participant who travels) and are resolved
   // downstream by the timezone-handling step (convert/filter). Spanning >1 zone
   // is not a data-quality problem, so it must not raise a warning or feed the
@@ -144,6 +212,9 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
     missingTimestampCount,
     missingTimezoneCount,
     duplicateTimestampCount,
+    outOfOrderTimestampCount,
+    firstOutOfOrderRow,
+    unrecognizedInteractionTypes,
     warnings,
   };
 }
