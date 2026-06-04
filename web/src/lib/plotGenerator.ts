@@ -161,8 +161,11 @@ function drawTitle(
   participantId: string,
   includeFiltered: boolean,
   dateStr: string,
+  version: string,
 ): void {
-  const suffix = includeFiltered ? " (Including Filtered Apps)" : "";
+  // Always annotate the filtered-apps state both ways (mirrors the desktop
+  // plot) so "unfiltered" is explicit, not merely the absence of a label.
+  const suffix = includeFiltered ? " (Including Filtered Apps)" : " (Target Child Only)";
   ctx.font = "bold 16px system-ui, sans-serif";
   ctx.fillStyle = "#111";
   ctx.textAlign = "center";
@@ -174,7 +177,7 @@ function drawTitle(
   );
   ctx.font = FONT_SMALL;
   ctx.fillStyle = "#666";
-  ctx.fillText(`Created on ${dateStr}`, CANVAS_WIDTH / 2, 46);
+  ctx.fillText(`Created on ${dateStr} · Preprocessor v${version}`, CANVAS_WIDTH / 2, 46);
 }
 
 function drawLegend(
@@ -355,6 +358,8 @@ export async function generateParticipantPlotBlob(
   rows: PlotRow[],
   timezone: string,
   options: Pick<BrowserProcessingOptions, "includeFilteredAppUsageInPlots">,
+  /** Preprocessor version, stamped in the plot subtitle for provenance. */
+  version: string,
   /** All event timestamps from before the app-usage algorithm ran, sorted ascending.
    * When provided these are used for gap detection instead of the post-algorithm
    * event_timestamp_ns values, so gaps reflect genuinely missing raw events. */
@@ -391,7 +396,7 @@ export async function generateParticipantPlotBlob(
     month: "long",
     day: "numeric",
   });
-  drawTitle(ctx, participantId, options.includeFilteredAppUsageInPlots, dateStr);
+  drawTitle(ctx, participantId, options.includeFilteredAppUsageInPlots, dateStr, version);
 
   const plotTop = MARGIN.top;
   const plotBottom = MARGIN.top + plotAreaHeight;
@@ -604,6 +609,8 @@ async function generateParticipantScreenPlotBlob(
   participantId: string,
   rows: ScreenPlotRow[],
   timezone: string,
+  /** Preprocessor version, stamped in the plot subtitle for provenance. */
+  version: string,
   /** Pre-algorithm raw event timestamps (sorted or unsorted) used for data-gap
    * shading — same source the app-usage plot uses, so both plots agree on where
    * device activity is genuinely absent. */
@@ -645,7 +652,7 @@ async function generateParticipantScreenPlotBlob(
   ctx.fillText(`Screen Usage for ${participantId}`, CANVAS_WIDTH / 2, 28);
   ctx.font = FONT_SMALL;
   ctx.fillStyle = "#666";
-  ctx.fillText(`Created on ${dateStr}`, CANVAS_WIDTH / 2, 46);
+  ctx.fillText(`Created on ${dateStr} · Preprocessor v${version}`, CANVAS_WIDTH / 2, 46);
 
   const plotTop = MARGIN.top;
   const plotBottom = MARGIN.top + plotAreaHeight;
@@ -801,6 +808,8 @@ async function generateParticipantScreenPlotBlob(
 export async function generateAllScreenPlots(
   rows: ScreenPlotRow[],
   timezone: string,
+  /** Preprocessor version, stamped in each plot subtitle. */
+  version: string,
   /** Pre-algorithm event timestamps per participant (keyed by participant_id),
    * same map the app-usage plots use, so screen gaps match app gaps. */
   preAlgoTsByParticipant?: Map<string, bigint[]>,
@@ -816,7 +825,7 @@ export async function generateAllScreenPlots(
   const result = new Map<string, Blob>();
   for (const [pid, pRows] of byParticipant) {
     const gapNs = preAlgoTsByParticipant?.get(pid);
-    result.set(pid, await generateParticipantScreenPlotBlob(pid, pRows, timezone, gapNs));
+    result.set(pid, await generateParticipantScreenPlotBlob(pid, pRows, timezone, version, gapNs));
   }
   return result;
 }
@@ -827,6 +836,8 @@ export async function generateAllPlots(
   rows: PlotRow[],
   timezone: string,
   options: Pick<BrowserProcessingOptions, "includeFilteredAppUsageInPlots">,
+  /** Preprocessor version, stamped in each plot subtitle. */
+  version: string,
   /** Pre-algorithm event timestamps per participant (keyed by participant_id).
    * Collected before runAppUsageAlgorithm so gap detection sees all raw event
    * types, not only the session-level rows in the final output. */
@@ -843,7 +854,7 @@ export async function generateAllPlots(
   const result = new Map<string, Blob>();
   for (const [pid, pRows] of byParticipant) {
     const gapNs = preAlgoTsByParticipant?.get(pid);
-    result.set(pid, await generateParticipantPlotBlob(pid, pRows, timezone, options, gapNs));
+    result.set(pid, await generateParticipantPlotBlob(pid, pRows, timezone, options, version, gapNs));
   }
   return result;
 }
