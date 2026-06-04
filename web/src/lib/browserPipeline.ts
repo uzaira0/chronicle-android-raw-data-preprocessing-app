@@ -2213,20 +2213,22 @@ export async function processRawCsvContent(
           previewRows: [],
         });
       }
-      const heatmapBlobs = await generateAllHeatmaps(
-        appRows as Parameters<typeof generateAllHeatmaps>[0],
-        timezone,
-        options,
-        PREPROCESSOR_VERSION,
-      );
-      for (const [pid, blob] of heatmapBlobs) {
-        outputs.push({
-          kind: "plot",
-          outputFileName: deriveOutputFileName(inputFileName, ` ${pid} App Usage Heatmap.png`),
-          blob,
-          rowCount: 0,
-          previewRows: [],
-        });
+      if (options.enableActivityHeatmap) {
+        const heatmapBlobs = await generateAllHeatmaps(
+          appRows as Parameters<typeof generateAllHeatmaps>[0],
+          timezone,
+          options,
+          PREPROCESSOR_VERSION,
+        );
+        for (const [pid, blob] of heatmapBlobs) {
+          outputs.push({
+            kind: "plot",
+            outputFileName: deriveOutputFileName(inputFileName, ` ${pid} App Usage Heatmap.png`),
+            blob,
+            rowCount: 0,
+            previewRows: [],
+          });
+        }
       }
     }
   }
