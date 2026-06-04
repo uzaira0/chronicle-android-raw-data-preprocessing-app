@@ -12,6 +12,12 @@ export const OUTPUT_KIND_VALUES = [
   "app",
   "screen",
   "plot",
+  "aggregate",
+] as const;
+
+export const AGGREGATE_SHAPE_VALUES = [
+  "wide",
+  "long",
 ] as const;
 
 export const BROWSER_PROCESSING_OPTION_KEYS = [
@@ -35,6 +41,8 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "includeFilteredAppUsageInPlots",
   "enableActivityHeatmap",
   "exportPlotsAsSvg",
+  "enableAggregates",
+  "aggregateShape",
   "minimumUsageDuration",
   "filterZeroDurationSessions",
   "customAppEngagementDuration",
@@ -74,6 +82,8 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "includeFilteredAppUsageInPlots",
   "enableActivityHeatmap",
   "exportPlotsAsSvg",
+  "enableAggregates",
+  "aggregateShape",
   "minimumUsageDuration",
   "filterZeroDurationSessions",
   "customAppEngagementDuration",
@@ -105,6 +115,7 @@ export const BROWSER_RUNTIME_KEYS = [
 
 export type BrowserTimezoneHandling = (typeof TIMEZONE_HANDLING_VALUES)[number];
 export type OutputKind = (typeof OUTPUT_KIND_VALUES)[number];
+export type AggregateShape = (typeof AGGREGATE_SHAPE_VALUES)[number];
 
 export type BrowserProcessingOptions = {
   studyName: string;
@@ -127,6 +138,8 @@ export type BrowserProcessingOptions = {
   includeFilteredAppUsageInPlots: boolean;
   enableActivityHeatmap: boolean;
   exportPlotsAsSvg: boolean;
+  enableAggregates: boolean;
+  aggregateShape: AggregateShape;
   minimumUsageDuration: number;
   filterZeroDurationSessions: boolean;
   customAppEngagementDuration: number;
@@ -164,6 +177,7 @@ export const BOOLEAN_BROWSER_OPTION_KEYS = [
   "includeFilteredAppUsageInPlots",
   "enableActivityHeatmap",
   "exportPlotsAsSvg",
+  "enableAggregates",
   "filterZeroDurationSessions",
   "parallelProcessing",
   "modelConcurrentUsage",
@@ -186,6 +200,7 @@ export const STRING_BROWSER_OPTION_KEYS = [
   "studyName",
   "selectedTimezone",
   "timezoneHandling",
+  "aggregateShape",
 ] as const;
 export const STRING_ARRAY_BROWSER_OPTION_KEYS = [
   "sameAppInteractionTypesToStopUsageAt",
@@ -215,6 +230,8 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   includeFilteredAppUsageInPlots: false,
   enableActivityHeatmap: true,
   exportPlotsAsSvg: false,
+  enableAggregates: false,
+  aggregateShape: "wide",
   minimumUsageDuration: 0,
   filterZeroDurationSessions: false,
   customAppEngagementDuration: 300,
@@ -315,6 +332,14 @@ export const BROWSER_OPTION_TOOLTIPS = {
   exportPlotsAsSvg: {
     title: "Also export plots as SVG (vector)",
     body: "In addition to the PNG charts, write a scalable vector SVG of each plot (timeline, and heatmap when enabled) into the output ZIP. SVGs stay sharp at any zoom and are editable in vector tools. Off by default to avoid adding a second file per plot. Only applies when plot generation is on.",
+  },
+  enableAggregates: {
+    title: "Aggregate summaries",
+    body: "Emit extra summary CSVs alongside the per-session output: a daily and weekly summary (screen/app time, session counts, app switches, pickups, mean & longest session, first/last use), a per-app breakdown, a per-category time budget (when a codebook is loaded), and an app co-usage matrix (when concurrent usage is modeled). Off by default.",
+  },
+  aggregateShape: {
+    title: "Aggregate layout",
+    body: "Layout for the daily/weekly summaries — \"wide\" (one row per period, metrics as columns) or \"long\" (tidy: one row per period per metric). The per-app, category, and co-usage outputs are always long.",
   },
   minimumUsageDuration: {
     title: "Minimum usage duration (seconds)",

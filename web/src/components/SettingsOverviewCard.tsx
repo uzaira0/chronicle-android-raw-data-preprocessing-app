@@ -114,6 +114,52 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
             />
           </div>
         ) : null}
+        <ToggleField
+          label="Aggregate summaries"
+          checked={options.enableAggregates}
+          onChange={(value) => setOptions((current) => ({ ...current, enableAggregates: value }))}
+          testId="toggle-enableAggregates"
+          tooltip={TOOLTIPS.enableAggregates}
+          modified={!isOptionDefault("enableAggregates", options.enableAggregates)}
+          onReset={() =>
+            setOptions((current) => ({
+              ...current,
+              enableAggregates: DEFAULT_BROWSER_OPTIONS.enableAggregates,
+            }))
+          }
+        />
+        {options.enableAggregates ? (
+          <div className="settings-overview__subfield">
+            <SettingsField
+              label="Aggregate layout"
+              htmlFor="aggregate-shape-select"
+              tooltip={TOOLTIPS.aggregateShape}
+              modified={!isOptionDefault("aggregateShape", options.aggregateShape)}
+              onReset={() =>
+                setOptions((current) => ({
+                  ...current,
+                  aggregateShape: DEFAULT_BROWSER_OPTIONS.aggregateShape,
+                }))
+              }
+            >
+              <select
+                id="aggregate-shape-select"
+                data-testid="select-aggregateShape"
+                className="input"
+                value={options.aggregateShape}
+                onChange={(event) =>
+                  setOptions((current) => ({
+                    ...current,
+                    aggregateShape: event.target.value as typeof current.aggregateShape,
+                  }))
+                }
+              >
+                <option value="wide">Wide (metrics as columns)</option>
+                <option value="long">Long (tidy: one row per metric)</option>
+              </select>
+            </SettingsField>
+          </div>
+        ) : null}
       </SettingsField>
     </section>
   );
