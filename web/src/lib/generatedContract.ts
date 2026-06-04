@@ -51,6 +51,7 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "modelConcurrentUsage",
   "applyMinimumUsageDurationToConcurrentSubintervals",
   "interactionTypesToRemove",
+  "interactionTypeRemap",
 ] as const;
 
 export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
@@ -88,6 +89,7 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "modelConcurrentUsage",
   "applyMinimumUsageDurationToConcurrentSubintervals",
   "interactionTypesToRemove",
+  "interactionTypeRemap",
 ] as const;
 
 export const BROWSER_SUPPORT_FILE_KEYS = [
@@ -141,6 +143,7 @@ export type BrowserProcessingOptions = {
   modelConcurrentUsage: boolean;
   applyMinimumUsageDurationToConcurrentSubintervals: boolean;
   interactionTypesToRemove: string[];
+  interactionTypeRemap: string[];
 };
 
 // Key arrays by sanitization type — used by settingsPersistence to stay in sync with the schema.
@@ -188,6 +191,7 @@ export const STRING_ARRAY_BROWSER_OPTION_KEYS = [
   "sameAppInteractionTypesToStopUsageAt",
   "otherInteractionTypesToStopUsageAt",
   "interactionTypesToRemove",
+  "interactionTypeRemap",
 ] as const;
 
 export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
@@ -227,6 +231,7 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   modelConcurrentUsage: false,
   applyMinimumUsageDurationToConcurrentSubintervals: false,
   interactionTypesToRemove: [],
+  interactionTypeRemap: [],
 };
 
 export const BROWSER_OPTION_TOOLTIPS = {
@@ -382,5 +387,9 @@ export const BROWSER_OPTION_TOOLTIPS = {
   interactionTypesToRemove: {
     title: "Interaction types to remove",
     body: "Rows of these types are dropped from the final output. Useful for stripping noisy events you don't want surfaced in the CSV.",
+  },
+  interactionTypeRemap: {
+    title: "Custom interaction-type mappings",
+    body: "Map vendor-specific raw interaction_type strings onto the canonical names the pipeline understands (e.g. Activity Resumed / Activity Paused / Activity Stopped), for non-standard Chronicle exports. Each entry is \"Raw value => Canonical name\". Applied before the built-in mapping, so it also overrides built-ins. Default empty.",
   },
 } as const;

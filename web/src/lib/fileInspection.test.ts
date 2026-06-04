@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { inspectRawFile } from "@/lib/fileInspection";
+import { effectiveWarnings, inspectRawFile } from "@/lib/fileInspection";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
 
 function fileFromText(name: string, text: string): File {
   return new File([text], name, { type: "text/csv" });
@@ -161,11 +162,47 @@ describe("fileInspection", () => {
       "Custom Vendor Event",
       "Unknown importance: 99",
     ]);
-    expect(inspection.warnings.join(" ")).toContain("unrecognized interaction type");
-    // Must point only at options that actually exist (no phantom "remapping").
-    expect(inspection.warnings.join(" ")).toContain("interaction types to remove");
-    expect(inspection.warnings.join(" ")).toContain("end a session");
-    expect(inspection.warnings.join(" ")).not.toMatch(/remapping/i);
+    // The warning is now produced in effectiveWarnings (it depends on the remap option).
+    const warnings = effectiveWarnings(inspection, DEFAULT_BROWSER_OPTIONS).join(" ");
+    expect(warnings).toContain("unrecognized interaction type");
+    // Must point only at options that actually exist; uses the UI label "mappings".
+    expect(warnings).toContain("interaction types to remove");
+    expect(warnings).toContain("end a session");
+    expect(warnings).toContain("custom interaction-type mappings");
+    expect(warnings).not.toMatch(/remapping/i);
+  });
+
+  it("excludes remapped interaction types from the unrecognized warning (#4)", async () => {
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P09 remap.csv",
+        [
+          HEADER,
+          row("Unknown importance: 1", "2026-03-07 10:00:00"),
+          row("Custom Vendor Event", "2026-03-07 10:05:00"),
+          row("Unknown importance: 99", "2026-03-07 10:06:00"),
+        ].join("\n"),
+      ),
+    );
+
+    // Map only one of the two unrecognized types: the other still warns.
+    const oneMapped = effectiveWarnings(inspection, {
+      ...DEFAULT_BROWSER_OPTIONS,
+      interactionTypeRemap: ["Custom Vendor Event => Activity Resumed"],
+    }).join(" ");
+    expect(oneMapped).toContain("unrecognized interaction type");
+    expect(oneMapped).toContain("Unknown importance: 99");
+    expect(oneMapped).not.toContain("Custom Vendor Event");
+
+    // Map both: the unrecognized warning disappears entirely.
+    const allMapped = effectiveWarnings(inspection, {
+      ...DEFAULT_BROWSER_OPTIONS,
+      interactionTypeRemap: [
+        "Custom Vendor Event => Activity Resumed",
+        "Unknown importance: 99 => Activity Stopped",
+      ],
+    }).join(" ");
+    expect(allMapped).not.toContain("unrecognized interaction type");
   });
 
   it("does not flag canonical interaction-type names as unrecognized", async () => {

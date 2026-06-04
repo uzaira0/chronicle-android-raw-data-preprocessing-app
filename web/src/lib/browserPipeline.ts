@@ -1,5 +1,5 @@
 import Papa from "papaparse";
-import { ALL_INTERACTION_TYPES_MAP } from "@/lib/interactionTypes";
+import { ALL_INTERACTION_TYPES_MAP, parseInteractionRemap } from "@/lib/interactionTypes";
 import {
   CATEGORY_COLORS,
   generateAllHeatmaps,
@@ -287,8 +287,10 @@ function requireString(value: string | undefined, fallback = ""): string {
   return (value ?? fallback).trim();
 }
 
-function normalizeInteractionType(value: string): string {
-  return ALL_INTERACTION_TYPES_MAP[value] ?? value;
+function normalizeInteractionType(value: string, remap?: ReadonlyMap<string, string>): string {
+  // The user remap runs first so vendor-specific strings (absent from the
+  // built-in map) resolve, and so it can override a built-in mapping too.
+  return remap?.get(value) ?? ALL_INTERACTION_TYPES_MAP[value] ?? value;
 }
 
 function parsePlainTimestampParts(value: string):
@@ -815,6 +817,7 @@ function createBaseRow(
   index: number,
   nowText: string,
   possibleDeviceModel: string,
+  interactionRemap?: ReadonlyMap<string, string>,
 ): CanonicalRow {
   const timezone = requireString(row.timezone, "UTC") || "UTC";
   const base: CanonicalRow = {
@@ -823,7 +826,10 @@ function createBaseRow(
     possible_device_model: possibleDeviceModel,
     username: requireString(row.username).replace("Target child", "Target Child"),
     application_label: requireString(row.application_label),
-    interaction_type: normalizeInteractionType(requireString(row.interaction_type)),
+    interaction_type: normalizeInteractionType(
+      requireString(row.interaction_type),
+      interactionRemap,
+    ),
     app_package_name: requireString(row.app_package_name),
     event_timestamp_ns: parseChronicleTimestampNs(requireString(row.event_timestamp)),
     timezone,
@@ -891,6 +897,7 @@ function compareByEventThenIndex(
 function parseRawRows(
   csvText: string,
   runtime?: BrowserProcessingRuntime,
+  interactionRemap?: ReadonlyMap<string, string>,
 ): CanonicalRow[] {
   const parsed = Papa.parse<RawChronicleRow>(csvText, {
     header: true,
@@ -903,7 +910,9 @@ function parseRawRows(
   const possibleDeviceModel = getPossibleDeviceModel(filtered);
   const nowText = resolveDatetimeOfPreprocessing(runtime);
   return filtered
-    .map((row, index) => createBaseRow(row, index, nowText, possibleDeviceModel))
+    .map((row, index) =>
+      createBaseRow(row, index, nowText, possibleDeviceModel, interactionRemap),
+    )
     .sort(compareByEventThenIndex);
 }
 
@@ -2083,7 +2092,8 @@ export async function processRawCsvContent(
   const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
 
   emit("parse", 0);
-  const originalRows = parseRawRows(csvText, runtime);
+  const interactionRemap = parseInteractionRemap(options.interactionTypeRemap);
+  const originalRows = parseRawRows(csvText, runtime, interactionRemap);
   const originalRowCount = originalRows.length;
   const availableTimezones = Array.from(
     new Set(originalRows.map((row) => row.timezone).filter(Boolean)),
