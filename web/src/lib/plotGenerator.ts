@@ -6,7 +6,66 @@
  * desktop pipeline.  Runs entirely in-browser via OffscreenCanvas / Canvas.
  */
 
+import type { Primitive, Scene } from "@/lib/plotScene";
+import { sceneToSvgBlob } from "@/lib/plotScene";
 import type { BrowserProcessingOptions } from "@/lib/types";
+
+type Ctx2DBase = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+/**
+ * Paint a {@link Scene} onto a 2D canvas context. The raster (PNG) twin of
+ * `renderSceneToSvg`: both consume the identical primitive list, so the PNG and
+ * SVG renderings of a plot cannot drift apart. Primitives paint in array order.
+ */
+export function renderSceneToCanvas(ctx: Ctx2DBase, scene: Scene): void {
+  for (const p of scene.primitives) {
+    if (p.type === "rect") {
+      ctx.globalAlpha = p.alpha ?? 1;
+      if (p.fill) {
+        ctx.fillStyle = p.fill;
+        ctx.fillRect(p.x, p.y, p.w, p.h);
+      }
+      if (p.stroke) {
+        ctx.strokeStyle = p.stroke;
+        ctx.lineWidth = p.strokeWidth ?? 1;
+        ctx.setLineDash([]);
+        ctx.strokeRect(p.x, p.y, p.w, p.h);
+      }
+      ctx.globalAlpha = 1;
+    } else if (p.type === "text") {
+      ctx.font = p.font;
+      ctx.fillStyle = p.fill;
+      ctx.textAlign = p.anchor === "start" ? "left" : p.anchor === "middle" ? "center" : "right";
+      ctx.textBaseline = p.baseline;
+      ctx.fillText(p.text, p.x, p.y);
+    } else if (p.type === "line") {
+      ctx.strokeStyle = p.stroke;
+      ctx.lineWidth = p.strokeWidth ?? 1;
+      ctx.setLineDash(p.dash ?? []);
+      ctx.beginPath();
+      ctx.moveTo(p.x1, p.y1);
+      ctx.lineTo(p.x2, p.y2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else {
+      // poly
+      ctx.beginPath();
+      p.points.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+      if (p.closed) ctx.closePath();
+      if (p.fill) {
+        ctx.fillStyle = p.fill;
+        ctx.fill();
+      }
+      if (p.stroke) {
+        ctx.strokeStyle = p.stroke;
+        ctx.lineWidth = p.strokeWidth ?? 1;
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.textBaseline = "alphabetic";
+  ctx.textAlign = "left";
+}
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -156,120 +215,143 @@ function drawXAxis(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingConte
   ctx.textBaseline = "alphabetic";
 }
 
-function drawTitle(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+/** Title + subtitle primitives for the app-usage timeline. */
+function titlePrimitives(
   participantId: string,
   includeFiltered: boolean,
   dateStr: string,
   version: string,
-): void {
+): Primitive[] {
   // Always annotate the filtered-apps state both ways (mirrors the desktop
   // plot) so "unfiltered" is explicit, not merely the absence of a label.
   const suffix = includeFiltered ? " (Including Filtered Apps)" : " (Target Child Only)";
-  ctx.font = "bold 16px system-ui, sans-serif";
-  ctx.fillStyle = "#111";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText(
-    `App Usage for ${participantId}${suffix}`,
-    CANVAS_WIDTH / 2,
-    28,
-  );
-  ctx.font = FONT_SMALL;
-  ctx.fillStyle = "#666";
-  ctx.fillText(`Created on ${dateStr} · Preprocessor v${version}`, CANVAS_WIDTH / 2, 46);
+  return [
+    {
+      type: "text",
+      x: CANVAS_WIDTH / 2,
+      y: 28,
+      text: `App Usage for ${participantId}${suffix}`,
+      fill: "#111",
+      font: "bold 16px system-ui, sans-serif",
+      anchor: "middle",
+      baseline: "alphabetic",
+    },
+    {
+      type: "text",
+      x: CANVAS_WIDTH / 2,
+      y: 46,
+      text: `Created on ${dateStr} · Preprocessor v${version}`,
+      fill: "#666",
+      font: FONT_SMALL,
+      anchor: "middle",
+      baseline: "alphabetic",
+    },
+  ];
 }
 
-function drawLegend(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+const SWATCH_SIZE = 12;
+const LEGEND_LINE_H = 20;
+
+/** One legend entry: a colour swatch (optional outline / alpha) + its label. */
+function legendEntry(
+  x: number,
+  y: number,
+  color: string,
+  label: string,
+  opts: { outline?: boolean; alpha?: number } = {},
+): Primitive[] {
+  return [
+    {
+      type: "rect",
+      x,
+      y: y - SWATCH_SIZE / 2,
+      w: SWATCH_SIZE,
+      h: SWATCH_SIZE,
+      fill: color,
+      ...(opts.alpha !== undefined ? { alpha: opts.alpha } : {}),
+      ...(opts.outline ? { stroke: "#aaa", strokeWidth: 0.5 } : {}),
+    },
+    {
+      type: "text",
+      x: x + SWATCH_SIZE + 5,
+      y,
+      text: label,
+      fill: "#333",
+      font: FONT_SMALL,
+      anchor: "start",
+      baseline: "middle",
+    },
+  ];
+}
+
+/** Right-hand legend for the app-usage timeline (categories + events/gaps). */
+function legendPrimitives(
   legendTop: number,
   hasShutdown: boolean,
   hasStartup: boolean,
   hasMissing: boolean,
-): void {
+): Primitive[] {
   const x = CANVAS_WIDTH - MARGIN.right + 16;
   let y = legendTop;
-  const swatchSize = 12;
-  const lineH = 20;
+  const prims: Primitive[] = [];
+  const header = (text: string): void => {
+    prims.push({
+      type: "text",
+      x,
+      y,
+      text,
+      fill: "#333",
+      font: "bold 12px system-ui, sans-serif",
+      anchor: "start",
+      baseline: "middle",
+    });
+  };
 
-  ctx.font = "bold 12px system-ui, sans-serif";
-  ctx.fillStyle = "#333";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
-  ctx.fillText("App Categories", x, y);
-  y += lineH + 4;
-
-  ctx.font = FONT_SMALL;
+  header("App Categories");
+  y += LEGEND_LINE_H + 4;
   for (const [label, color] of Object.entries(CATEGORY_COLORS)) {
-    ctx.fillStyle = color;
-    ctx.fillRect(x, y - swatchSize / 2, swatchSize, swatchSize);
-    ctx.strokeStyle = "#aaa";
-    ctx.lineWidth = 0.5;
-    ctx.strokeRect(x, y - swatchSize / 2, swatchSize, swatchSize);
-    ctx.fillStyle = "#333";
-    ctx.fillText(label, x + swatchSize + 5, y);
-    y += lineH;
+    prims.push(...legendEntry(x, y, color, label, { outline: true }));
+    y += LEGEND_LINE_H;
   }
 
   y += 6;
-  ctx.font = "bold 12px system-ui, sans-serif";
-  ctx.fillStyle = "#333";
-  ctx.fillText("Events & Gaps", x, y);
-  y += lineH + 4;
-  ctx.font = FONT_SMALL;
+  header("Events & Gaps");
+  y += LEGEND_LINE_H + 4;
 
-  ctx.fillStyle = GAP_COLOR;
-  ctx.globalAlpha = 0.35;
-  ctx.fillRect(x, y - swatchSize / 2, swatchSize, swatchSize);
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = "#333";
-  ctx.fillText("Data Gap", x + swatchSize + 5, y);
-  y += lineH;
+  prims.push(...legendEntry(x, y, GAP_COLOR, "Data Gap", { alpha: 0.35 }));
+  y += LEGEND_LINE_H;
 
   if (hasShutdown) {
-    ctx.fillStyle = "red";
-    ctx.fillRect(x, y - swatchSize / 2, swatchSize, swatchSize);
-    ctx.fillStyle = "#333";
-    ctx.fillText("Device Shutdown", x + swatchSize + 5, y);
-    y += lineH;
+    prims.push(...legendEntry(x, y, "red", "Device Shutdown"));
+    y += LEGEND_LINE_H;
   }
   if (hasStartup) {
-    ctx.fillStyle = "green";
-    ctx.fillRect(x, y - swatchSize / 2, swatchSize, swatchSize);
-    ctx.fillStyle = "#333";
-    ctx.fillText("Device Startup", x + swatchSize + 5, y);
-    y += lineH;
+    prims.push(...legendEntry(x, y, "green", "Device Startup"));
+    y += LEGEND_LINE_H;
   }
   if (hasMissing) {
-    ctx.fillStyle = "#888";
-    ctx.fillRect(x, y - swatchSize / 2, swatchSize, swatchSize);
-    ctx.fillStyle = "#333";
-    ctx.fillText("End of Usage Missing", x + swatchSize + 5, y);
+    prims.push(...legendEntry(x, y, "#888", "End of Usage Missing"));
   }
+  return prims;
 }
 
-function drawArrow(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  x: number,
-  yMid: number,
-  color: string,
-): void {
+/** A small downward device-event arrow (shaft + filled head). */
+function arrowPrimitives(x: number, yMid: number, color: string): Primitive[] {
   const len = 10;
   const headLen = 5;
-  ctx.strokeStyle = color;
-  ctx.fillStyle = color;
-  ctx.lineWidth = 2;
-
-  ctx.beginPath();
-  ctx.moveTo(x, yMid - len / 2);
-  ctx.lineTo(x, yMid + len / 2);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(x - headLen / 2, yMid + len / 2 - headLen);
-  ctx.lineTo(x, yMid + len / 2);
-  ctx.lineTo(x + headLen / 2, yMid + len / 2 - headLen);
-  ctx.fill();
+  return [
+    { type: "line", x1: x, y1: yMid - len / 2, x2: x, y2: yMid + len / 2, stroke: color, strokeWidth: 2 },
+    {
+      type: "poly",
+      points: [
+        [x - headLen / 2, yMid + len / 2 - headLen],
+        [x, yMid + len / 2],
+        [x + headLen / 2, yMid + len / 2 - headLen],
+      ],
+      fill: color,
+      closed: true,
+    },
+  ];
 }
 
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
@@ -284,39 +366,47 @@ type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
  * Exported for unit testing the gap-band geometry (notably the multi-day tiling),
  * which both the app-usage and screen-usage plots rely on.
  */
-export function drawDataGaps(
-  ctx: Ctx2D,
+export type GapRect = { x: number; y: number; w: number; h: number };
+
+/**
+ * Pure geometry for data-gap shading: the faint grey bands covering windows with
+ * no device activity (a >1h span between consecutive raw events). `allEventNs`
+ * must be sorted ascending. Returns the rectangles to shade plus `hadGap`, which
+ * reports whether any qualifying gap existed at all — true even when a gap's day
+ * rows are absent from `dateToY` (no rect emitted), so the caller can still show
+ * the "Data Gap" legend entry. The single source of gap geometry for both the
+ * canvas (PNG) and scene (SVG) paths and for both plot kinds.
+ */
+export function computeDataGapRects(
   allEventNs: bigint[],
   dateToY: Map<string, number>,
   nsToLocalHours: (ns: bigint) => number,
   nsToIso: (ns: bigint) => string,
-): boolean {
+): { rects: GapRect[]; hadGap: boolean } {
   const GAP_THRESHOLD_NS = 3_600_000_000_000n; // 1 hour in ns
-  let drewGap = false;
+  const rects: GapRect[] = [];
+  let hadGap = false;
   for (let i = 0; i + 1 < allEventNs.length; i++) {
     const gapNs = allEventNs[i + 1]! - allEventNs[i]!;
     if (gapNs <= GAP_THRESHOLD_NS) continue;
-    drewGap = true;
+    hadGap = true;
     const startH = nsToLocalHours(allEventNs[i]!);
     const endH = nsToLocalHours(allEventNs[i + 1]!);
     const startIso = nsToIso(allEventNs[i]!);
     const endIso = nsToIso(allEventNs[i + 1]!);
-    ctx.fillStyle = GAP_COLOR;
-    ctx.globalAlpha = 0.15;
 
     if (startIso === endIso) {
       const yCenter = dateToY.get(startIso);
       if (yCenter !== undefined) {
         const x1 = hoursToX(startH);
-        const w = hoursToX(endH) - x1;
-        ctx.fillRect(x1, yCenter - ROW_HEIGHT / 2, w, ROW_HEIGHT);
+        rects.push({ x: x1, y: yCenter - ROW_HEIGHT / 2, w: hoursToX(endH) - x1, h: ROW_HEIGHT });
       }
     } else {
       // multi-day gap: fill tail of start day, full middle days, head of end day
       const yStart = dateToY.get(startIso);
       if (yStart !== undefined) {
         const x1 = hoursToX(startH);
-        ctx.fillRect(x1, yStart - ROW_HEIGHT / 2, hoursToX(24) - x1, ROW_HEIGHT);
+        rects.push({ x: x1, y: yStart - ROW_HEIGHT / 2, w: hoursToX(24) - x1, h: ROW_HEIGHT });
       }
       const startSerial = dateSerial(startIso);
       const endSerial = dateSerial(endIso);
@@ -324,17 +414,50 @@ export function drawDataGaps(
         const isoD = new Date(s * 86_400_000).toISOString().slice(0, 10);
         const yMid = dateToY.get(isoD);
         if (yMid !== undefined) {
-          ctx.fillRect(MARGIN.left, yMid - ROW_HEIGHT / 2, plotWidth(), ROW_HEIGHT);
+          rects.push({ x: MARGIN.left, y: yMid - ROW_HEIGHT / 2, w: plotWidth(), h: ROW_HEIGHT });
         }
       }
       const yEnd = dateToY.get(endIso);
       if (yEnd !== undefined) {
-        ctx.fillRect(MARGIN.left, yEnd - ROW_HEIGHT / 2, hoursToX(endH) - MARGIN.left, ROW_HEIGHT);
+        rects.push({ x: MARGIN.left, y: yEnd - ROW_HEIGHT / 2, w: hoursToX(endH) - MARGIN.left, h: ROW_HEIGHT });
       }
     }
-    ctx.globalAlpha = 1;
   }
-  return drewGap;
+  return { rects, hadGap };
+}
+
+/**
+ * Canvas wrapper around {@link computeDataGapRects} for the imperative
+ * screen-usage renderer. Returns true when at least one gap was detected.
+ */
+export function drawDataGaps(
+  ctx: Ctx2D,
+  allEventNs: bigint[],
+  dateToY: Map<string, number>,
+  nsToLocalHours: (ns: bigint) => number,
+  nsToIso: (ns: bigint) => string,
+): boolean {
+  const { rects, hadGap } = computeDataGapRects(allEventNs, dateToY, nsToLocalHours, nsToIso);
+  ctx.fillStyle = GAP_COLOR;
+  for (const r of rects) {
+    ctx.globalAlpha = 0.15;
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+  }
+  ctx.globalAlpha = 1;
+  return hadGap;
+}
+
+/** Gap rects as scene primitives (faint grey, alpha 0.15). */
+function gapPrimitives(rects: GapRect[]): Primitive[] {
+  return rects.map((r) => ({
+    type: "rect" as const,
+    x: r.x,
+    y: r.y,
+    w: r.w,
+    h: r.h,
+    fill: GAP_COLOR,
+    alpha: 0.15,
+  }));
 }
 
 /** Faint horizontal rules between date rows so they read as distinct rows now
@@ -356,30 +479,65 @@ function drawRowSeparators(ctx: Ctx2D, rowCount: number, plotTop: number): void 
 
 // ─── public API ───────────────────────────────────────────────────────────────
 
-export async function generateParticipantPlotBlob(
+/** White page background covering the whole canvas. */
+function backgroundPrimitive(height: number): Primitive {
+  return { type: "rect", x: 0, y: 0, w: CANVAS_WIDTH, h: height, fill: "#ffffff" };
+}
+
+/** Dashed hour gridlines (every 4h) + their "HH:00" labels under the plot. */
+function xAxisPrimitives(plotTop: number, plotBottom: number): Primitive[] {
+  const prims: Primitive[] = [];
+  for (let h = 0; h <= 24; h += 4) {
+    const x = hoursToX(h);
+    prims.push({ type: "line", x1: x, y1: plotTop, x2: x, y2: plotBottom, stroke: "#cccccc", strokeWidth: 1, dash: [4, 4] });
+    prims.push({
+      type: "text",
+      x,
+      y: plotBottom + 6,
+      text: String(h).padStart(2, "0") + ":00",
+      fill: "#444",
+      font: FONT_SMALL,
+      anchor: "middle",
+      baseline: "top",
+    });
+  }
+  return prims;
+}
+
+/** Faint interior horizontal rules separating date rows. */
+function rowSeparatorPrimitives(rowCount: number, plotTop: number): Primitive[] {
+  const prims: Primitive[] = [];
+  for (let i = 1; i < rowCount; i++) {
+    const y = plotTop + i * ROW_HEIGHT;
+    prims.push({ type: "line", x1: MARGIN.left, y1: y, x2: MARGIN.left + plotWidth(), y2: y, stroke: "#cccccc", strokeWidth: 1 });
+  }
+  return prims;
+}
+
+// ─── public API ───────────────────────────────────────────────────────────────
+
+/**
+ * Build the resolution-independent {@link Scene} for an app-usage timeline. All
+ * timeline geometry lives here; the PNG and SVG renderers both consume this, so
+ * they cannot drift. `dateStr` is passed in (not read from the clock) so the
+ * builder is pure and unit-testable.
+ */
+export function buildTimelineScene(
   participantId: string,
   rows: PlotRow[],
   timezone: string,
   options: Pick<BrowserProcessingOptions, "includeFilteredAppUsageInPlots">,
-  /** Preprocessor version, stamped in the plot subtitle for provenance. */
   version: string,
-  /** All event timestamps from before the app-usage algorithm ran, sorted ascending.
-   * When provided these are used for gap detection instead of the post-algorithm
-   * event_timestamp_ns values, so gaps reflect genuinely missing raw events. */
+  dateStr: string,
   preAlgoEventNs?: bigint[],
-): Promise<Blob> {
-  // Collect sorted unique dates
+): Scene {
   const dateSet = new Set<string>();
   for (const row of rows) {
     if (row.date) dateSet.add(row.date);
   }
   const sortedDates = [...dateSet].sort();
   if (sortedDates.length === 0) {
-    // Return 1×1 transparent PNG
-    const fallback = buildCanvas(1);
-    const ctx2 = fallback.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
-    ctx2.clearRect(0, 0, 1, 1);
-    return canvasToBlob(fallback);
+    return { width: 1, height: 1, primitives: [] };
   }
 
   const plotAreaHeight = sortedDates.length * ROW_HEIGHT;
@@ -389,18 +547,6 @@ export async function generateParticipantPlotBlob(
     MARGIN.top + plotAreaHeight + MARGIN.bottom,
     legendFloorHeight(Object.keys(CATEGORY_COLORS).length + 6),
   );
-  const canvas = buildCanvas(totalHeight);
-  const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
-
-  drawBackground(ctx, totalHeight);
-
-  const dateStr = new Date().toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  drawTitle(ctx, participantId, options.includeFilteredAppUsageInPlots, dateStr, version);
-
   const plotTop = MARGIN.top;
   const plotBottom = MARGIN.top + plotAreaHeight;
 
@@ -409,21 +555,6 @@ export async function generateParticipantPlotBlob(
   sortedDates.forEach((d, i) => {
     dateToY.set(d, plotTop + i * ROW_HEIGHT + ROW_HEIGHT / 2);
   });
-
-  // Date row labels (no row striping — the background must stay uniform so the
-  // category-coloured bars and faint gap shading read accurately; rows are
-  // delimited by horizontal separator rules instead).
-  ctx.font = FONT;
-  ctx.textBaseline = "middle";
-  ctx.fillStyle = "#555";
-  ctx.textAlign = "right";
-  sortedDates.forEach((d, i) => {
-    const y = plotTop + i * ROW_HEIGHT;
-    ctx.fillText(formatDateLabel(d), MARGIN.left - 8, y + ROW_HEIGHT / 2);
-  });
-
-  drawRowSeparators(ctx, sortedDates.length, plotTop);
-  drawXAxis(ctx, plotTop, plotBottom);
 
   // Per-call memoization caches — scoped here to avoid cross-participant leaks
   const nsToHoursCache = new Map<bigint, number>();
@@ -459,6 +590,29 @@ export async function generateParticipantPlotBlob(
     return v;
   }
 
+  const prims: Primitive[] = [];
+  prims.push(backgroundPrimitive(totalHeight));
+  prims.push(...titlePrimitives(participantId, options.includeFilteredAppUsageInPlots, dateStr, version));
+
+  // Date row labels (no row striping — the background must stay uniform so the
+  // category-coloured bars and faint gap shading read accurately; rows are
+  // delimited by horizontal separator rules instead).
+  sortedDates.forEach((d, i) => {
+    prims.push({
+      type: "text",
+      x: MARGIN.left - 8,
+      y: plotTop + i * ROW_HEIGHT + ROW_HEIGHT / 2,
+      text: formatDateLabel(d),
+      fill: "#555",
+      font: FONT,
+      anchor: "end",
+      baseline: "middle",
+    });
+  });
+
+  prims.push(...rowSeparatorPrimitives(sortedDates.length, plotTop));
+  prims.push(...xAxisPrimitives(plotTop, plotBottom));
+
   // ── data-gap shading ──────────────────────────────────────────────────────
   // Use pre-algorithm timestamps when available (they include all 30+ raw event
   // types, so a gap is genuine absence of any device activity). Without them,
@@ -467,7 +621,13 @@ export async function generateParticipantPlotBlob(
   const allEventNs = (preAlgoEventNs ?? rows.map((r) => r.event_timestamp_ns)).slice().sort(
     (a, b) => (a < b ? -1 : a > b ? 1 : 0),
   );
-  const gapLegendNeeded = drawDataGaps(ctx, allEventNs, dateToY, cachedNsToLocalHours, cachedNsToIso);
+  const { rects: gapRects, hadGap: gapLegendNeeded } = computeDataGapRects(
+    allEventNs,
+    dateToY,
+    cachedNsToLocalHours,
+    cachedNsToIso,
+  );
+  prims.push(...gapPrimitives(gapRects));
 
   // ── app-usage bars ────────────────────────────────────────────────────────
   const usageTypes = new Set([APP_USAGE_TYPE]);
@@ -511,8 +671,14 @@ export async function generateParticipantPlotBlob(
       }
 
       if (barW > 0) {
-        ctx.fillStyle = color;
-        ctx.fillRect(x1, yCenter - ROW_HEIGHT * 0.35, Math.max(barW, 1), ROW_HEIGHT * 0.7);
+        prims.push({
+          type: "rect",
+          x: x1,
+          y: yCenter - ROW_HEIGHT * 0.35,
+          w: Math.max(barW, 1),
+          h: ROW_HEIGHT * 0.7,
+          fill: color,
+        });
       }
     }
   }
@@ -532,38 +698,66 @@ export async function generateParticipantPlotBlob(
 
     const yCenter = dateToY.get(date);
     if (yCenter === undefined) continue;
-    const evH = cachedNsToLocalHours(evNs);
-    const x = hoursToX(evH);
+    const x = hoursToX(cachedNsToLocalHours(evNs));
 
     if (type === DEVICE_SHUTDOWN_TYPE) {
-      drawArrow(ctx, x, yCenter, "red");
+      prims.push(...arrowPrimitives(x, yCenter, "red"));
       hasShutdown = true;
     } else if (type === DEVICE_STARTUP_TYPE) {
-      drawArrow(ctx, x, yCenter, "green");
+      prims.push(...arrowPrimitives(x, yCenter, "green"));
       hasStartup = true;
     } else {
-      drawArrow(ctx, x, yCenter, "#888");
+      prims.push(...arrowPrimitives(x, yCenter, "#888"));
       hasMissing = true;
     }
   }
 
   // Plot border
-  ctx.strokeStyle = "#ccc";
-  ctx.lineWidth = 1;
-  ctx.setLineDash([]);
-  ctx.strokeRect(MARGIN.left, plotTop, plotWidth(), plotAreaHeight);
+  prims.push({ type: "rect", x: MARGIN.left, y: plotTop, w: plotWidth(), h: plotAreaHeight, stroke: "#ccc", strokeWidth: 1 });
 
   // X-axis label (anchored to the plot, not the canvas bottom, which may be
   // taller than the plot when the legend dominates).
-  ctx.font = FONT;
-  ctx.fillStyle = "#444";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText("Time of Day (Hours)", MARGIN.left + plotWidth() / 2, plotBottom + MARGIN.bottom - 10);
+  prims.push({
+    type: "text",
+    x: MARGIN.left + plotWidth() / 2,
+    y: plotBottom + MARGIN.bottom - 10,
+    text: "Time of Day (Hours)",
+    fill: "#444",
+    font: FONT,
+    anchor: "middle",
+    baseline: "alphabetic",
+  });
 
-  drawLegend(ctx, plotTop, hasShutdown, hasStartup, hasMissing || gapLegendNeeded);
+  prims.push(...legendPrimitives(plotTop, hasShutdown, hasStartup, hasMissing || gapLegendNeeded));
 
+  return { width: CANVAS_WIDTH, height: totalHeight, primitives: prims };
+}
+
+function todayLabel(): string {
+  return new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+}
+
+async function sceneToPngBlob(scene: Scene): Promise<Blob> {
+  const canvas = buildCanvas(scene.height);
+  const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+  renderSceneToCanvas(ctx, scene);
   return canvasToBlob(canvas);
+}
+
+export async function generateParticipantPlotBlob(
+  participantId: string,
+  rows: PlotRow[],
+  timezone: string,
+  options: Pick<BrowserProcessingOptions, "includeFilteredAppUsageInPlots">,
+  /** Preprocessor version, stamped in the plot subtitle for provenance. */
+  version: string,
+  /** All event timestamps from before the app-usage algorithm ran, sorted ascending.
+   * When provided these are used for gap detection instead of the post-algorithm
+   * event_timestamp_ns values, so gaps reflect genuinely missing raw events. */
+  preAlgoEventNs?: bigint[],
+): Promise<Blob> {
+  const scene = buildTimelineScene(participantId, rows, timezone, options, version, todayLabel(), preAlgoEventNs);
+  return sceneToPngBlob(scene);
 }
 
 async function canvasToBlob(canvas: OffscreenCanvas | HTMLCanvasElement): Promise<Blob> {
@@ -808,6 +1002,18 @@ async function generateParticipantScreenPlotBlob(
   return canvasToBlob(canvas);
 }
 
+/** Bucket plot rows by their participant_id column (missing → "unknown"). */
+function groupByParticipant<T>(rows: T[]): Map<string, T[]> {
+  const byParticipant = new Map<string, T[]>();
+  for (const row of rows) {
+    const pid = ((row as unknown as Record<string, unknown>)["participant_id"] as string) ?? "unknown";
+    const arr = byParticipant.get(pid) ?? [];
+    arr.push(row);
+    byParticipant.set(pid, arr);
+  }
+  return byParticipant;
+}
+
 export async function generateAllScreenPlots(
   rows: ScreenPlotRow[],
   timezone: string,
@@ -817,16 +1023,8 @@ export async function generateAllScreenPlots(
    * same map the app-usage plots use, so screen gaps match app gaps. */
   preAlgoTsByParticipant?: Map<string, bigint[]>,
 ): Promise<Map<string, Blob>> {
-  const byParticipant = new Map<string, ScreenPlotRow[]>();
-  for (const row of rows) {
-    const pid = (row as unknown as Record<string, unknown>)["participant_id"] as string ?? "unknown";
-    const arr = byParticipant.get(pid) ?? [];
-    arr.push(row);
-    byParticipant.set(pid, arr);
-  }
-
   const result = new Map<string, Blob>();
-  for (const [pid, pRows] of byParticipant) {
+  for (const [pid, pRows] of groupByParticipant(rows)) {
     const gapNs = preAlgoTsByParticipant?.get(pid);
     result.set(pid, await generateParticipantScreenPlotBlob(pid, pRows, timezone, version, gapNs));
   }
@@ -846,18 +1044,35 @@ export async function generateAllPlots(
    * types, not only the session-level rows in the final output. */
   preAlgoTsByParticipant?: Map<string, bigint[]>,
 ): Promise<Map<string, Blob>> {
-  const byParticipant = new Map<string, PlotRow[]>();
-  for (const row of rows) {
-    const pid = (row as unknown as Record<string, unknown>)["participant_id"] as string ?? "unknown";
-    const arr = byParticipant.get(pid) ?? [];
-    arr.push(row);
-    byParticipant.set(pid, arr);
-  }
-
   const result = new Map<string, Blob>();
-  for (const [pid, pRows] of byParticipant) {
+  for (const [pid, pRows] of groupByParticipant(rows)) {
     const gapNs = preAlgoTsByParticipant?.get(pid);
     result.set(pid, await generateParticipantPlotBlob(pid, pRows, timezone, options, version, gapNs));
+  }
+  return result;
+}
+
+/** Vector (SVG) twin of {@link generateAllPlots} — one SVG per participant. */
+export async function generateAllPlotSvgs(
+  rows: PlotRow[],
+  timezone: string,
+  options: Pick<BrowserProcessingOptions, "includeFilteredAppUsageInPlots">,
+  version: string,
+  preAlgoTsByParticipant?: Map<string, bigint[]>,
+): Promise<Map<string, Blob>> {
+  const dateStr = todayLabel();
+  const result = new Map<string, Blob>();
+  for (const [pid, pRows] of groupByParticipant(rows)) {
+    const scene = buildTimelineScene(
+      pid,
+      pRows,
+      timezone,
+      options,
+      version,
+      dateStr,
+      preAlgoTsByParticipant?.get(pid),
+    );
+    result.set(pid, sceneToSvgBlob(scene));
   }
   return result;
 }
@@ -987,76 +1202,110 @@ function heatColor(t: number): string {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
-export async function generateParticipantHeatmapBlob(
+/**
+ * Build the resolution-independent {@link Scene} for an activity heatmap. Shared
+ * by the PNG and SVG renderers so they cannot drift; `dateStr` is injected for
+ * purity/testability.
+ */
+export function buildHeatmapScene(
   participantId: string,
   rows: PlotRow[],
   timezone: string,
   options: Pick<BrowserProcessingOptions, "includeFilteredAppUsageInPlots">,
   version: string,
-): Promise<Blob> {
+  dateStr: string,
+): Scene {
   const { dates, cells, maxCell } = computeHourDayMatrix(rows, timezone, options);
   if (dates.length === 0 || maxCell === 0) {
-    const fallback = buildCanvas(1);
-    const ctx2 = fallback.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
-    ctx2.clearRect(0, 0, 1, 1);
-    return canvasToBlob(fallback);
+    return { width: 1, height: 1, primitives: [] };
   }
 
   const plotAreaHeight = dates.length * ROW_HEIGHT;
   const totalHeight = Math.max(MARGIN.top + plotAreaHeight + MARGIN.bottom, legendFloorHeight(8));
-  const canvas = buildCanvas(totalHeight);
-  const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
-  drawBackground(ctx, totalHeight);
-
-  const dateStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  ctx.fillStyle = "#222";
-  ctx.font = "bold 18px system-ui, sans-serif";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText(`${participantId} — Hourly Activity Heatmap`, MARGIN.left, 28);
-  ctx.font = FONT_SMALL;
-  ctx.fillStyle = "#777";
-  ctx.fillText(`Generated ${dateStr} · v${version} · ${timezone}`, MARGIN.left, 46);
-
   const plotTop = MARGIN.top;
   const plotBottom = MARGIN.top + plotAreaHeight;
   const colWidth = plotWidth() / 24;
+
+  const prims: Primitive[] = [];
+  prims.push(backgroundPrimitive(totalHeight));
+  prims.push({
+    type: "text",
+    x: MARGIN.left,
+    y: 28,
+    text: `${participantId} — Hourly Activity Heatmap`,
+    fill: "#222",
+    font: "bold 18px system-ui, sans-serif",
+    anchor: "start",
+    baseline: "alphabetic",
+  });
+  prims.push({
+    type: "text",
+    x: MARGIN.left,
+    y: 46,
+    text: `Generated ${dateStr} · v${version} · ${timezone}`,
+    fill: "#777",
+    font: FONT_SMALL,
+    anchor: "start",
+    baseline: "alphabetic",
+  });
 
   // Cells
   for (let di = 0; di < dates.length; di++) {
     const y = plotTop + di * ROW_HEIGHT;
     const cellRow = cells[di]!;
     for (let hour = 0; hour < 24; hour++) {
-      ctx.fillStyle = heatColor(cellRow[hour]! / maxCell);
-      ctx.fillRect(hoursToX(hour), y, colWidth, ROW_HEIGHT);
+      prims.push({
+        type: "rect",
+        x: hoursToX(hour),
+        y,
+        w: colWidth,
+        h: ROW_HEIGHT,
+        fill: heatColor(cellRow[hour]! / maxCell),
+      });
     }
   }
 
   // Date labels (left)
-  ctx.font = FONT;
-  ctx.fillStyle = "#555";
-  ctx.textAlign = "right";
-  ctx.textBaseline = "middle";
   dates.forEach((d, i) => {
-    ctx.fillText(formatDateLabel(d), MARGIN.left - 8, plotTop + i * ROW_HEIGHT + ROW_HEIGHT / 2);
+    prims.push({
+      type: "text",
+      x: MARGIN.left - 8,
+      y: plotTop + i * ROW_HEIGHT + ROW_HEIGHT / 2,
+      text: formatDateLabel(d),
+      fill: "#555",
+      font: FONT,
+      anchor: "end",
+      baseline: "middle",
+    });
   });
 
-  // Hour labels (top) every 2 hours + grid border
-  ctx.font = FONT_SMALL;
-  ctx.fillStyle = "#666";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
+  // Hour labels (top) every 2 hours
   for (let hour = 0; hour <= 24; hour += 2) {
-    ctx.fillText(String(hour), hoursToX(hour), plotTop - 6);
+    prims.push({
+      type: "text",
+      x: hoursToX(hour),
+      y: plotTop - 6,
+      text: String(hour),
+      fill: "#666",
+      font: FONT_SMALL,
+      anchor: "middle",
+      baseline: "alphabetic",
+    });
   }
-  ctx.strokeStyle = "#ccc";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(MARGIN.left, plotTop, plotWidth(), plotAreaHeight);
 
-  ctx.font = FONT;
-  ctx.fillStyle = "#444";
-  ctx.textAlign = "center";
-  ctx.fillText("Time of Day (Hours)", MARGIN.left + plotWidth() / 2, plotBottom + MARGIN.bottom - 10);
+  // Grid border
+  prims.push({ type: "rect", x: MARGIN.left, y: plotTop, w: plotWidth(), h: plotAreaHeight, stroke: "#ccc", strokeWidth: 1 });
+
+  prims.push({
+    type: "text",
+    x: MARGIN.left + plotWidth() / 2,
+    y: plotBottom + MARGIN.bottom - 10,
+    text: "Time of Day (Hours)",
+    fill: "#444",
+    font: FONT,
+    anchor: "middle",
+    baseline: "alphabetic",
+  });
 
   // Colour-scale legend (right)
   const legendX = CANVAS_WIDTH - MARGIN.right + 24;
@@ -1065,18 +1314,40 @@ export async function generateParticipantHeatmapBlob(
   const steps = 32;
   for (let i = 0; i < steps; i++) {
     const t = 1 - i / (steps - 1);
-    ctx.fillStyle = heatColor(t);
-    ctx.fillRect(legendX, legendTop + (i / steps) * legendH, 16, legendH / steps + 1);
+    prims.push({
+      type: "rect",
+      x: legendX,
+      y: legendTop + (i / steps) * legendH,
+      w: 16,
+      h: legendH / steps + 1,
+      fill: heatColor(t),
+    });
   }
-  ctx.fillStyle = "#555";
-  ctx.font = FONT_SMALL;
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
-  ctx.fillText(`${Math.round(maxCell / 60)} min`, legendX + 22, legendTop);
-  ctx.fillText("0 min", legendX + 22, legendTop + legendH);
-  ctx.fillText("App usage / hour", legendX, legendTop - 12);
+  const legendLabel = (x: number, y: number, text: string): Primitive => ({
+    type: "text",
+    x,
+    y,
+    text,
+    fill: "#555",
+    font: FONT_SMALL,
+    anchor: "start",
+    baseline: "middle",
+  });
+  prims.push(legendLabel(legendX + 22, legendTop, `${Math.round(maxCell / 60)} min`));
+  prims.push(legendLabel(legendX + 22, legendTop + legendH, "0 min"));
+  prims.push(legendLabel(legendX, legendTop - 12, "App usage / hour"));
 
-  return canvasToBlob(canvas);
+  return { width: CANVAS_WIDTH, height: totalHeight, primitives: prims };
+}
+
+export async function generateParticipantHeatmapBlob(
+  participantId: string,
+  rows: PlotRow[],
+  timezone: string,
+  options: Pick<BrowserProcessingOptions, "includeFilteredAppUsageInPlots">,
+  version: string,
+): Promise<Blob> {
+  return sceneToPngBlob(buildHeatmapScene(participantId, rows, timezone, options, version, todayLabel()));
 }
 
 export async function generateAllHeatmaps(
@@ -1085,17 +1356,24 @@ export async function generateAllHeatmaps(
   options: Pick<BrowserProcessingOptions, "includeFilteredAppUsageInPlots">,
   version: string,
 ): Promise<Map<string, Blob>> {
-  const byParticipant = new Map<string, PlotRow[]>();
-  for (const row of rows) {
-    const pid = ((row as unknown as Record<string, unknown>)["participant_id"] as string) ?? "unknown";
-    const arr = byParticipant.get(pid) ?? [];
-    arr.push(row);
-    byParticipant.set(pid, arr);
-  }
-
   const result = new Map<string, Blob>();
-  for (const [pid, pRows] of byParticipant) {
+  for (const [pid, pRows] of groupByParticipant(rows)) {
     result.set(pid, await generateParticipantHeatmapBlob(pid, pRows, timezone, options, version));
+  }
+  return result;
+}
+
+/** Vector (SVG) twin of {@link generateAllHeatmaps} — one SVG per participant. */
+export async function generateAllHeatmapSvgs(
+  rows: PlotRow[],
+  timezone: string,
+  options: Pick<BrowserProcessingOptions, "includeFilteredAppUsageInPlots">,
+  version: string,
+): Promise<Map<string, Blob>> {
+  const dateStr = todayLabel();
+  const result = new Map<string, Blob>();
+  for (const [pid, pRows] of groupByParticipant(rows)) {
+    result.set(pid, sceneToSvgBlob(buildHeatmapScene(pid, pRows, timezone, options, version, dateStr)));
   }
   return result;
 }
