@@ -79,6 +79,7 @@ function assertClassSlots(document: LinkMlDocument, className: string): string[]
 const ENUM_TYPE_ALIASES: Record<string, string> = {
   TimezoneHandlingMode: "BrowserTimezoneHandling",
   OutputKind: "OutputKind",
+  AggregateShape: "AggregateShape",
 };
 
 function resolveTsBaseType(document: LinkMlDocument, range: string | undefined): string {
@@ -412,6 +413,7 @@ function buildGeneratedTypeScript(document: LinkMlDocument): string {
   const browserRuntimeSlots = assertClassSlots(document, "BrowserProcessingRuntime").map(snakeToCamel);
   const timezoneHandlingValues = getEnumValues(document, "TimezoneHandlingMode");
   const outputKindValues = getEnumValues(document, "OutputKind");
+  const aggregateShapeValues = getEnumValues(document, "AggregateShape");
   const optionsInterface = buildTsInterface(document, "BrowserProcessingOptions");
   const keysByCategory = buildTsOptionKeysByCategory(document, "BrowserProcessingOptions");
   const defaultOptions = buildDefaultBrowserOptions(document, "BrowserProcessingOptions");
@@ -424,6 +426,8 @@ export const TIMEZONE_HANDLING_VALUES = ${toConstArray(timezoneHandlingValues)};
 
 export const OUTPUT_KIND_VALUES = ${toConstArray(outputKindValues)};
 
+export const AGGREGATE_SHAPE_VALUES = ${toConstArray(aggregateShapeValues)};
+
 export const BROWSER_PROCESSING_OPTION_KEYS = ${toConstArray(browserOptionSlots)};
 
 export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = ${toConstArray(browserRequiredOptionSlots)};
@@ -434,6 +438,7 @@ export const BROWSER_RUNTIME_KEYS = ${toConstArray(browserRuntimeSlots)};
 
 export type BrowserTimezoneHandling = (typeof TIMEZONE_HANDLING_VALUES)[number];
 export type OutputKind = (typeof OUTPUT_KIND_VALUES)[number];
+export type AggregateShape = (typeof AGGREGATE_SHAPE_VALUES)[number];
 
 ${optionsInterface}
 

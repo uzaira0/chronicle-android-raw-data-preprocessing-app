@@ -100,6 +100,8 @@ components:
         - includeFilteredAppUsageInPlots
         - enableActivityHeatmap
         - exportPlotsAsSvg
+        - enableAggregates
+        - aggregateShape
         - minimumUsageDuration
         - filterZeroDurationSessions
         - customAppEngagementDuration
@@ -229,6 +231,23 @@ components:
             stay sharp at any zoom and are editable in vector tools. Off by
             default to avoid adding a second file per plot. Only applies when
             plot generation is on.
+        enableAggregates:
+          type: boolean
+          description: "Emit extra summary CSVs alongside the per-session output: a daily
+            and weekly summary (screen/app time, session counts, app switches,
+            pickups, mean & longest session, first/last use), a per-app
+            breakdown, a per-category time budget (when a codebook is loaded),
+            and an app co-usage matrix (when concurrent usage is modeled). Off
+            by default."
+        aggregateShape:
+          type: string
+          enum:
+            - wide
+            - long
+          description: 'Layout for the daily/weekly summaries — "wide" (one row per
+            period, metrics as columns) or "long" (tidy: one row per period per
+            metric). The per-app, category, and co-usage outputs are always
+            long.'
         minimumUsageDuration:
           type: integer
           description: Sessions shorter than this threshold have their duration_seconds
@@ -374,6 +393,7 @@ components:
             - app
             - screen
             - plot
+            - aggregate
         outputFileName:
           type: string
         csv:

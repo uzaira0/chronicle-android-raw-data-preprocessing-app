@@ -366,6 +366,26 @@ after the scene refactor).
 > defaults empty), so the Python oracle was left untouched and the existing
 > parity scenarios are unaffected.
 
-**Later phases unchanged:** Phase 3 (aggregation subsystem with integer
-accumulation), Phase 4 (formats), Phase 5 (interactive timeline #18, projects
-#22).
+**Phase 3 — aggregation subsystem COMPLETE (web-first).** All six features built
+as pure, tested functions in `web/src/lib/aggregations.ts`, emitted as opt-in
+extra CSV outputs (`enableAggregates`, default off; new `aggregate` OutputKind +
+"Aggregates ZIP" download). Integer-nanosecond accumulation, divided once, for
+deterministic totals.
+- ✅ **#8** Daily + Weekly summaries (screen/app minutes, session counts, top-app
+  breakdown) + per-app **Top Apps** output.
+- ✅ **#13** Fragmentation — app switches, pickups, mean & longest session (in the
+  summaries).
+- ✅ **#15** First-unlock / last-use / active-window (in the summaries, wide layout).
+- ✅ **#17** Category time budget (per participant/day/category; gated on the codebook).
+- ✅ **#12** Long ⇄ wide layout toggle (`aggregateShape`) for the summaries; LONG
+  melts numeric scalars only — first/last-use timestamps stay wide.
+- ✅ **#16** App co-usage matrix (interval-overlap edge list; gated on
+  `modelConcurrentUsage`).
+
+Every metric definition is documented in the `aggregations.ts` header (app/screen
+session = complete interval; nulled-duration sessions count but contribute 0 time;
+app_switches = adjacent different-package; pickups = screen-session count;
+midnight-crossing sessions attributed to their start date).
+
+**Later phases unchanged:** Phase 4 (formats — #7 Parquet, #9 SPSS/Stata),
+Phase 5 (interactive timeline #18, named projects #22).
