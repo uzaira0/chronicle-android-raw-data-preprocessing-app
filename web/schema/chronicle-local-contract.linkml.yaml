@@ -80,6 +80,7 @@ classes:
       - enable_plotting
       - include_filtered_app_usage_in_plots
       - enable_activity_heatmap
+      - export_plots_as_svg
       - minimum_usage_duration
       - filter_zero_duration_sessions
       - custom_app_engagement_duration
@@ -302,6 +303,16 @@ slots:
       generation is on. Turn off to keep just the timeline charts (one fewer PNG
       per participant).
     default: true
+  export_plots_as_svg:
+    range: boolean
+    required: true
+    title: "Also export plots as SVG (vector)"
+    description: >-
+      In addition to the PNG charts, write a scalable vector SVG of each plot
+      (timeline, and heatmap when enabled) into the output ZIP. SVGs stay sharp
+      at any zoom and are editable in vector tools. Off by default to avoid
+      adding a second file per plot. Only applies when plot generation is on.
+    default: false
   plot_only_target_child_data:
     range: boolean
     required: true

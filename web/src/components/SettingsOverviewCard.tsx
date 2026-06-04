@@ -96,6 +96,22 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
                 }))
               }
             />
+            <ToggleField
+              label="Also export plots as SVG (vector)"
+              checked={options.exportPlotsAsSvg}
+              onChange={(value) =>
+                setOptions((current) => ({ ...current, exportPlotsAsSvg: value }))
+              }
+              testId="toggle-exportPlotsAsSvg"
+              tooltip={TOOLTIPS.exportPlotsAsSvg}
+              modified={!isOptionDefault("exportPlotsAsSvg", options.exportPlotsAsSvg)}
+              onReset={() =>
+                setOptions((current) => ({
+                  ...current,
+                  exportPlotsAsSvg: DEFAULT_BROWSER_OPTIONS.exportPlotsAsSvg,
+                }))
+              }
+            />
           </div>
         ) : null}
       </SettingsField>
