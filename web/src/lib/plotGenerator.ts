@@ -116,6 +116,15 @@ function plotWidth(): number {
   return CANVAS_WIDTH - MARGIN.left - MARGIN.right;
 }
 
+/** Minimum canvas height so the right-hand legend isn't clipped. The legend
+ * starts at the plot top and can have more rows than the plot has date rows
+ * (e.g. 13 app categories on a 2-day plot), which otherwise runs off the
+ * bottom — taking the "Data Gap" entry with it. */
+function legendFloorHeight(legendRowCount: number): number {
+  const LEGEND_LINE_H = 20;
+  return MARGIN.top + legendRowCount * LEGEND_LINE_H + 40 + MARGIN.bottom;
+}
+
 function hoursToX(h: number): number {
   return MARGIN.left + (h / 24) * plotWidth();
 }
@@ -260,6 +269,68 @@ function drawArrow(
   ctx.fill();
 }
 
+type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+/**
+ * Shade windows with no device activity (a "data gap") as faint grey bands.
+ * Shared by the app-usage and screen-usage plots so both define a gap the same
+ * way: a >1h span between consecutive raw event timestamps. `allEventNs` must be
+ * sorted ascending. Returns true when at least one gap was drawn (so the caller
+ * can include the "Data Gap" legend entry).
+ */
+function drawDataGaps(
+  ctx: Ctx2D,
+  allEventNs: bigint[],
+  dateToY: Map<string, number>,
+  nsToLocalHours: (ns: bigint) => number,
+  nsToIso: (ns: bigint) => string,
+): boolean {
+  const GAP_THRESHOLD_NS = 3_600_000_000_000n; // 1 hour in ns
+  let drewGap = false;
+  for (let i = 0; i + 1 < allEventNs.length; i++) {
+    const gapNs = allEventNs[i + 1]! - allEventNs[i]!;
+    if (gapNs <= GAP_THRESHOLD_NS) continue;
+    drewGap = true;
+    const startH = nsToLocalHours(allEventNs[i]!);
+    const endH = nsToLocalHours(allEventNs[i + 1]!);
+    const startIso = nsToIso(allEventNs[i]!);
+    const endIso = nsToIso(allEventNs[i + 1]!);
+    ctx.fillStyle = GAP_COLOR;
+    ctx.globalAlpha = 0.15;
+
+    if (startIso === endIso) {
+      const yCenter = dateToY.get(startIso);
+      if (yCenter !== undefined) {
+        const x1 = hoursToX(startH);
+        const w = hoursToX(endH) - x1;
+        ctx.fillRect(x1, yCenter - ROW_HEIGHT / 2, w, ROW_HEIGHT);
+      }
+    } else {
+      // multi-day gap: fill tail of start day, full middle days, head of end day
+      const yStart = dateToY.get(startIso);
+      if (yStart !== undefined) {
+        const x1 = hoursToX(startH);
+        ctx.fillRect(x1, yStart - ROW_HEIGHT / 2, hoursToX(24) - x1, ROW_HEIGHT);
+      }
+      const startSerial = dateSerial(startIso);
+      const endSerial = dateSerial(endIso);
+      for (let s = startSerial + 1; s < endSerial; s++) {
+        const isoD = new Date(s * 86_400_000).toISOString().slice(0, 10);
+        const yMid = dateToY.get(isoD);
+        if (yMid !== undefined) {
+          ctx.fillRect(MARGIN.left, yMid - ROW_HEIGHT / 2, plotWidth(), ROW_HEIGHT);
+        }
+      }
+      const yEnd = dateToY.get(endIso);
+      if (yEnd !== undefined) {
+        ctx.fillRect(MARGIN.left, yEnd - ROW_HEIGHT / 2, hoursToX(endH) - MARGIN.left, ROW_HEIGHT);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  return drewGap;
+}
+
 // ─── public API ───────────────────────────────────────────────────────────────
 
 export async function generateParticipantPlotBlob(
@@ -287,7 +358,12 @@ export async function generateParticipantPlotBlob(
   }
 
   const plotAreaHeight = sortedDates.length * ROW_HEIGHT;
-  const totalHeight = MARGIN.top + plotAreaHeight + MARGIN.bottom;
+  // app legend rows: categories + "Events & Gaps" header + Data Gap + up to 3
+  // device-event markers (shutdown/startup/missing) + a header line.
+  const totalHeight = Math.max(
+    MARGIN.top + plotAreaHeight + MARGIN.bottom,
+    legendFloorHeight(Object.keys(CATEGORY_COLORS).length + 6),
+  );
   const canvas = buildCanvas(totalHeight);
   const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
@@ -309,17 +385,14 @@ export async function generateParticipantPlotBlob(
     dateToY.set(d, plotTop + i * ROW_HEIGHT + ROW_HEIGHT / 2);
   });
 
-  // Alternate row shading
+  // Date row labels (no row striping — the background must stay uniform so the
+  // category-coloured bars and faint gap shading read accurately).
   ctx.font = FONT;
   ctx.textBaseline = "middle";
+  ctx.fillStyle = "#555";
+  ctx.textAlign = "right";
   sortedDates.forEach((d, i) => {
     const y = plotTop + i * ROW_HEIGHT;
-    if (i % 2 === 0) {
-      ctx.fillStyle = "#f8f8f8";
-      ctx.fillRect(MARGIN.left, y, plotWidth(), ROW_HEIGHT);
-    }
-    ctx.fillStyle = "#555";
-    ctx.textAlign = "right";
     ctx.fillText(formatDateLabel(d), MARGIN.left - 8, y + ROW_HEIGHT / 2);
   });
 
@@ -367,49 +440,7 @@ export async function generateParticipantPlotBlob(
   const allEventNs = (preAlgoEventNs ?? rows.map((r) => r.event_timestamp_ns)).slice().sort(
     (a, b) => (a < b ? -1 : a > b ? 1 : 0),
   );
-  const GAP_THRESHOLD_NS = 3_600_000_000_000n; // 1 hour in ns
-  let gapLegendNeeded = false;
-  for (let i = 0; i + 1 < allEventNs.length; i++) {
-    const gapNs = allEventNs[i + 1]! - allEventNs[i]!;
-    if (gapNs <= GAP_THRESHOLD_NS) continue;
-    gapLegendNeeded = true;
-    const startH = cachedNsToLocalHours(allEventNs[i]!);
-    const endH = cachedNsToLocalHours(allEventNs[i + 1]!);
-    const startIso = cachedNsToIso(allEventNs[i]!);
-    const endIso = cachedNsToIso(allEventNs[i + 1]!);
-    ctx.fillStyle = GAP_COLOR;
-    ctx.globalAlpha = 0.15;
-
-    if (startIso === endIso) {
-      const yCenter = dateToY.get(startIso);
-      if (yCenter !== undefined) {
-        const x1 = hoursToX(startH);
-        const w = hoursToX(endH) - x1;
-        ctx.fillRect(x1, yCenter - ROW_HEIGHT / 2, w, ROW_HEIGHT);
-      }
-    } else {
-      // multi-day gap: fill tail of start day, full middle days, head of end day
-      const yStart = dateToY.get(startIso);
-      if (yStart !== undefined) {
-        const x1 = hoursToX(startH);
-        ctx.fillRect(x1, yStart - ROW_HEIGHT / 2, hoursToX(24) - x1, ROW_HEIGHT);
-      }
-      const startSerial = dateSerial(startIso);
-      const endSerial = dateSerial(endIso);
-      for (let s = startSerial + 1; s < endSerial; s++) {
-        const isoD = new Date(s * 86_400_000).toISOString().slice(0, 10);
-        const yMid = dateToY.get(isoD);
-        if (yMid !== undefined) {
-          ctx.fillRect(MARGIN.left, yMid - ROW_HEIGHT / 2, plotWidth(), ROW_HEIGHT);
-        }
-      }
-      const yEnd = dateToY.get(endIso);
-      if (yEnd !== undefined) {
-        ctx.fillRect(MARGIN.left, yEnd - ROW_HEIGHT / 2, hoursToX(endH) - MARGIN.left, ROW_HEIGHT);
-      }
-    }
-    ctx.globalAlpha = 1;
-  }
+  const gapLegendNeeded = drawDataGaps(ctx, allEventNs, dateToY, cachedNsToLocalHours, cachedNsToIso);
 
   // ── app-usage bars ────────────────────────────────────────────────────────
   const usageTypes = new Set([APP_USAGE_TYPE]);
@@ -495,12 +526,13 @@ export async function generateParticipantPlotBlob(
   ctx.setLineDash([]);
   ctx.strokeRect(MARGIN.left, plotTop, plotWidth(), plotAreaHeight);
 
-  // X-axis label
+  // X-axis label (anchored to the plot, not the canvas bottom, which may be
+  // taller than the plot when the legend dominates).
   ctx.font = FONT;
   ctx.fillStyle = "#444";
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText("Time of Day (Hours)", MARGIN.left + plotWidth() / 2, totalHeight - 10);
+  ctx.fillText("Time of Day (Hours)", MARGIN.left + plotWidth() / 2, plotBottom + MARGIN.bottom - 10);
 
   drawLegend(ctx, plotTop, hasShutdown, hasStartup, hasMissing || gapLegendNeeded);
 
@@ -553,6 +585,10 @@ async function generateParticipantScreenPlotBlob(
   participantId: string,
   rows: ScreenPlotRow[],
   timezone: string,
+  /** Pre-algorithm raw event timestamps (sorted or unsorted) used for data-gap
+   * shading — same source the app-usage plot uses, so both plots agree on where
+   * device activity is genuinely absent. */
+  preAlgoEventNs?: bigint[],
 ): Promise<Blob> {
   const dateSet = new Set<string>();
   for (const row of rows) {
@@ -567,7 +603,11 @@ async function generateParticipantScreenPlotBlob(
   }
 
   const plotAreaHeight = sortedDates.length * ROW_HEIGHT;
-  const totalHeight = MARGIN.top + plotAreaHeight + MARGIN.bottom;
+  // screen legend rows: end reasons + header + Data Gap entry + spacing.
+  const totalHeight = Math.max(
+    MARGIN.top + plotAreaHeight + MARGIN.bottom,
+    legendFloorHeight(Object.keys(SCREEN_REASON_COLORS).length + 3),
+  );
   const canvas = buildCanvas(totalHeight);
   const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
@@ -596,16 +636,14 @@ async function generateParticipantScreenPlotBlob(
     dateToY.set(d, plotTop + i * ROW_HEIGHT + ROW_HEIGHT / 2);
   });
 
+  // Date row labels (no row striping — keep the background uniform so the
+  // end-reason bars and faint gap shading read accurately).
   ctx.font = FONT;
   ctx.textBaseline = "middle";
+  ctx.fillStyle = "#555";
+  ctx.textAlign = "right";
   sortedDates.forEach((d, i) => {
     const y = plotTop + i * ROW_HEIGHT;
-    if (i % 2 === 0) {
-      ctx.fillStyle = "#f8f8f8";
-      ctx.fillRect(MARGIN.left, y, plotWidth(), ROW_HEIGHT);
-    }
-    ctx.fillStyle = "#555";
-    ctx.textAlign = "right";
     ctx.fillText(formatDateLabel(d), MARGIN.left - 8, y + ROW_HEIGHT / 2);
   });
 
@@ -643,6 +681,15 @@ async function generateParticipantScreenPlotBlob(
     }
     return v;
   }
+
+  // Data-gap shading (drawn before the session bars so bars sit on top). Uses
+  // the pre-algorithm raw timestamps when supplied; otherwise the screen-session
+  // event timestamps, which only mark session starts and miss inter-session
+  // activity — so genuine gap detection needs the pre-algorithm timestamps.
+  const screenGapNs = (preAlgoEventNs ?? rows.map((r) => r.event_timestamp_ns)).slice().sort(
+    (a, b) => (a < b ? -1 : a > b ? 1 : 0),
+  );
+  const gapLegendNeeded = drawDataGaps(ctx, screenGapNs, dateToY, nsToLocalHours, nsToIso);
 
   for (const row of rows) {
     if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) continue;
@@ -691,7 +738,7 @@ async function generateParticipantScreenPlotBlob(
   ctx.fillStyle = "#444";
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText("Time of Day (Hours)", MARGIN.left + plotWidth() / 2, totalHeight - 10);
+  ctx.fillText("Time of Day (Hours)", MARGIN.left + plotWidth() / 2, plotBottom + MARGIN.bottom - 10);
 
   // Legend
   const lx = CANVAS_WIDTH - MARGIN.right + 16;
@@ -717,12 +764,25 @@ async function generateParticipantScreenPlotBlob(
     ly += lineH;
   }
 
+  if (gapLegendNeeded) {
+    ly += 6;
+    ctx.fillStyle = GAP_COLOR;
+    ctx.globalAlpha = 0.35;
+    ctx.fillRect(lx, ly - swatchSize / 2, swatchSize, swatchSize);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#333";
+    ctx.fillText("Data Gap", lx + swatchSize + 5, ly);
+  }
+
   return canvasToBlob(canvas);
 }
 
 export async function generateAllScreenPlots(
   rows: ScreenPlotRow[],
   timezone: string,
+  /** Pre-algorithm event timestamps per participant (keyed by participant_id),
+   * same map the app-usage plots use, so screen gaps match app gaps. */
+  preAlgoTsByParticipant?: Map<string, bigint[]>,
 ): Promise<Map<string, Blob>> {
   const byParticipant = new Map<string, ScreenPlotRow[]>();
   for (const row of rows) {
@@ -734,7 +794,8 @@ export async function generateAllScreenPlots(
 
   const result = new Map<string, Blob>();
   for (const [pid, pRows] of byParticipant) {
-    result.set(pid, await generateParticipantScreenPlotBlob(pid, pRows, timezone));
+    const gapNs = preAlgoTsByParticipant?.get(pid);
+    result.set(pid, await generateParticipantScreenPlotBlob(pid, pRows, timezone, gapNs));
   }
   return result;
 }

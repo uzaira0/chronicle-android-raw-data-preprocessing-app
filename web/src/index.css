@@ -1587,58 +1587,150 @@ a:hover {
   margin-top: var(--space-1);
 }
 
-.result-file-table-wrap {
-  max-width: 100%;
-  overflow-x: auto;
+/* Per-file results: a responsive card grid. Replaces the old 12-column table
+   that overflowed horizontally and left tall dead rows. Cards reflow into
+   multiple columns on wide viewports, so many files stay scannable without a
+   forever-scroll or a horizontal scrollbar. */
+.result-file-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+  gap: var(--space-3);
+}
+
+.result-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-}
-
-.result-file-table {
-  width: 100%;
-  min-width: 960px;
-  border-collapse: collapse;
   background: var(--color-surface);
+  min-width: 0;
 }
 
-.result-file-table th,
-.result-file-table td {
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--color-border);
-  text-align: left;
-  vertical-align: top;
+.result-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
-.result-file-table th {
-  background: var(--color-surface-sunken);
-  color: var(--color-text);
+.result-card__name {
   font-weight: var(--font-weight-semibold);
+  color: var(--color-text-strong);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
-.result-file-table td:first-child {
-  max-width: 22rem;
-  word-break: break-word;
+.result-card__head .status-pill {
+  flex: 0 0 auto;
 }
 
-.result-file-table tbody tr:last-child td {
-  border-bottom: 0;
+.result-card__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
 }
 
-.result-file-table__timezones,
-.result-file-table__warnings,
-.result-file-table__outputs {
+.result-card__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 60px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+}
+
+.result-card__stat dt {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.result-card__stat dd {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.result-card__row {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.result-card__row-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.result-card__row-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+  font-size: var(--font-size-sm);
+}
+
+.result-card__tz-final {
+  color: var(--color-text-strong);
+  font-weight: var(--font-weight-semibold);
+}
+
+.result-card__notes {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.result-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-sunken);
+  font-size: var(--font-size-xs);
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chip--output {
+  font-family: var(--font-family-mono);
+}
+
+.result-card__warnings {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: var(--space-2);
   display: grid;
   gap: 2px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 35%, var(--color-border));
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
   font-size: var(--font-size-xs);
-}
-
-.result-file-table__outputs code {
-  font-family: var(--font-family-mono);
-  font-size: inherit;
 }
 
 /* ==========================================================================

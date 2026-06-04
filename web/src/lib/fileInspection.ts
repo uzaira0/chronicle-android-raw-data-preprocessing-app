@@ -125,9 +125,10 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
   if (invalidTimestampCount > 0) {
     warnings.push(`${invalidTimestampCount.toLocaleString()} rows have invalid event_timestamp values.`);
   }
-  if (timezones.length > 1) {
-    warnings.push(`${timezones.length} timezone values found.`);
-  }
+  // Multiple timezones are normal (a participant who travels) and are resolved
+  // downstream by the timezone-handling step (convert/filter). Spanning >1 zone
+  // is not a data-quality problem, so it must not raise a warning or feed the
+  // readiness count. Only missing/invalid zones (handled above) are flagged.
   if (parsed.errors.length) {
     warnings.push(parsed.errors[0]?.message ?? "CSV parse warning.");
   }
