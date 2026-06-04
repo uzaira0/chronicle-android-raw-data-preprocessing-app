@@ -18,6 +18,7 @@ const KEYS: readonly OptionKey[] = [
   "longUsageDurationThresholds",
   "longDataTimeGapThresholds",
   "correctDuplicateEventTimestamps",
+  "deduplicateExactRows",
   "allowStopEventReuse",
   "useActivityStoppedAsFallback",
   "applyThresholdToFallback",
@@ -149,6 +150,15 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           testId="toggle-correctDuplicateEventTimestamps"
           modified={isMod("correctDuplicateEventTimestamps")}
           onReset={() => reset("correctDuplicateEventTimestamps")}
+        />
+        <ToggleField
+          label="Collapse exact-duplicate rows"
+          tooltip={TOOLTIPS.deduplicateExactRows}
+          checked={options.deduplicateExactRows}
+          onChange={(value) => update("deduplicateExactRows", value)}
+          testId="toggle-deduplicateExactRows"
+          modified={isMod("deduplicateExactRows")}
+          onReset={() => reset("deduplicateExactRows")}
         />
         <ToggleField
           label="Allow stop-event reuse"

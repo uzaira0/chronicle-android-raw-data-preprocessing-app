@@ -31,6 +31,7 @@ function makeResult(overrides: Partial<ProcessedFileResult> = {}): ProcessedFile
     rowsAfterTimezoneHandling: 100,
     rowsRemovedByTimezone: 0,
     duplicateTimestampsCorrected: 0,
+    exactDuplicateRowsRemoved: 0,
     ...overrides,
   };
 }

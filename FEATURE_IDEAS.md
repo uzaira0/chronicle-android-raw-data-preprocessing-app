@@ -345,8 +345,13 @@ after the scene refactor).
 
 **Phase 2 — in progress (parity-affecting).**
 - ✅ **#10** Opt-in normalized `broad_app_category` output column (PR #28). Established the add-option-on-both-surfaces + parity-scenario pattern: ported the web `deriveBroadAppCategory` normalization into the Polars oracle (`_normalized_broad_category_expr`) so the emitted value is byte-identical; added a default-run `category_app` parity scenario. Deterministic parity exit 0; web 96 / py 79 / e2e 32 green. The derivation was previously divergent (web normalized, Python raw) but masked because the column was suppressed when the codebook was loaded.
-- ⏭️ **#2** whole-row dedup — next.
-- ⏭️ **#4** interaction-type remap — after #2.
+- ✅ **#2** Whole-row dedup — opt-in (default-on) `deduplicateExactRows` toggle that
+  collapses fully-identical raw rows (participant + timestamp + app + interaction;
+  first kept) and reports the collapsed count in the result card + run manifest.
+  Web-first: formalizes the previously-unconditional `dedupeExactRows` into a
+  user-controllable, participant-aware step. Participant-aware key is a no-op on the
+  single-participant parity fixture, so default behavior is unchanged.
+- ⏭️ **#4** interaction-type remap — next.
 
 **Later phases unchanged:** Phase 3 (aggregation subsystem with integer
 accumulation), Phase 4 (formats), Phase 5 (interactive timeline #18, projects
