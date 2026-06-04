@@ -2162,19 +2162,23 @@ export async function processRawCsvContent(
   }
 
   // App usage algorithm + enrichment
+  // Capture all raw event timestamps per participant before the algorithm
+  // transforms rows into session-level output types. Used for data-gap shading
+  // in both the app-usage and screen-usage plots, so a gap reflects genuinely
+  // absent device activity (all 30+ raw interaction types), not just missing
+  // session rows. Collected whenever plotting is on, independent of which output
+  // kinds are produced (screen-only plotting needs it too).
   const preAlgoTsByParticipant = new Map<string, bigint[]>();
-  if (options.processAppUsage) {
-    // Capture all raw event timestamps per participant before the algorithm
-    // transforms rows into session-level output types. Used for gap detection so
-    // that any activity in the raw data (all 30+ interaction types) prevents a
-    // window from being marked as a data gap.
+  if (options.enablePlotting) {
     for (const row of rows) {
       const pid = row.participant_id || "unknown";
       let arr = preAlgoTsByParticipant.get(pid);
       if (!arr) { arr = []; preAlgoTsByParticipant.set(pid, arr); }
       arr.push(row.event_timestamp_ns);
     }
+  }
 
+  if (options.processAppUsage) {
     // Guard: the concurrent split requires a real splitter; a no-op would
     // silently drop every App Usage row (nonUsageRows excludes them and the
     // no-op returns nothing). The split runs when concurrent usage is modeled
@@ -2264,6 +2268,7 @@ export async function processRawCsvContent(
       const screenPlotBlobs = await generateAllScreenPlots(
         screenRows as Parameters<typeof generateAllScreenPlots>[0],
         timezone,
+        preAlgoTsByParticipant,
       );
       for (const [pid, blob] of screenPlotBlobs) {
         outputs.push({

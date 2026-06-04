@@ -630,39 +630,34 @@ test("duplicate timestamps stop blocking readiness when correction is enabled", 
   assertNoExternalRequests(requestTracker);
 });
 
-test("results table is the primary post-processing surface and preview is gone", async ({ page }) => {
-  // Disable screen output so the Screen rows column is hidden for this case.
+test("results panel is the primary post-processing surface and preview is gone", async ({ page }) => {
+  // Disable screen output so the Screen stat is hidden for this case.
   await page.getByTestId("toggle-processScreenUsage").uncheck();
   await page.getByTestId("run-sample-button").click();
-  const table = page.getByTestId("result-file-table");
-  await expect(table).toBeVisible();
-  await expect(table.locator("thead th")).toContainText([
-    "Input file",
-    "Status",
-    "Input rows",
-    "Processed rows",
-    "App rows",
-    "Input timezones",
-    "Timezone action",
-    "Final timezone",
-    "Duplicate timestamps corrected",
-    "Warnings",
-    "Outputs",
+  const panel = page.getByTestId("result-file-table");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByTestId("result-row")).toHaveCount(1);
+  await expect(panel.locator(".result-card__stat dt")).toContainText([
+    "Input",
+    "Processed",
+    "App",
   ]);
-  await expect(table.locator("thead th", { hasText: /^Screen rows$/ })).toHaveCount(0);
+  await expect(panel.locator(".result-card__stat dt", { hasText: /^Screen$/ })).toHaveCount(0);
+  await expect(panel.locator(".result-card__row-label", { hasText: /^Timezone$/ })).toHaveCount(1);
+  await expect(panel.locator(".result-card__row-label", { hasText: /^Outputs$/ })).toHaveCount(1);
   expect(await page.locator(".result-preview").count()).toBe(0);
   expect(await page.locator(".preview-table").count()).toBe(0);
   expect(await page.locator(".result-details").count()).toBe(0);
   assertNoExternalRequests(requestTracker);
 });
 
-test("results table shows both app and screen columns when output mode is both", async ({ page }) => {
+test("results panel shows both app and screen stats when output mode is both", async ({ page }) => {
   await page.getByTestId("toggle-processScreenUsage").check();
   await page.getByTestId("run-sample-button").click();
-  const table = page.getByTestId("result-file-table");
-  await expect(table).toBeVisible();
-  await expect(table.locator("thead th", { hasText: /^App rows$/ })).toHaveCount(1);
-  await expect(table.locator("thead th", { hasText: /^Screen rows$/ })).toHaveCount(1);
+  const panel = page.getByTestId("result-file-table");
+  await expect(panel).toBeVisible();
+  await expect(panel.locator(".result-card__stat dt", { hasText: /^App$/ })).toHaveCount(1);
+  await expect(panel.locator(".result-card__stat dt", { hasText: /^Screen$/ })).toHaveCount(1);
   assertNoExternalRequests(requestTracker);
 });
 
