@@ -8,6 +8,8 @@ export type MatcherInput = {
   sameStop: Uint8Array;
   otherStop: Uint8Array;
   stopped: Uint8Array;
+  /** Per-event flag: 1 when the event's app is a declared background app. */
+  background: Uint8Array;
   options: {
     allowStopEventReuse: boolean;
     useActivityStoppedAsFallback: boolean;
@@ -65,6 +67,7 @@ export type BrowserSupportFile = {
 export type BrowserSupportFiles = {
   filterFile?: BrowserSupportFile;
   appsForcingScreenOpenFile?: BrowserSupportFile;
+  backgroundAppsFile?: BrowserSupportFile;
   appCodebookFile?: BrowserSupportFile;
 };
 

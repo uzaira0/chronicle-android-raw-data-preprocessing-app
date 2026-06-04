@@ -40,6 +40,8 @@ from chronicle_preprocessing_app.config.defaults import (
     DEFAULT_FILTER_ZERO_DURATION_SESSIONS,
     DEFAULT_APPS_FORCING_SCREEN_OPEN_DICT,
     DEFAULT_APPS_FORCING_SCREEN_OPEN_FILE_PATH,
+    DEFAULT_BACKGROUND_APPS_DICT,
+    DEFAULT_BACKGROUND_APPS_FILE_PATH,
     DEFAULT_INCLUDE_FILTERED_APP_USAGE_IN_PLOTS,
     DEFAULT_INTERACTION_TYPES_TO_REMOVE,
     DEFAULT_INTERACTION_TYPES_TO_REMOVE_CONFIGURED,
@@ -69,6 +71,7 @@ from chronicle_preprocessing_app.config.defaults import (
     DEFAULT_USE_APP_CODEBOOK,
     DEFAULT_USE_FILTER_FILE,
     DEFAULT_USE_APPS_FORCING_SCREEN_OPEN_FILE,
+    DEFAULT_USE_BACKGROUND_APPS_FILE,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -94,6 +97,9 @@ class PreprocessingOptions:
         use_apps_forcing_screen_open_file: Whether to load the apps-forcing-screen-open file
         apps_forcing_screen_open_file: Path to the file containing apps-forcing-screen-open package names
         apps_forcing_screen_open_dict: Dictionary of apps-forcing-screen-open package names to labels or notes
+        use_background_apps_file: Whether to load the background-apps file
+        background_apps_file: Path to the file containing background-app package names
+        background_apps_dict: Dictionary of background-app package names to labels or notes
         usage_session_mode: Which session derivation path to run
         derive_screen_usage_sessions: Whether to append derived screen usage rows
         screen_usage_auto_lock_timeout_seconds: Expected auto-lock timeout, defaulting to 2 minutes
@@ -167,6 +173,11 @@ class PreprocessingOptions:
     apps_forcing_screen_open_file: Path | str = DEFAULT_APPS_FORCING_SCREEN_OPEN_FILE_PATH
     apps_forcing_screen_open_dict: dict[str, str] = field(
         default_factory=lambda: dict(DEFAULT_APPS_FORCING_SCREEN_OPEN_DICT)
+    )
+    use_background_apps_file: bool = DEFAULT_USE_BACKGROUND_APPS_FILE
+    background_apps_file: Path | str = DEFAULT_BACKGROUND_APPS_FILE_PATH
+    background_apps_dict: dict[str, str] = field(
+        default_factory=lambda: dict(DEFAULT_BACKGROUND_APPS_DICT)
     )
     usage_session_mode: UsageSessionMode | str = DEFAULT_USAGE_SESSION_MODE
     derive_screen_usage_sessions: bool = DEFAULT_DERIVE_SCREEN_USAGE_SESSIONS

@@ -109,6 +109,7 @@ async function loadMatcher() {
   ) =>
     module.matchAppUsageUpdateIndices(
       appCodes, timestampNs, resumed, sameStop, otherStop, stopped,
+      new Uint8Array(appCodes.length),
       false, true, true, LONG_DURATION_THRESHOLD_NS,
     ) as { startIndices: number[]; stopStartIndices: number[]; stopEventIndices: number[]; missingIndices: number[] };
 }

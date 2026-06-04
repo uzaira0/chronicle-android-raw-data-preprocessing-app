@@ -27,6 +27,7 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "timezoneHandling",
   "useFilterFile",
   "useAppsForcingScreenOpenFile",
+  "useBackgroundAppsFile",
   "useAppCodebook",
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
@@ -60,6 +61,7 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "timezoneHandling",
   "useFilterFile",
   "useAppsForcingScreenOpenFile",
+  "useBackgroundAppsFile",
   "useAppCodebook",
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
@@ -83,6 +85,7 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
 export const BROWSER_SUPPORT_FILE_KEYS = [
   "filterFile",
   "appsForcingScreenOpenFile",
+  "backgroundAppsFile",
   "appCodebookFile",
 ] as const;
 
@@ -106,6 +109,7 @@ export type BrowserProcessingOptions = {
   timezoneHandling: BrowserTimezoneHandling;
   useFilterFile: boolean;
   useAppsForcingScreenOpenFile: boolean;
+  useBackgroundAppsFile: boolean;
   useAppCodebook: boolean;
   enablePlotting: boolean;
   includeFilteredAppUsageInPlots: boolean;
@@ -137,6 +141,7 @@ export const BOOLEAN_BROWSER_OPTION_KEYS = [
   "correctDuplicateEventTimestamps",
   "useFilterFile",
   "useAppsForcingScreenOpenFile",
+  "useBackgroundAppsFile",
   "useAppCodebook",
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
@@ -182,6 +187,7 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   timezoneHandling: "selected-filter",
   useFilterFile: true,
   useAppsForcingScreenOpenFile: false,
+  useBackgroundAppsFile: false,
   useAppCodebook: true,
   enablePlotting: true,
   includeFilteredAppUsageInPlots: false,
@@ -252,6 +258,10 @@ export const BROWSER_OPTION_TOOLTIPS = {
   useAppsForcingScreenOpenFile: {
     title: "Use apps-forcing-screen-open file",
     body: "Apps in this list are treated as ones that force the screen to stay on during screen-usage derivation, which influences how locks/unlocks are interpreted.",
+  },
+  useBackgroundAppsFile: {
+    title: "Use background-apps file",
+    body: "Apps in this list (e.g. music, navigation) keep running after they are backgrounded. Their app-usage session is not closed when they are paused or when another app comes to the foreground; it stays alive until that app's own Activity Stopped. The resulting overlap with the foreground app is resolved into primary/secondary layers (the concurrent-usage split is applied automatically when this is on). Without an uploaded file the bundled default is used.",
   },
   useAppCodebook: {
     title: "Use app codebook",
