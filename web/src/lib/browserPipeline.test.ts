@@ -4,7 +4,7 @@ import {
   discoverTimezonesFromRawCsv,
   processRawCsvContent,
 } from "@/lib/browserPipeline";
-import { generateAllPlots } from "@/lib/plotGenerator";
+import { generateAllHeatmapSvgs, generateAllPlots, generateAllPlotSvgs } from "@/lib/plotGenerator";
 
 // Spread the real module and stub the canvas-rendering plot generators:
 // browserPipeline imports CATEGORY_COLORS at module scope (PALETTE_CATEGORIES is
@@ -19,6 +19,8 @@ vi.mock("@/lib/plotGenerator", async (importOriginal) => ({
   generateAllPlots: vi.fn(async () => new Map()),
   generateAllScreenPlots: vi.fn(async () => new Map()),
   generateAllHeatmaps: vi.fn(async () => new Map()),
+  generateAllPlotSvgs: vi.fn(async () => new Map()),
+  generateAllHeatmapSvgs: vi.fn(async () => new Map()),
 }));
 import type {
   LayeredSessionRow,
@@ -591,6 +593,35 @@ describe("browserPipeline", () => {
       expect(plotOutputs).toHaveLength(1);
       expect(plotOutputs[0]?.outputFileName).toContain("P01");
       expect(plotOutputs[0]?.outputFileName).toContain("App Usage Plot");
+    });
+
+    it("emits SVG plot siblings only when exportPlotsAsSvg is on", async () => {
+      const csv = [
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+        "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+        "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+      ].join("\n");
+      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+        startIndices: [0], stopStartIndices: [0], stopEventIndices: [1], missingIndices: [],
+      });
+      const pngBlob = new Blob(["fake-png"], { type: "image/png" });
+      const svgBlob = new Blob(["<svg/>"], { type: "image/svg+xml" });
+      vi.mocked(generateAllPlots).mockResolvedValue(new Map([["P01", pngBlob]]));
+      vi.mocked(generateAllPlotSvgs).mockClear();
+      vi.mocked(generateAllPlotSvgs).mockResolvedValue(new Map([["P01", svgBlob]]));
+      vi.mocked(generateAllHeatmapSvgs).mockResolvedValue(new Map([["P01", svgBlob]]));
+
+      const base = { ...DEFAULT_BROWSER_OPTIONS, enablePlotting: true, enableActivityHeatmap: false, useFilterFile: false, useAppsForcingScreenOpenFile: false, useAppCodebook: false };
+
+      const off = await processRawCsvContent("Raw P01.csv", csv, { ...base, exportPlotsAsSvg: false }, {}, matcher);
+      expect(off.outputs.some((o) => o.outputFileName.endsWith(".svg"))).toBe(false);
+      expect(vi.mocked(generateAllPlotSvgs)).not.toHaveBeenCalled();
+
+      const on = await processRawCsvContent("Raw P01.csv", csv, { ...base, exportPlotsAsSvg: true }, {}, matcher);
+      const svgs = on.outputs.filter((o) => o.outputFileName.endsWith(".svg"));
+      expect(svgs).toHaveLength(1);
+      expect(svgs[0]?.outputFileName).toContain("App Usage Plot.svg");
+      expect(svgs[0]?.kind).toBe("plot");
     });
 
     it("skips generateAllPlots when enablePlotting is false", async () => {
