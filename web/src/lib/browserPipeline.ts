@@ -983,18 +983,27 @@ function applyTimezoneHandling(
   };
 }
 
-function dedupeExactRows(rows: CanonicalRow[]): CanonicalRow[] {
+/**
+ * Collapse exact-duplicate raw rows — same participant, timestamp, app, and
+ * interaction type — keeping the first occurrence. Re-exported Chronicle data
+ * commonly repeats rows verbatim. Returns the surviving rows plus the count
+ * removed (surfaced to the user). Gated by `deduplicateExactRows`.
+ */
+export function dedupeExactRows(rows: CanonicalRow[]): {
+  rows: CanonicalRow[];
+  removed: number;
+} {
   const seen = new Set<string>();
   const deduped: CanonicalRow[] = [];
   for (const row of rows) {
-    const key = `${row.event_timestamp_ns}|${row.interaction_type}|${row.app_package_name}`;
+    const key = `${row.participant_id}|${row.event_timestamp_ns}|${row.interaction_type}|${row.app_package_name}`;
     if (seen.has(key)) {
       continue;
     }
     seen.add(key);
     deduped.push({ ...row });
   }
-  return deduped;
+  return { rows: deduped, removed: rows.length - deduped.length };
 }
 
 function duplicatePriority(interactionType: string, stopUsageTypes: Set<string>): number {
@@ -2084,7 +2093,11 @@ export async function processRawCsvContent(
   emit("timezone", 0);
   const timezoneResult = applyTimezoneHandling(originalRows, options);
   const { rows: timezoneHandledRows, timezone } = timezoneResult;
-  const deduped = dedupeExactRows(timezoneHandledRows);
+  const dedupeResult = options.deduplicateExactRows
+    ? dedupeExactRows(timezoneHandledRows)
+    : { rows: timezoneHandledRows, removed: 0 };
+  const deduped = dedupeResult.rows;
+  const exactDuplicateRowsRemoved = dedupeResult.removed;
   const duplicatesBefore = countDuplicateTimestampGroups(deduped);
   const duplicateCorrected = options.correctDuplicateEventTimestamps
     ? unalignDuplicateTimestamps(deduped, options)
@@ -2285,6 +2298,7 @@ export async function processRawCsvContent(
     rowsAfterTimezoneHandling: timezoneResult.rowsAfter,
     rowsRemovedByTimezone: timezoneResult.rowsRemoved,
     duplicateTimestampsCorrected,
+    exactDuplicateRowsRemoved,
   };
 }
 

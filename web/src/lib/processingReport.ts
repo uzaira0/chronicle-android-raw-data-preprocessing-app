@@ -60,6 +60,7 @@ export function buildProcessingReportObject(input: ProcessingReportInput): {
       rowsAfterTimezoneHandling: result.rowsAfterTimezoneHandling,
       rowsRemovedByTimezone: result.rowsRemovedByTimezone,
       duplicateTimestampsCorrected: result.duplicateTimestampsCorrected,
+      exactDuplicateRowsRemoved: result.exactDuplicateRowsRemoved,
       outputs: result.outputs.map((output) => ({
         kind: output.kind,
         outputFileName: output.outputFileName,

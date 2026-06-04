@@ -332,6 +332,9 @@ export function ResultPanel({
                     {result.duplicateTimestampsCorrected > 0
                       ? ` · ${result.duplicateTimestampsCorrected.toLocaleString()} duplicate timestamps corrected`
                       : ""}
+                    {result.exactDuplicateRowsRemoved > 0
+                      ? ` · ${result.exactDuplicateRowsRemoved.toLocaleString()} duplicate rows collapsed`
+                      : ""}
                   </span>
                 </span>
               </div>
