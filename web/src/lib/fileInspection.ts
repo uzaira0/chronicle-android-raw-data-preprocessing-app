@@ -1,6 +1,6 @@
 import Papa from "papaparse";
 
-import { ALL_INTERACTION_TYPES_MAP } from "@/lib/interactionTypes";
+import { ALL_INTERACTION_TYPES_MAP, parseInteractionRemap } from "@/lib/interactionTypes";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 export type RawFileInspection = {
@@ -44,6 +44,25 @@ export function effectiveWarnings(
   ) {
     warnings.push(
       `${inspection.duplicateTimestampCount.toLocaleString()} event timestamps appear more than once.`,
+    );
+  }
+  // Interaction types the built-in map doesn't recognize, minus any the user
+  // has remapped to a canonical name (#4). Computed here (not in inspectRawFile)
+  // because whether a type is "unrecognized" depends on the remap option.
+  const remapped = parseInteractionRemap(options.interactionTypeRemap);
+  const stillUnrecognized = inspection.unrecognizedInteractionTypes.filter(
+    (type) => !remapped.has(type),
+  );
+  if (stillUnrecognized.length) {
+    const sample = stillUnrecognized.slice(0, 5).join(", ");
+    const more = stillUnrecognized.length > 5 ? ", …" : "";
+    warnings.push(
+      `${stillUnrecognized.length.toLocaleString()} unrecognized interaction type` +
+        `${stillUnrecognized.length === 1 ? "" : "s"}: ${sample}${more}. ` +
+        "They're kept in the output but won't start or end app-usage sessions. " +
+        "Map a vendor-specific type to a canonical one under custom interaction-type mappings; " +
+        "to make one end sessions add it under the interaction types that end a session; " +
+        "to drop it add it under interaction types to remove (all in Interaction semantics).",
     );
   }
   return warnings;
@@ -192,17 +211,8 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
         ".",
     );
   }
-  if (unrecognizedInteractionTypes.length) {
-    const sample = unrecognizedInteractionTypes.slice(0, 5).join(", ");
-    const more = unrecognizedInteractionTypes.length > 5 ? ", …" : "";
-    warnings.push(
-      `${unrecognizedInteractionTypes.length.toLocaleString()} unrecognized interaction type` +
-        `${unrecognizedInteractionTypes.length === 1 ? "" : "s"}: ${sample}${more}. ` +
-        "They're kept in the output but won't start or end app-usage sessions. " +
-        "To make one end sessions add it under the interaction types that end a session; " +
-        "to drop it add it under interaction types to remove (both in Interaction semantics).",
-    );
-  }
+  // The unrecognized-interaction-type warning is produced in effectiveWarnings,
+  // which knows the user's custom remap (#4) and can exclude mapped types.
   // Multiple timezones are normal (a participant who travels) and are resolved
   // downstream by the timezone-handling step (convert/filter). Spanning >1 zone
   // is not a data-quality problem, so it must not raise a warning or feed the

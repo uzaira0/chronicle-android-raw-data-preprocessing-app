@@ -351,7 +351,20 @@ after the scene refactor).
   Web-first: formalizes the previously-unconditional `dedupeExactRows` into a
   user-controllable, participant-aware step. Participant-aware key is a no-op on the
   single-participant parity fixture, so default behavior is unchanged.
-- ⏭️ **#4** interaction-type remap — next.
+- ✅ **#4** Custom interaction-type remapping — opt-in `interactionTypeRemap` (a
+  list of `"Raw => Canonical"` entries) applied in `normalizeInteractionType`
+  ahead of the built-in map, so vendor-specific strings resolve to canonical
+  names the matcher understands (and can override built-ins). New free-form editor
+  (raw input → canonical dropdown) in the Interaction-semantics card; the
+  pre-flight unrecognized-type warning moved into `effectiveWarnings` so it no
+  longer nags about types you've already mapped. Web-first; default empty → no
+  behavior change. **Phase 2 (#10 → #2 → #4) complete.**
+
+> **Pivot (2026-06-04):** Phase 2's #2 and #4 were delivered **web-first** — the
+> deployed browser app is the target surface. Both default to a no-op on the
+> single-participant parity fixture (dedup key broadening is a no-op there; remap
+> defaults empty), so the Python oracle was left untouched and the existing
+> parity scenarios are unaffected.
 
 **Later phases unchanged:** Phase 3 (aggregation subsystem with integer
 accumulation), Phase 4 (formats), Phase 5 (interactive timeline #18, projects

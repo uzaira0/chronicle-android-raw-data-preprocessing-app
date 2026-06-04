@@ -99,6 +99,7 @@ classes:
       - model_concurrent_usage
       - apply_minimum_usage_duration_to_concurrent_subintervals
       - interaction_types_to_remove
+      - interaction_type_remap
 
   ProcessedOutputFileResult:
     slots:
@@ -487,6 +488,16 @@ slots:
     description: >-
       Rows of these types are dropped from the final output.
       Useful for stripping noisy events you don't want surfaced in the CSV.
+    default: []
+  interaction_type_remap:
+    multivalued: true
+    required: true
+    title: "Custom interaction-type mappings"
+    description: >-
+      Map vendor-specific raw interaction_type strings onto the canonical names the
+      pipeline understands (e.g. Activity Resumed / Activity Paused / Activity Stopped),
+      for non-standard Chronicle exports. Each entry is "Raw value => Canonical name".
+      Applied before the built-in mapping, so it also overrides built-ins. Default empty.
     default: []
 
   kind:
