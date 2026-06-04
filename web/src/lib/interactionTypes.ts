@@ -47,3 +47,35 @@ export const ALL_INTERACTION_TYPES_MAP: Record<string, string> = {
   "Move to Foreground": "Activity Resumed",
   "Move to Background": "Activity Paused",
 };
+
+/** Separator used to encode a `"Raw value => Canonical name"` remap entry (#4). */
+export const INTERACTION_REMAP_DELIMITER = "=>";
+
+/**
+ * Canonical interaction-type names the pipeline understands — the distinct
+ * values of {@link ALL_INTERACTION_TYPES_MAP}. These are the valid targets for
+ * the custom interaction-type remap UI (#4).
+ */
+export const CANONICAL_INTERACTION_TYPES: readonly string[] = Array.from(
+  new Set(Object.values(ALL_INTERACTION_TYPES_MAP)),
+).sort((left, right) => left.localeCompare(right));
+
+/**
+ * Parse user-supplied custom interaction-type remap entries (each
+ * `"Raw value => Canonical name"`) into a lookup. Entries lacking the delimiter
+ * or with an empty side are skipped; later entries win on key collision. Kept
+ * here (dependency-free) so the pre-flight inspector can reuse it without
+ * importing the full processing pipeline.
+ */
+export function parseInteractionRemap(entries: readonly string[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const entry of entries) {
+    const splitAt = entry.indexOf(INTERACTION_REMAP_DELIMITER);
+    if (splitAt === -1) continue;
+    const from = entry.slice(0, splitAt).trim();
+    const to = entry.slice(splitAt + INTERACTION_REMAP_DELIMITER.length).trim();
+    if (!from || !to) continue;
+    map.set(from, to);
+  }
+  return map;
+}
