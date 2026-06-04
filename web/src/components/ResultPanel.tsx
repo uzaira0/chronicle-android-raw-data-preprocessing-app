@@ -82,9 +82,10 @@ function buildPerFileWarnings(
     warnings.push("Zero screen-usage rows.");
   }
   result.outputs.forEach((output) => {
-    // Plots are PNG charts, not tabular data — they legitimately have no data
-    // rows, so only flag zero rows for the CSV (app/screen) outputs.
-    if (output.rowCount === 0 && output.kind !== "plot") {
+    // Plots are PNG charts (no rows); aggregate files can be legitimately empty
+    // (e.g. a co-usage edge list with no overlaps). Only flag zero rows for the
+    // primary app/screen CSV outputs.
+    if (output.rowCount === 0 && output.kind !== "plot" && output.kind !== "aggregate") {
       warnings.push(`${output.outputFileName} contains zero data rows.`);
     }
     if (output.blob.size === 0) {
