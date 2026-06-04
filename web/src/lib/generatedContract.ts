@@ -23,6 +23,7 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "applyThresholdToFallback",
   "longDurationThresholdHours",
   "correctDuplicateEventTimestamps",
+  "deduplicateExactRows",
   "selectedTimezone",
   "timezoneHandling",
   "useFilterFile",
@@ -61,6 +62,7 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "applyThresholdToFallback",
   "longDurationThresholdHours",
   "correctDuplicateEventTimestamps",
+  "deduplicateExactRows",
   "timezoneHandling",
   "useFilterFile",
   "useAppsForcingScreenOpenFile",
@@ -111,6 +113,7 @@ export type BrowserProcessingOptions = {
   applyThresholdToFallback: boolean;
   longDurationThresholdHours: number;
   correctDuplicateEventTimestamps: boolean;
+  deduplicateExactRows: boolean;
   selectedTimezone?: string;
   timezoneHandling: BrowserTimezoneHandling;
   useFilterFile: boolean;
@@ -148,6 +151,7 @@ export const BOOLEAN_BROWSER_OPTION_KEYS = [
   "useActivityStoppedAsFallback",
   "applyThresholdToFallback",
   "correctDuplicateEventTimestamps",
+  "deduplicateExactRows",
   "useFilterFile",
   "useAppsForcingScreenOpenFile",
   "useBackgroundAppsFile",
@@ -195,6 +199,7 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   applyThresholdToFallback: true,
   longDurationThresholdHours: 12,
   correctDuplicateEventTimestamps: true,
+  deduplicateExactRows: true,
   selectedTimezone: "",
   timezoneHandling: "selected-filter",
   useFilterFile: true,
@@ -257,6 +262,10 @@ export const BROWSER_OPTION_TOOLTIPS = {
   correctDuplicateEventTimestamps: {
     title: "Correct duplicate timestamps",
     body: "When two events share the same timestamp, nudge the second one forward by microseconds so ordering is preserved deterministically.",
+  },
+  deduplicateExactRows: {
+    title: "Collapse exact-duplicate rows",
+    body: "Drop fully-identical raw events (same participant, timestamp, app, and interaction type) before processing. Re-exported Chronicle data often repeats rows verbatim; the first occurrence is kept. Turn this off to keep every raw row as-is.",
   },
   selectedTimezone: {
     title: "Selected timezone",
