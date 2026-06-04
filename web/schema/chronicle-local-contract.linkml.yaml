@@ -79,6 +79,7 @@ classes:
       - use_app_codebook
       - enable_plotting
       - include_filtered_app_usage_in_plots
+      - enable_activity_heatmap
       - minimum_usage_duration
       - filter_zero_duration_sessions
       - custom_app_engagement_duration
@@ -291,6 +292,16 @@ slots:
       When on, bars for apps that were filtered (but retained in the output)
       are drawn alongside normal app-usage bars.
     default: false
+  enable_activity_heatmap:
+    range: boolean
+    required: true
+    title: "Generate activity heatmaps"
+    description: >-
+      Alongside the timeline chart, render an hour-of-day × calendar-day heatmap
+      PNG per participant showing when app usage happened. Only applies when plot
+      generation is on. Turn off to keep just the timeline charts (one fewer PNG
+      per participant).
+    default: true
   plot_only_target_child_data:
     range: boolean
     required: true

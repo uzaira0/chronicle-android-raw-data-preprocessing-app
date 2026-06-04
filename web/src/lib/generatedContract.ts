@@ -31,6 +31,7 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "useAppCodebook",
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
+  "enableActivityHeatmap",
   "minimumUsageDuration",
   "filterZeroDurationSessions",
   "customAppEngagementDuration",
@@ -65,6 +66,7 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "useAppCodebook",
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
+  "enableActivityHeatmap",
   "minimumUsageDuration",
   "filterZeroDurationSessions",
   "customAppEngagementDuration",
@@ -113,6 +115,7 @@ export type BrowserProcessingOptions = {
   useAppCodebook: boolean;
   enablePlotting: boolean;
   includeFilteredAppUsageInPlots: boolean;
+  enableActivityHeatmap: boolean;
   minimumUsageDuration: number;
   filterZeroDurationSessions: boolean;
   customAppEngagementDuration: number;
@@ -145,6 +148,7 @@ export const BOOLEAN_BROWSER_OPTION_KEYS = [
   "useAppCodebook",
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
+  "enableActivityHeatmap",
   "filterZeroDurationSessions",
   "parallelProcessing",
   "modelConcurrentUsage",
@@ -191,6 +195,7 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   useAppCodebook: true,
   enablePlotting: true,
   includeFilteredAppUsageInPlots: false,
+  enableActivityHeatmap: true,
   minimumUsageDuration: 0,
   filterZeroDurationSessions: false,
   customAppEngagementDuration: 300,
@@ -274,6 +279,10 @@ export const BROWSER_OPTION_TOOLTIPS = {
   includeFilteredAppUsageInPlots: {
     title: "Include filtered apps in plots",
     body: "When on, bars for apps that were filtered (but retained in the output) are drawn alongside normal app-usage bars.",
+  },
+  enableActivityHeatmap: {
+    title: "Generate activity heatmaps",
+    body: "Alongside the timeline chart, render an hour-of-day × calendar-day heatmap PNG per participant showing when app usage happened. Only applies when plot generation is on. Turn off to keep just the timeline charts (one fewer PNG per participant).",
   },
   minimumUsageDuration: {
     title: "Minimum usage duration (seconds)",
