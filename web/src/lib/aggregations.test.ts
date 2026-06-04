@@ -227,6 +227,19 @@ describe("buildAggregateOutputs", () => {
     expect(outputs.map((o) => o.suffix)).toContain(" App Co-Usage.csv");
   });
 
+  it("leads every secondary output header with study_id (multi-study contract)", () => {
+    const outputs = buildAggregateOutputs(appRows, screenRows, {
+      ...STUB_OPTIONS,
+      includeCategoryBudget: true,
+      includeCoUsage: true,
+    });
+    const headerOf = (suffix: string): string =>
+      outputs.find((o) => o.suffix === suffix)!.csv.split("\n")[0]!;
+    expect(headerOf(" Top Apps.csv").startsWith("study_id,participant_id,")).toBe(true);
+    expect(headerOf(" Category Time Budget.csv").startsWith("study_id,participant_id,")).toBe(true);
+    expect(headerOf(" App Co-Usage.csv").startsWith("study_id,participant_id,")).toBe(true);
+  });
+
   it("wide daily summary has metric columns plus first_use/last_use", () => {
     const daily = buildAggregateOutputs(appRows, screenRows, STUB_OPTIONS)[0]!;
     const header = daily.csv.split("\n")[0]!;
