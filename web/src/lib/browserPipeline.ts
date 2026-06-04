@@ -1789,7 +1789,9 @@ function buildAppOutputColumns(
     "app_package_name",
     "application_label",
     ...(includeCodebookColumns ? ["genreId_scraped"] : []),
-    ...(includeCodebookColumns && includeCodebookAliases ? ["broad_app_category"] : []),
+    ...(includeCodebookColumns && (includeCodebookAliases || options.includeCategoryColumn)
+      ? ["broad_app_category"]
+      : []),
     ...(includeCodebookColumns ? CODEBOOK_OUTPUT_COLUMNS : []),
     "interaction_type",
     "start_timestamp",
@@ -1906,7 +1908,7 @@ function rowToAppCsvRecord(
   if (usageLayerActive) {
     record.usage_layer = row.usage_layer ?? "";
   }
-  if (includeCodebookAliases) {
+  if (includeCodebookAliases || options.includeCategoryColumn) {
     record.broad_app_category = row.broad_app_category ?? "";
   }
   CODEBOOK_OUTPUT_COLUMNS.forEach((column) => {
