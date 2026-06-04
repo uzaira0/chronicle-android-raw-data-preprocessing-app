@@ -2237,6 +2237,7 @@ export async function processRawCsvContent(
         appRows as Parameters<typeof generateAllPlots>[0],
         timezone,
         options,
+        PREPROCESSOR_VERSION,
         preAlgoTsByParticipant,
       );
       for (const [pid, blob] of plotBlobs) {
@@ -2268,6 +2269,7 @@ export async function processRawCsvContent(
       const screenPlotBlobs = await generateAllScreenPlots(
         screenRows as Parameters<typeof generateAllScreenPlots>[0],
         timezone,
+        PREPROCESSOR_VERSION,
         preAlgoTsByParticipant,
       );
       for (const [pid, blob] of screenPlotBlobs) {

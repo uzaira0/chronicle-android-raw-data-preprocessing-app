@@ -626,7 +626,7 @@ describe("browserPipeline", () => {
 
       let capturedPreAlgoTs: Map<string, bigint[]> | undefined;
       vi.mocked(generateAllPlots).mockImplementation(
-        async (_rows, _tz, _opts, preAlgoTs) => {
+        async (_rows, _tz, _opts, _version, preAlgoTs) => {
           capturedPreAlgoTs = preAlgoTs as Map<string, bigint[]>;
           return new Map();
         },
