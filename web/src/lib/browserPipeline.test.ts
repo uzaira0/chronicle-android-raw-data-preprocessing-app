@@ -320,6 +320,47 @@ describe("browserPipeline", () => {
     expect(Array.from(input.resumed)).toEqual([1, 0, 1, 0, 0]);
   });
 
+  it("applies the custom interaction-type remap to the matcher input (#4)", async () => {
+    // A vendor-specific resume string the built-in map does not know.
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,VENDOR_RESUME,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+    ].join("\n");
+
+    const runWith = async (interactionTypeRemap: string[]): Promise<MatcherInput> => {
+      let captured: MatcherInput | null = null;
+      const matcher = async (input: MatcherInput): Promise<MatcherOutput> => {
+        captured = input;
+        return { startIndices: [], stopStartIndices: [], stopEventIndices: [], missingIndices: [] };
+      };
+      await processRawCsvContent(
+        "Raw P01.csv",
+        csv,
+        {
+          ...DEFAULT_BROWSER_OPTIONS,
+          processScreenUsage: false,
+          useFilterFile: false,
+          useAppsForcingScreenOpenFile: false,
+          useAppCodebook: false,
+          interactionTypeRemap,
+        },
+        {},
+        matcher,
+      );
+      expect(captured).not.toBeNull();
+      return captured as unknown as MatcherInput;
+    };
+
+    // Without a remap the vendor string is not recognized as a resume.
+    const baseline = await runWith([]);
+    expect(Array.from(baseline.resumed)).toEqual([0, 0]);
+
+    // With the remap the vendor row enters the matcher as an Activity Resumed.
+    const remapped = await runWith(["VENDOR_RESUME => Activity Resumed"]);
+    expect(Array.from(remapped.resumed)).toEqual([1, 0]);
+  });
+
   it("emits progress events for every pipeline phase when onProgress is supplied", async () => {
     const csv = [
       "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",

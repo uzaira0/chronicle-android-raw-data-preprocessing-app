@@ -115,6 +115,7 @@ components:
         - modelConcurrentUsage
         - applyMinimumUsageDurationToConcurrentSubintervals
         - interactionTypesToRemove
+        - interactionTypeRemap
       properties:
         studyName:
           type: string
@@ -315,6 +316,15 @@ components:
             type: string
           description: Rows of these types are dropped from the final output. Useful for
             stripping noisy events you don't want surfaced in the CSV.
+        interactionTypeRemap:
+          type: array
+          items:
+            type: string
+          description: Map vendor-specific raw interaction_type strings onto the canonical
+            names the pipeline understands (e.g. Activity Resumed / Activity
+            Paused / Activity Stopped), for non-standard Chronicle exports. Each
+            entry is "Raw value => Canonical name". Applied before the built-in
+            mapping, so it also overrides built-ins. Default empty.
     DiscoverTimezonesRequest:
       type: object
       required:
