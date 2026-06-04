@@ -331,6 +331,23 @@ function drawDataGaps(
   return drewGap;
 }
 
+/** Faint horizontal rules between date rows so they read as distinct rows now
+ * that the background is uniform (no striping). Drawn early so bars/gaps overlay
+ * them. Top/bottom edges are handled by the plot border, so only interior
+ * boundaries are drawn. */
+function drawRowSeparators(ctx: Ctx2D, rowCount: number, plotTop: number): void {
+  ctx.strokeStyle = "#cccccc";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([]);
+  for (let i = 1; i < rowCount; i++) {
+    const y = plotTop + i * ROW_HEIGHT;
+    ctx.beginPath();
+    ctx.moveTo(MARGIN.left, y);
+    ctx.lineTo(MARGIN.left + plotWidth(), y);
+    ctx.stroke();
+  }
+}
+
 // ─── public API ───────────────────────────────────────────────────────────────
 
 export async function generateParticipantPlotBlob(
@@ -386,7 +403,8 @@ export async function generateParticipantPlotBlob(
   });
 
   // Date row labels (no row striping — the background must stay uniform so the
-  // category-coloured bars and faint gap shading read accurately).
+  // category-coloured bars and faint gap shading read accurately; rows are
+  // delimited by horizontal separator rules instead).
   ctx.font = FONT;
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#555";
@@ -396,6 +414,7 @@ export async function generateParticipantPlotBlob(
     ctx.fillText(formatDateLabel(d), MARGIN.left - 8, y + ROW_HEIGHT / 2);
   });
 
+  drawRowSeparators(ctx, sortedDates.length, plotTop);
   drawXAxis(ctx, plotTop, plotBottom);
 
   // Per-call memoization caches — scoped here to avoid cross-participant leaks
@@ -637,7 +656,8 @@ async function generateParticipantScreenPlotBlob(
   });
 
   // Date row labels (no row striping — keep the background uniform so the
-  // end-reason bars and faint gap shading read accurately).
+  // end-reason bars and faint gap shading read accurately; rows are delimited by
+  // horizontal separator rules instead).
   ctx.font = FONT;
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#555";
@@ -647,6 +667,7 @@ async function generateParticipantScreenPlotBlob(
     ctx.fillText(formatDateLabel(d), MARGIN.left - 8, y + ROW_HEIGHT / 2);
   });
 
+  drawRowSeparators(ctx, sortedDates.length, plotTop);
   drawXAxis(ctx, plotTop, plotBottom);
 
   const nsToHoursCache = new Map<bigint, number>();
