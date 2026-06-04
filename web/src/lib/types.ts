@@ -128,6 +128,8 @@ export type ProcessedFileResult = {
   rowsAfterTimezoneHandling: number;
   rowsRemovedByTimezone: number;
   duplicateTimestampsCorrected: number;
+  /** Count of fully-identical raw rows collapsed by {@link dedupeExactRows}. */
+  exactDuplicateRowsRemoved: number;
   /**
    * SHA-256 (hex) of the raw input file, computed in the worker where the
    * bytes live (the parallel path transfers them off the main thread). Used

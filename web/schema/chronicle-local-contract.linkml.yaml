@@ -71,6 +71,7 @@ classes:
       - apply_threshold_to_fallback
       - long_duration_threshold_hours
       - correct_duplicate_event_timestamps
+      - deduplicate_exact_rows
       - selected_timezone
       - timezone_handling
       - use_filter_file
@@ -225,6 +226,15 @@ slots:
     description: >-
       When two events share the same timestamp, nudge the second one forward by microseconds
       so ordering is preserved deterministically.
+    default: true
+  deduplicate_exact_rows:
+    range: boolean
+    required: true
+    title: "Collapse exact-duplicate rows"
+    description: >-
+      Drop fully-identical raw events (same participant, timestamp, app, and interaction type)
+      before processing. Re-exported Chronicle data often repeats rows verbatim; the first
+      occurrence is kept. Turn this off to keep every raw row as-is.
     default: true
   selected_timezone:
     range: string

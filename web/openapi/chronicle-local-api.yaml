@@ -89,6 +89,7 @@ components:
         - applyThresholdToFallback
         - longDurationThresholdHours
         - correctDuplicateEventTimestamps
+        - deduplicateExactRows
         - timezoneHandling
         - useFilterFile
         - useAppsForcingScreenOpenFile
@@ -152,6 +153,12 @@ components:
           type: boolean
           description: When two events share the same timestamp, nudge the second one
             forward by microseconds so ordering is preserved deterministically.
+        deduplicateExactRows:
+          type: boolean
+          description: Drop fully-identical raw events (same participant, timestamp, app,
+            and interaction type) before processing. Re-exported Chronicle data
+            often repeats rows verbatim; the first occurrence is kept. Turn this
+            off to keep every raw row as-is.
         selectedTimezone:
           type: string
           description: Pick from the typical IANA names (e.g. America/Chicago). When
