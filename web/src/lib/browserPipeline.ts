@@ -1,6 +1,11 @@
 import Papa from "papaparse";
 import { ALL_INTERACTION_TYPES_MAP } from "@/lib/interactionTypes";
-import { CATEGORY_COLORS, generateAllPlots, generateAllScreenPlots } from "@/lib/plotGenerator";
+import {
+  CATEGORY_COLORS,
+  generateAllHeatmaps,
+  generateAllPlots,
+  generateAllScreenPlots,
+} from "@/lib/plotGenerator";
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
 import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
 import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
@@ -2203,6 +2208,21 @@ export async function processRawCsvContent(
         outputs.push({
           kind: "plot",
           outputFileName: deriveOutputFileName(inputFileName, ` ${pid} App Usage Plot.png`),
+          blob,
+          rowCount: 0,
+          previewRows: [],
+        });
+      }
+      const heatmapBlobs = await generateAllHeatmaps(
+        appRows as Parameters<typeof generateAllHeatmaps>[0],
+        timezone,
+        options,
+        PREPROCESSOR_VERSION,
+      );
+      for (const [pid, blob] of heatmapBlobs) {
+        outputs.push({
+          kind: "plot",
+          outputFileName: deriveOutputFileName(inputFileName, ` ${pid} App Usage Heatmap.png`),
           blob,
           rowCount: 0,
           previewRows: [],
