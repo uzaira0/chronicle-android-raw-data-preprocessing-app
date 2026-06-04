@@ -91,6 +91,18 @@ describe("computePeriodSummaries (daily)", () => {
     expect(s.last_use_ns).toBe(at(25));
   });
 
+  it("keeps two studies that reuse a participant_id in separate buckets", () => {
+    const rows = [
+      appSession({ study_id: "S1", app_package_name: "com.a", startMin: 0, stopMin: 5 }),
+      appSession({ study_id: "S2", app_package_name: "com.a", startMin: 0, stopMin: 9 }),
+    ];
+    const summaries = computePeriodSummaries(rows, [], (date) => date);
+    expect(summaries.map((e) => [e.summary.study_id, e.summary.total_app_usage_minutes])).toEqual([
+      ["S1", 5],
+      ["S2", 9],
+    ]);
+  });
+
   it("counts a nulled-duration session but excludes it from time totals/mean/longest", () => {
     const withNull = [
       ...appRows,
@@ -128,8 +140,16 @@ describe("computeCategoryBudget", () => {
       appSession({ app_package_name: "com.c", startMin: 8, stopMin: 18, broad_app_category: "Games" }),
     ];
     expect(computeCategoryBudget(rows)).toEqual([
-      { participant_id: "P1", date: "2026-06-01", broad_app_category: "Games", total_minutes: 10, session_count: 1 },
       {
+        study_id: "S",
+        participant_id: "P1",
+        date: "2026-06-01",
+        broad_app_category: "Games",
+        total_minutes: 10,
+        session_count: 1,
+      },
+      {
+        study_id: "S",
         participant_id: "P1",
         date: "2026-06-01",
         broad_app_category: "Social & Communication",
@@ -153,8 +173,23 @@ describe("computeCoUsage", () => {
       appSession({ app_package_name: "com.c", startMin: 20, stopMin: 25 }), // no overlap
     ];
     expect(computeCoUsage(rows)).toEqual([
-      { participant_id: "P1", app_a: "com.a", app_b: "com.b", co_usage_count: 1, total_overlap_minutes: 5 },
+      {
+        study_id: "S",
+        participant_id: "P1",
+        app_a: "com.a",
+        app_b: "com.b",
+        co_usage_count: 1,
+        total_overlap_minutes: 5,
+      },
     ]);
+  });
+
+  it("never pairs overlapping sessions that belong to different studies", () => {
+    const rows = [
+      appSession({ study_id: "S1", app_package_name: "com.a", startMin: 0, stopMin: 10 }),
+      appSession({ study_id: "S2", app_package_name: "com.b", startMin: 5, stopMin: 15 }),
+    ];
+    expect(computeCoUsage(rows)).toEqual([]);
   });
 
   it("returns an empty list when sessions are sequential (no overlap)", () => {

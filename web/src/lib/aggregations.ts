@@ -270,9 +270,10 @@ function summarizeGroup(
 type SummaryEntry = { participant_id: string; period: string; summary: PeriodSummary };
 
 /**
- * Per-(participant, period) summaries. `periodOf` maps a row's date to a period
- * key (the date itself for daily, the ISO week for weekly). Sorted by
- * (participant_id, period).
+ * Per-(study, participant, period) summaries. `periodOf` maps a row's date to a
+ * period key (the date itself for daily, the ISO week for weekly). Keying on
+ * study_id keeps two studies that reuse a participant_id from merging. Sorted by
+ * (study_id, participant_id, period).
  */
 export function computePeriodSummaries(
   appRows: readonly AggregateInputRow[],
@@ -280,7 +281,7 @@ export function computePeriodSummaries(
   periodOf: (dateStr: string) => string,
 ): SummaryEntry[] {
   const keyOf = (row: AggregateInputRow): string =>
-    compositeKey(row.participant_id, periodOf(row.date));
+    compositeKey(row.study_id, row.participant_id, periodOf(row.date));
   const appByKey = groupBy(appRows.filter(isAppSession), keyOf);
   const screenByKey = groupBy(screenRows.filter(isScreenSession), keyOf);
 
@@ -306,12 +307,16 @@ export function computePeriodSummaries(
     });
   }
   out.sort(
-    (a, b) => a.participant_id.localeCompare(b.participant_id) || a.period.localeCompare(b.period),
+    (a, b) =>
+      a.summary.study_id.localeCompare(b.summary.study_id) ||
+      a.participant_id.localeCompare(b.participant_id) ||
+      a.period.localeCompare(b.period),
   );
   return out;
 }
 
 export type TopAppRow = {
+  study_id: string;
   participant_id: string;
   period: string;
   app_package_name: string;
@@ -321,17 +326,18 @@ export type TopAppRow = {
   session_count: number;
 };
 
-/** Every app ranked by total session minutes within each (participant, period). */
+/** Every app ranked by total session minutes within each (study, participant, period). */
 export function computeTopApps(
   appRows: readonly AggregateInputRow[],
   periodOf: (dateStr: string) => string,
 ): TopAppRow[] {
   const byKey = groupBy(appRows.filter(isAppSession), (row) =>
-    compositeKey(row.participant_id, periodOf(row.date)),
+    compositeKey(row.study_id, row.participant_id, periodOf(row.date)),
   );
   const out: TopAppRow[] = [];
   for (const group of byKey.values()) {
     const sample = group[0]!;
+    const study_id = sample.study_id;
     const participant_id = sample.participant_id;
     const period = periodOf(sample.date);
     const byApp = groupBy(group, (row) => row.app_package_name);
@@ -351,10 +357,13 @@ export function computeTopApps(
       (a, b) =>
         b.total_minutes - a.total_minutes || a.app_package_name.localeCompare(b.app_package_name),
     );
-    apps.forEach((app, index) => out.push({ participant_id, period, rank: index + 1, ...app }));
+    apps.forEach((app, index) =>
+      out.push({ study_id, participant_id, period, rank: index + 1, ...app }),
+    );
   }
   out.sort(
     (a, b) =>
+      a.study_id.localeCompare(b.study_id) ||
       a.participant_id.localeCompare(b.participant_id) ||
       a.period.localeCompare(b.period) ||
       a.rank - b.rank,
@@ -363,6 +372,7 @@ export function computeTopApps(
 }
 
 export type CategoryBudgetRow = {
+  study_id: string;
   participant_id: string;
   date: string;
   broad_app_category: string;
@@ -370,12 +380,12 @@ export type CategoryBudgetRow = {
   session_count: number;
 };
 
-/** Total minutes + session count per category per (participant, day). */
+/** Total minutes + session count per category per (study, participant, day). */
 export function computeCategoryBudget(appRows: readonly AggregateInputRow[]): CategoryBudgetRow[] {
   const categoryOf = (row: AggregateInputRow): string =>
     (row.broad_app_category ?? "").trim() || "Unknown";
   const byKey = groupBy(appRows.filter(isAppSession), (row) =>
-    compositeKey(row.participant_id, row.date, categoryOf(row)),
+    compositeKey(row.study_id, row.participant_id, row.date, categoryOf(row)),
   );
   const out: CategoryBudgetRow[] = [];
   for (const rows of byKey.values()) {
@@ -385,6 +395,7 @@ export function computeCategoryBudget(appRows: readonly AggregateInputRow[]): Ca
       if (row.duration_minutes !== null) ns += row.stop_timestamp_ns! - row.start_timestamp_ns!;
     }
     out.push({
+      study_id: sample.study_id,
       participant_id: sample.participant_id,
       date: sample.date,
       broad_app_category: categoryOf(sample),
@@ -394,6 +405,7 @@ export function computeCategoryBudget(appRows: readonly AggregateInputRow[]): Ca
   }
   out.sort(
     (a, b) =>
+      a.study_id.localeCompare(b.study_id) ||
       a.participant_id.localeCompare(b.participant_id) ||
       a.date.localeCompare(b.date) ||
       a.broad_app_category.localeCompare(b.broad_app_category),
@@ -402,6 +414,7 @@ export function computeCategoryBudget(appRows: readonly AggregateInputRow[]): Ca
 }
 
 export type CoUsageRow = {
+  study_id: string;
   participant_id: string;
   app_a: string;
   app_b: string;
@@ -411,11 +424,14 @@ export type CoUsageRow = {
 
 /**
  * App co-usage edge list: pairs of app sessions whose intervals overlap, swept
- * per participant. The pair key is the two package names sorted, so (A,B) and
- * (B,A) accumulate together.
+ * per (study, participant) so sessions from different studies never form a pair.
+ * The pair key is the two package names sorted, so (A,B) and (B,A) accumulate
+ * together.
  */
 export function computeCoUsage(appRows: readonly AggregateInputRow[]): CoUsageRow[] {
-  const byParticipant = groupBy(appRows.filter(isAppSession), (row) => row.participant_id);
+  const byParticipant = groupBy(appRows.filter(isAppSession), (row) =>
+    compositeKey(row.study_id, row.participant_id),
+  );
   const out: CoUsageRow[] = [];
   for (const sessionsUnsorted of byParticipant.values()) {
     const sessions = [...sessionsUnsorted].sort((a, b) =>
@@ -448,9 +464,11 @@ export function computeCoUsage(appRows: readonly AggregateInputRow[]): CoUsageRo
       }
       active.push(session);
     }
+    const study_id = sessions[0]!.study_id;
     const participant_id = sessions[0]!.participant_id;
     for (const entry of pairs.values()) {
       out.push({
+        study_id,
         participant_id,
         app_a: entry.app_a,
         app_b: entry.app_b,
@@ -461,6 +479,7 @@ export function computeCoUsage(appRows: readonly AggregateInputRow[]): CoUsageRo
   }
   out.sort(
     (a, b) =>
+      a.study_id.localeCompare(b.study_id) ||
       a.participant_id.localeCompare(b.participant_id) ||
       a.app_a.localeCompare(b.app_a) ||
       a.app_b.localeCompare(b.app_b),
@@ -610,6 +629,7 @@ export function buildAggregateOutputs(
     suffix: " Top Apps.csv",
     csv: toCsv(
       [
+        "study_id",
         "participant_id",
         "date",
         "rank",
@@ -619,6 +639,7 @@ export function buildAggregateOutputs(
         "session_count",
       ],
       topApps.map((row) => ({
+        study_id: row.study_id,
         participant_id: row.participant_id,
         date: row.period,
         rank: row.rank,
@@ -637,7 +658,14 @@ export function buildAggregateOutputs(
     outputs.push({
       suffix: " Category Time Budget.csv",
       csv: toCsv(
-        ["participant_id", "date", "broad_app_category", "total_minutes", "session_count"],
+        [
+          "study_id",
+          "participant_id",
+          "date",
+          "broad_app_category",
+          "total_minutes",
+          "session_count",
+        ],
         budget.map((row) => ({ ...row })),
       ),
       rowCount: budget.length,
@@ -650,7 +678,7 @@ export function buildAggregateOutputs(
     outputs.push({
       suffix: " App Co-Usage.csv",
       csv: toCsv(
-        ["participant_id", "app_a", "app_b", "co_usage_count", "total_overlap_minutes"],
+        ["study_id", "participant_id", "app_a", "app_b", "co_usage_count", "total_overlap_minutes"],
         coUsage.map((row) => ({ ...row })),
       ),
       rowCount: coUsage.length,
