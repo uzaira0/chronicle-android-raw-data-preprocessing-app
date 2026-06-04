@@ -361,6 +361,58 @@ describe("browserPipeline", () => {
     expect(Array.from(remapped.resumed)).toEqual([1, 0]);
   });
 
+  it("emits aggregate outputs only when enableAggregates is on (#8/#13/#15)", async () => {
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+    ].join("\n");
+    const matcher = async (): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+    const baseOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      enablePlotting: false,
+      processScreenUsage: false,
+      useFilterFile: false,
+      useAppsForcingScreenOpenFile: false,
+      useAppCodebook: false,
+      modelConcurrentUsage: false,
+    };
+
+    const off = await processRawCsvContent("Raw P01.csv", csv, baseOptions, {}, matcher);
+    expect(off.outputs.some((output) => output.kind === "aggregate")).toBe(false);
+
+    const on = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      { ...baseOptions, enableAggregates: true },
+      {},
+      matcher,
+    );
+    const aggregates = on.outputs.filter((output) => output.kind === "aggregate");
+    const names = aggregates.map((output) => output.outputFileName);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Daily Summary"),
+        expect.stringContaining("Weekly Summary"),
+        expect.stringContaining("Top Apps"),
+      ]),
+    );
+    // Category budget (no codebook) and co-usage (no concurrent usage) are gated off.
+    expect(names.some((name) => name.includes("Category Time Budget"))).toBe(false);
+    expect(names.some((name) => name.includes("App Co-Usage"))).toBe(false);
+
+    const daily = aggregates.find((output) => output.outputFileName.includes("Daily Summary"))!;
+    expect(daily.rowCount).toBe(1); // one (participant, date)
+    const dailyCsv = await daily.blob.text();
+    expect(dailyCsv).toContain("total_app_usage_minutes");
+    expect(dailyCsv).toContain("P01");
+  });
+
   it("emits progress events for every pipeline phase when onProgress is supplied", async () => {
     const csv = [
       "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",

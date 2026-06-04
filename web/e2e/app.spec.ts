@@ -353,6 +353,17 @@ test("drops codebook-enriched columns when app codebook use is disabled", async 
   assertNoExternalRequests(requestTracker);
 });
 
+test("emits aggregate summary outputs when aggregates are enabled (#8/#13/#15)", async ({ page }) => {
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await page.getByTestId("toggle-enableAggregates").check();
+  await processFiles(page);
+
+  // The opt-in aggregate outputs produced a dedicated download and result chips.
+  await expect(page.getByTestId("download-aggregates-zip")).toBeVisible();
+  await expect(page.getByTestId("result-panel")).toContainText("Aggregate CSV");
+  assertNoExternalRequests(requestTracker);
+});
+
 test("shows result warnings for suspicious successful outputs", async ({ page }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
   await page.getByTestId("toggle-processScreenUsage").check();

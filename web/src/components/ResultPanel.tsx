@@ -56,6 +56,7 @@ function zipName(kind: "all" | OutputKind): string {
     kind === "all" ? "all-outputs"
     : kind === "app" ? "app-usage-outputs"
     : kind === "screen" ? "screen-usage-outputs"
+    : kind === "aggregate" ? "aggregate-summaries"
     : "plots";
   return `chronicle-${suffix}.zip`;
 }
@@ -156,6 +157,7 @@ export function ResultPanel({
   const appOutputs = useMemo(() => collectOutputs(results, "app"), [results]);
   const screenOutputs = useMemo(() => collectOutputs(results, "screen"), [results]);
   const plotOutputs = useMemo(() => collectOutputs(results, "plot"), [results]);
+  const aggregateOutputs = useMemo(() => collectOutputs(results, "aggregate"), [results]);
   const reportText = useMemo(
     () =>
       buildProcessingReport({
@@ -245,6 +247,18 @@ export function ResultPanel({
               }}
             >
               Plots ZIP ({plotOutputs.length})
+            </button>
+          )}
+          {aggregateOutputs.length > 0 && (
+            <button
+              type="button"
+              className="btn btn--secondary"
+              data-testid="download-aggregates-zip"
+              onClick={() => {
+                void downloadZip("aggregate", aggregateOutputs, reportText);
+              }}
+            >
+              Aggregates ZIP ({aggregateOutputs.length})
             </button>
           )}
           <button
@@ -382,6 +396,7 @@ const OUTPUT_KIND_LABEL: Record<string, string> = {
   app: "App CSV",
   screen: "Screen CSV",
   plot: "Plot",
+  aggregate: "Aggregate CSV",
 };
 
 function CardStat({ label, value }: { label: string; value: number }): ReactElement {
