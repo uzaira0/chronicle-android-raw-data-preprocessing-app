@@ -32,6 +32,7 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
   "enableActivityHeatmap",
+  "exportPlotsAsSvg",
   "minimumUsageDuration",
   "filterZeroDurationSessions",
   "customAppEngagementDuration",
@@ -67,6 +68,7 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
   "enableActivityHeatmap",
+  "exportPlotsAsSvg",
   "minimumUsageDuration",
   "filterZeroDurationSessions",
   "customAppEngagementDuration",
@@ -116,6 +118,7 @@ export type BrowserProcessingOptions = {
   enablePlotting: boolean;
   includeFilteredAppUsageInPlots: boolean;
   enableActivityHeatmap: boolean;
+  exportPlotsAsSvg: boolean;
   minimumUsageDuration: number;
   filterZeroDurationSessions: boolean;
   customAppEngagementDuration: number;
@@ -149,6 +152,7 @@ export const BOOLEAN_BROWSER_OPTION_KEYS = [
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
   "enableActivityHeatmap",
+  "exportPlotsAsSvg",
   "filterZeroDurationSessions",
   "parallelProcessing",
   "modelConcurrentUsage",
@@ -196,6 +200,7 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   enablePlotting: true,
   includeFilteredAppUsageInPlots: false,
   enableActivityHeatmap: true,
+  exportPlotsAsSvg: false,
   minimumUsageDuration: 0,
   filterZeroDurationSessions: false,
   customAppEngagementDuration: 300,
@@ -283,6 +288,10 @@ export const BROWSER_OPTION_TOOLTIPS = {
   enableActivityHeatmap: {
     title: "Generate activity heatmaps",
     body: "Alongside the timeline chart, render an hour-of-day × calendar-day heatmap PNG per participant showing when app usage happened. Only applies when plot generation is on. Turn off to keep just the timeline charts (one fewer PNG per participant).",
+  },
+  exportPlotsAsSvg: {
+    title: "Also export plots as SVG (vector)",
+    body: "In addition to the PNG charts, write a scalable vector SVG of each plot (timeline, and heatmap when enabled) into the output ZIP. SVGs stay sharp at any zoom and are editable in vector tools. Off by default to avoid adding a second file per plot. Only applies when plot generation is on.",
   },
   minimumUsageDuration: {
     title: "Minimum usage duration (seconds)",
