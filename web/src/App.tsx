@@ -10,6 +10,7 @@ import { sampleRawCsv, SAMPLE_FILE_NAME } from "@/lib/sampleRawCsv";
 import { ensureNotificationPermission, sendNotification } from "@/lib/notification";
 import { hasPersistedOptions, persistOptions, readPersistedOptions } from "@/lib/settingsPersistence";
 import { inspectRawFiles, type RawFileInspection } from "@/lib/fileInspection";
+import { applyProgressEvent } from "@/lib/progressReducer";
 import type {
   BrowserProcessingOptions,
   BrowserProcessingRuntime,
@@ -246,39 +247,9 @@ export default function App(): ReactElement {
     }
   }, [isRunning, results.length]);
 
-  const updateFileProgress = useCallback(
-    (fileName: string, patch: Partial<FileProgress>) => {
-      setProgressByFile((current) => ({
-        ...current,
-        [fileName]: {
-          ...(current[fileName] ?? { fileName, status: "pending" }),
-          ...patch,
-        },
-      }));
-    },
-    [],
-  );
-
-  const handleProgressEvent = useCallback(
-    (event: ProgressEvent) => {
-      if (event.type === "file-start") {
-        updateFileProgress(event.fileName, { status: "running", stepKind: "parse", percent: 0 });
-      } else if (event.type === "step") {
-        updateFileProgress(event.fileName, {
-          status: "running",
-          stepKind: event.stepKind,
-          percent: event.percent,
-        });
-      } else if (event.type === "file-complete") {
-        updateFileProgress(event.fileName, {
-          status: event.error ? "error" : "complete",
-          percent: 1,
-          error: event.error,
-        });
-      }
-    },
-    [updateFileProgress],
-  );
+  const handleProgressEvent = useCallback((event: ProgressEvent) => {
+    setProgressByFile((current) => applyProgressEvent(current, event));
+  }, []);
 
   const processUploadedFiles = async () => {
     if (!uploadedFiles.length) {
