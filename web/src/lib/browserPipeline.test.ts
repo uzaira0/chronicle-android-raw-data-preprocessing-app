@@ -261,6 +261,60 @@ describe("browserPipeline", () => {
     expect(rows[1]?.[startTimestampIndex]).not.toBe("");
   });
 
+  it("remaps background-app flags and sets the matcher background mask", async () => {
+    // Background app (Spotify) resumes, is paused (backgrounded), a normal app
+    // runs, then Spotify's Activity Stopped arrives. Rows reach the matcher in
+    // timestamp order: [spotify resume, spotify pause, normal resume, normal
+    // pause, spotify stopped].
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Audio,Activity Resumed,com.spotify.music,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Audio,Activity Paused,com.spotify.music,2026-03-07 10:05:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Activity Resumed,com.normal.app,2026-03-07 10:06:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Activity Paused,com.normal.app,2026-03-07 10:10:00,America/Chicago",
+      "Study,P01,Target Child,Audio,Activity Stopped,com.spotify.music,2026-03-07 10:20:00,America/Chicago",
+    ].join("\n");
+    const backgroundCsv = ["package_name,label_or_note", "com.spotify.music,Audio"].join("\n");
+
+    let captured: MatcherInput | null = null;
+    const matcher = async (input: MatcherInput): Promise<MatcherOutput> => {
+      captured = input;
+      return { startIndices: [], stopStartIndices: [], stopEventIndices: [], missingIndices: [] };
+    };
+    const splitter = async (_input: SplitterInput): Promise<SplitterOutput> => [];
+
+    await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        processScreenUsage: false,
+        useFilterFile: false,
+        useAppsForcingScreenOpenFile: false,
+        useAppCodebook: false,
+        useBackgroundAppsFile: true,
+        modelConcurrentUsage: false,
+      },
+      { backgroundAppsFile: { name: "bg.csv", bytes: csvBytes(backgroundCsv) } },
+      matcher,
+      undefined,
+      undefined,
+      splitter,
+    );
+
+    expect(captured).not.toBeNull();
+    const input = captured as unknown as MatcherInput;
+    expect(Array.from(input.background)).toEqual([1, 1, 0, 0, 1]);
+    // Background app: same_stop fires on its own re-resume (segments the
+    // session) and Activity Stopped, but NOT on backgrounding (pause). So the
+    // Spotify resume (idx0) and stop (idx4) are same_stops, its pause (idx1) is
+    // not. The normal app keeps its pause/resume same_stop flags (idx2, idx3).
+    expect(Array.from(input.sameStop)).toEqual([1, 0, 1, 1, 1]);
+    // Background app's Activity Stopped is cleared from the fallback channel.
+    expect(Array.from(input.stopped)).toEqual([0, 0, 0, 0, 0]);
+    expect(Array.from(input.resumed)).toEqual([1, 0, 1, 0, 0]);
+  });
+
   it("emits progress events for every pipeline phase when onProgress is supplied", async () => {
     const csv = [
       "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",

@@ -10,6 +10,7 @@ declare module "@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js"
     sameStop: Uint8Array,
     otherStop: Uint8Array,
     stopped: Uint8Array,
+    background: Uint8Array,
     allowStopEventReuse: boolean,
     useActivityStoppedAsFallback: boolean,
     applyThresholdToFallback: boolean,

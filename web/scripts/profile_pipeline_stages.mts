@@ -70,6 +70,7 @@ async function runMatcher(input: MatcherInput): Promise<MatcherOutput> {
     input.sameStop,
     input.otherStop,
     input.stopped,
+    input.background,
     input.options.allowStopEventReuse,
     input.options.useActivityStoppedAsFallback,
     input.options.applyThresholdToFallback,

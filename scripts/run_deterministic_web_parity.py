@@ -16,6 +16,7 @@ from chronicle_preprocessing_app.core.preprocessing.main_preprocessor import (
     ChronicleAndroidRawDataPreprocessor,
 )
 from chronicle_preprocessing_app.utils.file_utils import (
+    read_background_apps_file,
     read_filter_file,
     read_apps_forcing_screen_open_file,
 )
@@ -41,6 +42,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         default=False,
         help="Enable concurrent (PiP) usage modeling for the flag-on parity entry.",
+    )
+    parser.add_argument(
+        "--background-apps",
+        action="store_true",
+        default=False,
+        help="Enable the background-apps file for a cross-surface parity entry.",
     )
     return parser.parse_args()
 
@@ -125,6 +132,12 @@ def _compare_csvs(desktop_csv: Path, browser_csv: Path) -> dict:
     }
 
 
+BACKGROUND_APPS_FILE = (
+    REPO_ROOT
+    / "background_apps_files/Chronicle_Android_raw_data_preprocessor_background_apps.csv"
+)
+
+
 def _build_options(
     *,
     raw_data_folder: Path,
@@ -134,6 +147,7 @@ def _build_options(
     usage_session_mode: UsageSessionMode,
     datetime_override: str,
     model_concurrent_usage: bool = False,
+    use_background_apps_file: bool = False,
 ) -> PreprocessingOptions:
     options = PreprocessingOptions(
         study_name="Deterministic Parity",
@@ -146,6 +160,8 @@ def _build_options(
         use_apps_forcing_screen_open_file=use_apps_forcing_screen_open_file,
         apps_forcing_screen_open_file=REPO_ROOT
         / "apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv",
+        use_background_apps_file=use_background_apps_file,
+        background_apps_file=BACKGROUND_APPS_FILE,
         usage_session_mode=usage_session_mode,
         selected_timezone="America/Chicago",
         timezone_handling_option=TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE,
@@ -156,6 +172,8 @@ def _build_options(
         options.apps_to_filter_dict = read_filter_file(options.filter_file)
     if options.use_apps_forcing_screen_open_file:
         options.apps_forcing_screen_open_dict = read_apps_forcing_screen_open_file(options.apps_forcing_screen_open_file)
+    if options.use_background_apps_file:
+        options.background_apps_dict = read_background_apps_file(options.background_apps_file)
     return options
 
 
@@ -340,6 +358,52 @@ def main() -> int:
             report["pip_app"] = _compare_csvs(
                 desktop_pip_app,
                 browser_pip_output_dir / "Raw P01 Automatically Preprocessed.csv",
+            )
+
+        if args.background_apps:
+            desktop_bg_root = temp_root / "desktop_background"
+            desktop_bg_raw_dir = desktop_bg_root / "raw"
+            desktop_bg_raw_dir.mkdir(parents=True)
+            desktop_bg_raw_path = desktop_bg_raw_dir / RAW_FILE_NAME
+            raw_df.write_csv(desktop_bg_raw_path)
+            bg_options = _build_options(
+                raw_data_folder=desktop_bg_raw_dir,
+                use_app_codebook=False,
+                use_filter_file=False,
+                use_apps_forcing_screen_open_file=False,
+                usage_session_mode=UsageSessionMode.APP_USAGE,
+                datetime_override=args.datetime,
+                use_background_apps_file=True,
+            )
+            desktop_bg_app, _ = _run_desktop(desktop_bg_raw_path, bg_options, desktop_bg_root)
+
+            browser_bg_output_dir = temp_root / "browser_background"
+            browser_bg_output_dir.mkdir()
+            bg_spec_path = temp_root / "browser_background_spec.json"
+            _write_browser_spec(
+                bg_spec_path,
+                raw_csv_path=browser_raw_path,
+                output_dir=browser_bg_output_dir,
+                options={
+                    "studyName": "Deterministic Parity",
+                    "processAppUsage": True,
+                    "processScreenUsage": False,
+                    "enablePlotting": False,
+                    "parallelProcessing": False,
+                    "selectedTimezone": "America/Chicago",
+                    "timezoneHandling": "selected-filter",
+                    "useFilterFile": False,
+                    "useAppsForcingScreenOpenFile": False,
+                    "useAppCodebook": False,
+                    "useBackgroundAppsFile": True,
+                },
+                datetime_override=args.datetime,
+                support_file_paths={"backgroundAppsFile": str(BACKGROUND_APPS_FILE)},
+            )
+            _run_browser_processing(bg_spec_path)
+            report["background_app"] = _compare_csvs(
+                desktop_bg_app,
+                browser_bg_output_dir / "Raw P01 Automatically Preprocessed.csv",
             )
 
         if args.report_json:
