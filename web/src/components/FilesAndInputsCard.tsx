@@ -18,6 +18,7 @@ const KEYS: readonly OptionKey[] = [
   "useAppsForcingScreenOpenFile",
   "useBackgroundAppsFile",
   "useAppCodebook",
+  "includeCategoryColumn",
 ];
 
 type Props = {
@@ -122,6 +123,19 @@ export function FilesAndInputsCard(props: Props): ReactElement {
         testId="app-codebook-file-input"
         defaultUrl={defaultAppCodebookUrl}
       />
+      {options.useAppCodebook ? (
+        <div className="settings-overview__subfield">
+          <ToggleField
+            label="Include app category column"
+            checked={options.includeCategoryColumn}
+            onChange={(value) => update("includeCategoryColumn", value)}
+            testId="toggle-includeCategoryColumn"
+            tooltip={TOOLTIPS.includeCategoryColumn}
+            modified={!isOptionDefault("includeCategoryColumn", options.includeCategoryColumn)}
+            onReset={() => reset("includeCategoryColumn")}
+          />
+        </div>
+      ) : null}
     </SectionCard>
   );
 }
