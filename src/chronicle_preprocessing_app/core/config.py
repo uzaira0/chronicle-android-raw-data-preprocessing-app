@@ -65,6 +65,7 @@ from chronicle_preprocessing_app.config.defaults import (
     DEFAULT_SELECTED_TIMEZONE,
     DEFAULT_STUDY_DATE_MAP,
     DEFAULT_STUDY_NAME,
+    DEFAULT_INCLUDE_CATEGORY_COLUMN,
     DEFAULT_TIMEZONE_HANDLING_OPTION,
     DEFAULT_USAGE_SESSION_MODE,
     DEFAULT_USE_ACTIVITY_STOPPED_AS_FALLBACK,
@@ -164,6 +165,7 @@ class PreprocessingOptions:
     raw_data_file_regex_pattern: str = DEFAULT_RAW_DATA_FILE_REGEX_PATTERN
     use_app_codebook: bool = DEFAULT_USE_APP_CODEBOOK
     app_codebook_path: Path | str = DEFAULT_APP_CODEBOOK_FILE_PATH
+    include_category_column: bool = DEFAULT_INCLUDE_CATEGORY_COLUMN
     use_filter_file: bool = DEFAULT_USE_FILTER_FILE
     filter_file: Path | str = DEFAULT_APPS_TO_FILTER_FILE_PATH
     apps_to_filter_dict: dict[str, str] = field(

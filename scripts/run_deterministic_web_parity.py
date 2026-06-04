@@ -148,11 +148,13 @@ def _build_options(
     datetime_override: str,
     model_concurrent_usage: bool = False,
     use_background_apps_file: bool = False,
+    include_category_column: bool = False,
 ) -> PreprocessingOptions:
     options = PreprocessingOptions(
         study_name="Deterministic Parity",
         raw_data_folder=raw_data_folder,
         use_app_codebook=use_app_codebook,
+        include_category_column=include_category_column,
         app_codebook_path=REPO_ROOT / "src/chronicle_preprocessing_app/data/unified_app_codebook.csv",
         use_filter_file=use_filter_file,
         filter_file=REPO_ROOT
@@ -188,6 +190,7 @@ def _run_desktop(raw_csv_path: Path, options: PreprocessingOptions, output_root:
     preprocessor.options.use_filter_file = options.use_filter_file
     preprocessor.options.use_apps_forcing_screen_open_file = options.use_apps_forcing_screen_open_file
     preprocessor.options.use_app_codebook = options.use_app_codebook
+    preprocessor.options.include_category_column = options.include_category_column
     output_folder, success, _ = preprocessor.preprocess_Chronicle_Android_raw_data_file(raw_csv_path)
     if not success:
         raise RuntimeError(f"Desktop preprocessing produced no output for {raw_csv_path}")
@@ -315,6 +318,61 @@ def main() -> int:
         report["core_app"] = _compare_csvs(
             desktop_core_app,
             browser_core_output_dir / "Raw P01 Automatically Preprocessed.csv",
+        )
+
+        # Category-column scenario (#10): codebook on + include_category_column on,
+        # so the normalized broad_app_category column is emitted on both surfaces.
+        # The fixture's codebook carries babyemu UPPERCASE values (GAMING, …), so
+        # this exercises the normalization that must match byte-for-byte.
+        desktop_category_root = temp_root / "desktop_category"
+        desktop_category_raw_dir = desktop_category_root / "raw"
+        desktop_category_raw_dir.mkdir(parents=True)
+        desktop_category_raw_path = desktop_category_raw_dir / RAW_FILE_NAME
+        raw_df.write_csv(desktop_category_raw_path)
+        category_options = _build_options(
+            raw_data_folder=desktop_category_raw_dir,
+            use_app_codebook=True,
+            use_filter_file=False,
+            use_apps_forcing_screen_open_file=False,
+            usage_session_mode=UsageSessionMode.APP_USAGE,
+            datetime_override=args.datetime,
+            include_category_column=True,
+        )
+        desktop_category_app, _ = _run_desktop(
+            desktop_category_raw_path, category_options, desktop_category_root
+        )
+
+        browser_category_output_dir = temp_root / "browser_category"
+        browser_category_output_dir.mkdir()
+        category_spec_path = temp_root / "browser_category_spec.json"
+        _write_browser_spec(
+            category_spec_path,
+            raw_csv_path=browser_raw_path,
+            output_dir=browser_category_output_dir,
+            options={
+                "studyName": "Deterministic Parity",
+                "processAppUsage": True,
+                "processScreenUsage": False,
+                "enablePlotting": False,
+                "parallelProcessing": False,
+                "selectedTimezone": "America/Chicago",
+                "timezoneHandling": "selected-filter",
+                "useFilterFile": False,
+                "useAppsForcingScreenOpenFile": False,
+                "useAppCodebook": True,
+                "includeCategoryColumn": True,
+            },
+            datetime_override=args.datetime,
+            support_file_paths={
+                "appCodebookFile": str(
+                    REPO_ROOT / "src/chronicle_preprocessing_app/data/unified_app_codebook.csv"
+                ),
+            },
+        )
+        _run_browser_processing(category_spec_path)
+        report["category_app"] = _compare_csvs(
+            desktop_category_app,
+            browser_category_output_dir / "Raw P01 Automatically Preprocessed.csv",
         )
 
         if args.model_concurrent_usage:

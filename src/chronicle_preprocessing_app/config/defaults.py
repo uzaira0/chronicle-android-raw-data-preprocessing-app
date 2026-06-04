@@ -34,6 +34,7 @@ def _resolve_default_app_codebook_path() -> str:
 
 DEFAULT_USE_APP_CODEBOOK: bool = True
 DEFAULT_APP_CODEBOOK_FILE_PATH = _resolve_default_app_codebook_path()
+DEFAULT_INCLUDE_CATEGORY_COLUMN: bool = False
 
 # App filter defaults
 DEFAULT_USE_FILTER_FILE: bool = True
