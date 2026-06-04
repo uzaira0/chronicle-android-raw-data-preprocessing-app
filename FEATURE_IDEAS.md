@@ -314,14 +314,34 @@ with a hit-test spatial index + viewport virtualization) → #22 named projects
 - ✅ **#1** Preflight validator — out-of-order timestamps + unrecognized
   interaction types; interaction-type map extracted to `interactionTypes.ts`.
 - ✅ **#19** Hour×day activity heatmap (pure tested `computeHourDayMatrix` +
-  Canvas renderer, emitted with the timeline plots).
-- ⏭️ **#21** Vector SVG/PDF export — **next, as its own focused PR.** Should
-  share geometry with the Canvas path (hour/day mapping, per-day bar tiling,
-  gap bands) so PNG and SVG can't drift; that shared-geometry refactor is why
-  it's split out rather than bolted onto the Phase-1 batch.
+  scene/Canvas renderer), now behind a default-on `enable_activity_heatmap`
+  toggle so it doesn't silently double the plot file count.
+- ✅ **#21** Vector SVG export (separate PR, stacked on Phase 1). A shared
+  `plotScene` model (rect/text/line/poly primitives) is rendered to either
+  Canvas (PNG) or SVG, so the two can't drift; the timeline + heatmap now route
+  through `buildTimelineScene` / `buildHeatmapScene`. Emitted as `.svg` siblings
+  behind a default-off `export_plots_as_svg` toggle.
 
-Validation for the four landed features: `tsc --noEmit` clean, vitest 72 passed
-(+20 new), contract check ok, production build ok.
+**UX self-review fixes folded into the Phase-1 PR** (things that would surprise a
+real user, found on review):
+- **#1** out-of-order detection was global across the whole file → false-flagged
+  every participant boundary in a multi-participant export. Now scoped per
+  `participant_id`. Also: the warning pointed users at "interaction-type
+  remapping", **a feature that doesn't exist** — reworded to point at the
+  stop-type / remove lists that do.
+- **#23** opening a shared `?config=` link silently overwrote the recipient's own
+  saved settings on mount. Now the first persist is skipped on shared-init, so
+  saved settings survive until the recipient actually edits one.
+- **#19** heatmap dropped a midnight-crossing session's post-midnight slice when
+  that date had no other activity. The axis now spans each session's actual
+  dates. Plus the default-on toggle above.
+- **#25** runId/generatedAt are memoized on `[results, options]`, so Copy-report
+  and every ZIP download share one value (the feared divergence was not real);
+  the full userAgent stays in the local-only report as provenance.
+
+Validation: `tsc --noEmit` clean, vitest 87 passed, contract check ok,
+production build ok, Playwright e2e 32 passed (real canvas plot path verified
+after the scene refactor).
 
 **Next phases unchanged:** Phase 2 (#10 → #2 → #4, establishing the
 add-option+parity pattern), Phase 3 (aggregation subsystem with integer

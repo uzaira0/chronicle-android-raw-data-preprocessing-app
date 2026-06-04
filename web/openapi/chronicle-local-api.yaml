@@ -97,6 +97,7 @@ components:
         - enablePlotting
         - includeFilteredAppUsageInPlots
         - enableActivityHeatmap
+        - exportPlotsAsSvg
         - minimumUsageDuration
         - filterZeroDurationSessions
         - customAppEngagementDuration
@@ -204,6 +205,13 @@ components:
             heatmap PNG per participant showing when app usage happened. Only
             applies when plot generation is on. Turn off to keep just the
             timeline charts (one fewer PNG per participant).
+        exportPlotsAsSvg:
+          type: boolean
+          description: In addition to the PNG charts, write a scalable vector SVG of each
+            plot (timeline, and heatmap when enabled) into the output ZIP. SVGs
+            stay sharp at any zoom and are editable in vector tools. Off by
+            default to avoid adding a second file per plot. Only applies when
+            plot generation is on.
         minimumUsageDuration:
           type: integer
           description: Sessions shorter than this threshold have their duration_seconds

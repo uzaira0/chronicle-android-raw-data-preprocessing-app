@@ -3,7 +3,9 @@ import { ALL_INTERACTION_TYPES_MAP } from "@/lib/interactionTypes";
 import {
   CATEGORY_COLORS,
   generateAllHeatmaps,
+  generateAllHeatmapSvgs,
   generateAllPlots,
+  generateAllPlotSvgs,
   generateAllScreenPlots,
 } from "@/lib/plotGenerator";
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
@@ -2197,37 +2199,39 @@ export async function processRawCsvContent(
     emit("output", 1);
 
     if (options.enablePlotting) {
-      const plotBlobs = await generateAllPlots(
-        appRows as Parameters<typeof generateAllPlots>[0],
-        timezone,
-        options,
-        PREPROCESSOR_VERSION,
-        preAlgoTsByParticipant,
-      );
-      for (const [pid, blob] of plotBlobs) {
-        outputs.push({
-          kind: "plot",
-          outputFileName: deriveOutputFileName(inputFileName, ` ${pid} App Usage Plot.png`),
-          blob,
-          rowCount: 0,
-          previewRows: [],
-        });
-      }
-      if (options.enableActivityHeatmap) {
-        const heatmapBlobs = await generateAllHeatmaps(
-          appRows as Parameters<typeof generateAllHeatmaps>[0],
-          timezone,
-          options,
-          PREPROCESSOR_VERSION,
-        );
-        for (const [pid, blob] of heatmapBlobs) {
+      const pushPlots = (blobs: Map<string, Blob>, suffix: (pid: string) => string): void => {
+        for (const [pid, blob] of blobs) {
           outputs.push({
             kind: "plot",
-            outputFileName: deriveOutputFileName(inputFileName, ` ${pid} App Usage Heatmap.png`),
+            outputFileName: deriveOutputFileName(inputFileName, suffix(pid)),
             blob,
             rowCount: 0,
             previewRows: [],
           });
+        }
+      };
+
+      const appRowsForPlots = appRows as Parameters<typeof generateAllPlots>[0];
+      pushPlots(
+        await generateAllPlots(appRowsForPlots, timezone, options, PREPROCESSOR_VERSION, preAlgoTsByParticipant),
+        (pid) => ` ${pid} App Usage Plot.png`,
+      );
+      if (options.exportPlotsAsSvg) {
+        pushPlots(
+          await generateAllPlotSvgs(appRowsForPlots, timezone, options, PREPROCESSOR_VERSION, preAlgoTsByParticipant),
+          (pid) => ` ${pid} App Usage Plot.svg`,
+        );
+      }
+      if (options.enableActivityHeatmap) {
+        pushPlots(
+          await generateAllHeatmaps(appRowsForPlots, timezone, options, PREPROCESSOR_VERSION),
+          (pid) => ` ${pid} App Usage Heatmap.png`,
+        );
+        if (options.exportPlotsAsSvg) {
+          pushPlots(
+            await generateAllHeatmapSvgs(appRowsForPlots, timezone, options, PREPROCESSOR_VERSION),
+            (pid) => ` ${pid} App Usage Heatmap.svg`,
+          );
         }
       }
     }
