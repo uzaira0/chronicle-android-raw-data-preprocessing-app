@@ -1,9 +1,11 @@
 name: Web PWA
 
+# Bare-minimum deploy to GitHub Pages. No tests run here — all testing
+# (typecheck, unit, contract, parity, e2e, security) is local via `make all`.
+# Only runs on push to main (and manual dispatch); does not run on pull requests.
+
 on:
   push:
-    branches: [main]
-  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -35,59 +37,17 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-          cache: pip
-
-      - name: Install Python package
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
-
       - name: Install web dependencies
         working-directory: web
         run: npm ci
-
-      - name: Install Playwright browser
-        working-directory: web
-        run: npx playwright install --with-deps chromium
-
-      - name: Typecheck web app
-        working-directory: web
-        run: npm run typecheck
-
-      - name: Run web unit tests
-        working-directory: web
-        run: npm test
-
-      - name: Check generated contract artifacts
-        working-directory: web
-        run: npm run check:contract
 
       - name: Build web app
         working-directory: web
         run: npm run build
 
-      - name: Validate Cloudflare-style build artifact
-        working-directory: web
-        run: npm run check:deploy-artifact
-
       - name: Prepare GitHub Pages artifact
         working-directory: web
         run: npm run prepare:github-pages
-
-      - name: Validate GitHub Pages artifact
-        working-directory: web
-        run: npm run check:github-pages-artifact
-
-      - name: Run deterministic browser parity
-        run: python scripts/run_deterministic_web_parity.py
-
-      - name: Run browser smoke E2E
-        working-directory: web
-        run: npm run test:e2e:smoke
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v5
@@ -95,7 +55,6 @@ jobs:
           path: web/.github-pages-dist
 
   deploy:
-    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     permissions:
