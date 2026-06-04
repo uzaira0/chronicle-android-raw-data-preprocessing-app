@@ -299,102 +299,116 @@ export function ResultPanel({
         {showScreenColumns ? <Stat label="Screen rows" value={summary.screenRows} /> : null}
       </div>
 
-      <div className="result-file-table-wrap">
-        <table className="result-file-table" data-testid="result-file-table">
-          <thead>
-            <tr>
-              <th scope="col">Input file</th>
-              <th scope="col">Status</th>
-              <th scope="col">Input rows</th>
-              <th scope="col">Processed rows</th>
-              {showAppColumns ? <th scope="col">App rows</th> : null}
-              {showScreenColumns ? <th scope="col">Screen rows</th> : null}
-              <th scope="col">Input timezones</th>
-              <th scope="col">Timezone action</th>
-              <th scope="col">Final timezone</th>
-              <th scope="col">Duplicate timestamps corrected</th>
-              <th scope="col">Warnings</th>
-              <th scope="col">Outputs</th>
-            </tr>
-          </thead>
-          <tbody>
-            {results.map((result) => {
-              const progress = progressByFile.get(result.inputFileName);
-              const failed = progress?.status === "error";
-              const fileWarnings = buildPerFileWarnings(result, options);
-              const tzAction = TIMEZONE_ACTION_LABEL[result.timezoneAction];
-              const tzActionDetail =
-                result.timezoneAction === "none"
-                  ? ""
-                  : ` (${result.rowsBeforeTimezoneHandling.toLocaleString()} → ${result.rowsAfterTimezoneHandling.toLocaleString()}, removed ${result.rowsRemovedByTimezone.toLocaleString()})`;
-              return (
-                <tr key={result.inputFileName} data-testid="result-row">
-                  <td>{result.inputFileName}</td>
-                  <td>
-                    <span
-                      className={`status-pill ${failed ? "is-warning" : fileWarnings.length ? "is-warning" : "is-success"}`}
-                    >
-                      {failed ? "Failed" : fileWarnings.length ? "Review" : "Success"}
+      <div className="result-file-cards" data-testid="result-file-table">
+        {results.map((result) => {
+          const progress = progressByFile.get(result.inputFileName);
+          const failed = progress?.status === "error";
+          const fileWarnings = buildPerFileWarnings(result, options);
+          const tzAction = TIMEZONE_ACTION_LABEL[result.timezoneAction];
+          const tzActionDetail =
+            result.timezoneAction === "none"
+              ? ""
+              : `${result.rowsBeforeTimezoneHandling.toLocaleString()} → ${result.rowsAfterTimezoneHandling.toLocaleString()} rows, ${result.rowsRemovedByTimezone.toLocaleString()} removed`;
+          const statusLabel = failed ? "Failed" : fileWarnings.length ? "Review" : "Success";
+          return (
+            <article
+              key={result.inputFileName}
+              className="result-card"
+              data-testid="result-row"
+            >
+              <header className="result-card__head">
+                <span className="result-card__name" title={result.inputFileName}>
+                  {result.inputFileName}
+                </span>
+                <span
+                  className={`status-pill ${failed || fileWarnings.length ? "is-warning" : "is-success"}`}
+                >
+                  {statusLabel}
+                  {fileWarnings.length ? ` · ${fileWarnings.length}` : ""}
+                </span>
+              </header>
+
+              <dl className="result-card__stats">
+                <CardStat label="Input" value={result.originalRowCount} />
+                <CardStat label="Processed" value={result.processedRowCount} />
+                {showAppColumns ? <CardStat label="App" value={result.appRowCount} /> : null}
+                {showScreenColumns ? <CardStat label="Screen" value={result.screenRowCount} /> : null}
+              </dl>
+
+              <div className="result-card__row">
+                <span className="result-card__row-label">Timezone</span>
+                <span className="result-card__row-body">
+                  <span className="result-card__tz-final">{result.timezone || "—"}</span>
+                  {result.availableTimezones.length > 1 ? (
+                    <span className="result-card__chips">
+                      {result.availableTimezones.map((zone) => (
+                        <span className="chip" key={zone}>
+                          {zone}
+                        </span>
+                      ))}
                     </span>
-                  </td>
-                  <td>{result.originalRowCount.toLocaleString()}</td>
-                  <td>{result.processedRowCount.toLocaleString()}</td>
-                  {showAppColumns ? <td>{result.appRowCount.toLocaleString()}</td> : null}
-                  {showScreenColumns ? <td>{result.screenRowCount.toLocaleString()}</td> : null}
-                  <td>
-                    {result.availableTimezones.length ? (
-                      <ul className="result-file-table__timezones">
-                        {result.availableTimezones.map((zone) => (
-                          <li key={zone}>{zone}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td>
+                  ) : null}
+                  <span className="result-card__notes">
                     {tzAction}
-                    {tzActionDetail ? (
-                      <span className="text-faint u-meta-xs">{tzActionDetail}</span>
-                    ) : null}
-                  </td>
-                  <td>{result.timezone || "—"}</td>
-                  <td>{result.duplicateTimestampsCorrected.toLocaleString()}</td>
-                  <td>
-                    {fileWarnings.length ? (
-                      <ul className="result-file-table__warnings">
-                        {fileWarnings.map((warning) => (
-                          <li key={warning}>{warning}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td>
-                    {result.outputs.length ? (
-                      <ul className="result-file-table__outputs">
-                        {result.outputs.map((output) => (
-                          <li key={output.outputFileName}>
-                            <code>{output.outputFileName}</code>
-                            <span className="text-faint u-meta-xs">
-                              {" "}
-                              · {output.rowCount.toLocaleString()} rows
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                    {tzActionDetail ? ` · ${tzActionDetail}` : ""}
+                    {result.duplicateTimestampsCorrected > 0
+                      ? ` · ${result.duplicateTimestampsCorrected.toLocaleString()} duplicate timestamps corrected`
+                      : ""}
+                  </span>
+                </span>
+              </div>
+
+              <div className="result-card__row">
+                <span className="result-card__row-label">Outputs</span>
+                <span className="result-card__row-body">
+                  {result.outputs.length ? (
+                    <span className="result-card__chips">
+                      {result.outputs.map((output) => (
+                        <span
+                          className="chip chip--output"
+                          key={output.outputFileName}
+                          title={output.outputFileName}
+                        >
+                          {OUTPUT_KIND_LABEL[output.kind] ?? output.kind}
+                          {output.kind !== "plot"
+                            ? ` · ${output.rowCount.toLocaleString()} rows`
+                            : ""}
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    <span className="text-faint">No outputs</span>
+                  )}
+                </span>
+              </div>
+
+              {fileWarnings.length ? (
+                <ul className="result-card__warnings">
+                  {fileWarnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </article>
+          );
+        })}
       </div>
     </section>
+  );
+}
+
+const OUTPUT_KIND_LABEL: Record<string, string> = {
+  app: "App CSV",
+  screen: "Screen CSV",
+  plot: "Plot",
+};
+
+function CardStat({ label, value }: { label: string; value: number }): ReactElement {
+  return (
+    <div className="result-card__stat">
+      <dt>{label}</dt>
+      <dd>{value.toLocaleString()}</dd>
+    </div>
   );
 }
 
