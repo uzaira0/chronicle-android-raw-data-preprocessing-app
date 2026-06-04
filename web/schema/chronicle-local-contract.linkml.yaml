@@ -77,6 +77,7 @@ classes:
       - use_apps_forcing_screen_open_file
       - use_background_apps_file
       - use_app_codebook
+      - include_category_column
       - enable_plotting
       - include_filtered_app_usage_in_plots
       - enable_activity_heatmap
@@ -277,6 +278,17 @@ slots:
       (Play Store genre, USC category, UMich classifications, etc.).
       Without an uploaded codebook the bundled default is used.
     default: true
+  include_category_column:
+    range: boolean
+    required: true
+    title: "Include app category column"
+    description: >-
+      Add the normalized broad app category (the same value used to colour the
+      plots — Games, Education, Social & Communication, …) as a
+      `broad_app_category` column in the app-usage output. Derived by coalescing
+      the codebook's per-source category columns and mapping them onto the
+      standard palette. Requires the app codebook; off by default.
+    default: false
   enable_plotting:
     range: boolean
     required: true

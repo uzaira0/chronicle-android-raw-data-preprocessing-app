@@ -70,6 +70,58 @@ _CODEBOOK_COLUMN_RENAME_MAP: dict[str, str] = {
 }
 _CODEBOOK_OUTPUT_COLUMNS: tuple[str, ...] = tuple(_CODEBOOK_COLUMN_RENAME_MAP.values())
 
+# Normalized broad-app-category derivation. MUST stay byte-identical to the web
+# `deriveBroadAppCategory` / `BROAD_CATEGORY_ALIASES` in
+# web/src/lib/browserPipeline.ts so the optional `broad_app_category` output
+# column (include_category_column) matches across surfaces under the parity
+# harness. The palette is the CATEGORY_COLORS keys (minus "Unknown") from
+# web/src/lib/plotGenerator.ts.
+_BROAD_CATEGORY_PALETTE: tuple[str, ...] = (
+    "Games",
+    "Video Players (e.g. YouTube)",
+    "Social & Communication",
+    "Entertainment",
+    "Lifestyle",
+    "Productivity & Business",
+    "Health",
+    "Education",
+    "Travel & Local",
+    "News & Magazines",
+    "Photography",
+    "Uncategorised",
+)
+_BROAD_CATEGORY_ALIASES: dict[str, str] = {
+    # babyemu_broad_app_category (UPPERCASE enum)
+    "GAMING": "Games",
+    "SOCIAL": "Social & Communication",
+    "COMMUNICATION": "Social & Communication",
+    "VIDEO": "Video Players (e.g. YouTube)",
+    "LIFESTYLE_MANAGEMENT": "Lifestyle",
+    "PRODUCTIVITY_AND_BUSINESS": "Productivity & Business",
+    "ARTS_AND_LEISURE": "Entertainment",
+    "KNOWLEDGE_AND_INFORMATION": "Education",
+    "UTILITIES": "Productivity & Business",
+    # non-app buckets from bcm_cnrc_heuristic_category / usc_broad_app_category
+    "System/OEM": "Uncategorised",
+    "Other": "Uncategorised",
+}
+# A stripped value maps to itself if already a palette category, else via the
+# aliases, else to null (unmapped → skipped during coalescing).
+_BROAD_CATEGORY_NORMALIZE_MAP: dict[str, str] = {
+    **{value: value for value in _BROAD_CATEGORY_PALETTE},
+    **_BROAD_CATEGORY_ALIASES,
+}
+_BROAD_CATEGORY_UNCATEGORISED = "Uncategorised"
+_BROAD_CATEGORY_UNKNOWN = "Unknown"
+# Candidate source columns in the web's coalesce order (play_store → usc →
+# babyemu → bcm).
+_BROAD_CATEGORY_SOURCE_COLUMNS: tuple[str, ...] = (
+    Column.PLAY_STORE_BROAD_APP_CATEGORY,
+    Column.USC_BROAD_APP_CATEGORY,
+    Column.BABYEMU_BROAD_APP_CATEGORY,
+    Column.BCM_CNRC_HEURISTIC_CATEGORY,
+)
+
 
 def polars_fast_path_enabled() -> bool:
     """Return whether the Polars-native fast path should be used."""
@@ -1049,6 +1101,48 @@ class PolarsFastPathPreprocessor:
     def _null_string_expr() -> pl.Expr:
         return pl.lit(None).cast(pl.String)
 
+    @staticmethod
+    def _normalized_broad_category_expr(candidate_columns: list[str]) -> pl.Expr:
+        """Coalesce + normalize the per-source category columns onto the palette.
+
+        Mirrors the web `deriveBroadAppCategory` exactly: for each candidate (in
+        order) strip and map onto the palette (via aliases); take the first value
+        that is a *specific* (non-"Uncategorised") palette category; otherwise
+        "Uncategorised" if any candidate normalized to it; otherwise "Unknown".
+        """
+        if not candidate_columns:
+            return pl.lit(_BROAD_CATEGORY_UNKNOWN).alias(Column.BROAD_APP_CATEGORY)
+        normalized = [
+            pl.col(column)
+            .cast(pl.Utf8)
+            .str.strip_chars()
+            .replace_strict(
+                _BROAD_CATEGORY_NORMALIZE_MAP,
+                default=None,
+                return_dtype=pl.String,
+            )
+            for column in candidate_columns
+        ]
+        specific = pl.coalesce(
+            [
+                pl.when(value.is_not_null() & (value != _BROAD_CATEGORY_UNCATEGORISED))
+                .then(value)
+                .otherwise(pl.lit(None, dtype=pl.String))
+                for value in normalized
+            ]
+        )
+        any_uncategorised = pl.any_horizontal(
+            [value == _BROAD_CATEGORY_UNCATEGORISED for value in normalized]
+        )
+        return (
+            pl.when(specific.is_not_null())
+            .then(specific)
+            .when(any_uncategorised)
+            .then(pl.lit(_BROAD_CATEGORY_UNCATEGORISED))
+            .otherwise(pl.lit(_BROAD_CATEGORY_UNKNOWN))
+            .alias(Column.BROAD_APP_CATEGORY)
+        )
+
     def _enrich_with_app_codebook_data(self, df: pl.DataFrame) -> pl.DataFrame:
         if not self.options.use_app_codebook:
             return df
@@ -1087,15 +1181,7 @@ class PolarsFastPathPreprocessor:
             )
 
         broad_category_candidates = [
-            column
-            for column in (
-                Column.PLAY_STORE_BROAD_APP_CATEGORY,
-                Column.USC_BROAD_APP_CATEGORY,
-                Column.BABYEMU_BROAD_APP_CATEGORY,
-                Column.BCM_CNRC_HEURISTIC_CATEGORY,
-                Column.BROAD_APP_CATEGORY,
-            )
-            if column in df.columns
+            column for column in _BROAD_CATEGORY_SOURCE_COLUMNS if column in df.columns
         ]
         genre_id_candidates = [
             column
@@ -1108,9 +1194,7 @@ class PolarsFastPathPreprocessor:
             if column in df.columns
         ]
         genre_value_list_column = "__chronicle_genre_values"
-        broad_category_expr = pl.coalesce(
-            [*(self._blank_to_null_expr(column) for column in broad_category_candidates), pl.lit("Unknown")]
-        ).alias(Column.BROAD_APP_CATEGORY)
+        broad_category_expr = self._normalized_broad_category_expr(broad_category_candidates)
         if genre_id_candidates:
             df = df.with_columns(
                 pl.concat_list(
@@ -1309,6 +1393,14 @@ class PolarsFastPathPreprocessor:
         include_legacy_codebook_aliases = not (
             self.options.use_app_codebook and self.app_codebook is not None
         )
+        # broad_app_category is the normalized category. It's emitted either as a
+        # legacy codebook alias (when the codebook isn't actively enriching) or
+        # explicitly via include_category_column. Both require the codebook path
+        # to have produced the column at all (use_app_codebook). Mirrors the web
+        # gating `useAppCodebook && (includeCodebookAliases || includeCategoryColumn)`.
+        include_broad_app_category = self.options.use_app_codebook and (
+            include_legacy_codebook_aliases or self.options.include_category_column
+        )
         identification_columns = [
             Column.STUDY_ID,
             Column.STUDY_NAME,
@@ -1321,11 +1413,7 @@ class PolarsFastPathPreprocessor:
             Column.APP_PACKAGE_NAME,
             Column.APPLICATION_LABEL,
             Column.GENRE_ID_SCRAPED,
-            *(
-                [Column.BROAD_APP_CATEGORY]
-                if include_legacy_codebook_aliases
-                else []
-            ),
+            *([Column.BROAD_APP_CATEGORY] if include_broad_app_category else []),
             *_CODEBOOK_OUTPUT_COLUMNS,
             Column.INTERACTION_TYPE,
         ]
