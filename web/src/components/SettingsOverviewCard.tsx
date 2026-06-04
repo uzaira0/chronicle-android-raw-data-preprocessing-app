@@ -80,6 +80,22 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
                 }))
               }
             />
+            <ToggleField
+              label="Generate activity heatmaps"
+              checked={options.enableActivityHeatmap}
+              onChange={(value) =>
+                setOptions((current) => ({ ...current, enableActivityHeatmap: value }))
+              }
+              testId="toggle-enableActivityHeatmap"
+              tooltip={TOOLTIPS.enableActivityHeatmap}
+              modified={!isOptionDefault("enableActivityHeatmap", options.enableActivityHeatmap)}
+              onReset={() =>
+                setOptions((current) => ({
+                  ...current,
+                  enableActivityHeatmap: DEFAULT_BROWSER_OPTIONS.enableActivityHeatmap,
+                }))
+              }
+            />
           </div>
         ) : null}
       </SettingsField>

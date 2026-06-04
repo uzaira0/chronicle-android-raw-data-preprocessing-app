@@ -6,16 +6,19 @@ import {
 } from "@/lib/browserPipeline";
 import { generateAllPlots } from "@/lib/plotGenerator";
 
-// Spread the real module and stub the two plot generators: browserPipeline
-// imports CATEGORY_COLORS at module scope (PALETTE_CATEGORIES is built from it
-// at load time), so a bare mock that omits it would crash on import — keep the
-// spread. Plotting and screen usage are now ON by default, so the pipeline
-// invokes both generators; each must resolve to an (iterable) empty Map so the
-// `for...of` over their results doesn't throw and no real canvas is rendered.
+// Spread the real module and stub the canvas-rendering plot generators:
+// browserPipeline imports CATEGORY_COLORS at module scope (PALETTE_CATEGORIES is
+// built from it at load time), so a bare mock that omits it would crash on
+// import — keep the spread. Plotting and screen usage are now ON by default, so
+// the pipeline invokes the app/screen/heatmap generators; each must resolve to
+// an (iterable) empty Map so the `for...of` over their results doesn't throw and
+// no real canvas is rendered. computeHourDayMatrix stays real (it's pure) and is
+// tested directly in heatmap.test.ts.
 vi.mock("@/lib/plotGenerator", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/plotGenerator")>()),
   generateAllPlots: vi.fn(async () => new Map()),
   generateAllScreenPlots: vi.fn(async () => new Map()),
+  generateAllHeatmaps: vi.fn(async () => new Map()),
 }));
 import type {
   LayeredSessionRow,

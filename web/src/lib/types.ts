@@ -128,4 +128,11 @@ export type ProcessedFileResult = {
   rowsAfterTimezoneHandling: number;
   rowsRemovedByTimezone: number;
   duplicateTimestampsCorrected: number;
+  /**
+   * SHA-256 (hex) of the raw input file, computed in the worker where the
+   * bytes live (the parallel path transfers them off the main thread). Used
+   * for the run-manifest provenance sidecar. Optional: only populated by the
+   * worker entry points, not by direct `processRawCsvContent` calls.
+   */
+  inputSha256?: string;
 };

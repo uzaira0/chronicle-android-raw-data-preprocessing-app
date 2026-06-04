@@ -8,7 +8,13 @@ import {
 } from "@/lib/chronicleMatcher";
 import { sampleRawCsv, SAMPLE_FILE_NAME } from "@/lib/sampleRawCsv";
 import { ensureNotificationPermission, sendNotification } from "@/lib/notification";
-import { hasPersistedOptions, persistOptions, readPersistedOptions } from "@/lib/settingsPersistence";
+import {
+  hasPersistedOptions,
+  persistOptions,
+  readPersistedOptions,
+  readSharedConfig,
+  SHARED_CONFIG_PARAM,
+} from "@/lib/settingsPersistence";
 import { inspectRawFiles, type RawFileInspection } from "@/lib/fileInspection";
 import { applyProgressEvent } from "@/lib/progressReducer";
 import type {
@@ -135,7 +141,18 @@ export default function App(): ReactElement {
   const [backgroundAppsFile, setBackgroundAppsFile] = useState<File | null>(null);
   const [appCodebookFile, setAppCodebookFile] = useState<File | null>(null);
   const [discoveredTimezones, setDiscoveredTimezones] = useState<string[]>([]);
-  const [options, setOptions] = useState<BrowserProcessingOptions>(() => readPersistedOptions());
+  // When options are seeded from a shared link we skip the very first persist so
+  // that merely *opening* someone's link does not silently overwrite the
+  // recipient's own saved settings. They take over only once the recipient
+  // actually edits a setting (any later change persists normally). Set
+  // synchronously during init because the persist effect runs before the
+  // URL-strip effect below.
+  const skipNextPersist = useRef(false);
+  const [options, setOptions] = useState<BrowserProcessingOptions>(() => {
+    const shared = typeof window === "undefined" ? null : readSharedConfig(window.location.search);
+    if (shared) skipNextPersist.current = true;
+    return shared ?? readPersistedOptions();
+  });
   const [progressByFile, setProgressByFile] = useState<Record<string, FileProgress>>({});
   const [progressOrder, setProgressOrder] = useState<string[]>([]);
   const [toast, setToast] = useState<{ message: string; isError: boolean } | null>(null);
@@ -145,10 +162,32 @@ export default function App(): ReactElement {
   const resultsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    if (skipNextPersist.current) {
+      skipNextPersist.current = false;
+      return;
+    }
     persistOptions(options);
   }, [options]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.has(SHARED_CONFIG_PARAM)) {
+      // Settings already initialized from the shared link; announce it and
+      // strip the param so a reload/bookmark doesn't keep re-applying it.
+      setToast({
+        message: "Settings loaded from shared link. Your saved settings are kept until you change one.",
+        isError: false,
+      });
+      params.delete(SHARED_CONFIG_PARAM);
+      const query = params.toString();
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + (query ? `?${query}` : "") + window.location.hash,
+      );
+      return;
+    }
     if (hasPersistedOptions()) {
       setToast({ message: "Last used settings restored.", isError: false });
     }

@@ -96,6 +96,7 @@ components:
         - useAppCodebook
         - enablePlotting
         - includeFilteredAppUsageInPlots
+        - enableActivityHeatmap
         - minimumUsageDuration
         - filterZeroDurationSessions
         - customAppEngagementDuration
@@ -197,6 +198,12 @@ components:
           type: boolean
           description: When on, bars for apps that were filtered (but retained in the
             output) are drawn alongside normal app-usage bars.
+        enableActivityHeatmap:
+          type: boolean
+          description: Alongside the timeline chart, render an hour-of-day × calendar-day
+            heatmap PNG per participant showing when app usage happened. Only
+            applies when plot generation is on. Turn off to keep just the
+            timeline charts (one fewer PNG per participant).
         minimumUsageDuration:
           type: integer
           description: Sessions shorter than this threshold have their duration_seconds

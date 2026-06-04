@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 
+import { ALL_INTERACTION_TYPES_MAP } from "@/lib/interactionTypes";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 export type RawFileInspection = {
@@ -13,8 +14,24 @@ export type RawFileInspection = {
   missingTimestampCount: number;
   missingTimezoneCount: number;
   duplicateTimestampCount: number;
+  /** Rows whose event_timestamp is earlier than a preceding row for the same participant. */
+  outOfOrderTimestampCount: number;
+  /** 1-based data-row ordinal of the first out-of-order timestamp, if any. */
+  firstOutOfOrderRow: number | null;
+  /** Distinct interaction_type values not recognized by the pipeline's map. */
+  unrecognizedInteractionTypes: string[];
   warnings: string[];
 };
+
+/**
+ * Raw interaction-type strings the pipeline understands: both the raw input
+ * keys (e.g. "Unknown importance: 23") and their canonical names (e.g.
+ * "Activity Stopped"). Anything outside this set is vendor-specific / unknown.
+ */
+const RECOGNIZED_INTERACTION_TYPES = new Set<string>([
+  ...Object.keys(ALL_INTERACTION_TYPES_MAP),
+  ...Object.values(ALL_INTERACTION_TYPES_MAP),
+]);
 
 export function effectiveWarnings(
   inspection: RawFileInspection,
@@ -96,6 +113,49 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
     timestampCounts.set(value, (timestampCounts.get(value) ?? 0) + 1);
   });
   const duplicateTimestampCount = Array.from(timestampCounts.values()).filter((count) => count > 1).length;
+
+  // Out-of-order detection, scoped per participant_id. A single raw export can
+  // hold several participants concatenated (the pipeline groups by participant
+  // downstream), so a single global running max would false-flag every
+  // participant boundary. Each participant gets its own running max; within a
+  // participant, a timestamp earlier than one already seen signals a
+  // sorting/export problem worth surfacing. Note: bare local wall-clock times
+  // that legitimately move backward across a travel/DST boundary can still
+  // register here — this is a heads-up, not a hard error.
+  let outOfOrderTimestampCount = 0;
+  let firstOutOfOrderRow: number | null = null;
+  const maxSeenMsByParticipant = new Map<string, number>();
+  // A plain loop (not forEach) so TS tracks the firstOutOfOrderRow assignment
+  // for narrowing at the warning site below.
+  for (let index = 0; index < timestampValues.length; index += 1) {
+    const value = timestampValues[index];
+    if (!value || !isValidChronicleTimestamp(value)) continue;
+    const ms = Date.parse(value.replace(" ", "T"));
+    if (Number.isNaN(ms)) continue;
+    const participant = (parsed.data[index]?.participant_id ?? "").trim();
+    const maxSeenMs = maxSeenMsByParticipant.get(participant) ?? Number.NEGATIVE_INFINITY;
+    if (ms < maxSeenMs) {
+      outOfOrderTimestampCount += 1;
+      if (firstOutOfOrderRow === null) firstOutOfOrderRow = index + 1;
+    } else {
+      maxSeenMsByParticipant.set(participant, ms);
+    }
+  }
+
+  // Interaction types the pipeline doesn't recognize (vendor-specific exports,
+  // newer Android event codes). They're passed through unchanged and won't
+  // start or end app-usage sessions — point the user at the interaction-
+  // semantics options that actually exist (stop-type lists / remove list).
+  const unrecognizedInteractionTypes = columnSet.has("interaction_type")
+    ? Array.from(
+        new Set(
+          parsed.data
+            .map((row) => (row.interaction_type ?? "").trim())
+            .filter((value) => value && !RECOGNIZED_INTERACTION_TYPES.has(value)),
+        ),
+      ).sort((left, right) => left.localeCompare(right))
+    : [];
+
   const warnings: string[] = [];
 
   if (!file.name.toLowerCase().endsWith(".csv")) {
@@ -125,6 +185,24 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
   if (invalidTimestampCount > 0) {
     warnings.push(`${invalidTimestampCount.toLocaleString()} rows have invalid event_timestamp values.`);
   }
+  if (outOfOrderTimestampCount > 0) {
+    warnings.push(
+      `${outOfOrderTimestampCount.toLocaleString()} event_timestamp values are out of chronological order` +
+        (firstOutOfOrderRow !== null ? ` (first at data row ${firstOutOfOrderRow.toLocaleString()})` : "") +
+        ".",
+    );
+  }
+  if (unrecognizedInteractionTypes.length) {
+    const sample = unrecognizedInteractionTypes.slice(0, 5).join(", ");
+    const more = unrecognizedInteractionTypes.length > 5 ? ", …" : "";
+    warnings.push(
+      `${unrecognizedInteractionTypes.length.toLocaleString()} unrecognized interaction type` +
+        `${unrecognizedInteractionTypes.length === 1 ? "" : "s"}: ${sample}${more}. ` +
+        "They're kept in the output but won't start or end app-usage sessions. " +
+        "To make one end sessions add it under the interaction types that end a session; " +
+        "to drop it add it under interaction types to remove (both in Interaction semantics).",
+    );
+  }
   // Multiple timezones are normal (a participant who travels) and are resolved
   // downstream by the timezone-handling step (convert/filter). Spanning >1 zone
   // is not a data-quality problem, so it must not raise a warning or feed the
@@ -144,6 +222,9 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
     missingTimestampCount,
     missingTimezoneCount,
     duplicateTimestampCount,
+    outOfOrderTimestampCount,
+    firstOutOfOrderRow,
+    unrecognizedInteractionTypes,
     warnings,
   };
 }

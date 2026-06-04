@@ -27,6 +27,16 @@ function decodeCsvBytes(bytes: ArrayBuffer): string {
   return new TextDecoder("utf-8").decode(bytes);
 }
 
+/**
+ * SHA-256 of the raw input, returned as a lowercase hex string. Runs in the
+ * worker so hashing large batches stays off the main thread. Used for the
+ * run-manifest provenance sidecar.
+ */
+async function computeSha256Hex(data: BufferSource): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 let initPromise: Promise<void> | null = null;
 
 async function ensureInit(): Promise<void> {
@@ -91,7 +101,7 @@ const api = {
     runtime?: BrowserProcessingRuntime,
   ): Promise<ProcessedFileResult> {
     const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
-    return processRawCsvContent(
+    const result = await processRawCsvContent(
       inputFileName,
       csvText,
       options,
@@ -101,6 +111,8 @@ const api = {
       undefined,
       runSplitter,
     );
+    result.inputSha256 = await computeSha256Hex(new TextEncoder().encode(csvText));
+    return result;
   },
   async processRawCsvWithProgress(
     inputFileName: string,
@@ -120,7 +132,7 @@ const api = {
           }
         }
       : undefined;
-    return processRawCsvContent(
+    const result = await processRawCsvContent(
       inputFileName,
       csvText,
       options,
@@ -130,6 +142,8 @@ const api = {
       forward,
       runSplitter,
     );
+    result.inputSha256 = await computeSha256Hex(new TextEncoder().encode(csvText));
+    return result;
   },
   /**
    * Zero-copy variant: caller transfers ownership of the raw CSV bytes.
@@ -145,6 +159,8 @@ const api = {
     onProgress?: (event: ProgressEvent) => void,
   ): Promise<ProcessedFileResult> {
     const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
+    // Hash the raw bytes before decoding (and before the buffer is dropped).
+    const inputSha256 = await computeSha256Hex(csvBytes);
     const csvText = decodeCsvBytes(csvBytes);
     const forward = onProgress
       ? (event: ProgressEvent) => {
@@ -155,7 +171,7 @@ const api = {
           }
         }
       : undefined;
-    return processRawCsvContent(
+    const result = await processRawCsvContent(
       inputFileName,
       csvText,
       options,
@@ -165,6 +181,8 @@ const api = {
       forward,
       runSplitter,
     );
+    result.inputSha256 = inputSha256;
+    return result;
   },
 };
 
