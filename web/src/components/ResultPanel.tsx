@@ -10,6 +10,7 @@ import type {
   TimezoneAction,
 } from "@/lib/types";
 import { PREPROCESSOR_VERSION } from "@/lib/browserPipeline";
+import { buildProcessingReport, readReportEnvironment } from "@/lib/processingReport";
 import type { FileProgress } from "@/components/ProgressList";
 
 type Props = {
@@ -57,40 +58,6 @@ function zipName(kind: "all" | OutputKind): string {
     : kind === "screen" ? "screen-usage-outputs"
     : "plots";
   return `chronicle-${suffix}.zip`;
-}
-
-function buildProcessingReport(
-  results: ProcessedFileResult[],
-  options: BrowserProcessingOptions,
-): string {
-  return JSON.stringify(
-    {
-      generatedAt: new Date().toISOString(),
-      preprocessorVersion: PREPROCESSOR_VERSION,
-      options,
-      files: results.map((result) => ({
-        inputFileName: result.inputFileName,
-        timezone: result.timezone,
-        availableTimezones: result.availableTimezones,
-        originalRowCount: result.originalRowCount,
-        processedRowCount: result.processedRowCount,
-        appRowCount: result.appRowCount,
-        screenRowCount: result.screenRowCount,
-        timezoneAction: result.timezoneAction,
-        rowsBeforeTimezoneHandling: result.rowsBeforeTimezoneHandling,
-        rowsAfterTimezoneHandling: result.rowsAfterTimezoneHandling,
-        rowsRemovedByTimezone: result.rowsRemovedByTimezone,
-        duplicateTimestampsCorrected: result.duplicateTimestampsCorrected,
-        outputs: result.outputs.map((output) => ({
-          kind: output.kind,
-          outputFileName: output.outputFileName,
-          rowCount: output.rowCount,
-        })),
-      })),
-    },
-    null,
-    2,
-  );
 }
 
 function buildPerFileWarnings(
@@ -189,7 +156,18 @@ export function ResultPanel({
   const appOutputs = useMemo(() => collectOutputs(results, "app"), [results]);
   const screenOutputs = useMemo(() => collectOutputs(results, "screen"), [results]);
   const plotOutputs = useMemo(() => collectOutputs(results, "plot"), [results]);
-  const reportText = useMemo(() => buildProcessingReport(results, options), [results, options]);
+  const reportText = useMemo(
+    () =>
+      buildProcessingReport({
+        results,
+        options,
+        preprocessorVersion: PREPROCESSOR_VERSION,
+        generatedAt: new Date().toISOString(),
+        runId: crypto.randomUUID(),
+        environment: readReportEnvironment(),
+      }),
+    [results, options],
+  );
   const batchWarnings = useMemo(
     () => buildBatchWarnings({ results, error, expectedFileCount, progressRows }),
     [results, error, expectedFileCount, progressRows],
