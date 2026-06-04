@@ -105,6 +105,28 @@ describe("fileInspection", () => {
     expect(inspection.warnings.join(" ")).toContain("data row 2");
   });
 
+  it("does not flag a participant boundary in a multi-participant file", async () => {
+    // P01 runs ascending, then P02 begins earlier than P01's last timestamp.
+    // Out-of-order is scoped per participant, so the boundary must NOT flag.
+    const multi = (pid: string, ts: string): string =>
+      `Study,${pid},Target Child,Chat,Unknown importance: 1,com.example.chat,${ts},America/Chicago`;
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw multi.csv",
+        [
+          HEADER,
+          multi("P01", "2026-03-07 10:00:00"),
+          multi("P01", "2026-03-07 11:00:00"),
+          multi("P02", "2026-03-07 08:00:00"), // earlier, but a new participant
+          multi("P02", "2026-03-07 09:00:00"),
+        ].join("\n"),
+      ),
+    );
+
+    expect(inspection.outOfOrderTimestampCount).toBe(0);
+    expect(inspection.firstOutOfOrderRow).toBeNull();
+  });
+
   it("does not flag chronologically ordered timestamps", async () => {
     const inspection = await inspectRawFile(
       fileFromText(
@@ -122,7 +144,7 @@ describe("fileInspection", () => {
     expect(inspection.firstOutOfOrderRow).toBeNull();
   });
 
-  it("flags unrecognized interaction types and points at remapping", async () => {
+  it("flags unrecognized interaction types and points at options that exist", async () => {
     const inspection = await inspectRawFile(
       fileFromText(
         "Raw P09 unknown.csv",
@@ -140,7 +162,10 @@ describe("fileInspection", () => {
       "Unknown importance: 99",
     ]);
     expect(inspection.warnings.join(" ")).toContain("unrecognized interaction type");
-    expect(inspection.warnings.join(" ")).toContain("interaction-type remapping");
+    // Must point only at options that actually exist (no phantom "remapping").
+    expect(inspection.warnings.join(" ")).toContain("interaction types to remove");
+    expect(inspection.warnings.join(" ")).toContain("end a session");
+    expect(inspection.warnings.join(" ")).not.toMatch(/remapping/i);
   });
 
   it("does not flag canonical interaction-type names as unrecognized", async () => {
