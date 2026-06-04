@@ -41,7 +41,25 @@ help:
 # ---------- aggregates ----------
 ci: test rust security
 
-all: ci web parity e2e
+# Run each phase as its own sequential sub-make rather than as four
+# prerequisites of one invocation. With prerequisites, `web`'s two
+# esbuild-spawning recipes (web-test + contract) run in the same make process
+# as `parity`/`e2e`, and under concurrent load make can intermittently finish
+# `web` and then exit 0 WITHOUT running the goals that follow it — a silent
+# false-green. Isolating each phase in its own `$(MAKE)` invocation removes that
+# condition; each line is exit-checked, so a failed or skipped phase aborts
+# before the final success line below. Do not collapse this back to
+# `all: ci web parity e2e`.
+all:
+	@echo "── make all: 1/4 ci ──────────────────────────────"
+	$(MAKE) --no-print-directory ci
+	@echo "── make all: 2/4 web ─────────────────────────────"
+	$(MAKE) --no-print-directory web
+	@echo "── make all: 3/4 parity ──────────────────────────"
+	$(MAKE) --no-print-directory parity
+	@echo "── make all: 4/4 e2e ─────────────────────────────"
+	$(MAKE) --no-print-directory e2e
+	@echo "✓ make all: ci + web + parity + e2e all completed"
 
 security: semgrep ast-grep bandit pip-audit cargo-audit trivy gitleaks
 
