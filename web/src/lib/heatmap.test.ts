@@ -62,6 +62,19 @@ describe("computeHourDayMatrix (#19 heatmap)", () => {
     expect(m.cells[1]![0]).toBe(3600); // 00:00–01:00 on the 8th
   });
 
+  it("keeps a midnight-crossing session's post-midnight slice with no other rows", () => {
+    // Regression: the stop date used to be dropped unless some other row already
+    // carried it. The axis now seeds from each session's spanned dates, so a
+    // lone crossing session always has a row for both days.
+    const m = computeHourDayMatrix(
+      [row(at(2026, 3, 7, 23, 30), at(2026, 3, 8, 0, 30), "2026-03-07")],
+      "UTC",
+    );
+    expect(m.dates).toEqual(["2026-03-07", "2026-03-08"]);
+    expect(m.cells[0]![23]).toBe(1800); // 23:30–24:00 on the 7th
+    expect(m.cells[1]![0]).toBe(1800); // 00:00–00:30 on the 8th
+  });
+
   it("excludes filtered app usage unless the option enables it", () => {
     const rows = [row(at(2026, 3, 7, 9, 0), at(2026, 3, 7, 9, 30), "2026-03-07", "Filtered App Usage")];
     expect(computeHourDayMatrix(rows, "UTC").maxCell).toBe(0);

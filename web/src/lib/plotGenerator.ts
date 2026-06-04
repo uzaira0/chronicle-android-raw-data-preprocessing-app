@@ -904,14 +904,32 @@ export function computeHourDayMatrix(
   const dateFmt = getDateFormatter(timezone);
   const nsToIso = (ns: bigint): string => dateFmt.format(new Date(Number(ns / 1_000_000n)));
 
+  const usageTypes = new Set([APP_USAGE_TYPE]);
+  if (options.includeFilteredAppUsageInPlots) usageTypes.add(FILTERED_APP_USAGE_TYPE);
+
+  // Seed the date axis from the calendar dates each usage session actually spans
+  // (start date through stop date), not just row.date. A session crossing
+  // midnight onto a day with no other activity would otherwise have its
+  // post-midnight slice silently dropped — there'd be no row to land in. Using
+  // session-spanned dates (rather than a contiguous min→max fill) keeps the axis
+  // tight for participants with sparse activity across a wide span.
   const dateSet = new Set<string>();
-  for (const row of rows) if (row.date) dateSet.add(row.date);
+  for (const row of rows) {
+    if (!usageTypes.has(row.interaction_type)) continue;
+    if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) continue;
+    const startSerial = dateSerial(nsToIso(row.start_timestamp_ns));
+    const stopSerial = dateSerial(nsToIso(row.stop_timestamp_ns));
+    for (let s = startSerial; s <= stopSerial; s++) {
+      dateSet.add(
+        s === startSerial
+          ? nsToIso(row.start_timestamp_ns)
+          : new Date(s * 86_400_000).toISOString().slice(0, 10),
+      );
+    }
+  }
   const dates = [...dateSet].sort();
   const dateIndex = new Map(dates.map((d, i) => [d, i]));
   const cells: number[][] = dates.map(() => new Array<number>(24).fill(0));
-
-  const usageTypes = new Set([APP_USAGE_TYPE]);
-  if (options.includeFilteredAppUsageInPlots) usageTypes.add(FILTERED_APP_USAGE_TYPE);
 
   for (const row of rows) {
     if (!usageTypes.has(row.interaction_type)) continue;
