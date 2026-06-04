@@ -861,3 +861,241 @@ export async function generateAllPlots(
   }
   return result;
 }
+
+// ─── hour × day activity heatmap (#19) ──────────────────────────────────────
+
+export type HourDayMatrix = {
+  /** Calendar dates (ISO "YYYY-MM-DD"), one per heatmap row, ascending. */
+  dates: string[];
+  /** dates.length × 24; cell value = seconds of app usage in that (date, hour). */
+  cells: number[][];
+  /** Largest single-cell value, for normalising the colour scale. */
+  maxCell: number;
+};
+
+/** ns → fractional local hour-of-day [0,24) in `timezone`. */
+function nsToLocalHours(ns: bigint, hoursFmt: Intl.DateTimeFormat): number {
+  const ms = Number(ns / 1_000_000n);
+  try {
+    const parts = hoursFmt.formatToParts(new Date(ms));
+    const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+    const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+    const s = Number(parts.find((p) => p.type === "second")?.value ?? 0);
+    return (h % 24) + m / 60 + s / 3600;
+  } catch {
+    return (ms / 3_600_000) % 24;
+  }
+}
+
+/**
+ * Aggregate app-usage seconds into an hour-of-day × calendar-day matrix,
+ * distributing each session across the hour buckets it overlaps (and across
+ * day rows for sessions that cross midnight). Pure and unit-tested; mirrors the
+ * per-day segmentation the timeline bars use.
+ */
+export function computeHourDayMatrix(
+  rows: PlotRow[],
+  timezone: string,
+  options: Pick<BrowserProcessingOptions, "includeFilteredAppUsageInPlots"> = {
+    includeFilteredAppUsageInPlots: false,
+  },
+): HourDayMatrix {
+  const hoursFmt = getHoursFormatter(timezone);
+  const dateFmt = getDateFormatter(timezone);
+  const nsToIso = (ns: bigint): string => dateFmt.format(new Date(Number(ns / 1_000_000n)));
+
+  const usageTypes = new Set([APP_USAGE_TYPE]);
+  if (options.includeFilteredAppUsageInPlots) usageTypes.add(FILTERED_APP_USAGE_TYPE);
+
+  // Seed the date axis from the calendar dates each usage session actually spans
+  // (start date through stop date), not just row.date. A session crossing
+  // midnight onto a day with no other activity would otherwise have its
+  // post-midnight slice silently dropped — there'd be no row to land in. Using
+  // session-spanned dates (rather than a contiguous min→max fill) keeps the axis
+  // tight for participants with sparse activity across a wide span.
+  const dateSet = new Set<string>();
+  for (const row of rows) {
+    if (!usageTypes.has(row.interaction_type)) continue;
+    if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) continue;
+    const startSerial = dateSerial(nsToIso(row.start_timestamp_ns));
+    const stopSerial = dateSerial(nsToIso(row.stop_timestamp_ns));
+    for (let s = startSerial; s <= stopSerial; s++) {
+      dateSet.add(
+        s === startSerial
+          ? nsToIso(row.start_timestamp_ns)
+          : new Date(s * 86_400_000).toISOString().slice(0, 10),
+      );
+    }
+  }
+  const dates = [...dateSet].sort();
+  const dateIndex = new Map(dates.map((d, i) => [d, i]));
+  const cells: number[][] = dates.map(() => new Array<number>(24).fill(0));
+
+  for (const row of rows) {
+    if (!usageTypes.has(row.interaction_type)) continue;
+    if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) continue;
+
+    const startIso = nsToIso(row.start_timestamp_ns);
+    const stopIso = nsToIso(row.stop_timestamp_ns);
+    const startSerial = dateSerial(startIso);
+    const stopSerial = dateSerial(stopIso);
+
+    for (let s = startSerial; s <= stopSerial; s++) {
+      const isoD = s === startSerial ? startIso : new Date(s * 86_400_000).toISOString().slice(0, 10);
+      const di = dateIndex.get(isoD);
+      if (di === undefined) continue;
+      const cellRow = cells[di];
+      if (cellRow === undefined) continue;
+
+      let h0: number;
+      let h1: number;
+      if (s === startSerial && s === stopSerial) {
+        h0 = nsToLocalHours(row.start_timestamp_ns, hoursFmt);
+        h1 = nsToLocalHours(row.stop_timestamp_ns, hoursFmt);
+      } else if (s === startSerial) {
+        h0 = nsToLocalHours(row.start_timestamp_ns, hoursFmt);
+        h1 = 24;
+      } else if (s === stopSerial) {
+        h0 = 0;
+        h1 = nsToLocalHours(row.stop_timestamp_ns, hoursFmt);
+      } else {
+        h0 = 0;
+        h1 = 24;
+      }
+      if (h1 <= h0) continue;
+
+      for (let hour = Math.floor(h0); hour < Math.ceil(h1) && hour < 24; hour++) {
+        const overlapHours = Math.min(h1, hour + 1) - Math.max(h0, hour);
+        if (overlapHours > 0) cellRow[hour] += overlapHours * 3600;
+      }
+    }
+  }
+
+  let maxCell = 0;
+  for (const cellRow of cells) {
+    for (const value of cellRow) if (value > maxCell) maxCell = value;
+  }
+  return { dates, cells, maxCell };
+}
+
+/** White → blue sequential colour ramp for a normalised intensity in [0,1]. */
+function heatColor(t: number): string {
+  const clamp = Math.max(0, Math.min(1, t));
+  const r = Math.round(255 + (8 - 255) * clamp);
+  const g = Math.round(255 + (81 - 255) * clamp);
+  const b = Math.round(255 + (156 - 255) * clamp);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+export async function generateParticipantHeatmapBlob(
+  participantId: string,
+  rows: PlotRow[],
+  timezone: string,
+  options: Pick<BrowserProcessingOptions, "includeFilteredAppUsageInPlots">,
+  version: string,
+): Promise<Blob> {
+  const { dates, cells, maxCell } = computeHourDayMatrix(rows, timezone, options);
+  if (dates.length === 0 || maxCell === 0) {
+    const fallback = buildCanvas(1);
+    const ctx2 = fallback.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+    ctx2.clearRect(0, 0, 1, 1);
+    return canvasToBlob(fallback);
+  }
+
+  const plotAreaHeight = dates.length * ROW_HEIGHT;
+  const totalHeight = Math.max(MARGIN.top + plotAreaHeight + MARGIN.bottom, legendFloorHeight(8));
+  const canvas = buildCanvas(totalHeight);
+  const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+  drawBackground(ctx, totalHeight);
+
+  const dateStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  ctx.fillStyle = "#222";
+  ctx.font = "bold 18px system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(`${participantId} — Hourly Activity Heatmap`, MARGIN.left, 28);
+  ctx.font = FONT_SMALL;
+  ctx.fillStyle = "#777";
+  ctx.fillText(`Generated ${dateStr} · v${version} · ${timezone}`, MARGIN.left, 46);
+
+  const plotTop = MARGIN.top;
+  const plotBottom = MARGIN.top + plotAreaHeight;
+  const colWidth = plotWidth() / 24;
+
+  // Cells
+  for (let di = 0; di < dates.length; di++) {
+    const y = plotTop + di * ROW_HEIGHT;
+    const cellRow = cells[di]!;
+    for (let hour = 0; hour < 24; hour++) {
+      ctx.fillStyle = heatColor(cellRow[hour]! / maxCell);
+      ctx.fillRect(hoursToX(hour), y, colWidth, ROW_HEIGHT);
+    }
+  }
+
+  // Date labels (left)
+  ctx.font = FONT;
+  ctx.fillStyle = "#555";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  dates.forEach((d, i) => {
+    ctx.fillText(formatDateLabel(d), MARGIN.left - 8, plotTop + i * ROW_HEIGHT + ROW_HEIGHT / 2);
+  });
+
+  // Hour labels (top) every 2 hours + grid border
+  ctx.font = FONT_SMALL;
+  ctx.fillStyle = "#666";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  for (let hour = 0; hour <= 24; hour += 2) {
+    ctx.fillText(String(hour), hoursToX(hour), plotTop - 6);
+  }
+  ctx.strokeStyle = "#ccc";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(MARGIN.left, plotTop, plotWidth(), plotAreaHeight);
+
+  ctx.font = FONT;
+  ctx.fillStyle = "#444";
+  ctx.textAlign = "center";
+  ctx.fillText("Time of Day (Hours)", MARGIN.left + plotWidth() / 2, plotBottom + MARGIN.bottom - 10);
+
+  // Colour-scale legend (right)
+  const legendX = CANVAS_WIDTH - MARGIN.right + 24;
+  const legendTop = plotTop;
+  const legendH = Math.min(plotAreaHeight, 200);
+  const steps = 32;
+  for (let i = 0; i < steps; i++) {
+    const t = 1 - i / (steps - 1);
+    ctx.fillStyle = heatColor(t);
+    ctx.fillRect(legendX, legendTop + (i / steps) * legendH, 16, legendH / steps + 1);
+  }
+  ctx.fillStyle = "#555";
+  ctx.font = FONT_SMALL;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillText(`${Math.round(maxCell / 60)} min`, legendX + 22, legendTop);
+  ctx.fillText("0 min", legendX + 22, legendTop + legendH);
+  ctx.fillText("App usage / hour", legendX, legendTop - 12);
+
+  return canvasToBlob(canvas);
+}
+
+export async function generateAllHeatmaps(
+  rows: PlotRow[],
+  timezone: string,
+  options: Pick<BrowserProcessingOptions, "includeFilteredAppUsageInPlots">,
+  version: string,
+): Promise<Map<string, Blob>> {
+  const byParticipant = new Map<string, PlotRow[]>();
+  for (const row of rows) {
+    const pid = ((row as unknown as Record<string, unknown>)["participant_id"] as string) ?? "unknown";
+    const arr = byParticipant.get(pid) ?? [];
+    arr.push(row);
+    byParticipant.set(pid, arr);
+  }
+
+  const result = new Map<string, Blob>();
+  for (const [pid, pRows] of byParticipant) {
+    result.set(pid, await generateParticipantHeatmapBlob(pid, pRows, timezone, options, version));
+  }
+  return result;
+}

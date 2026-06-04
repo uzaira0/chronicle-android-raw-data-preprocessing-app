@@ -1,5 +1,6 @@
 import {
   BOOLEAN_BROWSER_OPTION_KEYS,
+  BROWSER_PROCESSING_OPTION_KEYS,
   NUMBER_BROWSER_OPTION_KEYS,
   NUMBER_ARRAY_BROWSER_OPTION_KEYS,
   STRING_BROWSER_OPTION_KEYS,
@@ -204,4 +205,67 @@ export async function readConfigFile(file: File): Promise<ImportedConfig> {
     options: sanitizeOptions(source.currentSettings),
     presets: sanitizePresets(source.presets),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Shareable config via URL (#23)
+// ---------------------------------------------------------------------------
+
+/** URL query parameter that carries a shared settings payload. */
+export const SHARED_CONFIG_PARAM = "config";
+
+/**
+ * The subset of options that differ from the defaults. Keeping only the diff
+ * makes share links short and forward-compatible: keys added to the schema
+ * later simply fall back to their defaults when an older link is opened.
+ */
+export function diffOptionsFromDefaults(
+  options: BrowserProcessingOptions,
+): Partial<BrowserProcessingOptions> {
+  const sanitized = sanitizeOptions(options) as Record<string, unknown>;
+  const defaults = DEFAULT_BROWSER_OPTIONS as Record<string, unknown>;
+  const diff: Record<string, unknown> = {};
+  for (const key of BROWSER_PROCESSING_OPTION_KEYS) {
+    if (JSON.stringify(sanitized[key]) !== JSON.stringify(defaults[key])) {
+      diff[key] = sanitized[key];
+    }
+  }
+  return diff as Partial<BrowserProcessingOptions>;
+}
+
+/** Encode options (diff from defaults) into a URL-param string value. */
+export function encodeOptionsToParam(options: BrowserProcessingOptions): string {
+  return JSON.stringify(diffOptionsFromDefaults(options));
+}
+
+/** Decode a URL-param string back to full options, or null if invalid. */
+export function decodeOptionsFromParam(param: string | null): BrowserProcessingOptions | null {
+  if (!param) return null;
+  try {
+    return sanitizeOptions(JSON.parse(param));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Build a shareable URL from `baseUrl`, replacing any existing config param so
+ * re-sharing stays clean.
+ */
+export function buildShareableConfigUrl(
+  options: BrowserProcessingOptions,
+  baseUrl: string,
+): string {
+  const url = new URL(baseUrl);
+  url.searchParams.set(SHARED_CONFIG_PARAM, encodeOptionsToParam(options));
+  return url.toString();
+}
+
+/** Read a shared config from a `location.search` string, or null if absent/invalid. */
+export function readSharedConfig(search: string): BrowserProcessingOptions | null {
+  try {
+    return decodeOptionsFromParam(new URLSearchParams(search).get(SHARED_CONFIG_PARAM));
+  } catch {
+    return null;
+  }
 }
