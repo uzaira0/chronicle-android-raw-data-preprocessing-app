@@ -307,6 +307,23 @@ with a hit-test spatial index + viewport virtualization) → #22 named projects
 
 ### Status
 
-Plan ready for review. **Not started** — confirm before kicking off the build;
-recommended first slice is Phase 1 (web-only, no parity risk), or jump straight
-to #10 if you'd rather validate the parity pattern end-to-end first.
+**Phase 1 — in progress.** Delivered (web-only, no parity risk):
+- ✅ **#25** Run-manifest provenance — runId, per-file input SHA-256 (hashed in
+  the worker), environment; report builder extracted to a pure tested lib.
+- ✅ **#23** Shareable settings via URL (`?config=` diff-from-defaults link).
+- ✅ **#1** Preflight validator — out-of-order timestamps + unrecognized
+  interaction types; interaction-type map extracted to `interactionTypes.ts`.
+- ✅ **#19** Hour×day activity heatmap (pure tested `computeHourDayMatrix` +
+  Canvas renderer, emitted with the timeline plots).
+- ⏭️ **#21** Vector SVG/PDF export — **next, as its own focused PR.** Should
+  share geometry with the Canvas path (hour/day mapping, per-day bar tiling,
+  gap bands) so PNG and SVG can't drift; that shared-geometry refactor is why
+  it's split out rather than bolted onto the Phase-1 batch.
+
+Validation for the four landed features: `tsc --noEmit` clean, vitest 72 passed
+(+20 new), contract check ok, production build ok.
+
+**Next phases unchanged:** Phase 2 (#10 → #2 → #4, establishing the
+add-option+parity pattern), Phase 3 (aggregation subsystem with integer
+accumulation), Phase 4 (formats), Phase 5 (interactive timeline #18, projects
+#22).
