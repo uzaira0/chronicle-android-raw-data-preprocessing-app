@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactElement } from "react";
 import { ResetDefaultsButton } from "@/components/ResetDefaultsButton";
 import {
   buildConfigExportBlob,
+  buildShareableConfigUrl,
   persistPresets,
   readConfigFile,
   readPersistedPresets,
@@ -119,6 +120,25 @@ export function SettingsManagementCard({
             onClick={() => importConfigRef.current?.click()}
           >
             Import config (replaces both)
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            data-testid="share-config-button"
+            onClick={() => {
+              const url = buildShareableConfigUrl(options, window.location.href);
+              const clipboard = navigator.clipboard;
+              if (!clipboard) {
+                onStatus(`Copy not available. Share link: ${url}`, true);
+                return;
+              }
+              void clipboard.writeText(url).then(
+                () => onStatus("Shareable settings link copied to clipboard."),
+                () => onStatus(`Could not copy. Share link: ${url}`, true),
+              );
+            }}
+          >
+            Copy share link
           </button>
           <ResetDefaultsButton options={options} onReset={setOptions} />
           <input
