@@ -25,6 +25,29 @@ describe("fileInspection", () => {
     expect(inspection.warnings).toEqual([]);
   });
 
+  it("does not warn when a participant spans multiple valid timezones (travel)", async () => {
+    // A participant who travels legitimately produces >1 timezone; this is
+    // resolved downstream by the timezone-handling step and must NOT raise a
+    // warning or feed the readiness count. Regression guard for that requirement.
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P02 travel.csv",
+        [
+          "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+          "Study,P02,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+          "Study,P02,Target Child,Maps,Unknown importance: 1,com.example.maps,2026-03-07 14:00:00,America/New_York",
+        ].join("\n"),
+      ),
+    );
+
+    expect(inspection.hasRequiredColumns).toBe(true);
+    expect(inspection.timezones).toEqual(["America/Chicago", "America/New_York"]);
+    // The only thing different about this file is the second timezone; an
+    // otherwise-valid multi-timezone file must produce zero warnings.
+    expect(inspection.warnings).toEqual([]);
+    expect(inspection.warnings.join(" ")).not.toMatch(/timezone values found/i);
+  });
+
   it("surfaces full-file validation warnings for malformed raw CSVs", async () => {
     const inspection = await inspectRawFile(
       fileFromText(

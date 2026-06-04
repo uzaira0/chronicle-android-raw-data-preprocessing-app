@@ -39,6 +39,7 @@ const APPS = [
 ];
 
 const SEED = 0xc0ffee;
+/** @param {number} seed */
 function rng(seed) {
   let s = seed >>> 0;
   return () => {
@@ -53,14 +54,16 @@ const rand = rng(SEED);
 const TIMEZONE = "America/Chicago";
 const PARTICIPANT = "P0001";
 
+/** @param {number} ms */
 function fmt(ms) {
   const d = new Date(ms);
-  const pad = (n) => String(n).padStart(2, "0");
+  const pad = (/** @type {number} */ n) => String(n).padStart(2, "0");
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(
     d.getUTCHours(),
   )}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
 }
 
+/** @param {Array<string | number | null | undefined>} values */
 function row(values) {
   return values.map((v) => (v == null ? "" : String(v))).join(",");
 }
