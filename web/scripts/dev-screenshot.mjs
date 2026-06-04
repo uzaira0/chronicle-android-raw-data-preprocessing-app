@@ -10,6 +10,7 @@ const browser = await chromium.launch();
 const context = await browser.newContext({ viewport: { width: 1440, height: 1800 }, deviceScaleFactor: 2 });
 const page = await context.newPage();
 
+/** @type {string[]} */
 const errors = [];
 page.on("pageerror", (err) => errors.push(`PAGE ERROR: ${err.message}`));
 page.on("console", (msg) => {
