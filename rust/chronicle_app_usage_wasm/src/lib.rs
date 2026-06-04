@@ -32,6 +32,7 @@ pub fn match_app_usage_update_indices(
     same_stop: Vec<u8>,
     other_stop: Vec<u8>,
     stopped: Vec<u8>,
+    background: Vec<u8>,
     allow_stop_event_reuse: bool,
     use_activity_stopped_as_fallback: bool,
     apply_threshold_to_fallback: bool,
@@ -41,6 +42,7 @@ pub fn match_app_usage_update_indices(
     let same_stop = bytes_to_bools(same_stop);
     let other_stop = bytes_to_bools(other_stop);
     let stopped = bytes_to_bools(stopped);
+    let background = bytes_to_bools(background);
     let response = match_app_usage_update_indices_core(
         &app_codes,
         &timestamp_ns,
@@ -48,6 +50,7 @@ pub fn match_app_usage_update_indices(
         &same_stop,
         &other_stop,
         &stopped,
+        &background,
         MatchOptions {
             allow_stop_event_reuse,
             use_activity_stopped_as_fallback,

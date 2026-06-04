@@ -184,6 +184,7 @@ fn validate_lengths(
     same_stop: &[bool],
     other_stop: &[bool],
     stopped: &[bool],
+    background: &[bool],
 ) -> MatcherResult<usize> {
     let len = app_codes.len();
     if timestamp_ns.len() != len
@@ -191,6 +192,7 @@ fn validate_lengths(
         || same_stop.len() != len
         || other_stop.len() != len
         || stopped.len() != len
+        || background.len() != len
     {
         return Err(MatcherError::new("all input arrays must have the same length"));
     }
@@ -218,6 +220,7 @@ fn is_compatible_open_start_for_stop(
     same_stop: &[bool],
     other_stop: &[bool],
     stopped: &[bool],
+    background: &[bool],
     options: MatchOptions,
 ) -> bool {
     let current_app = app_codes[stop_index];
@@ -225,7 +228,11 @@ fn is_compatible_open_start_for_stop(
     let fallback_stop = stopped[stop_index] && options.use_activity_stopped_as_fallback;
     let start_app = app_codes[start_index];
     let same_app_compatible = same_stop[stop_index] && start_app == current_app;
-    let other_app_compatible = other_stop[stop_index] && start_app != current_app;
+    // A background app's session is never closed by another app foregrounding
+    // (an `other_stop` event); it stays alive until its own stop. Callers handle
+    // the background app's own `same_stop`/`stopped` via flag remapping.
+    let other_app_compatible =
+        other_stop[stop_index] && start_app != current_app && !background[start_index];
     let fallback_compatible = !normal_stop && fallback_stop && start_app == current_app;
 
     if !(same_app_compatible || other_app_compatible || fallback_compatible) {
@@ -249,6 +256,7 @@ fn nearest_compatible_open_start_for_stop(
     same_stop: &[bool],
     other_stop: &[bool],
     stopped: &[bool],
+    background: &[bool],
     options: MatchOptions,
 ) -> Option<usize> {
     for (position, &start_index) in open_start_indices.iter().enumerate().rev() {
@@ -260,6 +268,7 @@ fn nearest_compatible_open_start_for_stop(
             same_stop,
             other_stop,
             stopped,
+            background,
             options,
         ) {
             return Some(position);
@@ -276,6 +285,7 @@ fn close_reused_starts<F>(
     same_stop: &[bool],
     other_stop: &[bool],
     stopped: &[bool],
+    background: &[bool],
     options: MatchOptions,
     open_start_indices: &mut Vec<usize>,
     mut close_start: F,
@@ -294,6 +304,7 @@ fn close_reused_starts<F>(
             same_stop,
             other_stop,
             stopped,
+            background,
             options,
         ) {
             close_start(start_index);
@@ -573,6 +584,7 @@ pub fn match_app_usage_core(
     same_stop: &[bool],
     other_stop: &[bool],
     stopped: &[bool],
+    background: &[bool],
     options: MatchOptions,
 ) -> MatcherResult<MatchOutput> {
     let len = validate_lengths(
@@ -582,6 +594,7 @@ pub fn match_app_usage_core(
         same_stop,
         other_stop,
         stopped,
+        background,
     )?;
     let mut start_ns = vec![-1; len];
     let mut stop_ns = vec![-1; len];
@@ -601,6 +614,7 @@ pub fn match_app_usage_core(
                 same_stop,
                 other_stop,
                 stopped,
+                background,
                 options,
                 &mut open_start_indices,
                 |start_index| stop_ns[start_index] = current_timestamp,
@@ -614,6 +628,7 @@ pub fn match_app_usage_core(
                 same_stop,
                 other_stop,
                 stopped,
+                background,
                 options,
             ) {
                 let start_index = open_start_indices.remove(position);
@@ -662,6 +677,7 @@ pub fn match_app_usage_update_indices_core(
     same_stop: &[bool],
     other_stop: &[bool],
     stopped: &[bool],
+    background: &[bool],
     options: MatchOptions,
 ) -> MatcherResult<MatchUpdateIndices> {
     let len = validate_lengths(
@@ -671,6 +687,7 @@ pub fn match_app_usage_update_indices_core(
         same_stop,
         other_stop,
         stopped,
+        background,
     )?;
     let mut start_indices = Vec::new();
     let mut stop_start_indices = Vec::new();
@@ -706,7 +723,9 @@ pub fn match_app_usage_update_indices_core(
                             enforce_threshold,
                             threshold_ns,
                             timestamp_ns,
-                            |start_index| app_codes[start_index] != current_app,
+                            |start_index| {
+                                app_codes[start_index] != current_app && !background[start_index]
+                            },
                             |start_index| {
                                 stop_start_indices.push(start_index);
                                 stop_event_indices.push(index);
@@ -719,7 +738,9 @@ pub fn match_app_usage_update_indices_core(
                             enforce_threshold,
                             threshold_ns,
                             timestamp_ns,
-                            |_start_index| true,
+                            |start_index| {
+                                app_codes[start_index] == current_app || !background[start_index]
+                            },
                             |start_index| {
                                 stop_start_indices.push(start_index);
                                 stop_event_indices.push(index);
@@ -742,14 +763,18 @@ pub fn match_app_usage_update_indices_core(
                         enforce_threshold,
                         threshold_ns,
                         timestamp_ns,
-                        |start_index| app_codes[start_index] != current_app,
+                        |start_index| {
+                            app_codes[start_index] != current_app && !background[start_index]
+                        },
                     ),
                     SparseStopMode::AnyApp => open_starts.latest_matching_global(
                         stop_timestamp_ns,
                         enforce_threshold,
                         threshold_ns,
                         timestamp_ns,
-                        |_start_index| true,
+                        |start_index| {
+                            app_codes[start_index] == current_app || !background[start_index]
+                        },
                     ),
                 };
 
@@ -803,6 +828,7 @@ fn match_app_usage(
     same_stop: Vec<bool>,
     other_stop: Vec<bool>,
     stopped: Vec<bool>,
+    background: Vec<bool>,
     allow_stop_event_reuse: bool,
     use_activity_stopped_as_fallback: bool,
     apply_threshold_to_fallback: bool,
@@ -815,6 +841,7 @@ fn match_app_usage(
         &same_stop,
         &other_stop,
         &stopped,
+        &background,
         MatchOptions {
             allow_stop_event_reuse,
             use_activity_stopped_as_fallback,
@@ -837,6 +864,7 @@ fn match_app_usage_update_indices(
     same_stop: PyReadonlyArray1<'_, bool>,
     other_stop: PyReadonlyArray1<'_, bool>,
     stopped: PyReadonlyArray1<'_, bool>,
+    background: PyReadonlyArray1<'_, bool>,
     allow_stop_event_reuse: bool,
     use_activity_stopped_as_fallback: bool,
     apply_threshold_to_fallback: bool,
@@ -849,6 +877,7 @@ fn match_app_usage_update_indices(
         same_stop.as_slice()?,
         other_stop.as_slice()?,
         stopped.as_slice()?,
+        background.as_slice()?,
         MatchOptions {
             allow_stop_event_reuse,
             use_activity_stopped_as_fallback,
@@ -877,6 +906,7 @@ fn match_app_usage_update_arrays<'py>(
     same_stop: PyReadonlyArray1<'_, bool>,
     other_stop: PyReadonlyArray1<'_, bool>,
     stopped: PyReadonlyArray1<'_, bool>,
+    background: PyReadonlyArray1<'_, bool>,
     allow_stop_event_reuse: bool,
     use_activity_stopped_as_fallback: bool,
     apply_threshold_to_fallback: bool,
@@ -894,6 +924,7 @@ fn match_app_usage_update_arrays<'py>(
         same_stop.as_slice()?,
         other_stop.as_slice()?,
         stopped.as_slice()?,
+        background.as_slice()?,
         MatchOptions {
             allow_stop_event_reuse,
             use_activity_stopped_as_fallback,
@@ -920,6 +951,7 @@ fn match_app_usage_arrays(
     same_stop: PyReadonlyArray1<'_, bool>,
     other_stop: PyReadonlyArray1<'_, bool>,
     stopped: PyReadonlyArray1<'_, bool>,
+    background: PyReadonlyArray1<'_, bool>,
     allow_stop_event_reuse: bool,
     use_activity_stopped_as_fallback: bool,
     apply_threshold_to_fallback: bool,
@@ -931,6 +963,7 @@ fn match_app_usage_arrays(
     let same_stop = same_stop.as_slice()?;
     let other_stop = other_stop.as_slice()?;
     let stopped = stopped.as_slice()?;
+    let background = background.as_slice()?;
 
     let output = match_app_usage_core(
         app_codes,
@@ -939,6 +972,7 @@ fn match_app_usage_arrays(
         same_stop,
         other_stop,
         stopped,
+        background,
         MatchOptions {
             allow_stop_event_reuse,
             use_activity_stopped_as_fallback,
@@ -996,6 +1030,7 @@ mod tests {
         stopped: &[bool],
         options: MatchOptions,
     ) -> MatchOutput {
+        let background = vec![false; app_codes.len()];
         match_app_usage_core(
             app_codes,
             timestamp_ns,
@@ -1003,6 +1038,7 @@ mod tests {
             same_stop,
             other_stop,
             stopped,
+            &background,
             options,
         )
         .expect("core matcher should succeed")
@@ -1017,6 +1053,7 @@ mod tests {
         stopped: &[bool],
         options: MatchOptions,
     ) -> MatchUpdateIndices {
+        let background = vec![false; app_codes.len()];
         match_app_usage_update_indices_core(
             app_codes,
             timestamp_ns,
@@ -1024,6 +1061,7 @@ mod tests {
             same_stop,
             other_stop,
             stopped,
+            &background,
             options,
         )
         .expect("sparse matcher should succeed")
@@ -1335,6 +1373,150 @@ mod tests {
         assert_eq!(
             reconstruct_sparse_output(app_codes.len(), &timestamps, sparse),
             dense
+        );
+    }
+
+    // ── background-app tests ────────────────────────────────────────────────
+
+    fn run_bg(
+        app_codes: &[i32],
+        timestamp_ns: &[i64],
+        resumed: &[bool],
+        same_stop: &[bool],
+        other_stop: &[bool],
+        stopped: &[bool],
+        background: &[bool],
+        options: MatchOptions,
+    ) -> MatchOutput {
+        match_app_usage_core(
+            app_codes, timestamp_ns, resumed, same_stop, other_stop, stopped, background, options,
+        )
+        .expect("core matcher should succeed")
+    }
+
+    fn run_update_indices_bg(
+        app_codes: &[i32],
+        timestamp_ns: &[i64],
+        resumed: &[bool],
+        same_stop: &[bool],
+        other_stop: &[bool],
+        stopped: &[bool],
+        background: &[bool],
+        options: MatchOptions,
+    ) -> MatchUpdateIndices {
+        match_app_usage_update_indices_core(
+            app_codes, timestamp_ns, resumed, same_stop, other_stop, stopped, background, options,
+        )
+        .expect("sparse matcher should succeed")
+    }
+
+    fn background_options() -> MatchOptions {
+        MatchOptions {
+            allow_stop_event_reuse: false,
+            use_activity_stopped_as_fallback: true,
+            apply_threshold_to_fallback: true,
+            long_duration_threshold_ns: 24 * 60 * 60 * 1_000_000_000,
+        }
+    }
+
+    #[test]
+    fn background_app_survives_other_stop_and_closes_on_same_stop() {
+        // index 0: background app S (code 1) resumes at t=0
+        // index 1: app N (code 2) resumes at t=100 with an other-stop that would
+        //          normally close S
+        // index 2: S's (caller-remapped) Activity Stopped arrives as a same-app
+        //          stop at t=300
+        let app_codes = [1, 2, 1];
+        let timestamps = [0, 100, 300];
+        let resumed = [true, true, false];
+        let same_stop = [false, false, true];
+        let other_stop = [false, true, false];
+        let stopped = [false, false, false];
+        let background = [true, false, true];
+        let options = background_options();
+
+        let output = run_bg(
+            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            options,
+        );
+        // S survived N's other-stop (stop=300, not 100); N runs to file end (300).
+        assert_eq!(output.start_ns, vec![0, 100, -1]);
+        assert_eq!(output.stop_ns, vec![300, 300, -1]);
+        assert_eq!(output.missing, vec![false, false, false]);
+
+        // Sparse path agrees with dense.
+        let sparse = run_update_indices_bg(
+            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            options,
+        );
+        assert_eq!(
+            reconstruct_sparse_output(app_codes.len(), &timestamps, sparse),
+            output
+        );
+    }
+
+    #[test]
+    fn non_background_app_is_closed_by_other_stop() {
+        // Same events, but S is not a background app: N's other-stop closes it at 100.
+        let app_codes = [1, 2, 1];
+        let timestamps = [0, 100, 300];
+        let resumed = [true, true, false];
+        let same_stop = [false, false, true];
+        let other_stop = [false, true, false];
+        let stopped = [false, false, false];
+        let background = [false, false, false];
+        let options = background_options();
+
+        let output = run_bg(
+            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            options,
+        );
+        assert_eq!(output.start_ns, vec![0, 100, -1]);
+        assert_eq!(output.stop_ns, vec![100, 300, -1]);
+
+        let sparse = run_update_indices_bg(
+            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            options,
+        );
+        assert_eq!(
+            reconstruct_sparse_output(app_codes.len(), &timestamps, sparse),
+            output
+        );
+    }
+
+    #[test]
+    fn background_only_protects_against_other_stop_with_reuse() {
+        // With stop-event reuse on, a foreground app N's other-stop still must not
+        // close the background app S, while a non-background app B (code 3) is
+        // closed by it.
+        let app_codes = [1, 3, 2];
+        let timestamps = [0, 50, 100];
+        let resumed = [true, true, false];
+        let same_stop = [false, false, false];
+        let other_stop = [false, false, true];
+        let stopped = [false, false, false];
+        let background = [true, false, false];
+        let options = MatchOptions {
+            allow_stop_event_reuse: true,
+            ..background_options()
+        };
+
+        let output = run_bg(
+            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            options,
+        );
+        // index 2 (app 2) other-stop closes B (code 3) but not S (code 1, background).
+        // S stays open -> file-end closure at last timestamp (100).
+        assert_eq!(output.start_ns, vec![0, 50, -1]);
+        assert_eq!(output.stop_ns, vec![100, 100, -1]);
+
+        let sparse = run_update_indices_bg(
+            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            options,
+        );
+        assert_eq!(
+            reconstruct_sparse_output(app_codes.len(), &timestamps, sparse),
+            output
         );
     }
 

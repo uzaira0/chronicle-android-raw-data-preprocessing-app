@@ -131,6 +131,7 @@ export default function App(): ReactElement {
   const [isInspectingFiles, setIsInspectingFiles] = useState(false);
   const [filterFile, setFilterFile] = useState<File | null>(null);
   const [appsForcingScreenOpenFile, setAppsForcingScreenOpenFile] = useState<File | null>(null);
+  const [backgroundAppsFile, setBackgroundAppsFile] = useState<File | null>(null);
   const [appCodebookFile, setAppCodebookFile] = useState<File | null>(null);
   const [discoveredTimezones, setDiscoveredTimezones] = useState<string[]>([]);
   const [options, setOptions] = useState<BrowserProcessingOptions>(() => readPersistedOptions());
@@ -188,6 +189,9 @@ export default function App(): ReactElement {
       : {}),
     ...(options.useAppsForcingScreenOpenFile && appsForcingScreenOpenFile
       ? { appsForcingScreenOpenFile: await readSupportFile(appsForcingScreenOpenFile) }
+      : {}),
+    ...(options.useBackgroundAppsFile && backgroundAppsFile
+      ? { backgroundAppsFile: await readSupportFile(backgroundAppsFile) }
       : {}),
     ...(options.useAppCodebook && appCodebookFile
       ? { appCodebookFile: await readSupportFile(appCodebookFile) }
@@ -488,6 +492,8 @@ export default function App(): ReactElement {
                     setFilterFile={setFilterFile}
                     appsForcingScreenOpenFile={appsForcingScreenOpenFile}
                     setAppsForcingScreenOpenFile={setAppsForcingScreenOpenFile}
+                    backgroundAppsFile={backgroundAppsFile}
+                    setBackgroundAppsFile={setBackgroundAppsFile}
                     appCodebookFile={appCodebookFile}
                     setAppCodebookFile={setAppCodebookFile}
                   />

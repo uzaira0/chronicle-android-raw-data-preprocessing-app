@@ -49,6 +49,10 @@ class AppsForcingScreenOpenFileError(FileOperationError):
     """Errors raised while reading keep-awake app files."""
 
 
+class BackgroundAppsFileError(FileOperationError):
+    """Errors raised while reading background-app files."""
+
+
 class CodebookFileError(FileOperationError):
     """Errors raised while reading app codebooks."""
 
@@ -147,6 +151,33 @@ def read_apps_forcing_screen_open_file(file_path: Path | str) -> dict[str, str]:
         raise
     except Exception as exc:
         raise AppsForcingScreenOpenFileError(f"Failed to read apps-forcing-screen-open file: {exc}") from exc
+
+
+def read_background_apps_file(file_path: Path | str) -> dict[str, str]:
+    """Read background-app metadata (package name -> label/note) from a CSV/XLSX file."""
+    path = Path(file_path)
+    if not path.exists():
+        raise BackgroundAppsFileError(f"Background-apps file does not exist: {path}")
+
+    try:
+        header, rows = _read_small_table(path)
+        if len(header) < 1:
+            raise BackgroundAppsFileError(
+                "Background-apps file must have at least one column (Package Name)"
+            )
+
+        background_apps: dict[str, str] = {}
+        for row in rows:
+            package_name = _normalize_cell(row[0] if len(row) > 0 else None)
+            if not package_name or package_name.startswith("#"):
+                continue
+            label = _normalize_cell(row[1] if len(row) > 1 else None)
+            background_apps[package_name] = label
+        return background_apps
+    except BackgroundAppsFileError:
+        raise
+    except Exception as exc:
+        raise BackgroundAppsFileError(f"Failed to read background-apps file: {exc}") from exc
 
 
 def read_app_codebook(codebook_path: Path | str) -> pl.DataFrame | None:

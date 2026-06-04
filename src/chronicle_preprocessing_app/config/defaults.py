@@ -49,6 +49,16 @@ DEFAULT_APPS_FORCING_SCREEN_OPEN_FILE_PATH = (
 )
 DEFAULT_APPS_FORCING_SCREEN_OPEN_DICT: dict[str, str] = {}
 
+# Background-app defaults. Apps in this list (music, navigation, ...) keep
+# running after they are backgrounded; their usage session stays alive until
+# their own Activity Stopped and overlaps the foreground app (resolved into
+# primary/secondary by the concurrent-usage split).
+DEFAULT_USE_BACKGROUND_APPS_FILE: bool = False
+DEFAULT_BACKGROUND_APPS_FILE_PATH = (
+    "./background_apps_files/Chronicle_Android_raw_data_preprocessor_background_apps.csv"
+)
+DEFAULT_BACKGROUND_APPS_DICT: dict[str, str] = {}
+
 # Screen usage session defaults
 DEFAULT_USAGE_SESSION_MODE: UsageSessionMode = UsageSessionMode.APP_USAGE
 DEFAULT_DERIVE_SCREEN_USAGE_SESSIONS: bool = False

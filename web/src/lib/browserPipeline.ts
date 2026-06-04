@@ -3,6 +3,7 @@ import { CATEGORY_COLORS, generateAllPlots, generateAllScreenPlots } from "@/lib
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
 import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
 import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
+import defaultBackgroundAppsUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv?url";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import type {
   BrowserProcessingOptions,
@@ -48,6 +49,7 @@ export const TIMEZONE_HANDLING_OPTIONS = [
 export const BOOLEAN_OPTION_CONTROLS = [
   { key: "useFilterFile", label: "Use filter file" },
   { key: "useAppsForcingScreenOpenFile", label: "Use apps-forcing-screen-open file" },
+  { key: "useBackgroundAppsFile", label: "Use background-apps file" },
   { key: "useAppCodebook", label: "Use app codebook" },
   { key: "correctDuplicateEventTimestamps", label: "Correct duplicate event timestamps" },
   { key: "allowStopEventReuse", label: "Allow stop-event reuse" },
@@ -536,6 +538,17 @@ export async function resolveDefaultSupportFiles(
       );
     }
   }
+  if (options.useBackgroundAppsFile) {
+    if (uploads?.backgroundAppsFile) {
+      result.backgroundAppsFile = uploads.backgroundAppsFile;
+    } else {
+      tasks.push(
+        fetchDefaultBytes(defaultBackgroundAppsUrl).then((bytes) => {
+          result.backgroundAppsFile = { name: fileNameFromUrl(defaultBackgroundAppsUrl), bytes };
+        }),
+      );
+    }
+  }
   if (options.useAppCodebook) {
     if (uploads?.appCodebookFile) {
       result.appCodebookFile = uploads.appCodebookFile;
@@ -611,6 +624,24 @@ function buildAppsForcingScreenOpenMap(rows: SupportRows): Map<string, string> {
     map.set(packageName, label);
   }
   return map;
+}
+
+/**
+ * Build the set of declared background-app package names. A background app's
+ * usage session is not closed when it is paused or when another app comes to
+ * the foreground; it stays alive until its own Activity Stopped, overlapping
+ * the foreground app (resolved into primary/secondary by the concurrent split).
+ */
+function buildBackgroundAppsSet(rows: SupportRows): Set<string> {
+  const set = new Set<string>();
+  for (const row of rows) {
+    const packageName = requireString(row.package_name ?? row.app_package_name);
+    if (!packageName || packageName.startsWith("#")) {
+      continue;
+    }
+    set.add(packageName);
+  }
+  return set;
 }
 
 function buildCodebookMap(rows: SupportRows): Map<string, CodebookRecord> {
@@ -1125,21 +1156,54 @@ function buildMatcherInput(
   sameStopTypes: Set<string>,
   otherStopTypes: Set<string>,
   options: BrowserProcessingOptions,
+  backgroundApps: Set<string>,
 ): MatcherInput {
   const appPackages = rows.map((row) => row.app_package_name);
   const interactionTypes = rows.map((row) => row.interaction_type);
+  const background = Uint8Array.from(
+    appPackages.map((value) => (backgroundApps.has(value) ? 1 : 0)),
+  );
   // Phase 1: when modelConcurrentUsage is on, every app session runs to its
   // own stop event — other-app resumes must not be treated as stops.
   const otherStopMask = options.modelConcurrentUsage
     ? new Uint8Array(rows.length)
     : Uint8Array.from(interactionTypes.map((value) => (otherStopTypes.has(value) ? 1 : 0)));
+  // Background-app flag remapping. A background app stays alive across
+  // backgrounding (its pause must NOT close it — suppress same_stop) and across
+  // another app foregrounding (the matcher protects its open-start via the
+  // `background` mask). It closes only on:
+  //   - its own re-resume, which SEGMENTS the session (close the prior open
+  //     session, then open a new one — exactly how a normal foreground app
+  //     behaves). Without this a multi-resume background app stacks overlapping
+  //     open sessions that the splitter then layers against itself, multiplying
+  //     its counted time.
+  //   - its own Activity Stopped (the user-chosen bound).
+  // Its own other_stop events are left intact (foregrounding it still ends
+  // other apps).
+  const sameStop = Uint8Array.from(
+    interactionTypes.map((value, index) =>
+      background[index]
+        ? value === resumedType || value === stoppedType
+          ? 1
+          : 0
+        : sameStopTypes.has(value)
+          ? 1
+          : 0,
+    ),
+  );
+  const stopped = Uint8Array.from(
+    interactionTypes.map((value, index) =>
+      background[index] ? 0 : value === stoppedType ? 1 : 0,
+    ),
+  );
   return {
     appCodes: stableFactorize(appPackages),
     timestampNs: BigInt64Array.from(rows.map((row) => row.event_timestamp_ns)),
     resumed: Uint8Array.from(interactionTypes.map((value) => (value === resumedType ? 1 : 0))),
-    sameStop: Uint8Array.from(interactionTypes.map((value) => (sameStopTypes.has(value) ? 1 : 0))),
+    sameStop,
     otherStop: otherStopMask,
-    stopped: Uint8Array.from(interactionTypes.map((value) => (value === stoppedType ? 1 : 0))),
+    stopped,
+    background,
     options: {
       allowStopEventReuse: options.allowStopEventReuse,
       useActivityStoppedAsFallback: options.useActivityStoppedAsFallback,
@@ -1160,9 +1224,18 @@ async function processUsageRows(
   options: BrowserProcessingOptions,
   runMatcher: MatcherRunner,
   runSplitter: SplitterRunner,
+  backgroundApps: Set<string>,
 ): Promise<CanonicalRow[]> {
   const matcherOutput = await runMatcher(
-    buildMatcherInput(rows, resumedType, stoppedType, sameStopTypes, otherStopTypes, options),
+    buildMatcherInput(
+      rows,
+      resumedType,
+      stoppedType,
+      sameStopTypes,
+      otherStopTypes,
+      options,
+      backgroundApps,
+    ),
   );
 
   const nextRows = rows.map((row) => ({ ...row }));
@@ -1220,8 +1293,12 @@ async function processUsageRows(
   const sorted = filtered.sort(compareByEventThenIndex);
 
   // Phase 2: split overlapping sessions. Only for App Usage (not Filtered App
-  // Usage — that path has no timing to split) and only when flag is on.
-  if (options.modelConcurrentUsage && usageType !== "Filtered App Usage") {
+  // Usage — that path has no timing to split) and only when concurrent usage is
+  // modeled OR background apps are in play (a background app's extended session
+  // overlaps the foreground app and must be resolved into primary/secondary to
+  // avoid double-counting).
+  const backgroundActive = backgroundApps.size > 0 && usageType !== "Filtered App Usage";
+  if ((options.modelConcurrentUsage || backgroundActive) && usageType !== "Filtered App Usage") {
     const appUsageRows = sorted.filter((row) => row.interaction_type === usageType);
     const nonUsageRows = sorted.filter((row) => row.interaction_type !== usageType);
 
@@ -1267,6 +1344,7 @@ async function runAppUsageAlgorithm(
   options: BrowserProcessingOptions,
   runMatcher: MatcherRunner,
   runSplitter: SplitterRunner,
+  backgroundApps: Set<string>,
 ): Promise<CanonicalRow[]> {
   let nextRows = rows;
   if (options.useFilterFile) {
@@ -1290,6 +1368,8 @@ async function runAppUsageAlgorithm(
       options,
       runMatcher,
       runSplitter,
+      // Background apps are a valid-app concept; the filtered path never gets them.
+      new Set<string>(),
     );
   }
 
@@ -1308,6 +1388,7 @@ async function runAppUsageAlgorithm(
     options,
     runMatcher,
     runSplitter,
+    backgroundApps,
   );
 }
 
@@ -1727,6 +1808,7 @@ function removeSelectedInteractionTypes(
 function buildAppOutputColumns(
   options: BrowserProcessingOptions,
   includeCodebookAliases: boolean,
+  usageLayerActive: boolean,
 ): string[] {
   const includeCodebookColumns = options.useAppCodebook;
   return [
@@ -1766,7 +1848,7 @@ function buildAppOutputColumns(
     "any_app_usage_time_gap_hours",
     "preprocessor_version",
     "datetime_of_preprocessing",
-    ...(options.modelConcurrentUsage ? ["usage_layer"] : []),
+    ...(usageLayerActive ? ["usage_layer"] : []),
   ];
 }
 
@@ -1811,6 +1893,7 @@ function rowToAppCsvRecord(
   row: CanonicalRow,
   options: BrowserProcessingOptions,
   includeCodebookAliases: boolean,
+  usageLayerActive: boolean,
 ): Record<string, string | number> {
   const record: Record<string, string | number> = {
     study_id: row.study_id,
@@ -1854,7 +1937,7 @@ function rowToAppCsvRecord(
     preprocessor_version: row.preprocessor_version,
     datetime_of_preprocessing: row.datetime_of_preprocessing,
   };
-  if (options.modelConcurrentUsage) {
+  if (usageLayerActive) {
     record.usage_layer = row.usage_layer ?? "";
   }
   if (includeCodebookAliases) {
@@ -1939,8 +2022,9 @@ function buildAppOutputBundle(
   rows: CanonicalRow[],
   options: BrowserProcessingOptions,
   includeCodebookAliases: boolean,
+  usageLayerActive: boolean,
 ): OutputBundle {
-  const columns = buildAppOutputColumns(options, includeCodebookAliases);
+  const columns = buildAppOutputColumns(options, includeCodebookAliases, usageLayerActive);
   const previewRows: string[][] = [columns];
   if (!rows.length) {
     return { blob: new Blob([], { type: CSV_MIME }), rowCount: 0, previewRows };
@@ -1948,7 +2032,7 @@ function buildAppOutputBundle(
   const blobParts: BlobPart[] = [];
   blobParts.push(columns.join(","), "\n");
   for (let i = 0; i < rows.length; i += 1) {
-    const record = rowToAppCsvRecord(rows[i]!, options, includeCodebookAliases);
+    const record = rowToAppCsvRecord(rows[i]!, options, includeCodebookAliases, usageLayerActive);
     const rawCells = columns.map((column) => {
       const value = record[column];
       return value == null ? "" : String(value);
@@ -2057,6 +2141,13 @@ export async function processRawCsvContent(
       await loadSupportRows(supportFiles?.appsForcingScreenOpenFile, defaultAppsForcingScreenOpenUrl),
     );
   }
+
+  let backgroundAppsSet = new Set<string>();
+  if (options.useBackgroundAppsFile) {
+    backgroundAppsSet = buildBackgroundAppsSet(
+      await loadSupportRows(supportFiles?.backgroundAppsFile, defaultBackgroundAppsUrl),
+    );
+  }
   emit("filter", 1);
 
   const outputs: ProcessedOutputFileResult[] = [];
@@ -2084,17 +2175,18 @@ export async function processRawCsvContent(
       arr.push(row.event_timestamp_ns);
     }
 
-    // Guard: concurrent-usage mode requires a real splitter; a no-op would
+    // Guard: the concurrent split requires a real splitter; a no-op would
     // silently drop every App Usage row (nonUsageRows excludes them and the
-    // no-op returns nothing).
-    if (options.modelConcurrentUsage && !runSplitter) {
+    // no-op returns nothing). The split runs when concurrent usage is modeled
+    // OR when background apps are active (their overlaps must be resolved).
+    if ((options.modelConcurrentUsage || backgroundAppsSet.size > 0) && !runSplitter) {
       throw new Error(
-        "runSplitter must be supplied when modelConcurrentUsage is true; got undefined",
+        "runSplitter must be supplied when modelConcurrentUsage is true or background apps are used; got undefined",
       );
     }
     const effectiveSplitter: SplitterRunner = runSplitter ?? (() => Promise.resolve([]));
     emit("matcher", 0);
-    appRows = await runAppUsageAlgorithm(rows, options, runMatcher, effectiveSplitter);
+    appRows = await runAppUsageAlgorithm(rows, options, runMatcher, effectiveSplitter, backgroundAppsSet);
     emit("matcher", 1);
 
     emit("codebook", 0);
@@ -2121,7 +2213,12 @@ export async function processRawCsvContent(
 
     emit("output", 0);
     const includeCodebookAliases = !(options.useAppCodebook && codebookMap.size > 0);
-    const appBundle = buildAppOutputBundle(appRows, options, includeCodebookAliases);
+    // usage_layer is emitted exactly when the concurrent split ran (model
+    // concurrent usage, or a non-empty background-apps set) — mirroring the
+    // Python save path, where df.select keeps the column iff the split produced
+    // it. Gating on the toggle alone would diverge in the empty-file edge.
+    const usageLayerActive = options.modelConcurrentUsage || backgroundAppsSet.size > 0;
+    const appBundle = buildAppOutputBundle(appRows, options, includeCodebookAliases, usageLayerActive);
     outputs.push({
       kind: "app",
       outputFileName: deriveOutputFileName(inputFileName, " Automatically Preprocessed.csv"),

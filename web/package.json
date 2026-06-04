@@ -20,7 +20,7 @@
     "test:e2e:smoke": "node scripts/run-clean-env.mjs playwright test --grep @smoke",
     "process:browser": "vite-node scripts/run_browser_processing.mts",
     "benchmark:browser": "node scripts/benchmark_browser_processing.mjs",
-    "build:wasm": "wasm-pack build ../rust/chronicle_app_usage_wasm --target web --out-dir src/wasm/chronicle_app_usage_wasm/pkg"
+    "build:wasm": "wasm-pack build ../rust/chronicle_app_usage_wasm --target web --out-dir ../../web/src/wasm/chronicle_app_usage_wasm/pkg"
   },
   "dependencies": {
     "comlink": "^4.4.2",

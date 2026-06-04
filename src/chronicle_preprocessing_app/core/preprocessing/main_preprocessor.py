@@ -50,6 +50,7 @@ from chronicle_preprocessing_app.core.preprocessing.timezone_preprocessor import
 from chronicle_preprocessing_app.utils.file_utils import (
     get_matching_files_from_folder,
     read_app_codebook,
+    read_background_apps_file,
     read_filter_file,
     read_apps_forcing_screen_open_file,
 )
@@ -179,6 +180,10 @@ class ChronicleAndroidRawDataPreprocessor:
             self.options.apps_forcing_screen_open_dict = read_apps_forcing_screen_open_file(
                 self.options.apps_forcing_screen_open_file
             )
+        if self.options.use_background_apps_file and not self.options.background_apps_dict:
+            self.options.background_apps_dict = read_background_apps_file(
+                self.options.background_apps_file
+            )
 
     def get_participant_id_from_data(self) -> str:
         if self.current_participant_raw_data_df.is_empty():
@@ -285,11 +290,18 @@ class ChronicleAndroidRawDataPreprocessor:
                 self.stats.mark_processed(raw_path)
                 return output_folder, True, None
 
-            if self.options.model_concurrent_usage:
+            if self.options.model_concurrent_usage or self.options.use_background_apps_file:
+                flag_name = (
+                    "model_concurrent_usage"
+                    if self.options.model_concurrent_usage
+                    else "use_background_apps_file"
+                )
                 message = (
-                    "model_concurrent_usage is only supported on the Polars fast "
+                    f"{flag_name} is only supported on the Polars fast "
                     "path, but the current options route to the legacy path "
-                    "(e.g. survey-data or study-date providers active)."
+                    "(e.g. survey-data or study-date providers active). "
+                    "(Background apps rely on the concurrent-usage split, which "
+                    "is fast-path only.)"
                 )
                 if not self.options.allow_concurrent_usage_fallback:
                     raise ValueError(

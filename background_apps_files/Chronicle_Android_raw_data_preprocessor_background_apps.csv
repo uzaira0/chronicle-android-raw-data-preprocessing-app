@@ -1,0 +1,3 @@
+package_name,label_or_note
+com.spotify.music,Audio (keeps playing while backgrounded)
+com.google.android.apps.maps,Navigation (keeps running while backgrounded)

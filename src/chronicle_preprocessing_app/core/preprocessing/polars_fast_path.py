@@ -531,6 +531,9 @@ class PolarsFastPathPreprocessor:
                 for value in self.options.filtered_same_app_interaction_types_to_stop_usage_at
             },
             other_stop_types=other_stop_types,
+            # Background apps are a valid-app concept; the filtered path never gets
+            # them. Its split policy is unchanged (filtered usage is never split).
+            concurrent=self.options.model_concurrent_usage,
         )
         return df
 
@@ -541,6 +544,16 @@ class PolarsFastPathPreprocessor:
             [str(InteractionType.ACTIVITY_RESUMED), str(InteractionType.ACTIVITY_PAUSED)],
         ).any():
             raise ValueError("No valid app usage data during the study period")
+
+        background_packages: set[str] = (
+            set(self.options.background_apps_dict)
+            if self.options.use_background_apps_file
+            else set()
+        )
+        # Background apps require the concurrent split to resolve their overlap
+        # with the foreground app. Enabling them implies the split without altering
+        # the other_stop policy for normal apps (which still clean-switch).
+        concurrent = self.options.model_concurrent_usage or bool(background_packages)
 
         other_stop_types: set[str]
         if self.options.model_concurrent_usage:
@@ -560,6 +573,8 @@ class PolarsFastPathPreprocessor:
                 str(value) for value in self.options.same_app_interaction_types_to_stop_usage_at
             },
             other_stop_types=other_stop_types,
+            concurrent=concurrent,
+            background_packages=background_packages,
         )
 
     @staticmethod
@@ -664,6 +679,8 @@ class PolarsFastPathPreprocessor:
         stopped_type: str,
         same_stop_types: set[str],
         other_stop_types: set[str],
+        concurrent: bool,
+        background_packages: set[str] | None = None,
     ) -> pl.DataFrame:
         interactions = df.get_column(Column.INTERACTION_TYPE).to_numpy()
         app_packages = (
@@ -675,6 +692,28 @@ class PolarsFastPathPreprocessor:
         other_stop_flags = np.isin(interactions, list(other_stop_types))
         stopped_flags = interactions == stopped_type
 
+        # Background-app flag remapping (mirrors web browserPipeline.buildMatcherInput).
+        # A background app stays alive across backgrounding (its pause must NOT
+        # close it) and across another app foregrounding (the matcher protects its
+        # open-start via background_flags). It closes only on:
+        #   - its own re-resume, which SEGMENTS the session (close the prior open
+        #     session, then open a new one — as a normal foreground app does).
+        #     Without this a multi-resume background app stacks overlapping open
+        #     sessions the splitter then layers against itself, multiplying its
+        #     counted time.
+        #   - its own Activity Stopped (the user-chosen bound).
+        # Its own other_stop events are left intact (foregrounding it still closes
+        # other apps).
+        if background_packages:
+            app_package_names = df.get_column(Column.APP_PACKAGE_NAME).fill_null("").to_numpy()
+            background_flags = np.isin(app_package_names, list(background_packages))
+        else:
+            background_flags = np.zeros(len(interactions), dtype=bool)
+        if background_flags.any():
+            bg_same_stop = (interactions == resumed_type) | (interactions == stopped_type)
+            same_stop_flags = np.where(background_flags, bg_same_stop, same_stop_flags)
+            stopped_flags = stopped_flags & ~background_flags
+
         start_indices, stop_start_indices, stop_event_indices, missing_indices = self._match_usage_updates(
             app_codes=np.ascontiguousarray(app_packages, dtype=np.int32),
             timestamp_ns=np.ascontiguousarray(timestamp_ns, dtype=np.int64),
@@ -682,6 +721,7 @@ class PolarsFastPathPreprocessor:
             same_stop_flags=np.ascontiguousarray(same_stop_flags, dtype=bool),
             other_stop_flags=np.ascontiguousarray(other_stop_flags, dtype=bool),
             stopped_flags=np.ascontiguousarray(stopped_flags, dtype=bool),
+            background_flags=np.ascontiguousarray(background_flags, dtype=bool),
         )
 
         row_count = len(df)
@@ -717,7 +757,7 @@ class PolarsFastPathPreprocessor:
                 Column.INTERACTION_TYPE
             )
         )
-        if self.options.model_concurrent_usage and usage_type == str(InteractionType.APP_USAGE):
+        if concurrent and usage_type == str(InteractionType.APP_USAGE):
             df = self._apply_concurrent_usage_split(df, usage_type)
         # Durations are derived from microseconds (not nanoseconds) on purpose.
         # Polars lowers `/ const` to a reciprocal multiply, and µs/1e6 reproduces
@@ -743,7 +783,7 @@ class PolarsFastPathPreprocessor:
             and self.options.minimum_usage_duration > 0
             and (
                 # Non-concurrent: apply the threshold to full sessions.
-                not self.options.model_concurrent_usage
+                not concurrent
                 # Concurrent: only when the sub-interval option opts in.
                 or self.options.apply_minimum_usage_duration_to_concurrent_subintervals
             )
@@ -790,6 +830,7 @@ class PolarsFastPathPreprocessor:
         same_stop_flags: np.ndarray,
         other_stop_flags: np.ndarray,
         stopped_flags: np.ndarray,
+        background_flags: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         try:
             from chronicle_preprocessing_app import _rust_app_usage_matcher
@@ -806,6 +847,7 @@ class PolarsFastPathPreprocessor:
                 same_stop_flags,
                 other_stop_flags,
                 stopped_flags,
+                background_flags,
                 self.options.allow_stop_event_reuse,
                 self.options.use_activity_stopped_as_fallback,
                 self.options.apply_threshold_to_activity_stopped_fallback,
@@ -821,6 +863,7 @@ class PolarsFastPathPreprocessor:
                 same_stop_flags=same_stop_flags,
                 other_stop_flags=other_stop_flags,
                 stopped_flags=stopped_flags,
+                background_flags=background_flags,
             )
 
     def _match_usage_updates_python(
@@ -832,6 +875,7 @@ class PolarsFastPathPreprocessor:
         same_stop_flags: np.ndarray,
         other_stop_flags: np.ndarray,
         stopped_flags: np.ndarray,
+        background_flags: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         open_start_indices: list[int] = []
         start_indices: list[int] = []
@@ -860,7 +904,11 @@ class PolarsFastPathPreprocessor:
                 for start_index in open_start_indices:
                     start_app = app_codes[start_index]
                     same_app_compatible = bool(same_stop_flags[index] and start_app == current_app)
-                    other_app_compatible = bool(other_stop_flags[index] and start_app != current_app)
+                    other_app_compatible = bool(
+                        other_stop_flags[index]
+                        and start_app != current_app
+                        and not background_flags[start_index]
+                    )
                     fallback_compatible = bool(
                         not is_normal_stop and is_fallback_stop and start_app == current_app
                     )
@@ -883,7 +931,11 @@ class PolarsFastPathPreprocessor:
                     start_index = open_start_indices[position]
                     start_app = app_codes[start_index]
                     same_app_compatible = bool(same_stop_flags[index] and start_app == current_app)
-                    other_app_compatible = bool(other_stop_flags[index] and start_app != current_app)
+                    other_app_compatible = bool(
+                        other_stop_flags[index]
+                        and start_app != current_app
+                        and not background_flags[start_index]
+                    )
                     fallback_compatible = bool(
                         not is_normal_stop and is_fallback_stop and start_app == current_app
                     )
@@ -1322,10 +1374,14 @@ class PolarsFastPathPreprocessor:
             *app_derived_columns,
             *admin_columns,
             # usage_layer is appended last to match the web (browserPipeline) and
-            # Rust (pipeline_v2) output column order.
+            # Rust (pipeline_v2) output column order. Background apps also produce
+            # the primary/secondary split, so the column must be emitted whenever
+            # either feature is on (gated on the toggle, mirroring the column's
+            # presence rule for model_concurrent_usage).
             *(
                 [Column.USAGE_LAYER]
                 if self.options.model_concurrent_usage
+                or self.options.use_background_apps_file
                 else []
             ),
         ]

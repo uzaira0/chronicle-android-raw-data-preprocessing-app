@@ -7,13 +7,14 @@
  * @param {Uint8Array} same_stop
  * @param {Uint8Array} other_stop
  * @param {Uint8Array} stopped
+ * @param {Uint8Array} background
  * @param {boolean} allow_stop_event_reuse
  * @param {boolean} use_activity_stopped_as_fallback
  * @param {boolean} apply_threshold_to_fallback
  * @param {bigint} long_duration_threshold_ns
  * @returns {any}
  */
-export function matchAppUsageUpdateIndices(app_codes, timestamp_ns, resumed, same_stop, other_stop, stopped, allow_stop_event_reuse, use_activity_stopped_as_fallback, apply_threshold_to_fallback, long_duration_threshold_ns) {
+export function matchAppUsageUpdateIndices(app_codes, timestamp_ns, resumed, same_stop, other_stop, stopped, background, allow_stop_event_reuse, use_activity_stopped_as_fallback, apply_threshold_to_fallback, long_duration_threshold_ns) {
     const ptr0 = passArray32ToWasm0(app_codes, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passArray64ToWasm0(timestamp_ns, wasm.__wbindgen_malloc);
@@ -26,7 +27,9 @@ export function matchAppUsageUpdateIndices(app_codes, timestamp_ns, resumed, sam
     const len4 = WASM_VECTOR_LEN;
     const ptr5 = passArray8ToWasm0(stopped, wasm.__wbindgen_malloc);
     const len5 = WASM_VECTOR_LEN;
-    const ret = wasm.matchAppUsageUpdateIndices(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, allow_stop_event_reuse, use_activity_stopped_as_fallback, apply_threshold_to_fallback, long_duration_threshold_ns);
+    const ptr6 = passArray8ToWasm0(background, wasm.__wbindgen_malloc);
+    const len6 = WASM_VECTOR_LEN;
+    const ret = wasm.matchAppUsageUpdateIndices(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, ptr6, len6, allow_stop_event_reuse, use_activity_stopped_as_fallback, apply_threshold_to_fallback, long_duration_threshold_ns);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }

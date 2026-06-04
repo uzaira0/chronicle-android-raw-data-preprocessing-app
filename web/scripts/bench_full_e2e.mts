@@ -92,6 +92,7 @@ async function loadMatcher() {
       sameStop,
       otherStop,
       stopped,
+      new Uint8Array(appCodes.length),
       false,
       true,
       true,

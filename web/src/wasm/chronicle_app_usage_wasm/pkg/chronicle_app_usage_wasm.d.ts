@@ -1,7 +1,7 @@
 /* tslint:disable */
 /* eslint-disable */
 
-export function matchAppUsageUpdateIndices(app_codes: Int32Array, timestamp_ns: BigInt64Array, resumed: Uint8Array, same_stop: Uint8Array, other_stop: Uint8Array, stopped: Uint8Array, allow_stop_event_reuse: boolean, use_activity_stopped_as_fallback: boolean, apply_threshold_to_fallback: boolean, long_duration_threshold_ns: bigint): any;
+export function matchAppUsageUpdateIndices(app_codes: Int32Array, timestamp_ns: BigInt64Array, resumed: Uint8Array, same_stop: Uint8Array, other_stop: Uint8Array, stopped: Uint8Array, background: Uint8Array, allow_stop_event_reuse: boolean, use_activity_stopped_as_fallback: boolean, apply_threshold_to_fallback: boolean, long_duration_threshold_ns: bigint): any;
 
 export function matcherVersion(): string;
 
@@ -23,7 +23,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly matchAppUsageUpdateIndices: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: bigint) => [number, number, number];
+    readonly matchAppUsageUpdateIndices: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: bigint) => [number, number, number];
     readonly matcherVersion: () => [number, number];
     readonly splitOverlappingSessions: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly __wbindgen_malloc: (a: number, b: number) => number;
