@@ -41,7 +41,7 @@ function sorted(values: Iterable<string>): string[] {
   return Array.from(values).sort((left, right) => left.localeCompare(right));
 }
 
-function expectEqual(label: string, actual: string[], expected: string[]): void {
+function expectEqual(label: string, actual: readonly string[], expected: readonly string[]): void {
   const actualSorted = sorted(actual);
   const expectedSorted = sorted(expected);
   if (JSON.stringify(actualSorted) !== JSON.stringify(expectedSorted)) {
@@ -76,13 +76,13 @@ async function main(): Promise<void> {
 
   expectEqual(
     "BrowserProcessingOptions keys vs LinkML slots",
-    BROWSER_PROCESSING_OPTION_KEYS as string[],
+    BROWSER_PROCESSING_OPTION_KEYS,
     linkmlOptionSlots,
   );
   expectEqual(
     "OpenAPI BrowserProcessingOptions properties vs runtime option keys",
     openapiOptionProperties,
-    BROWSER_PROCESSING_OPTION_KEYS as string[],
+    BROWSER_PROCESSING_OPTION_KEYS,
   );
   expectEqual(
     "OpenAPI BrowserProcessingOptions required fields vs LinkML required fields",
@@ -97,13 +97,13 @@ async function main(): Promise<void> {
   );
   expectEqual(
     "BrowserSupportFiles fields vs LinkML slots",
-    BROWSER_SUPPORT_FILE_KEYS as string[],
+    BROWSER_SUPPORT_FILE_KEYS,
     linkmlSupportSlots,
   );
   expectEqual(
     "OpenAPI BrowserSupportFiles properties vs runtime support file keys",
     openapiSupportProperties,
-    BROWSER_SUPPORT_FILE_KEYS as string[],
+    BROWSER_SUPPORT_FILE_KEYS,
   );
 
   const linkmlRuntimeSlots =
@@ -113,13 +113,13 @@ async function main(): Promise<void> {
   );
   expectEqual(
     "BrowserProcessingRuntime fields vs LinkML slots",
-    BROWSER_RUNTIME_KEYS as string[],
+    BROWSER_RUNTIME_KEYS,
     linkmlRuntimeSlots,
   );
   expectEqual(
     "OpenAPI BrowserProcessingRuntime properties vs runtime keys",
     openapiRuntimeProperties,
-    BROWSER_RUNTIME_KEYS as string[],
+    BROWSER_RUNTIME_KEYS,
   );
 
   const discoverTimezonesRequestProperties = Object.keys(
@@ -149,13 +149,13 @@ async function main(): Promise<void> {
     })?.enum ?? [];
   expectEqual(
     "TimezoneHandling enum values",
-    TIMEZONE_HANDLING_VALUES as string[],
+    TIMEZONE_HANDLING_VALUES,
     linkmlTimezoneValues,
   );
   expectEqual(
     "OpenAPI TimezoneHandling enum values",
     openapiTimezoneValues,
-    TIMEZONE_HANDLING_VALUES as string[],
+    TIMEZONE_HANDLING_VALUES,
   );
 
   console.log(

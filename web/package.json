@@ -10,7 +10,7 @@
     "preview": "node scripts/run-clean-env.mjs vite preview --host 127.0.0.1 --port 4173",
     "host:local": "npm run build && npm run preview",
     "prepare:github-pages": "node scripts/run-clean-env.mjs vite-node scripts/prepare_github_pages_artifact.mts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.mjs.json",
     "test": "node scripts/run-clean-env.mjs vitest run",
     "check:contract": "node scripts/run-clean-env.mjs vite-node scripts/generate_contract_artifacts.mts --check && node scripts/run-clean-env.mjs vite-node scripts/check_contract_consistency.mts",
     "check:deploy-artifact": "node scripts/run-clean-env.mjs vite-node scripts/check_deploy_artifact.mts",

@@ -14,6 +14,7 @@ const fileCount = Number(process.argv[3] ?? "50");
 const workerCount = Number(process.argv[4] ?? "4");
 const timeoutMs = Number(process.argv[5] ?? "180000");
 
+/** @param {string} participantId */
 function buildSmallCsv(participantId) {
   // One filtered and one valid app, same timezone, minimal rows — enough to
   // exercise the full pipeline including the WASM matcher.
@@ -46,6 +47,7 @@ await page.addInitScript(() => {
   window.__CHRONICLE_TEST_RUNTIME__ = { datetimeOfPreprocessing: "2026-04-24 00:32:53" };
 });
 
+/** @type {string[]} */
 const errors = [];
 page.on("pageerror", (error) => errors.push(`PAGE ERROR: ${error.message}`));
 

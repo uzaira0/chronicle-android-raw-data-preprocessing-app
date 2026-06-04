@@ -122,16 +122,19 @@ console.error(
 
 const opts = { includeFilteredAppUsageInPlots: false };
 const TZ = "America/Chicago";
+// generateAllPlots requires a `version` (stamped in the plot subtitle); its value
+// doesn't affect timing, so a literal keeps the bench decoupled from the pipeline.
+const VERSION = "bench";
 
 // ── Warmup ────────────────────────────────────────────────────────────────────
-await generateAllPlots(rows as never, TZ, opts);
+await generateAllPlots(rows as never, TZ, opts, VERSION);
 
 // ── Timed runs ────────────────────────────────────────────────────────────────
 const N_RUNS = 5;
 const times: number[] = [];
 for (let i = 0; i < N_RUNS; i++) {
   const t0 = performance.now();
-  await generateAllPlots(rows as never, TZ, opts);
+  await generateAllPlots(rows as never, TZ, opts, VERSION);
   times.push(performance.now() - t0);
 }
 

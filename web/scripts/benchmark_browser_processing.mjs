@@ -4,7 +4,21 @@ import process from "node:process";
 
 import { chromium } from "@playwright/test";
 
+/** @param {string[]} argv */
 function parseArgs(argv) {
+  /**
+   * @type {{
+   *   raw: string[];
+   *   filter: string | null;
+   *   keepAwake: string | null;
+   *   codebook: string | null;
+   *   mode: string;
+   *   timezone: string;
+   *   timezoneHandling: string;
+   *   outputJson: boolean;
+   *   datetime: string;
+   * }}
+   */
   const args = {
     raw: [],
     filter: null,
@@ -58,6 +72,10 @@ function parseArgs(argv) {
   return args;
 }
 
+/**
+ * @param {string} url
+ * @param {number} [timeoutMs]
+ */
 async function waitForServer(url, timeoutMs = 30_000) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
@@ -84,11 +102,13 @@ function spawnPreview() {
   );
 }
 
+/** @param {string} csvText */
 function countCsvRows(csvText) {
   const lines = csvText.split(/\r?\n/).filter(Boolean);
   return Math.max(0, lines.length - 1);
 }
 
+/** @param {import("@playwright/test").Download} download */
 async function readDownload(download) {
   const path = await download.path();
   if (!path) {
@@ -107,6 +127,7 @@ async function main() {
     try {
       const context = await browser.newContext({ acceptDownloads: true });
       const page = await context.newPage();
+      /** @type {string[]} */
       const externalRequests = [];
       page.on("request", (request) => {
         const url = request.url();
@@ -131,12 +152,12 @@ async function main() {
         await navigator.serviceWorker.ready;
         return navigator.serviceWorker.controller !== null;
       });
-      const heapBeforeBytes = await page.evaluate(() =>
-        "memory" in performance &&
-        typeof performance.memory?.usedJSHeapSize === "number"
-          ? performance.memory.usedJSHeapSize
-          : null,
-      );
+      const heapBeforeBytes = await page.evaluate(() => {
+        const memory = /** @type {{ usedJSHeapSize?: number } | undefined} */ (
+          /** @type {{ memory?: unknown }} */ (performance).memory
+        );
+        return typeof memory?.usedJSHeapSize === "number" ? memory.usedJSHeapSize : null;
+      });
 
       const rawFiles = await Promise.all(
         args.raw.map(async (filePath) => ({
@@ -167,12 +188,12 @@ async function main() {
       await page.getByTestId("process-files-button").click();
       await page.getByTestId("result-card").first().waitFor({ state: "visible" });
       const elapsedMs = performance.now() - started;
-      const heapAfterBytes = await page.evaluate(() =>
-        "memory" in performance &&
-        typeof performance.memory?.usedJSHeapSize === "number"
-          ? performance.memory.usedJSHeapSize
-          : null,
-      );
+      const heapAfterBytes = await page.evaluate(() => {
+        const memory = /** @type {{ usedJSHeapSize?: number } | undefined} */ (
+          /** @type {{ memory?: unknown }} */ (performance).memory
+        );
+        return typeof memory?.usedJSHeapSize === "number" ? memory.usedJSHeapSize : null;
+      });
 
       const appDownloadPromise = page.waitForEvent("download");
       await page.getByTestId("download-app-csv").first().click();

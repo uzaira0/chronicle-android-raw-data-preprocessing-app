@@ -16,9 +16,24 @@ const APP_FG = "Unknown importance: 1"; // Activity Resumed
 const APP_BG = "Unknown importance: 2"; // Activity Paused
 
 // A screen-on session bracketing one foreground app use.
+/**
+ * @param {string} pid
+ * @param {string} label
+ * @param {string} pkg
+ * @param {string} date
+ * @param {string} onT
+ * @param {string} fgT
+ * @param {string} bgT
+ * @param {string} offT
+ * @param {string} tz
+ */
 function session(pid, label, pkg, date, onT, fgT, bgT, offT, tz) {
-  const r = (t, type, lbl, p) =>
-    `study,${pid},Android,Target Child,${lbl},${type},${p},${date} ${t},,,${tz}`;
+  const r = (
+    /** @type {string} */ t,
+    /** @type {string} */ type,
+    /** @type {string} */ lbl,
+    /** @type {string} */ p,
+  ) => `study,${pid},Android,Target Child,${lbl},${type},${p},${date} ${t},,,${tz}`;
   return [
     r(onT, SCREEN_ON, "System", "android"),
     r(fgT, APP_FG, label, pkg),
@@ -48,10 +63,19 @@ const FILE_B = [
   ...session("P02", "Maps", "com.example.maps", "2026-03-07", "14:00:00", "14:00:30", "14:29:00", "14:30:00", "America/New_York"),
 ].join("\n");
 
+/**
+ * @param {string} name
+ * @param {string} content
+ */
 function bufFor(name, content) {
   return { name, mimeType: "text/csv", buffer: Buffer.from(content, "utf-8") };
 }
 
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {string} testId
+ * @param {string} dest
+ */
 async function saveDownloadZip(page, testId, dest) {
   const dl = page.waitForEvent("download");
   await page.getByTestId(testId).first().click();
@@ -63,12 +87,15 @@ async function saveDownloadZip(page, testId, dest) {
 }
 
 // minimal STORED-zip reader (createZipBlob writes no compression)
+/** @param {Uint8Array} bytes */
 function unzipStored(bytes) {
   const dec = new TextDecoder();
+  /** @type {Map<string, Uint8Array>} */
   const out = new Map();
   let o = 0;
-  const u16 = (p) => bytes[p] | (bytes[p + 1] << 8);
-  const u32 = (p) => (bytes[p] | (bytes[p + 1] << 8) | (bytes[p + 2] << 16) | (bytes[p + 3] << 24)) >>> 0;
+  const u16 = (/** @type {number} */ p) => bytes[p] | (bytes[p + 1] << 8);
+  const u32 = (/** @type {number} */ p) =>
+    (bytes[p] | (bytes[p + 1] << 8) | (bytes[p + 2] << 16) | (bytes[p + 3] << 24)) >>> 0;
   while (o + 30 <= bytes.byteLength && u32(o) === 0x04034b50) {
     const comp = u16(o + 8);
     const size = u32(o + 18);
@@ -118,7 +145,7 @@ const main = async () => {
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${OUT}/files-tab.png`, fullPage: true });
   } catch (e) {
-    console.log("files-tab capture skipped:", e.message);
+    console.log("files-tab capture skipped:", e instanceof Error ? e.message : String(e));
   }
 
   await page.getByRole("tab", { name: /Process/i }).click();
@@ -141,7 +168,7 @@ const main = async () => {
       }
     }
   } catch (e) {
-    console.log("plot capture skipped:", e.message);
+    console.log("plot capture skipped:", e instanceof Error ? e.message : String(e));
   }
 
   console.log("screenshots written to", OUT);

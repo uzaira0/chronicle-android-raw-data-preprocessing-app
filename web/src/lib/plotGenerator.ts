@@ -280,8 +280,11 @@ type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
  * way: a >1h span between consecutive raw event timestamps. `allEventNs` must be
  * sorted ascending. Returns true when at least one gap was drawn (so the caller
  * can include the "Data Gap" legend entry).
+ *
+ * Exported for unit testing the gap-band geometry (notably the multi-day tiling),
+ * which both the app-usage and screen-usage plots rely on.
  */
-function drawDataGaps(
+export function drawDataGaps(
   ctx: Ctx2D,
   allEventNs: bigint[],
   dateToY: Map<string, number>,
