@@ -364,6 +364,16 @@ test("emits aggregate summary outputs when aggregates are enabled (#8/#13/#15)",
   assertNoExternalRequests(requestTracker);
 });
 
+test("emits Parquet outputs when Parquet export is enabled (#7)", async ({ page }) => {
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await page.getByTestId("toggle-enableParquetExport").check();
+  await processFiles(page);
+
+  await expect(page.getByTestId("download-parquet-zip")).toBeVisible();
+  await expect(page.getByTestId("result-panel")).toContainText("Parquet");
+  assertNoExternalRequests(requestTracker);
+});
+
 test("shows result warnings for suspicious successful outputs", async ({ page }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
   await page.getByTestId("toggle-processScreenUsage").check();
