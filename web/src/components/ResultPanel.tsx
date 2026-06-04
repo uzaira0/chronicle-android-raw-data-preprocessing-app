@@ -56,6 +56,7 @@ function zipName(kind: "all" | OutputKind): string {
     kind === "all" ? "all-outputs"
     : kind === "app" ? "app-usage-outputs"
     : kind === "screen" ? "screen-usage-outputs"
+    : kind === "aggregate" ? "aggregate-summaries"
     : "plots";
   return `chronicle-${suffix}.zip`;
 }
@@ -81,9 +82,10 @@ function buildPerFileWarnings(
     warnings.push("Zero screen-usage rows.");
   }
   result.outputs.forEach((output) => {
-    // Plots are PNG charts, not tabular data — they legitimately have no data
-    // rows, so only flag zero rows for the CSV (app/screen) outputs.
-    if (output.rowCount === 0 && output.kind !== "plot") {
+    // Plots are PNG charts (no rows); aggregate files can be legitimately empty
+    // (e.g. a co-usage edge list with no overlaps). Only flag zero rows for the
+    // primary app/screen CSV outputs.
+    if (output.rowCount === 0 && output.kind !== "plot" && output.kind !== "aggregate") {
       warnings.push(`${output.outputFileName} contains zero data rows.`);
     }
     if (output.blob.size === 0) {
@@ -156,6 +158,7 @@ export function ResultPanel({
   const appOutputs = useMemo(() => collectOutputs(results, "app"), [results]);
   const screenOutputs = useMemo(() => collectOutputs(results, "screen"), [results]);
   const plotOutputs = useMemo(() => collectOutputs(results, "plot"), [results]);
+  const aggregateOutputs = useMemo(() => collectOutputs(results, "aggregate"), [results]);
   const reportText = useMemo(
     () =>
       buildProcessingReport({
@@ -245,6 +248,18 @@ export function ResultPanel({
               }}
             >
               Plots ZIP ({plotOutputs.length})
+            </button>
+          )}
+          {aggregateOutputs.length > 0 && (
+            <button
+              type="button"
+              className="btn btn--secondary"
+              data-testid="download-aggregates-zip"
+              onClick={() => {
+                void downloadZip("aggregate", aggregateOutputs, reportText);
+              }}
+            >
+              Aggregates ZIP ({aggregateOutputs.length})
             </button>
           )}
           <button
@@ -382,6 +397,7 @@ const OUTPUT_KIND_LABEL: Record<string, string> = {
   app: "App CSV",
   screen: "Screen CSV",
   plot: "Plot",
+  aggregate: "Aggregate CSV",
 };
 
 function CardStat({ label, value }: { label: string; value: number }): ReactElement {

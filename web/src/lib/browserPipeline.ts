@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import { ALL_INTERACTION_TYPES_MAP, parseInteractionRemap } from "@/lib/interactionTypes";
+import { buildAggregateOutputs } from "@/lib/aggregations";
 import {
   CATEGORY_COLORS,
   generateAllHeatmaps,
@@ -2292,6 +2293,29 @@ export async function processRawCsvContent(
         });
       }
     }
+  }
+
+  // Aggregate summaries (#8/#12/#13/#15/#16/#17) — opt-in extra outputs computed
+  // as pure post-processing over the app/screen session rows.
+  if (options.enableAggregates) {
+    emit("output", 0);
+    const aggregateOutputs = buildAggregateOutputs(appRows, screenRows, {
+      studyName: options.studyName,
+      shape: options.aggregateShape,
+      includeCategoryBudget: options.useAppCodebook,
+      includeCoUsage: options.modelConcurrentUsage,
+      formatTimestamp: (ns, tz) => formatSessionTimestamp(ns, tz),
+    });
+    for (const aggregate of aggregateOutputs) {
+      outputs.push({
+        kind: "aggregate",
+        outputFileName: deriveOutputFileName(inputFileName, aggregate.suffix),
+        blob: new Blob([aggregate.csv], { type: CSV_MIME }),
+        rowCount: aggregate.rowCount,
+        previewRows: [],
+      });
+    }
+    emit("output", 1);
   }
 
   return {
