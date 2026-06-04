@@ -54,6 +54,7 @@ async function loadMatcher() {
       input.sameStop,
       input.otherStop,
       input.stopped,
+      input.background,
       input.options.allowStopEventReuse,
       input.options.useActivityStoppedAsFallback,
       input.options.applyThresholdToFallback,
