@@ -29,6 +29,7 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "useAppsForcingScreenOpenFile",
   "useBackgroundAppsFile",
   "useAppCodebook",
+  "includeCategoryColumn",
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
   "enableActivityHeatmap",
@@ -65,6 +66,7 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "useAppsForcingScreenOpenFile",
   "useBackgroundAppsFile",
   "useAppCodebook",
+  "includeCategoryColumn",
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
   "enableActivityHeatmap",
@@ -115,6 +117,7 @@ export type BrowserProcessingOptions = {
   useAppsForcingScreenOpenFile: boolean;
   useBackgroundAppsFile: boolean;
   useAppCodebook: boolean;
+  includeCategoryColumn: boolean;
   enablePlotting: boolean;
   includeFilteredAppUsageInPlots: boolean;
   enableActivityHeatmap: boolean;
@@ -149,6 +152,7 @@ export const BOOLEAN_BROWSER_OPTION_KEYS = [
   "useAppsForcingScreenOpenFile",
   "useBackgroundAppsFile",
   "useAppCodebook",
+  "includeCategoryColumn",
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
   "enableActivityHeatmap",
@@ -197,6 +201,7 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   useAppsForcingScreenOpenFile: false,
   useBackgroundAppsFile: false,
   useAppCodebook: true,
+  includeCategoryColumn: false,
   enablePlotting: true,
   includeFilteredAppUsageInPlots: false,
   enableActivityHeatmap: true,
@@ -276,6 +281,10 @@ export const BROWSER_OPTION_TOOLTIPS = {
   useAppCodebook: {
     title: "Use app codebook",
     body: "Enriches each output row with category metadata from the codebook (Play Store genre, USC category, UMich classifications, etc.). Without an uploaded codebook the bundled default is used.",
+  },
+  includeCategoryColumn: {
+    title: "Include app category column",
+    body: "Add the normalized broad app category (the same value used to colour the plots — Games, Education, Social & Communication, …) as a `broad_app_category` column in the app-usage output. Derived by coalescing the codebook's per-source category columns and mapping them onto the standard palette. Requires the app codebook; off by default.",
   },
   enablePlotting: {
     title: "Generate app-usage plots",

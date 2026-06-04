@@ -94,6 +94,7 @@ components:
         - useAppsForcingScreenOpenFile
         - useBackgroundAppsFile
         - useAppCodebook
+        - includeCategoryColumn
         - enablePlotting
         - includeFilteredAppUsageInPlots
         - enableActivityHeatmap
@@ -190,6 +191,14 @@ components:
           description: Enriches each output row with category metadata from the codebook
             (Play Store genre, USC category, UMich classifications, etc.).
             Without an uploaded codebook the bundled default is used.
+        includeCategoryColumn:
+          type: boolean
+          description: Add the normalized broad app category (the same value used to
+            colour the plots — Games, Education, Social & Communication, …) as a
+            `broad_app_category` column in the app-usage output. Derived by
+            coalescing the codebook's per-source category columns and mapping
+            them onto the standard palette. Requires the app codebook; off by
+            default.
         enablePlotting:
           type: boolean
           description: After preprocessing, renders one horizontal-bar timeline chart per
