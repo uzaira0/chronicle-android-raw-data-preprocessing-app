@@ -2319,3 +2319,111 @@ a:hover {
   }
 }
 
+/* Interactive timeline View tab (#18) */
+.timeline-view {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.timeline-view__empty {
+  padding: var(--space-4);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+}
+
+.timeline-view__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.timeline-view__field {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  min-width: 0;
+}
+
+.timeline-view__field select {
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-strong);
+  font: inherit;
+  max-width: 22rem;
+}
+
+.timeline-view__hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-left: auto;
+}
+
+.timeline-view__scene {
+  margin: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.timeline-view__scene-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.timeline-view__scene-title {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-strong);
+}
+
+.timeline-view__scene-actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.timeline-view__canvas-wrap {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.timeline-view__canvas {
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+
+.timeline-view__canvas:active {
+  cursor: grabbing;
+}
+
+.timeline-view__tooltip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 5;
+  max-width: 320px;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  background: rgba(31, 41, 51, 0.95);
+  color: #fff;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.timeline-view__tooltip strong {
+  display: block;
+  margin-bottom: 0.15rem;
+}
+

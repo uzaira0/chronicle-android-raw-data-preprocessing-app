@@ -15,6 +15,9 @@ import {
   generateAllPlots,
   generateAllPlotSvgs,
   generateAllScreenPlots,
+  generateAllScreenPlotSvgs,
+  buildAppTimelineViews,
+  buildScreenTimelineViews,
 } from "@/lib/plotGenerator";
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
 import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
@@ -36,6 +39,7 @@ import type {
   RawChronicleRow,
   SplitterInput,
   SplitterOutput,
+  TimelineViewData,
   TimezoneAction,
 } from "@/lib/types";
 import { buildTimelineViewerHtml } from "@/lib/timelineViewer";
@@ -2576,6 +2580,23 @@ export async function processRawCsvContent(
           previewRows: [],
         });
       }
+      if (options.exportPlotsAsSvg) {
+        const screenSvgBlobs = await generateAllScreenPlotSvgs(
+          screenRows as Parameters<typeof generateAllScreenPlotSvgs>[0],
+          timezone,
+          PREPROCESSOR_VERSION,
+          preAlgoTsByParticipant,
+        );
+        for (const [pid, blob] of screenSvgBlobs) {
+          outputs.push({
+            kind: "plot",
+            outputFileName: deriveOutputFileName(inputFileName, ` ${pid} Screen Usage Plot.svg`),
+            blob,
+            rowCount: 0,
+            previewRows: [],
+          });
+        }
+      }
     }
   }
 
@@ -2604,12 +2625,15 @@ export async function processRawCsvContent(
     emit("output", 1);
   }
 
-  // Timeline viewer (#18) — only built when the option is on. A self-contained
-  // HTML file with App / Screen tabs that embeds the day-grid usage plots,
-  // exported as a download instead of a live canvas explorer (which re-rendered
-  // every session on the main thread and froze on large files). Reuses the plots
-  // already generated for the image export when plotting is on; otherwise renders
-  // them here on demand.
+  // Timeline viewer (#18) — only built when the option is on. Produces two
+  // things: (a) the in-app View tab payload (`timelineView`) — the interactive
+  // day-grid scenes + hover regions, rendered live on the main thread; and (b) a
+  // self-contained HTML file with App / Screen tabs embedding the day-grid usage
+  // plots, exported as a download. Both are opt-in (the payload carries
+  // per-session geometry) so default runs stay light. Reuses the plots already
+  // generated for the image export when plotting is on; otherwise renders them
+  // here on demand.
+  let timelineView: TimelineViewData | undefined;
   if (options.enableInteractiveTimeline) {
     if (!appPlotBlobs && options.processAppUsage && appRows.length > 0) {
       appPlotBlobs = await generateAllPlots(
@@ -2641,6 +2665,29 @@ export async function processRawCsvContent(
       rowCount: 0,
       previewRows: [],
     });
+
+    timelineView = {
+      timezone,
+      app:
+        options.processAppUsage && appRows.length > 0
+          ? buildAppTimelineViews(
+              appRows as Parameters<typeof buildAppTimelineViews>[0],
+              timezone,
+              options,
+              PREPROCESSOR_VERSION,
+              preAlgoTsByParticipant,
+            )
+          : [],
+      screen:
+        options.processScreenUsage && screenRows.length > 0
+          ? buildScreenTimelineViews(
+              screenRows as Parameters<typeof buildScreenTimelineViews>[0],
+              timezone,
+              PREPROCESSOR_VERSION,
+              preAlgoTsByParticipant,
+            )
+          : [],
+    };
   }
 
   return {
@@ -2658,6 +2705,7 @@ export async function processRawCsvContent(
     rowsRemovedByTimezone: timezoneResult.rowsRemoved,
     duplicateTimestampsCorrected,
     exactDuplicateRowsRemoved,
+    timelineView,
   };
 }
 

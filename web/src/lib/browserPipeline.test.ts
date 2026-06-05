@@ -8,7 +8,12 @@ import {
   discoverTimezonesFromRawCsv,
   processRawCsvContent,
 } from "@/lib/browserPipeline";
-import { generateAllHeatmapSvgs, generateAllPlots, generateAllPlotSvgs } from "@/lib/plotGenerator";
+import {
+  generateAllHeatmapSvgs,
+  generateAllPlots,
+  generateAllPlotSvgs,
+  generateAllScreenPlotSvgs,
+} from "@/lib/plotGenerator";
 
 // Spread the real module and stub the canvas-rendering plot generators:
 // browserPipeline imports CATEGORY_COLORS at module scope (PALETTE_CATEGORIES is
@@ -22,6 +27,7 @@ vi.mock("@/lib/plotGenerator", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/plotGenerator")>()),
   generateAllPlots: vi.fn(async () => new Map()),
   generateAllScreenPlots: vi.fn(async () => new Map()),
+  generateAllScreenPlotSvgs: vi.fn(async () => new Map()),
   generateAllHeatmaps: vi.fn(async () => new Map()),
   generateAllPlotSvgs: vi.fn(async () => new Map()),
   generateAllHeatmapSvgs: vi.fn(async () => new Map()),
@@ -588,6 +594,48 @@ describe("browserPipeline", () => {
     expect(html).toContain("data:image/png;base64,");
   });
 
+  it("attaches the in-app View tab payload (scenes + hover regions) only when enabled (#18)", async () => {
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+    ].join("\n");
+    const matcher = async (): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+    const baseOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      enablePlotting: false,
+      processScreenUsage: false,
+      useFilterFile: false,
+      useAppsForcingScreenOpenFile: false,
+      useAppCodebook: false,
+      modelConcurrentUsage: false,
+    };
+
+    const off = await processRawCsvContent("Raw P01.csv", csv, baseOptions, {}, matcher);
+    expect(off.timelineView).toBeUndefined();
+
+    const on = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      { ...baseOptions, enableInteractiveTimeline: true },
+      {},
+      matcher,
+    );
+    expect(on.timelineView).toBeDefined();
+    expect(on.timelineView!.app).toHaveLength(1);
+    expect(on.timelineView!.app[0]!.participantId).toBe("P01");
+    expect(on.timelineView!.app[0]!.scene.primitives.length).toBeGreaterThan(0);
+    expect(on.timelineView!.app[0]!.regions.length).toBeGreaterThan(0);
+    const region = on.timelineView!.app[0]!.regions[0]!;
+    expect(region.title).toBe("com.example.chat");
+    expect(on.timelineView!.screen).toHaveLength(0);
+  });
+
   it("emits progress events for every pipeline phase when onProgress is supplied", async () => {
     const csv = [
       "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
@@ -890,6 +938,39 @@ describe("browserPipeline", () => {
       expect(svgs).toHaveLength(1);
       expect(svgs[0]?.outputFileName).toContain("App Usage Plot.svg");
       expect(svgs[0]?.kind).toBe("plot");
+    });
+
+    it("emits a screen-usage SVG sibling when exportPlotsAsSvg + screen output are on (#21)", async () => {
+      const csv = [
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+        "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+        "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+      ].join("\n");
+      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+        startIndices: [0], stopStartIndices: [0], stopEventIndices: [1], missingIndices: [],
+      });
+      const svgBlob = new Blob(["<svg/>"], { type: "image/svg+xml" });
+      vi.mocked(generateAllScreenPlotSvgs).mockClear();
+      vi.mocked(generateAllScreenPlotSvgs).mockResolvedValue(new Map([["P01", svgBlob]]));
+
+      const base = {
+        ...DEFAULT_BROWSER_OPTIONS,
+        enablePlotting: true,
+        processScreenUsage: true,
+        enableActivityHeatmap: false,
+        useFilterFile: false,
+        useAppsForcingScreenOpenFile: false,
+        useAppCodebook: false,
+      };
+
+      const off = await processRawCsvContent("Raw P01.csv", csv, { ...base, exportPlotsAsSvg: false }, {}, matcher);
+      expect(vi.mocked(generateAllScreenPlotSvgs)).not.toHaveBeenCalled();
+      expect(off.outputs.some((o) => o.outputFileName.endsWith("Screen Usage Plot.svg"))).toBe(false);
+
+      const on = await processRawCsvContent("Raw P01.csv", csv, { ...base, exportPlotsAsSvg: true }, {}, matcher);
+      const screenSvg = on.outputs.find((o) => o.outputFileName.endsWith("Screen Usage Plot.svg"));
+      expect(screenSvg).toBeDefined();
+      expect(screenSvg!.kind).toBe("plot");
     });
 
     it("skips generateAllPlots when enablePlotting is false", async () => {

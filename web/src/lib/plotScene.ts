@@ -76,6 +76,23 @@ export type Scene = {
   primitives: Primitive[];
 };
 
+/**
+ * A hover hit-region over a session bar, in scene coordinates, carrying the
+ * pre-formatted tooltip text. Emitted optionally by the scene builders so the
+ * interactive viewer (#18 View tab) can show per-session details on hover
+ * without re-deriving anything. Pure data → safe to clone across the worker.
+ */
+export type SceneRegion = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Bold tooltip heading (app label / "Screen"). */
+  title: string;
+  /** Tooltip detail lines. */
+  lines: string[];
+};
+
 const DEFAULT_FONT_FAMILY = "system-ui, sans-serif";
 
 function round(value: number): number {

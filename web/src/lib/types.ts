@@ -1,5 +1,22 @@
 export type { BrowserProcessingOptions, BrowserTimezoneHandling, OutputKind } from "@/lib/generatedContract";
 import type { OutputKind } from "@/lib/generatedContract";
+import type { Scene, SceneRegion } from "@/lib/plotScene";
+
+/** One participant's interactive day-grid timeline: the render scene plus the
+ * per-session hover regions, powering the in-app View tab (#18). */
+export type TimelineParticipantView = {
+  participantId: string;
+  scene: Scene;
+  regions: SceneRegion[];
+};
+
+/** Interactive timeline payload for one processed file: app and screen views,
+ * one entry per participant. Present only when the timeline viewer is enabled. */
+export type TimelineViewData = {
+  timezone: string;
+  app: TimelineParticipantView[];
+  screen: TimelineParticipantView[];
+};
 
 export type MatcherInput = {
   appCodes: Int32Array;
@@ -137,4 +154,10 @@ export type ProcessedFileResult = {
    * worker entry points, not by direct `processRawCsvContent` calls.
    */
   inputSha256?: string;
+  /**
+   * Interactive timeline payload for the in-app View tab (#18). Present only
+   * when `enableInteractiveTimeline` is on (it carries per-session geometry, so
+   * it is opt-in to keep default runs light).
+   */
+  timelineView?: TimelineViewData;
 };
