@@ -2,8 +2,8 @@
 // embedded static day-grid PNGs with App / Screen tabs — which is not a viewer,
 // just images you could already get from the plot export. It now ships the SAME
 // interactivity as the in-app View tab: the day-grid scenes and per-session
-// hover regions are embedded as JSON and rendered live on a canvas with
-// scroll-to-zoom, drag-to-pan, and hover tooltips. The interaction code is the
+// hover regions are embedded as JSON and rendered live on a fit-to-width canvas
+// with native vertical scrolling and hover tooltips. The interaction code is the
 // vanilla-JS twin of TimelineViewPanel's InteractiveScene (see
 // timelineViewerRuntime.js), inlined verbatim so the file opens in any browser
 // fully offline — nothing is fetched from the network.
@@ -53,11 +53,6 @@ function renderPanel(
         `<figure class="tv-scene" data-tv-type="${type}" data-tv-index="${index}">
   <figcaption class="tv-scene-head">
     <span class="tv-scene-title">${escapeHtml(view.participantId)}</span>
-    <span class="tv-scene-actions">
-      <button type="button" class="tv-btn" data-tv-act="fit">Fit</button>
-      <button type="button" class="tv-btn" data-tv-act="in">Zoom in</button>
-      <button type="button" class="tv-btn" data-tv-act="out">Zoom out</button>
-    </span>
   </figcaption>
   <div class="tv-canvas-wrap">
     <canvas class="tv-canvas"></canvas>
@@ -70,8 +65,8 @@ function renderPanel(
 
 /**
  * Build a standalone, interactive HTML timeline viewer for one input file: App /
- * Screen tabs, each stacking the per-participant day-grid scenes on a live
- * canvas (zoom / pan / hover), in the same by-day vertical alignment as the
+ * Screen tabs, each stacking the per-participant waterfall scenes on a live
+ * canvas (native scroll / hover), in the same by-day vertical alignment as the
  * exported images. The scene + region data drives both this export and the
  * in-app View tab, so they cannot drift.
  */
@@ -103,14 +98,10 @@ export function buildTimelineViewerHtml(input: ViewerInput): string {
   .tv-panel.is-active { display: block; }
   .tv-hint { color: #5b6671; font-size: 13px; margin: 0 0 16px; }
   .tv-scene { margin: 0 0 28px; }
-  .tv-scene-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
+  .tv-scene-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
   .tv-scene-title { font-weight: 600; }
-  .tv-scene-actions { display: flex; gap: 6px; }
-  .tv-btn { appearance: none; border: 1px solid #cfd6dd; background: #fff; color: #1f2933; padding: 4px 10px; font: inherit; font-size: 13px; border-radius: 6px; cursor: pointer; }
-  .tv-btn:hover { background: #f0f2f5; }
-  .tv-canvas-wrap { position: relative; border: 1px solid #e6e9ec; border-radius: 6px; background: #fff; overflow: hidden; }
-  .tv-canvas { display: block; touch-action: none; cursor: grab; }
-  .tv-canvas:active { cursor: grabbing; }
+  .tv-canvas-wrap { position: relative; border: 1px solid #e6e9ec; border-radius: 6px; background: #fff; overflow: visible; }
+  .tv-canvas { display: block; touch-action: pan-y; cursor: default; }
   .tv-tooltip { position: absolute; z-index: 3; pointer-events: none; max-width: 280px; background: #1f2933; color: #fff; padding: 6px 8px; border-radius: 6px; font-size: 12px; line-height: 1.4; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); }
   .tv-tooltip[hidden] { display: none; }
   .tv-tooltip strong { display: block; margin-bottom: 2px; }
@@ -127,11 +118,11 @@ export function buildTimelineViewerHtml(input: ViewerInput): string {
   <button class="tv-tab" id="tab-screen" role="tab" data-tv-tab="screen" aria-controls="panel-screen" aria-selected="${initial === "screen"}">Screen usage</button>
 </div>
 <section class="tv-panel${initial === "app" ? " is-active" : ""}" id="panel-app" data-tv-panel="app" role="tabpanel" aria-labelledby="tab-app">
-  <p class="tv-hint">Scroll to zoom · drag to pan · hover a bar for details</p>
+  <p class="tv-hint">Hover a bar for details · scroll for more days</p>
 ${appPanel}
 </section>
 <section class="tv-panel${initial === "screen" ? " is-active" : ""}" id="panel-screen" data-tv-panel="screen" role="tabpanel" aria-labelledby="tab-screen">
-  <p class="tv-hint">Scroll to zoom · drag to pan · hover a bar for details</p>
+  <p class="tv-hint">Hover a bar for details · scroll for more days</p>
 ${screenPanel}
 </section>
 <script type="application/json" id="tv-data">${data}</script>
