@@ -97,6 +97,7 @@ classes:
       - aggregate_shape
       - enable_parquet_export
       - enable_spss_export
+      - enable_interactive_timeline
       - minimum_usage_duration
       - filter_zero_duration_sessions
       - custom_app_engagement_duration
@@ -390,6 +391,17 @@ slots:
       as an SPSS/PSPP system file (.sav) with typed variables and the column names
       as variable labels — open it directly in SPSS or PSPP. Same rows and columns
       as the CSV. Off by default. (Stata .dta is not yet supported.)
+    default: false
+  enable_interactive_timeline:
+    range: boolean
+    required: true
+    title: "Interactive timeline explorer"
+    description: >-
+      Show an in-browser zoomable/pannable timeline of every session (app and
+      screen), coloured by app category, with hover details — rendered live in the
+      results panel from a compact per-session payload. This payload is only
+      produced when the option is on, to avoid bloating results for large cohorts.
+      Off by default.
     default: false
   plot_only_target_child_data:
     range: boolean
