@@ -70,10 +70,18 @@ export type PolyPrim = {
 
 export type Primitive = RectPrim | TextPrim | LinePrim | PolyPrim;
 
+export type WaterfallSceneMeta = {
+  kind: "waterfall";
+  gutter: number;
+  plotWidth: number;
+  rows: Array<{ date: string; y: number; h: number }>;
+};
+
 export type Scene = {
   width: number;
   height: number;
   primitives: Primitive[];
+  meta?: WaterfallSceneMeta;
 };
 
 /**
