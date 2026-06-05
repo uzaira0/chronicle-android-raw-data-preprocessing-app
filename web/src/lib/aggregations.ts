@@ -17,7 +17,12 @@
  *   midnight is attributed wholly to its **start** date.
  * - **total_app_usage_minutes**: summed from integer-nanosecond intervals of app
  *   sessions whose `duration_minutes` is non-null (sub-`minimumUsageDuration`
- *   sessions are nulled upstream → contribute 0), divided once at the end.
+ *   sessions are nulled upstream → contribute 0), divided once at the end. This is
+ *   the **foreground** (primary-layer) total only — it is the device wall-clock
+ *   timeline, so background-overlap (secondary) time is *not* added here (that
+ *   would double-count an instant two apps share). Background time is reported
+ *   beside it as **total_background_app_usage_minutes** (its own summed secondary
+ *   minutes), kept a separate companion column and never folded into a device total.
  * - **app_session_count**: count of app sessions (incl. nulled-duration ones).
  * - **mean_app_session_minutes**: total_app_usage_minutes ÷ (count of app
  *   sessions with non-null duration); 0 when none.
@@ -31,9 +36,19 @@
  *   timestamps appear in the WIDE summaries only (see #12 note below).
  * - **timezone**: the (normalized) timezone of the period's first session.
  * - **top apps**: every app ranked by total session minutes (desc), ties broken
- *   by package name (asc). No cap — the full per-app breakdown. Always long.
- * - **category budget**: total minutes + session count per `broad_app_category`
- *   per day (only when a codebook supplies the category). Always long.
+ *   by package name (asc). No cap — the full per-app breakdown. Foreground and
+ *   background time are shown **separately** (`foreground_minutes`,
+ *   `background_minutes`) plus their sum (`total_minutes`); per app the two layers
+ *   are disjoint sub-intervals of its own timeline, so the sum is well-defined
+ *   (unlike a cross-app device total). A background-only app (e.g. music) ranks on
+ *   its background time instead of vanishing. Always long.
+ * - **category budget**: foreground/background/total minutes + session count per
+ *   `broad_app_category` per day (only when a codebook supplies the category),
+ *   split into the same foreground/background columns as top apps. NOTE the
+ *   per-category `total_minutes` is summed across apps, so unlike a single app
+ *   (whose own layers are disjoint) a foreground app overlapping a *background*
+ *   app of the same category can count a shared instant twice — read it as
+ *   "total category engagement," not exclusive wall-clock. Always long.
  * - **co-usage**: overlapping app-session pairs. `co_usage_count` = number of
  *   overlapping pair-intervals; `total_overlap_minutes` = summed overlap. Only
  *   meaningful (non-empty) with concurrent-usage modeling, which can split a long
@@ -54,6 +69,9 @@ export type AggregateInputRow = {
   application_label: string;
   broad_app_category?: string | null;
   interaction_type: string;
+  /** Concurrent-usage split layer: "primary" (foreground), "secondary"
+   * (background overlap), or null/absent when no split ran. */
+  usage_layer?: string | null;
   start_timestamp_ns: bigint | null;
   stop_timestamp_ns: bigint | null;
   duration_minutes: number | null;
@@ -117,6 +135,36 @@ function isAppSession(row: AggregateInputRow): boolean {
   );
 }
 
+/**
+ * Foreground app session: an app session that is NOT a secondary
+ * (background-overlap) concurrent-usage sub-interval. The period summary's
+ * `total_app_usage_minutes` and the foreground/device metrics use this so a
+ * secondary layer isn't double-counted against the primary it overlaps. With
+ * concurrent modeling off there are no secondary rows, so this equals
+ * `isAppSession` (no-op). Top apps and category budget instead group over BOTH
+ * layers (`isAppSession`) and split the minutes into foreground vs background
+ * columns; co-usage also uses `isAppSession` — it measures the overlap and needs
+ * both layers.
+ */
+function isForegroundAppSession(row: AggregateInputRow): boolean {
+  return isAppSession(row) && row.usage_layer !== "secondary";
+}
+
+/** Background app session: an app session that IS a secondary (background-overlap)
+ * concurrent-usage sub-interval. Empty when no split ran. */
+function isBackgroundAppSession(row: AggregateInputRow): boolean {
+  return isAppSession(row) && row.usage_layer === "secondary";
+}
+
+/** Sum the integer-nanosecond intervals of app sessions with a non-null duration. */
+function sumDurationNs(rows: readonly AggregateInputRow[]): bigint {
+  let ns = 0n;
+  for (const row of rows) {
+    if (row.duration_minutes !== null) ns += row.stop_timestamp_ns! - row.start_timestamp_ns!;
+  }
+  return ns;
+}
+
 function isScreenSession(row: AggregateInputRow): boolean {
   return (
     row.interaction_type === SCREEN_USAGE &&
@@ -172,6 +220,7 @@ type PeriodSummary = {
   weekdayMTh: number;
   weekdaySuTh: number;
   total_app_usage_minutes: number;
+  total_background_app_usage_minutes: number;
   total_screen_usage_minutes: number;
   app_session_count: number;
   screen_session_count: number;
@@ -187,6 +236,7 @@ type PeriodSummary = {
 /** Numeric scalar metrics, in stable order — the only fields the long-form melt emits. */
 const NUMERIC_METRICS = [
   "total_app_usage_minutes",
+  "total_background_app_usage_minutes",
   "total_screen_usage_minutes",
   "app_session_count",
   "screen_session_count",
@@ -205,6 +255,7 @@ type ScalarMetrics = Omit<
 function summarizeGroup(
   appSessions: AggregateInputRow[],
   screenSessions: AggregateInputRow[],
+  backgroundMinutes: number,
 ): ScalarMetrics {
   const sortedApp = [...appSessions].sort((a, b) =>
     compareBigint(a.start_timestamp_ns!, b.start_timestamp_ns!),
@@ -253,6 +304,7 @@ function summarizeGroup(
 
   return {
     total_app_usage_minutes: totalAppMinutes,
+    total_background_app_usage_minutes: backgroundMinutes,
     total_screen_usage_minutes: nsToMinutes(totalScreenNs),
     app_session_count: sortedApp.length,
     screen_session_count: screenSessions.length,
@@ -282,15 +334,31 @@ export function computePeriodSummaries(
 ): SummaryEntry[] {
   const keyOf = (row: AggregateInputRow): string =>
     compositeKey(row.study_id, row.participant_id, periodOf(row.date));
-  const appByKey = groupBy(appRows.filter(isAppSession), keyOf);
+  const appByKey = groupBy(appRows.filter(isForegroundAppSession), keyOf);
+  // Background (secondary) minutes are summed per key in a parallel map and
+  // attached as a companion column — the foreground group feeding summarizeGroup
+  // is left untouched so every foreground metric stays byte-identical. Secondary
+  // rows only exist overlapping a primary, so their keys ⊆ the foreground keys.
+  const backgroundByKey = groupBy(appRows.filter(isBackgroundAppSession), keyOf);
   const screenByKey = groupBy(screenRows.filter(isScreenSession), keyOf);
 
   const out: SummaryEntry[] = [];
-  for (const key of new Set<string>([...appByKey.keys(), ...screenByKey.keys()])) {
+  // Usually background keys ⊆ foreground keys (a secondary overlaps a primary in
+  // the same period), but an overlap that crosses midnight relative to its
+  // foreground app lands the secondary on its own date — so include background
+  // keys in the union (a no-op for normal data) rather than silently dropping
+  // those minutes, and let `sample` fall back to a background row.
+  for (const key of new Set<string>([
+    ...appByKey.keys(),
+    ...backgroundByKey.keys(),
+    ...screenByKey.keys(),
+  ])) {
     const appGroup = appByKey.get(key) ?? [];
     const screenGroup = screenByKey.get(key) ?? [];
-    const sample = appGroup[0] ?? screenGroup[0]!;
-    const metrics = summarizeGroup(appGroup, screenGroup);
+    const backgroundGroup = backgroundByKey.get(key) ?? [];
+    const sample = appGroup[0] ?? screenGroup[0] ?? backgroundGroup[0]!;
+    const backgroundMinutes = nsToMinutes(sumDurationNs(backgroundGroup));
+    const metrics = summarizeGroup(appGroup, screenGroup, backgroundMinutes);
     out.push({
       participant_id: sample.participant_id,
       period: periodOf(sample.date),
@@ -322,11 +390,19 @@ export type TopAppRow = {
   app_package_name: string;
   application_label: string;
   rank: number;
+  foreground_minutes: number;
+  background_minutes: number;
   total_minutes: number;
   session_count: number;
 };
 
-/** Every app ranked by total session minutes within each (study, participant, period). */
+/**
+ * Every app ranked by total session minutes within each (study, participant,
+ * period). Groups over both layers and reports foreground (primary/null) and
+ * background (secondary) minutes separately; `total_minutes` is their sum (per
+ * app the two layers are disjoint, so the sum is well-defined). Ranked by
+ * `total_minutes` desc, ties by package name asc.
+ */
 export function computeTopApps(
   appRows: readonly AggregateInputRow[],
   periodOf: (dateStr: string) => string,
@@ -342,14 +418,14 @@ export function computeTopApps(
     const period = periodOf(sample.date);
     const byApp = groupBy(group, (row) => row.app_package_name);
     const apps = [...byApp.values()].map((rows) => {
-      let ns = 0n;
-      for (const row of rows) {
-        if (row.duration_minutes !== null) ns += row.stop_timestamp_ns! - row.start_timestamp_ns!;
-      }
+      const fgNs = sumDurationNs(rows.filter((row) => row.usage_layer !== "secondary"));
+      const bgNs = sumDurationNs(rows.filter((row) => row.usage_layer === "secondary"));
       return {
         app_package_name: rows[0]!.app_package_name,
         application_label: rows[0]!.application_label,
-        total_minutes: nsToMinutes(ns),
+        foreground_minutes: nsToMinutes(fgNs),
+        background_minutes: nsToMinutes(bgNs),
+        total_minutes: nsToMinutes(fgNs + bgNs),
         session_count: rows.length,
       };
     });
@@ -376,11 +452,21 @@ export type CategoryBudgetRow = {
   participant_id: string;
   date: string;
   broad_app_category: string;
+  foreground_minutes: number;
+  background_minutes: number;
   total_minutes: number;
   session_count: number;
 };
 
-/** Total minutes + session count per category per (study, participant, day). */
+/**
+ * Foreground/background/total minutes + session count per category per (study,
+ * participant, day). Groups over both layers and splits minutes into foreground
+ * vs background columns, so a background-only category (e.g. an audio app's
+ * overlap time) is reported rather than dropped. Unlike top apps, `total_minutes`
+ * here sums across apps in the category, so a foreground app overlapping a
+ * background app of the same category can double-count a shared instant — it is a
+ * "total category engagement" figure, not exclusive wall-clock.
+ */
 export function computeCategoryBudget(appRows: readonly AggregateInputRow[]): CategoryBudgetRow[] {
   const categoryOf = (row: AggregateInputRow): string =>
     (row.broad_app_category ?? "").trim() || "Unknown";
@@ -390,16 +476,16 @@ export function computeCategoryBudget(appRows: readonly AggregateInputRow[]): Ca
   const out: CategoryBudgetRow[] = [];
   for (const rows of byKey.values()) {
     const sample = rows[0]!;
-    let ns = 0n;
-    for (const row of rows) {
-      if (row.duration_minutes !== null) ns += row.stop_timestamp_ns! - row.start_timestamp_ns!;
-    }
+    const fgNs = sumDurationNs(rows.filter((row) => row.usage_layer !== "secondary"));
+    const bgNs = sumDurationNs(rows.filter((row) => row.usage_layer === "secondary"));
     out.push({
       study_id: sample.study_id,
       participant_id: sample.participant_id,
       date: sample.date,
       broad_app_category: categoryOf(sample),
-      total_minutes: nsToMinutes(ns),
+      foreground_minutes: nsToMinutes(fgNs),
+      background_minutes: nsToMinutes(bgNs),
+      total_minutes: nsToMinutes(fgNs + bgNs),
       session_count: rows.length,
     });
   }
@@ -491,7 +577,7 @@ export function computeCoUsage(appRows: readonly AggregateInputRow[]): CoUsageRo
 
 function escapeCell(value: string | number): string {
   const text = String(value);
-  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
 function toCsv(
@@ -563,6 +649,7 @@ function buildSummaryCsv(
       ...extraOf(entry),
       timezone: s.timezone,
       total_app_usage_minutes: s.total_app_usage_minutes,
+      total_background_app_usage_minutes: s.total_background_app_usage_minutes,
       total_screen_usage_minutes: s.total_screen_usage_minutes,
       app_session_count: s.app_session_count,
       screen_session_count: s.screen_session_count,
@@ -630,21 +717,27 @@ export function buildAggregateOutputs(
     csv: toCsv(
       [
         "study_id",
+        "study_name",
         "participant_id",
         "date",
         "rank",
         "app_package_name",
         "application_label",
+        "foreground_minutes",
+        "background_minutes",
         "total_minutes",
         "session_count",
       ],
       topApps.map((row) => ({
         study_id: row.study_id,
+        study_name: options.studyName,
         participant_id: row.participant_id,
         date: row.period,
         rank: row.rank,
         app_package_name: row.app_package_name,
         application_label: row.application_label,
+        foreground_minutes: row.foreground_minutes,
+        background_minutes: row.background_minutes,
         total_minutes: row.total_minutes,
         session_count: row.session_count,
       })),
@@ -660,13 +753,16 @@ export function buildAggregateOutputs(
       csv: toCsv(
         [
           "study_id",
+          "study_name",
           "participant_id",
           "date",
           "broad_app_category",
+          "foreground_minutes",
+          "background_minutes",
           "total_minutes",
           "session_count",
         ],
-        budget.map((row) => ({ ...row })),
+        budget.map((row) => ({ ...row, study_name: options.studyName })),
       ),
       rowCount: budget.length,
     });
@@ -678,8 +774,16 @@ export function buildAggregateOutputs(
     outputs.push({
       suffix: " App Co-Usage.csv",
       csv: toCsv(
-        ["study_id", "participant_id", "app_a", "app_b", "co_usage_count", "total_overlap_minutes"],
-        coUsage.map((row) => ({ ...row })),
+        [
+          "study_id",
+          "study_name",
+          "participant_id",
+          "app_a",
+          "app_b",
+          "co_usage_count",
+          "total_overlap_minutes",
+        ],
+        coUsage.map((row) => ({ ...row, study_name: options.studyName })),
       ),
       rowCount: coUsage.length,
     });
