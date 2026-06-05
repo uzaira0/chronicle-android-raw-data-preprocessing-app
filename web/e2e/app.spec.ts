@@ -384,6 +384,17 @@ test("emits SPSS .sav outputs when SPSS export is enabled (#9)", async ({ page }
   assertNoExternalRequests(requestTracker);
 });
 
+test("renders the interactive timeline when the explorer is enabled (#18)", async ({ page }) => {
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await page.getByTestId("toggle-enableInteractiveTimeline").check();
+  await processFiles(page);
+
+  await expect(page.getByTestId("interactive-timeline")).toBeVisible();
+  await expect(page.getByTestId("timeline-fit")).toBeVisible();
+  await expect(page.getByTestId("timeline-layer-app")).toBeVisible();
+  assertNoExternalRequests(requestTracker);
+});
+
 test("shows result warnings for suspicious successful outputs", async ({ page }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
   await page.getByTestId("toggle-processScreenUsage").check();
