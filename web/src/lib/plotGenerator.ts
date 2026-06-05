@@ -159,6 +159,38 @@ function formatDateLabel(isoDate: string): string {
   });
 }
 
+/** "HH:MM:SS" for a ns timestamp in the formatter's timezone. Uses parts (not
+ * `format`) so midnight reads "00:..", never "24:..", matching `nsToLocalHours`. */
+function nsToClock(fmt: Intl.DateTimeFormat, ns: bigint): string {
+  const ms = Number(ns / 1_000_000n);
+  try {
+    const parts = fmt.formatToParts(new Date(ms));
+    const hh = String(Number(parts.find((p) => p.type === "hour")?.value ?? 0) % 24).padStart(2, "0");
+    const mm = (parts.find((p) => p.type === "minute")?.value ?? "00").padStart(2, "0");
+    const ss = (parts.find((p) => p.type === "second")?.value ?? "00").padStart(2, "0");
+    return `${hh}:${mm}:${ss}`;
+  } catch {
+    return "";
+  }
+}
+
+/** A "start → stop" tooltip line for a session, dating both ends only when the
+ * session spans more than one calendar day (the day-grid row already gives the
+ * date, so a same-day session needs the date prefix just once). */
+function formatSessionRange(
+  fmt: Intl.DateTimeFormat,
+  startIso: string,
+  startNs: bigint,
+  stopIso: string,
+  stopNs: bigint,
+): string {
+  const a = nsToClock(fmt, startNs);
+  const b = nsToClock(fmt, stopNs);
+  return startIso === stopIso
+    ? `${startIso} ${a} → ${b}`
+    : `${startIso} ${a} → ${stopIso} ${b}`;
+}
+
 // ─── core ─────────────────────────────────────────────────────────────────────
 
 function buildCanvas(height: number): OffscreenCanvas | HTMLCanvasElement {
@@ -360,6 +392,11 @@ export function computeDataGapRects(
   dateToY: Map<string, number>,
   nsToLocalHours: (ns: bigint) => number,
   nsToIso: (ns: bigint) => string,
+  /** When provided, a hover hit-region (scene coords) is collected for every gap
+   * band, carrying the gap's exact start→stop time. Omitted by the PNG/SVG paths. */
+  regionsOut?: SceneRegion[],
+  /** Clock formatter ("HH:MM:SS") for the gap tooltip; required to emit regions. */
+  nsToClock?: (ns: bigint) => string,
 ): { rects: GapRect[]; hadGap: boolean } {
   const GAP_THRESHOLD_NS = 3_600_000_000_000n; // 1 hour in ns
   const rects: GapRect[] = [];
@@ -373,18 +410,35 @@ export function computeDataGapRects(
     const startIso = nsToIso(allEventNs[i]!);
     const endIso = nsToIso(allEventNs[i + 1]!);
 
+    // One tooltip describes the whole gap; every band of a multi-day gap shares
+    // it so hovering any band shows the gap's full extent.
+    let gapLines: string[] | null = null;
+    if (regionsOut && nsToClock) {
+      const gapMin = Number(gapNs) / 60_000_000_000;
+      const dur = gapMin >= 60 ? `${(gapMin / 60).toFixed(1)} h` : `${gapMin.toFixed(1)} min`;
+      const a = nsToClock(allEventNs[i]!);
+      const b = nsToClock(allEventNs[i + 1]!);
+      const range =
+        startIso === endIso ? `${startIso} ${a} → ${b}` : `${startIso} ${a} → ${endIso} ${b}`;
+      gapLines = [`No device activity · ${dur}`, range];
+    }
+    const pushRect = (r: GapRect): void => {
+      rects.push(r);
+      if (regionsOut && gapLines) regionsOut.push({ ...r, title: "Data gap", lines: gapLines });
+    };
+
     if (startIso === endIso) {
       const yCenter = dateToY.get(startIso);
       if (yCenter !== undefined) {
         const x1 = hoursToX(startH);
-        rects.push({ x: x1, y: yCenter - ROW_HEIGHT / 2, w: hoursToX(endH) - x1, h: ROW_HEIGHT });
+        pushRect({ x: x1, y: yCenter - ROW_HEIGHT / 2, w: hoursToX(endH) - x1, h: ROW_HEIGHT });
       }
     } else {
       // multi-day gap: fill tail of start day, full middle days, head of end day
       const yStart = dateToY.get(startIso);
       if (yStart !== undefined) {
         const x1 = hoursToX(startH);
-        rects.push({ x: x1, y: yStart - ROW_HEIGHT / 2, w: hoursToX(24) - x1, h: ROW_HEIGHT });
+        pushRect({ x: x1, y: yStart - ROW_HEIGHT / 2, w: hoursToX(24) - x1, h: ROW_HEIGHT });
       }
       const startSerial = dateSerial(startIso);
       const endSerial = dateSerial(endIso);
@@ -392,12 +446,12 @@ export function computeDataGapRects(
         const isoD = new Date(s * 86_400_000).toISOString().slice(0, 10);
         const yMid = dateToY.get(isoD);
         if (yMid !== undefined) {
-          rects.push({ x: MARGIN.left, y: yMid - ROW_HEIGHT / 2, w: plotWidth(), h: ROW_HEIGHT });
+          pushRect({ x: MARGIN.left, y: yMid - ROW_HEIGHT / 2, w: plotWidth(), h: ROW_HEIGHT });
         }
       }
       const yEnd = dateToY.get(endIso);
       if (yEnd !== undefined) {
-        rects.push({ x: MARGIN.left, y: yEnd - ROW_HEIGHT / 2, w: hoursToX(endH) - MARGIN.left, h: ROW_HEIGHT });
+        pushRect({ x: MARGIN.left, y: yEnd - ROW_HEIGHT / 2, w: hoursToX(endH) - MARGIN.left, h: ROW_HEIGHT });
       }
     }
   }
@@ -585,11 +639,14 @@ export function buildTimelineScene(
   const allEventNs = (preAlgoEventNs ?? rows.map((r) => r.event_timestamp_ns)).slice().sort(
     (a, b) => (a < b ? -1 : a > b ? 1 : 0),
   );
+  const gapRegions: SceneRegion[] = [];
   const { rects: gapRects, hadGap: gapLegendNeeded } = computeDataGapRects(
     allEventNs,
     dateToY,
     cachedNsToLocalHours,
     cachedNsToIso,
+    regionsOut ? gapRegions : undefined,
+    regionsOut ? (ns) => nsToClock(hoursFmt, ns) : undefined,
   );
   prims.push(...gapPrimitives(gapRects));
 
@@ -647,12 +704,19 @@ export function buildTimelineScene(
             w: rw,
             h: rh,
             title: row.app_package_name || "(app)",
-            lines: [row.broad_app_category ?? "Unknown", `${durMin.toFixed(1)} min · ${row.interaction_type}`],
+            lines: [
+              row.broad_app_category ?? "Unknown",
+              `${durMin.toFixed(1)} min · ${row.interaction_type}`,
+              formatSessionRange(hoursFmt, startIso, row.start_timestamp_ns, stopIso, row.stop_timestamp_ns),
+            ],
           });
         }
       }
     }
   }
+
+  // Gap regions last so a session bar wins the hover hit-test on any overlap.
+  if (regionsOut) regionsOut.push(...gapRegions);
 
   // ── device-event arrows ───────────────────────────────────────────────────
   let hasShutdown = false;
@@ -897,11 +961,14 @@ export function buildScreenScene(
   const screenGapNs = (preAlgoEventNs ?? rows.map((r) => r.event_timestamp_ns)).slice().sort(
     (a, b) => (a < b ? -1 : a > b ? 1 : 0),
   );
+  const gapRegions: SceneRegion[] = [];
   const { rects: gapRects, hadGap: gapLegendNeeded } = computeDataGapRects(
     screenGapNs,
     dateToY,
     nsToLocalHours,
     nsToIso,
+    regionsOut ? gapRegions : undefined,
+    regionsOut ? (ns) => nsToClock(hoursFmt, ns) : undefined,
   );
   prims.push(...gapPrimitives(gapRects));
 
@@ -950,12 +1017,19 @@ export function buildScreenScene(
             w: rw,
             h: rh,
             title: "Screen",
-            lines: [SCREEN_REASON_LABELS[reason] ?? reason, `${durMin.toFixed(1)} min`],
+            lines: [
+              SCREEN_REASON_LABELS[reason] ?? reason,
+              `${durMin.toFixed(1)} min`,
+              formatSessionRange(hoursFmt, startIso, row.start_timestamp_ns, stopIso, row.stop_timestamp_ns),
+            ],
           });
         }
       }
     }
   }
+
+  // Gap regions last so a session bar wins the hover hit-test on any overlap.
+  if (regionsOut) regionsOut.push(...gapRegions);
 
   // Plot border.
   prims.push({ type: "rect", x: MARGIN.left, y: plotTop, w: plotWidth(), h: plotAreaHeight, stroke: "#ccc", strokeWidth: 1 });
