@@ -53,11 +53,18 @@ export function fitViewport(sessions: readonly TimelineSession[]): TimelineViewp
   return { startNs: start, endNs: end };
 }
 
-/** Fraction [0,1] of where `ns` falls within the viewport (clamped). */
+/**
+ * Fraction of where `ns` falls within the viewport. Computed in bigint (scaled
+ * by 1e9) before the final double divide, so it stays exact for multi-month
+ * spans where `Number(endNs - startNs)` would lose sub-nanosecond bits past the
+ * 2^53 boundary (~104 days). Not clamped — partially-visible sessions return
+ * values outside [0,1] and the caller lets the canvas clip them.
+ */
+const FRACTION_SCALE = 1_000_000_000n;
 function fractionOf(ns: bigint, viewport: TimelineViewport): number {
-  const span = Number(viewport.endNs - viewport.startNs);
-  if (span <= 0) return 0;
-  return Number(ns - viewport.startNs) / span;
+  const span = viewport.endNs - viewport.startNs;
+  if (span <= 0n) return 0;
+  return Number(((ns - viewport.startNs) * FRACTION_SCALE) / span) / Number(FRACTION_SCALE);
 }
 
 export function nsToX(ns: bigint, viewport: TimelineViewport, width: number): number {
