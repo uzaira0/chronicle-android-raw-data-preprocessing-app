@@ -152,6 +152,12 @@ describe("buildWaterfallScene", () => {
 
     expect(scene.width).toBe(1200);
     expect(scene.height).toBeGreaterThan(1);
+    expect(scene.meta).toMatchObject({
+      kind: "waterfall",
+      gutter: 112,
+      plotWidth: 1088,
+      rows: [{ date: "2026-03-07", y: 6, h: 32 }],
+    });
     expect(rectsWithFill(scene.primitives, CATEGORY_COLORS["Games"]!).length).toBeGreaterThan(0);
 
     const texts = scene.primitives.filter((p) => p.type === "text").map((p) => (p as { text: string }).text);

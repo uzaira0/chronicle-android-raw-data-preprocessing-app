@@ -457,6 +457,20 @@ test("@smoke the exported HTML timeline viewer runs its inlined interactivity of
       title: region.title,
     };
   });
+  const beforeZoom = await canvas.evaluate((c) => ({
+    bitmap: (c as HTMLCanvasElement).toDataURL(),
+    height: (c as HTMLCanvasElement).getBoundingClientRect().height,
+  }));
+  await viewer.mouse.move(target.x, target.y);
+  await viewer.keyboard.down("Shift");
+  await viewer.mouse.wheel(0, -240);
+  await viewer.keyboard.up("Shift");
+  await expect
+    .poll(async () => canvas.evaluate((c) => (c as HTMLCanvasElement).toDataURL()))
+    .not.toBe(beforeZoom.bitmap);
+  const afterZoomHeight = await canvas.evaluate((c) => (c as HTMLCanvasElement).getBoundingClientRect().height);
+  expect(afterZoomHeight).toBe(beforeZoom.height);
+
   await viewer.mouse.move(target.x, target.y);
   const tooltip = viewer.locator('[data-tv-type="app"][data-tv-index="0"] .tv-tooltip');
   await expect(tooltip).toBeVisible();
@@ -506,6 +520,32 @@ test("View tab renders the interactive timeline with file and type dropdowns (#1
     },
     { region, scene: view.scene },
   );
+  const beforeZoom = await canvas.evaluate((c) => ({
+    bitmap: (c as HTMLCanvasElement).toDataURL(),
+    height: (c as HTMLCanvasElement).getBoundingClientRect().height,
+  }));
+  await page.mouse.move(target.x, target.y);
+  await page.keyboard.down("Shift");
+  await page.mouse.wheel(0, -240);
+  await page.keyboard.up("Shift");
+  await expect
+    .poll(async () => canvas.evaluate((c) => (c as HTMLCanvasElement).toDataURL()))
+    .not.toBe(beforeZoom.bitmap);
+  const afterZoomBitmap = await canvas.evaluate((c) => (c as HTMLCanvasElement).toDataURL());
+  await page.mouse.down();
+  await page.mouse.move(target.x + 48, target.y);
+  await page.mouse.up();
+  const afterPan = await canvas.evaluate((c) => ({
+    bitmap: (c as HTMLCanvasElement).toDataURL(),
+    height: (c as HTMLCanvasElement).getBoundingClientRect().height,
+  }));
+  expect(afterPan.bitmap).not.toBe(afterZoomBitmap);
+  expect(afterPan.height).toBe(beforeZoom.height);
+  await page.mouse.dblclick(target.x, target.y);
+  await expect
+    .poll(async () => canvas.evaluate((c) => (c as HTMLCanvasElement).toDataURL()))
+    .toBe(beforeZoom.bitmap);
+
   await page.mouse.move(target.x, target.y);
   const tooltip = page.locator(".timeline-view__tooltip");
   await expect(tooltip).toBeVisible();
