@@ -79,6 +79,17 @@
     function scaledWidth(x, w) {
       return meta && rowTransform ? tx(x + w) - tx(x) : Math.max(w, 0);
     }
+    function preserveGlyphX(points, x) {
+      if (!meta || !rowTransform) return x;
+      var minX = Infinity;
+      var maxX = -Infinity;
+      for (var i = 0; i < points.length; i++) {
+        minX = Math.min(minX, points[i][0]);
+        maxX = Math.max(maxX, points[i][0]);
+      }
+      var center = (minX + maxX) / 2;
+      return tx(center) + (x - center);
+    }
     if (p.type === "rect") {
       ctx.globalAlpha = p.alpha == null ? 1 : p.alpha;
       var x = tx(p.x);
@@ -112,8 +123,9 @@
       ctx.beginPath();
       for (var j = 0; j < p.points.length; j++) {
         var pt = p.points[j];
-        if (j === 0) ctx.moveTo(tx(pt[0]), pt[1]);
-        else ctx.lineTo(tx(pt[0]), pt[1]);
+        var px = preserveGlyphX(p.points, pt[0]);
+        if (j === 0) ctx.moveTo(px, pt[1]);
+        else ctx.lineTo(px, pt[1]);
       }
       if (p.closed) ctx.closePath();
       if (p.fill) {
