@@ -176,6 +176,20 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
             }))
           }
         />
+        <ToggleField
+          label="Also export SPSS (.sav)"
+          checked={options.enableSpssExport}
+          onChange={(value) => setOptions((current) => ({ ...current, enableSpssExport: value }))}
+          testId="toggle-enableSpssExport"
+          tooltip={TOOLTIPS.enableSpssExport}
+          modified={!isOptionDefault("enableSpssExport", options.enableSpssExport)}
+          onReset={() =>
+            setOptions((current) => ({
+              ...current,
+              enableSpssExport: DEFAULT_BROWSER_OPTIONS.enableSpssExport,
+            }))
+          }
+        />
       </SettingsField>
     </section>
   );
