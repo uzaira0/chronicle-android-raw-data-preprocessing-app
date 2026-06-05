@@ -1,3 +1,5 @@
+import { pathToFileURL } from "node:url";
+
 import { expect, test } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
 
@@ -390,6 +392,76 @@ test("exports an HTML timeline viewer when the option is enabled (#18)", async (
   await processFiles(page);
 
   await expect(page.getByTestId("download-timeline-viewer")).toBeVisible();
+  assertNoExternalRequests(requestTracker);
+});
+
+test("@smoke the exported HTML timeline viewer runs its inlined interactivity offline (#18)", async ({
+  page,
+}, testInfo) => {
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await page.getByTestId("toggle-enableInteractiveTimeline").check();
+  await processFiles(page);
+
+  // Capture the exported .html artifact the user would double-click.
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByTestId("download-timeline-viewer").click();
+  const download = await downloadPromise;
+  const htmlPath = testInfo.outputPath("timeline-viewer.html");
+  await download.saveAs(htmlPath);
+
+  // Open it as a standalone file (file://), fully offline — the inlined script
+  // is the only thing that makes it interactive, and nothing else in this repo
+  // executes that script, so this is the test that proves it actually works.
+  const viewer = await page.context().newPage();
+  const scriptErrors: string[] = [];
+  viewer.on("pageerror", (error) => scriptErrors.push(String(error)));
+  viewer.on("console", (msg) => {
+    if (msg.type() === "error" && !/favicon|Failed to load resource/i.test(msg.text())) {
+      scriptErrors.push(msg.text());
+    }
+  });
+  await viewer.goto(pathToFileURL(htmlPath).href);
+
+  // (1) The inlined runtime parsed and ran with no errors.
+  expect(scriptErrors).toEqual([]);
+
+  // ...and it sized + drew the canvas (a real backing store, not the 300px default).
+  const canvas = viewer.locator('[data-tv-type="app"][data-tv-index="0"] .tv-canvas');
+  await expect(canvas).toBeVisible();
+  await expect
+    .poll(async () => canvas.evaluate((c) => (c as HTMLCanvasElement).width))
+    .toBeGreaterThan(320);
+
+  // (2) Switching tabs toggles the active panel.
+  await viewer.locator('[data-tv-tab="screen"]').click();
+  await expect(viewer.locator('[data-tv-panel="screen"]')).toHaveClass(/is-active/);
+  await viewer.locator('[data-tv-tab="app"]').click();
+  await expect(viewer.locator('[data-tv-panel="app"]')).toHaveClass(/is-active/);
+
+  // (3) Hovering a session bar shows the per-session detail tooltip. The bar's
+  // screen position is derived from the embedded scene at the auto-fit transform
+  // (scale = width / sceneWidth, tx = ty = 0).
+  const target = await viewer.evaluate(() => {
+    const data = JSON.parse(document.getElementById("tv-data")!.textContent!);
+    const view = data.app[0];
+    const region = view.regions[0];
+    const el = document.querySelector(
+      '[data-tv-type="app"][data-tv-index="0"] .tv-canvas',
+    ) as HTMLCanvasElement;
+    const rect = el.getBoundingClientRect();
+    const scale = rect.width / view.scene.width;
+    return {
+      x: rect.left + (region.x + region.w / 2) * scale,
+      y: rect.top + (region.y + region.h / 2) * scale,
+      title: region.title,
+    };
+  });
+  await viewer.mouse.move(target.x, target.y);
+  const tooltip = viewer.locator('[data-tv-type="app"][data-tv-index="0"] .tv-tooltip');
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toContainText(target.title);
+
+  await viewer.close();
   assertNoExternalRequests(requestTracker);
 });
 

@@ -572,11 +572,6 @@ describe("browserPipeline", () => {
     const off = await processRawCsvContent("Raw P01.csv", csv, baseOptions, {}, matcher);
     expect(off.outputs.some((o) => o.outputFileName.endsWith("Timeline Viewer.html"))).toBe(false);
 
-    // The viewer embeds the day-grid plot image; feed the mocked generator a blob
-    // so we can assert the image is inlined as a data URI in the HTML.
-    vi.mocked(generateAllPlots).mockResolvedValueOnce(
-      new Map([["P01", new Blob(["fake-png"], { type: "image/png" })]]),
-    );
     const on = await processRawCsvContent(
       "Raw P01.csv",
       csv,
@@ -589,9 +584,19 @@ describe("browserPipeline", () => {
     expect(viewer!.kind).toBe("plot");
     expect(viewer!.blob.type).toContain("text/html");
     const html = await viewer!.blob.text();
+    // App / Screen tabs are present...
     expect(html).toContain("App usage");
     expect(html).toContain("Screen usage");
-    expect(html).toContain("data:image/png;base64,");
+    // ...and the export is now interactive (scene JSON + a live canvas + the
+    // inlined runtime), not a static PNG embed.
+    expect(html).not.toContain("data:image/png;base64,");
+    expect(html).toContain('id="tv-data"');
+    expect(html).toContain('class="tv-canvas"');
+    expect(html).toContain('"participantId":"P01"');
+    // The embedded scene must carry real primitives to render.
+    expect(html).toContain('"primitives"');
+    // The inlined interaction runtime ships in the file.
+    expect(html).toContain("addEventListener");
   });
 
   it("attaches the in-app View tab payload (scenes + hover regions) only when enabled (#18)", async () => {
