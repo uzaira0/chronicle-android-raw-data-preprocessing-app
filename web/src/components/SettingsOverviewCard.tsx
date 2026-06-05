@@ -191,7 +191,7 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
           }
         />
         <ToggleField
-          label="Interactive timeline explorer"
+          label="Timeline viewer (HTML export)"
           checked={options.enableInteractiveTimeline}
           onChange={(value) =>
             setOptions((current) => ({ ...current, enableInteractiveTimeline: value }))

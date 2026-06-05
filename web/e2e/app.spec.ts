@@ -384,14 +384,12 @@ test("emits SPSS .sav outputs when SPSS export is enabled (#9)", async ({ page }
   assertNoExternalRequests(requestTracker);
 });
 
-test("renders the interactive timeline when the explorer is enabled (#18)", async ({ page }) => {
+test("exports an HTML timeline viewer when the option is enabled (#18)", async ({ page }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
   await page.getByTestId("toggle-enableInteractiveTimeline").check();
   await processFiles(page);
 
-  await expect(page.getByTestId("interactive-timeline")).toBeVisible();
-  await expect(page.getByTestId("timeline-fit")).toBeVisible();
-  await expect(page.getByTestId("timeline-layer-app")).toBeVisible();
+  await expect(page.getByTestId("download-timeline-viewer")).toBeVisible();
   assertNoExternalRequests(requestTracker);
 });
 
@@ -701,14 +699,16 @@ test("results panel is the primary post-processing surface and preview is gone",
   const panel = page.getByTestId("result-file-table");
   await expect(panel).toBeVisible();
   await expect(panel.getByTestId("result-row")).toHaveCount(1);
-  await expect(panel.locator(".result-card__stat dt")).toContainText([
+  await expect(panel.locator("thead th")).toContainText([
+    "File",
+    "Status",
     "Input",
     "Processed",
     "App",
   ]);
-  await expect(panel.locator(".result-card__stat dt", { hasText: /^Screen$/ })).toHaveCount(0);
-  await expect(panel.locator(".result-card__row-label", { hasText: /^Timezone$/ })).toHaveCount(1);
-  await expect(panel.locator(".result-card__row-label", { hasText: /^Outputs$/ })).toHaveCount(1);
+  await expect(panel.locator("thead th", { hasText: /^Screen$/ })).toHaveCount(0);
+  await expect(panel.locator("thead th", { hasText: /^Timezone$/ })).toHaveCount(1);
+  await expect(panel.locator("thead th", { hasText: /^Outputs$/ })).toHaveCount(1);
   expect(await page.locator(".result-preview").count()).toBe(0);
   expect(await page.locator(".preview-table").count()).toBe(0);
   expect(await page.locator(".result-details").count()).toBe(0);
@@ -720,8 +720,8 @@ test("results panel shows both app and screen stats when output mode is both", a
   await page.getByTestId("run-sample-button").click();
   const panel = page.getByTestId("result-file-table");
   await expect(panel).toBeVisible();
-  await expect(panel.locator(".result-card__stat dt", { hasText: /^App$/ })).toHaveCount(1);
-  await expect(panel.locator(".result-card__stat dt", { hasText: /^Screen$/ })).toHaveCount(1);
+  await expect(panel.locator("thead th", { hasText: /^App$/ })).toHaveCount(1);
+  await expect(panel.locator("thead th", { hasText: /^Screen$/ })).toHaveCount(1);
   assertNoExternalRequests(requestTracker);
 });
 
