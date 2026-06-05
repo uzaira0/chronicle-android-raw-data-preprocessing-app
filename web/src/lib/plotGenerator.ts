@@ -6,7 +6,7 @@
  * desktop pipeline.  Runs entirely in-browser via OffscreenCanvas / Canvas.
  */
 
-import type { Primitive, Scene } from "@/lib/plotScene";
+import type { Primitive, Scene, SceneRegion } from "@/lib/plotScene";
 import { sceneToSvgBlob } from "@/lib/plotScene";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
@@ -186,33 +186,6 @@ function legendFloorHeight(legendRowCount: number): number {
 
 function hoursToX(h: number): number {
   return MARGIN.left + (h / 24) * plotWidth();
-}
-
-function drawBackground(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, height: number): void {
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, CANVAS_WIDTH, height);
-}
-
-function drawXAxis(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, plotTop: number, plotBottom: number): void {
-  ctx.strokeStyle = "#cccccc";
-  ctx.lineWidth = 1;
-  ctx.font = FONT_SMALL;
-  ctx.fillStyle = "#444";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-
-  for (let h = 0; h <= 24; h += 4) {
-    const x = hoursToX(h);
-    const label = String(h).padStart(2, "0") + ":00";
-    ctx.beginPath();
-    ctx.moveTo(x, plotTop);
-    ctx.lineTo(x, plotBottom);
-    ctx.setLineDash([4, 4]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillText(label, x, plotBottom + 6);
-  }
-  ctx.textBaseline = "alphabetic";
 }
 
 /** Title + subtitle primitives for the app-usage timeline. */
@@ -465,23 +438,6 @@ function gapPrimitives(rects: GapRect[]): Primitive[] {
   }));
 }
 
-/** Faint horizontal rules between date rows so they read as distinct rows now
- * that the background is uniform (no striping). Drawn early so bars/gaps overlay
- * them. Top/bottom edges are handled by the plot border, so only interior
- * boundaries are drawn. */
-function drawRowSeparators(ctx: Ctx2D, rowCount: number, plotTop: number): void {
-  ctx.strokeStyle = "#cccccc";
-  ctx.lineWidth = 1;
-  ctx.setLineDash([]);
-  for (let i = 1; i < rowCount; i++) {
-    const y = plotTop + i * ROW_HEIGHT;
-    ctx.beginPath();
-    ctx.moveTo(MARGIN.left, y);
-    ctx.lineTo(MARGIN.left + plotWidth(), y);
-    ctx.stroke();
-  }
-}
-
 // ─── public API ───────────────────────────────────────────────────────────────
 
 /** White page background covering the whole canvas. */
@@ -535,6 +491,9 @@ export function buildTimelineScene(
   version: string,
   dateStr: string,
   preAlgoEventNs?: bigint[],
+  /** When provided, per-session hover hit-regions (scene coords) are collected
+   * here for the interactive View tab. Omitted by the PNG/SVG export paths. */
+  regionsOut?: SceneRegion[],
 ): Scene {
   const dateSet = new Set<string>();
   for (const row of rows) {
@@ -676,14 +635,21 @@ export function buildTimelineScene(
       }
 
       if (barW > 0) {
-        prims.push({
-          type: "rect",
-          x: x1,
-          y: yCenter - ROW_HEIGHT * 0.35,
-          w: Math.max(barW, 1),
-          h: ROW_HEIGHT * 0.7,
-          fill: color,
-        });
+        const ry = yCenter - ROW_HEIGHT * 0.35;
+        const rw = Math.max(barW, 1);
+        const rh = ROW_HEIGHT * 0.7;
+        prims.push({ type: "rect", x: x1, y: ry, w: rw, h: rh, fill: color });
+        if (regionsOut) {
+          const durMin = Number(row.stop_timestamp_ns - row.start_timestamp_ns) / 60_000_000_000;
+          regionsOut.push({
+            x: x1,
+            y: ry,
+            w: rw,
+            h: rh,
+            title: row.app_package_name || "(app)",
+            lines: [row.broad_app_category ?? "Unknown", `${durMin.toFixed(1)} min · ${row.interaction_type}`],
+          });
+        }
       }
     }
   }
@@ -807,27 +773,32 @@ const SCREEN_REASON_LABELS: Record<string, string> = {
   missing_stop: "Missing stop",
 };
 
-async function generateParticipantScreenPlotBlob(
+/**
+ * Build the resolution-independent {@link Scene} for a screen-usage timeline.
+ * The screen twin of {@link buildTimelineScene}: identical day-grid geometry,
+ * bars coloured by `screen_usage_end_reason`. Both the PNG and SVG renderers
+ * consume this scene, so the screen plot's raster and vector outputs cannot
+ * drift (previously the screen plot drew straight to a canvas and had no SVG
+ * path). `dateStr` is passed in (not read from the clock) so the builder is pure.
+ */
+export function buildScreenScene(
   participantId: string,
   rows: ScreenPlotRow[],
   timezone: string,
-  /** Preprocessor version, stamped in the plot subtitle for provenance. */
   version: string,
-  /** Pre-algorithm raw event timestamps (sorted or unsorted) used for data-gap
-   * shading — same source the app-usage plot uses, so both plots agree on where
-   * device activity is genuinely absent. */
+  dateStr: string,
   preAlgoEventNs?: bigint[],
-): Promise<Blob> {
+  /** When provided, per-session hover hit-regions (scene coords) are collected
+   * here for the interactive View tab. Omitted by the PNG/SVG export paths. */
+  regionsOut?: SceneRegion[],
+): Scene {
   const dateSet = new Set<string>();
   for (const row of rows) {
     if (row.date) dateSet.add(row.date);
   }
   const sortedDates = [...dateSet].sort();
   if (sortedDates.length === 0) {
-    const fallback = buildCanvas(1);
-    const ctx2 = fallback.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
-    ctx2.clearRect(0, 0, 1, 1);
-    return canvasToBlob(fallback);
+    return { width: 1, height: 1, primitives: [] };
   }
 
   const plotAreaHeight = sortedDates.length * ROW_HEIGHT;
@@ -836,26 +807,6 @@ async function generateParticipantScreenPlotBlob(
     MARGIN.top + plotAreaHeight + MARGIN.bottom,
     legendFloorHeight(Object.keys(SCREEN_REASON_COLORS).length + 3),
   );
-  const canvas = buildCanvas(totalHeight);
-  const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
-
-  drawBackground(ctx, totalHeight);
-
-  const dateStr = new Date().toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-
-  ctx.font = "bold 16px system-ui, sans-serif";
-  ctx.fillStyle = "#111";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText(`Screen Usage for ${participantId}`, CANVAS_WIDTH / 2, 28);
-  ctx.font = FONT_SMALL;
-  ctx.fillStyle = "#666";
-  ctx.fillText(`Created on ${dateStr} · Preprocessor v${version}`, CANVAS_WIDTH / 2, 46);
-
   const plotTop = MARGIN.top;
   const plotBottom = MARGIN.top + plotAreaHeight;
 
@@ -863,21 +814,6 @@ async function generateParticipantScreenPlotBlob(
   sortedDates.forEach((d, i) => {
     dateToY.set(d, plotTop + i * ROW_HEIGHT + ROW_HEIGHT / 2);
   });
-
-  // Date row labels (no row striping — keep the background uniform so the
-  // end-reason bars and faint gap shading read accurately; rows are delimited by
-  // horizontal separator rules instead).
-  ctx.font = FONT;
-  ctx.textBaseline = "middle";
-  ctx.fillStyle = "#555";
-  ctx.textAlign = "right";
-  sortedDates.forEach((d, i) => {
-    const y = plotTop + i * ROW_HEIGHT;
-    ctx.fillText(formatDateLabel(d), MARGIN.left - 8, y + ROW_HEIGHT / 2);
-  });
-
-  drawRowSeparators(ctx, sortedDates.length, plotTop);
-  drawXAxis(ctx, plotTop, plotBottom);
 
   const nsToHoursCache = new Map<bigint, number>();
   const nsToIsoCache = new Map<bigint, string>();
@@ -912,6 +848,48 @@ async function generateParticipantScreenPlotBlob(
     return v;
   }
 
+  const prims: Primitive[] = [];
+  prims.push(backgroundPrimitive(totalHeight));
+  prims.push(
+    {
+      type: "text",
+      x: CANVAS_WIDTH / 2,
+      y: 28,
+      text: `Screen Usage for ${participantId}`,
+      fill: "#111",
+      font: "bold 16px system-ui, sans-serif",
+      anchor: "middle",
+      baseline: "alphabetic",
+    },
+    {
+      type: "text",
+      x: CANVAS_WIDTH / 2,
+      y: 46,
+      text: `Created on ${dateStr} · Preprocessor v${version}`,
+      fill: "#666",
+      font: FONT_SMALL,
+      anchor: "middle",
+      baseline: "alphabetic",
+    },
+  );
+
+  // Date row labels (no striping — uniform background so bars/gaps read true).
+  sortedDates.forEach((d, i) => {
+    prims.push({
+      type: "text",
+      x: MARGIN.left - 8,
+      y: plotTop + i * ROW_HEIGHT + ROW_HEIGHT / 2,
+      text: formatDateLabel(d),
+      fill: "#555",
+      font: FONT,
+      anchor: "end",
+      baseline: "middle",
+    });
+  });
+
+  prims.push(...rowSeparatorPrimitives(sortedDates.length, plotTop));
+  prims.push(...xAxisPrimitives(plotTop, plotBottom));
+
   // Data-gap shading (drawn before the session bars so bars sit on top). Uses
   // the pre-algorithm raw timestamps when supplied; otherwise the screen-session
   // event timestamps, which only mark session starts and miss inter-session
@@ -919,8 +897,15 @@ async function generateParticipantScreenPlotBlob(
   const screenGapNs = (preAlgoEventNs ?? rows.map((r) => r.event_timestamp_ns)).slice().sort(
     (a, b) => (a < b ? -1 : a > b ? 1 : 0),
   );
-  const gapLegendNeeded = drawDataGaps(ctx, screenGapNs, dateToY, nsToLocalHours, nsToIso);
+  const { rects: gapRects, hadGap: gapLegendNeeded } = computeDataGapRects(
+    screenGapNs,
+    dateToY,
+    nsToLocalHours,
+    nsToIso,
+  );
+  prims.push(...gapPrimitives(gapRects));
 
+  // End-reason coloured session bars.
   for (const row of rows) {
     if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) continue;
 
@@ -953,58 +938,86 @@ async function generateParticipantScreenPlotBlob(
       }
 
       if (barW > 0) {
-        ctx.fillStyle = color;
-        ctx.fillRect(x1, yCenter - ROW_HEIGHT * 0.35, Math.max(barW, 1), ROW_HEIGHT * 0.7);
+        const ry = yCenter - ROW_HEIGHT * 0.35;
+        const rw = Math.max(barW, 1);
+        const rh = ROW_HEIGHT * 0.7;
+        prims.push({ type: "rect", x: x1, y: ry, w: rw, h: rh, fill: color });
+        if (regionsOut) {
+          const durMin = Number(row.stop_timestamp_ns - row.start_timestamp_ns) / 60_000_000_000;
+          regionsOut.push({
+            x: x1,
+            y: ry,
+            w: rw,
+            h: rh,
+            title: "Screen",
+            lines: [SCREEN_REASON_LABELS[reason] ?? reason, `${durMin.toFixed(1)} min`],
+          });
+        }
       }
     }
   }
 
-  ctx.strokeStyle = "#ccc";
-  ctx.lineWidth = 1;
-  ctx.setLineDash([]);
-  ctx.strokeRect(MARGIN.left, plotTop, plotWidth(), plotAreaHeight);
+  // Plot border.
+  prims.push({ type: "rect", x: MARGIN.left, y: plotTop, w: plotWidth(), h: plotAreaHeight, stroke: "#ccc", strokeWidth: 1 });
 
-  ctx.font = FONT;
-  ctx.fillStyle = "#444";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText("Time of Day (Hours)", MARGIN.left + plotWidth() / 2, plotBottom + MARGIN.bottom - 10);
+  prims.push({
+    type: "text",
+    x: MARGIN.left + plotWidth() / 2,
+    y: plotBottom + MARGIN.bottom - 10,
+    text: "Time of Day (Hours)",
+    fill: "#444",
+    font: FONT,
+    anchor: "middle",
+    baseline: "alphabetic",
+  });
 
-  // Legend
-  const lx = CANVAS_WIDTH - MARGIN.right + 16;
-  let ly = plotTop;
-  const swatchSize = 12;
-  const lineH = 20;
-  ctx.font = "bold 12px system-ui, sans-serif";
-  ctx.fillStyle = "#333";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
-  ctx.fillText("End Reason", lx, ly);
-  ly += lineH + 4;
-  ctx.font = FONT_SMALL;
+  prims.push(...screenLegendPrimitives(plotTop, gapLegendNeeded));
+
+  return { width: CANVAS_WIDTH, height: totalHeight, primitives: prims };
+}
+
+/** Right-hand legend for the screen-usage timeline (end reasons + data gap). */
+function screenLegendPrimitives(legendTop: number, hasGap: boolean): Primitive[] {
+  const x = CANVAS_WIDTH - MARGIN.right + 16;
+  let y = legendTop;
+  const prims: Primitive[] = [
+    {
+      type: "text",
+      x,
+      y,
+      text: "End Reason",
+      fill: "#333",
+      font: "bold 12px system-ui, sans-serif",
+      anchor: "start",
+      baseline: "middle",
+    },
+  ];
+  y += LEGEND_LINE_H + 4;
   for (const [reason, color] of Object.entries(SCREEN_REASON_COLORS)) {
-    const label = SCREEN_REASON_LABELS[reason] ?? reason;
-    ctx.fillStyle = color;
-    ctx.fillRect(lx, ly - swatchSize / 2, swatchSize, swatchSize);
-    ctx.strokeStyle = "#aaa";
-    ctx.lineWidth = 0.5;
-    ctx.strokeRect(lx, ly - swatchSize / 2, swatchSize, swatchSize);
-    ctx.fillStyle = "#333";
-    ctx.fillText(label, lx + swatchSize + 5, ly);
-    ly += lineH;
+    prims.push(...legendEntry(x, y, color, SCREEN_REASON_LABELS[reason] ?? reason, { outline: true }));
+    y += LEGEND_LINE_H;
   }
-
-  if (gapLegendNeeded) {
-    ly += 6;
-    ctx.fillStyle = GAP_COLOR;
-    ctx.globalAlpha = 0.35;
-    ctx.fillRect(lx, ly - swatchSize / 2, swatchSize, swatchSize);
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = "#333";
-    ctx.fillText("Data Gap", lx + swatchSize + 5, ly);
+  if (hasGap) {
+    y += 6;
+    prims.push(...legendEntry(x, y, GAP_COLOR, "Data Gap", { alpha: 0.35 }));
   }
+  return prims;
+}
 
-  return canvasToBlob(canvas);
+async function generateParticipantScreenPlotBlob(
+  participantId: string,
+  rows: ScreenPlotRow[],
+  timezone: string,
+  /** Preprocessor version, stamped in the plot subtitle for provenance. */
+  version: string,
+  /** Pre-algorithm raw event timestamps (sorted or unsorted) used for data-gap
+   * shading — same source the app-usage plot uses, so both plots agree on where
+   * device activity is genuinely absent. */
+  preAlgoEventNs?: bigint[],
+): Promise<Blob> {
+  return sceneToPngBlob(
+    buildScreenScene(participantId, rows, timezone, version, todayLabel(), preAlgoEventNs),
+  );
 }
 
 /** Bucket plot rows by their participant_id column (missing → "unknown"). */
@@ -1032,6 +1045,22 @@ export async function generateAllScreenPlots(
   for (const [pid, pRows] of groupByParticipant(rows)) {
     const gapNs = preAlgoTsByParticipant?.get(pid);
     result.set(pid, await generateParticipantScreenPlotBlob(pid, pRows, timezone, version, gapNs));
+  }
+  return result;
+}
+
+/** Vector (SVG) twin of {@link generateAllScreenPlots} — one SVG per participant. */
+export async function generateAllScreenPlotSvgs(
+  rows: ScreenPlotRow[],
+  timezone: string,
+  version: string,
+  preAlgoTsByParticipant?: Map<string, bigint[]>,
+): Promise<Map<string, Blob>> {
+  const dateStr = todayLabel();
+  const result = new Map<string, Blob>();
+  for (const [pid, pRows] of groupByParticipant(rows)) {
+    const scene = buildScreenScene(pid, pRows, timezone, version, dateStr, preAlgoTsByParticipant?.get(pid));
+    result.set(pid, sceneToSvgBlob(scene));
   }
   return result;
 }
@@ -1080,6 +1109,59 @@ export async function generateAllPlotSvgs(
     result.set(pid, sceneToSvgBlob(scene));
   }
   return result;
+}
+
+/** One participant's interactive timeline: the day-grid scene plus per-session
+ * hover regions. Powers the in-app View tab (#18). */
+export type ParticipantTimelineView = {
+  participantId: string;
+  scene: Scene;
+  regions: SceneRegion[];
+};
+
+/** Build interactive app-usage timeline views (scene + hover regions) for every
+ * participant — the same day-grid geometry as the PNG/SVG export. */
+export function buildAppTimelineViews(
+  rows: PlotRow[],
+  timezone: string,
+  options: Pick<BrowserProcessingOptions, "includeFilteredAppUsageInPlots">,
+  version: string,
+  preAlgoTsByParticipant?: Map<string, bigint[]>,
+): ParticipantTimelineView[] {
+  const dateStr = todayLabel();
+  const views: ParticipantTimelineView[] = [];
+  for (const [pid, pRows] of groupByParticipant(rows)) {
+    const regions: SceneRegion[] = [];
+    const scene = buildTimelineScene(
+      pid,
+      pRows,
+      timezone,
+      options,
+      version,
+      dateStr,
+      preAlgoTsByParticipant?.get(pid),
+      regions,
+    );
+    views.push({ participantId: pid, scene, regions });
+  }
+  return views;
+}
+
+/** Build interactive screen-usage timeline views (scene + hover regions). */
+export function buildScreenTimelineViews(
+  rows: ScreenPlotRow[],
+  timezone: string,
+  version: string,
+  preAlgoTsByParticipant?: Map<string, bigint[]>,
+): ParticipantTimelineView[] {
+  const dateStr = todayLabel();
+  const views: ParticipantTimelineView[] = [];
+  for (const [pid, pRows] of groupByParticipant(rows)) {
+    const regions: SceneRegion[] = [];
+    const scene = buildScreenScene(pid, pRows, timezone, version, dateStr, preAlgoTsByParticipant?.get(pid), regions);
+    views.push({ participantId: pid, scene, regions });
+  }
+  return views;
 }
 
 // ─── hour × day activity heatmap (#19) ──────────────────────────────────────

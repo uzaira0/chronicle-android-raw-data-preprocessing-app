@@ -37,6 +37,7 @@ import { ScreenDetectionCard } from "@/components/ScreenDetectionCard";
 import { InteractionSemanticsCard } from "@/components/InteractionSemanticsCard";
 import { PerformanceCard } from "@/components/PerformanceCard";
 import { ResultPanel } from "@/components/ResultPanel";
+import { TimelineViewPanel } from "@/components/TimelineViewPanel";
 import type { FileProgress } from "@/components/ProgressList";
 import { Toast } from "@/components/Toast";
 import { WorkflowNav, type WorkflowTab } from "@/components/WorkflowNav";
@@ -621,6 +622,15 @@ export default function App(): ReactElement {
                 progressRows={progressRows}
               />
             </div>
+          </div>
+
+          <div
+            id="view-panel"
+            role="tabpanel"
+            aria-labelledby="view-tab"
+            hidden={activeWorkflow !== "view"}
+          >
+            <TimelineViewPanel results={results} />
           </div>
         </div>
 
