@@ -2323,6 +2323,9 @@ a:hover {
 .timeline-view {
   display: grid;
   gap: var(--space-4);
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
 }
 
 .timeline-view__empty {
@@ -2338,6 +2341,7 @@ a:hover {
   flex-wrap: wrap;
   align-items: flex-end;
   gap: var(--space-3);
+  padding-inline: var(--space-3);
 }
 
 .timeline-view__field {
@@ -2366,8 +2370,7 @@ a:hover {
 
 .timeline-view__scene {
   margin: 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-block: 1px solid var(--color-border);
   background: var(--color-surface);
   overflow: hidden;
 }
