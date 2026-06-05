@@ -13,6 +13,7 @@ export const OUTPUT_KIND_VALUES = [
   "screen",
   "plot",
   "aggregate",
+  "parquet",
 ] as const;
 
 export const AGGREGATE_SHAPE_VALUES = [
@@ -43,6 +44,7 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "exportPlotsAsSvg",
   "enableAggregates",
   "aggregateShape",
+  "enableParquetExport",
   "minimumUsageDuration",
   "filterZeroDurationSessions",
   "customAppEngagementDuration",
@@ -84,6 +86,7 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "exportPlotsAsSvg",
   "enableAggregates",
   "aggregateShape",
+  "enableParquetExport",
   "minimumUsageDuration",
   "filterZeroDurationSessions",
   "customAppEngagementDuration",
@@ -140,6 +143,7 @@ export type BrowserProcessingOptions = {
   exportPlotsAsSvg: boolean;
   enableAggregates: boolean;
   aggregateShape: AggregateShape;
+  enableParquetExport: boolean;
   minimumUsageDuration: number;
   filterZeroDurationSessions: boolean;
   customAppEngagementDuration: number;
@@ -178,6 +182,7 @@ export const BOOLEAN_BROWSER_OPTION_KEYS = [
   "enableActivityHeatmap",
   "exportPlotsAsSvg",
   "enableAggregates",
+  "enableParquetExport",
   "filterZeroDurationSessions",
   "parallelProcessing",
   "modelConcurrentUsage",
@@ -232,6 +237,7 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   exportPlotsAsSvg: false,
   enableAggregates: false,
   aggregateShape: "wide",
+  enableParquetExport: false,
   minimumUsageDuration: 0,
   filterZeroDurationSessions: false,
   customAppEngagementDuration: 300,
@@ -340,6 +346,10 @@ export const BROWSER_OPTION_TOOLTIPS = {
   aggregateShape: {
     title: "Aggregate layout",
     body: "Layout for the daily/weekly summaries — \"wide\" (one row per period, metrics as columns) or \"long\" (tidy: one row per period per metric). The per-app, category, and co-usage outputs are always long.",
+  },
+  enableParquetExport: {
+    title: "Also export Parquet",
+    body: "In addition to the CSV outputs, write each app-usage and screen-usage table as an Apache Parquet file (typed columns, smaller and far faster to load in R/Python via arrow/polars/pandas). Same rows and columns as the CSV, with native dtypes preserved (timestamps stay as formatted strings). Off by default.",
   },
   minimumUsageDuration: {
     title: "Minimum usage duration (seconds)",

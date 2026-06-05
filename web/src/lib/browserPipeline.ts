@@ -2,6 +2,12 @@ import Papa from "papaparse";
 import { ALL_INTERACTION_TYPES_MAP, parseInteractionRemap } from "@/lib/interactionTypes";
 import { buildAggregateOutputs } from "@/lib/aggregations";
 import {
+  buildParquetBuffer,
+  type ParquetCellValue,
+  type ParquetColumnSpec,
+  type ParquetColumnType,
+} from "@/lib/parquetExport";
+import {
   CATEGORY_COLORS,
   generateAllHeatmaps,
   generateAllHeatmapSvgs,
@@ -1989,6 +1995,147 @@ function rowToScreenCsvRecord(
   };
 }
 
+const PARQUET_MIME = "application/vnd.apache.parquet";
+
+// ── Typed Parquet column mapping (#7) ────────────────────────────────────────
+// Parquet mirrors the CSV columns 1:1 (same names + order via the shared
+// build*OutputColumns), but numeric/boolean columns carry native dtypes pulled
+// straight from the CanonicalRow (full precision, not re-parsed CSV text).
+// Timestamps stay as the same formatted strings the CSV uses. The override sets
+// in row*ParquetCells MUST match the non-STRING type sets below — pinned by test.
+
+const APP_PARQUET_DOUBLE_COLUMNS = new Set([
+  "duration_seconds",
+  "duration_minutes",
+  "data_time_gap_hours",
+  "valid_app_usage_time_gap_hours",
+  "any_app_usage_time_gap_hours",
+]);
+const APP_PARQUET_INT_COLUMNS = new Set([
+  "day",
+  "weekdayMF",
+  "weekdayMTh",
+  "weekdaySuTh",
+  "hour",
+  "quarter",
+  "valid_app_new_engage_30s",
+  "valid_app_switched_app",
+  "any_app_new_engage_30s",
+  "any_app_switched_app",
+]);
+
+function appParquetColumnType(name: string): ParquetColumnType {
+  if (APP_PARQUET_DOUBLE_COLUMNS.has(name)) return "DOUBLE";
+  if (APP_PARQUET_INT_COLUMNS.has(name)) return "INT32";
+  // The custom-engagement columns carry a duration-dependent name suffix.
+  if (
+    name.startsWith("valid_app_new_engage_custom_") ||
+    name.startsWith("any_app_new_engage_custom_")
+  ) {
+    return "INT32";
+  }
+  return "STRING";
+}
+
+export function buildAppParquetColumnSpecs(
+  options: BrowserProcessingOptions,
+  includeCodebookAliases: boolean,
+  usageLayerActive: boolean,
+): ParquetColumnSpec[] {
+  return buildAppOutputColumns(options, includeCodebookAliases, usageLayerActive).map((name) => ({
+    name,
+    type: appParquetColumnType(name),
+  }));
+}
+
+export function rowToAppParquetCells(
+  row: CanonicalRow,
+  options: BrowserProcessingOptions,
+  includeCodebookAliases: boolean,
+  usageLayerActive: boolean,
+): Record<string, ParquetCellValue> {
+  const csv = rowToAppCsvRecord(row, options, includeCodebookAliases, usageLayerActive);
+  const cells: Record<string, ParquetCellValue> = {};
+  for (const key of Object.keys(csv)) cells[key] = String(csv[key]);
+  // Override the numeric columns with native CanonicalRow values (full precision).
+  cells.duration_seconds = row.duration_seconds;
+  cells.duration_minutes = row.duration_minutes;
+  cells.data_time_gap_hours = row.data_time_gap_hours;
+  cells.valid_app_usage_time_gap_hours = row.valid_app_usage_time_gap_hours;
+  cells.any_app_usage_time_gap_hours = row.any_app_usage_time_gap_hours;
+  cells.day = row.day;
+  cells.weekdayMF = row.weekdayMF;
+  cells.weekdayMTh = row.weekdayMTh;
+  cells.weekdaySuTh = row.weekdaySuTh;
+  cells.hour = row.hour;
+  cells.quarter = row.quarter;
+  cells.valid_app_new_engage_30s = row.valid_app_new_engage_30s;
+  cells[`valid_app_new_engage_custom_${options.customAppEngagementDuration}s`] =
+    row.valid_app_new_engage_custom;
+  cells.valid_app_switched_app = row.valid_app_switched_app;
+  cells.any_app_new_engage_30s = row.any_app_new_engage_30s;
+  cells[`any_app_new_engage_custom_${options.customAppEngagementDuration}s`] =
+    row.any_app_new_engage_custom;
+  cells.any_app_switched_app = row.any_app_switched_app;
+  return cells;
+}
+
+const SCREEN_PARQUET_DOUBLE_COLUMNS = new Set([
+  "duration_seconds",
+  "duration_minutes",
+  "screen_usage_end_reason_confidence",
+  "screen_usage_tail_gap_seconds",
+  "data_time_gap_hours",
+]);
+const SCREEN_PARQUET_INT_COLUMNS = new Set([
+  "day",
+  "weekdayMF",
+  "weekdayMTh",
+  "weekdaySuTh",
+  "hour",
+  "quarter",
+]);
+
+function screenParquetColumnType(name: string): ParquetColumnType {
+  if (SCREEN_PARQUET_DOUBLE_COLUMNS.has(name)) return "DOUBLE";
+  if (SCREEN_PARQUET_INT_COLUMNS.has(name)) return "INT32";
+  if (name === "screen_usage_lock_screen_only") return "BOOLEAN";
+  return "STRING";
+}
+
+export function buildScreenParquetColumnSpecs(): ParquetColumnSpec[] {
+  return buildScreenOutputColumns().map((name) => ({
+    name,
+    type: screenParquetColumnType(name),
+  }));
+}
+
+export function rowToScreenParquetCells(
+  row: CanonicalRow,
+  options: BrowserProcessingOptions,
+): Record<string, ParquetCellValue> {
+  const csv = rowToScreenCsvRecord(row, options);
+  const cells: Record<string, ParquetCellValue> = {};
+  for (const key of Object.keys(csv)) cells[key] = String(csv[key]);
+  cells.duration_seconds = row.duration_seconds;
+  cells.duration_minutes = row.duration_minutes;
+  cells.screen_usage_end_reason_confidence = row.screen_usage_end_reason_confidence;
+  cells.screen_usage_tail_gap_seconds = row.screen_usage_tail_gap_seconds;
+  // Screen rows never carry a data-time gap (the CSV column is always blank).
+  cells.data_time_gap_hours = null;
+  cells.day = row.day;
+  cells.weekdayMF = row.weekdayMF;
+  cells.weekdayMTh = row.weekdayMTh;
+  cells.weekdaySuTh = row.weekdaySuTh;
+  cells.hour = row.hour;
+  cells.quarter = row.quarter;
+  cells.screen_usage_lock_screen_only =
+    row.screen_usage_lock_screen_only == null
+      ? null
+      : Boolean(row.screen_usage_lock_screen_only);
+  return cells;
+}
+
 type OutputBundle = {
   blob: Blob;
   rowCount: number;
@@ -2222,6 +2369,21 @@ export async function processRawCsvContent(
       rowCount: appBundle.rowCount,
       previewRows: appBundle.previewRows,
     });
+    if (options.enableParquetExport) {
+      const appParquet = await buildParquetBuffer(
+        buildAppParquetColumnSpecs(options, includeCodebookAliases, usageLayerActive),
+        appRows.map((row) =>
+          rowToAppParquetCells(row, options, includeCodebookAliases, usageLayerActive),
+        ),
+      );
+      outputs.push({
+        kind: "parquet",
+        outputFileName: deriveOutputFileName(inputFileName, " Automatically Preprocessed.parquet"),
+        blob: new Blob([appParquet], { type: PARQUET_MIME }),
+        rowCount: appRows.length,
+        previewRows: [],
+      });
+    }
     emit("output", 1);
 
     if (options.enablePlotting) {
@@ -2274,6 +2436,22 @@ export async function processRawCsvContent(
       rowCount: screenBundle.rowCount,
       previewRows: screenBundle.previewRows,
     });
+    if (options.enableParquetExport) {
+      const screenParquet = await buildParquetBuffer(
+        buildScreenParquetColumnSpecs(),
+        screenRows.map((row) => rowToScreenParquetCells(row, options)),
+      );
+      outputs.push({
+        kind: "parquet",
+        outputFileName: deriveOutputFileName(
+          inputFileName,
+          " Screen Usage Automatically Preprocessed.parquet",
+        ),
+        blob: new Blob([screenParquet], { type: PARQUET_MIME }),
+        rowCount: screenRows.length,
+        previewRows: [],
+      });
+    }
     emit("output", 1);
 
     if (options.enablePlotting) {
