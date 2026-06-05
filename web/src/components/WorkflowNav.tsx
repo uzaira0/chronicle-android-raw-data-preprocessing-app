@@ -1,6 +1,6 @@
 import type { KeyboardEvent, ReactElement } from "react";
 
-export type WorkflowTab = "settings" | "files" | "process";
+export type WorkflowTab = "settings" | "files" | "process" | "view";
 
 type Props = {
   active: WorkflowTab;
@@ -8,11 +8,12 @@ type Props = {
 };
 
 export function WorkflowNav({ active, onSelect }: Props): ReactElement {
-  const tabs: WorkflowTab[] = ["settings", "files", "process"];
+  const tabs: WorkflowTab[] = ["settings", "files", "process", "view"];
   const labels: Record<WorkflowTab, string> = {
     settings: "Settings",
     files: "Files",
     process: "Process",
+    view: "View",
   };
   const selectAndFocus = (tab: WorkflowTab) => {
     onSelect(tab);
