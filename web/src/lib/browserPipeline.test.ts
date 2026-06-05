@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { parquetReadObjects } from "hyparquet";
 import {
   DEFAULT_BROWSER_OPTIONS,
   discoverTimezonesFromRawCsv,
@@ -411,6 +412,69 @@ describe("browserPipeline", () => {
     const dailyCsv = await daily.blob.text();
     expect(dailyCsv).toContain("total_app_usage_minutes");
     expect(dailyCsv).toContain("P01");
+  });
+
+  it("emits typed Parquet twins of the app/screen CSVs only when enabled (#7)", async () => {
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+    ].join("\n");
+    const matcher = async (): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+    const baseOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      enablePlotting: false,
+      processScreenUsage: true,
+      useFilterFile: false,
+      useAppsForcingScreenOpenFile: false,
+      useAppCodebook: false,
+      modelConcurrentUsage: false,
+    };
+
+    const off = await processRawCsvContent("Raw P01.csv", csv, baseOptions, {}, matcher);
+    expect(off.outputs.some((output) => output.kind === "parquet")).toBe(false);
+
+    const on = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      { ...baseOptions, enableParquetExport: true },
+      {},
+      matcher,
+    );
+    const parquet = on.outputs.filter((output) => output.kind === "parquet");
+    expect(parquet.map((p) => p.outputFileName)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Automatically Preprocessed.parquet"),
+        expect.stringContaining("Screen Usage Automatically Preprocessed.parquet"),
+      ]),
+    );
+
+    const appCsv = on.outputs.find((o) => o.kind === "app")!;
+    const appParquet = parquet.find(
+      (p) => !p.outputFileName.includes("Screen Usage"),
+    )!;
+    // Parquet row count matches the CSV's.
+    expect(appParquet.rowCount).toBe(appCsv.rowCount);
+
+    const buffer = await appParquet.blob.arrayBuffer();
+    const rows = (await parquetReadObjects({
+      file: { byteLength: buffer.byteLength, slice: (s: number, e?: number) => buffer.slice(s, e) },
+    })) as Record<string, unknown>[];
+    expect(rows).toHaveLength(appCsv.rowCount);
+
+    // Parquet columns mirror the CSV header exactly (set equality).
+    const csvHeader = (await appCsv.blob.text()).split("\n")[0]!.split(",");
+    expect(new Set(Object.keys(rows[0]!))).toEqual(new Set(csvHeader));
+
+    // Native dtypes preserved: strings stay strings, numerics are real numbers.
+    expect(rows[0]!.participant_id).toBe("P01");
+    expect(typeof rows[0]!.duration_minutes).toBe("number");
+    expect(typeof rows[0]!.day).toBe("number");
   });
 
   it("emits progress events for every pipeline phase when onProgress is supplied", async () => {

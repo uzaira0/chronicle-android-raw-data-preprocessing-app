@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "comlink": "^4.4.2",
+    "hyparquet-writer": "^0.15.6",
     "papaparse": "^5.5.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -36,6 +37,7 @@
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.1.0",
+    "hyparquet": "^1.26.0",
     "read-excel-file": "^5.8.0",
     "typescript": "^5.9.3",
     "vite": "^7.1.12",

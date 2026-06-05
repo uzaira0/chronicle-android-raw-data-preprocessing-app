@@ -102,6 +102,7 @@ components:
         - exportPlotsAsSvg
         - enableAggregates
         - aggregateShape
+        - enableParquetExport
         - minimumUsageDuration
         - filterZeroDurationSessions
         - customAppEngagementDuration
@@ -248,6 +249,13 @@ components:
             period, metrics as columns) or "long" (tidy: one row per period per
             metric). The per-app, category, and co-usage outputs are always
             long.'
+        enableParquetExport:
+          type: boolean
+          description: In addition to the CSV outputs, write each app-usage and
+            screen-usage table as an Apache Parquet file (typed columns, smaller
+            and far faster to load in R/Python via arrow/polars/pandas). Same
+            rows and columns as the CSV, with native dtypes preserved
+            (timestamps stay as formatted strings). Off by default.
         minimumUsageDuration:
           type: integer
           description: Sessions shorter than this threshold have their duration_seconds
@@ -394,6 +402,7 @@ components:
             - screen
             - plot
             - aggregate
+            - parquet
         outputFileName:
           type: string
         csv:

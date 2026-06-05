@@ -57,6 +57,7 @@ function zipName(kind: "all" | OutputKind): string {
     : kind === "app" ? "app-usage-outputs"
     : kind === "screen" ? "screen-usage-outputs"
     : kind === "aggregate" ? "aggregate-summaries"
+    : kind === "parquet" ? "parquet-files"
     : "plots";
   return `chronicle-${suffix}.zip`;
 }
@@ -83,9 +84,15 @@ function buildPerFileWarnings(
   }
   result.outputs.forEach((output) => {
     // Plots are PNG charts (no rows); aggregate files can be legitimately empty
-    // (e.g. a co-usage edge list with no overlaps). Only flag zero rows for the
+    // (e.g. a co-usage edge list with no overlaps); a Parquet twin mirrors its
+    // CSV (whose zero-row case is already flagged). Only flag zero rows for the
     // primary app/screen CSV outputs.
-    if (output.rowCount === 0 && output.kind !== "plot" && output.kind !== "aggregate") {
+    if (
+      output.rowCount === 0 &&
+      output.kind !== "plot" &&
+      output.kind !== "aggregate" &&
+      output.kind !== "parquet"
+    ) {
       warnings.push(`${output.outputFileName} contains zero data rows.`);
     }
     if (output.blob.size === 0) {
@@ -159,6 +166,7 @@ export function ResultPanel({
   const screenOutputs = useMemo(() => collectOutputs(results, "screen"), [results]);
   const plotOutputs = useMemo(() => collectOutputs(results, "plot"), [results]);
   const aggregateOutputs = useMemo(() => collectOutputs(results, "aggregate"), [results]);
+  const parquetOutputs = useMemo(() => collectOutputs(results, "parquet"), [results]);
   const reportText = useMemo(
     () =>
       buildProcessingReport({
@@ -260,6 +268,18 @@ export function ResultPanel({
               }}
             >
               Aggregates ZIP ({aggregateOutputs.length})
+            </button>
+          )}
+          {parquetOutputs.length > 0 && (
+            <button
+              type="button"
+              className="btn btn--secondary"
+              data-testid="download-parquet-zip"
+              onClick={() => {
+                void downloadZip("parquet", parquetOutputs, reportText);
+              }}
+            >
+              Parquet ZIP ({parquetOutputs.length})
             </button>
           )}
           <button
@@ -398,6 +418,7 @@ const OUTPUT_KIND_LABEL: Record<string, string> = {
   screen: "Screen CSV",
   plot: "Plot",
   aggregate: "Aggregate CSV",
+  parquet: "Parquet",
 };
 
 function CardStat({ label, value }: { label: string; value: number }): ReactElement {
