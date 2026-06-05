@@ -4,19 +4,13 @@
 // classic <script>, so it must run in any browser straight from `file://`
 // with no modules, no imports, and no network. It is a faithful vanilla-JS
 // port of the in-app `InteractiveScene` (TimelineViewPanel.tsx): each
-// participant canvas gets its own zoom/pan/hover state, reads the same flat
-// `Scene` primitives and `SceneRegion` hover boxes embedded as JSON, and so
-// renders identically to the View tab and the PNG/SVG exports.
+// participant canvas renders fit-to-width, the page scrolls vertically, and
+// hover hit-testing reads the same `SceneRegion` boxes embedded as JSON.
 //
 // Kept as a real .js file (not a template literal) so `node --check` and the
-// e2e "open the export and exercise it" test can actually catch errors in it —
-// nothing else executes this code at build or unit-test time.
+// e2e "open the export and exercise it" test can catch errors in it.
 (function () {
   "use strict";
-
-  var MIN_SCALE = 0.05;
-  var MAX_SCALE = 24;
-  var VIEW_HEIGHT = 560;
 
   var dataEl = document.getElementById("tv-data");
   if (!dataEl) return;
@@ -24,11 +18,7 @@
   DATA.app = DATA.app || [];
   DATA.screen = DATA.screen || [];
 
-  function clampScale(s) {
-    return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
-  }
-
-  // Paint a Scene's primitives onto an already-transformed 2D context. Mirrors
+  // Paint a Scene's primitives onto an already-scaled 2D context. Mirrors
   // renderScene in TimelineViewPanel.tsx and renderSceneToCanvas in
   // plotGenerator.ts, reading the identical primitive list.
   function renderScene(ctx, scene) {
@@ -83,10 +73,6 @@
     }
   }
 
-  // Build one interactive controller for a participant figure. Every controller
-  // closes over its OWN transform/hover state, so multiple canvases never share
-  // a zoom or pan (the multi-instance bug the React version avoids via separate
-  // component instances).
   function makeController(fig) {
     var type = fig.getAttribute("data-tv-type");
     var index = parseInt(fig.getAttribute("data-tv-index"), 10);
@@ -96,45 +82,9 @@
     var tooltip = fig.querySelector(".tv-tooltip");
     if (!view || !canvas || !wrap) return null;
 
-    var scene = view.scene;
+    var scene = view.scene || { width: 1, height: 1, primitives: [] };
     var regions = view.regions || [];
-    var state = { scale: 1, tx: 0, ty: 0, touched: false, boxW: 0, sized: false };
-    var drag = null;
-
-    function draw() {
-      var ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      var dpr = window.devicePixelRatio || 1;
-      var boxW = state.boxW;
-      canvas.width = Math.round(boxW * dpr);
-      canvas.height = Math.round(VIEW_HEIGHT * dpr);
-      canvas.style.width = boxW + "px";
-      canvas.style.height = VIEW_HEIGHT + "px";
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, boxW, VIEW_HEIGHT);
-      ctx.setTransform(dpr * state.scale, 0, 0, dpr * state.scale, dpr * state.tx, dpr * state.ty);
-      renderScene(ctx, scene);
-    }
-
-    function fit() {
-      state.touched = false;
-      state.scale = state.boxW / Math.max(scene.width, 1);
-      state.tx = 0;
-      state.ty = 0;
-      draw();
-    }
-
-    function zoomAbout(cx, cy, factor) {
-      state.touched = true;
-      var ns = clampScale(state.scale * factor);
-      var sx = (cx - state.tx) / state.scale;
-      var sy = (cy - state.ty) / state.scale;
-      state.scale = ns;
-      state.tx = cx - sx * ns;
-      state.ty = cy - sy * ns;
-      draw();
-    }
+    var state = { scale: 1, boxW: 0, sized: false };
 
     function hideTip() {
       if (tooltip) tooltip.hidden = true;
@@ -156,56 +106,41 @@
       tooltip.hidden = false;
     }
 
+    function draw() {
+      var ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      var dpr = window.devicePixelRatio || 1;
+      var boxW = state.boxW;
+      var cssH = Math.max(1, scene.height * state.scale);
+      canvas.width = Math.round(boxW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+      canvas.style.width = boxW + "px";
+      canvas.style.height = cssH + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, boxW, cssH);
+      ctx.setTransform(dpr * state.scale, 0, 0, dpr * state.scale, 0, 0);
+      renderScene(ctx, scene);
+    }
+
     // Size to the wrapper's width and (re)draw. Lazy: a canvas in a hidden tab
     // panel reports clientWidth 0, so it is sized only once its panel is shown.
-    // A scene auto-fits to width until the user zooms/pans (touched), after
-    // which a resize keeps their transform.
     function activate() {
       var w = Math.max(320, Math.round(wrap.clientWidth));
       if (state.sized && w === state.boxW) return;
       state.boxW = w;
+      state.scale = state.boxW / Math.max(scene.width, 1);
       state.sized = true;
-      if (!state.touched) fit();
-      else draw();
-    }
-
-    // Wheel-zoom about the cursor (non-passive so preventDefault stops the page
-    // from scrolling through the canvas).
-    canvas.addEventListener(
-      "wheel",
-      function (e) {
-        e.preventDefault();
-        var rect = canvas.getBoundingClientRect();
-        zoomAbout(e.clientX - rect.left, e.clientY - rect.top, e.deltaY < 0 ? 1.15 : 1 / 1.15);
-      },
-      { passive: false },
-    );
-
-    canvas.addEventListener("pointerdown", function (e) {
-      drag = { x: e.clientX, y: e.clientY, tx: state.tx, ty: state.ty };
-      if (canvas.setPointerCapture) {
-        try {
-          canvas.setPointerCapture(e.pointerId);
-        } catch (_err) {
-          /* ignore */
-        }
-      }
       hideTip();
-    });
+      draw();
+    }
 
     canvas.addEventListener("pointermove", function (e) {
       var rect = canvas.getBoundingClientRect();
       var x = e.clientX - rect.left;
       var y = e.clientY - rect.top;
-      if (drag) {
-        state.touched = true;
-        state.tx = drag.tx + (e.clientX - drag.x);
-        state.ty = drag.ty + (e.clientY - drag.y);
-        draw();
-        return;
-      }
-      var sx = (x - state.tx) / state.scale;
-      var sy = (y - state.ty) / state.scale;
+      var sx = x / state.scale;
+      var sy = y / state.scale;
       var hit = null;
       for (var i = 0; i < regions.length; i++) {
         var r = regions[i];
@@ -218,32 +153,7 @@
       else hideTip();
     });
 
-    function endDrag(e) {
-      drag = null;
-      if (canvas.releasePointerCapture && e && e.pointerId != null) {
-        try {
-          canvas.releasePointerCapture(e.pointerId);
-        } catch (_err) {
-          /* ignore */
-        }
-      }
-    }
-    canvas.addEventListener("pointerup", endDrag);
-    canvas.addEventListener("pointerleave", function (e) {
-      endDrag(e);
-      hideTip();
-    });
-
-    var actBtns = fig.querySelectorAll("[data-tv-act]");
-    for (var b = 0; b < actBtns.length; b++) {
-      (function (btn) {
-        btn.addEventListener("click", function () {
-          var act = btn.getAttribute("data-tv-act");
-          if (act === "fit") fit();
-          else zoomAbout(state.boxW / 2, VIEW_HEIGHT / 2, act === "in" ? 1.3 : 1 / 1.3);
-        });
-      })(actBtns[b]);
-    }
+    canvas.addEventListener("pointerleave", hideTip);
 
     return { activate: activate };
   }
@@ -285,7 +195,9 @@
   window.addEventListener("resize", function () {
     if (!current) return;
     var list = controllers[current] || [];
-    for (var j = 0; j < list.length; j++) list[j].activate();
+    for (var j = 0; j < list.length; j++) {
+      list[j].activate();
+    }
   });
 
   // Open on the first tab that actually has data.

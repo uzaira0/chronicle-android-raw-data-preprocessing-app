@@ -493,6 +493,217 @@ function gapPrimitives(rects: GapRect[]): Primitive[] {
   }));
 }
 
+const WF = {
+  width: 1440,
+  gutter: 104,
+  padRight: 18,
+  padTop: 6,
+  padBottom: 10,
+  rowH: 26,
+};
+
+function wfPlotWidth(): number {
+  return WF.width - WF.gutter - WF.padRight;
+}
+
+function wfHoursToX(h: number): number {
+  return WF.gutter + (h / 24) * wfPlotWidth();
+}
+
+export type WaterfallSession = {
+  startNs: bigint;
+  stopNs: bigint;
+  color: string;
+  title: string;
+  detail: string[];
+};
+
+/**
+ * Bare, full-width waterfall scene for the interactive surfaces. This is
+ * intentionally separate from `buildTimelineScene` / `buildScreenScene` so the
+ * report PNG/SVG geometry, legends, axes, and unit-tested gap layout stay
+ * unchanged.
+ */
+export function buildWaterfallScene(
+  sessions: WaterfallSession[],
+  allEventNs: bigint[],
+  timezone: string,
+  regionsOut?: SceneRegion[],
+): Scene {
+  if (sessions.length === 0) {
+    return { width: 1, height: 1, primitives: [] };
+  }
+
+  const hoursFmt = getHoursFormatter(timezone);
+  const dateFmt = getDateFormatter(timezone);
+  const nsToHoursCache = new Map<bigint, number>();
+  const nsToIsoCache = new Map<bigint, string>();
+
+  function nsToLocalHours(ns: bigint): number {
+    let v = nsToHoursCache.get(ns);
+    if (v === undefined) {
+      const ms = Number(ns / 1_000_000n);
+      try {
+        const parts = hoursFmt.formatToParts(new Date(ms));
+        const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+        const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+        const s = Number(parts.find((p) => p.type === "second")?.value ?? 0);
+        v = (h % 24) + m / 60 + s / 3600;
+      } catch {
+        v = (ms / 3_600_000) % 24;
+      }
+      nsToHoursCache.set(ns, v);
+    }
+    return v;
+  }
+
+  function nsToIso(ns: bigint): string {
+    let v = nsToIsoCache.get(ns);
+    if (v === undefined) {
+      v = dateFmt.format(new Date(Number(ns / 1_000_000n)));
+      nsToIsoCache.set(ns, v);
+    }
+    return v;
+  }
+
+  const dateSet = new Set<string>();
+  for (const session of sessions) {
+    const startIso = nsToIso(session.startNs);
+    const stopIso = nsToIso(session.stopNs);
+    const startSerial = dateSerial(startIso);
+    const stopSerial = dateSerial(stopIso);
+    for (let s = startSerial; s <= stopSerial; s++) {
+      dateSet.add(s === startSerial ? startIso : new Date(s * 86_400_000).toISOString().slice(0, 10));
+    }
+  }
+
+  const sortedDates = [...dateSet].sort();
+  const height = WF.padTop + sortedDates.length * WF.rowH + WF.padBottom;
+  const dateToY = new Map<string, number>();
+  sortedDates.forEach((d, i) => {
+    dateToY.set(d, WF.padTop + i * WF.rowH + WF.rowH / 2);
+  });
+
+  const prims: Primitive[] = [
+    { type: "rect", x: 0, y: 0, w: WF.width, h: height, fill: "#ffffff" },
+  ];
+
+  for (const [i, d] of sortedDates.entries()) {
+    prims.push({
+      type: "text",
+      x: WF.gutter - 10,
+      y: WF.padTop + i * WF.rowH + WF.rowH / 2,
+      text: formatDateLabel(d),
+      fill: "#555",
+      font: FONT_SMALL,
+      anchor: "end",
+      baseline: "middle",
+    });
+  }
+
+  const gapRegions: SceneRegion[] = [];
+  const sortedEvents = allEventNs.slice().sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const GAP_THRESHOLD_NS = 3_600_000_000_000n;
+  const pushGapRect = (r: GapRect, lines: string[]): void => {
+    prims.push({ type: "rect", x: r.x, y: r.y, w: r.w, h: r.h, fill: GAP_COLOR, alpha: 0.15 });
+    if (regionsOut) gapRegions.push({ ...r, title: "Data gap", lines });
+  };
+
+  for (let i = 0; i + 1 < sortedEvents.length; i++) {
+    const gapNs = sortedEvents[i + 1]! - sortedEvents[i]!;
+    if (gapNs <= GAP_THRESHOLD_NS) continue;
+
+    const startNs = sortedEvents[i]!;
+    const endNs = sortedEvents[i + 1]!;
+    const startIso = nsToIso(startNs);
+    const endIso = nsToIso(endNs);
+    const gapMin = Number(gapNs) / 60_000_000_000;
+    const dur = gapMin >= 60 ? `${(gapMin / 60).toFixed(1)} h` : `${gapMin.toFixed(1)} min`;
+    const range =
+      startIso === endIso
+        ? `${startIso} ${nsToClock(hoursFmt, startNs)} → ${nsToClock(hoursFmt, endNs)}`
+        : `${startIso} ${nsToClock(hoursFmt, startNs)} → ${endIso} ${nsToClock(hoursFmt, endNs)}`;
+    const lines = [`No device events · ${dur}`, range];
+
+    if (startIso === endIso) {
+      const yCenter = dateToY.get(startIso);
+      if (yCenter !== undefined) {
+        const x1 = wfHoursToX(nsToLocalHours(startNs));
+        pushGapRect({ x: x1, y: yCenter - WF.rowH / 2, w: wfHoursToX(nsToLocalHours(endNs)) - x1, h: WF.rowH }, lines);
+      }
+    } else {
+      const yStart = dateToY.get(startIso);
+      if (yStart !== undefined) {
+        const x1 = wfHoursToX(nsToLocalHours(startNs));
+        pushGapRect({ x: x1, y: yStart - WF.rowH / 2, w: wfHoursToX(24) - x1, h: WF.rowH }, lines);
+      }
+      const startSerial = dateSerial(startIso);
+      const endSerial = dateSerial(endIso);
+      for (let s = startSerial + 1; s < endSerial; s++) {
+        const isoD = new Date(s * 86_400_000).toISOString().slice(0, 10);
+        const yMid = dateToY.get(isoD);
+        if (yMid !== undefined) {
+          pushGapRect({ x: WF.gutter, y: yMid - WF.rowH / 2, w: wfPlotWidth(), h: WF.rowH }, lines);
+        }
+      }
+      const yEnd = dateToY.get(endIso);
+      if (yEnd !== undefined) {
+        pushGapRect({ x: WF.gutter, y: yEnd - WF.rowH / 2, w: wfHoursToX(nsToLocalHours(endNs)) - WF.gutter, h: WF.rowH }, lines);
+      }
+    }
+  }
+
+  for (const session of sessions) {
+    const startIso = nsToIso(session.startNs);
+    const stopIso = nsToIso(session.stopNs);
+    const startSerial = dateSerial(startIso);
+    const stopSerial = dateSerial(stopIso);
+    const range = formatSessionRange(hoursFmt, startIso, session.startNs, stopIso, session.stopNs);
+
+    for (let s = startSerial; s <= stopSerial; s++) {
+      const isoD = s === startSerial ? startIso : new Date(s * 86_400_000).toISOString().slice(0, 10);
+      const yCenter = dateToY.get(isoD);
+      if (yCenter === undefined) continue;
+
+      let x1: number;
+      let barW: number;
+      if (s === startSerial && s === stopSerial) {
+        x1 = wfHoursToX(nsToLocalHours(session.startNs));
+        barW = wfHoursToX(Math.min(nsToLocalHours(session.stopNs), 24)) - x1;
+      } else if (s === startSerial) {
+        x1 = wfHoursToX(nsToLocalHours(session.startNs));
+        barW = wfHoursToX(24) - x1;
+      } else if (s === stopSerial) {
+        x1 = WF.gutter;
+        barW = wfHoursToX(nsToLocalHours(session.stopNs)) - x1;
+      } else {
+        x1 = WF.gutter;
+        barW = wfPlotWidth();
+      }
+
+      if (barW <= 0) continue;
+      const ry = yCenter - WF.rowH * 0.35;
+      const rw = Math.max(barW, 1);
+      const rh = WF.rowH * 0.7;
+      prims.push({ type: "rect", x: x1, y: ry, w: rw, h: rh, fill: session.color });
+      if (regionsOut) {
+        regionsOut.push({
+          x: x1,
+          y: ry,
+          w: rw,
+          h: rh,
+          title: session.title,
+          lines: [...session.detail, range],
+        });
+      }
+    }
+  }
+
+  if (regionsOut) regionsOut.push(...gapRegions);
+
+  return { width: WF.width, height, primitives: prims };
+}
+
 // ─── public API ───────────────────────────────────────────────────────────────
 
 /** White page background covering the whole canvas. */
@@ -1186,16 +1397,16 @@ export async function generateAllPlotSvgs(
   return result;
 }
 
-/** One participant's interactive timeline: the day-grid scene plus per-session
- * hover regions. Powers the in-app View tab (#18). */
+/** One participant's interactive waterfall scene plus per-session hover regions.
+ * Powers the in-app View tab and exported HTML viewer (#18). */
 export type ParticipantTimelineView = {
   participantId: string;
   scene: Scene;
   regions: SceneRegion[];
 };
 
-/** Build interactive app-usage timeline views (scene + hover regions) for every
- * participant — the same day-grid geometry as the PNG/SVG export. */
+/** Build interactive app-usage waterfall views (scene + hover regions) for every
+ * participant. The report PNG/SVG paths keep the full chrome plot builders. */
 export function buildAppTimelineViews(
   rows: PlotRow[],
   timezone: string,
@@ -1203,20 +1414,29 @@ export function buildAppTimelineViews(
   version: string,
   preAlgoTsByParticipant?: Map<string, bigint[]>,
 ): ParticipantTimelineView[] {
-  const dateStr = todayLabel();
+  void version;
   const views: ParticipantTimelineView[] = [];
+  const usageTypes = new Set([APP_USAGE_TYPE]);
+  if (options.includeFilteredAppUsageInPlots) usageTypes.add(FILTERED_APP_USAGE_TYPE);
   for (const [pid, pRows] of groupByParticipant(rows)) {
     const regions: SceneRegion[] = [];
-    const scene = buildTimelineScene(
-      pid,
-      pRows,
-      timezone,
-      options,
-      version,
-      dateStr,
-      preAlgoTsByParticipant?.get(pid),
-      regions,
-    );
+    const sessions: WaterfallSession[] = [];
+    for (const row of pRows) {
+      if (!usageTypes.has(row.interaction_type)) continue;
+      if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) continue;
+      const category = row.broad_app_category ?? "Unknown";
+      const color = CATEGORY_COLORS[category] ?? CATEGORY_COLORS["Uncategorised"]!;
+      const durMin = Number(row.stop_timestamp_ns - row.start_timestamp_ns) / 60_000_000_000;
+      sessions.push({
+        startNs: row.start_timestamp_ns,
+        stopNs: row.stop_timestamp_ns,
+        color,
+        title: row.app_package_name || "(app)",
+        detail: [category, `${durMin.toFixed(1)} min · ${row.interaction_type}`],
+      });
+    }
+    const allEventNs = preAlgoTsByParticipant?.get(pid) ?? pRows.map((r) => r.event_timestamp_ns);
+    const scene = buildWaterfallScene(sessions, allEventNs, timezone, regions);
     views.push({ participantId: pid, scene, regions });
   }
   return views;
@@ -1229,11 +1449,25 @@ export function buildScreenTimelineViews(
   version: string,
   preAlgoTsByParticipant?: Map<string, bigint[]>,
 ): ParticipantTimelineView[] {
-  const dateStr = todayLabel();
+  void version;
   const views: ParticipantTimelineView[] = [];
   for (const [pid, pRows] of groupByParticipant(rows)) {
     const regions: SceneRegion[] = [];
-    const scene = buildScreenScene(pid, pRows, timezone, version, dateStr, preAlgoTsByParticipant?.get(pid), regions);
+    const sessions: WaterfallSession[] = [];
+    for (const row of pRows) {
+      if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) continue;
+      const reason = row.screen_usage_end_reason ?? "unknown";
+      const durMin = Number(row.stop_timestamp_ns - row.start_timestamp_ns) / 60_000_000_000;
+      sessions.push({
+        startNs: row.start_timestamp_ns,
+        stopNs: row.stop_timestamp_ns,
+        color: SCREEN_REASON_COLORS[reason] ?? SCREEN_REASON_COLORS["unknown"]!,
+        title: "Screen",
+        detail: [SCREEN_REASON_LABELS[reason] ?? reason, `${durMin.toFixed(1)} min`],
+      });
+    }
+    const allEventNs = preAlgoTsByParticipant?.get(pid) ?? pRows.map((r) => r.event_timestamp_ns);
+    const scene = buildWaterfallScene(sessions, allEventNs, timezone, regions);
     views.push({ participantId: pid, scene, regions });
   }
   return views;

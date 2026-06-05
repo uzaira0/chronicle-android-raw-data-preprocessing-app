@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 import { expect, test } from "@playwright/test";
@@ -469,16 +470,47 @@ test("@smoke the exported HTML timeline viewer runs its inlined interactivity of
 
 test("View tab renders the interactive timeline with file and type dropdowns (#18)", async ({
   page,
-}) => {
+}, testInfo) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
   await page.getByTestId("toggle-enableInteractiveTimeline").check();
   await processFiles(page);
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByTestId("download-timeline-viewer").click();
+  const download = await downloadPromise;
+  const htmlPath = testInfo.outputPath("timeline-viewer-view-tab-reference.html");
+  await download.saveAs(htmlPath);
+  const html = await readFile(htmlPath, "utf-8");
+  const dataMatch = html.match(/<script type="application\/json" id="tv-data">([^<]*)<\/script>/);
+  expect(dataMatch).not.toBeNull();
+  const data = JSON.parse(dataMatch![1]!);
+  const view = data.app[0];
+  const region = view.regions[0];
 
   await page.getByRole("tab", { name: /View/i }).click();
   await expect(page.getByTestId("timeline-view")).toBeVisible();
   await expect(page.getByTestId("timeline-view-file")).toBeVisible();
   await expect(page.getByTestId("timeline-view-type")).toBeVisible();
-  await expect(page.locator(".timeline-view__canvas").first()).toBeVisible();
+  const canvas = page.locator(".timeline-view__canvas").first();
+  await expect(canvas).toBeVisible();
+
+  const target = await canvas.evaluate(
+    (el, payload) => {
+      const rect = el.getBoundingClientRect();
+      const scale = rect.width / payload.scene.width;
+      return {
+        x: rect.left + (payload.region.x + payload.region.w / 2) * scale,
+        y: rect.top + (payload.region.y + payload.region.h / 2) * scale,
+        title: payload.region.title,
+      };
+    },
+    { region, scene: view.scene },
+  );
+  await page.mouse.move(target.x, target.y);
+  const tooltip = page.locator(".timeline-view__tooltip");
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toContainText(target.title);
+  await expect(tooltip).toContainText("→");
   assertNoExternalRequests(requestTracker);
 });
 
