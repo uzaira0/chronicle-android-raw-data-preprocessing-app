@@ -39,6 +39,7 @@
     "@vitejs/plugin-react": "^5.1.0",
     "hyparquet": "^1.26.0",
     "read-excel-file": "^5.8.0",
+    "sav-reader": "^2.0.8",
     "typescript": "^5.9.3",
     "vite": "^7.1.12",
     "vite-node": "^3.2.4",

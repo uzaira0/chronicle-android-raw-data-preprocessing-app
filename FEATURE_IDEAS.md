@@ -387,5 +387,25 @@ session = complete interval; nulled-duration sessions count but contribute 0 tim
 app_switches = adjacent different-package; pickups = screen-session count;
 midnight-crossing sessions attributed to their start date).
 
-**Later phases unchanged:** Phase 4 (formats — #7 Parquet, #9 SPSS/Stata),
-Phase 5 (interactive timeline #18, named projects #22).
+**Phase 4 — output formats (web-first).**
+- ✅ **#7** Parquet export — opt-in `enableParquetExport` (default off) writes each
+  app/screen table as Apache Parquet alongside the CSV via `hyparquet-writer`
+  (pure-JS, dynamically imported into the worker so the main bundle is unaffected).
+  Columns mirror the CSV 1:1 with native dtypes from the CanonicalRow; verified by
+  round-tripping through the `hyparquet` reader (PR #32).
+- ✅ **#9** SPSS `.sav` export — opt-in `enableSpssExport` (default off) writes each
+  app/screen table as an SPSS/PSPP system file via a hand-rolled, dependency-free,
+  deterministic pure-TS writer (`savExport.ts`): SAV bias-100 compression, UTF-8,
+  short names + subtype-13 long names, system-missing via command code 255, fixed
+  creation date. SAV reuses the typed Parquet cells. Verified by round-tripping
+  through `sav-reader` **and independently against pyreadstat/ReadStat** (the engine
+  behind pandas/R-haven), which caught a subtype-3 charset-field bug that the
+  circular sav-reader check had missed — incl. UTF-8 multibyte straddling an 8-byte
+  segment boundary and system-missing→NA.
+  - ⏸️ **Stata `.dta` deferred (pending verification):** no in-browser/JS `.dta`
+    reader exists and no real Stata-produced fixture is obtainable in-suite, so a
+    hand-rolled `.dta` can't be proven to open in actual Stata. Per the "don't ship
+    an unverifiable binary" rule (silent data-loss risk), `.dta` is deferred until a
+    verification path exists.
+
+**Phase 5 (heavy lift):** interactive timeline #18, named projects #22 — pending.

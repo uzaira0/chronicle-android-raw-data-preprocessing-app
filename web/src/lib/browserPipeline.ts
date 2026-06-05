@@ -7,6 +7,7 @@ import {
   type ParquetColumnSpec,
   type ParquetColumnType,
 } from "@/lib/parquetExport";
+import { buildSavBuffer, type SavRow, type SavVariable } from "@/lib/savExport";
 import {
   CATEGORY_COLORS,
   generateAllHeatmaps,
@@ -2136,6 +2137,50 @@ export function rowToScreenParquetCells(
   return cells;
 }
 
+const SAV_MIME = "application/x-spss-sav";
+
+// ── SPSS .sav export (#9) ────────────────────────────────────────────────────
+// SAV reuses the typed Parquet cells (same column set + native values). A SAV
+// row is the Parquet cells with booleans coerced to 0/1 and bigints to numbers
+// (SPSS numerics are doubles). Variables are derived from the Parquet column
+// specs: STRING → string (width = max UTF-8 bytes in the column, capped 255),
+// everything else → numeric. The column name doubles as the variable label.
+
+function toSavRow(cells: Record<string, ParquetCellValue>): SavRow {
+  const row: SavRow = {};
+  for (const [key, value] of Object.entries(cells)) {
+    if (typeof value === "boolean") row[key] = value ? 1 : 0;
+    else if (typeof value === "bigint") row[key] = Number(value);
+    else row[key] = value;
+  }
+  return row;
+}
+
+function buildSavVariables(
+  specs: readonly ParquetColumnSpec[],
+  rows: readonly SavRow[],
+): SavVariable[] {
+  const encoder = new TextEncoder();
+  return specs.map((spec) => {
+    if (spec.type === "STRING") {
+      let width = 1;
+      for (const row of rows) {
+        const value = row[spec.name];
+        if (typeof value === "string" && value.length > 0) {
+          width = Math.max(width, encoder.encode(value).length);
+        }
+      }
+      return { name: spec.name, type: "string", label: spec.name, stringWidth: Math.min(width, 255) };
+    }
+    return {
+      name: spec.name,
+      type: "numeric",
+      label: spec.name,
+      decimals: spec.type === "DOUBLE" ? 2 : 0,
+    };
+  });
+}
+
 type OutputBundle = {
   blob: Blob;
   rowCount: number;
@@ -2384,6 +2429,21 @@ export async function processRawCsvContent(
         previewRows: [],
       });
     }
+    if (options.enableSpssExport) {
+      const specs = buildAppParquetColumnSpecs(options, includeCodebookAliases, usageLayerActive);
+      const savRows = appRows.map((row) =>
+        toSavRow(rowToAppParquetCells(row, options, includeCodebookAliases, usageLayerActive)),
+      );
+      outputs.push({
+        kind: "spss",
+        outputFileName: deriveOutputFileName(inputFileName, " Automatically Preprocessed.sav"),
+        blob: new Blob([buildSavBuffer(buildSavVariables(specs, savRows), savRows)], {
+          type: SAV_MIME,
+        }),
+        rowCount: appRows.length,
+        previewRows: [],
+      });
+    }
     emit("output", 1);
 
     if (options.enablePlotting) {
@@ -2448,6 +2508,22 @@ export async function processRawCsvContent(
           " Screen Usage Automatically Preprocessed.parquet",
         ),
         blob: new Blob([screenParquet], { type: PARQUET_MIME }),
+        rowCount: screenRows.length,
+        previewRows: [],
+      });
+    }
+    if (options.enableSpssExport) {
+      const specs = buildScreenParquetColumnSpecs();
+      const savRows = screenRows.map((row) => toSavRow(rowToScreenParquetCells(row, options)));
+      outputs.push({
+        kind: "spss",
+        outputFileName: deriveOutputFileName(
+          inputFileName,
+          " Screen Usage Automatically Preprocessed.sav",
+        ),
+        blob: new Blob([buildSavBuffer(buildSavVariables(specs, savRows), savRows)], {
+          type: SAV_MIME,
+        }),
         rowCount: screenRows.length,
         previewRows: [],
       });

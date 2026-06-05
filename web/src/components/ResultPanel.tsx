@@ -58,6 +58,7 @@ function zipName(kind: "all" | OutputKind): string {
     : kind === "screen" ? "screen-usage-outputs"
     : kind === "aggregate" ? "aggregate-summaries"
     : kind === "parquet" ? "parquet-files"
+    : kind === "spss" ? "spss-files"
     : "plots";
   return `chronicle-${suffix}.zip`;
 }
@@ -91,7 +92,8 @@ function buildPerFileWarnings(
       output.rowCount === 0 &&
       output.kind !== "plot" &&
       output.kind !== "aggregate" &&
-      output.kind !== "parquet"
+      output.kind !== "parquet" &&
+      output.kind !== "spss"
     ) {
       warnings.push(`${output.outputFileName} contains zero data rows.`);
     }
@@ -167,6 +169,7 @@ export function ResultPanel({
   const plotOutputs = useMemo(() => collectOutputs(results, "plot"), [results]);
   const aggregateOutputs = useMemo(() => collectOutputs(results, "aggregate"), [results]);
   const parquetOutputs = useMemo(() => collectOutputs(results, "parquet"), [results]);
+  const spssOutputs = useMemo(() => collectOutputs(results, "spss"), [results]);
   const reportText = useMemo(
     () =>
       buildProcessingReport({
@@ -280,6 +283,18 @@ export function ResultPanel({
               }}
             >
               Parquet ZIP ({parquetOutputs.length})
+            </button>
+          )}
+          {spssOutputs.length > 0 && (
+            <button
+              type="button"
+              className="btn btn--secondary"
+              data-testid="download-spss-zip"
+              onClick={() => {
+                void downloadZip("spss", spssOutputs, reportText);
+              }}
+            >
+              SPSS ZIP ({spssOutputs.length})
             </button>
           )}
           <button
@@ -419,6 +434,7 @@ const OUTPUT_KIND_LABEL: Record<string, string> = {
   plot: "Plot",
   aggregate: "Aggregate CSV",
   parquet: "Parquet",
+  spss: "SPSS .sav",
 };
 
 function CardStat({ label, value }: { label: string; value: number }): ReactElement {
