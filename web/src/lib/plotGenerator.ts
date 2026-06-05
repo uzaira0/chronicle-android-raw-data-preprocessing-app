@@ -6,6 +6,7 @@
  * desktop pipeline.  Runs entirely in-browser via OffscreenCanvas / Canvas.
  */
 
+import { BUILD_LABEL } from "@/lib/buildInfo";
 import type { Primitive, Scene, SceneRegion } from "@/lib/plotScene";
 import { sceneToSvgBlob } from "@/lib/plotScene";
 import type { BrowserProcessingOptions } from "@/lib/types";
@@ -245,7 +246,7 @@ function titlePrimitives(
       type: "text",
       x: CANVAS_WIDTH / 2,
       y: 46,
-      text: `Created on ${dateStr} · Preprocessor v${version}`,
+      text: `Created on ${dateStr} · Preprocessor v${version} · build ${BUILD_LABEL}`,
       fill: "#666",
       font: FONT_SMALL,
       anchor: "middle",
@@ -420,7 +421,7 @@ export function computeDataGapRects(
       const b = nsToClock(allEventNs[i + 1]!);
       const range =
         startIso === endIso ? `${startIso} ${a} → ${b}` : `${startIso} ${a} → ${endIso} ${b}`;
-      gapLines = [`No device activity · ${dur}`, range];
+      gapLines = [`No device events · ${dur}`, range];
     }
     const pushRect = (r: GapRect): void => {
       rects.push(r);
@@ -929,7 +930,7 @@ export function buildScreenScene(
       type: "text",
       x: CANVAS_WIDTH / 2,
       y: 46,
-      text: `Created on ${dateStr} · Preprocessor v${version}`,
+      text: `Created on ${dateStr} · Preprocessor v${version} · build ${BUILD_LABEL}`,
       fill: "#666",
       font: FONT_SMALL,
       anchor: "middle",

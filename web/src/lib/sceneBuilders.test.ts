@@ -88,7 +88,7 @@ describe("buildTimelineScene", () => {
 
     const gap = regions.find((r) => r.title === "Data gap");
     expect(gap).toBeDefined();
-    expect(gap!.lines.some((l) => l.includes("No device activity · 3.0 h"))).toBe(true);
+    expect(gap!.lines.some((l) => l.includes("No device events · 3.0 h"))).toBe(true);
     expect(gap!.lines.some((l) => l.includes("2026-03-07 11:00:00 → 14:00:00"))).toBe(true);
 
     // Bar region precedes the gap region so a bar wins the hover hit-test on overlap.
