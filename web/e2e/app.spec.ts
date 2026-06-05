@@ -743,7 +743,11 @@ test("settings management lives in Settings and footer has only About info", asy
   await expect(footer).toBeVisible();
   expect(await footer.getByTestId("export-config-button").count()).toBe(0);
   expect(await footer.getByRole("button", { name: /reset all to defaults/i }).count()).toBe(0);
-  await expect(footer.getByText(/^Version /)).toBeVisible();
+  // Build identity is injected at build time (git short sha + date), so it must
+  // carry the sha — these regexes FAIL on the old hardcoded "Version 1.0.0" /
+  // "Build 2026-04-26" literals and on a "dev" fallback, proving the injection.
+  await expect(footer.getByText(/^Version \d+\.\d+\.\d+\+[0-9a-f]{7,}$/)).toBeVisible();
+  await expect(footer.getByText(/^Build \d{4}-\d{2}-\d{2}$/)).toBeVisible();
   assertNoExternalRequests(requestTracker);
 });
 

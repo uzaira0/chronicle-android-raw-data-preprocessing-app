@@ -7,6 +7,7 @@ import {
   processRawCsvBytesViaPool,
 } from "@/lib/chronicleMatcher";
 import { sampleRawCsv, SAMPLE_FILE_NAME } from "@/lib/sampleRawCsv";
+import { BUILD_DATE, BUILD_SHA } from "@/lib/buildInfo";
 import { ensureNotificationPermission, sendNotification } from "@/lib/notification";
 import {
   hasPersistedOptions,
@@ -636,9 +637,9 @@ export default function App(): ReactElement {
 
         <footer className="app-footer" data-testid="app-footer">
           <div className="app-footer__about" aria-label="App info">
-            <span>Version {PREPROCESSOR_VERSION}</span>
+            <span>Version {PREPROCESSOR_VERSION}+{BUILD_SHA}</span>
             <span aria-hidden="true">·</span>
-            <span>Build 2026-04-26</span>
+            <span>Build {BUILD_DATE || BUILD_SHA}</span>
             <span aria-hidden="true">·</span>
             <span>Bundled codebook available</span>
             <span aria-hidden="true">·</span>
