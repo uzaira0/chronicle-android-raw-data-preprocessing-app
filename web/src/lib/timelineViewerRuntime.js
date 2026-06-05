@@ -219,13 +219,15 @@
       "wheel",
       function (e) {
         if (!meta || !e.shiftKey) return;
+        var delta = e.deltaY !== 0 ? e.deltaY : e.deltaX;
+        if (delta === 0) return;
         e.preventDefault();
         var rect = canvas.getBoundingClientRect();
         var sx = (e.clientX - rect.left) / state.scale;
         var sy = (e.clientY - rect.top) / state.scale;
         var row = rowAtY(meta, sy);
         if (row === null || sx < meta.gutter) return;
-        var factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+        var factor = delta < 0 ? 1.2 : 1 / 1.2;
         var old = state.transforms[row] || { zoom: 1, offset: 0 };
         var contentX = inverseTransformX(sx, meta, old);
         var next = clampRowTransform(meta, {

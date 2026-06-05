@@ -193,13 +193,15 @@ function InteractiveScene({ view }: { view: TimelineParticipantView }): ReactEle
     if (!canvas || !meta) return;
     const onWheel = (event: WheelEvent): void => {
       if (!event.shiftKey) return;
+      const delta = event.deltaY !== 0 ? event.deltaY : event.deltaX;
+      if (delta === 0) return;
       event.preventDefault();
       const rect = canvas.getBoundingClientRect();
       const sx = (event.clientX - rect.left) / scale;
       const sy = (event.clientY - rect.top) / scale;
       const row = rowAtY(meta, sy);
       if (row === null || sx < meta.gutter) return;
-      const factor = event.deltaY < 0 ? 1.2 : 1 / 1.2;
+      const factor = delta < 0 ? 1.2 : 1 / 1.2;
       setRowTransforms((current) => {
         const old = current[row] ?? { zoom: 1, offset: 0 };
         const contentX = inverseTransformX(sx, meta, old);
