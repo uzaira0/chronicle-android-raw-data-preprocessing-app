@@ -524,6 +524,46 @@ describe("browserPipeline", () => {
     expect(new TextDecoder().decode(head)).toBe("$FL2");
   });
 
+  it("attaches the interactive-timeline payload only when enabled (#18)", async () => {
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+    ].join("\n");
+    const matcher = async (): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+    const baseOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      enablePlotting: false,
+      processScreenUsage: false,
+      useFilterFile: false,
+      useAppsForcingScreenOpenFile: false,
+      useAppCodebook: false,
+      modelConcurrentUsage: false,
+    };
+
+    const off = await processRawCsvContent("Raw P01.csv", csv, baseOptions, {}, matcher);
+    expect(off.timelineData).toBeUndefined();
+
+    const on = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      { ...baseOptions, enableInteractiveTimeline: true },
+      {},
+      matcher,
+    );
+    expect(on.timelineData).toBeDefined();
+    expect(on.timelineData!.participants).toEqual(["P01"]);
+    const appSessions = on.timelineData!.sessions.filter((s) => s.kind === "app");
+    expect(appSessions.length).toBeGreaterThan(0);
+    expect(appSessions[0]!.startNs < appSessions[0]!.stopNs).toBe(true);
+    expect(appSessions[0]!.appPackage).toBe("com.example.chat");
+  });
+
   it("emits progress events for every pipeline phase when onProgress is supplied", async () => {
     const csv = [
       "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",

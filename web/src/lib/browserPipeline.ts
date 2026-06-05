@@ -36,6 +36,8 @@ import type {
   RawChronicleRow,
   SplitterInput,
   SplitterOutput,
+  TimelineData,
+  TimelineSession,
   TimezoneAction,
 } from "@/lib/types";
 
@@ -2572,6 +2574,12 @@ export async function processRawCsvContent(
     emit("output", 1);
   }
 
+  // Interactive timeline payload (#18) — only built when the option is on, to
+  // avoid shipping a per-session array across the worker on every run.
+  const timelineData = options.enableInteractiveTimeline
+    ? buildTimelineData(appRows, screenRows, timezone)
+    : undefined;
+
   return {
     inputFileName,
     outputs,
@@ -2587,7 +2595,55 @@ export async function processRawCsvContent(
     rowsRemovedByTimezone: timezoneResult.rowsRemoved,
     duplicateTimestampsCorrected,
     exactDuplicateRowsRemoved,
+    timelineData,
   };
+}
+
+/** Build the interactive-timeline payload from the cleaned app/screen sessions. */
+function buildTimelineData(
+  appRows: readonly CanonicalRow[],
+  screenRows: readonly CanonicalRow[],
+  timezone: string,
+): TimelineData {
+  const sessions: TimelineSession[] = [];
+  for (const row of appRows) {
+    if (
+      row.interaction_type !== "App Usage" ||
+      row.start_timestamp_ns === null ||
+      row.stop_timestamp_ns === null
+    ) {
+      continue;
+    }
+    sessions.push({
+      participantId: row.participant_id,
+      kind: "app",
+      startNs: row.start_timestamp_ns,
+      stopNs: row.stop_timestamp_ns,
+      appPackage: row.app_package_name,
+      appLabel: row.application_label,
+      category: row.broad_app_category ?? "Unknown",
+      interactionType: row.interaction_type,
+      usageLayer: row.usage_layer ?? null,
+    });
+  }
+  for (const row of screenRows) {
+    if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) continue;
+    sessions.push({
+      participantId: row.participant_id,
+      kind: "screen",
+      startNs: row.start_timestamp_ns,
+      stopNs: row.stop_timestamp_ns,
+      appPackage: row.app_package_name,
+      appLabel: "Screen",
+      category: "Unknown",
+      interactionType: row.interaction_type,
+      usageLayer: null,
+    });
+  }
+  const participants = [...new Set(sessions.map((s) => s.participantId))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  return { timezone, participants, sessions };
 }
 
 function countDuplicateTimestampGroups(rows: CanonicalRow[]): number {
