@@ -89,36 +89,61 @@ pub fn split_overlapping_sessions(
     }
 
     // Boundary timestamps: every distinct start and stop, sorted.
-    let mut boundaries: Vec<i64> = Vec::with_capacity(starts.len() * 2);
+    let n = starts.len();
+    let mut boundaries: Vec<i64> = Vec::with_capacity(n * 2);
     boundaries.extend_from_slice(starts);
     boundaries.extend_from_slice(stops);
     boundaries.sort_unstable();
     boundaries.dedup();
 
-    // For each sub-interval [boundaries[k], boundaries[k+1]) emit a row per
-    // open session. Coalesce per session afterwards.
+    // Sweep-line over sub-intervals [t0, t1) between consecutive distinct
+    // boundaries. Because t1 is the next boundary after t0 and every start/stop is
+    // a boundary, the sessions open throughout [t0, t1) are exactly
+    //   { i : starts[i] <= t0 AND stops[i] > t0 }   (stops[i] >= t1 <=> stops[i] > t0)
+    // — a set that depends only on t0. We maintain it incrementally as t0 advances
+    // (add at a session's start, drop at its stop) instead of rescanning all N
+    // sessions per window, turning the old O(N^2) boundary scan into O(N log N).
+    // Output is byte-identical: same per-window open set, same primary (greatest
+    // start, then greatest index), same downstream coalesce/zero-width handling.
+    let mut by_start: Vec<usize> = (0..n).collect();
+    by_start.sort_unstable_by_key(|&i| (starts[i], i));
+    let mut by_stop: Vec<usize> = (0..n).collect();
+    by_stop.sort_unstable_by_key(|&i| (stops[i], i));
+
+    let mut open: std::collections::BTreeSet<(i64, usize)> = std::collections::BTreeSet::new();
+    let mut ps = 0usize; // next session to open, by ascending start
+    let mut pe = 0usize; // next session to close, by ascending stop
     let mut raw: Vec<LayeredSession> = Vec::new();
-    for window in boundaries.windows(2) {
-        let (t0, t1) = (window[0], window[1]);
-        if t1 <= t0 {
-            continue;
+
+    for w in 0..boundaries.len().saturating_sub(1) {
+        let t0 = boundaries[w];
+        let t1 = boundaries[w + 1];
+        // Drop sessions that have stopped by t0 (stops[i] <= t0 => not open past t0).
+        while pe < n && stops[by_stop[pe]] <= t0 {
+            let i = by_stop[pe];
+            open.remove(&(starts[i], i));
+            pe += 1;
         }
-        // Open sessions in [t0, t1): start <= t0 and stop >= t1.
-        let mut open: Vec<usize> = Vec::new();
-        for i in 0..starts.len() {
-            if starts[i] <= t0 && stops[i] >= t1 {
-                open.push(i);
+        // Add sessions started by t0 that still run past t0. Zero-width sessions
+        // (stops == starts == t0) fail `stops > t0`, so they are never added — they
+        // produced no window row in the reference and are preserved separately below.
+        while ps < n && starts[by_start[ps]] <= t0 {
+            let i = by_start[ps];
+            if stops[i] > t0 {
+                open.insert((starts[i], i));
             }
+            ps += 1;
         }
         if open.is_empty() {
             continue;
         }
-        // Primary = greatest start_ns, tie broken by greatest index.
-        let primary = *open
+        // Primary = greatest start_ns, tie broken by greatest index = the BTreeSet max.
+        let primary = open
             .iter()
-            .max_by(|&&a, &&b| starts[a].cmp(&starts[b]).then(a.cmp(&b)))
+            .next_back()
+            .map(|&(_, i)| i)
             .expect("open is non-empty");
-        for &i in &open {
+        for &(_, i) in &open {
             raw.push(LayeredSession {
                 session_index: i,
                 start_ns: t0,
@@ -1524,6 +1549,140 @@ mod tests {
 
     fn split(starts: &[i64], stops: &[i64]) -> Vec<LayeredSession> {
         split_overlapping_sessions(starts, stops).expect("split should succeed")
+    }
+
+    /// The original O(N^2) boundary-rescan implementation, kept verbatim as the
+    /// byte-for-byte reference oracle for the sweep-line rewrite. The fuzz test
+    /// below proves the optimized `split_overlapping_sessions` matches this on
+    /// thousands of random inputs plus edge cases — a self-contained gate that does
+    /// not depend on the Python mirror or the WASM/PyO3 build (which can silently
+    /// skip). Do NOT "optimize" this; its only job is to be obviously correct.
+    fn reference_split(starts: &[i64], stops: &[i64]) -> Vec<LayeredSession> {
+        let mut boundaries: Vec<i64> = Vec::with_capacity(starts.len() * 2);
+        boundaries.extend_from_slice(starts);
+        boundaries.extend_from_slice(stops);
+        boundaries.sort_unstable();
+        boundaries.dedup();
+
+        let mut raw: Vec<LayeredSession> = Vec::new();
+        for window in boundaries.windows(2) {
+            let (t0, t1) = (window[0], window[1]);
+            if t1 <= t0 {
+                continue;
+            }
+            let mut open: Vec<usize> = Vec::new();
+            for i in 0..starts.len() {
+                if starts[i] <= t0 && stops[i] >= t1 {
+                    open.push(i);
+                }
+            }
+            if open.is_empty() {
+                continue;
+            }
+            let primary = *open
+                .iter()
+                .max_by(|&&a, &&b| starts[a].cmp(&starts[b]).then(a.cmp(&b)))
+                .expect("open is non-empty");
+            for &i in &open {
+                raw.push(LayeredSession {
+                    session_index: i,
+                    start_ns: t0,
+                    stop_ns: t1,
+                    layer: if i == primary {
+                        UsageLayer::Primary
+                    } else {
+                        UsageLayer::Secondary
+                    },
+                });
+            }
+        }
+
+        raw.sort_by(|a, b| {
+            a.session_index
+                .cmp(&b.session_index)
+                .then(a.start_ns.cmp(&b.start_ns))
+        });
+        let mut out: Vec<LayeredSession> = Vec::with_capacity(raw.len());
+        for row in raw {
+            if let Some(last) = out.last_mut() {
+                if last.session_index == row.session_index
+                    && last.layer == row.layer
+                    && last.stop_ns == row.start_ns
+                {
+                    last.stop_ns = row.stop_ns;
+                    continue;
+                }
+            }
+            out.push(row);
+        }
+        let present: std::collections::HashSet<usize> =
+            out.iter().map(|r| r.session_index).collect();
+        for i in 0..starts.len() {
+            if !present.contains(&i) {
+                out.push(LayeredSession {
+                    session_index: i,
+                    start_ns: starts[i],
+                    stop_ns: stops[i],
+                    layer: UsageLayer::Primary,
+                });
+            }
+        }
+        out.sort_by(|a, b| {
+            a.session_index
+                .cmp(&b.session_index)
+                .then(a.start_ns.cmp(&b.start_ns))
+        });
+        out
+    }
+
+    #[test]
+    fn sweep_line_matches_reference_fuzz() {
+        // Deterministic LCG (no rand dependency) — vary by index so the corpus is
+        // reproducible. Small value ranges densely produce the cases that matter:
+        // coincident timestamps across sessions, fully nested, adjacent-touching
+        // (stop == next start), duplicate boundaries, zero-width (stop == start),
+        // empty (n == 0) and single-session inputs.
+        let mut state: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut next = || {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (state >> 33) as i64
+        };
+        for _ in 0..20_000 {
+            let n = next().rem_euclid(14) as usize; // 0..=13 (includes empty + single)
+            let mut starts = Vec::with_capacity(n);
+            let mut stops = Vec::with_capacity(n);
+            for _ in 0..n {
+                let s = next().rem_euclid(40);
+                let d = next().rem_euclid(40); // d == 0 => zero-width session
+                starts.push(s);
+                stops.push(s + d);
+            }
+            let got = split_overlapping_sessions(&starts, &stops).expect("ok");
+            let want = reference_split(&starts, &stops);
+            assert_eq!(got, want, "mismatch starts={starts:?} stops={stops:?}");
+        }
+
+        // Explicit edges (in addition to the random corpus above).
+        let edges: &[(Vec<i64>, Vec<i64>)] = &[
+            (vec![], vec![]),                       // empty
+            (vec![5], vec![5]),                     // single zero-width
+            (vec![0], vec![10]),                    // single
+            (vec![0, 0], vec![10, 10]),             // coincident identical
+            (vec![0, 0, 0], vec![10, 10, 10]),      // triple coincident
+            (vec![0, 40], vec![100, 60]),           // fully nested
+            (vec![0, 10], vec![10, 20]),            // adjacent-touching (stop == next start)
+            (vec![0, 5, 10], vec![5, 5, 15]),       // zero-width nested in a run
+            (vec![10, 0, 5], vec![20, 30, 5]),      // unsorted input with zero-width
+        ];
+        for (starts, stops) in edges {
+            assert_eq!(
+                split_overlapping_sessions(starts, stops).expect("ok"),
+                reference_split(starts, stops),
+                "edge mismatch starts={starts:?} stops={stops:?}",
+            );
+        }
     }
 
     #[test]
