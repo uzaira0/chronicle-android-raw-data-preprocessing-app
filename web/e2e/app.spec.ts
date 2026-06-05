@@ -463,7 +463,7 @@ test("@smoke the exported HTML timeline viewer runs its inlined interactivity of
   }));
   await viewer.mouse.move(target.x, target.y);
   await viewer.keyboard.down("Shift");
-  await viewer.mouse.wheel(0, -240);
+  await viewer.mouse.wheel(-240, 0);
   await viewer.keyboard.up("Shift");
   await expect
     .poll(async () => canvas.evaluate((c) => (c as HTMLCanvasElement).toDataURL()))
@@ -526,7 +526,7 @@ test("View tab renders the interactive timeline with file and type dropdowns (#1
   }));
   await page.mouse.move(target.x, target.y);
   await page.keyboard.down("Shift");
-  await page.mouse.wheel(0, -240);
+  await page.mouse.wheel(-240, 0);
   await page.keyboard.up("Shift");
   await expect
     .poll(async () => canvas.evaluate((c) => (c as HTMLCanvasElement).toDataURL()))
