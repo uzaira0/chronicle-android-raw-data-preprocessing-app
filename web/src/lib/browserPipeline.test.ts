@@ -1,7 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { parquetReadObjects } from "hyparquet";
 import {
+  addAppUsageDetailColumns,
   buildAppParquetColumnSpecs,
+  type CanonicalRow,
   DEFAULT_BROWSER_OPTIONS,
   discoverTimezonesFromRawCsv,
   processRawCsvContent,
@@ -1156,5 +1158,64 @@ describe("browserPipeline", () => {
         ),
       ).rejects.toThrow("runSplitter must be supplied when modelConcurrentUsage is true");
     });
+  });
+});
+
+describe("addAppUsageDetailColumns — concurrent-usage layer (FU2)", () => {
+  const NS = 1_000_000_000n;
+  const min = (m: number): bigint => BigInt(m * 60) * NS;
+  const drow = (over: {
+    app: string;
+    startMin: number;
+    stopMin: number;
+    layer?: string | null;
+    type?: string;
+  }): CanonicalRow =>
+    ({
+      interaction_type: over.type ?? "App Usage",
+      app_package_name: over.app,
+      usage_layer: over.layer ?? null,
+      start_timestamp_ns: min(over.startMin),
+      stop_timestamp_ns: min(over.stopMin),
+      // Detail columns default to 0 (as createBaseRow sets them); rows excluded
+      // from the walk keep this default.
+      any_app_new_engage_30s: 0,
+      any_app_new_engage_custom: 0,
+      any_app_switched_app: 0,
+      any_app_usage_time_gap_hours: 0,
+      valid_app_new_engage_30s: 0,
+      valid_app_new_engage_custom: 0,
+      valid_app_switched_app: 0,
+      valid_app_usage_time_gap_hours: 0,
+    }) as unknown as CanonicalRow;
+
+  it("excludes secondary sub-intervals from the engagement walk (no negative gaps)", () => {
+    // Foreground primary [0,20] then [30,50], with a background secondary [10,15]
+    // overlapping the first. The walk must skip the secondary layer, so no gap
+    // goes negative and the second primary's gap is measured from the first
+    // primary's stop (20), not the secondary's stop (15).
+    const rows = [
+      drow({ app: "com.a", startMin: 0, stopMin: 20, layer: "primary" }),
+      drow({ app: "com.b", startMin: 10, stopMin: 15, layer: "secondary" }),
+      drow({ app: "com.a", startMin: 30, stopMin: 50, layer: "primary" }),
+    ];
+    const out = addAppUsageDetailColumns(rows, DEFAULT_BROWSER_OPTIONS);
+
+    expect(out.every((r) => r.any_app_usage_time_gap_hours >= 0)).toBe(true);
+    // The secondary row isn't treated as an engagement and has no gap.
+    expect(out[1]!.any_app_usage_time_gap_hours).toBe(0);
+    expect(out[1]!.any_app_new_engage_30s).toBe(0);
+    // Second primary gap is (30-20)=10 min from the first primary's stop.
+    expect(out[2]!.any_app_usage_time_gap_hours).toBeCloseTo(10 / 60, 6);
+  });
+
+  it("is a no-op when no row is secondary (concurrent off → unchanged)", () => {
+    const rows = [
+      drow({ app: "com.a", startMin: 0, stopMin: 20 }),
+      drow({ app: "com.b", startMin: 30, stopMin: 40 }),
+    ];
+    const out = addAppUsageDetailColumns(rows, DEFAULT_BROWSER_OPTIONS);
+    expect(out[1]!.any_app_usage_time_gap_hours).toBeCloseTo(10 / 60, 6); // (30-20)
+    expect(out[1]!.any_app_switched_app).toBe(1); // com.a → com.b
   });
 });

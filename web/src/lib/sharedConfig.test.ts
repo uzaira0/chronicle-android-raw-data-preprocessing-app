@@ -7,8 +7,10 @@ import {
   diffOptionsFromDefaults,
   encodeOptionsToParam,
   readSharedConfig,
+  sanitizeOptions,
   SHARED_CONFIG_PARAM,
 } from "@/lib/settingsPersistence";
+import { CANONICAL_INTERACTION_TYPES } from "@/lib/interactionTypes";
 
 describe("shareable config URL (#23)", () => {
   it("diff contains only keys that differ from defaults", () => {
@@ -56,5 +58,44 @@ describe("shareable config URL (#23)", () => {
     expect(readSharedConfig("?other=1")).toBeNull();
     expect(decodeOptionsFromParam("{not json")).toBeNull();
     expect(decodeOptionsFromParam(null)).toBeNull();
+  });
+});
+
+describe("sanitizeOptions interactionTypeRemap validation (FU3)", () => {
+  it("drops entries whose target is not a canonical interaction type", () => {
+    expect(
+      sanitizeOptions({ interactionTypeRemap: ["Move to Foreground => BogusType"] })
+        .interactionTypeRemap,
+    ).toEqual([]);
+  });
+
+  it("keeps a canonical target with a free-form (non-canonical) source", () => {
+    const entry = "VENDOR_WEIRD_EVENT => Activity Resumed";
+    expect(sanitizeOptions({ interactionTypeRemap: [entry] }).interactionTypeRemap).toEqual([entry]);
+  });
+
+  it("filters a mixed list to only canonical-target entries", () => {
+    const ok = "VENDOR_X => Activity Paused";
+    expect(
+      sanitizeOptions({ interactionTypeRemap: ["A => BogusType", ok, "B => NotReal"] })
+        .interactionTypeRemap,
+    ).toEqual([ok]);
+  });
+
+  it("keeps inert in-progress rows (no delimiter / empty side)", () => {
+    const rows = ["Move to Foreground", "=>Activity Resumed", "foo =>"];
+    expect(sanitizeOptions({ interactionTypeRemap: rows }).interactionTypeRemap).toEqual(rows);
+  });
+
+  it("accepts every canonical type as a remap target", () => {
+    const entries = CANONICAL_INTERACTION_TYPES.map((t) => `SRC => ${t}`);
+    expect(sanitizeOptions({ interactionTypeRemap: entries }).interactionTypeRemap).toEqual(entries);
+  });
+
+  it("closes the untrusted share-link vector on decode", () => {
+    // Hand-built param (not the encoder, which sanitizes on its own path) models
+    // an attacker-crafted link.
+    const param = JSON.stringify({ interactionTypeRemap: ["VENDOR => BogusType"] });
+    expect(decodeOptionsFromParam(param)?.interactionTypeRemap).toEqual([]);
   });
 });

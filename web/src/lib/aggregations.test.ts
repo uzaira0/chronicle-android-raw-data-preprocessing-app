@@ -125,9 +125,20 @@ describe("computeTopApps", () => {
       appSession({ app_package_name: "com.b", startMin: 8, stopMin: 18 }), // b = 10 total
     ];
     const ranked = computeTopApps(rows, (date) => date);
-    expect(ranked.map((r) => [r.rank, r.app_package_name, r.total_minutes, r.session_count])).toEqual([
-      [1, "com.b", 10, 1],
-      [2, "com.a", 7, 2],
+    // No usage_layer → everything is foreground; background_minutes is 0 and
+    // total_minutes == foreground_minutes (no-op when concurrent modeling is off).
+    expect(
+      ranked.map((r) => [
+        r.rank,
+        r.app_package_name,
+        r.foreground_minutes,
+        r.background_minutes,
+        r.total_minutes,
+        r.session_count,
+      ]),
+    ).toEqual([
+      [1, "com.b", 10, 0, 10, 1],
+      [2, "com.a", 7, 0, 7, 2],
     ]);
   });
 });
@@ -145,6 +156,8 @@ describe("computeCategoryBudget", () => {
         participant_id: "P1",
         date: "2026-06-01",
         broad_app_category: "Games",
+        foreground_minutes: 10,
+        background_minutes: 0,
         total_minutes: 10,
         session_count: 1,
       },
@@ -153,6 +166,8 @@ describe("computeCategoryBudget", () => {
         participant_id: "P1",
         date: "2026-06-01",
         broad_app_category: "Social & Communication",
+        foreground_minutes: 8,
+        background_minutes: 0,
         total_minutes: 8,
         session_count: 2,
       },
@@ -227,7 +242,7 @@ describe("buildAggregateOutputs", () => {
     expect(outputs.map((o) => o.suffix)).toContain(" App Co-Usage.csv");
   });
 
-  it("leads every secondary output header with study_id (multi-study contract)", () => {
+  it("leads every secondary output header with study_id,study_name (multi-study contract)", () => {
     const outputs = buildAggregateOutputs(appRows, screenRows, {
       ...STUB_OPTIONS,
       includeCategoryBudget: true,
@@ -235,9 +250,11 @@ describe("buildAggregateOutputs", () => {
     });
     const headerOf = (suffix: string): string =>
       outputs.find((o) => o.suffix === suffix)!.csv.split("\n")[0]!;
-    expect(headerOf(" Top Apps.csv").startsWith("study_id,participant_id,")).toBe(true);
-    expect(headerOf(" Category Time Budget.csv").startsWith("study_id,participant_id,")).toBe(true);
-    expect(headerOf(" App Co-Usage.csv").startsWith("study_id,participant_id,")).toBe(true);
+    // FU5: study_name now follows study_id on every secondary output, matching the
+    // daily/weekly summaries (uniform leading identity columns across all CSVs).
+    expect(headerOf(" Top Apps.csv").startsWith("study_id,study_name,participant_id,")).toBe(true);
+    expect(headerOf(" Category Time Budget.csv").startsWith("study_id,study_name,participant_id,")).toBe(true);
+    expect(headerOf(" App Co-Usage.csv").startsWith("study_id,study_name,participant_id,")).toBe(true);
   });
 
   it("wide daily summary has metric columns plus first_use/last_use", () => {
@@ -249,11 +266,129 @@ describe("buildAggregateOutputs", () => {
     expect(daily.rowCount).toBe(1); // one (participant, date)
   });
 
-  it("long daily summary melts numeric scalars only (metric/value), 9 rows per period", () => {
+  it("long daily summary melts numeric scalars only (metric/value), 10 rows per period", () => {
     const daily = buildAggregateOutputs(appRows, screenRows, { ...STUB_OPTIONS, shape: "long" })[0]!;
     const header = daily.csv.split("\n")[0]!;
     expect(header).toBe("study_id,study_name,participant_id,date,timezone,metric,value");
     expect(header).not.toContain("first_use");
-    expect(daily.rowCount).toBe(9); // 1 period × 9 numeric metrics
+    // 10 numeric metrics: total_app_usage_minutes now has total_background_app_usage_minutes beside it.
+    expect(daily.rowCount).toBe(10); // 1 period × 10 numeric metrics
+    expect(daily.csv).toContain("total_background_app_usage_minutes");
+  });
+});
+
+describe("concurrent-usage layer handling (FU1 — show foreground/background separately)", () => {
+  // Post-split rows: a foreground primary session plus a background secondary
+  // sub-interval (a different app) overlapping it. The period/device total must
+  // NOT add the secondary layer (it double-counts the shared wall-clock); top apps
+  // and category budget show the two layers as SEPARATE columns so a background-only
+  // app is visible, not dropped; co-usage sees both (it measures the overlap).
+  const layered: AggregateInputRow[] = [
+    appSession({ app_package_name: "com.a", startMin: 0, stopMin: 10, usage_layer: "primary" }),
+    appSession({ app_package_name: "com.b", startMin: 3, stopMin: 7, usage_layer: "secondary" }),
+  ];
+
+  it("period summary keeps total_app_usage_minutes foreground-only and reports background beside it", () => {
+    const summary = computePeriodSummaries(layered, [], (d) => d)[0]!.summary;
+    expect(summary.total_app_usage_minutes).toBe(10); // foreground device timeline, not 14
+    expect(summary.total_background_app_usage_minutes).toBe(4); // secondary, shown separately
+    expect(summary.app_session_count).toBe(1); // one foreground session, not 2
+  });
+
+  it("top apps show a background-only app instead of dropping it", () => {
+    const top = computeTopApps(layered, (d) => d);
+    // com.a is foreground (10 fg); com.b is background-only (4 bg) — now visible.
+    // Ranked by total_minutes desc.
+    expect(
+      top.map((r) => [r.app_package_name, r.foreground_minutes, r.background_minutes, r.total_minutes]),
+    ).toEqual([
+      ["com.a", 10, 0, 10],
+      ["com.b", 0, 4, 4],
+    ]);
+  });
+
+  it("top apps split a mixed-layer app's own foreground and background time", () => {
+    // The real background-app shape: one app foregrounded then backgrounded. Its
+    // primary and secondary sub-intervals are disjoint, so total = fg + bg.
+    const mixed: AggregateInputRow[] = [
+      appSession({ app_package_name: "com.spotify", startMin: 0, stopMin: 5, usage_layer: "primary" }),
+      appSession({ app_package_name: "com.spotify", startMin: 5, stopMin: 12, usage_layer: "secondary" }),
+    ];
+    const [row] = computeTopApps(mixed, (d) => d);
+    expect([row!.foreground_minutes, row!.background_minutes, row!.total_minutes]).toEqual([5, 7, 12]);
+    expect(row!.session_count).toBe(2);
+  });
+
+  it("category budget reports foreground and background minutes separately", () => {
+    const withCat: AggregateInputRow[] = [
+      appSession({ app_package_name: "com.a", startMin: 0, stopMin: 10, usage_layer: "primary", broad_app_category: "Social" }),
+      appSession({ app_package_name: "com.b", startMin: 3, stopMin: 7, usage_layer: "secondary", broad_app_category: "Social" }),
+    ];
+    const budget = computeCategoryBudget(withCat);
+    expect(budget).toHaveLength(1);
+    expect(budget[0]!.foreground_minutes).toBe(10);
+    expect(budget[0]!.background_minutes).toBe(4);
+    expect(budget[0]!.total_minutes).toBe(14); // fg + bg (distinct apps in the category)
+    expect(budget[0]!.session_count).toBe(2);
+  });
+
+  it("attributes a background overlap crossing midnight to its own date (no silent drop)", () => {
+    // A secondary sub-interval whose date differs from its foreground app's date
+    // (a midnight-crossing overlap) must still surface its background minutes —
+    // its key isn't in the foreground key set, so it gets its own period row.
+    const rows: AggregateInputRow[] = [
+      appSession({ app_package_name: "com.fg", startMin: 0, stopMin: 10, usage_layer: "primary", date: "2026-06-01" }),
+      appSession({ app_package_name: "com.bg", startMin: 0, stopMin: 6, usage_layer: "secondary", date: "2026-06-02" }),
+    ];
+    const byDate = new Map(computePeriodSummaries(rows, [], (d) => d).map((e) => [e.period, e.summary]));
+    expect(byDate.get("2026-06-01")!.total_app_usage_minutes).toBe(10);
+    expect(byDate.get("2026-06-01")!.total_background_app_usage_minutes).toBe(0);
+    expect(byDate.get("2026-06-02")!.total_app_usage_minutes).toBe(0);
+    expect(byDate.get("2026-06-02")!.total_background_app_usage_minutes).toBe(6);
+  });
+
+  it("co-usage DOES use both layers (the overlap it measures)", () => {
+    const co = computeCoUsage(layered);
+    expect(co).toHaveLength(1);
+    expect([co[0]!.app_a, co[0]!.app_b].sort()).toEqual(["com.a", "com.b"]);
+    expect(co[0]!.total_overlap_minutes).toBe(4); // [3,7] overlap = 4 min
+  });
+
+  it("is a no-op when no row is secondary (concurrent off → background 0, total == foreground)", () => {
+    const primaryOnly: AggregateInputRow[] = [
+      appSession({ app_package_name: "com.a", startMin: 0, stopMin: 10, usage_layer: "primary" }),
+      appSession({ app_package_name: "com.b", startMin: 20, stopMin: 25, usage_layer: null }),
+    ];
+    const summary = computePeriodSummaries(primaryOnly, [], (d) => d)[0]!.summary;
+    expect(summary.total_app_usage_minutes).toBe(15);
+    expect(summary.total_background_app_usage_minutes).toBe(0);
+    expect(summary.app_session_count).toBe(2);
+    const top = computeTopApps(primaryOnly, (d) => d);
+    expect(
+      top.every((r) => r.background_minutes === 0 && r.total_minutes === r.foreground_minutes),
+    ).toBe(true);
+  });
+});
+
+describe("aggregate CSV column consistency (FU5)", () => {
+  const rows: AggregateInputRow[] = [
+    appSession({ app_package_name: "com.a", startMin: 0, stopMin: 10, broad_app_category: "Social" }),
+    appSession({ app_package_name: "com.b", startMin: 2, stopMin: 8 }),
+  ];
+  const opts: BuildAggregateOptions = { ...STUB_OPTIONS, includeCategoryBudget: true, includeCoUsage: true };
+
+  it("Top Apps / Category / Co-Usage all carry a study_name column", () => {
+    const outputs = buildAggregateOutputs(rows, [], opts);
+    const headerFor = (suffix: string): string =>
+      outputs.find((o) => o.suffix.includes(suffix))!.csv.split("\n")[0]!;
+    expect(headerFor("Top Apps")).toBe(
+      "study_id,study_name,participant_id,date,rank,app_package_name,application_label,foreground_minutes,background_minutes,total_minutes,session_count",
+    );
+    expect(headerFor("Category Time Budget")).toBe(
+      "study_id,study_name,participant_id,date,broad_app_category,foreground_minutes,background_minutes,total_minutes,session_count",
+    );
+    expect(headerFor("Co-Usage")).toBe(
+      "study_id,study_name,participant_id,app_a,app_b,co_usage_count,total_overlap_minutes",
+    );
   });
 });

@@ -12,6 +12,7 @@ import {
   type SupportFileSlot,
 } from "@/lib/projectsStore";
 import type { BrowserProcessingOptions } from "@/lib/types";
+import { safeUuid } from "@/lib/uuid";
 
 /** Warn when a bundled save would exceed this (IndexedDB quota / eviction risk). */
 const LARGE_SAVE_BYTES = 50 * 1024 * 1024;
@@ -59,14 +60,9 @@ export function ProjectsCard({
       return;
     }
     const bytes = projectByteSize({ rawFiles: uploadedFiles, supportFiles, includeFiles });
-    if (bytes > LARGE_SAVE_BYTES) {
-      onStatus(
-        `This project bundles ${formatBytes(bytes)} of files, which may exceed browser storage limits and be evicted. Consider saving config only.`,
-        true,
-      );
-    }
+    const oversized = bytes > LARGE_SAVE_BYTES;
     const record = buildProjectRecord({
-      id: crypto.randomUUID(),
+      id: safeUuid(),
       name: trimmed,
       now: new Date().toISOString(),
       options,
@@ -78,9 +74,18 @@ export function ProjectsCard({
       () => {
         setName("");
         refresh();
-        onStatus(
-          `Project saved: ${trimmed}${includeFiles ? ` (with ${formatBytes(bytes)} of files)` : " (config only)"}`,
-        );
+        // Surface the quota warning on the success path: a single-slot status
+        // toast shown before the async save resolved would be clobbered by this.
+        if (oversized) {
+          onStatus(
+            `Project saved: ${trimmed} (with ${formatBytes(bytes)} of files) — this exceeds typical browser storage limits and may be evicted; consider saving config only.`,
+            true,
+          );
+        } else {
+          onStatus(
+            `Project saved: ${trimmed}${includeFiles ? ` (with ${formatBytes(bytes)} of files)` : " (config only)"}`,
+          );
+        }
       },
       (error: unknown) =>
         onStatus(
@@ -181,7 +186,7 @@ export function ProjectsCard({
                     {project.includesFiles
                       ? `${project.rawFileNames.length} file${project.rawFileNames.length === 1 ? "" : "s"}`
                       : "config only"}{" "}
-                    · updated {new Date(project.updatedAt).toLocaleString()}
+                    · created {new Date(project.createdAt).toLocaleString()}
                   </span>
                 </div>
                 <div className="button-row">

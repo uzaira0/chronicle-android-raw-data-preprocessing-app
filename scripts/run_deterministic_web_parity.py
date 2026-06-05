@@ -402,7 +402,8 @@ def main() -> int:
                 options={
                     "studyName": "Deterministic Parity",
                     "processAppUsage": True,
-                "processScreenUsage": False,
+                    "processScreenUsage": False,
+                    "enablePlotting": False,
                     "selectedTimezone": "America/Chicago",
                     "timezoneHandling": "selected-filter",
                     "useFilterFile": False,

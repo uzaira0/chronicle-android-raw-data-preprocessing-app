@@ -13,11 +13,11 @@ import {
   persistOptions,
   readPersistedOptions,
   readSharedConfig,
+  sanitizeOptions,
   SHARED_CONFIG_PARAM,
 } from "@/lib/settingsPersistence";
 import { inspectRawFiles, type RawFileInspection } from "@/lib/fileInspection";
 import { applyProgressEvent } from "@/lib/progressReducer";
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import { storedFileToFile, type ProjectRecord } from "@/lib/projectsStore";
 import type {
   BrowserProcessingOptions,
@@ -227,8 +227,10 @@ export default function App(): ReactElement {
   };
 
   const applyProject = (record: ProjectRecord): void => {
-    // Merge over defaults so a project saved against an older schema still loads.
-    setOptions({ ...DEFAULT_BROWSER_OPTIONS, ...record.options });
+    // Sanitize the stored options (merges over defaults + validates restored
+    // values, e.g. drops non-canonical interaction-remap targets) so a project
+    // saved against an older schema or hand-edited record still loads safely.
+    setOptions(sanitizeOptions(record.options));
     // A project restore replaces the FULL file state so it can't be left
     // inconsistent with the restored option flags (e.g. useFilterFile=true but a
     // stale/other filter still loaded). `supportFiles` is empty for a config-only

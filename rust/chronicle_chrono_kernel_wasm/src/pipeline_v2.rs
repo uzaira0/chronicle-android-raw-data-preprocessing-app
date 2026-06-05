@@ -1429,6 +1429,9 @@ fn process_usage_rows(
         apply_threshold_to_fallback: opts.apply_threshold_to_fallback,
         long_duration_threshold_ns: opts.long_duration_threshold_ns,
     };
+    // The kernel crate has no background-apps concept; pass an all-false slice
+    // (length-matched to the inputs) so the matcher's validate_lengths passes.
+    let background = vec![false; app_codes.len()];
     let result = _rust_app_usage_matcher::match_app_usage_update_indices_core(
         &app_codes,
         &timestamps,
@@ -1436,6 +1439,7 @@ fn process_usage_rows(
         &same_stop,
         &other_stop,
         &stopped,
+        &background,
         match_options,
     )
     .map_err(|e| format!("matcher: {e}"))?;

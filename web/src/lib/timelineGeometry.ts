@@ -111,6 +111,15 @@ export function layoutTimeline(
     height: ROW_HEIGHT,
   }));
 
+  // When any participant has a secondary concurrent-usage layer, split the app
+  // lane into two stacked half-height sub-rows so the primary/secondary bands of
+  // overlapping apps don't occlude each other. Computed over ALL sessions (not the
+  // viewport/kind-filtered subset) so lane geometry is stable under pan/zoom and
+  // the App/Screen toggles. No-op (full-height app lane, byte-identical to before)
+  // when nothing is secondary — i.e. whenever concurrent modeling is off.
+  const hasSecondary = sessions.some((s) => s.usageLayer === "secondary");
+  const appLaneHeight = hasSecondary ? LANE_HEIGHT / 2 : LANE_HEIGHT;
+
   const rects: TimelineRect[] = [];
   sessions.forEach((session, sessionIndex) => {
     if (!visibleKinds.has(session.kind)) return;
@@ -120,12 +129,23 @@ export function layoutTimeline(
     const x0 = nsToX(session.startNs, viewport, width);
     const x1 = nsToX(session.stopNs, viewport, width);
     const rowY = TIMELINE_MARGIN.top + i * (ROW_HEIGHT + ROW_GAP);
-    const y = session.kind === "app" ? rowY : rowY + LANE_HEIGHT;
+    let y: number;
+    let h: number;
+    if (session.kind === "screen") {
+      y = rowY + LANE_HEIGHT;
+      h = LANE_HEIGHT;
+    } else if (hasSecondary && session.usageLayer === "secondary") {
+      y = rowY + appLaneHeight; // bottom half of the app lane
+      h = appLaneHeight;
+    } else {
+      y = rowY; // app primary/null → top of the app lane
+      h = appLaneHeight;
+    }
     rects.push({
       x: x0,
       y,
       w: Math.max(1, x1 - x0),
-      h: LANE_HEIGHT,
+      h,
       sessionIndex,
     });
   });

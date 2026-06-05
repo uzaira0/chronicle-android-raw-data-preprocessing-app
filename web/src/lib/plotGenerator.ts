@@ -290,6 +290,7 @@ function legendPrimitives(
   hasShutdown: boolean,
   hasStartup: boolean,
   hasMissing: boolean,
+  hasGap: boolean,
 ): Primitive[] {
   const x = CANVAS_WIDTH - MARGIN.right + 16;
   let y = legendTop;
@@ -314,12 +315,16 @@ function legendPrimitives(
     y += LEGEND_LINE_H;
   }
 
-  y += 6;
-  header("Events & Gaps");
-  y += LEGEND_LINE_H + 4;
+  if (hasGap || hasShutdown || hasStartup || hasMissing) {
+    y += 6;
+    header("Events & Gaps");
+    y += LEGEND_LINE_H + 4;
+  }
 
-  prims.push(...legendEntry(x, y, GAP_COLOR, "Data Gap", { alpha: 0.35 }));
-  y += LEGEND_LINE_H;
+  if (hasGap) {
+    prims.push(...legendEntry(x, y, GAP_COLOR, "Data Gap", { alpha: 0.35 }));
+    y += LEGEND_LINE_H;
+  }
 
   if (hasShutdown) {
     prims.push(...legendEntry(x, y, "red", "Device Shutdown"));
@@ -728,7 +733,7 @@ export function buildTimelineScene(
     baseline: "alphabetic",
   });
 
-  prims.push(...legendPrimitives(plotTop, hasShutdown, hasStartup, hasMissing || gapLegendNeeded));
+  prims.push(...legendPrimitives(plotTop, hasShutdown, hasStartup, hasMissing, gapLegendNeeded));
 
   return { width: CANVAS_WIDTH, height: totalHeight, primitives: prims };
 }

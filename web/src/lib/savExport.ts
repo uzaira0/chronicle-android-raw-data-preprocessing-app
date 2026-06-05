@@ -116,6 +116,16 @@ function utf8Bytes(text: string): Uint8Array {
   return new TextEncoder().encode(text);
 }
 
+/** Largest byte length ≤ maxLen that does not split a UTF-8 multibyte sequence. */
+function utf8TruncatedLength(bytes: Uint8Array, maxLen: number): number {
+  if (bytes.length <= maxLen) return bytes.length;
+  let len = maxLen;
+  // 0b10xxxxxx bytes are UTF-8 continuation bytes; if the cut lands on one we are
+  // inside a multibyte char, so back up to its lead byte.
+  while (len > 0 && (bytes[len]! & 0xc0) === 0x80) len -= 1;
+  return len;
+}
+
 /** A numeric value as 8 little-endian IEEE-754 bytes. */
 function f64Bytes(value: number): Uint8Array {
   const out = new Uint8Array(8);
@@ -157,7 +167,11 @@ export function buildSavBuffer(variables: readonly SavVariable[], rows: readonly
     const labelBytes = variable.label ? utf8Bytes(variable.label) : null;
     if (variable.type === "numeric") {
       const decimals = variable.decimals ?? 2;
-      const fmt = packFormat(FORMAT_F, 8, decimals);
+      // Width must leave room for the integer part, sign, and decimal point. A
+      // hardcoded 8 fits only ~6 visible chars, so F8.4 / large values render as
+      // "*****" in SPSS even though the stored double is intact.
+      const numericWidth = Math.max(8, decimals + 11);
+      const fmt = packFormat(FORMAT_F, numericWidth, decimals);
       sink.i32(2); // rec_type
       sink.i32(0); // type (numeric)
       sink.i32(labelBytes ? 1 : 0);
@@ -270,11 +284,19 @@ export function buildSavBuffer(variables: readonly SavVariable[], rows: readonly
           }
         }
       } else {
-        // One command code per 8-byte segment, spanning the variable's width.
-        const width = slotCount(variable) * 8;
-        const padded = new Uint8Array(width).fill(0x20);
-        padded.set(utf8Bytes(value == null ? "" : String(value)).subarray(0, width));
-        for (let offset = 0; offset < width; offset += 8) {
+        // One command code per 8-byte segment, spanning the variable's slots.
+        // The value occupies the declared A-format width; the remaining bytes of
+        // the final slot are space padding. Truncating to the declared width (not
+        // the slot-rounded width) keeps the data consistent with the dictionary,
+        // and we back off to a UTF-8 char boundary so a multibyte glyph is never
+        // split into an invalid byte sequence.
+        const slotWidth = slotCount(variable) * 8;
+        const declaredWidth = stringWidthOf(variable);
+        const valueBytes = utf8Bytes(value == null ? "" : String(value));
+        const keep = utf8TruncatedLength(valueBytes, declaredWidth);
+        const padded = new Uint8Array(slotWidth).fill(0x20);
+        padded.set(valueBytes.subarray(0, keep));
+        for (let offset = 0; offset < slotWidth; offset += 8) {
           const segment = padded.subarray(offset, offset + 8);
           const allSpaces = segment.every((b) => b === 0x20);
           emit(allSpaces ? 254 : 253, allSpaces ? undefined : segment.slice());

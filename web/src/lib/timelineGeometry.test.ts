@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   fitViewport,
   hitTest,
+  LANE_HEIGHT,
   layoutTimeline,
   nsToX,
   panViewport,
@@ -32,6 +33,56 @@ function session(over: Partial<TimelineSession> = {}): TimelineSession {
 
 const WIDTH = 920;
 const ALL = new Set<TimelineSession["kind"]>(["app", "screen"]);
+const FULL_VP = { startNs: at(0), endNs: at(20) };
+
+describe("layoutTimeline — concurrent-usage layer split (FU4)", () => {
+  it("stacks overlapping primary/secondary app bands in disjoint sub-rows", () => {
+    const sessions = [
+      session({ kind: "app", startNs: at(0), stopNs: at(10), usageLayer: "primary" }),
+      session({ kind: "app", startNs: at(2), stopNs: at(12), usageLayer: "secondary", appPackage: "com.b" }),
+      session({ kind: "screen", startNs: at(0), stopNs: at(12) }),
+    ];
+    const layout = layoutTimeline(sessions, FULL_VP, WIDTH, ALL);
+    const primary = layout.rects.find((r) => r.sessionIndex === 0)!;
+    const secondary = layout.rects.find((r) => r.sessionIndex === 1)!;
+    const screen = layout.rects.find((r) => r.sessionIndex === 2)!;
+
+    // Both app bands are half the normal app-lane height.
+    expect(primary.h).toBeCloseTo(LANE_HEIGHT / 2, 5);
+    expect(secondary.h).toBeCloseTo(LANE_HEIGHT / 2, 5);
+    // Disjoint and non-occluding: primary entirely above secondary.
+    expect(primary.y).toBeLessThan(secondary.y);
+    expect(primary.y + primary.h).toBeLessThanOrEqual(secondary.y);
+    // Neither app sub-row overlaps the screen lane.
+    expect(secondary.y + secondary.h).toBeLessThanOrEqual(screen.y);
+    // They overlap in x (same lane, concurrent apps) — would occlude without the split.
+    expect(primary.x).toBeLessThan(secondary.x + secondary.w);
+    expect(secondary.x).toBeLessThan(primary.x + primary.w);
+  });
+
+  it("hit-tests primary and secondary independently at their sub-row centers", () => {
+    const sessions = [
+      session({ kind: "app", startNs: at(0), stopNs: at(10), usageLayer: "primary" }),
+      session({ kind: "app", startNs: at(0), stopNs: at(10), usageLayer: "secondary", appPackage: "com.b" }),
+    ];
+    const layout = layoutTimeline(sessions, FULL_VP, WIDTH, ALL);
+    const primary = layout.rects.find((r) => r.sessionIndex === 0)!;
+    const secondary = layout.rects.find((r) => r.sessionIndex === 1)!;
+    expect(hitTest(layout, primary.x + primary.w / 2, primary.y + primary.h / 2)).toBe(0);
+    expect(hitTest(layout, secondary.x + secondary.w / 2, secondary.y + secondary.h / 2)).toBe(1);
+  });
+
+  it("is a no-op (full-height app lane) when no session is secondary", () => {
+    const sessions = [
+      session({ kind: "app", startNs: at(0), stopNs: at(10), usageLayer: "primary" }),
+      session({ kind: "app", startNs: at(0), stopNs: at(10), usageLayer: null }),
+    ];
+    const layout = layoutTimeline(sessions, FULL_VP, WIDTH, ALL);
+    for (const r of layout.rects) {
+      expect(r.h).toBeCloseTo(LANE_HEIGHT, 5);
+    }
+  });
+});
 
 describe("fitViewport", () => {
   it("spans the earliest start to the latest stop", () => {
