@@ -2005,7 +2005,9 @@ const PARQUET_MIME = "application/vnd.apache.parquet";
 // build*OutputColumns), but numeric/boolean columns carry native dtypes pulled
 // straight from the CanonicalRow (full precision, not re-parsed CSV text).
 // Timestamps stay as the same formatted strings the CSV uses. The override sets
-// in row*ParquetCells MUST match the non-STRING type sets below — pinned by test.
+// in row*ParquetCells MUST match the non-STRING type sets below — the parquet
+// integration test reads every declared-numeric column back and asserts it is a
+// number, so drift (a numeric column left as a string) would fail there.
 
 const APP_PARQUET_DOUBLE_COLUMNS = new Set([
   "duration_seconds",

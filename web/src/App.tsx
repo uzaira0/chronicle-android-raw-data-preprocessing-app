@@ -229,17 +229,20 @@ export default function App(): ReactElement {
   const applyProject = (record: ProjectRecord): void => {
     // Merge over defaults so a project saved against an older schema still loads.
     setOptions({ ...DEFAULT_BROWSER_OPTIONS, ...record.options });
-    if (record.includesFiles) {
-      const support = record.supportFiles;
-      setFilterFile(support.filterFile ? storedFileToFile(support.filterFile) : null);
-      setAppsForcingScreenOpenFile(
-        support.appsForcingScreenOpenFile ? storedFileToFile(support.appsForcingScreenOpenFile) : null,
-      );
-      setBackgroundAppsFile(support.backgroundAppsFile ? storedFileToFile(support.backgroundAppsFile) : null);
-      setAppCodebookFile(support.appCodebookFile ? storedFileToFile(support.appCodebookFile) : null);
-      // Reuse the upload path so restored files are inspected like fresh uploads.
-      onFilesChange(record.rawFiles.map(storedFileToFile));
-    }
+    // A project restore replaces the FULL file state so it can't be left
+    // inconsistent with the restored option flags (e.g. useFilterFile=true but a
+    // stale/other filter still loaded). `supportFiles` is empty for a config-only
+    // project, so every slot clears; bundled projects rehydrate their blobs.
+    const support = record.supportFiles;
+    setFilterFile(support.filterFile ? storedFileToFile(support.filterFile) : null);
+    setAppsForcingScreenOpenFile(
+      support.appsForcingScreenOpenFile ? storedFileToFile(support.appsForcingScreenOpenFile) : null,
+    );
+    setBackgroundAppsFile(support.backgroundAppsFile ? storedFileToFile(support.backgroundAppsFile) : null);
+    setAppCodebookFile(support.appCodebookFile ? storedFileToFile(support.appCodebookFile) : null);
+    // Reuse the upload path so restored files are inspected like fresh uploads;
+    // a config-only project clears the raw files to a clean slate.
+    onFilesChange(record.includesFiles ? record.rawFiles.map(storedFileToFile) : []);
   };
 
   const buildSupportFiles = async (): Promise<BrowserSupportFiles> => ({
