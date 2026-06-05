@@ -637,7 +637,8 @@ describe("browserPipeline", () => {
     expect(on.timelineView!.app[0]!.scene.primitives.length).toBeGreaterThan(0);
     expect(on.timelineView!.app[0]!.regions.length).toBeGreaterThan(0);
     const region = on.timelineView!.app[0]!.regions[0]!;
-    expect(region.title).toBe("com.example.chat");
+    expect(region.title).toBe("Chat");
+    expect(region.lines).toContain("com.example.chat");
     expect(on.timelineView!.screen).toHaveLength(0);
   });
 

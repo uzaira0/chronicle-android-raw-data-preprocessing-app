@@ -203,6 +203,30 @@ describe("buildWaterfallScene", () => {
     );
     expect(separators).toHaveLength(1);
   });
+
+  it("draws device event markers with hover regions", () => {
+    const regions: SceneRegion[] = [];
+    const scene = buildWaterfallScene(
+      [
+        {
+          startNs: at(10),
+          stopNs: at(11),
+          color: CATEGORY_COLORS["Games"]!,
+          title: "Chat",
+          detail: ["com.example.chat", "Games", "60.0 min · App Usage"],
+        },
+      ],
+      [at(9), at(10), at(11)],
+      "UTC",
+      regions,
+      [{ ns: at(9), color: "red", title: "Device Shutdown" }],
+    );
+
+    expect(scene.primitives.some((p) => p.type === "poly" && p.fill === "red")).toBe(true);
+    const marker = regions.find((r) => r.title === "Device Shutdown");
+    expect(marker).toBeDefined();
+    expect(marker!.lines).toContain("2026-03-07 09:00:00");
+  });
 });
 
 describe("buildHeatmapScene", () => {

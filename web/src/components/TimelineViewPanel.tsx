@@ -78,11 +78,15 @@ function InteractiveScene({ view }: { view: TimelineParticipantView }): ReactEle
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const measure = (): void => setBoxW(Math.max(320, el.clientWidth));
+    const measure = (): void => setBoxW(Math.max(320, el.getBoundingClientRect().width));
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
-    return () => observer.disconnect();
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
   }, []);
 
   useEffect(() => {
@@ -127,7 +131,7 @@ function InteractiveScene({ view }: { view: TimelineParticipantView }): ReactEle
         <canvas
           ref={canvasRef}
           className="timeline-view__canvas"
-          style={{ width: `${boxW}px`, height: `${canvasCssHeight}px` }}
+          style={{ width: "100%", height: `${canvasCssHeight}px` }}
           onPointerMove={onPointerMove}
           onPointerLeave={() => setHover(null)}
         />

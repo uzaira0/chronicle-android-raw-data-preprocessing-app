@@ -78,6 +78,7 @@ type PlotRow = {
   interaction_type: string;
   broad_app_category?: string | null;
   app_package_name: string;
+  application_label?: string | null;
   username?: string;
 };
 
@@ -518,6 +519,13 @@ export type WaterfallSession = {
   detail: string[];
 };
 
+export type WaterfallMarker = {
+  ns: bigint;
+  color: string;
+  title: string;
+  detail?: string[];
+};
+
 /**
  * Bare, full-width waterfall scene for the interactive surfaces. This is
  * intentionally separate from `buildTimelineScene` / `buildScreenScene` so the
@@ -529,8 +537,9 @@ export function buildWaterfallScene(
   allEventNs: bigint[],
   timezone: string,
   regionsOut?: SceneRegion[],
+  markers: WaterfallMarker[] = [],
 ): Scene {
-  if (sessions.length === 0) {
+  if (sessions.length === 0 && markers.length === 0) {
     return { width: 1, height: 1, primitives: [] };
   }
 
@@ -575,6 +584,9 @@ export function buildWaterfallScene(
     for (let s = startSerial; s <= stopSerial; s++) {
       dateSet.add(s === startSerial ? startIso : new Date(s * 86_400_000).toISOString().slice(0, 10));
     }
+  }
+  for (const marker of markers) {
+    dateSet.add(nsToIso(marker.ns));
   }
 
   const sortedDates = [...dateSet].sort();
@@ -709,6 +721,24 @@ export function buildWaterfallScene(
           lines: [...session.detail, range],
         });
       }
+    }
+  }
+
+  for (const marker of markers) {
+    const iso = nsToIso(marker.ns);
+    const yCenter = dateToY.get(iso);
+    if (yCenter === undefined) continue;
+    const x = wfHoursToX(nsToLocalHours(marker.ns));
+    prims.push(...arrowPrimitives(x, yCenter, marker.color));
+    if (regionsOut) {
+      regionsOut.push({
+        x: x - 8,
+        y: yCenter - 10,
+        w: 16,
+        h: 20,
+        title: marker.title,
+        lines: [...(marker.detail ?? []), `${iso} ${nsToClock(hoursFmt, marker.ns)}`],
+      });
     }
   }
 
@@ -1434,22 +1464,47 @@ export function buildAppTimelineViews(
   for (const [pid, pRows] of groupByParticipant(rows)) {
     const regions: SceneRegion[] = [];
     const sessions: WaterfallSession[] = [];
+    const markers: WaterfallMarker[] = [];
     for (const row of pRows) {
+      if (
+        row.interaction_type === DEVICE_SHUTDOWN_TYPE ||
+        row.interaction_type === DEVICE_STARTUP_TYPE ||
+        row.interaction_type === END_OF_USAGE_MISSING_TYPE
+      ) {
+        const color =
+          row.interaction_type === DEVICE_SHUTDOWN_TYPE
+            ? "red"
+            : row.interaction_type === DEVICE_STARTUP_TYPE
+              ? "green"
+              : "#888";
+        markers.push({
+          ns: row.event_timestamp_ns,
+          color,
+          title: row.interaction_type,
+        });
+        continue;
+      }
       if (!usageTypes.has(row.interaction_type)) continue;
       if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) continue;
       const category = row.broad_app_category ?? "Unknown";
       const color = CATEGORY_COLORS[category] ?? CATEGORY_COLORS["Uncategorised"]!;
       const durMin = Number(row.stop_timestamp_ns - row.start_timestamp_ns) / 60_000_000_000;
+      const appLabel = row.application_label?.trim();
+      const packageName = row.app_package_name || "(app)";
+      const title = appLabel || packageName;
+      const detail = appLabel && appLabel !== packageName
+        ? [packageName, category, `${durMin.toFixed(1)} min · ${row.interaction_type}`]
+        : [category, `${durMin.toFixed(1)} min · ${row.interaction_type}`];
       sessions.push({
         startNs: row.start_timestamp_ns,
         stopNs: row.stop_timestamp_ns,
         color,
-        title: row.app_package_name || "(app)",
-        detail: [category, `${durMin.toFixed(1)} min · ${row.interaction_type}`],
+        title,
+        detail,
       });
     }
     const allEventNs = preAlgoTsByParticipant?.get(pid) ?? pRows.map((r) => r.event_timestamp_ns);
-    const scene = buildWaterfallScene(sessions, allEventNs, timezone, regions);
+    const scene = buildWaterfallScene(sessions, allEventNs, timezone, regions, markers);
     views.push({ participantId: pid, scene, regions });
   }
   return views;
