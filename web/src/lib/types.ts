@@ -107,33 +107,6 @@ export type ProcessedOutputFileResult = {
   previewRows: string[][];
 };
 
-/** One session band in the interactive timeline (#18). */
-export type TimelineSession = {
-  participantId: string;
-  /** "app" = an App Usage session; "screen" = a Screen Usage session. */
-  kind: "app" | "screen";
-  startNs: bigint;
-  stopNs: bigint;
-  appPackage: string;
-  appLabel: string;
-  /** Normalized broad category key (matches the plot palette), or "Unknown". */
-  category: string;
-  interactionType: string;
-  /** Concurrent-usage layer when modeled ("primary"/"secondary"), else null. */
-  usageLayer: string | null;
-};
-
-/**
- * Compact per-session payload powering the interactive timeline explorer (#18).
- * Only attached to a result when `enableInteractiveTimeline` is on (it can be
- * large for big cohorts), and crosses the worker boundary via structured clone.
- */
-export type TimelineData = {
-  timezone: string;
-  participants: string[];
-  sessions: TimelineSession[];
-};
-
 export type TimezoneAction =
   | "none"
   | "filtered_to_selected"
@@ -164,9 +137,4 @@ export type ProcessedFileResult = {
    * worker entry points, not by direct `processRawCsvContent` calls.
    */
   inputSha256?: string;
-  /**
-   * Per-session payload for the interactive timeline (#18). Present only when
-   * `enableInteractiveTimeline` is on.
-   */
-  timelineData?: TimelineData;
 };
