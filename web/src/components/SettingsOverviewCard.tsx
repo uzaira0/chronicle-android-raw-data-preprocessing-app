@@ -160,6 +160,22 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
             </SettingsField>
           </div>
         ) : null}
+        <ToggleField
+          label="Also export Parquet"
+          checked={options.enableParquetExport}
+          onChange={(value) =>
+            setOptions((current) => ({ ...current, enableParquetExport: value }))
+          }
+          testId="toggle-enableParquetExport"
+          tooltip={TOOLTIPS.enableParquetExport}
+          modified={!isOptionDefault("enableParquetExport", options.enableParquetExport)}
+          onReset={() =>
+            setOptions((current) => ({
+              ...current,
+              enableParquetExport: DEFAULT_BROWSER_OPTIONS.enableParquetExport,
+            }))
+          }
+        />
       </SettingsField>
     </section>
   );

@@ -27,6 +27,7 @@ enums:
       screen:
       plot:
       aggregate:
+      parquet:
   AggregateShape:
     description: Layout for the daily/weekly aggregate summaries (#12 long ⇄ wide).
     permissible_values:
@@ -93,6 +94,7 @@ classes:
       - export_plots_as_svg
       - enable_aggregates
       - aggregate_shape
+      - enable_parquet_export
       - minimum_usage_duration
       - filter_zero_duration_sessions
       - custom_app_engagement_duration
@@ -366,6 +368,17 @@ slots:
       as columns) or "long" (tidy: one row per period per metric). The per-app,
       category, and co-usage outputs are always long.
     default: "wide"
+  enable_parquet_export:
+    range: boolean
+    required: true
+    title: "Also export Parquet"
+    description: >-
+      In addition to the CSV outputs, write each app-usage and screen-usage table
+      as an Apache Parquet file (typed columns, smaller and far faster to load in
+      R/Python via arrow/polars/pandas). Same rows and columns as the CSV, with
+      native dtypes preserved (timestamps stay as formatted strings). Off by
+      default.
+    default: false
   plot_only_target_child_data:
     range: boolean
     required: true
