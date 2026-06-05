@@ -426,3 +426,26 @@ midnight-crossing sessions attributed to their start date).
 **All selected features across Phases 1–5 are now delivered** (Stata `.dta`
 deferred-pending-verification; the Deferred list — 3/5/6/11/14/20 — remains out of
 scope this round).
+
+---
+
+## Sweep follow-ups
+
+Found by the 2026-06-05 `/sweep`. The 2026-06-06 follow-up pass RESOLVED most of
+them (TDD'd, cross-surface-validated); the remaining two are documented below with
+why they're deferred.
+
+### Resolved (2026-06-06)
+
+- ✅ **Concurrent/background aggregates — show foreground & background separately** — `aggregations.ts` reports the two layers as distinct columns instead of dropping the background one (per the user directive "show the background and foreground separately"). Top Apps and Category Budget now group over **both** layers and emit `foreground_minutes` (primary/null), `background_minutes` (secondary), and `total_minutes` (= their sum; per app the layers are disjoint, so the sum is well-defined) — a background-only app (e.g. music) is now visible rather than vanishing at ~0. The period/device summary keeps `total_app_usage_minutes` **foreground-only** (the wall-clock timeline; adding background would double-count a shared instant) and adds `total_background_app_usage_minutes` as a separate companion column. Co-usage still uses both layers (it measures the overlap). No-op when concurrent off (background 0, total == foreground). Web-only — no parity/contract surface. (`aggregations.test.ts` FU1 split tests, incl. background-only + mixed-layer cases.)
+- ✅ **App-usage detail columns on post-split rows** — `addAppUsageDetailColumns` (web) and `_add_app_usage_detail_columns` (Python) now exclude secondary-layer rows from the engagement/gap walk, applied on **both surfaces** and confirmed by `--model-concurrent-usage --background-apps` parity. (`browserPipeline.test.ts` FU2 + `test_background_apps.py`.)
+- ✅ **Restored interaction-type remap unvalidated** — `sanitizeOptions` drops entries whose target isn't a canonical interaction type; the project-load path in `App.tsx` now also sanitizes. (`sharedConfig.test.ts` FU3 tests.)
+- ✅ **Concurrent PiP layers occluded in the timeline** — `layoutTimeline` splits the app lane into stacked primary/secondary sub-rows when a secondary layer exists (no-op otherwise); both are independently hittable. (`timelineGeometry.test.ts` FU4 tests.)
+- ✅ **Aggregate CSV column inconsistency** — Top Apps / Category Budget / Co-Usage now carry `study_name` after `study_id`, matching the daily/weekly summaries.
+- ✅ **`check:contract` enum coverage gap** — the checker now validates `OutputKind` and `AggregateShape` across LinkML / openapi / generatedContract.
+- ✅ **Multi-participant file silently mislabeled** — the pre-flight now warns prominently when a file holds >1 participant (`participantCount`), pointing at one-file-per-participant. (`fileInspection.test.ts`.)
+
+### Still open
+
+- **Single-participant-per-file matcher/split grouping (pre-existing)** (`browserPipeline.ts` ~1223/1300; `polars_fast_path.py` `_process_usage_rows`): the Phase-1 matcher and Phase-2 split are fed all rows ungrouped by `participant_id` on **both** surfaces, so a CSV concatenating multiple participants can mis-match/mis-label sessions. Now surfaced by a pre-flight warning (above), but full per-participant grouping is deferred: it re-architects the always-on matcher and its "no-op for single participant" property means the existing parity gate (single-participant fixture) can't validate the new multi-participant path — it needs its own isolated change with multi-participant tests on both surfaces.
+- **Detail-column gap can be negative for out-of-start-order primaries on the concurrent path** (`addAppUsageDetailColumns` / `_add_app_usage_detail_columns`): the engagement walk iterates rows in event-timestamp order, but the split's primary sub-intervals are not strictly start-ordered, so a later-listed primary can show a negative `any_app_usage_time_gap_hours`. FU2 fixed the secondary-interleaving cause; this residual is a deeper issue (the walk should sort by `start_timestamp`, but the "any" list includes Filtered App Usage rows with null starts, complicating a safe both-surface sort). It affects both surfaces identically (parity holds) and only the ungated concurrent/background path. Deferred as its own careful change.

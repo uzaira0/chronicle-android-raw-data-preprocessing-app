@@ -15,7 +15,7 @@ const DB_NAME = "chronicle-projects";
 const STORE = "projects";
 const DB_VERSION = 1;
 
-export type StoredFile = { name: string; blob: Blob };
+export type StoredFile = { name: string; type?: string; lastModified?: number; blob: Blob };
 
 export type SupportFileSlot =
   | "filterFile"
@@ -119,7 +119,8 @@ export function buildProjectRecord(input: {
   const support: Partial<Record<SupportFileSlot, StoredFile>> = {};
   if (includeFiles) {
     for (const [slot, file] of Object.entries(supportFiles) as [SupportFileSlot, File | null][]) {
-      if (file) support[slot] = { name: file.name, blob: file };
+      if (file)
+        support[slot] = { name: file.name, type: file.type, lastModified: file.lastModified, blob: file };
     }
   }
   return {
@@ -130,14 +131,26 @@ export function buildProjectRecord(input: {
     options,
     includesFiles: includeFiles,
     rawFileNames: rawFiles.map((file) => file.name),
-    rawFiles: includeFiles ? rawFiles.map((file) => ({ name: file.name, blob: file })) : [],
+    rawFiles: includeFiles
+      ? rawFiles.map((file) => ({
+          name: file.name,
+          type: file.type,
+          lastModified: file.lastModified,
+          blob: file,
+        }))
+      : [],
     supportFiles: support,
   };
 }
 
-/** Rehydrate a stored blob into a `File` (preserving the name). */
+/** Rehydrate a stored blob into a `File` (preserving name, MIME type, and mtime). */
 export function storedFileToFile(stored: StoredFile): File {
-  return new File([stored.blob], stored.name);
+  // Preserve the original MIME type and modified time so a rehydrated file is
+  // indistinguishable from the uploaded one (e.g. type-based parser selection).
+  return new File([stored.blob], stored.name, {
+    type: stored.type ?? stored.blob.type,
+    ...(stored.lastModified !== undefined ? { lastModified: stored.lastModified } : {}),
+  });
 }
 
 /** Total bytes a save would persist (0 when files aren't bundled). */
