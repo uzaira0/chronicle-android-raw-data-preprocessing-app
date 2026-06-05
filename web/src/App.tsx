@@ -17,6 +17,8 @@ import {
 } from "@/lib/settingsPersistence";
 import { inspectRawFiles, type RawFileInspection } from "@/lib/fileInspection";
 import { applyProgressEvent } from "@/lib/progressReducer";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
+import { storedFileToFile, type ProjectRecord } from "@/lib/projectsStore";
 import type {
   BrowserProcessingOptions,
   BrowserProcessingRuntime,
@@ -41,6 +43,7 @@ import { WorkflowNav, type WorkflowTab } from "@/components/WorkflowNav";
 import { RawFilesCard } from "@/components/RawFilesCard";
 import { ProcessPanel } from "@/components/ProcessPanel";
 import { SettingsManagementCard } from "@/components/SettingsManagementCard";
+import { ProjectsCard } from "@/components/ProjectsCard";
 import { SettingsOverviewCard } from "@/components/SettingsOverviewCard";
 import { SettingsSearchResults } from "@/components/SettingsSearchResults";
 
@@ -221,6 +224,22 @@ export default function App(): ReactElement {
         });
       })
       .finally(() => setIsInspectingFiles(false));
+  };
+
+  const applyProject = (record: ProjectRecord): void => {
+    // Merge over defaults so a project saved against an older schema still loads.
+    setOptions({ ...DEFAULT_BROWSER_OPTIONS, ...record.options });
+    if (record.includesFiles) {
+      const support = record.supportFiles;
+      setFilterFile(support.filterFile ? storedFileToFile(support.filterFile) : null);
+      setAppsForcingScreenOpenFile(
+        support.appsForcingScreenOpenFile ? storedFileToFile(support.appsForcingScreenOpenFile) : null,
+      );
+      setBackgroundAppsFile(support.backgroundAppsFile ? storedFileToFile(support.backgroundAppsFile) : null);
+      setAppCodebookFile(support.appCodebookFile ? storedFileToFile(support.appCodebookFile) : null);
+      // Reuse the upload path so restored files are inspected like fresh uploads.
+      onFilesChange(record.rawFiles.map(storedFileToFile));
+    }
   };
 
   const buildSupportFiles = async (): Promise<BrowserSupportFiles> => ({
@@ -490,6 +509,18 @@ export default function App(): ReactElement {
               <SettingsManagementCard
                 options={options}
                 setOptions={setOptions}
+                onStatus={(message, isError = false) => setToast({ message, isError })}
+              />
+              <ProjectsCard
+                options={options}
+                uploadedFiles={uploadedFiles}
+                supportFiles={{
+                  filterFile,
+                  appsForcingScreenOpenFile,
+                  backgroundAppsFile,
+                  appCodebookFile,
+                }}
+                onApplyProject={applyProject}
                 onStatus={(message, isError = false) => setToast({ message, isError })}
               />
               <SettingsOverviewCard options={options} setOptions={setOptions} />

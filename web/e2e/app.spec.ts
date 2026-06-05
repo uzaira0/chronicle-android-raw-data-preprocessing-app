@@ -486,6 +486,28 @@ test("processes multiple uploaded files with parallel workers enabled", async ({
   assertNoExternalRequests(requestTracker);
 });
 
+test("saves a project with files to IndexedDB and restores it after reload (#22)", async ({ page }) => {
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await expect(page.getByTestId("raw-file-row")).toHaveCount(1);
+
+  await page.getByTestId("project-include-files").check();
+  await page.getByTestId("project-name-input").fill("Resume me");
+  await page.getByTestId("save-project-button").click();
+  await expect(page.getByTestId("project-list")).toContainText("Resume me");
+
+  await page.reload();
+  await installDeterministicRuntime(page);
+
+  // Uploaded files live only in memory, so the reload clears them...
+  await expect(page.getByTestId("raw-file-row")).toHaveCount(0);
+  // ...but the project persisted in IndexedDB and restores the file on load.
+  await expect(page.getByTestId("project-list")).toContainText("Resume me");
+  await page.getByTestId("project-list").getByRole("button", { name: "Load" }).first().click();
+  await expect(page.getByTestId("raw-file-row")).toHaveCount(1);
+  await expect(page.getByTestId("raw-file-row")).toContainText("Raw P01.csv");
+  assertNoExternalRequests(requestTracker);
+});
+
 test("persists all edited settings across reload and supports settings import", async ({ page }) => {
   await page.getByTestId("study-name-input").fill("TECH pilot");
   await page.getByTestId("toggle-processScreenUsage").check();

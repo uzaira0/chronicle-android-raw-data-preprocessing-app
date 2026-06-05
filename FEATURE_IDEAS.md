@@ -408,4 +408,21 @@ midnight-crossing sessions attributed to their start date).
     an unverifiable binary" rule (silent data-loss risk), `.dta` is deferred until a
     verification path exists.
 
-**Phase 5 (heavy lift):** interactive timeline #18, named projects #22 — pending.
+**Phase 5 — heavy lift (web-first), COMPLETE.**
+- ✅ **#18** Interactive timeline explorer — opt-in `enableInteractiveTimeline`
+  (default off) renders a zoomable/pannable Canvas timeline of every app + screen
+  session in the results panel, coloured by category, with hover details. Pure
+  geometry/hit-test module (`timelineGeometry.ts`, unit-tested); per-session
+  payload built only when on and crossing the worker via structured clone. Native
+  non-passive wheel listener for zoom; pointer-capture drag-pan; layer toggles
+  (PR #34).
+- ✅ **#22** Named projects — `projectsStore.ts` (IndexedDB) persists a full config
+  optionally bundled with the uploaded file set, so a researcher can close the tab
+  and resume. File blobs are opt-in (quota/eviction risk) with a size warning;
+  restored blobs rehydrate into `File` objects through the normal upload/inspect
+  path. `ProjectsCard` UI (save/list/load/delete). Verified by `fake-indexeddb`
+  unit tests + an e2e save→reload→restore round-trip.
+
+**All selected features across Phases 1–5 are now delivered** (Stata `.dta`
+deferred-pending-verification; the Deferred list — 3/5/6/11/14/20 — remains out of
+scope this round).
