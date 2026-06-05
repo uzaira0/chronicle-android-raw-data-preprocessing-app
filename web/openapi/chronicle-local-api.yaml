@@ -104,6 +104,7 @@ components:
         - aggregateShape
         - enableParquetExport
         - enableSpssExport
+        - enableInteractiveTimeline
         - minimumUsageDuration
         - filterZeroDurationSessions
         - customAppEngagementDuration
@@ -264,6 +265,13 @@ components:
             variables and the column names as variable labels — open it directly
             in SPSS or PSPP. Same rows and columns as the CSV. Off by default.
             (Stata .dta is not yet supported.)
+        enableInteractiveTimeline:
+          type: boolean
+          description: Show an in-browser zoomable/pannable timeline of every session (app
+            and screen), coloured by app category, with hover details — rendered
+            live in the results panel from a compact per-session payload. This
+            payload is only produced when the option is on, to avoid bloating
+            results for large cohorts. Off by default.
         minimumUsageDuration:
           type: integer
           description: Sessions shorter than this threshold have their duration_seconds

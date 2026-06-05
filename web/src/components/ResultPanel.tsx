@@ -11,6 +11,7 @@ import type {
 } from "@/lib/types";
 import { PREPROCESSOR_VERSION } from "@/lib/browserPipeline";
 import { buildProcessingReport, readReportEnvironment } from "@/lib/processingReport";
+import { InteractiveTimeline } from "@/components/InteractiveTimeline";
 import type { FileProgress } from "@/components/ProgressList";
 
 type Props = {
@@ -424,6 +425,15 @@ export function ResultPanel({
           );
         })}
       </div>
+
+      {results
+        .filter((result) => result.timelineData && result.timelineData.sessions.length > 0)
+        .map((result) => (
+          <div className="result-timeline" key={`timeline-${result.inputFileName}`}>
+            <h3 className="result-timeline__heading">{result.inputFileName}</h3>
+            <InteractiveTimeline data={result.timelineData!} />
+          </div>
+        ))}
     </section>
   );
 }

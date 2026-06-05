@@ -190,6 +190,24 @@ export function SettingsOverviewCard({ options, setOptions }: Props): ReactEleme
             }))
           }
         />
+        <ToggleField
+          label="Interactive timeline explorer"
+          checked={options.enableInteractiveTimeline}
+          onChange={(value) =>
+            setOptions((current) => ({ ...current, enableInteractiveTimeline: value }))
+          }
+          testId="toggle-enableInteractiveTimeline"
+          tooltip={TOOLTIPS.enableInteractiveTimeline}
+          modified={
+            !isOptionDefault("enableInteractiveTimeline", options.enableInteractiveTimeline)
+          }
+          onReset={() =>
+            setOptions((current) => ({
+              ...current,
+              enableInteractiveTimeline: DEFAULT_BROWSER_OPTIONS.enableInteractiveTimeline,
+            }))
+          }
+        />
       </SettingsField>
     </section>
   );

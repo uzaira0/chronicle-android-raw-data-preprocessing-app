@@ -47,6 +47,7 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "aggregateShape",
   "enableParquetExport",
   "enableSpssExport",
+  "enableInteractiveTimeline",
   "minimumUsageDuration",
   "filterZeroDurationSessions",
   "customAppEngagementDuration",
@@ -90,6 +91,7 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "aggregateShape",
   "enableParquetExport",
   "enableSpssExport",
+  "enableInteractiveTimeline",
   "minimumUsageDuration",
   "filterZeroDurationSessions",
   "customAppEngagementDuration",
@@ -148,6 +150,7 @@ export type BrowserProcessingOptions = {
   aggregateShape: AggregateShape;
   enableParquetExport: boolean;
   enableSpssExport: boolean;
+  enableInteractiveTimeline: boolean;
   minimumUsageDuration: number;
   filterZeroDurationSessions: boolean;
   customAppEngagementDuration: number;
@@ -188,6 +191,7 @@ export const BOOLEAN_BROWSER_OPTION_KEYS = [
   "enableAggregates",
   "enableParquetExport",
   "enableSpssExport",
+  "enableInteractiveTimeline",
   "filterZeroDurationSessions",
   "parallelProcessing",
   "modelConcurrentUsage",
@@ -244,6 +248,7 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   aggregateShape: "wide",
   enableParquetExport: false,
   enableSpssExport: false,
+  enableInteractiveTimeline: false,
   minimumUsageDuration: 0,
   filterZeroDurationSessions: false,
   customAppEngagementDuration: 300,
@@ -360,6 +365,10 @@ export const BROWSER_OPTION_TOOLTIPS = {
   enableSpssExport: {
     title: "Also export SPSS (.sav)",
     body: "In addition to the CSV outputs, write each app-usage and screen-usage table as an SPSS/PSPP system file (.sav) with typed variables and the column names as variable labels — open it directly in SPSS or PSPP. Same rows and columns as the CSV. Off by default. (Stata .dta is not yet supported.)",
+  },
+  enableInteractiveTimeline: {
+    title: "Interactive timeline explorer",
+    body: "Show an in-browser zoomable/pannable timeline of every session (app and screen), coloured by app category, with hover details — rendered live in the results panel from a compact per-session payload. This payload is only produced when the option is on, to avoid bloating results for large cohorts. Off by default.",
   },
   minimumUsageDuration: {
     title: "Minimum usage duration (seconds)",
