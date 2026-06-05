@@ -591,6 +591,11 @@ export function buildWaterfallScene(
 
   const sortedDates = [...dateSet].sort();
   const height = WF.padTop + sortedDates.length * WF.rowH + WF.padBottom;
+  const rowsMeta = sortedDates.map((date, i) => ({
+    date,
+    y: WF.padTop + i * WF.rowH,
+    h: WF.rowH,
+  }));
   const dateToY = new Map<string, number>();
   sortedDates.forEach((d, i) => {
     dateToY.set(d, WF.padTop + i * WF.rowH + WF.rowH / 2);
@@ -744,7 +749,17 @@ export function buildWaterfallScene(
 
   if (regionsOut) regionsOut.push(...gapRegions);
 
-  return { width: WF.width, height, primitives: prims };
+  return {
+    width: WF.width,
+    height,
+    primitives: prims,
+    meta: {
+      kind: "waterfall",
+      gutter: WF.gutter,
+      plotWidth: wfPlotWidth(),
+      rows: rowsMeta,
+    },
+  };
 }
 
 // ─── public API ───────────────────────────────────────────────────────────────
