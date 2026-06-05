@@ -118,11 +118,11 @@ export function buildTimelineViewerHtml(input: ViewerInput): string {
   <button class="tv-tab" id="tab-screen" role="tab" data-tv-tab="screen" aria-controls="panel-screen" aria-selected="${initial === "screen"}">Screen usage</button>
 </div>
 <section class="tv-panel${initial === "app" ? " is-active" : ""}" id="panel-app" data-tv-panel="app" role="tabpanel" aria-labelledby="tab-app">
-  <p class="tv-hint">Hover a bar for details · scroll for more days</p>
+  <p class="tv-hint">Hover a bar for details · Shift-scroll a row to zoom · drag zoomed rows · double-click to reset</p>
 ${appPanel}
 </section>
 <section class="tv-panel${initial === "screen" ? " is-active" : ""}" id="panel-screen" data-tv-panel="screen" role="tabpanel" aria-labelledby="tab-screen">
-  <p class="tv-hint">Hover a bar for details · scroll for more days</p>
+  <p class="tv-hint">Hover a bar for details · Shift-scroll a row to zoom · drag zoomed rows · double-click to reset</p>
 ${screenPanel}
 </section>
 <script type="application/json" id="tv-data">${data}</script>
