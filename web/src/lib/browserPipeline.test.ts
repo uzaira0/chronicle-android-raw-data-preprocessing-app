@@ -477,6 +477,53 @@ describe("browserPipeline", () => {
     expect(typeof rows[0]!.day).toBe("number");
   });
 
+  it("emits SPSS .sav twins of the app/screen CSVs only when enabled (#9)", async () => {
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+    ].join("\n");
+    const matcher = async (): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+    const baseOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      enablePlotting: false,
+      processScreenUsage: true,
+      useFilterFile: false,
+      useAppsForcingScreenOpenFile: false,
+      useAppCodebook: false,
+      modelConcurrentUsage: false,
+    };
+
+    const off = await processRawCsvContent("Raw P01.csv", csv, baseOptions, {}, matcher);
+    expect(off.outputs.some((output) => output.kind === "spss")).toBe(false);
+
+    const on = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      { ...baseOptions, enableSpssExport: true },
+      {},
+      matcher,
+    );
+    const sav = on.outputs.filter((output) => output.kind === "spss");
+    expect(sav.map((s) => s.outputFileName)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Automatically Preprocessed.sav"),
+        expect.stringContaining("Screen Usage Automatically Preprocessed.sav"),
+      ]),
+    );
+    const appSav = sav.find((s) => !s.outputFileName.includes("Screen Usage"))!;
+    const appCsv = on.outputs.find((o) => o.kind === "app")!;
+    expect(appSav.rowCount).toBe(appCsv.rowCount);
+    // Valid SPSS system file magic.
+    const head = new Uint8Array(await appSav.blob.arrayBuffer()).subarray(0, 4);
+    expect(new TextDecoder().decode(head)).toBe("$FL2");
+  });
+
   it("emits progress events for every pipeline phase when onProgress is supplied", async () => {
     const csv = [
       "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",

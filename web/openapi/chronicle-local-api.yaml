@@ -103,6 +103,7 @@ components:
         - enableAggregates
         - aggregateShape
         - enableParquetExport
+        - enableSpssExport
         - minimumUsageDuration
         - filterZeroDurationSessions
         - customAppEngagementDuration
@@ -256,6 +257,13 @@ components:
             and far faster to load in R/Python via arrow/polars/pandas). Same
             rows and columns as the CSV, with native dtypes preserved
             (timestamps stay as formatted strings). Off by default.
+        enableSpssExport:
+          type: boolean
+          description: In addition to the CSV outputs, write each app-usage and
+            screen-usage table as an SPSS/PSPP system file (.sav) with typed
+            variables and the column names as variable labels — open it directly
+            in SPSS or PSPP. Same rows and columns as the CSV. Off by default.
+            (Stata .dta is not yet supported.)
         minimumUsageDuration:
           type: integer
           description: Sessions shorter than this threshold have their duration_seconds
@@ -403,6 +411,7 @@ components:
             - plot
             - aggregate
             - parquet
+            - spss
         outputFileName:
           type: string
         csv:
