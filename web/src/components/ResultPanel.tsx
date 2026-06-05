@@ -11,6 +11,7 @@ import type {
 } from "@/lib/types";
 import { PREPROCESSOR_VERSION } from "@/lib/browserPipeline";
 import { buildProcessingReport, readReportEnvironment } from "@/lib/processingReport";
+import { safeUuid } from "@/lib/uuid";
 import { InteractiveTimeline } from "@/components/InteractiveTimeline";
 import type { FileProgress } from "@/components/ProgressList";
 
@@ -171,17 +172,24 @@ export function ResultPanel({
   const aggregateOutputs = useMemo(() => collectOutputs(results, "aggregate"), [results]);
   const parquetOutputs = useMemo(() => collectOutputs(results, "parquet"), [results]);
   const spssOutputs = useMemo(() => collectOutputs(results, "spss"), [results]);
+  // Provenance identifies the run that produced `results`, so it must stay stable
+  // when the user edits options after a run — otherwise two downloads of the same
+  // run carry different runId/generatedAt. Key it on `results` only.
+  const provenance = useMemo(
+    () => ({ runId: safeUuid(), generatedAt: new Date().toISOString() }),
+    [results],
+  );
   const reportText = useMemo(
     () =>
       buildProcessingReport({
         results,
         options,
         preprocessorVersion: PREPROCESSOR_VERSION,
-        generatedAt: new Date().toISOString(),
-        runId: crypto.randomUUID(),
+        generatedAt: provenance.generatedAt,
+        runId: provenance.runId,
         environment: readReportEnvironment(),
       }),
-    [results, options],
+    [results, options, provenance],
   );
   const batchWarnings = useMemo(
     () => buildBatchWarnings({ results, error, expectedFileCount, progressRows }),

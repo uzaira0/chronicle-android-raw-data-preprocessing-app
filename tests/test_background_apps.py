@@ -210,3 +210,33 @@ def test_output_columns_omit_usage_layer_for_enabled_but_empty_background_file()
     columns = pre._build_output_columns(df)
     selected = df.select([col for col in columns if col in df.columns])
     assert Column.USAGE_LAYER not in selected.columns
+
+
+def test_detail_columns_skip_secondary_layer():
+    """FU2: the engagement/gap walk skips secondary (background-overlap) sub-intervals
+    — they describe a background app, not a foreground engagement — so every secondary
+    row carries gap 0 and engage 0 (not counted, not interleaved into a neighbour's
+    gap). Mirrors the web addAppUsageDetailColumns; the cross-surface harness
+    (--model-concurrent-usage --background-apps) confirms both surfaces agree.
+
+    This does NOT assert all gaps are non-negative: primary sub-intervals can still be
+    out of start-order in the df (it is event-timestamp-sorted, not start-sorted),
+    a separate deeper concurrent-path issue tracked as a follow-up that affects both
+    surfaces identically (so parity holds)."""
+    options = PreprocessingOptions(
+        raw_data_folder="",
+        model_concurrent_usage=False,
+        use_background_apps_file=True,
+        background_apps_dict={BACKGROUND_APP: "Audio"},
+    )
+    pre = PolarsFastPathPreprocessor(options)
+    df = pre._process_valid_app_usage(_background_overlap_raw())
+    out = pre._add_app_usage_detail_columns(df)
+    usage = out.filter(pl.col(Column.INTERACTION_TYPE) == "App Usage")
+
+    # The fixture really does produce a secondary layer, and those rows carry no
+    # engagement/gap (they're excluded from the foreground walk).
+    secondary = usage.filter(pl.col(Column.USAGE_LAYER) == str(UsageLayer.SECONDARY))
+    assert secondary.height > 0
+    assert secondary.get_column(Column.ANY_APP_USAGE_TIME_GAP_HOURS).sum() == 0.0
+    assert secondary.get_column(Column.ANY_APP_NEW_ENGAGE_30S).sum() == 0
