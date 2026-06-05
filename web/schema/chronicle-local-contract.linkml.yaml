@@ -28,6 +28,7 @@ enums:
       plot:
       aggregate:
       parquet:
+      spss:
   AggregateShape:
     description: Layout for the daily/weekly aggregate summaries (#12 long ⇄ wide).
     permissible_values:
@@ -95,6 +96,7 @@ classes:
       - enable_aggregates
       - aggregate_shape
       - enable_parquet_export
+      - enable_spss_export
       - minimum_usage_duration
       - filter_zero_duration_sessions
       - custom_app_engagement_duration
@@ -378,6 +380,16 @@ slots:
       R/Python via arrow/polars/pandas). Same rows and columns as the CSV, with
       native dtypes preserved (timestamps stay as formatted strings). Off by
       default.
+    default: false
+  enable_spss_export:
+    range: boolean
+    required: true
+    title: "Also export SPSS (.sav)"
+    description: >-
+      In addition to the CSV outputs, write each app-usage and screen-usage table
+      as an SPSS/PSPP system file (.sav) with typed variables and the column names
+      as variable labels — open it directly in SPSS or PSPP. Same rows and columns
+      as the CSV. Off by default. (Stata .dta is not yet supported.)
     default: false
   plot_only_target_child_data:
     range: boolean
