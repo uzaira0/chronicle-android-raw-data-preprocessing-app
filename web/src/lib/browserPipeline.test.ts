@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { parquetReadObjects } from "hyparquet";
 import {
+  buildAppParquetColumnSpecs,
   DEFAULT_BROWSER_OPTIONS,
   discoverTimezonesFromRawCsv,
   processRawCsvContent,
@@ -475,6 +476,20 @@ describe("browserPipeline", () => {
     expect(rows[0]!.participant_id).toBe("P01");
     expect(typeof rows[0]!.duration_minutes).toBe("number");
     expect(typeof rows[0]!.day).toBe("number");
+
+    // Invariant: EVERY declared-numeric column reads back as a number (or null) —
+    // catches drift between the type map and the row*ParquetCells overrides.
+    const specs = buildAppParquetColumnSpecs(
+      { ...baseOptions, enableParquetExport: true },
+      true,
+      false,
+    );
+    for (const spec of specs.filter((s) => s.type !== "STRING")) {
+      for (const row of rows) {
+        const value = row[spec.name];
+        expect(value === null || typeof value === "number").toBe(true);
+      }
+    }
   });
 
   it("emits SPSS .sav twins of the app/screen CSVs only when enabled (#9)", async () => {
