@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildHeatmapScene,
+  buildScreenScene,
   buildTimelineScene,
   CATEGORY_COLORS,
 } from "@/lib/plotGenerator";
-import { renderSceneToSvg, type RectPrim } from "@/lib/plotScene";
+import { renderSceneToSvg, type RectPrim, type SceneRegion } from "@/lib/plotScene";
 
 // All timestamps in UTC so the scene geometry is deterministic across machines.
 const at = (h: number, m = 0): bigint =>
@@ -73,11 +74,60 @@ describe("buildTimelineScene", () => {
     expect(texts).toContain("Time of Day (Hours)");
   });
 
+  it("collects hover regions: bars carry exact start→stop times, gaps get a tooltip", () => {
+    const regions: SceneRegion[] = [];
+    // Session 10:00–11:00, then a >1h data gap from 11:00 to 14:00 (raw events).
+    buildTimelineScene(...TL_ARGS([usage("Games", 10, 11)]), [at(10), at(11), at(14)], regions);
+
+    const bar = regions.find((r) => r.title === "com.example.app");
+    expect(bar).toBeDefined();
+    // Existing category + duration·type lines, PLUS the new exact time range.
+    expect(bar!.lines).toContain("Games");
+    expect(bar!.lines.some((l) => l.includes("60.0 min · App Usage"))).toBe(true);
+    expect(bar!.lines.some((l) => l.includes("2026-03-07 10:00:00 → 11:00:00"))).toBe(true);
+
+    const gap = regions.find((r) => r.title === "Data gap");
+    expect(gap).toBeDefined();
+    expect(gap!.lines.some((l) => l.includes("No device activity · 3.0 h"))).toBe(true);
+    expect(gap!.lines.some((l) => l.includes("2026-03-07 11:00:00 → 14:00:00"))).toBe(true);
+
+    // Bar region precedes the gap region so a bar wins the hover hit-test on overlap.
+    expect(regions.indexOf(bar!)).toBeLessThan(regions.indexOf(gap!));
+  });
+
   it("the SVG of the scene carries the same bar colour (PNG/SVG share geometry)", () => {
     const scene = buildTimelineScene(...TL_ARGS([usage("Games", 10, 11)]));
     const svg = renderSceneToSvg(scene);
     expect(svg).toContain(CATEGORY_COLORS["Games"]!);
     expect(svg).toContain("Time of Day (Hours)");
+  });
+});
+
+describe("buildScreenScene", () => {
+  it("collects hover regions: screen bars carry start→stop times, gaps get a tooltip", () => {
+    const regions: SceneRegion[] = [];
+    const rows = [
+      {
+        date: "2026-03-07",
+        start_timestamp_ns: at(10),
+        stop_timestamp_ns: at(11),
+        event_timestamp_ns: at(10),
+        screen_usage_end_reason: "probable_manual_lock",
+      },
+    ] as unknown as Parameters<typeof buildScreenScene>[1];
+    // Same session + >1h gap setup as the app test, so screen mirrors app.
+    buildScreenScene("P01", rows, "UTC", "1.0.0", "March 7, 2026", [at(10), at(11), at(14)], regions);
+
+    const bar = regions.find((r) => r.title === "Screen");
+    expect(bar).toBeDefined();
+    expect(bar!.lines).toContain("Probable manual lock");
+    expect(bar!.lines.some((l) => l.includes("2026-03-07 10:00:00 → 11:00:00"))).toBe(true);
+
+    const gap = regions.find((r) => r.title === "Data gap");
+    expect(gap).toBeDefined();
+    expect(gap!.lines.some((l) => l.includes("2026-03-07 11:00:00 → 14:00:00"))).toBe(true);
+
+    expect(regions.indexOf(bar!)).toBeLessThan(regions.indexOf(gap!));
   });
 });
 

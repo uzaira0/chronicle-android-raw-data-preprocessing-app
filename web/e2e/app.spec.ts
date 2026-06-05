@@ -460,6 +460,8 @@ test("@smoke the exported HTML timeline viewer runs its inlined interactivity of
   const tooltip = viewer.locator('[data-tv-type="app"][data-tv-index="0"] .tv-tooltip');
   await expect(tooltip).toBeVisible();
   await expect(tooltip).toContainText(target.title);
+  // ...including the exact start → stop usage time.
+  await expect(tooltip).toContainText("→");
 
   await viewer.close();
   assertNoExternalRequests(requestTracker);
