@@ -94,13 +94,13 @@ export function buildTimelineViewerHtml(input: ViewerInput): string {
   .tv-tabs { display: flex; gap: 4px; padding: 12px 20px 0; background: #fff; border-bottom: 1px solid #e6e9ec; position: sticky; top: 0; z-index: 2; }
   .tv-tab { appearance: none; border: 1px solid #e6e9ec; border-bottom: none; background: #f0f2f5; color: #5b6671; padding: 8px 16px; font: inherit; font-weight: 600; border-radius: 8px 8px 0 0; cursor: pointer; }
   .tv-tab[aria-selected="true"] { background: #fff; color: #1f2933; }
-  .tv-panel { display: none; padding: 20px; }
+  .tv-panel { display: none; padding: 12px 0 20px; }
   .tv-panel.is-active { display: block; }
-  .tv-hint { color: #5b6671; font-size: 13px; margin: 0 0 16px; }
+  .tv-hint { color: #5b6671; font-size: 13px; margin: 0 12px 12px; }
   .tv-scene { margin: 0 0 28px; }
-  .tv-scene-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
+  .tv-scene-head { display: flex; align-items: center; gap: 12px; margin: 0 12px 6px; flex-wrap: wrap; }
   .tv-scene-title { font-weight: 600; }
-  .tv-canvas-wrap { position: relative; border: 1px solid #e6e9ec; border-radius: 6px; background: #fff; overflow: visible; }
+  .tv-canvas-wrap { position: relative; border-top: 1px solid #e6e9ec; border-bottom: 1px solid #e6e9ec; background: #fff; overflow: visible; }
   .tv-canvas { display: block; touch-action: pan-y; cursor: default; }
   .tv-tooltip { position: absolute; z-index: 3; pointer-events: none; max-width: 280px; background: #1f2933; color: #fff; padding: 6px 8px; border-radius: 6px; font-size: 12px; line-height: 1.4; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); }
   .tv-tooltip[hidden] { display: none; }

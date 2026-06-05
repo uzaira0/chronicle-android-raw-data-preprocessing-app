@@ -494,12 +494,12 @@ function gapPrimitives(rects: GapRect[]): Primitive[] {
 }
 
 const WF = {
-  width: 1440,
-  gutter: 104,
-  padRight: 18,
+  width: 1200,
+  gutter: 112,
+  padRight: 0,
   padTop: 6,
   padBottom: 10,
-  rowH: 26,
+  rowH: 32,
 };
 
 function wfPlotWidth(): number {
@@ -598,6 +598,19 @@ export function buildWaterfallScene(
       font: FONT_SMALL,
       anchor: "end",
       baseline: "middle",
+    });
+  }
+
+  for (let i = 1; i < sortedDates.length; i++) {
+    const y = WF.padTop + i * WF.rowH;
+    prims.push({
+      type: "line",
+      x1: 0,
+      y1: y,
+      x2: WF.width,
+      y2: y,
+      stroke: "#e4e7eb",
+      strokeWidth: 1,
     });
   }
 

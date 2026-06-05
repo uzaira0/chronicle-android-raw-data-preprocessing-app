@@ -150,7 +150,7 @@ describe("buildWaterfallScene", () => {
       regions,
     );
 
-    expect(scene.width).toBe(1440);
+    expect(scene.width).toBe(1200);
     expect(scene.height).toBeGreaterThan(1);
     expect(rectsWithFill(scene.primitives, CATEGORY_COLORS["Games"]!).length).toBeGreaterThan(0);
 
@@ -158,6 +158,11 @@ describe("buildWaterfallScene", () => {
     expect(texts).toContain("Sat, Mar 07, 2026");
     expect(texts).not.toContain("Time of Day (Hours)");
     expect(texts).not.toContain("App Categories");
+
+    const separators = scene.primitives.filter(
+      (p) => p.type === "line" && p.stroke === "#e4e7eb",
+    );
+    expect(separators.length).toBe(0);
 
     const bar = regions.find((r) => r.title === "com.example.app");
     expect(bar).toBeDefined();
@@ -169,6 +174,34 @@ describe("buildWaterfallScene", () => {
     expect(gap!.lines.some((l) => l.includes("No device events · 3.0 h"))).toBe(true);
     expect(gap!.lines.some((l) => l.includes("2026-03-07 11:00:00 → 14:00:00"))).toBe(true);
     expect(regions.indexOf(bar!)).toBeLessThan(regions.indexOf(gap!));
+  });
+
+  it("draws clean separator lines between day rows", () => {
+    const scene = buildWaterfallScene(
+      [
+        {
+          startNs: at(10),
+          stopNs: at(11),
+          color: CATEGORY_COLORS["Games"]!,
+          title: "com.example.app",
+          detail: ["Games", "60.0 min · App Usage"],
+        },
+        {
+          startNs: BigInt(Date.UTC(2026, 2, 8, 10, 0, 0)) * 1_000_000n,
+          stopNs: BigInt(Date.UTC(2026, 2, 8, 11, 0, 0)) * 1_000_000n,
+          color: CATEGORY_COLORS["Education"]!,
+          title: "com.example.learn",
+          detail: ["Education", "60.0 min · App Usage"],
+        },
+      ],
+      [at(10), at(11), BigInt(Date.UTC(2026, 2, 8, 10, 0, 0)) * 1_000_000n],
+      "UTC",
+    );
+
+    const separators = scene.primitives.filter(
+      (p) => p.type === "line" && p.stroke === "#e4e7eb",
+    );
+    expect(separators).toHaveLength(1);
   });
 });
 
