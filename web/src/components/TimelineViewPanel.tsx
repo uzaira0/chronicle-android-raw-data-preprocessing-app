@@ -70,6 +70,12 @@ function paintPrimitive(
     meta && rowTransform ? transformX(x, meta, rowTransform) : x;
   const scaledWidth = (x: number, w: number): number =>
     meta && rowTransform ? tx(x + w) - tx(x) : Math.max(w, 0);
+  const preserveGlyphX = (points: Array<[number, number]>, x: number): number => {
+    if (!meta || !rowTransform) return x;
+    const xs = points.map(([px]) => px);
+    const center = (Math.min(...xs) + Math.max(...xs)) / 2;
+    return tx(center) + (x - center);
+  };
 
   if (p.type === "rect") {
     ctx.globalAlpha = p.alpha ?? 1;
@@ -102,7 +108,10 @@ function paintPrimitive(
     ctx.setLineDash([]);
   } else {
     ctx.beginPath();
-    p.points.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(tx(x), y) : ctx.lineTo(tx(x), y)));
+    p.points.forEach(([x, y], i) => {
+      const px = preserveGlyphX(p.points, x);
+      return i === 0 ? ctx.moveTo(px, y) : ctx.lineTo(px, y);
+    });
     if (p.closed) ctx.closePath();
     if (p.fill) {
       ctx.fillStyle = p.fill;
