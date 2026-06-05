@@ -28,6 +28,7 @@ from chronicle_preprocessing_app.config.constants import (
     Column,
     InteractionType,
     TimezoneHandlingOption,
+    UsageLayer,
 )
 from chronicle_preprocessing_app.config.defaults import (
     DEFAULT_LONG_DATA_TIME_GAP_THRESHOLDS,
@@ -861,12 +862,15 @@ class PolarsFastPathPreprocessor:
                 .alias(Column.DURATION_MINUTES),
             )
         if self.options.filter_zero_duration_sessions:
-            # Drop only genuine zero/negative-duration USAGE sessions; keep non-usage
-            # rows and rows whose duration was suppressed to null above. Honors the
-            # previously-unwired option.
+            # Drop only genuine zero/negative-duration App Usage sessions; keep
+            # Filtered App Usage rows, non-usage rows, and rows whose duration was
+            # suppressed to null above. Targets App Usage specifically (not the
+            # current usage_type) so the Filtered App Usage pass leaves its rows
+            # intact — matching the web pipeline, which filters only "App Usage"
+            # (browserPipeline.ts processRawCsvContent).
             df = df.filter(
                 ~(
-                    (pl.col(Column.INTERACTION_TYPE) == usage_type)
+                    (pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE))
                     & pl.col(Column.DURATION_SECONDS).is_not_null()
                     & (pl.col(Column.DURATION_SECONDS) <= 0.0)
                 )
@@ -906,17 +910,26 @@ class PolarsFastPathPreprocessor:
                 int(self.options.long_duration_threshold_hours * 3600 * 1_000_000_000),
             )
             return tuple(np.asarray(output, dtype=np.intp) for output in outputs)
-        except Exception:
+        except (ImportError, AttributeError):
+            # Expected when the compiled extension isn't installed at all.
             LOGGER.debug("Rust matcher unavailable in Polars fast path; falling back to Python")
-            return self._match_usage_updates_python(
-                app_codes=app_codes,
-                timestamp_ns=timestamp_ns,
-                resumed_flags=resumed_flags,
-                same_stop_flags=same_stop_flags,
-                other_stop_flags=other_stop_flags,
-                stopped_flags=stopped_flags,
-                background_flags=background_flags,
+        except Exception:
+            # Unexpected (e.g. a stale extension with a changed signature → TypeError):
+            # don't swallow it silently — surface it loudly, then still fall back so
+            # output stays correct rather than crashing the run.
+            LOGGER.warning(
+                "Rust matcher raised an unexpected error; falling back to the Python matcher",
+                exc_info=True,
             )
+        return self._match_usage_updates_python(
+            app_codes=app_codes,
+            timestamp_ns=timestamp_ns,
+            resumed_flags=resumed_flags,
+            same_stop_flags=same_stop_flags,
+            other_stop_flags=other_stop_flags,
+            stopped_flags=stopped_flags,
+            background_flags=background_flags,
+        )
 
     def _match_usage_updates_python(
         self,
@@ -1250,13 +1263,27 @@ class PolarsFastPathPreprocessor:
         valid_switched = np.zeros(row_count, dtype=np.int64)
         valid_gap = np.zeros(row_count, dtype=np.float64)
 
+        # Exclude secondary (background-overlap) concurrent-usage sub-intervals from
+        # the engagement walk: they describe a background app, not a foreground
+        # engagement, and interleaving them produces negative inter-session gaps and
+        # phantom engagement counts. Mirrors the web pipeline (addAppUsageDetailColumns).
+        # No-op when concurrent modeling is off (column absent or all-null).
+        if Column.USAGE_LAYER in df.columns:
+            usage_layer_values = df.get_column(Column.USAGE_LAYER).fill_null("").to_numpy()
+            foreground_mask = usage_layer_values != str(UsageLayer.SECONDARY)
+        else:
+            foreground_mask = np.ones(row_count, dtype=bool)
+
         any_usage_indices = np.where(
             np.isin(
                 interaction_values,
                 [str(InteractionType.APP_USAGE), str(InteractionType.FILTERED_APP_USAGE)],
             )
+            & foreground_mask
         )[0]
-        valid_usage_indices = np.where(interaction_values == str(InteractionType.APP_USAGE))[0]
+        valid_usage_indices = np.where(
+            (interaction_values == str(InteractionType.APP_USAGE)) & foreground_mask
+        )[0]
 
         def apply_usage_metrics(
             indices: np.ndarray,

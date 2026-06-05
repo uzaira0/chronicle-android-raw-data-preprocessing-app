@@ -858,6 +858,9 @@ pub fn process_full_pipeline_e2e(
         apply_threshold_to_fallback,
         long_duration_threshold_ns,
     };
+    // The kernel crate has no background-apps concept; pass an all-false slice
+    // (length-matched to the inputs) so the matcher's validate_lengths passes.
+    let background = vec![false; app_codes.len()];
     let match_result = _rust_app_usage_matcher::match_app_usage_update_indices_core(
         &app_codes,
         &working_ts,
@@ -865,6 +868,7 @@ pub fn process_full_pipeline_e2e(
         &same_stop,
         &other_stop,
         &stopped,
+        &background,
         match_options,
     )
     .map_err(|e| JsValue::from_str(&format!("matcher: {e}")))?;

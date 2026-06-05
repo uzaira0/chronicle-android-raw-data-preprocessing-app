@@ -7,6 +7,9 @@ export type RawFileInspection = {
   fileName: string;
   sizeBytes: number;
   rowCount: number;
+  /** Distinct participant_id values. >1 means multiple participants are
+   * concatenated in one file, which the per-file pipeline doesn't group by. */
+  participantCount: number;
   columns: string[];
   timezones: string[];
   hasRequiredColumns: boolean;
@@ -133,23 +136,23 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
   });
   const duplicateTimestampCount = Array.from(timestampCounts.values()).filter((count) => count > 1).length;
 
-  // Out-of-order detection, scoped per participant_id. A single raw export can
-  // hold several participants concatenated (the pipeline groups by participant
-  // downstream), so a single global running max would false-flag every
-  // participant boundary. Each participant gets its own running max; within a
-  // participant, a timestamp earlier than one already seen signals a
-  // sorting/export problem worth surfacing. Note: bare local wall-clock times
-  // that legitimately move backward across a travel/DST boundary can still
-  // register here — this is a heads-up, not a hard error.
+  // Out-of-order detection, scoped per participant_id, kept as an INFORMATIONAL
+  // metric only — the pipeline re-sorts every row by event_timestamp before
+  // processing, so input order never affects output and this is not raised as a
+  // warning (see below). A single raw export can hold several participants
+  // concatenated, so each participant gets its own running max (a global one would
+  // false-flag every participant boundary). Timestamps are compared as UTC
+  // wall-clock (the pipeline's offsetless-as-UTC sort basis), so the count is
+  // independent of the host browser's timezone.
   let outOfOrderTimestampCount = 0;
   let firstOutOfOrderRow: number | null = null;
   const maxSeenMsByParticipant = new Map<string, number>();
-  // A plain loop (not forEach) so TS tracks the firstOutOfOrderRow assignment
-  // for narrowing at the warning site below.
   for (let index = 0; index < timestampValues.length; index += 1) {
     const value = timestampValues[index];
     if (!value || !isValidChronicleTimestamp(value)) continue;
-    const ms = Date.parse(value.replace(" ", "T"));
+    // Append "Z" so a bare wall-clock parses as UTC (deterministic across hosts),
+    // matching the pipeline's sort basis instead of the browser's local timezone.
+    const ms = Date.parse(`${value.replace(" ", "T")}Z`);
     if (Number.isNaN(ms)) continue;
     const participant = (parsed.data[index]?.participant_id ?? "").trim();
     const maxSeenMs = maxSeenMsByParticipant.get(participant) ?? Number.NEGATIVE_INFINITY;
@@ -175,10 +178,19 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
       ).sort((left, right) => left.localeCompare(right))
     : [];
 
+  const participantCount = new Set(
+    parsed.data.map((row) => (row.participant_id ?? "").trim()).filter(Boolean),
+  ).size;
+
   const warnings: string[] = [];
 
   if (!file.name.toLowerCase().endsWith(".csv")) {
     warnings.push("File extension is not .csv.");
+  }
+  if (participantCount > 1) {
+    warnings.push(
+      `This file contains ${participantCount.toLocaleString()} participants. The preprocessor treats each file as a single participant and does not group app-usage session matching by participant_id, so a multi-participant file can mis-match or mis-label sessions (especially with concurrent-usage or background-apps modeling). Split the export into one file per participant.`,
+    );
   }
   if (file.size === 0 || !text.trim()) {
     warnings.push("File is empty.");
@@ -204,13 +216,11 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
   if (invalidTimestampCount > 0) {
     warnings.push(`${invalidTimestampCount.toLocaleString()} rows have invalid event_timestamp values.`);
   }
-  if (outOfOrderTimestampCount > 0) {
-    warnings.push(
-      `${outOfOrderTimestampCount.toLocaleString()} event_timestamp values are out of chronological order` +
-        (firstOutOfOrderRow !== null ? ` (first at data row ${firstOutOfOrderRow.toLocaleString()})` : "") +
-        ".",
-    );
-  }
+  // Out-of-order event_timestamp is intentionally NOT warned: the pipeline
+  // re-sorts every row by event_timestamp before processing, so unsorted input
+  // produces identical output. Flagging it would inflate the advisory warning
+  // count and flip a Ready file to "Review" with no action the user can take.
+  // outOfOrderTimestampCount / firstOutOfOrderRow remain as informational metrics.
   // The unrecognized-interaction-type warning is produced in effectiveWarnings,
   // which knows the user's custom remap (#4) and can exclude mapped types.
   // Multiple timezones are normal (a participant who travels) and are resolved
@@ -225,6 +235,7 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
     fileName: file.name,
     sizeBytes: file.size,
     rowCount: countDataRows(text),
+    participantCount,
     columns,
     timezones,
     hasRequiredColumns: missing.length === 0,

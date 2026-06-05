@@ -10,6 +10,7 @@ import {
   type SettingsPreset,
 } from "@/lib/settingsPersistence";
 import type { BrowserProcessingOptions } from "@/lib/types";
+import { safeUuid } from "@/lib/uuid";
 
 type Props = {
   options: BrowserProcessingOptions;
@@ -58,7 +59,7 @@ export function SettingsManagementCard({
       return [
         ...current,
         {
-          id: crypto.randomUUID(),
+          id: safeUuid(),
           name,
           createdAt: now,
           updatedAt: now,

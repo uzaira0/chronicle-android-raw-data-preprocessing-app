@@ -47,7 +47,7 @@ export function InteractiveTimeline({ data }: { data: TimelineData }): ReactElem
   const { sessions, participants, timezone } = data;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const dragRef = useRef<{ x: number } | null>(null);
+  const dragRef = useRef<{ x: number; pointerId: number } | null>(null);
 
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const [viewport, setViewport] = useState<TimelineViewport>(() => fitViewport(sessions));
@@ -65,6 +65,29 @@ export function InteractiveTimeline({ data }: { data: TimelineData }): ReactElem
   // Keep the latest viewport/width for the native (non-passive) wheel listener.
   const viewRef = useRef({ viewport, width });
   viewRef.current = { viewport, width };
+
+  // Re-fit when the session set changes. Reprocessing the same file with a
+  // different timezone or concurrent-usage modeling yields new absolute
+  // timestamps; the viewport is seeded once via useState, so without this the
+  // component (preserved across runs by its filename key) keeps a stale window
+  // that culls every band and renders blank until "Fit all" is clicked.
+  useEffect(() => {
+    setViewport(fitViewport(sessions));
+  }, [sessions]);
+
+  // Release an in-flight drag if we unmount mid-drag (onPointerUp/Leave never fire
+  // on unmount), so we don't leave a dangling dragRef / pointer capture.
+  useEffect(() => {
+    return () => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      const canvas = canvasRef.current;
+      if (canvas?.hasPointerCapture?.(drag.pointerId)) {
+        canvas.releasePointerCapture(drag.pointerId);
+      }
+      dragRef.current = null;
+    };
+  }, []);
 
   const height = timelineHeight(participants.length);
   const layout = useMemo(
@@ -180,7 +203,7 @@ export function InteractiveTimeline({ data }: { data: TimelineData }): ReactElem
           className="timeline__canvas"
           style={{ width: `${width}px`, height: `${height}px` }}
           onPointerDown={(e) => {
-            dragRef.current = { x: e.clientX };
+            dragRef.current = { x: e.clientX, pointerId: e.pointerId };
             (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
           }}
           onPointerMove={(e) => {

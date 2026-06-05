@@ -6,9 +6,11 @@ import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 
 import {
+  AGGREGATE_SHAPE_VALUES,
   BROWSER_PROCESSING_OPTION_KEYS,
   BROWSER_RUNTIME_KEYS,
   BROWSER_SUPPORT_FILE_KEYS,
+  OUTPUT_KIND_VALUES,
   TIMEZONE_HANDLING_VALUES,
 } from "../src/lib/generatedContract";
 
@@ -156,6 +158,28 @@ async function main(): Promise<void> {
     "OpenAPI TimezoneHandling enum values",
     openapiTimezoneValues,
     TIMEZONE_HANDLING_VALUES,
+  );
+
+  const linkmlOutputKindValues = Object.keys(linkml.enums.OutputKind?.permissible_values ?? {});
+  const openapiOutputKindValues =
+    (openapi.components.schemas.ProcessedOutputFileResult?.properties?.kind as {
+      enum?: string[];
+    })?.enum ?? [];
+  expectEqual("OutputKind enum values", OUTPUT_KIND_VALUES, linkmlOutputKindValues);
+  expectEqual("OpenAPI OutputKind enum values", openapiOutputKindValues, OUTPUT_KIND_VALUES);
+
+  const linkmlAggregateShapeValues = Object.keys(
+    linkml.enums.AggregateShape?.permissible_values ?? {},
+  );
+  const openapiAggregateShapeValues =
+    (openapi.components.schemas.BrowserProcessingOptions?.properties?.aggregateShape as {
+      enum?: string[];
+    })?.enum ?? [];
+  expectEqual("AggregateShape enum values", AGGREGATE_SHAPE_VALUES, linkmlAggregateShapeValues);
+  expectEqual(
+    "OpenAPI AggregateShape enum values",
+    openapiAggregateShapeValues,
+    AGGREGATE_SHAPE_VALUES,
   );
 
   console.log(

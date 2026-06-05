@@ -22,7 +22,7 @@ MATCHER := rust/chronicle_app_usage_matcher/Cargo.toml
 .PHONY: help ci all security web \
         test rust \
         semgrep ast-grep bandit pip-audit cargo-audit trivy gitleaks \
-        typecheck web-test contract parity e2e
+        typecheck web-test contract parity e2e deploy-artifact
 
 help:
 	@echo 'Local CI (replaces the deleted GitHub Actions workflows):'
@@ -51,15 +51,17 @@ ci: test rust security
 # before the final success line below. Do not collapse this back to
 # `all: ci web parity e2e`.
 all:
-	@echo "── make all: 1/4 ci ──────────────────────────────"
+	@echo "── make all: 1/5 ci ──────────────────────────────"
 	$(MAKE) --no-print-directory ci
-	@echo "── make all: 2/4 web ─────────────────────────────"
+	@echo "── make all: 2/5 web ─────────────────────────────"
 	$(MAKE) --no-print-directory web
-	@echo "── make all: 3/4 parity ──────────────────────────"
+	@echo "── make all: 3/5 parity ──────────────────────────"
 	$(MAKE) --no-print-directory parity
-	@echo "── make all: 4/4 e2e ─────────────────────────────"
+	@echo "── make all: 4/5 e2e ─────────────────────────────"
 	$(MAKE) --no-print-directory e2e
-	@echo "✓ make all: ci + web + parity + e2e all completed"
+	@echo "── make all: 5/5 deploy-artifact ─────────────────"
+	$(MAKE) --no-print-directory deploy-artifact
+	@echo "✓ make all: ci + web + parity + e2e + deploy-artifact all completed"
 
 security: semgrep ast-grep bandit pip-audit cargo-audit trivy gitleaks
 
@@ -120,3 +122,11 @@ parity:
 
 e2e:
 	cd web && npm run test:e2e:smoke
+
+# ---------- deploy artifact validation (CSP meta + _headers + PWA files) ----------
+# Builds the production bundle, then verifies dist carries the CSP <meta> fallback,
+# _headers, sw.js, manifest.webmanifest and .vite/manifest.json, and that the
+# _headers CSP matches the index.html meta CSP. Owns its build (the check reads
+# web/dist), restoring the validation that the deleted deploy workflow used to run.
+deploy-artifact:
+	cd web && npm run build && npm run check:deploy-artifact

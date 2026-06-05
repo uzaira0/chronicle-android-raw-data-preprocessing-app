@@ -87,7 +87,7 @@ describe("fileInspection", () => {
   const row = (interaction: string, ts: string): string =>
     `Study,P09,Target Child,Chat,${interaction},com.example.chat,${ts},America/Chicago`;
 
-  it("flags out-of-order event timestamps with the first offending data row", async () => {
+  it("computes out-of-order metrics without raising a warning (pipeline re-sorts)", async () => {
     const inspection = await inspectRawFile(
       fileFromText(
         "Raw P09 ooo.csv",
@@ -100,10 +100,31 @@ describe("fileInspection", () => {
       ),
     );
 
+    // Metric still computed (informational)…
     expect(inspection.outOfOrderTimestampCount).toBe(1);
     expect(inspection.firstOutOfOrderRow).toBe(2);
-    expect(inspection.warnings.join(" ")).toContain("out of chronological order");
-    expect(inspection.warnings.join(" ")).toContain("data row 2");
+    // …but it does NOT surface as a warning (the pipeline re-sorts, so it's not actionable).
+    expect(inspection.warnings.join(" ")).not.toMatch(/chronological order/i);
+    expect(effectiveWarnings(inspection, DEFAULT_BROWSER_OPTIONS).join(" ")).not.toMatch(
+      /chronological order/i,
+    );
+  });
+
+  it("out-of-order metric compares wall-clock as UTC, ignoring the timezone column (W2)", async () => {
+    // Ascending wall-clock with a different tz on the later row (a traveler). The
+    // metric parses bare timestamps as UTC and ignores the tz column, so this is
+    // in order — and the result is independent of the host browser's timezone.
+    const tzRow = (ts: string, tz: string): string =>
+      `Study,P09,Target Child,Chat,Unknown importance: 1,com.example.chat,${ts},${tz}`;
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P09 tz.csv",
+        [HEADER, tzRow("2026-03-07 10:00:00", "America/Chicago"), tzRow("2026-03-07 11:00:00", "Asia/Tokyo")].join(
+          "\n",
+        ),
+      ),
+    );
+    expect(inspection.outOfOrderTimestampCount).toBe(0);
   });
 
   it("does not flag a participant boundary in a multi-participant file", async () => {
@@ -126,6 +147,26 @@ describe("fileInspection", () => {
 
     expect(inspection.outOfOrderTimestampCount).toBe(0);
     expect(inspection.firstOutOfOrderRow).toBeNull();
+    // FU7: a multi-participant file is surfaced (not silently mislabeled) — the
+    // pipeline matches sessions without grouping by participant.
+    expect(inspection.participantCount).toBe(2);
+    expect(inspection.warnings.join(" ")).toMatch(/contains 2 participants/i);
+    expect(inspection.warnings.join(" ")).toMatch(/one file per participant/i);
+  });
+
+  it("does not warn about participants for a single-participant file", async () => {
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P01.csv",
+        [
+          HEADER,
+          `Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago`,
+          `Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,America/Chicago`,
+        ].join("\n"),
+      ),
+    );
+    expect(inspection.participantCount).toBe(1);
+    expect(inspection.warnings.join(" ")).not.toMatch(/participants/i);
   });
 
   it("does not flag chronologically ordered timestamps", async () => {

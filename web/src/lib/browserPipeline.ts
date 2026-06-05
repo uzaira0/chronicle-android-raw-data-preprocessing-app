@@ -201,7 +201,7 @@ const defaultSupportCache = new Map<string, Promise<SupportRows>>();
 const uploadedSupportCache = new Map<string, Promise<SupportRows>>();
 const MISSING_INT64 = -(1n << 63n);
 
-type CanonicalRow = {
+export type CanonicalRow = {
   study_id: string;
   participant_id: string;
   possible_device_model: string;
@@ -300,7 +300,12 @@ function requireString(value: string | undefined, fallback = ""): string {
 function normalizeInteractionType(value: string, remap?: ReadonlyMap<string, string>): string {
   // The user remap runs first so vendor-specific strings (absent from the
   // built-in map) resolve, and so it can override a built-in mapping too.
-  return remap?.get(value) ?? ALL_INTERACTION_TYPES_MAP[value] ?? value;
+  const remapped = remap?.get(value);
+  if (remapped !== undefined) return remapped;
+  // `Object.hasOwn` (not `MAP[value]`) so a raw value matching a prototype key
+  // like "toString"/"constructor" falls through to the literal string instead of
+  // returning an inherited function.
+  return Object.hasOwn(ALL_INTERACTION_TYPES_MAP, value) ? ALL_INTERACTION_TYPES_MAP[value]! : value;
 }
 
 function parsePlainTimestampParts(value: string):
@@ -1596,7 +1601,9 @@ const PALETTE_CATEGORIES = new Set(
 function normalizeBroadAppCategory(raw: string): string | null {
   const value = raw.trim();
   if (PALETTE_CATEGORIES.has(value)) return value;
-  if (value in BROAD_CATEGORY_ALIASES) return BROAD_CATEGORY_ALIASES[value]!;
+  // `Object.hasOwn` (not `value in`) so a codebook category literally named
+  // "toString"/"constructor"/etc. doesn't resolve to an inherited prototype member.
+  if (Object.hasOwn(BROAD_CATEGORY_ALIASES, value)) return BROAD_CATEGORY_ALIASES[value]!;
   return null;
 }
 
@@ -1686,17 +1693,29 @@ function enrichWithCodebookData(
   });
 }
 
-function addAppUsageDetailColumns(rows: CanonicalRow[], options: BrowserProcessingOptions): CanonicalRow[] {
+export function addAppUsageDetailColumns(
+  rows: CanonicalRow[],
+  options: BrowserProcessingOptions,
+): CanonicalRow[] {
   const nextRows = rows.map((row) => ({ ...row }));
+  // Secondary (background-overlap) concurrent-usage sub-intervals are excluded
+  // from the engagement walk: they describe a background app, not a foreground
+  // engagement, and interleaving them produces negative inter-session gaps and
+  // phantom engagement counts. With concurrent modeling off there are no secondary
+  // rows, so this is a no-op. Excluded rows keep their default detail values (0).
+  const isForeground = (row: CanonicalRow): boolean => row.usage_layer !== "secondary";
   const anyUsageIndices = nextRows
     .map((row, index) =>
-      row.interaction_type === "App Usage" || row.interaction_type === "Filtered App Usage"
+      (row.interaction_type === "App Usage" || row.interaction_type === "Filtered App Usage") &&
+      isForeground(row)
         ? index
         : -1,
     )
     .filter((index) => index >= 0);
   const validUsageIndices = nextRows
-    .map((row, index) => (row.interaction_type === "App Usage" ? index : -1))
+    .map((row, index) =>
+      row.interaction_type === "App Usage" && isForeground(row) ? index : -1,
+    )
     .filter((index) => index >= 0);
 
   const applyMetrics = (
@@ -2561,7 +2580,9 @@ export async function processRawCsvContent(
       studyName: options.studyName,
       shape: options.aggregateShape,
       includeCategoryBudget: options.useAppCodebook,
-      includeCoUsage: options.modelConcurrentUsage,
+      // Co-usage is meaningful whenever sessions carry a usage_layer, which the
+      // split produces for background apps too — not just explicit concurrent mode.
+      includeCoUsage: options.modelConcurrentUsage || backgroundAppsSet.size > 0,
       formatTimestamp: (ns, tz) => formatSessionTimestamp(ns, tz),
     });
     for (const aggregate of aggregateOutputs) {
