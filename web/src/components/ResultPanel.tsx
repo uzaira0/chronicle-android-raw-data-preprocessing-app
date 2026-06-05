@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
 
 import { createZipBlob } from "@/lib/zip";
@@ -12,8 +12,12 @@ import type {
 import { PREPROCESSOR_VERSION } from "@/lib/browserPipeline";
 import { buildProcessingReport, readReportEnvironment } from "@/lib/processingReport";
 import { safeUuid } from "@/lib/uuid";
-import { InteractiveTimeline } from "@/components/InteractiveTimeline";
 import type { FileProgress } from "@/components/ProgressList";
+
+/** Timeline-viewer exports ride on the "plot" kind but are HTML, not images. */
+const TIMELINE_VIEWER_SUFFIX = "Timeline Viewer.html";
+const isTimelineViewer = (output: ProcessedOutputFileResult): boolean =>
+  output.outputFileName.endsWith(TIMELINE_VIEWER_SUFFIX);
 
 type Props = {
   results: ProcessedFileResult[];
@@ -168,7 +172,17 @@ export function ResultPanel({
   const allOutputs = useMemo(() => collectOutputs(results), [results]);
   const appOutputs = useMemo(() => collectOutputs(results, "app"), [results]);
   const screenOutputs = useMemo(() => collectOutputs(results, "screen"), [results]);
-  const plotOutputs = useMemo(() => collectOutputs(results, "plot"), [results]);
+  // The timeline viewer is emitted as a "plot" output but is a standalone HTML
+  // file — split it out so it gets its own download and isn't bundled into the
+  // image "Plots ZIP".
+  const plotOutputs = useMemo(
+    () => collectOutputs(results, "plot").filter((entry) => !isTimelineViewer(entry.output)),
+    [results],
+  );
+  const timelineOutputs = useMemo(
+    () => collectOutputs(results, "plot").filter((entry) => isTimelineViewer(entry.output)),
+    [results],
+  );
   const aggregateOutputs = useMemo(() => collectOutputs(results, "aggregate"), [results]);
   const parquetOutputs = useMemo(() => collectOutputs(results, "parquet"), [results]);
   const spssOutputs = useMemo(() => collectOutputs(results, "spss"), [results]);
@@ -200,6 +214,7 @@ export function ResultPanel({
     progressRows.forEach((row) => map.set(row.fileName, row));
     return map;
   }, [progressRows]);
+  const [detailsOpen, setDetailsOpen] = useState(true);
 
   if (error && !results.length) {
     return (
@@ -270,6 +285,20 @@ export function ResultPanel({
               Plots ZIP ({plotOutputs.length})
             </button>
           )}
+          {timelineOutputs.length > 0 && (
+            <button
+              type="button"
+              className="btn btn--secondary"
+              data-testid="download-timeline-viewer"
+              onClick={() => {
+                timelineOutputs.forEach(({ output }) =>
+                  downloadBlob(output.outputFileName, output.blob),
+                );
+              }}
+            >
+              Timeline viewer ({timelineOutputs.length})
+            </button>
+          )}
           {aggregateOutputs.length > 0 && (
             <button
               type="button"
@@ -329,119 +358,111 @@ export function ResultPanel({
         </div>
       ) : null}
 
-      <div className="result-summary-grid">
-        <Stat label="Original rows" value={summary.originalRows} />
-        <Stat label="Processed rows" value={summary.processedRows} />
-        {showAppColumns ? <Stat label="App rows" value={summary.appRows} /> : null}
-        {showScreenColumns ? <Stat label="Screen rows" value={summary.screenRows} /> : null}
-      </div>
+      <button
+        type="button"
+        className="result-collapse"
+        data-testid="results-collapse-toggle"
+        aria-expanded={detailsOpen}
+        onClick={() => setDetailsOpen((open) => !open)}
+      >
+        {detailsOpen ? "▾ Hide details" : "▸ Show details"}
+      </button>
 
-      <div className="result-file-cards" data-testid="result-file-table">
-        {results.map((result) => {
-          const progress = progressByFile.get(result.inputFileName);
-          const failed = progress?.status === "error";
-          const fileWarnings = buildPerFileWarnings(result, options);
-          const tzAction = TIMEZONE_ACTION_LABEL[result.timezoneAction];
-          const tzActionDetail =
-            result.timezoneAction === "none"
-              ? ""
-              : `${result.rowsBeforeTimezoneHandling.toLocaleString()} → ${result.rowsAfterTimezoneHandling.toLocaleString()} rows, ${result.rowsRemovedByTimezone.toLocaleString()} removed`;
-          const statusLabel = failed ? "Failed" : fileWarnings.length ? "Review" : "Success";
-          return (
-            <article
-              key={result.inputFileName}
-              className="result-card"
-              data-testid="result-row"
-            >
-              <header className="result-card__head">
-                <span className="result-card__name" title={result.inputFileName}>
-                  {result.inputFileName}
-                </span>
-                <span
-                  className={`status-pill ${failed || fileWarnings.length ? "is-warning" : "is-success"}`}
-                >
-                  {statusLabel}
-                  {fileWarnings.length ? ` · ${fileWarnings.length}` : ""}
-                </span>
-              </header>
-
-              <dl className="result-card__stats">
-                <CardStat label="Input" value={result.originalRowCount} />
-                <CardStat label="Processed" value={result.processedRowCount} />
-                {showAppColumns ? <CardStat label="App" value={result.appRowCount} /> : null}
-                {showScreenColumns ? <CardStat label="Screen" value={result.screenRowCount} /> : null}
-              </dl>
-
-              <div className="result-card__row">
-                <span className="result-card__row-label">Timezone</span>
-                <span className="result-card__row-body">
-                  <span className="result-card__tz-final">{result.timezone || "—"}</span>
-                  {result.availableTimezones.length > 1 ? (
-                    <span className="result-card__chips">
-                      {result.availableTimezones.map((zone) => (
-                        <span className="chip" key={zone}>
-                          {zone}
-                        </span>
-                      ))}
-                    </span>
-                  ) : null}
-                  <span className="result-card__notes">
-                    {tzAction}
-                    {tzActionDetail ? ` · ${tzActionDetail}` : ""}
-                    {result.duplicateTimestampsCorrected > 0
-                      ? ` · ${result.duplicateTimestampsCorrected.toLocaleString()} duplicate timestamps corrected`
-                      : ""}
-                    {result.exactDuplicateRowsRemoved > 0
-                      ? ` · ${result.exactDuplicateRowsRemoved.toLocaleString()} duplicate rows collapsed`
-                      : ""}
-                  </span>
-                </span>
-              </div>
-
-              <div className="result-card__row">
-                <span className="result-card__row-label">Outputs</span>
-                <span className="result-card__row-body">
-                  {result.outputs.length ? (
-                    <span className="result-card__chips">
-                      {result.outputs.map((output) => (
-                        <span
-                          className="chip chip--output"
-                          key={output.outputFileName}
-                          title={output.outputFileName}
-                        >
-                          {OUTPUT_KIND_LABEL[output.kind] ?? output.kind}
-                          {output.kind !== "plot"
-                            ? ` · ${output.rowCount.toLocaleString()} rows`
-                            : ""}
-                        </span>
-                      ))}
-                    </span>
-                  ) : (
-                    <span className="text-faint">No outputs</span>
-                  )}
-                </span>
-              </div>
-
-              {fileWarnings.length ? (
-                <ul className="result-card__warnings">
-                  {fileWarnings.map((warning) => (
-                    <li key={warning}>{warning}</li>
-                  ))}
-                </ul>
-              ) : null}
-            </article>
-          );
-        })}
-      </div>
-
-      {results
-        .filter((result) => result.timelineData && result.timelineData.sessions.length > 0)
-        .map((result) => (
-          <div className="result-timeline" key={`timeline-${result.inputFileName}`}>
-            <h3 className="result-timeline__heading">{result.inputFileName}</h3>
-            <InteractiveTimeline data={result.timelineData!} />
+      {detailsOpen ? (
+        <>
+          <div className="result-summary-grid">
+            <Stat label="Original rows" value={summary.originalRows} />
+            <Stat label="Processed rows" value={summary.processedRows} />
+            {showAppColumns ? <Stat label="App rows" value={summary.appRows} /> : null}
+            {showScreenColumns ? <Stat label="Screen rows" value={summary.screenRows} /> : null}
           </div>
-        ))}
+
+          <div className="result-table-wrap">
+            <table className="result-table" data-testid="result-file-table">
+              <thead>
+                <tr>
+                  <th scope="col">File</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Input</th>
+                  <th scope="col">Processed</th>
+                  {showAppColumns ? <th scope="col">App</th> : null}
+                  {showScreenColumns ? <th scope="col">Screen</th> : null}
+                  <th scope="col">Timezone</th>
+                  <th scope="col">Outputs</th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.map((result) => {
+                  const progress = progressByFile.get(result.inputFileName);
+                  const failed = progress?.status === "error";
+                  const fileWarnings = buildPerFileWarnings(result, options);
+                  const statusLabel = failed
+                    ? "Failed"
+                    : fileWarnings.length
+                      ? "Review"
+                      : "Success";
+                  const tzTitle = buildTimezoneTitle(result);
+                  const outputCounts = summarizeOutputs(result.outputs);
+                  return (
+                    <tr key={result.inputFileName} data-testid="result-row">
+                      <td className="result-table__file" title={result.inputFileName}>
+                        {result.inputFileName}
+                      </td>
+                      <td>
+                        <span
+                          className={`status-pill ${failed || fileWarnings.length ? "is-warning" : "is-success"}`}
+                        >
+                          {statusLabel}
+                        </span>
+                      </td>
+                      <td className="result-table__num">
+                        {result.originalRowCount.toLocaleString()}
+                      </td>
+                      <td className="result-table__num">
+                        {result.processedRowCount.toLocaleString()}
+                      </td>
+                      {showAppColumns ? (
+                        <td className="result-table__num">
+                          {result.appRowCount.toLocaleString()}
+                        </td>
+                      ) : null}
+                      {showScreenColumns ? (
+                        <td className="result-table__num">
+                          {result.screenRowCount.toLocaleString()}
+                        </td>
+                      ) : null}
+                      <td className="result-table__tz" title={tzTitle}>
+                        {result.timezone || "—"}
+                      </td>
+                      <td className="result-table__outputs">
+                        {outputCounts.length ? (
+                          <span className="result-table__chips">
+                            {outputCounts.map((entry) => (
+                              <span className="chip chip--output" key={entry.label}>
+                                {entry.label}
+                                {entry.count > 1 ? ` ×${entry.count}` : ""}
+                              </span>
+                            ))}
+                          </span>
+                        ) : (
+                          <span className="text-faint">No outputs</span>
+                        )}
+                        {fileWarnings.length ? (
+                          <ul className="result-table__warnings" aria-label="Warnings">
+                            {fileWarnings.map((warning) => (
+                              <li key={warning}>{warning}</li>
+                            ))}
+                          </ul>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
     </section>
   );
 }
@@ -455,13 +476,44 @@ const OUTPUT_KIND_LABEL: Record<string, string> = {
   spss: "SPSS .sav",
 };
 
-function CardStat({ label, value }: { label: string; value: number }): ReactElement {
-  return (
-    <div className="result-card__stat">
-      <dt>{label}</dt>
-      <dd>{value.toLocaleString()}</dd>
-    </div>
-  );
+/** Human label for one output, distinguishing the HTML timeline viewer from plots. */
+function outputLabel(output: ProcessedOutputFileResult): string {
+  if (isTimelineViewer(output)) return "Timeline HTML";
+  return OUTPUT_KIND_LABEL[output.kind] ?? output.kind;
+}
+
+/** Collapse a file's outputs into distinct labels with counts, preserving order. */
+function summarizeOutputs(
+  outputs: ProcessedOutputFileResult[],
+): { label: string; count: number }[] {
+  const order: string[] = [];
+  const counts = new Map<string, number>();
+  for (const output of outputs) {
+    const label = outputLabel(output);
+    if (!counts.has(label)) order.push(label);
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  return order.map((label) => ({ label, count: counts.get(label) ?? 0 }));
+}
+
+/** Tooltip text for the timezone cell: action taken plus any cleanup counts. */
+function buildTimezoneTitle(result: ProcessedFileResult): string {
+  const parts: string[] = [TIMEZONE_ACTION_LABEL[result.timezoneAction]];
+  if (result.timezoneAction !== "none") {
+    parts.push(
+      `${result.rowsBeforeTimezoneHandling.toLocaleString()} → ${result.rowsAfterTimezoneHandling.toLocaleString()} rows, ${result.rowsRemovedByTimezone.toLocaleString()} removed`,
+    );
+  }
+  if (result.availableTimezones.length > 1) {
+    parts.push(`timezones seen: ${result.availableTimezones.join(", ")}`);
+  }
+  if (result.duplicateTimestampsCorrected > 0) {
+    parts.push(`${result.duplicateTimestampsCorrected.toLocaleString()} duplicate timestamps corrected`);
+  }
+  if (result.exactDuplicateRowsRemoved > 0) {
+    parts.push(`${result.exactDuplicateRowsRemoved.toLocaleString()} duplicate rows collapsed`);
+  }
+  return parts.join(" · ");
 }
 
 function Stat({ label, value }: { label: string; value: number }): ReactElement {

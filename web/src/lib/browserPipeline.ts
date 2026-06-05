@@ -36,10 +36,9 @@ import type {
   RawChronicleRow,
   SplitterInput,
   SplitterOutput,
-  TimelineData,
-  TimelineSession,
   TimezoneAction,
 } from "@/lib/types";
+import { buildTimelineViewerHtml } from "@/lib/timelineViewer";
 
 export const PREPROCESSOR_VERSION = "1.0.0";
 
@@ -2360,6 +2359,10 @@ export async function processRawCsvContent(
   const outputs: ProcessedOutputFileResult[] = [];
   let screenRows: CanonicalRow[] = [];
   let appRows: CanonicalRow[] = [];
+  // Day-grid usage plots, captured here so the timeline viewer (#18) can reuse
+  // them instead of regenerating when plotting is also on.
+  let appPlotBlobs: Map<string, Blob> | null = null;
+  let screenPlotBlobs: Map<string, Blob> | null = null;
 
   // Screen usage derivation (independent of app usage)
   if (options.processScreenUsage) {
@@ -2376,7 +2379,7 @@ export async function processRawCsvContent(
   // session rows. Collected whenever plotting is on, independent of which output
   // kinds are produced (screen-only plotting needs it too).
   const preAlgoTsByParticipant = new Map<string, bigint[]>();
-  if (options.enablePlotting) {
+  if (options.enablePlotting || options.enableInteractiveTimeline) {
     for (const row of rows) {
       const pid = row.participant_id || "unknown";
       let arr = preAlgoTsByParticipant.get(pid);
@@ -2483,10 +2486,14 @@ export async function processRawCsvContent(
       };
 
       const appRowsForPlots = appRows as Parameters<typeof generateAllPlots>[0];
-      pushPlots(
-        await generateAllPlots(appRowsForPlots, timezone, options, PREPROCESSOR_VERSION, preAlgoTsByParticipant),
-        (pid) => ` ${pid} App Usage Plot.png`,
+      appPlotBlobs = await generateAllPlots(
+        appRowsForPlots,
+        timezone,
+        options,
+        PREPROCESSOR_VERSION,
+        preAlgoTsByParticipant,
       );
+      pushPlots(appPlotBlobs, (pid) => ` ${pid} App Usage Plot.png`);
       if (options.exportPlotsAsSvg) {
         pushPlots(
           await generateAllPlotSvgs(appRowsForPlots, timezone, options, PREPROCESSOR_VERSION, preAlgoTsByParticipant),
@@ -2554,7 +2561,7 @@ export async function processRawCsvContent(
     emit("output", 1);
 
     if (options.enablePlotting) {
-      const screenPlotBlobs = await generateAllScreenPlots(
+      screenPlotBlobs = await generateAllScreenPlots(
         screenRows as Parameters<typeof generateAllScreenPlots>[0],
         timezone,
         PREPROCESSOR_VERSION,
@@ -2597,11 +2604,44 @@ export async function processRawCsvContent(
     emit("output", 1);
   }
 
-  // Interactive timeline payload (#18) — only built when the option is on, to
-  // avoid shipping a per-session array across the worker on every run.
-  const timelineData = options.enableInteractiveTimeline
-    ? buildTimelineData(appRows, screenRows, timezone)
-    : undefined;
+  // Timeline viewer (#18) — only built when the option is on. A self-contained
+  // HTML file with App / Screen tabs that embeds the day-grid usage plots,
+  // exported as a download instead of a live canvas explorer (which re-rendered
+  // every session on the main thread and froze on large files). Reuses the plots
+  // already generated for the image export when plotting is on; otherwise renders
+  // them here on demand.
+  if (options.enableInteractiveTimeline) {
+    if (!appPlotBlobs && options.processAppUsage && appRows.length > 0) {
+      appPlotBlobs = await generateAllPlots(
+        appRows as Parameters<typeof generateAllPlots>[0],
+        timezone,
+        options,
+        PREPROCESSOR_VERSION,
+        preAlgoTsByParticipant,
+      );
+    }
+    if (!screenPlotBlobs && options.processScreenUsage && screenRows.length > 0) {
+      screenPlotBlobs = await generateAllScreenPlots(
+        screenRows as Parameters<typeof generateAllScreenPlots>[0],
+        timezone,
+        PREPROCESSOR_VERSION,
+        preAlgoTsByParticipant,
+      );
+    }
+    const viewerHtml = await buildTimelineViewerHtml({
+      fileName: inputFileName,
+      timezone,
+      appPlots: appPlotBlobs ?? new Map<string, Blob>(),
+      screenPlots: screenPlotBlobs ?? new Map<string, Blob>(),
+    });
+    outputs.push({
+      kind: "plot",
+      outputFileName: deriveOutputFileName(inputFileName, " Timeline Viewer.html"),
+      blob: new Blob([viewerHtml], { type: "text/html;charset=utf-8" }),
+      rowCount: 0,
+      previewRows: [],
+    });
+  }
 
   return {
     inputFileName,
@@ -2618,55 +2658,7 @@ export async function processRawCsvContent(
     rowsRemovedByTimezone: timezoneResult.rowsRemoved,
     duplicateTimestampsCorrected,
     exactDuplicateRowsRemoved,
-    timelineData,
   };
-}
-
-/** Build the interactive-timeline payload from the cleaned app/screen sessions. */
-function buildTimelineData(
-  appRows: readonly CanonicalRow[],
-  screenRows: readonly CanonicalRow[],
-  timezone: string,
-): TimelineData {
-  const sessions: TimelineSession[] = [];
-  for (const row of appRows) {
-    if (
-      row.interaction_type !== "App Usage" ||
-      row.start_timestamp_ns === null ||
-      row.stop_timestamp_ns === null
-    ) {
-      continue;
-    }
-    sessions.push({
-      participantId: row.participant_id,
-      kind: "app",
-      startNs: row.start_timestamp_ns,
-      stopNs: row.stop_timestamp_ns,
-      appPackage: row.app_package_name,
-      appLabel: row.application_label,
-      category: row.broad_app_category ?? "Unknown",
-      interactionType: row.interaction_type,
-      usageLayer: row.usage_layer ?? null,
-    });
-  }
-  for (const row of screenRows) {
-    if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) continue;
-    sessions.push({
-      participantId: row.participant_id,
-      kind: "screen",
-      startNs: row.start_timestamp_ns,
-      stopNs: row.stop_timestamp_ns,
-      appPackage: row.app_package_name,
-      appLabel: "Screen",
-      category: "Unknown",
-      interactionType: row.interaction_type,
-      usageLayer: null,
-    });
-  }
-  const participants = [...new Set(sessions.map((s) => s.participantId))].sort((a, b) =>
-    a.localeCompare(b),
-  );
-  return { timezone, participants, sessions };
 }
 
 function countDuplicateTimestampGroups(rows: CanonicalRow[]): number {

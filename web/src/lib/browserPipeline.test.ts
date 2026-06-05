@@ -541,7 +541,7 @@ describe("browserPipeline", () => {
     expect(new TextDecoder().decode(head)).toBe("$FL2");
   });
 
-  it("attaches the interactive-timeline payload only when enabled (#18)", async () => {
+  it("exports a standalone HTML timeline viewer only when enabled (#18)", async () => {
     const csv = [
       "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
       "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
@@ -564,8 +564,13 @@ describe("browserPipeline", () => {
     };
 
     const off = await processRawCsvContent("Raw P01.csv", csv, baseOptions, {}, matcher);
-    expect(off.timelineData).toBeUndefined();
+    expect(off.outputs.some((o) => o.outputFileName.endsWith("Timeline Viewer.html"))).toBe(false);
 
+    // The viewer embeds the day-grid plot image; feed the mocked generator a blob
+    // so we can assert the image is inlined as a data URI in the HTML.
+    vi.mocked(generateAllPlots).mockResolvedValueOnce(
+      new Map([["P01", new Blob(["fake-png"], { type: "image/png" })]]),
+    );
     const on = await processRawCsvContent(
       "Raw P01.csv",
       csv,
@@ -573,12 +578,14 @@ describe("browserPipeline", () => {
       {},
       matcher,
     );
-    expect(on.timelineData).toBeDefined();
-    expect(on.timelineData!.participants).toEqual(["P01"]);
-    const appSessions = on.timelineData!.sessions.filter((s) => s.kind === "app");
-    expect(appSessions.length).toBeGreaterThan(0);
-    expect(appSessions[0]!.startNs < appSessions[0]!.stopNs).toBe(true);
-    expect(appSessions[0]!.appPackage).toBe("com.example.chat");
+    const viewer = on.outputs.find((o) => o.outputFileName.endsWith("Timeline Viewer.html"));
+    expect(viewer).toBeDefined();
+    expect(viewer!.kind).toBe("plot");
+    expect(viewer!.blob.type).toContain("text/html");
+    const html = await viewer!.blob.text();
+    expect(html).toContain("App usage");
+    expect(html).toContain("Screen usage");
+    expect(html).toContain("data:image/png;base64,");
   });
 
   it("emits progress events for every pipeline phase when onProgress is supplied", async () => {
