@@ -114,7 +114,7 @@
       var cssH = Math.max(1, scene.height * state.scale);
       canvas.width = Math.round(boxW * dpr);
       canvas.height = Math.round(cssH * dpr);
-      canvas.style.width = boxW + "px";
+      canvas.style.width = "100%";
       canvas.style.height = cssH + "px";
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = "#ffffff";
@@ -126,7 +126,7 @@
     // Size to the wrapper's width and (re)draw. Lazy: a canvas in a hidden tab
     // panel reports clientWidth 0, so it is sized only once its panel is shown.
     function activate() {
-      var w = Math.max(320, Math.round(wrap.clientWidth));
+      var w = Math.max(320, wrap.getBoundingClientRect().width);
       if (state.sized && w === state.boxW) return;
       state.boxW = w;
       state.scale = state.boxW / Math.max(scene.width, 1);

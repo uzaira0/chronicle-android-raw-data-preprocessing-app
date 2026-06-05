@@ -9,6 +9,7 @@ import {
 import { sampleRawCsv, SAMPLE_FILE_NAME } from "@/lib/sampleRawCsv";
 import { BUILD_DATE, BUILD_SHA } from "@/lib/buildInfo";
 import { ensureNotificationPermission, sendNotification } from "@/lib/notification";
+import { clearLastRun, loadLastRun, saveLastRun } from "@/lib/lastRunStore";
 import {
   hasPersistedOptions,
   persistOptions,
@@ -163,8 +164,8 @@ export default function App(): ReactElement {
   const [toast, setToast] = useState<{ message: string; isError: boolean } | null>(null);
   const [settingsQuery, setSettingsQuery] = useState("");
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowTab>("settings");
+  const [processExpanded, setProcessExpanded] = useState(true);
   const startTimeRef = useRef<number>(0);
-  const resultsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (skipNextPersist.current) {
@@ -198,11 +199,58 @@ export default function App(): ReactElement {
     }
   }, []);
 
-  const onFilesChange = (files: File[]) => {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (readSharedConfig(window.location.search)) return;
+    let cancelled = false;
+    void loadLastRun()
+      .then((record) => {
+        if (cancelled || !record) return;
+        const restoredOptions = sanitizeOptions(record.options);
+        setOptions(restoredOptions);
+        setResults(record.results);
+        const timezones = record.discoveredTimezones.length
+          ? record.discoveredTimezones
+          : Array.from(new Set(record.results.flatMap((result) => result.availableTimezones))).sort(
+              (left, right) => left.localeCompare(right),
+            );
+        setDiscoveredTimezones(timezones);
+        const completed = Object.fromEntries(
+          record.results.map((result) => [
+            result.inputFileName,
+            {
+              fileName: result.inputFileName,
+              status: "complete" as const,
+              stepKind: "output" as const,
+              percent: 1,
+            },
+          ]),
+        );
+        setProgressOrder(record.results.map((result) => result.inputFileName));
+        setProgressByFile(completed);
+        setActiveWorkflow("process");
+        setProcessExpanded(false);
+        setToast({
+          message: `Last processed results restored (${record.results.length} ${record.results.length === 1 ? "file" : "files"}).`,
+          isError: false,
+        });
+      })
+      .catch(() => {
+        // IndexedDB can be unavailable or evicted; processing still works.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const onFilesChange = (files: File[], input: { clearCachedRun?: boolean } = {}) => {
+    const { clearCachedRun = true } = input;
     setUploadedFiles(files);
     setFileInspections([]);
     setResults([]);
     setError(null);
+    setProcessExpanded(true);
+    if (clearCachedRun) void clearLastRun().catch(() => {});
     if (!files.length) {
       setIsInspectingFiles(false);
       return;
@@ -285,7 +333,8 @@ export default function App(): ReactElement {
 
   const runSample = async () => {
     const sampleFile = new File([sampleRawCsv], SAMPLE_FILE_NAME, { type: "text/csv" });
-    onFilesChange([sampleFile]);
+    await clearLastRun().catch(() => {});
+    onFilesChange([sampleFile], { clearCachedRun: false });
     setActiveWorkflow("process");
     setIsRunning(true);
     setError(null);
@@ -299,18 +348,18 @@ export default function App(): ReactElement {
       );
       setResults([result]);
       setDiscoveredTimezones(result.availableTimezones);
+      void saveLastRun({
+        options,
+        results: [result],
+        discoveredTimezones: result.availableTimezones,
+      }).catch(() => {});
     } catch (runError) {
       setError(runError instanceof Error ? runError.message : String(runError));
     } finally {
       setIsRunning(false);
+      setProcessExpanded(false);
     }
   };
-
-  useEffect(() => {
-    if (!isRunning && results.length) {
-      resultsRef.current?.focus();
-    }
-  }, [isRunning, results.length]);
 
   const handleProgressEvent = useCallback((event: ProgressEvent) => {
     setProgressByFile((current) => applyProgressEvent(current, event));
@@ -323,6 +372,7 @@ export default function App(): ReactElement {
       return;
     }
     setActiveWorkflow("process");
+    setProcessExpanded(true);
     setIsRunning(true);
     setError(null);
     startTimeRef.current = performance.now();
@@ -402,11 +452,19 @@ export default function App(): ReactElement {
 
       const successful = nextResults.filter(Boolean);
       setResults(successful);
-      setDiscoveredTimezones(
-        Array.from(
-          new Set(successful.flatMap((result) => result.availableTimezones)),
-        ).sort((left, right) => left.localeCompare(right)),
-      );
+      const nextTimezones = Array.from(
+        new Set(successful.flatMap((result) => result.availableTimezones)),
+      ).sort((left, right) => left.localeCompare(right));
+      setDiscoveredTimezones(nextTimezones);
+      if (successful.length) {
+        void saveLastRun({
+          options,
+          results: successful,
+          discoveredTimezones: nextTimezones,
+        }).catch(() => {});
+      } else {
+        void clearLastRun().catch(() => {});
+      }
 
       // Surface a top-level error banner only when every file failed — lets a
       // single malformed file fail loudly while a partially-successful batch
@@ -435,6 +493,7 @@ export default function App(): ReactElement {
     } finally {
       pool?.terminate();
       setIsRunning(false);
+      setProcessExpanded(false);
     }
   };
 
@@ -466,7 +525,7 @@ export default function App(): ReactElement {
   return (
     <>
       <a className="skip-link" href="#workflow-panels">Skip to workflow tabs</a>
-      <main className="app-shell">
+      <main className={`app-shell ${activeWorkflow === "view" ? "app-shell--wide" : ""}`}>
         <header className="hero hero--with-demo">
           <div className="hero__copy">
             <h1>Chronicle Android Raw Data Preprocessor</h1>
@@ -612,9 +671,11 @@ export default function App(): ReactElement {
               }}
               progressRows={progressRows}
               overallPercent={overallPercent}
+              expanded={processExpanded}
+              onExpandedChange={setProcessExpanded}
             />
 
-            <div ref={resultsRef} tabIndex={-1} aria-live="polite">
+            <div aria-live="polite">
               <ResultPanel
                 results={results}
                 error={error}

@@ -514,6 +514,23 @@ test("View tab renders the interactive timeline with file and type dropdowns (#1
   assertNoExternalRequests(requestTracker);
 });
 
+test("restores last processed results after refresh and collapses process details", async ({
+  page,
+}) => {
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await processFiles(page);
+
+  await expect(page.getByTestId("result-panel")).toBeVisible();
+  await expect(page.locator("#process-details")).toBeHidden();
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" })).toBeVisible();
+  await expect(page.getByTestId("result-panel")).toBeVisible();
+  await expect(page.getByTestId("result-panel")).toContainText("1 file processed");
+  await expect(page.locator("#process-details")).toBeHidden();
+  assertNoExternalRequests(requestTracker);
+});
+
 test("shows result warnings for suspicious successful outputs", async ({ page }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
   await page.getByTestId("toggle-processScreenUsage").check();

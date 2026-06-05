@@ -16,6 +16,8 @@ type Props = {
   onProcess: () => void;
   progressRows: FileProgress[];
   overallPercent: number;
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
 };
 
 function estimateSeconds(files: File[], parallel: boolean): number {
@@ -33,6 +35,8 @@ export function ProcessPanel({
   onProcess,
   progressRows,
   overallPercent,
+  expanded,
+  onExpandedChange,
 }: Props): ReactElement {
   const etaSeconds = estimateSeconds(uploadedFiles, options.parallelProcessing);
   const warningCount = inspections.reduce(
@@ -42,7 +46,11 @@ export function ProcessPanel({
   const rowCount = inspections.reduce((sum, inspection) => sum + inspection.rowCount, 0);
 
   return (
-    <section id="process" className="workflow-section" aria-labelledby="process-title">
+    <section
+      id="process"
+      className={`workflow-section process-section ${expanded ? "is-expanded" : "is-collapsed"}`}
+      aria-labelledby="process-title"
+    >
       <div className="workflow-section__header">
         <div>
           <h2 id="process-title" className="workflow-section__title">Process</h2>
@@ -52,70 +60,83 @@ export function ProcessPanel({
               : "Add raw files to populate the processing queue."}
           </p>
         </div>
-        <button
-          type="button"
-          className="btn btn--primary btn--lg"
-          data-testid="process-files-button"
-          onClick={onProcess}
-          disabled={isRunning || !uploadedFiles.length}
-        >
-          {isRunning ? "Processing..." : "Process files"}
-        </button>
-      </div>
-
-      <div className="process-controls">
-        <ToggleField
-          label="Parallel processing"
-          tooltip={TOOLTIPS.parallelProcessing}
-          checked={options.parallelProcessing}
-          onChange={(value) => setOptions((current) => ({ ...current, parallelProcessing: value }))}
-          testId="toggle-parallelProcessing-process"
-        />
-        <SettingsField
-          label="Max parallel workers"
-          htmlFor="process-max-workers-input"
-          tooltip={TOOLTIPS.parallelMaxWorkers}
-          hint="Synced with Settings. 0 lets the app choose a safe limit."
-        >
-          <input
-            id="process-max-workers-input"
-            type="number"
-            className="input"
-            data-testid="parallel-max-workers-process-input"
-            min={0}
-            max={32}
-            value={options.parallelMaxWorkers ?? 0}
-            onChange={(event) => {
-              const next = Number(event.target.value);
-              setOptions((current) => ({
-                ...current,
-                parallelMaxWorkers: next > 0 ? next : undefined,
-              }));
-            }}
-            disabled={!options.parallelProcessing}
-          />
-        </SettingsField>
-      </div>
-
-      {warningCount ? (
-        <p className="warning-text">{warningCount} file readiness warning{warningCount === 1 ? "" : "s"} found. You can still process, but review the Files section first.</p>
-      ) : null}
-
-      {progressRows.length ? (
-        <ProgressList rows={progressRows} overallPercent={overallPercent} />
-      ) : uploadedFiles.length ? (
-        <div className="process-ready-list" aria-live="polite">
-          {uploadedFiles.map((file) => (
-            <div className="progress-row" key={`${file.name}-${file.size}-${file.lastModified}`}>
-              <span className="progress-row__name">{file.name}</span>
-              <span className="progress-row__step">Ready</span>
-              <span className="progress-row__status">0%</span>
-            </div>
-          ))}
+        <div className="process-section__actions">
+          <button
+            type="button"
+            className="btn btn--ghost"
+            aria-expanded={expanded}
+            aria-controls="process-details"
+            onClick={() => onExpandedChange(!expanded)}
+          >
+            {expanded ? "Hide details" : "Show details"}
+          </button>
+          <button
+            type="button"
+            className="btn btn--primary btn--lg"
+            data-testid="process-files-button"
+            onClick={onProcess}
+            disabled={isRunning || !uploadedFiles.length}
+          >
+            {isRunning ? "Processing..." : "Process files"}
+          </button>
         </div>
-      ) : (
-        <p className="empty-state">The processing queue is empty.</p>
-      )}
+      </div>
+
+      <div id="process-details" className="process-section__body" hidden={!expanded}>
+        <div className="process-controls">
+          <ToggleField
+            label="Parallel processing"
+            tooltip={TOOLTIPS.parallelProcessing}
+            checked={options.parallelProcessing}
+            onChange={(value) => setOptions((current) => ({ ...current, parallelProcessing: value }))}
+            testId="toggle-parallelProcessing-process"
+          />
+          <SettingsField
+            label="Max parallel workers"
+            htmlFor="process-max-workers-input"
+            tooltip={TOOLTIPS.parallelMaxWorkers}
+            hint="Synced with Settings. 0 lets the app choose a safe limit."
+          >
+            <input
+              id="process-max-workers-input"
+              type="number"
+              className="input"
+              data-testid="parallel-max-workers-process-input"
+              min={0}
+              max={32}
+              value={options.parallelMaxWorkers ?? 0}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                setOptions((current) => ({
+                  ...current,
+                  parallelMaxWorkers: next > 0 ? next : undefined,
+                }));
+              }}
+              disabled={!options.parallelProcessing}
+            />
+          </SettingsField>
+        </div>
+
+        {warningCount ? (
+          <p className="warning-text">{warningCount} file readiness warning{warningCount === 1 ? "" : "s"} found. You can still process, but review the Files section first.</p>
+        ) : null}
+
+        {progressRows.length ? (
+          <ProgressList rows={progressRows} overallPercent={overallPercent} />
+        ) : uploadedFiles.length ? (
+          <div className="process-ready-list" aria-live="polite">
+            {uploadedFiles.map((file) => (
+              <div className="progress-row" key={`${file.name}-${file.size}-${file.lastModified}`}>
+                <span className="progress-row__name">{file.name}</span>
+                <span className="progress-row__step">Ready</span>
+                <span className="progress-row__status">0%</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="empty-state">The processing queue is empty.</p>
+        )}
+      </div>
     </section>
   );
 }
