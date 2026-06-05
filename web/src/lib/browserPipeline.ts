@@ -2363,10 +2363,6 @@ export async function processRawCsvContent(
   const outputs: ProcessedOutputFileResult[] = [];
   let screenRows: CanonicalRow[] = [];
   let appRows: CanonicalRow[] = [];
-  // Day-grid usage plots, captured here so the timeline viewer (#18) can reuse
-  // them instead of regenerating when plotting is also on.
-  let appPlotBlobs: Map<string, Blob> | null = null;
-  let screenPlotBlobs: Map<string, Blob> | null = null;
 
   // Screen usage derivation (independent of app usage)
   if (options.processScreenUsage) {
@@ -2490,7 +2486,7 @@ export async function processRawCsvContent(
       };
 
       const appRowsForPlots = appRows as Parameters<typeof generateAllPlots>[0];
-      appPlotBlobs = await generateAllPlots(
+      const appPlotBlobs = await generateAllPlots(
         appRowsForPlots,
         timezone,
         options,
@@ -2565,7 +2561,7 @@ export async function processRawCsvContent(
     emit("output", 1);
 
     if (options.enablePlotting) {
-      screenPlotBlobs = await generateAllScreenPlots(
+      const screenPlotBlobs = await generateAllScreenPlots(
         screenRows as Parameters<typeof generateAllScreenPlots>[0],
         timezone,
         PREPROCESSOR_VERSION,
@@ -2625,38 +2621,42 @@ export async function processRawCsvContent(
     emit("output", 1);
   }
 
-  // Timeline viewer (#18) — only built when the option is on. Produces two
-  // things: (a) the in-app View tab payload (`timelineView`) — the interactive
-  // day-grid scenes + hover regions, rendered live on the main thread; and (b) a
-  // self-contained HTML file with App / Screen tabs embedding the day-grid usage
-  // plots, exported as a download. Both are opt-in (the payload carries
-  // per-session geometry) so default runs stay light. Reuses the plots already
-  // generated for the image export when plotting is on; otherwise renders them
-  // here on demand.
+  // Timeline viewer (#18) — only built when the option is on. The interactive
+  // day-grid scenes + per-session hover regions are computed once here and feed
+  // two consumers, so they cannot drift: (a) the in-app View tab payload
+  // (`timelineView`), rendered live on the main thread; and (b) a self-contained
+  // HTML export that embeds the same scenes and renders them on a canvas with
+  // the same zoom / pan / hover interactions (timelineViewer.ts). Opt-in (the
+  // scenes carry per-session geometry) so default runs stay light.
   let timelineView: TimelineViewData | undefined;
   if (options.enableInteractiveTimeline) {
-    if (!appPlotBlobs && options.processAppUsage && appRows.length > 0) {
-      appPlotBlobs = await generateAllPlots(
-        appRows as Parameters<typeof generateAllPlots>[0],
-        timezone,
-        options,
-        PREPROCESSOR_VERSION,
-        preAlgoTsByParticipant,
-      );
-    }
-    if (!screenPlotBlobs && options.processScreenUsage && screenRows.length > 0) {
-      screenPlotBlobs = await generateAllScreenPlots(
-        screenRows as Parameters<typeof generateAllScreenPlots>[0],
-        timezone,
-        PREPROCESSOR_VERSION,
-        preAlgoTsByParticipant,
-      );
-    }
-    const viewerHtml = await buildTimelineViewerHtml({
+    const appViews =
+      options.processAppUsage && appRows.length > 0
+        ? buildAppTimelineViews(
+            appRows as Parameters<typeof buildAppTimelineViews>[0],
+            timezone,
+            options,
+            PREPROCESSOR_VERSION,
+            preAlgoTsByParticipant,
+          )
+        : [];
+    const screenViews =
+      options.processScreenUsage && screenRows.length > 0
+        ? buildScreenTimelineViews(
+            screenRows as Parameters<typeof buildScreenTimelineViews>[0],
+            timezone,
+            PREPROCESSOR_VERSION,
+            preAlgoTsByParticipant,
+          )
+        : [];
+
+    timelineView = { timezone, app: appViews, screen: screenViews };
+
+    const viewerHtml = buildTimelineViewerHtml({
       fileName: inputFileName,
       timezone,
-      appPlots: appPlotBlobs ?? new Map<string, Blob>(),
-      screenPlots: screenPlotBlobs ?? new Map<string, Blob>(),
+      app: appViews,
+      screen: screenViews,
     });
     outputs.push({
       kind: "plot",
@@ -2665,29 +2665,6 @@ export async function processRawCsvContent(
       rowCount: 0,
       previewRows: [],
     });
-
-    timelineView = {
-      timezone,
-      app:
-        options.processAppUsage && appRows.length > 0
-          ? buildAppTimelineViews(
-              appRows as Parameters<typeof buildAppTimelineViews>[0],
-              timezone,
-              options,
-              PREPROCESSOR_VERSION,
-              preAlgoTsByParticipant,
-            )
-          : [],
-      screen:
-        options.processScreenUsage && screenRows.length > 0
-          ? buildScreenTimelineViews(
-              screenRows as Parameters<typeof buildScreenTimelineViews>[0],
-              timezone,
-              PREPROCESSOR_VERSION,
-              preAlgoTsByParticipant,
-            )
-          : [],
-    };
   }
 
   return {
