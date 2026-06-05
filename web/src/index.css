@@ -2394,18 +2394,14 @@ a:hover {
 .timeline-view__canvas-wrap {
   position: relative;
   width: 100%;
-  overflow: hidden;
+  overflow: visible;
   background: #ffffff;
 }
 
 .timeline-view__canvas {
   display: block;
-  touch-action: none;
-  cursor: grab;
-}
-
-.timeline-view__canvas:active {
-  cursor: grabbing;
+  touch-action: pan-y;
+  cursor: default;
 }
 
 .timeline-view__tooltip {
@@ -2426,4 +2422,3 @@ a:hover {
   display: block;
   margin-bottom: 0.15rem;
 }
-

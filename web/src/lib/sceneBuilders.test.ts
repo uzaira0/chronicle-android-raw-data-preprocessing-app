@@ -4,6 +4,7 @@ import {
   buildHeatmapScene,
   buildScreenScene,
   buildTimelineScene,
+  buildWaterfallScene,
   CATEGORY_COLORS,
 } from "@/lib/plotGenerator";
 import { renderSceneToSvg, type RectPrim, type SceneRegion } from "@/lib/plotScene";
@@ -127,6 +128,46 @@ describe("buildScreenScene", () => {
     expect(gap).toBeDefined();
     expect(gap!.lines.some((l) => l.includes("2026-03-07 11:00:00 → 14:00:00"))).toBe(true);
 
+    expect(regions.indexOf(bar!)).toBeLessThan(regions.indexOf(gap!));
+  });
+});
+
+describe("buildWaterfallScene", () => {
+  it("builds a bare fit-width scene with bar and gap hover regions", () => {
+    const regions: SceneRegion[] = [];
+    const scene = buildWaterfallScene(
+      [
+        {
+          startNs: at(10),
+          stopNs: at(11),
+          color: CATEGORY_COLORS["Games"]!,
+          title: "com.example.app",
+          detail: ["Games", "60.0 min · App Usage"],
+        },
+      ],
+      [at(10), at(11), at(14)],
+      "UTC",
+      regions,
+    );
+
+    expect(scene.width).toBe(1440);
+    expect(scene.height).toBeGreaterThan(1);
+    expect(rectsWithFill(scene.primitives, CATEGORY_COLORS["Games"]!).length).toBeGreaterThan(0);
+
+    const texts = scene.primitives.filter((p) => p.type === "text").map((p) => (p as { text: string }).text);
+    expect(texts).toContain("Sat, Mar 07, 2026");
+    expect(texts).not.toContain("Time of Day (Hours)");
+    expect(texts).not.toContain("App Categories");
+
+    const bar = regions.find((r) => r.title === "com.example.app");
+    expect(bar).toBeDefined();
+    expect(bar!.lines).toContain("Games");
+    expect(bar!.lines.some((l) => l.includes("2026-03-07 10:00:00 → 11:00:00"))).toBe(true);
+
+    const gap = regions.find((r) => r.title === "Data gap");
+    expect(gap).toBeDefined();
+    expect(gap!.lines.some((l) => l.includes("No device events · 3.0 h"))).toBe(true);
+    expect(gap!.lines.some((l) => l.includes("2026-03-07 11:00:00 → 14:00:00"))).toBe(true);
     expect(regions.indexOf(bar!)).toBeLessThan(regions.indexOf(gap!));
   });
 });

@@ -2622,11 +2622,11 @@ export async function processRawCsvContent(
   }
 
   // Timeline viewer (#18) — only built when the option is on. The interactive
-  // day-grid scenes + per-session hover regions are computed once here and feed
+  // waterfall scenes + per-session hover regions are computed once here and feed
   // two consumers, so they cannot drift: (a) the in-app View tab payload
   // (`timelineView`), rendered live on the main thread; and (b) a self-contained
   // HTML export that embeds the same scenes and renders them on a canvas with
-  // the same zoom / pan / hover interactions (timelineViewer.ts). Opt-in (the
+  // the same fit-to-width scroll / hover interactions (timelineViewer.ts). Opt-in (the
   // scenes carry per-session geometry) so default runs stay light.
   let timelineView: TimelineViewData | undefined;
   if (options.enableInteractiveTimeline) {
