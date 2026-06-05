@@ -393,6 +393,21 @@ test("exports an HTML timeline viewer when the option is enabled (#18)", async (
   assertNoExternalRequests(requestTracker);
 });
 
+test("View tab renders the interactive timeline with file and type dropdowns (#18)", async ({
+  page,
+}) => {
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await page.getByTestId("toggle-enableInteractiveTimeline").check();
+  await processFiles(page);
+
+  await page.getByRole("tab", { name: /View/i }).click();
+  await expect(page.getByTestId("timeline-view")).toBeVisible();
+  await expect(page.getByTestId("timeline-view-file")).toBeVisible();
+  await expect(page.getByTestId("timeline-view-type")).toBeVisible();
+  await expect(page.locator(".timeline-view__canvas").first()).toBeVisible();
+  assertNoExternalRequests(requestTracker);
+});
+
 test("shows result warnings for suspicious successful outputs", async ({ page }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
   await page.getByTestId("toggle-processScreenUsage").check();
