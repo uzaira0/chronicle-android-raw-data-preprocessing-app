@@ -44,11 +44,11 @@ export function InteractionSemanticsCard({ options, setOptions }: Props): ReactE
       modified={anyOptionModified(options, KEYS)}
     >
       <p className="u-card-intro">
-        Pick which Android usage-event interaction types end a session, and which to drop from
+        Pick which Android usage event interaction types end a session, and which to drop from
         the final output. The defaults match the canonical desktop preprocessing semantics.
       </p>
       <CheckboxGroup
-        title="Same-app interaction types that end a session"
+        title="Same app interaction types that end a session"
         options={[...SAME_APP_INTERACTION_TYPE_OPTIONS]}
         selected={options.sameAppInteractionTypesToStopUsageAt}
         onChange={(next) => update("sameAppInteractionTypesToStopUsageAt", next)}

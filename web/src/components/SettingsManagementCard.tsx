@@ -85,7 +85,7 @@ export function SettingsManagementCard({
           <p className="workflow-section__intro">
             One config file holds everything: the active settings the next run will use, plus your
             saved presets. Export downloads the whole config; import replaces it. Active settings
-            and presets both auto-save in this browser, so import/export is only for moving between
+            and presets both save automatically in this browser, so import and export are only for moving between
             machines or sharing.
           </p>
         </div>
@@ -179,7 +179,7 @@ export function SettingsManagementCard({
         <p className="text-faint u-meta-xs">
           Snapshots of named configurations you keep locally for quick switching. Save preset
           captures the current active settings under a name. Load applies one back. Presets
-          travel inside the config file above — there is no separate file for them.
+          travel inside the config file above. There is no separate file for them.
         </p>
         <div className="preset-manager__save">
           <input
