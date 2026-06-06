@@ -15,6 +15,8 @@ export type TimelineParticipantView = {
 export type TimelineViewData = {
   timezone: string;
   includeFilteredAppUsageInPlots?: boolean;
+  appFilteredIncluded?: TimelineParticipantView[];
+  appFilteredExcluded?: TimelineParticipantView[];
   app: TimelineParticipantView[];
   screen: TimelineParticipantView[];
 };

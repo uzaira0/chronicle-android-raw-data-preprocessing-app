@@ -18,6 +18,15 @@ type RowTransforms = Record<number, RowTransform>;
 
 const MAX_ROW_ZOOM = 24;
 
+function appViewsFor(data: TimelineViewData, includeFiltered: boolean): TimelineParticipantView[] {
+  if (includeFiltered) return data.appFilteredIncluded ?? data.app;
+  return data.appFilteredExcluded ?? data.app;
+}
+
+function hasAppViews(data: TimelineViewData): boolean {
+  return data.app.length > 0 || !!data.appFilteredIncluded?.length || !!data.appFilteredExcluded?.length;
+}
+
 function rowAtY(meta: WaterfallSceneMeta | undefined, y: number): number | null {
   if (!meta) return null;
   const index = meta.rows.findIndex((row) => y >= row.y && y < row.y + row.h);
@@ -334,13 +343,18 @@ function InteractiveScene({
 }
 
 export function TimelineViewPanel({ results, includeFilteredAppUsageInPlots }: Props): ReactElement {
+  const [showFilteredUsage, setShowFilteredUsage] = useState(includeFilteredAppUsageInPlots);
   const filesWithView = results.filter(
     (r): r is ProcessedFileResult & { timelineView: TimelineViewData } =>
-      !!r.timelineView && (r.timelineView.app.length > 0 || r.timelineView.screen.length > 0),
+      !!r.timelineView && (hasAppViews(r.timelineView) || r.timelineView.screen.length > 0),
   );
 
   const [selectedFile, setSelectedFile] = useState<string>("");
   const [selectedType, setSelectedType] = useState<ViewType>("app");
+
+  useEffect(() => {
+    setShowFilteredUsage(includeFilteredAppUsageInPlots);
+  }, [includeFilteredAppUsageInPlots]);
 
   if (filesWithView.length === 0) {
     return (
@@ -357,17 +371,19 @@ export function TimelineViewPanel({ results, includeFilteredAppUsageInPlots }: P
   // stays valid when results change or nothing has been picked yet.
   const activeFile =
     filesWithView.find((r) => r.inputFileName === selectedFile) ?? filesWithView[0]!;
+  const activeAppViews = appViewsFor(activeFile.timelineView, showFilteredUsage);
   const availableTypes: ViewType[] = [
-    ...(activeFile.timelineView.app.length > 0 ? (["app"] as const) : []),
+    ...(hasAppViews(activeFile.timelineView) ? (["app"] as const) : []),
     ...(activeFile.timelineView.screen.length > 0 ? (["screen"] as const) : []),
   ];
   const activeType: ViewType = availableTypes.includes(selectedType)
     ? selectedType
     : availableTypes[0]!;
-  const views: TimelineParticipantView[] = activeFile.timelineView[activeType];
+  const views: TimelineParticipantView[] =
+    activeType === "app" ? activeAppViews : activeFile.timelineView.screen;
 
   const typeLabel: Record<ViewType, string> = { app: "App usage", screen: "Screen usage" };
-  const filteredUsageLabel = includeFilteredAppUsageInPlots
+  const filteredUsageLabel = showFilteredUsage
     ? "Filtered usage included"
     : "Filtered usage excluded";
   const viewContext = `${typeLabel[activeType]} · ${filteredUsageLabel} · ${activeFile.timelineView.timezone}`;
@@ -404,6 +420,20 @@ export function TimelineViewPanel({ results, includeFilteredAppUsageInPlots }: P
               ))}
             </select>
           </label>
+          {activeType === "app" ? (
+            <label className="timeline-view__field timeline-view__field--toggle">
+              <span>Filtered usage</span>
+              <span className="timeline-view__toggle">
+                <input
+                  type="checkbox"
+                  data-testid="timeline-view-filtered-toggle"
+                  checked={showFilteredUsage}
+                  onChange={(event) => setShowFilteredUsage(event.target.checked)}
+                />
+                <span>{showFilteredUsage ? "Shown" : "Hidden"}</span>
+              </span>
+            </label>
+          ) : null}
         </div>
         <p className="timeline-view__hint">Shift scroll a row to zoom · drag zoomed rows · double click to reset</p>
       </div>
