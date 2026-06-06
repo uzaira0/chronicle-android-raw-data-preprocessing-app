@@ -633,6 +633,8 @@ describe("browserPipeline", () => {
     );
     expect(on.timelineView).toBeDefined();
     expect(on.timelineView!.includeFilteredAppUsageInPlots).toBe(false);
+    expect(on.timelineView!.appFilteredIncluded).toHaveLength(1);
+    expect(on.timelineView!.appFilteredExcluded).toHaveLength(1);
     expect(on.timelineView!.app).toHaveLength(1);
     expect(on.timelineView!.app[0]!.participantId).toBe("P01");
     expect(on.timelineView!.app[0]!.scene.primitives.length).toBeGreaterThan(0);
@@ -650,6 +652,8 @@ describe("browserPipeline", () => {
       matcher,
     );
     expect(withFilteredIncluded.timelineView?.includeFilteredAppUsageInPlots).toBe(true);
+    expect(withFilteredIncluded.timelineView?.appFilteredIncluded).toHaveLength(1);
+    expect(withFilteredIncluded.timelineView?.appFilteredExcluded).toHaveLength(1);
   });
 
   it("emits progress events for every pipeline phase when onProgress is supplied", async () => {

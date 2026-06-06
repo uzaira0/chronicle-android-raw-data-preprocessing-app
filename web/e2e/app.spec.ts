@@ -497,7 +497,8 @@ test("@smoke the exported HTML timeline viewer runs its inlined interactivity of
 test("View tab renders the interactive timeline with file and type dropdowns (#18)", async ({
   page,
 }, testInfo) => {
-  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
+  await setInputFile(page, "filter-file-input", "filter.csv", FILTER_FILE_CSV, "text/csv");
   await page.getByTestId("toggle-enableInteractiveTimeline").check();
   await page.getByTestId("toggle-includeFilteredAppUsageInPlots").check();
   await expect(page.getByTestId("toggle-includeFilteredAppUsageInPlots")).toBeChecked();
@@ -528,8 +529,19 @@ test("View tab renders the interactive timeline with file and type dropdowns (#1
   await expect(page.getByTestId("timeline-view-participant-title").first()).toContainText(
     "P01 · App usage · Filtered usage included · America/Chicago",
   );
+  const filteredToggle = page.getByTestId("timeline-view-filtered-toggle");
+  await expect(filteredToggle).toBeChecked();
   const canvas = page.locator(".timeline-view__canvas").first();
   await expect(canvas).toBeVisible();
+  await filteredToggle.uncheck();
+  await expect(page.getByTestId("timeline-view-participant-title").first()).toContainText(
+    "P01 · App usage · Filtered usage excluded · America/Chicago",
+  );
+  await expect(filteredToggle).not.toBeChecked();
+  await filteredToggle.check();
+  await expect(page.getByTestId("timeline-view-participant-title").first()).toContainText(
+    "P01 · App usage · Filtered usage included · America/Chicago",
+  );
 
   const target = await canvas.evaluate(
     (el, payload) => {
