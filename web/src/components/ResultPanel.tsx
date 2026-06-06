@@ -84,10 +84,10 @@ function buildPerFileWarnings(
     warnings.push("Zero rows after timezone/filter/session processing.");
   }
   if (options.processAppUsage && result.appRowCount === 0) {
-    warnings.push("Zero app-usage rows.");
+    warnings.push("Zero app usage rows.");
   }
   if (options.processScreenUsage && result.screenRowCount === 0) {
-    warnings.push("Zero screen-usage rows.");
+    warnings.push("Zero screen usage rows.");
   }
   result.outputs.forEach((output) => {
     // Plots are PNG charts (no rows); aggregate files can be legitimately empty

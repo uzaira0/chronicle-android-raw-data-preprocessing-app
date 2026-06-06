@@ -93,6 +93,12 @@ test("searches individual settings and links to matching sections", async ({ pag
   await expect(results).toContainText("2 settings found");
   await expect(results).toContainText("Parallel processing");
   await expect(results).toContainText("Max parallel workers");
+  const searchBox = await page.getByTestId("settings-search-input").boundingBox();
+  const resultBox = await results.boundingBox();
+  expect(searchBox).not.toBeNull();
+  expect(resultBox).not.toBeNull();
+  expect(resultBox!.y).toBeGreaterThan(searchBox!.y + searchBox!.height);
+  expect(Math.abs(resultBox!.x - searchBox!.x)).toBeLessThan(2);
   await expect(results.getByRole("link", { name: /Max parallel workers/i })).toHaveAttribute(
     "href",
     /#performance$/,
@@ -104,9 +110,12 @@ test("switches workflow tabs as SPA views while preserving state", async ({ page
   await expect(page.getByRole("tabpanel", { name: /Settings/i })).toBeVisible();
   await expect(page.getByRole("tabpanel", { name: /Files/i })).toBeHidden();
   await expect(page.getByRole("tabpanel", { name: /Process/i })).toBeHidden();
+  const settingsTitleLeft = await page.locator("#settings-title").evaluate((el) => el.getBoundingClientRect().left);
 
   await page.getByRole("tab", { name: /Files/i }).click();
   await expect(page.getByRole("tabpanel", { name: /Files/i })).toBeVisible();
+  const filesTitleLeft = await page.locator("#files-title").evaluate((el) => el.getBoundingClientRect().left);
+  expect(Math.abs(filesTitleLeft - settingsTitleLeft)).toBeLessThan(2);
   await expect(page.getByTestId("settings-search-input")).toBeHidden();
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
   await expect(page.getByText("1 raw file ready")).toBeVisible();
@@ -114,6 +123,8 @@ test("switches workflow tabs as SPA views while preserving state", async ({ page
   await page.getByRole("tab", { name: /Process/i }).click();
   const processPanel = page.getByRole("tabpanel", { name: /Process/i });
   await expect(processPanel).toBeVisible();
+  const processTitleLeft = await page.locator("#process-title").evaluate((el) => el.getBoundingClientRect().left);
+  expect(Math.abs(processTitleLeft - settingsTitleLeft)).toBeLessThan(2);
   await expect(processPanel.getByText("Raw P01.csv")).toBeVisible();
   await expect(processPanel.getByText("Ready")).toBeVisible();
 
@@ -505,6 +516,15 @@ test("View tab renders the interactive timeline with file and type dropdowns (#1
   await expect(page.getByTestId("timeline-view")).toBeVisible();
   await expect(page.getByTestId("timeline-view-file")).toBeVisible();
   await expect(page.getByTestId("timeline-view-type")).toBeVisible();
+  await expect(page.locator(".timeline-view__hint")).toHaveText("Shift scroll a row to zoom · drag zoomed rows · double click to reset");
+  const controlsBox = await page.locator(".timeline-view__controls").boundingBox();
+  const panelBox = await page.getByTestId("timeline-view").boundingBox();
+  expect(controlsBox).not.toBeNull();
+  expect(panelBox).not.toBeNull();
+  expect(Math.abs((controlsBox!.x + controlsBox!.width / 2) - (panelBox!.x + panelBox!.width / 2))).toBeLessThan(3);
+  await expect(page.getByTestId("timeline-view-participant-title").first()).toContainText(
+    "P01 · App usage · Filtered usage excluded · America/Chicago",
+  );
   const canvas = page.locator(".timeline-view__canvas").first();
   await expect(canvas).toBeVisible();
 
@@ -577,7 +597,7 @@ test("shows result warnings for suspicious successful outputs", async ({ page })
   await processFiles(page);
 
   const row = page.getByTestId("result-row").first();
-  await expect(row).toContainText("Zero screen-usage rows");
+  await expect(row).toContainText("Zero screen usage rows");
   await expect(row).toContainText("contains zero data rows");
   assertNoExternalRequests(requestTracker);
 });

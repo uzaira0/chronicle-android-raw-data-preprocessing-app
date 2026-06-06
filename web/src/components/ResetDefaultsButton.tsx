@@ -65,7 +65,7 @@ export function ResetDefaultsButton({ options, onReset }: Props): ReactElement {
                 </h2>
                 <p className="modal__body">
                   Every setting in every section will be returned to the canonical default.
-                  Your selected files (raw, filter, apps-forcing-screen-open, codebook) are kept.
+                  Your selected files (raw, filter, apps forcing screen open, codebook) are kept.
                 </p>
                 <div className="modal__actions">
                   <button

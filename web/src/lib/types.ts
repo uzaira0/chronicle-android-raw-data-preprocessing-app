@@ -14,6 +14,7 @@ export type TimelineParticipantView = {
  * one entry per participant. Present only when the timeline viewer is enabled. */
 export type TimelineViewData = {
   timezone: string;
+  includeFilteredAppUsageInPlots?: boolean;
   app: TimelineParticipantView[];
   screen: TimelineParticipantView[];
 };

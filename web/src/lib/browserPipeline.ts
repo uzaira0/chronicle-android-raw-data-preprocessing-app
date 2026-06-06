@@ -69,11 +69,11 @@ export const TIMEZONE_HANDLING_OPTIONS = [
 
 export const BOOLEAN_OPTION_CONTROLS = [
   { key: "useFilterFile", label: "Use filter file" },
-  { key: "useAppsForcingScreenOpenFile", label: "Use apps-forcing-screen-open file" },
-  { key: "useBackgroundAppsFile", label: "Use background-apps file" },
+  { key: "useAppsForcingScreenOpenFile", label: "Use apps forcing screen open file" },
+  { key: "useBackgroundAppsFile", label: "Use background apps file" },
   { key: "useAppCodebook", label: "Use app codebook" },
   { key: "correctDuplicateEventTimestamps", label: "Correct duplicate event timestamps" },
-  { key: "allowStopEventReuse", label: "Allow stop-event reuse" },
+  { key: "allowStopEventReuse", label: "Allow stop event reuse" },
   { key: "useActivityStoppedAsFallback", label: "Use Activity Stopped fallback" },
   {
     key: "applyThresholdToFallback",
@@ -2650,7 +2650,12 @@ export async function processRawCsvContent(
           )
         : [];
 
-    timelineView = { timezone, app: appViews, screen: screenViews };
+    timelineView = {
+      timezone,
+      includeFilteredAppUsageInPlots: options.includeFilteredAppUsageInPlots,
+      app: appViews,
+      screen: screenViews,
+    };
 
     const viewerHtml = buildTimelineViewerHtml({
       fileName: inputFileName,

@@ -78,7 +78,7 @@ export function ProjectsCard({
         // toast shown before the async save resolved would be clobbered by this.
         if (oversized) {
           onStatus(
-            `Project saved: ${trimmed} (with ${formatBytes(bytes)} of files) — this exceeds typical browser storage limits and may be evicted; consider saving config only.`,
+            `Project saved: ${trimmed} (with ${formatBytes(bytes)} of files). This exceeds typical browser storage limits and may be evicted; consider saving config only.`,
             true,
           );
         } else {
@@ -141,7 +141,7 @@ export function ProjectsCard({
             Saved projects
           </h3>
           <p className="workflow-section__intro">
-            Save the current settings — optionally with the uploaded files — to this browser, so you
+            Save the current settings, optionally with the uploaded files, to this browser, so you
             can close the tab and resume later. Stored locally in IndexedDB; nothing leaves your
             device.
           </p>
