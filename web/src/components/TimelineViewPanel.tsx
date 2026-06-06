@@ -8,7 +8,10 @@ import type {
   TimelineViewData,
 } from "@/lib/types";
 
-type Props = { results: ProcessedFileResult[] };
+type Props = {
+  results: ProcessedFileResult[];
+  includeFilteredAppUsageInPlots: boolean;
+};
 type ViewType = "app" | "screen";
 type RowTransform = { zoom: number; offset: number };
 type RowTransforms = Record<number, RowTransform>;
@@ -330,7 +333,7 @@ function InteractiveScene({
   );
 }
 
-export function TimelineViewPanel({ results }: Props): ReactElement {
+export function TimelineViewPanel({ results, includeFilteredAppUsageInPlots }: Props): ReactElement {
   const filesWithView = results.filter(
     (r): r is ProcessedFileResult & { timelineView: TimelineViewData } =>
       !!r.timelineView && (r.timelineView.app.length > 0 || r.timelineView.screen.length > 0),
@@ -364,7 +367,7 @@ export function TimelineViewPanel({ results }: Props): ReactElement {
   const views: TimelineParticipantView[] = activeFile.timelineView[activeType];
 
   const typeLabel: Record<ViewType, string> = { app: "App usage", screen: "Screen usage" };
-  const filteredUsageLabel = activeFile.timelineView.includeFilteredAppUsageInPlots
+  const filteredUsageLabel = includeFilteredAppUsageInPlots
     ? "Filtered usage included"
     : "Filtered usage excluded";
   const viewContext = `${typeLabel[activeType]} · ${filteredUsageLabel} · ${activeFile.timelineView.timezone}`;
