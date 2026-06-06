@@ -695,7 +695,10 @@ export default function App(): ReactElement {
             aria-labelledby="view-tab"
             hidden={activeWorkflow !== "view"}
           >
-            <TimelineViewPanel results={results} />
+            <TimelineViewPanel
+              results={results}
+              includeFilteredAppUsageInPlots={options.includeFilteredAppUsageInPlots}
+            />
           </div>
         </div>
 

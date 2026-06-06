@@ -632,6 +632,7 @@ describe("browserPipeline", () => {
       matcher,
     );
     expect(on.timelineView).toBeDefined();
+    expect(on.timelineView!.includeFilteredAppUsageInPlots).toBe(false);
     expect(on.timelineView!.app).toHaveLength(1);
     expect(on.timelineView!.app[0]!.participantId).toBe("P01");
     expect(on.timelineView!.app[0]!.scene.primitives.length).toBeGreaterThan(0);
@@ -640,6 +641,15 @@ describe("browserPipeline", () => {
     expect(region.title).toBe("Chat");
     expect(region.lines).toContain("com.example.chat");
     expect(on.timelineView!.screen).toHaveLength(0);
+
+    const withFilteredIncluded = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      { ...baseOptions, enableInteractiveTimeline: true, includeFilteredAppUsageInPlots: true },
+      {},
+      matcher,
+    );
+    expect(withFilteredIncluded.timelineView?.includeFilteredAppUsageInPlots).toBe(true);
   });
 
   it("emits progress events for every pipeline phase when onProgress is supplied", async () => {

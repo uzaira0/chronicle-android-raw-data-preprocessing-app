@@ -401,6 +401,7 @@ test("emits SPSS .sav outputs when SPSS export is enabled (#9)", async ({ page }
 test("exports an HTML timeline viewer when the option is enabled (#18)", async ({ page }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
   await page.getByTestId("toggle-enableInteractiveTimeline").check();
+  await page.getByTestId("toggle-includeFilteredAppUsageInPlots").check();
   await processFiles(page);
 
   await expect(page.getByTestId("download-timeline-viewer")).toBeVisible();
@@ -498,6 +499,8 @@ test("View tab renders the interactive timeline with file and type dropdowns (#1
 }, testInfo) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
   await page.getByTestId("toggle-enableInteractiveTimeline").check();
+  await page.getByTestId("toggle-includeFilteredAppUsageInPlots").check();
+  await expect(page.getByTestId("toggle-includeFilteredAppUsageInPlots")).toBeChecked();
   await processFiles(page);
 
   const downloadPromise = page.waitForEvent("download");
@@ -523,7 +526,7 @@ test("View tab renders the interactive timeline with file and type dropdowns (#1
   expect(panelBox).not.toBeNull();
   expect(Math.abs((controlsBox!.x + controlsBox!.width / 2) - (panelBox!.x + panelBox!.width / 2))).toBeLessThan(3);
   await expect(page.getByTestId("timeline-view-participant-title").first()).toContainText(
-    "P01 · App usage · Filtered usage excluded · America/Chicago",
+    "P01 · App usage · Filtered usage included · America/Chicago",
   );
   const canvas = page.locator(".timeline-view__canvas").first();
   await expect(canvas).toBeVisible();
