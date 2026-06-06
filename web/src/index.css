@@ -2400,6 +2400,22 @@ a:hover {
   max-width: 22rem;
 }
 
+.timeline-view__field--toggle {
+  align-self: stretch;
+}
+
+.timeline-view__toggle {
+  min-height: 39px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-strong);
+}
+
 .timeline-view__hint {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);

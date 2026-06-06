@@ -2630,16 +2630,32 @@ export async function processRawCsvContent(
   // scenes carry per-session geometry) so default runs stay light.
   let timelineView: TimelineViewData | undefined;
   if (options.enableInteractiveTimeline) {
-    const appViews =
+    const appRowsForTimeline = appRows as Parameters<typeof buildAppTimelineViews>[0];
+    const appViewsFilteredExcluded =
       options.processAppUsage && appRows.length > 0
         ? buildAppTimelineViews(
-            appRows as Parameters<typeof buildAppTimelineViews>[0],
+            appRowsForTimeline,
             timezone,
             options,
             PREPROCESSOR_VERSION,
             preAlgoTsByParticipant,
+            false,
           )
         : [];
+    const appViewsFilteredIncluded =
+      options.processAppUsage && appRows.length > 0
+        ? buildAppTimelineViews(
+            appRowsForTimeline,
+            timezone,
+            options,
+            PREPROCESSOR_VERSION,
+            preAlgoTsByParticipant,
+            true,
+          )
+        : [];
+    const appViews = options.includeFilteredAppUsageInPlots
+      ? appViewsFilteredIncluded
+      : appViewsFilteredExcluded;
     const screenViews =
       options.processScreenUsage && screenRows.length > 0
         ? buildScreenTimelineViews(
@@ -2653,6 +2669,8 @@ export async function processRawCsvContent(
     timelineView = {
       timezone,
       includeFilteredAppUsageInPlots: options.includeFilteredAppUsageInPlots,
+      appFilteredIncluded: appViewsFilteredIncluded,
+      appFilteredExcluded: appViewsFilteredExcluded,
       app: appViews,
       screen: screenViews,
     };

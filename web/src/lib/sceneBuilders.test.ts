@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildHeatmapScene,
+  buildAppTimelineViews,
   buildScreenScene,
   buildTimelineScene,
   buildWaterfallScene,
@@ -232,6 +233,51 @@ describe("buildWaterfallScene", () => {
     const marker = regions.find((r) => r.title === "Device Shutdown");
     expect(marker).toBeDefined();
     expect(marker!.lines).toContain("2026-03-07 09:00:00");
+  });
+});
+
+describe("buildAppTimelineViews", () => {
+  it("can build included and excluded filtered usage variants", () => {
+    const rows = [
+      {
+        ...usage("Games", 10, 11),
+        participant_id: "P01",
+      },
+      {
+        ...usage("Education", 12, 13),
+        participant_id: "P01",
+        interaction_type: "Filtered App Usage",
+        app_package_name: "com.example.filtered",
+        application_label: "Filtered Reader",
+      },
+    ] as unknown as Parameters<typeof buildAppTimelineViews>[0];
+
+    const excluded = buildAppTimelineViews(
+      rows,
+      "UTC",
+      { includeFilteredAppUsageInPlots: false },
+      "1.0.0",
+      undefined,
+      false,
+    );
+    const included = buildAppTimelineViews(
+      rows,
+      "UTC",
+      { includeFilteredAppUsageInPlots: false },
+      "1.0.0",
+      undefined,
+      true,
+    );
+
+    const hasFilteredRegion = (views: typeof included): boolean =>
+      views.some((view) =>
+        view.regions.some((region) =>
+          region.lines.some((line) => line.includes("Filtered App Usage")),
+        ),
+      );
+
+    expect(hasFilteredRegion(excluded)).toBe(false);
+    expect(hasFilteredRegion(included)).toBe(true);
   });
 });
 

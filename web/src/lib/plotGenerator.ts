@@ -1471,11 +1471,12 @@ export function buildAppTimelineViews(
   options: Pick<BrowserProcessingOptions, "includeFilteredAppUsageInPlots">,
   version: string,
   preAlgoTsByParticipant?: Map<string, bigint[]>,
+  includeFilteredOverride = options.includeFilteredAppUsageInPlots,
 ): ParticipantTimelineView[] {
   void version;
   const views: ParticipantTimelineView[] = [];
   const usageTypes = new Set([APP_USAGE_TYPE]);
-  if (options.includeFilteredAppUsageInPlots) usageTypes.add(FILTERED_APP_USAGE_TYPE);
+  if (includeFilteredOverride) usageTypes.add(FILTERED_APP_USAGE_TYPE);
   for (const [pid, pRows] of groupByParticipant(rows)) {
     const regions: SceneRegion[] = [];
     const sessions: WaterfallSession[] = [];
