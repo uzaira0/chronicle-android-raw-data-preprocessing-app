@@ -2426,7 +2426,7 @@ a:hover {
   margin: 0;
   border-block: 1px solid var(--color-border);
   background: var(--color-surface);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .timeline-view__scene-head {
