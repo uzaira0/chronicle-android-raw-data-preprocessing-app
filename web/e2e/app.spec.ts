@@ -176,7 +176,7 @@ test("has no automated axe accessibility violations across workflow tabs", async
 test("supports keyboard-only skip and workflow tab navigation", async ({ page }) => {
   const settingsTab = page.getByRole("tab", { name: /Settings/i });
   const filesTab = page.getByRole("tab", { name: /Files/i });
-  const processTab = page.getByRole("tab", { name: /Process/i });
+  const viewTab = page.getByRole("tab", { name: /View/i });
 
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: /Skip to workflow tabs/i })).toBeFocused();
@@ -188,8 +188,8 @@ test("supports keyboard-only skip and workflow tab navigation", async ({ page })
   await expect(filesTab).toBeFocused();
   await expect(filesTab).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("End");
-  await expect(processTab).toBeFocused();
-  await expect(processTab).toHaveAttribute("aria-selected", "true");
+  await expect(viewTab).toBeFocused();
+  await expect(viewTab).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("Home");
   await expect(settingsTab).toBeFocused();
   await expect(settingsTab).toHaveAttribute("aria-selected", "true");
@@ -514,7 +514,18 @@ test("View tab renders the interactive timeline with file and type dropdowns (#1
   expect(dataMatch).not.toBeNull();
   const data = JSON.parse(dataMatch![1]!);
   const view = data.app[0];
-  const region = view.regions[0];
+  const includedView = data.appFilteredIncluded?.[0] ?? data.app[0];
+  const excludedView = data.appFilteredExcluded?.[0];
+  expect(
+    includedView.regions.some((r: { lines: string[] }) =>
+      r.lines.some((line) => line.includes("Filtered App Usage event")),
+    ),
+  ).toBe(true);
+  expect(
+    excludedView?.regions.some((r: { lines: string[] }) =>
+      r.lines.some((line) => line.includes("Filtered App Usage event")),
+    ) ?? false,
+  ).toBe(false);
 
   await page.getByRole("tab", { name: /View/i }).click();
   await expect(page.getByTestId("timeline-view")).toBeVisible();
@@ -533,15 +544,34 @@ test("View tab renders the interactive timeline with file and type dropdowns (#1
   await expect(filteredToggle).toBeChecked();
   const canvas = page.locator(".timeline-view__canvas").first();
   await expect(canvas).toBeVisible();
+  await expect(page.locator(".timeline-view__scene").first()).toHaveCSS("overflow", "visible");
+  const includedBitmap = await canvas.evaluate((c) => (c as HTMLCanvasElement).toDataURL());
   await filteredToggle.uncheck();
   await expect(page.getByTestId("timeline-view-participant-title").first()).toContainText(
     "P01 · App usage · Filtered usage excluded · America/Chicago",
   );
   await expect(filteredToggle).not.toBeChecked();
+  await expect
+    .poll(async () => canvas.evaluate((c) => (c as HTMLCanvasElement).toDataURL()))
+    .not.toBe(includedBitmap);
   await filteredToggle.check();
   await expect(page.getByTestId("timeline-view-participant-title").first()).toContainText(
     "P01 · App usage · Filtered usage included · America/Chicago",
   );
+  await expect
+    .poll(async () => canvas.evaluate((c) => (c as HTMLCanvasElement).toDataURL()))
+    .toBe(includedBitmap);
+  await filteredToggle.uncheck();
+  await expect(page.getByTestId("timeline-view-participant-title").first()).toContainText(
+    "P01 · App usage · Filtered usage excluded · America/Chicago",
+  );
+  await expect
+    .poll(async () => canvas.evaluate((c) => (c as HTMLCanvasElement).toDataURL()))
+    .not.toBe(includedBitmap);
+
+  const zoomView = excludedView ?? view;
+  const region = zoomView.regions.find((r: { lines: string[] }) => r.lines.some((line) => line.includes("→")));
+  expect(region).toBeDefined();
 
   const target = await canvas.evaluate(
     (el, payload) => {
@@ -553,7 +583,7 @@ test("View tab renders the interactive timeline with file and type dropdowns (#1
         title: payload.region.title,
       };
     },
-    { region, scene: view.scene },
+    { region: region!, scene: zoomView.scene },
   );
   const beforeZoom = await canvas.evaluate((c) => ({
     bitmap: (c as HTMLCanvasElement).toDataURL(),
@@ -659,6 +689,8 @@ test("changes output semantics when Activity Stopped fallback is disabled", asyn
   await installDeterministicRuntime(page);
   await gotoApp(page);
   await setInputFile(page, "raw-file-input", "Raw P01.csv", fallbackRawCsv, "text/csv");
+  await page.getByRole("tab", { name: /Settings/i }).click();
+  await expandSectionCard(page, "session-detection");
   await page.getByTestId("toggle-useActivityStoppedAsFallback").uncheck();
   await processFiles(page);
   const fallbackOffCsv = await downloadCsv(page, "download-app-csv");
