@@ -111,7 +111,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
         </SettingsField>
 
         <SettingsField
-          label="Long-usage thresholds (hours)"
+          label="Long usage thresholds (hours)"
           tooltip={TOOLTIPS.longUsageDurationThresholds}
           modified={isMod("longUsageDurationThresholds")}
           onReset={() => reset("longUsageDurationThresholds")}
@@ -126,7 +126,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
         </SettingsField>
 
         <SettingsField
-          label="Long data-gap thresholds (hours)"
+          label="Long data gap thresholds (hours)"
           tooltip={TOOLTIPS.longDataTimeGapThresholds}
           modified={isMod("longDataTimeGapThresholds")}
           onReset={() => reset("longDataTimeGapThresholds")}
@@ -152,7 +152,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           onReset={() => reset("correctDuplicateEventTimestamps")}
         />
         <ToggleField
-          label="Collapse exact-duplicate rows"
+          label="Collapse exact duplicate rows"
           tooltip={TOOLTIPS.deduplicateExactRows}
           checked={options.deduplicateExactRows}
           onChange={(value) => update("deduplicateExactRows", value)}
@@ -161,7 +161,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           onReset={() => reset("deduplicateExactRows")}
         />
         <ToggleField
-          label="Allow stop-event reuse"
+          label="Allow stop event reuse"
           tooltip={TOOLTIPS.allowStopEventReuse}
           checked={options.allowStopEventReuse}
           onChange={(value) => update("allowStopEventReuse", value)}
@@ -188,7 +188,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           onReset={() => reset("applyThresholdToFallback")}
         />
         <ToggleField
-          label="Filter zero-duration sessions"
+          label="Filter zero duration sessions"
           tooltip={TOOLTIPS.filterZeroDurationSessions}
           checked={options.filterZeroDurationSessions}
           onChange={(value) => update("filterZeroDurationSessions", value)}

@@ -530,8 +530,8 @@ export default function App(): ReactElement {
           <div className="hero__copy">
             <h1>Chronicle Android Raw Data Preprocessor</h1>
             <p className="lede">
-              Drop one or more raw Chronicle CSVs to generate the preprocessed app-usage and
-              screen-usage outputs. This app runs entirely in your browser — your data never
+              Drop one or more raw Chronicle CSVs to generate the preprocessed app usage and
+              screen usage outputs. This app runs entirely in your browser. Your data never
               leaves your device.
             </p>
           </div>
@@ -553,25 +553,28 @@ export default function App(): ReactElement {
             hidden={activeWorkflow !== "settings"}
           >
             <section id="settings" className="workflow-section" aria-labelledby="settings-title">
-              <div className="settings-command">
+              <div className="settings-command workflow-section__header">
                 <div>
                   <h2 id="settings-title" className="workflow-section__title">Settings</h2>
                   <p className="workflow-section__intro">
                     Search every option, then save custom presets once the settings are right.
                   </p>
                 </div>
-                <label className="settings-search settings-search--command">
-                  <span className="settings-search__eyebrow">Full Settings Search</span>
+                <div className="settings-search settings-search--command">
+                  <label className="settings-search__eyebrow" htmlFor="settings-search-input">
+                    Full Settings Search
+                  </label>
                   <input
+                    id="settings-search-input"
                     className="input settings-search__input"
                     placeholder="Search timezone, codebook, parallel, screen, session..."
                     value={settingsQuery}
                     data-testid="settings-search-input"
                     onChange={(event) => setSettingsQuery(event.target.value)}
                   />
-                </label>
+                  <SettingsSearchResults query={settingsQuery} onNavigate={navigateFromSettingsSearch} />
+                </div>
               </div>
-              <SettingsSearchResults query={settingsQuery} onNavigate={navigateFromSettingsSearch} />
               <SettingsManagementCard
                 options={options}
                 setOptions={setOptions}

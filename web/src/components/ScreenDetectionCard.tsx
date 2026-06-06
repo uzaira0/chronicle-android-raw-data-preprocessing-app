@@ -38,12 +38,12 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
       modified={anyOptionModified(options, KEYS)}
     >
       <p className="u-card-intro">
-        Tunes how the screen-usage derivation infers locks and unlocks. Defaults reflect the
+        Tunes how the screen usage derivation infers locks and unlocks. Defaults reflect the
         canonical desktop pipeline; only adjust if your traces have unusual lock behavior.
       </p>
       <div className="settings-grid-2">
         <SettingsField
-          label="Auto-lock timeout (seconds)"
+          label="Auto lock timeout (seconds)"
           tooltip={TOOLTIPS.screenUsageAutoLockTimeoutSeconds}
           modified={isMod("screenUsageAutoLockTimeoutSeconds")}
           onReset={() => reset("screenUsageAutoLockTimeoutSeconds")}
@@ -61,7 +61,7 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
           />
         </SettingsField>
         <SettingsField
-          label="Auto-lock tolerance (seconds)"
+          label="Auto lock tolerance (seconds)"
           tooltip={TOOLTIPS.screenUsageAutoLockToleranceSeconds}
           modified={isMod("screenUsageAutoLockToleranceSeconds")}
           onReset={() => reset("screenUsageAutoLockToleranceSeconds")}
@@ -79,7 +79,7 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
           />
         </SettingsField>
         <SettingsField
-          label="Manual-lock max tail gap (seconds)"
+          label="Manual lock max tail gap (seconds)"
           tooltip={TOOLTIPS.screenUsageManualLockMaxTailGapSeconds}
           modified={isMod("screenUsageManualLockMaxTailGapSeconds")}
           onReset={() => reset("screenUsageManualLockMaxTailGapSeconds")}
@@ -97,7 +97,7 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
           />
         </SettingsField>
         <SettingsField
-          label="Keyguard-near-stop window (seconds)"
+          label="Keyguard near stop window (seconds)"
           tooltip={TOOLTIPS.screenUsageKeyguardNearStopSeconds}
           modified={isMod("screenUsageKeyguardNearStopSeconds")}
           onReset={() => reset("screenUsageKeyguardNearStopSeconds")}

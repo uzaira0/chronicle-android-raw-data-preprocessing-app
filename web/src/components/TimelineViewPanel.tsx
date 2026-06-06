@@ -148,7 +148,13 @@ type Hover = { left: number; top: number; title: string; lines: string[] };
 
 /** One participant's bare waterfall timeline rendered fit-to-width on a tall
  * canvas. The page scrolls vertically; row-level zoom affects x only. */
-function InteractiveScene({ view }: { view: TimelineParticipantView }): ReactElement {
+function InteractiveScene({
+  view,
+  context,
+}: {
+  view: TimelineParticipantView;
+  context: string;
+}): ReactElement {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<{ row: number; x: number; offset: number; pointerId: number } | null>(null);
@@ -292,7 +298,10 @@ function InteractiveScene({ view }: { view: TimelineParticipantView }): ReactEle
   return (
     <figure className="timeline-view__scene">
       <figcaption className="timeline-view__scene-head">
-        <span className="timeline-view__scene-title">{view.participantId}</span>
+        <span className="timeline-view__scene-title" data-testid="timeline-view-participant-title">
+          {view.participantId}
+          <span className="timeline-view__scene-meta"> · {context}</span>
+        </span>
       </figcaption>
       <div ref={wrapRef} className="timeline-view__canvas-wrap">
         <canvas
@@ -335,7 +344,7 @@ export function TimelineViewPanel({ results }: Props): ReactElement {
       <section className="timeline-view" aria-label="Timeline viewer" data-testid="timeline-view">
         <p className="timeline-view__empty" data-testid="timeline-view-empty">
           No timeline to view yet. Enable <strong>Timeline viewer</strong> in Settings and process a
-          file — the interactive waterfall timelines appear here.
+          file. The interactive waterfall timelines appear here.
         </p>
       </section>
     );
@@ -355,43 +364,53 @@ export function TimelineViewPanel({ results }: Props): ReactElement {
   const views: TimelineParticipantView[] = activeFile.timelineView[activeType];
 
   const typeLabel: Record<ViewType, string> = { app: "App usage", screen: "Screen usage" };
+  const filteredUsageLabel = activeFile.timelineView.includeFilteredAppUsageInPlots
+    ? "Filtered usage included"
+    : "Filtered usage excluded";
+  const viewContext = `${typeLabel[activeType]} · ${filteredUsageLabel} · ${activeFile.timelineView.timezone}`;
 
   return (
     <section className="timeline-view" aria-label="Timeline viewer" data-testid="timeline-view">
-      <div className="timeline-view__controls">
-        <label className="timeline-view__field">
-          <span>File</span>
-          <select
-            data-testid="timeline-view-file"
-            value={activeFile.inputFileName}
-            onChange={(event) => setSelectedFile(event.target.value)}
-          >
-            {filesWithView.map((r) => (
-              <option key={r.inputFileName} value={r.inputFileName}>
-                {r.inputFileName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="timeline-view__field">
-          <span>View</span>
-          <select
-            data-testid="timeline-view-type"
-            value={activeType}
-            onChange={(event) => setSelectedType(event.target.value as ViewType)}
-          >
-            {availableTypes.map((type) => (
-              <option key={type} value={type}>
-                {typeLabel[type]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span className="timeline-view__hint">Shift-scroll a row to zoom · drag zoomed rows · double-click to reset</span>
+      <div className="timeline-view__toolbar">
+        <div className="timeline-view__controls">
+          <label className="timeline-view__field">
+            <span>File</span>
+            <select
+              data-testid="timeline-view-file"
+              value={activeFile.inputFileName}
+              onChange={(event) => setSelectedFile(event.target.value)}
+            >
+              {filesWithView.map((r) => (
+                <option key={r.inputFileName} value={r.inputFileName}>
+                  {r.inputFileName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="timeline-view__field">
+            <span>View</span>
+            <select
+              data-testid="timeline-view-type"
+              value={activeType}
+              onChange={(event) => setSelectedType(event.target.value as ViewType)}
+            >
+              {availableTypes.map((type) => (
+                <option key={type} value={type}>
+                  {typeLabel[type]}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p className="timeline-view__hint">Shift scroll a row to zoom · drag zoomed rows · double click to reset</p>
       </div>
 
       {views.map((view) => (
-        <InteractiveScene key={`${activeFile.inputFileName}:${activeType}:${view.participantId}`} view={view} />
+        <InteractiveScene
+          key={`${activeFile.inputFileName}:${activeType}:${view.participantId}`}
+          view={view}
+          context={viewContext}
+        />
       ))}
     </section>
   );

@@ -73,12 +73,12 @@ function renderPanel(
 export function buildTimelineViewerHtml(input: ViewerInput): string {
   const { fileName, timezone, app, screen } = input;
   const data = embedJson({ app, screen });
-  const appPanel = renderPanel("app", app, "No app-usage data for this file.");
-  const screenPanel = renderPanel("screen", screen, "No screen-usage data for this file.");
+  const appPanel = renderPanel("app", app, "No app usage data for this file.");
+  const screenPanel = renderPanel("screen", screen, "No screen usage data for this file.");
   // Mirror the runtime's initial-tab rule (timelineViewerRuntime.js) exactly so
   // the server-rendered active tab never disagrees with what the script selects.
   const initial = app.length > 0 ? "app" : screen.length > 0 ? "screen" : "app";
-  const title = `${fileName} — Timeline viewer`;
+  const title = `${fileName} Timeline viewer`;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -118,11 +118,11 @@ export function buildTimelineViewerHtml(input: ViewerInput): string {
   <button class="tv-tab" id="tab-screen" role="tab" data-tv-tab="screen" aria-controls="panel-screen" aria-selected="${initial === "screen"}">Screen usage</button>
 </div>
 <section class="tv-panel${initial === "app" ? " is-active" : ""}" id="panel-app" data-tv-panel="app" role="tabpanel" aria-labelledby="tab-app">
-  <p class="tv-hint">Hover a bar for details · Shift-scroll a row to zoom · drag zoomed rows · double-click to reset</p>
+  <p class="tv-hint">Hover a bar for details · Shift scroll a row to zoom · drag zoomed rows · double click to reset</p>
 ${appPanel}
 </section>
 <section class="tv-panel${initial === "screen" ? " is-active" : ""}" id="panel-screen" data-tv-panel="screen" role="tabpanel" aria-labelledby="tab-screen">
-  <p class="tv-hint">Hover a bar for details · Shift-scroll a row to zoom · drag zoomed rows · double-click to reset</p>
+  <p class="tv-hint">Hover a bar for details · Shift scroll a row to zoom · drag zoomed rows · double click to reset</p>
 ${screenPanel}
 </section>
 <script type="application/json" id="tv-data">${data}</script>
