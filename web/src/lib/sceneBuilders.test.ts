@@ -97,6 +97,37 @@ describe("buildTimelineScene", () => {
     expect(regions.indexOf(bar!)).toBeLessThan(regions.indexOf(gap!));
   });
 
+  it("renders filtered usage events when plot settings include filtered usage", () => {
+    const rows = [
+      usage("Games", 10, 11),
+      {
+        ...usage("Education", 12, 13),
+        interaction_type: "Filtered App Usage",
+        app_package_name: "com.example.filtered",
+        start_timestamp_ns: null,
+        stop_timestamp_ns: null,
+        event_timestamp_ns: at(12, 15),
+      },
+    ] as unknown as Parameters<typeof buildTimelineScene>[1];
+    const regions: SceneRegion[] = [];
+
+    buildTimelineScene(
+      "P01",
+      rows,
+      "UTC",
+      { includeFilteredAppUsageInPlots: true },
+      "1.0.0",
+      "March 7, 2026",
+      undefined,
+      regions,
+    );
+
+    const filtered = regions.find((r) => r.title === "com.example.filtered");
+    expect(filtered).toBeDefined();
+    expect(filtered!.lines).toContain("Filtered App Usage event");
+    expect(filtered!.lines).toContain("2026-03-07 12:15:00");
+  });
+
   it("the SVG of the scene carries the same bar colour (PNG/SVG share geometry)", () => {
     const scene = buildTimelineScene(...TL_ARGS([usage("Games", 10, 11)]));
     const svg = renderSceneToSvg(scene);
@@ -234,10 +265,36 @@ describe("buildWaterfallScene", () => {
     expect(marker).toBeDefined();
     expect(marker!.lines).toContain("2026-03-07 09:00:00");
   });
+
+  it("draws instant sessions without requiring a duration", () => {
+    const regions: SceneRegion[] = [];
+    const scene = buildWaterfallScene(
+      [
+        {
+          startNs: at(10, 5),
+          stopNs: at(10, 5),
+          instant: true,
+          color: CATEGORY_COLORS["Education"]!,
+          title: "Filtered Reader",
+          detail: ["com.example.filtered", "Education", "Filtered App Usage event"],
+        },
+      ],
+      [at(10, 5)],
+      "UTC",
+      regions,
+    );
+
+    expect(rectsWithFill(scene.primitives, CATEGORY_COLORS["Education"]!)).toHaveLength(1);
+    const instant = regions.find((r) => r.title === "Filtered Reader");
+    expect(instant).toBeDefined();
+    expect(instant!.w).toBe(1);
+    expect(instant!.lines).toContain("Filtered App Usage event");
+    expect(instant!.lines).toContain("2026-03-07 10:05:00");
+  });
 });
 
 describe("buildAppTimelineViews", () => {
-  it("can build included and excluded filtered usage variants", () => {
+  it("can build included and excluded filtered usage variants after processing clears filtered timing", () => {
     const rows = [
       {
         ...usage("Games", 10, 11),
@@ -249,6 +306,9 @@ describe("buildAppTimelineViews", () => {
         interaction_type: "Filtered App Usage",
         app_package_name: "com.example.filtered",
         application_label: "Filtered Reader",
+        start_timestamp_ns: null,
+        stop_timestamp_ns: null,
+        event_timestamp_ns: at(12, 15),
       },
     ] as unknown as Parameters<typeof buildAppTimelineViews>[0];
 

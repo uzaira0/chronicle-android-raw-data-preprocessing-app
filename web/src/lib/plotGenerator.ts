@@ -103,6 +103,7 @@ const GAP_COLOR = "#808080";
 
 const APP_USAGE_TYPE = "App Usage";
 const FILTERED_APP_USAGE_TYPE = "Filtered App Usage";
+const FILTERED_USAGE_EVENT_DETAIL = "Filtered App Usage event";
 const DEVICE_SHUTDOWN_TYPE = "Device Shutdown";
 const DEVICE_STARTUP_TYPE = "Device Startup";
 const END_OF_USAGE_MISSING_TYPE = "End of Usage Missing";
@@ -514,6 +515,7 @@ function wfHoursToX(h: number): number {
 export type WaterfallSession = {
   startNs: bigint;
   stopNs: bigint;
+  instant?: boolean;
   color: string;
   title: string;
   detail: string[];
@@ -688,7 +690,9 @@ export function buildWaterfallScene(
     const stopIso = nsToIso(session.stopNs);
     const startSerial = dateSerial(startIso);
     const stopSerial = dateSerial(stopIso);
-    const range = formatSessionRange(hoursFmt, startIso, session.startNs, stopIso, session.stopNs);
+    const range = session.instant
+      ? `${startIso} ${nsToClock(hoursFmt, session.startNs)}`
+      : formatSessionRange(hoursFmt, startIso, session.startNs, stopIso, session.stopNs);
 
     for (let s = startSerial; s <= stopSerial; s++) {
       const isoD = s === startSerial ? startIso : new Date(s * 86_400_000).toISOString().slice(0, 10);
@@ -697,7 +701,10 @@ export function buildWaterfallScene(
 
       let x1: number;
       let barW: number;
-      if (s === startSerial && s === stopSerial) {
+      if (session.instant) {
+        x1 = wfHoursToX(nsToLocalHours(session.startNs));
+        barW = 1;
+      } else if (s === startSerial && s === stopSerial) {
         x1 = wfHoursToX(nsToLocalHours(session.startNs));
         barW = wfHoursToX(Math.min(nsToLocalHours(session.stopNs), 24)) - x1;
       } else if (s === startSerial) {
@@ -926,11 +933,35 @@ export function buildTimelineScene(
 
   for (const row of rows) {
     if (!usageTypes.has(row.interaction_type)) continue;
-    if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) continue;
 
     const color =
       CATEGORY_COLORS[row.broad_app_category ?? "Unknown"] ??
       CATEGORY_COLORS["Uncategorised"]!;
+
+    if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) {
+      if (row.interaction_type !== FILTERED_APP_USAGE_TYPE) continue;
+      const eventIso = cachedNsToIso(row.event_timestamp_ns);
+      const yCenter = dateToY.get(eventIso) ?? dateToY.get(row.date);
+      if (yCenter === undefined) continue;
+      const x = hoursToX(cachedNsToLocalHours(row.event_timestamp_ns));
+      const ry = yCenter - ROW_HEIGHT * 0.35;
+      prims.push({ type: "rect", x, y: ry, w: 2, h: ROW_HEIGHT * 0.7, fill: color });
+      if (regionsOut) {
+        regionsOut.push({
+          x,
+          y: ry,
+          w: 2,
+          h: ROW_HEIGHT * 0.7,
+          title: row.app_package_name || "(app)",
+          lines: [
+            row.broad_app_category ?? "Unknown",
+            FILTERED_USAGE_EVENT_DETAIL,
+            `${eventIso} ${nsToClock(hoursFmt, row.event_timestamp_ns)}`,
+          ],
+        });
+      }
+      continue;
+    }
 
     const startIso = cachedNsToIso(row.start_timestamp_ns);
     const stopIso = cachedNsToIso(row.stop_timestamp_ns);
@@ -1501,13 +1532,25 @@ export function buildAppTimelineViews(
         continue;
       }
       if (!usageTypes.has(row.interaction_type)) continue;
-      if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) continue;
       const category = row.broad_app_category ?? "Unknown";
       const color = CATEGORY_COLORS[category] ?? CATEGORY_COLORS["Uncategorised"]!;
-      const durMin = Number(row.stop_timestamp_ns - row.start_timestamp_ns) / 60_000_000_000;
       const appLabel = row.application_label?.trim();
       const packageName = row.app_package_name || "(app)";
       const title = appLabel || packageName;
+      const packageDetail = appLabel && appLabel !== packageName ? [packageName] : [];
+      if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) {
+        if (row.interaction_type !== FILTERED_APP_USAGE_TYPE) continue;
+        sessions.push({
+          startNs: row.event_timestamp_ns,
+          stopNs: row.event_timestamp_ns,
+          instant: true,
+          color,
+          title,
+          detail: [...packageDetail, category, FILTERED_USAGE_EVENT_DETAIL],
+        });
+        continue;
+      }
+      const durMin = Number(row.stop_timestamp_ns - row.start_timestamp_ns) / 60_000_000_000;
       const detail = appLabel && appLabel !== packageName
         ? [packageName, category, `${durMin.toFixed(1)} min · ${row.interaction_type}`]
         : [category, `${durMin.toFixed(1)} min · ${row.interaction_type}`];
