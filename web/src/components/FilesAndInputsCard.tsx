@@ -86,7 +86,7 @@ export function FilesAndInputsCard(props: Props): ReactElement {
         accept=".csv,.xlsx,.xls"
         file={appsForcingScreenOpenFile}
         onFileChange={setAppsForcingScreenOpenFile}
-        toggleLabel="Use apps-forcing-screen-open file"
+        toggleLabel="Use apps forcing screen open file"
         toggleKey="useAppsForcingScreenOpenFile"
         checked={options.useAppsForcingScreenOpenFile}
         modified={!isOptionDefault("useAppsForcingScreenOpenFile", options.useAppsForcingScreenOpenFile)}
@@ -100,7 +100,7 @@ export function FilesAndInputsCard(props: Props): ReactElement {
         accept=".csv,.xlsx,.xls"
         file={backgroundAppsFile}
         onFileChange={setBackgroundAppsFile}
-        toggleLabel="Use background-apps file"
+        toggleLabel="Use background apps file"
         toggleKey="useBackgroundAppsFile"
         checked={options.useBackgroundAppsFile}
         modified={!isOptionDefault("useBackgroundAppsFile", options.useBackgroundAppsFile)}
