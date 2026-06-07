@@ -2400,6 +2400,10 @@ a:hover {
   max-width: 22rem;
 }
 
+.timeline-view__field--file {
+  width: min(34rem, 100%);
+}
+
 .timeline-view__field--toggle {
   align-self: stretch;
 }
