@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactElement } from "react";
 
+import { Combobox } from "@/components/Combobox";
 import type { Primitive, Scene, WaterfallSceneMeta } from "@/lib/plotScene";
 import type {
   ProcessedFileResult,
@@ -344,6 +345,7 @@ function InteractiveScene({
 
 export function TimelineViewPanel({ results, includeFilteredAppUsageInPlots }: Props): ReactElement {
   const [showFilteredUsage, setShowFilteredUsage] = useState(includeFilteredAppUsageInPlots);
+  const [fileQuery, setFileQuery] = useState<string | null>(null);
   const filesWithView = results.filter(
     (r): r is ProcessedFileResult & { timelineView: TimelineViewData } =>
       !!r.timelineView && (hasAppViews(r.timelineView) || r.timelineView.screen.length > 0),
@@ -351,6 +353,7 @@ export function TimelineViewPanel({ results, includeFilteredAppUsageInPlots }: P
 
   const [selectedFile, setSelectedFile] = useState<string>("");
   const [selectedType, setSelectedType] = useState<ViewType>("app");
+  const fileNames = filesWithView.map((file) => file.inputFileName);
 
   useEffect(() => {
     setShowFilteredUsage(includeFilteredAppUsageInPlots);
@@ -387,24 +390,31 @@ export function TimelineViewPanel({ results, includeFilteredAppUsageInPlots }: P
     ? "Filtered usage included"
     : "Filtered usage excluded";
   const viewContext = `${typeLabel[activeType]} · ${filteredUsageLabel} · ${activeFile.timelineView.timezone}`;
+  const fileInputValue = fileQuery ?? activeFile.inputFileName;
+  const onFileInputChange = (next: string): void => {
+    setFileQuery(next);
+    if (fileNames.includes(next)) {
+      setSelectedFile(next);
+      setFileQuery(null);
+    }
+  };
 
   return (
     <section className="timeline-view" aria-label="Timeline viewer" data-testid="timeline-view">
       <div className="timeline-view__toolbar">
         <div className="timeline-view__controls">
-          <label className="timeline-view__field">
+          <label className="timeline-view__field timeline-view__field--file">
             <span>File</span>
-            <select
-              data-testid="timeline-view-file"
-              value={activeFile.inputFileName}
-              onChange={(event) => setSelectedFile(event.target.value)}
-            >
-              {filesWithView.map((r) => (
-                <option key={r.inputFileName} value={r.inputFileName}>
-                  {r.inputFileName}
-                </option>
-              ))}
-            </select>
+            <Combobox
+              testId="timeline-view-file"
+              value={fileInputValue}
+              onChange={onFileInputChange}
+              options={fileNames}
+              placeholder="Search files"
+              ariaLabel="Timeline file"
+              maxResults={50}
+              selectOnFocus
+            />
           </label>
           <label className="timeline-view__field">
             <span>View</span>

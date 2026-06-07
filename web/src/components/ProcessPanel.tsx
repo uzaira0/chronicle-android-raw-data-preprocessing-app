@@ -68,7 +68,7 @@ export function ProcessPanel({
             aria-controls="process-details"
             onClick={() => onExpandedChange(!expanded)}
           >
-            {expanded ? "Hide details" : "Show details"}
+            {expanded ? "Hide processing details" : "Show processing details"}
           </button>
           <button
             type="button"

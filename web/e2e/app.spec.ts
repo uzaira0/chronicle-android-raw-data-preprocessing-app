@@ -529,7 +529,12 @@ test("View tab renders the interactive timeline with file and type dropdowns (#1
 
   await page.getByRole("tab", { name: /View/i }).click();
   await expect(page.getByTestId("timeline-view")).toBeVisible();
-  await expect(page.getByTestId("timeline-view-file")).toBeVisible();
+  const fileSearch = page.getByTestId("timeline-view-file");
+  await expect(fileSearch).toBeVisible();
+  await expect(fileSearch).toHaveAttribute("role", "combobox");
+  await fileSearch.fill("P01");
+  await page.getByRole("option", { name: "Raw P01.csv" }).click();
+  await expect(fileSearch).toHaveValue("Raw P01.csv");
   await expect(page.getByTestId("timeline-view-type")).toBeVisible();
   await expect(page.locator(".timeline-view__hint")).toHaveText("Shift scroll a row to zoom · drag zoomed rows · double click to reset");
   const controlsBox = await page.locator(".timeline-view__controls").boundingBox();
@@ -627,12 +632,18 @@ test("restores last processed results after refresh and collapses process detail
 
   await expect(page.getByTestId("result-panel")).toBeVisible();
   await expect(page.locator("#process-details")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Show processing details" })).toBeVisible();
+  const resultsToggle = page.getByTestId("results-collapse-toggle");
+  await expect(resultsToggle).toHaveText("▾ Hide results details");
+  await resultsToggle.click();
+  await expect(resultsToggle).toHaveText("▸ Show results details");
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" })).toBeVisible();
   await expect(page.getByTestId("result-panel")).toBeVisible();
   await expect(page.getByTestId("result-panel")).toContainText("1 file processed");
   await expect(page.locator("#process-details")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Show processing details" })).toBeVisible();
   assertNoExternalRequests(requestTracker);
 });
 
