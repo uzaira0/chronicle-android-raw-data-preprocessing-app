@@ -365,7 +365,7 @@ export function ResultPanel({
         aria-expanded={detailsOpen}
         onClick={() => setDetailsOpen((open) => !open)}
       >
-        {detailsOpen ? "▾ Hide details" : "▸ Show details"}
+        {detailsOpen ? "▾ Hide results details" : "▸ Show results details"}
       </button>
 
       {detailsOpen ? (

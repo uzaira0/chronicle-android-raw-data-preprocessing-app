@@ -21,6 +21,8 @@ type ComboboxProps = {
   ariaLabel?: string;
   /** Cap on how many filtered options to render at once. Defaults to 100. */
   maxResults?: number;
+  /** Select the full input value on focus, useful when the value is the current selection. */
+  selectOnFocus?: boolean;
 };
 
 /**
@@ -38,6 +40,7 @@ export function Combobox({
   className,
   ariaLabel,
   maxResults = 100,
+  selectOnFocus = false,
 }: ComboboxProps): ReactElement {
   const [isOpen, setIsOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
@@ -133,7 +136,10 @@ export function Combobox({
         placeholder={placeholder}
         value={value}
         onChange={onInputChange}
-        onFocus={() => setIsOpen(true)}
+        onFocus={(event) => {
+          setIsOpen(true);
+          if (selectOnFocus) event.currentTarget.select();
+        }}
         onClick={() => setIsOpen(true)}
         onKeyDown={onKeyDown}
       />
