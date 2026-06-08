@@ -24,9 +24,10 @@ const STEP_LABELS: Record<ProgressStepKind, string> = {
 type Props = {
   rows: FileProgress[];
   overallPercent: number;
+  fileName?: (fileName: string) => string;
 };
 
-export function ProgressList({ rows, overallPercent }: Props): ReactElement | null {
+export function ProgressList({ rows, overallPercent, fileName }: Props): ReactElement | null {
   const fillRef = useRef<HTMLDivElement | null>(null);
   const clampedPercent = Math.max(0, Math.min(1, overallPercent));
 
@@ -57,7 +58,9 @@ export function ProgressList({ rows, overallPercent }: Props): ReactElement | nu
             key={row.fileName}
             className={`progress-row${row.status === "complete" ? " is-complete" : ""}${row.status === "error" ? " is-error" : ""}`}
           >
-            <span className="progress-row__name">{row.fileName}</span>
+            <span className="progress-row__name">
+              {fileName ? fileName(row.fileName) : row.fileName}
+            </span>
             <span className="progress-row__step">
               {row.status === "error"
                 ? row.error ?? "Failed"
