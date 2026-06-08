@@ -2,12 +2,14 @@ import { useRef, useState, type ReactElement } from "react";
 
 import { effectiveWarnings, type RawFileInspection } from "@/lib/fileInspection";
 import type { BrowserProcessingOptions } from "@/lib/types";
+import type { DemoDisplayMasker } from "@/lib/demoDisplay";
 
 type Props = {
   uploadedFiles: File[];
   inspections: RawFileInspection[];
   isInspecting: boolean;
   options: BrowserProcessingOptions;
+  displayMasker: DemoDisplayMasker;
   onFilesChange: (files: File[]) => void;
   onClear: () => void;
   isRunning: boolean;
@@ -30,6 +32,7 @@ export function RawFilesCard({
   inspections,
   isInspecting,
   options,
+  displayMasker,
   onFilesChange,
   onClear,
   isRunning,
@@ -113,10 +116,11 @@ export function RawFilesCard({
               <th scope="col">Duplicate timestamps</th>
               <th scope="col">Status</th>
             </tr>
-          </thead>
+        </thead>
           <tbody>
             {uploadedFiles.map((file) => {
               const inspection = inspections.find((entry) => entry.fileName === file.name);
+              const displayFile = displayMasker.fileName(file.name);
               const warnings = inspection ? effectiveWarnings(inspection, options) : [];
               const status = inspection
                 ? warnings.length
@@ -132,7 +136,7 @@ export function RawFilesCard({
                   data-testid="raw-file-row"
                 >
                   <td>
-                    <strong>{file.name}</strong>
+                    <strong>{displayFile}</strong>
                     {warnings.length ? (
                       <p className="raw-file-row__warning">{warnings.join(" ")}</p>
                     ) : null}
@@ -148,7 +152,7 @@ export function RawFilesCard({
                     {inspection?.timezones.length ? (
                       <ul className="raw-file-row__timezones">
                         {inspection.timezones.map((zone) => (
-                          <li key={zone}>{zone}</li>
+                          <li key={zone}>{displayMasker.timezone(zone)}</li>
                         ))}
                       </ul>
                     ) : (

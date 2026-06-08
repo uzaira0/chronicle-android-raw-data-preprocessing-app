@@ -10,6 +10,12 @@ type SettingSearchItem = {
 const SETTINGS: SettingSearchItem[] = [
   { label: "Study name", section: "Core", href: "#settings", keywords: "study name id output metadata" },
   { label: "Output mode", section: "Core", href: "#settings", keywords: "app screen both usage session csv" },
+  {
+    label: "Demo mode",
+    section: "Core",
+    href: "#settings",
+    keywords: "demo mode hide file participant date labels pseudonymize filtered usage",
+  },
   { label: "Filter file", section: "Support files", href: "#files", keywords: "support filter bundled default apps upload" },
   { label: "Apps forcing screen open file", section: "Support files", href: "#files", keywords: "support apps forcing screen open upload bundled default" },
   { label: "App codebook file", section: "Support files", href: "#files", keywords: "support codebook genre category upload bundled default" },

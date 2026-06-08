@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactElement } from "react";
+import { ToggleField } from "@/components/ToggleField";
 
 import { ResetDefaultsButton } from "@/components/ResetDefaultsButton";
 import {
@@ -15,6 +16,8 @@ import { safeUuid } from "@/lib/uuid";
 type Props = {
   options: BrowserProcessingOptions;
   setOptions: (next: BrowserProcessingOptions) => void;
+  hideDemoMetadata: boolean;
+  onHideDemoMetadataChange: (next: boolean) => void;
   onStatus: (message: string, isError?: boolean) => void;
 };
 
@@ -30,6 +33,8 @@ function downloadBlob(fileName: string, blob: Blob): void {
 export function SettingsManagementCard({
   options,
   setOptions,
+  hideDemoMetadata,
+  onHideDemoMetadataChange,
   onStatus,
 }: Props): ReactElement {
   const [presets, setPresets] = useState<SettingsPreset[]>(() => readPersistedPresets());
@@ -100,6 +105,17 @@ export function SettingsManagementCard({
           Import replaces both. Reset defaults only touches the active settings, not the preset
           library.
         </p>
+        <ToggleField
+          label="Demo mode: hide file/participant/date labels"
+          checked={hideDemoMetadata}
+          onChange={onHideDemoMetadataChange}
+          tooltip={
+            {
+              body: "Turn on for public screens and demos: file names, participant ids, and dates are replaced with pseudonyms.",
+            }
+          }
+          testId="toggle-demo-display-mode"
+        />
         <div className="button-row">
           <button
             type="button"
