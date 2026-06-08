@@ -8,8 +8,10 @@ export type DemoDisplayMasker = {
 
 const DEMO_DISPLAY_STORAGE_KEY = "chronicle.demoDisplay.v1";
 
-const DATETIME_RE = /\b\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?\b/g;
+const DATETIME_RE = /\b\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?\b/g;
 const DATE_RE = /\b\d{4}-\d{2}-\d{2}\b/g;
+const LOCALE_DATE_RE =
+  /\b(?:Mon(?:day)?|Tue(?:sday)?|Wed(?:nesday)?|Thu(?:rsday)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?)\s*,?\s*(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t|tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},?\s+\d{4}\b/g;
 
 function createLabeler(prefix: string) {
   let nextId = 1;
@@ -45,6 +47,7 @@ function createDateTimeMasker() {
   const dateLabel = createLabeler("Date");
   return (value: string) => value
     .replace(DATETIME_RE, (match) => `${dateLabel(match)} ${match.includes("T") ? "TS" : ""}`.trimEnd())
+    .replace(LOCALE_DATE_RE, (match) => dateLabel(match))
     .replace(DATE_RE, (match) => dateLabel(match));
 }
 
