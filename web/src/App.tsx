@@ -18,6 +18,11 @@ import {
   sanitizeOptions,
   SHARED_CONFIG_PARAM,
 } from "@/lib/settingsPersistence";
+import {
+  createDemoDisplayMasker,
+  persistDemoDisplayEnabled,
+  readDemoDisplayEnabled,
+} from "@/lib/demoDisplay";
 import { inspectRawFiles, type RawFileInspection } from "@/lib/fileInspection";
 import { applyProgressEvent } from "@/lib/progressReducer";
 import { storedFileToFile, type ProjectRecord } from "@/lib/projectsStore";
@@ -165,7 +170,9 @@ export default function App(): ReactElement {
   const [settingsQuery, setSettingsQuery] = useState("");
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowTab>("settings");
   const [processExpanded, setProcessExpanded] = useState(true);
+  const [hideDemoMetadata, setHideDemoMetadata] = useState(() => readDemoDisplayEnabled());
   const startTimeRef = useRef<number>(0);
+  const demoDisplay = createDemoDisplayMasker(hideDemoMetadata);
 
   useEffect(() => {
     if (skipNextPersist.current) {
@@ -174,6 +181,10 @@ export default function App(): ReactElement {
     }
     persistOptions(options);
   }, [options]);
+
+  useEffect(() => {
+    persistDemoDisplayEnabled(hideDemoMetadata);
+  }, [hideDemoMetadata]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -578,6 +589,8 @@ export default function App(): ReactElement {
               <SettingsManagementCard
                 options={options}
                 setOptions={setOptions}
+                hideDemoMetadata={hideDemoMetadata}
+                onHideDemoMetadataChange={setHideDemoMetadata}
                 onStatus={(message, isError = false) => setToast({ message, isError })}
               />
               <ProjectsCard
@@ -647,6 +660,7 @@ export default function App(): ReactElement {
               inspections={fileInspections}
               isInspecting={isInspectingFiles}
               options={options}
+              displayMasker={demoDisplay}
               onFilesChange={onFilesChange}
               onClear={() => {
                 onFilesChange([]);
@@ -669,6 +683,7 @@ export default function App(): ReactElement {
               uploadedFiles={uploadedFiles}
               inspections={fileInspections}
               isRunning={isRunning}
+              displayMasker={demoDisplay}
               onProcess={() => {
                 void processUploadedFiles();
               }}
@@ -682,6 +697,7 @@ export default function App(): ReactElement {
               <ResultPanel
                 results={results}
                 error={error}
+                displayMasker={demoDisplay}
                 options={options}
                 expectedFileCount={uploadedFiles.length}
                 progressRows={progressRows}
@@ -697,6 +713,7 @@ export default function App(): ReactElement {
           >
             <TimelineViewPanel
               results={results}
+              displayMasker={demoDisplay}
               includeFilteredAppUsageInPlots={options.includeFilteredAppUsageInPlots}
             />
           </div>

@@ -6,12 +6,14 @@ import { SettingsField } from "@/components/SettingsField";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import type { BrowserProcessingOptions } from "@/lib/types";
 import { effectiveWarnings, type RawFileInspection } from "@/lib/fileInspection";
+import type { DemoDisplayMasker } from "@/lib/demoDisplay";
 
 type Props = {
   options: BrowserProcessingOptions;
   setOptions: Dispatch<SetStateAction<BrowserProcessingOptions>>;
   uploadedFiles: File[];
   inspections: RawFileInspection[];
+  displayMasker: DemoDisplayMasker;
   isRunning: boolean;
   onProcess: () => void;
   progressRows: FileProgress[];
@@ -31,6 +33,7 @@ export function ProcessPanel({
   setOptions,
   uploadedFiles,
   inspections,
+  displayMasker,
   isRunning,
   onProcess,
   progressRows,
@@ -122,12 +125,16 @@ export function ProcessPanel({
         ) : null}
 
         {progressRows.length ? (
-          <ProgressList rows={progressRows} overallPercent={overallPercent} />
+          <ProgressList
+            rows={progressRows}
+            overallPercent={overallPercent}
+            fileName={displayMasker.fileName}
+          />
         ) : uploadedFiles.length ? (
           <div className="process-ready-list" aria-live="polite">
             {uploadedFiles.map((file) => (
               <div className="progress-row" key={`${file.name}-${file.size}-${file.lastModified}`}>
-                <span className="progress-row__name">{file.name}</span>
+                <span className="progress-row__name">{displayMasker.fileName(file.name)}</span>
                 <span className="progress-row__step">Ready</span>
                 <span className="progress-row__status">0%</span>
               </div>
