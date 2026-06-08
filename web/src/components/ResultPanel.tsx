@@ -13,6 +13,7 @@ import { PREPROCESSOR_VERSION } from "@/lib/browserPipeline";
 import { buildProcessingReport, readReportEnvironment } from "@/lib/processingReport";
 import { safeUuid } from "@/lib/uuid";
 import type { FileProgress } from "@/components/ProgressList";
+import type { DemoDisplayMasker } from "@/lib/demoDisplay";
 
 /** Timeline-viewer exports ride on the "plot" kind but are HTML, not images. */
 const TIMELINE_VIEWER_SUFFIX = "Timeline Viewer.html";
@@ -25,6 +26,7 @@ type Props = {
   options: BrowserProcessingOptions;
   expectedFileCount: number;
   progressRows: FileProgress[];
+  displayMasker: DemoDisplayMasker;
 };
 
 type BatchOutput = {
@@ -72,6 +74,7 @@ function zipName(kind: "all" | OutputKind): string {
 function buildPerFileWarnings(
   result: ProcessedFileResult,
   options: BrowserProcessingOptions,
+  displayMasker: DemoDisplayMasker,
 ): string[] {
   const warnings: string[] = [];
   if (!result.outputs.length) {
@@ -101,10 +104,10 @@ function buildPerFileWarnings(
       output.kind !== "parquet" &&
       output.kind !== "spss"
     ) {
-      warnings.push(`${output.outputFileName} contains zero data rows.`);
+      warnings.push(`${displayMasker.fileName(output.outputFileName)} contains zero data rows.`);
     }
     if (output.blob.size === 0) {
-      warnings.push(`${output.outputFileName} is an empty file.`);
+      warnings.push(`${displayMasker.fileName(output.outputFileName)} is an empty file.`);
     }
   });
   return warnings;
@@ -113,17 +116,20 @@ function buildPerFileWarnings(
 function buildBatchWarnings(input: {
   results: ProcessedFileResult[];
   error: string | null;
+  displayMasker: DemoDisplayMasker;
   expectedFileCount: number;
   progressRows: FileProgress[];
 }): string[] {
-  const { results, error, expectedFileCount, progressRows } = input;
+  const { results, error, displayMasker, expectedFileCount, progressRows } = input;
   const warnings: string[] = [];
   if (error) {
     warnings.push(error);
   }
   const failedRows = progressRows.filter((row) => row.status === "error");
   failedRows.forEach((row) => {
-    warnings.push(`${row.fileName} failed: ${row.error ?? "Unknown processing error"}`);
+    warnings.push(
+      `${displayMasker.fileName(row.fileName)} failed: ${row.error ?? "Unknown processing error"}`,
+    );
   });
   if (expectedFileCount > 0 && results.length < expectedFileCount) {
     warnings.push(`Only ${results.length}/${expectedFileCount} selected files produced results.`);
@@ -155,6 +161,7 @@ export function ResultPanel({
   options,
   expectedFileCount,
   progressRows,
+  displayMasker,
 }: Props): ReactElement | null {
   const summary = useMemo(() => {
     return results.reduce(
@@ -206,8 +213,8 @@ export function ResultPanel({
     [results, options, provenance],
   );
   const batchWarnings = useMemo(
-    () => buildBatchWarnings({ results, error, expectedFileCount, progressRows }),
-    [results, error, expectedFileCount, progressRows],
+    () => buildBatchWarnings({ results, error, expectedFileCount, progressRows, displayMasker }),
+    [results, error, expectedFileCount, progressRows, displayMasker],
   );
   const progressByFile = useMemo(() => {
     const map = new Map<string, FileProgress>();
@@ -395,18 +402,19 @@ export function ResultPanel({
                 {results.map((result) => {
                   const progress = progressByFile.get(result.inputFileName);
                   const failed = progress?.status === "error";
-                  const fileWarnings = buildPerFileWarnings(result, options);
+                  const fileWarnings = buildPerFileWarnings(result, options, displayMasker);
                   const statusLabel = failed
                     ? "Failed"
                     : fileWarnings.length
                       ? "Review"
                       : "Success";
-                  const tzTitle = buildTimezoneTitle(result);
+                  const tzTitle = buildTimezoneTitle(result, displayMasker);
+                  const maskedFileName = displayMasker.fileName(result.inputFileName);
                   const outputCounts = summarizeOutputs(result.outputs);
                   return (
                     <tr key={result.inputFileName} data-testid="result-row">
-                      <td className="result-table__file" title={result.inputFileName}>
-                        {result.inputFileName}
+                      <td className="result-table__file" title={maskedFileName}>
+                        {maskedFileName}
                       </td>
                       <td>
                         <span
@@ -432,7 +440,7 @@ export function ResultPanel({
                         </td>
                       ) : null}
                       <td className="result-table__tz" title={tzTitle}>
-                        {result.timezone || "—"}
+                        {result.timezone ? displayMasker.timezone(result.timezone) : "—"}
                       </td>
                       <td className="result-table__outputs">
                         {outputCounts.length ? (
@@ -497,7 +505,10 @@ function summarizeOutputs(
 }
 
 /** Tooltip text for the timezone cell: action taken plus any cleanup counts. */
-function buildTimezoneTitle(result: ProcessedFileResult): string {
+function buildTimezoneTitle(
+  result: ProcessedFileResult,
+  displayMasker: DemoDisplayMasker,
+): string {
   const parts: string[] = [TIMEZONE_ACTION_LABEL[result.timezoneAction]];
   if (result.timezoneAction !== "none") {
     parts.push(
@@ -505,7 +516,7 @@ function buildTimezoneTitle(result: ProcessedFileResult): string {
     );
   }
   if (result.availableTimezones.length > 1) {
-    parts.push(`timezones seen: ${result.availableTimezones.join(", ")}`);
+    parts.push(`timezones seen: ${result.availableTimezones.map(displayMasker.timezone).join(", ")}`);
   }
   if (result.duplicateTimestampsCorrected > 0) {
     parts.push(`${result.duplicateTimestampsCorrected.toLocaleString()} duplicate timestamps corrected`);
