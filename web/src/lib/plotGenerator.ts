@@ -578,17 +578,40 @@ export function buildWaterfallScene(
   }
 
   const dateSet = new Set<string>();
+  let minDateSerial = Number.POSITIVE_INFINITY;
+  let maxDateSerial = Number.NEGATIVE_INFINITY;
+
   for (const session of sessions) {
     const startIso = nsToIso(session.startNs);
     const stopIso = nsToIso(session.stopNs);
     const startSerial = dateSerial(startIso);
     const stopSerial = dateSerial(stopIso);
+    minDateSerial = Math.min(minDateSerial, startSerial, stopSerial);
+    maxDateSerial = Math.max(maxDateSerial, startSerial, stopSerial);
     for (let s = startSerial; s <= stopSerial; s++) {
       dateSet.add(s === startSerial ? startIso : new Date(s * 86_400_000).toISOString().slice(0, 10));
     }
   }
   for (const marker of markers) {
-    dateSet.add(nsToIso(marker.ns));
+    const date = nsToIso(marker.ns);
+    dateSet.add(date);
+    const daySerial = dateSerial(date);
+    minDateSerial = Math.min(minDateSerial, daySerial);
+    maxDateSerial = Math.max(maxDateSerial, daySerial);
+  }
+
+  for (const eventNs of allEventNs) {
+    const date = nsToIso(eventNs);
+    dateSet.add(date);
+    const daySerial = dateSerial(date);
+    minDateSerial = Math.min(minDateSerial, daySerial);
+    maxDateSerial = Math.max(maxDateSerial, daySerial);
+  }
+
+  if (Number.isFinite(minDateSerial) && Number.isFinite(maxDateSerial)) {
+    for (let day = minDateSerial; day <= maxDateSerial; day++) {
+      dateSet.add(new Date(day * 86_400_000).toISOString().slice(0, 10));
+    }
   }
 
   const sortedDates = [...dateSet].sort();

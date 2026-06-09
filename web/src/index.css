@@ -238,21 +238,8 @@ a:hover {
   margin: 0 0 var(--space-3);
 }
 
-.hero--with-demo {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
-  gap: var(--space-4);
-  align-items: start;
-}
-
 .hero__copy {
   min-width: 0;
-}
-
-@media (max-width: 880px) {
-  .hero--with-demo {
-    grid-template-columns: 1fr;
-  }
 }
 
 .hero h1 {
@@ -262,33 +249,6 @@ a:hover {
   letter-spacing: -0.02em;
   line-height: var(--line-height-tight);
   color: var(--color-text-strong);
-}
-
-/* Demo-a-sample-file card */
-.demo-sample-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-left: 3px solid var(--color-info);
-  border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4);
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.demo-sample-card__title {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-strong);
-}
-
-.demo-sample-card__body {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  line-height: var(--line-height-normal);
 }
 
 .lede {
