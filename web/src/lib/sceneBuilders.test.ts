@@ -14,6 +14,9 @@ import { renderSceneToSvg, type RectPrim, type SceneRegion } from "@/lib/plotSce
 const at = (h: number, m = 0): bigint =>
   BigInt(Date.UTC(2026, 2, 7, h, m, 0)) * 1_000_000n;
 
+const atDay = (day: number, h: number, m = 0): bigint =>
+  BigInt(Date.UTC(2026, 2, day, h, m, 0)) * 1_000_000n;
+
 type Row = {
   date: string;
   start_timestamp_ns: bigint | null;
@@ -212,6 +215,33 @@ describe("buildWaterfallScene", () => {
     expect(gap!.lines.some((l) => l.includes("No device events · 3.0 h"))).toBe(true);
     expect(gap!.lines.some((l) => l.includes("2026-03-07 11:00:00 → 14:00:00"))).toBe(true);
     expect(regions.indexOf(bar!)).toBeLessThan(regions.indexOf(gap!));
+  });
+
+  it("inserts contiguous date rows for skipped days so gaps span empty days", () => {
+    const regions: SceneRegion[] = [];
+    const scene = buildWaterfallScene(
+      [
+        {
+          startNs: atDay(7, 10),
+          stopNs: atDay(7, 11),
+          color: CATEGORY_COLORS["Games"]!,
+          title: "com.example.app",
+          detail: ["Games", "60.0 min · App Usage"],
+        },
+      ],
+      [atDay(7, 10), atDay(7, 11), atDay(10, 12)],
+      "UTC",
+      regions,
+    );
+
+    const dates = (scene.meta?.kind === "waterfall" ? scene.meta.rows.map((row) => row.date) : []);
+    expect(dates).toEqual(["2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10"]);
+    expect(dates).toHaveLength(4);
+    const gap = regions.find((r) => r.title === "Data gap");
+    expect(gap).toBeDefined();
+    expect(gap!.lines.some((l) => l.includes("2026-03-07 11:00:00 → 2026-03-10 12:00:00"))).toBe(
+      true,
+    );
   });
 
   it("draws clean separator lines between day rows", () => {
