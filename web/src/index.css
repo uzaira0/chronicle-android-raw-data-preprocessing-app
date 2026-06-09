@@ -224,7 +224,7 @@ a:hover {
 }
 
 .app-shell--wide {
-  width: 100%;
+  width: min(1360px, calc(100% - var(--space-5)));
 }
 
 .app-shell--wide > .hero,
@@ -232,6 +232,10 @@ a:hover {
 .app-shell--wide > .app-footer {
   width: min(1360px, calc(100% - var(--space-5)));
   margin-inline: auto;
+}
+
+.app-shell--wide > #workflow-panels {
+  width: 100%;
 }
 
 .hero {
@@ -559,8 +563,16 @@ a:hover {
   font-size: var(--font-size-sm);
 }
 
+.raw-file-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .raw-file-table {
   width: 100%;
+  min-width: 64rem;
   border-collapse: separate;
   border-spacing: 0;
   border: 1px solid var(--color-border);
