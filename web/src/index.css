@@ -136,6 +136,8 @@ html {
   font-family: var(--font-family);
   font-size: 16px;
   line-height: var(--line-height-normal);
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
