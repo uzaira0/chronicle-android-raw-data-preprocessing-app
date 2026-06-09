@@ -5,7 +5,7 @@ export const TOOLTIPS = {
   ...BROWSER_OPTION_TOOLTIPS,
   runMode: {
     title: "Process files",
-    body: "Runs the preprocessing pipeline on your uploaded raw Chronicle CSVs. The demo card on the top-right runs the same pipeline on a built-in sample so you can demo the output without uploading anything.",
+    body: "Runs the preprocessing pipeline on your uploaded raw Chronicle CSV files.",
   },
 } as const satisfies Record<string, TooltipContent>;
 

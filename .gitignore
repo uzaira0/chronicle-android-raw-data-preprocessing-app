@@ -198,7 +198,6 @@ preprocessors/survey_data_preprocessor.py
 !tests/
 !tests/**/*.py
 *demo*
-!web/src/components/DemoSampleCard.tsx
 *benchmark*
 !scripts/benchmark_browser_pathological_fixture.py
 !web/scripts/benchmark_browser_processing.mjs

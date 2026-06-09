@@ -6,7 +6,6 @@ import {
   processRawCsv,
   processRawCsvBytesViaPool,
 } from "@/lib/chronicleMatcher";
-import { sampleRawCsv, SAMPLE_FILE_NAME } from "@/lib/sampleRawCsv";
 import { BUILD_DATE, BUILD_SHA } from "@/lib/buildInfo";
 import { ensureNotificationPermission, sendNotification } from "@/lib/notification";
 import { clearLastRun, loadLastRun, saveLastRun } from "@/lib/lastRunStore";
@@ -36,7 +35,6 @@ import type {
   ProgressStepKind,
 } from "@/lib/types";
 
-import { DemoSampleCard } from "@/components/DemoSampleCard";
 import { FilesAndInputsCard } from "@/components/FilesAndInputsCard";
 import { TimezoneCard } from "@/components/TimezoneCard";
 import { SessionDetectionCard } from "@/components/SessionDetectionCard";
@@ -342,36 +340,6 @@ export default function App(): ReactElement {
     }
   };
 
-  const runSample = async () => {
-    const sampleFile = new File([sampleRawCsv], SAMPLE_FILE_NAME, { type: "text/csv" });
-    await clearLastRun().catch(() => {});
-    onFilesChange([sampleFile], { clearCachedRun: false });
-    setActiveWorkflow("process");
-    setIsRunning(true);
-    setError(null);
-    try {
-      const result = await processRawCsv(
-        SAMPLE_FILE_NAME,
-        sampleRawCsv,
-        options,
-        undefined,
-        getInjectedRuntime(),
-      );
-      setResults([result]);
-      setDiscoveredTimezones(result.availableTimezones);
-      void saveLastRun({
-        options,
-        results: [result],
-        discoveredTimezones: result.availableTimezones,
-      }).catch(() => {});
-    } catch (runError) {
-      setError(runError instanceof Error ? runError.message : String(runError));
-    } finally {
-      setIsRunning(false);
-      setProcessExpanded(false);
-    }
-  };
-
   const handleProgressEvent = useCallback((event: ProgressEvent) => {
     setProgressByFile((current) => applyProgressEvent(current, event));
   }, []);
@@ -537,7 +505,7 @@ export default function App(): ReactElement {
     <>
       <a className="skip-link" href="#workflow-panels">Skip to workflow tabs</a>
       <main className={`app-shell ${activeWorkflow === "view" ? "app-shell--wide" : ""}`}>
-        <header className="hero hero--with-demo">
+        <header className="hero">
           <div className="hero__copy">
             <h1>Chronicle Android Raw Data Preprocessor</h1>
             <p className="lede">
@@ -546,12 +514,6 @@ export default function App(): ReactElement {
               leaves your device.
             </p>
           </div>
-          <DemoSampleCard
-            isRunning={isRunning}
-            onRun={() => {
-              void runSample();
-            }}
-          />
         </header>
 
         <WorkflowNav active={activeWorkflow} onSelect={setActiveWorkflow} />
