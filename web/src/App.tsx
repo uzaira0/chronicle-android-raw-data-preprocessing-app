@@ -85,6 +85,11 @@ const STEP_ORDER: ProgressStepKind[] = [
   "enrich",
   "output",
 ];
+const WORKFLOW_STORAGE_KEY = "chronicle-web.activeWorkflow";
+
+function isWorkflowTab(value: string | null): value is WorkflowTab {
+  return value === "settings" || value === "files" || value === "process" || value === "view";
+}
 
 /**
  * Compute a memory-safe parallel worker count.
@@ -166,7 +171,11 @@ export default function App(): ReactElement {
   const [progressOrder, setProgressOrder] = useState<string[]>([]);
   const [toast, setToast] = useState<{ message: string; isError: boolean } | null>(null);
   const [settingsQuery, setSettingsQuery] = useState("");
-  const [activeWorkflow, setActiveWorkflow] = useState<WorkflowTab>("settings");
+  const [activeWorkflow, setActiveWorkflow] = useState<WorkflowTab>(() => {
+    if (typeof window === "undefined") return "settings";
+    const stored = localStorage.getItem(WORKFLOW_STORAGE_KEY);
+    return isWorkflowTab(stored) ? stored : "settings";
+  });
   const [processExpanded, setProcessExpanded] = useState(true);
   const [hideDemoMetadata, setHideDemoMetadata] = useState(() => readDemoDisplayEnabled());
   const startTimeRef = useRef<number>(0);
@@ -237,7 +246,6 @@ export default function App(): ReactElement {
         );
         setProgressOrder(record.results.map((result) => result.inputFileName));
         setProgressByFile(completed);
-        setActiveWorkflow("process");
         setProcessExpanded(false);
         setToast({
           message: `Last processed results restored (${record.results.length} ${record.results.length === 1 ? "file" : "files"}).`,
@@ -251,6 +259,11 @@ export default function App(): ReactElement {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(WORKFLOW_STORAGE_KEY, activeWorkflow);
+  }, [activeWorkflow]);
 
   const onFilesChange = (files: File[], input: { clearCachedRun?: boolean } = {}) => {
     const { clearCachedRun = true } = input;

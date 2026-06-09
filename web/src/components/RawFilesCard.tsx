@@ -105,75 +105,77 @@ export function RawFilesCard({
       </div>
 
       {uploadedFiles.length ? (
-        <table className="raw-file-table" aria-live="polite">
-          <thead>
-            <tr>
-              <th scope="col">File</th>
-              <th scope="col">Size</th>
-              <th scope="col">Rows</th>
-              <th scope="col">Columns</th>
-              <th scope="col">Timezones</th>
-              <th scope="col">Duplicate timestamps</th>
-              <th scope="col">Status</th>
-            </tr>
-        </thead>
-          <tbody>
-            {uploadedFiles.map((file) => {
-              const inspection = inspections.find((entry) => entry.fileName === file.name);
-              const displayFile = displayMasker.fileName(file.name);
-              const warnings = inspection ? effectiveWarnings(inspection, options) : [];
-              const status = inspection
-                ? warnings.length
-                  ? { label: "Warning: Review", className: "is-warning" }
-                  : { label: "Success: Ready", className: "is-success" }
-                : { label: "Status: Inspecting", className: "" };
-              const dupCount = inspection?.duplicateTimestampCount ?? 0;
-              const dupCorrected = options.correctDuplicateEventTimestamps && dupCount > 0;
-              return (
-                <tr
-                  className={`raw-file-row${warnings.length ? " has-warning" : ""}`}
-                  key={`${file.name}-${file.size}-${file.lastModified}`}
-                  data-testid="raw-file-row"
-                >
-                  <td>
-                    <strong>{displayFile}</strong>
-                    {warnings.length ? (
-                      <p className="raw-file-row__warning">{warnings.join(" ")}</p>
-                    ) : null}
-                  </td>
-                  <td className="text-faint u-meta-xs">{formatBytes(file.size)}</td>
-                  <td className="text-faint u-meta-xs">
-                    {inspection ? inspection.rowCount.toLocaleString() : "—"}
-                  </td>
-                  <td className="text-faint u-meta-xs">
-                    {inspection ? inspection.columns.length : "—"}
-                  </td>
-                  <td className="text-faint u-meta-xs">
-                    {inspection?.timezones.length ? (
-                      <ul className="raw-file-row__timezones">
-                        {inspection.timezones.map((zone) => (
-                          <li key={zone}>{displayMasker.timezone(zone)}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="text-faint u-meta-xs">
-                    {dupCount === 0
-                      ? "0"
-                      : dupCorrected
-                        ? `${dupCount.toLocaleString()} (will be corrected)`
-                        : `${dupCount.toLocaleString()} (not corrected)`}
-                  </td>
-                  <td>
-                    <span className={`status-pill ${status.className}`}>{status.label}</span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="raw-file-table-wrap">
+          <table className="raw-file-table" aria-live="polite">
+            <thead>
+              <tr>
+                <th scope="col">File</th>
+                <th scope="col">Size</th>
+                <th scope="col">Rows</th>
+                <th scope="col">Columns</th>
+                <th scope="col">Timezones</th>
+                <th scope="col">Duplicate timestamps</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {uploadedFiles.map((file) => {
+                const inspection = inspections.find((entry) => entry.fileName === file.name);
+                const displayFile = displayMasker.fileName(file.name);
+                const warnings = inspection ? effectiveWarnings(inspection, options) : [];
+                const status = inspection
+                  ? warnings.length
+                    ? { label: "Warning: Review", className: "is-warning" }
+                    : { label: "Success: Ready", className: "is-success" }
+                  : { label: "Status: Inspecting", className: "" };
+                const dupCount = inspection?.duplicateTimestampCount ?? 0;
+                const dupCorrected = options.correctDuplicateEventTimestamps && dupCount > 0;
+                return (
+                  <tr
+                    className={`raw-file-row${warnings.length ? " has-warning" : ""}`}
+                    key={`${file.name}-${file.size}-${file.lastModified}`}
+                    data-testid="raw-file-row"
+                  >
+                    <td>
+                      <strong>{displayFile}</strong>
+                      {warnings.length ? (
+                        <p className="raw-file-row__warning">{warnings.join(" ")}</p>
+                      ) : null}
+                    </td>
+                    <td className="text-faint u-meta-xs">{formatBytes(file.size)}</td>
+                    <td className="text-faint u-meta-xs">
+                      {inspection ? inspection.rowCount.toLocaleString() : "—"}
+                    </td>
+                    <td className="text-faint u-meta-xs">
+                      {inspection ? inspection.columns.length : "—"}
+                    </td>
+                    <td className="text-faint u-meta-xs">
+                      {inspection?.timezones.length ? (
+                        <ul className="raw-file-row__timezones">
+                          {inspection.timezones.map((zone) => (
+                            <li key={zone}>{displayMasker.timezone(zone)}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="text-faint u-meta-xs">
+                      {dupCount === 0
+                        ? "0"
+                        : dupCorrected
+                          ? `${dupCount.toLocaleString()} (will be corrected)`
+                          : `${dupCount.toLocaleString()} (not corrected)`}
+                    </td>
+                    <td>
+                      <span className={`status-pill ${status.className}`}>{status.label}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <p className="empty-state">No raw files selected yet.</p>
       )}
