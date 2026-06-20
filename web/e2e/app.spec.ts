@@ -494,7 +494,7 @@ test("@smoke the exported HTML timeline viewer runs its inlined interactivity of
   assertNoExternalRequests(requestTracker);
 });
 
-test("View tab renders the interactive timeline with file and type dropdowns (#18)", async ({
+test("View tab renders the review surface (rail, metrics, timeline) with file and type dropdowns (#18)", async ({
   page,
 }, testInfo) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
@@ -621,6 +621,16 @@ test("View tab renders the interactive timeline with file and type dropdowns (#1
   await expect(tooltip).toBeVisible();
   await expect(tooltip).toContainText(target.title);
   await expect(tooltip).toContainText("→");
+
+  // New review panes render alongside the timeline (network-free).
+  await expect(page.getByTestId("review-rail")).toBeVisible();
+  await expect(page.getByTestId("review-rail-row").first()).toContainText("P01");
+  await expect(page.getByTestId("review-metrics")).toBeVisible();
+  const dayRows = page.getByTestId("review-day-table").locator("tbody tr");
+  await expect(dayRows.first()).toBeVisible();
+  await dayRows.first().click();
+  await expect(page.getByTestId("review-day-detail")).toBeVisible();
+
   assertNoExternalRequests(requestTracker);
 });
 
