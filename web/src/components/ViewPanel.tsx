@@ -7,6 +7,7 @@ import { ReviewParticipantRail } from "@/components/review/ReviewParticipantRail
 import { ReviewMetricsPanel } from "@/components/review/ReviewMetricsPanel";
 import { ReviewSettingsSummary } from "@/components/review/ReviewSettingsSummary";
 import { AppListsPanel } from "@/components/review/AppListsPanel";
+import { CompareConfigDrawer } from "@/components/review/CompareConfigDrawer";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
 import type {
   BrowserProcessingOptions,
@@ -19,6 +20,14 @@ import type {
 type Props = {
   results: ProcessedFileResult[];
   options: BrowserProcessingOptions;
+  /** Names of files still loaded in the Files tab — a comparison can only
+   * re-run files whose bytes are still available. */
+  uploadedFileNames?: string[];
+  /** Re-process one file under Arm-B options; resolves to the fresh result. */
+  onRunComparison?: (
+    fileName: string,
+    overrides: Partial<BrowserProcessingOptions>,
+  ) => Promise<ProcessedFileResult>;
   displayMasker: DemoDisplayMasker;
   includeFilteredAppUsageInPlots: boolean;
 };
@@ -54,6 +63,8 @@ function isReviewable(
 export function ViewPanel({
   results,
   options,
+  uploadedFileNames = [],
+  onRunComparison,
   displayMasker,
   includeFilteredAppUsageInPlots,
 }: Props): ReactElement {
@@ -66,6 +77,14 @@ export function ViewPanel({
   const [focusedDate, setFocusedDate] = useState<string | null>(null);
   const [subView, setSubView] = useState<SubView>("timeline");
   const [showFilteredUsage, setShowFilteredUsage] = useState(includeFilteredAppUsageInPlots);
+
+  // Arm-B comparison state. `armBResult` is scoped to the file it was run on;
+  // switching files clears it.
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [compareOptions, setCompareOptions] = useState<BrowserProcessingOptions>(options);
+  const [armBResult, setArmBResult] = useState<ProcessedFileResult | null>(null);
+  const [running, setRunning] = useState(false);
+  const [compareError, setCompareError] = useState<string | null>(null);
 
   useEffect(() => {
     setShowFilteredUsage(includeFilteredAppUsageInPlots);
@@ -117,6 +136,58 @@ export function ViewPanel({
     ? `${typeLabel[activeType]} · ${filteredUsageLabel} · ${displayMasker.timezone(timeline.timezone)}`
     : "";
 
+  // Arm B: only honoured for the file it was run on. Switching files (which
+  // clears armBResult) or to a non-matching result hides the comparison.
+  const armB =
+    armBResult && armBResult.inputFileName === activeFile.inputFileName ? armBResult : null;
+  const compareParticipant: ReviewParticipantSummary | null =
+    armB?.reviewSummary?.participants.find(
+      (p) => p.participantId === activeParticipant.participantId,
+    ) ?? null;
+  const bTimeline = armB?.timelineView;
+  const bParticipantViews: TimelineParticipantView[] = !bTimeline
+    ? []
+    : activeType === "app"
+      ? appViewsFor(bTimeline, showFilteredUsage)
+      : bTimeline.screen;
+  const bRawView = bParticipantViews.find(
+    (v) => v.participantId === activeParticipant.participantId,
+  );
+  const bView = bRawView ? sanitizeDemoView(bRawView, displayMasker) : null;
+  const bContextLine = bTimeline
+    ? `B · ${typeLabel[activeType]} · ${filteredUsageLabel} · ${displayMasker.timezone(bTimeline.timezone)}`
+    : "";
+
+  const canCompare =
+    !!onRunComparison && uploadedFileNames.includes(activeFile.inputFileName);
+
+  const openDrawer = (): void => {
+    // First open seeds Arm B from the current run (A); reopening to edit keeps
+    // the last Arm-B config instead of discarding it.
+    if (!armB) setCompareOptions(options);
+    setCompareError(null);
+    setDrawerOpen(true);
+  };
+  const runComparison = async (): Promise<void> => {
+    if (!onRunComparison) return;
+    setRunning(true);
+    setCompareError(null);
+    try {
+      const result = await onRunComparison(activeFile.inputFileName, compareOptions);
+      setArmBResult(result);
+      setDrawerOpen(false);
+    } catch (error) {
+      setCompareError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setRunning(false);
+    }
+  };
+  const resetToA = (): void => {
+    setCompareOptions(options);
+    setArmBResult(null);
+    setCompareError(null);
+  };
+
   const activeFileLabel = displayMasker.fileName(activeFile.inputFileName);
   const fileChoices = reviewableFiles.map((entry) => ({
     source: entry.inputFileName,
@@ -131,6 +202,10 @@ export function ViewPanel({
       setFileQuery(null);
       setSelectedParticipant(null);
       setFocusedDate(null);
+      // Arm B was run against the previous file — drop it on a file switch.
+      setArmBResult(null);
+      setDrawerOpen(false);
+      setCompareError(null);
     }
   };
 
@@ -198,9 +273,37 @@ export function ViewPanel({
               APP LISTS
             </button>
           </div>
+          {onRunComparison && subView === "timeline" ? (
+            <button
+              type="button"
+              className="btn btn--secondary review-view__compare-btn"
+              onClick={() => (drawerOpen ? setDrawerOpen(false) : openDrawer())}
+              disabled={!canCompare && !drawerOpen}
+              title={
+                canCompare
+                  ? "Re-process this file under a second config and compare"
+                  : "Re-add this file in the Files tab to compare"
+              }
+              data-testid="review-compare-toggle"
+            >
+              {armB ? "Edit comparison" : "Compare ▾"}
+            </button>
+          ) : null}
         </div>
         <p className="timeline-view__hint">{HINT}</p>
       </div>
+
+      {subView === "timeline" && drawerOpen ? (
+        <CompareConfigDrawer
+          options={compareOptions}
+          setOptions={setCompareOptions}
+          onRun={runComparison}
+          onResetToA={resetToA}
+          onClose={() => setDrawerOpen(false)}
+          running={running}
+          error={compareError}
+        />
+      ) : null}
 
       {subView === "applists" ? (
         <AppListsPanel />
@@ -223,6 +326,9 @@ export function ViewPanel({
                 No {typeLabel[activeType].toLowerCase()} timeline for this participant.
               </p>
             )}
+            {armB && bView ? (
+              <InteractiveScene key={`${participantKey}:B`} view={bView} context={bContextLine} />
+            ) : null}
             <ReviewSettingsSummary
               options={options}
               result={activeFile}
@@ -231,6 +337,7 @@ export function ViewPanel({
           </div>
           <ReviewMetricsPanel
             participant={activeParticipant}
+            compare={compareParticipant}
             focusedDate={focusedDate}
             onFocusDate={(date) => setFocusedDate((current) => (current === date ? null : date))}
             masker={displayMasker}

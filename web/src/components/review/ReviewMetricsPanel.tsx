@@ -6,6 +6,7 @@ import type { ReviewParticipantSummary } from "@/lib/types";
 
 type Props = {
   participant: ReviewParticipantSummary;
+  compare?: ReviewParticipantSummary | null;
   focusedDate: string | null;
   onFocusDate: (date: string) => void;
   masker: DemoDisplayMasker;
@@ -16,20 +17,22 @@ function fmtMin(value: number): string {
   return Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(1);
 }
 
+function fmtDelta(value: number): string {
+  const formatted = fmtMin(Math.abs(value));
+  return value > 0 ? `+${formatted}` : value < 0 ? `−${formatted}` : "0";
+}
+
+function deltaClass(value: number): string {
+  return value > 0.05 ? "is-pos" : value < -0.05 ? "is-neg" : "";
+}
+
 function categoryColor(category: string | null): string {
   return CATEGORY_COLORS[category ?? "Unknown"] ?? CATEGORY_COLORS.Uncategorised ?? "#555555";
 }
 
-/** Right-rail metrics for one participant: a run-totals card, a per-day table,
- * and (when a day is focused) its top-apps breakdown. */
-export function ReviewMetricsPanel({
-  participant,
-  focusedDate,
-  onFocusDate,
-  masker,
-}: Props): ReactElement {
-  const t = participant.totals;
-  const rows: Array<[string, string]> = [
+function totalsRows(p: ReviewParticipantSummary): Array<[string, string]> {
+  const t = p.totals;
+  return [
     ["app usage min", fmtMin(t.appUsageMinutes)],
     ...(t.backgroundAppUsageMinutes > 0
       ? ([["background app min", fmtMin(t.backgroundAppUsageMinutes)]] as Array<[string, string]>)
@@ -43,15 +46,36 @@ export function ReviewMetricsPanel({
       : []),
     ["days w/ usage", `${t.daysWithUsage}/${t.totalDays}`],
   ];
+}
 
+/** Right-rail metrics for one participant: run-totals card (plus B + Δ cards when
+ * comparing), a per-day table, and the focused day's top-apps breakdown. */
+export function ReviewMetricsPanel({
+  participant,
+  compare,
+  focusedDate,
+  onFocusDate,
+  masker,
+}: Props): ReactElement {
+  const comparing = !!compare;
+  const bByDate = new Map((compare?.perDay ?? []).map((day) => [day.date, day]));
   const topApps = focusedDate ? participant.topAppsByDate[focusedDate] : undefined;
+
+  const deltaTotals = compare
+    ? {
+        appUsageMinutes: compare.totals.appUsageMinutes - participant.totals.appUsageMinutes,
+        appSessionCount: compare.totals.appSessionCount - participant.totals.appSessionCount,
+        screenUsageMinutes:
+          compare.totals.screenUsageMinutes - participant.totals.screenUsageMinutes,
+      }
+    : null;
 
   return (
     <aside className="review-metrics" aria-label="Run metrics" data-testid="review-metrics">
       <div className="review-mcard review-mcard--a">
-        <h3>Run totals</h3>
+        <h3>{comparing ? "A — current run" : "Run totals"}</h3>
         <div className="review-mrows">
-          {rows.map(([label, value]) => (
+          {totalsRows(participant).map(([label, value]) => (
             <div className="review-mrow" key={label}>
               <span className="review-mrow__label">{label}</span>
               <span className="review-mrow__value">{value}</span>
@@ -60,27 +84,85 @@ export function ReviewMetricsPanel({
         </div>
       </div>
 
+      {compare ? (
+        <div className="review-mcard review-mcard--b" data-testid="review-mcard-b">
+          <h3>B — compared run</h3>
+          <div className="review-mrows">
+            {totalsRows(compare).map(([label, value]) => (
+              <div className="review-mrow" key={label}>
+                <span className="review-mrow__label">{label}</span>
+                <span className="review-mrow__value">{value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {deltaTotals ? (
+        <div className="review-mcard review-mcard--d" data-testid="review-mcard-delta">
+          <h3>Δ (B − A)</h3>
+          <div className="review-mrows">
+            {(
+              [
+                ["app usage min", deltaTotals.appUsageMinutes],
+                ["app sessions", deltaTotals.appSessionCount],
+                ...(participant.totals.screenUsageMinutes > 0 ||
+                (compare?.totals.screenUsageMinutes ?? 0) > 0
+                  ? ([["screen usage min", deltaTotals.screenUsageMinutes]] as Array<
+                      [string, number]
+                    >)
+                  : []),
+              ] as Array<[string, number]>
+            ).map(([label, value]) => (
+              <div className="review-mrow" key={label}>
+                <span className="review-mrow__label">{label}</span>
+                <span className={`review-mrow__value ${deltaClass(value)}`}>{fmtDelta(value)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className="review-day-table-wrap">
         <table className="review-day-table" data-testid="review-day-table">
           <thead>
             <tr>
               <th>DAY</th>
-              <th>APP</th>
-              <th>SCRN</th>
-              <th>SESS</th>
+              {comparing ? (
+                <>
+                  <th>A</th>
+                  <th>B</th>
+                  <th>Δ</th>
+                </>
+              ) : (
+                <>
+                  <th>APP</th>
+                  <th>SCRN</th>
+                  <th>SESS</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
             {participant.perDay.map((day) => {
               const isGap = day.flags.includes("no_usage_day");
+              const rowClass =
+                (focusedDate === day.date ? "is-focused " : "") + (isGap ? "is-gap" : "");
+              if (comparing) {
+                const b = bByDate.get(day.date);
+                const bMin = b?.appUsageMinutes ?? 0;
+                const delta = bMin - day.appUsageMinutes;
+                return (
+                  <tr key={day.date} className={rowClass} onClick={() => onFocusDate(day.date)}>
+                    <td>{masker.text(day.date).slice(5)}</td>
+                    <td>{fmtMin(day.appUsageMinutes)}</td>
+                    <td>{fmtMin(bMin)}</td>
+                    <td className={deltaClass(delta)}>{fmtDelta(delta)}</td>
+                  </tr>
+                );
+              }
               return (
-                <tr
-                  key={day.date}
-                  className={
-                    (focusedDate === day.date ? "is-focused " : "") + (isGap ? "is-gap" : "")
-                  }
-                  onClick={() => onFocusDate(day.date)}
-                >
+                <tr key={day.date} className={rowClass} onClick={() => onFocusDate(day.date)}>
                   <td>{masker.text(day.date).slice(5)}</td>
                   <td>{fmtMin(day.appUsageMinutes)}</td>
                   <td>{day.screenUsageMinutes > 0 ? fmtMin(day.screenUsageMinutes) : "—"}</td>

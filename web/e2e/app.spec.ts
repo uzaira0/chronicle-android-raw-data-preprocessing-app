@@ -634,6 +634,36 @@ test("View tab renders the review surface (rail, metrics, timeline) with file an
   assertNoExternalRequests(requestTracker);
 });
 
+test("View tab compares the run against a second config (Arm B) in-browser", async ({ page }) => {
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
+  await processFiles(page);
+
+  await page.getByRole("tab", { name: /View/i }).click();
+  await expect(page.getByTestId("timeline-view")).toBeVisible();
+
+  // Open the Arm-B drawer and re-run the same file under it.
+  await page.getByTestId("review-compare-toggle").click();
+  const drawer = page.getByTestId("review-compare-drawer");
+  await expect(drawer).toBeVisible();
+  // Change a high-impact option within the drawer (scoped so it does not collide
+  // with the Settings-tab control of the same testid). A huge minimum usage
+  // duration blanks every short session, so Arm B differs from Arm A.
+  await drawer.getByTestId("minimum-usage-duration-input").fill("999999");
+  await page.getByTestId("review-run-comparison").click();
+
+  // B and Δ metric cards appear; the day table gains A/B/Δ columns.
+  await expect(page.getByTestId("review-mcard-b")).toBeVisible();
+  await expect(page.getByTestId("review-mcard-delta")).toBeVisible();
+  await expect(page.getByTestId("review-day-table").locator("thead th")).toHaveText([
+    "DAY",
+    "A",
+    "B",
+    "Δ",
+  ]);
+
+  assertNoExternalRequests(requestTracker);
+});
+
 test("restores last processed results after refresh and collapses process details", async ({
   page,
 }) => {

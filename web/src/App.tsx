@@ -319,20 +319,54 @@ export default function App(): ReactElement {
     onFilesChange(record.includesFiles ? record.rawFiles.map(storedFileToFile) : []);
   };
 
-  const buildSupportFiles = async (): Promise<BrowserSupportFiles> => ({
-    ...(options.useFilterFile && filterFile
+  const buildSupportFilesForOptions = async (
+    forOptions: BrowserProcessingOptions,
+  ): Promise<BrowserSupportFiles> => ({
+    ...(forOptions.useFilterFile && filterFile
       ? { filterFile: await readSupportFile(filterFile) }
       : {}),
-    ...(options.useAppsForcingScreenOpenFile && appsForcingScreenOpenFile
+    ...(forOptions.useAppsForcingScreenOpenFile && appsForcingScreenOpenFile
       ? { appsForcingScreenOpenFile: await readSupportFile(appsForcingScreenOpenFile) }
       : {}),
-    ...(options.useBackgroundAppsFile && backgroundAppsFile
+    ...(forOptions.useBackgroundAppsFile && backgroundAppsFile
       ? { backgroundAppsFile: await readSupportFile(backgroundAppsFile) }
       : {}),
-    ...(options.useAppCodebook && appCodebookFile
+    ...(forOptions.useAppCodebook && appCodebookFile
       ? { appCodebookFile: await readSupportFile(appCodebookFile) }
       : {}),
   });
+
+  const buildSupportFiles = (): Promise<BrowserSupportFiles> =>
+    buildSupportFilesForOptions(options);
+
+  /**
+   * Re-process a single already-uploaded file under a different config (the
+   * View tab's "Arm B"), reusing the same support-file resolution as a normal
+   * run. Returns the fresh result (with its own reviewSummary + timeline); the
+   * caller diffs it against the current run. Throws if the file is no longer
+   * loaded so the View tab can prompt the user to re-add it.
+   */
+  const runComparison = useCallback(
+    async (
+      fileName: string,
+      overrides: Partial<BrowserProcessingOptions>,
+    ): Promise<ProcessedFileResult> => {
+      const file = uploadedFiles.find((candidate) => candidate.name === fileName);
+      if (!file) {
+        throw new Error(
+          "The raw file for this run is no longer loaded. Re-add it in the Files tab to compare.",
+        );
+      }
+      const armBOptions = sanitizeOptions({ ...options, ...overrides });
+      const userSupportFiles = await buildSupportFilesForOptions(armBOptions);
+      const supportFiles = await resolveDefaultSupportFiles(armBOptions, userSupportFiles);
+      const text = await file.text();
+      return processRawCsv(file.name, text, armBOptions, supportFiles, getInjectedRuntime());
+    },
+    // filterFile et al. are read inside buildSupportFilesForOptions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [uploadedFiles, options, filterFile, appsForcingScreenOpenFile, backgroundAppsFile, appCodebookFile],
+  );
 
   const discoverAvailableTimezones = async () => {
     if (!uploadedFiles.length) {
@@ -689,6 +723,8 @@ export default function App(): ReactElement {
             <ViewPanel
               results={results}
               options={options}
+              uploadedFileNames={uploadedFiles.map((file) => file.name)}
+              onRunComparison={runComparison}
               displayMasker={demoDisplay}
               includeFilteredAppUsageInPlots={options.includeFilteredAppUsageInPlots}
             />

@@ -2855,3 +2855,77 @@ a:hover {
 .review-alist__table td:first-child {
   color: var(--color-text-strong);
 }
+
+/* ---- compare (Arm B) ---- */
+.review-view__compare-btn {
+  align-self: end;
+  white-space: nowrap;
+}
+
+.review-mcard--b h3 {
+  color: var(--color-cyan, #0b7d8e);
+}
+
+.review-mcard--d h3 {
+  color: var(--color-success, #178a4c);
+}
+
+.review-mrow__value.is-pos,
+.review-day-table td.is-pos {
+  color: var(--color-success, #178a4c);
+}
+
+.review-mrow__value.is-neg,
+.review-day-table td.is-neg {
+  color: var(--color-danger, #c43d38);
+}
+
+.review-drawer {
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  margin-bottom: var(--space-3);
+}
+
+.review-drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-strong);
+  font-weight: var(--font-weight-semibold);
+}
+
+.review-drawer__close {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: var(--font-size-md);
+  color: var(--color-text-muted);
+}
+
+.review-drawer__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-3);
+  max-height: 52vh;
+  overflow-y: auto;
+}
+
+.review-drawer__error {
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-2);
+  color: var(--color-danger, #c43d38);
+  font-size: var(--font-size-sm);
+}
+
+.review-drawer__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
