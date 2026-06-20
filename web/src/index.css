@@ -2589,6 +2589,54 @@ a:hover {
   min-width: 0;
 }
 
+/* ---- A/B interleaved comparison legend ---- */
+.review-compare-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-2);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.review-compare-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.review-compare-legend__tick {
+  display: inline-block;
+  width: 3px;
+  height: 14px;
+  border-radius: 1px;
+}
+
+.review-compare-legend__tick--a {
+  background: #c66a00;
+}
+
+.review-compare-legend__tick--b {
+  background: #0b7d8e;
+}
+
+.review-compare-legend__bar {
+  display: inline-block;
+  width: 14px;
+  height: 5px;
+  border-radius: 1px;
+}
+
+.review-compare-legend__bar--pos {
+  background: #178a4c;
+}
+
+.review-compare-legend__bar--neg {
+  background: #c43d38;
+}
+
 /* ---- right metrics rail ---- */
 .review-metrics {
   display: flex;

@@ -8,6 +8,7 @@ import { ReviewMetricsPanel } from "@/components/review/ReviewMetricsPanel";
 import { ReviewSettingsSummary } from "@/components/review/ReviewSettingsSummary";
 import { AppListsPanel } from "@/components/review/AppListsPanel";
 import { CompareConfigDrawer } from "@/components/review/CompareConfigDrawer";
+import { buildComparisonWaterfallScene } from "@/lib/reviewCompareScene";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
 import type {
   BrowserProcessingOptions,
@@ -153,10 +154,35 @@ export function ViewPanel({
   const bRawView = bParticipantViews.find(
     (v) => v.participantId === activeParticipant.participantId,
   );
-  const bView = bRawView ? sanitizeDemoView(bRawView, displayMasker) : null;
-  const bContextLine = bTimeline
-    ? `B · ${typeLabel[activeType]} · ${filteredUsageLabel} · ${displayMasker.timezone(bTimeline.timezone)}`
-    : "";
+
+  // Interleaved A/B comparison: both arms woven into one waterfall (A lane over
+  // B lane per date, with a Δ strip), built from the raw views then masked — so
+  // its date keys line up with the per-day metrics that drive the Δ strip.
+  const perDayMinutes = (
+    summary: ReviewParticipantSummary | null,
+    type: ViewType,
+  ): Map<string, number> => {
+    const map = new Map<string, number>();
+    for (const day of summary?.perDay ?? []) {
+      map.set(day.date, type === "screen" ? day.screenUsageMinutes : day.appUsageMinutes);
+    }
+    return map;
+  };
+  const comparisonView: TimelineParticipantView | null =
+    armB && rawView && bRawView
+      ? sanitizeDemoView(
+          buildComparisonWaterfallScene(
+            rawView,
+            bRawView,
+            perDayMinutes(activeParticipant, activeType),
+            perDayMinutes(compareParticipant, activeType),
+          ),
+          displayMasker,
+        )
+      : null;
+  const compareContextLine = `A vs B · ${typeLabel[activeType]} · ${filteredUsageLabel}${
+    timeline ? ` · ${displayMasker.timezone(timeline.timezone)}` : ""
+  }`;
 
   const canCompare =
     !!onRunComparison && uploadedFileNames.includes(activeFile.inputFileName);
@@ -319,15 +345,41 @@ export function ViewPanel({
             masker={displayMasker}
           />
           <div className="review-view__center">
-            {view ? (
+            {comparisonView ? (
+              <div className="review-compare-legend" data-testid="review-compare-legend">
+                <span className="review-compare-legend__item">
+                  <span className="review-compare-legend__tick review-compare-legend__tick--a" />A
+                  · current run
+                </span>
+                <span className="review-compare-legend__item">
+                  <span className="review-compare-legend__tick review-compare-legend__tick--b" />B
+                  · compared run
+                </span>
+                <span className="review-compare-legend__item">
+                  <span className="review-compare-legend__bar review-compare-legend__bar--pos" />
+                  <span className="review-compare-legend__bar review-compare-legend__bar--neg" />
+                  Δ usage per day (B − A)
+                </span>
+              </div>
+            ) : null}
+            {comparisonView ? (
+              <InteractiveScene
+                key={`${participantKey}:AB`}
+                view={comparisonView}
+                context={compareContextLine}
+              />
+            ) : view ? (
               <InteractiveScene key={participantKey} view={view} context={contextLine} />
             ) : (
               <p className="timeline-view__empty">
                 No {typeLabel[activeType].toLowerCase()} timeline for this participant.
               </p>
             )}
-            {armB && bView ? (
-              <InteractiveScene key={`${participantKey}:B`} view={bView} context={bContextLine} />
+            {armB && !comparisonView ? (
+              <p className="timeline-view__empty" data-testid="review-compare-no-overlap">
+                No overlapping {typeLabel[activeType].toLowerCase()} timeline to interleave for this
+                participant — see the Δ metrics at right.
+              </p>
             ) : null}
             <ReviewSettingsSummary
               options={options}
