@@ -11,7 +11,8 @@
 
 import type { BrowserProcessingOptions } from "@/lib/types";
 
-const DB_NAME = "chronicle-projects";
+export const PROJECTS_DB_NAME = "chronicle-projects";
+const DB_NAME = PROJECTS_DB_NAME;
 const STORE = "projects";
 const DB_VERSION = 1;
 

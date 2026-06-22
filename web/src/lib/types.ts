@@ -224,4 +224,12 @@ export type ProcessedFileResult = {
    * results persisted before this field existed.
    */
   reviewSummary?: ReviewSummary;
+  /**
+   * True when this result was rehydrated from the lightweight last-run cache: the
+   * heavy artifacts (`outputs[].blob`, `timelineView`) were dropped before
+   * persisting so a refresh can't exhaust memory/quota. Counts and
+   * {@link reviewSummary} survive; downloads and the interactive timeline need a
+   * re-run. The UI uses this to explain why and to skip "no outputs" warnings.
+   */
+  restoredWithoutArtifacts?: boolean;
 };

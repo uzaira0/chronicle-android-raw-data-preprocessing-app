@@ -1348,6 +1348,20 @@ a:hover {
   background: var(--color-danger-soft);
 }
 
+.btn--danger {
+  background: var(--color-danger);
+  color: #ffffff;
+  border-color: var(--color-danger);
+}
+
+.btn--danger:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.btn--danger:disabled {
+  opacity: 0.6;
+}
+
 .btn--lg {
   padding: var(--space-3) var(--space-5);
   font-size: var(--font-size-md);
@@ -2635,6 +2649,85 @@ a:hover {
 
 .review-compare-legend__bar--neg {
   background: #c43d38;
+}
+
+/* ---- boot-error lifeboat screen ---- */
+.boot-error {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: var(--space-5);
+  background: var(--color-bg, #111318);
+}
+
+.boot-error__card {
+  max-width: 520px;
+  width: 100%;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 12px);
+  background: var(--color-surface);
+}
+
+.boot-error__title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-lg, 1.25rem);
+}
+
+.boot-error__body {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.boot-error__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.boot-error__hint {
+  margin: var(--space-3) 0 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* ---- storage-pressure banner ---- */
+.storage-pressure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--color-warning, #c66a00);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft, rgba(198, 106, 0, 0.1));
+  color: var(--color-text);
+}
+
+.storage-pressure__text {
+  flex: 1 1 280px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.storage-pressure__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.result-restored-note {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted, rgba(127, 127, 127, 0.08));
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 /* ---- right metrics rail ---- */

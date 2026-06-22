@@ -689,6 +689,11 @@ test("restores last processed results after refresh and collapses process detail
   await expect(page.getByTestId("result-panel")).toContainText("1 file processed");
   await expect(page.locator("#process-details")).toBeHidden();
   await expect(page.getByRole("button", { name: "Show processing details" })).toBeVisible();
+  // The restore is lightweight: counts come back, but the heavy artifacts are
+  // not persisted across a refresh (so a big batch can't exhaust memory/quota
+  // on the next boot). The note explains it and downloads are disabled.
+  await expect(page.getByTestId("restored-lightweight-note")).toBeVisible();
+  await expect(page.getByTestId("download-all-zip")).toBeDisabled();
   assertNoExternalRequests(requestTracker);
 });
 
