@@ -42,8 +42,8 @@
     "read-excel-file": "^5.8.0",
     "sav-reader": "^2.0.8",
     "typescript": "^5.9.3",
-    "vite": "^7.1.12",
-    "vite-node": "^3.2.4",
+    "vite": "^8.1.0",
+    "vite-node": "^6.0.0",
     "vitest": "^4.1.5",
     "yaml": "^2.8.3"
   }
