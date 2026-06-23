@@ -599,7 +599,7 @@ describe("browserPipeline", () => {
     expect(html).toContain("addEventListener");
   });
 
-  it("attaches the in-app View tab payload (scenes + hover regions) only when enabled (#18)", async () => {
+  it("always attaches the in-app View tab payload (scenes + hover regions); only the HTML export file is gated (#18)", async () => {
     const csv = [
       "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
       "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
@@ -622,7 +622,14 @@ describe("browserPipeline", () => {
     };
 
     const off = await processRawCsvContent("Raw P01.csv", csv, baseOptions, {}, matcher);
-    expect(off.timelineView).toBeUndefined();
+    // The in-app timeline payload is built for every run (the View tab always
+    // works), but the heavier self-contained HTML export file stays opt-in.
+    expect(off.timelineView).toBeDefined();
+    expect(off.timelineView!.app).toHaveLength(1);
+    expect(off.outputs.some((o) => o.outputFileName.endsWith("Timeline Viewer.html"))).toBe(false);
+    // The compact review summary is always attached too.
+    expect(off.reviewSummary).toBeDefined();
+    expect(off.reviewSummary!.participants.map((p) => p.participantId)).toEqual(["P01"]);
 
     const on = await processRawCsvContent(
       "Raw P01.csv",
@@ -643,6 +650,7 @@ describe("browserPipeline", () => {
     expect(region.title).toBe("Chat");
     expect(region.lines).toContain("com.example.chat");
     expect(on.timelineView!.screen).toHaveLength(0);
+    expect(on.outputs.some((o) => o.outputFileName.endsWith("Timeline Viewer.html"))).toBe(true);
 
     const withFilteredIncluded = await processRawCsvContent(
       "Raw P01.csv",

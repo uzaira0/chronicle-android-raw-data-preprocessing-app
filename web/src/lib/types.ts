@@ -134,6 +134,61 @@ export type TimezoneAction =
   | "filtered_to_primary"
   | "converted_to_primary";
 
+/**
+ * Per-day, per-participant flag surfaced in the View-tab review. Extensible —
+ * `no_usage_day` marks a calendar day inside a participant's observed span that
+ * has no app or screen sessions (a gap day, the reference's `no_data_day`).
+ */
+export type ReviewFlag = "no_usage_day";
+
+/** One app's contribution to a single day, for the day-detail breakdown. */
+export type ReviewTopApp = {
+  appPackageName: string;
+  applicationLabel: string;
+  category: string | null;
+  minutes: number;
+};
+
+/** Authoritative per-day metrics for one participant, sourced from the same
+ * aggregation primitives that back the daily-summary export. */
+export type ReviewDayMetrics = {
+  date: string;
+  appUsageMinutes: number;
+  backgroundAppUsageMinutes: number;
+  screenUsageMinutes: number;
+  appSessionCount: number;
+  screenSessionCount: number;
+  flags: ReviewFlag[];
+};
+
+export type ReviewParticipantTotals = {
+  appUsageMinutes: number;
+  backgroundAppUsageMinutes: number;
+  screenUsageMinutes: number;
+  appSessionCount: number;
+  screenSessionCount: number;
+  daysWithUsage: number;
+  totalDays: number;
+};
+
+export type ReviewParticipantSummary = {
+  participantId: string;
+  studyId: string;
+  totals: ReviewParticipantTotals;
+  perDay: ReviewDayMetrics[];
+  /** Top apps by minutes for each observed date (for the day-detail panel). */
+  topAppsByDate: Record<string, ReviewTopApp[]>;
+};
+
+/**
+ * Compact review payload computed for every run (independent of the HTML-export
+ * toggle) so the View tab can show metric cards, a per-day table, and day detail
+ * without re-parsing output blobs. One entry per participant in the file.
+ */
+export type ReviewSummary = {
+  participants: ReviewParticipantSummary[];
+};
+
 export type ProcessedFileResult = {
   inputFileName: string;
   outputs: ProcessedOutputFileResult[];
@@ -163,4 +218,18 @@ export type ProcessedFileResult = {
    * it is opt-in to keep default runs light).
    */
   timelineView?: TimelineViewData;
+  /**
+   * Compact per-participant review metrics (totals, per-day rows, day-detail top
+   * apps) computed for every run. Optional only for backward compatibility with
+   * results persisted before this field existed.
+   */
+  reviewSummary?: ReviewSummary;
+  /**
+   * True when this result was rehydrated from the lightweight last-run cache: the
+   * heavy artifacts (`outputs[].blob`, `timelineView`) were dropped before
+   * persisting so a refresh can't exhaust memory/quota. Counts and
+   * {@link reviewSummary} survive; downloads and the interactive timeline need a
+   * re-run. The UI uses this to explain why and to skip "no outputs" warnings.
+   */
+  restoredWithoutArtifacts?: boolean;
 };

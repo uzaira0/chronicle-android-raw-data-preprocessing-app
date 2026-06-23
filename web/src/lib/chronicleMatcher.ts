@@ -11,31 +11,90 @@ import type { ChronicleWorkerApi } from "@/workers/chronicle-worker";
 export type WorkerSpawn = () => {
   api: Comlink.Remote<ChronicleWorkerApi>;
   worker: { terminate: () => void };
+  /** Rejects if the worker fails to load or throws uncaught (optional for stubs). */
+  fault?: Promise<never>;
 };
 
 type WorkerSlot = {
   api: Comlink.Remote<ChronicleWorkerApi>;
   worker: { terminate: () => void };
+  fault: Promise<never>;
   busy: boolean;
+  /** Set when this slot's worker has faulted; the pool stops handing it out. */
+  dead: boolean;
 };
+
+/** Never settles — stand-in fault for spawns (e.g. test stubs) that provide none. */
+const NEVER_FAULT: Promise<never> = new Promise<never>(() => {});
 
 function spawnWorker(): {
   api: Comlink.Remote<ChronicleWorkerApi>;
   worker: Worker;
+  fault: Promise<never>;
 } {
   const worker = new Worker(new URL("../workers/chronicle-worker.ts", import.meta.url), {
     type: "module",
   });
-  return { api: Comlink.wrap<ChronicleWorkerApi>(worker), worker };
+  // A worker that fails to load (e.g. an offline cold start before its chunk is
+  // cached) or throws uncaught would otherwise leave every awaited Comlink call
+  // hanging forever — a silent stall with no result and no error. Surface it as
+  // a loud rejection that the UI shows as a processing error.
+  const fault = new Promise<never>((_, reject) => {
+    worker.addEventListener("error", (event) => {
+      reject(
+        new Error(
+          `Chronicle worker failed: ${event.message || "could not load the matcher worker"}`,
+        ),
+      );
+    });
+    worker.addEventListener("messageerror", () => {
+      reject(new Error("Chronicle worker sent an unreadable message."));
+    });
+  });
+  // Keep a handler attached so an un-raced fault never becomes an unhandled
+  // rejection on the happy path; racing still observes the same rejection.
+  fault.catch(() => {});
+  return { api: Comlink.wrap<ChronicleWorkerApi>(worker), worker, fault };
 }
 
-let sharedWorkerPromise: Promise<Comlink.Remote<ChronicleWorkerApi>> | null = null;
+type SharedWorker = {
+  api: Comlink.Remote<ChronicleWorkerApi>;
+  worker: { terminate: () => void };
+  fault: Promise<never>;
+};
+let sharedWorker: SharedWorker | null = null;
 
-function getSharedWorkerApi(): Promise<Comlink.Remote<ChronicleWorkerApi>> {
-  if (!sharedWorkerPromise) {
-    sharedWorkerPromise = Promise.resolve(spawnWorker().api);
+function getSharedWorker(): SharedWorker {
+  if (!sharedWorker) {
+    const { api, worker, fault } = spawnWorker();
+    const entry: SharedWorker = { api, worker, fault: fault ?? NEVER_FAULT };
+    sharedWorker = entry;
+    // If this worker dies, evict it from the singleton (and terminate it) so the
+    // NEXT call re-spawns a fresh one instead of bricking the module forever on a
+    // one-off crash. A normal processing rejection doesn't reject `fault`, so a
+    // healthy worker is never evicted.
+    entry.fault.catch(() => {
+      if (sharedWorker === entry) sharedWorker = null;
+      try {
+        worker.terminate();
+      } catch {
+        /* ignore */
+      }
+    });
   }
-  return sharedWorkerPromise;
+  return sharedWorker;
+}
+
+/**
+ * Run an operation on the shared worker, racing it against the worker's fault so
+ * a dead/unloadable worker rejects loudly instead of hanging. On a fault the
+ * singleton is evicted (see {@link getSharedWorker}), so a retry re-spawns.
+ */
+async function onSharedWorker<T>(
+  fn: (api: Comlink.Remote<ChronicleWorkerApi>) => Promise<T>,
+): Promise<T> {
+  const { api, fault } = getSharedWorker();
+  return Promise.race([fn(api), fault]);
 }
 
 /**
@@ -56,8 +115,15 @@ export class WorkerPool {
   constructor(size: number, spawn: WorkerSpawn = spawnWorker) {
     const safeSize = Math.max(1, Math.floor(size));
     for (let index = 0; index < safeSize; index += 1) {
-      const { api, worker } = spawn();
-      this.slots.push({ api, worker, busy: false });
+      const { api, worker, fault } = spawn();
+      const slot: WorkerSlot = { api, worker, fault: fault ?? NEVER_FAULT, busy: false, dead: false };
+      // A faulted worker must not keep getting handed queued work (which would
+      // cascade-fail files a healthy slot could have processed). Mark it dead so
+      // acquire/release skip it.
+      slot.fault.catch(() => {
+        slot.dead = true;
+      });
+      this.slots.push(slot);
     }
   }
 
@@ -69,29 +135,44 @@ export class WorkerPool {
     if (this.terminated) {
       return Promise.reject(new Error("Worker pool has been terminated."));
     }
-    const idle = this.slots.find((slot) => !slot.busy);
+    const idle = this.slots.find((slot) => !slot.busy && !slot.dead);
     if (idle) {
       idle.busy = true;
       return Promise.resolve(idle);
+    }
+    if (this.slots.every((slot) => slot.dead)) {
+      return Promise.reject(new Error("All Chronicle workers have failed."));
     }
     return new Promise<WorkerSlot>((resolve, reject) => {
       this.waiters.push({ resolve, reject });
     });
   }
 
+  /** Hand idle live slots to queued waiters; fail waiters only if every slot is dead. */
+  private pump(): void {
+    while (this.waiters.length) {
+      const idle = this.slots.find((slot) => !slot.busy && !slot.dead);
+      if (!idle) break;
+      idle.busy = true;
+      this.waiters.shift()!.resolve(idle);
+    }
+    if (this.waiters.length && this.slots.every((slot) => slot.dead)) {
+      while (this.waiters.length) {
+        this.waiters.shift()!.reject(new Error("All Chronicle workers have failed."));
+      }
+    }
+  }
+
   private release(slot: WorkerSlot): void {
     slot.busy = false;
-    const next = this.waiters.shift();
-    if (next) {
-      slot.busy = true;
-      next.resolve(slot);
-    }
+    this.pump();
   }
 
   async submit<T>(action: (api: Comlink.Remote<ChronicleWorkerApi>) => Promise<T>): Promise<T> {
     const slot = await this.acquire();
     try {
-      return await action(slot.api);
+      // Race the worker's fault so a dead worker rejects loudly, not silently.
+      return await Promise.race([action(slot.api), slot.fault]);
     } finally {
       this.release(slot);
     }
@@ -113,16 +194,28 @@ export class WorkerPool {
 }
 
 export async function getMatcherVersion(): Promise<string> {
-  const api = await getSharedWorkerApi();
-  return api.matcherVersion();
+  return onSharedWorker((api) => api.matcherVersion());
+}
+
+/**
+ * Eagerly spawn + initialise the shared matcher worker on boot. Two payoffs:
+ * the first real run is faster (WASM is already warm), and a single-file run
+ * after the network later drops reuses this still-live worker instead of trying
+ * to fetch the worker chunk offline. Best-effort; swallows errors.
+ */
+export async function warmMatcher(): Promise<void> {
+  try {
+    await getMatcherVersion();
+  } catch {
+    /* a real failure will surface when the user actually processes */
+  }
 }
 
 export async function discoverTimezones(
   csvText: string,
   runtime?: BrowserProcessingRuntime,
 ): Promise<string[]> {
-  const api = await getSharedWorkerApi();
-  return api.discoverTimezones(csvText, runtime);
+  return onSharedWorker((api) => api.discoverTimezones(csvText, runtime));
 }
 
 export async function processRawCsv(
@@ -133,19 +226,20 @@ export async function processRawCsv(
   runtime?: BrowserProcessingRuntime,
   onProgress?: (event: ProgressEvent) => void,
 ): Promise<ProcessedFileResult> {
-  const api = await getSharedWorkerApi();
-  if (onProgress) {
-    const proxied = Comlink.proxy(onProgress);
-    return api.processRawCsvWithProgress(
-      inputFileName,
-      csvText,
-      options,
-      supportFiles,
-      runtime,
-      proxied,
-    );
-  }
-  return api.processRawCsv(inputFileName, csvText, options, supportFiles, runtime);
+  return onSharedWorker((api) => {
+    if (onProgress) {
+      const proxied = Comlink.proxy(onProgress);
+      return api.processRawCsvWithProgress(
+        inputFileName,
+        csvText,
+        options,
+        supportFiles,
+        runtime,
+        proxied,
+      );
+    }
+    return api.processRawCsv(inputFileName, csvText, options, supportFiles, runtime);
+  });
 }
 
 export async function processRawCsvViaPool(

@@ -43,6 +43,7 @@ import type {
   TimezoneAction,
 } from "@/lib/types";
 import { buildTimelineViewerHtml } from "@/lib/timelineViewer";
+import { buildReviewSummary } from "@/lib/reviewMetrics";
 
 export const PREPROCESSOR_VERSION = "1.0.0";
 
@@ -2376,16 +2377,16 @@ export async function processRawCsvContent(
   // transforms rows into session-level output types. Used for data-gap shading
   // in both the app-usage and screen-usage plots, so a gap reflects genuinely
   // absent device activity (all 30+ raw interaction types), not just missing
-  // session rows. Collected whenever plotting is on, independent of which output
-  // kinds are produced (screen-only plotting needs it too).
+  // session rows. The timeline scenes are now built on EVERY run (the View tab's
+  // review surface always renders them), so this map must be populated
+  // unconditionally — gating it on the plotting/timeline flags left the View-tab
+  // waterfall with no gap shading whenever plotting was turned off.
   const preAlgoTsByParticipant = new Map<string, bigint[]>();
-  if (options.enablePlotting || options.enableInteractiveTimeline) {
-    for (const row of rows) {
-      const pid = row.participant_id || "unknown";
-      let arr = preAlgoTsByParticipant.get(pid);
-      if (!arr) { arr = []; preAlgoTsByParticipant.set(pid, arr); }
-      arr.push(row.event_timestamp_ns);
-    }
+  for (const row of rows) {
+    const pid = row.participant_id || "unknown";
+    let arr = preAlgoTsByParticipant.get(pid);
+    if (!arr) { arr = []; preAlgoTsByParticipant.set(pid, arr); }
+    arr.push(row.event_timestamp_ns);
   }
 
   if (options.processAppUsage) {
@@ -2621,60 +2622,59 @@ export async function processRawCsvContent(
     emit("output", 1);
   }
 
-  // Timeline viewer (#18) — only built when the option is on. The interactive
-  // waterfall scenes + per-session hover regions are computed once here and feed
-  // two consumers, so they cannot drift: (a) the in-app View tab payload
-  // (`timelineView`), rendered live on the main thread; and (b) a self-contained
-  // HTML export that embeds the same scenes and renders them on a canvas with
-  // the same fit-to-width scroll / hover interactions (timelineViewer.ts). Opt-in (the
-  // scenes carry per-session geometry) so default runs stay light.
-  let timelineView: TimelineViewData | undefined;
+  // Timeline viewer (#18) — the interactive waterfall scenes + per-session hover
+  // regions are computed once here and feed three consumers that cannot drift:
+  // (a) the in-app View-tab payload (`timelineView`), rendered live on the main
+  // thread; (b) the View tab's review surface; and (c) an opt-in self-contained
+  // HTML export rendering the same scenes (timelineViewer.ts). The scenes are
+  // built for every run so the View tab always works; only the heavier HTML
+  // *file* stays gated behind `enableInteractiveTimeline`.
+  const appRowsForTimeline = appRows as Parameters<typeof buildAppTimelineViews>[0];
+  const appViewsFilteredExcluded =
+    options.processAppUsage && appRows.length > 0
+      ? buildAppTimelineViews(
+          appRowsForTimeline,
+          timezone,
+          options,
+          PREPROCESSOR_VERSION,
+          preAlgoTsByParticipant,
+          false,
+        )
+      : [];
+  const appViewsFilteredIncluded =
+    options.processAppUsage && appRows.length > 0
+      ? buildAppTimelineViews(
+          appRowsForTimeline,
+          timezone,
+          options,
+          PREPROCESSOR_VERSION,
+          preAlgoTsByParticipant,
+          true,
+        )
+      : [];
+  const appViews = options.includeFilteredAppUsageInPlots
+    ? appViewsFilteredIncluded
+    : appViewsFilteredExcluded;
+  const screenViews =
+    options.processScreenUsage && screenRows.length > 0
+      ? buildScreenTimelineViews(
+          screenRows as Parameters<typeof buildScreenTimelineViews>[0],
+          timezone,
+          PREPROCESSOR_VERSION,
+          preAlgoTsByParticipant,
+        )
+      : [];
+
+  const timelineView: TimelineViewData = {
+    timezone,
+    includeFilteredAppUsageInPlots: options.includeFilteredAppUsageInPlots,
+    appFilteredIncluded: appViewsFilteredIncluded,
+    appFilteredExcluded: appViewsFilteredExcluded,
+    app: appViews,
+    screen: screenViews,
+  };
+
   if (options.enableInteractiveTimeline) {
-    const appRowsForTimeline = appRows as Parameters<typeof buildAppTimelineViews>[0];
-    const appViewsFilteredExcluded =
-      options.processAppUsage && appRows.length > 0
-        ? buildAppTimelineViews(
-            appRowsForTimeline,
-            timezone,
-            options,
-            PREPROCESSOR_VERSION,
-            preAlgoTsByParticipant,
-            false,
-          )
-        : [];
-    const appViewsFilteredIncluded =
-      options.processAppUsage && appRows.length > 0
-        ? buildAppTimelineViews(
-            appRowsForTimeline,
-            timezone,
-            options,
-            PREPROCESSOR_VERSION,
-            preAlgoTsByParticipant,
-            true,
-          )
-        : [];
-    const appViews = options.includeFilteredAppUsageInPlots
-      ? appViewsFilteredIncluded
-      : appViewsFilteredExcluded;
-    const screenViews =
-      options.processScreenUsage && screenRows.length > 0
-        ? buildScreenTimelineViews(
-            screenRows as Parameters<typeof buildScreenTimelineViews>[0],
-            timezone,
-            PREPROCESSOR_VERSION,
-            preAlgoTsByParticipant,
-          )
-        : [];
-
-    timelineView = {
-      timezone,
-      includeFilteredAppUsageInPlots: options.includeFilteredAppUsageInPlots,
-      appFilteredIncluded: appViewsFilteredIncluded,
-      appFilteredExcluded: appViewsFilteredExcluded,
-      app: appViews,
-      screen: screenViews,
-    };
-
     const viewerHtml = buildTimelineViewerHtml({
       fileName: inputFileName,
       timezone,
@@ -2689,6 +2689,11 @@ export async function processRawCsvContent(
       previewRows: [],
     });
   }
+
+  // Compact per-participant review metrics (totals, per-day rows, day-detail top
+  // apps) — built for every run so the View tab's review surface needs no blob
+  // re-parsing. Uses the same session rows that back the aggregate exports.
+  const reviewSummary = buildReviewSummary(appRows, screenRows);
 
   return {
     inputFileName,
@@ -2706,6 +2711,7 @@ export async function processRawCsvContent(
     duplicateTimestampsCorrected,
     exactDuplicateRowsRemoved,
     timelineView,
+    reviewSummary,
   };
 }
 

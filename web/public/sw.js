@@ -1,4 +1,4 @@
-const CACHE_NAME = "chronicle-local-shell-v2";
+const CACHE_NAME = "chronicle-local-shell-v3";
 const MANIFEST_URL = "./.vite/manifest.json";
 const SHELL_URLS = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg", "./sw.js"];
 const APP_SHELL_FALLBACK = new URL("./index.html", self.location.href).toString();
@@ -50,16 +50,48 @@ async function getManifestUrls() {
   }
 }
 
+async function getExtraPrecacheUrls() {
+  // Worker + WASM chunks that Vite emits but omits from manifest.json. Without
+  // these, a first processing run while offline can't load the matcher worker.
+  try {
+    const response = await fetch("./sw-precache-extra.json", { cache: "no-store" });
+    if (!response.ok) {
+      return [];
+    }
+    const list = await response.json();
+    if (!Array.isArray(list)) {
+      return [];
+    }
+    return list.filter((path) => typeof path === "string").map(toAbsoluteScopeUrl);
+  } catch {
+    return [];
+  }
+}
+
 async function precacheShell() {
   const cache = await caches.open(CACHE_NAME);
   const urls = new Set(SHELL_URLS.map(toAbsoluteScopeUrl));
   (await getManifestUrls()).forEach((url) => urls.add(url));
-  await cache.addAll(Array.from(urls));
+  (await getExtraPrecacheUrls()).forEach((url) => urls.add(url));
+  // Tolerate individual misses (a stale list, a range-only asset) instead of
+  // failing the whole precache the way cache.addAll would.
+  await Promise.all(
+    Array.from(urls).map(async (url) => {
+      try {
+        await cache.add(url);
+      } catch {
+        /* skip this asset; the runtime fetch handler will cache it on demand */
+      }
+    }),
+  );
 }
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(precacheShell());
-  self.skipWaiting();
+  // Only skip waiting AFTER the shell is precached. activate() deletes the old
+  // cache and claims clients, so jumping ahead of precache leaves a window where
+  // the old cache is gone and the new one is incomplete — fatal if the user is
+  // offline during that window.
+  event.waitUntil(precacheShell().then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {

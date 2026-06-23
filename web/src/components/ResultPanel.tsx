@@ -77,7 +77,9 @@ function buildPerFileWarnings(
   displayMasker: DemoDisplayMasker,
 ): string[] {
   const warnings: string[] = [];
-  if (!result.outputs.length) {
+  // A restored-from-cache result intentionally has no artifacts; the counts are
+  // still meaningful, so skip the output-presence/empty-file checks for it.
+  if (!result.restoredWithoutArtifacts && !result.outputs.length) {
     warnings.push("No downloadable outputs.");
   }
   if (result.originalRowCount === 0) {
@@ -91,6 +93,9 @@ function buildPerFileWarnings(
   }
   if (options.processScreenUsage && result.screenRowCount === 0) {
     warnings.push("Zero screen usage rows.");
+  }
+  if (result.restoredWithoutArtifacts) {
+    return warnings;
   }
   result.outputs.forEach((output) => {
     // Plots are PNG charts (no rows); aggregate files can be legitimately empty
@@ -235,6 +240,7 @@ export function ResultPanel({
 
   const showAppColumns = options.processAppUsage;
   const showScreenColumns = options.processScreenUsage;
+  const restoredLightweight = results.some((result) => result.restoredWithoutArtifacts);
 
   return (
     <section className="result-panel" aria-label="Processing results" data-testid="result-panel">
@@ -354,6 +360,12 @@ export function ResultPanel({
         </div>
       </header>
       {error ? <p className="error-text u-mb-3">{error}</p> : null}
+      {restoredLightweight ? (
+        <p className="result-restored-note" data-testid="restored-lightweight-note" role="status">
+          Restored a summary of your last run. Downloads and the interactive timeline aren’t kept
+          across a refresh to save memory — re-process the files to regenerate them.
+        </p>
+      ) : null}
       {batchWarnings.length ? (
         <div className="result-warnings" role="alert">
           <strong>{batchWarnings.length} warning{batchWarnings.length === 1 ? "" : "s"}</strong>
