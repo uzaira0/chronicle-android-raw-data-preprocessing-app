@@ -40,10 +40,11 @@ test.beforeEach(async ({ page }) => {
   assertNoExternalRequests(requestTracker);
 });
 
-test("@smoke boots locally and processes the bundled sample entirely on localhost", async ({
+test("@smoke boots locally and processes a raw file entirely on localhost", async ({
   page,
 }) => {
-  await page.getByTestId("run-sample-button").click();
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await processFiles(page);
   await expect(page.getByTestId("result-panel")).toHaveCount(1);
   await expect(page.getByTestId("result-file-table")).toBeVisible();
   const appCsv = await downloadCsv(page, "download-app-csv");
@@ -1005,7 +1006,8 @@ test("duplicate timestamps stop blocking readiness when correction is enabled", 
 test("results panel is the primary post-processing surface and preview is gone", async ({ page }) => {
   // Disable screen output so the Screen stat is hidden for this case.
   await page.getByTestId("toggle-processScreenUsage").uncheck();
-  await page.getByTestId("run-sample-button").click();
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await processFiles(page);
   const panel = page.getByTestId("result-file-table");
   await expect(panel).toBeVisible();
   await expect(panel.getByTestId("result-row")).toHaveCount(1);
@@ -1027,7 +1029,8 @@ test("results panel is the primary post-processing surface and preview is gone",
 
 test("results panel shows both app and screen stats when output mode is both", async ({ page }) => {
   await page.getByTestId("toggle-processScreenUsage").check();
-  await page.getByTestId("run-sample-button").click();
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
+  await processFiles(page);
   const panel = page.getByTestId("result-file-table");
   await expect(panel).toBeVisible();
   await expect(panel.locator("thead th", { hasText: /^App$/ })).toHaveCount(1);

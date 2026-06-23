@@ -2377,16 +2377,16 @@ export async function processRawCsvContent(
   // transforms rows into session-level output types. Used for data-gap shading
   // in both the app-usage and screen-usage plots, so a gap reflects genuinely
   // absent device activity (all 30+ raw interaction types), not just missing
-  // session rows. Collected whenever plotting is on, independent of which output
-  // kinds are produced (screen-only plotting needs it too).
+  // session rows. The timeline scenes are now built on EVERY run (the View tab's
+  // review surface always renders them), so this map must be populated
+  // unconditionally — gating it on the plotting/timeline flags left the View-tab
+  // waterfall with no gap shading whenever plotting was turned off.
   const preAlgoTsByParticipant = new Map<string, bigint[]>();
-  if (options.enablePlotting || options.enableInteractiveTimeline) {
-    for (const row of rows) {
-      const pid = row.participant_id || "unknown";
-      let arr = preAlgoTsByParticipant.get(pid);
-      if (!arr) { arr = []; preAlgoTsByParticipant.set(pid, arr); }
-      arr.push(row.event_timestamp_ns);
-    }
+  for (const row of rows) {
+    const pid = row.participant_id || "unknown";
+    let arr = preAlgoTsByParticipant.get(pid);
+    if (!arr) { arr = []; preAlgoTsByParticipant.set(pid, arr); }
+    arr.push(row.event_timestamp_ns);
   }
 
   if (options.processAppUsage) {

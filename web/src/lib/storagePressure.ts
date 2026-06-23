@@ -41,6 +41,30 @@ export function isStoragePressureHigh(pressure: StoragePressure): boolean {
   return pressure.supported && pressure.quota > 0 && pressure.ratio >= STORAGE_PRESSURE_THRESHOLD;
 }
 
+type PersistManagerLike = {
+  persist?: () => Promise<boolean>;
+  persisted?: () => Promise<boolean>;
+};
+
+/**
+ * Ask the browser to make this origin's storage persistent so the browser won't
+ * silently evict saved projects + the cached run under disk pressure. Without
+ * this, IndexedDB here is eviction-eligible best-effort storage. Idempotent and
+ * best-effort: unsupported or denied just resolves `false`. Resolves to whether
+ * storage is persistent afterwards.
+ */
+export async function requestPersistentStorage(): Promise<boolean> {
+  if (typeof navigator === "undefined") return false;
+  const storage = (navigator as Navigator & { storage?: PersistManagerLike }).storage;
+  if (!storage?.persist) return false;
+  try {
+    if (storage.persisted && (await storage.persisted())) return true;
+    return await storage.persist();
+  } catch {
+    return false;
+  }
+}
+
 /** Compact human size, e.g. 1.4 GB / 820 MB / 12 KB. */
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";

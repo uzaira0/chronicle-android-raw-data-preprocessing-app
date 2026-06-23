@@ -77,14 +77,22 @@ function CodebookList(): ReactElement {
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<Row[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const loadStarted = useRef(false);
 
   const ensureLoaded = (): void => {
     if (loadStarted.current) return;
     loadStarted.current = true;
     setLoading(true);
+    setError(null);
     fetchCsv(appCodebookUrl)
       .then(setRows)
+      .catch((err) => {
+        // Surface the failure (matching SmallList) and allow a retry instead of
+        // silently leaving an empty table with no explanation.
+        setError(err instanceof Error ? err.message : String(err));
+        loadStarted.current = false;
+      })
       .finally(() => setLoading(false));
   };
 
@@ -119,6 +127,7 @@ function CodebookList(): ReactElement {
         data-testid="applist-codebook-search"
       />
       {loading && !rows ? <p className="review-alist__note">loading codebook…</p> : null}
+      {error ? <p className="review-alist__error">Could not load codebook: {error}</p> : null}
       {q.length >= 2 ? (
         <table className="review-alist__table">
           <tbody>

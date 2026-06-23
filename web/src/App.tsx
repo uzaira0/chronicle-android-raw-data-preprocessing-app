@@ -5,6 +5,7 @@ import {
   discoverTimezones,
   processRawCsv,
   processRawCsvBytesViaPool,
+  warmMatcher,
 } from "@/lib/chronicleMatcher";
 import { BUILD_DATE, BUILD_SHA } from "@/lib/buildInfo";
 import { ensureNotificationPermission, sendNotification } from "@/lib/notification";
@@ -15,6 +16,7 @@ import {
   estimateStoragePressure,
   formatBytes,
   isStoragePressureHigh,
+  requestPersistentStorage,
   type StoragePressure,
 } from "@/lib/storagePressure";
 import {
@@ -178,6 +180,18 @@ export default function App(): ReactElement {
     void refreshStoragePressure();
   }, [refreshStoragePressure]);
 
+  // Ask once for persistent storage so projects + the cached run aren't evicted
+  // under disk pressure (best-effort; ignored where unsupported/denied).
+  useEffect(() => {
+    void requestPersistentStorage();
+  }, []);
+
+  // Warm the matcher worker on boot: faster first run, and a still-live worker
+  // if the network drops before the user processes.
+  useEffect(() => {
+    void warmMatcher();
+  }, []);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -210,6 +224,10 @@ export default function App(): ReactElement {
       .then((record) => {
         if (cancelled || !record) return;
         const restoredOptions = sanitizeOptions(record.options);
+        // Don't let restoring the last run's options re-persist over the user's
+        // most recently saved settings (which may be newer if they edited after
+        // the run without re-processing).
+        skipNextPersist.current = true;
         setOptions(restoredOptions);
         setResults(record.results);
         const timezones = record.discoveredTimezones.length
@@ -260,7 +278,13 @@ export default function App(): ReactElement {
     setResults([]);
     setError(null);
     setProcessExpanded(true);
-    if (clearCachedRun) void clearLastRun().catch(() => {});
+    if (clearCachedRun) {
+      // Clearing the cached run frees storage; re-check pressure so a stale
+      // high-usage banner doesn't linger (consistent with the post-run refresh).
+      void clearLastRun()
+        .catch(() => {})
+        .finally(() => void refreshStoragePressure());
+    }
     if (!files.length) {
       setIsInspectingFiles(false);
       return;

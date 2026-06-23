@@ -2752,7 +2752,10 @@ a:hover {
 }
 
 .review-mcard--a h3 {
-  color: var(--color-amber, #c66a00);
+  /* Darker amber than the #c66a00 bar/legend fill so heading text clears the
+     4.5:1 AA contrast threshold on the white card surface (the bright amber is
+     only 3.84:1 as text). The bars/ticks keep the brighter identity colour. */
+  color: #a85a00;
 }
 
 .review-mrows {

@@ -2,11 +2,13 @@ import type { ReactElement } from "react";
 
 import { CATEGORY_COLORS } from "@/lib/plotGenerator";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
-import type { ReviewParticipantSummary } from "@/lib/types";
+import type { ReviewDayMetrics, ReviewParticipantSummary } from "@/lib/types";
 
 type Props = {
   participant: ReviewParticipantSummary;
   compare?: ReviewParticipantSummary | null;
+  /** Which usage the compare table's A/B/Δ reflect — matches the waterfall Δ strip. */
+  activeType?: "app" | "screen";
   focusedDate: string | null;
   onFocusDate: (date: string) => void;
   masker: DemoDisplayMasker;
@@ -15,6 +17,12 @@ type Props = {
 /** Minutes display: integers past 100, one decimal below (matches the reference). */
 function fmtMin(value: number): string {
   return Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(1);
+}
+
+/** The day's usage minutes for the active view type — keeps the compare table in
+ * lockstep with the waterfall Δ strip (which also switches on view type). */
+function minutesFor(day: ReviewDayMetrics, type: "app" | "screen"): number {
+  return type === "screen" ? day.screenUsageMinutes : day.appUsageMinutes;
 }
 
 function fmtDelta(value: number): string {
@@ -53,12 +61,19 @@ function totalsRows(p: ReviewParticipantSummary): Array<[string, string]> {
 export function ReviewMetricsPanel({
   participant,
   compare,
+  activeType = "app",
   focusedDate,
   onFocusDate,
   masker,
 }: Props): ReactElement {
   const comparing = !!compare;
+  const aByDate = new Map(participant.perDay.map((day) => [day.date, day]));
   const bByDate = new Map((compare?.perDay ?? []).map((day) => [day.date, day]));
+  // Union of both arms' dates so a day present only in arm B (which the waterfall
+  // shows) still gets a table row instead of silently vanishing.
+  const compareDates = comparing
+    ? [...new Set([...aByDate.keys(), ...bByDate.keys()])].sort()
+    : [];
   const topApps = focusedDate ? participant.topAppsByDate[focusedDate] : undefined;
 
   const deltaTotals = compare
@@ -144,32 +159,38 @@ export function ReviewMetricsPanel({
             </tr>
           </thead>
           <tbody>
-            {participant.perDay.map((day) => {
-              const isGap = day.flags.includes("no_usage_day");
-              const rowClass =
-                (focusedDate === day.date ? "is-focused " : "") + (isGap ? "is-gap" : "");
-              if (comparing) {
-                const b = bByDate.get(day.date);
-                const bMin = b?.appUsageMinutes ?? 0;
-                const delta = bMin - day.appUsageMinutes;
-                return (
-                  <tr key={day.date} className={rowClass} onClick={() => onFocusDate(day.date)}>
-                    <td>{masker.text(day.date).slice(5)}</td>
-                    <td>{fmtMin(day.appUsageMinutes)}</td>
-                    <td>{fmtMin(bMin)}</td>
-                    <td className={deltaClass(delta)}>{fmtDelta(delta)}</td>
-                  </tr>
-                );
-              }
-              return (
-                <tr key={day.date} className={rowClass} onClick={() => onFocusDate(day.date)}>
-                  <td>{masker.text(day.date).slice(5)}</td>
-                  <td>{fmtMin(day.appUsageMinutes)}</td>
-                  <td>{day.screenUsageMinutes > 0 ? fmtMin(day.screenUsageMinutes) : "—"}</td>
-                  <td>{day.appSessionCount}</td>
-                </tr>
-              );
-            })}
+            {comparing
+              ? compareDates.map((date) => {
+                  const a = aByDate.get(date);
+                  const b = bByDate.get(date);
+                  const aMin = a ? minutesFor(a, activeType) : 0;
+                  const bMin = b ? minutesFor(b, activeType) : 0;
+                  const delta = bMin - aMin;
+                  const isGap = a?.flags.includes("no_usage_day") ?? false;
+                  const rowClass =
+                    (focusedDate === date ? "is-focused " : "") + (isGap ? "is-gap" : "");
+                  return (
+                    <tr key={date} className={rowClass} onClick={() => onFocusDate(date)}>
+                      <td>{masker.text(date).slice(5)}</td>
+                      <td>{fmtMin(aMin)}</td>
+                      <td>{fmtMin(bMin)}</td>
+                      <td className={deltaClass(delta)}>{fmtDelta(delta)}</td>
+                    </tr>
+                  );
+                })
+              : participant.perDay.map((day) => {
+                  const isGap = day.flags.includes("no_usage_day");
+                  const rowClass =
+                    (focusedDate === day.date ? "is-focused " : "") + (isGap ? "is-gap" : "");
+                  return (
+                    <tr key={day.date} className={rowClass} onClick={() => onFocusDate(day.date)}>
+                      <td>{masker.text(day.date).slice(5)}</td>
+                      <td>{fmtMin(day.appUsageMinutes)}</td>
+                      <td>{day.screenUsageMinutes > 0 ? fmtMin(day.screenUsageMinutes) : "—"}</td>
+                      <td>{day.appSessionCount}</td>
+                    </tr>
+                  );
+                })}
           </tbody>
         </table>
       </div>

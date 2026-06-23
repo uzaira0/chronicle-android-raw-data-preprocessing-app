@@ -60,16 +60,36 @@ function waterfallMeta(view: TimelineParticipantView): WaterfallSceneMeta | unde
   return view.scene.meta?.kind === "waterfall" ? view.scene.meta : undefined;
 }
 
+/** Binary search for the row whose [y, y+h) band contains `centerY`. Rows are
+ * sorted ascending and non-overlapping, so this is O(log N) per region instead
+ * of the O(N) linear scan that made drawer-open O(regions × rows). */
+function findRowByY(
+  rows: ReadonlyArray<{ y: number; h: number; date: string }>,
+  centerY: number,
+): { date: string } | undefined {
+  let lo = 0;
+  let hi = rows.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const r = rows[mid]!;
+    if (centerY < r.y) hi = mid - 1;
+    else if (centerY >= r.y + r.h) lo = mid + 1;
+    else return r;
+  }
+  return undefined;
+}
+
 /** Group a view's session/marker regions by the date row they fall in. */
 function laneItemsByDate(view: TimelineParticipantView): Map<string, LaneItem[]> {
   const byDate = new Map<string, LaneItem[]>();
   const meta = waterfallMeta(view);
   if (!meta) return byDate;
+  const rows = [...meta.rows].sort((a, b) => a.y - b.y);
   for (const region of view.regions) {
     const kind = region.kind ?? "session";
     if (kind !== "session" && kind !== "marker") continue;
     const centerY = region.y + region.h / 2;
-    const row = meta.rows.find((r) => centerY >= r.y && centerY < r.y + r.h);
+    const row = findRowByY(rows, centerY);
     if (!row) continue;
     const items = byDate.get(row.date) ?? [];
     items.push({
@@ -98,12 +118,16 @@ function dayOfWeek(iso: string): string {
  * @param bView   Arm-B single-arm waterfall view (the compared run).
  * @param perDayA Arm-A usage minutes by date — drives the Δ strip.
  * @param perDayB Arm-B usage minutes by date.
+ * @param formatDate Gutter label for a date. Defaults to the compact "MM-DD";
+ *   the caller passes a demo-masking-aware formatter so dates don't leak in demo
+ *   mode (the post-build text masker can't catch a year-less "MM-DD" string).
  */
 export function buildComparisonWaterfallScene(
   aView: TimelineParticipantView,
   bView: TimelineParticipantView,
   perDayA: Map<string, number>,
   perDayB: Map<string, number>,
+  formatDate: (iso: string) => string = (iso) => (iso.length >= 5 ? iso.slice(5) : iso),
 ): TimelineParticipantView {
   const geo = WATERFALL_GEOMETRY;
   const aByDate = laneItemsByDate(aView);
@@ -191,7 +215,7 @@ export function buildComparisonWaterfallScene(
       type: "text",
       x: geo.gutter - 10,
       y: rowY + 14,
-      text: date.length >= 5 ? date.slice(5) : date,
+      text: formatDate(date),
       fill: "#4d5763",
       font: FONT_DATE,
       anchor: "end",

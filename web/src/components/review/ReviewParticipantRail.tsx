@@ -36,6 +36,7 @@ export function ReviewParticipantRail({
           type="search"
           className="input review-rail__search"
           placeholder="search participants…"
+          aria-label="Search participants"
           autoComplete="off"
           value={query}
           onChange={(event) => setQuery(event.target.value)}

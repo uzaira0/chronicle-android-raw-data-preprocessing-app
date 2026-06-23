@@ -109,7 +109,13 @@ export async function loadLastRun(): Promise<LastRunRecord | undefined> {
     await clearLastRun().catch(() => {});
     return undefined;
   }
-  if (!record || record.schemaVersion !== SCHEMA_VERSION || !record.results.length) {
+  if (!record) {
+    return undefined;
+  }
+  if (record.schemaVersion !== SCHEMA_VERSION || !record.results.length) {
+    // Stale (old schema) or empty record: clear it so it doesn't sit in IndexedDB
+    // forever being re-read and counting against quota on every boot.
+    await clearLastRun().catch(() => {});
     return undefined;
   }
   return record;

@@ -168,6 +168,13 @@ export function ViewPanel({
     }
     return map;
   };
+  // Gutter date label that honours demo masking: in demo mode the masker
+  // rewrites the ISO date to a stable token; otherwise show the compact "MM-DD".
+  // (The post-build text masker can't catch a year-less "MM-DD" on its own.)
+  const formatRowDate = (iso: string): string => {
+    const masked = displayMasker.text(iso);
+    return masked === iso ? (iso.length >= 5 ? iso.slice(5) : iso) : masked;
+  };
   const comparisonView: TimelineParticipantView | null =
     armB && rawView && bRawView
       ? sanitizeDemoView(
@@ -176,6 +183,7 @@ export function ViewPanel({
             bRawView,
             perDayMinutes(activeParticipant, activeType),
             perDayMinutes(compareParticipant, activeType),
+            formatRowDate,
           ),
           displayMasker,
         )
@@ -281,10 +289,11 @@ export function ViewPanel({
               </span>
             </label>
           ) : null}
-          <div className="review-view__subtabs" role="tablist" aria-label="Review view">
+          <div className="review-view__subtabs" role="group" aria-label="Review view">
             <button
               type="button"
               className={`review-view__subtab${subView === "timeline" ? " is-active" : ""}`}
+              aria-pressed={subView === "timeline"}
               onClick={() => setSubView("timeline")}
               data-testid="review-subtab-timeline"
             >
@@ -293,6 +302,7 @@ export function ViewPanel({
             <button
               type="button"
               className={`review-view__subtab${subView === "applists" ? " is-active" : ""}`}
+              aria-pressed={subView === "applists"}
               onClick={() => setSubView("applists")}
               data-testid="review-subtab-applists"
             >
@@ -390,6 +400,7 @@ export function ViewPanel({
           <ReviewMetricsPanel
             participant={activeParticipant}
             compare={compareParticipant}
+            activeType={activeType}
             focusedDate={focusedDate}
             onFocusDate={(date) => setFocusedDate((current) => (current === date ? null : date))}
             masker={displayMasker}
