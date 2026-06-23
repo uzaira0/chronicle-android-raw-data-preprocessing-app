@@ -1,34 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactElement } from "react";
 
-import { Combobox } from "@/components/Combobox";
 import type { Primitive, Scene, WaterfallSceneMeta } from "@/lib/plotScene";
-import type {
-  ProcessedFileResult,
-  TimelineParticipantView,
-  TimelineViewData,
-} from "@/lib/types";
+import type { TimelineParticipantView } from "@/lib/types";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
 
-type Props = {
-  results: ProcessedFileResult[];
-  displayMasker: DemoDisplayMasker;
-  includeFilteredAppUsageInPlots: boolean;
-};
-type ViewType = "app" | "screen";
 type RowTransform = { zoom: number; offset: number };
 type RowTransforms = Record<number, RowTransform>;
 
 const MAX_ROW_ZOOM = 24;
-
-function appViewsFor(data: TimelineViewData, includeFiltered: boolean): TimelineParticipantView[] {
-  if (includeFiltered) return data.appFilteredIncluded ?? data.app;
-  return data.appFilteredExcluded ?? data.app;
-}
-
-function hasAppViews(data: TimelineViewData): boolean {
-  return data.app.length > 0 || !!data.appFilteredIncluded?.length || !!data.appFilteredExcluded?.length;
-}
 
 function rowAtY(meta: WaterfallSceneMeta | undefined, y: number): number | null {
   if (!meta) return null;
@@ -161,7 +141,9 @@ function renderScene(ctx: CanvasRenderingContext2D, scene: Scene, transforms: Ro
 
 type Hover = { left: number; top: number; title: string; lines: string[] };
 
-function sanitizeDemoView(
+/** Apply demo masking to a participant view's scene text, row dates, and hover
+ * regions when demo mode hides metadata. A no-op otherwise. */
+export function sanitizeDemoView(
   view: TimelineParticipantView,
   masker: DemoDisplayMasker,
 ): TimelineParticipantView {
@@ -197,7 +179,7 @@ function sanitizeDemoView(
 
 /** One participant's bare waterfall timeline rendered fit-to-width on a tall
  * canvas. The page scrolls vertically; row-level zoom affects x only. */
-function InteractiveScene({
+export function InteractiveScene({
   view,
   context,
 }: {
@@ -376,132 +358,5 @@ function InteractiveScene({
         ) : null}
       </div>
     </figure>
-  );
-}
-
-export function TimelineViewPanel({
-  results,
-  includeFilteredAppUsageInPlots,
-  displayMasker,
-}: Props): ReactElement {
-  const [showFilteredUsage, setShowFilteredUsage] = useState(includeFilteredAppUsageInPlots);
-  const [fileQuery, setFileQuery] = useState<string | null>(null);
-  const filesWithView = results.filter(
-    (r): r is ProcessedFileResult & { timelineView: TimelineViewData } =>
-      !!r.timelineView && (hasAppViews(r.timelineView) || r.timelineView.screen.length > 0),
-  );
-  const fileChoices = filesWithView.map((entry) => ({
-    source: entry.inputFileName,
-    label: displayMasker.fileName(entry.inputFileName),
-  }));
-
-  const [selectedFile, setSelectedFile] = useState<string>("");
-  const [selectedType, setSelectedType] = useState<ViewType>("app");
-
-  useEffect(() => {
-    setShowFilteredUsage(includeFilteredAppUsageInPlots);
-  }, [includeFilteredAppUsageInPlots]);
-
-  if (filesWithView.length === 0) {
-    return (
-      <section className="timeline-view" aria-label="Timeline viewer" data-testid="timeline-view">
-        <p className="timeline-view__empty" data-testid="timeline-view-empty">
-          No timeline to view yet. Enable <strong>Timeline viewer</strong> in Settings and process a
-          file. The interactive waterfall timelines appear here.
-        </p>
-      </section>
-    );
-  }
-
-  // Resolve the effective file (fall back to the first available) so the panel
-  // stays valid when results change or nothing has been picked yet.
-  const activeFile =
-    filesWithView.find((r) => r.inputFileName === selectedFile) ?? filesWithView[0]!;
-  const activeAppViews = appViewsFor(activeFile.timelineView, showFilteredUsage);
-  const availableTypes: ViewType[] = [
-    ...(hasAppViews(activeFile.timelineView) ? (["app"] as const) : []),
-    ...(activeFile.timelineView.screen.length > 0 ? (["screen"] as const) : []),
-  ];
-  const activeType: ViewType = availableTypes.includes(selectedType)
-    ? selectedType
-    : availableTypes[0]!;
-  const views: TimelineParticipantView[] =
-    activeType === "app" ? activeAppViews : activeFile.timelineView.screen;
-
-  const typeLabel: Record<ViewType, string> = { app: "App usage", screen: "Screen usage" };
-  const filteredUsageLabel = showFilteredUsage
-    ? "Filtered usage included"
-    : "Filtered usage excluded";
-  const activeFileLabel = displayMasker.fileName(activeFile.inputFileName);
-  const fileInputValue = fileQuery ?? activeFileLabel;
-  const onFileInputChange = (next: string): void => {
-    setFileQuery(next);
-    const match = fileChoices.find((entry) => entry.label === next);
-    if (match) {
-      setSelectedFile(match.source);
-      setFileQuery(null);
-    }
-  };
-
-  const displayViews = views.map((view) => sanitizeDemoView(view, displayMasker));
-  const viewContextLine = `${typeLabel[activeType]} · ${filteredUsageLabel} · ${displayMasker.timezone(activeFile.timelineView.timezone)}`;
-
-  return (
-    <section className="timeline-view" aria-label="Timeline viewer" data-testid="timeline-view">
-      <div className="timeline-view__toolbar">
-        <div className="timeline-view__controls">
-          <label className="timeline-view__field timeline-view__field--file">
-            <span>File</span>
-            <Combobox
-              testId="timeline-view-file"
-              value={fileInputValue}
-              onChange={onFileInputChange}
-              options={fileChoices.map((entry) => entry.label)}
-              placeholder="Search files"
-              ariaLabel="Timeline file"
-              maxResults={50}
-              selectOnFocus
-            />
-          </label>
-          <label className="timeline-view__field">
-            <span>View</span>
-            <select
-              data-testid="timeline-view-type"
-              value={activeType}
-              onChange={(event) => setSelectedType(event.target.value as ViewType)}
-            >
-              {availableTypes.map((type) => (
-                <option key={type} value={type}>
-                  {typeLabel[type]}
-                </option>
-              ))}
-            </select>
-          </label>
-          {activeType === "app" ? (
-            <label className="timeline-view__field timeline-view__field--toggle">
-              <span>Filtered usage</span>
-              <span className="timeline-view__toggle">
-                <input
-                  type="checkbox"
-                  data-testid="timeline-view-filtered-toggle"
-                  checked={showFilteredUsage}
-                  onChange={(event) => setShowFilteredUsage(event.target.checked)}
-                />
-                <span>{showFilteredUsage ? "Shown" : "Hidden"}</span>
-              </span>
-            </label>
-          ) : null}
-        </div>
-        <p className="timeline-view__hint">Shift scroll a row to zoom · drag zoomed rows · double click to reset</p>
-      </div>
-
-      {displayViews.map((view) => (
-        <InteractiveScene
-          key={`${activeFile.inputFileName}:${activeType}:${view.participantId}`}
-          view={view}
-          context={viewContextLine}
-        />
-      ))}
-    </section>
   );
 }

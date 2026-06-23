@@ -40,10 +40,11 @@ test.beforeEach(async ({ page }) => {
   assertNoExternalRequests(requestTracker);
 });
 
-test("@smoke boots locally and processes the bundled sample entirely on localhost", async ({
+test("@smoke boots locally and processes a raw file entirely on localhost", async ({
   page,
 }) => {
-  await page.getByTestId("run-sample-button").click();
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await processFiles(page);
   await expect(page.getByTestId("result-panel")).toHaveCount(1);
   await expect(page.getByTestId("result-file-table")).toBeVisible();
   const appCsv = await downloadCsv(page, "download-app-csv");
@@ -496,7 +497,7 @@ test("@smoke the exported HTML timeline viewer runs its inlined interactivity of
   assertNoExternalRequests(requestTracker);
 });
 
-test("View tab renders the interactive timeline with file and type dropdowns (#18)", async ({
+test("View tab renders the review surface (rail, metrics, timeline) with file and type dropdowns (#18)", async ({
   page,
 }, testInfo) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
@@ -623,6 +624,51 @@ test("View tab renders the interactive timeline with file and type dropdowns (#1
   await expect(tooltip).toBeVisible();
   await expect(tooltip).toContainText(target.title);
   await expect(tooltip).toContainText("→");
+
+  // New review panes render alongside the timeline (network-free).
+  await expect(page.getByTestId("review-rail")).toBeVisible();
+  await expect(page.getByTestId("review-rail-row").first()).toContainText("P01");
+  await expect(page.getByTestId("review-metrics")).toBeVisible();
+  const dayRows = page.getByTestId("review-day-table").locator("tbody tr");
+  await expect(dayRows.first()).toBeVisible();
+  await dayRows.first().click();
+  await expect(page.getByTestId("review-day-detail")).toBeVisible();
+
+  assertNoExternalRequests(requestTracker);
+});
+
+test("View tab compares the run against a second config (Arm B) in-browser", async ({ page }) => {
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
+  await processFiles(page);
+
+  await page.getByRole("tab", { name: /View/i }).click();
+  await expect(page.getByTestId("timeline-view")).toBeVisible();
+
+  // Open the Arm-B drawer and re-run the same file under it.
+  await page.getByTestId("review-compare-toggle").click();
+  const drawer = page.getByTestId("review-compare-drawer");
+  await expect(drawer).toBeVisible();
+  // Change a high-impact option within the drawer (scoped so it does not collide
+  // with the Settings-tab control of the same testid). A huge minimum usage
+  // duration blanks every short session, so Arm B differs from Arm A.
+  await drawer.getByTestId("minimum-usage-duration-input").fill("999999");
+  await page.getByTestId("review-run-comparison").click();
+
+  // B and Δ metric cards appear; the day table gains A/B/Δ columns.
+  await expect(page.getByTestId("review-mcard-b")).toBeVisible();
+  await expect(page.getByTestId("review-mcard-delta")).toBeVisible();
+  await expect(page.getByTestId("review-day-table").locator("thead th")).toHaveText([
+    "DAY",
+    "A",
+    "B",
+    "Δ",
+  ]);
+
+  // The timeline interleaves into ONE combined A/B waterfall (legend + a single
+  // scene), not two stacked timelines.
+  await expect(page.getByTestId("review-compare-legend")).toBeVisible();
+  await expect(page.getByTestId("timeline-view-participant-title")).toHaveCount(1);
+
   assertNoExternalRequests(requestTracker);
 });
 
@@ -646,6 +692,11 @@ test("restores last processed results after refresh and collapses process detail
   await expect(page.getByTestId("result-panel")).toContainText("1 file processed");
   await expect(page.locator("#process-details")).toBeHidden();
   await expect(page.getByRole("button", { name: "Show processing details" })).toBeVisible();
+  // The restore is lightweight: counts come back, but the heavy artifacts are
+  // not persisted across a refresh (so a big batch can't exhaust memory/quota
+  // on the next boot). The note explains it and downloads are disabled.
+  await expect(page.getByTestId("restored-lightweight-note")).toBeVisible();
+  await expect(page.getByTestId("download-all-zip")).toBeDisabled();
   assertNoExternalRequests(requestTracker);
 });
 
@@ -957,7 +1008,8 @@ test("duplicate timestamps stop blocking readiness when correction is enabled", 
 test("results panel is the primary post-processing surface and preview is gone", async ({ page }) => {
   // Disable screen output so the Screen stat is hidden for this case.
   await page.getByTestId("toggle-processScreenUsage").uncheck();
-  await page.getByTestId("run-sample-button").click();
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await processFiles(page);
   const panel = page.getByTestId("result-file-table");
   await expect(panel).toBeVisible();
   await expect(panel.getByTestId("result-row")).toHaveCount(1);
@@ -979,7 +1031,8 @@ test("results panel is the primary post-processing surface and preview is gone",
 
 test("results panel shows both app and screen stats when output mode is both", async ({ page }) => {
   await page.getByTestId("toggle-processScreenUsage").check();
-  await page.getByTestId("run-sample-button").click();
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
+  await processFiles(page);
   const panel = page.getByTestId("result-file-table");
   await expect(panel).toBeVisible();
   await expect(panel.locator("thead th", { hasText: /^App$/ })).toHaveCount(1);

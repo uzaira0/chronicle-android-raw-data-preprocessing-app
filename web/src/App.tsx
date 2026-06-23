@@ -5,10 +5,20 @@ import {
   discoverTimezones,
   processRawCsv,
   processRawCsvBytesViaPool,
+  warmMatcher,
 } from "@/lib/chronicleMatcher";
 import { BUILD_DATE, BUILD_SHA } from "@/lib/buildInfo";
 import { ensureNotificationPermission, sendNotification } from "@/lib/notification";
 import { clearLastRun, loadLastRun, saveLastRun } from "@/lib/lastRunStore";
+import { computeSafeConcurrency, readDeviceMemory } from "@/lib/concurrency";
+import { clearCachedRun as clearCachedRunData } from "@/lib/localDataReset";
+import {
+  estimateStoragePressure,
+  formatBytes,
+  isStoragePressureHigh,
+  requestPersistentStorage,
+  type StoragePressure,
+} from "@/lib/storagePressure";
 import {
   hasPersistedOptions,
   persistOptions,
@@ -42,7 +52,7 @@ import { ScreenDetectionCard } from "@/components/ScreenDetectionCard";
 import { InteractionSemanticsCard } from "@/components/InteractionSemanticsCard";
 import { PerformanceCard } from "@/components/PerformanceCard";
 import { ResultPanel } from "@/components/ResultPanel";
-import { TimelineViewPanel } from "@/components/TimelineViewPanel";
+import { ViewPanel } from "@/components/ViewPanel";
 import type { FileProgress } from "@/components/ProgressList";
 import { Toast } from "@/components/Toast";
 import { WorkflowNav, type WorkflowTab } from "@/components/WorkflowNav";
@@ -89,44 +99,6 @@ const WORKFLOW_STORAGE_KEY = "chronicle-web.activeWorkflow";
 
 function isWorkflowTab(value: string | null): value is WorkflowTab {
   return value === "settings" || value === "files" || value === "process" || value === "view";
-}
-
-/**
- * Compute a memory-safe parallel worker count.
- *
- * Each in-flight worker holds, at peak, roughly a 5–10× expansion of its
- * file's input bytes (parsed `CanonicalRow[]`, intermediate matcher buffers,
- * codebook-enriched rows, and a Blob being assembled). Hardcoding 8 workers
- * regardless of input size is what crashes the tab on a 540 MB batch — the
- * sum of in-flight expansions exceeds Chrome's renderer ceiling.
- *
- * Strategy:
- *   - If the user pinned `parallelMaxWorkers`, respect it.
- *   - Otherwise budget ~600 MB for in-flight worker state and divide by an
- *     8× amplification of the average file size.
- *   - Clamp to [1, hardwareConcurrency/2] and never exceed file count.
- */
-const PEAK_AMPLIFICATION = 8;
-const IN_FLIGHT_BUDGET_BYTES = 600 * 1024 * 1024;
-
-function computeSafeConcurrency(input: {
-  fileCount: number;
-  totalInputBytes: number;
-  userCap: number | undefined;
-  hardwareConcurrency: number | undefined;
-}): number {
-  const { fileCount, totalInputBytes, userCap, hardwareConcurrency } = input;
-  if (fileCount <= 1) return 1;
-  if (userCap && userCap > 0) {
-    return Math.max(1, Math.min(fileCount, Math.floor(userCap)));
-  }
-  const cores = Math.max(1, Math.floor((hardwareConcurrency ?? 2) / 2));
-  const avgBytes = totalInputBytes > 0 ? totalInputBytes / fileCount : 1024;
-  const memoryCap = Math.max(
-    1,
-    Math.floor(IN_FLIGHT_BUDGET_BYTES / Math.max(1, avgBytes * PEAK_AMPLIFICATION)),
-  );
-  return Math.max(1, Math.min(fileCount, cores, memoryCap));
 }
 
 function estimatedFilePercent(current: FileProgress): number {
@@ -178,8 +150,19 @@ export default function App(): ReactElement {
   });
   const [processExpanded, setProcessExpanded] = useState(true);
   const [hideDemoMetadata, setHideDemoMetadata] = useState(() => readDemoDisplayEnabled());
+  const [storagePressure, setStoragePressure] = useState<StoragePressure | null>(null);
+  const [storagePressureDismissed, setStoragePressureDismissed] = useState(false);
   const startTimeRef = useRef<number>(0);
   const demoDisplay = createDemoDisplayMasker(hideDemoMetadata);
+
+  // Sample storage usage on boot and whenever asked (after a run / a clear), so
+  // the banner can warn before a write fails. A fresh high reading re-arms the
+  // banner even if the user dismissed an earlier one.
+  const refreshStoragePressure = useCallback(async (): Promise<void> => {
+    const pressure = await estimateStoragePressure();
+    setStoragePressure(pressure);
+    if (isStoragePressureHigh(pressure)) setStoragePressureDismissed(false);
+  }, []);
 
   useEffect(() => {
     if (skipNextPersist.current) {
@@ -192,6 +175,22 @@ export default function App(): ReactElement {
   useEffect(() => {
     persistDemoDisplayEnabled(hideDemoMetadata);
   }, [hideDemoMetadata]);
+
+  useEffect(() => {
+    void refreshStoragePressure();
+  }, [refreshStoragePressure]);
+
+  // Ask once for persistent storage so projects + the cached run aren't evicted
+  // under disk pressure (best-effort; ignored where unsupported/denied).
+  useEffect(() => {
+    void requestPersistentStorage();
+  }, []);
+
+  // Warm the matcher worker on boot: faster first run, and a still-live worker
+  // if the network drops before the user processes.
+  useEffect(() => {
+    void warmMatcher();
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -225,6 +224,10 @@ export default function App(): ReactElement {
       .then((record) => {
         if (cancelled || !record) return;
         const restoredOptions = sanitizeOptions(record.options);
+        // Don't let restoring the last run's options re-persist over the user's
+        // most recently saved settings (which may be newer if they edited after
+        // the run without re-processing).
+        skipNextPersist.current = true;
         setOptions(restoredOptions);
         setResults(record.results);
         const timezones = record.discoveredTimezones.length
@@ -253,7 +256,10 @@ export default function App(): ReactElement {
         });
       })
       .catch(() => {
-        // IndexedDB can be unavailable or evicted; processing still works.
+        // IndexedDB can be unavailable or evicted, or a record could fail to
+        // rehydrate; processing still works. Self-heal so a bad record can't
+        // wedge every future boot.
+        void clearLastRun().catch(() => {});
       });
     return () => {
       cancelled = true;
@@ -272,7 +278,13 @@ export default function App(): ReactElement {
     setResults([]);
     setError(null);
     setProcessExpanded(true);
-    if (clearCachedRun) void clearLastRun().catch(() => {});
+    if (clearCachedRun) {
+      // Clearing the cached run frees storage; re-check pressure so a stale
+      // high-usage banner doesn't linger (consistent with the post-run refresh).
+      void clearLastRun()
+        .catch(() => {})
+        .finally(() => void refreshStoragePressure());
+    }
     if (!files.length) {
       setIsInspectingFiles(false);
       return;
@@ -319,20 +331,54 @@ export default function App(): ReactElement {
     onFilesChange(record.includesFiles ? record.rawFiles.map(storedFileToFile) : []);
   };
 
-  const buildSupportFiles = async (): Promise<BrowserSupportFiles> => ({
-    ...(options.useFilterFile && filterFile
+  const buildSupportFilesForOptions = async (
+    forOptions: BrowserProcessingOptions,
+  ): Promise<BrowserSupportFiles> => ({
+    ...(forOptions.useFilterFile && filterFile
       ? { filterFile: await readSupportFile(filterFile) }
       : {}),
-    ...(options.useAppsForcingScreenOpenFile && appsForcingScreenOpenFile
+    ...(forOptions.useAppsForcingScreenOpenFile && appsForcingScreenOpenFile
       ? { appsForcingScreenOpenFile: await readSupportFile(appsForcingScreenOpenFile) }
       : {}),
-    ...(options.useBackgroundAppsFile && backgroundAppsFile
+    ...(forOptions.useBackgroundAppsFile && backgroundAppsFile
       ? { backgroundAppsFile: await readSupportFile(backgroundAppsFile) }
       : {}),
-    ...(options.useAppCodebook && appCodebookFile
+    ...(forOptions.useAppCodebook && appCodebookFile
       ? { appCodebookFile: await readSupportFile(appCodebookFile) }
       : {}),
   });
+
+  const buildSupportFiles = (): Promise<BrowserSupportFiles> =>
+    buildSupportFilesForOptions(options);
+
+  /**
+   * Re-process a single already-uploaded file under a different config (the
+   * View tab's "Arm B"), reusing the same support-file resolution as a normal
+   * run. Returns the fresh result (with its own reviewSummary + timeline); the
+   * caller diffs it against the current run. Throws if the file is no longer
+   * loaded so the View tab can prompt the user to re-add it.
+   */
+  const runComparison = useCallback(
+    async (
+      fileName: string,
+      overrides: Partial<BrowserProcessingOptions>,
+    ): Promise<ProcessedFileResult> => {
+      const file = uploadedFiles.find((candidate) => candidate.name === fileName);
+      if (!file) {
+        throw new Error(
+          "The raw file for this run is no longer loaded. Re-add it in the Files tab to compare.",
+        );
+      }
+      const armBOptions = sanitizeOptions({ ...options, ...overrides });
+      const userSupportFiles = await buildSupportFilesForOptions(armBOptions);
+      const supportFiles = await resolveDefaultSupportFiles(armBOptions, userSupportFiles);
+      const text = await file.text();
+      return processRawCsv(file.name, text, armBOptions, supportFiles, getInjectedRuntime());
+    },
+    // filterFile et al. are read inside buildSupportFilesForOptions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [uploadedFiles, options, filterFile, appsForcingScreenOpenFile, backgroundAppsFile, appCodebookFile],
+  );
 
   const discoverAvailableTimezones = async () => {
     if (!uploadedFiles.length) {
@@ -389,6 +435,7 @@ export default function App(): ReactElement {
             totalInputBytes,
             userCap: options.parallelMaxWorkers,
             hardwareConcurrency: typeof navigator !== "undefined" ? navigator.hardwareConcurrency : undefined,
+            deviceMemory: readDeviceMemory(),
           })
         : 1;
       // Resolve bundled-default support files once on the main thread so
@@ -453,9 +500,17 @@ export default function App(): ReactElement {
           options,
           results: successful,
           discoveredTimezones: nextTimezones,
-        }).catch(() => {});
+        })
+          .catch(() => {
+            // saveLastRun already self-clears a failed (e.g. quota) write; surface
+            // the pressure so the user can free space.
+          })
+          .finally(() => {
+            void refreshStoragePressure();
+          });
       } else {
         void clearLastRun().catch(() => {});
+        void refreshStoragePressure();
       }
 
       // Surface a top-level error banner only when every file failed — lets a
@@ -528,6 +583,45 @@ export default function App(): ReactElement {
             </p>
           </div>
         </header>
+
+        {storagePressure && isStoragePressureHigh(storagePressure) && !storagePressureDismissed ? (
+          <div className="storage-pressure" role="status" data-testid="storage-pressure">
+            <span className="storage-pressure__text">
+              <strong>
+                Browser storage is {Math.round(storagePressure.ratio * 100)}% full
+              </strong>{" "}
+              ({formatBytes(storagePressure.usage)} of {formatBytes(storagePressure.quota)}).
+              Export a backup of anything you need, then clear the cached last run to free space —
+              otherwise saving a large run may fail.
+            </span>
+            <span className="storage-pressure__actions">
+              <button
+                type="button"
+                className="btn btn--secondary"
+                data-testid="storage-pressure-clear"
+                onClick={() => {
+                  void clearCachedRunData()
+                    .then(() => {
+                      setToast({ message: "Cleared the cached last run.", isError: false });
+                    })
+                    .finally(() => {
+                      void refreshStoragePressure();
+                    });
+                }}
+              >
+                Clear cached run
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                data-testid="storage-pressure-dismiss"
+                onClick={() => setStoragePressureDismissed(true)}
+              >
+                Dismiss
+              </button>
+            </span>
+          </div>
+        ) : null}
 
         <WorkflowNav active={activeWorkflow} onSelect={setActiveWorkflow} />
 
@@ -686,8 +780,11 @@ export default function App(): ReactElement {
             aria-labelledby="view-tab"
             hidden={activeWorkflow !== "view"}
           >
-            <TimelineViewPanel
+            <ViewPanel
               results={results}
+              options={options}
+              uploadedFileNames={uploadedFiles.map((file) => file.name)}
+              onRunComparison={runComparison}
               displayMasker={demoDisplay}
               includeFilteredAppUsageInPlots={options.includeFilteredAppUsageInPlots}
             />

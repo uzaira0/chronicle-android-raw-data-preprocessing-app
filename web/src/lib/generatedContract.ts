@@ -271,19 +271,19 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
 export const BROWSER_OPTION_TOOLTIPS = {
   studyName: {
     title: "Study name",
-    body: "Your label for this study. Written into the `study_name` column of every output row. This is your own naming, not the `study_id` column from the raw data. That is preserved unchanged.",
+    body: "Your label for this study. Written into the `study_name` column of every output row. This is your own naming, not the `study_id` column from the raw data — that is preserved unchanged.",
   },
   processAppUsage: {
     title: "App usage output",
-    body: "Run the app usage algorithm and include the app usage CSV in the output ZIP. Each session spans from an Activity Resumed to its matching stop event.",
+    body: "Run the app-usage algorithm and include the app-usage CSV in the output ZIP. Each session spans from an Activity Resumed to its matching stop event.",
   },
   processScreenUsage: {
     title: "Screen usage output",
-    body: "Derive screen usage sessions and include the screen usage CSV in the output ZIP. Sessions are inferred from Screen Interactive and Screen Non Interactive events.",
+    body: "Derive screen-usage sessions and include the screen-usage CSV in the output ZIP. Sessions are inferred from Screen Interactive / Screen Non-Interactive events.",
   },
   allowStopEventReuse: {
-    title: "Allow stop event reuse",
-    body: "Lets a single stop event close multiple overlapping sessions. Off by default. Stop events are consumed once.",
+    title: "Allow stop-event reuse",
+    body: "Lets a single stop event close multiple overlapping sessions. Off by default — stop events are consumed once.",
   },
   useActivityStoppedAsFallback: {
     title: "Use Activity Stopped fallback",
@@ -291,7 +291,7 @@ export const BROWSER_OPTION_TOOLTIPS = {
   },
   applyThresholdToFallback: {
     title: "Apply threshold to fallback",
-    body: "When the fallback path is used and the implied session is longer than the max threshold above, treat it as missing end of usage instead of a real session.",
+    body: "When the fallback path is used and the implied session is longer than the max threshold above, treat it as a missing-end-of-usage instead of a real session.",
   },
   longDurationThresholdHours: {
     title: "Max session duration threshold",
@@ -303,8 +303,8 @@ export const BROWSER_OPTION_TOOLTIPS = {
     body: "When two events share the same timestamp, nudge the second one forward by microseconds so ordering is preserved deterministically.",
   },
   deduplicateExactRows: {
-    title: "Collapse exact duplicate rows",
-    body: "Drop fully identical raw events (same participant, timestamp, app, and interaction type) before processing. Re exported Chronicle data often repeats rows verbatim; the first occurrence is kept. Turn this off to keep every raw row as is.",
+    title: "Collapse exact-duplicate rows",
+    body: "Drop fully-identical raw events (same participant, timestamp, app, and interaction type) before processing. Re-exported Chronicle data often repeats rows verbatim; the first occurrence is kept. Turn this off to keep every raw row as-is.",
   },
   selectedTimezone: {
     title: "Selected timezone",
@@ -312,19 +312,19 @@ export const BROWSER_OPTION_TOOLTIPS = {
   },
   timezoneHandling: {
     title: "Timezone handling",
-    body: "Decides what happens to rows with timezones that differ from the selected one: keep only the matching rows, convert mixed rows to a common zone, or anchor on the file's primary zone.",
+    body: "Decides what happens to rows with timezones that differ from the selected one — keep only the matching rows, convert mixed rows to a common zone, or anchor on the file's primary zone.",
   },
   useFilterFile: {
     title: "Use filter file",
     body: "If on, the pipeline labels apps in your filter list as filtered (instead of dropping them). Without an uploaded file the app falls back to the bundled default.",
   },
   useAppsForcingScreenOpenFile: {
-    title: "Use apps forcing screen open file",
-    body: "Apps in this list are treated as ones that force the screen to stay on during screen usage derivation, which influences how locks and unlocks are interpreted.",
+    title: "Use apps-forcing-screen-open file",
+    body: "Apps in this list are treated as ones that force the screen to stay on during screen-usage derivation, which influences how locks/unlocks are interpreted.",
   },
   useBackgroundAppsFile: {
-    title: "Use background apps file",
-    body: "Apps in this list (e.g. music, navigation) keep running after they are backgrounded. Their app usage session is not closed when they are paused or when another app comes to the foreground; it stays alive until that app's own Activity Stopped. The resulting overlap with the foreground app is resolved into primary and secondary layers (the concurrent usage split is applied automatically when this is on). Without an uploaded file the bundled default is used.",
+    title: "Use background-apps file",
+    body: "Apps in this list (e.g. music, navigation) keep running after they are backgrounded. Their app-usage session is not closed when they are paused or when another app comes to the foreground; it stays alive until that app's own Activity Stopped. The resulting overlap with the foreground app is resolved into primary/secondary layers (the concurrent-usage split is applied automatically when this is on). Without an uploaded file the bundled default is used.",
   },
   useAppCodebook: {
     title: "Use app codebook",
@@ -332,15 +332,15 @@ export const BROWSER_OPTION_TOOLTIPS = {
   },
   includeCategoryColumn: {
     title: "Include app category column",
-    body: "Add the normalized broad app category (the same value used to colour the plots, such as Games, Education, Social & Communication) as a `broad_app_category` column in the app usage output. Derived by coalescing the codebook's per source category columns and mapping them onto the standard palette. Requires the app codebook; off by default.",
+    body: "Add the normalized broad app category (the same value used to colour the plots — Games, Education, Social & Communication, …) as a `broad_app_category` column in the app-usage output. Derived by coalescing the codebook's per-source category columns and mapping them onto the standard palette. Requires the app codebook; off by default.",
   },
   enablePlotting: {
-    title: "Generate app usage plots",
-    body: "After preprocessing, renders one horizontal bar timeline chart per participant and includes the PNGs in the output ZIP. Each bar is coloured by app category.",
+    title: "Generate app-usage plots",
+    body: "After preprocessing, renders one horizontal-bar timeline chart per participant and includes the PNGs in the output ZIP. Each bar is coloured by app category.",
   },
   includeFilteredAppUsageInPlots: {
     title: "Include filtered apps in plots",
-    body: "When on, bars for apps that were filtered (but retained in the output) are drawn alongside normal app usage bars.",
+    body: "When on, bars for apps that were filtered (but retained in the output) are drawn alongside normal app-usage bars.",
   },
   enableActivityHeatmap: {
     title: "Generate activity heatmaps",
@@ -356,19 +356,19 @@ export const BROWSER_OPTION_TOOLTIPS = {
   },
   aggregateShape: {
     title: "Aggregate layout",
-    body: "Layout for the daily and weekly summaries: \"wide\" (one row per period, metrics as columns) or \"long\" (tidy: one row per period per metric). The per app, category, and co usage outputs are always long.",
+    body: "Layout for the daily/weekly summaries — \"wide\" (one row per period, metrics as columns) or \"long\" (tidy: one row per period per metric). The per-app, category, and co-usage outputs are always long.",
   },
   enableParquetExport: {
     title: "Also export Parquet",
-    body: "In addition to the CSV outputs, write each app usage and screen usage table as an Apache Parquet file (typed columns, smaller and far faster to load in R/Python via arrow/polars/pandas). Same rows and columns as the CSV, with native dtypes preserved (timestamps stay as formatted strings). Off by default.",
+    body: "In addition to the CSV outputs, write each app-usage and screen-usage table as an Apache Parquet file (typed columns, smaller and far faster to load in R/Python via arrow/polars/pandas). Same rows and columns as the CSV, with native dtypes preserved (timestamps stay as formatted strings). Off by default.",
   },
   enableSpssExport: {
     title: "Also export SPSS (.sav)",
-    body: "In addition to the CSV outputs, write each app usage and screen usage table as an SPSS/PSPP system file (.sav) with typed variables and the column names as variable labels. Open it directly in SPSS or PSPP. Same rows and columns as the CSV. Off by default. (Stata .dta is not yet supported.)",
+    body: "In addition to the CSV outputs, write each app-usage and screen-usage table as an SPSS/PSPP system file (.sav) with typed variables and the column names as variable labels — open it directly in SPSS or PSPP. Same rows and columns as the CSV. Off by default. (Stata .dta is not yet supported.)",
   },
   enableInteractiveTimeline: {
     title: "Interactive timeline explorer",
-    body: "Show an in browser zoomable and pannable timeline of every session (app and screen), coloured by app category, with hover details. It is rendered live in the results panel from a compact per session payload. This payload is only produced when the option is on, to avoid bloating results for large cohorts. Off by default.",
+    body: "Show an in-browser zoomable/pannable timeline of every session (app and screen), coloured by app category, with hover details — rendered live in the results panel from a compact per-session payload. This payload is only produced when the option is on, to avoid bloating results for large cohorts. Off by default.",
   },
   minimumUsageDuration: {
     title: "Minimum usage duration (seconds)",
@@ -376,8 +376,8 @@ export const BROWSER_OPTION_TOOLTIPS = {
     example: "default 0 (disabled)",
   },
   filterZeroDurationSessions: {
-    title: "Filter zero duration sessions",
-    body: "Removes app usage session rows whose computed duration is exactly zero or negative. These arise from duplicate events at the same millisecond, common on Fire tablets.",
+    title: "Filter zero-duration sessions",
+    body: "Removes app-usage session rows whose computed duration is exactly zero or negative. These arise from duplicate events at the same millisecond, common on Fire tablets.",
   },
   customAppEngagementDuration: {
     title: "Custom app engagement duration",
@@ -385,32 +385,32 @@ export const BROWSER_OPTION_TOOLTIPS = {
     example: "default 300 seconds",
   },
   longUsageDurationThresholds: {
-    title: "Long usage thresholds (hours)",
+    title: "Long-usage thresholds (hours)",
     body: "Comma-separated hour values. For each value the pipeline emits a column flagging sessions whose duration exceeds it.",
     example: "default 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12",
   },
   longDataTimeGapThresholds: {
-    title: "Long data gap thresholds (hours)",
+    title: "Long data-gap thresholds (hours)",
     body: "Comma-separated hour values. For each value the pipeline emits a column flagging time gaps between events that exceed it.",
     example: "default 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12",
   },
   screenUsageAutoLockTimeoutSeconds: {
-    title: "Auto lock timeout (seconds)",
-    body: "Idle period after which the screen is assumed to have auto locked. Used to infer screen off time when an explicit lock is missing.",
+    title: "Auto-lock timeout (seconds)",
+    body: "Idle period after which the screen is assumed to have auto-locked. Used to infer screen-off time when an explicit lock is missing.",
     example: "default 120 seconds",
   },
   screenUsageAutoLockToleranceSeconds: {
-    title: "Auto lock tolerance (seconds)",
-    body: "Slack window around the auto lock timeout to absorb small clock skews when classifying lock events.",
+    title: "Auto-lock tolerance (seconds)",
+    body: "Slack window around the auto-lock timeout to absorb small clock skews when classifying lock events.",
     example: "default 30 seconds",
   },
   screenUsageManualLockMaxTailGapSeconds: {
-    title: "Manual lock max tail gap (seconds)",
+    title: "Manual-lock max tail gap (seconds)",
     body: "Maximum allowed gap between the last meaningful activity and an explicit lock event for the lock to count as manual.",
     example: "default 30 seconds",
   },
   screenUsageKeyguardNearStopSeconds: {
-    title: "Keyguard near stop window (seconds)",
+    title: "Keyguard-near-stop window (seconds)",
     body: "If the keyguard appears within this many seconds of a session stop, treat it as part of the same lock event.",
     example: "default 2 seconds",
   },
@@ -423,27 +423,27 @@ export const BROWSER_OPTION_TOOLTIPS = {
     body: "The maximum number of files the app may process at the same time. Use 0 to let the app choose a safe number based on file sizes and browser capacity. Lower it if the browser becomes slow or memory-heavy.",
   },
   sameAppInteractionTypesToStopUsageAt: {
-    title: "Same app stop types",
+    title: "Same-app stop types",
     body: "Interaction types that, when seen for the same app as the current session, end that session.",
   },
   otherInteractionTypesToStopUsageAt: {
-    title: "Other app stop types",
-    body: "Interaction types from any other source that close the current session, such as a different app coming to the foreground or the device shutting down.",
+    title: "Other-app stop types",
+    body: "Interaction types from any other source that close the current session — e.g. a different app coming to the foreground or the device shutting down.",
   },
   modelConcurrentUsage: {
-    title: "Model concurrent (Picture in Picture) usage",
-    body: "When enabled, an app session runs to its own stop event instead of ending when another app is foregrounded. Overlapping sessions are split into a primary foreground layer and a secondary running underneath or PiP layer, reported via the usage_layer column. Default off; output is unchanged when off.",
+    title: "Model concurrent (Picture-in-Picture) usage",
+    body: "When enabled, an app session runs to its own stop event instead of ending when another app is foregrounded. Overlapping sessions are split into a primary (sole-foreground) layer and a secondary (running-underneath / PiP) layer, reported via the usage_layer column. Default off; output is unchanged when off.",
   },
   applyMinimumUsageDurationToConcurrentSubintervals: {
-    title: "Apply minimum usage duration to concurrent sub intervals",
-    body: "Only relevant when model_concurrent_usage is on. When enabled, a split primary or secondary sub interval shorter than minimum_usage_duration has its duration_seconds and duration_minutes nulled (the row is kept). Off by default, so sub interval durations are always populated, matching every surface.",
+    title: "Apply minimum usage duration to concurrent sub-intervals",
+    body: "Only relevant when model_concurrent_usage is on. When enabled, a split primary/secondary sub-interval shorter than minimum_usage_duration has its duration_seconds/duration_minutes nulled (the row is kept). Off by default, so sub-interval durations are always populated, matching every surface.",
   },
   interactionTypesToRemove: {
     title: "Interaction types to remove",
     body: "Rows of these types are dropped from the final output. Useful for stripping noisy events you don't want surfaced in the CSV.",
   },
   interactionTypeRemap: {
-    title: "Custom interaction type mappings",
-    body: "Map vendor specific raw interaction_type strings onto the canonical names the pipeline understands (e.g. Activity Resumed, Activity Paused, Activity Stopped), for non standard Chronicle exports. Each entry is \"Raw value => Canonical name\". Applied before the built in mapping, so it also overrides built ins. Default empty.",
+    title: "Custom interaction-type mappings",
+    body: "Map vendor-specific raw interaction_type strings onto the canonical names the pipeline understands (e.g. Activity Resumed / Activity Paused / Activity Stopped), for non-standard Chronicle exports. Each entry is \"Raw value => Canonical name\". Applied before the built-in mapping, so it also overrides built-ins. Default empty.",
   },
 } as const;

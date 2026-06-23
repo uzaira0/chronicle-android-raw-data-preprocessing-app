@@ -512,6 +512,18 @@ function wfHoursToX(h: number): number {
   return WF.gutter + (h / 24) * wfPlotWidth();
 }
 
+/** Shared waterfall x-geometry (width, gutter, plot area, hour→x mapping). The
+ * A/B comparison scene reuses this so its rows line up pixel-for-pixel with the
+ * single-arm waterfalls it's built from. */
+export const WATERFALL_GEOMETRY = {
+  width: WF.width,
+  gutter: WF.gutter,
+  get plotWidth(): number {
+    return wfPlotWidth();
+  },
+  hoursToX: wfHoursToX,
+} as const;
+
 export type WaterfallSession = {
   startNs: bigint;
   stopNs: bigint;
@@ -661,7 +673,7 @@ export function buildWaterfallScene(
   const GAP_THRESHOLD_NS = 3_600_000_000_000n;
   const pushGapRect = (r: GapRect, lines: string[]): void => {
     prims.push({ type: "rect", x: r.x, y: r.y, w: r.w, h: r.h, fill: GAP_COLOR, alpha: 0.15 });
-    if (regionsOut) gapRegions.push({ ...r, title: "Data gap", lines });
+    if (regionsOut) gapRegions.push({ ...r, title: "Data gap", lines, kind: "gap" });
   };
 
   for (let i = 0; i + 1 < sortedEvents.length; i++) {
@@ -754,6 +766,8 @@ export function buildWaterfallScene(
           h: rh,
           title: session.title,
           lines: [...session.detail, range],
+          fill: session.color,
+          kind: "session",
         });
       }
     }
@@ -773,6 +787,8 @@ export function buildWaterfallScene(
         h: 20,
         title: marker.title,
         lines: [...(marker.detail ?? []), `${iso} ${nsToClock(hoursFmt, marker.ns)}`],
+        fill: marker.color,
+        kind: "marker",
       });
     }
   }
