@@ -99,6 +99,13 @@ export type SceneRegion = {
   title: string;
   /** Tooltip detail lines. */
   lines: string[];
+  /** Bar fill colour, so a region is self-describing — lets the A/B comparison
+   * view reconstruct each arm's bars (colour included) from the built scenes
+   * without re-deriving anything. Omitted for gaps. */
+  fill?: string;
+  /** What this region covers, so the comparison builder can pick out session
+   * bars (vs gaps / device-event markers). Defaults to "session" when unset. */
+  kind?: "session" | "gap" | "marker";
 };
 
 const DEFAULT_FONT_FAMILY = "system-ui, sans-serif";

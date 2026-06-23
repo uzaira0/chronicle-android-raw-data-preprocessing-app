@@ -2,7 +2,12 @@ import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
-import { clearLastRun, loadLastRun, saveLastRun } from "@/lib/lastRunStore";
+import {
+  clearLastRun,
+  loadLastRun,
+  saveLastRun,
+  toLightweightResults,
+} from "@/lib/lastRunStore";
 import type { ProcessedFileResult } from "@/lib/types";
 
 function result(): ProcessedFileResult {
@@ -30,6 +35,14 @@ function result(): ProcessedFileResult {
     duplicateTimestampsCorrected: 0,
     exactDuplicateRowsRemoved: 0,
     inputSha256: "abc123",
+    timelineView: {
+      timezone: "America/Chicago",
+      app: [
+        { participantId: "P01", scene: { width: 1, height: 1, primitives: [] }, regions: [] },
+      ],
+      screen: [],
+    },
+    reviewSummary: { participants: [] } as ProcessedFileResult["reviewSummary"],
   };
 }
 
@@ -37,8 +50,28 @@ beforeEach(async () => {
   await clearLastRun();
 });
 
+describe("toLightweightResults", () => {
+  it("drops heavy artifacts, keeps counts + reviewSummary, flags the result", () => {
+    const [light] = toLightweightResults([result()]);
+    expect(light!.outputs).toEqual([]);
+    expect(light!.timelineView).toBeUndefined();
+    expect(light!.restoredWithoutArtifacts).toBe(true);
+    expect(light!.appRowCount).toBe(1);
+    expect(light!.timezone).toBe("America/Chicago");
+    expect(light!.reviewSummary).toBeTruthy();
+  });
+
+  it("does not mutate the live result — this session's downloads still work", () => {
+    const live = result();
+    toLightweightResults([live]);
+    expect(live.outputs).toHaveLength(1);
+    expect(live.timelineView).toBeDefined();
+    expect(live.restoredWithoutArtifacts).toBeUndefined();
+  });
+});
+
 describe("lastRunStore", () => {
-  it("round-trips processed results with output blobs", async () => {
+  it("persists only the lightweight shape (no blobs/timeline) but keeps counts", async () => {
     await saveLastRun({
       options: { ...DEFAULT_BROWSER_OPTIONS, studyName: "Study A" },
       results: [result()],
@@ -49,7 +82,12 @@ describe("lastRunStore", () => {
     const loaded = await loadLastRun();
     expect(loaded?.options.studyName).toBe("Study A");
     expect(loaded?.results[0]?.inputFileName).toBe("Raw P01.csv");
-    expect(await loaded!.results[0]!.outputs[0]!.blob.text()).toBe("a,b\n1,2\n");
+    // The multi-hundred-MB artifacts are NOT round-tripped — that's the point.
+    expect(loaded?.results[0]?.outputs).toEqual([]);
+    expect(loaded?.results[0]?.timelineView).toBeUndefined();
+    expect(loaded?.results[0]?.restoredWithoutArtifacts).toBe(true);
+    // Counts survive so the restored summary still renders.
+    expect(loaded?.results[0]?.appRowCount).toBe(1);
     expect(loaded?.discoveredTimezones).toEqual(["America/Chicago"]);
   });
 

@@ -1,0 +1,80 @@
+/**
+ * Wipe everything this origin persisted, for recovery when a wedged cache /
+ * over-full storage / corrupt record stops the app from loading at all.
+ *
+ * Deliberately self-contained (no app-state imports beyond the two DB-name
+ * constants) so the boot-error "lifeboat" can call it even when the rest of the
+ * app failed to initialise. Each step is independently guarded — a failure in
+ * one (e.g. Cache Storage unavailable) must not stop the others.
+ */
+
+import { LAST_RUN_DB_NAME } from "@/lib/lastRunStore";
+import { PROJECTS_DB_NAME } from "@/lib/projectsStore";
+
+/** Every IndexedDB database this app owns. */
+export const CHRONICLE_IDB_NAMES = [LAST_RUN_DB_NAME, PROJECTS_DB_NAME] as const;
+
+function deleteDatabase(name: string): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      const request = indexedDB.deleteDatabase(name);
+      request.onsuccess = () => resolve();
+      request.onerror = () => resolve();
+      // A live connection elsewhere blocks the delete; don't hang the reset.
+      request.onblocked = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+}
+
+async function clearCacheStorage(): Promise<void> {
+  if (typeof caches === "undefined") return;
+  try {
+    const keys = await caches.keys();
+    await Promise.allSettled(keys.map((key) => caches.delete(key)));
+  } catch {
+    /* ignore */
+  }
+}
+
+async function unregisterServiceWorkers(): Promise<void> {
+  if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+  try {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.allSettled(registrations.map((registration) => registration.unregister()));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Clear all locally persisted app data: localStorage/sessionStorage, both
+ * IndexedDB databases, the service-worker caches, and the service-worker
+ * registration. Resolves once best-effort cleanup is done; callers typically
+ * reload the page next.
+ */
+export async function resetLocalData(): Promise<void> {
+  try {
+    window.localStorage.clear();
+  } catch {
+    /* ignore */
+  }
+  try {
+    window.sessionStorage.clear();
+  } catch {
+    /* ignore */
+  }
+  await Promise.allSettled(CHRONICLE_IDB_NAMES.map((name) => deleteDatabase(name)));
+  await clearCacheStorage();
+  await unregisterServiceWorkers();
+}
+
+/**
+ * Lighter cleanup for the storage-pressure banner: drop only the transient
+ * last-run cache (the big, regenerable hog), leaving saved projects, settings,
+ * and presets intact.
+ */
+export async function clearCachedRun(): Promise<void> {
+  await deleteDatabase(LAST_RUN_DB_NAME);
+}

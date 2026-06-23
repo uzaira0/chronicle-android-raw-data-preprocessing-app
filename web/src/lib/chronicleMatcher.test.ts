@@ -107,4 +107,28 @@ describe("WorkerPool", () => {
     expect(workers).toHaveLength(1);
     pool.terminate();
   });
+
+  it("rejects (instead of hanging) when a worker faults mid-task", async () => {
+    // A worker whose action never settles but whose `fault` rejects — models a
+    // worker that failed to load / threw uncaught (e.g. offline cold start).
+    const fault = Promise.reject(new Error("Chronicle worker failed: could not load"));
+    fault.catch(() => {}); // pre-handle so it isn't an unhandled rejection before it's raced
+    const spawn: WorkerSpawn = () => ({
+      api: {} as Comlink.Remote<ChronicleWorkerApi>,
+      worker: { terminate: vi.fn() },
+      fault,
+    });
+    const pool = new WorkerPool(1, spawn);
+    await expect(
+      pool.submit(() => new Promise<string>(() => {})),
+    ).rejects.toThrow(/worker failed/i);
+    pool.terminate();
+  });
+
+  it("does not fault when the spawn provides no fault signal", async () => {
+    const { spawn } = makeSpawn();
+    const pool = new WorkerPool(1, spawn);
+    await expect(pool.submit(async () => "ok")).resolves.toBe("ok");
+    pool.terminate();
+  });
 });
