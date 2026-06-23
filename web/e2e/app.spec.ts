@@ -111,6 +111,8 @@ test("switches workflow tabs as SPA views while preserving state", async ({ page
   await expect(page.getByRole("tabpanel", { name: /Settings/i })).toBeVisible();
   await expect(page.getByRole("tabpanel", { name: /Files/i })).toBeHidden();
   await expect(page.getByRole("tabpanel", { name: /Process/i })).toBeHidden();
+  await expect(page.locator("html")).toHaveCSS("overflow-y", "scroll");
+  await expect(page.locator("html")).toHaveCSS("scrollbar-gutter", "stable");
   const settingsTitleLeft = await page.locator("#settings-title").evaluate((el) => el.getBoundingClientRect().left);
 
   await page.getByRole("tab", { name: /Files/i }).click();
