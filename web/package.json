@@ -46,5 +46,8 @@
     "vite-node": "^3.2.4",
     "vitest": "^4.1.5",
     "yaml": "^2.8.3"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1"
   }
 }
