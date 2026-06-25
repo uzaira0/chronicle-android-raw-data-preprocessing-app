@@ -38,11 +38,13 @@ export function CompareConfigDrawer({
           ✕
         </button>
       </div>
-      <div className="review-drawer__grid">
+      <div className="review-drawer__body">
         <SettingsOverviewCard options={options} setOptions={setOptions} />
-        <SessionDetectionCard options={options} setOptions={setOptions} />
-        <ScreenDetectionCard options={options} setOptions={setOptions} />
-        <InteractionSemanticsCard options={options} setOptions={setOptions} />
+        <div className="settings-stack">
+          <SessionDetectionCard options={options} setOptions={setOptions} />
+          <ScreenDetectionCard options={options} setOptions={setOptions} />
+          <InteractionSemanticsCard options={options} setOptions={setOptions} />
+        </div>
       </div>
       {error ? (
         <p className="review-drawer__error" data-testid="review-compare-error">
