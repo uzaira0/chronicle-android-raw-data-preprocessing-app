@@ -156,6 +156,43 @@ test("switches workflow tabs as SPA views while preserving state", async ({ page
   assertNoExternalRequests(requestTracker);
 });
 
+test("the View tab is widescreen yet keeps the title/tabs aligned with other tabs", async ({
+  page,
+}) => {
+  // The View tab is intentionally full-width (widescreen) so the timeline + review
+  // explorer get room — but the shared chrome (title, tab bar) must stay at the
+  // standard centered width and NOT shift right of where it sits on other tabs.
+  // Use a wide viewport so the widescreen difference is unambiguous.
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await processFiles(page);
+
+  const box = (selector: string): Promise<{ left: number; width: number }> =>
+    page.locator(selector).first().evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { left: Math.round(r.left), width: Math.round(r.width) };
+    });
+
+  // Baseline on a non-View tab.
+  await page.getByRole("tab", { name: /Settings/i }).click();
+  const baseHero = await box(".hero");
+  const baseNav = await box(".workflow-nav");
+  const basePanels = await box("#workflow-panels");
+
+  await page.getByRole("tab", { name: /View/i }).click();
+  await expect(page.getByTestId("timeline-view")).toBeVisible();
+  const viewHero = await box(".hero");
+  const viewNav = await box(".workflow-nav");
+  const viewPanels = await box("#workflow-panels");
+
+  // Title + tab bar keep the same left edge — no rightward shift.
+  expect(Math.abs(viewHero.left - baseHero.left)).toBeLessThanOrEqual(1);
+  expect(Math.abs(viewNav.left - baseNav.left)).toBeLessThanOrEqual(1);
+  // But the panel area goes meaningfully wider than on a normal tab (widescreen).
+  expect(viewPanels.width).toBeGreaterThan(basePanels.width + 50);
+  assertNoExternalRequests(requestTracker);
+});
+
 test("syncs process performance controls without a redundant mode dropdown", async ({ page }) => {
   await expandSectionCard(page, "performance");
   await page.getByTestId("toggle-parallelProcessing").check();

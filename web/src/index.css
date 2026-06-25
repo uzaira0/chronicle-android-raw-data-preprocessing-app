@@ -327,8 +327,14 @@ a:hover {
   gap: var(--space-4);
 }
 
+/* The View tab goes full-width (widescreen) so the timeline + review explorer get
+   the room they need, while the shared chrome (hero, tab bar, footer) stays
+   constrained to the standard width and centered — so the title/tabs line up with
+   every other tab instead of shifting. `width: 100%` here is load-bearing: capping
+   it (as a past "layout shift" change did) both narrows the View and, because the
+   chrome inset below is measured against the shell, slides the title/tabs right. */
 .app-shell--wide {
-  width: min(1360px, calc(100% - var(--space-5)));
+  width: 100%;
 }
 
 .app-shell--wide > .hero,
