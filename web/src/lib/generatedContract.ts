@@ -65,6 +65,8 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "applyMinimumUsageDurationToConcurrentSubintervals",
   "interactionTypesToRemove",
   "interactionTypeRemap",
+  "proximityIntervalSeconds",
+  "addNoActivityPlaceholderDays",
 ] as const;
 
 export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
@@ -108,6 +110,8 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "applyMinimumUsageDurationToConcurrentSubintervals",
   "interactionTypesToRemove",
   "interactionTypeRemap",
+  "proximityIntervalSeconds",
+  "addNoActivityPlaceholderDays",
 ] as const;
 
 export const BROWSER_SUPPORT_FILE_KEYS = [
@@ -168,6 +172,8 @@ export type BrowserProcessingOptions = {
   applyMinimumUsageDurationToConcurrentSubintervals: boolean;
   interactionTypesToRemove: string[];
   interactionTypeRemap: string[];
+  proximityIntervalSeconds: number;
+  addNoActivityPlaceholderDays: boolean;
 };
 
 // Key arrays by sanitization type — used by settingsPersistence to stay in sync with the schema.
@@ -196,6 +202,7 @@ export const BOOLEAN_BROWSER_OPTION_KEYS = [
   "parallelProcessing",
   "modelConcurrentUsage",
   "applyMinimumUsageDurationToConcurrentSubintervals",
+  "addNoActivityPlaceholderDays",
 ] as const;
 export const NUMBER_BROWSER_OPTION_KEYS = [
   "longDurationThresholdHours",
@@ -205,6 +212,7 @@ export const NUMBER_BROWSER_OPTION_KEYS = [
   "screenUsageAutoLockToleranceSeconds",
   "screenUsageManualLockMaxTailGapSeconds",
   "screenUsageKeyguardNearStopSeconds",
+  "proximityIntervalSeconds",
 ] as const;
 export const NUMBER_ARRAY_BROWSER_OPTION_KEYS = [
   "longUsageDurationThresholds",
@@ -266,6 +274,8 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   applyMinimumUsageDurationToConcurrentSubintervals: false,
   interactionTypesToRemove: [],
   interactionTypeRemap: [],
+  proximityIntervalSeconds: 0,
+  addNoActivityPlaceholderDays: false,
 };
 
 export const BROWSER_OPTION_TOOLTIPS = {
@@ -445,5 +455,14 @@ export const BROWSER_OPTION_TOOLTIPS = {
   interactionTypeRemap: {
     title: "Custom interaction-type mappings",
     body: "Map vendor-specific raw interaction_type strings onto the canonical names the pipeline understands (e.g. Activity Resumed / Activity Paused / Activity Stopped), for non-standard Chronicle exports. Each entry is \"Raw value => Canonical name\". Applied before the built-in mapping, so it also overrides built-ins. Default empty.",
+  },
+  proximityIntervalSeconds: {
+    title: "Intra-app teardown grace (seconds)",
+    body: "When greater than 0, an Activity Stopped fallback close landing within this many seconds of a re-resumed session's start is treated as an intra-app teardown artifact (the app was torn down then immediately re-resumed) rather than a real close, so the session stays open for the next genuine stop event. Set to 0 to disable. When on, app-usage matching runs in a JavaScript matcher path (the shared WASM matcher has no proximity parameter); with it off the output is byte-identical to before.",
+    example: "default 0 (disabled)",
+  },
+  addNoActivityPlaceholderDays: {
+    title: "Add no-activity placeholder days",
+    body: "For each participant, any calendar day that has raw event data but produces no app-usage sessions gets one zero-duration placeholder row (com.placeholder.noactivity) so day-level summaries can distinguish a genuine no-use day from a day with no data at all. The window is derived from the participant's own data (first to last day with raw events). Default off.",
   },
 } as const;
