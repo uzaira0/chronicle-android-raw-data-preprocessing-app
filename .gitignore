@@ -197,6 +197,8 @@ preprocessors/survey_data_preprocessor.py
 *test*
 !tests/
 !tests/**/*.py
+!web/src/**/*.test.ts
+!web/src/**/*.test.tsx
 *demo*
 *benchmark*
 !scripts/benchmark_browser_pathological_fixture.py

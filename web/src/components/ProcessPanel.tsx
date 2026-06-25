@@ -4,6 +4,7 @@ import { ProgressList, type FileProgress } from "@/components/ProgressList";
 import { ToggleField } from "@/components/ToggleField";
 import { SettingsField } from "@/components/SettingsField";
 import { TOOLTIPS } from "@/lib/tooltipText";
+import { rangeError } from "@/lib/validation";
 import type { BrowserProcessingOptions } from "@/lib/types";
 import { effectiveWarnings, type RawFileInspection } from "@/lib/fileInspection";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
@@ -16,6 +17,9 @@ type Props = {
   displayMasker: DemoDisplayMasker;
   isRunning: boolean;
   onProcess: () => void;
+  onCancel: () => void;
+  onRetry?: (fileName: string) => void;
+  retryingFile?: string | null;
   progressRows: FileProgress[];
   overallPercent: number;
   expanded: boolean;
@@ -36,6 +40,9 @@ export function ProcessPanel({
   displayMasker,
   isRunning,
   onProcess,
+  onCancel,
+  onRetry,
+  retryingFile,
   progressRows,
   overallPercent,
   expanded,
@@ -73,12 +80,22 @@ export function ProcessPanel({
           >
             {expanded ? "Hide processing details" : "Show processing details"}
           </button>
+          {isRunning ? (
+            <button
+              type="button"
+              className="btn btn--danger btn--lg"
+              data-testid="cancel-process-button"
+              onClick={onCancel}
+            >
+              Cancel
+            </button>
+          ) : null}
           <button
             type="button"
             className="btn btn--primary btn--lg"
             data-testid="process-files-button"
             onClick={onProcess}
-            disabled={isRunning || !uploadedFiles.length}
+            disabled={isRunning || !!retryingFile || !uploadedFiles.length}
           >
             {isRunning ? "Processing..." : "Process files"}
           </button>
@@ -99,6 +116,11 @@ export function ProcessPanel({
             htmlFor="process-max-workers-input"
             tooltip={TOOLTIPS.parallelMaxWorkers}
             hint="Synced with Settings. 0 lets the app choose a safe limit."
+            error={
+              options.parallelProcessing
+                ? rangeError(options.parallelMaxWorkers ?? 0, 0, 32)
+                : undefined
+            }
           >
             <input
               id="process-max-workers-input"
@@ -129,14 +151,18 @@ export function ProcessPanel({
             rows={progressRows}
             overallPercent={overallPercent}
             fileName={displayMasker.fileName}
+            onRetry={onRetry}
+            retryingFile={retryingFile}
           />
         ) : uploadedFiles.length ? (
           <div className="process-ready-list" aria-live="polite">
             {uploadedFiles.map((file) => (
               <div className="progress-row" key={`${file.name}-${file.size}-${file.lastModified}`}>
-                <span className="progress-row__name">{displayMasker.fileName(file.name)}</span>
-                <span className="progress-row__step">Ready</span>
-                <span className="progress-row__status">0%</span>
+                <div className="progress-row__main">
+                  <span className="progress-row__name">{displayMasker.fileName(file.name)}</span>
+                  <span className="progress-row__step">Ready</span>
+                  <span className="progress-row__status">0%</span>
+                </div>
               </div>
             ))}
           </div>

@@ -2,10 +2,12 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { APP_ONLY_RAW_CSV, MALFORMED_RAW_CSV } from "./fixtures";
 import {
+  expandSectionCard,
   gotoApp,
   installDeterministicRuntime,
   processFiles,
   setInputFile,
+  setRawFiles,
 } from "./helpers";
 
 /**
@@ -153,6 +155,44 @@ test("work survives a tab kill as a restorable summary", async ({ context }) => 
   // The heavy artifacts were intentionally not persisted, so downloads need a re-run.
   await expect(tab2.getByTestId("download-all-zip")).toBeDisabled();
   await tab2.close();
+});
+
+test("cancelling a run stops it cleanly and leaves no half-finished state (#11)", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(String(error)));
+
+  await installDeterministicRuntime(page);
+  await gotoApp(page);
+
+  // Process sequentially so the batch spans a window wide enough to cancel
+  // mid-run (this is also the exact path a prior bug mishandled — a sequential
+  // cancel must not commit the in-flight file as a success).
+  await expandSectionCard(page, "performance");
+  await page.getByTestId("toggle-parallelProcessing").uncheck();
+
+  // 20 files in one pick so they queue together; sequential processing makes the
+  // mid-run window wide enough to cancel deterministically.
+  await setRawFiles(
+    page,
+    Array.from({ length: 20 }, (_, i) => ({ name: `Raw P${i}.csv`, content: APP_ONLY_RAW_CSV })),
+  );
+
+  await page.getByRole("tab", { name: /Process/i }).click();
+  await page.getByTestId("process-files-button").click();
+  // Cancel the instant the control is available.
+  await page.getByTestId("cancel-process-button").click();
+
+  // The run ends: the Process button is usable again (not wedged "running").
+  await expect(page.getByTestId("process-files-button")).toBeEnabled({ timeout: 15_000 });
+  // The cancel path reports honestly: a "Cancelled. Processed N/20" toast (the
+  // word "Cancelled" only appears when the run was actually interrupted), and at
+  // least one file was left explicitly cancelled rather than silently dropped or
+  // falsely marked complete.
+  await expect(page.getByText(/Cancelled\. Processed \d+\/20 files/)).toBeVisible();
+  await expect(page.locator(".progress-row.is-cancelled")).not.toHaveCount(0);
+  expect(errors, "cancel path raised no uncaught error").toEqual([]);
 });
 
 test("a fully failed run leaves no stale cached record", async ({ page }) => {

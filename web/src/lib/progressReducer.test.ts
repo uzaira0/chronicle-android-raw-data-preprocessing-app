@@ -48,6 +48,22 @@ describe("applyProgressEvent", () => {
     });
   });
 
+  it("does not revert a cancelled file to running on a late step", () => {
+    // A cancel marks the row "cancelled" directly (outside applyProgressEvent);
+    // a trailing worker step drained after pool.terminate() must not un-cancel it.
+    const fileName = "Cancelled.csv";
+    const seeded: Record<string, FileProgress> = {
+      [fileName]: { fileName, status: "cancelled" },
+    };
+    const state = applyProgressEvent(seeded, {
+      type: "step",
+      fileName,
+      stepKind: "output",
+      percent: 1,
+    });
+    expect(state[fileName]?.status).toBe("cancelled");
+  });
+
   it("tracks files independently", () => {
     const state = run([
       { type: "file-start", fileName: "a" },

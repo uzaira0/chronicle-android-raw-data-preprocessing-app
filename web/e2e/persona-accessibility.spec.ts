@@ -164,6 +164,31 @@ test("every visible button has an accessible name and every field has a label", 
   assertNoExternalRequests(requestTracker);
 });
 
+test("the timeline waterfall is fully keyboard-operable: move + zoom by arrows (#22)", async ({
+  page,
+}) => {
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
+  await processFiles(page);
+  await page.getByRole("tab", { name: /View/i }).click();
+  await expect(page.getByTestId("timeline-view")).toBeVisible();
+
+  // The canvas is a focusable group; arrow keys drive a live-region announcement.
+  const canvas = page.locator(".timeline-view__canvas").first();
+  await canvas.focus();
+  await expect(canvas).toBeFocused();
+  const announce = page.getByTestId("timeline-focus-announce").first();
+
+  await page.keyboard.press("ArrowDown");
+  await expect(announce).toContainText(/Row 1 of/i);
+  // Right arrow zooms the focused day; the announcement reflects the zoom factor.
+  await page.keyboard.press("ArrowRight");
+  await expect(announce).toContainText(/zoomed/i);
+  // Escape resets that day's zoom.
+  await page.keyboard.press("Escape");
+  await expect(announce).not.toContainText(/zoomed/i);
+  assertNoExternalRequests(requestTracker);
+});
+
 test("the layout reflows at 200% zoom (half viewport) without horizontal scroll", async ({
   page,
 }) => {

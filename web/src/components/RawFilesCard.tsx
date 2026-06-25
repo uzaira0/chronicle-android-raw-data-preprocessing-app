@@ -44,6 +44,18 @@ export function RawFilesCard({
     onFilesChange(files ? Array.from(files) : []);
   };
 
+  const removeFile = (index: number) => {
+    onFilesChange(uploadedFiles.filter((_, position) => position !== index));
+  };
+
+  const moveFile = (from: number, to: number) => {
+    if (to < 0 || to >= uploadedFiles.length) return;
+    const next = uploadedFiles.slice();
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved!);
+    onFilesChange(next);
+  };
+
   return (
     <section id="files" className="workflow-section" aria-labelledby="files-title">
       <div className="workflow-section__header">
@@ -116,10 +128,15 @@ export function RawFilesCard({
                 <th scope="col">Timezones</th>
                 <th scope="col">Duplicate timestamps</th>
                 <th scope="col">Status</th>
+                {/* Name the column via aria-label, not a visually-hidden child:
+                    a position:absolute sr-only span escapes the table's
+                    overflow-x wrapper and pushes documentElement.scrollWidth
+                    past the viewport at 200% zoom (horizontal-scroll regression). */}
+                <th scope="col" className="raw-file-table__actions-head" aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
-              {uploadedFiles.map((file) => {
+              {uploadedFiles.map((file, index) => {
                 const inspection = inspections.find((entry) => entry.fileName === file.name);
                 const displayFile = displayMasker.fileName(file.name);
                 const warnings = inspection ? effectiveWarnings(inspection, options) : [];
@@ -169,6 +186,40 @@ export function RawFilesCard({
                     </td>
                     <td>
                       <span className={`status-pill ${status.className}`}>{status.label}</span>
+                    </td>
+                    <td className="raw-file-row__actions">
+                      <div className="raw-file-row__actions-group">
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          aria-label={`Move ${displayFile} up`}
+                          data-testid="move-file-up"
+                          onClick={() => moveFile(index, index - 1)}
+                          disabled={isRunning || index === 0}
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          aria-label={`Move ${displayFile} down`}
+                          data-testid="move-file-down"
+                          onClick={() => moveFile(index, index + 1)}
+                          disabled={isRunning || index === uploadedFiles.length - 1}
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn icon-btn--danger"
+                          aria-label={`Remove ${displayFile}`}
+                          data-testid="remove-file"
+                          onClick={() => removeFile(index)}
+                          disabled={isRunning}
+                        >
+                          ×
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
