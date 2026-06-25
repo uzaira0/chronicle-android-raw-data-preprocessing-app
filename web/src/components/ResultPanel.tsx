@@ -11,6 +11,7 @@ import type {
 } from "@/lib/types";
 import { PREPROCESSOR_VERSION } from "@/lib/browserPipeline";
 import { buildProcessingReport, readReportEnvironment } from "@/lib/processingReport";
+import { downloadBlob } from "@/lib/download";
 import { safeUuid } from "@/lib/uuid";
 import type { FileProgress } from "@/components/ProgressList";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
@@ -27,6 +28,9 @@ type Props = {
   expectedFileCount: number;
   progressRows: FileProgress[];
   displayMasker: DemoDisplayMasker;
+  /** True when the current settings differ from the ones that produced these
+   * results — surfaces an "out of date, re-run" banner. */
+  stale?: boolean;
 };
 
 type BatchOutput = {
@@ -41,15 +45,6 @@ const TIMEZONE_ACTION_LABEL: Record<TimezoneAction, string> = {
   filtered_to_primary: "Filtered to primary",
   converted_to_primary: "Converted to primary",
 };
-
-function downloadBlob(fileName: string, blob: Blob): void {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = fileName;
-  anchor.click();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
 
 function collectOutputs(results: ProcessedFileResult[], kind?: OutputKind): BatchOutput[] {
   return results.flatMap((result) =>
@@ -136,8 +131,12 @@ function buildBatchWarnings(input: {
       `${displayMasker.fileName(row.fileName)} failed: ${row.error ?? "Unknown processing error"}`,
     );
   });
-  if (expectedFileCount > 0 && results.length < expectedFileCount) {
-    warnings.push(`Only ${results.length}/${expectedFileCount} selected files produced results.`);
+  // Files the user deliberately cancelled aren't a shortfall — exclude them from
+  // the "only N/M produced results" check so a cancel doesn't read as a failure.
+  const cancelledCount = progressRows.filter((row) => row.status === "cancelled").length;
+  const expectedProduced = expectedFileCount - cancelledCount;
+  if (expectedProduced > 0 && results.length < expectedProduced) {
+    warnings.push(`Only ${results.length}/${expectedProduced} selected files produced results.`);
   }
   return warnings;
 }
@@ -167,6 +166,7 @@ export function ResultPanel({
   expectedFileCount,
   progressRows,
   displayMasker,
+  stale = false,
 }: Props): ReactElement | null {
   const summary = useMemo(() => {
     return results.reduce(
@@ -360,6 +360,12 @@ export function ResultPanel({
         </div>
       </header>
       {error ? <p className="error-text u-mb-3">{error}</p> : null}
+      {stale ? (
+        <p className="result-stale-note" data-testid="results-stale-note" role="status">
+          Settings have changed since these results were generated. Re-process the files to
+          bring the outputs in line with your current settings.
+        </p>
+      ) : null}
       {restoredLightweight ? (
         <p className="result-restored-note" data-testid="restored-lightweight-note" role="status">
           Restored a summary of your last run. Downloads and the interactive timeline aren’t kept
@@ -467,6 +473,23 @@ export function ResultPanel({
                         ) : (
                           <span className="text-faint">No outputs</span>
                         )}
+                        {!result.restoredWithoutArtifacts && result.outputs.length ? (
+                          <ul className="result-table__downloads" aria-label="Download individual outputs">
+                            {result.outputs.map((output) => (
+                              <li key={output.outputFileName}>
+                                <button
+                                  type="button"
+                                  className="result-download-link"
+                                  data-testid="download-single-output"
+                                  title={`Download ${displayMasker.fileName(output.outputFileName)}`}
+                                  onClick={() => downloadBlob(output.outputFileName, output.blob)}
+                                >
+                                  ⬇ {outputLabel(output)}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
                         {fileWarnings.length ? (
                           <ul className="result-table__warnings" aria-label="Warnings">
                             {fileWarnings.map((warning) => (

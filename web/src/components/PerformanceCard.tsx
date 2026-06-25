@@ -7,6 +7,7 @@ import { ToggleField } from "@/components/ToggleField";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
+import { rangeError } from "@/lib/validation";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 const KEYS: readonly OptionKey[] = ["parallelProcessing", "parallelMaxWorkers"];
@@ -52,6 +53,11 @@ export function PerformanceCard({ options, setOptions }: Props): ReactElement {
         tooltip={TOOLTIPS.parallelMaxWorkers}
         modified={isMod("parallelMaxWorkers")}
         onReset={() => reset("parallelMaxWorkers")}
+        error={
+          options.parallelProcessing
+            ? rangeError(options.parallelMaxWorkers ?? 0, 0, 32)
+            : undefined
+        }
         hint="0 lets the app choose a safe limit based on your files and browser."
       >
         <input

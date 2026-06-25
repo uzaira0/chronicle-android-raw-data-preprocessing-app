@@ -10,6 +10,9 @@ type SettingsFieldProps = {
   hint?: ReactNode;
   modified?: boolean;
   onReset?: () => void;
+  /** Validation message; when set, the field shows an error state instead of
+   * silently accepting an out-of-range value. */
+  error?: ReactNode;
   children: ReactNode;
 };
 
@@ -20,10 +23,11 @@ export function SettingsField({
   hint,
   modified = false,
   onReset,
+  error,
   children,
 }: SettingsFieldProps): ReactElement {
   return (
-    <div className="settings-field">
+    <div className={`settings-field${error ? " has-error" : ""}`}>
       <div className="settings-field__label-row">
         {htmlFor ? (
           <label className="settings-field__label" htmlFor={htmlFor}>
@@ -56,6 +60,11 @@ export function SettingsField({
         </span>
       </div>
       <div className="settings-field__control">{children}</div>
+      {error ? (
+        <div className="settings-field__error" role="alert">
+          {error}
+        </div>
+      ) : null}
       {hint ? <div className="text-faint u-meta-xs">{hint}</div> : null}
     </div>
   );

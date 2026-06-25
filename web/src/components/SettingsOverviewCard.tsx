@@ -14,7 +14,7 @@ type Props = {
 
 export function SettingsOverviewCard({ options, setOptions }: Props): ReactElement {
   return (
-    <section className="settings-overview" aria-label="Core settings">
+    <section className="settings-overview" aria-label="Core settings" data-settings-anchor="overview">
       <SettingsField
         label="Study name"
         tooltip={TOOLTIPS.studyName}

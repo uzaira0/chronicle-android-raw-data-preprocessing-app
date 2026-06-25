@@ -1,60 +1,148 @@
 import type { ReactElement } from "react";
+import {
+  BROWSER_OPTION_TOOLTIPS,
+  BROWSER_PROCESSING_OPTION_KEYS,
+} from "@/lib/generatedContract";
 
-type SettingSearchItem = {
+type SectionKey =
+  | "overview"
+  | "files"
+  | "timezone"
+  | "session"
+  | "screen"
+  | "interaction"
+  | "performance"
+  | "management";
+
+type Section = { label: string; selector: string };
+
+// `selector` is the element scrolled to within the Settings tab. SectionCards
+// expose `data-section-id`; the two plain containers expose `data-settings-anchor`.
+const SECTIONS: Record<SectionKey, Section> = {
+  overview: { label: "Output & plots", selector: '[data-settings-anchor="overview"]' },
+  files: { label: "Support files", selector: '[data-section-id="files"]' },
+  timezone: { label: "Timezone", selector: '[data-section-id="timezone"]' },
+  session: { label: "Session detection", selector: '[data-section-id="session-detection"]' },
+  screen: { label: "Screen detection", selector: '[data-section-id="screen-detection"]' },
+  interaction: { label: "Interaction semantics", selector: '[data-section-id="interaction-semantics"]' },
+  performance: { label: "Performance", selector: '[data-section-id="performance"]' },
+  management: { label: "Settings management", selector: '[data-settings-anchor="management"]' },
+};
+
+// Which card hosts each option. Derived once from the contract key list below so
+// the search index can never drift out of sync with the real set of options;
+// only the section routing is maintained here (a key with no entry still shows,
+// routed to the overview card).
+export const SECTION_BY_KEY: Record<string, SectionKey> = {
+  studyName: "overview",
+  processAppUsage: "overview",
+  processScreenUsage: "overview",
+  enablePlotting: "overview",
+  includeFilteredAppUsageInPlots: "overview",
+  enableActivityHeatmap: "overview",
+  exportPlotsAsSvg: "overview",
+  enableAggregates: "overview",
+  aggregateShape: "overview",
+  enableParquetExport: "overview",
+  enableSpssExport: "overview",
+  enableInteractiveTimeline: "overview",
+  useFilterFile: "files",
+  useAppsForcingScreenOpenFile: "files",
+  useBackgroundAppsFile: "files",
+  useAppCodebook: "files",
+  includeCategoryColumn: "files",
+  selectedTimezone: "timezone",
+  timezoneHandling: "timezone",
+  allowStopEventReuse: "session",
+  useActivityStoppedAsFallback: "session",
+  applyThresholdToFallback: "session",
+  longDurationThresholdHours: "session",
+  correctDuplicateEventTimestamps: "session",
+  deduplicateExactRows: "session",
+  minimumUsageDuration: "session",
+  filterZeroDurationSessions: "session",
+  customAppEngagementDuration: "session",
+  longUsageDurationThresholds: "session",
+  longDataTimeGapThresholds: "session",
+  modelConcurrentUsage: "session",
+  applyMinimumUsageDurationToConcurrentSubintervals: "session",
+  proximityIntervalSeconds: "session",
+  addNoActivityPlaceholderDays: "session",
+  screenUsageAutoLockTimeoutSeconds: "screen",
+  screenUsageAutoLockToleranceSeconds: "screen",
+  screenUsageManualLockMaxTailGapSeconds: "screen",
+  screenUsageKeyguardNearStopSeconds: "screen",
+  sameAppInteractionTypesToStopUsageAt: "interaction",
+  otherInteractionTypesToStopUsageAt: "interaction",
+  interactionTypesToRemove: "interaction",
+  interactionTypeRemap: "interaction",
+  parallelProcessing: "performance",
+  parallelMaxWorkers: "performance",
+};
+
+type SearchItem = {
+  key: string;
   label: string;
-  section: string;
-  href: string;
+  sectionKey: SectionKey;
   keywords: string;
 };
 
-const SETTINGS: SettingSearchItem[] = [
-  { label: "Study name", section: "Core", href: "#settings", keywords: "study name id output metadata" },
-  { label: "Output mode", section: "Core", href: "#settings", keywords: "app screen both usage session csv" },
+const TOOLTIPS = BROWSER_OPTION_TOOLTIPS as Record<
+  string,
+  { title?: string; body?: string; example?: string } | undefined
+>;
+
+function humanize(key: string): string {
+  return key
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (char) => char.toUpperCase())
+    .trim();
+}
+
+// Index built FROM the contract key list, so every processing option is always
+// searchable — the old hand-maintained list silently dropped ~5 options.
+const ITEMS: SearchItem[] = [
+  ...BROWSER_PROCESSING_OPTION_KEYS.map((key): SearchItem => {
+    const tip = TOOLTIPS[key];
+    const sectionKey = SECTION_BY_KEY[key] ?? "overview";
+    const label = tip?.title ?? humanize(key);
+    const keywords =
+      `${label} ${SECTIONS[sectionKey].label} ${tip?.body ?? ""} ${key}`.toLowerCase();
+    return { key, label, sectionKey, keywords };
+  }),
+  // UI-only controls that aren't processing options but live in the Settings tab.
   {
-    label: "Demo mode",
-    section: "Core",
-    href: "#settings",
-    keywords: "demo mode hide file participant date labels pseudonymize filtered usage",
+    key: "__demoMode",
+    label: "Demo mode (hide labels)",
+    sectionKey: "management",
+    keywords: "demo mode hide file participant date labels pseudonymize privacy public screen",
   },
-  { label: "Filter file", section: "Support files", href: "#files", keywords: "support filter bundled default apps upload" },
-  { label: "Apps forcing screen open file", section: "Support files", href: "#files", keywords: "support apps forcing screen open upload bundled default" },
-  { label: "App codebook file", section: "Support files", href: "#files", keywords: "support codebook genre category upload bundled default" },
-  { label: "Timezone handling", section: "Timezone", href: "#timezone", keywords: "timezone selected primary filter convert conversion" },
-  { label: "Selected timezone", section: "Timezone", href: "#timezone", keywords: "timezone america chicago conversion selected" },
-  { label: "Max session duration threshold", section: "Session detection", href: "#session-detection", keywords: "duration threshold hours long usage session" },
-  { label: "Custom app engagement duration", section: "Session detection", href: "#session-detection", keywords: "engagement seconds custom valid app" },
-  { label: "Long usage thresholds", section: "Session detection", href: "#session-detection", keywords: "long usage threshold hours flags" },
-  { label: "Long data gap thresholds", section: "Session detection", href: "#session-detection", keywords: "data gap threshold hours flags" },
-  { label: "Correct duplicate event timestamps", section: "Session detection", href: "#session-detection", keywords: "duplicate timestamp correction" },
-  { label: "Allow stop event reuse", section: "Session detection", href: "#session-detection", keywords: "stop event reuse matching" },
-  { label: "Use Activity Stopped fallback", section: "Session detection", href: "#session-detection", keywords: "activity stopped fallback matching" },
-  { label: "Apply threshold to Activity Stopped fallback", section: "Session detection", href: "#session-detection", keywords: "activity stopped fallback threshold" },
-  { label: "Auto lock timeout", section: "Screen detection", href: "#screen-detection", keywords: "screen auto lock timeout seconds" },
-  { label: "Auto lock tolerance", section: "Screen detection", href: "#screen-detection", keywords: "screen auto lock tolerance seconds" },
-  { label: "Manual lock max tail gap", section: "Screen detection", href: "#screen-detection", keywords: "screen manual lock tail gap seconds" },
-  { label: "Keyguard near stop window", section: "Screen detection", href: "#screen-detection", keywords: "screen keyguard stop window seconds" },
-  { label: "Same app stop interaction types", section: "Interaction semantics", href: "#interaction-semantics", keywords: "same app stop interaction paused resumed destroyed" },
-  { label: "Other app stop interaction types", section: "Interaction semantics", href: "#interaction-semantics", keywords: "other app stop interaction screen keyguard shutdown filtered" },
-  { label: "Interaction types to remove", section: "Interaction semantics", href: "#interaction-semantics", keywords: "remove interaction filter output cleanup" },
-  { label: "Parallel processing", section: "Performance", href: "#performance", keywords: "parallel sequential workers processing mode" },
-  { label: "Max parallel workers", section: "Performance", href: "#performance", keywords: "parallel workers cpu performance" },
+  {
+    key: "__resetDefaults",
+    label: "Reset all to defaults",
+    sectionKey: "management",
+    keywords: "reset defaults restore clear settings management",
+  },
 ];
 
 type Props = {
   query: string;
-  onNavigate?: (href: string) => void;
+  /** Called with the CSS selector of the target section to scroll to + flash. */
+  onNavigate?: (selector: string) => void;
 };
 
 export function SettingsSearchResults({ query, onNavigate }: Props): ReactElement | null {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return null;
 
-  const matches = SETTINGS.filter((item) =>
-    `${item.label} ${item.section} ${item.keywords}`.toLowerCase().includes(normalized),
-  );
+  const matches = ITEMS.filter((item) => item.keywords.includes(normalized));
 
   return (
-    <div className="settings-search-results" aria-live="polite">
+    <div
+      className="settings-search-results"
+      aria-live="polite"
+      data-testid="settings-search-results"
+    >
       <strong>
         {matches.length
           ? `${matches.length} setting${matches.length === 1 ? "" : "s"} found`
@@ -63,14 +151,16 @@ export function SettingsSearchResults({ query, onNavigate }: Props): ReactElemen
       {matches.length ? (
         <div className="settings-search-results__grid">
           {matches.map((item) => (
-            <a
-              key={`${item.section}-${item.label}`}
-              href={item.href}
-              onClick={() => onNavigate?.(item.href)}
+            <button
+              type="button"
+              key={item.key}
+              className="settings-search-result"
+              data-testid="settings-search-result"
+              onClick={() => onNavigate?.(SECTIONS[item.sectionKey].selector)}
             >
               <span>{item.label}</span>
-              <small>{item.section}</small>
-            </a>
+              <small>{SECTIONS[item.sectionKey].label}</small>
+            </button>
           ))}
         </div>
       ) : null}

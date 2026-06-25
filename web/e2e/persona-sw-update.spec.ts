@@ -86,6 +86,22 @@ test("an SW update does not reload the page or destroy in-memory results", async
   assertNoExternalRequests(requestTracker);
 });
 
+test("no update banner appears on a clean first load (no spurious prompt)", async ({ page }) => {
+  await waitForServiceWorkerControl(page);
+  // The banner must only appear when a NEW worker installs over an existing
+  // controller — never on the first install. This guards the first-install
+  // false-positive (an update prompt the user could never satisfy).
+  await expect(page.getByTestId("update-banner")).toHaveCount(0);
+  // Re-checking the SW (same build → no newer version) must not conjure a banner.
+  await page.evaluate(async () => {
+    const registration = await navigator.serviceWorker.ready;
+    await registration.update();
+  });
+  await page.waitForTimeout(300);
+  await expect(page.getByTestId("update-banner")).toHaveCount(0);
+  assertNoExternalRequests(requestTracker);
+});
+
 test("after an update, the app still cold-starts offline from the precache", async ({
   page,
   context,

@@ -8,6 +8,7 @@ import { ThresholdsInput } from "@/components/ThresholdsInput";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
+import { rangeError } from "@/lib/validation";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 const KEYS: readonly OptionKey[] = [
@@ -47,6 +48,12 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
       accent="session"
       modified={anyOptionModified(options, KEYS)}
     >
+      {!options.processAppUsage ? (
+        <p className="settings-dependency-note" role="note" data-testid="session-dependency-note">
+          App usage output is off, so these session-detection settings won’t change any output.
+          Turn on “App usage output” in Output &amp; plots to use them.
+        </p>
+      ) : null}
       <div className="settings-grid-2">
         <SettingsField
           label="Max session duration threshold (hours)"
@@ -54,6 +61,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           tooltip={TOOLTIPS.longDurationThresholdHours}
           modified={isMod("longDurationThresholdHours")}
           onReset={() => reset("longDurationThresholdHours")}
+          error={rangeError(options.longDurationThresholdHours, 1, 48)}
         >
           <input
             id="long-duration-threshold-input"
@@ -76,6 +84,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           tooltip={TOOLTIPS.minimumUsageDuration}
           modified={isMod("minimumUsageDuration")}
           onReset={() => reset("minimumUsageDuration")}
+          error={rangeError(options.minimumUsageDuration, 0, 3600)}
         >
           <input
             id="minimum-usage-duration-input"
@@ -97,6 +106,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           tooltip={TOOLTIPS.customAppEngagementDuration}
           modified={isMod("customAppEngagementDuration")}
           onReset={() => reset("customAppEngagementDuration")}
+          error={rangeError(options.customAppEngagementDuration, 1, 3600)}
         >
           <input
             id="custom-engagement-duration-input"
@@ -148,6 +158,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           tooltip={TOOLTIPS.proximityIntervalSeconds}
           modified={isMod("proximityIntervalSeconds")}
           onReset={() => reset("proximityIntervalSeconds")}
+          error={rangeError(options.proximityIntervalSeconds, 0, 3600)}
         >
           <input
             id="proximity-interval-input"
