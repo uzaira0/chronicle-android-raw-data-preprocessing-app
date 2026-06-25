@@ -115,6 +115,8 @@ classes:
       - apply_minimum_usage_duration_to_concurrent_subintervals
       - interaction_types_to_remove
       - interaction_type_remap
+      - proximity_interval_seconds
+      - add_no_activity_placeholder_days
 
   ProcessedOutputFileResult:
     slots:
@@ -422,6 +424,30 @@ slots:
     description: >-
       Removes app-usage session rows whose computed duration is exactly zero or negative.
       These arise from duplicate events at the same millisecond, common on Fire tablets.
+    default: false
+  proximity_interval_seconds:
+    range: float
+    required: true
+    title: "Intra-app teardown grace (seconds)"
+    description: >-
+      When greater than 0, an Activity Stopped fallback close landing within this many
+      seconds of a re-resumed session's start is treated as an intra-app teardown artifact
+      (the app was torn down then immediately re-resumed) rather than a real close, so the
+      session stays open for the next genuine stop event. Set to 0 to disable. When on,
+      app-usage matching runs in a JavaScript matcher path (the shared WASM matcher has no
+      proximity parameter); with it off the output is byte-identical to before.
+    example: "default 0 (disabled)"
+    default: 0.0
+  add_no_activity_placeholder_days:
+    range: boolean
+    required: true
+    title: "Add no-activity placeholder days"
+    description: >-
+      For each participant, any calendar day that has raw event data but produces no
+      app-usage sessions gets one zero-duration placeholder row (com.placeholder.noactivity)
+      so day-level summaries can distinguish a genuine no-use day from a day with no data at
+      all. The window is derived from the participant's own data (first to last day with raw
+      events). Default off.
     default: false
   custom_app_engagement_duration:
     range: integer

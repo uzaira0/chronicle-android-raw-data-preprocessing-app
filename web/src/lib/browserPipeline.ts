@@ -44,6 +44,7 @@ import type {
 } from "@/lib/types";
 import { buildTimelineViewerHtml } from "@/lib/timelineViewer";
 import { buildReviewSummary } from "@/lib/reviewMetrics";
+import { matchAppUsageWithProximity } from "@/lib/proximityMatcher";
 
 export const PREPROCESSOR_VERSION = "1.0.0";
 
@@ -1212,6 +1213,7 @@ function buildMatcherInput(
       useActivityStoppedAsFallback: options.useActivityStoppedAsFallback,
       applyThresholdToFallback: options.applyThresholdToFallback,
       longDurationThresholdNs: BigInt(Math.round(options.longDurationThresholdHours * 3_600_000_000_000)),
+      proximityNs: BigInt(Math.round(options.proximityIntervalSeconds * 1_000_000_000)),
     },
   };
 }
@@ -1229,17 +1231,22 @@ async function processUsageRows(
   runSplitter: SplitterRunner,
   backgroundApps: Set<string>,
 ): Promise<CanonicalRow[]> {
-  const matcherOutput = await runMatcher(
-    buildMatcherInput(
-      rows,
-      resumedType,
-      stoppedType,
-      sameStopTypes,
-      otherStopTypes,
-      options,
-      backgroundApps,
-    ),
+  const matcherInput = buildMatcherInput(
+    rows,
+    resumedType,
+    stoppedType,
+    sameStopTypes,
+    otherStopTypes,
+    options,
+    backgroundApps,
   );
+  // Intra-app teardown grace runs in the JS matcher (the shared WASM matcher has
+  // no proximity parameter); with it off (the default), the WASM matcher is used
+  // unchanged so the common path and cross-surface parity are untouched.
+  const matcherOutput =
+    matcherInput.options.proximityNs > 0n
+      ? matchAppUsageWithProximity(matcherInput)
+      : await runMatcher(matcherInput);
 
   const nextRows = rows.map((row) => ({ ...row }));
   matcherOutput.startIndices.forEach((startIndex) => {
@@ -1393,6 +1400,73 @@ async function runAppUsageAlgorithm(
     runSplitter,
     backgroundApps,
   );
+}
+
+const PLACEHOLDER_APP_PACKAGE_NAME = "com.placeholder.noactivity";
+const PLACEHOLDER_APP_LABEL = "No Activity";
+
+/**
+ * Inject one zero-duration "no activity" placeholder App Usage row per
+ * participant-day that has raw event data but produced no App Usage session.
+ *
+ * The study window is derived from each participant's own data — the set of days
+ * that carry raw events — so a day with no data at all gets nothing; only genuine
+ * no-use days are marked. This lets day-level summaries tell "device had data, no
+ * target-child app use" apart from "no data". Opt-in (`addNoActivityPlaceholderDays`),
+ * default off, so it is a no-op on the deterministic parity fixture. Runs after
+ * enrichment + the zero-duration filter so the placeholders persist into the output
+ * and the per-day aggregates.
+ */
+function addNoActivityPlaceholderRows(
+  appRows: CanonicalRow[],
+  rawRows: CanonicalRow[],
+): CanonicalRow[] {
+  // Days that already have a real App Usage session, per participant.
+  const usageDaysByPid = new Map<string, Set<string>>();
+  for (const row of appRows) {
+    if (row.interaction_type !== "App Usage") continue;
+    let set = usageDaysByPid.get(row.participant_id);
+    if (!set) {
+      set = new Set();
+      usageDaysByPid.set(row.participant_id, set);
+    }
+    set.add(row.date);
+  }
+
+  // Earliest raw row per participant-day; it seeds the placeholder's timestamp and
+  // metadata (timezone, study_id, device model, …) so the row lands on the right day.
+  const sampleByPidDay = new Map<string, CanonicalRow>();
+  for (const row of rawRows) {
+    const key = `${row.participant_id} ${row.date}`;
+    const existing = sampleByPidDay.get(key);
+    if (!existing || row.event_timestamp_ns < existing.event_timestamp_ns) {
+      sampleByPidDay.set(key, row);
+    }
+  }
+
+  const placeholders: CanonicalRow[] = [];
+  for (const sample of sampleByPidDay.values()) {
+    if (usageDaysByPid.get(sample.participant_id)?.has(sample.date)) continue;
+    const placeholder: CanonicalRow = {
+      ...sample,
+      interaction_type: "App Usage",
+      app_package_name: PLACEHOLDER_APP_PACKAGE_NAME,
+      application_label: PLACEHOLDER_APP_LABEL,
+      start_timestamp_ns: sample.event_timestamp_ns,
+      stop_timestamp_ns: sample.event_timestamp_ns,
+      duration_seconds: 0,
+      duration_minutes: 0,
+      data_time_gap_hours: 0,
+      // Offset the index so the placeholder sorts deterministically without
+      // colliding with the seed row (screen sessions use +1_000_000).
+      __index: sample.__index + 2_000_000,
+    };
+    populateTimeColumns(placeholder, placeholder.event_timestamp_ns, placeholder.timezone);
+    placeholders.push(placeholder);
+  }
+
+  if (placeholders.length === 0) return appRows;
+  return [...appRows, ...placeholders].sort(compareByEventThenIndex);
 }
 
 function secondsBetween(left: bigint, right: bigint): number {
@@ -2423,6 +2497,9 @@ export async function processRawCsvContent(
       appRows = appRows.filter(
         (row) => row.interaction_type !== "App Usage" || row.duration_seconds === null || row.duration_seconds > 0,
       );
+    }
+    if (options.addNoActivityPlaceholderDays) {
+      appRows = addNoActivityPlaceholderRows(appRows, rows);
     }
     emit("enrich", 1);
 
