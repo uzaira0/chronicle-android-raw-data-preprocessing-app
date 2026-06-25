@@ -72,6 +72,25 @@ export async function setInputFile(
   });
 }
 
+/**
+ * Select multiple raw files in a single picker action. The app's file handler
+ * REPLACES the queue with each picker change (it does not append), so several
+ * files must be chosen in one `setInputFiles` call — looping `setInputFile`
+ * would leave only the last file.
+ */
+export async function setRawFiles(
+  page: Page,
+  files: Array<{ name: string; content: string }>,
+): Promise<void> {
+  await page.getByTestId("raw-file-input").setInputFiles(
+    files.map((file) => ({
+      name: file.name,
+      mimeType: "text/csv",
+      buffer: Buffer.from(file.content, "utf-8"),
+    })),
+  );
+}
+
 export async function processFiles(page: Page): Promise<void> {
   await page.getByRole("tab", { name: /Process/i }).click();
   await page.getByTestId("process-files-button").click();

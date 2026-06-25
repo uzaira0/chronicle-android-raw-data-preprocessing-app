@@ -86,24 +86,41 @@ test("processes app and screen outputs with CSV support files and downloads both
   assertNoExternalRequests(requestTracker);
 });
 
-test("searches individual settings and links to matching sections", async ({ page }) => {
+test("searches individual settings and jumps to the matching section (#9)", async ({ page }) => {
   await expect(page.getByTestId("settings-search-input")).toBeVisible();
   await expect(page.getByText("Full Settings Search")).toBeVisible();
   await page.getByTestId("settings-search-input").fill("parallel");
   const results = page.locator(".settings-search-results");
   await expect(results).toContainText("2 settings found");
-  await expect(results).toContainText("Parallel processing");
+  // Labels are derived from the contract tooltips, so they match the real option
+  // names ("Enable parallel file processing", not a hand-written paraphrase).
+  await expect(results).toContainText("Enable parallel file processing");
   await expect(results).toContainText("Max parallel workers");
+
+  // Placement fix: the results render as a dropdown anchored directly below the
+  // search box (not pushing page layout, not floating away from the input).
   const searchBox = await page.getByTestId("settings-search-input").boundingBox();
   const resultBox = await results.boundingBox();
   expect(searchBox).not.toBeNull();
   expect(resultBox).not.toBeNull();
-  expect(resultBox!.y).toBeGreaterThan(searchBox!.y + searchBox!.height);
-  expect(Math.abs(resultBox!.x - searchBox!.x)).toBeLessThan(2);
-  await expect(results.getByRole("link", { name: /Max parallel workers/i })).toHaveAttribute(
-    "href",
-    /#performance$/,
-  );
+  expect(resultBox!.y).toBeGreaterThanOrEqual(searchBox!.y + searchBox!.height - 2);
+  // Horizontally overlaps the input (anchored to it), not off in a corner.
+  expect(resultBox!.x).toBeLessThan(searchBox!.x + searchBox!.width);
+  expect(resultBox!.x + resultBox!.width).toBeGreaterThan(searchBox!.x);
+
+  // Jump fix: each result is an actionable button (not a dead #anchor link) that
+  // scrolls to AND flashes the owning section card.
+  const result = results.getByRole("button", { name: /Max parallel workers/i });
+  await expect(result).toBeVisible();
+  await result.click();
+  const performanceCard = page.locator('[data-section-id="performance"]');
+  await expect(performanceCard).toBeVisible();
+  await expect(performanceCard).toHaveClass(/settings-flash/);
+  // Clicking a result clears the live filter so the page isn't left filtered.
+  await expect(page.getByTestId("settings-search-input")).toHaveValue("");
+  await expect(results).toHaveCount(0);
+  // The flash is transient and clears itself.
+  await expect(performanceCard).not.toHaveClass(/settings-flash/, { timeout: 3_000 });
   assertNoExternalRequests(requestTracker);
 });
 

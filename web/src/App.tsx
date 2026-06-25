@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { PREPROCESSOR_VERSION, resolveDefaultSupportFiles } from "@/lib/browserPipeline";
 import {
   WorkerPool,
@@ -62,6 +62,8 @@ import { SettingsManagementCard } from "@/components/SettingsManagementCard";
 import { ProjectsCard } from "@/components/ProjectsCard";
 import { SettingsOverviewCard } from "@/components/SettingsOverviewCard";
 import { SettingsSearchResults } from "@/components/SettingsSearchResults";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { applyUpdate, onUpdateReady } from "@/lib/swUpdate";
 
 async function readSupportFile(file: File): Promise<BrowserSupportFile> {
   return {
@@ -104,6 +106,7 @@ function isWorkflowTab(value: string | null): value is WorkflowTab {
 function estimatedFilePercent(current: FileProgress): number {
   if (current.status === "complete") return 1;
   if (current.status === "error") return 1;
+  if (current.status === "cancelled") return 1;
   if (current.status === "pending" || !current.stepKind) return 0;
   const stepIndex = STEP_ORDER.indexOf(current.stepKind);
   if (stepIndex < 0) return 0;
@@ -152,8 +155,34 @@ export default function App(): ReactElement {
   const [hideDemoMetadata, setHideDemoMetadata] = useState(() => readDemoDisplayEnabled());
   const [storagePressure, setStoragePressure] = useState<StoragePressure | null>(null);
   const [storagePressureDismissed, setStoragePressureDismissed] = useState(false);
+  const [retryingFile, setRetryingFile] = useState<string | null>(null);
+  const [updateReady, setUpdateReady] = useState(false);
+  const baseTitleRef = useRef<string | null>(null);
+  // Snapshot of the options that produced `results`, so the Result panel can warn
+  // when the live settings have since drifted (out-of-date outputs).
+  const [resultsOptions, setResultsOptions] = useState<BrowserProcessingOptions | null>(null);
   const startTimeRef = useRef<number>(0);
-  const demoDisplay = createDemoDisplayMasker(hideDemoMetadata);
+  // A run can be cancelled mid-flight: the flag stops the runner from claiming the
+  // next file, and the pool ref lets us terminate in-flight workers immediately.
+  const cancelRequestedRef = useRef(false);
+  const poolRef = useRef<WorkerPool | null>(null);
+  // Synchronous re-entrancy locks (set before any await) so a double-click or
+  // synthetic event can't start two runs / a run-during-retry before the React
+  // state-driven `disabled` attributes re-render.
+  const processingRef = useRef(false);
+  const retryingFileRef = useRef<string | null>(null);
+  // Holds the pending "flash the jumped-to setting" timer so a rapid second jump
+  // to the same card cancels the first timer instead of cutting its flash short.
+  const flashTimerRef = useRef<number | null>(null);
+  // Memoized so the masker's internal label maps persist across renders (stable
+  // File 01/Participant 01 numbering) and its identity stays stable for memoized
+  // children — a fresh instance each render would reset numbering and churn props.
+  const demoDisplay = useMemo(() => createDemoDisplayMasker(hideDemoMetadata), [hideDemoMetadata]);
+
+  const resultsStale =
+    results.length > 0 &&
+    resultsOptions !== null &&
+    JSON.stringify(options) !== JSON.stringify(resultsOptions);
 
   // Sample storage usage on boot and whenever asked (after a run / a clear), so
   // the banner can warn before a write fails. A fresh high reading re-arms the
@@ -192,6 +221,9 @@ export default function App(): ReactElement {
     void warmMatcher();
   }, []);
 
+  // Surface a "new version available" banner when the service worker updates.
+  useEffect(() => onUpdateReady(() => setUpdateReady(true)), []);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -229,6 +261,7 @@ export default function App(): ReactElement {
         // the run without re-processing).
         skipNextPersist.current = true;
         setOptions(restoredOptions);
+        setResultsOptions(restoredOptions);
         setResults(record.results);
         const timezones = record.discoveredTimezones.length
           ? record.discoveredTimezones
@@ -276,6 +309,7 @@ export default function App(): ReactElement {
     setUploadedFiles(files);
     setFileInspections([]);
     setResults([]);
+    setResultsOptions(null);
     setError(null);
     setProcessExpanded(true);
     if (clearCachedRun) {
@@ -404,15 +438,21 @@ export default function App(): ReactElement {
   }, []);
 
   const processUploadedFiles = async () => {
+    // Synchronous re-entrancy guard: a single-file retry in flight, or a run
+    // already underway (double-click / synthetic event before the disabled
+    // attribute re-renders), must not start another run over the shared state.
+    if (processingRef.current || retryingFileRef.current) return;
     if (!uploadedFiles.length) {
       setError("Choose one or more Chronicle raw CSV files first.");
       setActiveWorkflow("files");
       return;
     }
+    processingRef.current = true;
     setActiveWorkflow("process");
     setProcessExpanded(true);
     setIsRunning(true);
     setError(null);
+    cancelRequestedRef.current = false;
     startTimeRef.current = performance.now();
 
     const order = uploadedFiles.map((file) => file.name);
@@ -425,6 +465,9 @@ export default function App(): ReactElement {
     void ensureNotificationPermission();
 
     let pool: WorkerPool | null = null;
+    // Keep the processing details open after a run ONLY when something failed, so
+    // the per-file Retry control stays visible (a clean run collapses to declutter).
+    let keepDetailsOpen = false;
     try {
       const userSupportFiles = await buildSupportFiles();
       const nextResults: ProcessedFileResult[] = new Array(uploadedFiles.length);
@@ -443,10 +486,12 @@ export default function App(): ReactElement {
       // the user's uploads win over defaults.
       const supportFiles = await resolveDefaultSupportFiles(options, userSupportFiles);
       pool = concurrency > 1 ? new WorkerPool(concurrency) : null;
+      poolRef.current = pool;
       let cursor = 0;
       const failures: string[] = [];
       const runner = async () => {
         for (;;) {
+          if (cancelRequestedRef.current) return;
           const index = cursor;
           cursor += 1;
           if (index >= uploadedFiles.length) return;
@@ -478,9 +523,16 @@ export default function App(): ReactElement {
                 handleProgressEvent,
               );
             }
+            // If the user cancelled while this file was mid-flight, discard its
+            // result instead of committing it — keeps the sequential path (which
+            // can't terminate an in-flight worker) consistent with the pool path.
+            if (cancelRequestedRef.current) return;
             nextResults[index] = result;
             handleProgressEvent({ type: "file-complete", fileName: file.name, result });
           } catch (fileError) {
+            // A terminate() during cancel rejects the in-flight file; don't count
+            // that as a real failure — the finally block marks it cancelled.
+            if (cancelRequestedRef.current) return;
             const message = fileError instanceof Error ? fileError.message : String(fileError);
             failures.push(message);
             handleProgressEvent({ type: "file-complete", fileName: file.name, error: message });
@@ -490,12 +542,19 @@ export default function App(): ReactElement {
       await Promise.all(Array.from({ length: concurrency }, () => runner()));
 
       const successful = nextResults.filter(Boolean);
+      keepDetailsOpen = failures.length > 0;
       setResults(successful);
+      if (successful.length) {
+        setResultsOptions(options);
+      }
       const nextTimezones = Array.from(
         new Set(successful.flatMap((result) => result.availableTimezones)),
       ).sort((left, right) => left.localeCompare(right));
-      setDiscoveredTimezones(nextTimezones);
+      // Don't overwrite discovered timezones with an empty set when a run produced
+      // no results (fully cancelled / all failed) — that would blank the timezone
+      // picker the user populated via file inspection or a prior run.
       if (successful.length) {
+        setDiscoveredTimezones(nextTimezones);
         void saveLastRun({
           options,
           results: successful,
@@ -520,14 +579,16 @@ export default function App(): ReactElement {
         setError(failures[0] ?? "Processing failed.");
       }
 
+      const cancelled = cancelRequestedRef.current;
       const elapsedMs = performance.now() - startTimeRef.current;
-      const summary = `Processed ${successful.length}/${uploadedFiles.length} files in ${Math.round(elapsedMs / 1000)}s`;
-      const message = failures.length
-        ? `${summary} (${failures.length} failed)`
-        : summary;
-      setToast({ message, isError: failures.length > 0 });
+      const summary = cancelled
+        ? `Cancelled. Processed ${successful.length}/${uploadedFiles.length} files`
+        : `Processed ${successful.length}/${uploadedFiles.length} files in ${Math.round(elapsedMs / 1000)}s`;
+      const message =
+        !cancelled && failures.length ? `${summary} (${failures.length} failed)` : summary;
+      setToast({ message, isError: failures.length > 0 && !cancelled });
 
-      if (typeof document !== "undefined" && document.hidden) {
+      if (!cancelled && typeof document !== "undefined" && document.hidden) {
         sendNotification(
           failures.length ? "Chronicle: some files failed" : "Chronicle: processing complete",
           message,
@@ -538,11 +599,117 @@ export default function App(): ReactElement {
       setError(message);
       setToast({ message, isError: true });
     } finally {
-      pool?.terminate();
+      poolRef.current = null;
+      if (cancelRequestedRef.current) {
+        // Any file not finished when the user cancelled is shown as cancelled,
+        // not failed, so a deliberate stop doesn't read as an error.
+        setProgressByFile((current) => {
+          const next = { ...current };
+          for (const name of order) {
+            const row = next[name];
+            if (row && row.status !== "complete" && row.status !== "error") {
+              next[name] = { ...row, status: "cancelled" };
+            }
+          }
+          return next;
+        });
+      }
+      // On cancel, cancelProcessing already terminated the pool — avoid a second
+      // terminate() on the same instance.
+      if (!cancelRequestedRef.current) pool?.terminate();
+      processingRef.current = false;
       setIsRunning(false);
-      setProcessExpanded(false);
+      setProcessExpanded(keepDetailsOpen);
     }
   };
+
+  const cancelProcessing = useCallback(() => {
+    cancelRequestedRef.current = true;
+    // Terminate in-flight workers immediately; the runner loop won't claim more.
+    poolRef.current?.terminate();
+  }, []);
+
+  /**
+   * Reprocess a single file in place — used by the Retry control on a failed
+   * row. Runs on the main thread (one file), then splices the fresh result back
+   * into `results` in the original run order and refreshes the cached run.
+   */
+  const retryFile = useCallback(
+    async (fileName: string) => {
+      if (processingRef.current || retryingFileRef.current) return;
+      const file = uploadedFiles.find((candidate) => candidate.name === fileName);
+      if (!file) {
+        setToast({
+          message: "That file is no longer loaded. Re-add it in the Files tab to retry.",
+          isError: true,
+        });
+        return;
+      }
+      retryingFileRef.current = fileName;
+      setRetryingFile(fileName);
+      // Reset the row directly rather than via a file-start event: this file is
+      // currently "error", and applyProgressEvent intentionally refuses to revert
+      // a terminal status (it guards a Comlink dual-port race). A direct set is
+      // the correct restart; subsequent step events are non-terminal and flow
+      // through normally.
+      setProgressByFile((current) => ({
+        ...current,
+        [fileName]: { fileName, status: "running", stepKind: "parse", percent: 0 },
+      }));
+      try {
+        const userSupportFiles = await buildSupportFiles();
+        const supportFiles = await resolveDefaultSupportFiles(options, userSupportFiles);
+        const text = await file.text();
+        const result = await processRawCsv(
+          file.name,
+          text,
+          options,
+          supportFiles,
+          getInjectedRuntime(),
+          handleProgressEvent,
+        );
+        handleProgressEvent({ type: "file-complete", fileName, result });
+        const merged = (() => {
+          const byName = new Map(results.map((entry) => [entry.inputFileName, entry]));
+          byName.set(fileName, result);
+          // Preserve the original queue order so the table doesn't reshuffle.
+          return progressOrder
+            .map((name) => byName.get(name))
+            .filter((entry): entry is ProcessedFileResult => Boolean(entry));
+        })();
+        setResults(merged);
+        setResultsOptions(options);
+        const nextTimezones = Array.from(
+          new Set(merged.flatMap((entry) => entry.availableTimezones)),
+        ).sort((left, right) => left.localeCompare(right));
+        setDiscoveredTimezones(nextTimezones);
+        void saveLastRun({ options, results: merged, discoveredTimezones: nextTimezones })
+          .catch(() => {})
+          .finally(() => void refreshStoragePressure());
+        setToast({ message: `Reprocessed ${demoDisplay.fileName(fileName)}.`, isError: false });
+      } catch (retryError) {
+        const message = retryError instanceof Error ? retryError.message : String(retryError);
+        handleProgressEvent({ type: "file-complete", fileName, error: message });
+        setToast({ message, isError: true });
+      } finally {
+        retryingFileRef.current = null;
+        setRetryingFile(null);
+      }
+    },
+    // support-file refs are read inside buildSupportFiles.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      isRunning,
+      retryingFile,
+      uploadedFiles,
+      options,
+      results,
+      progressOrder,
+      handleProgressEvent,
+      refreshStoragePressure,
+      demoDisplay,
+    ],
+  );
 
   const progressRows = progressOrder.map(
     (name) => progressByFile[name] ?? { fileName: name, status: "pending" },
@@ -556,18 +723,50 @@ export default function App(): ReactElement {
             estimatedFilePercent(progressByFile[name] ?? { fileName: name, status: "pending" }),
           0,
         ) / progressOrder.length;
+
+  // Reflect run progress in the browser tab title so it's visible while the tab
+  // is in the background, and restore the original title when the run ends.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (baseTitleRef.current === null) baseTitleRef.current = document.title;
+    const base = baseTitleRef.current || "Chronicle Android Raw Data Preprocessor";
+    document.title = isRunning
+      ? `(${Math.round(overallPercent * 100)}%) Processing… · ${base}`
+      : base;
+  }, [isRunning, overallPercent]);
+
+  // Restore the original title only on unmount (a dedicated empty-dep effect, so
+  // the restore doesn't run between every progress tick of the effect above).
+  useEffect(() => {
+    return () => {
+      if (baseTitleRef.current !== null) document.title = baseTitleRef.current;
+    };
+  }, []);
   const normalizedSettingsQuery = settingsQuery.trim().toLowerCase();
   const shows = (text: string) =>
     !normalizedSettingsQuery || text.toLowerCase().includes(normalizedSettingsQuery);
-  const navigateFromSettingsSearch = (href: string) => {
-    if (href === "#files") {
-      setActiveWorkflow("files");
-    } else if (href === "#process") {
-      setActiveWorkflow("process");
-    } else {
-      setActiveWorkflow("settings");
-    }
-  };
+  const navigateToSetting = useCallback((selector: string) => {
+    setActiveWorkflow("settings");
+    // Clear the live filter so the target card isn't filtered out of the page,
+    // then scroll to it on the next frame (once the panel is shown) and flash it.
+    setSettingsQuery("");
+    requestAnimationFrame(() => {
+      const target = document.querySelector(selector);
+      if (!(target instanceof HTMLElement)) return;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      target.classList.remove("settings-flash");
+      // Force reflow so re-adding the class restarts the flash animation.
+      void target.offsetWidth;
+      target.classList.add("settings-flash");
+      // Cancel a still-pending removal so a rapid second jump to the same card
+      // doesn't get its flash cut short by the first jump's timer.
+      if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current);
+      flashTimerRef.current = window.setTimeout(() => {
+        target.classList.remove("settings-flash");
+        flashTimerRef.current = null;
+      }, 1600);
+    });
+  }, []);
 
   return (
     <>
@@ -582,7 +781,24 @@ export default function App(): ReactElement {
               leaves your device.
             </p>
           </div>
+          <ThemeToggle />
         </header>
+
+        {updateReady ? (
+          <div className="update-banner" role="status" data-testid="update-banner">
+            <span className="update-banner__text">
+              A new version of the app is available.
+            </span>
+            <button
+              type="button"
+              className="btn btn--primary"
+              data-testid="update-reload"
+              onClick={applyUpdate}
+            >
+              Reload
+            </button>
+          </div>
+        ) : null}
 
         {storagePressure && isStoragePressureHigh(storagePressure) && !storagePressureDismissed ? (
           <div className="storage-pressure" role="status" data-testid="storage-pressure">
@@ -652,7 +868,7 @@ export default function App(): ReactElement {
                     data-testid="settings-search-input"
                     onChange={(event) => setSettingsQuery(event.target.value)}
                   />
-                  <SettingsSearchResults query={settingsQuery} onNavigate={navigateFromSettingsSearch} />
+                  <SettingsSearchResults query={settingsQuery} onNavigate={navigateToSetting} />
                 </div>
               </div>
               <SettingsManagementCard
@@ -756,6 +972,11 @@ export default function App(): ReactElement {
               onProcess={() => {
                 void processUploadedFiles();
               }}
+              onCancel={cancelProcessing}
+              onRetry={(fileName) => {
+                void retryFile(fileName);
+              }}
+              retryingFile={retryingFile}
               progressRows={progressRows}
               overallPercent={overallPercent}
               expanded={processExpanded}
@@ -770,6 +991,7 @@ export default function App(): ReactElement {
                 options={options}
                 expectedFileCount={uploadedFiles.length}
                 progressRows={progressRows}
+                stale={resultsStale}
               />
             </div>
           </div>

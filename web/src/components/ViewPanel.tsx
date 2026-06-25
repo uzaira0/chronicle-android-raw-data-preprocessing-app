@@ -78,6 +78,9 @@ export function ViewPanel({
   const [focusedDate, setFocusedDate] = useState<string | null>(null);
   const [subView, setSubView] = useState<SubView>("timeline");
   const [showFilteredUsage, setShowFilteredUsage] = useState(includeFilteredAppUsageInPlots);
+  // Free-text app-name filter that spotlights matching sessions across the
+  // whole timeline (#20).
+  const [highlightQuery, setHighlightQuery] = useState("");
 
   // Arm-B comparison state. `armBResult` is scoped to the file it was run on;
   // switching files clears it.
@@ -130,6 +133,16 @@ export function ViewPanel({
     (v) => v.participantId === activeParticipant.participantId,
   );
   const view = rawView ? sanitizeDemoView(rawView, displayMasker) : null;
+
+  // Dates the active participant had raw data but no sessions on (no_usage_day),
+  // masked the same way the scene row dates are, so the timeline can band them
+  // (#18). A plain const (not useMemo) since this sits after ViewPanel's early
+  // return — a hook here would violate the rules-of-hooks order.
+  const gapDates = new Set(
+    activeParticipant.perDay
+      .filter((day) => day.flags.includes("no_usage_day"))
+      .map((day) => displayMasker.text(day.date)),
+  );
 
   const typeLabel: Record<ViewType, string> = { app: "App usage", screen: "Screen usage" };
   const filteredUsageLabel = showFilteredUsage ? "Filtered usage included" : "Filtered usage excluded";
@@ -289,6 +302,19 @@ export function ViewPanel({
               </span>
             </label>
           ) : null}
+          {subView === "timeline" ? (
+            <label className="timeline-view__field timeline-view__field--search">
+              <span>Highlight app</span>
+              <input
+                type="search"
+                className="input"
+                data-testid="timeline-highlight-input"
+                placeholder="e.g. youtube"
+                value={highlightQuery}
+                onChange={(event) => setHighlightQuery(event.target.value)}
+              />
+            </label>
+          ) : null}
           <div className="review-view__subtabs" role="group" aria-label="Review view">
             <button
               type="button"
@@ -377,9 +403,18 @@ export function ViewPanel({
                 key={`${participantKey}:AB`}
                 view={comparisonView}
                 context={compareContextLine}
+                highlightQuery={highlightQuery}
+                allowExport
               />
             ) : view ? (
-              <InteractiveScene key={participantKey} view={view} context={contextLine} />
+              <InteractiveScene
+                key={participantKey}
+                view={view}
+                context={contextLine}
+                highlightQuery={highlightQuery}
+                gapDates={gapDates}
+                allowExport
+              />
             ) : (
               <p className="timeline-view__empty">
                 No {typeLabel[activeType].toLowerCase()} timeline for this participant.

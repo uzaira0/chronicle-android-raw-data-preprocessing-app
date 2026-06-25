@@ -6,6 +6,7 @@ import { SettingsField } from "@/components/SettingsField";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
+import { rangeError } from "@/lib/validation";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 const KEYS: readonly OptionKey[] = [
@@ -41,12 +42,19 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
         Tunes how the screen usage derivation infers locks and unlocks. Defaults reflect the
         canonical desktop pipeline; only adjust if your traces have unusual lock behavior.
       </p>
+      {!options.processScreenUsage ? (
+        <p className="settings-dependency-note" role="note" data-testid="screen-dependency-note">
+          Screen usage output is off, so these screen-detection settings won’t change any output.
+          Turn on “Screen usage output” in Output &amp; plots to use them.
+        </p>
+      ) : null}
       <div className="settings-grid-2">
         <SettingsField
           label="Auto lock timeout (seconds)"
           tooltip={TOOLTIPS.screenUsageAutoLockTimeoutSeconds}
           modified={isMod("screenUsageAutoLockTimeoutSeconds")}
           onReset={() => reset("screenUsageAutoLockTimeoutSeconds")}
+          error={rangeError(options.screenUsageAutoLockTimeoutSeconds, 1, 3600)}
         >
           <input
             type="number"
@@ -65,6 +73,7 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
           tooltip={TOOLTIPS.screenUsageAutoLockToleranceSeconds}
           modified={isMod("screenUsageAutoLockToleranceSeconds")}
           onReset={() => reset("screenUsageAutoLockToleranceSeconds")}
+          error={rangeError(options.screenUsageAutoLockToleranceSeconds, 0, 600)}
         >
           <input
             type="number"
@@ -83,6 +92,7 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
           tooltip={TOOLTIPS.screenUsageManualLockMaxTailGapSeconds}
           modified={isMod("screenUsageManualLockMaxTailGapSeconds")}
           onReset={() => reset("screenUsageManualLockMaxTailGapSeconds")}
+          error={rangeError(options.screenUsageManualLockMaxTailGapSeconds, 0, 600)}
         >
           <input
             type="number"
@@ -101,6 +111,7 @@ export function ScreenDetectionCard({ options, setOptions }: Props): ReactElemen
           tooltip={TOOLTIPS.screenUsageKeyguardNearStopSeconds}
           modified={isMod("screenUsageKeyguardNearStopSeconds")}
           onReset={() => reset("screenUsageKeyguardNearStopSeconds")}
+          error={rangeError(options.screenUsageKeyguardNearStopSeconds, 0, 60)}
         >
           <input
             type="number"

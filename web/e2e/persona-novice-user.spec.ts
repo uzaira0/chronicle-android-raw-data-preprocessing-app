@@ -9,6 +9,7 @@ import {
   parseCsv,
   processFiles,
   setInputFile,
+  setRawFiles,
   trackExternalRequests,
 } from "./helpers";
 
@@ -127,5 +128,79 @@ test("a novice can turn off an output they didn't want and it disappears next ru
   const row = page.getByTestId("result-row").first();
   await expect(row).toContainText(/App CSV/);
   await expect(row).not.toContainText(/Screen/);
+  assertNoExternalRequests(requestTracker);
+});
+
+test("changing a setting after a run flags the on-screen results as stale (#13)", async ({
+  page,
+}) => {
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
+  await processFiles(page);
+  // Fresh results carry no stale warning.
+  await expect(page.getByTestId("results-stale-note")).toHaveCount(0);
+
+  // The novice tweaks a setting; the results on screen no longer reflect the
+  // current config, so the app warns them instead of silently looking current.
+  await page.getByRole("tab", { name: /Settings/i }).click();
+  await page.getByTestId("study-name-input").fill("changed-after-run");
+  await page.getByRole("tab", { name: /Process/i }).click();
+  await expect(page.getByTestId("results-stale-note")).toBeVisible();
+  assertNoExternalRequests(requestTracker);
+});
+
+test("loading a preset previews the changes, and a reset can be undone (#25)", async ({ page }) => {
+  await page.getByTestId("study-name-input").fill("BaselineStudy");
+  await page.getByTestId("preset-name-input").fill("Baseline");
+  await page.getByTestId("save-preset-button").click();
+  await expect(page.getByTestId("preset-list")).toContainText("Baseline");
+
+  // Drift away from the saved preset, then load it: a diff preview tells the
+  // novice exactly what will change before they commit — no blind overwrite.
+  await page.getByTestId("study-name-input").fill("Drifted");
+  await page.getByTestId("preset-load-button").first().click();
+  const diff = page.getByTestId("preset-diff");
+  await expect(diff).toBeVisible();
+  await expect(diff).toContainText(/will change/i);
+  await page.getByTestId("preset-apply-button").click();
+  await expect(page.getByTestId("study-name-input")).toHaveValue("BaselineStudy");
+
+  // A scary "reset everything" is reversible: confirm the reset, then undo it.
+  await page.getByRole("button", { name: /Reset all to defaults/i }).click();
+  await page.getByRole("button", { name: /^Reset all$/i }).click();
+  await expect(page.getByTestId("study-name-input")).not.toHaveValue("BaselineStudy");
+  await page.getByTestId("undo-reset-button").click();
+  await expect(page.getByTestId("study-name-input")).toHaveValue("BaselineStudy");
+  assertNoExternalRequests(requestTracker);
+});
+
+test("a failed file in a batch offers a Retry that re-runs only that file (#12)", async ({
+  page,
+}) => {
+  // A mixed batch in one pick: one good file, one with an unparseable timestamp.
+  // (The queue is replaced per pick, so both must be selected together.)
+  await setRawFiles(page, [
+    { name: "Good.csv", content: APP_ONLY_RAW_CSV },
+    { name: "Bad.csv", content: MALFORMED_RAW_CSV },
+  ]);
+  await page.getByRole("tab", { name: /Process/i }).click();
+  await page.getByTestId("process-files-button").click();
+
+  // The good file produced its result; the bad file is isolated as an error row
+  // with a Retry control — it doesn't sink the whole batch.
+  await expect(page.getByTestId("result-panel").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("result-row")).toHaveCount(1); // only the good file
+  const retry = page.getByTestId("retry-file-button");
+  await expect(retry).toBeVisible();
+  // A partial failure is isolated to the file's own row (not a whole-page error
+  // banner), with the parse error shown inline.
+  await expect(page.getByRole("button", { name: /Invalid event_timestamp/i })).toBeVisible();
+
+  // Clicking Retry re-attempts ONLY that file. It's still malformed, so it fails
+  // again — but the control is wired, raises no crash, and leaves the good file's
+  // result untouched (single-file retry, not a whole-batch re-run).
+  await retry.click();
+  await expect(page.getByTestId("retry-file-button")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /Invalid event_timestamp/i })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("result-row")).toHaveCount(1);
   assertNoExternalRequests(requestTracker);
 });
