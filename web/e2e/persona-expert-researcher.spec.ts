@@ -6,6 +6,7 @@ import {
   APPS_FORCING_SCREEN_OPEN_CSV,
   CODEBOOK_CSV,
   FILTER_FILE_CSV,
+  MULTI_FILE_RAW_CSV_B,
 } from "./fixtures";
 import {
   assertNoExternalRequests,
@@ -17,6 +18,7 @@ import {
   parseCsv,
   processFiles,
   setInputFile,
+  setRawFiles,
   trackExternalRequests,
 } from "./helpers";
 
@@ -193,5 +195,48 @@ test("a power user can re-run with parquet only after toggling other exports off
   await expect(page.getByTestId("download-parquet-zip")).toHaveCount(0);
   const rows = parseCsv(await downloadCsv(page, "download-app-csv"));
   expect(rows.length).toBeGreaterThan(0);
+  assertNoExternalRequests(requestTracker);
+});
+
+test("switches the colour theme and the choice persists across reload (#21)", async ({ page }) => {
+  const html = page.locator("html");
+  // Pick dark explicitly; the document theme token flips immediately.
+  await page.getByTestId("theme-dark").click();
+  await expect(html).toHaveAttribute("data-theme", "dark");
+
+  // Persisted to localStorage and re-applied at boot (before first paint).
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" })).toBeVisible();
+  await expect(html).toHaveAttribute("data-theme", "dark");
+  // The toggle reflects the persisted choice as the pressed option.
+  await expect(page.getByTestId("theme-dark")).toHaveAttribute("aria-pressed", "true");
+
+  // And back to light, also immediate.
+  await page.getByTestId("theme-light").click();
+  await expect(html).toHaveAttribute("data-theme", "light");
+  assertNoExternalRequests(requestTracker);
+});
+
+test("can reorder and remove queued raw files before processing (#24)", async ({ page }) => {
+  // One picker action with both files (the queue is replaced per pick, not appended).
+  await setRawFiles(page, [
+    { name: "Raw P01.csv", content: APP_ONLY_RAW_CSV },
+    { name: "Raw P02.csv", content: MULTI_FILE_RAW_CSV_B },
+  ]);
+  await page.getByRole("tab", { name: /Files/i }).click();
+  const rows = page.getByTestId("raw-file-row");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toContainText("Raw P01.csv");
+  await expect(rows.nth(1)).toContainText("Raw P02.csv");
+
+  // Reorder: send the first file down — the order flips and the control follows.
+  await rows.nth(0).getByTestId("move-file-down").click();
+  await expect(rows.nth(0)).toContainText("Raw P02.csv");
+  await expect(rows.nth(1)).toContainText("Raw P01.csv");
+
+  // Remove the now-first file — the queue shrinks cleanly, no orphan row.
+  await rows.nth(0).getByTestId("remove-file").click();
+  await expect(page.getByTestId("raw-file-row")).toHaveCount(1);
+  await expect(page.getByTestId("raw-file-row")).toContainText("Raw P01.csv");
   assertNoExternalRequests(requestTracker);
 });

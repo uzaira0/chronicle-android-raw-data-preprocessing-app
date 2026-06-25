@@ -10,8 +10,53 @@ import {
   readPersistedPresets,
   type SettingsPreset,
 } from "@/lib/settingsPersistence";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
+import { BROWSER_OPTION_TOOLTIPS } from "@/lib/generatedContract";
+import { downloadBlob } from "@/lib/download";
 import type { BrowserProcessingOptions } from "@/lib/types";
 import { safeUuid } from "@/lib/uuid";
+
+const OPTION_TOOLTIPS = BROWSER_OPTION_TOOLTIPS as Record<string, { title?: string } | undefined>;
+
+function optionLabel(key: string): string {
+  return (
+    OPTION_TOOLTIPS[key]?.title ??
+    key.replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase()).trim()
+  );
+}
+
+function valuesEqual(left: unknown, right: unknown): boolean {
+  if (Array.isArray(left) || Array.isArray(right)) {
+    const a = (left ?? []) as unknown[];
+    const b = (right ?? []) as unknown[];
+    return a.length === b.length && a.every((entry, index) => entry === b[index]);
+  }
+  return left === right;
+}
+
+function formatPresetValue(value: unknown): string {
+  if (Array.isArray(value)) return value.length ? `[${value.join(", ")}]` : "(none)";
+  if (typeof value === "boolean") return value ? "On" : "Off";
+  if (value === undefined || value === null || value === "") return "(default)";
+  return String(value);
+}
+
+type PresetDiffEntry = { key: string; label: string; from: string; to: string };
+
+function diffPresetOptions(
+  current: BrowserProcessingOptions,
+  next: BrowserProcessingOptions,
+): PresetDiffEntry[] {
+  const keys = Object.keys(DEFAULT_BROWSER_OPTIONS) as Array<keyof BrowserProcessingOptions>;
+  return keys
+    .filter((key) => !valuesEqual(current[key], next[key]))
+    .map((key) => ({
+      key: String(key),
+      label: optionLabel(String(key)),
+      from: formatPresetValue(current[key]),
+      to: formatPresetValue(next[key]),
+    }));
+}
 
 type Props = {
   options: BrowserProcessingOptions;
@@ -20,15 +65,6 @@ type Props = {
   onHideDemoMetadataChange: (next: boolean) => void;
   onStatus: (message: string, isError?: boolean) => void;
 };
-
-function downloadBlob(fileName: string, blob: Blob): void {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = fileName;
-  anchor.click();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
 
 export function SettingsManagementCard({
   options,
@@ -40,17 +76,18 @@ export function SettingsManagementCard({
   const [presets, setPresets] = useState<SettingsPreset[]>(() => readPersistedPresets());
   const [presetName, setPresetName] = useState("");
   const importConfigRef = useRef<HTMLInputElement | null>(null);
+  // Pre-reset snapshot so the user can undo a "Reset all to defaults".
+  const [undoSnapshot, setUndoSnapshot] = useState<BrowserProcessingOptions | null>(null);
+  // Name awaiting an overwrite confirmation (a preset with that name exists).
+  const [pendingOverwriteName, setPendingOverwriteName] = useState<string | null>(null);
+  // Preset whose changes are being previewed before applying.
+  const [pendingLoad, setPendingLoad] = useState<SettingsPreset | null>(null);
 
   useEffect(() => {
     persistPresets(presets);
   }, [presets]);
 
-  const savePreset = () => {
-    const name = presetName.trim();
-    if (!name) {
-      onStatus("Name the preset before saving.", true);
-      return;
-    }
+  const performSave = (name: string) => {
     const now = new Date().toISOString();
     setPresets((current) => {
       const existing = current.find(
@@ -63,24 +100,55 @@ export function SettingsManagementCard({
       }
       return [
         ...current,
-        {
-          id: safeUuid(),
-          name,
-          createdAt: now,
-          updatedAt: now,
-          options,
-        },
+        { id: safeUuid(), name, createdAt: now, updatedAt: now, options },
       ];
     });
     setPresetName("");
+    setPendingOverwriteName(null);
     onStatus(`Preset saved: ${name}`);
   };
+
+  const savePreset = () => {
+    const name = presetName.trim();
+    if (!name) {
+      onStatus("Name the preset before saving.", true);
+      return;
+    }
+    // Close any open load-diff so the two confirmations can't be live at once
+    // (and an Apply can't act on a now-stale snapshot).
+    setPendingLoad(null);
+    const existing = presets.find(
+      (preset) => preset.name.toLowerCase() === name.toLowerCase(),
+    );
+    if (existing) {
+      // Don't silently clobber a same-named preset; ask first.
+      setPendingOverwriteName(name);
+      return;
+    }
+    performSave(name);
+  };
+
+  const handleReset = (next: BrowserProcessingOptions) => {
+    setUndoSnapshot(options);
+    setOptions(next);
+    onStatus("All settings reset to defaults.");
+  };
+
+  const pendingLoadDiff = pendingLoad ? diffPresetOptions(options, pendingLoad.options) : [];
+
+  // Move focus into the load-diff dialog when it opens (WAI-ARIA: a dialog must
+  // take focus) so keyboard/screen-reader users land on its controls.
+  const pendingLoadCancelRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (pendingLoad) pendingLoadCancelRef.current?.focus();
+  }, [pendingLoad]);
 
   return (
     <section
       className="settings-management"
       aria-labelledby="settings-management-title"
       data-testid="settings-management"
+      data-settings-anchor="management"
     >
       <header className="workflow-section__header">
         <div>
@@ -157,7 +225,22 @@ export function SettingsManagementCard({
           >
             Copy share link
           </button>
-          <ResetDefaultsButton options={options} onReset={setOptions} />
+          <ResetDefaultsButton options={options} onReset={handleReset} />
+          {undoSnapshot ? (
+            <button
+              type="button"
+              className="btn btn--secondary"
+              data-testid="undo-reset-button"
+              onClick={() => {
+                const snapshot = undoSnapshot;
+                setUndoSnapshot(null);
+                setOptions(snapshot);
+                onStatus("Reset undone — previous settings restored.");
+              }}
+            >
+              Undo reset
+            </button>
+          ) : null}
           <input
             ref={importConfigRef}
             className="visually-hidden-file-input"
@@ -214,6 +297,80 @@ export function SettingsManagementCard({
             Save preset
           </button>
         </div>
+        {pendingOverwriteName ? (
+          <div className="inline-confirm" role="alert" data-testid="preset-overwrite-confirm">
+            <span>
+              A preset named “{pendingOverwriteName}” already exists. Overwrite it with the
+              current settings?
+            </span>
+            <div className="button-row">
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setPendingOverwriteName(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn--danger"
+                data-testid="preset-overwrite-confirm-button"
+                onClick={() => performSave(pendingOverwriteName)}
+              >
+                Overwrite
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {pendingLoad ? (
+          <div className="preset-diff" role="dialog" aria-label="Preset changes" data-testid="preset-diff">
+            <div className="preset-diff__head">
+              <strong>Load “{pendingLoad.name}”</strong>
+              <span className="text-faint u-meta-xs">
+                {pendingLoadDiff.length
+                  ? `${pendingLoadDiff.length} setting${pendingLoadDiff.length === 1 ? "" : "s"} will change`
+                  : "No differences from your current settings"}
+              </span>
+            </div>
+            {pendingLoadDiff.length ? (
+              <ul className="preset-diff__list">
+                {pendingLoadDiff.map((entry) => (
+                  <li key={entry.key}>
+                    <span className="preset-diff__label">{entry.label}</span>
+                    <span className="preset-diff__change">
+                      <span className="preset-diff__from">{entry.from}</span>
+                      <span aria-hidden="true"> → </span>
+                      <span className="preset-diff__to">{entry.to}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="button-row">
+              <button
+                ref={pendingLoadCancelRef}
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setPendingLoad(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                data-testid="preset-apply-button"
+                disabled={!pendingLoadDiff.length}
+                onClick={() => {
+                  setOptions(pendingLoad.options);
+                  onStatus(`Loaded preset: ${pendingLoad.name}`);
+                  setPendingLoad(null);
+                }}
+              >
+                Apply changes
+              </button>
+            </div>
+          </div>
+        ) : null}
         {presets.length ? (
           <div className="preset-list" data-testid="preset-list">
             {presets.map((preset) => (
@@ -221,16 +378,18 @@ export function SettingsManagementCard({
                 <div>
                   <strong>{preset.name}</strong>
                   <span className="text-faint u-meta-xs">
-                    Updated {new Date(preset.updatedAt).toLocaleString()}
+                    Created {new Date(preset.createdAt).toLocaleDateString()} · Updated{" "}
+                    {new Date(preset.updatedAt).toLocaleString()}
                   </span>
                 </div>
                 <div className="button-row">
                   <button
                     type="button"
                     className="btn btn--primary"
+                    data-testid="preset-load-button"
                     onClick={() => {
-                      setOptions(preset.options);
-                      onStatus(`Loaded preset: ${preset.name}`);
+                      setPendingOverwriteName(null);
+                      setPendingLoad(preset);
                     }}
                   >
                     Load
@@ -238,11 +397,14 @@ export function SettingsManagementCard({
                   <button
                     type="button"
                     className="btn btn--danger-ghost"
-                    onClick={() =>
+                    onClick={() => {
+                      // If this preset's load-diff is open, close it so Apply can't
+                      // act on a now-deleted preset.
+                      if (pendingLoad?.id === preset.id) setPendingLoad(null);
                       setPresets((current) =>
                         current.filter((entry) => entry.id !== preset.id),
-                      )
-                    }
+                      );
+                    }}
                   >
                     Delete
                   </button>
