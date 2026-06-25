@@ -3497,12 +3497,20 @@ a:hover {
   color: var(--color-text-muted);
 }
 
-.review-drawer__grid {
+/* Lay the Arm-B cards out exactly like the Settings tab: the overview spans the
+   full width (its own internal 2-col grid needs the room) and the detection
+   cards drop into the shared .settings-stack grid (which already gives the tall
+   interaction-semantics card its own full-width row). Cramming all four into a
+   narrow auto-fill grid overlapped their internal columns. */
+.review-drawer__body {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  /* Explicit single track (minmax floor of 0) clamps the nested .settings-stack
+     grid to the drawer width — an implicit auto track lets its min-width:auto
+     items blow out the container at intermediate widths. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   padding: var(--space-3);
-  max-height: 52vh;
+  max-height: 60vh;
   overflow-y: auto;
 }
 
