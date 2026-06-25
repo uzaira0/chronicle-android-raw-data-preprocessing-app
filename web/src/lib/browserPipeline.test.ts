@@ -138,6 +138,77 @@ describe("browserPipeline", () => {
     expect(screenCsv).toContain("probable_manual_lock");
   });
 
+  // A real chat session on 03-07 plus a raw-only screen event on 03-08 (no app
+  // usage that day). 03-08 is a "device had data, no target-child app use" day.
+  const placeholderCsv = [
+    "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+    "Study,P01,Target Child,System,Unknown importance: 15,android,2026-03-07 10:00:00,America/Chicago",
+    "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:05,America/Chicago",
+    "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:00:15,America/Chicago",
+    "Study,P01,Target Child,System,Unknown importance: 16,android,2026-03-07 10:00:20,America/Chicago",
+    "Study,P01,Target Child,System,Unknown importance: 15,android,2026-03-08 09:00:00,America/Chicago",
+  ].join("\n");
+
+  // Matcher indices are positions in the full sorted row array: the chat session
+  // spans rows 1→2; the 03-08 screen event (row 4) is never matched.
+  const placeholderMatcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+    startIndices: [1],
+    stopStartIndices: [1],
+    stopEventIndices: [2],
+    missingIndices: [],
+  });
+
+  it("adds a zero-duration placeholder for a day with raw data but no app usage (addNoActivityPlaceholderDays)", async () => {
+    const result = await processRawCsvContent(
+      "Raw P01.csv",
+      placeholderCsv,
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        processAppUsage: true,
+        processScreenUsage: false,
+        useFilterFile: false,
+        useAppsForcingScreenOpenFile: false,
+        useAppCodebook: false,
+        addNoActivityPlaceholderDays: true,
+      },
+      {},
+      placeholderMatcher,
+    );
+
+    const appCsv = await readOutputCsv(result.outputs[0]!.blob);
+    const placeholderLines = appCsv
+      .split("\n")
+      .filter((line) => line.includes("com.placeholder.noactivity"));
+
+    // Exactly one placeholder, on the no-usage day (03-08), labelled "No Activity".
+    // The day with a real session (03-07) is not marked, and a day with no data
+    // (e.g. 03-09) never appears.
+    expect(placeholderLines).toHaveLength(1);
+    expect(placeholderLines[0]).toContain("No Activity");
+    expect(placeholderLines[0]).toContain("03-08");
+  });
+
+  it("does not add placeholders when addNoActivityPlaceholderDays is off", async () => {
+    const result = await processRawCsvContent(
+      "Raw P01.csv",
+      placeholderCsv,
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        processAppUsage: true,
+        processScreenUsage: false,
+        useFilterFile: false,
+        useAppsForcingScreenOpenFile: false,
+        useAppCodebook: false,
+        addNoActivityPlaceholderDays: false,
+      },
+      {},
+      placeholderMatcher,
+    );
+
+    const appCsv = await readOutputCsv(result.outputs[0]!.blob);
+    expect(appCsv).not.toContain("com.placeholder.noactivity");
+  });
+
   it("only populates consolidated genreId_scraped when source genres agree", async () => {
     const csv = [
       "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",

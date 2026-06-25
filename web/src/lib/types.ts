@@ -35,6 +35,12 @@ export type MatcherInput = {
     useActivityStoppedAsFallback: boolean;
     applyThresholdToFallback: boolean;
     longDurationThresholdNs: bigint;
+    /**
+     * Intra-app teardown grace, in nanoseconds. 0 = off (the shared WASM matcher
+     * ignores it and runs unchanged). When > 0 the pipeline routes to the JS
+     * proximity matcher instead, so the WASM path never sees a non-zero value.
+     */
+    proximityNs: bigint;
   };
 };
 

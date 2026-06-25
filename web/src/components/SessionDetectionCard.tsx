@@ -17,11 +17,13 @@ const KEYS: readonly OptionKey[] = [
   "customAppEngagementDuration",
   "longUsageDurationThresholds",
   "longDataTimeGapThresholds",
+  "proximityIntervalSeconds",
   "correctDuplicateEventTimestamps",
   "deduplicateExactRows",
   "allowStopEventReuse",
   "useActivityStoppedAsFallback",
   "applyThresholdToFallback",
+  "addNoActivityPlaceholderDays",
 ];
 
 type Props = {
@@ -139,6 +141,28 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
             placeholder="1, 2, 3, …"
           />
         </SettingsField>
+
+        <SettingsField
+          label="Intra-app teardown grace (seconds)"
+          htmlFor="proximity-interval-input"
+          tooltip={TOOLTIPS.proximityIntervalSeconds}
+          modified={isMod("proximityIntervalSeconds")}
+          onReset={() => reset("proximityIntervalSeconds")}
+        >
+          <input
+            id="proximity-interval-input"
+            data-testid="proximity-interval-input"
+            type="number"
+            className="input"
+            min={0}
+            max={3600}
+            step={0.5}
+            value={options.proximityIntervalSeconds}
+            onChange={(event) =>
+              update("proximityIntervalSeconds", Number(event.target.value))
+            }
+          />
+        </SettingsField>
       </div>
 
       <div className="settings-grid-1">
@@ -195,6 +219,15 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           testId="toggle-filterZeroDurationSessions"
           modified={isMod("filterZeroDurationSessions")}
           onReset={() => reset("filterZeroDurationSessions")}
+        />
+        <ToggleField
+          label="Add no-activity placeholder days"
+          tooltip={TOOLTIPS.addNoActivityPlaceholderDays}
+          checked={options.addNoActivityPlaceholderDays}
+          onChange={(value) => update("addNoActivityPlaceholderDays", value)}
+          testId="toggle-addNoActivityPlaceholderDays"
+          modified={isMod("addNoActivityPlaceholderDays")}
+          onReset={() => reset("addNoActivityPlaceholderDays")}
         />
       </div>
     </SectionCard>
