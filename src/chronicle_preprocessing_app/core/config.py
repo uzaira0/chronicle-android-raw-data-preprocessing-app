@@ -255,6 +255,13 @@ class PreprocessingOptions:
     long_duration_threshold_hours: float = DEFAULT_LONG_DURATION_THRESHOLD_HOURS
     # Sessions exceeding this threshold are considered unrealistic and are capped or
     # closed using fallback stop events. Default is 12 hours.
+    # Intra-app teardown grace (seconds). When > 0, an Activity-Stopped *fallback* close
+    # that lands within this window of a RE-RESUMED session's start is an intra-app
+    # teardown artifact (app torn down then immediately re-resumed), NOT a real close —
+    # the session stays open for the next proper closer. 0 = off. Implemented in the
+    # Python matcher (the Rust matcher has no proximity parameter, so proximity > 0
+    # forces the Python matcher).
+    proximity_interval_seconds: float = 0.0
     filter_zero_duration_sessions: bool = DEFAULT_FILTER_ZERO_DURATION_SESSIONS
     parallel_processing: bool = DEFAULT_PARALLEL_PROCESSING
     parallel_max_workers: int | None = DEFAULT_PARALLEL_MAX_WORKERS
