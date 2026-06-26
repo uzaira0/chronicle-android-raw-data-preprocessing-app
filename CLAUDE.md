@@ -93,6 +93,53 @@ Most npm scripts wrap the real command in `node scripts/run-clean-env.mjs` to st
 ### The contract (web defaults & option keys)
 `web/schema/chronicle-local-contract.linkml.yaml` (LinkML) is the source of truth for web option keys, defaults, and tooltips. `npm run check:contract` regenerates and validates `web/src/lib/generatedContract.ts` (`BROWSER_PROCESSING_OPTION_KEYS`, `DEFAULT_BROWSER_OPTIONS`, `BROWSER_OPTION_TOOLTIPS`). **Edit the LinkML schema, not the generated file**, then regenerate.
 
+## Usage-window semantics (research-pipeline consumer)
+
+This engine is consumed by the `research-pipeline` monorepo
+(`apps/pipeline/research_pipeline/lib/android/chronicle/v1_engine.py`) to score child
+screen time for the TECH / GNSM studies. That consumer froze a **locked config** and, in
+2026-06, ran a per-instance audit (`analyses/chronicle-window-definition/`) that landed a
+**valid-usage-window paradigm** this engine does not yet implement. Captured here so the
+matcher's behavior and the planned change are both on the record.
+
+**Locked config (the consumer's frozen `PreprocessingOptions` for app-usage):**
+`long_duration_threshold_hours=6` (engine default is 12), `proximity_interval_seconds=2`,
+`minimum_usage_duration=60`, `allow_stop_event_reuse=off`,
+`use_activity_stopped_as_fallback=on`, `apply_threshold_to_activity_stopped_fallback=on`,
+`use_filter_file=on`, plus a post-engine Amazon-Kids-as-launcher relabel. `proximity=2 s`
+is load-bearing (off fragments video teardown-churn below the 60 s floor). The tablet
+stream also requires `proximity=2 s` (stock prox0 collapses PBS sessions).
+
+**Matcher facts the audit leaned on (cite, don't re-derive):**
+- The app-usage matcher consumes only ~6 of ~46 raw `InteractionType` values. **Screen
+  Interactive / Non-Interactive feed only `screen_usage_preprocessor.py`, never the
+  matcher** — so screen-off does NOT currently close an app-usage session.
+- `polars_fast_path.py` `is_fallback_stop` (~:1025): an Activity-Stopped of the same app
+  closes an open session — this **prevents** End-of-Usage-Missing by supplying an
+  observed end. EoUM (`missing_indices`, ~:1118) is driven by the `long_duration_threshold_hours`
+  cap, **not** by the fallback. A >6 h session is currently **zeroed** via EoUM (null
+  start/stop → 0 TDM min through the dbt split gate), not truncated.
+- The forces-screen-open ("n-file",
+  `apps_forcing_screen_open_files/...apps_forcing_screen_open.csv`, shipped = youtube /
+  netflix / hulu / disney / twitch) is consumed **only** by
+  `screen_usage_preprocessor.py` (`APP_KEPT_AWAKE_OR_EXTENDED`, ~:294, gated on
+  `screen_usage_auto_lock_timeout_seconds`, default 2 min) — it has **zero** app-usage
+  consumers today.
+
+**Planned paradigm (decided by the researcher, NOT yet built — implement as opt-in /
+parity-safe, default no-op on the fixture):**
+1. feed Screen-Non-Interactive into the matcher as a session closer, with a **blip-bridge**
+   (an off shorter than the 2-min auto-lock followed by the same app within 2 min is
+   bridged — it cannot be an auto-lock);
+2. switch the 6 h threshold from **zero-out** to **truncate-to-6 h** (keep the first 6 h);
+3. no-true-end (runs to shutdown/death with no screen-off) → credit screen-on to the last
+   engagement, not a blanket zero.
+This makes held-open video/games count as usage (screen-on), so the n-file becomes moot
+for app-usage. Within a continuous screen-on span Chronicle cannot distinguish attentive
+watching from a left-on device (no presence signal during playback), so the 6 h cap — not
+an attention timeout — bounds the tail. See `docs/chronicle-decisions-made.md` §14 in the
+consumer repo.
+
 ## Gotchas
 
 - `npm run typecheck` is three separate `tsc` invocations (not `tsc -b`). Composite/project-reference builds fail because scripts import `src/*` (TS6307). Only the `*.mjs` config sets `allowJs`/`checkJs`.

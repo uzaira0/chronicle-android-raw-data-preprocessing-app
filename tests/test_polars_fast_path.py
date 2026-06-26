@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, datetime
 from pathlib import Path
 
 import polars as pl
@@ -35,6 +36,40 @@ def _raw_fixture() -> pl.DataFrame:
                 Column.APP_PACKAGE_NAME: "com.example.app",
                 Column.APPLICATION_LABEL: "Example",
                 Column.USERNAME: "Target Child",
+                Column.TIMEZONE: "America/Chicago",
+            },
+        ]
+    )
+
+
+def _placeholder_fixture() -> pl.DataFrame:
+    return pl.DataFrame(
+        [
+            {
+                Column.PARTICIPANT_ID: "P01",
+                Column.EVENT_TIMESTAMP: "2026-03-07T10:00:00-06:00",
+                Column.INTERACTION_TYPE: str(InteractionType.ACTIVITY_RESUMED),
+                Column.APP_PACKAGE_NAME: "com.example.app",
+                Column.APPLICATION_LABEL: "Example",
+                Column.USERNAME: "Target Child",
+                Column.TIMEZONE: "America/Chicago",
+            },
+            {
+                Column.PARTICIPANT_ID: "P01",
+                Column.EVENT_TIMESTAMP: "2026-03-07T10:05:00-06:00",
+                Column.INTERACTION_TYPE: str(InteractionType.ACTIVITY_PAUSED),
+                Column.APP_PACKAGE_NAME: "com.example.app",
+                Column.APPLICATION_LABEL: "Example",
+                Column.USERNAME: "Target Child",
+                Column.TIMEZONE: "America/Chicago",
+            },
+            {
+                Column.PARTICIPANT_ID: "P01",
+                Column.EVENT_TIMESTAMP: "2026-03-08T09:00:00-06:00",
+                Column.INTERACTION_TYPE: str(InteractionType.DEVICE_SHUTDOWN),
+                Column.APP_PACKAGE_NAME: "android",
+                Column.APPLICATION_LABEL: "Device shutdown",
+                Column.USERNAME: "System",
                 Column.TIMEZONE: "America/Chicago",
             },
         ]
@@ -332,6 +367,49 @@ def test_fast_path_save_no_sidecar_when_timestamps_absent(tmp_path: Path) -> Non
     )
 
     assert not list(out_folder.glob(f"*{GAP_TIMESTAMPS_SIDECAR_SUFFIX}"))
+
+
+def test_fast_path_adds_placeholders_for_days_with_raw_data_no_usage(tmp_path: Path) -> None:
+    raw_file = tmp_path / "Raw P01.csv"
+    _placeholder_fixture().write_csv(raw_file)
+
+    options = PreprocessingOptions(
+        study_name="test",
+        study_date_map={
+            "P01": (datetime(2026, 3, 7), datetime(2026, 3, 10)),
+        },
+    )
+
+    preprocessor = PolarsFastPathPreprocessor(options)
+    result = preprocessor.preprocess_raw_data_file(raw_file)
+
+    app_usage = result.data.filter(
+        pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)
+    )
+    placeholder = app_usage.filter(
+        pl.col(Column.APP_PACKAGE_NAME) == "com.placeholder.noactivity"
+    )
+
+    placeholder_dates = placeholder.get_column(Column.DATE).to_list()
+    assert len(placeholder) == 1
+    assert date(2026, 3, 8) in placeholder_dates
+    assert placeholder.get_column(Column.DURATION_SECONDS).to_list() == [0]
+    assert placeholder.get_column(Column.DURATION_MINUTES).to_list() == [0.0]
+    assert app_usage.filter(pl.col(Column.DATE) == date(2026, 3, 9)).is_empty()
+
+
+def test_fast_path_does_not_add_placeholder_without_study_dates(tmp_path: Path) -> None:
+    raw_file = tmp_path / "Raw P01.csv"
+    _placeholder_fixture().write_csv(raw_file)
+
+    preprocessor = PolarsFastPathPreprocessor(PreprocessingOptions())
+    result = preprocessor.preprocess_raw_data_file(raw_file)
+
+    placeholder = result.data.filter(
+        (pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE))
+        & (pl.col(Column.APP_PACKAGE_NAME) == "com.placeholder.noactivity")
+    )
+    assert placeholder.is_empty()
 
 
 def test_plotting_manager_loads_gap_sidecar(tmp_path: Path) -> None:
