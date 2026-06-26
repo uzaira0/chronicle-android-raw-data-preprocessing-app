@@ -173,7 +173,9 @@ class ScreenUsagePreprocessor(BasePreprocessor):
         if not sessions:
             return df_copy
 
-        session_df = pl.DataFrame(sessions)
+        # Scan every session dict for schema inference: fields like username are
+        # None in early sessions and str later, which breaks default inference.
+        session_df = pl.DataFrame(sessions, infer_schema_length=None)
         shared_columns = [column for column in session_df.columns if column in df_copy.columns]
         if shared_columns:
             source_casts: list[pl.Expr] = []

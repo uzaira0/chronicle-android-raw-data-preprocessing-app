@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -36,6 +36,9 @@ from chronicle_preprocessing_app.config.defaults import (
 )
 from chronicle_preprocessing_app.config.version import __version__
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
+from chronicle_preprocessing_app.core.preprocessing.study_date_provider import (
+    StudyDateRangeProvider,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -114,6 +117,9 @@ _BROAD_CATEGORY_NORMALIZE_MAP: dict[str, str] = {
 }
 _BROAD_CATEGORY_UNCATEGORISED = "Uncategorised"
 _BROAD_CATEGORY_UNKNOWN = "Unknown"
+
+_PLACEHOLDER_APP_PACKAGE_NAME = "com.placeholder.noactivity"
+_PLACEHOLDER_APP_LABEL = "No Activity"
 # Candidate source columns in the web's coalesce order (play_store → usc →
 # babyemu → bcm).
 _BROAD_CATEGORY_SOURCE_COLUMNS: tuple[str, ...] = (
@@ -144,7 +150,6 @@ def supports_polars_fast_path(
     options: PreprocessingOptions,
     *,
     survey_data_processor_available: bool,
-    study_date_provider_available: bool,
 ) -> bool:
     """Return whether the standard preprocessing request can stay Polars-native."""
     return (
@@ -153,7 +158,6 @@ def supports_polars_fast_path(
         options.process_app_usage_sessions
         and not options.process_screen_usage_sessions
         and not survey_data_processor_available
-        and not study_date_provider_available
     )
 
 
@@ -165,9 +169,13 @@ class PolarsFastPathPreprocessor:
         options: PreprocessingOptions,
         *,
         app_codebook: pl.DataFrame | None = None,
+        study_date_provider: StudyDateRangeProvider | None = None,
     ) -> None:
         self.options = options
         self.app_codebook = app_codebook
+        self.study_date_provider = study_date_provider or StudyDateRangeProvider(
+            study_date_map=self.options.study_date_map
+        )
 
     def _get_datetime_of_preprocessing(self) -> str:
         return self.options.datetime_of_preprocessing_override or datetime.now().strftime(
@@ -195,6 +203,7 @@ class PolarsFastPathPreprocessor:
         df = self._add_app_usage_detail_columns(df)
         df = self._mark_app_usage_flags(df)
         df = self._remove_selected_interaction_types(df)
+        df = self._add_missing_study_date_placeholder_rows(df, participant_id)
         return PolarsFastPathResult(participant_id=participant_id, data=df, pre_algo_event_timestamps=pre_algo_ts)
 
     def save_preprocessed_output(
@@ -273,15 +282,50 @@ class PolarsFastPathPreprocessor:
             .fill_null(False)
             .any()
         ).item()
+        # Fractional-second (%.f) variants come FIRST: Chronicle timestamps carry
+        # millisecond precision, and silently nulling them (strict=False with a
+        # whole-second-only format) destroys sub-second event ordering — duplicate-
+        # timestamp correction then segments real sessions to ~0 (e.g. a tablet's
+        # background→foreground pair 18 ms apart). Whole-second strings fail the
+        # %.f formats and fall through to the original formats unchanged.
         timestamp_expr = (
-            timestamp_text.str.to_datetime(
-                format="%Y-%m-%d %H:%M:%S",
-                time_zone="UTC",
-                strict=False,
+            pl.coalesce(
+                [
+                    timestamp_text.str.to_datetime(
+                        format="%Y-%m-%d %H:%M:%S%.f",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.to_datetime(
+                        format="%Y-%m-%dT%H:%M:%S%.f",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.to_datetime(
+                        format="%Y-%m-%d %H:%M:%S",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.to_datetime(
+                        format="%Y-%m-%dT%H:%M:%S",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                ]
             )
             if not has_explicit_timezone
             else pl.coalesce(
                 [
+                    timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
+                        format="%Y-%m-%dT%H:%M:%S%.f%#z",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
+                        format="%Y-%m-%d %H:%M:%S%.f%#z",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
                     timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
                         format="%Y-%m-%dT%H:%M:%S%#z",
                         time_zone="UTC",
@@ -888,6 +932,18 @@ class PolarsFastPathPreprocessor:
         stopped_flags: np.ndarray,
         background_flags: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        if self.options.proximity_interval_seconds > 0:
+            # Proximity (intra-app teardown grace) is implemented only in the Python
+            # matcher; the Rust extension has no proximity parameter. Use Python directly.
+            return self._match_usage_updates_python(
+                app_codes=app_codes,
+                timestamp_ns=timestamp_ns,
+                resumed_flags=resumed_flags,
+                same_stop_flags=same_stop_flags,
+                other_stop_flags=other_stop_flags,
+                stopped_flags=stopped_flags,
+                background_flags=background_flags,
+            )
         try:
             from chronicle_preprocessing_app import _rust_app_usage_matcher
 
@@ -947,6 +1003,12 @@ class PolarsFastPathPreprocessor:
         stop_start_indices: list[int] = []
         stop_event_indices: list[int] = []
         missing_indices: list[int] = []
+        # Proximity (intra-app teardown grace) — all inert when proximity_interval_seconds == 0,
+        # so the proximity == 0 path is byte-identical to the prior matcher.
+        proximity_ns = int(self.options.proximity_interval_seconds * 1_000_000_000)
+        last_event_ns: dict[int, int] = {}
+        last_was_same_stop: dict[int, bool] = {}
+        is_reresume: dict[int, bool] = {}
 
         def is_valid_duration(start_index: int, stop_index: int, *, enforce_threshold: bool) -> bool:
             duration_ns = int(timestamp_ns[stop_index]) - int(timestamp_ns[start_index])
@@ -1011,6 +1073,17 @@ class PolarsFastPathPreprocessor:
                         or self.options.apply_threshold_to_activity_stopped_fallback
                     )
                     if is_valid_duration(start_index, index, enforce_threshold=enforce_threshold):
+                        if (
+                            proximity_ns
+                            and fallback_compatible
+                            and is_reresume.get(start_index, False)
+                            and (int(timestamp_ns[index]) - int(timestamp_ns[start_index]))
+                            < proximity_ns
+                        ):
+                            # Activity-Stopped within the proximity window of a re-resumed
+                            # start = intra-app teardown, not a close. Leave the start open.
+                            matched_position = None
+                            break
                         matched_position = position
                         break
                 if matched_position is not None:
@@ -1019,8 +1092,18 @@ class PolarsFastPathPreprocessor:
                     stop_event_indices.append(index)
 
             if resumed_flags[index]:
+                if proximity_ns:
+                    is_reresume[index] = (
+                        current_app in last_event_ns
+                        and last_was_same_stop.get(current_app, False)
+                        and (int(timestamp_ns[index]) - int(last_event_ns[current_app])) < proximity_ns
+                    )
                 start_indices.append(index)
                 open_start_indices.append(index)
+
+            if proximity_ns:
+                last_event_ns[current_app] = int(timestamp_ns[index])
+                last_was_same_stop[current_app] = bool(same_stop_flags[index])
 
         if open_start_indices:
             last_index = len(app_codes) - 1
@@ -1400,6 +1483,159 @@ class PolarsFastPathPreprocessor:
                 .alias(Column.ANY_APP_USAGE_FLAGS)
             )
             .drop([gap_label_column, duration_label_column])
+        )
+
+    @staticmethod
+    def _to_date(value: object) -> date | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        if isinstance(value, str):
+            try:
+                return datetime.fromisoformat(value).date()
+            except ValueError:
+                return None
+        return None
+
+    def _normalize_placeholder_day_start(
+        self,
+        day: date,
+        sample_timestamp: object,
+    ) -> datetime:
+        base_day_start = datetime(
+            day.year,
+            day.month,
+            day.day,
+        )
+        if isinstance(sample_timestamp, datetime):
+            if sample_timestamp.tzinfo is not None:
+                return base_day_start.replace(tzinfo=sample_timestamp.tzinfo)
+        return base_day_start
+
+    def _add_missing_study_date_placeholder_rows(
+        self,
+        df: pl.DataFrame,
+        participant_id: str,
+    ) -> pl.DataFrame:
+        if not self.study_date_provider.is_available:
+            return df
+
+        study_date_range = self.study_date_provider.get_study_date_range(participant_id)
+        if study_date_range is None:
+            return df
+
+        if Column.DATE not in df.columns:
+            return df
+
+        start_date_raw, end_date_raw = study_date_range
+        start_date = self._to_date(start_date_raw)
+        end_date = self._to_date(end_date_raw)
+        if start_date is None or end_date is None:
+            return df
+        if end_date < start_date:
+            return df
+
+        app_usage_days = set()
+        for day in (
+            df.filter(pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE))
+            .get_column(Column.DATE)
+            .drop_nulls()
+            .to_list()
+        ):
+            converted_day = self._to_date(day)
+            if converted_day is not None:
+                app_usage_days.add(converted_day)
+
+        rows_with_data_days = set()
+        for day in df.get_column(Column.DATE).drop_nulls().to_list():
+            converted_day = self._to_date(day)
+            if converted_day is not None:
+                rows_with_data_days.add(converted_day)
+        if not rows_with_data_days:
+            return df
+
+        placeholder_rows: list[dict[str, object]] = []
+        current_day = start_date
+        while current_day <= end_date:
+            if current_day in rows_with_data_days and current_day not in app_usage_days:
+                day_mask = pl.col(Column.DATE) == current_day
+                day_df = df.filter(day_mask)
+                if day_df.is_empty():
+                    current_day += timedelta(days=1)
+                    continue
+
+                day_row = day_df.row(0, named=True)
+                sample_timestamp = day_row.get(Column.EVENT_TIMESTAMP)
+                day_start = self._normalize_placeholder_day_start(
+                    current_day,
+                    sample_timestamp,
+                )
+
+                row: dict[str, object] = {
+                    Column.EVENT_TIMESTAMP: day_start,
+                    Column.START_TIMESTAMP: day_start,
+                    Column.STOP_TIMESTAMP: day_start,
+                    Column.DATE: current_day,
+                    Column.INTERACTION_TYPE: str(InteractionType.APP_USAGE),
+                    Column.APP_PACKAGE_NAME: _PLACEHOLDER_APP_PACKAGE_NAME,
+                    Column.APPLICATION_LABEL: _PLACEHOLDER_APP_LABEL,
+                    Column.USERNAME: TARGET_CHILD_USERNAME,
+                    Column.DURATION_SECONDS: 0,
+                    Column.DURATION_MINUTES: 0.0,
+                    Column.DATA_TIME_GAP_HOURS: 0.0,
+                }
+
+                if Column.PARTICIPANT_ID in day_row:
+                    row[Column.PARTICIPANT_ID] = day_row[Column.PARTICIPANT_ID]
+                if Column.TIMEZONE in day_row:
+                    row[Column.TIMEZONE] = day_row[Column.TIMEZONE]
+                if Column.POSSIBLE_DEVICE_MODEL in day_row:
+                    row[Column.POSSIBLE_DEVICE_MODEL] = day_row[
+                        Column.POSSIBLE_DEVICE_MODEL
+                    ]
+                if Column.STUDY_ID in day_row:
+                    row[Column.STUDY_ID] = day_row[Column.STUDY_ID]
+                if Column.PREPROCESSOR_VERSION in day_row:
+                    row[Column.PREPROCESSOR_VERSION] = day_row[
+                        Column.PREPROCESSOR_VERSION
+                    ]
+                if Column.DATETIME_OF_PREPROCESSING in day_row:
+                    row[Column.DATETIME_OF_PREPROCESSING] = day_row[
+                        Column.DATETIME_OF_PREPROCESSING
+                    ]
+                if Column.COMPLIANCE in df.columns and Column.COMPLIANCE not in row:
+                    unknown_row_df = day_df.filter(
+                        pl.col(Column.INTERACTION_TYPE)
+                        == str(InteractionType.NON_TARGET_CHILD_APP_USAGE)
+                    )
+                    if not unknown_row_df.is_empty():
+                        candidate_compliance = unknown_row_df.get_column(
+                            Column.COMPLIANCE
+                        ).drop_nulls().to_list()
+                        if candidate_compliance:
+                            row[Column.COMPLIANCE] = candidate_compliance[0]
+
+                    if Column.COMPLIANCE not in row:
+                        row[Column.COMPLIANCE] = 100.0
+
+                if Column.DEVICE_SHARING_STATUS in df.columns:
+                    row[Column.DEVICE_SHARING_STATUS] = day_row.get(
+                        Column.DEVICE_SHARING_STATUS,
+                    )
+
+                placeholder_rows.append(row)
+
+            current_day += timedelta(days=1)
+
+        if not placeholder_rows:
+            return df
+
+        placeholder_df = pl.DataFrame(placeholder_rows)
+        return pl.concat([df, placeholder_df], how="diagonal_relaxed").sort(
+            Column.EVENT_TIMESTAMP
         )
 
     def _remove_selected_interaction_types(self, df: pl.DataFrame) -> pl.DataFrame:

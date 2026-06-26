@@ -65,9 +65,23 @@ class TimestampPreprocessor(BasePreprocessor):
             .fill_null(False)
             .any()
         ).item()
+        # Fractional-second (%.f) variants come FIRST: Chronicle timestamps carry
+        # millisecond precision, and silently nulling them (strict=False with a
+        # whole-second-only format) destroys sub-second event ordering. Whole-second
+        # strings fail the %.f formats and fall through unchanged.
         timestamp_expr = (
             pl.coalesce(
                 [
+                    timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
+                        format="%Y-%m-%dT%H:%M:%S%.f%#z",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
+                        format="%Y-%m-%d %H:%M:%S%.f%#z",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
                     timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
                         format="%Y-%m-%dT%H:%M:%S%#z",
                         time_zone="UTC",
@@ -93,6 +107,16 @@ class TimestampPreprocessor(BasePreprocessor):
             if has_explicit_timezone
             else pl.coalesce(
                 [
+                    timestamp_text.str.to_datetime(
+                        format="%Y-%m-%d %H:%M:%S%.f",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.to_datetime(
+                        format="%Y-%m-%dT%H:%M:%S%.f",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
                     timestamp_text.str.to_datetime(
                         format="%Y-%m-%d %H:%M:%S",
                         time_zone="UTC",
