@@ -169,6 +169,7 @@ class ChronicleAndroidRawDataPreprocessor:
             app_codebook=read_app_codebook(options.app_codebook_path)
             if options.use_app_codebook
             else None,
+            study_date_provider=self.study_date_provider,
         )
         self.current_participant_id = ""
         self.current_participant_raw_data_df = pl.DataFrame()
@@ -275,7 +276,6 @@ class ChronicleAndroidRawDataPreprocessor:
             if supports_polars_fast_path(
                 self.options,
                 survey_data_processor_available=False,
-                study_date_provider_available=False,
             ):
                 result = self.fast_preprocessor.preprocess_raw_data_file(raw_path)
                 self.current_participant_id = result.participant_id
@@ -320,6 +320,12 @@ class ChronicleAndroidRawDataPreprocessor:
             self.current_participant_id = self.get_participant_id_from_data()
 
             df = self.column_processor.correct_username_column(raw_df)
+            # Canonicalize interaction-type spellings ("Move to Foreground",
+            # "Unknown importance: N") exactly like the fast path does — without
+            # this, devices logging the alternate vocabulary look like they have
+            # no app usage at all, and the screen-session derivation can't see
+            # Screen Interactive/Non-Interactive events.
+            df = self.fast_preprocessor._rename_interaction_types(df)
             df = self.timestamp_processor.correct_timestamp_column(df, Column.EVENT_TIMESTAMP)
             df = self.timezone_processor.apply_timezone_handling(df, Column.EVENT_TIMESTAMP)
             if self.options.correct_duplicate_event_timestamps:
