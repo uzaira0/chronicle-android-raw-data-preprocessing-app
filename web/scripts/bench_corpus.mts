@@ -109,6 +109,7 @@ async function loadMatcher() {
   ) =>
     module.matchAppUsageUpdateIndices(
       appCodes, timestampNs, resumed, sameStop, otherStop, stopped,
+      new Uint8Array(appCodes.length),
       false, true, true, LONG_DURATION_THRESHOLD_NS,
     ) as { startIndices: number[]; stopStartIndices: number[]; stopEventIndices: number[]; missingIndices: number[] };
 }
@@ -120,7 +121,7 @@ function parseTsTimestampNs(value: string): bigint | null {
   if (!/[+-]\d{2}:?\d{2}$/.test(n)) {
     const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?$/.exec(n);
     if (!m) return null;
-    const ms = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+    const ms = Date.UTC(+m[1]!, +m[2]! - 1, +m[3]!, +m[4]!, +m[5]!, +m[6]!);
     if (!Number.isFinite(ms)) return null;
     const fr = m[7] ? BigInt((m[7] + "000000000").slice(0, 9)) : 0n;
     return BigInt(ms) * 1_000_000n + fr;
@@ -238,9 +239,9 @@ async function tsFullPipeline(
     if (off === "") off = "+00:00";
     if (/^[+-]\d{1,2}$/.test(off)) off = `${off.padStart(3, "0")}:00`;
     if (/^[+-]\d{2}\d{2}$/.test(off)) off = `${off.slice(0, 3)}:${off.slice(3)}`;
-    const event = `${v.year}-${v.month}-${v.day} ${v.hour}:${v.minute}:${v.second}${off}`;
-    const dateStr = `${v.year}-${v.month}-${v.day}`;
-    const hour = +v.hour;
+    const event = `${v.year!}-${v.month!}-${v.day!} ${v.hour!}:${v.minute!}:${v.second!}${off}`;
+    const dateStr = `${v.year!}-${v.month!}-${v.day!}`;
+    const hour = +v.hour!;
     const day = wdMap[wd.format(date)] ?? 1;
     const durStr = dur == null ? "" : String(dur);
     out.push(`${csvEscape(event)},${csvEscape(keptPkg[i]!)},${csvEscape(effective)},${durStr},${dateStr},${hour},${day}\n`);

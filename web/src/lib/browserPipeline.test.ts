@@ -1,27 +1,49 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { parquetReadObjects } from "hyparquet";
 import {
+  addAppUsageDetailColumns,
+  buildAppParquetColumnSpecs,
+  type CanonicalRow,
   DEFAULT_BROWSER_OPTIONS,
   discoverTimezonesFromRawCsv,
   processRawCsvContent,
 } from "@/lib/browserPipeline";
-import { generateAllPlots } from "@/lib/plotGenerator";
-import { REQUIRED_RAW_CSV_COLUMNS } from "@/lib/validation";
+import {
+  generateAllHeatmapSvgs,
+  generateAllPlots,
+  generateAllPlotSvgs,
+  generateAllScreenPlotSvgs,
+} from "@/lib/plotGenerator";
 
-// Canonical test headers derived from the validation source-of-truth so any
-// change to REQUIRED_RAW_CSV_COLUMNS is automatically reflected here.
-// study_id is a passthrough output column; timezone is optional (defaults to UTC).
-const FULL_TEST_HEADER = ["study_id", ...REQUIRED_RAW_CSV_COLUMNS, "timezone"].join(",");
-const FULL_TEST_HEADER_NO_TZ = ["study_id", ...REQUIRED_RAW_CSV_COLUMNS].join(",");
-
-vi.mock("@/lib/plotGenerator", () => ({
-  generateAllPlots: vi.fn(),
+// Spread the real module and stub the canvas-rendering plot generators:
+// browserPipeline imports CATEGORY_COLORS at module scope (PALETTE_CATEGORIES is
+// built from it at load time), so a bare mock that omits it would crash on
+// import — keep the spread. Plotting and screen usage are now ON by default, so
+// the pipeline invokes the app/screen/heatmap generators; each must resolve to
+// an (iterable) empty Map so the `for...of` over their results doesn't throw and
+// no real canvas is rendered. computeHourDayMatrix stays real (it's pure) and is
+// tested directly in heatmap.test.ts.
+vi.mock("@/lib/plotGenerator", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/plotGenerator")>()),
+  generateAllPlots: vi.fn(async () => new Map()),
+  generateAllScreenPlots: vi.fn(async () => new Map()),
+  generateAllScreenPlotSvgs: vi.fn(async () => new Map()),
+  generateAllHeatmaps: vi.fn(async () => new Map()),
+  generateAllPlotSvgs: vi.fn(async () => new Map()),
+  generateAllHeatmapSvgs: vi.fn(async () => new Map()),
 }));
 import type {
+  LayeredSessionRow,
   MatcherInput,
   MatcherOutput,
   ProgressEvent,
   ProgressStepKind,
+  SplitterInput,
+  SplitterOutput,
 } from "@/lib/types";
+
+const FULL_TEST_HEADER =
+  "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone";
 
 function csvBytes(text: string): ArrayBuffer {
   return new TextEncoder().encode(text).buffer;
@@ -117,6 +139,77 @@ describe("browserPipeline", () => {
     const screenCsv = await readOutputCsv(result.outputs[1]!.blob);
     expect(screenCsv).toContain("Screen Usage");
     expect(screenCsv).toContain("probable_manual_lock");
+  });
+
+  // A real chat session on 03-07 plus a raw-only screen event on 03-08 (no app
+  // usage that day). 03-08 is a "device had data, no target-child app use" day.
+  const placeholderCsv = [
+    "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+    "Study,P01,Target Child,System,Unknown importance: 15,android,2026-03-07 10:00:00,America/Chicago",
+    "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:05,America/Chicago",
+    "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:00:15,America/Chicago",
+    "Study,P01,Target Child,System,Unknown importance: 16,android,2026-03-07 10:00:20,America/Chicago",
+    "Study,P01,Target Child,System,Unknown importance: 15,android,2026-03-08 09:00:00,America/Chicago",
+  ].join("\n");
+
+  // Matcher indices are positions in the full sorted row array: the chat session
+  // spans rows 1→2; the 03-08 screen event (row 4) is never matched.
+  const placeholderMatcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+    startIndices: [1],
+    stopStartIndices: [1],
+    stopEventIndices: [2],
+    missingIndices: [],
+  });
+
+  it("adds a zero-duration placeholder for a day with raw data but no app usage (addNoActivityPlaceholderDays)", async () => {
+    const result = await processRawCsvContent(
+      "Raw P01.csv",
+      placeholderCsv,
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        processAppUsage: true,
+        processScreenUsage: false,
+        useFilterFile: false,
+        useAppsForcingScreenOpenFile: false,
+        useAppCodebook: false,
+        addNoActivityPlaceholderDays: true,
+      },
+      {},
+      placeholderMatcher,
+    );
+
+    const appCsv = await readOutputCsv(result.outputs[0]!.blob);
+    const placeholderLines = appCsv
+      .split("\n")
+      .filter((line) => line.includes("com.placeholder.noactivity"));
+
+    // Exactly one placeholder, on the no-usage day (03-08), labelled "No Activity".
+    // The day with a real session (03-07) is not marked, and a day with no data
+    // (e.g. 03-09) never appears.
+    expect(placeholderLines).toHaveLength(1);
+    expect(placeholderLines[0]).toContain("No Activity");
+    expect(placeholderLines[0]).toContain("03-08");
+  });
+
+  it("does not add placeholders when addNoActivityPlaceholderDays is off", async () => {
+    const result = await processRawCsvContent(
+      "Raw P01.csv",
+      placeholderCsv,
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        processAppUsage: true,
+        processScreenUsage: false,
+        useFilterFile: false,
+        useAppsForcingScreenOpenFile: false,
+        useAppCodebook: false,
+        addNoActivityPlaceholderDays: false,
+      },
+      {},
+      placeholderMatcher,
+    );
+
+    const appCsv = await readOutputCsv(result.outputs[0]!.blob);
+    expect(appCsv).not.toContain("com.placeholder.noactivity");
   });
 
   it("only populates consolidated genreId_scraped when source genres agree", async () => {
@@ -255,6 +348,394 @@ describe("browserPipeline", () => {
     expect(rows[0]?.[startTimestampIndex]).toBe("");
     expect(rows[1]?.[interactionIndex]).toBe("End of Usage Missing");
     expect(rows[1]?.[startTimestampIndex]).not.toBe("");
+  });
+
+  it("remaps background-app flags and sets the matcher background mask", async () => {
+    // Background app (Spotify) resumes, is paused (backgrounded), a normal app
+    // runs, then Spotify's Activity Stopped arrives. Rows reach the matcher in
+    // timestamp order: [spotify resume, spotify pause, normal resume, normal
+    // pause, spotify stopped].
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Audio,Activity Resumed,com.spotify.music,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Audio,Activity Paused,com.spotify.music,2026-03-07 10:05:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Activity Resumed,com.normal.app,2026-03-07 10:06:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Activity Paused,com.normal.app,2026-03-07 10:10:00,America/Chicago",
+      "Study,P01,Target Child,Audio,Activity Stopped,com.spotify.music,2026-03-07 10:20:00,America/Chicago",
+    ].join("\n");
+    const backgroundCsv = ["package_name,label_or_note", "com.spotify.music,Audio"].join("\n");
+
+    let captured: MatcherInput | null = null;
+    const matcher = async (input: MatcherInput): Promise<MatcherOutput> => {
+      captured = input;
+      return { startIndices: [], stopStartIndices: [], stopEventIndices: [], missingIndices: [] };
+    };
+    const splitter = async (_input: SplitterInput): Promise<SplitterOutput> => [];
+
+    await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        processScreenUsage: false,
+        useFilterFile: false,
+        useAppsForcingScreenOpenFile: false,
+        useAppCodebook: false,
+        useBackgroundAppsFile: true,
+        modelConcurrentUsage: false,
+      },
+      { backgroundAppsFile: { name: "bg.csv", bytes: csvBytes(backgroundCsv) } },
+      matcher,
+      undefined,
+      undefined,
+      splitter,
+    );
+
+    expect(captured).not.toBeNull();
+    const input = captured as unknown as MatcherInput;
+    expect(Array.from(input.background)).toEqual([1, 1, 0, 0, 1]);
+    // Background app: same_stop fires on its own re-resume (segments the
+    // session) and Activity Stopped, but NOT on backgrounding (pause). So the
+    // Spotify resume (idx0) and stop (idx4) are same_stops, its pause (idx1) is
+    // not. The normal app keeps its pause/resume same_stop flags (idx2, idx3).
+    expect(Array.from(input.sameStop)).toEqual([1, 0, 1, 1, 1]);
+    // Background app's Activity Stopped is cleared from the fallback channel.
+    expect(Array.from(input.stopped)).toEqual([0, 0, 0, 0, 0]);
+    expect(Array.from(input.resumed)).toEqual([1, 0, 1, 0, 0]);
+  });
+
+  it("applies the custom interaction-type remap to the matcher input (#4)", async () => {
+    // A vendor-specific resume string the built-in map does not know.
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,VENDOR_RESUME,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+    ].join("\n");
+
+    const runWith = async (interactionTypeRemap: string[]): Promise<MatcherInput> => {
+      let captured: MatcherInput | null = null;
+      const matcher = async (input: MatcherInput): Promise<MatcherOutput> => {
+        captured = input;
+        return { startIndices: [], stopStartIndices: [], stopEventIndices: [], missingIndices: [] };
+      };
+      await processRawCsvContent(
+        "Raw P01.csv",
+        csv,
+        {
+          ...DEFAULT_BROWSER_OPTIONS,
+          processScreenUsage: false,
+          useFilterFile: false,
+          useAppsForcingScreenOpenFile: false,
+          useAppCodebook: false,
+          interactionTypeRemap,
+        },
+        {},
+        matcher,
+      );
+      expect(captured).not.toBeNull();
+      return captured as unknown as MatcherInput;
+    };
+
+    // Without a remap the vendor string is not recognized as a resume.
+    const baseline = await runWith([]);
+    expect(Array.from(baseline.resumed)).toEqual([0, 0]);
+
+    // With the remap the vendor row enters the matcher as an Activity Resumed.
+    const remapped = await runWith(["VENDOR_RESUME => Activity Resumed"]);
+    expect(Array.from(remapped.resumed)).toEqual([1, 0]);
+  });
+
+  it("emits aggregate outputs only when enableAggregates is on (#8/#13/#15)", async () => {
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+    ].join("\n");
+    const matcher = async (): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+    const baseOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      enablePlotting: false,
+      processScreenUsage: false,
+      useFilterFile: false,
+      useAppsForcingScreenOpenFile: false,
+      useAppCodebook: false,
+      modelConcurrentUsage: false,
+    };
+
+    const off = await processRawCsvContent("Raw P01.csv", csv, baseOptions, {}, matcher);
+    expect(off.outputs.some((output) => output.kind === "aggregate")).toBe(false);
+
+    const on = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      { ...baseOptions, enableAggregates: true },
+      {},
+      matcher,
+    );
+    const aggregates = on.outputs.filter((output) => output.kind === "aggregate");
+    const names = aggregates.map((output) => output.outputFileName);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Daily Summary"),
+        expect.stringContaining("Weekly Summary"),
+        expect.stringContaining("Top Apps"),
+      ]),
+    );
+    // Category budget (no codebook) and co-usage (no concurrent usage) are gated off.
+    expect(names.some((name) => name.includes("Category Time Budget"))).toBe(false);
+    expect(names.some((name) => name.includes("App Co-Usage"))).toBe(false);
+
+    const daily = aggregates.find((output) => output.outputFileName.includes("Daily Summary"))!;
+    expect(daily.rowCount).toBe(1); // one (participant, date)
+    const dailyCsv = await daily.blob.text();
+    expect(dailyCsv).toContain("total_app_usage_minutes");
+    expect(dailyCsv).toContain("P01");
+  });
+
+  it("emits typed Parquet twins of the app/screen CSVs only when enabled (#7)", async () => {
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+    ].join("\n");
+    const matcher = async (): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+    const baseOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      enablePlotting: false,
+      processScreenUsage: true,
+      useFilterFile: false,
+      useAppsForcingScreenOpenFile: false,
+      useAppCodebook: false,
+      modelConcurrentUsage: false,
+    };
+
+    const off = await processRawCsvContent("Raw P01.csv", csv, baseOptions, {}, matcher);
+    expect(off.outputs.some((output) => output.kind === "parquet")).toBe(false);
+
+    const on = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      { ...baseOptions, enableParquetExport: true },
+      {},
+      matcher,
+    );
+    const parquet = on.outputs.filter((output) => output.kind === "parquet");
+    expect(parquet.map((p) => p.outputFileName)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Automatically Preprocessed.parquet"),
+        expect.stringContaining("Screen Usage Automatically Preprocessed.parquet"),
+      ]),
+    );
+
+    const appCsv = on.outputs.find((o) => o.kind === "app")!;
+    const appParquet = parquet.find(
+      (p) => !p.outputFileName.includes("Screen Usage"),
+    )!;
+    // Parquet row count matches the CSV's.
+    expect(appParquet.rowCount).toBe(appCsv.rowCount);
+
+    const buffer = await appParquet.blob.arrayBuffer();
+    const rows = (await parquetReadObjects({
+      file: { byteLength: buffer.byteLength, slice: (s: number, e?: number) => buffer.slice(s, e) },
+    })) as Record<string, unknown>[];
+    expect(rows).toHaveLength(appCsv.rowCount);
+
+    // Parquet columns mirror the CSV header exactly (set equality).
+    const csvHeader = (await appCsv.blob.text()).split("\n")[0]!.split(",");
+    expect(new Set(Object.keys(rows[0]!))).toEqual(new Set(csvHeader));
+
+    // Native dtypes preserved: strings stay strings, numerics are real numbers.
+    expect(rows[0]!.participant_id).toBe("P01");
+    expect(typeof rows[0]!.duration_minutes).toBe("number");
+    expect(typeof rows[0]!.day).toBe("number");
+
+    // Invariant: EVERY declared-numeric column reads back as a number (or null) —
+    // catches drift between the type map and the row*ParquetCells overrides.
+    const specs = buildAppParquetColumnSpecs(
+      { ...baseOptions, enableParquetExport: true },
+      true,
+      false,
+    );
+    for (const spec of specs.filter((s) => s.type !== "STRING")) {
+      for (const row of rows) {
+        const value = row[spec.name];
+        expect(value === null || typeof value === "number").toBe(true);
+      }
+    }
+  });
+
+  it("emits SPSS .sav twins of the app/screen CSVs only when enabled (#9)", async () => {
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+    ].join("\n");
+    const matcher = async (): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+    const baseOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      enablePlotting: false,
+      processScreenUsage: true,
+      useFilterFile: false,
+      useAppsForcingScreenOpenFile: false,
+      useAppCodebook: false,
+      modelConcurrentUsage: false,
+    };
+
+    const off = await processRawCsvContent("Raw P01.csv", csv, baseOptions, {}, matcher);
+    expect(off.outputs.some((output) => output.kind === "spss")).toBe(false);
+
+    const on = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      { ...baseOptions, enableSpssExport: true },
+      {},
+      matcher,
+    );
+    const sav = on.outputs.filter((output) => output.kind === "spss");
+    expect(sav.map((s) => s.outputFileName)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Automatically Preprocessed.sav"),
+        expect.stringContaining("Screen Usage Automatically Preprocessed.sav"),
+      ]),
+    );
+    const appSav = sav.find((s) => !s.outputFileName.includes("Screen Usage"))!;
+    const appCsv = on.outputs.find((o) => o.kind === "app")!;
+    expect(appSav.rowCount).toBe(appCsv.rowCount);
+    // Valid SPSS system file magic.
+    const head = new Uint8Array(await appSav.blob.arrayBuffer()).subarray(0, 4);
+    expect(new TextDecoder().decode(head)).toBe("$FL2");
+  });
+
+  it("exports a standalone HTML timeline viewer only when enabled (#18)", async () => {
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+    ].join("\n");
+    const matcher = async (): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+    const baseOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      enablePlotting: false,
+      processScreenUsage: false,
+      useFilterFile: false,
+      useAppsForcingScreenOpenFile: false,
+      useAppCodebook: false,
+      modelConcurrentUsage: false,
+    };
+
+    const off = await processRawCsvContent("Raw P01.csv", csv, baseOptions, {}, matcher);
+    expect(off.outputs.some((o) => o.outputFileName.endsWith("Timeline Viewer.html"))).toBe(false);
+
+    const on = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      { ...baseOptions, enableInteractiveTimeline: true },
+      {},
+      matcher,
+    );
+    const viewer = on.outputs.find((o) => o.outputFileName.endsWith("Timeline Viewer.html"));
+    expect(viewer).toBeDefined();
+    expect(viewer!.kind).toBe("plot");
+    expect(viewer!.blob.type).toContain("text/html");
+    const html = await viewer!.blob.text();
+    // App / Screen tabs are present...
+    expect(html).toContain("App usage");
+    expect(html).toContain("Screen usage");
+    // ...and the export is now interactive (scene JSON + a live canvas + the
+    // inlined runtime), not a static PNG embed.
+    expect(html).not.toContain("data:image/png;base64,");
+    expect(html).toContain('id="tv-data"');
+    expect(html).toContain('class="tv-canvas"');
+    expect(html).toContain('"participantId":"P01"');
+    // The embedded scene must carry real primitives to render.
+    expect(html).toContain('"primitives"');
+    // The inlined interaction runtime ships in the file.
+    expect(html).toContain("addEventListener");
+  });
+
+  it("always attaches the in-app View tab payload (scenes + hover regions); only the HTML export file is gated (#18)", async () => {
+    const csv = [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+    ].join("\n");
+    const matcher = async (): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+    const baseOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      enablePlotting: false,
+      processScreenUsage: false,
+      useFilterFile: false,
+      useAppsForcingScreenOpenFile: false,
+      useAppCodebook: false,
+      modelConcurrentUsage: false,
+    };
+
+    const off = await processRawCsvContent("Raw P01.csv", csv, baseOptions, {}, matcher);
+    // The in-app timeline payload is built for every run (the View tab always
+    // works), but the heavier self-contained HTML export file stays opt-in.
+    expect(off.timelineView).toBeDefined();
+    expect(off.timelineView!.app).toHaveLength(1);
+    expect(off.outputs.some((o) => o.outputFileName.endsWith("Timeline Viewer.html"))).toBe(false);
+    // The compact review summary is always attached too.
+    expect(off.reviewSummary).toBeDefined();
+    expect(off.reviewSummary!.participants.map((p) => p.participantId)).toEqual(["P01"]);
+
+    const on = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      { ...baseOptions, enableInteractiveTimeline: true },
+      {},
+      matcher,
+    );
+    expect(on.timelineView).toBeDefined();
+    expect(on.timelineView!.includeFilteredAppUsageInPlots).toBe(false);
+    expect(on.timelineView!.appFilteredIncluded).toHaveLength(1);
+    expect(on.timelineView!.appFilteredExcluded).toHaveLength(1);
+    expect(on.timelineView!.app).toHaveLength(1);
+    expect(on.timelineView!.app[0]!.participantId).toBe("P01");
+    expect(on.timelineView!.app[0]!.scene.primitives.length).toBeGreaterThan(0);
+    expect(on.timelineView!.app[0]!.regions.length).toBeGreaterThan(0);
+    const region = on.timelineView!.app[0]!.regions[0]!;
+    expect(region.title).toBe("Chat");
+    expect(region.lines).toContain("com.example.chat");
+    expect(on.timelineView!.screen).toHaveLength(0);
+    expect(on.outputs.some((o) => o.outputFileName.endsWith("Timeline Viewer.html"))).toBe(true);
+
+    const withFilteredIncluded = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      { ...baseOptions, enableInteractiveTimeline: true, includeFilteredAppUsageInPlots: true },
+      {},
+      matcher,
+    );
+    expect(withFilteredIncluded.timelineView?.includeFilteredAppUsageInPlots).toBe(true);
+    expect(withFilteredIncluded.timelineView?.appFilteredIncluded).toHaveLength(1);
+    expect(withFilteredIncluded.timelineView?.appFilteredExcluded).toHaveLength(1);
   });
 
   it("emits progress events for every pipeline phase when onProgress is supplied", async () => {
@@ -532,6 +1013,68 @@ describe("browserPipeline", () => {
       expect(plotOutputs[0]?.outputFileName).toContain("App Usage Plot");
     });
 
+    it("emits SVG plot siblings only when exportPlotsAsSvg is on", async () => {
+      const csv = [
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+        "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+        "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+      ].join("\n");
+      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+        startIndices: [0], stopStartIndices: [0], stopEventIndices: [1], missingIndices: [],
+      });
+      const pngBlob = new Blob(["fake-png"], { type: "image/png" });
+      const svgBlob = new Blob(["<svg/>"], { type: "image/svg+xml" });
+      vi.mocked(generateAllPlots).mockResolvedValue(new Map([["P01", pngBlob]]));
+      vi.mocked(generateAllPlotSvgs).mockClear();
+      vi.mocked(generateAllPlotSvgs).mockResolvedValue(new Map([["P01", svgBlob]]));
+      vi.mocked(generateAllHeatmapSvgs).mockResolvedValue(new Map([["P01", svgBlob]]));
+
+      const base = { ...DEFAULT_BROWSER_OPTIONS, enablePlotting: true, enableActivityHeatmap: false, useFilterFile: false, useAppsForcingScreenOpenFile: false, useAppCodebook: false };
+
+      const off = await processRawCsvContent("Raw P01.csv", csv, { ...base, exportPlotsAsSvg: false }, {}, matcher);
+      expect(off.outputs.some((o) => o.outputFileName.endsWith(".svg"))).toBe(false);
+      expect(vi.mocked(generateAllPlotSvgs)).not.toHaveBeenCalled();
+
+      const on = await processRawCsvContent("Raw P01.csv", csv, { ...base, exportPlotsAsSvg: true }, {}, matcher);
+      const svgs = on.outputs.filter((o) => o.outputFileName.endsWith(".svg"));
+      expect(svgs).toHaveLength(1);
+      expect(svgs[0]?.outputFileName).toContain("App Usage Plot.svg");
+      expect(svgs[0]?.kind).toBe("plot");
+    });
+
+    it("emits a screen-usage SVG sibling when exportPlotsAsSvg + screen output are on (#21)", async () => {
+      const csv = [
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+        "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
+        "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,America/Chicago",
+      ].join("\n");
+      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+        startIndices: [0], stopStartIndices: [0], stopEventIndices: [1], missingIndices: [],
+      });
+      const svgBlob = new Blob(["<svg/>"], { type: "image/svg+xml" });
+      vi.mocked(generateAllScreenPlotSvgs).mockClear();
+      vi.mocked(generateAllScreenPlotSvgs).mockResolvedValue(new Map([["P01", svgBlob]]));
+
+      const base = {
+        ...DEFAULT_BROWSER_OPTIONS,
+        enablePlotting: true,
+        processScreenUsage: true,
+        enableActivityHeatmap: false,
+        useFilterFile: false,
+        useAppsForcingScreenOpenFile: false,
+        useAppCodebook: false,
+      };
+
+      const off = await processRawCsvContent("Raw P01.csv", csv, { ...base, exportPlotsAsSvg: false }, {}, matcher);
+      expect(vi.mocked(generateAllScreenPlotSvgs)).not.toHaveBeenCalled();
+      expect(off.outputs.some((o) => o.outputFileName.endsWith("Screen Usage Plot.svg"))).toBe(false);
+
+      const on = await processRawCsvContent("Raw P01.csv", csv, { ...base, exportPlotsAsSvg: true }, {}, matcher);
+      const screenSvg = on.outputs.find((o) => o.outputFileName.endsWith("Screen Usage Plot.svg"));
+      expect(screenSvg).toBeDefined();
+      expect(screenSvg!.kind).toBe("plot");
+    });
+
     it("skips generateAllPlots when enablePlotting is false", async () => {
       const csv = [
         FULL_TEST_HEADER,
@@ -568,7 +1111,7 @@ describe("browserPipeline", () => {
 
       let capturedPreAlgoTs: Map<string, bigint[]> | undefined;
       vi.mocked(generateAllPlots).mockImplementation(
-        async (_rows, _tz, _opts, preAlgoTs) => {
+        async (_rows, _tz, _opts, _version, preAlgoTs) => {
           capturedPreAlgoTs = preAlgoTs as Map<string, bigint[]>;
           return new Map();
         },
@@ -591,797 +1134,278 @@ describe("browserPipeline", () => {
     });
   });
 
-  // ─── helpers shared by the extended tests ──────────────────────────────────
-
-  const HEADER = FULL_TEST_HEADER;
-
-  function buildCsv(
-    rows: Array<{
-      packageName?: string;
-      interactionType?: string;
-      timestamp?: string;
-      timezone?: string;
-      label?: string;
-      participantId?: string;
-    }>,
-  ) {
-    const dataRows = rows.map(
-      (r) =>
-        `Study,${r.participantId ?? "P01"},Target Child,${r.label ?? "Chat"},${r.interactionType ?? "Unknown importance: 1"},${r.packageName ?? "com.example.app"},${r.timestamp ?? "2026-03-07 10:00:00"},${r.timezone ?? "America/Chicago"}`,
-    );
-    return [HEADER, ...dataRows].join("\n");
-  }
-
-  const noopMatcher = async (_: MatcherInput): Promise<MatcherOutput> => ({
-    startIndices: [],
-    stopStartIndices: [],
-    stopEventIndices: [],
-    missingIndices: [],
-  });
-
-  const baseOpts = {
-    ...DEFAULT_BROWSER_OPTIONS,
-    useFilterFile: false,
-    useAppsForcingScreenOpenFile: false,
-    useAppCodebook: false,
-  };
-
-  // ─── discoverTimezonesFromRawCsv ────────────────────────────────────────────
-
-  describe("discoverTimezonesFromRawCsv – edge cases", () => {
-    it("returns [] for an empty string (or throws — no valid rows)", () => {
-      // PapaParse cannot detect a delimiter for an empty string; the pipeline throws.
-      // Either [] is returned or an error is thrown — both are acceptable semantics.
-      let result: string[] | undefined;
-      try {
-        result = discoverTimezonesFromRawCsv("");
-      } catch {
-        // acceptable — empty input is not a valid Chronicle CSV
-        return;
-      }
-      expect(result).toEqual([]);
-    });
-
-    it("returns [] for only the header row", () => {
-      expect(discoverTimezonesFromRawCsv(HEADER)).toEqual([]);
-    });
-
-    it("returns ['UTC'] when there is no timezone column (blank defaults to UTC)", () => {
-      // The source does: requireString(row.timezone, "UTC") || "UTC"
-      // so a missing timezone column falls back to the string "UTC".
+  describe("modelConcurrentUsage flag", () => {
+    it("adds usage_layer column with primary/secondary values when flag is on", async () => {
+      // Two overlapping app sessions:
+      //   Session 0: 10:00:00 — 10:05:00 (outer, 300s)
+      //   Session 1: 10:01:00 — 10:03:00 (inner, 120s)
       const csv = [
-        FULL_TEST_HEADER_NO_TZ,
-        "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00",
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+        "Study,P01,Target Child,Outer,Unknown importance: 1,com.example.outer,2026-03-07 10:00:00,America/Chicago",
+        "Study,P01,Target Child,Inner,Unknown importance: 1,com.example.inner,2026-03-07 10:01:00,America/Chicago",
+        "Study,P01,Target Child,Inner,Unknown importance: 2,com.example.inner,2026-03-07 10:03:00,America/Chicago",
+        "Study,P01,Target Child,Outer,Unknown importance: 2,com.example.outer,2026-03-07 10:05:00,America/Chicago",
       ].join("\n");
-      expect(discoverTimezonesFromRawCsv(csv)).toEqual(["UTC"]);
-    });
 
-    it("deduplicates identical timezone values", () => {
-      const csv = buildCsv([
-        { timezone: "America/Chicago", timestamp: "2026-03-07 10:00:00" },
-        { timezone: "America/Chicago", timestamp: "2026-03-07 10:01:00" },
-        { timezone: "America/Chicago", timestamp: "2026-03-07 10:02:00" },
-      ]);
-      expect(discoverTimezonesFromRawCsv(csv)).toEqual(["America/Chicago"]);
-    });
+      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+        startIndices: [0, 1],
+        stopStartIndices: [0, 1],
+        stopEventIndices: [3, 2],
+        missingIndices: [],
+      });
 
-    it("returns timezones sorted alphabetically", () => {
-      const csv = buildCsv([
-        { timezone: "US/Pacific", timestamp: "2026-03-07 10:00:00" },
-        { timezone: "America/Chicago", timestamp: "2026-03-07 10:01:00" },
-        { timezone: "Europe/London", timestamp: "2026-03-07 10:02:00" },
-      ]);
-      const result = discoverTimezonesFromRawCsv(csv);
-      expect(result).toEqual([...result].sort((a, b) => a.localeCompare(b)));
-    });
+      // Mock splitter: returns a fixed set of LayeredSessionRow objects
+      // representing the outer session split into 3 sub-intervals and the
+      // inner session as a single primary sub-interval.
+      const mockSplitter = async (_input: SplitterInput): Promise<SplitterOutput> => {
+        const rows: LayeredSessionRow[] = [
+          // session 0 (outer): [0,60s) primary, [60,180s) secondary, [180,300s) primary
+          { sessionIndex: 0, startNs: 1741341600000000000n, stopNs: 1741341660000000000n, layer: "primary" },
+          { sessionIndex: 0, startNs: 1741341660000000000n, stopNs: 1741341780000000000n, layer: "secondary" },
+          { sessionIndex: 0, startNs: 1741341780000000000n, stopNs: 1741341900000000000n, layer: "primary" },
+          // session 1 (inner): [0,120s) primary
+          { sessionIndex: 1, startNs: 1741341660000000000n, stopNs: 1741341780000000000n, layer: "primary" },
+        ];
+        return rows;
+      };
 
-    it("trims whitespace from timezone values", () => {
-      const csvRaw = [
-        HEADER,
-        "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,  America/Chicago  ",
-      ].join("\n");
-      // The source reads timezone via requireString which trims — rows without tz are skipped
-      // so we just verify it doesn't produce extra whitespace
-      const result = discoverTimezonesFromRawCsv(csvRaw);
-      expect(result.every((tz) => tz === tz.trim())).toBe(true);
-    });
-
-    it("excludes rows with blank timezone values", () => {
-      const csv = [
-        HEADER,
-        "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,",
-        "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:01:00,America/New_York",
-      ].join("\n");
-      const result = discoverTimezonesFromRawCsv(csv);
-      expect(result).not.toContain("");
-      expect(result).toContain("America/New_York");
-    });
-
-    it("returns multiple distinct timezones", () => {
-      const csv = buildCsv([
-        { timezone: "America/Chicago", timestamp: "2026-03-07 10:00:00" },
-        { timezone: "America/New_York", timestamp: "2026-03-07 10:01:00" },
-        { timezone: "Europe/London", timestamp: "2026-03-07 10:02:00" },
-      ]);
-      const result = discoverTimezonesFromRawCsv(csv);
-      expect(result).toContain("America/Chicago");
-      expect(result).toContain("America/New_York");
-      expect(result).toContain("Europe/London");
-      expect(result).toHaveLength(3);
-    });
-  });
-
-  // ─── timezone handling variants ────────────────────────────────────────────
-
-  describe("processRawCsvContent – timezoneHandling variants", () => {
-    const twoTzCsv = buildCsv([
-      { timezone: "America/Chicago", timestamp: "2026-03-07 10:00:00", interactionType: "Unknown importance: 1" },
-      { timezone: "America/Chicago", timestamp: "2026-03-07 10:01:00", interactionType: "Unknown importance: 2" },
-      { timezone: "America/New_York", timestamp: "2026-03-07 11:00:00", interactionType: "Unknown importance: 1" },
-      { timezone: "America/New_York", timestamp: "2026-03-07 11:01:00", interactionType: "Unknown importance: 2" },
-    ]);
-
-    const pairMatcher = async (_: MatcherInput): Promise<MatcherOutput> => ({
-      startIndices: [0],
-      stopStartIndices: [0],
-      stopEventIndices: [1],
-      missingIndices: [],
-    });
-
-    it("selected-filter keeps only rows matching selectedTimezone", async () => {
       const result = await processRawCsvContent(
         "Raw P01.csv",
-        twoTzCsv,
-        { ...baseOpts, timezoneHandling: "selected-filter", selectedTimezone: "America/Chicago" },
-        {},
-        pairMatcher,
-      );
-      expect(result.rowsRemovedByTimezone).toBe(2);
-      expect(result.timezoneAction).toBe("filtered_to_selected");
-    });
-
-    it("primary-filter keeps only rows matching the dominant timezone", async () => {
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        twoTzCsv,
-        { ...baseOpts, timezoneHandling: "primary-filter" },
-        {},
-        pairMatcher,
-      );
-      expect(result.rowsRemovedByTimezone).toBe(2);
-      expect(result.timezoneAction).toBe("filtered_to_primary");
-    });
-
-    it("primary-convert converts to dominant timezone, no rows removed", async () => {
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        twoTzCsv,
-        { ...baseOpts, timezoneHandling: "primary-convert" },
-        {},
-        pairMatcher,
-      );
-      expect(result.rowsRemovedByTimezone).toBe(0);
-      expect(result.timezoneAction).toBe("converted_to_primary");
-    });
-
-    it("selected-convert converts to selectedTimezone, no rows removed", async () => {
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        twoTzCsv,
+        csv,
         {
-          ...baseOpts,
-          timezoneHandling: "selected-convert",
-          selectedTimezone: "America/New_York",
+          ...DEFAULT_BROWSER_OPTIONS,
+          modelConcurrentUsage: true,
+          useFilterFile: false,
+          useAppsForcingScreenOpenFile: false,
+          useAppCodebook: false,
         },
         {},
-        pairMatcher,
+        matcher,
+        undefined,
+        undefined,
+        mockSplitter,
       );
-      expect(result.rowsRemovedByTimezone).toBe(0);
-      expect(result.timezoneAction).toBe("converted_to_selected");
+
+      const csvText = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
+      const lines = csvText.trim().split("\n");
+      const headers = (lines[0] ?? "").split(",");
+
+      // usage_layer column must be present
+      expect(headers).toContain("usage_layer");
+
+      const usageLayerIdx = headers.indexOf("usage_layer");
+      const dataRows = lines.slice(1).filter(Boolean);
+
+      // Every App Usage row must have a non-empty layer value
+      const layers = dataRows.map((line) => line.split(",")[usageLayerIdx]);
+      expect(layers.every((v) => v === "primary" || v === "secondary")).toBe(true);
+
+      // Both primary and secondary values must appear in the output
+      expect(layers).toContain("primary");
+      expect(layers).toContain("secondary");
     });
 
-    it("selected-filter with no selectedTimezone falls back to no-op filtering", async () => {
-      // When selected is blank, the branch is skipped → action stays 'none'
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        twoTzCsv,
-        { ...baseOpts, timezoneHandling: "selected-filter", selectedTimezone: "" },
-        {},
-        pairMatcher,
-      );
-      expect(result.rowsRemovedByTimezone).toBe(0);
-      expect(result.timezoneAction).toBe("none");
-    });
-
-    it("output timezone matches selectedTimezone for selected-filter", async () => {
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        twoTzCsv,
-        { ...baseOpts, timezoneHandling: "selected-filter", selectedTimezone: "America/New_York" },
-        {},
-        pairMatcher,
-      );
-      expect(result.timezone).toBe("America/New_York");
-    });
-  });
-
-  // ─── output structure ──────────────────────────────────────────────────────
-
-  describe("processRawCsvContent – output structure", () => {
-    const simpleCsv = buildCsv([
-      { interactionType: "Unknown importance: 1", timestamp: "2026-03-07 10:00:00" },
-      { interactionType: "Unknown importance: 2", timestamp: "2026-03-07 10:01:00" },
-    ]);
-
-    const simpleMatcher = async (_: MatcherInput): Promise<MatcherOutput> => ({
-      startIndices: [0],
-      stopStartIndices: [0],
-      stopEventIndices: [1],
-      missingIndices: [],
-    });
-
-    it("result has an outputs array", async () => {
-      const result = await processRawCsvContent("Raw P01.csv", simpleCsv, baseOpts, {}, simpleMatcher);
-      expect(Array.isArray(result.outputs)).toBe(true);
-    });
-
-    it("output CSV contains participant_id from the data", async () => {
-      const result = await processRawCsvContent("Raw P01.csv", simpleCsv, baseOpts, {}, simpleMatcher);
-      const text = await result.outputs[0]!.blob.text();
-      expect(text).toContain("P01");
-    });
-
-    it("app output filename includes 'Preprocessed' (case-insensitive)", async () => {
-      const result = await processRawCsvContent("Raw P01.csv", simpleCsv, baseOpts, {}, simpleMatcher);
-      const appOutput = result.outputs.find((o) => o.kind === "app");
-      expect(appOutput?.outputFileName.toLowerCase()).toContain("preprocessed");
-    });
-
-    it("screen output filename differs from app output filename", async () => {
-      const screenCsv = buildCsv([
-        { interactionType: "Unknown importance: 15", timestamp: "2026-03-07 10:00:00", packageName: "android" },
-        { interactionType: "Unknown importance: 1", timestamp: "2026-03-07 10:00:05" },
-        { interactionType: "Unknown importance: 2", timestamp: "2026-03-07 10:00:15" },
-        { interactionType: "Unknown importance: 16", timestamp: "2026-03-07 10:00:20", packageName: "android" },
-      ]);
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        screenCsv,
-        { ...baseOpts, processAppUsage: true, processScreenUsage: true },
-        {},
-        simpleMatcher,
-      );
-      const appFile = result.outputs.find((o) => o.kind === "app")?.outputFileName;
-      const screenFile = result.outputs.find((o) => o.kind === "screen")?.outputFileName;
-      expect(appFile).not.toBe(screenFile);
-    });
-
-    it("screen output filename contains 'Screen'", async () => {
-      const screenCsv = buildCsv([
-        { interactionType: "Unknown importance: 15", timestamp: "2026-03-07 10:00:00", packageName: "android" },
-        { interactionType: "Unknown importance: 16", timestamp: "2026-03-07 10:00:20", packageName: "android" },
-      ]);
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        screenCsv,
-        { ...baseOpts, processAppUsage: false, processScreenUsage: true },
-        {},
-        noopMatcher,
-      );
-      const screenFile = result.outputs.find((o) => o.kind === "screen")?.outputFileName;
-      expect(screenFile).toContain("Screen");
-    });
-
-    it("processAppUsage=false produces no app output", async () => {
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        simpleCsv,
-        { ...baseOpts, processAppUsage: false, processScreenUsage: false },
-        {},
-        noopMatcher,
-      );
-      expect(result.outputs.find((o) => o.kind === "app")).toBeUndefined();
-    });
-
-    it("processScreenUsage=true + processAppUsage=false produces only screen output", async () => {
-      const screenCsv = buildCsv([
-        { interactionType: "Unknown importance: 15", timestamp: "2026-03-07 10:00:00", packageName: "android" },
-        { interactionType: "Unknown importance: 16", timestamp: "2026-03-07 10:00:20", packageName: "android" },
-      ]);
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        screenCsv,
-        { ...baseOpts, processAppUsage: false, processScreenUsage: true },
-        {},
-        noopMatcher,
-      );
-      expect(result.outputs.find((o) => o.kind === "app")).toBeUndefined();
-      expect(result.outputs.find((o) => o.kind === "screen")).toBeDefined();
-    });
-
-    it("app output CSV has expected column headers", async () => {
-      const result = await processRawCsvContent("Raw P01.csv", simpleCsv, baseOpts, {}, simpleMatcher);
-      const text = await result.outputs[0]!.blob.text();
-      const header = text.split("\n")[0] ?? "";
-      expect(header).toContain("participant_id");
-      expect(header).toContain("interaction_type");
-      expect(header).toContain("start_timestamp");
-      expect(header).toContain("stop_timestamp");
-      expect(header).toContain("duration_seconds");
-    });
-
-    it("appRowCount reflects the number of output rows", async () => {
-      const result = await processRawCsvContent("Raw P01.csv", simpleCsv, baseOpts, {}, simpleMatcher);
-      expect(result.appRowCount).toBeGreaterThan(0);
-    });
-
-    it("originalRowCount equals number of non-blank-timestamp rows in input", async () => {
-      const result = await processRawCsvContent("Raw P01.csv", simpleCsv, baseOpts, {}, simpleMatcher);
-      expect(result.originalRowCount).toBe(2);
-    });
-  });
-
-  // ─── edge cases ─────────────────────────────────────────────────────────────
-
-  describe("processRawCsvContent – edge cases", () => {
-    it("header-only CSV produces an app output with no data rows", async () => {
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        HEADER,
-        { ...baseOpts, processAppUsage: false, processScreenUsage: false },
-        {},
-        noopMatcher,
-      );
-      expect(result.originalRowCount).toBe(0);
-      expect(result.outputs).toHaveLength(0);
-    });
-
-    it("rows with blank event_timestamp are silently dropped before processing", async () => {
+    it("computes split sub-interval durations unconditionally (parity: minimumUsageDuration is not applied to split rows on any surface)", async () => {
+      // One session, splitter returns a 2-second sub-interval; threshold is 5s.
+      // Desktop (Python) and Rust do not null sub-threshold split durations, so
+      // web must not either — the duration is populated regardless of threshold.
       const csv = [
-        HEADER,
-        "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,,America/Chicago",
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+        "Study,P01,Target Child,Outer,Unknown importance: 1,com.example.outer,2026-03-07 10:00:00,America/Chicago",
+        "Study,P01,Target Child,Outer,Unknown importance: 2,com.example.outer,2026-03-07 10:00:10,America/Chicago",
+      ].join("\n");
+
+      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+        startIndices: [0],
+        stopStartIndices: [0],
+        stopEventIndices: [1],
+        missingIndices: [],
+      });
+
+      // Sub-interval that is only 2 seconds long (below minimumUsageDuration=5)
+      const shortSubIntervalSplitter = async (_input: SplitterInput): Promise<SplitterOutput> => {
+        const rows: LayeredSessionRow[] = [
+          // 2-second primary sub-interval
+          { sessionIndex: 0, startNs: 1741341600000000000n, stopNs: 1741341602000000000n, layer: "primary" },
+        ];
+        return rows;
+      };
+
+      const result = await processRawCsvContent(
+        "Raw P01.csv",
+        csv,
+        {
+          ...DEFAULT_BROWSER_OPTIONS,
+          modelConcurrentUsage: true,
+          minimumUsageDuration: 5,
+          useFilterFile: false,
+          useAppsForcingScreenOpenFile: false,
+          useAppCodebook: false,
+        },
+        {},
+        matcher,
+        undefined,
+        undefined,
+        shortSubIntervalSplitter,
+      );
+
+      const csvText = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
+      const lines = csvText.trim().split("\n");
+      const headers = (lines[0] ?? "").split(",");
+      const dataRows = lines.slice(1).filter(Boolean);
+      const durationSecondsIdx = headers.indexOf("duration_seconds");
+      const durationMinutesIdx = headers.indexOf("duration_minutes");
+
+      // Row is kept and duration fields are populated with the real 2s value
+      // (NOT nulled) — matching the desktop and Rust split paths.
+      expect(dataRows).toHaveLength(1);
+      const durSec = dataRows[0]?.split(",")[durationSecondsIdx];
+      const durMin = dataRows[0]?.split(",")[durationMinutesIdx];
+      expect(durSec).not.toBe("");
+      expect(Number(durSec)).toBeCloseTo(2);
+      expect(Number(durMin)).toBeCloseTo(2 / 60);
+    });
+
+    it("nulls split sub-interval durations below minimumUsageDuration when applyMinimumUsageDurationToConcurrentSubintervals is on", async () => {
+      const csv = [
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+        "Study,P01,Target Child,Outer,Unknown importance: 1,com.example.outer,2026-03-07 10:00:00,America/Chicago",
+        "Study,P01,Target Child,Outer,Unknown importance: 2,com.example.outer,2026-03-07 10:00:10,America/Chicago",
+      ].join("\n");
+
+      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+        startIndices: [0],
+        stopStartIndices: [0],
+        stopEventIndices: [1],
+        missingIndices: [],
+      });
+
+      // 2-second sub-interval, below minimumUsageDuration = 5.
+      const shortSubIntervalSplitter = async (_input: SplitterInput): Promise<SplitterOutput> => [
+        { sessionIndex: 0, startNs: 1741341600000000000n, stopNs: 1741341602000000000n, layer: "primary" },
+      ];
+
+      const result = await processRawCsvContent(
+        "Raw P01.csv",
+        csv,
+        {
+          ...DEFAULT_BROWSER_OPTIONS,
+          modelConcurrentUsage: true,
+          applyMinimumUsageDurationToConcurrentSubintervals: true,
+          minimumUsageDuration: 5,
+          useFilterFile: false,
+          useAppsForcingScreenOpenFile: false,
+          useAppCodebook: false,
+        },
+        {},
+        matcher,
+        undefined,
+        undefined,
+        shortSubIntervalSplitter,
+      );
+
+      const csvText = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
+      const lines = csvText.trim().split("\n");
+      const headers = (lines[0] ?? "").split(",");
+      const dataRows = lines.slice(1).filter(Boolean);
+      const durationSecondsIdx = headers.indexOf("duration_seconds");
+      const durationMinutesIdx = headers.indexOf("duration_minutes");
+
+      // Row kept; duration fields nulled (empty CSV cell) because the option is on.
+      expect(dataRows).toHaveLength(1);
+      expect(dataRows[0]?.split(",")[durationSecondsIdx]).toBe("");
+      expect(dataRows[0]?.split(",")[durationMinutesIdx]).toBe("");
+    });
+
+    it("throws when modelConcurrentUsage is true but no runSplitter is provided", async () => {
+      const csv = [
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
         "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
         "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:01:00,America/Chicago",
       ].join("\n");
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        csv,
-        baseOpts,
-        {},
-        async (_) => ({ startIndices: [0], stopStartIndices: [0], stopEventIndices: [1], missingIndices: [] }),
-      );
-      expect(result.originalRowCount).toBe(2);
-    });
 
-    it("RESUMED with no PAUSED match → End of Usage Missing row in output", async () => {
-      const csv = buildCsv([
-        { interactionType: "Unknown importance: 1", timestamp: "2026-03-07 10:00:00" },
-      ]);
-      const missingMatcher = async (input: MatcherInput): Promise<MatcherOutput> => {
-        const resumedIndices = Array.from(input.resumed)
-          .map((v, i) => (v ? i : -1))
-          .filter((i) => i >= 0);
-        return {
-          startIndices: resumedIndices,
-          stopStartIndices: [],
-          stopEventIndices: [],
-          missingIndices: resumedIndices,
-        };
-      };
-      const result = await processRawCsvContent("Raw P01.csv", csv, baseOpts, {}, missingMatcher);
-      const text = await result.outputs[0]!.blob.text();
-      expect(text).toContain("End of Usage Missing");
-    });
+      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+        startIndices: [0],
+        stopStartIndices: [0],
+        stopEventIndices: [1],
+        missingIndices: [],
+      });
 
-    it("useFilterFile=false ignores provided filter data", async () => {
-      const csv = buildCsv([
-        { interactionType: "Unknown importance: 1", timestamp: "2026-03-07 10:00:00", packageName: "com.example.filtered" },
-        { interactionType: "Unknown importance: 2", timestamp: "2026-03-07 10:01:00", packageName: "com.example.filtered" },
-      ]);
-      const filterCsv = "app_package_name,known_application_labels\ncom.example.filtered,Chat";
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        csv,
-        { ...baseOpts, useFilterFile: false },
-        { filterFile: { name: "filter.csv", bytes: new TextEncoder().encode(filterCsv).buffer } },
-        async (_) => ({ startIndices: [0], stopStartIndices: [0], stopEventIndices: [1], missingIndices: [] }),
-      );
-      const text = await result.outputs[0]!.blob.text();
-      // Without filtering, the app should appear as App Usage, not Filtered App Usage
-      expect(text).toContain("App Usage");
-      expect(text).not.toContain("Filtered App Usage");
-    });
-
-    it("correctDuplicateEventTimestamps=false leaves duplicate timestamps uncorrected", async () => {
-      const csv = buildCsv([
-        { interactionType: "Unknown importance: 1", timestamp: "2026-03-07 10:00:00" },
-        { interactionType: "Unknown importance: 2", timestamp: "2026-03-07 10:00:00" },
-      ]);
-      // No crash and result is valid
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        csv,
-        { ...baseOpts, correctDuplicateEventTimestamps: false },
-        {},
-        async (_) => ({ startIndices: [0], stopStartIndices: [0], stopEventIndices: [1], missingIndices: [] }),
-      );
-      expect(result.duplicateTimestampsCorrected).toBe(0);
-    });
-
-    it("correctDuplicateEventTimestamps=true reports corrected duplicates", async () => {
-      const csv = buildCsv([
-        { interactionType: "Unknown importance: 1", timestamp: "2026-03-07 10:00:00" },
-        { interactionType: "Unknown importance: 2", timestamp: "2026-03-07 10:00:00" },
-      ]);
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        csv,
-        { ...baseOpts, correctDuplicateEventTimestamps: true },
-        {},
-        async (_) => ({ startIndices: [0], stopStartIndices: [0], stopEventIndices: [1], missingIndices: [] }),
-      );
-      expect(result.duplicateTimestampsCorrected).toBeGreaterThan(0);
+      await expect(
+        processRawCsvContent(
+          "Raw P01.csv",
+          csv,
+          {
+            ...DEFAULT_BROWSER_OPTIONS,
+            modelConcurrentUsage: true,
+            useFilterFile: false,
+            useAppsForcingScreenOpenFile: false,
+            useAppCodebook: false,
+          },
+          {},
+          matcher,
+          // no runSplitter
+        ),
+      ).rejects.toThrow("runSplitter must be supplied when modelConcurrentUsage is true");
     });
   });
+});
 
-  // ─── codebook integration ──────────────────────────────────────────────────
+describe("addAppUsageDetailColumns — concurrent-usage layer (FU2)", () => {
+  const NS = 1_000_000_000n;
+  const min = (m: number): bigint => BigInt(m * 60) * NS;
+  const drow = (over: {
+    app: string;
+    startMin: number;
+    stopMin: number;
+    layer?: string | null;
+    type?: string;
+  }): CanonicalRow =>
+    ({
+      interaction_type: over.type ?? "App Usage",
+      app_package_name: over.app,
+      usage_layer: over.layer ?? null,
+      start_timestamp_ns: min(over.startMin),
+      stop_timestamp_ns: min(over.stopMin),
+      // Detail columns default to 0 (as createBaseRow sets them); rows excluded
+      // from the walk keep this default.
+      any_app_new_engage_30s: 0,
+      any_app_new_engage_custom: 0,
+      any_app_switched_app: 0,
+      any_app_usage_time_gap_hours: 0,
+      valid_app_new_engage_30s: 0,
+      valid_app_new_engage_custom: 0,
+      valid_app_switched_app: 0,
+      valid_app_usage_time_gap_hours: 0,
+    }) as unknown as CanonicalRow;
 
-  describe("processRawCsvContent – codebook integration", () => {
-    const appCsv = buildCsv([
-      { interactionType: "Unknown importance: 1", timestamp: "2026-03-07 10:00:00", packageName: "com.example.known" },
-      { interactionType: "Unknown importance: 2", timestamp: "2026-03-07 10:01:00", packageName: "com.example.known" },
-    ]);
+  it("excludes secondary sub-intervals from the engagement walk (no negative gaps)", () => {
+    // Foreground primary [0,20] then [30,50], with a background secondary [10,15]
+    // overlapping the first. The walk must skip the secondary layer, so no gap
+    // goes negative and the second primary's gap is measured from the first
+    // primary's stop (20), not the secondary's stop (15).
+    const rows = [
+      drow({ app: "com.a", startMin: 0, stopMin: 20, layer: "primary" }),
+      drow({ app: "com.b", startMin: 10, stopMin: 15, layer: "secondary" }),
+      drow({ app: "com.a", startMin: 30, stopMin: 50, layer: "primary" }),
+    ];
+    const out = addAppUsageDetailColumns(rows, DEFAULT_BROWSER_OPTIONS);
 
-    const simpleMatcher = async (_: MatcherInput): Promise<MatcherOutput> => ({
-      startIndices: [0],
-      stopStartIndices: [0],
-      stopEventIndices: [1],
-      missingIndices: [],
-    });
-
-    it("useAppCodebook=false → no genreId_scraped or play_store_genreId in header", async () => {
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        appCsv,
-        { ...baseOpts, useAppCodebook: false },
-        {},
-        simpleMatcher,
-      );
-      const text = await result.outputs[0]!.blob.text();
-      const header = text.split("\n")[0] ?? "";
-      expect(header).not.toContain("play_store_genreId");
-    });
-
-    it("useAppCodebook=true + matching package → codebook columns present in header", async () => {
-      const codebookCsv = [
-        "app_package_name,application_label,play_store_genreId,usc_genreId,babyemu_genreId_scraped",
-        "com.example.known,Known App,EDUCATION,EDUCATION,EDUCATION",
-      ].join("\n");
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        appCsv,
-        { ...baseOpts, useAppCodebook: true },
-        { appCodebookFile: { name: "codebook.csv", bytes: new TextEncoder().encode(codebookCsv).buffer } },
-        simpleMatcher,
-      );
-      const text = await result.outputs[0]!.blob.text();
-      const header = text.split("\n")[0] ?? "";
-      expect(header).toContain("genreId_scraped");
-    });
-
-    it("useAppCodebook=true + matching package → codebook data values present", async () => {
-      const codebookCsv = [
-        "app_package_name,application_label,play_store_genreId,usc_genreId,babyemu_genreId_scraped",
-        "com.example.known,Known App,EDUCATION,EDUCATION,EDUCATION",
-      ].join("\n");
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        appCsv,
-        { ...baseOpts, useAppCodebook: true },
-        { appCodebookFile: { name: "codebook.csv", bytes: new TextEncoder().encode(codebookCsv).buffer } },
-        simpleMatcher,
-      );
-      const text = await result.outputs[0]!.blob.text();
-      expect(text).toContain("EDUCATION");
-    });
-
-    it("package not in codebook → genreId_scraped is 'Unknown'", async () => {
-      const codebookCsv = [
-        "app_package_name,application_label,play_store_genreId,usc_genreId,babyemu_genreId_scraped",
-        "com.other.app,Other,GAMES,GAMES,GAMES",
-      ].join("\n");
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        appCsv,
-        { ...baseOpts, useAppCodebook: true },
-        { appCodebookFile: { name: "codebook.csv", bytes: new TextEncoder().encode(codebookCsv).buffer } },
-        simpleMatcher,
-      );
-      const text = await result.outputs[0]!.blob.text();
-      expect(text).toContain("Unknown");
-    });
+    expect(out.every((r) => r.any_app_usage_time_gap_hours >= 0)).toBe(true);
+    // The secondary row isn't treated as an engagement and has no gap.
+    expect(out[1]!.any_app_usage_time_gap_hours).toBe(0);
+    expect(out[1]!.any_app_new_engage_30s).toBe(0);
+    // Second primary gap is (30-20)=10 min from the first primary's stop.
+    expect(out[2]!.any_app_usage_time_gap_hours).toBeCloseTo(10 / 60, 6);
   });
 
-  // ─── progress events ───────────────────────────────────────────────────────
-
-  describe("processRawCsvContent – progress events", () => {
-    const simpleCsv = buildCsv([
-      { interactionType: "Unknown importance: 1", timestamp: "2026-03-07 10:00:00" },
-      { interactionType: "Unknown importance: 2", timestamp: "2026-03-07 10:01:00" },
-    ]);
-    const simpleMatcher = async (_: MatcherInput): Promise<MatcherOutput> => ({
-      startIndices: [0],
-      stopStartIndices: [0],
-      stopEventIndices: [1],
-      missingIndices: [],
-    });
-
-    it("onProgress is called multiple times", async () => {
-      let callCount = 0;
-      await processRawCsvContent(
-        "Raw P01.csv",
-        simpleCsv,
-        baseOpts,
-        {},
-        simpleMatcher,
-        undefined,
-        () => { callCount += 1; },
-      );
-      expect(callCount).toBeGreaterThan(1);
-    });
-
-    it("every step event has a percent between 0 and 1 inclusive", async () => {
-      const events: ProgressEvent[] = [];
-      await processRawCsvContent(
-        "Raw P01.csv",
-        simpleCsv,
-        baseOpts,
-        {},
-        simpleMatcher,
-        undefined,
-        (e) => events.push(e),
-      );
-      events
-        .filter((e): e is Extract<ProgressEvent, { type: "step" }> => e.type === "step")
-        .forEach((e) => {
-          expect(e.percent).toBeGreaterThanOrEqual(0);
-          expect(e.percent).toBeLessThanOrEqual(1);
-        });
-    });
-
-    it("every step event carries the correct fileName", async () => {
-      const events: ProgressEvent[] = [];
-      await processRawCsvContent(
-        "MyFile.csv",
-        simpleCsv,
-        baseOpts,
-        {},
-        simpleMatcher,
-        undefined,
-        (e) => events.push(e),
-      );
-      events
-        .filter((e): e is Extract<ProgressEvent, { type: "step" }> => e.type === "step")
-        .forEach((e) => expect(e.fileName).toBe("MyFile.csv"));
-    });
-
-    it("'parse' and 'timezone' step kinds appear in progress events", async () => {
-      const kinds = new Set<string>();
-      await processRawCsvContent(
-        "Raw P01.csv",
-        simpleCsv,
-        baseOpts,
-        {},
-        simpleMatcher,
-        undefined,
-        (e) => { if (e.type === "step") kinds.add(e.stepKind); },
-      );
-      expect(kinds.has("parse")).toBe(true);
-      expect(kinds.has("timezone")).toBe(true);
-    });
-
-    it("'matcher' step kind appears when processAppUsage=true", async () => {
-      const kinds = new Set<string>();
-      await processRawCsvContent(
-        "Raw P01.csv",
-        simpleCsv,
-        { ...baseOpts, processAppUsage: true },
-        {},
-        simpleMatcher,
-        undefined,
-        (e) => { if (e.type === "step") kinds.add(e.stepKind); },
-      );
-      expect(kinds.has("matcher")).toBe(true);
-    });
-
-    it("'screen' step kind appears when processScreenUsage=true", async () => {
-      const screenCsv = buildCsv([
-        { interactionType: "Unknown importance: 15", timestamp: "2026-03-07 10:00:00", packageName: "android" },
-        { interactionType: "Unknown importance: 16", timestamp: "2026-03-07 10:00:20", packageName: "android" },
-      ]);
-      const kinds = new Set<string>();
-      await processRawCsvContent(
-        "Raw P01.csv",
-        screenCsv,
-        { ...baseOpts, processAppUsage: false, processScreenUsage: true },
-        {},
-        noopMatcher,
-        undefined,
-        (e) => { if (e.type === "step") kinds.add(e.stepKind); },
-      );
-      expect(kinds.has("screen")).toBe(true);
-    });
-  });
-
-  // ─── interaction type normalisation ───────────────────────────────────────
-
-  describe("interaction type normalisation in output", () => {
-    async function getOutputInteractionTypes(interactionType: string): Promise<string[]> {
-      const csv = buildCsv([
-        { interactionType, timestamp: "2026-03-07 10:00:00" },
-        { interactionType: "Unknown importance: 2", timestamp: "2026-03-07 10:01:00" },
-      ]);
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        csv,
-        { ...baseOpts, interactionTypesToRemove: [] },
-        {},
-        async (_) => ({ startIndices: [0], stopStartIndices: [0], stopEventIndices: [1], missingIndices: [] }),
-      );
-      const text = result.outputs[0]?.blob ? await result.outputs[0].blob.text() : "";
-      const lines = text.trim().split("\n");
-      const headers = (lines[0] ?? "").split(",");
-      const itIdx = headers.indexOf("interaction_type");
-      return lines.slice(1).map((line) => (line.split(",")[itIdx] ?? "").trim());
-    }
-
-    it("'Unknown importance: 1' normalises to 'Activity Resumed' before matching", async () => {
-      // The matched row becomes 'App Usage'; the raw event is consumed.
-      // We just verify the pipeline doesn't crash and produces output.
-      const csv = buildCsv([
-        { interactionType: "Unknown importance: 1", timestamp: "2026-03-07 10:00:00" },
-        { interactionType: "Unknown importance: 2", timestamp: "2026-03-07 10:01:00" },
-      ]);
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        csv,
-        baseOpts,
-        {},
-        async (_) => ({ startIndices: [0], stopStartIndices: [0], stopEventIndices: [1], missingIndices: [] }),
-      );
-      expect(result.outputs).toHaveLength(1);
-    });
-
-    it("'Unknown importance: 15' normalises to 'Screen Interactive' in raw row data", async () => {
-      // Screen Interactive starts a screen session; we verify screenRowCount > 0 for a
-      // Screen Interactive + Screen Non-Interactive pair.
-      const csv = buildCsv([
-        { interactionType: "Unknown importance: 15", timestamp: "2026-03-07 10:00:00", packageName: "android" },
-        { interactionType: "Unknown importance: 16", timestamp: "2026-03-07 10:00:20", packageName: "android" },
-      ]);
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        csv,
-        { ...baseOpts, processAppUsage: false, processScreenUsage: true },
-        {},
-        noopMatcher,
-      );
-      expect(result.screenRowCount).toBeGreaterThan(0);
-    });
-
-    it("'Move to Foreground' normalises to 'Activity Resumed' and is usable as a start event", async () => {
-      const csv = buildCsv([
-        { interactionType: "Move to Foreground", timestamp: "2026-03-07 10:00:00" },
-        { interactionType: "Unknown importance: 2", timestamp: "2026-03-07 10:01:00" },
-      ]);
-      // Should not throw; 'Move to Foreground' becomes 'Activity Resumed'
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        csv,
-        baseOpts,
-        {},
-        async (_) => ({ startIndices: [0], stopStartIndices: [0], stopEventIndices: [1], missingIndices: [] }),
-      );
-      expect(result.outputs).toHaveLength(1);
-    });
-
-    it("'Move to Background' normalises to 'Activity Paused'", async () => {
-      // A Resumed + Move to Background pair should produce one App Usage session.
-      const csv = buildCsv([
-        { interactionType: "Unknown importance: 1", timestamp: "2026-03-07 10:00:00" },
-        { interactionType: "Move to Background", timestamp: "2026-03-07 10:01:00" },
-      ]);
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        csv,
-        baseOpts,
-        {},
-        async (_) => ({ startIndices: [0], stopStartIndices: [0], stopEventIndices: [1], missingIndices: [] }),
-      );
-      const text = await result.outputs[0]!.blob.text();
-      expect(text).toContain("App Usage");
-    });
-
-    it("'Unknown importance: 17' normalises to 'Keyguard Shown'", async () => {
-      // A Screen Interactive + Keyguard Shown (17) + Screen Non-Interactive pair
-      const csv = buildCsv([
-        { interactionType: "Unknown importance: 15", timestamp: "2026-03-07 10:00:00", packageName: "android" },
-        { interactionType: "Unknown importance: 17", timestamp: "2026-03-07 10:00:10", packageName: "android" },
-        { interactionType: "Unknown importance: 16", timestamp: "2026-03-07 10:00:20", packageName: "android" },
-      ]);
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        csv,
-        { ...baseOpts, processAppUsage: false, processScreenUsage: true },
-        {},
-        noopMatcher,
-      );
-      // Lock screen was seen inside the session
-      const screenText = await result.outputs.find((o) => o.kind === "screen")!.blob.text();
-      expect(screenText).toContain("lock_screen");
-    });
-  });
-
-  // ─── result metadata ───────────────────────────────────────────────────────
-
-  describe("processRawCsvContent – result metadata", () => {
-    const simpleCsv = buildCsv([
-      { interactionType: "Unknown importance: 1", timestamp: "2026-03-07 10:00:00" },
-      { interactionType: "Unknown importance: 2", timestamp: "2026-03-07 10:01:00" },
-    ]);
-    const simpleMatcher = async (_: MatcherInput): Promise<MatcherOutput> => ({
-      startIndices: [0],
-      stopStartIndices: [0],
-      stopEventIndices: [1],
-      missingIndices: [],
-    });
-
-    it("inputFileName in result matches the provided filename", async () => {
-      const result = await processRawCsvContent("My File.csv", simpleCsv, baseOpts, {}, simpleMatcher);
-      expect(result.inputFileName).toBe("My File.csv");
-    });
-
-    it("availableTimezones lists discovered timezones from input", async () => {
-      const csv = buildCsv([
-        { timezone: "America/Chicago", timestamp: "2026-03-07 10:00:00", interactionType: "Unknown importance: 1" },
-        { timezone: "America/New_York", timestamp: "2026-03-07 10:01:00", interactionType: "Unknown importance: 2" },
-      ]);
-      const result = await processRawCsvContent("Raw P01.csv", csv, { ...baseOpts, timezoneHandling: "primary-convert" }, {}, simpleMatcher);
-      expect(result.availableTimezones).toContain("America/Chicago");
-      expect(result.availableTimezones).toContain("America/New_York");
-    });
-
-    it("rowsBeforeTimezoneHandling equals total parsed rows", async () => {
-      const result = await processRawCsvContent("Raw P01.csv", simpleCsv, baseOpts, {}, simpleMatcher);
-      expect(result.rowsBeforeTimezoneHandling).toBe(2);
-    });
-
-    it("rowsAfterTimezoneHandling equals rowsBeforeTimezoneHandling minus rowsRemovedByTimezone", async () => {
-      const twoTzCsv = buildCsv([
-        { timezone: "America/Chicago", timestamp: "2026-03-07 10:00:00", interactionType: "Unknown importance: 1" },
-        { timezone: "America/Chicago", timestamp: "2026-03-07 10:01:00", interactionType: "Unknown importance: 2" },
-        { timezone: "America/New_York", timestamp: "2026-03-07 11:00:00", interactionType: "Unknown importance: 1" },
-        { timezone: "America/New_York", timestamp: "2026-03-07 11:01:00", interactionType: "Unknown importance: 2" },
-      ]);
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        twoTzCsv,
-        { ...baseOpts, timezoneHandling: "primary-filter" },
-        {},
-        simpleMatcher,
-      );
-      expect(result.rowsAfterTimezoneHandling).toBe(result.rowsBeforeTimezoneHandling - result.rowsRemovedByTimezone);
-    });
-
-    it("screenRowCount is 0 when processScreenUsage=false", async () => {
-      const result = await processRawCsvContent(
-        "Raw P01.csv",
-        simpleCsv,
-        { ...baseOpts, processScreenUsage: false },
-        {},
-        simpleMatcher,
-      );
-      expect(result.screenRowCount).toBe(0);
-    });
+  it("is a no-op when no row is secondary (concurrent off → unchanged)", () => {
+    const rows = [
+      drow({ app: "com.a", startMin: 0, stopMin: 20 }),
+      drow({ app: "com.b", startMin: 30, stopMin: 40 }),
+    ];
+    const out = addAppUsageDetailColumns(rows, DEFAULT_BROWSER_OPTIONS);
+    expect(out[1]!.any_app_usage_time_gap_hours).toBeCloseTo(10 / 60, 6); // (30-20)
+    expect(out[1]!.any_app_switched_app).toBe(1); // com.a → com.b
   });
 });

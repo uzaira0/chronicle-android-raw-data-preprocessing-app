@@ -77,8 +77,8 @@ async function main(): Promise<void> {
     if (!cspMatch) {
       throw new Error(`${path.basename(artifactDir)}/_headers does not contain a Content-Security-Policy rule`);
     }
-    const headersCsp = cspMatch[1].trim();
-    const metaCsp = metaCspMatch[1].trim();
+    const headersCsp = cspMatch[1]!.trim();
+    const metaCsp = metaCspMatch[1]!.trim();
     if (headersCsp !== metaCsp) {
       throw new Error(
         `CSP mismatch between ${path.basename(artifactDir)}/_headers and ${path.basename(artifactDir)}/index.html\nheaders: ${headersCsp}\nmeta: ${metaCsp}`,

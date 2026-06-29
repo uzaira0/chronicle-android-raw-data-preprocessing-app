@@ -12,6 +12,14 @@ export const OUTPUT_KIND_VALUES = [
   "app",
   "screen",
   "plot",
+  "aggregate",
+  "parquet",
+  "spss",
+] as const;
+
+export const AGGREGATE_SHAPE_VALUES = [
+  "wide",
+  "long",
 ] as const;
 
 export const BROWSER_PROCESSING_OPTION_KEYS = [
@@ -23,13 +31,23 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "applyThresholdToFallback",
   "longDurationThresholdHours",
   "correctDuplicateEventTimestamps",
+  "deduplicateExactRows",
   "selectedTimezone",
   "timezoneHandling",
   "useFilterFile",
   "useAppsForcingScreenOpenFile",
+  "useBackgroundAppsFile",
   "useAppCodebook",
+  "includeCategoryColumn",
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
+  "enableActivityHeatmap",
+  "exportPlotsAsSvg",
+  "enableAggregates",
+  "aggregateShape",
+  "enableParquetExport",
+  "enableSpssExport",
+  "enableInteractiveTimeline",
   "minimumUsageDuration",
   "filterZeroDurationSessions",
   "customAppEngagementDuration",
@@ -43,7 +61,12 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "parallelMaxWorkers",
   "sameAppInteractionTypesToStopUsageAt",
   "otherInteractionTypesToStopUsageAt",
+  "modelConcurrentUsage",
+  "applyMinimumUsageDurationToConcurrentSubintervals",
   "interactionTypesToRemove",
+  "interactionTypeRemap",
+  "proximityIntervalSeconds",
+  "addNoActivityPlaceholderDays",
 ] as const;
 
 export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
@@ -55,12 +78,22 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "applyThresholdToFallback",
   "longDurationThresholdHours",
   "correctDuplicateEventTimestamps",
+  "deduplicateExactRows",
   "timezoneHandling",
   "useFilterFile",
   "useAppsForcingScreenOpenFile",
+  "useBackgroundAppsFile",
   "useAppCodebook",
+  "includeCategoryColumn",
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
+  "enableActivityHeatmap",
+  "exportPlotsAsSvg",
+  "enableAggregates",
+  "aggregateShape",
+  "enableParquetExport",
+  "enableSpssExport",
+  "enableInteractiveTimeline",
   "minimumUsageDuration",
   "filterZeroDurationSessions",
   "customAppEngagementDuration",
@@ -73,12 +106,18 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "parallelProcessing",
   "sameAppInteractionTypesToStopUsageAt",
   "otherInteractionTypesToStopUsageAt",
+  "modelConcurrentUsage",
+  "applyMinimumUsageDurationToConcurrentSubintervals",
   "interactionTypesToRemove",
+  "interactionTypeRemap",
+  "proximityIntervalSeconds",
+  "addNoActivityPlaceholderDays",
 ] as const;
 
 export const BROWSER_SUPPORT_FILE_KEYS = [
   "filterFile",
   "appsForcingScreenOpenFile",
+  "backgroundAppsFile",
   "appCodebookFile",
 ] as const;
 
@@ -88,6 +127,7 @@ export const BROWSER_RUNTIME_KEYS = [
 
 export type BrowserTimezoneHandling = (typeof TIMEZONE_HANDLING_VALUES)[number];
 export type OutputKind = (typeof OUTPUT_KIND_VALUES)[number];
+export type AggregateShape = (typeof AGGREGATE_SHAPE_VALUES)[number];
 
 export type BrowserProcessingOptions = {
   studyName: string;
@@ -98,13 +138,23 @@ export type BrowserProcessingOptions = {
   applyThresholdToFallback: boolean;
   longDurationThresholdHours: number;
   correctDuplicateEventTimestamps: boolean;
+  deduplicateExactRows: boolean;
   selectedTimezone?: string;
   timezoneHandling: BrowserTimezoneHandling;
   useFilterFile: boolean;
   useAppsForcingScreenOpenFile: boolean;
+  useBackgroundAppsFile: boolean;
   useAppCodebook: boolean;
+  includeCategoryColumn: boolean;
   enablePlotting: boolean;
   includeFilteredAppUsageInPlots: boolean;
+  enableActivityHeatmap: boolean;
+  exportPlotsAsSvg: boolean;
+  enableAggregates: boolean;
+  aggregateShape: AggregateShape;
+  enableParquetExport: boolean;
+  enableSpssExport: boolean;
+  enableInteractiveTimeline: boolean;
   minimumUsageDuration: number;
   filterZeroDurationSessions: boolean;
   customAppEngagementDuration: number;
@@ -118,7 +168,12 @@ export type BrowserProcessingOptions = {
   parallelMaxWorkers?: number;
   sameAppInteractionTypesToStopUsageAt: string[];
   otherInteractionTypesToStopUsageAt: string[];
+  modelConcurrentUsage: boolean;
+  applyMinimumUsageDurationToConcurrentSubintervals: boolean;
   interactionTypesToRemove: string[];
+  interactionTypeRemap: string[];
+  proximityIntervalSeconds: number;
+  addNoActivityPlaceholderDays: boolean;
 };
 
 // Key arrays by sanitization type — used by settingsPersistence to stay in sync with the schema.
@@ -129,13 +184,25 @@ export const BOOLEAN_BROWSER_OPTION_KEYS = [
   "useActivityStoppedAsFallback",
   "applyThresholdToFallback",
   "correctDuplicateEventTimestamps",
+  "deduplicateExactRows",
   "useFilterFile",
   "useAppsForcingScreenOpenFile",
+  "useBackgroundAppsFile",
   "useAppCodebook",
+  "includeCategoryColumn",
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
+  "enableActivityHeatmap",
+  "exportPlotsAsSvg",
+  "enableAggregates",
+  "enableParquetExport",
+  "enableSpssExport",
+  "enableInteractiveTimeline",
   "filterZeroDurationSessions",
   "parallelProcessing",
+  "modelConcurrentUsage",
+  "applyMinimumUsageDurationToConcurrentSubintervals",
+  "addNoActivityPlaceholderDays",
 ] as const;
 export const NUMBER_BROWSER_OPTION_KEYS = [
   "longDurationThresholdHours",
@@ -145,6 +212,7 @@ export const NUMBER_BROWSER_OPTION_KEYS = [
   "screenUsageAutoLockToleranceSeconds",
   "screenUsageManualLockMaxTailGapSeconds",
   "screenUsageKeyguardNearStopSeconds",
+  "proximityIntervalSeconds",
 ] as const;
 export const NUMBER_ARRAY_BROWSER_OPTION_KEYS = [
   "longUsageDurationThresholds",
@@ -154,29 +222,41 @@ export const STRING_BROWSER_OPTION_KEYS = [
   "studyName",
   "selectedTimezone",
   "timezoneHandling",
+  "aggregateShape",
 ] as const;
 export const STRING_ARRAY_BROWSER_OPTION_KEYS = [
   "sameAppInteractionTypesToStopUsageAt",
   "otherInteractionTypesToStopUsageAt",
   "interactionTypesToRemove",
+  "interactionTypeRemap",
 ] as const;
 
 export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   studyName: "",
   processAppUsage: true,
-  processScreenUsage: false,
+  processScreenUsage: true,
   allowStopEventReuse: false,
   useActivityStoppedAsFallback: true,
   applyThresholdToFallback: true,
   longDurationThresholdHours: 12,
   correctDuplicateEventTimestamps: true,
+  deduplicateExactRows: true,
   selectedTimezone: "",
   timezoneHandling: "selected-filter",
   useFilterFile: true,
   useAppsForcingScreenOpenFile: false,
+  useBackgroundAppsFile: false,
   useAppCodebook: true,
-  enablePlotting: false,
+  includeCategoryColumn: false,
+  enablePlotting: true,
   includeFilteredAppUsageInPlots: false,
+  enableActivityHeatmap: true,
+  exportPlotsAsSvg: false,
+  enableAggregates: false,
+  aggregateShape: "wide",
+  enableParquetExport: false,
+  enableSpssExport: false,
+  enableInteractiveTimeline: false,
   minimumUsageDuration: 0,
   filterZeroDurationSessions: false,
   customAppEngagementDuration: 300,
@@ -186,11 +266,16 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   screenUsageAutoLockToleranceSeconds: 30,
   screenUsageManualLockMaxTailGapSeconds: 30,
   screenUsageKeyguardNearStopSeconds: 2,
-  parallelProcessing: false,
+  parallelProcessing: true,
   parallelMaxWorkers: undefined,
   sameAppInteractionTypesToStopUsageAt: ["Activity Paused", "Activity Resumed"],
   otherInteractionTypesToStopUsageAt: ["Activity Resumed", "Filtered App Resumed", "Filtered App Usage", "Device Shutdown"],
+  modelConcurrentUsage: false,
+  applyMinimumUsageDurationToConcurrentSubintervals: false,
   interactionTypesToRemove: [],
+  interactionTypeRemap: [],
+  proximityIntervalSeconds: 0,
+  addNoActivityPlaceholderDays: false,
 };
 
 export const BROWSER_OPTION_TOOLTIPS = {
@@ -227,6 +312,10 @@ export const BROWSER_OPTION_TOOLTIPS = {
     title: "Correct duplicate timestamps",
     body: "When two events share the same timestamp, nudge the second one forward by microseconds so ordering is preserved deterministically.",
   },
+  deduplicateExactRows: {
+    title: "Collapse exact-duplicate rows",
+    body: "Drop fully-identical raw events (same participant, timestamp, app, and interaction type) before processing. Re-exported Chronicle data often repeats rows verbatim; the first occurrence is kept. Turn this off to keep every raw row as-is.",
+  },
   selectedTimezone: {
     title: "Selected timezone",
     body: "Pick from the typical IANA names (e.g. America/Chicago). When discovery runs, found timezones from your file are added to the suggestions.",
@@ -243,9 +332,17 @@ export const BROWSER_OPTION_TOOLTIPS = {
     title: "Use apps-forcing-screen-open file",
     body: "Apps in this list are treated as ones that force the screen to stay on during screen-usage derivation, which influences how locks/unlocks are interpreted.",
   },
+  useBackgroundAppsFile: {
+    title: "Use background-apps file",
+    body: "Apps in this list (e.g. music, navigation) keep running after they are backgrounded. Their app-usage session is not closed when they are paused or when another app comes to the foreground; it stays alive until that app's own Activity Stopped. The resulting overlap with the foreground app is resolved into primary/secondary layers (the concurrent-usage split is applied automatically when this is on). Without an uploaded file the bundled default is used.",
+  },
   useAppCodebook: {
     title: "Use app codebook",
     body: "Enriches each output row with category metadata from the codebook (Play Store genre, USC category, UMich classifications, etc.). Without an uploaded codebook the bundled default is used.",
+  },
+  includeCategoryColumn: {
+    title: "Include app category column",
+    body: "Add the normalized broad app category (the same value used to colour the plots — Games, Education, Social & Communication, …) as a `broad_app_category` column in the app-usage output. Derived by coalescing the codebook's per-source category columns and mapping them onto the standard palette. Requires the app codebook; off by default.",
   },
   enablePlotting: {
     title: "Generate app-usage plots",
@@ -254,6 +351,34 @@ export const BROWSER_OPTION_TOOLTIPS = {
   includeFilteredAppUsageInPlots: {
     title: "Include filtered apps in plots",
     body: "When on, bars for apps that were filtered (but retained in the output) are drawn alongside normal app-usage bars.",
+  },
+  enableActivityHeatmap: {
+    title: "Generate activity heatmaps",
+    body: "Alongside the timeline chart, render an hour-of-day × calendar-day heatmap PNG per participant showing when app usage happened. Only applies when plot generation is on. Turn off to keep just the timeline charts (one fewer PNG per participant).",
+  },
+  exportPlotsAsSvg: {
+    title: "Also export plots as SVG (vector)",
+    body: "In addition to the PNG charts, write a scalable vector SVG of each plot (timeline, and heatmap when enabled) into the output ZIP. SVGs stay sharp at any zoom and are editable in vector tools. Off by default to avoid adding a second file per plot. Only applies when plot generation is on.",
+  },
+  enableAggregates: {
+    title: "Aggregate summaries",
+    body: "Emit extra summary CSVs alongside the per-session output: a daily and weekly summary (screen/app time, session counts, app switches, pickups, mean & longest session, first/last use), a per-app breakdown, a per-category time budget (when a codebook is loaded), and an app co-usage matrix (when concurrent usage is modeled). Off by default.",
+  },
+  aggregateShape: {
+    title: "Aggregate layout",
+    body: "Layout for the daily/weekly summaries — \"wide\" (one row per period, metrics as columns) or \"long\" (tidy: one row per period per metric). The per-app, category, and co-usage outputs are always long.",
+  },
+  enableParquetExport: {
+    title: "Also export Parquet",
+    body: "In addition to the CSV outputs, write each app-usage and screen-usage table as an Apache Parquet file (typed columns, smaller and far faster to load in R/Python via arrow/polars/pandas). Same rows and columns as the CSV, with native dtypes preserved (timestamps stay as formatted strings). Off by default.",
+  },
+  enableSpssExport: {
+    title: "Also export SPSS (.sav)",
+    body: "In addition to the CSV outputs, write each app-usage and screen-usage table as an SPSS/PSPP system file (.sav) with typed variables and the column names as variable labels — open it directly in SPSS or PSPP. Same rows and columns as the CSV. Off by default. (Stata .dta is not yet supported.)",
+  },
+  enableInteractiveTimeline: {
+    title: "Interactive timeline explorer",
+    body: "Show an in-browser zoomable/pannable timeline of every session (app and screen), coloured by app category, with hover details — rendered live in the results panel from a compact per-session payload. This payload is only produced when the option is on, to avoid bloating results for large cohorts. Off by default.",
   },
   minimumUsageDuration: {
     title: "Minimum usage duration (seconds)",
@@ -315,8 +440,29 @@ export const BROWSER_OPTION_TOOLTIPS = {
     title: "Other-app stop types",
     body: "Interaction types from any other source that close the current session — e.g. a different app coming to the foreground or the device shutting down.",
   },
+  modelConcurrentUsage: {
+    title: "Model concurrent (Picture-in-Picture) usage",
+    body: "When enabled, an app session runs to its own stop event instead of ending when another app is foregrounded. Overlapping sessions are split into a primary (sole-foreground) layer and a secondary (running-underneath / PiP) layer, reported via the usage_layer column. Default off; output is unchanged when off.",
+  },
+  applyMinimumUsageDurationToConcurrentSubintervals: {
+    title: "Apply minimum usage duration to concurrent sub-intervals",
+    body: "Only relevant when model_concurrent_usage is on. When enabled, a split primary/secondary sub-interval shorter than minimum_usage_duration has its duration_seconds/duration_minutes nulled (the row is kept). Off by default, so sub-interval durations are always populated, matching every surface.",
+  },
   interactionTypesToRemove: {
     title: "Interaction types to remove",
     body: "Rows of these types are dropped from the final output. Useful for stripping noisy events you don't want surfaced in the CSV.",
+  },
+  interactionTypeRemap: {
+    title: "Custom interaction-type mappings",
+    body: "Map vendor-specific raw interaction_type strings onto the canonical names the pipeline understands (e.g. Activity Resumed / Activity Paused / Activity Stopped), for non-standard Chronicle exports. Each entry is \"Raw value => Canonical name\". Applied before the built-in mapping, so it also overrides built-ins. Default empty.",
+  },
+  proximityIntervalSeconds: {
+    title: "Intra-app teardown grace (seconds)",
+    body: "When greater than 0, an Activity Stopped fallback close landing within this many seconds of a re-resumed session's start is treated as an intra-app teardown artifact (the app was torn down then immediately re-resumed) rather than a real close, so the session stays open for the next genuine stop event. Set to 0 to disable. When on, app-usage matching runs in a JavaScript matcher path (the shared WASM matcher has no proximity parameter); with it off the output is byte-identical to before.",
+    example: "default 0 (disabled)",
+  },
+  addNoActivityPlaceholderDays: {
+    title: "Add no-activity placeholder days",
+    body: "For each participant, any calendar day that has raw event data but produces no app-usage sessions gets one zero-duration placeholder row (com.placeholder.noactivity) so day-level summaries can distinguish a genuine no-use day from a day with no data at all. The window is derived from the participant's own data (first to last day with raw events). Default off.",
   },
 } as const;

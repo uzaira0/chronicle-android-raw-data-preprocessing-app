@@ -1,0 +1,61 @@
+import { describe, expect, it } from "vitest";
+
+import { computeSafeConcurrency, deviceMemoryBudgetScale } from "@/lib/concurrency";
+
+const MB = 1024 * 1024;
+
+describe("deviceMemoryBudgetScale", () => {
+  it("returns full budget when deviceMemory is unknown or high", () => {
+    expect(deviceMemoryBudgetScale(undefined)).toBe(1);
+    expect(deviceMemoryBudgetScale(8)).toBe(1);
+    expect(deviceMemoryBudgetScale(16)).toBe(1);
+  });
+
+  it("tightens proportionally on low-memory devices, with a floor", () => {
+    expect(deviceMemoryBudgetScale(4)).toBeCloseTo(0.5);
+    expect(deviceMemoryBudgetScale(2)).toBeCloseTo(0.25);
+    expect(deviceMemoryBudgetScale(1)).toBe(0.25); // floored
+  });
+});
+
+describe("computeSafeConcurrency", () => {
+  const base = {
+    fileCount: 8,
+    totalInputBytes: 8 * 20 * MB, // 20 MB avg → memory-bound, not core-bound
+    userCap: undefined,
+    hardwareConcurrency: 16,
+  };
+
+  it("single file is always serial", () => {
+    expect(computeSafeConcurrency({ ...base, fileCount: 1 })).toBe(1);
+  });
+
+  it("honours a user-pinned cap regardless of memory", () => {
+    expect(computeSafeConcurrency({ ...base, userCap: 3, deviceMemory: 1 })).toBe(3);
+  });
+
+  it("a low-deviceMemory machine gets fewer workers than a high-memory one", () => {
+    const high = computeSafeConcurrency({ ...base, deviceMemory: 8 });
+    const low = computeSafeConcurrency({ ...base, deviceMemory: 2 });
+    expect(low).toBeLessThan(high);
+    expect(low).toBeGreaterThanOrEqual(1);
+  });
+
+  it("unknown deviceMemory matches the prior (full-budget) behavior", () => {
+    const unknown = computeSafeConcurrency({ ...base, deviceMemory: undefined });
+    const full = computeSafeConcurrency({ ...base, deviceMemory: 8 });
+    expect(unknown).toBe(full);
+  });
+
+  it("never exceeds the file count", () => {
+    expect(
+      computeSafeConcurrency({
+        fileCount: 2,
+        totalInputBytes: 2 * 1024,
+        userCap: undefined,
+        hardwareConcurrency: 32,
+        deviceMemory: 8,
+      }),
+    ).toBeLessThanOrEqual(2);
+  });
+});

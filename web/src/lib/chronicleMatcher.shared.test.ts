@@ -22,6 +22,7 @@ function processedResult(inputFileName = "Raw P01.csv"): ProcessedFileResult {
     rowsAfterTimezoneHandling: 0,
     rowsRemovedByTimezone: 0,
     duplicateTimestampsCorrected: 0,
+    exactDuplicateRowsRemoved: 0,
   };
 }
 
@@ -46,6 +47,7 @@ beforeEach(() => {
   };
   class TestWorker {
     terminate = vi.fn();
+    addEventListener = vi.fn();
 
     constructor() {
       workers.push(this);

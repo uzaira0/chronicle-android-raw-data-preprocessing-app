@@ -1,17 +1,40 @@
-import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { PREPROCESSOR_VERSION, resolveDefaultSupportFiles } from "@/lib/browserPipeline";
 import {
   WorkerPool,
   discoverTimezones,
   processRawCsv,
   processRawCsvBytesViaPool,
-  warmUpWorker,
+  warmMatcher,
 } from "@/lib/chronicleMatcher";
-import { sampleRawCsv, SAMPLE_FILE_NAME } from "@/lib/sampleRawCsv";
+import { BUILD_DATE, BUILD_SHA } from "@/lib/buildInfo";
 import { ensureNotificationPermission, sendNotification } from "@/lib/notification";
-import { hasPersistedOptions, persistOptions, readPersistedOptions } from "@/lib/settingsPersistence";
-import { clearSwCachesAndReload } from "@/lib/swCache";
+import { clearLastRun, loadLastRun, saveLastRun } from "@/lib/lastRunStore";
+import { computeSafeConcurrency, readDeviceMemory } from "@/lib/concurrency";
+import { clearCachedRun as clearCachedRunData } from "@/lib/localDataReset";
+import {
+  estimateStoragePressure,
+  formatBytes,
+  isStoragePressureHigh,
+  requestPersistentStorage,
+  type StoragePressure,
+} from "@/lib/storagePressure";
+import {
+  hasPersistedOptions,
+  persistOptions,
+  readPersistedOptions,
+  readSharedConfig,
+  sanitizeOptions,
+  SHARED_CONFIG_PARAM,
+} from "@/lib/settingsPersistence";
+import {
+  createDemoDisplayMasker,
+  persistDemoDisplayEnabled,
+  readDemoDisplayEnabled,
+} from "@/lib/demoDisplay";
 import { inspectRawFiles, type RawFileInspection } from "@/lib/fileInspection";
+import { applyProgressEvent } from "@/lib/progressReducer";
+import { storedFileToFile, type ProjectRecord } from "@/lib/projectsStore";
 import type {
   BrowserProcessingOptions,
   BrowserProcessingRuntime,
@@ -22,24 +45,27 @@ import type {
   ProgressStepKind,
 } from "@/lib/types";
 
-import { UpdateBanner } from "@/components/UpdateBanner";
-import { DemoSampleCard } from "@/components/DemoSampleCard";
 import { FilesAndInputsCard } from "@/components/FilesAndInputsCard";
 import { TimezoneCard } from "@/components/TimezoneCard";
 import { SessionDetectionCard } from "@/components/SessionDetectionCard";
 import { ScreenDetectionCard } from "@/components/ScreenDetectionCard";
 import { InteractionSemanticsCard } from "@/components/InteractionSemanticsCard";
 import { PerformanceCard } from "@/components/PerformanceCard";
-import { PlottingCard } from "@/components/PlottingCard";
 import { ResultPanel } from "@/components/ResultPanel";
+import { ViewPanel } from "@/components/ViewPanel";
 import type { FileProgress } from "@/components/ProgressList";
 import { Toast } from "@/components/Toast";
 import { WorkflowNav, type WorkflowTab } from "@/components/WorkflowNav";
 import { RawFilesCard } from "@/components/RawFilesCard";
 import { ProcessPanel } from "@/components/ProcessPanel";
 import { SettingsManagementCard } from "@/components/SettingsManagementCard";
+import { ProjectsCard } from "@/components/ProjectsCard";
 import { SettingsOverviewCard } from "@/components/SettingsOverviewCard";
 import { SettingsSearchResults } from "@/components/SettingsSearchResults";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { UpdateBanner } from "@/components/UpdateBanner";
+import { clearSwCachesAndReload } from "@/lib/swCache";
+import { applyUpdate, onUpdateReady } from "@/lib/swUpdate";
 
 async function readSupportFile(file: File): Promise<BrowserSupportFile> {
   return {
@@ -73,48 +99,16 @@ const STEP_ORDER: ProgressStepKind[] = [
   "enrich",
   "output",
 ];
+const WORKFLOW_STORAGE_KEY = "chronicle-web.activeWorkflow";
 
-/**
- * Compute a memory-safe parallel worker count.
- *
- * Each in-flight worker holds, at peak, roughly a 5–10× expansion of its
- * file's input bytes (parsed `CanonicalRow[]`, intermediate matcher buffers,
- * codebook-enriched rows, and a Blob being assembled). Hardcoding 8 workers
- * regardless of input size is what crashes the tab on a 540 MB batch — the
- * sum of in-flight expansions exceeds Chrome's renderer ceiling.
- *
- * Strategy:
- *   - If the user pinned `parallelMaxWorkers`, respect it.
- *   - Otherwise budget ~600 MB for in-flight worker state and divide by an
- *     8× amplification of the average file size.
- *   - Clamp to [1, hardwareConcurrency/2] and never exceed file count.
- */
-const PEAK_AMPLIFICATION = 8;
-const IN_FLIGHT_BUDGET_BYTES = 600 * 1024 * 1024;
-
-function computeSafeConcurrency(input: {
-  fileCount: number;
-  totalInputBytes: number;
-  userCap: number | undefined;
-  hardwareConcurrency: number | undefined;
-}): number {
-  const { fileCount, totalInputBytes, userCap, hardwareConcurrency } = input;
-  if (fileCount <= 1) return 1;
-  if (userCap && userCap > 0) {
-    return Math.max(1, Math.min(fileCount, Math.floor(userCap)));
-  }
-  const cores = Math.max(1, Math.floor((hardwareConcurrency ?? 2) / 2));
-  const avgBytes = totalInputBytes > 0 ? totalInputBytes / fileCount : 1024;
-  const memoryCap = Math.max(
-    1,
-    Math.floor(IN_FLIGHT_BUDGET_BYTES / Math.max(1, avgBytes * PEAK_AMPLIFICATION)),
-  );
-  return Math.max(1, Math.min(fileCount, cores, memoryCap));
+function isWorkflowTab(value: string | null): value is WorkflowTab {
+  return value === "settings" || value === "files" || value === "process" || value === "view";
 }
 
 function estimatedFilePercent(current: FileProgress): number {
   if (current.status === "complete") return 1;
   if (current.status === "error") return 1;
+  if (current.status === "cancelled") return 1;
   if (current.status === "pending" || !current.stepKind) return 0;
   const stepIndex = STEP_ORDER.indexOf(current.stepKind);
   if (stepIndex < 0) return 0;
@@ -138,57 +132,198 @@ export default function App(): ReactElement {
   const [isInspectingFiles, setIsInspectingFiles] = useState(false);
   const [filterFile, setFilterFile] = useState<File | null>(null);
   const [appsForcingScreenOpenFile, setAppsForcingScreenOpenFile] = useState<File | null>(null);
+  const [backgroundAppsFile, setBackgroundAppsFile] = useState<File | null>(null);
   const [appCodebookFile, setAppCodebookFile] = useState<File | null>(null);
   const [discoveredTimezones, setDiscoveredTimezones] = useState<string[]>([]);
-  const [options, setOptions] = useState<BrowserProcessingOptions>(() => readPersistedOptions());
+  // When options are seeded from a shared link we skip the very first persist so
+  // that merely *opening* someone's link does not silently overwrite the
+  // recipient's own saved settings. They take over only once the recipient
+  // actually edits a setting (any later change persists normally). Set
+  // synchronously during init because the persist effect runs before the
+  // URL-strip effect below.
+  const skipNextPersist = useRef(false);
+  const [options, setOptions] = useState<BrowserProcessingOptions>(() => {
+    const shared = typeof window === "undefined" ? null : readSharedConfig(window.location.search);
+    if (shared) skipNextPersist.current = true;
+    return shared ?? readPersistedOptions();
+  });
   const [progressByFile, setProgressByFile] = useState<Record<string, FileProgress>>({});
   const [progressOrder, setProgressOrder] = useState<string[]>([]);
   const [toast, setToast] = useState<{ message: string; isError: boolean } | null>(null);
   const [settingsQuery, setSettingsQuery] = useState("");
-  const [activeWorkflow, setActiveWorkflow] = useState<WorkflowTab>("settings");
+  const [activeWorkflow, setActiveWorkflow] = useState<WorkflowTab>(() => {
+    if (typeof window === "undefined") return "settings";
+    const stored = localStorage.getItem(WORKFLOW_STORAGE_KEY);
+    return isWorkflowTab(stored) ? stored : "settings";
+  });
+  const [processExpanded, setProcessExpanded] = useState(true);
+  const [hideDemoMetadata, setHideDemoMetadata] = useState(() => readDemoDisplayEnabled());
+  const [storagePressure, setStoragePressure] = useState<StoragePressure | null>(null);
+  const [storagePressureDismissed, setStoragePressureDismissed] = useState(false);
+  const [retryingFile, setRetryingFile] = useState<string | null>(null);
+  const [updateReady, setUpdateReady] = useState(false);
+  const baseTitleRef = useRef<string | null>(null);
+  // Snapshot of the options that produced `results`, so the Result panel can warn
+  // when the live settings have since drifted (out-of-date outputs).
+  const [resultsOptions, setResultsOptions] = useState<BrowserProcessingOptions | null>(null);
   const startTimeRef = useRef<number>(0);
-  const resultsRef = useRef<HTMLDivElement | null>(null);
+  // A run can be cancelled mid-flight: the flag stops the runner from claiming the
+  // next file, and the pool ref lets us terminate in-flight workers immediately.
+  const cancelRequestedRef = useRef(false);
+  const poolRef = useRef<WorkerPool | null>(null);
+  // Synchronous re-entrancy locks (set before any await) so a double-click or
+  // synthetic event can't start two runs / a run-during-retry before the React
+  // state-driven `disabled` attributes re-render.
+  const processingRef = useRef(false);
+  const retryingFileRef = useRef<string | null>(null);
+  // Holds the pending "flash the jumped-to setting" timer so a rapid second jump
+  // to the same card cancels the first timer instead of cutting its flash short.
+  const flashTimerRef = useRef<number | null>(null);
+  // Memoized so the masker's internal label maps persist across renders (stable
+  // File 01/Participant 01 numbering) and its identity stays stable for memoized
+  // children — a fresh instance each render would reset numbering and churn props.
+  const demoDisplay = useMemo(() => createDemoDisplayMasker(hideDemoMetadata), [hideDemoMetadata]);
+
+  const resultsStale =
+    results.length > 0 &&
+    resultsOptions !== null &&
+    JSON.stringify(options) !== JSON.stringify(resultsOptions);
+
+  // Sample storage usage on boot and whenever asked (after a run / a clear), so
+  // the banner can warn before a write fails. A fresh high reading re-arms the
+  // banner even if the user dismissed an earlier one.
+  const refreshStoragePressure = useCallback(async (): Promise<void> => {
+    const pressure = await estimateStoragePressure();
+    setStoragePressure(pressure);
+    if (isStoragePressureHigh(pressure)) setStoragePressureDismissed(false);
+  }, []);
 
   useEffect(() => {
+    if (skipNextPersist.current) {
+      skipNextPersist.current = false;
+      return;
+    }
     persistOptions(options);
   }, [options]);
 
   useEffect(() => {
-    void warmUpWorker()
-      .then(() => setWasmReady(true))
-      .catch((err: unknown) => {
-        setError(`Failed to initialize the processing engine. Try reloading the page. (${String(err)})`);
+    persistDemoDisplayEnabled(hideDemoMetadata);
+  }, [hideDemoMetadata]);
+
+  useEffect(() => {
+    void refreshStoragePressure();
+  }, [refreshStoragePressure]);
+
+  // Ask once for persistent storage so projects + the cached run aren't evicted
+  // under disk pressure (best-effort; ignored where unsupported/denied).
+  useEffect(() => {
+    void requestPersistentStorage();
+  }, []);
+
+  // Warm the matcher worker on boot: faster first run, and a still-live worker
+  // if the network drops before the user processes.
+  useEffect(() => {
+    void warmMatcher();
+  }, []);
+
+  // Surface a "new version available" banner when the service worker updates.
+  useEffect(() => onUpdateReady(() => setUpdateReady(true)), []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.has(SHARED_CONFIG_PARAM)) {
+      // Settings already initialized from the shared link; announce it and
+      // strip the param so a reload/bookmark doesn't keep re-applying it.
+      setToast({
+        message: "Settings loaded from shared link. Your saved settings are kept until you change one.",
+        isError: false,
       });
-  }, []);
-
-  useEffect(() => {
-    const handler = () => setUpdateAvailable(true);
-    window.addEventListener("sw-update-available", handler);
-    return () => window.removeEventListener("sw-update-available", handler);
-  }, []);
-
-  useEffect(() => {
-    const goOnline = () => setIsOffline(false);
-    const goOffline = () => setIsOffline(true);
-    window.addEventListener("online", goOnline);
-    window.addEventListener("offline", goOffline);
-    return () => {
-      window.removeEventListener("online", goOnline);
-      window.removeEventListener("offline", goOffline);
-    };
-  }, []);
-
-  useEffect(() => {
+      params.delete(SHARED_CONFIG_PARAM);
+      const query = params.toString();
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + (query ? `?${query}` : "") + window.location.hash,
+      );
+      return;
+    }
     if (hasPersistedOptions()) {
       setToast({ message: "Last used settings restored.", isError: false });
     }
   }, []);
 
-  const onFilesChange = (files: File[]) => {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (readSharedConfig(window.location.search)) return;
+    let cancelled = false;
+    void loadLastRun()
+      .then((record) => {
+        if (cancelled || !record) return;
+        const restoredOptions = sanitizeOptions(record.options);
+        // Don't let restoring the last run's options re-persist over the user's
+        // most recently saved settings (which may be newer if they edited after
+        // the run without re-processing).
+        skipNextPersist.current = true;
+        setOptions(restoredOptions);
+        setResultsOptions(restoredOptions);
+        setResults(record.results);
+        const timezones = record.discoveredTimezones.length
+          ? record.discoveredTimezones
+          : Array.from(new Set(record.results.flatMap((result) => result.availableTimezones))).sort(
+              (left, right) => left.localeCompare(right),
+            );
+        setDiscoveredTimezones(timezones);
+        const completed = Object.fromEntries(
+          record.results.map((result) => [
+            result.inputFileName,
+            {
+              fileName: result.inputFileName,
+              status: "complete" as const,
+              stepKind: "output" as const,
+              percent: 1,
+            },
+          ]),
+        );
+        setProgressOrder(record.results.map((result) => result.inputFileName));
+        setProgressByFile(completed);
+        setProcessExpanded(false);
+        setToast({
+          message: `Last processed results restored (${record.results.length} ${record.results.length === 1 ? "file" : "files"}).`,
+          isError: false,
+        });
+      })
+      .catch(() => {
+        // IndexedDB can be unavailable or evicted, or a record could fail to
+        // rehydrate; processing still works. Self-heal so a bad record can't
+        // wedge every future boot.
+        void clearLastRun().catch(() => {});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(WORKFLOW_STORAGE_KEY, activeWorkflow);
+  }, [activeWorkflow]);
+
+  const onFilesChange = (files: File[], input: { clearCachedRun?: boolean } = {}) => {
+    const { clearCachedRun = true } = input;
     setUploadedFiles(files);
     setFileInspections([]);
     setResults([]);
+    setResultsOptions(null);
     setError(null);
+    setProcessExpanded(true);
+    if (clearCachedRun) {
+      // Clearing the cached run frees storage; re-check pressure so a stale
+      // high-usage banner doesn't linger (consistent with the post-run refresh).
+      void clearLastRun()
+        .catch(() => {})
+        .finally(() => void refreshStoragePressure());
+    }
     if (!files.length) {
       setIsInspectingFiles(false);
       return;
@@ -214,17 +349,75 @@ export default function App(): ReactElement {
       .finally(() => setIsInspectingFiles(false));
   };
 
-  const buildSupportFiles = async (): Promise<BrowserSupportFiles> => ({
-    ...(options.useFilterFile && filterFile
+  const applyProject = (record: ProjectRecord): void => {
+    // Sanitize the stored options (merges over defaults + validates restored
+    // values, e.g. drops non-canonical interaction-remap targets) so a project
+    // saved against an older schema or hand-edited record still loads safely.
+    setOptions(sanitizeOptions(record.options));
+    // A project restore replaces the FULL file state so it can't be left
+    // inconsistent with the restored option flags (e.g. useFilterFile=true but a
+    // stale/other filter still loaded). `supportFiles` is empty for a config-only
+    // project, so every slot clears; bundled projects rehydrate their blobs.
+    const support = record.supportFiles;
+    setFilterFile(support.filterFile ? storedFileToFile(support.filterFile) : null);
+    setAppsForcingScreenOpenFile(
+      support.appsForcingScreenOpenFile ? storedFileToFile(support.appsForcingScreenOpenFile) : null,
+    );
+    setBackgroundAppsFile(support.backgroundAppsFile ? storedFileToFile(support.backgroundAppsFile) : null);
+    setAppCodebookFile(support.appCodebookFile ? storedFileToFile(support.appCodebookFile) : null);
+    // Reuse the upload path so restored files are inspected like fresh uploads;
+    // a config-only project clears the raw files to a clean slate.
+    onFilesChange(record.includesFiles ? record.rawFiles.map(storedFileToFile) : []);
+  };
+
+  const buildSupportFilesForOptions = async (
+    forOptions: BrowserProcessingOptions,
+  ): Promise<BrowserSupportFiles> => ({
+    ...(forOptions.useFilterFile && filterFile
       ? { filterFile: await readSupportFile(filterFile) }
       : {}),
-    ...(options.useAppsForcingScreenOpenFile && appsForcingScreenOpenFile
+    ...(forOptions.useAppsForcingScreenOpenFile && appsForcingScreenOpenFile
       ? { appsForcingScreenOpenFile: await readSupportFile(appsForcingScreenOpenFile) }
       : {}),
-    ...(options.useAppCodebook && appCodebookFile
+    ...(forOptions.useBackgroundAppsFile && backgroundAppsFile
+      ? { backgroundAppsFile: await readSupportFile(backgroundAppsFile) }
+      : {}),
+    ...(forOptions.useAppCodebook && appCodebookFile
       ? { appCodebookFile: await readSupportFile(appCodebookFile) }
       : {}),
   });
+
+  const buildSupportFiles = (): Promise<BrowserSupportFiles> =>
+    buildSupportFilesForOptions(options);
+
+  /**
+   * Re-process a single already-uploaded file under a different config (the
+   * View tab's "Arm B"), reusing the same support-file resolution as a normal
+   * run. Returns the fresh result (with its own reviewSummary + timeline); the
+   * caller diffs it against the current run. Throws if the file is no longer
+   * loaded so the View tab can prompt the user to re-add it.
+   */
+  const runComparison = useCallback(
+    async (
+      fileName: string,
+      overrides: Partial<BrowserProcessingOptions>,
+    ): Promise<ProcessedFileResult> => {
+      const file = uploadedFiles.find((candidate) => candidate.name === fileName);
+      if (!file) {
+        throw new Error(
+          "The raw file for this run is no longer loaded. Re-add it in the Files tab to compare.",
+        );
+      }
+      const armBOptions = sanitizeOptions({ ...options, ...overrides });
+      const userSupportFiles = await buildSupportFilesForOptions(armBOptions);
+      const supportFiles = await resolveDefaultSupportFiles(armBOptions, userSupportFiles);
+      const text = await file.text();
+      return processRawCsv(file.name, text, armBOptions, supportFiles, getInjectedRuntime());
+    },
+    // filterFile et al. are read inside buildSupportFilesForOptions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [uploadedFiles, options, filterFile, appsForcingScreenOpenFile, backgroundAppsFile, appCodebookFile],
+  );
 
   const discoverAvailableTimezones = async () => {
     if (!uploadedFiles.length) {
@@ -245,78 +438,26 @@ export default function App(): ReactElement {
     }
   };
 
-  const runSample = async () => {
-    const sampleFile = new File([sampleRawCsv], SAMPLE_FILE_NAME, { type: "text/csv" });
-    onFilesChange([sampleFile]);
-    setActiveWorkflow("process");
-    setIsRunning(true);
-    setError(null);
-    try {
-      const result = await processRawCsv(
-        SAMPLE_FILE_NAME,
-        sampleRawCsv,
-        options,
-        undefined,
-        getInjectedRuntime(),
-      );
-      setResults([result]);
-      setDiscoveredTimezones(result.availableTimezones);
-    } catch (runError) {
-      setError(runError instanceof Error ? runError.message : String(runError));
-    } finally {
-      setIsRunning(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!isRunning && results.length) {
-      resultsRef.current?.focus();
-    }
-  }, [isRunning, results.length]);
-
-  const updateFileProgress = useCallback(
-    (fileName: string, patch: Partial<FileProgress>) => {
-      setProgressByFile((current) => ({
-        ...current,
-        [fileName]: {
-          ...(current[fileName] ?? { fileName, status: "pending" }),
-          ...patch,
-        },
-      }));
-    },
-    [],
-  );
-
-  const handleProgressEvent = useCallback(
-    (event: ProgressEvent) => {
-      if (event.type === "file-start") {
-        updateFileProgress(event.fileName, { status: "running", stepKind: "parse", percent: 0 });
-      } else if (event.type === "step") {
-        updateFileProgress(event.fileName, {
-          status: "running",
-          stepKind: event.stepKind,
-          percent: event.percent,
-        });
-      } else if (event.type === "file-complete") {
-        updateFileProgress(event.fileName, {
-          status: event.error ? "error" : "complete",
-          percent: 1,
-          error: event.error,
-        });
-      }
-    },
-    [updateFileProgress],
-  );
+  const handleProgressEvent = useCallback((event: ProgressEvent) => {
+    setProgressByFile((current) => applyProgressEvent(current, event));
+  }, []);
 
   const processUploadedFiles = async () => {
+    // Synchronous re-entrancy guard: a single-file retry in flight, or a run
+    // already underway (double-click / synthetic event before the disabled
+    // attribute re-renders), must not start another run over the shared state.
+    if (processingRef.current || retryingFileRef.current) return;
     if (!uploadedFiles.length) {
       setError("Choose one or more Chronicle raw CSV files first.");
       setActiveWorkflow("files");
       return;
     }
+    processingRef.current = true;
     setActiveWorkflow("process");
+    setProcessExpanded(true);
     setIsRunning(true);
     setError(null);
+    cancelRequestedRef.current = false;
     startTimeRef.current = performance.now();
 
     const order = uploadedFiles.map((file) => file.name);
@@ -329,6 +470,9 @@ export default function App(): ReactElement {
     void ensureNotificationPermission();
 
     let pool: WorkerPool | null = null;
+    // Keep the processing details open after a run ONLY when something failed, so
+    // the per-file Retry control stays visible (a clean run collapses to declutter).
+    let keepDetailsOpen = false;
     try {
       const userSupportFiles = await buildSupportFiles();
       const nextResults: ProcessedFileResult[] = new Array(uploadedFiles.length);
@@ -339,6 +483,7 @@ export default function App(): ReactElement {
             totalInputBytes,
             userCap: options.parallelMaxWorkers,
             hardwareConcurrency: typeof navigator !== "undefined" ? navigator.hardwareConcurrency : undefined,
+            deviceMemory: readDeviceMemory(),
           })
         : 1;
       // Resolve bundled-default support files once on the main thread so
@@ -346,10 +491,12 @@ export default function App(): ReactElement {
       // the user's uploads win over defaults.
       const supportFiles = await resolveDefaultSupportFiles(options, userSupportFiles);
       pool = concurrency > 1 ? new WorkerPool(concurrency) : null;
+      poolRef.current = pool;
       let cursor = 0;
       const failures: string[] = [];
       const runner = async () => {
         for (;;) {
+          if (cancelRequestedRef.current) return;
           const index = cursor;
           cursor += 1;
           if (index >= uploadedFiles.length) return;
@@ -381,9 +528,16 @@ export default function App(): ReactElement {
                 handleProgressEvent,
               );
             }
+            // If the user cancelled while this file was mid-flight, discard its
+            // result instead of committing it — keeps the sequential path (which
+            // can't terminate an in-flight worker) consistent with the pool path.
+            if (cancelRequestedRef.current) return;
             nextResults[index] = result;
             handleProgressEvent({ type: "file-complete", fileName: file.name, result });
           } catch (fileError) {
+            // A terminate() during cancel rejects the in-flight file; don't count
+            // that as a real failure — the finally block marks it cancelled.
+            if (cancelRequestedRef.current) return;
             const message = fileError instanceof Error ? fileError.message : String(fileError);
             failures.push(message);
             handleProgressEvent({ type: "file-complete", fileName: file.name, error: message });
@@ -393,12 +547,35 @@ export default function App(): ReactElement {
       await Promise.all(Array.from({ length: concurrency }, () => runner()));
 
       const successful = nextResults.filter(Boolean);
+      keepDetailsOpen = failures.length > 0;
       setResults(successful);
-      setDiscoveredTimezones(
-        Array.from(
-          new Set(successful.flatMap((result) => result.availableTimezones)),
-        ).sort((left, right) => left.localeCompare(right)),
-      );
+      if (successful.length) {
+        setResultsOptions(options);
+      }
+      const nextTimezones = Array.from(
+        new Set(successful.flatMap((result) => result.availableTimezones)),
+      ).sort((left, right) => left.localeCompare(right));
+      // Don't overwrite discovered timezones with an empty set when a run produced
+      // no results (fully cancelled / all failed) — that would blank the timezone
+      // picker the user populated via file inspection or a prior run.
+      if (successful.length) {
+        setDiscoveredTimezones(nextTimezones);
+        void saveLastRun({
+          options,
+          results: successful,
+          discoveredTimezones: nextTimezones,
+        })
+          .catch(() => {
+            // saveLastRun already self-clears a failed (e.g. quota) write; surface
+            // the pressure so the user can free space.
+          })
+          .finally(() => {
+            void refreshStoragePressure();
+          });
+      } else {
+        void clearLastRun().catch(() => {});
+        void refreshStoragePressure();
+      }
 
       // Surface a top-level error banner only when every file failed — lets a
       // single malformed file fail loudly while a partially-successful batch
@@ -407,14 +584,16 @@ export default function App(): ReactElement {
         setError(failures[0] ?? "Processing failed.");
       }
 
+      const cancelled = cancelRequestedRef.current;
       const elapsedMs = performance.now() - startTimeRef.current;
-      const summary = `Processed ${successful.length}/${uploadedFiles.length} files in ${Math.round(elapsedMs / 1000)}s`;
-      const message = failures.length
-        ? `${summary} (${failures.length} failed)`
-        : summary;
-      setToast({ message, isError: failures.length > 0 });
+      const summary = cancelled
+        ? `Cancelled. Processed ${successful.length}/${uploadedFiles.length} files`
+        : `Processed ${successful.length}/${uploadedFiles.length} files in ${Math.round(elapsedMs / 1000)}s`;
+      const message =
+        !cancelled && failures.length ? `${summary} (${failures.length} failed)` : summary;
+      setToast({ message, isError: failures.length > 0 && !cancelled });
 
-      if (typeof document !== "undefined" && document.hidden) {
+      if (!cancelled && typeof document !== "undefined" && document.hidden) {
         sendNotification(
           failures.length ? "Chronicle: some files failed" : "Chronicle: processing complete",
           message,
@@ -425,10 +604,117 @@ export default function App(): ReactElement {
       setError(message);
       setToast({ message, isError: true });
     } finally {
-      pool?.terminate();
+      poolRef.current = null;
+      if (cancelRequestedRef.current) {
+        // Any file not finished when the user cancelled is shown as cancelled,
+        // not failed, so a deliberate stop doesn't read as an error.
+        setProgressByFile((current) => {
+          const next = { ...current };
+          for (const name of order) {
+            const row = next[name];
+            if (row && row.status !== "complete" && row.status !== "error") {
+              next[name] = { ...row, status: "cancelled" };
+            }
+          }
+          return next;
+        });
+      }
+      // On cancel, cancelProcessing already terminated the pool — avoid a second
+      // terminate() on the same instance.
+      if (!cancelRequestedRef.current) pool?.terminate();
+      processingRef.current = false;
       setIsRunning(false);
+      setProcessExpanded(keepDetailsOpen);
     }
   };
+
+  const cancelProcessing = useCallback(() => {
+    cancelRequestedRef.current = true;
+    // Terminate in-flight workers immediately; the runner loop won't claim more.
+    poolRef.current?.terminate();
+  }, []);
+
+  /**
+   * Reprocess a single file in place — used by the Retry control on a failed
+   * row. Runs on the main thread (one file), then splices the fresh result back
+   * into `results` in the original run order and refreshes the cached run.
+   */
+  const retryFile = useCallback(
+    async (fileName: string) => {
+      if (processingRef.current || retryingFileRef.current) return;
+      const file = uploadedFiles.find((candidate) => candidate.name === fileName);
+      if (!file) {
+        setToast({
+          message: "That file is no longer loaded. Re-add it in the Files tab to retry.",
+          isError: true,
+        });
+        return;
+      }
+      retryingFileRef.current = fileName;
+      setRetryingFile(fileName);
+      // Reset the row directly rather than via a file-start event: this file is
+      // currently "error", and applyProgressEvent intentionally refuses to revert
+      // a terminal status (it guards a Comlink dual-port race). A direct set is
+      // the correct restart; subsequent step events are non-terminal and flow
+      // through normally.
+      setProgressByFile((current) => ({
+        ...current,
+        [fileName]: { fileName, status: "running", stepKind: "parse", percent: 0 },
+      }));
+      try {
+        const userSupportFiles = await buildSupportFiles();
+        const supportFiles = await resolveDefaultSupportFiles(options, userSupportFiles);
+        const text = await file.text();
+        const result = await processRawCsv(
+          file.name,
+          text,
+          options,
+          supportFiles,
+          getInjectedRuntime(),
+          handleProgressEvent,
+        );
+        handleProgressEvent({ type: "file-complete", fileName, result });
+        const merged = (() => {
+          const byName = new Map(results.map((entry) => [entry.inputFileName, entry]));
+          byName.set(fileName, result);
+          // Preserve the original queue order so the table doesn't reshuffle.
+          return progressOrder
+            .map((name) => byName.get(name))
+            .filter((entry): entry is ProcessedFileResult => Boolean(entry));
+        })();
+        setResults(merged);
+        setResultsOptions(options);
+        const nextTimezones = Array.from(
+          new Set(merged.flatMap((entry) => entry.availableTimezones)),
+        ).sort((left, right) => left.localeCompare(right));
+        setDiscoveredTimezones(nextTimezones);
+        void saveLastRun({ options, results: merged, discoveredTimezones: nextTimezones })
+          .catch(() => {})
+          .finally(() => void refreshStoragePressure());
+        setToast({ message: `Reprocessed ${demoDisplay.fileName(fileName)}.`, isError: false });
+      } catch (retryError) {
+        const message = retryError instanceof Error ? retryError.message : String(retryError);
+        handleProgressEvent({ type: "file-complete", fileName, error: message });
+        setToast({ message, isError: true });
+      } finally {
+        retryingFileRef.current = null;
+        setRetryingFile(null);
+      }
+    },
+    // support-file refs are read inside buildSupportFiles.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      isRunning,
+      retryingFile,
+      uploadedFiles,
+      options,
+      results,
+      progressOrder,
+      handleProgressEvent,
+      refreshStoragePressure,
+      demoDisplay,
+    ],
+  );
 
   const progressRows = progressOrder.map(
     (name) => progressByFile[name] ?? { fileName: name, status: "pending" as const },
@@ -442,39 +728,121 @@ export default function App(): ReactElement {
             estimatedFilePercent(progressByFile[name] ?? { fileName: name, status: "pending" as const }),
           0,
         ) / progressOrder.length;
+
+  // Reflect run progress in the browser tab title so it's visible while the tab
+  // is in the background, and restore the original title when the run ends.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (baseTitleRef.current === null) baseTitleRef.current = document.title;
+    const base = baseTitleRef.current || "Chronicle Android Raw Data Preprocessor";
+    document.title = isRunning
+      ? `(${Math.round(overallPercent * 100)}%) Processing… · ${base}`
+      : base;
+  }, [isRunning, overallPercent]);
+
+  // Restore the original title only on unmount (a dedicated empty-dep effect, so
+  // the restore doesn't run between every progress tick of the effect above).
+  useEffect(() => {
+    return () => {
+      if (baseTitleRef.current !== null) document.title = baseTitleRef.current;
+    };
+  }, []);
   const normalizedSettingsQuery = settingsQuery.trim().toLowerCase();
   const shows = (text: string) =>
     !normalizedSettingsQuery || text.toLowerCase().includes(normalizedSettingsQuery);
-  const navigateFromSettingsSearch = (href: string) => {
-    if (href === "#files") {
-      setActiveWorkflow("files");
-    } else if (href === "#process") {
-      setActiveWorkflow("process");
-    } else {
-      setActiveWorkflow("settings");
-    }
-  };
+  const navigateToSetting = useCallback((selector: string) => {
+    setActiveWorkflow("settings");
+    // Clear the live filter so the target card isn't filtered out of the page,
+    // then scroll to it on the next frame (once the panel is shown) and flash it.
+    setSettingsQuery("");
+    requestAnimationFrame(() => {
+      const target = document.querySelector(selector);
+      if (!(target instanceof HTMLElement)) return;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      target.classList.remove("settings-flash");
+      // Force reflow so re-adding the class restarts the flash animation.
+      void target.offsetWidth;
+      target.classList.add("settings-flash");
+      // Cancel a still-pending removal so a rapid second jump to the same card
+      // doesn't get its flash cut short by the first jump's timer.
+      if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current);
+      flashTimerRef.current = window.setTimeout(() => {
+        target.classList.remove("settings-flash");
+        flashTimerRef.current = null;
+      }, 1600);
+    });
+  }, []);
 
   return (
     <>
       <a className="skip-link" href="#workflow-panels">Skip to workflow tabs</a>
-      <main className="app-shell">
-        <header className="hero hero--with-demo">
+      <main className={`app-shell ${activeWorkflow === "view" ? "app-shell--wide" : ""}`}>
+        <header className="hero">
           <div className="hero__copy">
             <h1>Chronicle Android Raw Data Preprocessor</h1>
             <p className="lede">
-              Drop one or more raw Chronicle CSVs to generate the preprocessed app-usage and
-              screen-usage outputs. This app runs entirely in your browser — your data never
+              Drop one or more raw Chronicle CSVs to generate the preprocessed app usage and
+              screen usage outputs. This app runs entirely in your browser. Your data never
               leaves your device.
             </p>
           </div>
-          <DemoSampleCard
-            isRunning={isRunning}
-            onRun={() => {
-              void runSample();
-            }}
-          />
+          <ThemeToggle />
         </header>
+
+        {updateReady ? (
+          <div className="update-banner" role="status" data-testid="update-banner">
+            <span className="update-banner__text">
+              A new version of the app is available.
+            </span>
+            <button
+              type="button"
+              className="btn btn--primary"
+              data-testid="update-reload"
+              onClick={applyUpdate}
+            >
+              Reload
+            </button>
+          </div>
+        ) : null}
+
+        {storagePressure && isStoragePressureHigh(storagePressure) && !storagePressureDismissed ? (
+          <div className="storage-pressure" role="status" data-testid="storage-pressure">
+            <span className="storage-pressure__text">
+              <strong>
+                Browser storage is {Math.round(storagePressure.ratio * 100)}% full
+              </strong>{" "}
+              ({formatBytes(storagePressure.usage)} of {formatBytes(storagePressure.quota)}).
+              Export a backup of anything you need, then clear the cached last run to free space —
+              otherwise saving a large run may fail.
+            </span>
+            <span className="storage-pressure__actions">
+              <button
+                type="button"
+                className="btn btn--secondary"
+                data-testid="storage-pressure-clear"
+                onClick={() => {
+                  void clearCachedRunData()
+                    .then(() => {
+                      setToast({ message: "Cleared the cached last run.", isError: false });
+                    })
+                    .finally(() => {
+                      void refreshStoragePressure();
+                    });
+                }}
+              >
+                Clear cached run
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                data-testid="storage-pressure-dismiss"
+                onClick={() => setStoragePressureDismissed(true)}
+              >
+                Dismiss
+              </button>
+            </span>
+          </div>
+        ) : null}
 
         <WorkflowNav active={activeWorkflow} onSelect={setActiveWorkflow} />
 
@@ -486,28 +854,45 @@ export default function App(): ReactElement {
             hidden={activeWorkflow !== "settings"}
           >
             <section id="settings" className="workflow-section" aria-labelledby="settings-title">
-              <div className="settings-command">
+              <div className="settings-command workflow-section__header">
                 <div>
                   <h2 id="settings-title" className="workflow-section__title">Settings</h2>
                   <p className="workflow-section__intro">
                     Search every option, then save custom presets once the settings are right.
                   </p>
                 </div>
-                <label className="settings-search settings-search--command">
-                  <span className="settings-search__eyebrow">Full Settings Search</span>
+                <div className="settings-search settings-search--command">
+                  <label className="settings-search__eyebrow" htmlFor="settings-search-input">
+                    Full Settings Search
+                  </label>
                   <input
+                    id="settings-search-input"
                     className="input settings-search__input"
                     placeholder="Search timezone, codebook, parallel, screen, session..."
                     value={settingsQuery}
                     data-testid="settings-search-input"
                     onChange={(event) => setSettingsQuery(event.target.value)}
                   />
-                </label>
+                  <SettingsSearchResults query={settingsQuery} onNavigate={navigateToSetting} />
+                </div>
               </div>
-              <SettingsSearchResults query={settingsQuery} onNavigate={navigateFromSettingsSearch} />
               <SettingsManagementCard
                 options={options}
                 setOptions={setOptions}
+                hideDemoMetadata={hideDemoMetadata}
+                onHideDemoMetadataChange={setHideDemoMetadata}
+                onStatus={(message, isError = false) => setToast({ message, isError })}
+              />
+              <ProjectsCard
+                options={options}
+                uploadedFiles={uploadedFiles}
+                supportFiles={{
+                  filterFile,
+                  appsForcingScreenOpenFile,
+                  backgroundAppsFile,
+                  appCodebookFile,
+                }}
+                onApplyProject={applyProject}
                 onStatus={(message, isError = false) => setToast({ message, isError })}
               />
               <SettingsOverviewCard options={options} setOptions={setOptions} />
@@ -520,6 +905,8 @@ export default function App(): ReactElement {
                     setFilterFile={setFilterFile}
                     appsForcingScreenOpenFile={appsForcingScreenOpenFile}
                     setAppsForcingScreenOpenFile={setAppsForcingScreenOpenFile}
+                    backgroundAppsFile={backgroundAppsFile}
+                    setBackgroundAppsFile={setBackgroundAppsFile}
                     appCodebookFile={appCodebookFile}
                     setAppCodebookFile={setAppCodebookFile}
                   />
@@ -548,9 +935,6 @@ export default function App(): ReactElement {
                 {shows("performance parallel workers") ? (
                   <PerformanceCard options={options} setOptions={setOptions} />
                 ) : null}
-                {shows("plot output plotting png charts") ? (
-                  <PlottingCard options={options} setOptions={setOptions} />
-                ) : null}
               </div>
             </section>
           </div>
@@ -566,6 +950,7 @@ export default function App(): ReactElement {
               inspections={fileInspections}
               isInspecting={isInspectingFiles}
               options={options}
+              displayMasker={demoDisplay}
               onFilesChange={onFilesChange}
               onClear={() => {
                 onFilesChange([]);
@@ -587,32 +972,57 @@ export default function App(): ReactElement {
               setOptions={setOptions}
               uploadedFiles={uploadedFiles}
               inspections={fileInspections}
-              wasmReady={wasmReady}
               isRunning={isRunning}
+              displayMasker={demoDisplay}
               onProcess={() => {
                 void processUploadedFiles();
               }}
+              onCancel={cancelProcessing}
+              onRetry={(fileName) => {
+                void retryFile(fileName);
+              }}
+              retryingFile={retryingFile}
               progressRows={progressRows}
               overallPercent={overallPercent}
+              expanded={processExpanded}
+              onExpandedChange={setProcessExpanded}
             />
 
-            <div ref={resultsRef} tabIndex={-1} aria-live="polite">
+            <div aria-live="polite">
               <ResultPanel
                 results={results}
                 error={error}
+                displayMasker={demoDisplay}
                 options={options}
                 expectedFileCount={uploadedFiles.length}
                 progressRows={progressRows}
+                stale={resultsStale}
               />
             </div>
+          </div>
+
+          <div
+            id="view-panel"
+            role="tabpanel"
+            aria-labelledby="view-tab"
+            hidden={activeWorkflow !== "view"}
+          >
+            <ViewPanel
+              results={results}
+              options={options}
+              uploadedFileNames={uploadedFiles.map((file) => file.name)}
+              onRunComparison={runComparison}
+              displayMasker={demoDisplay}
+              includeFilteredAppUsageInPlots={options.includeFilteredAppUsageInPlots}
+            />
           </div>
         </div>
 
         <footer className="app-footer" data-testid="app-footer">
           <div className="app-footer__about" aria-label="App info">
-            <span>Version {PREPROCESSOR_VERSION}</span>
+            <span>Version {PREPROCESSOR_VERSION}+{BUILD_SHA}</span>
             <span aria-hidden="true">·</span>
-            <span>Build 2026-04-26</span>
+            <span>Build {BUILD_DATE || BUILD_SHA}</span>
             <span aria-hidden="true">·</span>
             <span>Bundled codebook available</span>
             <span aria-hidden="true">·</span>

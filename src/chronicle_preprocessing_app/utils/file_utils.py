@@ -31,7 +31,9 @@ def get_matching_files_from_folder(
     return [
         path
         for path in folder_path.rglob("*")
-        if path.is_file() and re.search(file_matching_pattern, path.name) and all(fragment not in str(path) for fragment in ignored)
+        if path.is_file()
+        and re.search(file_matching_pattern, path.name)
+        and all(fragment not in str(path) for fragment in ignored)
     ]
 
 
@@ -45,6 +47,10 @@ class FilterFileError(FileOperationError):
 
 class AppsForcingScreenOpenFileError(FileOperationError):
     """Errors raised while reading keep-awake app files."""
+
+
+class BackgroundAppsFileError(FileOperationError):
+    """Errors raised while reading background-app files."""
 
 
 class CodebookFileError(FileOperationError):
@@ -101,7 +107,9 @@ def read_filter_file(file_path: Path | str) -> dict[str, str]:
     try:
         header, rows = _read_small_table(path)
         if len(header) < 2:
-            raise FilterFileError("Filter file must have at least two columns (Package Name and App Label)")
+            raise FilterFileError(
+                "Filter file must have at least two columns (Package Name and App Label)"
+            )
 
         filters: dict[str, str] = {}
         for row in rows:
@@ -122,12 +130,16 @@ def read_apps_forcing_screen_open_file(file_path: Path | str) -> dict[str, str]:
     """Read screen keep-awake app metadata from a CSV/XLSX file."""
     path = Path(file_path)
     if not path.exists():
-        raise AppsForcingScreenOpenFileError(f"Apps-forcing-screen-open file does not exist: {path}")
+        raise AppsForcingScreenOpenFileError(
+            f"Apps-forcing-screen-open file does not exist: {path}"
+        )
 
     try:
         header, rows = _read_small_table(path)
         if len(header) < 1:
-            raise AppsForcingScreenOpenFileError("Apps-forcing-screen-open file must have at least one column (Package Name)")
+            raise AppsForcingScreenOpenFileError(
+                "Apps-forcing-screen-open file must have at least one column (Package Name)"
+            )
 
         apps_forcing_screen_open: dict[str, str] = {}
         for row in rows:
@@ -140,7 +152,36 @@ def read_apps_forcing_screen_open_file(file_path: Path | str) -> dict[str, str]:
     except AppsForcingScreenOpenFileError:
         raise
     except Exception as exc:
-        raise AppsForcingScreenOpenFileError(f"Failed to read apps-forcing-screen-open file: {exc}") from exc
+        raise AppsForcingScreenOpenFileError(
+            f"Failed to read apps-forcing-screen-open file: {exc}"
+        ) from exc
+
+
+def read_background_apps_file(file_path: Path | str) -> dict[str, str]:
+    """Read background-app metadata (package name -> label/note) from a CSV/XLSX file."""
+    path = Path(file_path)
+    if not path.exists():
+        raise BackgroundAppsFileError(f"Background-apps file does not exist: {path}")
+
+    try:
+        header, rows = _read_small_table(path)
+        if len(header) < 1:
+            raise BackgroundAppsFileError(
+                "Background-apps file must have at least one column (Package Name)"
+            )
+
+        background_apps: dict[str, str] = {}
+        for row in rows:
+            package_name = _normalize_cell(row[0] if len(row) > 0 else None)
+            if not package_name or package_name.startswith("#"):
+                continue
+            label = _normalize_cell(row[1] if len(row) > 1 else None)
+            background_apps[package_name] = label
+        return background_apps
+    except BackgroundAppsFileError:
+        raise
+    except Exception as exc:
+        raise BackgroundAppsFileError(f"Failed to read background-apps file: {exc}") from exc
 
 
 def read_app_codebook(codebook_path: Path | str) -> pl.DataFrame | None:
@@ -166,9 +207,13 @@ def read_app_codebook(codebook_path: Path | str) -> pl.DataFrame | None:
             msg = f"App codebook must contain an '{AppCodebookColumn.APP_PACKAGE_NAME}' column"
             raise CodebookFileError(msg)
 
-        string_columns = [column for column, dtype in app_codebook.schema.items() if dtype == pl.String]
+        string_columns = [
+            column for column, dtype in app_codebook.schema.items() if dtype == pl.String
+        ]
         if string_columns:
-            app_codebook = app_codebook.with_columns([pl.col(column).cast(pl.String).str.strip_chars() for column in string_columns])
+            app_codebook = app_codebook.with_columns(
+                [pl.col(column).cast(pl.String).str.strip_chars() for column in string_columns]
+            )
 
         app_codebook = app_codebook.unique(
             subset=[AppCodebookColumn.APP_PACKAGE_NAME],

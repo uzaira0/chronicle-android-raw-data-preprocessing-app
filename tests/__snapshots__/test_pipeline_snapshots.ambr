@@ -1,0 +1,65 @@
+# serializer version: 1
+# name: test_snapshot_app_and_screen_output_has_screen_usage_type
+  dict({
+    'has_app_usage_rows': True,
+    'has_screen_usage_rows': True,
+  })
+# ---
+# name: test_snapshot_app_only_column_names
+  list([
+    'any_app_new_engage_30s',
+    'any_app_new_engage_custom_300s',
+    'any_app_switched_app',
+    'any_app_usage_flags',
+    'any_app_usage_time_gap_hours',
+    'app_package_name',
+    'application_label',
+    'data_time_gap_hours',
+    'date',
+    'datetime_of_preprocessing',
+    'day',
+    'duration_minutes',
+    'duration_seconds',
+    'event_timestamp',
+    'hour',
+    'interaction_type',
+    'participant_id',
+    'possible_device_model',
+    'preprocessor_version',
+    'quarter',
+    'start_timestamp',
+    'stop_timestamp',
+    'study_name',
+    'timezone',
+    'username',
+    'valid_app_new_engage_30s',
+    'valid_app_new_engage_custom_300s',
+    'valid_app_switched_app',
+    'valid_app_usage_time_gap_hours',
+    'weekdayMF',
+    'weekdayMTh',
+    'weekdaySuTh',
+  ])
+# ---
+# name: test_snapshot_app_only_row_count_and_interaction_types
+  dict({
+    'interaction_types': list([
+      'App Usage',
+    ]),
+    'row_count': 1,
+  })
+# ---
+# name: test_snapshot_multi_app_output_shape
+  dict({
+    'package_names': list([
+      'com.example.game',
+      'com.social.media',
+    ]),
+    'row_count': 2,
+  })
+# ---
+# name: test_snapshot_preprocessed_timestamp_format
+  list([
+    '2026-01-01 00:00:00',
+  ])
+# ---

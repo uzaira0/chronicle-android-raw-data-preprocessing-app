@@ -118,7 +118,7 @@ function parseTsTimestampNs(value: string): bigint | null {
   if (!/[+-]\d{2}:?\d{2}$/.test(n)) {
     const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?$/.exec(n);
     if (!m) return null;
-    const ms = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+    const ms = Date.UTC(+m[1]!, +m[2]! - 1, +m[3]!, +m[4]!, +m[5]!, +m[6]!);
     if (!Number.isFinite(ms)) return null;
     const fr = m[7] ? BigInt((m[7] + "000000000").slice(0, 9)) : 0n;
     return BigInt(ms) * 1_000_000n + fr;

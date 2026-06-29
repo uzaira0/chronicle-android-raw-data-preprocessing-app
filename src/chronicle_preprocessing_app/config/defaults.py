@@ -25,7 +25,9 @@ def _resolve_default_app_codebook_path() -> str:
     candidates = [
         package_root / "data" / "unified_app_codebook.csv",
         project_root / "app_codebook_files" / "unified_app_codebook.csv",
-        project_root / "app_codebook_files" / "Chronicle_Android_raw_data_preprocessor_app_codebook.xlsx",
+        project_root
+        / "app_codebook_files"
+        / "Chronicle_Android_raw_data_preprocessor_app_codebook.xlsx",
     ]
     for path in candidates:
         if path.exists():
@@ -35,10 +37,13 @@ def _resolve_default_app_codebook_path() -> str:
 
 DEFAULT_USE_APP_CODEBOOK: bool = True
 DEFAULT_APP_CODEBOOK_FILE_PATH = _resolve_default_app_codebook_path()
+DEFAULT_INCLUDE_CATEGORY_COLUMN: bool = False
 
 # App filter defaults
 DEFAULT_USE_FILTER_FILE: bool = True
-DEFAULT_APPS_TO_FILTER_FILE_PATH = "./apps_to_filter_files/Chronicle_Android_raw_data_preprocessor_apps_to_filter.xlsx"
+DEFAULT_APPS_TO_FILTER_FILE_PATH = (
+    "./apps_to_filter_files/Chronicle_Android_raw_data_preprocessor_apps_to_filter.xlsx"
+)
 DEFAULT_APPS_TO_FILTER_DICT: dict[str, str] = {"": ""}
 
 # Screen-usage keep-awake app defaults
@@ -46,25 +51,51 @@ DEFAULT_USE_APPS_FORCING_SCREEN_OPEN_FILE: bool = False
 DEFAULT_APPS_FORCING_SCREEN_OPEN_FILE_PATH = "./apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv"
 DEFAULT_APPS_FORCING_SCREEN_OPEN_DICT: dict[str, str] = {}
 
+# Background-app defaults. Apps in this list (music, navigation, ...) keep
+# running after they are backgrounded; their usage session stays alive until
+# their own Activity Stopped and overlaps the foreground app (resolved into
+# primary/secondary by the concurrent-usage split).
+DEFAULT_USE_BACKGROUND_APPS_FILE: bool = False
+DEFAULT_BACKGROUND_APPS_FILE_PATH = (
+    "./background_apps_files/Chronicle_Android_raw_data_preprocessor_background_apps.csv"
+)
+DEFAULT_BACKGROUND_APPS_DICT: dict[str, str] = {}
+
 # Screen usage session defaults
 DEFAULT_USAGE_SESSION_MODE: UsageSessionMode = UsageSessionMode.APP_USAGE
 DEFAULT_DERIVE_SCREEN_USAGE_SESSIONS: bool = False
-DEFAULT_SCREEN_USAGE_AUTO_LOCK_TIMEOUT_SECONDS: int = int(os.getenv("CHRONICLE_SCREEN_USAGE_AUTO_LOCK_TIMEOUT_SECONDS", "120"))
-DEFAULT_SCREEN_USAGE_AUTO_LOCK_TOLERANCE_SECONDS: int = int(os.getenv("CHRONICLE_SCREEN_USAGE_AUTO_LOCK_TOLERANCE_SECONDS", "30"))
-DEFAULT_SCREEN_USAGE_MANUAL_LOCK_MAX_TAIL_GAP_SECONDS: int = int(os.getenv("CHRONICLE_SCREEN_USAGE_MANUAL_LOCK_MAX_TAIL_GAP_SECONDS", "30"))
-DEFAULT_SCREEN_USAGE_KEYGUARD_NEAR_STOP_SECONDS: int = int(os.getenv("CHRONICLE_SCREEN_USAGE_KEYGUARD_NEAR_STOP_SECONDS", "2"))
+DEFAULT_SCREEN_USAGE_AUTO_LOCK_TIMEOUT_SECONDS: int = int(
+    os.getenv("CHRONICLE_SCREEN_USAGE_AUTO_LOCK_TIMEOUT_SECONDS", "120")
+)
+DEFAULT_SCREEN_USAGE_AUTO_LOCK_TOLERANCE_SECONDS: int = int(
+    os.getenv("CHRONICLE_SCREEN_USAGE_AUTO_LOCK_TOLERANCE_SECONDS", "30")
+)
+DEFAULT_SCREEN_USAGE_MANUAL_LOCK_MAX_TAIL_GAP_SECONDS: int = int(
+    os.getenv("CHRONICLE_SCREEN_USAGE_MANUAL_LOCK_MAX_TAIL_GAP_SECONDS", "30")
+)
+DEFAULT_SCREEN_USAGE_KEYGUARD_NEAR_STOP_SECONDS: int = int(
+    os.getenv("CHRONICLE_SCREEN_USAGE_KEYGUARD_NEAR_STOP_SECONDS", "2")
+)
 
 # Usage thresholds
 DEFAULT_MINIMUM_USAGE_DURATION: int = int(os.getenv("CHRONICLE_MIN_USAGE_DURATION", "0"))
-DEFAULT_CUSTOM_APP_ENGAGEMENT_DURATION: int = int(os.getenv("CHRONICLE_CUSTOM_APP_ENGAGEMENT_DURATION", "300"))
+DEFAULT_CUSTOM_APP_ENGAGEMENT_DURATION: int = int(
+    os.getenv("CHRONICLE_CUSTOM_APP_ENGAGEMENT_DURATION", "300")
+)
 DEFAULT_DATA_TIME_GAP_THRESHOLD: int = int(os.getenv("CHRONICLE_DATA_TIME_GAP_THRESHOLD", "3"))
-DEFAULT_LONG_DURATION_THRESHOLD_SECONDS: int = int(os.getenv("CHRONICLE_LONG_DURATION_THRESHOLD_SECONDS", str(12 * 3600)))
-DEFAULT_NEW_ENGAGEMENT_GAP_SECONDS: int = int(os.getenv("CHRONICLE_NEW_ENGAGEMENT_GAP_SECONDS", "30"))
+DEFAULT_LONG_DURATION_THRESHOLD_SECONDS: int = int(
+    os.getenv("CHRONICLE_LONG_DURATION_THRESHOLD_SECONDS", str(12 * 3600))
+)
+DEFAULT_NEW_ENGAGEMENT_GAP_SECONDS: int = int(
+    os.getenv("CHRONICLE_NEW_ENGAGEMENT_GAP_SECONDS", "30")
+)
 DEFAULT_LONG_USAGE_DURATION_THRESHOLDS: tuple[int, ...] = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
 DEFAULT_LONG_DATA_TIME_GAP_THRESHOLDS: tuple[int, ...] = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
 
 # Timezone handling
-DEFAULT_TIMEZONE_HANDLING_OPTION: TimezoneHandlingOption = TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE
+DEFAULT_TIMEZONE_HANDLING_OPTION: TimezoneHandlingOption = (
+    TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE
+)
 DEFAULT_AVAILABLE_TIMEZONES: tuple[str, ...] = ()
 DEFAULT_CUSTOM_TIMEZONES: tuple[str, ...] = ()
 DEFAULT_SELECTED_TIMEZONE = None
@@ -93,11 +124,13 @@ DEFAULT_SAME_APP_INTERACTION_TYPES_CONFIGURED: bool = False
 DEFAULT_OTHER_INTERACTION_TYPES_CONFIGURED: bool = False
 DEFAULT_INTERACTION_TYPES_TO_REMOVE_CONFIGURED: bool = False
 
-DEFAULT_FILTERED_SAME_APP_INTERACTION_TYPES_TO_STOP_USAGE_AT: frozenset[InteractionType] = frozenset(
-    {
-        InteractionType.FILTERED_APP_PAUSED,
-        InteractionType.FILTERED_APP_STOPPED,
-    }
+DEFAULT_FILTERED_SAME_APP_INTERACTION_TYPES_TO_STOP_USAGE_AT: frozenset[InteractionType] = (
+    frozenset(
+        {
+            InteractionType.FILTERED_APP_PAUSED,
+            InteractionType.FILTERED_APP_STOPPED,
+        }
+    )
 )
 DEFAULT_FILTERED_OTHER_INTERACTION_TYPES_TO_STOP_USAGE_AT: frozenset[InteractionType] = frozenset(
     {
@@ -116,6 +149,13 @@ DEFAULT_ENABLE_PLOTTING: bool = True
 
 # Algorithm defaults
 DEFAULT_ALLOW_STOP_EVENT_REUSE: bool = False
+DEFAULT_MODEL_CONCURRENT_USAGE: bool = False
+# When concurrent usage is on, null durations of split sub-intervals shorter than
+# minimum_usage_duration (the row is kept). Off = durations always populated.
+DEFAULT_APPLY_MINIMUM_USAGE_DURATION_TO_CONCURRENT_SUBINTERVALS: bool = False
+# When model_concurrent_usage is requested but the fast path is unavailable: False
+# raises (no silent non-concurrent output); True logs a warning and proceeds.
+DEFAULT_ALLOW_CONCURRENT_USAGE_FALLBACK: bool = False
 DEFAULT_USE_ACTIVITY_STOPPED_AS_FALLBACK: bool = True
 DEFAULT_APPLY_THRESHOLD_TO_ACTIVITY_STOPPED_FALLBACK: bool = True
 DEFAULT_LONG_DURATION_THRESHOLD_HOURS: float = 12.0

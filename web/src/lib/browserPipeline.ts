@@ -1,8 +1,28 @@
 import Papa from "papaparse";
-import { generateAllPlots, generateAllScreenPlots } from "@/lib/plotGenerator";
+import { ALL_INTERACTION_TYPES_MAP, parseInteractionRemap } from "@/lib/interactionTypes";
+import { buildAggregateOutputs } from "@/lib/aggregations";
+import {
+  buildParquetBuffer,
+  type ParquetCellValue,
+  type ParquetColumnSpec,
+  type ParquetColumnType,
+} from "@/lib/parquetExport";
+import { buildSavBuffer, type SavRow, type SavVariable } from "@/lib/savExport";
+import {
+  CATEGORY_COLORS,
+  generateAllHeatmaps,
+  generateAllHeatmapSvgs,
+  generateAllPlots,
+  generateAllPlotSvgs,
+  generateAllScreenPlots,
+  generateAllScreenPlotSvgs,
+  buildAppTimelineViews,
+  buildScreenTimelineViews,
+} from "@/lib/plotGenerator";
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
 import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
 import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
+import defaultBackgroundAppsUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv?url";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import { validateRawCsvColumns } from "@/lib/validation";
 export { validateRawCsvColumns } from "@/lib/validation";
@@ -11,6 +31,7 @@ import type {
   BrowserProcessingRuntime,
   BrowserSupportFile,
   BrowserSupportFiles,
+  LayeredSessionRow,
   MatcherInput,
   MatcherOutput,
   ProcessedFileResult,
@@ -18,8 +39,14 @@ import type {
   ProgressEvent,
   ProgressStepKind,
   RawChronicleRow,
+  SplitterInput,
+  SplitterOutput,
+  TimelineViewData,
   TimezoneAction,
 } from "@/lib/types";
+import { buildTimelineViewerHtml } from "@/lib/timelineViewer";
+import { buildReviewSummary } from "@/lib/reviewMetrics";
+import { matchAppUsageWithProximity } from "@/lib/proximityMatcher";
 
 export const PREPROCESSOR_VERSION = "1.0.0";
 
@@ -46,10 +73,11 @@ export const TIMEZONE_HANDLING_OPTIONS = [
 
 export const BOOLEAN_OPTION_CONTROLS = [
   { key: "useFilterFile", label: "Use filter file" },
-  { key: "useAppsForcingScreenOpenFile", label: "Use apps-forcing-screen-open file" },
+  { key: "useAppsForcingScreenOpenFile", label: "Use apps forcing screen open file" },
+  { key: "useBackgroundAppsFile", label: "Use background apps file" },
   { key: "useAppCodebook", label: "Use app codebook" },
   { key: "correctDuplicateEventTimestamps", label: "Correct duplicate event timestamps" },
-  { key: "allowStopEventReuse", label: "Allow stop-event reuse" },
+  { key: "allowStopEventReuse", label: "Allow stop event reuse" },
   { key: "useActivityStoppedAsFallback", label: "Use Activity Stopped fallback" },
   {
     key: "applyThresholdToFallback",
@@ -109,48 +137,6 @@ export const INTERACTION_TYPES_TO_REMOVE_OPTIONS = [
   "Locus ID Set",
   "App Component Used",
 ];
-
-const ALL_INTERACTION_TYPES_MAP: Record<string, string> = {
-  "Instance of Usage for an App": "App Usage",
-  "Screen Usage": "Screen Usage",
-  "Activity Resumed for a Filtered App": "Filtered App Resumed",
-  "Activity Paused for a Filtered App": "Filtered App Paused",
-  "Instance of Usage for a Filtered App": "Filtered App Usage",
-  "Missing End of Usage after an App Starts Being Used": "End of Usage Missing",
-  "Unknown importance: 1": "Activity Resumed",
-  "Unknown importance: 2": "Activity Paused",
-  "Unknown importance: 3": "End of Day",
-  "Unknown importance: 4": "Continue Previous Day",
-  "Unknown importance: 5": "Configuration Change",
-  "Unknown importance: 6": "System Interaction",
-  "Unknown importance: 7": "User Interaction",
-  "Unknown importance: 8": "Shortcut Invocation",
-  "Unknown importance: 9": "Chooser Action",
-  "Unknown importance: 10": "Notification Seen",
-  "Unknown importance: 11": "Standby Bucket Changed",
-  "Unknown importance: 12": "Notification Interruption",
-  "Unknown importance: 13": "Slice Pinned Priv",
-  "Unknown importance: 14": "Slice Pinned App",
-  "Unknown importance: 15": "Screen Interactive",
-  "Unknown importance: 16": "Screen Non-Interactive",
-  "Unknown importance: 17": "Keyguard Shown",
-  "Unknown importance: 18": "Keyguard Hidden",
-  "Unknown importance: 19": "Foreground Service Start",
-  "Unknown importance: 20": "Foreground Service Stop",
-  "Unknown importance: 21": "Continuing Foreground Service",
-  "Unknown importance: 22": "Rollover Foreground Service",
-  "Unknown importance: 23": "Activity Stopped",
-  "Unknown importance: 24": "Activity Destroyed",
-  "Unknown importance: 25": "Flush to Disk",
-  "Unknown importance: 26": "Device Shutdown",
-  "Unknown importance: 27": "Device Startup",
-  "Unknown importance: 28": "User Unlocked",
-  "Unknown importance: 29": "User Stopped",
-  "Unknown importance: 30": "Locus ID Set",
-  "Unknown importance: 31": "App Component Used",
-  "Move to Foreground": "Activity Resumed",
-  "Move to Background": "Activity Paused",
-};
 
 const CODEBOOK_COLUMN_RENAME_MAP: Record<string, string> = {
   application_label: "codebook_application_label",
@@ -222,7 +208,7 @@ const defaultSupportCache = new Map<string, Promise<SupportRows>>();
 const uploadedSupportCache = new Map<string, Promise<SupportRows>>();
 const MISSING_INT64 = -(1n << 63n);
 
-type CanonicalRow = {
+export type CanonicalRow = {
   study_id: string;
   participant_id: string;
   possible_device_model: string;
@@ -293,10 +279,13 @@ type CanonicalRow = {
   bcm_cnrc_categorization_source?: string | null;
   codebook_dataset?: string | null;
   __index: number;
+  /** Present only when modelConcurrentUsage is on. "primary" or "secondary". */
+  usage_layer?: string | null;
 };
 
 type CodebookRecord = Record<string, string | null>;
 type MatcherRunner = (input: MatcherInput) => Promise<MatcherOutput>;
+type SplitterRunner = (input: SplitterInput) => Promise<SplitterOutput>;
 type ScreenState = {
   startIndex: number;
   startTimestampNs: bigint;
@@ -315,8 +304,15 @@ function requireString(value: string | undefined, fallback = ""): string {
   return (value ?? fallback).trim();
 }
 
-function normalizeInteractionType(value: string): string {
-  return ALL_INTERACTION_TYPES_MAP[value] ?? value;
+function normalizeInteractionType(value: string, remap?: ReadonlyMap<string, string>): string {
+  // The user remap runs first so vendor-specific strings (absent from the
+  // built-in map) resolve, and so it can override a built-in mapping too.
+  const remapped = remap?.get(value);
+  if (remapped !== undefined) return remapped;
+  // `Object.hasOwn` (not `MAP[value]`) so a raw value matching a prototype key
+  // like "toString"/"constructor" falls through to the literal string instead of
+  // returning an inherited function.
+  return Object.hasOwn(ALL_INTERACTION_TYPES_MAP, value) ? ALL_INTERACTION_TYPES_MAP[value]! : value;
 }
 
 function parsePlainTimestampParts(value: string):
@@ -529,6 +525,17 @@ export async function resolveDefaultSupportFiles(
       );
     }
   }
+  if (options.useBackgroundAppsFile) {
+    if (uploads?.backgroundAppsFile) {
+      result.backgroundAppsFile = uploads.backgroundAppsFile;
+    } else {
+      tasks.push(
+        fetchDefaultBytes(defaultBackgroundAppsUrl).then((bytes) => {
+          result.backgroundAppsFile = { name: fileNameFromUrl(defaultBackgroundAppsUrl), bytes };
+        }),
+      );
+    }
+  }
   if (options.useAppCodebook) {
     if (uploads?.appCodebookFile) {
       result.appCodebookFile = uploads.appCodebookFile;
@@ -604,6 +611,24 @@ function buildAppsForcingScreenOpenMap(rows: SupportRows): Map<string, string> {
     map.set(packageName, label);
   }
   return map;
+}
+
+/**
+ * Build the set of declared background-app package names. A background app's
+ * usage session is not closed when it is paused or when another app comes to
+ * the foreground; it stays alive until its own Activity Stopped, overlapping
+ * the foreground app (resolved into primary/secondary by the concurrent split).
+ */
+function buildBackgroundAppsSet(rows: SupportRows): Set<string> {
+  const set = new Set<string>();
+  for (const row of rows) {
+    const packageName = requireString(row.package_name ?? row.app_package_name);
+    if (!packageName || packageName.startsWith("#")) {
+      continue;
+    }
+    set.add(packageName);
+  }
+  return set;
 }
 
 function buildCodebookMap(rows: SupportRows): Map<string, CodebookRecord> {
@@ -811,6 +836,7 @@ function createBaseRow(
   index: number,
   nowText: string,
   possibleDeviceModel: string,
+  interactionRemap?: ReadonlyMap<string, string>,
 ): CanonicalRow {
   const timezone = requireString(row.timezone, "UTC") || "UTC";
   const base: CanonicalRow = {
@@ -819,7 +845,10 @@ function createBaseRow(
     possible_device_model: possibleDeviceModel,
     username: requireString(row.username).replace("Target child", "Target Child"),
     application_label: requireString(row.application_label),
-    interaction_type: normalizeInteractionType(requireString(row.interaction_type)),
+    interaction_type: normalizeInteractionType(
+      requireString(row.interaction_type),
+      interactionRemap,
+    ),
     app_package_name: requireString(row.app_package_name),
     event_timestamp_ns: parseChronicleTimestampNs(requireString(row.event_timestamp)),
     timezone,
@@ -875,9 +904,19 @@ function resolveDatetimeOfPreprocessing(
   return runtime?.datetimeOfPreprocessing ?? `${new Date().toISOString().slice(0, 19).replace("T", " ")} UTC`;
 }
 
+function compareByEventThenIndex(
+  left: { event_timestamp_ns: bigint; __index: number },
+  right: { event_timestamp_ns: bigint; __index: number },
+): number {
+  if (left.event_timestamp_ns < right.event_timestamp_ns) return -1;
+  if (left.event_timestamp_ns > right.event_timestamp_ns) return 1;
+  return left.__index - right.__index;
+}
+
 function parseRawRows(
   csvText: string,
   runtime?: BrowserProcessingRuntime,
+  interactionRemap?: ReadonlyMap<string, string>,
 ): CanonicalRow[] {
   const parsed = Papa.parse<RawChronicleRow>(csvText, {
     header: true,
@@ -891,14 +930,10 @@ function parseRawRows(
   const possibleDeviceModel = getPossibleDeviceModel(filtered);
   const nowText = resolveDatetimeOfPreprocessing(runtime);
   return filtered
-    .map((row, index) => createBaseRow(row, index, nowText, possibleDeviceModel))
-    .sort((left, right) =>
-      left.event_timestamp_ns < right.event_timestamp_ns
-        ? -1
-        : left.event_timestamp_ns > right.event_timestamp_ns
-          ? 1
-          : left.__index - right.__index,
-    );
+    .map((row, index) =>
+      createBaseRow(row, index, nowText, possibleDeviceModel, interactionRemap),
+    )
+    .sort(compareByEventThenIndex);
 }
 
 export function discoverTimezonesFromRawCsv(
@@ -977,18 +1012,27 @@ function applyTimezoneHandling(
   };
 }
 
-function dedupeExactRows(rows: CanonicalRow[]): CanonicalRow[] {
+/**
+ * Collapse exact-duplicate raw rows — same participant, timestamp, app, and
+ * interaction type — keeping the first occurrence. Re-exported Chronicle data
+ * commonly repeats rows verbatim. Returns the surviving rows plus the count
+ * removed (surfaced to the user). Gated by `deduplicateExactRows`.
+ */
+export function dedupeExactRows(rows: CanonicalRow[]): {
+  rows: CanonicalRow[];
+  removed: number;
+} {
   const seen = new Set<string>();
   const deduped: CanonicalRow[] = [];
   for (const row of rows) {
-    const key = `${row.event_timestamp_ns}|${row.interaction_type}|${row.app_package_name}`;
+    const key = `${row.participant_id}|${row.event_timestamp_ns}|${row.interaction_type}|${row.app_package_name}`;
     if (seen.has(key)) {
       continue;
     }
     seen.add(key);
     deduped.push({ ...row });
   }
-  return deduped;
+  return { rows: deduped, removed: rows.length - deduped.length };
 }
 
 function duplicatePriority(interactionType: string, stopUsageTypes: Set<string>): number {
@@ -1056,13 +1100,7 @@ function unalignDuplicateTimestamps(
     start = end;
   }
 
-  return adjusted.sort((left, right) =>
-    left.event_timestamp_ns < right.event_timestamp_ns
-      ? -1
-      : left.event_timestamp_ns > right.event_timestamp_ns
-        ? 1
-        : left.__index - right.__index,
-  );
+  return adjusted.sort(compareByEventThenIndex);
 }
 
 function markDataTimeGaps(rows: CanonicalRow[]): CanonicalRow[] {
@@ -1122,21 +1160,60 @@ function buildMatcherInput(
   sameStopTypes: Set<string>,
   otherStopTypes: Set<string>,
   options: BrowserProcessingOptions,
+  backgroundApps: Set<string>,
 ): MatcherInput {
   const appPackages = rows.map((row) => row.app_package_name);
   const interactionTypes = rows.map((row) => row.interaction_type);
+  const background = Uint8Array.from(
+    appPackages.map((value) => (backgroundApps.has(value) ? 1 : 0)),
+  );
+  // Phase 1: when modelConcurrentUsage is on, every app session runs to its
+  // own stop event — other-app resumes must not be treated as stops.
+  const otherStopMask = options.modelConcurrentUsage
+    ? new Uint8Array(rows.length)
+    : Uint8Array.from(interactionTypes.map((value) => (otherStopTypes.has(value) ? 1 : 0)));
+  // Background-app flag remapping. A background app stays alive across
+  // backgrounding (its pause must NOT close it — suppress same_stop) and across
+  // another app foregrounding (the matcher protects its open-start via the
+  // `background` mask). It closes only on:
+  //   - its own re-resume, which SEGMENTS the session (close the prior open
+  //     session, then open a new one — exactly how a normal foreground app
+  //     behaves). Without this a multi-resume background app stacks overlapping
+  //     open sessions that the splitter then layers against itself, multiplying
+  //     its counted time.
+  //   - its own Activity Stopped (the user-chosen bound).
+  // Its own other_stop events are left intact (foregrounding it still ends
+  // other apps).
+  const sameStop = Uint8Array.from(
+    interactionTypes.map((value, index) =>
+      background[index]
+        ? value === resumedType || value === stoppedType
+          ? 1
+          : 0
+        : sameStopTypes.has(value)
+          ? 1
+          : 0,
+    ),
+  );
+  const stopped = Uint8Array.from(
+    interactionTypes.map((value, index) =>
+      background[index] ? 0 : value === stoppedType ? 1 : 0,
+    ),
+  );
   return {
     appCodes: stableFactorize(appPackages),
     timestampNs: BigInt64Array.from(rows.map((row) => row.event_timestamp_ns)),
     resumed: Uint8Array.from(interactionTypes.map((value) => (value === resumedType ? 1 : 0))),
-    sameStop: Uint8Array.from(interactionTypes.map((value) => (sameStopTypes.has(value) ? 1 : 0))),
-    otherStop: Uint8Array.from(interactionTypes.map((value) => (otherStopTypes.has(value) ? 1 : 0))),
-    stopped: Uint8Array.from(interactionTypes.map((value) => (value === stoppedType ? 1 : 0))),
+    sameStop,
+    otherStop: otherStopMask,
+    stopped,
+    background,
     options: {
       allowStopEventReuse: options.allowStopEventReuse,
       useActivityStoppedAsFallback: options.useActivityStoppedAsFallback,
       applyThresholdToFallback: options.applyThresholdToFallback,
       longDurationThresholdNs: BigInt(Math.round(options.longDurationThresholdHours * 3_600_000_000_000)),
+      proximityNs: BigInt(Math.round(options.proximityIntervalSeconds * 1_000_000_000)),
     },
   };
 }
@@ -1151,10 +1228,25 @@ async function processUsageRows(
   otherStopTypes: Set<string>,
   options: BrowserProcessingOptions,
   runMatcher: MatcherRunner,
+  runSplitter: SplitterRunner,
+  backgroundApps: Set<string>,
 ): Promise<CanonicalRow[]> {
-  const matcherOutput = await runMatcher(
-    buildMatcherInput(rows, resumedType, stoppedType, sameStopTypes, otherStopTypes, options),
+  const matcherInput = buildMatcherInput(
+    rows,
+    resumedType,
+    stoppedType,
+    sameStopTypes,
+    otherStopTypes,
+    options,
+    backgroundApps,
   );
+  // Intra-app teardown grace runs in the JS matcher (the shared WASM matcher has
+  // no proximity parameter); with it off (the default), the WASM matcher is used
+  // unchanged so the common path and cross-surface parity are untouched.
+  const matcherOutput =
+    matcherInput.options.proximityNs > 0n
+      ? matchAppUsageWithProximity(matcherInput)
+      : await runMatcher(matcherInput);
 
   const nextRows = rows.map((row) => ({ ...row }));
   matcherOutput.startIndices.forEach((startIndex) => {
@@ -1208,19 +1300,61 @@ async function processUsageRows(
       return row;
     });
 
-  return filtered.sort((left, right) =>
-    left.event_timestamp_ns < right.event_timestamp_ns
-      ? -1
-      : left.event_timestamp_ns > right.event_timestamp_ns
-        ? 1
-        : left.__index - right.__index,
-  );
+  const sorted = filtered.sort(compareByEventThenIndex);
+
+  // Phase 2: split overlapping sessions. Only for App Usage (not Filtered App
+  // Usage — that path has no timing to split) and only when concurrent usage is
+  // modeled OR background apps are in play (a background app's extended session
+  // overlaps the foreground app and must be resolved into primary/secondary to
+  // avoid double-counting).
+  const backgroundActive = backgroundApps.size > 0 && usageType !== "Filtered App Usage";
+  if ((options.modelConcurrentUsage || backgroundActive) && usageType !== "Filtered App Usage") {
+    const appUsageRows = sorted.filter((row) => row.interaction_type === usageType);
+    const nonUsageRows = sorted.filter((row) => row.interaction_type !== usageType);
+
+    if (appUsageRows.length > 0) {
+      const starts = BigInt64Array.from(
+        appUsageRows.map((row) => row.start_timestamp_ns ?? 0n),
+      );
+      const stops = BigInt64Array.from(
+        appUsageRows.map((row) => row.stop_timestamp_ns ?? 0n),
+      );
+      const layered: SplitterOutput = await runSplitter({ starts, stops });
+
+      const expanded: CanonicalRow[] = layered.map((ls: LayeredSessionRow) => {
+        const source = appUsageRows[ls.sessionIndex]!;
+        const durationSeconds = Number(ls.stopNs - ls.startNs) / 1_000_000_000;
+        // Concurrent-usage option (default off): null — but keep — split
+        // sub-intervals shorter than minimumUsageDuration. Gated so all three
+        // surfaces agree; off means durations are always populated (parity with
+        // desktop/Rust).
+        const durationBelowThreshold =
+          options.applyMinimumUsageDurationToConcurrentSubintervals &&
+          options.minimumUsageDuration > 0 &&
+          durationSeconds < options.minimumUsageDuration;
+        return {
+          ...source,
+          start_timestamp_ns: ls.startNs,
+          stop_timestamp_ns: ls.stopNs,
+          duration_seconds: durationBelowThreshold ? null : durationSeconds,
+          duration_minutes: durationBelowThreshold ? null : durationSeconds / 60,
+          usage_layer: ls.layer,
+        };
+      });
+
+      return [...nonUsageRows, ...expanded].sort(compareByEventThenIndex);
+    }
+  }
+
+  return sorted;
 }
 
 async function runAppUsageAlgorithm(
   rows: CanonicalRow[],
   options: BrowserProcessingOptions,
   runMatcher: MatcherRunner,
+  runSplitter: SplitterRunner,
+  backgroundApps: Set<string>,
 ): Promise<CanonicalRow[]> {
   let nextRows = rows;
   if (options.useFilterFile) {
@@ -1243,6 +1377,9 @@ async function runAppUsageAlgorithm(
       new Set(options.otherInteractionTypesToStopUsageAt),
       options,
       runMatcher,
+      runSplitter,
+      // Background apps are a valid-app concept; the filtered path never gets them.
+      new Set<string>(),
     );
   }
 
@@ -1260,7 +1397,76 @@ async function runAppUsageAlgorithm(
     new Set(options.otherInteractionTypesToStopUsageAt),
     options,
     runMatcher,
+    runSplitter,
+    backgroundApps,
   );
+}
+
+const PLACEHOLDER_APP_PACKAGE_NAME = "com.placeholder.noactivity";
+const PLACEHOLDER_APP_LABEL = "No Activity";
+
+/**
+ * Inject one zero-duration "no activity" placeholder App Usage row per
+ * participant-day that has raw event data but produced no App Usage session.
+ *
+ * The study window is derived from each participant's own data — the set of days
+ * that carry raw events — so a day with no data at all gets nothing; only genuine
+ * no-use days are marked. This lets day-level summaries tell "device had data, no
+ * target-child app use" apart from "no data". Opt-in (`addNoActivityPlaceholderDays`),
+ * default off, so it is a no-op on the deterministic parity fixture. Runs after
+ * enrichment + the zero-duration filter so the placeholders persist into the output
+ * and the per-day aggregates.
+ */
+function addNoActivityPlaceholderRows(
+  appRows: CanonicalRow[],
+  rawRows: CanonicalRow[],
+): CanonicalRow[] {
+  // Days that already have a real App Usage session, per participant.
+  const usageDaysByPid = new Map<string, Set<string>>();
+  for (const row of appRows) {
+    if (row.interaction_type !== "App Usage") continue;
+    let set = usageDaysByPid.get(row.participant_id);
+    if (!set) {
+      set = new Set();
+      usageDaysByPid.set(row.participant_id, set);
+    }
+    set.add(row.date);
+  }
+
+  // Earliest raw row per participant-day; it seeds the placeholder's timestamp and
+  // metadata (timezone, study_id, device model, …) so the row lands on the right day.
+  const sampleByPidDay = new Map<string, CanonicalRow>();
+  for (const row of rawRows) {
+    const key = `${row.participant_id} ${row.date}`;
+    const existing = sampleByPidDay.get(key);
+    if (!existing || row.event_timestamp_ns < existing.event_timestamp_ns) {
+      sampleByPidDay.set(key, row);
+    }
+  }
+
+  const placeholders: CanonicalRow[] = [];
+  for (const sample of sampleByPidDay.values()) {
+    if (usageDaysByPid.get(sample.participant_id)?.has(sample.date)) continue;
+    const placeholder: CanonicalRow = {
+      ...sample,
+      interaction_type: "App Usage",
+      app_package_name: PLACEHOLDER_APP_PACKAGE_NAME,
+      application_label: PLACEHOLDER_APP_LABEL,
+      start_timestamp_ns: sample.event_timestamp_ns,
+      stop_timestamp_ns: sample.event_timestamp_ns,
+      duration_seconds: 0,
+      duration_minutes: 0,
+      data_time_gap_hours: 0,
+      // Offset the index so the placeholder sorts deterministically without
+      // colliding with the seed row (screen sessions use +1_000_000).
+      __index: sample.__index + 2_000_000,
+    };
+    populateTimeColumns(placeholder, placeholder.event_timestamp_ns, placeholder.timezone);
+    placeholders.push(placeholder);
+  }
+
+  if (placeholders.length === 0) return appRows;
+  return [...appRows, ...placeholders].sort(compareByEventThenIndex);
 }
 
 function secondsBetween(left: bigint, right: bigint): number {
@@ -1438,6 +1644,68 @@ function deriveScreenUsageSessions(
   return sessions;
 }
 
+// The plot palette (CATEGORY_COLORS) is keyed by a fixed set of broad app
+// categories. The public unified codebook does not ship a single curated
+// `broad_app_category` column; instead it has several per-source columns whose
+// vocabularies differ — notably babyemu uses UPPERCASE enums (GAMING, SOCIAL,
+// …) and bcm/usc add non-app buckets (System/OEM, Other). Without normalisation
+// the majority of apps fall through to a single fallback colour, so plots look
+// uncoloured. This map folds every known non-palette value onto a palette
+// category. Every value here MUST be a CATEGORY_COLORS key (enforced by test).
+const BROAD_CATEGORY_ALIASES: Record<string, string> = {
+  // babyemu_broad_app_category (UPPERCASE enum)
+  GAMING: "Games",
+  SOCIAL: "Social & Communication",
+  COMMUNICATION: "Social & Communication",
+  VIDEO: "Video Players (e.g. YouTube)",
+  LIFESTYLE_MANAGEMENT: "Lifestyle",
+  PRODUCTIVITY_AND_BUSINESS: "Productivity & Business",
+  ARTS_AND_LEISURE: "Entertainment",
+  KNOWLEDGE_AND_INFORMATION: "Education",
+  UTILITIES: "Productivity & Business",
+  // non-app buckets from bcm_cnrc_heuristic_category / usc_broad_app_category
+  "System/OEM": "Uncategorised",
+  Other: "Uncategorised",
+};
+
+// Assignable palette categories — every CATEGORY_COLORS key except the "Unknown"
+// sentinel (which means "no category data at all", not a real category).
+const PALETTE_CATEGORIES = new Set(
+  Object.keys(CATEGORY_COLORS).filter((key) => key !== "Unknown"),
+);
+
+/** Fold a raw codebook category value onto a palette category, or null if the
+ * value is not a recognised category vocabulary. */
+function normalizeBroadAppCategory(raw: string): string | null {
+  const value = raw.trim();
+  if (PALETTE_CATEGORIES.has(value)) return value;
+  // `Object.hasOwn` (not `value in`) so a codebook category literally named
+  // "toString"/"constructor"/etc. doesn't resolve to an inherited prototype member.
+  if (Object.hasOwn(BROAD_CATEGORY_ALIASES, value)) return BROAD_CATEGORY_ALIASES[value]!;
+  return null;
+}
+
+/** Pick the best palette category from ordered candidate columns. The first
+ * candidate that yields a *specific* palette category wins; a value that only
+ * maps to "Uncategorised" is kept as a fallback so a later, more specific source
+ * can still win. Returns "Unknown" only when no source supplies any category. */
+export function deriveBroadAppCategory(
+  candidates: Array<string | null | undefined>,
+): string {
+  let sawUncategorised = false;
+  for (const raw of candidates) {
+    const value = (raw ?? "").trim();
+    if (!value) continue;
+    const normalized = normalizeBroadAppCategory(value);
+    if (normalized === null) continue;
+    if (normalized !== "Uncategorised") return normalized;
+    sawUncategorised = true;
+  }
+  return sawUncategorised ? "Uncategorised" : "Unknown";
+}
+
+export { BROAD_CATEGORY_ALIASES };
+
 function enrichWithCodebookData(
   rows: CanonicalRow[],
   options: BrowserProcessingOptions,
@@ -1470,14 +1738,17 @@ function enrichWithCodebookData(
       (updated as unknown as Record<string, string | number | null>)[targetColumn] =
         codebook[sourceColumn] ?? null;
     });
-    const broadCategoryCandidates = [
+    // The unified codebook spreads categories across per-source columns; the old
+    // single broad_app_category column is deprecated and intentionally not read.
+    // play_store/usc/bcm already use the plot palette's vocabulary; babyemu uses
+    // UPPERCASE enums. deriveBroadAppCategory coalesces them in the desktop's
+    // order and normalises each onto the palette so bars are colour-coded.
+    updated.broad_app_category = deriveBroadAppCategory([
       updated.play_store_broad_app_category,
       updated.usc_broad_app_category,
       updated.babyemu_broad_app_category,
       updated.bcm_cnrc_heuristic_category,
-      updated.broad_app_category ?? null,
-    ].filter((value): value is string => Boolean(value && value.trim()));
-    updated.broad_app_category = broadCategoryCandidates[0] ?? "Unknown";
+    ]);
 
     const genreValues = [
       updated.babyemu_genreId_scraped,
@@ -1500,17 +1771,29 @@ function enrichWithCodebookData(
   });
 }
 
-function addAppUsageDetailColumns(rows: CanonicalRow[], options: BrowserProcessingOptions): CanonicalRow[] {
+export function addAppUsageDetailColumns(
+  rows: CanonicalRow[],
+  options: BrowserProcessingOptions,
+): CanonicalRow[] {
   const nextRows = rows.map((row) => ({ ...row }));
+  // Secondary (background-overlap) concurrent-usage sub-intervals are excluded
+  // from the engagement walk: they describe a background app, not a foreground
+  // engagement, and interleaving them produces negative inter-session gaps and
+  // phantom engagement counts. With concurrent modeling off there are no secondary
+  // rows, so this is a no-op. Excluded rows keep their default detail values (0).
+  const isForeground = (row: CanonicalRow): boolean => row.usage_layer !== "secondary";
   const anyUsageIndices = nextRows
     .map((row, index) =>
-      row.interaction_type === "App Usage" || row.interaction_type === "Filtered App Usage"
+      (row.interaction_type === "App Usage" || row.interaction_type === "Filtered App Usage") &&
+      isForeground(row)
         ? index
         : -1,
     )
     .filter((index) => index >= 0);
   const validUsageIndices = nextRows
-    .map((row, index) => (row.interaction_type === "App Usage" ? index : -1))
+    .map((row, index) =>
+      row.interaction_type === "App Usage" && isForeground(row) ? index : -1,
+    )
     .filter((index) => index >= 0);
 
   const applyMetrics = (
@@ -1616,6 +1899,7 @@ function removeSelectedInteractionTypes(
 function buildAppOutputColumns(
   options: BrowserProcessingOptions,
   includeCodebookAliases: boolean,
+  usageLayerActive: boolean,
 ): string[] {
   const includeCodebookColumns = options.useAppCodebook;
   return [
@@ -1630,7 +1914,9 @@ function buildAppOutputColumns(
     "app_package_name",
     "application_label",
     ...(includeCodebookColumns ? ["genreId_scraped"] : []),
-    ...(includeCodebookColumns && includeCodebookAliases ? ["broad_app_category"] : []),
+    ...(includeCodebookColumns && (includeCodebookAliases || options.includeCategoryColumn)
+      ? ["broad_app_category"]
+      : []),
     ...(includeCodebookColumns ? CODEBOOK_OUTPUT_COLUMNS : []),
     "interaction_type",
     "start_timestamp",
@@ -1655,6 +1941,7 @@ function buildAppOutputColumns(
     "any_app_usage_time_gap_hours",
     "preprocessor_version",
     "datetime_of_preprocessing",
+    ...(usageLayerActive ? ["usage_layer"] : []),
   ];
 }
 
@@ -1699,6 +1986,7 @@ function rowToAppCsvRecord(
   row: CanonicalRow,
   options: BrowserProcessingOptions,
   includeCodebookAliases: boolean,
+  usageLayerActive: boolean,
 ): Record<string, string | number> {
   const record: Record<string, string | number> = {
     study_id: row.study_id,
@@ -1742,7 +2030,10 @@ function rowToAppCsvRecord(
     preprocessor_version: row.preprocessor_version,
     datetime_of_preprocessing: row.datetime_of_preprocessing,
   };
-  if (includeCodebookAliases) {
+  if (usageLayerActive) {
+    record.usage_layer = row.usage_layer ?? "";
+  }
+  if (includeCodebookAliases || options.includeCategoryColumn) {
     record.broad_app_category = row.broad_app_category ?? "";
   }
   CODEBOOK_OUTPUT_COLUMNS.forEach((column) => {
@@ -1804,6 +2095,193 @@ function rowToScreenCsvRecord(
   };
 }
 
+const PARQUET_MIME = "application/vnd.apache.parquet";
+
+// ── Typed Parquet column mapping (#7) ────────────────────────────────────────
+// Parquet mirrors the CSV columns 1:1 (same names + order via the shared
+// build*OutputColumns), but numeric/boolean columns carry native dtypes pulled
+// straight from the CanonicalRow (full precision, not re-parsed CSV text).
+// Timestamps stay as the same formatted strings the CSV uses. The override sets
+// in row*ParquetCells MUST match the non-STRING type sets below — the parquet
+// integration test reads every declared-numeric column back and asserts it is a
+// number, so drift (a numeric column left as a string) would fail there.
+
+const APP_PARQUET_DOUBLE_COLUMNS = new Set([
+  "duration_seconds",
+  "duration_minutes",
+  "data_time_gap_hours",
+  "valid_app_usage_time_gap_hours",
+  "any_app_usage_time_gap_hours",
+]);
+const APP_PARQUET_INT_COLUMNS = new Set([
+  "day",
+  "weekdayMF",
+  "weekdayMTh",
+  "weekdaySuTh",
+  "hour",
+  "quarter",
+  "valid_app_new_engage_30s",
+  "valid_app_switched_app",
+  "any_app_new_engage_30s",
+  "any_app_switched_app",
+]);
+
+function appParquetColumnType(name: string): ParquetColumnType {
+  if (APP_PARQUET_DOUBLE_COLUMNS.has(name)) return "DOUBLE";
+  if (APP_PARQUET_INT_COLUMNS.has(name)) return "INT32";
+  // The custom-engagement columns carry a duration-dependent name suffix.
+  if (
+    name.startsWith("valid_app_new_engage_custom_") ||
+    name.startsWith("any_app_new_engage_custom_")
+  ) {
+    return "INT32";
+  }
+  return "STRING";
+}
+
+export function buildAppParquetColumnSpecs(
+  options: BrowserProcessingOptions,
+  includeCodebookAliases: boolean,
+  usageLayerActive: boolean,
+): ParquetColumnSpec[] {
+  return buildAppOutputColumns(options, includeCodebookAliases, usageLayerActive).map((name) => ({
+    name,
+    type: appParquetColumnType(name),
+  }));
+}
+
+export function rowToAppParquetCells(
+  row: CanonicalRow,
+  options: BrowserProcessingOptions,
+  includeCodebookAliases: boolean,
+  usageLayerActive: boolean,
+): Record<string, ParquetCellValue> {
+  const csv = rowToAppCsvRecord(row, options, includeCodebookAliases, usageLayerActive);
+  const cells: Record<string, ParquetCellValue> = {};
+  for (const key of Object.keys(csv)) cells[key] = String(csv[key]);
+  // Override the numeric columns with native CanonicalRow values (full precision).
+  cells.duration_seconds = row.duration_seconds;
+  cells.duration_minutes = row.duration_minutes;
+  cells.data_time_gap_hours = row.data_time_gap_hours;
+  cells.valid_app_usage_time_gap_hours = row.valid_app_usage_time_gap_hours;
+  cells.any_app_usage_time_gap_hours = row.any_app_usage_time_gap_hours;
+  cells.day = row.day;
+  cells.weekdayMF = row.weekdayMF;
+  cells.weekdayMTh = row.weekdayMTh;
+  cells.weekdaySuTh = row.weekdaySuTh;
+  cells.hour = row.hour;
+  cells.quarter = row.quarter;
+  cells.valid_app_new_engage_30s = row.valid_app_new_engage_30s;
+  cells[`valid_app_new_engage_custom_${options.customAppEngagementDuration}s`] =
+    row.valid_app_new_engage_custom;
+  cells.valid_app_switched_app = row.valid_app_switched_app;
+  cells.any_app_new_engage_30s = row.any_app_new_engage_30s;
+  cells[`any_app_new_engage_custom_${options.customAppEngagementDuration}s`] =
+    row.any_app_new_engage_custom;
+  cells.any_app_switched_app = row.any_app_switched_app;
+  return cells;
+}
+
+const SCREEN_PARQUET_DOUBLE_COLUMNS = new Set([
+  "duration_seconds",
+  "duration_minutes",
+  "screen_usage_end_reason_confidence",
+  "screen_usage_tail_gap_seconds",
+  "data_time_gap_hours",
+]);
+const SCREEN_PARQUET_INT_COLUMNS = new Set([
+  "day",
+  "weekdayMF",
+  "weekdayMTh",
+  "weekdaySuTh",
+  "hour",
+  "quarter",
+]);
+
+function screenParquetColumnType(name: string): ParquetColumnType {
+  if (SCREEN_PARQUET_DOUBLE_COLUMNS.has(name)) return "DOUBLE";
+  if (SCREEN_PARQUET_INT_COLUMNS.has(name)) return "INT32";
+  if (name === "screen_usage_lock_screen_only") return "BOOLEAN";
+  return "STRING";
+}
+
+export function buildScreenParquetColumnSpecs(): ParquetColumnSpec[] {
+  return buildScreenOutputColumns().map((name) => ({
+    name,
+    type: screenParquetColumnType(name),
+  }));
+}
+
+export function rowToScreenParquetCells(
+  row: CanonicalRow,
+  options: BrowserProcessingOptions,
+): Record<string, ParquetCellValue> {
+  const csv = rowToScreenCsvRecord(row, options);
+  const cells: Record<string, ParquetCellValue> = {};
+  for (const key of Object.keys(csv)) cells[key] = String(csv[key]);
+  cells.duration_seconds = row.duration_seconds;
+  cells.duration_minutes = row.duration_minutes;
+  cells.screen_usage_end_reason_confidence = row.screen_usage_end_reason_confidence;
+  cells.screen_usage_tail_gap_seconds = row.screen_usage_tail_gap_seconds;
+  // Screen rows never carry a data-time gap (the CSV column is always blank).
+  cells.data_time_gap_hours = null;
+  cells.day = row.day;
+  cells.weekdayMF = row.weekdayMF;
+  cells.weekdayMTh = row.weekdayMTh;
+  cells.weekdaySuTh = row.weekdaySuTh;
+  cells.hour = row.hour;
+  cells.quarter = row.quarter;
+  cells.screen_usage_lock_screen_only =
+    row.screen_usage_lock_screen_only == null
+      ? null
+      : Boolean(row.screen_usage_lock_screen_only);
+  return cells;
+}
+
+const SAV_MIME = "application/x-spss-sav";
+
+// ── SPSS .sav export (#9) ────────────────────────────────────────────────────
+// SAV reuses the typed Parquet cells (same column set + native values). A SAV
+// row is the Parquet cells with booleans coerced to 0/1 and bigints to numbers
+// (SPSS numerics are doubles). Variables are derived from the Parquet column
+// specs: STRING → string (width = max UTF-8 bytes in the column, capped 255),
+// everything else → numeric. The column name doubles as the variable label.
+
+function toSavRow(cells: Record<string, ParquetCellValue>): SavRow {
+  const row: SavRow = {};
+  for (const [key, value] of Object.entries(cells)) {
+    if (typeof value === "boolean") row[key] = value ? 1 : 0;
+    else if (typeof value === "bigint") row[key] = Number(value);
+    else row[key] = value;
+  }
+  return row;
+}
+
+function buildSavVariables(
+  specs: readonly ParquetColumnSpec[],
+  rows: readonly SavRow[],
+): SavVariable[] {
+  const encoder = new TextEncoder();
+  return specs.map((spec) => {
+    if (spec.type === "STRING") {
+      let width = 1;
+      for (const row of rows) {
+        const value = row[spec.name];
+        if (typeof value === "string" && value.length > 0) {
+          width = Math.max(width, encoder.encode(value).length);
+        }
+      }
+      return { name: spec.name, type: "string", label: spec.name, stringWidth: Math.min(width, 255) };
+    }
+    return {
+      name: spec.name,
+      type: "numeric",
+      label: spec.name,
+      decimals: spec.type === "DOUBLE" ? 2 : 0,
+    };
+  });
+}
+
 type OutputBundle = {
   blob: Blob;
   rowCount: number;
@@ -1824,8 +2302,9 @@ function buildAppOutputBundle(
   rows: CanonicalRow[],
   options: BrowserProcessingOptions,
   includeCodebookAliases: boolean,
+  usageLayerActive: boolean,
 ): OutputBundle {
-  const columns = buildAppOutputColumns(options, includeCodebookAliases);
+  const columns = buildAppOutputColumns(options, includeCodebookAliases, usageLayerActive);
   const previewRows: string[][] = [columns];
   if (!rows.length) {
     return { blob: new Blob([], { type: CSV_MIME }), rowCount: 0, previewRows };
@@ -1833,7 +2312,7 @@ function buildAppOutputBundle(
   const blobParts: BlobPart[] = [];
   blobParts.push(columns.join(","), "\n");
   for (let i = 0; i < rows.length; i += 1) {
-    const record = rowToAppCsvRecord(rows[i]!, options, includeCodebookAliases);
+    const record = rowToAppCsvRecord(rows[i]!, options, includeCodebookAliases, usageLayerActive);
     const rawCells = columns.map((column) => {
       const value = record[column];
       return value == null ? "" : String(value);
@@ -1899,6 +2378,7 @@ export async function processRawCsvContent(
   runMatcher: MatcherRunner,
   runtime?: BrowserProcessingRuntime,
   onProgress?: (event: ProgressEvent) => void,
+  runSplitter?: SplitterRunner,
 ): Promise<ProcessedFileResult> {
   const emit = (stepKind: ProgressStepKind, percent: number) => {
     onProgress?.({ type: "step", fileName: inputFileName, stepKind, percent });
@@ -1906,7 +2386,8 @@ export async function processRawCsvContent(
   const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
 
   emit("parse", 0);
-  const originalRows = parseRawRows(csvText, runtime);
+  const interactionRemap = parseInteractionRemap(options.interactionTypeRemap);
+  const originalRows = parseRawRows(csvText, runtime, interactionRemap);
   const originalRowCount = originalRows.length;
   const availableTimezones = Array.from(
     new Set(originalRows.map((row) => row.timezone).filter(Boolean)),
@@ -1916,7 +2397,11 @@ export async function processRawCsvContent(
   emit("timezone", 0);
   const timezoneResult = applyTimezoneHandling(originalRows, options);
   const { rows: timezoneHandledRows, timezone } = timezoneResult;
-  const deduped = dedupeExactRows(timezoneHandledRows);
+  const dedupeResult = options.deduplicateExactRows
+    ? dedupeExactRows(timezoneHandledRows)
+    : { rows: timezoneHandledRows, removed: 0 };
+  const deduped = dedupeResult.rows;
+  const exactDuplicateRowsRemoved = dedupeResult.removed;
   const duplicatesBefore = countDuplicateTimestampGroups(deduped);
   const duplicateCorrected = options.correctDuplicateEventTimestamps
     ? unalignDuplicateTimestamps(deduped, options)
@@ -1941,6 +2426,13 @@ export async function processRawCsvContent(
       await loadSupportRows(supportFiles?.appsForcingScreenOpenFile, defaultAppsForcingScreenOpenUrl),
     );
   }
+
+  let backgroundAppsSet = new Set<string>();
+  if (options.useBackgroundAppsFile) {
+    backgroundAppsSet = buildBackgroundAppsSet(
+      await loadSupportRows(supportFiles?.backgroundAppsFile, defaultBackgroundAppsUrl),
+    );
+  }
   emit("filter", 1);
 
   const outputs: ProcessedOutputFileResult[] = [];
@@ -1955,21 +2447,35 @@ export async function processRawCsvContent(
   }
 
   // App usage algorithm + enrichment
+  // Capture all raw event timestamps per participant before the algorithm
+  // transforms rows into session-level output types. Used for data-gap shading
+  // in both the app-usage and screen-usage plots, so a gap reflects genuinely
+  // absent device activity (all 30+ raw interaction types), not just missing
+  // session rows. The timeline scenes are now built on EVERY run (the View tab's
+  // review surface always renders them), so this map must be populated
+  // unconditionally — gating it on the plotting/timeline flags left the View-tab
+  // waterfall with no gap shading whenever plotting was turned off.
   const preAlgoTsByParticipant = new Map<string, bigint[]>();
-  if (options.processAppUsage) {
-    // Capture all raw event timestamps per participant before the algorithm
-    // transforms rows into session-level output types. Used for gap detection so
-    // that any activity in the raw data (all 30+ interaction types) prevents a
-    // window from being marked as a data gap.
-    for (const row of rows) {
-      const pid = row.participant_id || "unknown";
-      let arr = preAlgoTsByParticipant.get(pid);
-      if (!arr) { arr = []; preAlgoTsByParticipant.set(pid, arr); }
-      arr.push(row.event_timestamp_ns);
-    }
+  for (const row of rows) {
+    const pid = row.participant_id || "unknown";
+    let arr = preAlgoTsByParticipant.get(pid);
+    if (!arr) { arr = []; preAlgoTsByParticipant.set(pid, arr); }
+    arr.push(row.event_timestamp_ns);
+  }
 
+  if (options.processAppUsage) {
+    // Guard: the concurrent split requires a real splitter; a no-op would
+    // silently drop every App Usage row (nonUsageRows excludes them and the
+    // no-op returns nothing). The split runs when concurrent usage is modeled
+    // OR when background apps are active (their overlaps must be resolved).
+    if ((options.modelConcurrentUsage || backgroundAppsSet.size > 0) && !runSplitter) {
+      throw new Error(
+        "runSplitter must be supplied when modelConcurrentUsage is true or background apps are used; got undefined",
+      );
+    }
+    const effectiveSplitter: SplitterRunner = runSplitter ?? (() => Promise.resolve([]));
     emit("matcher", 0);
-    appRows = await runAppUsageAlgorithm(rows, options, runMatcher);
+    appRows = await runAppUsageAlgorithm(rows, options, runMatcher, effectiveSplitter, backgroundAppsSet);
     emit("matcher", 1);
 
     emit("codebook", 0);
@@ -1992,11 +2498,19 @@ export async function processRawCsvContent(
         (row) => row.interaction_type !== "App Usage" || row.duration_seconds === null || row.duration_seconds > 0,
       );
     }
+    if (options.addNoActivityPlaceholderDays) {
+      appRows = addNoActivityPlaceholderRows(appRows, rows);
+    }
     emit("enrich", 1);
 
     emit("output", 0);
     const includeCodebookAliases = !(options.useAppCodebook && codebookMap.size > 0);
-    const appBundle = buildAppOutputBundle(appRows, options, includeCodebookAliases);
+    // usage_layer is emitted exactly when the concurrent split ran (model
+    // concurrent usage, or a non-empty background-apps set) — mirroring the
+    // Python save path, where df.select keeps the column iff the split produced
+    // it. Gating on the toggle alone would diverge in the empty-file edge.
+    const usageLayerActive = options.modelConcurrentUsage || backgroundAppsSet.size > 0;
+    const appBundle = buildAppOutputBundle(appRows, options, includeCodebookAliases, usageLayerActive);
     outputs.push({
       kind: "app",
       outputFileName: deriveOutputFileName(inputFileName, " Automatically Preprocessed.csv"),
@@ -2004,23 +2518,77 @@ export async function processRawCsvContent(
       rowCount: appBundle.rowCount,
       previewRows: appBundle.previewRows,
     });
+    if (options.enableParquetExport) {
+      const appParquet = await buildParquetBuffer(
+        buildAppParquetColumnSpecs(options, includeCodebookAliases, usageLayerActive),
+        appRows.map((row) =>
+          rowToAppParquetCells(row, options, includeCodebookAliases, usageLayerActive),
+        ),
+      );
+      outputs.push({
+        kind: "parquet",
+        outputFileName: deriveOutputFileName(inputFileName, " Automatically Preprocessed.parquet"),
+        blob: new Blob([appParquet], { type: PARQUET_MIME }),
+        rowCount: appRows.length,
+        previewRows: [],
+      });
+    }
+    if (options.enableSpssExport) {
+      const specs = buildAppParquetColumnSpecs(options, includeCodebookAliases, usageLayerActive);
+      const savRows = appRows.map((row) =>
+        toSavRow(rowToAppParquetCells(row, options, includeCodebookAliases, usageLayerActive)),
+      );
+      outputs.push({
+        kind: "spss",
+        outputFileName: deriveOutputFileName(inputFileName, " Automatically Preprocessed.sav"),
+        blob: new Blob([buildSavBuffer(buildSavVariables(specs, savRows), savRows)], {
+          type: SAV_MIME,
+        }),
+        rowCount: appRows.length,
+        previewRows: [],
+      });
+    }
     emit("output", 1);
 
     if (options.enablePlotting) {
-      const plotBlobs = await generateAllPlots(
-        appRows as Parameters<typeof generateAllPlots>[0],
+      const pushPlots = (blobs: Map<string, Blob>, suffix: (pid: string) => string): void => {
+        for (const [pid, blob] of blobs) {
+          outputs.push({
+            kind: "plot",
+            outputFileName: deriveOutputFileName(inputFileName, suffix(pid)),
+            blob,
+            rowCount: 0,
+            previewRows: [],
+          });
+        }
+      };
+
+      const appRowsForPlots = appRows as Parameters<typeof generateAllPlots>[0];
+      const appPlotBlobs = await generateAllPlots(
+        appRowsForPlots,
         timezone,
         options,
+        PREPROCESSOR_VERSION,
         preAlgoTsByParticipant,
       );
-      for (const [pid, blob] of plotBlobs) {
-        outputs.push({
-          kind: "plot",
-          outputFileName: deriveOutputFileName(inputFileName, ` ${pid} App Usage Plot.png`),
-          blob,
-          rowCount: 0,
-          previewRows: [],
-        });
+      pushPlots(appPlotBlobs, (pid) => ` ${pid} App Usage Plot.png`);
+      if (options.exportPlotsAsSvg) {
+        pushPlots(
+          await generateAllPlotSvgs(appRowsForPlots, timezone, options, PREPROCESSOR_VERSION, preAlgoTsByParticipant),
+          (pid) => ` ${pid} App Usage Plot.svg`,
+        );
+      }
+      if (options.enableActivityHeatmap) {
+        pushPlots(
+          await generateAllHeatmaps(appRowsForPlots, timezone, options, PREPROCESSOR_VERSION),
+          (pid) => ` ${pid} App Usage Heatmap.png`,
+        );
+        if (options.exportPlotsAsSvg) {
+          pushPlots(
+            await generateAllHeatmapSvgs(appRowsForPlots, timezone, options, PREPROCESSOR_VERSION),
+            (pid) => ` ${pid} App Usage Heatmap.svg`,
+          );
+        }
       }
     }
   }
@@ -2036,12 +2604,46 @@ export async function processRawCsvContent(
       rowCount: screenBundle.rowCount,
       previewRows: screenBundle.previewRows,
     });
+    if (options.enableParquetExport) {
+      const screenParquet = await buildParquetBuffer(
+        buildScreenParquetColumnSpecs(),
+        screenRows.map((row) => rowToScreenParquetCells(row, options)),
+      );
+      outputs.push({
+        kind: "parquet",
+        outputFileName: deriveOutputFileName(
+          inputFileName,
+          " Screen Usage Automatically Preprocessed.parquet",
+        ),
+        blob: new Blob([screenParquet], { type: PARQUET_MIME }),
+        rowCount: screenRows.length,
+        previewRows: [],
+      });
+    }
+    if (options.enableSpssExport) {
+      const specs = buildScreenParquetColumnSpecs();
+      const savRows = screenRows.map((row) => toSavRow(rowToScreenParquetCells(row, options)));
+      outputs.push({
+        kind: "spss",
+        outputFileName: deriveOutputFileName(
+          inputFileName,
+          " Screen Usage Automatically Preprocessed.sav",
+        ),
+        blob: new Blob([buildSavBuffer(buildSavVariables(specs, savRows), savRows)], {
+          type: SAV_MIME,
+        }),
+        rowCount: screenRows.length,
+        previewRows: [],
+      });
+    }
     emit("output", 1);
 
     if (options.enablePlotting) {
       const screenPlotBlobs = await generateAllScreenPlots(
         screenRows as Parameters<typeof generateAllScreenPlots>[0],
         timezone,
+        PREPROCESSOR_VERSION,
+        preAlgoTsByParticipant,
       );
       for (const [pid, blob] of screenPlotBlobs) {
         outputs.push({
@@ -2052,8 +2654,123 @@ export async function processRawCsvContent(
           previewRows: [],
         });
       }
+      if (options.exportPlotsAsSvg) {
+        const screenSvgBlobs = await generateAllScreenPlotSvgs(
+          screenRows as Parameters<typeof generateAllScreenPlotSvgs>[0],
+          timezone,
+          PREPROCESSOR_VERSION,
+          preAlgoTsByParticipant,
+        );
+        for (const [pid, blob] of screenSvgBlobs) {
+          outputs.push({
+            kind: "plot",
+            outputFileName: deriveOutputFileName(inputFileName, ` ${pid} Screen Usage Plot.svg`),
+            blob,
+            rowCount: 0,
+            previewRows: [],
+          });
+        }
+      }
     }
   }
+
+  // Aggregate summaries (#8/#12/#13/#15/#16/#17) — opt-in extra outputs computed
+  // as pure post-processing over the app/screen session rows.
+  if (options.enableAggregates) {
+    emit("output", 0);
+    const aggregateOutputs = buildAggregateOutputs(appRows, screenRows, {
+      studyName: options.studyName,
+      shape: options.aggregateShape,
+      includeCategoryBudget: options.useAppCodebook,
+      // Co-usage is meaningful whenever sessions carry a usage_layer, which the
+      // split produces for background apps too — not just explicit concurrent mode.
+      includeCoUsage: options.modelConcurrentUsage || backgroundAppsSet.size > 0,
+      formatTimestamp: (ns, tz) => formatSessionTimestamp(ns, tz),
+    });
+    for (const aggregate of aggregateOutputs) {
+      outputs.push({
+        kind: "aggregate",
+        outputFileName: deriveOutputFileName(inputFileName, aggregate.suffix),
+        blob: new Blob([aggregate.csv], { type: CSV_MIME }),
+        rowCount: aggregate.rowCount,
+        previewRows: [],
+      });
+    }
+    emit("output", 1);
+  }
+
+  // Timeline viewer (#18) — the interactive waterfall scenes + per-session hover
+  // regions are computed once here and feed three consumers that cannot drift:
+  // (a) the in-app View-tab payload (`timelineView`), rendered live on the main
+  // thread; (b) the View tab's review surface; and (c) an opt-in self-contained
+  // HTML export rendering the same scenes (timelineViewer.ts). The scenes are
+  // built for every run so the View tab always works; only the heavier HTML
+  // *file* stays gated behind `enableInteractiveTimeline`.
+  const appRowsForTimeline = appRows as Parameters<typeof buildAppTimelineViews>[0];
+  const appViewsFilteredExcluded =
+    options.processAppUsage && appRows.length > 0
+      ? buildAppTimelineViews(
+          appRowsForTimeline,
+          timezone,
+          options,
+          PREPROCESSOR_VERSION,
+          preAlgoTsByParticipant,
+          false,
+        )
+      : [];
+  const appViewsFilteredIncluded =
+    options.processAppUsage && appRows.length > 0
+      ? buildAppTimelineViews(
+          appRowsForTimeline,
+          timezone,
+          options,
+          PREPROCESSOR_VERSION,
+          preAlgoTsByParticipant,
+          true,
+        )
+      : [];
+  const appViews = options.includeFilteredAppUsageInPlots
+    ? appViewsFilteredIncluded
+    : appViewsFilteredExcluded;
+  const screenViews =
+    options.processScreenUsage && screenRows.length > 0
+      ? buildScreenTimelineViews(
+          screenRows as Parameters<typeof buildScreenTimelineViews>[0],
+          timezone,
+          PREPROCESSOR_VERSION,
+          preAlgoTsByParticipant,
+        )
+      : [];
+
+  const timelineView: TimelineViewData = {
+    timezone,
+    includeFilteredAppUsageInPlots: options.includeFilteredAppUsageInPlots,
+    appFilteredIncluded: appViewsFilteredIncluded,
+    appFilteredExcluded: appViewsFilteredExcluded,
+    app: appViews,
+    screen: screenViews,
+  };
+
+  if (options.enableInteractiveTimeline) {
+    const viewerHtml = buildTimelineViewerHtml({
+      fileName: inputFileName,
+      timezone,
+      app: appViews,
+      screen: screenViews,
+    });
+    outputs.push({
+      kind: "plot",
+      outputFileName: deriveOutputFileName(inputFileName, " Timeline Viewer.html"),
+      blob: new Blob([viewerHtml], { type: "text/html;charset=utf-8" }),
+      rowCount: 0,
+      previewRows: [],
+    });
+  }
+
+  // Compact per-participant review metrics (totals, per-day rows, day-detail top
+  // apps) — built for every run so the View tab's review surface needs no blob
+  // re-parsing. Uses the same session rows that back the aggregate exports.
+  const reviewSummary = buildReviewSummary(appRows, screenRows);
 
   return {
     inputFileName,
@@ -2069,6 +2786,9 @@ export async function processRawCsvContent(
     rowsAfterTimezoneHandling: timezoneResult.rowsAfter,
     rowsRemovedByTimezone: timezoneResult.rowsRemoved,
     duplicateTimestampsCorrected,
+    exactDuplicateRowsRemoved,
+    timelineView,
+    reviewSummary,
   };
 }
 

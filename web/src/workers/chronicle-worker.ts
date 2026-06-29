@@ -12,6 +12,8 @@ import type {
   MatcherOutput,
   ProcessedFileResult,
   ProgressEvent,
+  SplitterInput,
+  SplitterOutput,
 } from "@/lib/types";
 
 /**
@@ -23,6 +25,16 @@ import type {
  */
 function decodeCsvBytes(bytes: ArrayBuffer): string {
   return new TextDecoder("utf-8").decode(bytes);
+}
+
+/**
+ * SHA-256 of the raw input, returned as a lowercase hex string. Runs in the
+ * worker so hashing large batches stays off the main thread. Used for the
+ * run-manifest provenance sidecar.
+ */
+async function computeSha256Hex(data: BufferSource): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 let initPromise: Promise<void> | null = null;
@@ -58,11 +70,25 @@ async function runMatcher(input: MatcherInput): Promise<MatcherOutput> {
     input.sameStop,
     input.otherStop,
     input.stopped,
+    input.background,
     input.options.allowStopEventReuse,
     input.options.useActivityStoppedAsFallback,
     input.options.applyThresholdToFallback,
     input.options.longDurationThresholdNs,
   ) as MatcherOutput;
+}
+
+async function runSplitter(input: SplitterInput): Promise<SplitterOutput> {
+  await ensureInit();
+  const module = await import("@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
+  // The pkg .d.ts declares splitOverlappingSessions(BigInt64Array, BigInt64Array),
+  // but TS cannot resolve it on this dynamic import's module type under our
+  // Bundler-resolution / @ts-self-types configuration. Keep a minimal cast
+  // with the correct BigInt64Array signature (no-copy, no Array.from).
+  const wasmModule = module as unknown as {
+    splitOverlappingSessions: (starts: BigInt64Array, stops: BigInt64Array) => SplitterOutput;
+  };
+  return wasmModule.splitOverlappingSessions(input.starts, input.stops);
 }
 
 const api = {
@@ -85,14 +111,18 @@ const api = {
     runtime?: BrowserProcessingRuntime,
   ): Promise<ProcessedFileResult> {
     const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
-    return processRawCsvContent(
+    const result = await processRawCsvContent(
       inputFileName,
       csvText,
       options,
       supportFiles,
       runMatcher,
       runtime,
+      undefined,
+      runSplitter,
     );
+    result.inputSha256 = await computeSha256Hex(new TextEncoder().encode(csvText));
+    return result;
   },
   async processRawCsvWithProgress(
     inputFileName: string,
@@ -112,7 +142,7 @@ const api = {
           }
         }
       : undefined;
-    return processRawCsvContent(
+    const result = await processRawCsvContent(
       inputFileName,
       csvText,
       options,
@@ -120,7 +150,10 @@ const api = {
       runMatcher,
       runtime,
       forward,
+      runSplitter,
     );
+    result.inputSha256 = await computeSha256Hex(new TextEncoder().encode(csvText));
+    return result;
   },
   /**
    * Zero-copy variant: caller transfers ownership of the raw CSV bytes.
@@ -136,6 +169,8 @@ const api = {
     onProgress?: (event: ProgressEvent) => void,
   ): Promise<ProcessedFileResult> {
     const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
+    // Hash the raw bytes before decoding (and before the buffer is dropped).
+    const inputSha256 = await computeSha256Hex(csvBytes);
     const csvText = decodeCsvBytes(csvBytes);
     const forward = onProgress
       ? (event: ProgressEvent) => {
@@ -146,7 +181,7 @@ const api = {
           }
         }
       : undefined;
-    return processRawCsvContent(
+    const result = await processRawCsvContent(
       inputFileName,
       csvText,
       options,
@@ -154,7 +189,10 @@ const api = {
       runMatcher,
       runtime,
       forward,
+      runSplitter,
     );
+    result.inputSha256 = inputSha256;
+    return result;
   },
 };
 

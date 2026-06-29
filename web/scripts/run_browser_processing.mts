@@ -10,6 +10,8 @@ import type {
   BrowserSupportFiles,
   MatcherInput,
   MatcherOutput,
+  SplitterInput,
+  SplitterOutput,
 } from "../src/lib/types";
 
 type ProcessingSpec = {
@@ -21,6 +23,7 @@ type ProcessingSpec = {
   supportFilePaths?: {
     filterFile?: string;
     appsForcingScreenOpenFile?: string;
+    backgroundAppsFile?: string;
     appCodebookFile?: string;
   };
 };
@@ -43,10 +46,12 @@ async function loadSupportFiles(
 ): Promise<BrowserSupportFiles> {
   const filterFile = await loadSupportFile(supportFilePaths?.filterFile);
   const appsForcingScreenOpenFile = await loadSupportFile(supportFilePaths?.appsForcingScreenOpenFile);
+  const backgroundAppsFile = await loadSupportFile(supportFilePaths?.backgroundAppsFile);
   const appCodebookFile = await loadSupportFile(supportFilePaths?.appCodebookFile);
   return {
     ...(filterFile ? { filterFile } : {}),
     ...(appsForcingScreenOpenFile ? { appsForcingScreenOpenFile } : {}),
+    ...(backgroundAppsFile ? { backgroundAppsFile } : {}),
     ...(appCodebookFile ? { appCodebookFile } : {}),
   };
 }
@@ -78,11 +83,21 @@ async function runMatcher(input: MatcherInput): Promise<MatcherOutput> {
     input.sameStop,
     input.otherStop,
     input.stopped,
+    input.background,
     input.options.allowStopEventReuse,
     input.options.useActivityStoppedAsFallback,
     input.options.applyThresholdToFallback,
     input.options.longDurationThresholdNs,
   ) as MatcherOutput;
+}
+
+async function runSplitter(input: SplitterInput): Promise<SplitterOutput> {
+  await ensureInit();
+  const module = await import("../src/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
+  const wasmModule = module as unknown as {
+    splitOverlappingSessions: (starts: BigInt64Array, stops: BigInt64Array) => SplitterOutput;
+  };
+  return wasmModule.splitOverlappingSessions(input.starts, input.stops);
 }
 
 async function main(): Promise<void> {
@@ -101,6 +116,8 @@ async function main(): Promise<void> {
     supportFiles,
     runMatcher,
     spec.runtime,
+    undefined,
+    runSplitter,
   );
 
   await mkdir(spec.outputDir, { recursive: true });

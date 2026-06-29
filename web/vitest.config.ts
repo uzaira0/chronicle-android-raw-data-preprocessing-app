@@ -7,12 +7,12 @@ export default defineConfig({
       "@": resolve(__dirname, "./src"),
     },
   },
-  benchmark: {
-    include: ["src/**/*.bench.ts"],
-  },
   test: {
     include: ["src/**/*.test.ts"],
     exclude: ["e2e/**", "node_modules/**", "dist/**", "src/**/*.bench.ts"],
+    benchmark: {
+      include: ["src/**/*.bench.ts"],
+    },
     coverage: {
       provider: "v8",
       include: ["src/lib/**/*.ts"],

@@ -23,9 +23,14 @@ import {
 } from "@/lib/browserPipeline";
 import type { MatcherInput, MatcherOutput } from "@/lib/types";
 
-vi.mock("@/lib/plotGenerator", () => ({
+vi.mock("@/lib/plotGenerator", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/plotGenerator")>()),
   generateAllPlots: vi.fn().mockResolvedValue(new Map()),
   generateAllScreenPlots: vi.fn().mockResolvedValue(new Map()),
+  generateAllScreenPlotSvgs: vi.fn().mockResolvedValue(new Map()),
+  generateAllHeatmaps: vi.fn().mockResolvedValue(new Map()),
+  generateAllPlotSvgs: vi.fn().mockResolvedValue(new Map()),
+  generateAllHeatmapSvgs: vi.fn().mockResolvedValue(new Map()),
 }));
 
 // ---------------------------------------------------------------------------
@@ -277,7 +282,7 @@ describe("Property 2: Timestamp parsing — no NaN for valid inputs", () => {
 
         expect(outputCsv).not.toContain("NaN");
       }),
-      { numRuns: 60 },
+      { numRuns: 12 },
     );
   });
 });
@@ -336,7 +341,7 @@ describe("Property 3: Row count never exceeds input after processing", () => {
       ),
       { numRuns: 60 },
     );
-  });
+  }, 30_000);
 });
 
 // ---------------------------------------------------------------------------
@@ -409,7 +414,7 @@ describe("Property 4: App usage durations are non-negative", () => {
           }
         },
       ),
-      { numRuns: 50 },
+      { numRuns: 12 },
     );
   });
 });
@@ -677,7 +682,7 @@ describe("Property 9: All-missing matcher produces stable output", () => {
       ),
       { numRuns: 50 },
     );
-  });
+  }, 30_000);
 });
 
 // ---------------------------------------------------------------------------

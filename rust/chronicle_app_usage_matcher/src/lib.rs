@@ -52,6 +52,155 @@ pub struct MatchUpdateIndices {
     pub missing_indices: Vec<usize>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UsageLayer {
+    Primary,
+    Secondary,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LayeredSession {
+    pub session_index: usize,
+    pub start_ns: i64,
+    pub stop_ns: i64,
+    pub layer: UsageLayer,
+}
+
+/// Split possibly-overlapping app sessions into primary/secondary sub-interval
+/// rows. `starts[i]`/`stops[i]` are the bounds of paired session `i`
+/// (`stops[i] >= starts[i]`). In any sub-interval the open session with the
+/// greatest `start_ns` is `primary` (tie broken by greatest input index);
+/// every other open session is `secondary`. Adjacent same-session same-layer
+/// sub-intervals are coalesced. Output is ordered by `session_index`, then by
+/// `start_ns`.
+pub fn split_overlapping_sessions(
+    starts: &[i64],
+    stops: &[i64],
+) -> MatcherResult<Vec<LayeredSession>> {
+    if starts.len() != stops.len() {
+        return Err(MatcherError::new(
+            "starts and stops must have the same length",
+        ));
+    }
+    for i in 0..starts.len() {
+        if stops[i] < starts[i] {
+            return Err(MatcherError::new("stop must be >= start for every session"));
+        }
+    }
+
+    // Boundary timestamps: every distinct start and stop, sorted.
+    let n = starts.len();
+    let mut boundaries: Vec<i64> = Vec::with_capacity(n * 2);
+    boundaries.extend_from_slice(starts);
+    boundaries.extend_from_slice(stops);
+    boundaries.sort_unstable();
+    boundaries.dedup();
+
+    // Sweep-line over sub-intervals [t0, t1) between consecutive distinct
+    // boundaries. Because t1 is the next boundary after t0 and every start/stop is
+    // a boundary, the sessions open throughout [t0, t1) are exactly
+    //   { i : starts[i] <= t0 AND stops[i] > t0 }   (stops[i] >= t1 <=> stops[i] > t0)
+    // — a set that depends only on t0. We maintain it incrementally as t0 advances
+    // (add at a session's start, drop at its stop) instead of rescanning all N
+    // sessions per window, turning the old O(N^2) boundary scan into O(N log N).
+    // Output is byte-identical: same per-window open set, same primary (greatest
+    // start, then greatest index), same downstream coalesce/zero-width handling.
+    let mut by_start: Vec<usize> = (0..n).collect();
+    by_start.sort_unstable_by_key(|&i| (starts[i], i));
+    let mut by_stop: Vec<usize> = (0..n).collect();
+    by_stop.sort_unstable_by_key(|&i| (stops[i], i));
+
+    let mut open: std::collections::BTreeSet<(i64, usize)> = std::collections::BTreeSet::new();
+    let mut ps = 0usize; // next session to open, by ascending start
+    let mut pe = 0usize; // next session to close, by ascending stop
+    let mut raw: Vec<LayeredSession> = Vec::new();
+
+    for w in 0..boundaries.len().saturating_sub(1) {
+        let t0 = boundaries[w];
+        let t1 = boundaries[w + 1];
+        // Drop sessions that have stopped by t0 (stops[i] <= t0 => not open past t0).
+        while pe < n && stops[by_stop[pe]] <= t0 {
+            let i = by_stop[pe];
+            open.remove(&(starts[i], i));
+            pe += 1;
+        }
+        // Add sessions started by t0 that still run past t0. Zero-width sessions
+        // (stops == starts == t0) fail `stops > t0`, so they are never added — they
+        // produced no window row in the reference and are preserved separately below.
+        while ps < n && starts[by_start[ps]] <= t0 {
+            let i = by_start[ps];
+            if stops[i] > t0 {
+                open.insert((starts[i], i));
+            }
+            ps += 1;
+        }
+        if open.is_empty() {
+            continue;
+        }
+        // Primary = greatest start_ns, tie broken by greatest index = the BTreeSet max.
+        let primary = open
+            .iter()
+            .next_back()
+            .map(|&(_, i)| i)
+            .expect("open is non-empty");
+        for &(_, i) in &open {
+            raw.push(LayeredSession {
+                session_index: i,
+                start_ns: t0,
+                stop_ns: t1,
+                layer: if i == primary {
+                    UsageLayer::Primary
+                } else {
+                    UsageLayer::Secondary
+                },
+            });
+        }
+    }
+
+    // Stable order by (session_index, start_ns), then coalesce adjacency.
+    raw.sort_by(|a, b| {
+        a.session_index
+            .cmp(&b.session_index)
+            .then(a.start_ns.cmp(&b.start_ns))
+    });
+    let mut out: Vec<LayeredSession> = Vec::with_capacity(raw.len());
+    for row in raw {
+        if let Some(last) = out.last_mut() {
+            if last.session_index == row.session_index
+                && last.layer == row.layer
+                && last.stop_ns == row.start_ns
+            {
+                last.stop_ns = row.stop_ns;
+                continue;
+            }
+        }
+        out.push(row);
+    }
+
+    // Zero-width sessions (start == stop) are covered by no positive sub-interval
+    // window, so they produced no row above. Emit a single primary row for each
+    // so the session is preserved (matching the non-concurrent path, which keeps
+    // a 0-duration row) rather than being silently dropped.
+    let present: std::collections::HashSet<usize> = out.iter().map(|r| r.session_index).collect();
+    for i in 0..starts.len() {
+        if !present.contains(&i) {
+            out.push(LayeredSession {
+                session_index: i,
+                start_ns: starts[i],
+                stop_ns: stops[i],
+                layer: UsageLayer::Primary,
+            });
+        }
+    }
+    out.sort_by(|a, b| {
+        a.session_index
+            .cmp(&b.session_index)
+            .then(a.start_ns.cmp(&b.start_ns))
+    });
+
+    Ok(out)
+}
+
 fn validate_lengths(
     app_codes: &[i32],
     timestamp_ns: &[i64],
@@ -59,6 +208,7 @@ fn validate_lengths(
     same_stop: &[bool],
     other_stop: &[bool],
     stopped: &[bool],
+    background: &[bool],
 ) -> MatcherResult<usize> {
     let len = app_codes.len();
     if timestamp_ns.len() != len
@@ -66,6 +216,7 @@ fn validate_lengths(
         || same_stop.len() != len
         || other_stop.len() != len
         || stopped.len() != len
+        || background.len() != len
     {
         return Err(MatcherError::new(
             "all input arrays must have the same length",
@@ -96,6 +247,7 @@ fn is_compatible_open_start_for_stop(
     same_stop: &[bool],
     other_stop: &[bool],
     stopped: &[bool],
+    background: &[bool],
     options: MatchOptions,
 ) -> bool {
     let current_app = app_codes[stop_index];
@@ -103,7 +255,11 @@ fn is_compatible_open_start_for_stop(
     let fallback_stop = stopped[stop_index] && options.use_activity_stopped_as_fallback;
     let start_app = app_codes[start_index];
     let same_app_compatible = same_stop[stop_index] && start_app == current_app;
-    let other_app_compatible = other_stop[stop_index] && start_app != current_app;
+    // A background app's session is never closed by another app foregrounding
+    // (an `other_stop` event); it stays alive until its own stop. Callers handle
+    // the background app's own `same_stop`/`stopped` via flag remapping.
+    let other_app_compatible =
+        other_stop[stop_index] && start_app != current_app && !background[start_index];
     let fallback_compatible = !normal_stop && fallback_stop && start_app == current_app;
 
     if !(same_app_compatible || other_app_compatible || fallback_compatible) {
@@ -128,6 +284,7 @@ fn nearest_compatible_open_start_for_stop(
     same_stop: &[bool],
     other_stop: &[bool],
     stopped: &[bool],
+    background: &[bool],
     options: MatchOptions,
 ) -> Option<usize> {
     for (position, &start_index) in open_start_indices.iter().enumerate().rev() {
@@ -139,6 +296,7 @@ fn nearest_compatible_open_start_for_stop(
             same_stop,
             other_stop,
             stopped,
+            background,
             options,
         ) {
             return Some(position);
@@ -156,6 +314,7 @@ fn close_reused_starts<F>(
     same_stop: &[bool],
     other_stop: &[bool],
     stopped: &[bool],
+    background: &[bool],
     options: MatchOptions,
     open_start_indices: &mut Vec<usize>,
     mut close_start: F,
@@ -174,6 +333,7 @@ fn close_reused_starts<F>(
             same_stop,
             other_stop,
             stopped,
+            background,
             options,
         ) {
             close_start(start_index);
@@ -454,6 +614,7 @@ pub fn match_app_usage_core(
     same_stop: &[bool],
     other_stop: &[bool],
     stopped: &[bool],
+    background: &[bool],
     options: MatchOptions,
 ) -> MatcherResult<MatchOutput> {
     let len = validate_lengths(
@@ -463,6 +624,7 @@ pub fn match_app_usage_core(
         same_stop,
         other_stop,
         stopped,
+        background,
     )?;
     let mut start_ns = vec![-1; len];
     let mut stop_ns = vec![-1; len];
@@ -482,6 +644,7 @@ pub fn match_app_usage_core(
                 same_stop,
                 other_stop,
                 stopped,
+                background,
                 options,
                 &mut open_start_indices,
                 |start_index| stop_ns[start_index] = current_timestamp,
@@ -495,6 +658,7 @@ pub fn match_app_usage_core(
                 same_stop,
                 other_stop,
                 stopped,
+                background,
                 options,
             ) {
                 let start_index = open_start_indices.remove(position);
@@ -543,6 +707,7 @@ pub fn match_app_usage_update_indices_core(
     same_stop: &[bool],
     other_stop: &[bool],
     stopped: &[bool],
+    background: &[bool],
     options: MatchOptions,
 ) -> MatcherResult<MatchUpdateIndices> {
     let len = validate_lengths(
@@ -552,6 +717,7 @@ pub fn match_app_usage_update_indices_core(
         same_stop,
         other_stop,
         stopped,
+        background,
     )?;
     let mut start_indices = Vec::new();
     let mut stop_start_indices = Vec::new();
@@ -587,7 +753,9 @@ pub fn match_app_usage_update_indices_core(
                             enforce_threshold,
                             threshold_ns,
                             timestamp_ns,
-                            |start_index| app_codes[start_index] != current_app,
+                            |start_index| {
+                                app_codes[start_index] != current_app && !background[start_index]
+                            },
                             |start_index| {
                                 stop_start_indices.push(start_index);
                                 stop_event_indices.push(index);
@@ -600,7 +768,9 @@ pub fn match_app_usage_update_indices_core(
                             enforce_threshold,
                             threshold_ns,
                             timestamp_ns,
-                            |_start_index| true,
+                            |start_index| {
+                                app_codes[start_index] == current_app || !background[start_index]
+                            },
                             |start_index| {
                                 stop_start_indices.push(start_index);
                                 stop_event_indices.push(index);
@@ -623,14 +793,18 @@ pub fn match_app_usage_update_indices_core(
                         enforce_threshold,
                         threshold_ns,
                         timestamp_ns,
-                        |start_index| app_codes[start_index] != current_app,
+                        |start_index| {
+                            app_codes[start_index] != current_app && !background[start_index]
+                        },
                     ),
                     SparseStopMode::AnyApp => open_starts.latest_matching_global(
                         stop_timestamp_ns,
                         enforce_threshold,
                         threshold_ns,
                         timestamp_ns,
-                        |_start_index| true,
+                        |start_index| {
+                            app_codes[start_index] == current_app || !background[start_index]
+                        },
                     ),
                 };
 
@@ -684,6 +858,7 @@ fn match_app_usage(
     same_stop: Vec<bool>,
     other_stop: Vec<bool>,
     stopped: Vec<bool>,
+    background: Vec<bool>,
     allow_stop_event_reuse: bool,
     use_activity_stopped_as_fallback: bool,
     apply_threshold_to_fallback: bool,
@@ -696,6 +871,7 @@ fn match_app_usage(
         &same_stop,
         &other_stop,
         &stopped,
+        &background,
         MatchOptions {
             allow_stop_event_reuse,
             use_activity_stopped_as_fallback,
@@ -718,6 +894,7 @@ fn match_app_usage_update_indices(
     same_stop: PyReadonlyArray1<'_, bool>,
     other_stop: PyReadonlyArray1<'_, bool>,
     stopped: PyReadonlyArray1<'_, bool>,
+    background: PyReadonlyArray1<'_, bool>,
     allow_stop_event_reuse: bool,
     use_activity_stopped_as_fallback: bool,
     apply_threshold_to_fallback: bool,
@@ -730,6 +907,7 @@ fn match_app_usage_update_indices(
         same_stop.as_slice()?,
         other_stop.as_slice()?,
         stopped.as_slice()?,
+        background.as_slice()?,
         MatchOptions {
             allow_stop_event_reuse,
             use_activity_stopped_as_fallback,
@@ -758,6 +936,7 @@ fn match_app_usage_update_arrays<'py>(
     same_stop: PyReadonlyArray1<'_, bool>,
     other_stop: PyReadonlyArray1<'_, bool>,
     stopped: PyReadonlyArray1<'_, bool>,
+    background: PyReadonlyArray1<'_, bool>,
     allow_stop_event_reuse: bool,
     use_activity_stopped_as_fallback: bool,
     apply_threshold_to_fallback: bool,
@@ -775,6 +954,7 @@ fn match_app_usage_update_arrays<'py>(
         same_stop.as_slice()?,
         other_stop.as_slice()?,
         stopped.as_slice()?,
+        background.as_slice()?,
         MatchOptions {
             allow_stop_event_reuse,
             use_activity_stopped_as_fallback,
@@ -801,6 +981,7 @@ fn match_app_usage_arrays(
     same_stop: PyReadonlyArray1<'_, bool>,
     other_stop: PyReadonlyArray1<'_, bool>,
     stopped: PyReadonlyArray1<'_, bool>,
+    background: PyReadonlyArray1<'_, bool>,
     allow_stop_event_reuse: bool,
     use_activity_stopped_as_fallback: bool,
     apply_threshold_to_fallback: bool,
@@ -812,6 +993,7 @@ fn match_app_usage_arrays(
     let same_stop = same_stop.as_slice()?;
     let other_stop = other_stop.as_slice()?;
     let stopped = stopped.as_slice()?;
+    let background = background.as_slice()?;
 
     let output = match_app_usage_core(
         app_codes,
@@ -820,6 +1002,7 @@ fn match_app_usage_arrays(
         same_stop,
         other_stop,
         stopped,
+        background,
         MatchOptions {
             allow_stop_event_reuse,
             use_activity_stopped_as_fallback,
@@ -833,12 +1016,34 @@ fn match_app_usage_arrays(
 }
 
 #[cfg(feature = "python")]
+#[pyfunction]
+fn split_overlapping_sessions_py(
+    starts: PyReadonlyArray1<'_, i64>,
+    stops: PyReadonlyArray1<'_, i64>,
+) -> PyResult<(Vec<usize>, Vec<i64>, Vec<i64>, Vec<bool>)> {
+    let rows =
+        split_overlapping_sessions(starts.as_slice()?, stops.as_slice()?).map_err(to_py_error)?;
+    let mut session_index = Vec::with_capacity(rows.len());
+    let mut start_ns = Vec::with_capacity(rows.len());
+    let mut stop_ns = Vec::with_capacity(rows.len());
+    let mut is_primary = Vec::with_capacity(rows.len());
+    for row in rows {
+        session_index.push(row.session_index);
+        start_ns.push(row.start_ns);
+        stop_ns.push(row.stop_ns);
+        is_primary.push(row.layer == UsageLayer::Primary);
+    }
+    Ok((session_index, start_ns, stop_ns, is_primary))
+}
+
+#[cfg(feature = "python")]
 #[pymodule]
 fn _rust_app_usage_matcher(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(match_app_usage, m)?)?;
     m.add_function(wrap_pyfunction!(match_app_usage_update_indices, m)?)?;
     m.add_function(wrap_pyfunction!(match_app_usage_update_arrays, m)?)?;
     m.add_function(wrap_pyfunction!(match_app_usage_arrays, m)?)?;
+    m.add_function(wrap_pyfunction!(split_overlapping_sessions_py, m)?)?;
     Ok(())
 }
 
@@ -855,6 +1060,7 @@ mod tests {
         stopped: &[bool],
         options: MatchOptions,
     ) -> MatchOutput {
+        let background = vec![false; app_codes.len()];
         match_app_usage_core(
             app_codes,
             timestamp_ns,
@@ -862,6 +1068,7 @@ mod tests {
             same_stop,
             other_stop,
             stopped,
+            &background,
             options,
         )
         .expect("core matcher should succeed")
@@ -876,6 +1083,7 @@ mod tests {
         stopped: &[bool],
         options: MatchOptions,
     ) -> MatchUpdateIndices {
+        let background = vec![false; app_codes.len()];
         match_app_usage_update_indices_core(
             app_codes,
             timestamp_ns,
@@ -883,6 +1091,7 @@ mod tests {
             same_stop,
             other_stop,
             stopped,
+            &background,
             options,
         )
         .expect("sparse matcher should succeed")
@@ -1202,2782 +1411,510 @@ mod tests {
         );
     }
 
-    #[test]
-    fn sparse_update_indices_match_dense_output_for_generated_event_streams() {
-        for seed_start in 0..128 {
-            let mut seed = seed_start;
-            let len = (next_u64(&mut seed) % 48) as usize;
-            let mut app_codes = Vec::with_capacity(len);
-            let mut timestamps = Vec::with_capacity(len);
-            let mut resumed = Vec::with_capacity(len);
-            let mut same_stop = Vec::with_capacity(len);
-            let mut other_stop = Vec::with_capacity(len);
-            let mut stopped = Vec::with_capacity(len);
-            let mut timestamp = 0_i64;
-
-            for _ in 0..len {
-                timestamp += (next_u64(&mut seed) % 600) as i64;
-                app_codes.push((next_u64(&mut seed) % 7) as i32);
-                timestamps.push(timestamp);
-                resumed.push(next_u64(&mut seed) % 5 == 0);
-                same_stop.push(next_u64(&mut seed) % 6 == 0);
-                other_stop.push(next_u64(&mut seed) % 7 == 0);
-                stopped.push(next_u64(&mut seed) % 8 == 0);
-            }
-
-            for options in [
-                MatchOptions {
-                    allow_stop_event_reuse: false,
-                    use_activity_stopped_as_fallback: false,
-                    apply_threshold_to_fallback: true,
-                    long_duration_threshold_ns: 1_200,
-                },
-                MatchOptions {
-                    allow_stop_event_reuse: false,
-                    use_activity_stopped_as_fallback: true,
-                    apply_threshold_to_fallback: true,
-                    long_duration_threshold_ns: 1_200,
-                },
-                MatchOptions {
-                    allow_stop_event_reuse: true,
-                    use_activity_stopped_as_fallback: true,
-                    apply_threshold_to_fallback: false,
-                    long_duration_threshold_ns: 1_200,
-                },
-            ] {
-                let dense = run(
-                    &app_codes,
-                    &timestamps,
-                    &resumed,
-                    &same_stop,
-                    &other_stop,
-                    &stopped,
-                    options,
-                );
-                let sparse = run_update_indices(
-                    &app_codes,
-                    &timestamps,
-                    &resumed,
-                    &same_stop,
-                    &other_stop,
-                    &stopped,
-                    options,
-                );
-
-                assert_eq!(
-                    reconstruct_sparse_output(app_codes.len(), &timestamps, sparse),
-                    dense
-                );
-
-                for index in 0..len {
-                    if dense.stop_ns[index] != -1 {
-                        assert_ne!(dense.start_ns[index], -1);
-                        assert!(dense.stop_ns[index] >= dense.start_ns[index]);
-                    }
-                    if dense.missing[index] {
-                        assert_ne!(dense.start_ns[index], -1);
-                        assert_eq!(dense.stop_ns[index], -1);
-                    }
-                }
-            }
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    // Behavioral scenario tests
-    // -----------------------------------------------------------------------
-
-    // Convenience: standard 12-hour threshold in nanoseconds
-    const THRESHOLD_12H: i64 = 12 * 60 * 60 * 1_000_000_000i64;
-
-    // ---- Group A: Explicit same_stop matching --------------------------------
-
-    #[test]
-    fn explicit_same_stop_closes_session() {
-        let app_codes = [1, 1];
-        let timestamps = [0i64, 300];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.0[1] = true; // same_stop at index 1
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.start_ns[0], 0);
-        assert_eq!(out.stop_ns[0], 300);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn explicit_same_stop_wrong_app_no_match() {
-        // same_stop requires app_codes[start] == app_codes[stop]; here 1 ≠ 2
-        let app_codes = [1, 2];
-        let timestamps = [0i64, 300];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.0[1] = true; // same_stop at index 1, but app=2 while open start is app=1
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // same_stop incompatible → file-end closes at t=300
-        assert_eq!(out.start_ns[0], 0);
-        assert_eq!(out.stop_ns[0], 300);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn explicit_same_stop_nearest_when_two_open() {
-        // Two app=1 starts open; stop closes only nearest (index 1), index 0 gets file-end
-        let app_codes = [1, 1, 1];
-        let timestamps = [0i64, 100, 300];
-        let resumed = [true, true, false];
-        let mut flags = base_flags(3);
-        flags.0[2] = true; // same_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // index 1 (nearest) closed by same_stop at 300
-        assert_eq!(out.stop_ns[1], 300);
-        // index 0 closed by file-end at 300
-        assert_eq!(out.stop_ns[0], 300);
-        assert!(!out.missing[0]);
-        assert!(!out.missing[1]);
-    }
-
-    #[test]
-    fn explicit_same_stop_no_start_is_noop() {
-        // same_stop at index 0, but nothing is resumed before it
-        let app_codes = [5, 5];
-        let timestamps = [0i64, 300];
-        let resumed = [false, false];
-        let mut flags = base_flags(2);
-        flags.0[0] = true; // same_stop at index 0
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.start_ns, vec![-1, -1]);
-        assert_eq!(out.stop_ns, vec![-1, -1]);
-        assert_eq!(out.missing, vec![false, false]);
-    }
-
-    #[test]
-    fn explicit_same_stop_multiple_apps_only_right_app_closed() {
-        // app=[2,1,2], resumed=[T,T,F], same_stop[2]=T (app=2) closes start at 0 (app=2)
-        // start at 1 (app=1) has no compatible same_stop → file-end
-        let app_codes = [2, 1, 2];
-        let timestamps = [0i64, 100, 300];
-        let resumed = [true, true, false];
-        let mut flags = base_flags(3);
-        flags.0[2] = true; // same_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // index 0 (app=2) closed by same_stop at 300
-        assert_eq!(out.start_ns[0], 0);
-        assert_eq!(out.stop_ns[0], 300);
-        assert!(!out.missing[0]);
-        // index 1 (app=1) closed by file-end at 300
-        assert_eq!(out.start_ns[1], 100);
-        assert_eq!(out.stop_ns[1], 300);
-        assert!(!out.missing[1]);
-    }
-
-    #[test]
-    fn same_stop_closes_across_options_with_reuse() {
-        // reuse=true, two app=1 starts, same_stop at index 2 → both closed
-        let app_codes = [1, 1, 1];
-        let timestamps = [0i64, 100, 300];
-        let resumed = [true, true, false];
-        let mut flags = base_flags(3);
-        flags.0[2] = true; // same_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: true,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], 300);
-        assert_eq!(out.stop_ns[1], 300);
-        assert!(!out.missing[0]);
-        assert!(!out.missing[1]);
-    }
-
-    #[test]
-    fn same_stop_closes_when_duration_within_threshold() {
-        // same_stop closes the session when duration is within the threshold
-        let app_codes = [1, 1];
-        let ts = 10 * 60 * 60 * 1_000_000_000i64; // 10 hours (< 12h threshold)
-        let timestamps = [0i64, ts];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.0[1] = true; // same_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: true,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.start_ns[0], 0);
-        assert_eq!(out.stop_ns[0], ts);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn same_stop_at_start_position_not_matched_before_open() {
-        // Index 0 is both resumed=T and same_stop=T; stop runs first (nothing open yet),
-        // then start opens. Later index 1 (same_stop) closes it.
-        let app_codes = [3, 3];
-        let timestamps = [0i64, 200];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.0[0] = true; // same_stop at index 0 (same event as the start)
-        flags.0[1] = true; // same_stop at index 1
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // Index 0 is a start; stop at 0 has nothing to close (processed before open)
-        assert_eq!(out.start_ns[0], 0);
-        // Index 1 same_stop closes it
-        assert_eq!(out.stop_ns[0], 200);
-        assert!(!out.missing[0]);
-    }
-
-    // ---- Group B: Explicit other_stop matching --------------------------------
-
-    #[test]
-    fn explicit_other_stop_closes_different_app() {
-        // app=[1,2], other_stop[1]=T; current stop app=2, open start app=1 (≠2) → closes
-        let app_codes = [1, 2];
-        let timestamps = [0i64, 500];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.1[1] = true; // other_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.start_ns[0], 0);
-        assert_eq!(out.stop_ns[0], 500);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn explicit_other_stop_same_app_no_match() {
-        // other_stop requires app_codes[start] ≠ app_codes[stop]; here both are app=1
-        let app_codes = [1, 1];
-        let timestamps = [0i64, 500];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.1[1] = true; // other_stop, but both app=1 → incompatible
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // other_stop incompatible → file-end closes at t=500
-        assert_eq!(out.start_ns[0], 0);
-        assert_eq!(out.stop_ns[0], 500);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn explicit_other_stop_nearest_across_apps() {
-        // app=[1,2,1], resumed=[T,T,F], other_stop[2]=T (current app=1)
-        // index 1 (app=2 ≠ 1) is nearest compatible; index 0 gets file-end
-        let app_codes = [1, 2, 1];
-        let timestamps = [0i64, 100, 300];
-        let resumed = [true, true, false];
-        let mut flags = base_flags(3);
-        flags.1[2] = true; // other_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[1], 300); // nearest different-app closed
-        assert_eq!(out.stop_ns[0], 300); // file-end
-        assert!(!out.missing[0]);
-        assert!(!out.missing[1]);
-    }
-
-    #[test]
-    fn other_stop_no_compatible_start_noop() {
-        // other_stop at index 0, nothing open before it
-        let app_codes = [7, 9];
-        let timestamps = [0i64, 200];
-        let resumed = [false, false];
-        let mut flags = base_flags(2);
-        flags.1[0] = true; // other_stop at 0
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.start_ns, vec![-1, -1]);
-        assert_eq!(out.stop_ns, vec![-1, -1]);
-        assert_eq!(out.missing, vec![false, false]);
-    }
-
-    #[test]
-    fn other_stop_multiple_apps_closes_only_different() {
-        // app=[3,5,3], resumed=[T,T,F], other_stop[2]=T (current app=3)
-        // index 1 (app=5 ≠ 3) closed; index 0 (app=3 == 3) skipped by other_stop
-        let app_codes = [3, 5, 3];
-        let timestamps = [0i64, 100, 300];
-        let resumed = [true, true, false];
-        let mut flags = base_flags(3);
-        flags.1[2] = true; // other_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[1], 300); // app=5 closed
-        assert_eq!(out.stop_ns[0], 300); // app=3: file-end
-        assert!(!out.missing[0]);
-        assert!(!out.missing[1]);
-    }
-
-    #[test]
-    fn other_stop_closes_when_duration_within_threshold() {
-        // other_stop closes the session when duration is within the threshold
-        let app_codes = [1, 2];
-        let ts = 10 * 60 * 60 * 1_000_000_000i64; // 10 hours (< 12h threshold)
-        let timestamps = [0i64, ts];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.1[1] = true; // other_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: true,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], ts);
-        assert!(!out.missing[0]);
-    }
-
-    // ---- Group C: Fallback (stopped) stop matching ---------------------------
-
-    #[test]
-    fn fallback_stop_same_app_closes() {
-        let app_codes = [7, 7];
-        let timestamps = [0i64, 100];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.2[1] = true; // stopped
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.start_ns[0], 0);
-        assert_eq!(out.stop_ns[0], 100);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn fallback_stop_disabled_when_flag_false() {
-        // use_fallback=false → stopped event ignored; file-end closes
-        let app_codes = [7, 7];
-        let timestamps = [0i64, 100];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.2[1] = true; // stopped, but fallback disabled
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // fallback disabled → file-end closes at t=100
-        assert_eq!(out.stop_ns[0], 100);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn fallback_stop_different_app_no_match() {
-        // fallback requires same app code; app=[7,8] → no fallback match
-        let app_codes = [7, 8];
-        let timestamps = [0i64, 100];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.2[1] = true; // stopped
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // fallback incompatible (different app) → file-end closes at t=100
-        assert_eq!(out.stop_ns[0], 100);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn fallback_threshold_blocks_when_apply_true() {
-        // Duration > threshold AND apply_threshold_to_fallback=true → missing
-        let app_codes = [7, 7];
-        let long_ts = 13 * 60 * 60 * 1_000_000_000i64; // 13h > 12h threshold
-        let timestamps = [0i64, long_ts];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.2[1] = true; // stopped
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: true,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], -1);
-        assert!(out.missing[0]);
-    }
-
-    #[test]
-    fn fallback_threshold_allowed_when_apply_false() {
-        // Duration > threshold but apply_threshold_to_fallback=false → closes
-        let app_codes = [7, 7];
-        let long_ts = 13 * 60 * 60 * 1_000_000_000i64;
-        let timestamps = [0i64, long_ts];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.2[1] = true; // stopped
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], long_ts);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn fallback_no_match_when_normal_stop_present() {
-        // same_stop AND stopped both true; same_app_compatible=T so normal match wins,
-        // fallback_compatible checks !normal_stop → false, but same_stop already matched
-        let app_codes = [4, 4];
-        let timestamps = [0i64, 200];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.0[1] = true; // same_stop
-        flags.2[1] = true; // stopped
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: true,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], 200);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn fallback_multiple_starts_nearest_closed() {
-        // Two same-app starts, fallback stop, reuse=false → closes nearest
-        let app_codes = [6, 6, 6];
-        let timestamps = [0i64, 100, 300];
-        let resumed = [true, true, false];
-        let mut flags = base_flags(3);
-        flags.2[2] = true; // stopped
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[1], 300); // nearest closed by fallback
-        assert_eq!(out.stop_ns[0], 300); // file-end
-    }
-
-    #[test]
-    fn fallback_reuse_closes_all_same_app() {
-        // reuse=true, two same-app starts, fallback stop → closes both
-        let app_codes = [6, 6, 6];
-        let timestamps = [0i64, 100, 300];
-        let resumed = [true, true, false];
-        let mut flags = base_flags(3);
-        flags.2[2] = true; // stopped
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: true,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], 300);
-        assert_eq!(out.stop_ns[1], 300);
-        assert!(!out.missing[0]);
-        assert!(!out.missing[1]);
-    }
-
-    // ---- Group D: Stop reuse behavior ----------------------------------------
-
-    #[test]
-    fn reuse_enabled_closes_all_same_app_starts() {
-        let app_codes = [1, 1, 1, 1];
-        let timestamps = [0i64, 60, 300, 360];
-        let resumed = [true, true, false, false];
-        let mut flags = base_flags(4);
-        flags.0[2] = true; // same_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: true,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], 300);
-        assert_eq!(out.stop_ns[1], 300);
-    }
-
-    #[test]
-    fn reuse_disabled_closes_only_nearest() {
-        let app_codes = [1, 1, 1, 1];
-        let timestamps = [0i64, 60, 300, 360];
-        let resumed = [true, true, false, false];
-        let mut flags = base_flags(4);
-        flags.0[2] = true; // same_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // Only nearest (index 1) closed by same_stop; index 0 gets file-end at 360
-        assert_eq!(out.stop_ns[1], 300);
-        assert_eq!(out.stop_ns[0], 360);
-    }
-
-    #[test]
-    fn reuse_other_stop_closes_all_different_apps() {
-        // app=[1,2,1], reuse=true, other_stop[2]=T (app=1) → closes index 1 (app=2 ≠ 1)
-        let app_codes = [1, 2, 1];
-        let timestamps = [0i64, 100, 300];
-        let resumed = [true, true, false];
-        let mut flags = base_flags(3);
-        flags.1[2] = true; // other_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: true,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[1], 300);
-        // index 0 (app=1 == stop app=1) → not closed by other_stop
-    }
-
-    #[test]
-    fn reuse_any_app_mode_closes_all() {
-        // both same_stop and other_stop true → AnyApp mode → closes all open starts
-        let app_codes = [1, 2, 3];
-        let timestamps = [0i64, 100, 300];
-        let resumed = [true, true, false];
-        let mut flags = base_flags(3);
-        flags.0[2] = true; // same_stop
-        flags.1[2] = true; // other_stop → AnyApp
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: true,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // Both starts should be closed
-        assert_ne!(out.stop_ns[0], -1);
-        assert_ne!(out.stop_ns[1], -1);
-        assert!(!out.missing[0]);
-        assert!(!out.missing[1]);
-    }
-
-    #[test]
-    fn reuse_respects_threshold_for_fallback() {
-        // reuse=true, fallback, long duration, apply_threshold=true → threshold blocks
-        let app_codes = [5, 5, 5];
-        let long_ts = 13 * 60 * 60 * 1_000_000_000i64;
-        let timestamps = [0i64, 100, long_ts];
-        let resumed = [true, true, false];
-        let mut flags = base_flags(3);
-        flags.2[2] = true; // stopped
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: true,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: true,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // Both starts are > threshold from stopped event → missing
-        assert!(out.missing[0]);
-        assert!(out.missing[1]);
-    }
-
-    #[test]
-    fn reuse_vs_no_reuse_consistent_on_single_start() {
-        // With exactly one open start, both reuse modes produce same result
-        let app_codes = [3, 3];
-        let timestamps = [0i64, 150];
-        let resumed = [true, false];
-        let mut flags_reuse = base_flags(2);
-        flags_reuse.0[1] = true;
-        let mut flags_no_reuse = base_flags(2);
-        flags_no_reuse.0[1] = true;
-
-        let opts_reuse = MatchOptions {
-            allow_stop_event_reuse: true,
-            use_activity_stopped_as_fallback: false,
-            apply_threshold_to_fallback: false,
-            long_duration_threshold_ns: THRESHOLD_12H,
-        };
-        let opts_no_reuse = MatchOptions {
-            allow_stop_event_reuse: false,
-            ..opts_reuse
-        };
-
-        let out_reuse = run(
-            &app_codes,
-            &timestamps,
-            &[true, false],
-            &flags_reuse.0,
-            &flags_reuse.1,
-            &flags_reuse.2,
-            opts_reuse,
-        );
-        let out_no_reuse = run(
-            &app_codes,
-            &timestamps,
-            &[true, false],
-            &flags_no_reuse.0,
-            &flags_no_reuse.1,
-            &flags_no_reuse.2,
-            opts_no_reuse,
-        );
-
-        assert_eq!(out_reuse.stop_ns, out_no_reuse.stop_ns);
-        assert_eq!(out_reuse.missing, out_no_reuse.missing);
-    }
-
-    #[test]
-    fn reuse_fallback_same_app_closes_all_matching() {
-        // reuse=true, fallback, two same-app and one different-app start
-        // only same-app ones should be closed by fallback
-        let app_codes = [9, 9, 8, 9];
-        let timestamps = [0i64, 50, 100, 300];
-        let resumed = [true, true, true, false];
-        let mut flags = base_flags(4);
-        flags.2[3] = true; // stopped (fallback), app=9
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: true,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // indices 0 and 1 (app=9) closed by fallback
-        assert_eq!(out.stop_ns[0], 300);
-        assert_eq!(out.stop_ns[1], 300);
-        // index 2 (app=8) not closed by fallback (different app) → file-end
-        assert_eq!(out.stop_ns[2], 300);
-    }
-
-    #[test]
-    fn no_reuse_sequential_stops_close_in_order() {
-        // Multiple starts, multiple same_stop events, no reuse → each closes nearest
-        let app_codes = [1, 1, 1, 1];
-        let timestamps = [0i64, 100, 200, 300];
-        let resumed = [true, true, false, false];
-        let mut flags = base_flags(4);
-        flags.0[2] = true; // same_stop at 2 → closes index 1
-        flags.0[3] = true; // same_stop at 3 → closes index 0
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[1], 200); // nearest start closed first
-        assert_eq!(out.stop_ns[0], 300); // then the earlier start
-    }
-
-    // ---- Group E: File-end closure -------------------------------------------
-
-    #[test]
-    fn file_end_closes_within_threshold() {
-        let app_codes = [1, 2];
-        let timestamps = [0i64, 100];
-        let resumed = [true, false];
-        let flags = base_flags(2);
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: 1_000,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], 100);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn file_end_missing_when_exceeds_threshold() {
-        let app_codes = [1, 2];
-        let timestamps = [0i64, 2_000];
-        let resumed = [true, false];
-        let flags = base_flags(2);
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: 1_000,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], -1);
-        assert!(out.missing[0]);
-    }
-
-    #[test]
-    fn file_end_exactly_threshold_is_valid() {
-        // duration == threshold → is_valid_duration (≤ threshold) → closed
-        let app_codes = [1, 2];
-        let timestamps = [0i64, 1_000];
-        let resumed = [true, false];
-        let flags = base_flags(2);
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: 1_000,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], 1_000);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn file_end_skipped_when_start_is_last_event() {
-        // Start is the only/last event → last_index == start_index → missing
-        let app_codes = [42];
-        let timestamps = [0i64];
-        let resumed = [true];
-        let flags = base_flags(1);
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.start_ns[0], 0);
-        assert_eq!(out.stop_ns[0], -1);
-        assert!(out.missing[0]);
-    }
-
-    #[test]
-    fn file_end_multiple_starts_mixed_outcome() {
-        // start at 0 → close at file-end (within threshold)
-        // start at 1 → last event; missing
-        let app_codes = [1, 2];
-        let timestamps = [0i64, 100];
-        let resumed = [true, true];
-        let flags = base_flags(2);
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // index 0: file-end at 100, within threshold → closed
-        assert_eq!(out.stop_ns[0], 100);
-        assert!(!out.missing[0]);
-        // index 1: is the last event → missing
-        assert_eq!(out.stop_ns[1], -1);
-        assert!(out.missing[1]);
-    }
-
-    #[test]
-    fn file_end_uses_last_timestamp_exactly() {
-        let app_codes = [1, 9, 9];
-        let timestamps = [0i64, 50, 999];
-        let resumed = [true, false, false];
-        let flags = base_flags(3);
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], 999);
-    }
-
-    // ---- Group F: MatchOptions combinations ----------------------------------
-
-    #[test]
-    fn opts_all_false_fallback_ignored() {
-        // All bool opts false, stopped=T → nothing matched by fallback, file-end closes
-        let app_codes = [3, 3];
-        let timestamps = [0i64, 100];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.2[1] = true; // stopped
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // fallback disabled; file-end closes at 100
-        assert_eq!(out.stop_ns[0], 100);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn opts_reuse_only_enabled() {
-        // only allow_stop_event_reuse=T, same_stop=T → multi-close
-        let app_codes = [2, 2, 2];
-        let timestamps = [0i64, 50, 200];
-        let resumed = [true, true, false];
-        let mut flags = base_flags(3);
-        flags.0[2] = true; // same_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: true,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], 200);
-        assert_eq!(out.stop_ns[1], 200);
-    }
-
-    #[test]
-    fn opts_fallback_no_threshold() {
-        // fallback=T, threshold_apply=F, long duration → closes
-        let app_codes = [8, 8];
-        let long_ts = 50 * 60 * 60 * 1_000_000_000i64;
-        let timestamps = [0i64, long_ts];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.2[1] = true; // stopped
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], long_ts);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn opts_fallback_with_threshold() {
-        // fallback=T, threshold_apply=T, long duration → missing
-        let app_codes = [8, 8];
-        let long_ts = 50 * 60 * 60 * 1_000_000_000i64;
-        let timestamps = [0i64, long_ts];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.2[1] = true; // stopped
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: true,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], -1);
-        assert!(out.missing[0]);
-    }
-
-    #[test]
-    fn opts_zero_threshold_blocks_fallback() {
-        // threshold=0, any positive duration fallback → missing
-        let app_codes = [5, 5];
-        let timestamps = [0i64, 1]; // duration=1 > 0
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.2[1] = true; // stopped
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: true,
-                long_duration_threshold_ns: 0,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], -1);
-        assert!(out.missing[0]);
-    }
-
-    #[test]
-    fn opts_large_threshold_never_blocks() {
-        // threshold=i64::MAX/2, fallback → closes regardless of duration
-        let app_codes = [5, 5];
-        let long_ts = 99 * 60 * 60 * 1_000_000_000i64;
-        let timestamps = [0i64, long_ts];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.2[1] = true; // stopped
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: true,
-                long_duration_threshold_ns: i64::MAX / 2,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], long_ts);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn opts_normal_stop_closes_when_within_threshold() {
-        // same_stop closes the session as long as duration is within the threshold
-        let app_codes = [1, 1];
-        let timestamps = [0i64, 500]; // small duration, within threshold=1000
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.0[1] = true; // same_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: true,
-                long_duration_threshold_ns: 1_000,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], 500);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn opts_no_fallback_stopped_event_noop() {
-        // use_fallback=F, stopped=T → ignored; file-end closes
-        let app_codes = [2, 2];
-        let timestamps = [0i64, 500];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.2[1] = true; // stopped, but fallback disabled
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: true,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], 500);
-        assert!(!out.missing[0]);
-    }
-
-    // ---- Group G: MatchUpdateIndices correctness ----------------------------
-
-    #[test]
-    fn update_indices_start_indices_match_resumed_positions() {
-        let app_codes = [1, 2, 3, 1];
-        let timestamps = [0i64, 100, 200, 300];
-        let resumed = [true, false, true, false];
-        let flags = base_flags(4);
-
-        let updates = run_update_indices(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        let mut start_indices = updates.start_indices.clone();
-        start_indices.sort_unstable();
-        assert_eq!(start_indices, vec![0, 2]);
-    }
-
-    #[test]
-    fn update_indices_stop_pairs_same_length() {
-        let app_codes = [1, 1, 2, 2];
-        let timestamps = [0i64, 50, 100, 150];
-        let resumed = [true, false, true, false];
-        let same_stop = [false, true, false, true];
-        let flags = base_flags(4);
-
-        let updates = run_update_indices(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &same_stop,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(
-            updates.stop_start_indices.len(),
-            updates.stop_event_indices.len()
-        );
-    }
-
-    #[test]
-    fn update_indices_no_index_in_both_missing_and_stopped() {
-        let app_codes = [1, 2, 1];
-        let timestamps = [0i64, 100, 200];
-        let resumed = [true, false, false];
-        let flags = base_flags(3);
-
-        let updates = run_update_indices(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // An index cannot appear in both missing_indices and stop_start_indices
-        for mi in &updates.missing_indices {
-            assert!(
-                !updates.stop_start_indices.contains(mi),
-                "index {} in both missing and stopped",
-                mi
-            );
-        }
-    }
-
-    #[test]
-    fn update_indices_file_end_closure_marks_missing() {
-        // Single start, no stop → file-end tries to close; if exceeds threshold → missing
-        let app_codes = [42];
-        let timestamps = [0i64];
-        let resumed = [true];
-        let flags = base_flags(1);
-
-        let updates = run_update_indices(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert!(updates.missing_indices.contains(&0));
-        assert!(!updates.stop_start_indices.contains(&0));
-    }
-
-    #[test]
-    fn update_indices_sparse_dense_consistent_same_stop() {
-        let app_codes = [1, 1, 2, 2];
-        let timestamps = [0i64, 100, 200, 400];
-        let resumed = [true, false, true, false];
-        let same_stop = [false, true, false, true];
-        let flags = base_flags(4);
-        let options = MatchOptions {
-            allow_stop_event_reuse: false,
-            use_activity_stopped_as_fallback: false,
-            apply_threshold_to_fallback: false,
-            long_duration_threshold_ns: THRESHOLD_12H,
-        };
-
-        let dense = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &same_stop,
-            &flags.1,
-            &flags.2,
+    // ── background-app tests ────────────────────────────────────────────────
+
+    fn run_bg(
+        app_codes: &[i32],
+        timestamp_ns: &[i64],
+        resumed: &[bool],
+        same_stop: &[bool],
+        other_stop: &[bool],
+        stopped: &[bool],
+        background: &[bool],
+        options: MatchOptions,
+    ) -> MatchOutput {
+        match_app_usage_core(
+            app_codes,
+            timestamp_ns,
+            resumed,
+            same_stop,
+            other_stop,
+            stopped,
+            background,
             options,
-        );
-        let sparse = run_update_indices(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &same_stop,
-            &flags.1,
-            &flags.2,
-            options,
-        );
-
-        assert_eq!(
-            reconstruct_sparse_output(app_codes.len(), &timestamps, sparse),
-            dense
-        );
+        )
+        .expect("core matcher should succeed")
     }
 
-    #[test]
-    fn update_indices_sparse_dense_consistent_other_stop() {
-        let app_codes = [1, 2, 1, 2];
-        let timestamps = [0i64, 100, 200, 350];
-        let resumed = [true, true, false, false];
-        let other_stop = [false, false, true, true];
-        let flags = base_flags(4);
-        let options = MatchOptions {
-            allow_stop_event_reuse: false,
-            use_activity_stopped_as_fallback: false,
-            apply_threshold_to_fallback: false,
-            long_duration_threshold_ns: THRESHOLD_12H,
-        };
-
-        let dense = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &other_stop,
-            &flags.2,
+    fn run_update_indices_bg(
+        app_codes: &[i32],
+        timestamp_ns: &[i64],
+        resumed: &[bool],
+        same_stop: &[bool],
+        other_stop: &[bool],
+        stopped: &[bool],
+        background: &[bool],
+        options: MatchOptions,
+    ) -> MatchUpdateIndices {
+        match_app_usage_update_indices_core(
+            app_codes,
+            timestamp_ns,
+            resumed,
+            same_stop,
+            other_stop,
+            stopped,
+            background,
             options,
-        );
-        let sparse = run_update_indices(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &other_stop,
-            &flags.2,
-            options,
-        );
-
-        assert_eq!(
-            reconstruct_sparse_output(app_codes.len(), &timestamps, sparse),
-            dense
-        );
+        )
+        .expect("sparse matcher should succeed")
     }
 
-    #[test]
-    fn update_indices_sparse_dense_consistent_fallback() {
-        let app_codes = [3, 3, 4];
-        let timestamps = [0i64, 200, 500];
-        let resumed = [true, false, false];
-        let stopped = [false, true, false];
-        let flags = base_flags(3);
-        let options = MatchOptions {
+    fn background_options() -> MatchOptions {
+        MatchOptions {
             allow_stop_event_reuse: false,
             use_activity_stopped_as_fallback: true,
-            apply_threshold_to_fallback: false,
-            long_duration_threshold_ns: THRESHOLD_12H,
-        };
+            apply_threshold_to_fallback: true,
+            long_duration_threshold_ns: 24 * 60 * 60 * 1_000_000_000,
+        }
+    }
 
-        let dense = run(
+    #[test]
+    fn background_app_survives_other_stop_and_closes_on_same_stop() {
+        // index 0: background app S (code 1) resumes at t=0
+        // index 1: app N (code 2) resumes at t=100 with an other-stop that would
+        //          normally close S
+        // index 2: S's (caller-remapped) Activity Stopped arrives as a same-app
+        //          stop at t=300
+        let app_codes = [1, 2, 1];
+        let timestamps = [0, 100, 300];
+        let resumed = [true, true, false];
+        let same_stop = [false, false, true];
+        let other_stop = [false, true, false];
+        let stopped = [false, false, false];
+        let background = [true, false, true];
+        let options = background_options();
+
+        let output = run_bg(
             &app_codes,
             &timestamps,
             &resumed,
-            &flags.0,
-            &flags.1,
+            &same_stop,
+            &other_stop,
             &stopped,
+            &background,
             options,
         );
-        let sparse = run_update_indices(
+        // S survived N's other-stop (stop=300, not 100); N runs to file end (300).
+        assert_eq!(output.start_ns, vec![0, 100, -1]);
+        assert_eq!(output.stop_ns, vec![300, 300, -1]);
+        assert_eq!(output.missing, vec![false, false, false]);
+
+        // Sparse path agrees with dense.
+        let sparse = run_update_indices_bg(
             &app_codes,
             &timestamps,
             &resumed,
-            &flags.0,
-            &flags.1,
+            &same_stop,
+            &other_stop,
             &stopped,
+            &background,
             options,
         );
-
         assert_eq!(
             reconstruct_sparse_output(app_codes.len(), &timestamps, sparse),
-            dense
+            output
         );
     }
 
     #[test]
-    fn update_indices_empty_input() {
-        let updates = run_update_indices(
-            &[],
-            &[],
-            &[],
-            &[],
-            &[],
-            &[],
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert!(updates.start_indices.is_empty());
-        assert!(updates.stop_start_indices.is_empty());
-        assert!(updates.stop_event_indices.is_empty());
-        assert!(updates.missing_indices.is_empty());
-    }
-
-    // ---- Group H: Error/validation tests ------------------------------------
-
-    #[test]
-    fn error_mismatched_lengths_app_codes() {
-        let result = match_app_usage_core(
-            &[1, 2, 3],   // length 3
-            &[0i64, 100], // length 2
-            &[true, false],
-            &[false, false],
-            &[false, false],
-            &[false, false],
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn error_mismatched_lengths_timestamps() {
-        let result = match_app_usage_core(
-            &[1, 2],
-            &[0i64, 100, 200], // length 3 vs 2
-            &[true, false],
-            &[false, false],
-            &[false, false],
-            &[false, false],
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn error_negative_app_code_update_indices() {
-        // SparseOpenStarts may reject negative app codes
-        let result = match_app_usage_update_indices_core(
-            &[-1, 2],
-            &[0i64, 100],
-            &[true, false],
-            &[false, true],
-            &[false, false],
-            &[false, false],
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn ok_zero_app_code_accepted() {
-        let result = match_app_usage_core(
-            &[0, 0],
-            &[0i64, 100],
-            &[true, false],
-            &[false, true],
-            &[false, false],
-            &[false, false],
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn empty_input_returns_empty_output_core() {
-        let out = run(
-            &[],
-            &[],
-            &[],
-            &[],
-            &[],
-            &[],
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert!(out.start_ns.is_empty());
-        assert!(out.stop_ns.is_empty());
-        assert!(out.missing.is_empty());
-    }
-
-    #[test]
-    fn empty_input_returns_empty_output_indices() {
-        let updates = run_update_indices(
-            &[],
-            &[],
-            &[],
-            &[],
-            &[],
-            &[],
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert!(updates.start_indices.is_empty());
-        assert!(updates.stop_start_indices.is_empty());
-        assert!(updates.stop_event_indices.is_empty());
-        assert!(updates.missing_indices.is_empty());
-    }
-
-    // ---- Group I: Complex multi-app scenarios --------------------------------
-
-    #[test]
-    fn two_apps_sequential_sessions() {
-        // [1,1,2,2]: start1→stop1, start2→stop2
-        let app_codes = [1, 1, 2, 2];
-        let timestamps = [0i64, 100, 200, 300];
-        let resumed = [true, false, true, false];
-        let mut flags = base_flags(4);
-        flags.0[1] = true; // same_stop
-        flags.0[3] = true; // same_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.start_ns[0], 0);
-        assert_eq!(out.stop_ns[0], 100);
-        assert_eq!(out.start_ns[2], 200);
-        assert_eq!(out.stop_ns[2], 300);
-        assert!(!out.missing[0]);
-        assert!(!out.missing[2]);
-    }
-
-    #[test]
-    fn three_apps_interleaved() {
-        // 6 events, three apps alternating, each has one start and one stop
-        let app_codes = [1, 2, 3, 1, 2, 3];
-        let timestamps = [0i64, 50, 100, 200, 250, 300];
-        let resumed = [true, true, true, false, false, false];
-        let other_stop = [false, false, false, true, true, true];
-        let flags = base_flags(6);
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &other_stop,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // Each start should be closed
-        assert_ne!(out.stop_ns[0], -1);
-        assert_ne!(out.stop_ns[1], -1);
-        assert_ne!(out.stop_ns[2], -1);
-        assert!(!out.missing[0]);
-        assert!(!out.missing[1]);
-        assert!(!out.missing[2]);
-    }
-
-    #[test]
-    fn app_starts_without_stop_then_same_app_starts_again() {
-        // app=[1,1], resumed=[T,T], no stop → both open, file-end closes both
-        let app_codes = [1, 1];
-        let timestamps = [0i64, 100];
-        let resumed = [true, true];
-        let flags = base_flags(2);
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // Both open; index 1 is the last event → missing; index 0 gets file-end at 100
-        assert_eq!(out.start_ns[0], 0);
-        assert_eq!(out.start_ns[1], 100);
-        assert_eq!(out.stop_ns[0], 100);
-        assert!(out.missing[1]);
-    }
-
-    #[test]
-    fn stop_event_with_no_compatible_open_start_noop() {
-        // Stop event arrives when no open starts exist
-        let app_codes = [5, 5];
-        let timestamps = [0i64, 100];
-        let resumed = [false, false];
-        let mut flags = base_flags(2);
-        flags.0[1] = true; // same_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.start_ns, vec![-1, -1]);
-        assert_eq!(out.stop_ns, vec![-1, -1]);
-        assert_eq!(out.missing, vec![false, false]);
-    }
-
-    #[test]
-    fn same_and_other_stop_true_any_app_mode() {
-        // Both same_stop and other_stop true at same event → AnyApp mode
-        let app_codes = [1, 2, 5];
-        let timestamps = [0i64, 100, 200];
-        let resumed = [true, true, false];
-        let mut flags = base_flags(3);
-        flags.0[2] = true; // same_stop
-        flags.1[2] = true; // other_stop → AnyApp
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // At least the nearest start is closed; in AnyApp mode with reuse=false, nearest closed
-        assert_ne!(out.stop_ns[1], -1);
-    }
-
-    #[test]
-    fn resumed_and_stopped_same_event() {
-        // resumed=T AND stopped=T at index 0: stop runs first (nothing to stop),
-        // then start opens; index 1 (same_stop) closes it
-        let app_codes = [2, 2];
-        let timestamps = [0i64, 100];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.2[0] = true; // stopped at index 0 (same event as start)
-        flags.0[1] = true; // same_stop at index 1
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.start_ns[0], 0);
-        assert_eq!(out.stop_ns[0], 100);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn interleaved_apps_with_reuse_closes_correct_sets() {
-        // app=[1,2,1,2], reuse=T
-        // same_stop events close all app=1; other_stop events close all app≠current
-        let app_codes = [1, 2, 1, 2];
-        let timestamps = [0i64, 50, 100, 200];
-        let resumed = [true, true, false, false];
-        let same_stop = [false, false, true, false]; // at 2 (app=1) → closes 0 (app=1) with reuse
-        let other_stop = [false, false, false, true]; // at 3 (app=2) → closes 0 if still open (app=1 ≠ 2)
-        let flags = base_flags(4);
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &same_stop,
-            &other_stop,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: true,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_ne!(out.stop_ns[0], -1);
-        assert_ne!(out.stop_ns[1], -1);
-    }
-
-    #[test]
-    fn same_stop_blocked_by_threshold_unlike_no_threshold_fallback() {
-        // Confirm: same_stop IS blocked when duration exceeds threshold.
-        // The distinction is: fallback blocking is controlled by apply_threshold_to_fallback,
-        // but normal stops (same_stop/other_stop) always enforce long_duration_threshold_ns.
-        let app_codes = [7, 7];
-        let long_ts = 100 * 60 * 60 * 1_000_000_000i64; // 100h >> threshold=1
-        let timestamps = [0i64, long_ts];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.0[1] = true; // same_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: true,
-                apply_threshold_to_fallback: true,
-                long_duration_threshold_ns: 1, // tiny threshold blocks same_stop too
-            },
-        );
-
-        // same_stop duration > threshold → not closed → file-end also blocked → missing
-        assert_eq!(out.stop_ns[0], -1);
-        assert!(out.missing[0]);
-    }
-
-    #[test]
-    fn five_sessions_each_paired() {
-        // 10 events, 5 app=N starts each matched by same_stop
-        let app_codes = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5];
-        let timestamps = [0i64, 10, 20, 30, 40, 100, 110, 120, 130, 140];
-        let resumed = [
-            true, true, true, true, true, false, false, false, false, false,
-        ];
-        let same_stop = [
-            false, false, false, false, false, true, true, true, true, true,
-        ];
-        let flags = base_flags(10);
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &same_stop,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        for i in 0..5 {
-            assert_ne!(out.start_ns[i], -1, "start at {i} should be set");
-            assert_ne!(out.stop_ns[i], -1, "stop at {i} should be set");
-            assert!(!out.missing[i], "start at {i} should not be missing");
-        }
-    }
-
-    #[test]
-    fn stop_event_same_index_as_start_no_self_close() {
-        // resumed=T and same_stop=T at index 0; stop runs first (nothing open), then start opens
-        let app_codes = [1, 1];
-        let timestamps = [0i64, 100];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.0[0] = true; // same_stop at 0 (same event as start)
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // index 0 is a start (stop at 0 had nothing to close)
-        assert_eq!(out.start_ns[0], 0);
-        // file-end closes at 100
-        assert_eq!(out.stop_ns[0], 100);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn sequential_apps_different_thresholds_mixed_outcome() {
-        // Two starts: one gets file-end within threshold, one exceeds threshold
-        let app_codes = [1, 2, 3];
-        // index 0 starts at 0; index 1 starts at 100; last event at 500
-        // threshold=200 → index 0 duration=500>200 → missing; index 1 duration=400>200 → missing
-        // Use a large threshold so only distance-from-file-end matters
-        let timestamps = [0i64, 490, 500];
-        let resumed = [true, true, false];
-        let flags = base_flags(3);
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: 100, // threshold=100ns
-            },
-        );
-
-        // index 0: duration to file-end = 500 > 100 → missing
-        assert!(out.missing[0]);
-        // index 1: duration to file-end = 10 < 100 → closed
-        assert_eq!(out.stop_ns[1], 500);
-        assert!(!out.missing[1]);
-    }
-
-    #[test]
-    fn nested_sessions_same_app_with_reuse() {
-        // app=[1,1,1,1,1], three starts then one same_stop with reuse → all three closed
-        let app_codes = [1, 1, 1, 1, 1];
-        let timestamps = [0i64, 50, 100, 200, 300];
-        let resumed = [true, true, true, false, false];
-        let mut flags = base_flags(5);
-        flags.0[3] = true; // same_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: true,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.stop_ns[0], 200);
-        assert_eq!(out.stop_ns[1], 200);
-        assert_eq!(out.stop_ns[2], 200);
-        assert!(!out.missing[0]);
-        assert!(!out.missing[1]);
-        assert!(!out.missing[2]);
-    }
-
-    // ---- Group J: Sentinel value integrity ----------------------------------
-
-    #[test]
-    fn non_started_events_have_sentinel_start() {
+    fn non_background_app_is_closed_by_other_stop() {
+        // Same events, but S is not a background app: N's other-stop closes it at 100.
         let app_codes = [1, 2, 1];
-        let timestamps = [0i64, 100, 200];
-        let resumed = [true, false, false]; // only index 0 is a start
-        let flags = base_flags(3);
+        let timestamps = [0, 100, 300];
+        let resumed = [true, true, false];
+        let same_stop = [false, false, true];
+        let other_stop = [false, true, false];
+        let stopped = [false, false, false];
+        let background = [false, false, false];
+        let options = background_options();
 
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert_eq!(out.start_ns[1], -1);
-        assert_eq!(out.start_ns[2], -1);
-    }
-
-    #[test]
-    fn non_stopped_events_have_sentinel_stop() {
-        // index 1 and 2 are not starts and are not stop targets
-        let app_codes = [1, 9, 8];
-        let timestamps = [0i64, 100, 200];
-        let resumed = [true, false, false];
-        let flags = base_flags(3);
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        // indices 1 and 2 are not starts → stop_ns = -1
-        assert_eq!(out.stop_ns[1], -1);
-        assert_eq!(out.stop_ns[2], -1);
-    }
-
-    #[test]
-    fn missing_flag_false_for_non_started() {
-        let app_codes = [1, 9, 9];
-        let timestamps = [0i64, 100, 200];
-        let resumed = [true, false, false];
-        let flags = base_flags(3);
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        assert!(!out.missing[1]);
-        assert!(!out.missing[2]);
-    }
-
-    #[test]
-    fn start_ns_values_are_exact_input_timestamps() {
-        let app_codes = [1, 2, 1, 2];
-        let timestamps = [10i64, 20, 30, 40];
-        let resumed = [true, true, false, false];
-        let flags = base_flags(4);
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
-
-        for (i, &sn) in out.start_ns.iter().enumerate() {
-            if sn != -1 {
-                assert!(
-                    timestamps.contains(&sn),
-                    "start_ns[{i}]={sn} not in input timestamps"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn stop_ns_values_are_exact_input_timestamps() {
-        let app_codes = [1, 1, 2, 2];
-        let timestamps = [0i64, 100, 200, 300];
-        let resumed = [true, false, true, false];
-        let same_stop = [false, true, false, true];
-        let flags = base_flags(4);
-
-        let out = run(
+        let output = run_bg(
             &app_codes,
             &timestamps,
             &resumed,
             &same_stop,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
+            &other_stop,
+            &stopped,
+            &background,
+            options,
         );
+        assert_eq!(output.start_ns, vec![0, 100, -1]);
+        assert_eq!(output.stop_ns, vec![100, 300, -1]);
 
-        for (i, &sn) in out.stop_ns.iter().enumerate() {
-            if sn != -1 {
-                assert!(
-                    timestamps.contains(&sn),
-                    "stop_ns[{i}]={sn} not in input timestamps"
-                );
-            }
-        }
-    }
-
-    // ---- Group K: Additional edge cases -------------------------------------
-
-    #[test]
-    fn single_event_resumed_only_is_missing() {
-        let app_codes = [1];
-        let timestamps = [0i64];
-        let resumed = [true];
-        let flags = base_flags(1);
-
-        let out = run(
+        let sparse = run_update_indices_bg(
             &app_codes,
             &timestamps,
             &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
+            options,
         );
-
-        assert_eq!(out.start_ns[0], 0);
-        assert_eq!(out.stop_ns[0], -1);
-        assert!(out.missing[0]);
+        assert_eq!(
+            reconstruct_sparse_output(app_codes.len(), &timestamps, sparse),
+            output
+        );
     }
 
     #[test]
-    fn single_event_no_flags_no_session() {
-        let app_codes = [7];
-        let timestamps = [42i64];
-        let resumed = [false];
-        let flags = base_flags(1);
+    fn background_only_protects_against_other_stop_with_reuse() {
+        // With stop-event reuse on, a foreground app N's other-stop still must not
+        // close the background app S, while a non-background app B (code 3) is
+        // closed by it.
+        let app_codes = [1, 3, 2];
+        let timestamps = [0, 50, 100];
+        let resumed = [true, true, false];
+        let same_stop = [false, false, false];
+        let other_stop = [false, false, true];
+        let stopped = [false, false, false];
+        let background = [true, false, false];
+        let options = MatchOptions {
+            allow_stop_event_reuse: true,
+            ..background_options()
+        };
 
-        let out = run(
+        let output = run_bg(
             &app_codes,
             &timestamps,
             &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
+            options,
         );
+        // index 2 (app 2) other-stop closes B (code 3) but not S (code 1, background).
+        // S stays open -> file-end closure at last timestamp (100).
+        assert_eq!(output.start_ns, vec![0, 50, -1]);
+        assert_eq!(output.stop_ns, vec![100, 100, -1]);
 
-        assert_eq!(out.start_ns[0], -1);
-        assert_eq!(out.stop_ns[0], -1);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn two_events_no_stop_first_within_threshold() {
-        // resumed[0]=T, no stop, timestamps=[0,100], threshold=1000 → file-end closes at 100
-        let app_codes = [3, 9];
-        let timestamps = [0i64, 100];
-        let resumed = [true, false];
-        let flags = base_flags(2);
-
-        let out = run(
+        let sparse = run_update_indices_bg(
             &app_codes,
             &timestamps,
             &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: 1_000,
-            },
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
+            options,
         );
-
-        assert_eq!(out.start_ns[0], 0);
-        assert_eq!(out.stop_ns[0], 100);
-        assert!(!out.missing[0]);
-    }
-
-    #[test]
-    fn timestamps_all_zero_valid() {
-        // All timestamps are 0, duration=0 → valid (non-negative)
-        let app_codes = [1, 1];
-        let timestamps = [0i64, 0];
-        let resumed = [true, false];
-        let mut flags = base_flags(2);
-        flags.0[1] = true; // same_stop
-
-        let out = run(
-            &app_codes,
-            &timestamps,
-            &resumed,
-            &flags.0,
-            &flags.1,
-            &flags.2,
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
+        assert_eq!(
+            reconstruct_sparse_output(app_codes.len(), &timestamps, sparse),
+            output
         );
-
-        assert_eq!(out.start_ns[0], 0);
-        assert_eq!(out.stop_ns[0], 0);
-        assert!(!out.missing[0]);
     }
 
-    #[test]
-    fn large_app_code_value_accepted() {
-        let result = match_app_usage_core(
-            &[10_000, 10_000],
-            &[0i64, 100],
-            &[true, false],
-            &[false, true],
-            &[false, false],
-            &[false, false],
-            MatchOptions {
-                allow_stop_event_reuse: false,
-                use_activity_stopped_as_fallback: false,
-                apply_threshold_to_fallback: false,
-                long_duration_threshold_ns: THRESHOLD_12H,
-            },
-        );
+    // ── split_overlapping_sessions tests ────────────────────────────────────
 
-        assert!(result.is_ok());
-        let out = result.unwrap();
-        assert_eq!(out.stop_ns[0], 100);
+    fn split(starts: &[i64], stops: &[i64]) -> Vec<LayeredSession> {
+        split_overlapping_sessions(starts, stops).expect("split should succeed")
     }
 
-    // -----------------------------------------------------------------------
-    // proptest-based property tests
-    // -----------------------------------------------------------------------
+    /// The original O(N^2) boundary-rescan implementation, kept verbatim as the
+    /// byte-for-byte reference oracle for the sweep-line rewrite. The fuzz test
+    /// below proves the optimized `split_overlapping_sessions` matches this on
+    /// thousands of random inputs plus edge cases — a self-contained gate that does
+    /// not depend on the Python mirror or the WASM/PyO3 build (which can silently
+    /// skip). Do NOT "optimize" this; its only job is to be obviously correct.
+    fn reference_split(starts: &[i64], stops: &[i64]) -> Vec<LayeredSession> {
+        let mut boundaries: Vec<i64> = Vec::with_capacity(starts.len() * 2);
+        boundaries.extend_from_slice(starts);
+        boundaries.extend_from_slice(stops);
+        boundaries.sort_unstable();
+        boundaries.dedup();
 
-    use proptest::prelude::*;
-
-    /// Build correlated input vecs all of the same length.
-    /// Timestamps are monotonically non-decreasing (each delta is 0..600 ns).
-    fn arb_input(
-        max_len: usize,
-    ) -> impl Strategy<
-        Value = (
-            Vec<i32>,
-            Vec<i64>,
-            Vec<bool>,
-            Vec<bool>,
-            Vec<bool>,
-            Vec<bool>,
-        ),
-    > {
-        (0usize..=max_len).prop_flat_map(|len| {
-            (
-                prop::collection::vec(0i32..7, len),
-                prop::collection::vec(0i64..600, len).prop_map(|deltas| {
-                    let mut acc = 0i64;
-                    deltas
-                        .into_iter()
-                        .map(|d| {
-                            acc += d;
-                            acc
-                        })
-                        .collect::<Vec<_>>()
-                }),
-                prop::collection::vec(proptest::bool::ANY, len),
-                prop::collection::vec(proptest::bool::ANY, len),
-                prop::collection::vec(proptest::bool::ANY, len),
-                prop::collection::vec(proptest::bool::ANY, len),
-            )
-        })
-    }
-
-    fn arb_options() -> impl Strategy<Value = MatchOptions> {
-        (
-            proptest::bool::ANY,
-            proptest::bool::ANY,
-            proptest::bool::ANY,
-            1i64..=10_000i64,
-        )
-            .prop_map(|(a, b, c, d)| MatchOptions {
-                allow_stop_event_reuse: a,
-                use_activity_stopped_as_fallback: b,
-                apply_threshold_to_fallback: c,
-                long_duration_threshold_ns: d,
-            })
-    }
-
-    proptest! {
-        // 1. Sparse and dense outputs are always equivalent.
-        #[test]
-        fn prop_sparse_dense_equivalence(
-            (app_codes, timestamps, resumed, same_stop, other_stop, stopped)
-                in arb_input(50),
-            options in arb_options(),
-        ) {
-            let dense = run(
-                &app_codes, &timestamps, &resumed, &same_stop, &other_stop,
-                &stopped, options,
-            );
-            let sparse = run_update_indices(
-                &app_codes, &timestamps, &resumed, &same_stop, &other_stop,
-                &stopped, options,
-            );
-            prop_assert_eq!(
-                reconstruct_sparse_output(app_codes.len(), &timestamps, sparse),
-                dense
-            );
-        }
-
-        // 2. Output length always equals input length.
-        #[test]
-        fn prop_output_length_equals_input_length(
-            (app_codes, timestamps, resumed, same_stop, other_stop, stopped)
-                in arb_input(50),
-            options in arb_options(),
-        ) {
-            let n = app_codes.len();
-            let out = run(
-                &app_codes, &timestamps, &resumed, &same_stop, &other_stop,
-                &stopped, options,
-            );
-            prop_assert_eq!(out.start_ns.len(), n);
-            prop_assert_eq!(out.stop_ns.len(), n);
-            prop_assert_eq!(out.missing.len(), n);
-        }
-
-        // 3. `missing[i]` is false whenever `start_ns[i] == -1`.
-        #[test]
-        fn prop_missing_only_set_when_start_is_set(
-            (app_codes, timestamps, resumed, same_stop, other_stop, stopped)
-                in arb_input(50),
-            options in arb_options(),
-        ) {
-            let out = run(
-                &app_codes, &timestamps, &resumed, &same_stop, &other_stop,
-                &stopped, options,
-            );
-            for i in 0..app_codes.len() {
-                if out.start_ns[i] == -1 {
-                    prop_assert!(!out.missing[i],
-                        "missing[{i}] set but start_ns[{i}] == -1");
+        let mut raw: Vec<LayeredSession> = Vec::new();
+        for window in boundaries.windows(2) {
+            let (t0, t1) = (window[0], window[1]);
+            if t1 <= t0 {
+                continue;
+            }
+            let mut open: Vec<usize> = Vec::new();
+            for i in 0..starts.len() {
+                if starts[i] <= t0 && stops[i] >= t1 {
+                    open.push(i);
                 }
             }
-        }
-
-        // 4. `missing[i]` true implies `stop_ns[i] == -1`.
-        #[test]
-        fn prop_missing_implies_no_stop(
-            (app_codes, timestamps, resumed, same_stop, other_stop, stopped)
-                in arb_input(50),
-            options in arb_options(),
-        ) {
-            let out = run(
-                &app_codes, &timestamps, &resumed, &same_stop, &other_stop,
-                &stopped, options,
-            );
-            for i in 0..app_codes.len() {
-                if out.missing[i] {
-                    prop_assert_eq!(out.stop_ns[i], -1,
-                        "missing[{}] is true but stop_ns[{}] != -1", i, i);
-                }
+            if open.is_empty() {
+                continue;
             }
-        }
-
-        // 5. A non-sentinel stop requires a non-sentinel start.
-        #[test]
-        fn prop_stop_requires_start(
-            (app_codes, timestamps, resumed, same_stop, other_stop, stopped)
-                in arb_input(50),
-            options in arb_options(),
-        ) {
-            let out = run(
-                &app_codes, &timestamps, &resumed, &same_stop, &other_stop,
-                &stopped, options,
-            );
-            for i in 0..app_codes.len() {
-                if out.stop_ns[i] != -1 {
-                    prop_assert_ne!(out.start_ns[i], -1,
-                        "stop_ns[{}] is set but start_ns[{}] == -1", i, i);
-                }
-            }
-        }
-
-        // 6. When a stop is recorded, it is >= the start.
-        #[test]
-        fn prop_start_before_or_equal_stop(
-            (app_codes, timestamps, resumed, same_stop, other_stop, stopped)
-                in arb_input(50),
-            options in arb_options(),
-        ) {
-            let out = run(
-                &app_codes, &timestamps, &resumed, &same_stop, &other_stop,
-                &stopped, options,
-            );
-            for i in 0..app_codes.len() {
-                if out.stop_ns[i] != -1 {
-                    prop_assert!(out.stop_ns[i] >= out.start_ns[i],
-                        "stop_ns[{i}]={} < start_ns[{i}]={}", out.stop_ns[i], out.start_ns[i]);
-                }
-            }
-        }
-
-        // 7. Sorted (monotone) timestamps never cause a panic.
-        #[test]
-        fn prop_sorted_timestamps_dont_panic(
-            (app_codes, timestamps, resumed, same_stop, other_stop, stopped)
-                in arb_input(50),
-            options in arb_options(),
-        ) {
-            // timestamps from arb_input are already monotone; just confirm no panic.
-            let _ = run(
-                &app_codes, &timestamps, &resumed, &same_stop, &other_stop,
-                &stopped, options,
-            );
-        }
-
-        // 8. Empty input produces empty output.
-        #[test]
-        fn prop_empty_input_produces_empty_output(options in arb_options()) {
-            let out = run(&[], &[], &[], &[], &[], &[], options);
-            prop_assert!(out.start_ns.is_empty());
-            prop_assert!(out.stop_ns.is_empty());
-            prop_assert!(out.missing.is_empty());
-        }
-
-        // 9. A single resumed event always produces start_ns[0] != -1,
-        //    and either stop_ns[0] == -1 or missing[0] is true (no partner row exists).
-        #[test]
-        fn prop_single_resumed_always_starts_session(
-            app_code in 0i32..7,
-            timestamp in 0i64..600,
-            options in arb_options(),
-        ) {
-            let out = run(
-                &[app_code],
-                &[timestamp],
-                &[true],   // resumed
-                &[false],  // same_stop
-                &[false],  // other_stop
-                &[false],  // stopped
-                options,
-            );
-            prop_assert_ne!(out.start_ns[0], -1,
-                "single resumed row must open a session");
-            // With no stop events the session cannot be closed.
-            prop_assert_eq!(out.stop_ns[0], -1);
-            prop_assert!(out.missing[0]);
-        }
-
-        // 10. When no event flags are set the matcher finds no sessions.
-        #[test]
-        fn prop_no_events_no_sessions(
-            (app_codes, timestamps, ..) in arb_input(50),
-            options in arb_options(),
-        ) {
-            let n = app_codes.len();
-            let all_false = vec![false; n];
-            let out = run(
-                &app_codes, &timestamps,
-                &all_false, &all_false, &all_false, &all_false,
-                options,
-            );
-            prop_assert!(out.start_ns.iter().all(|&v| v == -1));
-            prop_assert!(out.stop_ns.iter().all(|&v| v == -1));
-            prop_assert!(out.missing.iter().all(|&v| !v));
-        }
-
-        // 11. Sparse update indices never reference out-of-bounds positions.
-        #[test]
-        fn prop_sparse_indices_in_bounds(
-            (app_codes, timestamps, resumed, same_stop, other_stop, stopped)
-                in arb_input(50),
-            options in arb_options(),
-        ) {
-            let n = app_codes.len();
-            let sparse = run_update_indices(
-                &app_codes, &timestamps, &resumed, &same_stop, &other_stop,
-                &stopped, options,
-            );
-            for &i in &sparse.start_indices {
-                prop_assert!(i < n, "start_index {i} >= len {n}");
-            }
-            for &i in &sparse.stop_start_indices {
-                prop_assert!(i < n, "stop_start_index {i} >= len {n}");
-            }
-            for &i in &sparse.stop_event_indices {
-                prop_assert!(i < n, "stop_event_index {i} >= len {n}");
-            }
-            for &i in &sparse.missing_indices {
-                prop_assert!(i < n, "missing_index {i} >= len {n}");
-            }
-        }
-
-        // 12. Every session start recorded in the sparse output maps to a
-        //     resumed row (start_ns comes directly from timestamps[start_index]).
-        #[test]
-        fn prop_sparse_start_timestamps_match_input(
-            (app_codes, timestamps, resumed, same_stop, other_stop, stopped)
-                in arb_input(50),
-            options in arb_options(),
-        ) {
-            let sparse = run_update_indices(
-                &app_codes, &timestamps, &resumed, &same_stop, &other_stop,
-                &stopped, options,
-            );
-            for &i in &sparse.start_indices {
-                prop_assert_eq!(
-                    timestamps[i], timestamps[i],   // trivially; real check below
-                    "invariant placeholder"
-                );
-                // The reconstructed dense output records timestamps[i] as start.
-                let dense = reconstruct_sparse_output(app_codes.len(), &timestamps, {
-                    run_update_indices(
-                        &app_codes, &timestamps, &resumed, &same_stop,
-                        &other_stop, &stopped, options,
-                    )
+            let primary = *open
+                .iter()
+                .max_by(|&&a, &&b| starts[a].cmp(&starts[b]).then(a.cmp(&b)))
+                .expect("open is non-empty");
+            for &i in &open {
+                raw.push(LayeredSession {
+                    session_index: i,
+                    start_ns: t0,
+                    stop_ns: t1,
+                    layer: if i == primary {
+                        UsageLayer::Primary
+                    } else {
+                        UsageLayer::Secondary
+                    },
                 });
-                prop_assert_eq!(dense.start_ns[i], timestamps[i]);
             }
         }
 
-        // 13. All start timestamps in the output are present in the input
-        //     timestamp slice (no invented values).
-        #[test]
-        fn prop_start_ns_values_are_input_timestamps(
-            (app_codes, timestamps, resumed, same_stop, other_stop, stopped)
-                in arb_input(50),
-            options in arb_options(),
-        ) {
-            let out = run(
-                &app_codes, &timestamps, &resumed, &same_stop, &other_stop,
-                &stopped, options,
-            );
-            for v in &out.start_ns {
-                if *v != -1 {
-                    prop_assert!(timestamps.contains(v),
-                        "start_ns value {v} not found in input timestamps");
+        raw.sort_by(|a, b| {
+            a.session_index
+                .cmp(&b.session_index)
+                .then(a.start_ns.cmp(&b.start_ns))
+        });
+        let mut out: Vec<LayeredSession> = Vec::with_capacity(raw.len());
+        for row in raw {
+            if let Some(last) = out.last_mut() {
+                if last.session_index == row.session_index
+                    && last.layer == row.layer
+                    && last.stop_ns == row.start_ns
+                {
+                    last.stop_ns = row.stop_ns;
+                    continue;
                 }
             }
+            out.push(row);
+        }
+        let present: std::collections::HashSet<usize> =
+            out.iter().map(|r| r.session_index).collect();
+        for i in 0..starts.len() {
+            if !present.contains(&i) {
+                out.push(LayeredSession {
+                    session_index: i,
+                    start_ns: starts[i],
+                    stop_ns: stops[i],
+                    layer: UsageLayer::Primary,
+                });
+            }
+        }
+        out.sort_by(|a, b| {
+            a.session_index
+                .cmp(&b.session_index)
+                .then(a.start_ns.cmp(&b.start_ns))
+        });
+        out
+    }
+
+    #[test]
+    fn sweep_line_matches_reference_fuzz() {
+        // Deterministic LCG (no rand dependency) — vary by index so the corpus is
+        // reproducible. Small value ranges densely produce the cases that matter:
+        // coincident timestamps across sessions, fully nested, adjacent-touching
+        // (stop == next start), duplicate boundaries, zero-width (stop == start),
+        // empty (n == 0) and single-session inputs.
+        let mut state: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut next = || {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (state >> 33) as i64
+        };
+        for _ in 0..20_000 {
+            let n = next().rem_euclid(14) as usize; // 0..=13 (includes empty + single)
+            let mut starts = Vec::with_capacity(n);
+            let mut stops = Vec::with_capacity(n);
+            for _ in 0..n {
+                let s = next().rem_euclid(40);
+                let d = next().rem_euclid(40); // d == 0 => zero-width session
+                starts.push(s);
+                stops.push(s + d);
+            }
+            let got = split_overlapping_sessions(&starts, &stops).expect("ok");
+            let want = reference_split(&starts, &stops);
+            assert_eq!(got, want, "mismatch starts={starts:?} stops={stops:?}");
         }
 
-        // 14. All stop timestamps in the output are present in the input
-        //     timestamp slice (no invented values).
-        #[test]
-        fn prop_stop_ns_values_are_input_timestamps(
-            (app_codes, timestamps, resumed, same_stop, other_stop, stopped)
-                in arb_input(50),
-            options in arb_options(),
-        ) {
-            let out = run(
-                &app_codes, &timestamps, &resumed, &same_stop, &other_stop,
-                &stopped, options,
+        // Explicit edges (in addition to the random corpus above).
+        let edges: &[(Vec<i64>, Vec<i64>)] = &[
+            (vec![], vec![]),                  // empty
+            (vec![5], vec![5]),                // single zero-width
+            (vec![0], vec![10]),               // single
+            (vec![0, 0], vec![10, 10]),        // coincident identical
+            (vec![0, 0, 0], vec![10, 10, 10]), // triple coincident
+            (vec![0, 40], vec![100, 60]),      // fully nested
+            (vec![0, 10], vec![10, 20]),       // adjacent-touching (stop == next start)
+            (vec![0, 5, 10], vec![5, 5, 15]),  // zero-width nested in a run
+            (vec![10, 0, 5], vec![20, 30, 5]), // unsorted input with zero-width
+        ];
+        for (starts, stops) in edges {
+            assert_eq!(
+                split_overlapping_sessions(starts, stops).expect("ok"),
+                reference_split(starts, stops),
+                "edge mismatch starts={starts:?} stops={stops:?}",
             );
-            for v in &out.stop_ns {
-                if *v != -1 {
-                    prop_assert!(timestamps.contains(v),
-                        "stop_ns value {v} not found in input timestamps");
-                }
-            }
         }
+    }
+
+    #[test]
+    fn no_overlap_yields_one_primary_row_each() {
+        let out = split(&[0, 100], &[50, 150]);
+        assert_eq!(
+            out,
+            vec![
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 0,
+                    stop_ns: 50,
+                    layer: UsageLayer::Primary
+                },
+                LayeredSession {
+                    session_index: 1,
+                    start_ns: 100,
+                    stop_ns: 150,
+                    layer: UsageLayer::Primary
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn enclosed_session_makes_outer_secondary_during_overlap() {
+        // A: [0,100]  B: [40,60]  -> A primary [0,40), B primary [40,60), A secondary [40,60), A primary [60,100)
+        let out = split(&[0, 40], &[100, 60]);
+        assert_eq!(
+            out,
+            vec![
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 0,
+                    stop_ns: 40,
+                    layer: UsageLayer::Primary
+                },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 40,
+                    stop_ns: 60,
+                    layer: UsageLayer::Secondary
+                },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 60,
+                    stop_ns: 100,
+                    layer: UsageLayer::Primary
+                },
+                LayeredSession {
+                    session_index: 1,
+                    start_ns: 40,
+                    stop_ns: 60,
+                    layer: UsageLayer::Primary
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn partial_overlap_splits_both() {
+        // A: [0,60]  B: [40,100]
+        let out = split(&[0, 40], &[60, 100]);
+        assert_eq!(
+            out,
+            vec![
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 0,
+                    stop_ns: 40,
+                    layer: UsageLayer::Primary
+                },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 40,
+                    stop_ns: 60,
+                    layer: UsageLayer::Secondary
+                },
+                LayeredSession {
+                    session_index: 1,
+                    start_ns: 40,
+                    stop_ns: 100,
+                    layer: UsageLayer::Primary
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn identical_start_resolves_by_input_order() {
+        // A and B both [0,100]; later input index wins primary.
+        let out = split(&[0, 0], &[100, 100]);
+        assert_eq!(
+            out,
+            vec![
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 0,
+                    stop_ns: 100,
+                    layer: UsageLayer::Secondary
+                },
+                LayeredSession {
+                    session_index: 1,
+                    start_ns: 0,
+                    stop_ns: 100,
+                    layer: UsageLayer::Primary
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_mismatched_lengths() {
+        assert!(split_overlapping_sessions(&[0], &[1, 2]).is_err());
+    }
+
+    #[test]
+    fn adjacent_same_layer_intervals_are_coalesced() {
+        // A:[0,40], B:[10,20], C:[20,30]
+        // Sub-intervals: [0,10) A only -> A primary; [10,20) A+B open, B starts later -> B primary, A secondary;
+        // [20,30) A+C open, C starts later -> C primary, A secondary; [30,40) A only -> A primary.
+        // After coalesce, A's two adjacent secondary windows [10,20) and [20,30) merge into [10,30).
+        let out = split(&[0, 10, 20], &[40, 20, 30]);
+        let a_secondary: Vec<_> = out
+            .iter()
+            .filter(|r| r.session_index == 0 && r.layer == UsageLayer::Secondary)
+            .collect();
+        assert_eq!(
+            a_secondary.len(),
+            1,
+            "two adjacent secondary intervals should coalesce to one"
+        );
+        assert_eq!(a_secondary[0].start_ns, 10);
+        assert_eq!(a_secondary[0].stop_ns, 30);
+    }
+
+    #[test]
+    fn empty_input_returns_empty() {
+        assert_eq!(split(&[], &[]), Vec::<LayeredSession>::new());
+    }
+
+    #[test]
+    fn inverted_bounds_rejected() {
+        assert!(split_overlapping_sessions(&[10], &[5]).is_err());
+    }
+
+    #[test]
+    fn three_way_coincident_highest_index_wins_primary() {
+        // Three identical intervals: greatest index (2) must be primary; 0 and 1 secondary.
+        let out = split(&[0, 0, 0], &[100, 100, 100]);
+        assert_eq!(
+            out,
+            vec![
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 0,
+                    stop_ns: 100,
+                    layer: UsageLayer::Secondary
+                },
+                LayeredSession {
+                    session_index: 1,
+                    start_ns: 0,
+                    stop_ns: 100,
+                    layer: UsageLayer::Secondary
+                },
+                LayeredSession {
+                    session_index: 2,
+                    start_ns: 0,
+                    stop_ns: 100,
+                    layer: UsageLayer::Primary
+                },
+            ]
+        );
     }
 }

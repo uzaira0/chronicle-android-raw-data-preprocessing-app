@@ -97,9 +97,17 @@ class ScreenUsagePreprocessor(BasePreprocessor):
 
     def preprocess(self, df: pl.DataFrame) -> pl.DataFrame:
         rows_in = len(df)
-        LOGGER.debug("Starting %s", self.__class__.__name__, extra={"row_count": rows_in, "file": getattr(self, "_current_file", None)})
+        LOGGER.debug(
+            "Starting %s",
+            self.__class__.__name__,
+            extra={"row_count": rows_in, "file": getattr(self, "_current_file", None)},
+        )
         result = self.derive_screen_usage_sessions(df)
-        LOGGER.debug("Completed %s", self.__class__.__name__, extra={"rows_in": rows_in, "rows_out": len(result)})
+        LOGGER.debug(
+            "Completed %s",
+            self.__class__.__name__,
+            extra={"rows_in": rows_in, "rows_out": len(result)},
+        )
         return result
 
     def derive_screen_usage_sessions(self, df: pl.DataFrame) -> pl.DataFrame:
@@ -110,7 +118,10 @@ class ScreenUsagePreprocessor(BasePreprocessor):
         required_columns = {Column.EVENT_TIMESTAMP, Column.INTERACTION_TYPE}
         missing_columns = required_columns - set(df_copy.columns)
         if missing_columns:
-            raise ValueError("Cannot derive screen usage sessions because required columns are missing: " + ", ".join(sorted(missing_columns)))
+            raise ValueError(
+                "Cannot derive screen usage sessions because required columns are missing: "
+                + ", ".join(sorted(missing_columns))
+            )
 
         interaction_values = df_copy.get_column(Column.INTERACTION_TYPE).cast(pl.String).to_list()
         if not any(value in self.SCREEN_START_EVENTS for value in interaction_values):
@@ -120,7 +131,8 @@ class ScreenUsagePreprocessor(BasePreprocessor):
         keyguard_shown_timestamps = sorted(
             row[Column.EVENT_TIMESTAMP]
             for row in rows
-            if str(row[Column.INTERACTION_TYPE]) in self.LOCK_SCREEN_EVENTS and row.get(Column.EVENT_TIMESTAMP) is not None
+            if str(row[Column.INTERACTION_TYPE]) in self.LOCK_SCREEN_EVENTS
+            and row.get(Column.EVENT_TIMESTAMP) is not None
         )
 
         sessions: list[dict[str, Any]] = []
@@ -154,7 +166,9 @@ class ScreenUsagePreprocessor(BasePreprocessor):
                 state.foreground_app_package = package_name
             if interaction_type in self.MEANINGFUL_ACTIVITY_EVENTS:
                 state.last_meaningful_activity_timestamp = timestamp
-                state.last_meaningful_activity_package = package_name or state.foreground_app_package
+                state.last_meaningful_activity_package = (
+                    package_name or state.foreground_app_package
+                )
 
             if interaction_type in self.SCREEN_STOP_EVENTS:
                 sessions.append(
@@ -184,7 +198,9 @@ class ScreenUsagePreprocessor(BasePreprocessor):
         if not sessions:
             return df_copy
 
-        session_df = pl.DataFrame(sessions)
+        # Scan every session dict for schema inference: fields like username are
+        # None in early sessions and str later, which breaks default inference.
+        session_df = pl.DataFrame(sessions, infer_schema_length=None)
         shared_columns = [column for column in session_df.columns if column in df_copy.columns]
         if shared_columns:
             source_casts: list[pl.Expr] = []
@@ -195,11 +211,17 @@ class ScreenUsagePreprocessor(BasePreprocessor):
                 if source_dtype == session_dtype:
                     continue
                 if source_dtype == pl.Null and session_dtype != pl.Null:
-                    source_casts.append(pl.col(column).cast(session_dtype, strict=False).alias(column))
+                    source_casts.append(
+                        pl.col(column).cast(session_dtype, strict=False).alias(column)
+                    )
                 elif session_dtype == pl.Null and source_dtype != pl.Null:
-                    session_casts.append(pl.col(column).cast(source_dtype, strict=False).alias(column))
+                    session_casts.append(
+                        pl.col(column).cast(source_dtype, strict=False).alias(column)
+                    )
                 else:
-                    session_casts.append(pl.col(column).cast(source_dtype, strict=False).alias(column))
+                    session_casts.append(
+                        pl.col(column).cast(source_dtype, strict=False).alias(column)
+                    )
             if source_casts:
                 df_copy = df_copy.with_columns(source_casts)
             if session_casts:
@@ -258,9 +280,13 @@ class ScreenUsagePreprocessor(BasePreprocessor):
         session_row[Column.SCREEN_USAGE_END_REASON] = end_reason.reason
         session_row[Column.SCREEN_USAGE_END_REASON_CONFIDENCE] = end_reason.confidence
         session_row[Column.SCREEN_USAGE_STOP_EVENT_TYPE] = stop_event_type
-        session_row[Column.SCREEN_USAGE_LAST_ACTIVITY_TIMESTAMP] = state.last_meaningful_activity_timestamp
+        session_row[Column.SCREEN_USAGE_LAST_ACTIVITY_TIMESTAMP] = (
+            state.last_meaningful_activity_timestamp
+        )
         session_row[Column.SCREEN_USAGE_TAIL_GAP_SECONDS] = end_reason.tail_gap_seconds
-        session_row[Column.SCREEN_USAGE_APPS_FORCING_SCREEN_OPEN_LABEL] = end_reason.apps_forcing_screen_open_label
+        session_row[Column.SCREEN_USAGE_APPS_FORCING_SCREEN_OPEN_LABEL] = (
+            end_reason.apps_forcing_screen_open_label
+        )
         session_row[Column.SCREEN_USAGE_LOCK_SCREEN_ONLY] = end_reason.lock_screen_only
         if state.start_timezone is not None:
             session_row[Column.TIMEZONE] = state.start_timezone
@@ -285,18 +311,29 @@ class ScreenUsagePreprocessor(BasePreprocessor):
 
         tail_gap_seconds = None
         if state.last_meaningful_activity_timestamp is not None:
-            tail_gap_seconds = (stop_timestamp - state.last_meaningful_activity_timestamp).total_seconds()
+            tail_gap_seconds = (
+                stop_timestamp - state.last_meaningful_activity_timestamp
+            ).total_seconds()
 
         apps_forcing_screen_open_label = ""
         last_package = state.last_meaningful_activity_package or state.foreground_app_package
         if last_package:
-            apps_forcing_screen_open_label = self.options.apps_forcing_screen_open_dict.get(last_package, "")
+            apps_forcing_screen_open_label = self.options.apps_forcing_screen_open_dict.get(
+                last_package, ""
+            )
 
-        if state.lock_screen_seen and not state.unlocked_seen and state.foreground_app_package is None:
+        if (
+            state.lock_screen_seen
+            and not state.unlocked_seen
+            and state.foreground_app_package is None
+        ):
             return _EndReason(ScreenUsageEndReason.LOCK_SCREEN_ONLY, 0.95, None, "", True)
 
         if tail_gap_seconds is not None:
-            if apps_forcing_screen_open_label and tail_gap_seconds > self.options.screen_usage_auto_lock_timeout_seconds:
+            if (
+                apps_forcing_screen_open_label
+                and tail_gap_seconds > self.options.screen_usage_auto_lock_timeout_seconds
+            ):
                 return _EndReason(
                     ScreenUsageEndReason.APP_KEPT_AWAKE_OR_EXTENDED,
                     0.9,
@@ -330,7 +367,11 @@ class ScreenUsagePreprocessor(BasePreprocessor):
             for candidate_index in (index - 1, index):
                 if 0 <= candidate_index < len(keyguard_shown_timestamps):
                     if (
-                        abs((keyguard_shown_timestamps[candidate_index] - stop_timestamp).total_seconds())
+                        abs(
+                            (
+                                keyguard_shown_timestamps[candidate_index] - stop_timestamp
+                            ).total_seconds()
+                        )
                         <= self.options.screen_usage_keyguard_near_stop_seconds
                     ):
                         near_stop = True
@@ -353,7 +394,9 @@ class ScreenUsagePreprocessor(BasePreprocessor):
                 False,
             )
 
-        return _EndReason(ScreenUsageEndReason.UNKNOWN, 0.25, None, apps_forcing_screen_open_label, False)
+        return _EndReason(
+            ScreenUsageEndReason.UNKNOWN, 0.25, None, apps_forcing_screen_open_label, False
+        )
 
     @staticmethod
     def _clean_package_name(value: Any) -> str | None:

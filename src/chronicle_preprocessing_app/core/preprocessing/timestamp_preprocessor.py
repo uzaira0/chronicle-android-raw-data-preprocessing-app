@@ -26,9 +26,17 @@ class TimestampPreprocessor(BasePreprocessor):
 
     def preprocess(self, df: pl.DataFrame) -> pl.DataFrame:
         rows_in = len(df)
-        LOGGER.debug("Starting %s", self.__class__.__name__, extra={"row_count": rows_in, "file": getattr(self, "_current_file", None)})
+        LOGGER.debug(
+            "Starting %s",
+            self.__class__.__name__,
+            extra={"row_count": rows_in, "file": getattr(self, "_current_file", None)},
+        )
         result = self.correct_timestamps(df)
-        LOGGER.debug("Completed %s", self.__class__.__name__, extra={"rows_in": rows_in, "rows_out": len(result)})
+        LOGGER.debug(
+            "Completed %s",
+            self.__class__.__name__,
+            extra={"rows_in": rows_in, "rows_out": len(result)},
+        )
         return result
 
     @staticmethod
@@ -72,10 +80,26 @@ class TimestampPreprocessor(BasePreprocessor):
             .alias(clean_col),
         )
         timestamp_text = pl.col(clean_col)
-        has_explicit_timezone = df.select(timestamp_text.str.contains(r"(Z|[+-]\d{2}:\d{2})$").fill_null(False).any()).item()
+        has_explicit_timezone = df.select(
+            timestamp_text.str.contains(r"(Z|[+-]\d{2}:\d{2})$").fill_null(False).any()
+        ).item()
+        # Fractional-second (%.f) variants come FIRST: Chronicle timestamps carry
+        # millisecond precision, and silently nulling them (strict=False with a
+        # whole-second-only format) destroys sub-second event ordering. Whole-second
+        # strings fail the %.f formats and fall through unchanged.
         timestamp_expr = (
             pl.coalesce(
                 [
+                    timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
+                        format="%Y-%m-%dT%H:%M:%S%.f%#z",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
+                        format="%Y-%m-%d %H:%M:%S%.f%#z",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
                     timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
                         format="%Y-%m-%dT%H:%M:%S%#z",
                         time_zone="UTC",
@@ -102,6 +126,16 @@ class TimestampPreprocessor(BasePreprocessor):
             else pl.coalesce(
                 [
                     timestamp_text.str.to_datetime(
+                        format="%Y-%m-%d %H:%M:%S%.f",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.to_datetime(
+                        format="%Y-%m-%dT%H:%M:%S%.f",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.to_datetime(
                         format="%Y-%m-%d %H:%M:%S",
                         time_zone="UTC",
                         strict=False,
@@ -118,7 +152,12 @@ class TimestampPreprocessor(BasePreprocessor):
         invalid_column_name = f"{column_name}_invalid_original"
         invalid_mask = pl.col(column_name).is_null() & pl.col(clean_col).is_not_null()
         if df.select(invalid_mask.any()).item():
-            df = df.with_columns(pl.when(invalid_mask).then(pl.col(original_col)).otherwise(pl.lit(None)).alias(invalid_column_name))
+            df = df.with_columns(
+                pl.when(invalid_mask)
+                .then(pl.col(original_col))
+                .otherwise(pl.lit(None))
+                .alias(invalid_column_name)
+            )
         return df.drop(original_col, clean_col)
 
     def unalign_duplicate_timestamps(
@@ -136,7 +175,11 @@ class TimestampPreprocessor(BasePreprocessor):
     ) -> None:
         if start_column not in df.columns or stop_column not in df.columns:
             return
-        disordered = df.filter(pl.col(start_column).is_not_null() & pl.col(stop_column).is_not_null() & (pl.col(start_column) > pl.col(stop_column)))
+        disordered = df.filter(
+            pl.col(start_column).is_not_null()
+            & pl.col(stop_column).is_not_null()
+            & (pl.col(start_column) > pl.col(stop_column))
+        )
         if not disordered.is_empty():
             raise ValueError("Disordered timestamps detected")
 

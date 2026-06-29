@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -28,6 +28,7 @@ from chronicle_preprocessing_app.config.constants import (
     Column,
     InteractionType,
     TimezoneHandlingOption,
+    UsageLayer,
 )
 from chronicle_preprocessing_app.config.defaults import (
     DEFAULT_LONG_DATA_TIME_GAP_THRESHOLDS,
@@ -35,6 +36,9 @@ from chronicle_preprocessing_app.config.defaults import (
 )
 from chronicle_preprocessing_app.config.version import __version__
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
+from chronicle_preprocessing_app.core.preprocessing.study_date_provider import (
+    StudyDateRangeProvider,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -70,6 +74,61 @@ _CODEBOOK_COLUMN_RENAME_MAP: dict[str, str] = {
 }
 _CODEBOOK_OUTPUT_COLUMNS: tuple[str, ...] = tuple(_CODEBOOK_COLUMN_RENAME_MAP.values())
 
+# Normalized broad-app-category derivation. MUST stay byte-identical to the web
+# `deriveBroadAppCategory` / `BROAD_CATEGORY_ALIASES` in
+# web/src/lib/browserPipeline.ts so the optional `broad_app_category` output
+# column (include_category_column) matches across surfaces under the parity
+# harness. The palette is the CATEGORY_COLORS keys (minus "Unknown") from
+# web/src/lib/plotGenerator.ts.
+_BROAD_CATEGORY_PALETTE: tuple[str, ...] = (
+    "Games",
+    "Video Players (e.g. YouTube)",
+    "Social & Communication",
+    "Entertainment",
+    "Lifestyle",
+    "Productivity & Business",
+    "Health",
+    "Education",
+    "Travel & Local",
+    "News & Magazines",
+    "Photography",
+    "Uncategorised",
+)
+_BROAD_CATEGORY_ALIASES: dict[str, str] = {
+    # babyemu_broad_app_category (UPPERCASE enum)
+    "GAMING": "Games",
+    "SOCIAL": "Social & Communication",
+    "COMMUNICATION": "Social & Communication",
+    "VIDEO": "Video Players (e.g. YouTube)",
+    "LIFESTYLE_MANAGEMENT": "Lifestyle",
+    "PRODUCTIVITY_AND_BUSINESS": "Productivity & Business",
+    "ARTS_AND_LEISURE": "Entertainment",
+    "KNOWLEDGE_AND_INFORMATION": "Education",
+    "UTILITIES": "Productivity & Business",
+    # non-app buckets from bcm_cnrc_heuristic_category / usc_broad_app_category
+    "System/OEM": "Uncategorised",
+    "Other": "Uncategorised",
+}
+# A stripped value maps to itself if already a palette category, else via the
+# aliases, else to null (unmapped → skipped during coalescing).
+_BROAD_CATEGORY_NORMALIZE_MAP: dict[str, str] = {
+    **{value: value for value in _BROAD_CATEGORY_PALETTE},
+    **_BROAD_CATEGORY_ALIASES,
+}
+_BROAD_CATEGORY_UNCATEGORISED = "Uncategorised"
+_BROAD_CATEGORY_UNKNOWN = "Unknown"
+
+_PLACEHOLDER_APP_PACKAGE_NAME = "com.placeholder.noactivity"
+_PLACEHOLDER_APP_LABEL = "No Activity"
+# Candidate source columns in the web's coalesce order (play_store → usc →
+# babyemu → bcm).
+_BROAD_CATEGORY_SOURCE_COLUMNS: tuple[str, ...] = (
+    Column.PLAY_STORE_BROAD_APP_CATEGORY,
+    Column.USC_BROAD_APP_CATEGORY,
+    Column.BABYEMU_BROAD_APP_CATEGORY,
+    Column.BCM_CNRC_HEURISTIC_CATEGORY,
+)
+
 
 def polars_fast_path_enabled() -> bool:
     """Return whether the Polars-native fast path should be used."""
@@ -91,15 +150,15 @@ def supports_polars_fast_path(
     options: PreprocessingOptions,
     *,
     survey_data_processor_available: bool,
-    study_date_provider_available: bool,
+    study_date_provider_available: bool = False,
 ) -> bool:
     """Return whether the standard preprocessing request can stay Polars-native."""
+    _ = study_date_provider_available
     return (
         polars_fast_path_enabled()
         and options.process_app_usage_sessions
         and not options.process_screen_usage_sessions
         and not survey_data_processor_available
-        and not study_date_provider_available
     )
 
 
@@ -111,12 +170,18 @@ class PolarsFastPathPreprocessor:
         options: PreprocessingOptions,
         *,
         app_codebook: pl.DataFrame | None = None,
+        study_date_provider: StudyDateRangeProvider | None = None,
     ) -> None:
         self.options = options
         self.app_codebook = app_codebook
+        self.study_date_provider = study_date_provider or StudyDateRangeProvider(
+            study_date_map=self.options.study_date_map
+        )
 
     def _get_datetime_of_preprocessing(self) -> str:
-        return self.options.datetime_of_preprocessing_override or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return self.options.datetime_of_preprocessing_override or datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
 
     def preprocess_raw_data_file(self, raw_data_file: Path | str) -> PolarsFastPathResult:
         df = self._read_raw_csv(Path(raw_data_file))
@@ -139,7 +204,10 @@ class PolarsFastPathPreprocessor:
         df = self._add_app_usage_detail_columns(df)
         df = self._mark_app_usage_flags(df)
         df = self._remove_selected_interaction_types(df)
-        return PolarsFastPathResult(participant_id=participant_id, data=df, pre_algo_event_timestamps=pre_algo_ts)
+        df = self._add_missing_study_date_placeholder_rows(df, participant_id)
+        return PolarsFastPathResult(
+            participant_id=participant_id, data=df, pre_algo_event_timestamps=pre_algo_ts
+        )
 
     def save_preprocessed_output(
         self,
@@ -150,7 +218,9 @@ class PolarsFastPathPreprocessor:
         study_name: str,
         pre_algo_event_timestamps: pl.Series | None = None,
     ) -> Path:
-        preprocessed_data_save_folder = Path(output_folder) / f"{study_name + ' ' + PREPROCESSED_FOLDER_SUFFIX}"
+        preprocessed_data_save_folder = (
+            Path(output_folder) / f"{study_name + ' ' + PREPROCESSED_FOLDER_SUFFIX}"
+        )
         preprocessed_data_save_folder.mkdir(parents=True, exist_ok=True)
         stem = Path(raw_data_filename).stem.replace("Raw ", "")
         save_name = preprocessed_data_save_folder / f"{stem} {PREPROCESSED_FILE_SUFFIX}"
@@ -163,7 +233,9 @@ class PolarsFastPathPreprocessor:
 
         if pre_algo_event_timestamps is not None and len(pre_algo_event_timestamps) > 0:
             sidecar_path = save_name.with_name(save_name.stem + GAP_TIMESTAMPS_SIDECAR_SUFFIX)
-            pl.DataFrame({Column.EVENT_TIMESTAMP: pre_algo_event_timestamps}).write_parquet(sidecar_path)
+            pl.DataFrame({Column.EVENT_TIMESTAMP: pre_algo_event_timestamps}).write_parquet(
+                sidecar_path
+            )
 
         return preprocessed_data_save_folder
 
@@ -171,7 +243,9 @@ class PolarsFastPathPreprocessor:
         df = pl.read_csv(raw_data_file, infer_schema_length=10000)
         string_columns = [column for column, dtype in df.schema.items() if dtype == pl.String]
         if string_columns:
-            df = df.with_columns([pl.col(column).cast(pl.String).str.strip_chars() for column in string_columns])
+            df = df.with_columns(
+                [pl.col(column).cast(pl.String).str.strip_chars() for column in string_columns]
+            )
         return df
 
     def _get_participant_id(self, df: pl.DataFrame) -> str:
@@ -182,7 +256,11 @@ class PolarsFastPathPreprocessor:
     def _correct_username_column(self, df: pl.DataFrame) -> pl.DataFrame:
         if Column.USERNAME not in df.columns:
             return df
-        return df.with_columns(pl.col(Column.USERNAME).replace("Target child", TARGET_CHILD_USERNAME).alias(Column.USERNAME))
+        return df.with_columns(
+            pl.col(Column.USERNAME)
+            .replace("Target child", TARGET_CHILD_USERNAME)
+            .alias(Column.USERNAME)
+        )
 
     def _rename_interaction_types(self, df: pl.DataFrame) -> pl.DataFrame:
         return df.with_columns(
@@ -201,16 +279,53 @@ class PolarsFastPathPreprocessor:
         timestamp_text = pl.col(timestamp_col).cast(pl.String)
 
         df = df.with_columns(pl.col(timestamp_col).alias(original_col))
-        has_explicit_timezone = df.select(timestamp_text.str.contains(r"(Z|[+-]\d{2}:\d{2})$").fill_null(False).any()).item()
+        has_explicit_timezone = df.select(
+            timestamp_text.str.contains(r"(Z|[+-]\d{2}:\d{2})$").fill_null(False).any()
+        ).item()
+        # Fractional-second (%.f) variants come FIRST: Chronicle timestamps carry
+        # millisecond precision, and silently nulling them (strict=False with a
+        # whole-second-only format) destroys sub-second event ordering — duplicate-
+        # timestamp correction then segments real sessions to ~0 (e.g. a tablet's
+        # background→foreground pair 18 ms apart). Whole-second strings fail the
+        # %.f formats and fall through to the original formats unchanged.
         timestamp_expr = (
-            timestamp_text.str.to_datetime(
-                format="%Y-%m-%d %H:%M:%S",
-                time_zone="UTC",
-                strict=False,
+            pl.coalesce(
+                [
+                    timestamp_text.str.to_datetime(
+                        format="%Y-%m-%d %H:%M:%S%.f",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.to_datetime(
+                        format="%Y-%m-%dT%H:%M:%S%.f",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.to_datetime(
+                        format="%Y-%m-%d %H:%M:%S",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.to_datetime(
+                        format="%Y-%m-%dT%H:%M:%S",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                ]
             )
             if not has_explicit_timezone
             else pl.coalesce(
                 [
+                    timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
+                        format="%Y-%m-%dT%H:%M:%S%.f%#z",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
+                    timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
+                        format="%Y-%m-%d %H:%M:%S%.f%#z",
+                        time_zone="UTC",
+                        strict=False,
+                    ),
                     timestamp_text.str.replace(r"Z$", "+00:00").str.to_datetime(
                         format="%Y-%m-%dT%H:%M:%S%#z",
                         time_zone="UTC",
@@ -239,7 +354,12 @@ class PolarsFastPathPreprocessor:
         null_mask = pl.col(timestamp_col).is_null() & pl.col(original_col).is_not_null()
         if df.select(null_mask.any()).item():
             invalid_column_name = f"{timestamp_col}_invalid_original"
-            df = df.with_columns(pl.when(null_mask).then(pl.col(original_col)).otherwise(pl.lit(None)).alias(invalid_column_name))
+            df = df.with_columns(
+                pl.when(null_mask)
+                .then(pl.col(original_col))
+                .otherwise(pl.lit(None))
+                .alias(invalid_column_name)
+            )
 
         df = df.drop(original_col)
         df = self._apply_timezone_handling(df, timestamp_col)
@@ -251,7 +371,9 @@ class PolarsFastPathPreprocessor:
     def _determine_primary_timezone(self, df: pl.DataFrame) -> str:
         if Column.TIMEZONE in df.columns:
             timezone_values = (
-                df.filter(pl.col(Column.TIMEZONE).is_not_null() & (pl.col(Column.TIMEZONE) != "None"))
+                df.filter(
+                    pl.col(Column.TIMEZONE).is_not_null() & (pl.col(Column.TIMEZONE) != "None")
+                )
                 .group_by(Column.TIMEZONE)
                 .len()
                 .sort("len", descending=True)
@@ -265,18 +387,32 @@ class PolarsFastPathPreprocessor:
         target_timezone: str | None = None
 
         if option == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE:
-            target_timezone = str(self.options.selected_timezone) if self.options.selected_timezone else self._determine_primary_timezone(df)
+            target_timezone = (
+                str(self.options.selected_timezone)
+                if self.options.selected_timezone
+                else self._determine_primary_timezone(df)
+            )
             if self.options.selected_timezone is not None:
-                df = df.filter(pl.col(Column.TIMEZONE).is_not_null() & (pl.col(Column.TIMEZONE) == str(self.options.selected_timezone)))
+                df = df.filter(
+                    pl.col(Column.TIMEZONE).is_not_null()
+                    & (pl.col(Column.TIMEZONE) == str(self.options.selected_timezone))
+                )
         elif option == TimezoneHandlingOption.CONVERT_ALL_DATA_TO_SELECTED_TIMEZONE:
-            target_timezone = str(self.options.selected_timezone) if self.options.selected_timezone else self._determine_primary_timezone(df)
+            target_timezone = (
+                str(self.options.selected_timezone)
+                if self.options.selected_timezone
+                else self._determine_primary_timezone(df)
+            )
         elif option in (
             TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE,
             TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE,
         ):
             target_timezone = self._determine_primary_timezone(df)
             if option == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_PRIMARY_TIMEZONE_PER_FILE:
-                df = df.filter(pl.col(Column.TIMEZONE).is_not_null() & (pl.col(Column.TIMEZONE) == target_timezone))
+                df = df.filter(
+                    pl.col(Column.TIMEZONE).is_not_null()
+                    & (pl.col(Column.TIMEZONE) == target_timezone)
+                )
         else:
             raise ValueError(f"Invalid timezone option: {option}")
 
@@ -286,19 +422,27 @@ class PolarsFastPathPreprocessor:
         _ts_dtype = df.schema[timestamp_column]
         if target_timezone and isinstance(_ts_dtype, pl.Datetime):
             if _ts_dtype.time_zone is not None:
-                df = df.with_columns(pl.col(timestamp_column).dt.convert_time_zone(target_timezone).alias(timestamp_column))
+                df = df.with_columns(
+                    pl.col(timestamp_column)
+                    .dt.convert_time_zone(target_timezone)
+                    .alias(timestamp_column)
+                )
         if Column.TIMEZONE in df.columns:
             df = df.with_columns(pl.lit(target_timezone).alias(Column.TIMEZONE))
         return df
 
-    def _unalign_duplicate_timestamps(self, df: pl.DataFrame, timestamp_column: str) -> pl.DataFrame:
+    def _unalign_duplicate_timestamps(
+        self, df: pl.DataFrame, timestamp_column: str
+    ) -> pl.DataFrame:
         if df.get_column(timestamp_column).null_count() > 0:
             valid_df = df.filter(pl.col(timestamp_column).is_not_null())
             if valid_df.is_empty():
                 return df
             null_df = df.filter(pl.col(timestamp_column).is_null())
             adjusted_valid_df = self._unalign_duplicate_timestamps(valid_df, timestamp_column)
-            return pl.concat([adjusted_valid_df, null_df], how="diagonal_relaxed").sort(timestamp_column)
+            return pl.concat([adjusted_valid_df, null_df], how="diagonal_relaxed").sort(
+                timestamp_column
+            )
 
         timestamps_ns = df.get_column(timestamp_column).dt.epoch("ns").to_numpy()
         if len(timestamps_ns) <= 1:
@@ -316,7 +460,11 @@ class PolarsFastPathPreprocessor:
 
         interaction_types = df.get_column(Column.INTERACTION_TYPE).to_numpy()
         stop_usage_types = {
-            str(value) for value in (self.options.same_app_interaction_types_to_stop_usage_at | self.options.other_interaction_types_to_stop_usage_at)
+            str(value)
+            for value in (
+                self.options.same_app_interaction_types_to_stop_usage_at
+                | self.options.other_interaction_types_to_stop_usage_at
+            )
         }
         adjusted = timestamps_ns.copy()
         normalized_interaction_types = np.asarray(interaction_types, dtype=object)
@@ -341,7 +489,9 @@ class PolarsFastPathPreprocessor:
                 np.flatnonzero(timestamps_ns[1:] != timestamps_ns[:-1]).astype(np.intp) + 1,
             )
         )
-        group_ends = np.concatenate((group_starts[1:], np.array([len(timestamps_ns)], dtype=np.intp)))
+        group_ends = np.concatenate(
+            (group_starts[1:], np.array([len(timestamps_ns)], dtype=np.intp))
+        )
 
         for group_start, group_end in zip(group_starts, group_ends, strict=False):
             count = int(group_end - group_start)
@@ -363,8 +513,13 @@ class PolarsFastPathPreprocessor:
         )
         return df.sort(timestamp_column)
 
-    def _mark_data_time_gaps(self, df: pl.DataFrame, timestamp_column: str, gap_column: str) -> pl.DataFrame:
-        gap_expr = pl.col(timestamp_column).diff().dt.total_microseconds().cast(pl.Float64) / 3_600_000_000.0
+    def _mark_data_time_gaps(
+        self, df: pl.DataFrame, timestamp_column: str, gap_column: str
+    ) -> pl.DataFrame:
+        gap_expr = (
+            pl.col(timestamp_column).diff().dt.total_microseconds().cast(pl.Float64)
+            / 3_600_000_000.0
+        )
         return df.with_columns(gap_expr.round(2).fill_null(0.0).alias(gap_column))
 
     def _create_additional_columns(self, df: pl.DataFrame) -> pl.DataFrame:
@@ -373,7 +528,9 @@ class PolarsFastPathPreprocessor:
         return df.with_columns(
             [
                 pl.lit(__version__).alias(Column.PREPROCESSOR_VERSION),
-                pl.lit(self._get_datetime_of_preprocessing()).alias(Column.DATETIME_OF_PREPROCESSING),
+                pl.lit(self._get_datetime_of_preprocessing()).alias(
+                    Column.DATETIME_OF_PREPROCESSING
+                ),
                 pl.lit(device_model.value).alias(Column.POSSIBLE_DEVICE_MODEL),
                 pl.col(Column.EVENT_TIMESTAMP).dt.date().alias(Column.DATE),
                 ((weekday % 7) + 1).alias(Column.DAY),
@@ -387,7 +544,9 @@ class PolarsFastPathPreprocessor:
 
     def _get_possible_device_model(self, df: pl.DataFrame) -> ChronicleDeviceType:
         amazon_packages = list(AMAZON_APPS.keys())
-        has_amazon = df.select(pl.col(Column.APP_PACKAGE_NAME).str.contains("|".join(amazon_packages)).any()).item()
+        has_amazon = df.select(
+            pl.col(Column.APP_PACKAGE_NAME).str.contains("|".join(amazon_packages)).any()
+        ).item()
         return ChronicleDeviceType.AMAZON if has_amazon else ChronicleDeviceType.ANDROID
 
     def _label_filtered_apps(self, df: pl.DataFrame) -> pl.DataFrame:
@@ -411,15 +570,23 @@ class PolarsFastPathPreprocessor:
             return df
 
         lookup_df = pl.DataFrame(filter_rows).unique()
-        df = df.with_columns(pl.col(Column.APP_PACKAGE_NAME).is_in(package_names).alias("__filter_candidate")).join(
+        df = df.with_columns(
+            pl.col(Column.APP_PACKAGE_NAME).is_in(package_names).alias("__filter_candidate")
+        ).join(
             lookup_df,
             on=[Column.APP_PACKAGE_NAME, Column.APPLICATION_LABEL],
             how="left",
         )
 
-        mismatch_df = df.filter(pl.col("__filter_candidate") & pl.col("__valid_filter_match").is_null())
+        mismatch_df = df.filter(
+            pl.col("__filter_candidate") & pl.col("__valid_filter_match").is_null()
+        )
         if not mismatch_df.is_empty():
-            unexpected = mismatch_df.select([Column.APP_PACKAGE_NAME, Column.APPLICATION_LABEL]).unique().iter_rows()
+            unexpected = (
+                mismatch_df.select([Column.APP_PACKAGE_NAME, Column.APPLICATION_LABEL])
+                .unique()
+                .iter_rows()
+            )
             for package_name, app_label in unexpected:
                 LOGGER.warning(
                     "App label mismatch for package %s: found '%s'",
@@ -462,14 +629,32 @@ class PolarsFastPathPreprocessor:
         ).any():
             return df
 
+        # Phase 1: when model_concurrent_usage is on, another app resuming does
+        # not stop the prior session — empty the other-stop set, matching the
+        # valid-app path and the web/Rust surfaces (which empty it for the
+        # filtered path too).
+        if self.options.model_concurrent_usage:
+            other_stop_types: set[str] = set()
+        else:
+            other_stop_types = {
+                str(value)
+                for value in self.options.filtered_other_interaction_types_to_stop_usage_at
+            }
+
         df = self._process_usage_rows(
             df,
             resumed_type=str(InteractionType.FILTERED_APP_RESUMED),
             paused_type=str(InteractionType.FILTERED_APP_PAUSED),
             usage_type=str(InteractionType.FILTERED_APP_USAGE),
             stopped_type=str(InteractionType.FILTERED_APP_STOPPED),
-            same_stop_types={str(value) for value in self.options.filtered_same_app_interaction_types_to_stop_usage_at},
-            other_stop_types={str(value) for value in self.options.filtered_other_interaction_types_to_stop_usage_at},
+            same_stop_types={
+                str(value)
+                for value in self.options.filtered_same_app_interaction_types_to_stop_usage_at
+            },
+            other_stop_types=other_stop_types,
+            # Background apps are a valid-app concept; the filtered path never gets
+            # them. Its split policy is unchanged (filtered usage is never split).
+            concurrent=self.options.model_concurrent_usage,
         )
         return df
 
@@ -481,15 +666,126 @@ class PolarsFastPathPreprocessor:
         ).any():
             raise ValueError("No valid app usage data during the study period")
 
+        background_packages: set[str] = (
+            set(self.options.background_apps_dict)
+            if self.options.use_background_apps_file
+            else set()
+        )
+        # Background apps require the concurrent split to resolve their overlap
+        # with the foreground app. Enabling them implies the split without altering
+        # the other_stop policy for normal apps (which still clean-switch).
+        concurrent = self.options.model_concurrent_usage or bool(background_packages)
+
+        other_stop_types: set[str]
+        if self.options.model_concurrent_usage:
+            other_stop_types = set()
+        else:
+            other_stop_types = {
+                str(value) for value in self.options.other_interaction_types_to_stop_usage_at
+            }
+
         return self._process_usage_rows(
             df,
             resumed_type=str(InteractionType.ACTIVITY_RESUMED),
             paused_type=str(InteractionType.ACTIVITY_PAUSED),
             usage_type=str(InteractionType.APP_USAGE),
             stopped_type=str(InteractionType.ACTIVITY_STOPPED),
-            same_stop_types={str(value) for value in self.options.same_app_interaction_types_to_stop_usage_at},
-            other_stop_types={str(value) for value in self.options.other_interaction_types_to_stop_usage_at},
+            same_stop_types={
+                str(value) for value in self.options.same_app_interaction_types_to_stop_usage_at
+            },
+            other_stop_types=other_stop_types,
+            concurrent=concurrent,
+            background_packages=background_packages,
         )
+
+    @staticmethod
+    def _compute_layered_sessions(
+        starts_ns: list[int],
+        stops_ns: list[int],
+    ) -> tuple[list[int], list[int], list[int], list[str]]:
+        """Split overlapping sessions into layered sub-intervals (Rust-first).
+
+        Uses the compiled Rust ``split_overlapping_sessions_py`` (the same crate
+        the matcher uses) when the extension is available, and falls back to the
+        pure-Python mirror otherwise. Returns parallel lists
+        ``(session_index, start_ns, stop_ns, layer)`` ordered by
+        ``(session_index, start_ns)`` — identical on both paths (enforced by the
+        randomized parity test in tests/test_overlap_split.py).
+        """
+        try:
+            from chronicle_preprocessing_app import _rust_app_usage_matcher
+
+            split_fn = getattr(_rust_app_usage_matcher, "split_overlapping_sessions_py", None)
+            if split_fn is not None:
+                idx, start, stop, is_primary = split_fn(
+                    np.asarray(starts_ns, dtype=np.int64),
+                    np.asarray(stops_ns, dtype=np.int64),
+                )
+                return (
+                    [int(i) for i in idx],
+                    [int(s) for s in start],
+                    [int(s) for s in stop],
+                    ["primary" if p else "secondary" for p in is_primary],
+                )
+        except (ImportError, AttributeError):
+            pass
+
+        # Pure-Python fallback. Imported lazily because algorithms/__init__.py
+        # eagerly imports app_usage_details_optimizer -> polars_fast_path (this
+        # module), creating an import cycle at module-init time.
+        from chronicle_preprocessing_app.core.preprocessing.algorithms.overlap_split import (
+            split_overlapping_sessions,
+        )
+
+        rows = split_overlapping_sessions(list(starts_ns), list(stops_ns))
+        return (
+            [r.session_index for r in rows],
+            [r.start_ns for r in rows],
+            [r.stop_ns for r in rows],
+            [r.layer for r in rows],
+        )
+
+    def _apply_concurrent_usage_split(self, df: pl.DataFrame, usage_type: str) -> pl.DataFrame:
+        """Expand overlapping App-Usage rows into primary/secondary layer rows.
+
+        Non-usage rows pass through with usage_layer = null. Usage rows that
+        do not overlap any other usage row are emitted as a single
+        primary-layer row. Usage rows that overlap are split into one
+        sub-interval row per primary/secondary segment. All sub-interval rows
+        have new START/STOP timestamps and an assigned usage_layer.
+        """
+        usage_mask = df.get_column(Column.INTERACTION_TYPE) == usage_type
+        usage = df.filter(usage_mask).with_row_index("_session_index")
+        non_usage = df.filter(~usage_mask).with_columns(
+            pl.lit(None, dtype=pl.String).alias(Column.USAGE_LAYER)
+        )
+        if usage.height == 0:
+            return non_usage.drop("_session_index", strict=False)
+
+        starts = usage.get_column(Column.START_TIMESTAMP).dt.epoch("ns").to_list()
+        stops = usage.get_column(Column.STOP_TIMESTAMP).dt.epoch("ns").to_list()
+        session_idx, layer_starts, layer_stops, layers = self._compute_layered_sessions(
+            starts, stops
+        )
+
+        tz = df.schema[Column.EVENT_TIMESTAMP].time_zone or "UTC"
+        layered_df = pl.DataFrame(
+            {
+                "_session_index": pl.Series(session_idx, dtype=pl.UInt32),
+                Column.START_TIMESTAMP: pl.Series(layer_starts, dtype=pl.Int64)
+                .cast(pl.Datetime("ns", "UTC"))
+                .dt.convert_time_zone(tz),
+                Column.STOP_TIMESTAMP: pl.Series(layer_stops, dtype=pl.Int64)
+                .cast(pl.Datetime("ns", "UTC"))
+                .dt.convert_time_zone(tz),
+                Column.USAGE_LAYER: pl.Series(layers, dtype=pl.String),
+            }
+        )
+        expanded = usage.drop([Column.START_TIMESTAMP, Column.STOP_TIMESTAMP]).join(
+            layered_df, on="_session_index", how="right"
+        )
+        combined = pl.concat([expanded, non_usage], how="diagonal_relaxed")
+        return combined.drop("_session_index", strict=False)
 
     def _process_usage_rows(
         self,
@@ -501,23 +797,61 @@ class PolarsFastPathPreprocessor:
         stopped_type: str,
         same_stop_types: set[str],
         other_stop_types: set[str],
+        concurrent: bool = False,
+        background_packages: set[str] | None = None,
     ) -> pl.DataFrame:
         interactions = df.get_column(Column.INTERACTION_TYPE).to_numpy()
-        app_packages = df.get_column(Column.APP_PACKAGE_NAME).fill_null("").cast(pl.Categorical).to_physical().to_numpy()
-        timestamp_ns = df.get_column(Column.EVENT_TIMESTAMP).dt.epoch("ns").fill_null(_MISSING_INT64).to_numpy()
+        app_packages = (
+            df.get_column(Column.APP_PACKAGE_NAME)
+            .fill_null("")
+            .cast(pl.Categorical)
+            .to_physical()
+            .to_numpy()
+        )
+        timestamp_ns = (
+            df.get_column(Column.EVENT_TIMESTAMP)
+            .dt.epoch("ns")
+            .fill_null(_MISSING_INT64)
+            .to_numpy()
+        )
         valid_timestamp_flags = timestamp_ns != _MISSING_INT64
         resumed_flags = (interactions == resumed_type) & valid_timestamp_flags
         same_stop_flags = np.isin(interactions, list(same_stop_types)) & valid_timestamp_flags
         other_stop_flags = np.isin(interactions, list(other_stop_types)) & valid_timestamp_flags
         stopped_flags = (interactions == stopped_type) & valid_timestamp_flags
 
-        start_indices, stop_start_indices, stop_event_indices, missing_indices = self._match_usage_updates(
-            app_codes=np.ascontiguousarray(app_packages, dtype=np.int32),
-            timestamp_ns=np.ascontiguousarray(timestamp_ns, dtype=np.int64),
-            resumed_flags=np.ascontiguousarray(resumed_flags, dtype=bool),
-            same_stop_flags=np.ascontiguousarray(same_stop_flags, dtype=bool),
-            other_stop_flags=np.ascontiguousarray(other_stop_flags, dtype=bool),
-            stopped_flags=np.ascontiguousarray(stopped_flags, dtype=bool),
+        # Background-app flag remapping (mirrors web browserPipeline.buildMatcherInput).
+        # A background app stays alive across backgrounding (its pause must NOT
+        # close it) and across another app foregrounding (the matcher protects its
+        # open-start via background_flags). It closes only on:
+        #   - its own re-resume, which SEGMENTS the session (close the prior open
+        #     session, then open a new one — as a normal foreground app does).
+        #     Without this a multi-resume background app stacks overlapping open
+        #     sessions the splitter then layers against itself, multiplying its
+        #     counted time.
+        #   - its own Activity Stopped (the user-chosen bound).
+        # Its own other_stop events are left intact (foregrounding it still closes
+        # other apps).
+        if background_packages:
+            app_package_names = df.get_column(Column.APP_PACKAGE_NAME).fill_null("").to_numpy()
+            background_flags = np.isin(app_package_names, list(background_packages))
+        else:
+            background_flags = np.zeros(len(interactions), dtype=bool)
+        if background_flags.any():
+            bg_same_stop = (interactions == resumed_type) | (interactions == stopped_type)
+            same_stop_flags = np.where(background_flags, bg_same_stop, same_stop_flags)
+            stopped_flags = stopped_flags & ~background_flags
+
+        start_indices, stop_start_indices, stop_event_indices, missing_indices = (
+            self._match_usage_updates(
+                app_codes=np.ascontiguousarray(app_packages, dtype=np.int32),
+                timestamp_ns=np.ascontiguousarray(timestamp_ns, dtype=np.int64),
+                resumed_flags=np.ascontiguousarray(resumed_flags, dtype=bool),
+                same_stop_flags=np.ascontiguousarray(same_stop_flags, dtype=bool),
+                other_stop_flags=np.ascontiguousarray(other_stop_flags, dtype=bool),
+                stopped_flags=np.ascontiguousarray(stopped_flags, dtype=bool),
+                background_flags=np.ascontiguousarray(background_flags, dtype=bool),
+            )
         )
 
         row_count = len(df)
@@ -533,7 +867,9 @@ class PolarsFastPathPreprocessor:
             interaction_updates[missing_indices] = str(InteractionType.END_OF_USAGE_MISSING)
 
         _event_dtype = df.schema[Column.EVENT_TIMESTAMP]
-        timestamp_tz = (_event_dtype.time_zone if isinstance(_event_dtype, pl.Datetime) else None) or "UTC"
+        timestamp_tz = (
+            _event_dtype.time_zone if isinstance(_event_dtype, pl.Datetime) else None
+        ) or "UTC"
         df = self._apply_timestamp_update_arrays(
             df,
             start_ns=start_ns,
@@ -546,21 +882,82 @@ class PolarsFastPathPreprocessor:
         df = df.filter(
             ~(
                 (pl.col(Column.INTERACTION_TYPE) == resumed_type)
-                & (pl.col(Column.START_TIMESTAMP).is_null() | pl.col(Column.STOP_TIMESTAMP).is_null())
+                & (
+                    pl.col(Column.START_TIMESTAMP).is_null()
+                    | pl.col(Column.STOP_TIMESTAMP).is_null()
+                )
             )
         )
         df = df.with_columns(
             pl.col(Column.INTERACTION_TYPE)
-            .replace_strict(resumed_type, usage_type, default=pl.col(Column.INTERACTION_TYPE))
+            .replace(resumed_type, usage_type)
             .alias(Column.INTERACTION_TYPE)
         )
-        duration_expr = (pl.col(Column.STOP_TIMESTAMP) - pl.col(Column.START_TIMESTAMP)).dt.total_microseconds().cast(pl.Float64) / 1_000_000.0
+        if concurrent and usage_type == str(InteractionType.APP_USAGE):
+            df = self._apply_concurrent_usage_split(df, usage_type)
+        # Durations are derived from microseconds (not nanoseconds) on purpose.
+        # Polars lowers `/ const` to a reciprocal multiply, and µs/1e6 reproduces
+        # the browser's exact f64 for whole-second durations (e.g. 60.0), whereas
+        # ns/1e9 yields 60.00000000000001 and breaks cross-surface parity on the
+        # common case. (A residual 15th-digit duration_minutes diff remains only on
+        # sub-microsecond concurrent sub-intervals — same value, not worth a
+        # regression to chase.)
+        duration_expr = (
+            pl.col(Column.STOP_TIMESTAMP) - pl.col(Column.START_TIMESTAMP)
+        ).dt.total_microseconds().cast(pl.Float64) / 1_000_000.0
+        duration_expr = (
+            pl.col(Column.STOP_TIMESTAMP) - pl.col(Column.START_TIMESTAMP)
+        ).dt.total_microseconds().cast(pl.Float64) / 1_000_000.0
         df = df.with_columns(
             [
                 duration_expr.alias(Column.DURATION_SECONDS),
                 (duration_expr / 60.0).alias(Column.DURATION_MINUTES),
             ]
         )
+        apply_min_duration = (
+            usage_type == str(InteractionType.APP_USAGE)
+            and self.options.minimum_usage_duration > 0
+            and (
+                # Non-concurrent: apply the threshold to full sessions.
+                not concurrent
+                # Concurrent: only when the sub-interval option opts in.
+                or self.options.apply_minimum_usage_duration_to_concurrent_subintervals
+            )
+        )
+        if apply_min_duration:
+            # Null (but keep) App Usage rows shorter than minimum_usage_duration.
+            # Non-concurrent path nulls full sessions; the concurrent path (when
+            # apply_minimum_usage_duration_to_concurrent_subintervals is on) nulls
+            # each split sub-interval. Mirrors web browserPipeline.ts processUsageRows
+            # and the SSOT contract (minimum_usage_duration slot).
+            below_threshold = (pl.col(Column.INTERACTION_TYPE) == usage_type) & (
+                pl.col(Column.DURATION_SECONDS) < float(self.options.minimum_usage_duration)
+            )
+            null_f64 = pl.lit(None, dtype=pl.Float64)
+            df = df.with_columns(
+                pl.when(below_threshold)
+                .then(null_f64)
+                .otherwise(pl.col(Column.DURATION_SECONDS))
+                .alias(Column.DURATION_SECONDS),
+                pl.when(below_threshold)
+                .then(null_f64)
+                .otherwise(pl.col(Column.DURATION_MINUTES))
+                .alias(Column.DURATION_MINUTES),
+            )
+        if self.options.filter_zero_duration_sessions:
+            # Drop only genuine zero/negative-duration App Usage sessions; keep
+            # Filtered App Usage rows, non-usage rows, and rows whose duration was
+            # suppressed to null above. Targets App Usage specifically (not the
+            # current usage_type) so the Filtered App Usage pass leaves its rows
+            # intact — matching the web pipeline, which filters only "App Usage"
+            # (browserPipeline.ts processRawCsvContent).
+            df = df.filter(
+                ~(
+                    (pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE))
+                    & pl.col(Column.DURATION_SECONDS).is_not_null()
+                    & (pl.col(Column.DURATION_SECONDS) <= 0.0)
+                )
+            )
         return df.sort(Column.EVENT_TIMESTAMP)
 
     def _match_usage_updates(
@@ -572,7 +969,22 @@ class PolarsFastPathPreprocessor:
         same_stop_flags: np.ndarray,
         other_stop_flags: np.ndarray,
         stopped_flags: np.ndarray,
+        background_flags: np.ndarray | None = None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        if background_flags is None:
+            background_flags = np.zeros(len(app_codes), dtype=bool)
+        if self.options.proximity_interval_seconds > 0:
+            # Proximity (intra-app teardown grace) is implemented only in the Python
+            # matcher; the Rust extension has no proximity parameter. Use Python directly.
+            return self._match_usage_updates_python(
+                app_codes=app_codes,
+                timestamp_ns=timestamp_ns,
+                resumed_flags=resumed_flags,
+                same_stop_flags=same_stop_flags,
+                other_stop_flags=other_stop_flags,
+                stopped_flags=stopped_flags,
+                background_flags=background_flags,
+            )
         try:
             from chronicle_preprocessing_app import _rust_app_usage_matcher
 
@@ -591,49 +1003,33 @@ class PolarsFastPathPreprocessor:
                 same_stop_flags,
                 other_stop_flags,
                 stopped_flags,
+                background_flags,
                 self.options.allow_stop_event_reuse,
                 self.options.use_activity_stopped_as_fallback,
                 self.options.apply_threshold_to_activity_stopped_fallback,
                 int(self.options.long_duration_threshold_hours * 3600 * 1_000_000_000),
             )
-            _out = [np.asarray(output, dtype=np.intp) for output in outputs]
-            return _out[0], _out[1], _out[2], _out[3]
-        except ModuleNotFoundError:
-            LOGGER.debug("Rust matcher not installed; using Python matcher")
-            return self._match_usage_updates_python(
-                app_codes=app_codes,
-                timestamp_ns=timestamp_ns,
-                resumed_flags=resumed_flags,
-                same_stop_flags=same_stop_flags,
-                other_stop_flags=other_stop_flags,
-                stopped_flags=stopped_flags,
-            )
-        except ImportError:
-            LOGGER.warning(
-                "Rust matcher extension found but failed to load; falling back to Python matcher",
-                exc_info=True,
-            )
-            return self._match_usage_updates_python(
-                app_codes=app_codes,
-                timestamp_ns=timestamp_ns,
-                resumed_flags=resumed_flags,
-                same_stop_flags=same_stop_flags,
-                other_stop_flags=other_stop_flags,
-                stopped_flags=stopped_flags,
-            )
+            return tuple(np.asarray(output, dtype=np.intp) for output in outputs)
+        except (ImportError, AttributeError):
+            # Expected when the compiled extension isn't installed at all.
+            LOGGER.debug("Rust matcher unavailable in Polars fast path; falling back to Python")
         except Exception:
+            # Unexpected (e.g. a stale extension with a changed signature → TypeError):
+            # don't swallow it silently — surface it loudly, then still fall back so
+            # output stays correct rather than crashing the run.
             LOGGER.warning(
-                "Rust matcher raised an unexpected error; falling back to Python matcher",
+                "Rust matcher raised an unexpected error; falling back to the Python matcher",
                 exc_info=True,
             )
-            return self._match_usage_updates_python(
-                app_codes=app_codes,
-                timestamp_ns=timestamp_ns,
-                resumed_flags=resumed_flags,
-                same_stop_flags=same_stop_flags,
-                other_stop_flags=other_stop_flags,
-                stopped_flags=stopped_flags,
-            )
+        return self._match_usage_updates_python(
+            app_codes=app_codes,
+            timestamp_ns=timestamp_ns,
+            resumed_flags=resumed_flags,
+            same_stop_flags=same_stop_flags,
+            other_stop_flags=other_stop_flags,
+            stopped_flags=stopped_flags,
+            background_flags=background_flags,
+        )
 
     def _match_usage_updates_python(
         self,
@@ -644,35 +1040,57 @@ class PolarsFastPathPreprocessor:
         same_stop_flags: np.ndarray,
         other_stop_flags: np.ndarray,
         stopped_flags: np.ndarray,
+        background_flags: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         open_start_indices: list[int] = []
         start_indices: list[int] = []
         stop_start_indices: list[int] = []
         stop_event_indices: list[int] = []
         missing_indices: list[int] = []
+        # Proximity (intra-app teardown grace) — all inert when proximity_interval_seconds == 0,
+        # so the proximity == 0 path is byte-identical to the prior matcher.
+        proximity_ns = int(self.options.proximity_interval_seconds * 1_000_000_000)
+        last_event_ns: dict[int, int] = {}
+        last_was_same_stop: dict[int, bool] = {}
+        is_reresume: dict[int, bool] = {}
 
-        def is_valid_duration(start_index: int, stop_index: int, *, enforce_threshold: bool) -> bool:
+        def is_valid_duration(
+            start_index: int, stop_index: int, *, enforce_threshold: bool
+        ) -> bool:
             duration_ns = int(timestamp_ns[stop_index]) - int(timestamp_ns[start_index])
             if duration_ns < 0:
                 return False
-            return not enforce_threshold or duration_ns <= int(self.options.long_duration_threshold_hours * 3600 * 1_000_000_000)
+            return not enforce_threshold or duration_ns <= int(
+                self.options.long_duration_threshold_hours * 3600 * 1_000_000_000
+            )
 
         for index in range(len(app_codes)):
             current_app = app_codes[index]
             is_normal_stop = bool(same_stop_flags[index] or other_stop_flags[index])
-            is_fallback_stop = bool(stopped_flags[index] and self.options.use_activity_stopped_as_fallback)
+            is_fallback_stop = bool(
+                stopped_flags[index] and self.options.use_activity_stopped_as_fallback
+            )
 
             if self.options.allow_stop_event_reuse and (is_normal_stop or is_fallback_stop):
                 still_open: list[int] = []
                 for start_index in open_start_indices:
                     start_app = app_codes[start_index]
                     same_app_compatible = bool(same_stop_flags[index] and start_app == current_app)
-                    other_app_compatible = bool(other_stop_flags[index] and start_app != current_app)
-                    fallback_compatible = bool(not is_normal_stop and is_fallback_stop and start_app == current_app)
+                    other_app_compatible = bool(
+                        other_stop_flags[index]
+                        and start_app != current_app
+                        and not background_flags[start_index]
+                    )
+                    fallback_compatible = bool(
+                        not is_normal_stop and is_fallback_stop and start_app == current_app
+                    )
                     if not (same_app_compatible or other_app_compatible or fallback_compatible):
                         still_open.append(start_index)
                         continue
-                    enforce_threshold = not fallback_compatible or self.options.apply_threshold_to_activity_stopped_fallback
+                    enforce_threshold = (
+                        not fallback_compatible
+                        or self.options.apply_threshold_to_activity_stopped_fallback
+                    )
                     if is_valid_duration(start_index, index, enforce_threshold=enforce_threshold):
                         stop_start_indices.append(start_index)
                         stop_event_indices.append(index)
@@ -685,12 +1103,32 @@ class PolarsFastPathPreprocessor:
                     start_index = open_start_indices[position]
                     start_app = app_codes[start_index]
                     same_app_compatible = bool(same_stop_flags[index] and start_app == current_app)
-                    other_app_compatible = bool(other_stop_flags[index] and start_app != current_app)
-                    fallback_compatible = bool(not is_normal_stop and is_fallback_stop and start_app == current_app)
+                    other_app_compatible = bool(
+                        other_stop_flags[index]
+                        and start_app != current_app
+                        and not background_flags[start_index]
+                    )
+                    fallback_compatible = bool(
+                        not is_normal_stop and is_fallback_stop and start_app == current_app
+                    )
                     if not (same_app_compatible or other_app_compatible or fallback_compatible):
                         continue
-                    enforce_threshold = not fallback_compatible or self.options.apply_threshold_to_activity_stopped_fallback
+                    enforce_threshold = (
+                        not fallback_compatible
+                        or self.options.apply_threshold_to_activity_stopped_fallback
+                    )
                     if is_valid_duration(start_index, index, enforce_threshold=enforce_threshold):
+                        if (
+                            proximity_ns
+                            and fallback_compatible
+                            and is_reresume.get(start_index, False)
+                            and (int(timestamp_ns[index]) - int(timestamp_ns[start_index]))
+                            < proximity_ns
+                        ):
+                            # Activity-Stopped within the proximity window of a re-resumed
+                            # start = intra-app teardown, not a close. Leave the start open.
+                            matched_position = None
+                            break
                         matched_position = position
                         break
                 if matched_position is not None:
@@ -699,14 +1137,27 @@ class PolarsFastPathPreprocessor:
                     stop_event_indices.append(index)
 
             if resumed_flags[index]:
+                if proximity_ns:
+                    is_reresume[index] = (
+                        current_app in last_event_ns
+                        and last_was_same_stop.get(current_app, False)
+                        and (int(timestamp_ns[index]) - int(last_event_ns[current_app]))
+                        < proximity_ns
+                    )
                 start_indices.append(index)
                 open_start_indices.append(index)
+
+            if proximity_ns:
+                last_event_ns[current_app] = int(timestamp_ns[index])
+                last_was_same_stop[current_app] = bool(same_stop_flags[index])
 
         if open_start_indices:
             last_index = len(app_codes) - 1
             still_open = list(open_start_indices)
             for start_index in still_open:
-                if last_index > start_index and is_valid_duration(start_index, last_index, enforce_threshold=True):
+                if last_index > start_index and is_valid_duration(
+                    start_index, last_index, enforce_threshold=True
+                ):
                     stop_start_indices.append(start_index)
                     stop_event_indices.append(last_index)
                 else:
@@ -731,14 +1182,18 @@ class PolarsFastPathPreprocessor:
         start_series = pl.Series("__start_ns", start_ns)
         stop_series = pl.Series("__stop_ns", stop_ns)
         interaction_series = pl.Series(Column.INTERACTION_TYPE, interaction_values)
-        timestamp_dtype = pl.Datetime("ns", time_zone=timestamp_tz) if timestamp_tz else pl.Datetime("ns")
+        timestamp_dtype = (
+            pl.Datetime("ns", time_zone=timestamp_tz) if timestamp_tz else pl.Datetime("ns")
+        )
         df = df.with_columns([start_series, stop_series, interaction_series])
 
         df = df.with_columns(
             [
                 pl.when(pl.col("__start_ns") != _MISSING_INT64)
                 .then(
-                    pl.from_epoch(pl.col("__start_ns"), time_unit="ns").dt.replace_time_zone("UTC").dt.convert_time_zone(timestamp_tz)
+                    pl.from_epoch(pl.col("__start_ns"), time_unit="ns")
+                    .dt.replace_time_zone("UTC")
+                    .dt.convert_time_zone(timestamp_tz)
                     if timestamp_tz
                     else pl.from_epoch(pl.col("__start_ns"), time_unit="ns")
                 )
@@ -746,7 +1201,9 @@ class PolarsFastPathPreprocessor:
                 .alias(Column.START_TIMESTAMP),
                 pl.when(pl.col("__stop_ns") != _MISSING_INT64)
                 .then(
-                    pl.from_epoch(pl.col("__stop_ns"), time_unit="ns").dt.replace_time_zone("UTC").dt.convert_time_zone(timestamp_tz)
+                    pl.from_epoch(pl.col("__stop_ns"), time_unit="ns")
+                    .dt.replace_time_zone("UTC")
+                    .dt.convert_time_zone(timestamp_tz)
                     if timestamp_tz
                     else pl.from_epoch(pl.col("__stop_ns"), time_unit="ns")
                 )
@@ -770,11 +1227,57 @@ class PolarsFastPathPreprocessor:
 
     @staticmethod
     def _blank_to_null_expr(column_name: str) -> pl.Expr:
-        return pl.when(pl.col(column_name).cast(pl.String).str.strip_chars() == "").then(pl.lit(None)).otherwise(pl.col(column_name))
+        return (
+            pl.when(pl.col(column_name).cast(pl.String).str.strip_chars() == "")
+            .then(pl.lit(None))
+            .otherwise(pl.col(column_name))
+        )
 
     @staticmethod
     def _null_string_expr() -> pl.Expr:
         return pl.lit(None).cast(pl.String)
+
+    @staticmethod
+    def _normalized_broad_category_expr(candidate_columns: list[str]) -> pl.Expr:
+        """Coalesce + normalize the per-source category columns onto the palette.
+
+        Mirrors the web `deriveBroadAppCategory` exactly: for each candidate (in
+        order) strip and map onto the palette (via aliases); take the first value
+        that is a *specific* (non-"Uncategorised") palette category; otherwise
+        "Uncategorised" if any candidate normalized to it; otherwise "Unknown".
+        """
+        if not candidate_columns:
+            return pl.lit(_BROAD_CATEGORY_UNKNOWN).alias(Column.BROAD_APP_CATEGORY)
+        normalized = [
+            pl.col(column)
+            .cast(pl.Utf8)
+            .str.strip_chars()
+            .replace_strict(
+                _BROAD_CATEGORY_NORMALIZE_MAP,
+                default=None,
+                return_dtype=pl.String,
+            )
+            for column in candidate_columns
+        ]
+        specific = pl.coalesce(
+            [
+                pl.when(value.is_not_null() & (value != _BROAD_CATEGORY_UNCATEGORISED))
+                .then(value)
+                .otherwise(pl.lit(None, dtype=pl.String))
+                for value in normalized
+            ]
+        )
+        any_uncategorised = pl.any_horizontal(
+            [value == _BROAD_CATEGORY_UNCATEGORISED for value in normalized]
+        )
+        return (
+            pl.when(specific.is_not_null())
+            .then(specific)
+            .when(any_uncategorised)
+            .then(pl.lit(_BROAD_CATEGORY_UNCATEGORISED))
+            .otherwise(pl.lit(_BROAD_CATEGORY_UNKNOWN))
+            .alias(Column.BROAD_APP_CATEGORY)
+        )
 
     def _enrich_with_app_codebook_data(self, df: pl.DataFrame) -> pl.DataFrame:
         if not self.options.use_app_codebook:
@@ -783,35 +1286,41 @@ class PolarsFastPathPreprocessor:
         if self.app_codebook is None:
             return df.with_columns(
                 [
-                    *[pl.lit(None).cast(pl.String).alias(column) for column in _CODEBOOK_OUTPUT_COLUMNS],
+                    *[
+                        pl.lit(None).cast(pl.String).alias(column)
+                        for column in _CODEBOOK_OUTPUT_COLUMNS
+                    ],
                     pl.lit("Unknown").alias(Column.BROAD_APP_CATEGORY),
                     pl.lit("Unknown").alias(Column.GENRE_ID_SCRAPED),
                 ]
             )
 
-        available_source_columns = [source_column for source_column in _CODEBOOK_COLUMN_RENAME_MAP if source_column in self.app_codebook.columns]
+        available_source_columns = [
+            source_column
+            for source_column in _CODEBOOK_COLUMN_RENAME_MAP
+            if source_column in self.app_codebook.columns
+        ]
         renamed_codebook = self.app_codebook.select(
             [
                 pl.col(AppCodebookColumn.APP_PACKAGE_NAME),
-                *[pl.col(source_column).alias(_CODEBOOK_COLUMN_RENAME_MAP[source_column]) for source_column in available_source_columns],
+                *[
+                    pl.col(source_column).alias(_CODEBOOK_COLUMN_RENAME_MAP[source_column])
+                    for source_column in available_source_columns
+                ],
             ]
         )
         df = df.join(renamed_codebook, on=Column.APP_PACKAGE_NAME, how="left")
 
-        missing_output_columns = [column for column in _CODEBOOK_OUTPUT_COLUMNS if column not in df.columns]
+        missing_output_columns = [
+            column for column in _CODEBOOK_OUTPUT_COLUMNS if column not in df.columns
+        ]
         if missing_output_columns:
-            df = df.with_columns([pl.lit(None).cast(pl.String).alias(column) for column in missing_output_columns])
+            df = df.with_columns(
+                [pl.lit(None).cast(pl.String).alias(column) for column in missing_output_columns]
+            )
 
         broad_category_candidates = [
-            column
-            for column in (
-                Column.PLAY_STORE_BROAD_APP_CATEGORY,
-                Column.USC_BROAD_APP_CATEGORY,
-                Column.BABYEMU_BROAD_APP_CATEGORY,
-                Column.BCM_CNRC_HEURISTIC_CATEGORY,
-                Column.BROAD_APP_CATEGORY,
-            )
-            if column in df.columns
+            column for column in _BROAD_CATEGORY_SOURCE_COLUMNS if column in df.columns
         ]
         genre_id_candidates = [
             column
@@ -824,12 +1333,15 @@ class PolarsFastPathPreprocessor:
             if column in df.columns
         ]
         genre_value_list_column = "__chronicle_genre_values"
-        broad_category_expr = pl.coalesce([*(self._blank_to_null_expr(column) for column in broad_category_candidates), pl.lit("Unknown")]).alias(
-            Column.BROAD_APP_CATEGORY
-        )
+        broad_category_expr = self._normalized_broad_category_expr(broad_category_candidates)
         if genre_id_candidates:
             df = df.with_columns(
-                pl.concat_list([self._blank_to_null_expr(column).cast(pl.String) for column in genre_id_candidates])
+                pl.concat_list(
+                    [
+                        self._blank_to_null_expr(column).cast(pl.String)
+                        for column in genre_id_candidates
+                    ]
+                )
                 .list.drop_nulls()
                 .alias(genre_value_list_column)
             )
@@ -843,10 +1355,15 @@ class PolarsFastPathPreprocessor:
                 .alias(Column.GENRE_ID_SCRAPED)
             )
             source_genre_exprs = [
-                pl.when(unanimous_genre_expr).then(self._null_string_expr()).otherwise(pl.col(column).cast(pl.String)).alias(column)
+                pl.when(unanimous_genre_expr)
+                .then(self._null_string_expr())
+                .otherwise(pl.col(column).cast(pl.String))
+                .alias(column)
                 for column in genre_id_candidates
             ]
-            return df.with_columns([broad_category_expr, genre_id_expr, *source_genre_exprs]).drop(genre_value_list_column)
+            return df.with_columns([broad_category_expr, genre_id_expr, *source_genre_exprs]).drop(
+                genre_value_list_column
+            )
 
         genre_id_expr = pl.lit("Unknown").alias(Column.GENRE_ID_SCRAPED)
         return df.with_columns([broad_category_expr, genre_id_expr])
@@ -855,8 +1372,15 @@ class PolarsFastPathPreprocessor:
         row_count = len(df)
         interaction_values = df.get_column(Column.INTERACTION_TYPE).to_numpy()
         app_packages = df.get_column(Column.APP_PACKAGE_NAME).fill_null("").to_numpy()
-        start_ns = df.get_column(Column.START_TIMESTAMP).dt.epoch("ns").fill_null(_MISSING_INT64).to_numpy()
-        stop_ns = df.get_column(Column.STOP_TIMESTAMP).dt.epoch("ns").fill_null(_MISSING_INT64).to_numpy()
+        start_ns = (
+            df.get_column(Column.START_TIMESTAMP)
+            .dt.epoch("ns")
+            .fill_null(_MISSING_INT64)
+            .to_numpy()
+        )
+        stop_ns = (
+            df.get_column(Column.STOP_TIMESTAMP).dt.epoch("ns").fill_null(_MISSING_INT64).to_numpy()
+        )
 
         custom_duration = self.options.custom_app_engagement_duration
         any_engage_30 = np.zeros(row_count, dtype=np.int64)
@@ -868,13 +1392,27 @@ class PolarsFastPathPreprocessor:
         valid_switched = np.zeros(row_count, dtype=np.int64)
         valid_gap = np.zeros(row_count, dtype=np.float64)
 
+        # Exclude secondary (background-overlap) concurrent-usage sub-intervals from
+        # the engagement walk: they describe a background app, not a foreground
+        # engagement, and interleaving them produces negative inter-session gaps and
+        # phantom engagement counts. Mirrors the web pipeline (addAppUsageDetailColumns).
+        # No-op when concurrent modeling is off (column absent or all-null).
+        if Column.USAGE_LAYER in df.columns:
+            usage_layer_values = df.get_column(Column.USAGE_LAYER).fill_null("").to_numpy()
+            foreground_mask = usage_layer_values != str(UsageLayer.SECONDARY)
+        else:
+            foreground_mask = np.ones(row_count, dtype=bool)
+
         any_usage_indices = np.where(
             np.isin(
                 interaction_values,
                 [str(InteractionType.APP_USAGE), str(InteractionType.FILTERED_APP_USAGE)],
             )
+            & foreground_mask
         )[0]
-        valid_usage_indices = np.where(interaction_values == str(InteractionType.APP_USAGE))[0]
+        valid_usage_indices = np.where(
+            (interaction_values == str(InteractionType.APP_USAGE)) & foreground_mask
+        )[0]
 
         def apply_usage_metrics(
             indices: np.ndarray,
@@ -893,7 +1431,9 @@ class PolarsFastPathPreprocessor:
                 return
             current_indices = indices[1:]
             previous_indices = indices[:-1]
-            time_gaps_seconds = (start_ns[current_indices] - stop_ns[previous_indices]) / 1_000_000_000.0
+            time_gaps_seconds = (
+                start_ns[current_indices] - stop_ns[previous_indices]
+            ) / 1_000_000_000.0
             switched_mask = app_packages[current_indices] != app_packages[previous_indices]
             switched[current_indices[switched_mask]] = 1
             engage_30[current_indices[time_gaps_seconds > 30]] = 1
@@ -947,7 +1487,9 @@ class PolarsFastPathPreprocessor:
 
         gap_label_expr = pl.coalesce(
             [
-                pl.when(pl.col(Column.DATA_TIME_GAP_HOURS).cast(pl.Float64) >= float(threshold)).then(pl.lit(f">{threshold}-HR TIME GAP"))
+                pl.when(
+                    pl.col(Column.DATA_TIME_GAP_HOURS).cast(pl.Float64) >= float(threshold)
+                ).then(pl.lit(f">{threshold}-HR TIME GAP"))
                 for threshold in sorted(thresholds_to_use, reverse=True)
             ]
             + [pl.lit("")]
@@ -955,7 +1497,9 @@ class PolarsFastPathPreprocessor:
         duration_hours_expr = pl.col(Column.DURATION_MINUTES).cast(pl.Float64) / 60.0
         duration_label_expr = pl.coalesce(
             [
-                pl.when(duration_hours_expr >= float(threshold)).then(pl.lit(f">{threshold}-HR APP USAGE"))
+                pl.when(duration_hours_expr >= float(threshold)).then(
+                    pl.lit(f">{threshold}-HR APP USAGE")
+                )
                 for threshold in sorted(duration_thresholds_to_use, reverse=True)
             ]
             + [pl.lit("")]
@@ -991,6 +1535,153 @@ class PolarsFastPathPreprocessor:
             .drop([gap_label_column, duration_label_column])
         )
 
+    @staticmethod
+    def _to_date(value: object) -> date | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        if isinstance(value, str):
+            try:
+                return datetime.fromisoformat(value).date()
+            except ValueError:
+                return None
+        return None
+
+    def _normalize_placeholder_day_start(
+        self,
+        day: date,
+        sample_timestamp: object,
+    ) -> datetime:
+        base_day_start = datetime(
+            day.year,
+            day.month,
+            day.day,
+        )
+        if isinstance(sample_timestamp, datetime):
+            if sample_timestamp.tzinfo is not None:
+                return base_day_start.replace(tzinfo=sample_timestamp.tzinfo)
+        return base_day_start
+
+    def _add_missing_study_date_placeholder_rows(
+        self,
+        df: pl.DataFrame,
+        participant_id: str,
+    ) -> pl.DataFrame:
+        if not self.study_date_provider.is_available:
+            return df
+
+        study_date_range = self.study_date_provider.get_study_date_range(participant_id)
+        if study_date_range is None:
+            return df
+
+        if Column.DATE not in df.columns:
+            return df
+
+        start_date_raw, end_date_raw = study_date_range
+        start_date = self._to_date(start_date_raw)
+        end_date = self._to_date(end_date_raw)
+        if start_date is None or end_date is None:
+            return df
+        if end_date < start_date:
+            return df
+
+        app_usage_days = set()
+        for day in (
+            df.filter(pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE))
+            .get_column(Column.DATE)
+            .drop_nulls()
+            .to_list()
+        ):
+            converted_day = self._to_date(day)
+            if converted_day is not None:
+                app_usage_days.add(converted_day)
+
+        rows_with_data_days = set()
+        for day in df.get_column(Column.DATE).drop_nulls().to_list():
+            converted_day = self._to_date(day)
+            if converted_day is not None:
+                rows_with_data_days.add(converted_day)
+        if not rows_with_data_days:
+            return df
+
+        placeholder_rows: list[dict[str, object]] = []
+        current_day = start_date
+        while current_day <= end_date:
+            if current_day in rows_with_data_days and current_day not in app_usage_days:
+                day_mask = pl.col(Column.DATE) == current_day
+                day_df = df.filter(day_mask)
+                if day_df.is_empty():
+                    current_day += timedelta(days=1)
+                    continue
+
+                day_row = day_df.row(0, named=True)
+                sample_timestamp = day_row.get(Column.EVENT_TIMESTAMP)
+                day_start = self._normalize_placeholder_day_start(
+                    current_day,
+                    sample_timestamp,
+                )
+
+                row: dict[str, object] = {
+                    Column.EVENT_TIMESTAMP: day_start,
+                    Column.START_TIMESTAMP: day_start,
+                    Column.STOP_TIMESTAMP: day_start,
+                    Column.DATE: current_day,
+                    Column.INTERACTION_TYPE: str(InteractionType.APP_USAGE),
+                    Column.APP_PACKAGE_NAME: _PLACEHOLDER_APP_PACKAGE_NAME,
+                    Column.APPLICATION_LABEL: _PLACEHOLDER_APP_LABEL,
+                    Column.USERNAME: TARGET_CHILD_USERNAME,
+                    Column.DURATION_SECONDS: 0,
+                    Column.DURATION_MINUTES: 0.0,
+                    Column.DATA_TIME_GAP_HOURS: 0.0,
+                }
+
+                if Column.PARTICIPANT_ID in day_row:
+                    row[Column.PARTICIPANT_ID] = day_row[Column.PARTICIPANT_ID]
+                if Column.TIMEZONE in day_row:
+                    row[Column.TIMEZONE] = day_row[Column.TIMEZONE]
+                if Column.POSSIBLE_DEVICE_MODEL in day_row:
+                    row[Column.POSSIBLE_DEVICE_MODEL] = day_row[Column.POSSIBLE_DEVICE_MODEL]
+                if Column.STUDY_ID in day_row:
+                    row[Column.STUDY_ID] = day_row[Column.STUDY_ID]
+                if Column.PREPROCESSOR_VERSION in day_row:
+                    row[Column.PREPROCESSOR_VERSION] = day_row[Column.PREPROCESSOR_VERSION]
+                if Column.DATETIME_OF_PREPROCESSING in day_row:
+                    row[Column.DATETIME_OF_PREPROCESSING] = day_row[
+                        Column.DATETIME_OF_PREPROCESSING
+                    ]
+                if Column.COMPLIANCE in df.columns and Column.COMPLIANCE not in row:
+                    unknown_row_df = day_df.filter(
+                        pl.col(Column.INTERACTION_TYPE)
+                        == str(InteractionType.NON_TARGET_CHILD_APP_USAGE)
+                    )
+                    if not unknown_row_df.is_empty():
+                        candidate_compliance = (
+                            unknown_row_df.get_column(Column.COMPLIANCE).drop_nulls().to_list()
+                        )
+                        if candidate_compliance:
+                            row[Column.COMPLIANCE] = candidate_compliance[0]
+
+                    if Column.COMPLIANCE not in row:
+                        row[Column.COMPLIANCE] = 100.0
+
+                if Column.DEVICE_SHARING_STATUS in df.columns:
+                    row[Column.DEVICE_SHARING_STATUS] = day_row.get(
+                        Column.DEVICE_SHARING_STATUS,
+                    )
+
+                placeholder_rows.append(row)
+
+            current_day += timedelta(days=1)
+
+        if not placeholder_rows:
+            return df
+
+        placeholder_df = pl.DataFrame(placeholder_rows)
+        return pl.concat([df, placeholder_df], how="diagonal_relaxed").sort(Column.EVENT_TIMESTAMP)
+
     def _remove_selected_interaction_types(self, df: pl.DataFrame) -> pl.DataFrame:
         threshold_hours = min(
             self.options.long_data_time_gap_thresholds,
@@ -999,12 +1690,24 @@ class PolarsFastPathPreprocessor:
         if not self.options.interaction_types_to_remove:
             return df
         return df.filter(
-            ~pl.col(Column.INTERACTION_TYPE).is_in([str(value) for value in self.options.interaction_types_to_remove])
+            ~pl.col(Column.INTERACTION_TYPE).is_in(
+                [str(value) for value in self.options.interaction_types_to_remove]
+            )
             | (pl.col(Column.DATA_TIME_GAP_HOURS) >= threshold_hours)
         ).sort(Column.EVENT_TIMESTAMP)
 
     def _build_output_columns(self, df: pl.DataFrame) -> list[str]:
-        include_legacy_codebook_aliases = not (self.options.use_app_codebook and self.app_codebook is not None)
+        include_legacy_codebook_aliases = not (
+            self.options.use_app_codebook and self.app_codebook is not None
+        )
+        # broad_app_category is the normalized category. It's emitted either as a
+        # legacy codebook alias (when the codebook isn't actively enriching) or
+        # explicitly via include_category_column. Both require the codebook path
+        # to have produced the column at all (use_app_codebook). Mirrors the web
+        # gating `useAppCodebook && (includeCodebookAliases || includeCategoryColumn)`.
+        include_broad_app_category = self.options.use_app_codebook and (
+            include_legacy_codebook_aliases or self.options.include_category_column
+        )
         identification_columns = [
             Column.STUDY_ID,
             Column.STUDY_NAME,
@@ -1017,7 +1720,7 @@ class PolarsFastPathPreprocessor:
             Column.APP_PACKAGE_NAME,
             Column.APPLICATION_LABEL,
             Column.GENRE_ID_SCRAPED,
-            *([Column.BROAD_APP_CATEGORY] if include_legacy_codebook_aliases else []),
+            *([Column.BROAD_APP_CATEGORY] if include_broad_app_category else []),
             *_CODEBOOK_OUTPUT_COLUMNS,
             Column.INTERACTION_TYPE,
         ]
@@ -1061,10 +1764,22 @@ class PolarsFastPathPreprocessor:
             *timestamp_continuation,
             *app_derived_columns,
             *admin_columns,
+            # usage_layer is appended last to match the web (browserPipeline) and
+            # Rust (pipeline_v2) output column order. Background apps also produce
+            # the primary/secondary split, so the column must be emitted whenever
+            # either feature is on (gated on the toggle, mirroring the column's
+            # presence rule for model_concurrent_usage).
+            *(
+                [Column.USAGE_LAYER]
+                if self.options.model_concurrent_usage or self.options.use_background_apps_file
+                else []
+            ),
         ]
 
     def _format_output_frame(self, df: pl.DataFrame) -> pl.DataFrame:
-        list_columns = [column for column, dtype in df.schema.items() if dtype.base_type() == pl.List]
+        list_columns = [
+            column for column, dtype in df.schema.items() if dtype.base_type() == pl.List
+        ]
 
         expressions = []
         for column in (Column.START_TIMESTAMP, Column.STOP_TIMESTAMP):
@@ -1073,9 +1788,15 @@ class PolarsFastPathPreprocessor:
         if Column.EVENT_TIMESTAMP in df.columns:
             event_dtype = df.schema[Column.EVENT_TIMESTAMP]
             event_format = (
-                "%Y-%m-%d %H:%M:%S%:z" if isinstance(event_dtype, pl.Datetime) and event_dtype.time_zone is not None else "%Y-%m-%d %H:%M:%S"
+                "%Y-%m-%d %H:%M:%S%:z"
+                if isinstance(event_dtype, pl.Datetime) and event_dtype.time_zone is not None
+                else "%Y-%m-%d %H:%M:%S"
             )
-            expressions.append(pl.col(Column.EVENT_TIMESTAMP).dt.strftime(event_format).alias(Column.EVENT_TIMESTAMP))
+            expressions.append(
+                pl.col(Column.EVENT_TIMESTAMP)
+                .dt.strftime(event_format)
+                .alias(Column.EVENT_TIMESTAMP)
+            )
 
         for column in list_columns:
             expressions.append(
@@ -1085,7 +1806,9 @@ class PolarsFastPathPreprocessor:
                     pl.concat_str(
                         [
                             pl.lit("["),
-                            pl.col(column).list.eval(pl.format("'{}'", pl.element())).list.join(", "),
+                            pl.col(column)
+                            .list.eval(pl.format("'{}'", pl.element()))
+                            .list.join(", "),
                             pl.lit("]"),
                         ]
                     )

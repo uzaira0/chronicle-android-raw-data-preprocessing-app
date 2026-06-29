@@ -40,7 +40,9 @@ def _make_preprocessor(**kwargs) -> PolarsFastPathPreprocessor:
 def _matcher_arrays() -> dict[str, np.ndarray]:
     return {
         "app_codes": np.asarray([0, 0], dtype=np.intp),
-        "timestamp_ns": np.asarray([1_700_000_000_000_000_000, 1_700_000_060_000_000_000], dtype=np.int64),
+        "timestamp_ns": np.asarray(
+            [1_700_000_000_000_000_000, 1_700_000_060_000_000_000], dtype=np.int64
+        ),
         "resumed_flags": np.asarray([True, False]),
         "same_stop_flags": np.asarray([False, True]),
         "other_stop_flags": np.asarray([False, False]),
@@ -102,11 +104,15 @@ class TestMatchUsageUpdates:
         sentinel = (np.asarray([10]), np.asarray([11]), np.asarray([12]), np.asarray([13]))
         preprocessor = _make_preprocessor()
 
-        def fake_python(**_kwargs: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        def fake_python(
+            **_kwargs: np.ndarray,
+        ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
             return sentinel
 
         monkeypatch.delattr(chronicle_preprocessing_app, "_rust_app_usage_matcher", raising=False)
-        monkeypatch.setitem(sys.modules, "chronicle_preprocessing_app._rust_app_usage_matcher", None)
+        monkeypatch.setitem(
+            sys.modules, "chronicle_preprocessing_app._rust_app_usage_matcher", None
+        )
         monkeypatch.setattr(preprocessor, "_match_usage_updates_python", fake_python)
 
         with caplog.at_level(logging.DEBUG):
@@ -122,21 +128,30 @@ class TestMatchUsageUpdates:
     ) -> None:
         sentinel = (np.asarray([20]), np.asarray([21]), np.asarray([22]), np.asarray([23]))
         rust_module = types.SimpleNamespace(
-            match_app_usage_update_indices=lambda *_args: (_ for _ in ()).throw(RuntimeError("boom")),
+            match_app_usage_update_indices=lambda *_args: (_ for _ in ()).throw(
+                RuntimeError("boom")
+            ),
         )
         preprocessor = _make_preprocessor()
 
-        def fake_python(**_kwargs: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        def fake_python(
+            **_kwargs: np.ndarray,
+        ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
             return sentinel
 
-        monkeypatch.setattr(chronicle_preprocessing_app, "_rust_app_usage_matcher", rust_module, raising=False)
+        monkeypatch.setattr(
+            chronicle_preprocessing_app, "_rust_app_usage_matcher", rust_module, raising=False
+        )
         monkeypatch.setattr(preprocessor, "_match_usage_updates_python", fake_python)
 
         with caplog.at_level(logging.WARNING):
             result = preprocessor._match_usage_updates(**_matcher_arrays())
 
         assert result == sentinel
-        assert "Rust matcher raised an unexpected error; falling back to Python matcher" in caplog.text
+        assert (
+            "Rust matcher raised an unexpected error; falling back to the Python matcher"
+            in caplog.text
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -221,7 +236,9 @@ class TestLabelFilteredApps:
             apps_to_filter_dict={"com.filtered.app": "Filtered App"},
         )
         result = preprocessor._label_filtered_apps(df)
-        assert result.get_column(Column.INTERACTION_TYPE).to_list() == [str(InteractionType.FILTERED_APP_RESUMED)]
+        assert result.get_column(Column.INTERACTION_TYPE).to_list() == [
+            str(InteractionType.FILTERED_APP_RESUMED)
+        ]
 
     def test_filter_renames_paused_and_stopped_and_destroyed(self) -> None:
         paused_stopped_map = {
@@ -242,7 +259,9 @@ class TestLabelFilteredApps:
                 apps_to_filter_dict={"com.filtered.app": "Filtered App"},
             )
             result = preprocessor._label_filtered_apps(df)
-            assert result.get_column(Column.INTERACTION_TYPE).to_list()[0] == expected_type, f"Expected {expected_type} for {original_type}"
+            assert result.get_column(Column.INTERACTION_TYPE).to_list()[0] == expected_type, (
+                f"Expected {expected_type} for {original_type}"
+            )
 
     def test_non_filtered_app_interaction_type_unchanged(self) -> None:
         df = pl.DataFrame(
@@ -532,7 +551,10 @@ class TestMarkAppUsageFlags:
 class TestRemoveSelectedInteractionTypes:
     def test_no_configured_types_returns_unchanged(self) -> None:
         df = _usage_df(
-            interaction_types=[str(InteractionType.APP_USAGE), str(InteractionType.END_OF_USAGE_MISSING)],
+            interaction_types=[
+                str(InteractionType.APP_USAGE),
+                str(InteractionType.END_OF_USAGE_MISSING),
+            ],
         )
         preprocessor = _make_preprocessor(interaction_types_to_remove=set())
         result = preprocessor._remove_selected_interaction_types(df)
@@ -565,7 +587,9 @@ class TestRemoveSelectedInteractionTypes:
             interaction_types_to_remove={InteractionType.END_OF_USAGE_MISSING},
         )
         result = preprocessor._remove_selected_interaction_types(df)
-        assert str(InteractionType.APP_USAGE) in result.get_column(Column.INTERACTION_TYPE).to_list()
+        assert (
+            str(InteractionType.APP_USAGE) in result.get_column(Column.INTERACTION_TYPE).to_list()
+        )
 
     def test_large_gap_row_preserved_even_if_type_to_remove(self) -> None:
         """Rows whose data_time_gap_hours >= threshold are kept even for removed types."""
@@ -755,10 +779,14 @@ class TestEnrichWithAppCodebookData:
 
 class TestMarkDataTimeGaps:
     def test_single_row_gap_is_zero(self) -> None:
-        ts = pl.from_epoch(pl.Series("ts", [1_700_000_000_000_000_000]), time_unit="ns").dt.replace_time_zone("UTC")
+        ts = pl.from_epoch(
+            pl.Series("ts", [1_700_000_000_000_000_000]), time_unit="ns"
+        ).dt.replace_time_zone("UTC")
         df = pl.DataFrame({Column.EVENT_TIMESTAMP: ts})
         preprocessor = _make_preprocessor()
-        result = preprocessor._mark_data_time_gaps(df, Column.EVENT_TIMESTAMP, Column.DATA_TIME_GAP_HOURS)
+        result = preprocessor._mark_data_time_gaps(
+            df, Column.EVENT_TIMESTAMP, Column.DATA_TIME_GAP_HOURS
+        )
         assert result.get_column(Column.DATA_TIME_GAP_HOURS).to_list() == [pytest.approx(0.0)]
 
     def test_gap_between_two_rows_is_correct(self) -> None:
@@ -770,7 +798,9 @@ class TestMarkDataTimeGaps:
         ).dt.replace_time_zone("UTC")
         df = pl.DataFrame({Column.EVENT_TIMESTAMP: ts})
         preprocessor = _make_preprocessor()
-        result = preprocessor._mark_data_time_gaps(df, Column.EVENT_TIMESTAMP, Column.DATA_TIME_GAP_HOURS)
+        result = preprocessor._mark_data_time_gaps(
+            df, Column.EVENT_TIMESTAMP, Column.DATA_TIME_GAP_HOURS
+        )
         gaps = result.get_column(Column.DATA_TIME_GAP_HOURS).to_list()
         assert gaps[0] == pytest.approx(0.0)
         assert gaps[1] == pytest.approx(1.0, abs=0.01)
@@ -784,7 +814,9 @@ class TestMarkDataTimeGaps:
         ).dt.replace_time_zone("UTC")
         df = pl.DataFrame({Column.EVENT_TIMESTAMP: ts})
         preprocessor = _make_preprocessor()
-        result = preprocessor._mark_data_time_gaps(df, Column.EVENT_TIMESTAMP, Column.DATA_TIME_GAP_HOURS)
+        result = preprocessor._mark_data_time_gaps(
+            df, Column.EVENT_TIMESTAMP, Column.DATA_TIME_GAP_HOURS
+        )
         gap = result.get_column(Column.DATA_TIME_GAP_HOURS).to_list()[1]
         # should be rounded to 2 decimal places
         assert round(gap, 2) == gap

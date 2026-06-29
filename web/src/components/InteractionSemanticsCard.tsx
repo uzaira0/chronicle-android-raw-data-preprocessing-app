@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 
 import { SectionCard } from "@/components/SectionCard";
 import { CheckboxGroup } from "@/components/CheckboxGroup";
+import { InteractionRemapEditor } from "@/components/InteractionRemapEditor";
 import {
   DEFAULT_BROWSER_OPTIONS,
   INTERACTION_TYPES_TO_REMOVE_OPTIONS,
@@ -17,6 +18,7 @@ const KEYS: readonly OptionKey[] = [
   "sameAppInteractionTypesToStopUsageAt",
   "otherInteractionTypesToStopUsageAt",
   "interactionTypesToRemove",
+  "interactionTypeRemap",
 ];
 
 type Props = {
@@ -42,11 +44,11 @@ export function InteractionSemanticsCard({ options, setOptions }: Props): ReactE
       modified={anyOptionModified(options, KEYS)}
     >
       <p className="u-card-intro">
-        Pick which Android usage-event interaction types end a session, and which to drop from
+        Pick which Android usage event interaction types end a session, and which to drop from
         the final output. The defaults match the canonical desktop preprocessing semantics.
       </p>
       <CheckboxGroup
-        title="Same-app interaction types that end a session"
+        title="Same app interaction types that end a session"
         options={[...SAME_APP_INTERACTION_TYPE_OPTIONS]}
         selected={options.sameAppInteractionTypesToStopUsageAt}
         onChange={(next) => update("sameAppInteractionTypesToStopUsageAt", next)}
@@ -72,6 +74,13 @@ export function InteractionSemanticsCard({ options, setOptions }: Props): ReactE
         modified={isMod("interactionTypesToRemove")}
         onReset={() => reset("interactionTypesToRemove")}
         searchable
+      />
+      <InteractionRemapEditor
+        value={options.interactionTypeRemap}
+        onChange={(next) => update("interactionTypeRemap", next)}
+        tooltip={TOOLTIPS.interactionTypeRemap}
+        modified={isMod("interactionTypeRemap")}
+        onReset={() => reset("interactionTypeRemap")}
       />
     </SectionCard>
   );

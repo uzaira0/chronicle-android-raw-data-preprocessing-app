@@ -197,8 +197,9 @@ preprocessors/survey_data_preprocessor.py
 *test*
 !tests/
 !tests/**/*.py
+!web/src/**/*.test.ts
+!web/src/**/*.test.tsx
 *demo*
-!web/src/components/DemoSampleCard.tsx
 *benchmark*
 !tests/benchmarks/
 !tests/benchmarks/**
@@ -218,7 +219,7 @@ archive/
 *.csv
 !src/chronicle_preprocessing_app/data/*.csv
 !apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv
-!tests/golden/*.csv
+!background_apps_files/Chronicle_Android_raw_data_preprocessor_background_apps.csv
 app_codebook_files/App Codebook*.xlsx
 app_codebook_files/*backup*.xlsx
 app_codebook_files/Baby EMU*

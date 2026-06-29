@@ -67,7 +67,9 @@ def test_preprocess_chronicle_dataframe_processes_polars_input_and_reports_stats
         "validation_fail_count": 0,
     }
     assert result.compliance_data == {}
-    assert result.data.get_column(Column.INTERACTION_TYPE).to_list() == [str(InteractionType.APP_USAGE)]
+    assert result.data.get_column(Column.INTERACTION_TYPE).to_list() == [
+        str(InteractionType.APP_USAGE)
+    ]
     assert result.data.get_column(Column.APP_PACKAGE_NAME).to_list() == ["com.example.chat"]
     assert result.data.get_column(Column.DURATION_SECONDS).to_list() == [300.0]
 
@@ -106,8 +108,11 @@ def test_preprocess_chronicle_dataframe_applies_study_date_map_from_config(
         _config(study_date_map={"P01": (date(2026, 3, 7), date(2026, 3, 7))}),
     )
 
-    assert result.statistics["total_records"] == 1
-    assert result.data.get_column(Column.APP_PACKAGE_NAME).to_list() == ["com.example.chat"]
+    assert result.statistics["total_records"] == 2
+    assert result.data.get_column(Column.APP_PACKAGE_NAME).to_list() == [
+        "com.example.chat",
+        "com.example.maps",
+    ]
 
 
 def test_preprocess_chronicle_dataframe_returns_empty_result_for_empty_input() -> None:

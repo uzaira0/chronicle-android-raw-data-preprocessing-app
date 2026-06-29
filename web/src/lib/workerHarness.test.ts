@@ -98,6 +98,7 @@ function makeResult(fileName = "test.csv"): ProcessedFileResult {
     rowsAfterTimezoneHandling: 2,
     rowsRemovedByTimezone: 0,
     duplicateTimestampsCorrected: 0,
+    exactDuplicateRowsRemoved: 0,
   };
 }
 

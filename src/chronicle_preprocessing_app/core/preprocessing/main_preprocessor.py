@@ -52,6 +52,7 @@ from chronicle_preprocessing_app.utils.file_utils import (
     get_matching_files_from_folder,
     read_app_codebook,
     read_apps_forcing_screen_open_file,
+    read_background_apps_file,
     read_filter_file,
 )
 
@@ -181,7 +182,10 @@ class ChronicleAndroidRawDataPreprocessor:
         self.study_date_provider = StudyDateRangeProvider(study_date_map=options.study_date_map)
         self.fast_preprocessor = PolarsFastPathPreprocessor(
             options,
-            app_codebook=read_app_codebook(options.app_codebook_path) if options.use_app_codebook else None,
+            app_codebook=read_app_codebook(options.app_codebook_path)
+            if options.use_app_codebook
+            else None,
+            study_date_provider=self.study_date_provider,
         )
         self.current_participant_id = ""
         self.current_participant_raw_data_df = pl.DataFrame()
@@ -189,8 +193,17 @@ class ChronicleAndroidRawDataPreprocessor:
 
         if self.options.use_filter_file and not self.options.apps_to_filter_dict:
             self.options.apps_to_filter_dict = read_filter_file(self.options.filter_file)
-        if self.options.use_apps_forcing_screen_open_file and not self.options.apps_forcing_screen_open_dict:
-            self.options.apps_forcing_screen_open_dict = read_apps_forcing_screen_open_file(self.options.apps_forcing_screen_open_file)
+        if (
+            self.options.use_apps_forcing_screen_open_file
+            and not self.options.apps_forcing_screen_open_dict
+        ):
+            self.options.apps_forcing_screen_open_dict = read_apps_forcing_screen_open_file(
+                self.options.apps_forcing_screen_open_file
+            )
+        if self.options.use_background_apps_file and not self.options.background_apps_dict:
+            self.options.background_apps_dict = read_background_apps_file(
+                self.options.background_apps_file
+            )
 
     def get_participant_id_from_data(self) -> str:
         if self.current_participant_raw_data_df.is_empty():
@@ -204,24 +217,35 @@ class ChronicleAndroidRawDataPreprocessor:
         found = set(df.columns)
         missing = sorted(REQUIRED_RAW_COLUMNS - found)
         if missing:
-            raise ValueError(f"Missing required columns: [{', '.join(missing)}]. Found: [{', '.join(sorted(found))}]")
+            raise ValueError(
+                f"Missing required columns: [{', '.join(missing)}]. Found: [{', '.join(sorted(found))}]"
+            )
 
     def remove_selected_interaction_types(self) -> None:
-        self.current_participant_raw_data_df = self.fast_preprocessor._remove_selected_interaction_types(self.current_participant_raw_data_df)
+        self.current_participant_raw_data_df = (
+            self.fast_preprocessor._remove_selected_interaction_types(
+                self.current_participant_raw_data_df
+            )
+        )
 
     def finalize_and_save_preprocessed_data_df(
         self,
         raw_data_filename: str,
         pre_algo_event_timestamps: pl.Series | None = None,
     ) -> Path:
-        preprocessed_data_save_folder = Path(self.options.output_folder) / f"{self.options.study_name + ' ' + PREPROCESSED_FOLDER_SUFFIX}"
+        preprocessed_data_save_folder = (
+            Path(self.options.output_folder)
+            / f"{self.options.study_name + ' ' + PREPROCESSED_FOLDER_SUFFIX}"
+        )
         preprocessed_data_save_folder.mkdir(parents=True, exist_ok=True)
 
         if not self.current_participant_raw_data_df.is_empty():
             if (
                 self.options.process_screen_usage_sessions
                 and not self.options.process_app_usage_sessions
-                and self.current_participant_raw_data_df.filter(pl.col(Column.INTERACTION_TYPE) == str(InteractionType.SCREEN_USAGE)).height
+                and self.current_participant_raw_data_df.filter(
+                    pl.col(Column.INTERACTION_TYPE) == str(InteractionType.SCREEN_USAGE)
+                ).height
             ):
                 output_df = self.current_participant_raw_data_df
                 output_file_suffix = f"Screen Usage {PREPROCESSED_FILE_SUFFIX}"
@@ -229,17 +253,29 @@ class ChronicleAndroidRawDataPreprocessor:
                 output_df = self.current_participant_raw_data_df
                 output_file_suffix = PREPROCESSED_FILE_SUFFIX
 
-            output_df = output_df.with_columns(pl.lit(self.options.study_name).alias(Column.STUDY_NAME))
+            output_df = output_df.with_columns(
+                pl.lit(self.options.study_name).alias(Column.STUDY_NAME)
+            )
             stem = Path(raw_data_filename).stem.replace("Raw ", "")
             app_save_name = preprocessed_data_save_folder / f"{stem} {output_file_suffix}"
             formatted = self.fast_preprocessor._format_output_frame(
-                output_df.select([column for column in self.fast_preprocessor._build_output_columns(output_df) if column in output_df.columns])
+                output_df.select(
+                    [
+                        column
+                        for column in self.fast_preprocessor._build_output_columns(output_df)
+                        if column in output_df.columns
+                    ]
+                )
             )
             formatted.write_csv(app_save_name)
 
             if pre_algo_event_timestamps is not None and len(pre_algo_event_timestamps) > 0:
-                sidecar_path = app_save_name.with_name(app_save_name.stem + GAP_TIMESTAMPS_SIDECAR_SUFFIX)
-                pl.DataFrame({Column.EVENT_TIMESTAMP: pre_algo_event_timestamps}).write_parquet(sidecar_path)
+                sidecar_path = app_save_name.with_name(
+                    app_save_name.stem + GAP_TIMESTAMPS_SIDECAR_SUFFIX
+                )
+                pl.DataFrame({Column.EVENT_TIMESTAMP: pre_algo_event_timestamps}).write_parquet(
+                    sidecar_path
+                )
 
         if (
             self.options.process_app_usage_sessions
@@ -247,11 +283,20 @@ class ChronicleAndroidRawDataPreprocessor:
             and not self.current_participant_screen_usage_df.is_empty()
         ):
             screen_save_name = (
-                preprocessed_data_save_folder / f"{Path(raw_data_filename).stem.replace('Raw ', '')} Screen Usage {PREPROCESSED_FILE_SUFFIX}"
+                preprocessed_data_save_folder
+                / f"{Path(raw_data_filename).stem.replace('Raw ', '')} Screen Usage {PREPROCESSED_FILE_SUFFIX}"
             )
-            screen_df = self.current_participant_screen_usage_df.with_columns(pl.lit(self.options.study_name).alias(Column.STUDY_NAME))
+            screen_df = self.current_participant_screen_usage_df.with_columns(
+                pl.lit(self.options.study_name).alias(Column.STUDY_NAME)
+            )
             formatted_screen = self.fast_preprocessor._format_output_frame(
-                screen_df.select([column for column in self.fast_preprocessor._build_output_columns(screen_df) if column in screen_df.columns])
+                screen_df.select(
+                    [
+                        column
+                        for column in self.fast_preprocessor._build_output_columns(screen_df)
+                        if column in screen_df.columns
+                    ]
+                )
             )
             formatted_screen.write_csv(screen_save_name)
 
@@ -272,7 +317,6 @@ class ChronicleAndroidRawDataPreprocessor:
             if supports_polars_fast_path(
                 self.options,
                 survey_data_processor_available=False,
-                study_date_provider_available=self.study_date_provider.is_available,
             ):
                 result = self.fast_preprocessor.preprocess_raw_data_file(raw_path)
                 self.current_participant_id = result.participant_id
@@ -296,6 +340,31 @@ class ChronicleAndroidRawDataPreprocessor:
                 )
                 return output_folder, True, None
 
+            if self.options.model_concurrent_usage or self.options.use_background_apps_file:
+                flag_name = (
+                    "model_concurrent_usage"
+                    if self.options.model_concurrent_usage
+                    else "use_background_apps_file"
+                )
+                message = (
+                    f"{flag_name} is only supported on the Polars fast "
+                    "path, but the current options route to the legacy path "
+                    "(e.g. survey-data or study-date providers active). "
+                    "(Background apps rely on the concurrent-usage split, which "
+                    "is fast-path only.)"
+                )
+                if not self.options.allow_concurrent_usage_fallback:
+                    raise ValueError(
+                        f"{message} Refusing to silently ignore the flag and emit "
+                        "non-concurrent output. Set allow_concurrent_usage_fallback="
+                        "True to proceed without concurrent-usage modeling."
+                    )
+                LOGGER.warning(
+                    "%s Proceeding without concurrent-usage modeling "
+                    "(allow_concurrent_usage_fallback is set).",
+                    message,
+                )
+
             raw_df = pl.read_csv(raw_path, infer_schema_length=10000)
             original_rows = len(raw_df)
             self._validate_required_columns(raw_df)
@@ -303,10 +372,18 @@ class ChronicleAndroidRawDataPreprocessor:
             self.current_participant_id = self.get_participant_id_from_data()
 
             df = self.column_processor.correct_username_column(raw_df)
+            # Canonicalize interaction-type spellings ("Move to Foreground",
+            # "Unknown importance: N") exactly like the fast path does — without
+            # this, devices logging the alternate vocabulary look like they have
+            # no app usage at all, and the screen-session derivation can't see
+            # Screen Interactive/Non-Interactive events.
+            df = self.fast_preprocessor._rename_interaction_types(df)
             df = self.timestamp_processor.correct_timestamp_column(df, Column.EVENT_TIMESTAMP)
             df = self.timezone_processor.apply_timezone_handling(df, Column.EVENT_TIMESTAMP)
             if self.options.correct_duplicate_event_timestamps:
-                df = self.timestamp_processor.unalign_duplicate_timestamps(df, Column.EVENT_TIMESTAMP)
+                df = self.timestamp_processor.unalign_duplicate_timestamps(
+                    df, Column.EVENT_TIMESTAMP
+                )
             df = self.study_date_provider.filter_data_to_study_dates(
                 df,
                 self.current_participant_id,
@@ -325,7 +402,9 @@ class ChronicleAndroidRawDataPreprocessor:
 
             if self.options.process_screen_usage_sessions:
                 screen_df = self.screen_usage_processor.derive_screen_usage_sessions(df)
-                self.current_participant_screen_usage_df = screen_df.filter(pl.col(Column.INTERACTION_TYPE) == str(InteractionType.SCREEN_USAGE))
+                self.current_participant_screen_usage_df = screen_df.filter(
+                    pl.col(Column.INTERACTION_TYPE) == str(InteractionType.SCREEN_USAGE)
+                )
                 if not self.options.process_app_usage_sessions:
                     self.current_participant_raw_data_df = self.current_participant_screen_usage_df
                     output_folder = self.finalize_and_save_preprocessed_data_df(raw_path.name)
@@ -372,7 +451,7 @@ class ChronicleAndroidRawDataPreprocessor:
             return output_folder, True, None
         except NoAppUsageDataError:
             self.stats.mark_empty_file(raw_path.name)
-            return Path(""), False, None
+            return Path(), False, None
         except Exception as exc:
             self.stats.mark_error(raw_path, str(exc))
             raise
@@ -389,9 +468,9 @@ class ChronicleAndroidRawDataPreprocessor:
         )
         self.stats.total_files = len(files)
         if not files:
-            return Path(""), self.stats
+            return Path(), self.stats
 
-        preprocessed_data_save_folder = Path("")
+        preprocessed_data_save_folder = Path()
         if self.options.parallel_processing and len(files) > 1:
             results, parallel_stats = preprocess_files_parallel(
                 files,
@@ -401,7 +480,7 @@ class ChronicleAndroidRawDataPreprocessor:
             )
             _merge_processing_stats(self.stats, parallel_stats)
             for output_folder, success, _ in results:
-                if success and output_folder != Path(""):
+                if success and output_folder != Path():
                     preprocessed_data_save_folder = output_folder
         else:
             for index, raw_data_file in enumerate(files, start=1):
@@ -412,10 +491,10 @@ class ChronicleAndroidRawDataPreprocessor:
                         len(files),
                     )
                 output_folder, _, _ = self.preprocess_Chronicle_Android_raw_data_file(raw_data_file)
-                if output_folder != Path(""):
+                if output_folder != Path():
                     preprocessed_data_save_folder = output_folder
 
-        if self.options.enable_plotting and preprocessed_data_save_folder != Path(""):
+        if self.options.enable_plotting and preprocessed_data_save_folder != Path():
             if plotting_started_callback:
                 plotting_started_callback()
             try:
@@ -443,7 +522,9 @@ def _process_single_file_worker(
     options = PreprocessingOptions(**options_dict)
     preprocessor = ChronicleAndroidRawDataPreprocessor(options)
     try:
-        output_folder, success, compliance_dict = preprocessor.preprocess_Chronicle_Android_raw_data_file(Path(file_path))
+        output_folder, success, compliance_dict = (
+            preprocessor.preprocess_Chronicle_Android_raw_data_file(Path(file_path))
+        )
         return (
             input_index,
             output_folder,
@@ -454,7 +535,7 @@ def _process_single_file_worker(
         )
     except Exception as exc:
         preprocessor.stats.mark_error(Path(file_path), str(exc))
-        return input_index, Path(""), False, None, Path(file_path).name, preprocessor.stats
+        return input_index, Path(), False, None, Path(file_path).name, preprocessor.stats
 
 
 def _merge_processing_stats(destination: ProcessingStats, source: ProcessingStats) -> None:
@@ -491,7 +572,9 @@ def _parallel_option_value(value: Any) -> Any:
 
 def _build_parallel_options_dict(options: PreprocessingOptions) -> dict[str, Any]:
     worker_options = {
-        field.name: _parallel_option_value(getattr(options, field.name)) for field in fields(PreprocessingOptions) if field.name != "survey_data_df"
+        field.name: _parallel_option_value(getattr(options, field.name))
+        for field in fields(PreprocessingOptions)
+        if field.name != "survey_data_df"
     }
     worker_options["enable_plotting"] = False
     worker_options["parallel_processing"] = False

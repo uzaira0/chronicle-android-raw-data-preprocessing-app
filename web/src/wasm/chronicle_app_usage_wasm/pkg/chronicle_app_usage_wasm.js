@@ -7,13 +7,14 @@
  * @param {Uint8Array} same_stop
  * @param {Uint8Array} other_stop
  * @param {Uint8Array} stopped
+ * @param {Uint8Array} background
  * @param {boolean} allow_stop_event_reuse
  * @param {boolean} use_activity_stopped_as_fallback
  * @param {boolean} apply_threshold_to_fallback
  * @param {bigint} long_duration_threshold_ns
  * @returns {any}
  */
-export function matchAppUsageUpdateIndices(app_codes, timestamp_ns, resumed, same_stop, other_stop, stopped, allow_stop_event_reuse, use_activity_stopped_as_fallback, apply_threshold_to_fallback, long_duration_threshold_ns) {
+export function matchAppUsageUpdateIndices(app_codes, timestamp_ns, resumed, same_stop, other_stop, stopped, background, allow_stop_event_reuse, use_activity_stopped_as_fallback, apply_threshold_to_fallback, long_duration_threshold_ns) {
     const ptr0 = passArray32ToWasm0(app_codes, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passArray64ToWasm0(timestamp_ns, wasm.__wbindgen_malloc);
@@ -26,7 +27,9 @@ export function matchAppUsageUpdateIndices(app_codes, timestamp_ns, resumed, sam
     const len4 = WASM_VECTOR_LEN;
     const ptr5 = passArray8ToWasm0(stopped, wasm.__wbindgen_malloc);
     const len5 = WASM_VECTOR_LEN;
-    const ret = wasm.matchAppUsageUpdateIndices(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, allow_stop_event_reuse, use_activity_stopped_as_fallback, apply_threshold_to_fallback, long_duration_threshold_ns);
+    const ptr6 = passArray8ToWasm0(background, wasm.__wbindgen_malloc);
+    const len6 = WASM_VECTOR_LEN;
+    const ret = wasm.matchAppUsageUpdateIndices(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, ptr6, len6, allow_stop_event_reuse, use_activity_stopped_as_fallback, apply_threshold_to_fallback, long_duration_threshold_ns);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
@@ -47,6 +50,33 @@ export function matcherVersion() {
     } finally {
         wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
     }
+}
+
+/**
+ * Split paired app sessions into primary/secondary sub-interval rows.
+ *
+ * `starts` and `stops` are parallel arrays of session boundary nanosecond
+ * timestamps (one entry per session, stops[i] >= starts[i]). Returns an
+ * array of `{ sessionIndex, startNs, stopNs, layer }` objects where `layer`
+ * is `"primary"` or `"secondary"`.
+ *
+ * When `modelConcurrentUsage` is false callers should NOT call this — the
+ * regular matcher output is used unchanged. When it is true, callers pass
+ * the matched `start_ns` / `stop_ns` arrays and use the expanded rows.
+ * @param {BigInt64Array} starts
+ * @param {BigInt64Array} stops
+ * @returns {any}
+ */
+export function splitOverlappingSessions(starts, stops) {
+    const ptr0 = passArray64ToWasm0(starts, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray64ToWasm0(stops, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.splitOverlappingSessions(ptr0, len0, ptr1, len1);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
 }
 function __wbg_get_imports() {
     const import0 = {
@@ -84,12 +114,17 @@ function __wbg_get_imports() {
             const ret = arg0;
             return ret;
         },
-        __wbindgen_cast_0000000000000002: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000002: function(arg0) {
+            // Cast intrinsic for `I64 -> Externref`.
+            const ret = arg0;
+            return ret;
+        },
+        __wbindgen_cast_0000000000000003: function(arg0, arg1) {
             // Cast intrinsic for `Ref(String) -> Externref`.
             const ret = getStringFromWasm0(arg0, arg1);
             return ret;
         },
-        __wbindgen_cast_0000000000000003: function(arg0) {
+        __wbindgen_cast_0000000000000004: function(arg0) {
             // Cast intrinsic for `U64 -> Externref`.
             const ret = BigInt.asUintN(64, arg0);
             return ret;

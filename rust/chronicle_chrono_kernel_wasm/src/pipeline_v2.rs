@@ -18,6 +18,8 @@ use crate::{
     REQUIRED_COLUMNS,
 };
 
+use _rust_app_usage_matcher::{split_overlapping_sessions, UsageLayer};
+
 const PREPROCESSOR_VERSION: &str = "1.0.0";
 
 // ---- canonical interaction-type constants -------------------------------
@@ -138,6 +140,9 @@ pub struct PipelineV2Options {
     pub screen_manual_lock_max_tail_seconds: f64,
     pub screen_keyguard_near_stop_seconds: f64,
     pub datetime_of_preprocessing: String,
+    pub model_concurrent_usage: bool,
+    pub minimum_usage_duration: f64,
+    pub apply_minimum_usage_duration_to_concurrent_subintervals: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -353,6 +358,9 @@ struct Row {
     /// Per-codebook column values (Option<String>) parallel to CODEBOOK_RENAME_PAIRS.
     codebook_fields: Vec<Option<String>>,
     index: usize,
+    /// Present only when `model_concurrent_usage` is true. Value is "primary"
+    /// or "secondary". None when the flag is off (column absent from output).
+    usage_layer: Option<String>,
 }
 
 fn empty_codebook_fields() -> Vec<Option<String>> {
@@ -872,6 +880,12 @@ pub struct PipelineV2OptionsJson {
     pub screen_manual_lock_max_tail_seconds: f64,
     pub screen_keyguard_near_stop_seconds: f64,
     pub datetime_of_preprocessing: String,
+    #[serde(default)]
+    pub model_concurrent_usage: bool,
+    #[serde(default)]
+    pub minimum_usage_duration: f64,
+    #[serde(default)]
+    pub apply_minimum_usage_duration_to_concurrent_subintervals: bool,
 }
 
 impl PipelineV2OptionsJson {
@@ -906,6 +920,10 @@ impl PipelineV2OptionsJson {
             screen_manual_lock_max_tail_seconds: self.screen_manual_lock_max_tail_seconds,
             screen_keyguard_near_stop_seconds: self.screen_keyguard_near_stop_seconds,
             datetime_of_preprocessing: self.datetime_of_preprocessing,
+            model_concurrent_usage: self.model_concurrent_usage,
+            minimum_usage_duration: self.minimum_usage_duration,
+            apply_minimum_usage_duration_to_concurrent_subintervals: self
+                .apply_minimum_usage_duration_to_concurrent_subintervals,
         }
     }
 }
@@ -1070,6 +1088,7 @@ fn parse_raw_rows(csv_bytes: &[u8], opts: &PipelineV2Options) -> Result<(Vec<Row
             broad_app_category: None,
             codebook_fields: empty_codebook_fields(),
             index: idx,
+            usage_layer: None,
         };
         let row_tz: Tz = row.timezone.parse().unwrap_or(tz);
         populate_time_columns(&mut row, row_tz);
@@ -1395,7 +1414,9 @@ fn process_usage_rows(
         if same_stop_types.contains(it) {
             same_stop[i] = true;
         }
-        if other_stop_types.contains(it) {
+        // Phase 1: when model_concurrent_usage is on, every app session runs to
+        // its own stop event, so other-app resumes are not treated as stops.
+        if !opts.model_concurrent_usage && other_stop_types.contains(it) {
             other_stop[i] = true;
         }
         if it == stopped_type {
@@ -1408,6 +1429,9 @@ fn process_usage_rows(
         apply_threshold_to_fallback: opts.apply_threshold_to_fallback,
         long_duration_threshold_ns: opts.long_duration_threshold_ns,
     };
+    // The kernel crate has no background-apps concept; pass an all-false slice
+    // (length-matched to the inputs) so the matcher's validate_lengths passes.
+    let background = vec![false; app_codes.len()];
     let result = _rust_app_usage_matcher::match_app_usage_update_indices_core(
         &app_codes,
         &timestamps,
@@ -1415,6 +1439,7 @@ fn process_usage_rows(
         &same_stop,
         &other_stop,
         &stopped,
+        &background,
         match_options,
     )
     .map_err(|e| format!("matcher: {e}"))?;
@@ -1458,13 +1483,84 @@ fn process_usage_rows(
                     let start = r.start_timestamp_ns.unwrap();
                     let stop = r.stop_timestamp_ns.unwrap();
                     let dur_s = (stop - start) as f64 / 1_000_000_000.0;
-                    r.duration_seconds = Some(dur_s);
-                    r.duration_minutes = Some(dur_s / 60.0);
+                    // Null (but keep) sessions shorter than minimum_usage_duration,
+                    // matching browserPipeline.ts processUsageRows and the SSOT
+                    // contract. When concurrent usage is on these durations are
+                    // recomputed per sub-interval in Phase 2 below.
+                    if opts.minimum_usage_duration > 0.0 && dur_s < opts.minimum_usage_duration {
+                        r.duration_seconds = None;
+                        r.duration_minutes = None;
+                    } else {
+                        r.duration_seconds = Some(dur_s);
+                        r.duration_minutes = Some(dur_s / 60.0);
+                    }
                 }
             }
             r
         })
         .collect();
+
+    // Phase 2: split overlapping sessions and expand each into primary/secondary
+    // sub-interval rows. Only applied when model_concurrent_usage is on and
+    // this is the App Usage path (not Filtered App Usage — that path has no
+    // timing to split because timing is cleared above).
+    if opts.model_concurrent_usage && usage_type != FILTERED_APP_USAGE {
+        let app_usage_indices: Vec<usize> = out
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| r.interaction_type == usage_type)
+            .map(|(i, _)| i)
+            .collect();
+
+        let starts: Vec<i64> = app_usage_indices
+            .iter()
+            .map(|&i| out[i].start_timestamp_ns.unwrap_or(0))
+            .collect();
+        let stops: Vec<i64> = app_usage_indices
+            .iter()
+            .map(|&i| out[i].stop_timestamp_ns.unwrap_or(0))
+            .collect();
+
+        let layered = split_overlapping_sessions(&starts, &stops)
+            .map_err(|e| format!("split_overlapping_sessions: {e}"))?;
+
+        // Build expanded rows from the layered output, replacing the original
+        // app-usage rows. Non-app-usage rows are passed through unchanged.
+        let mut expanded: Vec<Row> = out
+            .iter()
+            .filter(|r| r.interaction_type != usage_type)
+            .cloned()
+            .collect();
+
+        for ls in &layered {
+            let source_idx = app_usage_indices[ls.session_index];
+            let mut row = out[source_idx].clone();
+            let start = ls.start_ns;
+            let stop = ls.stop_ns;
+            let dur_s = (stop - start) as f64 / 1_000_000_000.0;
+            row.start_timestamp_ns = Some(start);
+            row.stop_timestamp_ns = Some(stop);
+            // Concurrent-usage option (default off): null — but keep — split
+            // sub-intervals shorter than minimum_usage_duration.
+            let below_threshold = opts
+                .apply_minimum_usage_duration_to_concurrent_subintervals
+                && opts.minimum_usage_duration > 0.0
+                && dur_s < opts.minimum_usage_duration;
+            if below_threshold {
+                row.duration_seconds = None;
+                row.duration_minutes = None;
+            } else {
+                row.duration_seconds = Some(dur_s);
+                row.duration_minutes = Some(dur_s / 60.0);
+            }
+            row.usage_layer = Some(match ls.layer {
+                UsageLayer::Primary => "primary".to_string(),
+                UsageLayer::Secondary => "secondary".to_string(),
+            });
+            expanded.push(row);
+        }
+        out = expanded;
+    }
 
     out.sort_by(|a, b| {
         a.event_timestamp_ns
@@ -1953,6 +2049,9 @@ fn build_app_columns(opts: &PipelineV2Options, include_codebook_aliases: bool) -
     cols.push("any_app_usage_time_gap_hours".into());
     cols.push("preprocessor_version".into());
     cols.push("datetime_of_preprocessing".into());
+    if opts.model_concurrent_usage {
+        cols.push("usage_layer".into());
+    }
     cols
 }
 
@@ -2063,6 +2162,9 @@ fn write_app_csv(rows: &[Row], opts: &PipelineV2Options, include_aliases: bool) 
         emit(&mut out, &normalize_float_string(row.any_app_usage_time_gap_hours), &mut first);
         emit(&mut out, pp_version, &mut first);
         emit(&mut out, dop, &mut first);
+        if opts.model_concurrent_usage {
+            emit(&mut out, row.usage_layer.as_deref().unwrap_or(""), &mut first);
+        }
         out.push(b'\n');
     }
     out

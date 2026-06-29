@@ -84,21 +84,22 @@ optional = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
-addopts = "--snapshot-warn-unused"
 
+# research-canonical: python-config v1 — adopted canonical ruff + basedpyright baseline.
 [tool.ruff]
-line-length = 150
-target-version = "py310"
+line-length = 100
+target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "C4", "RUF"]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "PTH", "C4", "ARG"]
+ignore = []
 
-[tool.ruff.lint.per-file-ignores]
-"tests/**" = ["F401"]
+[tool.ruff.lint.isort]
+known-first-party = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
 
 [tool.basedpyright]
-include = ["src/chronicle_preprocessing_app"]
-pythonVersion = "3.11"
-typeCheckingMode = "basic"
-reportMissingImports = "none"
-reportMissingModuleSource = "none"
+typeCheckingMode = "standard"

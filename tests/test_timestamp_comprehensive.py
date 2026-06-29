@@ -4,12 +4,14 @@ import polars as pl
 import pytest
 
 from chronicle_preprocessing_app.config.constants import Column, TimezoneHandlingOption
-from chronicle_preprocessing_app.core.preprocessing.timestamp_preprocessor import TimestampPreprocessor
+from chronicle_preprocessing_app.core.preprocessing.timestamp_preprocessor import (
+    TimestampPreprocessor,
+)
 from chronicle_preprocessing_app.core.preprocessing.timezone_preprocessor import (
     TimezonePreprocessor,
     _normalize_timezone_expr,
 )
-from tests.polars_helpers import cell, frame, is_null, rows_where, ts
+from tests.polars_helpers import frame, ts
 from tests.polars_helpers import options as _options
 
 
@@ -149,16 +151,13 @@ def test_correct_timestamp_column_mixed_null_and_valid() -> None:
     assert parsed[2] is None
 
 
-def test_correct_timestamp_column_fractional_seconds_with_tz_becomes_null() -> None:
-    # The parser formats do not include a fractional+timezone pattern, so
-    # "2026-05-01T12:30:45.123456+00:00" falls through to null and is
-    # captured in the _invalid_original column.
+def test_correct_timestamp_column_fractional_seconds_with_tz_parses() -> None:
     processor = _ts_preprocessor(correct_duplicate_event_timestamps=False)
     df = pl.DataFrame({Column.EVENT_TIMESTAMP: ["2026-05-01T12:30:45.123456+00:00"]})
     result = processor.correct_timestamp_column(df)
     invalid_col = f"{Column.EVENT_TIMESTAMP}_invalid_original"
-    assert invalid_col in result.columns
-    assert result[0, invalid_col] == "2026-05-01T12:30:45.123456+00:00"
+    assert invalid_col not in result.columns
+    assert result[0, Column.EVENT_TIMESTAMP] is not None
 
 
 def test_correct_timestamp_column_z_suffix_parsed_as_utc() -> None:
@@ -314,7 +313,9 @@ def test_format_timestamps_as_strings_converts_column_to_string() -> None:
 def test_format_timestamps_as_strings_custom_format_applied() -> None:
     processor = _ts_preprocessor()
     df = frame([{Column.EVENT_TIMESTAMP: ts("2026-03-15 09:05:00", "UTC")}])
-    result = processor.format_timestamps_as_strings(df, [Column.EVENT_TIMESTAMP], format_string="%Y/%m/%d")
+    result = processor.format_timestamps_as_strings(
+        df, [Column.EVENT_TIMESTAMP], format_string="%Y/%m/%d"
+    )
     assert result[0, Column.EVENT_TIMESTAMP] == "2026/03/15"
 
 
@@ -510,7 +511,10 @@ def test_determine_primary_timezone_all_null_timezone_col_falls_back_to_schema_t
     processor = _tz_preprocessor()
     df = frame(
         [
-            {Column.EVENT_TIMESTAMP: ts("2026-01-01 00:00:00", "America/Chicago"), Column.TIMEZONE: None},
+            {
+                Column.EVENT_TIMESTAMP: ts("2026-01-01 00:00:00", "America/Chicago"),
+                Column.TIMEZONE: None,
+            },
         ]
     )
     result = processor.determine_primary_timezone(df)
@@ -531,7 +535,12 @@ def test_determine_primary_timezone_tie_returns_one_of_the_tied_values() -> None
     df = pl.DataFrame(
         {
             Column.EVENT_TIMESTAMP: [ts("2026-01-01 00:00:00", "UTC")] * 4,
-            Column.TIMEZONE: ["America/Chicago", "America/New_York", "America/Chicago", "America/New_York"],
+            Column.TIMEZONE: [
+                "America/Chicago",
+                "America/New_York",
+                "America/Chicago",
+                "America/New_York",
+            ],
         }
     )
     result = processor.determine_primary_timezone(df)
@@ -630,7 +639,9 @@ def test_detect_timezones_padded_values_normalized_and_deduplicated() -> None:
 
 def test_find_all_timezones_nonexistent_folder_raises(tmp_path: pytest.TempPathFactory) -> None:
     with pytest.raises((ValueError, FileNotFoundError)):
-        TimezonePreprocessor.find_all_timezones_in_folder_files(tmp_path / "does_not_exist", r".*\.csv")
+        TimezonePreprocessor.find_all_timezones_in_folder_files(
+            tmp_path / "does_not_exist", r".*\.csv"
+        )
 
 
 def test_find_all_timezones_file_without_timezone_column_skipped(tmp_path) -> None:
@@ -653,7 +664,9 @@ def test_find_all_timezones_survey_files_not_excluded(tmp_path) -> None:
     raw = tmp_path / "raw"
     raw.mkdir()
     # Survey files are ignored by the hardcoded ignore list in find_all_timezones_in_folder_files
-    (raw / "Survey Raw P01.csv").write_text(f"{Column.TIMEZONE}\nAmerica/Chicago\n", encoding="utf-8")
+    (raw / "Survey Raw P01.csv").write_text(
+        f"{Column.TIMEZONE}\nAmerica/Chicago\n", encoding="utf-8"
+    )
     # The function ignores Survey, Archive, Do Not Use
     result = TimezonePreprocessor.find_all_timezones_in_folder_files(raw, r".*\.csv")
     # Survey is in the ignore_names list so it WILL be excluded
@@ -668,7 +681,9 @@ def test_find_all_timezones_preprocessed_folder_not_ignored_by_tz_finder(tmp_pat
     raw = tmp_path / "raw"
     preprocessed = raw / "Preprocessed"
     preprocessed.mkdir(parents=True)
-    (preprocessed / "file.csv").write_text(f"{Column.TIMEZONE}\nAmerica/Chicago\n", encoding="utf-8")
+    (preprocessed / "file.csv").write_text(
+        f"{Column.TIMEZONE}\nAmerica/Chicago\n", encoding="utf-8"
+    )
     result = TimezonePreprocessor.find_all_timezones_in_folder_files(raw, r".*\.csv")
     assert "America/Chicago" in result
 
@@ -676,7 +691,9 @@ def test_find_all_timezones_preprocessed_folder_not_ignored_by_tz_finder(tmp_pat
 def test_find_all_timezones_normal_file_included(tmp_path) -> None:
     raw = tmp_path / "raw"
     raw.mkdir()
-    (raw / "Raw P01.csv").write_text(f"{Column.TIMEZONE}\nAmerica/Chicago\nAmerica/New_York\n", encoding="utf-8")
+    (raw / "Raw P01.csv").write_text(
+        f"{Column.TIMEZONE}\nAmerica/Chicago\nAmerica/New_York\n", encoding="utf-8"
+    )
     result = TimezonePreprocessor.find_all_timezones_in_folder_files(raw, r".*\.csv")
     assert "America/Chicago" in result
     assert "America/New_York" in result
@@ -685,7 +702,9 @@ def test_find_all_timezones_normal_file_included(tmp_path) -> None:
 def test_find_all_timezones_none_string_filtered_out(tmp_path) -> None:
     raw = tmp_path / "raw"
     raw.mkdir()
-    (raw / "Raw P01.csv").write_text(f"{Column.TIMEZONE}\nNone\nAmerica/Chicago\n", encoding="utf-8")
+    (raw / "Raw P01.csv").write_text(
+        f"{Column.TIMEZONE}\nNone\nAmerica/Chicago\n", encoding="utf-8"
+    )
     result = TimezonePreprocessor.find_all_timezones_in_folder_files(raw, r".*\.csv")
     assert "None" not in result
     assert "America/Chicago" in result
@@ -726,7 +745,9 @@ def test_convert_timestamp_columns_null_values_preserved_as_null() -> None:
             {Column.EVENT_TIMESTAMP: ts("2026-01-01 06:00:00", "UTC"), Column.STOP_TIMESTAMP: None},
         ]
     )
-    result = processor.convert_timestamp_columns(df, columns=[Column.EVENT_TIMESTAMP, Column.STOP_TIMESTAMP])
+    result = processor.convert_timestamp_columns(
+        df, columns=[Column.EVENT_TIMESTAMP, Column.STOP_TIMESTAMP]
+    )
     assert result[0, Column.STOP_TIMESTAMP] is None
 
 
@@ -759,7 +780,9 @@ def test_convert_timestamp_columns_partial_match_some_missing() -> None:
     )
     df = frame([{Column.EVENT_TIMESTAMP: ts("2026-01-01 06:00:00", "UTC")}])
     # "missing_col" doesn't exist — should not raise
-    result = processor.convert_timestamp_columns(df, columns=[Column.EVENT_TIMESTAMP, "missing_col"])
+    result = processor.convert_timestamp_columns(
+        df, columns=[Column.EVENT_TIMESTAMP, "missing_col"]
+    )
     assert result.schema[Column.EVENT_TIMESTAMP].time_zone == "America/Chicago"
 
 

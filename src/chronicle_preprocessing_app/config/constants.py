@@ -27,7 +27,9 @@ PREPROCESSED_FOLDER_SUFFIX = "Chronicle Android Automatically Preprocessed Data"
 PLOTTED_FOLDER_SUFFIX = "Chronicle Android Plotted Data"
 GAP_TIMESTAMPS_SIDECAR_SUFFIX = ".gap_timestamps.parquet"
 
-EXPECTED_TIMESTAMP_LENGTH = 25  # expected length of timestamp string from Chronicle data in characters
+EXPECTED_TIMESTAMP_LENGTH = (
+    25  # expected length of timestamp string from Chronicle data in characters
+)
 
 
 # ====== Enum classes =======
@@ -277,6 +279,16 @@ class Column(StrEnum):
     # Survey data and compliance columns (internal functionality)
     DEVICE_SHARING_STATUS = "device_sharing_status"
     COMPLIANCE = "compliance"
+
+    # Concurrent (PiP) usage layer column
+    USAGE_LAYER = "usage_layer"
+
+
+class UsageLayer(StrEnum):
+    """Concurrent-usage layer for a split app-usage row."""
+
+    PRIMARY = "primary"
+    SECONDARY = "secondary"
 
 
 class UIStatus(StrEnum):

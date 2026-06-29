@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import polars as pl
 
-from chronicle_preprocessing_app.config.constants import GAP_TIMESTAMPS_SIDECAR_SUFFIX, Column, InteractionType
+from chronicle_preprocessing_app.config.constants import (
+    GAP_TIMESTAMPS_SIDECAR_SUFFIX,
+    Column,
+    InteractionType,
+)
 from chronicle_preprocessing_app.config.defaults import DEFAULT_APP_CODEBOOK_FILE_PATH
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
 from chronicle_preprocessing_app.core.plotting.plotting_manager import PlottingManager
@@ -36,6 +40,40 @@ def _raw_fixture() -> pl.DataFrame:
                 Column.APP_PACKAGE_NAME: "com.example.app",
                 Column.APPLICATION_LABEL: "Example",
                 Column.USERNAME: "Target Child",
+                Column.TIMEZONE: "America/Chicago",
+            },
+        ]
+    )
+
+
+def _placeholder_fixture() -> pl.DataFrame:
+    return pl.DataFrame(
+        [
+            {
+                Column.PARTICIPANT_ID: "P01",
+                Column.EVENT_TIMESTAMP: "2026-03-07T10:00:00-06:00",
+                Column.INTERACTION_TYPE: str(InteractionType.ACTIVITY_RESUMED),
+                Column.APP_PACKAGE_NAME: "com.example.app",
+                Column.APPLICATION_LABEL: "Example",
+                Column.USERNAME: "Target Child",
+                Column.TIMEZONE: "America/Chicago",
+            },
+            {
+                Column.PARTICIPANT_ID: "P01",
+                Column.EVENT_TIMESTAMP: "2026-03-07T10:05:00-06:00",
+                Column.INTERACTION_TYPE: str(InteractionType.ACTIVITY_PAUSED),
+                Column.APP_PACKAGE_NAME: "com.example.app",
+                Column.APPLICATION_LABEL: "Example",
+                Column.USERNAME: "Target Child",
+                Column.TIMEZONE: "America/Chicago",
+            },
+            {
+                Column.PARTICIPANT_ID: "P01",
+                Column.EVENT_TIMESTAMP: "2026-03-08T09:00:00-06:00",
+                Column.INTERACTION_TYPE: str(InteractionType.DEVICE_SHUTDOWN),
+                Column.APP_PACKAGE_NAME: "android",
+                Column.APPLICATION_LABEL: "Device shutdown",
+                Column.USERNAME: "System",
                 Column.TIMEZONE: "America/Chicago",
             },
         ]
@@ -116,7 +154,9 @@ def test_default_codebook_path_points_to_unified_codebook() -> None:
     assert default_path.name == "unified_app_codebook.csv"
 
 
-def test_main_preprocessor_fast_path_matches_non_fast_path_output_without_codebook(tmp_path, monkeypatch) -> None:
+def test_main_preprocessor_fast_path_matches_non_fast_path_output_without_codebook(
+    tmp_path, monkeypatch
+) -> None:
     raw_folder = tmp_path / "raw"
     raw_folder.mkdir()
     raw_file = raw_folder / "Raw P01.csv"
@@ -141,13 +181,19 @@ def test_main_preprocessor_fast_path_matches_non_fast_path_output_without_codebo
 
     legacy_csv = next(legacy_folder.glob("*.csv"))
     fast_csv = next(fast_folder.glob("*.csv"))
-    legacy_df = pl.read_csv(legacy_csv, infer_schema=False).drop(Column.DATETIME_OF_PREPROCESSING, strict=False)
-    fast_df = pl.read_csv(fast_csv, infer_schema=False).drop(Column.DATETIME_OF_PREPROCESSING, strict=False)
+    legacy_df = pl.read_csv(legacy_csv, infer_schema=False).drop(
+        Column.DATETIME_OF_PREPROCESSING, strict=False
+    )
+    fast_df = pl.read_csv(fast_csv, infer_schema=False).drop(
+        Column.DATETIME_OF_PREPROCESSING, strict=False
+    )
 
     assert legacy_df.equals(fast_df)
 
 
-def test_main_preprocessor_applies_injected_study_date_map_before_app_usage(tmp_path: Path, monkeypatch) -> None:
+def test_main_preprocessor_applies_injected_study_date_map_before_app_usage(
+    tmp_path: Path, monkeypatch
+) -> None:
     raw_folder = tmp_path / "raw"
     raw_folder.mkdir()
     raw_file = raw_folder / "Raw P01.csv"
@@ -210,12 +256,19 @@ def test_main_preprocessor_applies_injected_study_date_map_before_app_usage(tmp_
 
     assert success
     output_df = pl.read_csv(next(output_folder.glob("*.csv")), infer_schema=False)
-    app_usage_rows = output_df.filter(pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE))
-    assert app_usage_rows.get_column(Column.APP_PACKAGE_NAME).to_list() == ["com.inside.window"]
-    assert "com.outside.window" not in output_df.get_column(Column.APP_PACKAGE_NAME).to_list()
+    app_usage_rows = output_df.filter(
+        pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)
+    )
+    assert app_usage_rows.get_column(Column.APP_PACKAGE_NAME).to_list() == [
+        "com.outside.window",
+        "com.inside.window",
+    ]
+    assert "com.outside.window" in output_df.get_column(Column.APP_PACKAGE_NAME).to_list()
 
 
-def test_main_preprocessor_fast_path_matches_non_fast_path_output_with_default_codebook(tmp_path, monkeypatch) -> None:
+def test_main_preprocessor_fast_path_matches_non_fast_path_output_with_default_codebook(
+    tmp_path, monkeypatch
+) -> None:
     raw_folder = tmp_path / "raw"
     raw_folder.mkdir()
     raw_file = raw_folder / "Raw P01.csv"
@@ -241,8 +294,12 @@ def test_main_preprocessor_fast_path_matches_non_fast_path_output_with_default_c
 
     legacy_csv = next(legacy_folder.glob("*.csv"))
     fast_csv = next(fast_folder.glob("*.csv"))
-    legacy_df = pl.read_csv(legacy_csv, infer_schema=False).drop(Column.DATETIME_OF_PREPROCESSING, strict=False)
-    fast_df = pl.read_csv(fast_csv, infer_schema=False).drop(Column.DATETIME_OF_PREPROCESSING, strict=False)
+    legacy_df = pl.read_csv(legacy_csv, infer_schema=False).drop(
+        Column.DATETIME_OF_PREPROCESSING, strict=False
+    )
+    fast_df = pl.read_csv(fast_csv, infer_schema=False).drop(
+        Column.DATETIME_OF_PREPROCESSING, strict=False
+    )
 
     assert legacy_df.equals(fast_df)
     assert Column.BROAD_APP_CATEGORY not in legacy_df.columns
@@ -250,9 +307,13 @@ def test_main_preprocessor_fast_path_matches_non_fast_path_output_with_default_c
     assert legacy_df.get_column(Column.PLAY_STORE_GENRE_ID).to_list() == [None]
     assert legacy_df.get_column(Column.USC_GENRE_ID).to_list() == [None]
     assert legacy_df.get_column(Column.BABYEMU_GENRE_ID_SCRAPED).to_list() == [None]
-    assert legacy_df.get_column(Column.PLAY_STORE_BROAD_APP_CATEGORY).to_list() == ["Video Players (e.g. YouTube)"]
+    assert legacy_df.get_column(Column.PLAY_STORE_BROAD_APP_CATEGORY).to_list() == [
+        "Video Players (e.g. YouTube)"
+    ]
     assert legacy_df.get_column(Column.BABYEMU_BROAD_APP_CATEGORY).to_list() == ["VIDEO"]
-    assert legacy_df.get_column(Column.CODEBOOK_DATASET).to_list() == ["USC Armstrong Lab, UMich MITTen/GDW, UW-Madison Baby EMU, BCM CNRC DAC"]
+    assert legacy_df.get_column(Column.CODEBOOK_DATASET).to_list() == [
+        "USC Armstrong Lab, UMich MITTen/GDW, UW-Madison Baby EMU, BCM CNRC DAC"
+    ]
 
 
 def test_codebook_genre_output_consolidates_only_when_sources_agree(tmp_path, monkeypatch) -> None:
@@ -303,12 +364,18 @@ def test_codebook_genre_output_consolidates_only_when_sources_agree(tmp_path, mo
 
     legacy_csv = next(legacy_folder.glob("*.csv"))
     fast_csv = next(fast_folder.glob("*.csv"))
-    legacy_df = pl.read_csv(legacy_csv, infer_schema=False).drop(Column.DATETIME_OF_PREPROCESSING, strict=False)
-    fast_df = pl.read_csv(fast_csv, infer_schema=False).drop(Column.DATETIME_OF_PREPROCESSING, strict=False)
+    legacy_df = pl.read_csv(legacy_csv, infer_schema=False).drop(
+        Column.DATETIME_OF_PREPROCESSING, strict=False
+    )
+    fast_df = pl.read_csv(fast_csv, infer_schema=False).drop(
+        Column.DATETIME_OF_PREPROCESSING, strict=False
+    )
 
     assert legacy_df.equals(fast_df)
 
-    app_usage_rows = legacy_df.filter(pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)).sort(Column.APP_PACKAGE_NAME)
+    app_usage_rows = legacy_df.filter(
+        pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)
+    ).sort(Column.APP_PACKAGE_NAME)
     consensus_row = app_usage_rows.row(0, named=True)
     disagree_row = app_usage_rows.row(1, named=True)
 
@@ -335,7 +402,9 @@ def test_fast_path_pre_algo_timestamps_include_all_raw_event_types(tmp_path: Pat
     # Fixture has 2 raw rows (ACTIVITY_RESUMED + ACTIVITY_PAUSED). The algorithm
     # collapses them into one APP_USAGE session, so the pre-algo capture must be larger.
     assert len(result.pre_algo_event_timestamps) == 2
-    app_usage_rows = result.data.filter(pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE))
+    app_usage_rows = result.data.filter(
+        pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)
+    )
     assert len(app_usage_rows) < len(result.pre_algo_event_timestamps)
 
 
@@ -375,6 +444,47 @@ def test_fast_path_save_no_sidecar_when_timestamps_absent(tmp_path: Path) -> Non
     )
 
     assert not list(out_folder.glob(f"*{GAP_TIMESTAMPS_SIDECAR_SUFFIX}"))
+
+
+def test_fast_path_adds_placeholders_for_days_with_raw_data_no_usage(tmp_path: Path) -> None:
+    raw_file = tmp_path / "Raw P01.csv"
+    _placeholder_fixture().write_csv(raw_file)
+
+    options = PreprocessingOptions(
+        study_name="test",
+        study_date_map={
+            "P01": (datetime(2026, 3, 7), datetime(2026, 3, 10)),
+        },
+    )
+
+    preprocessor = PolarsFastPathPreprocessor(options)
+    result = preprocessor.preprocess_raw_data_file(raw_file)
+
+    app_usage = result.data.filter(
+        pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)
+    )
+    placeholder = app_usage.filter(pl.col(Column.APP_PACKAGE_NAME) == "com.placeholder.noactivity")
+
+    placeholder_dates = placeholder.get_column(Column.DATE).to_list()
+    assert len(placeholder) == 1
+    assert date(2026, 3, 8) in placeholder_dates
+    assert placeholder.get_column(Column.DURATION_SECONDS).to_list() == [0]
+    assert placeholder.get_column(Column.DURATION_MINUTES).to_list() == [0.0]
+    assert app_usage.filter(pl.col(Column.DATE) == date(2026, 3, 9)).is_empty()
+
+
+def test_fast_path_does_not_add_placeholder_without_study_dates(tmp_path: Path) -> None:
+    raw_file = tmp_path / "Raw P01.csv"
+    _placeholder_fixture().write_csv(raw_file)
+
+    preprocessor = PolarsFastPathPreprocessor(PreprocessingOptions())
+    result = preprocessor.preprocess_raw_data_file(raw_file)
+
+    placeholder = result.data.filter(
+        (pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE))
+        & (pl.col(Column.APP_PACKAGE_NAME) == "com.placeholder.noactivity")
+    )
+    assert placeholder.is_empty()
 
 
 def test_plotting_manager_loads_gap_sidecar(tmp_path: Path) -> None:

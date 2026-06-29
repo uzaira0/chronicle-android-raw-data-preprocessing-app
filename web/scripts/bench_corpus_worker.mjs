@@ -16,13 +16,18 @@ const OTHER_STOP_TYPES = [
 ];
 const LONG_DURATION_THRESHOLD_NS = BigInt(12 * 3600 * 1_000_000_000);
 
-const sha = (b) => createHash("sha256").update(b).digest("hex").slice(0, 12);
+const sha = (/** @type {Uint8Array | Buffer | string} */ b) =>
+  createHash("sha256").update(b).digest("hex").slice(0, 12);
 
 async function init() {
   const module = await import(path.join(workerData.kernelPkg, "chronicle_chrono_kernel_wasm.js"));
   const wasmBytes = await readFile(path.join(workerData.kernelPkg, "chronicle_chrono_kernel_wasm_bg.wasm"));
   await module.default({ module_or_path: wasmBytes });
-  return (bytes, tz, filteredPackages) =>
+  return (
+    /** @type {Uint8Array} */ bytes,
+    /** @type {string} */ tz,
+    /** @type {string[]} */ filteredPackages,
+  ) =>
     module.process_full_pipeline_e2e(
       bytes, tz, filteredPackages,
       SAME_STOP_TYPES, OTHER_STOP_TYPES,
@@ -33,9 +38,11 @@ async function init() {
 const Papa = (await import("papaparse")).default;
 
 const k = await init();
-parentPort.postMessage({ type: "ready" });
+if (!parentPort) throw new Error("bench_corpus_worker.mjs must be run as a worker thread");
+const port = parentPort;
+port.postMessage({ type: "ready" });
 
-parentPort.on("message", async (msg) => {
+port.on("message", async (msg) => {
   if (msg.type === "shutdown") {
     process.exit(0);
   }
@@ -51,7 +58,7 @@ parentPort.on("message", async (msg) => {
     const t = performance.now();
     const out = k(bytes, tz, msg.filterArr);
     const rustMs = performance.now() - t;
-    parentPort.postMessage({
+    port.postMessage({
       type: "result",
       result: {
         file: path.basename(msg.file),
@@ -66,6 +73,6 @@ parentPort.on("message", async (msg) => {
       },
     });
   } catch (err) {
-    parentPort.postMessage({ type: "error", error: String(err) });
+    port.postMessage({ type: "error", error: String(err) });
   }
 });

@@ -17,6 +17,7 @@ from chronicle_preprocessing_app.core.preprocessing.main_preprocessor import (
 )
 from chronicle_preprocessing_app.utils.file_utils import (
     read_apps_forcing_screen_open_file,
+    read_background_apps_file,
     read_filter_file,
 )
 from chronicle_preprocessing_app.utils.pathological_fixture_builder import (
@@ -35,6 +36,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--weeks", type=int, default=2)
     parser.add_argument("--datetime", default=FIXED_DATETIME)
     parser.add_argument("--report-json", type=Path)
+    parser.add_argument(
+        "--model-concurrent-usage",
+        action="store_true",
+        default=False,
+        help="Enable concurrent (PiP) usage modeling for the flag-on parity entry.",
+    )
+    parser.add_argument(
+        "--background-apps",
+        action="store_true",
+        default=False,
+        help="Enable the background-apps file for a cross-surface parity entry.",
+    )
     return parser.parse_args()
 
 
@@ -95,7 +108,9 @@ def _compare_csvs(desktop_csv: Path, browser_csv: Path) -> dict:
     for column in common_columns:
         count = 0
         sample = None
-        for index, (desktop_row, browser_row) in enumerate(zip(desktop_rows, browser_rows, strict=False)):
+        for index, (desktop_row, browser_row) in enumerate(
+            zip(desktop_rows, browser_rows, strict=False)
+        ):
             if desktop_row[column] != browser_row[column]:
                 count += 1
                 if sample is None:
@@ -112,10 +127,19 @@ def _compare_csvs(desktop_csv: Path, browser_csv: Path) -> dict:
     return {
         "desktop_rows": len(desktop_rows),
         "browser_rows": len(browser_rows),
-        "desktop_only_columns": [column for column in desktop_columns if column not in browser_columns],
-        "browser_only_columns": [column for column in browser_columns if column not in desktop_columns],
+        "desktop_only_columns": [
+            column for column in desktop_columns if column not in browser_columns
+        ],
+        "browser_only_columns": [
+            column for column in browser_columns if column not in desktop_columns
+        ],
         "mismatches": mismatches,
     }
+
+
+BACKGROUND_APPS_FILE = (
+    REPO_ROOT / "background_apps_files/Chronicle_Android_raw_data_preprocessor_background_apps.csv"
+)
 
 
 def _build_options(
@@ -126,41 +150,63 @@ def _build_options(
     use_apps_forcing_screen_open_file: bool,
     usage_session_mode: UsageSessionMode,
     datetime_override: str,
+    model_concurrent_usage: bool = False,
+    use_background_apps_file: bool = False,
+    include_category_column: bool = False,
 ) -> PreprocessingOptions:
     options = PreprocessingOptions(
         study_name="Deterministic Parity",
         raw_data_folder=raw_data_folder,
         use_app_codebook=use_app_codebook,
-        app_codebook_path=REPO_ROOT / "src/chronicle_preprocessing_app/data/unified_app_codebook.csv",
+        include_category_column=include_category_column,
+        app_codebook_path=REPO_ROOT
+        / "src/chronicle_preprocessing_app/data/unified_app_codebook.csv",
         use_filter_file=use_filter_file,
-        filter_file=REPO_ROOT / "apps_to_filter_files/Chronicle_Android_raw_data_preprocessor_apps_to_filter.xlsx",
+        filter_file=REPO_ROOT
+        / "apps_to_filter_files/Chronicle_Android_raw_data_preprocessor_apps_to_filter.xlsx",
         use_apps_forcing_screen_open_file=use_apps_forcing_screen_open_file,
         apps_forcing_screen_open_file=REPO_ROOT
         / "apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv",
+        use_background_apps_file=use_background_apps_file,
+        background_apps_file=BACKGROUND_APPS_FILE,
         usage_session_mode=usage_session_mode,
         selected_timezone="America/Chicago",
         timezone_handling_option=TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE,
         datetime_of_preprocessing_override=datetime_override,
+        model_concurrent_usage=model_concurrent_usage,
     )
     if options.use_filter_file:
         options.apps_to_filter_dict = read_filter_file(options.filter_file)
     if options.use_apps_forcing_screen_open_file:
-        options.apps_forcing_screen_open_dict = read_apps_forcing_screen_open_file(options.apps_forcing_screen_open_file)
+        options.apps_forcing_screen_open_dict = read_apps_forcing_screen_open_file(
+            options.apps_forcing_screen_open_file
+        )
+    if options.use_background_apps_file:
+        options.background_apps_dict = read_background_apps_file(options.background_apps_file)
     return options
 
 
-def _run_desktop(raw_csv_path: Path, options: PreprocessingOptions, output_root: Path) -> tuple[Path, Path | None]:
+def _run_desktop(
+    raw_csv_path: Path, options: PreprocessingOptions, output_root: Path
+) -> tuple[Path, Path | None]:
     del output_root  # output_folder is derived from raw_data_folder.parent
     preprocessor = ChronicleAndroidRawDataPreprocessor(options)
     preprocessor.options.raw_data_folder = raw_csv_path.parent
     preprocessor.options.enable_plotting = False
     preprocessor.options.parallel_processing = False
     preprocessor.options.parallel_max_workers = None
-    preprocessor.options.datetime_of_preprocessing_override = options.datetime_of_preprocessing_override
+    preprocessor.options.datetime_of_preprocessing_override = (
+        options.datetime_of_preprocessing_override
+    )
     preprocessor.options.use_filter_file = options.use_filter_file
-    preprocessor.options.use_apps_forcing_screen_open_file = options.use_apps_forcing_screen_open_file
+    preprocessor.options.use_apps_forcing_screen_open_file = (
+        options.use_apps_forcing_screen_open_file
+    )
     preprocessor.options.use_app_codebook = options.use_app_codebook
-    output_folder, success, _ = preprocessor.preprocess_Chronicle_Android_raw_data_file(raw_csv_path)
+    preprocessor.options.include_category_column = options.include_category_column
+    output_folder, success, _ = preprocessor.preprocess_Chronicle_Android_raw_data_file(
+        raw_csv_path
+    )
     if not success:
         raise RuntimeError(f"Desktop preprocessing produced no output for {raw_csv_path}")
     app_csv = output_folder / "P01 Automatically Preprocessed.csv"
@@ -226,6 +272,10 @@ def main() -> int:
                 "studyName": "Deterministic Parity",
                 "processAppUsage": True,
                 "processScreenUsage": True,
+                # Parity compares CSV outputs only; plotting renders a canvas
+                # (no DOM under vite-node) and the desktop side also disables it.
+                "enablePlotting": False,
+                "parallelProcessing": False,
                 "selectedTimezone": "America/Chicago",
                 "timezoneHandling": "selected-filter",
                 "useFilterFile": True,
@@ -234,11 +284,17 @@ def main() -> int:
             },
             datetime_override=args.datetime,
             support_file_paths={
-                "filterFile": str(REPO_ROOT / "web/src/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv"),
-                "appsForcingScreenOpenFile": str(
-                    REPO_ROOT / "apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv"
+                "filterFile": str(
+                    REPO_ROOT
+                    / "web/src/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv"
                 ),
-                "appCodebookFile": str(REPO_ROOT / "src/chronicle_preprocessing_app/data/unified_app_codebook.csv"),
+                "appsForcingScreenOpenFile": str(
+                    REPO_ROOT
+                    / "apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv"
+                ),
+                "appCodebookFile": str(
+                    REPO_ROOT / "src/chronicle_preprocessing_app/data/unified_app_codebook.csv"
+                ),
             },
         )
         _run_browser_processing(full_spec_path)
@@ -252,6 +308,8 @@ def main() -> int:
                 "studyName": "Deterministic Parity",
                 "processAppUsage": True,
                 "processScreenUsage": False,
+                "enablePlotting": False,
+                "parallelProcessing": False,
                 "selectedTimezone": "America/Chicago",
                 "timezoneHandling": "selected-filter",
                 "useFilterFile": False,
@@ -276,6 +334,151 @@ def main() -> int:
             desktop_core_app,
             browser_core_output_dir / "Raw P01 Automatically Preprocessed.csv",
         )
+
+        # Category-column scenario (#10): codebook on + include_category_column on,
+        # so the normalized broad_app_category column is emitted on both surfaces.
+        # The fixture's codebook carries babyemu UPPERCASE values (GAMING, …), so
+        # this exercises the normalization that must match byte-for-byte.
+        desktop_category_root = temp_root / "desktop_category"
+        desktop_category_raw_dir = desktop_category_root / "raw"
+        desktop_category_raw_dir.mkdir(parents=True)
+        desktop_category_raw_path = desktop_category_raw_dir / RAW_FILE_NAME
+        raw_df.write_csv(desktop_category_raw_path)
+        category_options = _build_options(
+            raw_data_folder=desktop_category_raw_dir,
+            use_app_codebook=True,
+            use_filter_file=False,
+            use_apps_forcing_screen_open_file=False,
+            usage_session_mode=UsageSessionMode.APP_USAGE,
+            datetime_override=args.datetime,
+            include_category_column=True,
+        )
+        desktop_category_app, _ = _run_desktop(
+            desktop_category_raw_path, category_options, desktop_category_root
+        )
+
+        browser_category_output_dir = temp_root / "browser_category"
+        browser_category_output_dir.mkdir()
+        category_spec_path = temp_root / "browser_category_spec.json"
+        _write_browser_spec(
+            category_spec_path,
+            raw_csv_path=browser_raw_path,
+            output_dir=browser_category_output_dir,
+            options={
+                "studyName": "Deterministic Parity",
+                "processAppUsage": True,
+                "processScreenUsage": False,
+                "enablePlotting": False,
+                "parallelProcessing": False,
+                "selectedTimezone": "America/Chicago",
+                "timezoneHandling": "selected-filter",
+                "useFilterFile": False,
+                "useAppsForcingScreenOpenFile": False,
+                "useAppCodebook": True,
+                "includeCategoryColumn": True,
+            },
+            datetime_override=args.datetime,
+            support_file_paths={
+                "appCodebookFile": str(
+                    REPO_ROOT / "src/chronicle_preprocessing_app/data/unified_app_codebook.csv"
+                ),
+            },
+        )
+        _run_browser_processing(category_spec_path)
+        report["category_app"] = _compare_csvs(
+            desktop_category_app,
+            browser_category_output_dir / "Raw P01 Automatically Preprocessed.csv",
+        )
+
+        if args.model_concurrent_usage:
+            desktop_pip_root = temp_root / "desktop_pip"
+            desktop_pip_raw_dir = desktop_pip_root / "raw"
+            desktop_pip_raw_dir.mkdir(parents=True)
+            desktop_pip_raw_path = desktop_pip_raw_dir / RAW_FILE_NAME
+            raw_df.write_csv(desktop_pip_raw_path)
+            pip_options = _build_options(
+                raw_data_folder=desktop_pip_raw_dir,
+                use_app_codebook=False,
+                use_filter_file=False,
+                use_apps_forcing_screen_open_file=False,
+                usage_session_mode=UsageSessionMode.APP_USAGE,
+                datetime_override=args.datetime,
+                model_concurrent_usage=True,
+            )
+            desktop_pip_app, _ = _run_desktop(desktop_pip_raw_path, pip_options, desktop_pip_root)
+
+            browser_pip_output_dir = temp_root / "browser_pip"
+            browser_pip_output_dir.mkdir()
+            pip_spec_path = temp_root / "browser_pip_spec.json"
+            _write_browser_spec(
+                pip_spec_path,
+                raw_csv_path=browser_raw_path,
+                output_dir=browser_pip_output_dir,
+                options={
+                    "studyName": "Deterministic Parity",
+                    "processAppUsage": True,
+                    "processScreenUsage": False,
+                    "enablePlotting": False,
+                    "selectedTimezone": "America/Chicago",
+                    "timezoneHandling": "selected-filter",
+                    "useFilterFile": False,
+                    "useAppsForcingScreenOpenFile": False,
+                    "useAppCodebook": False,
+                    "modelConcurrentUsage": True,
+                },
+                datetime_override=args.datetime,
+            )
+            _run_browser_processing(pip_spec_path)
+            report["pip_app"] = _compare_csvs(
+                desktop_pip_app,
+                browser_pip_output_dir / "Raw P01 Automatically Preprocessed.csv",
+            )
+
+        if args.background_apps:
+            desktop_bg_root = temp_root / "desktop_background"
+            desktop_bg_raw_dir = desktop_bg_root / "raw"
+            desktop_bg_raw_dir.mkdir(parents=True)
+            desktop_bg_raw_path = desktop_bg_raw_dir / RAW_FILE_NAME
+            raw_df.write_csv(desktop_bg_raw_path)
+            bg_options = _build_options(
+                raw_data_folder=desktop_bg_raw_dir,
+                use_app_codebook=False,
+                use_filter_file=False,
+                use_apps_forcing_screen_open_file=False,
+                usage_session_mode=UsageSessionMode.APP_USAGE,
+                datetime_override=args.datetime,
+                use_background_apps_file=True,
+            )
+            desktop_bg_app, _ = _run_desktop(desktop_bg_raw_path, bg_options, desktop_bg_root)
+
+            browser_bg_output_dir = temp_root / "browser_background"
+            browser_bg_output_dir.mkdir()
+            bg_spec_path = temp_root / "browser_background_spec.json"
+            _write_browser_spec(
+                bg_spec_path,
+                raw_csv_path=browser_raw_path,
+                output_dir=browser_bg_output_dir,
+                options={
+                    "studyName": "Deterministic Parity",
+                    "processAppUsage": True,
+                    "processScreenUsage": False,
+                    "enablePlotting": False,
+                    "parallelProcessing": False,
+                    "selectedTimezone": "America/Chicago",
+                    "timezoneHandling": "selected-filter",
+                    "useFilterFile": False,
+                    "useAppsForcingScreenOpenFile": False,
+                    "useAppCodebook": False,
+                    "useBackgroundAppsFile": True,
+                },
+                datetime_override=args.datetime,
+                support_file_paths={"backgroundAppsFile": str(BACKGROUND_APPS_FILE)},
+            )
+            _run_browser_processing(bg_spec_path)
+            report["background_app"] = _compare_csvs(
+                desktop_bg_app,
+                browser_bg_output_dir / "Raw P01 Automatically Preprocessed.csv",
+            )
 
         if args.report_json:
             args.report_json.write_text(json.dumps(report, indent=2), encoding="utf-8")

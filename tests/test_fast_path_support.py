@@ -14,7 +14,9 @@ from chronicle_preprocessing_app.core.preprocessing.polars_fast_path import (
 from tests.polars_helpers import options as _options
 
 
-def _supports(options: PreprocessingOptions, *, survey: bool = False, study_date: bool = False) -> bool:
+def _supports(
+    options: PreprocessingOptions, *, survey: bool = False, study_date: bool = False
+) -> bool:
     return supports_polars_fast_path(
         options,
         survey_data_processor_available=survey,
@@ -58,16 +60,20 @@ def test_process_app_usage_false_disables_fast_path(monkeypatch: pytest.MonkeyPa
     assert _supports(options) is False
 
 
-def test_survey_data_processor_available_disables_fast_path(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_survey_data_processor_available_disables_fast_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.delenv("CHRONICLE_USE_POLARS_FAST_PATH", raising=False)
     options = _options()
     assert _supports(options, survey=True) is False
 
 
-def test_study_date_provider_available_disables_fast_path(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_study_date_provider_available_keeps_fast_path_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.delenv("CHRONICLE_USE_POLARS_FAST_PATH", raising=False)
     options = _options()
-    assert _supports(options, study_date=True) is False
+    assert _supports(options, study_date=True) is True
 
 
 # ---------------------------------------------------------------------------
@@ -144,10 +150,10 @@ def test_all_ok_except_survey_available(monkeypatch: pytest.MonkeyPatch) -> None
     assert _supports(options, survey=True, study_date=False) is False
 
 
-def test_all_ok_except_study_date_available(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_all_ok_with_study_date_available(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CHRONICLE_USE_POLARS_FAST_PATH", raising=False)
     options = _options(usage_session_mode=UsageSessionMode.APP_USAGE)
-    assert _supports(options, survey=False, study_date=True) is False
+    assert _supports(options, survey=False, study_date=True) is True
 
 
 # ---------------------------------------------------------------------------
@@ -191,7 +197,7 @@ def test_full_gating_nonempty_study_date_map_blocks_fast_path(
     )
 
     provider = StudyDateRangeProvider(options.study_date_map)
-    assert _supports(options, survey=False, study_date=provider.is_available) is False
+    assert _supports(options, survey=False, study_date=provider.is_available) is True
 
 
 # ---------------------------------------------------------------------------

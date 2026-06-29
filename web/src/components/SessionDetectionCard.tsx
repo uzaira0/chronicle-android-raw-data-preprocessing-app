@@ -8,6 +8,7 @@ import { ThresholdsInput } from "@/components/ThresholdsInput";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
+import { rangeError } from "@/lib/validation";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 const KEYS: readonly OptionKey[] = [
@@ -17,10 +18,13 @@ const KEYS: readonly OptionKey[] = [
   "customAppEngagementDuration",
   "longUsageDurationThresholds",
   "longDataTimeGapThresholds",
+  "proximityIntervalSeconds",
   "correctDuplicateEventTimestamps",
+  "deduplicateExactRows",
   "allowStopEventReuse",
   "useActivityStoppedAsFallback",
   "applyThresholdToFallback",
+  "addNoActivityPlaceholderDays",
 ];
 
 type Props = {
@@ -44,6 +48,12 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
       accent="session"
       modified={anyOptionModified(options, KEYS)}
     >
+      {!options.processAppUsage ? (
+        <p className="settings-dependency-note" role="note" data-testid="session-dependency-note">
+          App usage output is off, so these session-detection settings won’t change any output.
+          Turn on “App usage output” in Output &amp; plots to use them.
+        </p>
+      ) : null}
       <div className="settings-grid-2">
         <SettingsField
           label="Max session duration threshold (hours)"
@@ -51,6 +61,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           tooltip={TOOLTIPS.longDurationThresholdHours}
           modified={isMod("longDurationThresholdHours")}
           onReset={() => reset("longDurationThresholdHours")}
+          error={rangeError(options.longDurationThresholdHours, 1, 48)}
         >
           <input
             id="long-duration-threshold-input"
@@ -73,6 +84,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           tooltip={TOOLTIPS.minimumUsageDuration}
           modified={isMod("minimumUsageDuration")}
           onReset={() => reset("minimumUsageDuration")}
+          error={rangeError(options.minimumUsageDuration, 0, 3600)}
         >
           <input
             id="minimum-usage-duration-input"
@@ -94,6 +106,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           tooltip={TOOLTIPS.customAppEngagementDuration}
           modified={isMod("customAppEngagementDuration")}
           onReset={() => reset("customAppEngagementDuration")}
+          error={rangeError(options.customAppEngagementDuration, 1, 3600)}
         >
           <input
             id="custom-engagement-duration-input"
@@ -110,7 +123,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
         </SettingsField>
 
         <SettingsField
-          label="Long-usage thresholds (hours)"
+          label="Long usage thresholds (hours)"
           tooltip={TOOLTIPS.longUsageDurationThresholds}
           modified={isMod("longUsageDurationThresholds")}
           onReset={() => reset("longUsageDurationThresholds")}
@@ -125,7 +138,7 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
         </SettingsField>
 
         <SettingsField
-          label="Long data-gap thresholds (hours)"
+          label="Long data gap thresholds (hours)"
           tooltip={TOOLTIPS.longDataTimeGapThresholds}
           modified={isMod("longDataTimeGapThresholds")}
           onReset={() => reset("longDataTimeGapThresholds")}
@@ -136,6 +149,29 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
             fallback={DEFAULT_BROWSER_OPTIONS.longDataTimeGapThresholds}
             onChange={(next) => update("longDataTimeGapThresholds", next)}
             placeholder="1, 2, 3, …"
+          />
+        </SettingsField>
+
+        <SettingsField
+          label="Intra-app teardown grace (seconds)"
+          htmlFor="proximity-interval-input"
+          tooltip={TOOLTIPS.proximityIntervalSeconds}
+          modified={isMod("proximityIntervalSeconds")}
+          onReset={() => reset("proximityIntervalSeconds")}
+          error={rangeError(options.proximityIntervalSeconds, 0, 3600)}
+        >
+          <input
+            id="proximity-interval-input"
+            data-testid="proximity-interval-input"
+            type="number"
+            className="input"
+            min={0}
+            max={3600}
+            step={0.5}
+            value={options.proximityIntervalSeconds}
+            onChange={(event) =>
+              update("proximityIntervalSeconds", Number(event.target.value))
+            }
           />
         </SettingsField>
       </div>
@@ -151,7 +187,16 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           onReset={() => reset("correctDuplicateEventTimestamps")}
         />
         <ToggleField
-          label="Allow stop-event reuse"
+          label="Collapse exact duplicate rows"
+          tooltip={TOOLTIPS.deduplicateExactRows}
+          checked={options.deduplicateExactRows}
+          onChange={(value) => update("deduplicateExactRows", value)}
+          testId="toggle-deduplicateExactRows"
+          modified={isMod("deduplicateExactRows")}
+          onReset={() => reset("deduplicateExactRows")}
+        />
+        <ToggleField
+          label="Allow stop event reuse"
           tooltip={TOOLTIPS.allowStopEventReuse}
           checked={options.allowStopEventReuse}
           onChange={(value) => update("allowStopEventReuse", value)}
@@ -178,13 +223,22 @@ export function SessionDetectionCard({ options, setOptions }: Props): ReactEleme
           onReset={() => reset("applyThresholdToFallback")}
         />
         <ToggleField
-          label="Filter zero-duration sessions"
+          label="Filter zero duration sessions"
           tooltip={TOOLTIPS.filterZeroDurationSessions}
           checked={options.filterZeroDurationSessions}
           onChange={(value) => update("filterZeroDurationSessions", value)}
           testId="toggle-filterZeroDurationSessions"
           modified={isMod("filterZeroDurationSessions")}
           onReset={() => reset("filterZeroDurationSessions")}
+        />
+        <ToggleField
+          label="Add no-activity placeholder days"
+          tooltip={TOOLTIPS.addNoActivityPlaceholderDays}
+          checked={options.addNoActivityPlaceholderDays}
+          onChange={(value) => update("addNoActivityPlaceholderDays", value)}
+          testId="toggle-addNoActivityPlaceholderDays"
+          modified={isMod("addNoActivityPlaceholderDays")}
+          onReset={() => reset("addNoActivityPlaceholderDays")}
         />
       </div>
     </SectionCard>

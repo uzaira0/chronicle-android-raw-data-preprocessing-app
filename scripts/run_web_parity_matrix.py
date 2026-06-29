@@ -17,7 +17,43 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--weeks", nargs="+", type=int, default=[2, 6])
     parser.add_argument("--datetime", default="2026-04-24 00:32:53")
     parser.add_argument("--report-json", type=Path)
+    parser.add_argument(
+        "--python",
+        default="./.tmp_benchmarks/venv313/bin/python",
+        help="Path to Python interpreter to use for each parity sub-run.",
+    )
     return parser.parse_args()
+
+
+def _run_parity(
+    python: str,
+    weeks: int,
+    datetime_override: str,
+    *,
+    model_concurrent_usage: bool = False,
+) -> dict:
+    cmd = [
+        python,
+        str(PARITY_SCRIPT),
+        "--weeks",
+        str(weeks),
+        "--datetime",
+        datetime_override,
+    ]
+    if model_concurrent_usage:
+        cmd.append("--model-concurrent-usage")
+    completed = subprocess.run(
+        cmd,
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    try:
+        parsed = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        parsed = {"parse_error": completed.stdout[:500], "stderr": completed.stderr[:500]}
+    return {"returncode": completed.returncode, "report": parsed}
 
 
 def main() -> int:
@@ -26,26 +62,20 @@ def main() -> int:
     failed = False
 
     for weeks in args.weeks:
-        completed = subprocess.run(
-            [
-                "./.tmp_benchmarks/venv313/bin/python",
-                str(PARITY_SCRIPT),
-                "--weeks",
-                str(weeks),
-                "--datetime",
-                args.datetime,
-            ],
-            cwd=REPO_ROOT,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if completed.returncode != 0:
+        key = str(weeks)
+        result = _run_parity(args.python, weeks, args.datetime)
+        if result["returncode"] != 0:
             failed = True
-        report[str(weeks)] = {
-            "returncode": completed.returncode,
-            "report": json.loads(completed.stdout),
-        }
+        report[key] = result
+
+    # Flag-on entry: concurrent (PiP) usage model, using the pathological fixture.
+    # The matrix's job is desktop-vs-browser parity, not oracle comparison.
+    for weeks in args.weeks:
+        key = f"{weeks}_pip"
+        result = _run_parity(args.python, weeks, args.datetime, model_concurrent_usage=True)
+        if result["returncode"] != 0:
+            failed = True
+        report[key] = result
 
     if args.report_json:
         args.report_json.write_text(json.dumps(report, indent=2), encoding="utf-8")

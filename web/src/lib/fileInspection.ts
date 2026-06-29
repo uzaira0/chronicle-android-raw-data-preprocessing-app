@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 
+import { ALL_INTERACTION_TYPES_MAP, parseInteractionRemap } from "@/lib/interactionTypes";
 import type { BrowserProcessingOptions } from "@/lib/types";
 import { REQUIRED_RAW_CSV_COLUMNS } from "@/lib/validation";
 
@@ -7,6 +8,9 @@ export type RawFileInspection = {
   fileName: string;
   sizeBytes: number;
   rowCount: number;
+  /** Distinct participant_id values. >1 means multiple participants are
+   * concatenated in one file, which the per-file pipeline doesn't group by. */
+  participantCount: number;
   columns: string[];
   timezones: string[];
   hasRequiredColumns: boolean;
@@ -14,8 +18,24 @@ export type RawFileInspection = {
   missingTimestampCount: number;
   missingTimezoneCount: number;
   duplicateTimestampCount: number;
+  /** Rows whose event_timestamp is earlier than a preceding row for the same participant. */
+  outOfOrderTimestampCount: number;
+  /** 1-based data-row ordinal of the first out-of-order timestamp, if any. */
+  firstOutOfOrderRow: number | null;
+  /** Distinct interaction_type values not recognized by the pipeline's map. */
+  unrecognizedInteractionTypes: string[];
   warnings: string[];
 };
+
+/**
+ * Raw interaction-type strings the pipeline understands: both the raw input
+ * keys (e.g. "Unknown importance: 23") and their canonical names (e.g.
+ * "Activity Stopped"). Anything outside this set is vendor-specific / unknown.
+ */
+const RECOGNIZED_INTERACTION_TYPES = new Set<string>([
+  ...Object.keys(ALL_INTERACTION_TYPES_MAP),
+  ...Object.values(ALL_INTERACTION_TYPES_MAP),
+]);
 
 export function effectiveWarnings(
   inspection: RawFileInspection,
@@ -28,6 +48,25 @@ export function effectiveWarnings(
   ) {
     warnings.push(
       `${inspection.duplicateTimestampCount.toLocaleString()} event timestamps appear more than once.`,
+    );
+  }
+  // Interaction types the built-in map doesn't recognize, minus any the user
+  // has remapped to a canonical name (#4). Computed here (not in inspectRawFile)
+  // because whether a type is "unrecognized" depends on the remap option.
+  const remapped = parseInteractionRemap(options.interactionTypeRemap);
+  const stillUnrecognized = inspection.unrecognizedInteractionTypes.filter(
+    (type) => !remapped.has(type),
+  );
+  if (stillUnrecognized.length) {
+    const sample = stillUnrecognized.slice(0, 5).join(", ");
+    const more = stillUnrecognized.length > 5 ? ", …" : "";
+    warnings.push(
+      `${stillUnrecognized.length.toLocaleString()} unrecognized interaction type` +
+        `${stillUnrecognized.length === 1 ? "" : "s"}: ${sample}${more}. ` +
+        "They're kept in the output but won't start or end app-usage sessions. " +
+        "Map a vendor-specific type to a canonical one under custom interaction-type mappings; " +
+        "to make one end sessions add it under the interaction types that end a session; " +
+        "to drop it add it under interaction types to remove (all in Interaction semantics).",
     );
   }
   return warnings;
@@ -87,10 +126,62 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
     timestampCounts.set(value, (timestampCounts.get(value) ?? 0) + 1);
   });
   const duplicateTimestampCount = Array.from(timestampCounts.values()).filter((count) => count > 1).length;
+
+  // Out-of-order detection, scoped per participant_id, kept as an INFORMATIONAL
+  // metric only — the pipeline re-sorts every row by event_timestamp before
+  // processing, so input order never affects output and this is not raised as a
+  // warning (see below). A single raw export can hold several participants
+  // concatenated, so each participant gets its own running max (a global one would
+  // false-flag every participant boundary). Timestamps are compared as UTC
+  // wall-clock (the pipeline's offsetless-as-UTC sort basis), so the count is
+  // independent of the host browser's timezone.
+  let outOfOrderTimestampCount = 0;
+  let firstOutOfOrderRow: number | null = null;
+  const maxSeenMsByParticipant = new Map<string, number>();
+  for (let index = 0; index < timestampValues.length; index += 1) {
+    const value = timestampValues[index];
+    if (!value || !isValidChronicleTimestamp(value)) continue;
+    // Append "Z" so a bare wall-clock parses as UTC (deterministic across hosts),
+    // matching the pipeline's sort basis instead of the browser's local timezone.
+    const ms = Date.parse(`${value.replace(" ", "T")}Z`);
+    if (Number.isNaN(ms)) continue;
+    const participant = (parsed.data[index]?.participant_id ?? "").trim();
+    const maxSeenMs = maxSeenMsByParticipant.get(participant) ?? Number.NEGATIVE_INFINITY;
+    if (ms < maxSeenMs) {
+      outOfOrderTimestampCount += 1;
+      if (firstOutOfOrderRow === null) firstOutOfOrderRow = index + 1;
+    } else {
+      maxSeenMsByParticipant.set(participant, ms);
+    }
+  }
+
+  // Interaction types the pipeline doesn't recognize (vendor-specific exports,
+  // newer Android event codes). They're passed through unchanged and won't
+  // start or end app-usage sessions — point the user at the interaction-
+  // semantics options that actually exist (stop-type lists / remove list).
+  const unrecognizedInteractionTypes = columnSet.has("interaction_type")
+    ? Array.from(
+        new Set(
+          parsed.data
+            .map((row) => (row.interaction_type ?? "").trim())
+            .filter((value) => value && !RECOGNIZED_INTERACTION_TYPES.has(value)),
+        ),
+      ).sort((left, right) => left.localeCompare(right))
+    : [];
+
+  const participantCount = new Set(
+    parsed.data.map((row) => (row.participant_id ?? "").trim()).filter(Boolean),
+  ).size;
+
   const warnings: string[] = [];
 
   if (!file.name.toLowerCase().endsWith(".csv")) {
     warnings.push("File extension is not .csv.");
+  }
+  if (participantCount > 1) {
+    warnings.push(
+      `This file contains ${participantCount.toLocaleString()} participants. The preprocessor treats each file as a single participant and does not group app-usage session matching by participant_id, so a multi-participant file can mis-match or mis-label sessions (especially with concurrent-usage or background-apps modeling). Split the export into one file per participant.`,
+    );
   }
   if (file.size === 0 || !text.trim()) {
     warnings.push("File is empty.");
@@ -116,9 +207,17 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
   if (invalidTimestampCount > 0) {
     warnings.push(`${invalidTimestampCount.toLocaleString()} rows have invalid event_timestamp values.`);
   }
-  if (timezones.length > 1) {
-    warnings.push(`${timezones.length} timezone values found.`);
-  }
+  // Out-of-order event_timestamp is intentionally NOT warned: the pipeline
+  // re-sorts every row by event_timestamp before processing, so unsorted input
+  // produces identical output. Flagging it would inflate the advisory warning
+  // count and flip a Ready file to "Review" with no action the user can take.
+  // outOfOrderTimestampCount / firstOutOfOrderRow remain as informational metrics.
+  // The unrecognized-interaction-type warning is produced in effectiveWarnings,
+  // which knows the user's custom remap (#4) and can exclude mapped types.
+  // Multiple timezones are normal (a participant who travels) and are resolved
+  // downstream by the timezone-handling step (convert/filter). Spanning >1 zone
+  // is not a data-quality problem, so it must not raise a warning or feed the
+  // readiness count. Only missing/invalid zones (handled above) are flagged.
   if (parsed.errors.length) {
     const e = parsed.errors[0];
     warnings.push(`CSV parse warning (${e?.type ?? "unknown"}/${e?.code ?? "unknown"}).`);
@@ -128,6 +227,7 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
     fileName: file.name,
     sizeBytes: file.size,
     rowCount: countDataRows(text),
+    participantCount,
     columns,
     timezones,
     hasRequiredColumns: missing.length === 0,
@@ -135,6 +235,9 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
     missingTimestampCount,
     missingTimezoneCount,
     duplicateTimestampCount,
+    outOfOrderTimestampCount,
+    firstOutOfOrderRow,
+    unrecognizedInteractionTypes,
     warnings,
   };
 }

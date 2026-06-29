@@ -21,6 +21,8 @@ type ComboboxProps = {
   ariaLabel?: string;
   /** Cap on how many filtered options to render at once. Defaults to 100. */
   maxResults?: number;
+  /** Select the full input value on focus, useful when the value is the current selection. */
+  selectOnFocus?: boolean;
 };
 
 /**
@@ -38,15 +40,21 @@ export function Combobox({
   className,
   ariaLabel,
   maxResults = 100,
+  selectOnFocus = false,
 }: ComboboxProps): ReactElement {
   const [isOpen, setIsOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
+  // True only while the user is actively typing a query. When false, the input
+  // is showing a committed selection (or is freshly focused), so the popup lists
+  // every option instead of filtering down to the one already chosen — otherwise
+  // re-opening the box after a pick hides all the other choices.
+  const [isEditing, setIsEditing] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const listboxId = useId();
   const optionIdPrefix = useId();
 
   const filtered = useMemo(() => {
-    if (!value) return options.slice(0, maxResults);
+    if (!isEditing || !value) return options.slice(0, maxResults);
     const needle = value.toLowerCase();
     const matches: string[] = [];
     for (const option of options) {
@@ -56,7 +64,7 @@ export function Combobox({
       }
     }
     return matches;
-  }, [value, options, maxResults]);
+  }, [isEditing, value, options, maxResults]);
 
   // Close on outside click / focus loss
   useEffect(() => {
@@ -71,20 +79,29 @@ export function Combobox({
     return () => document.removeEventListener("mousedown", onPointer);
   }, [isOpen]);
 
-  // Reset highlight when filter changes
+  // Reset highlight when filter changes. When the list shows a committed
+  // selection (not a typed query), highlight that option so Enter re-commits it
+  // and arrows move from there — rather than always jumping to the first row.
   useEffect(() => {
-    setHighlightIndex(filtered.length ? 0 : -1);
-  }, [filtered]);
+    if (!filtered.length) {
+      setHighlightIndex(-1);
+      return;
+    }
+    const selected = filtered.indexOf(value);
+    setHighlightIndex(selected >= 0 ? selected : 0);
+  }, [filtered, value]);
 
   const commit = useCallback(
     (selected: string) => {
       onChange(selected);
       setIsOpen(false);
+      setIsEditing(false);
     },
     [onChange],
   );
 
   const onInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setIsEditing(true);
     onChange(event.target.value);
     if (!isOpen) setIsOpen(true);
   };
@@ -133,7 +150,13 @@ export function Combobox({
         placeholder={placeholder}
         value={value}
         onChange={onInputChange}
-        onFocus={() => setIsOpen(true)}
+        onFocus={(event) => {
+          setIsOpen(true);
+          // A fresh focus shows the committed value, not a query — list every
+          // option until the user actually types.
+          setIsEditing(false);
+          if (selectOnFocus) event.currentTarget.select();
+        }}
         onClick={() => setIsOpen(true)}
         onKeyDown={onKeyDown}
       />
