@@ -44,6 +44,8 @@ import type {
 
 const FULL_TEST_HEADER =
   "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone";
+const FULL_TEST_HEADER_NO_TZ =
+  "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp";
 
 function csvBytes(text: string): ArrayBuffer {
   return new TextEncoder().encode(text).buffer;
@@ -65,6 +67,17 @@ describe("browserPipeline", () => {
       "America/Chicago",
       "America/New_York",
     ]);
+  });
+
+  it("discovers UTC for blank and None timezone values", () => {
+    const csv = [
+      FULL_TEST_HEADER,
+      "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,",
+      "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:01:00,None",
+      "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:02:00,America/New_York",
+    ].join("\n");
+
+    expect(discoverTimezonesFromRawCsv(csv)).toEqual(["America/New_York", "UTC"]);
   });
 
   it("interprets offset-less Chronicle timestamps as UTC before conversion", async () => {
@@ -99,6 +112,82 @@ describe("browserPipeline", () => {
     const output = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
     expect(output).toContain("2026-03-07 05:00:00-05:00");
     expect(output).toContain("03-07-2026 05:00:00");
+  });
+
+  it("processes raw CSVs without a timezone column using UTC fallback metadata and output", async () => {
+    const csv = [
+      FULL_TEST_HEADER_NO_TZ,
+      "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00",
+      "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00",
+    ].join("\n");
+    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+
+    const result = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        timezoneHandling: "primary-convert",
+        useFilterFile: false,
+        useAppsForcingScreenOpenFile: false,
+        useAppCodebook: false,
+      },
+      {},
+      matcher,
+    );
+
+    const output = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
+    const rows = output.trim().split("\n").map((line) => line.split(","));
+    const timezoneColumn = rows[0]?.indexOf("timezone") ?? -1;
+
+    expect(result.availableTimezones).toEqual(["UTC"]);
+    expect(result.timezone).toBe("UTC");
+    expect(result.rowsRemovedByTimezone).toBe(0);
+    expect(result.timezoneAction).toBe("converted_to_primary");
+    expect(timezoneColumn).toBeGreaterThanOrEqual(0);
+    expect(rows.slice(1).map((row) => row[timezoneColumn])).toEqual(["UTC"]);
+  });
+
+  it("selected-convert treats blank timezone rows as UTC before converting", async () => {
+    const csv = [
+      FULL_TEST_HEADER,
+      "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,",
+      "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,None",
+    ].join("\n");
+    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+      startIndices: [0],
+      stopStartIndices: [0],
+      stopEventIndices: [1],
+      missingIndices: [],
+    });
+
+    const result = await processRawCsvContent(
+      "Raw P01.csv",
+      csv,
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        timezoneHandling: "selected-convert",
+        selectedTimezone: "America/Chicago",
+        useFilterFile: false,
+        useAppsForcingScreenOpenFile: false,
+        useAppCodebook: false,
+      },
+      {},
+      matcher,
+    );
+
+    const output = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
+
+    expect(result.rowsRemovedByTimezone).toBe(0);
+    expect(result.timezone).toBe("America/Chicago");
+    expect(result.timezoneAction).toBe("converted_to_selected");
+    expect(output).toContain("2026-03-07 04:00:00-06:00");
+    expect(output).toContain("03-07-2026 04:00:00");
   });
 
   it("produces app and screen outputs from the shared pipeline", async () => {

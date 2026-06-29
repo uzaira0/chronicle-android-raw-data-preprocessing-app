@@ -130,6 +130,15 @@ _BROAD_CATEGORY_SOURCE_COLUMNS: tuple[str, ...] = (
 )
 
 
+def _normalize_timezone_fallback_expr(timezone: pl.Expr) -> pl.Expr:
+    normalized = timezone.cast(pl.String).str.strip_chars()
+    return (
+        pl.when(normalized.is_null() | (normalized == "") | (normalized == "None"))
+        .then(pl.lit("UTC"))
+        .otherwise(normalized)
+    )
+
+
 def polars_fast_path_enabled() -> bool:
     """Return whether the Polars-native fast path should be used."""
     return os.getenv("CHRONICLE_USE_POLARS_FAST_PATH", "true").lower() not in {
@@ -385,6 +394,13 @@ class PolarsFastPathPreprocessor:
     def _apply_timezone_handling(self, df: pl.DataFrame, timestamp_column: str) -> pl.DataFrame:
         option = self.options.timezone_handling_option
         target_timezone: str | None = None
+
+        if Column.TIMEZONE not in df.columns:
+            df = df.with_columns(pl.lit("UTC").alias(Column.TIMEZONE))
+        else:
+            df = df.with_columns(
+                _normalize_timezone_fallback_expr(pl.col(Column.TIMEZONE)).alias(Column.TIMEZONE)
+            )
 
         if option == TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE:
             target_timezone = (

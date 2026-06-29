@@ -61,7 +61,8 @@ LOGGER = logging.getLogger(__name__)
 # Columns that must be present in any raw Chronicle Android CSV before
 # preprocessing can proceed.  These are the columns the pipeline reads from the
 # raw file — not derived/output columns like start_timestamp or
-# possible_device_model that the pipeline generates itself.
+# possible_device_model that the pipeline generates itself. timezone is
+# optional: missing row timezones use the documented UTC fallback.
 REQUIRED_RAW_COLUMNS: frozenset[str] = frozenset(
     {
         Column.PARTICIPANT_ID,
@@ -70,7 +71,6 @@ REQUIRED_RAW_COLUMNS: frozenset[str] = frozenset(
         Column.INTERACTION_TYPE,
         Column.APP_PACKAGE_NAME,
         Column.EVENT_TIMESTAMP,
-        Column.TIMEZONE,
     }
 )
 

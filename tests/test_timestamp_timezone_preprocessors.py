@@ -4,8 +4,12 @@ import polars as pl
 import pytest
 
 from chronicle_preprocessing_app.config.constants import Column, TimezoneHandlingOption
-from chronicle_preprocessing_app.core.preprocessing.timestamp_preprocessor import TimestampPreprocessor
-from chronicle_preprocessing_app.core.preprocessing.timezone_preprocessor import TimezonePreprocessor
+from chronicle_preprocessing_app.core.preprocessing.timestamp_preprocessor import (
+    TimestampPreprocessor,
+)
+from chronicle_preprocessing_app.core.preprocessing.timezone_preprocessor import (
+    TimezonePreprocessor,
+)
 from tests.polars_helpers import frame, ts
 from tests.polars_helpers import options as _options
 
@@ -13,9 +17,18 @@ from tests.polars_helpers import options as _options
 def test_fix_timestamp_format_normalizes_offsets_zulu_and_blank_values() -> None:
     assert TimestampPreprocessor.fix_timestamp_format(None) is None
     assert TimestampPreprocessor.fix_timestamp_format("") is None
-    assert TimestampPreprocessor.fix_timestamp_format("2026-01-01T00:00:00Z") == "2026-01-01T00:00:00.000+00:00"
-    assert TimestampPreprocessor.fix_timestamp_format("2026-01-01T00:00:00-06:00") == "2026-01-01T00:00:00.000-06:00"
-    assert TimestampPreprocessor.fix_timestamp_format("2026-01-01 00:00:00") == "2026-01-01 00:00:00.000"
+    assert (
+        TimestampPreprocessor.fix_timestamp_format("2026-01-01T00:00:00Z")
+        == "2026-01-01T00:00:00.000+00:00"
+    )
+    assert (
+        TimestampPreprocessor.fix_timestamp_format("2026-01-01T00:00:00-06:00")
+        == "2026-01-01T00:00:00.000-06:00"
+    )
+    assert (
+        TimestampPreprocessor.fix_timestamp_format("2026-01-01 00:00:00")
+        == "2026-01-01 00:00:00.000"
+    )
 
 
 def test_timestamp_preprocessor_parses_multiple_formats_and_marks_invalid_values() -> None:
@@ -113,9 +126,18 @@ def test_timezone_preprocessor_discovers_primary_and_folder_timezones(tmp_path) 
     processor = TimezonePreprocessor(_options())
     df = frame(
         [
-            {Column.EVENT_TIMESTAMP: ts("2026-01-01 00:00:00", "UTC"), Column.TIMEZONE: "America/Chicago"},
-            {Column.EVENT_TIMESTAMP: ts("2026-01-01 01:00:00", "UTC"), Column.TIMEZONE: "America/Chicago"},
-            {Column.EVENT_TIMESTAMP: ts("2026-01-01 02:00:00", "UTC"), Column.TIMEZONE: "America/New_York"},
+            {
+                Column.EVENT_TIMESTAMP: ts("2026-01-01 00:00:00", "UTC"),
+                Column.TIMEZONE: "America/Chicago",
+            },
+            {
+                Column.EVENT_TIMESTAMP: ts("2026-01-01 01:00:00", "UTC"),
+                Column.TIMEZONE: "America/Chicago",
+            },
+            {
+                Column.EVENT_TIMESTAMP: ts("2026-01-01 02:00:00", "UTC"),
+                Column.TIMEZONE: "America/New_York",
+            },
         ]
     )
 
@@ -135,7 +157,9 @@ def test_timezone_preprocessor_discovers_primary_and_folder_timezones(tmp_path) 
     assert processor.determine_primary_timezone(no_timezone_column) == "UTC"
 
 
-def test_timezone_preprocessor_trims_timezone_values_before_discovery_and_primary_selection(tmp_path) -> None:
+def test_timezone_preprocessor_trims_timezone_values_before_discovery_and_primary_selection(
+    tmp_path,
+) -> None:
     raw = tmp_path / "raw"
     raw.mkdir()
     (raw / "Raw P01.csv").write_text(
@@ -159,6 +183,78 @@ def test_timezone_preprocessor_trims_timezone_values_before_discovery_and_primar
         "UTC",
     ]
     assert processor.determine_primary_timezone(df) == "America/Chicago"
+
+
+def test_timezone_preprocessor_apply_handling_normalizes_blank_row_timezones_to_utc() -> None:
+    processor = TimezonePreprocessor(
+        _options(
+            timezone_handling_option=TimezoneHandlingOption.CONVERT_ALL_DATA_TO_PRIMARY_TIMEZONE_PER_FILE,
+        )
+    )
+    df = pl.DataFrame(
+        {
+            Column.EVENT_TIMESTAMP: [
+                ts("2026-01-01 00:00:00", "UTC"),
+                ts("2026-01-01 01:00:00", "UTC"),
+                ts("2026-01-01 02:00:00", "UTC"),
+                ts("2026-01-01 03:00:00", "UTC"),
+            ],
+            Column.TIMEZONE: ["", None, " None ", " America/Chicago "],
+        }
+    )
+
+    result = processor.apply_timezone_handling(df)
+
+    assert result.get_column(Column.TIMEZONE).to_list() == ["UTC", "UTC", "UTC", "UTC"]
+    assert result.schema[Column.EVENT_TIMESTAMP].time_zone == "UTC"
+
+
+def test_timezone_preprocessor_selected_filter_treats_blank_row_timezones_as_utc() -> None:
+    processor = TimezonePreprocessor(
+        _options(
+            timezone_handling_option=TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE,
+            selected_timezone="America/Chicago",
+        )
+    )
+    df = pl.DataFrame(
+        {
+            Column.EVENT_TIMESTAMP: [
+                ts("2026-01-01 00:00:00", "UTC"),
+                ts("2026-01-01 01:00:00", "UTC"),
+                ts("2026-01-01 02:00:00", "UTC"),
+            ],
+            Column.TIMEZONE: ["", "None", "America/Chicago"],
+        }
+    )
+
+    result = processor.apply_timezone_handling(df)
+
+    assert result.height == 1
+    assert result.get_column(Column.TIMEZONE).to_list() == ["America/Chicago"]
+    assert result.schema[Column.EVENT_TIMESTAMP].time_zone == "America/Chicago"
+
+
+def test_timezone_preprocessor_selected_convert_treats_blank_row_timezones_as_utc() -> None:
+    processor = TimezonePreprocessor(
+        _options(
+            timezone_handling_option=TimezoneHandlingOption.CONVERT_ALL_DATA_TO_SELECTED_TIMEZONE,
+            selected_timezone="America/Chicago",
+        )
+    )
+    df = pl.DataFrame(
+        {
+            Column.EVENT_TIMESTAMP: [ts("2026-01-01 06:00:00", "UTC")],
+            Column.TIMEZONE: [""],
+        }
+    )
+
+    result = processor.apply_timezone_handling(df)
+
+    assert result.get_column(Column.TIMEZONE).to_list() == ["America/Chicago"]
+    assert result.schema[Column.EVENT_TIMESTAMP].time_zone == "America/Chicago"
+    assert result.get_column(Column.EVENT_TIMESTAMP).dt.strftime("%Y-%m-%d %H:%M:%S").to_list() == [
+        "2026-01-01 00:00:00"
+    ]
 
 
 def test_timezone_preprocessor_returns_no_primary_timezone_without_timezone_evidence() -> None:
@@ -190,6 +286,11 @@ def test_timezone_preprocessor_converts_and_filters_timestamp_columns() -> None:
     converted = processor.convert_timestamp_columns(df)
     assert converted.schema[Column.EVENT_TIMESTAMP].time_zone == "America/Chicago"
     assert converted.get_column(Column.TIMEZONE).to_list() == ["America/Chicago"]
-    assert processor.convert_timestamp_column(df).schema[Column.EVENT_TIMESTAMP].time_zone == "America/Chicago"
+    assert (
+        processor.convert_timestamp_column(df).schema[Column.EVENT_TIMESTAMP].time_zone
+        == "America/Chicago"
+    )
     assert processor.preprocess(df).schema[Column.EVENT_TIMESTAMP].time_zone == "America/Chicago"
-    assert processor.convert_timestamp_columns(df, columns=["missing"]).get_column(Column.TIMEZONE).to_list() == ["America/Chicago"]
+    assert processor.convert_timestamp_columns(df, columns=["missing"]).get_column(
+        Column.TIMEZONE
+    ).to_list() == ["America/Chicago"]

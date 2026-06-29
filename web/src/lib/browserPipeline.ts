@@ -304,6 +304,11 @@ function requireString(value: string | undefined, fallback = ""): string {
   return (value ?? fallback).trim();
 }
 
+function normalizeTimezoneValue(value: string | undefined): string {
+  const timezone = requireString(value, "UTC");
+  return timezone === "" || timezone === "None" ? "UTC" : timezone;
+}
+
 function normalizeInteractionType(value: string, remap?: ReadonlyMap<string, string>): string {
   // The user remap runs first so vendor-specific strings (absent from the
   // built-in map) resolve, and so it can override a built-in mapping too.
@@ -838,7 +843,7 @@ function createBaseRow(
   possibleDeviceModel: string,
   interactionRemap?: ReadonlyMap<string, string>,
 ): CanonicalRow {
-  const timezone = requireString(row.timezone, "UTC") || "UTC";
+  const timezone = normalizeTimezoneValue(row.timezone);
   const base: CanonicalRow = {
     study_id: requireString(row.study_id),
     participant_id: requireString(row.participant_id),

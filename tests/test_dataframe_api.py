@@ -74,6 +74,23 @@ def test_preprocess_chronicle_dataframe_processes_polars_input_and_reports_stats
     assert result.data.get_column(Column.DURATION_SECONDS).to_list() == [300.0]
 
 
+def test_preprocess_chronicle_dataframe_uses_utc_when_timezone_column_is_missing(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    raw_df = pl.DataFrame(_raw_rows()).drop(Column.TIMEZONE)
+
+    result = preprocess_chronicle_dataframe(raw_df, _config())
+
+    assert result.statistics["participants_failed"] == 0
+    assert result.data.get_column(Column.INTERACTION_TYPE).to_list() == [
+        str(InteractionType.APP_USAGE)
+    ]
+    assert result.data.get_column(Column.TIMEZONE).to_list() == ["UTC"]
+    assert result.data.get_column(Column.DURATION_SECONDS).to_list() == [300.0]
+
+
 def test_preprocess_chronicle_dataframe_applies_study_date_map_from_config(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,

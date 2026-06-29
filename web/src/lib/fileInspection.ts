@@ -91,6 +91,11 @@ function isValidTimezone(timezone: string): boolean {
   }
 }
 
+function normalizeTimezoneValue(value: string | undefined): string {
+  const timezone = (value ?? "UTC").trim();
+  return timezone === "" || timezone === "None" ? "UTC" : timezone;
+}
+
 export function isValidChronicleTimestamp(value: string): boolean {
   const text = value.trim();
   if (!text) return false;
@@ -112,7 +117,8 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
   ).renamedHeaders;
   const columnSet = humanColumnSet(columns);
   const missing = REQUIRED_RAW_CSV_COLUMNS.filter((column) => !columnSet.has(column));
-  const timezoneValues = parsed.data.map((row) => (row.timezone ?? "").trim());
+  const rawTimezoneValues = parsed.data.map((row) => (row.timezone ?? "").trim());
+  const timezoneValues = parsed.data.map((row) => normalizeTimezoneValue(row.timezone));
   const timezones = Array.from(new Set(timezoneValues.filter(Boolean))).sort((left, right) =>
     left.localeCompare(right),
   );
@@ -120,7 +126,7 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
   const timestampValues = parsed.data.map((row) => (row.event_timestamp ?? "").trim());
   const missingTimestampCount = timestampValues.filter((value) => !value).length;
   const invalidTimestampCount = timestampValues.filter((value) => value && !isValidChronicleTimestamp(value)).length;
-  const missingTimezoneCount = timezoneValues.filter((value) => !value).length;
+  const missingTimezoneCount = rawTimezoneValues.filter((value) => !value || value === "None").length;
   const timestampCounts = new Map<string, number>();
   timestampValues.filter(Boolean).forEach((value) => {
     timestampCounts.set(value, (timestampCounts.get(value) ?? 0) + 1);
@@ -194,9 +200,6 @@ export async function inspectRawFile(file: File): Promise<RawFileInspection> {
   }
   if (!timezones.length && !missing.includes("timezone")) {
     warnings.push("No timezone values found.");
-  }
-  if (missingTimezoneCount > 0 && !missing.includes("timezone")) {
-    warnings.push(`${missingTimezoneCount.toLocaleString()} rows are missing timezone values.`);
   }
   if (invalidTimezones.length) {
     warnings.push(`${invalidTimezones.length} unrecognised timezone value${invalidTimezones.length === 1 ? "" : "s"} found.`);

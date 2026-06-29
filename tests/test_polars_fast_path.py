@@ -191,6 +191,52 @@ def test_main_preprocessor_fast_path_matches_non_fast_path_output_without_codebo
     assert legacy_df.equals(fast_df)
 
 
+def test_main_preprocessor_missing_timezone_column_uses_utc_fallback_in_both_paths(
+    tmp_path: Path, monkeypatch
+) -> None:
+    legacy_raw_folder = tmp_path / "legacy" / "raw"
+    fast_raw_folder = tmp_path / "fast" / "raw"
+    legacy_raw_folder.mkdir(parents=True)
+    fast_raw_folder.mkdir(parents=True)
+    legacy_raw_file = legacy_raw_folder / "Raw P01.csv"
+    fast_raw_file = fast_raw_folder / "Raw P01.csv"
+    raw_df = _raw_fixture().drop(Column.TIMEZONE)
+    raw_df.write_csv(legacy_raw_file)
+    raw_df.write_csv(fast_raw_file)
+
+    common_options = {
+        "study_name": "MissingTimezone",
+        "use_app_codebook": False,
+        "use_filter_file": False,
+    }
+
+    monkeypatch.setenv("CHRONICLE_USE_POLARS_FAST_PATH", "false")
+    legacy = ChronicleAndroidRawDataPreprocessor(
+        PreprocessingOptions(raw_data_folder=legacy_raw_folder, **common_options)
+    )
+    legacy_folder, legacy_success, _ = legacy.preprocess_Chronicle_Android_raw_data_file(
+        legacy_raw_file
+    )
+    assert legacy_success
+
+    monkeypatch.setenv("CHRONICLE_USE_POLARS_FAST_PATH", "true")
+    fast = ChronicleAndroidRawDataPreprocessor(
+        PreprocessingOptions(raw_data_folder=fast_raw_folder, **common_options)
+    )
+    fast_folder, fast_success, _ = fast.preprocess_Chronicle_Android_raw_data_file(fast_raw_file)
+    assert fast_success
+
+    legacy_df = pl.read_csv(next(legacy_folder.glob("*.csv")), infer_schema=False).drop(
+        Column.DATETIME_OF_PREPROCESSING, strict=False
+    )
+    fast_df = pl.read_csv(next(fast_folder.glob("*.csv")), infer_schema=False).drop(
+        Column.DATETIME_OF_PREPROCESSING, strict=False
+    )
+
+    assert legacy_df.equals(fast_df)
+    assert legacy_df.get_column(Column.TIMEZONE).to_list() == ["UTC"]
+
+
 def test_main_preprocessor_applies_injected_study_date_map_before_app_usage(
     tmp_path: Path, monkeypatch
 ) -> None:

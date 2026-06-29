@@ -36,13 +36,20 @@ class TestValidateRequiredColumns:
             ChronicleAndroidRawDataPreprocessor._validate_required_columns(df)
 
     def test_missing_multiple_columns_lists_all(self) -> None:
-        cols = [c for c in ALL_REQUIRED if c not in {"event_timestamp", "timezone"}]
+        cols = [c for c in ALL_REQUIRED if c not in {"event_timestamp", "app_package_name"}]
         df = _df_with_columns(*cols)
         with pytest.raises(ValueError) as exc_info:
             ChronicleAndroidRawDataPreprocessor._validate_required_columns(df)
         message = str(exc_info.value)
         assert "event_timestamp" in message
-        assert "timezone" in message
+        assert "app_package_name" in message
+
+    def test_timezone_column_is_optional_for_utc_fallback(self) -> None:
+        assert "timezone" not in REQUIRED_RAW_COLUMNS
+        cols = [c for c in ALL_REQUIRED if c != "timezone"]
+        df = _df_with_columns(*cols)
+
+        ChronicleAndroidRawDataPreprocessor._validate_required_columns(df)
 
     def test_completely_wrong_columns_lists_all_missing(self) -> None:
         df = _df_with_columns("col_a", "col_b", "col_c")
