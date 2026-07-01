@@ -11,5 +11,5 @@ pytest>=9.0.1
 # Transitive deps pinned to their security floors (matplotlib pulls pillow;
 # pytest/rich pull pygments). osv-scanner resolves unpinned transitives to old
 # vulnerable versions; these floors match what the runtime already installs.
-pillow>=12.2.0
+pillow>=12.3.0
 pygments>=2.20.0
