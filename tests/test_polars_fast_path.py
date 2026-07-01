@@ -251,7 +251,7 @@ def test_codebook_genre_output_consolidates_only_when_sources_agree(
             {
                 "app_package_name": "com.example.consensus",
                 "application_label": "Consensus App",
-                "play_store_genreId": "EDUCATION",
+                "bcm_play_store_genreId": "EDUCATION",
                 "usc_genreId": "EDUCATION",
                 "babyemu_genreId_scraped": "EDUCATION",
                 "babyemu_genreId_manual": None,
@@ -259,7 +259,7 @@ def test_codebook_genre_output_consolidates_only_when_sources_agree(
             {
                 "app_package_name": "com.example.disagree",
                 "application_label": "Disagree App",
-                "play_store_genreId": "NEWS_AND_MAGAZINES",
+                "bcm_play_store_genreId": "NEWS_AND_MAGAZINES",
                 "usc_genreId": "SOCIAL",
                 "babyemu_genreId_scraped": "SOCIAL",
                 "babyemu_genreId_manual": None,

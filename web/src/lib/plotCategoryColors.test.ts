@@ -76,7 +76,7 @@ describe("real codebook coverage (reproduction)", () => {
       // The bundled unified codebook ships per-source columns only; the old
       // single broad_app_category column is deprecated and not present.
       const sources = [
-        row.play_store_broad_app_category,
+        row.bcm_play_store_broad_app_category,
         row.usc_broad_app_category,
         row.babyemu_broad_app_category,
         row.bcm_cnrc_heuristic_category,

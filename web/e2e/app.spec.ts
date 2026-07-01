@@ -80,7 +80,7 @@ test("processes app and screen outputs with CSV support files and downloads both
 
   const appCsv = await downloadCsv(page, "download-app-csv");
   const screenCsv = await downloadCsv(page, "download-screen-csv");
-  expect(csvHeaders(appCsv)).toContain("play_store_genreId");
+  expect(csvHeaders(appCsv)).toContain("bcm_play_store_genreId");
   expect(appCsv).toContain("Filtered App Usage");
   expect(screenCsv).toContain("Screen Usage");
   assertNoExternalRequests(requestTracker);
@@ -420,7 +420,7 @@ test("drops codebook-enriched columns when app codebook use is disabled", async 
   const appCsv = await downloadCsv(page, "download-app-csv");
   const headers = csvHeaders(appCsv);
   expect(headers).not.toContain("genreId_scraped");
-  expect(headers).not.toContain("play_store_genreId");
+  expect(headers).not.toContain("bcm_play_store_genreId");
   assertNoExternalRequests(requestTracker);
 });
 

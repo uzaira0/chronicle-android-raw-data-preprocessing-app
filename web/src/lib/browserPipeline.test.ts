@@ -219,7 +219,7 @@ describe("browserPipeline", () => {
     ].join("\n");
 
     const codebookCsv = [
-      "app_package_name,application_label,play_store_genreId,usc_genreId,babyemu_genreId_scraped",
+      "app_package_name,application_label,bcm_play_store_genreId,usc_genreId,babyemu_genreId_scraped",
       "com.example.consensus,Consensus,EDUCATION,EDUCATION,EDUCATION",
       "com.example.disagree,Disagree,NEWS_AND_MAGAZINES,SOCIAL,SOCIAL",
     ].join("\n");
@@ -286,7 +286,7 @@ describe("browserPipeline", () => {
     const fullCsv = result.outputs[0]?.blob ? await readOutputCsv(result.outputs[0].blob) : "";
     const header = fullCsv.split("\n", 1)[0] ?? "";
     expect(header).not.toContain("genreId_scraped");
-    expect(header).not.toContain("play_store_genreId");
+    expect(header).not.toContain("bcm_play_store_genreId");
     expect(header).not.toContain("broad_app_category");
   });
 

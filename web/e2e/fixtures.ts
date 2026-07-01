@@ -50,7 +50,7 @@ export const APPS_FORCING_SCREEN_OPEN_CSV = [
 ].join("\n");
 
 export const CODEBOOK_CSV = [
-  "app_package_name,application_label,play_store_genreId,play_store_broad_app_category,play_store_free",
+  "app_package_name,application_label,bcm_play_store_genreId,bcm_play_store_broad_app_category,bcm_play_store_free",
   "com.example.chat,Chat,SOCIAL,Social,true",
   "com.example.filtered,Filtered Reader,BOOKS_AND_REFERENCE,Reading,true",
   "com.example.maps,Maps,TRAVEL_AND_LOCAL,Navigation,true",

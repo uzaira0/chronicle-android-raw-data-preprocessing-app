@@ -91,7 +91,7 @@ test("configures every export + processing feature and the artifacts reflect the
 
   // Codebook enrichment columns and the filter semantics are visible in output.
   const appCsv = await downloadCsv(page, "download-app-csv");
-  expect(csvHeaders(appCsv)).toContain("play_store_genreId");
+  expect(csvHeaders(appCsv)).toContain("bcm_play_store_genreId");
   expect(appCsv).toContain("Filtered App Usage");
   const screenCsv = await downloadCsv(page, "download-screen-csv");
   expect(screenCsv).toContain("Screen Usage");

@@ -138,13 +138,13 @@ export const INTERACTION_TYPES_TO_REMOVE_OPTIONS = [
 
 const CODEBOOK_COLUMN_RENAME_MAP: Record<string, string> = {
   application_label: "codebook_application_label",
-  play_store_genreId: "play_store_genreId",
-  play_store_genre: "play_store_genre",
-  play_store_broad_app_category: "play_store_broad_app_category",
-  play_store_developer: "play_store_developer",
-  play_store_free: "play_store_free",
-  play_store_rating: "play_store_rating",
-  play_store_downloads: "play_store_downloads",
+  bcm_play_store_genreId: "bcm_play_store_genreId",
+  bcm_play_store_genre: "bcm_play_store_genre",
+  bcm_play_store_broad_app_category: "bcm_play_store_broad_app_category",
+  bcm_play_store_developer: "bcm_play_store_developer",
+  bcm_play_store_free: "bcm_play_store_free",
+  bcm_play_store_rating: "bcm_play_store_rating",
+  bcm_play_store_downloads: "bcm_play_store_downloads",
   usc_broad_app_category: "usc_broad_app_category",
   usc_genreId: "usc_genreId",
   umich_child_app_category_code: "umich_child_app_category_code",
@@ -250,13 +250,13 @@ export type CanonicalRow = {
   genreId_scraped: string | null;
   broad_app_category?: string | null;
   codebook_application_label?: string | null;
-  play_store_genreId?: string | null;
-  play_store_genre?: string | null;
-  play_store_broad_app_category?: string | null;
-  play_store_developer?: string | null;
-  play_store_free?: string | null;
-  play_store_rating?: string | null;
-  play_store_downloads?: string | null;
+  bcm_play_store_genreId?: string | null;
+  bcm_play_store_genre?: string | null;
+  bcm_play_store_broad_app_category?: string | null;
+  bcm_play_store_developer?: string | null;
+  bcm_play_store_free?: string | null;
+  bcm_play_store_rating?: string | null;
+  bcm_play_store_downloads?: string | null;
   usc_broad_app_category?: string | null;
   usc_genreId?: string | null;
   umich_child_app_category_code?: string | null;
@@ -1744,7 +1744,7 @@ function enrichWithCodebookData(
     // UPPERCASE enums. deriveBroadAppCategory coalesces them in the desktop's
     // order and normalises each onto the palette so bars are colour-coded.
     updated.broad_app_category = deriveBroadAppCategory([
-      updated.play_store_broad_app_category,
+      updated.bcm_play_store_broad_app_category,
       updated.usc_broad_app_category,
       updated.babyemu_broad_app_category,
       updated.bcm_cnrc_heuristic_category,
@@ -1753,14 +1753,14 @@ function enrichWithCodebookData(
     const genreValues = [
       updated.babyemu_genreId_scraped,
       updated.babyemu_genreId_manual,
-      updated.play_store_genreId,
+      updated.bcm_play_store_genreId,
       updated.usc_genreId,
     ].filter((value): value is string => Boolean(value && value.trim()));
     if (!genreValues.length) {
       updated.genreId_scraped = "Unknown";
     } else if (new Set(genreValues).size === 1) {
       updated.genreId_scraped = genreValues[0]!;
-      updated.play_store_genreId = null;
+      updated.bcm_play_store_genreId = null;
       updated.usc_genreId = null;
       updated.babyemu_genreId_scraped = null;
       updated.babyemu_genreId_manual = null;

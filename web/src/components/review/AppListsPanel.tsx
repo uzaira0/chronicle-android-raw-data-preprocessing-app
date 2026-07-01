@@ -135,7 +135,7 @@ function CodebookList(): ReactElement {
               <tr key={`${row.app_package_name ?? index}`}>
                 <td>{row.application_label ?? ""}</td>
                 <td>{row.app_package_name ?? ""}</td>
-                <td>{row.bcm_cnrc_heuristic_category ?? row.play_store_broad_app_category ?? ""}</td>
+                <td>{row.bcm_cnrc_heuristic_category ?? row.bcm_play_store_broad_app_category ?? ""}</td>
               </tr>
             ))}
             {rows && hits.length === 0 ? (

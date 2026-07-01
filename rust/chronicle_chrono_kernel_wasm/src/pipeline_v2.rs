@@ -73,13 +73,13 @@ const AMAZON_APPS: &[&str] = &[
 // Order MUST match TS Object.values order — JS preserves insertion order.
 const CODEBOOK_RENAME_PAIRS: &[(&str, &str)] = &[
     ("application_label", "codebook_application_label"),
-    ("play_store_genreId", "play_store_genreId"),
-    ("play_store_genre", "play_store_genre"),
-    ("play_store_broad_app_category", "play_store_broad_app_category"),
-    ("play_store_developer", "play_store_developer"),
-    ("play_store_free", "play_store_free"),
-    ("play_store_rating", "play_store_rating"),
-    ("play_store_downloads", "play_store_downloads"),
+    ("bcm_play_store_genreId", "bcm_play_store_genreId"),
+    ("bcm_play_store_genre", "bcm_play_store_genre"),
+    ("bcm_play_store_broad_app_category", "bcm_play_store_broad_app_category"),
+    ("bcm_play_store_developer", "bcm_play_store_developer"),
+    ("bcm_play_store_free", "bcm_play_store_free"),
+    ("bcm_play_store_rating", "bcm_play_store_rating"),
+    ("bcm_play_store_downloads", "bcm_play_store_downloads"),
     ("usc_broad_app_category", "usc_broad_app_category"),
     ("usc_genreId", "usc_genreId"),
     ("umich_child_app_category_code", "umich_child_app_category_code"),
@@ -199,7 +199,7 @@ fn parse_apps_forcing_csv(bytes: &[u8]) -> HashMap<String, String> {
 
 #[derive(Default, Debug, Clone)]
 pub struct CodebookEntry {
-    /// Indexed by codebook_col_index() output name (e.g. "codebook_application_label", "play_store_genreId"…)
+    /// Indexed by codebook_col_index() output name (e.g. "codebook_application_label", "bcm_play_store_genreId"…)
     pub fields: Vec<Option<String>>,
 }
 
@@ -1631,14 +1631,14 @@ fn enrich_codebook(
         }
         return;
     }
-    let play_store_broad_idx = codebook_col_index("play_store_broad_app_category").unwrap();
+    let bcm_play_store_broad_idx = codebook_col_index("bcm_play_store_broad_app_category").unwrap();
     let usc_broad_idx = codebook_col_index("usc_broad_app_category").unwrap();
     let babyemu_broad_idx = codebook_col_index("babyemu_broad_app_category").unwrap();
     let bcm_broad_idx = codebook_col_index("bcm_cnrc_heuristic_category").unwrap();
 
     let babyemu_scraped_idx = codebook_col_index("babyemu_genreId_scraped").unwrap();
     let babyemu_manual_idx = codebook_col_index("babyemu_genreId_manual").unwrap();
-    let play_store_genre_idx = codebook_col_index("play_store_genreId").unwrap();
+    let bcm_play_store_genre_idx = codebook_col_index("bcm_play_store_genreId").unwrap();
     let usc_genre_idx = codebook_col_index("usc_genreId").unwrap();
 
     for row in rows.iter_mut() {
@@ -1655,7 +1655,7 @@ fn enrich_codebook(
 
                 // broad_app_category fallback chain
                 let candidates = [
-                    row.codebook_fields[play_store_broad_idx].as_deref(),
+                    row.codebook_fields[bcm_play_store_broad_idx].as_deref(),
                     row.codebook_fields[usc_broad_idx].as_deref(),
                     row.codebook_fields[babyemu_broad_idx].as_deref(),
                     row.codebook_fields[bcm_broad_idx].as_deref(),
@@ -1668,7 +1668,7 @@ fn enrich_codebook(
 
                 // genreId_scraped from collapsed set.
                 let mut genre_values: Vec<String> = Vec::new();
-                for idx in [babyemu_scraped_idx, babyemu_manual_idx, play_store_genre_idx, usc_genre_idx] {
+                for idx in [babyemu_scraped_idx, babyemu_manual_idx, bcm_play_store_genre_idx, usc_genre_idx] {
                     if let Some(v) = &row.codebook_fields[idx] {
                         if !v.trim().is_empty() {
                             genre_values.push(v.clone());
@@ -1681,7 +1681,7 @@ fn enrich_codebook(
                     let unique: AHashSet<&str> = genre_values.iter().map(|s| s.as_str()).collect();
                     if unique.len() == 1 {
                         row.genre_id_scraped = Some(genre_values[0].clone());
-                        row.codebook_fields[play_store_genre_idx] = None;
+                        row.codebook_fields[bcm_play_store_genre_idx] = None;
                         row.codebook_fields[usc_genre_idx] = None;
                         row.codebook_fields[babyemu_scraped_idx] = None;
                         row.codebook_fields[babyemu_manual_idx] = None;
