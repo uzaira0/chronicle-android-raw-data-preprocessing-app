@@ -79,7 +79,9 @@ def main() -> int:
         print("Benchmark results (mean ns):")
         for bench_id, mean_ns in sorted(current_normalised.items()):
             print(f"  {bench_id}: {mean_ns:,.1f} ns")
-        print(f"\nNo baseline found at {BASELINE_PATH}. Results written to benchmarks/current.json. Exiting 0 (first run).")
+        print(
+            f"\nNo baseline found at {BASELINE_PATH}. Results written to benchmarks/current.json. Exiting 0 (first run)."
+        )
         return 0
 
     baseline_raw = json.loads(BASELINE_PATH.read_text())
@@ -89,7 +91,9 @@ def main() -> int:
     print("Benchmark results (mean ns):")
     failures: list[str] = []
     for bench_id, baseline_entry in sorted(baseline.items()):
-        baseline_ns: float = baseline_entry["mean_ns"] if isinstance(baseline_entry, dict) else float(baseline_entry)
+        baseline_ns: float = (
+            baseline_entry["mean_ns"] if isinstance(baseline_entry, dict) else float(baseline_entry)
+        )
         if bench_id not in current_normalised:
             print(f"WARNING: baseline key {bench_id!r} not found in current run.")
             continue
@@ -98,7 +102,9 @@ def main() -> int:
         status = ""
         if ratio > REGRESSION_THRESHOLD:
             status = f"  *** REGRESSION: {ratio:+.1%} vs baseline {baseline_ns:,.1f} ns ***"
-            failures.append(f"{bench_id}: {current_ns:,.1f} ns vs baseline {baseline_ns:,.1f} ns ({ratio:+.1%})")
+            failures.append(
+                f"{bench_id}: {current_ns:,.1f} ns vs baseline {baseline_ns:,.1f} ns ({ratio:+.1%})"
+            )
         elif ratio < -0.05:
             status = f"  (improvement: {ratio:+.1%} vs baseline {baseline_ns:,.1f} ns)"
         else:
@@ -106,7 +112,9 @@ def main() -> int:
         print(f"  {bench_id}: {current_ns:,.1f} ns{status}")
 
     if failures:
-        print(f"\nFAILED: {len(failures)} benchmark(s) regressed by more than {REGRESSION_THRESHOLD:.0%}:")
+        print(
+            f"\nFAILED: {len(failures)} benchmark(s) regressed by more than {REGRESSION_THRESHOLD:.0%}:"
+        )
         for f in failures:
             print(f"  {f}")
         return 1

@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import polars as pl
-import pytest
 
 from chronicle_preprocessing_app.config.constants import ChronicleDeviceType, Column
 from chronicle_preprocessing_app.core.preprocessing.column_preprocessor import ColumnPreprocessor
-from tests.polars_helpers import frame, ts
 from tests.polars_helpers import options as _options
 
 
@@ -20,7 +18,7 @@ def _minimal_df(*, pkg: str = "com.example") -> pl.DataFrame:
     return pl.DataFrame(
         {
             Column.EVENT_TIMESTAMP: pl.Series(
-                [datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)],
+                [datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)],
                 dtype=pl.Datetime("us", "UTC"),
             ),
             Column.APP_PACKAGE_NAME: [pkg],
@@ -59,7 +57,10 @@ def test_create_additional_columns_different_types_produce_different_values() ->
     df = _minimal_df()
     android_result = proc.create_additional_columns(df, ChronicleDeviceType.ANDROID)
     amazon_result = proc.create_additional_columns(df, ChronicleDeviceType.AMAZON)
-    assert android_result[0, Column.POSSIBLE_DEVICE_MODEL] != amazon_result[0, Column.POSSIBLE_DEVICE_MODEL]
+    assert (
+        android_result[0, Column.POSSIBLE_DEVICE_MODEL]
+        != amazon_result[0, Column.POSSIBLE_DEVICE_MODEL]
+    )
 
 
 def test_create_additional_columns_amazon_value_is_amazon_fire() -> None:
@@ -76,9 +77,9 @@ def test_create_additional_columns_multiple_rows() -> None:
         {
             Column.EVENT_TIMESTAMP: pl.Series(
                 [
-                    datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone.utc),
-                    datetime(2024, 1, 15, 11, 0, 0, tzinfo=timezone.utc),
-                    datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc),
+                    datetime(2024, 1, 15, 10, 0, 0, tzinfo=UTC),
+                    datetime(2024, 1, 15, 11, 0, 0, tzinfo=UTC),
+                    datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC),
                 ],
                 dtype=pl.Datetime("us", "UTC"),
             ),
@@ -87,7 +88,10 @@ def test_create_additional_columns_multiple_rows() -> None:
     )
     result = proc.create_additional_columns(df, ChronicleDeviceType.ANDROID)
     assert result.height == 3
-    assert all(v == ChronicleDeviceType.ANDROID.value for v in result[Column.POSSIBLE_DEVICE_MODEL].to_list())
+    assert all(
+        v == ChronicleDeviceType.ANDROID.value
+        for v in result[Column.POSSIBLE_DEVICE_MODEL].to_list()
+    )
 
 
 # ===========================================================================
@@ -136,7 +140,7 @@ def test_correct_username_column_normalizes_target_child() -> None:
     df = pl.DataFrame(
         {
             Column.EVENT_TIMESTAMP: pl.Series(
-                [datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone.utc)],
+                [datetime(2024, 1, 15, 10, 0, 0, tzinfo=UTC)],
                 dtype=pl.Datetime("us", "UTC"),
             ),
             Column.APP_PACKAGE_NAME: ["com.example"],
@@ -152,7 +156,7 @@ def test_correct_username_column_leaves_other_usernames_unchanged() -> None:
     df = pl.DataFrame(
         {
             Column.EVENT_TIMESTAMP: pl.Series(
-                [datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone.utc)],
+                [datetime(2024, 1, 15, 10, 0, 0, tzinfo=UTC)],
                 dtype=pl.Datetime("us", "UTC"),
             ),
             Column.APP_PACKAGE_NAME: ["com.example"],
@@ -181,7 +185,7 @@ def test_preprocess_with_multiple_columns_does_not_crash() -> None:
     df = pl.DataFrame(
         {
             Column.EVENT_TIMESTAMP: pl.Series(
-                [datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone.utc)],
+                [datetime(2024, 1, 15, 10, 0, 0, tzinfo=UTC)],
                 dtype=pl.Datetime("us", "UTC"),
             ),
             Column.APP_PACKAGE_NAME: ["com.example"],

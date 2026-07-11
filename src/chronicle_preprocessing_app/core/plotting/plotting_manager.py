@@ -59,12 +59,16 @@ class PlottingManager:
     ) -> None:
         self.study_name = study_name
         self.base_output_folder = Path(output_folder).parent
-        self.plot_output_folder = self.base_output_folder / f"{self.study_name} {PLOTTED_FOLDER_SUFFIX}"
+        self.plot_output_folder = (
+            self.base_output_folder / f"{self.study_name} {PLOTTED_FOLDER_SUFFIX}"
+        )
         self.progress_callback = progress_callback
         self.options = options
         self.stats = ProcessingStats()
 
-    def create_all_app_usage_plots(self, preprocessed_folder: Path, codebook_path: Path | str | None) -> ProcessingStats:
+    def create_all_app_usage_plots(
+        self, preprocessed_folder: Path, codebook_path: Path | str | None
+    ) -> ProcessingStats:
         LOGGER.info("Generating app usage plots from %s", preprocessed_folder)
         self.plot_output_folder.mkdir(parents=True, exist_ok=True)
 
@@ -110,17 +114,29 @@ class PlottingManager:
 
                 dat = pl.read_csv(csv_file, try_parse_dates=False, infer_schema_length=1000)
 
-                if dat.is_empty() or "start_timestamp" not in dat.columns or "stop_timestamp" not in dat.columns:
+                if (
+                    dat.is_empty()
+                    or "start_timestamp" not in dat.columns
+                    or "stop_timestamp" not in dat.columns
+                ):
                     LOGGER.warning("Skipping %s: empty or missing required columns", csv_file.name)
                     self.stats.mark_empty_plot_file(csv_file.name)
                     continue
 
-                participant_id = dat["participant_id"][0] if "participant_id" in dat.columns and len(dat) > 0 else "unknown"
+                participant_id = (
+                    dat["participant_id"][0]
+                    if "participant_id" in dat.columns and len(dat) > 0
+                    else "unknown"
+                )
                 LOGGER.info("Plotting data for participant: %s", participant_id)
 
                 dat = dat.with_columns(
-                    pl.col("start_timestamp").str.to_datetime(strict=False, ambiguous="earliest").alias("start_timestamp"),
-                    pl.col("stop_timestamp").str.to_datetime(strict=False, ambiguous="earliest").alias("stop_timestamp"),
+                    pl.col("start_timestamp")
+                    .str.to_datetime(strict=False, ambiguous="earliest")
+                    .alias("start_timestamp"),
+                    pl.col("stop_timestamp")
+                    .str.to_datetime(strict=False, ambiguous="earliest")
+                    .alias("stop_timestamp"),
                 )
 
                 if "date" not in dat.columns:
@@ -135,7 +151,9 @@ class PlottingManager:
                 # Polars Date.min()/max() returns date, not datetime — cast to be precise
                 min_date: DateType = DateType(_min_date.year, _min_date.month, _min_date.day)
                 max_date: DateType = DateType(_max_date.year, _max_date.month, _max_date.day)
-                all_dates = [min_date + timedelta(days=d) for d in range((max_date - min_date).days + 1)]
+                all_dates = [
+                    min_date + timedelta(days=d) for d in range((max_date - min_date).days + 1)
+                ]
 
                 if codebook_old is not None and codebook_new is not None:
                     dat = dat.with_columns(
@@ -148,7 +166,9 @@ class PlottingManager:
                         .alias(AppCodebookColumn.BROAD_APP_CATEGORY)
                     )
                 else:
-                    dat = dat.with_columns(pl.lit("Uncategorised").alias(AppCodebookColumn.BROAD_APP_CATEGORY))
+                    dat = dat.with_columns(
+                        pl.lit("Uncategorised").alias(AppCodebookColumn.BROAD_APP_CATEGORY)
+                    )
 
                 raw_dat = self._load_gap_timestamps_sidecar(csv_file)
                 if raw_dat is None:
@@ -172,7 +192,9 @@ class PlottingManager:
                     suffix += " (Including Filtered Apps)"
                 if self.options.plot_only_target_child_data:
                     suffix += " (Target Child Only)"
-                output_filename = f"{participant_id} App Usage Plot (Created on {date_str}){suffix}.jpeg"
+                output_filename = (
+                    f"{participant_id} App Usage Plot (Created on {date_str}){suffix}.jpeg"
+                )
 
                 self._create_app_usage_plot(
                     dat=dat,
@@ -202,17 +224,23 @@ class PlottingManager:
                 )
                 self.stats.mark_plot_failed(csv_file.name, err_str, error_type=error_type)
                 if self.progress_callback:
-                    self.progress_callback(f"Error plotting {csv_file.name}: {exc!s}", i + 1, len(csv_files))
+                    self.progress_callback(
+                        f"Error plotting {csv_file.name}: {exc!s}", i + 1, len(csv_files)
+                    )
 
         if plot_errors:
             details = "\n".join(f"- {f}: {e}" for f, e in plot_errors)
-            raise Exception(f"Errors occurred while plotting {len(plot_errors)} file(s):\n{details}")
+            raise Exception(
+                f"Errors occurred while plotting {len(plot_errors)} file(s):\n{details}"
+            )
 
         LOGGER.info("Completed plotting. Output folder: %s", self.plot_output_folder)
         return self.stats
 
     def _load_gap_timestamps_sidecar(self, preprocessed_csv_path: Path) -> pl.DataFrame | None:
-        sidecar_path = preprocessed_csv_path.with_name(preprocessed_csv_path.stem + GAP_TIMESTAMPS_SIDECAR_SUFFIX)
+        sidecar_path = preprocessed_csv_path.with_name(
+            preprocessed_csv_path.stem + GAP_TIMESTAMPS_SIDECAR_SUFFIX
+        )
         if not sidecar_path.exists():
             return None
         try:
@@ -231,9 +259,14 @@ class PlottingManager:
             return
         # Parse event_timestamp to datetime if still stored as string.
         if dat[Column.EVENT_TIMESTAMP].dtype == pl.String:
-            parsed = [None if v is None else datetime.fromisoformat(v) for v in dat[Column.EVENT_TIMESTAMP].to_list()]
+            parsed = [
+                None if v is None else datetime.fromisoformat(v)
+                for v in dat[Column.EVENT_TIMESTAMP].to_list()
+            ]
             dat = dat.with_columns(pl.Series(Column.EVENT_TIMESTAMP, parsed, dtype=pl.Datetime))
-        sorted_dat = dat.sort(Column.EVENT_TIMESTAMP).filter(pl.col(Column.EVENT_TIMESTAMP).is_not_null())
+        sorted_dat = dat.sort(Column.EVENT_TIMESTAMP).filter(
+            pl.col(Column.EVENT_TIMESTAMP).is_not_null()
+        )
         if len(sorted_dat) < 2:
             return
 
@@ -277,8 +310,13 @@ class PlottingManager:
                     lefts.append(0.0)
 
         if ys:
-            gap_patches = [Rectangle((left, y - 0.4), w, 0.8) for y, w, left in zip(ys, widths, lefts, strict=False)]
-            coll = PatchCollection(gap_patches, facecolors=GAP_COLOR, edgecolors="none", alpha=0.15, label="Data Gap")
+            gap_patches = [
+                Rectangle((left, y - 0.4), w, 0.8)
+                for y, w, left in zip(ys, widths, lefts, strict=False)
+            ]
+            coll = PatchCollection(
+                gap_patches, facecolors=GAP_COLOR, edgecolors="none", alpha=0.15, label="Data Gap"
+            )
             plt.gca().add_collection(coll)
 
     def _create_app_usage_plot(
@@ -348,13 +386,20 @@ class PlottingManager:
 
         ax = plt.gca()
         if ys:
-            bar_patches = [Rectangle((left, y - 0.4), w, 0.8) for y, w, left in zip(ys, widths, lefts, strict=False)]
-            coll = PatchCollection(bar_patches, facecolors=colors, edgecolors="none", match_original=False)
+            bar_patches = [
+                Rectangle((left, y - 0.4), w, 0.8)
+                for y, w, left in zip(ys, widths, lefts, strict=False)
+            ]
+            coll = PatchCollection(
+                bar_patches, facecolors=colors, edgecolors="none", match_original=False
+            )
             ax.add_collection(coll)
 
         has_shutdown = self._plot_device_event_arrows(dat, InteractionType.DEVICE_SHUTDOWN, "red")
         has_startup = self._plot_device_event_arrows(dat, InteractionType.DEVICE_STARTUP, "green")
-        has_missing = self._plot_device_event_arrows(dat, InteractionType.END_OF_USAGE_MISSING, "gray")
+        has_missing = self._plot_device_event_arrows(
+            dat, InteractionType.END_OF_USAGE_MISSING, "gray"
+        )
 
         plt.xlabel("Time (Hours)")
         title_suffix = ""
@@ -377,7 +422,9 @@ class PlottingManager:
         plt.gca().invert_yaxis()
         plt.grid(axis="x", linestyle="--", alpha=0.7)
 
-        legend_handles = [Patch(facecolor=color, label=label) for label, color in CATEGORY_COLORS.items()]
+        legend_handles = [
+            Patch(facecolor=color, label=label) for label, color in CATEGORY_COLORS.items()
+        ]
         legend_handles.append(Patch(facecolor=GAP_COLOR, label="Data Gap", alpha=0.5))
         if has_shutdown:
             legend_handles.append(Patch(facecolor="red", label="Device Shutdown"))
@@ -414,7 +461,9 @@ class PlottingManager:
             return False
 
         event_rows = event_rows.with_columns(
-            pl.col(Column.EVENT_TIMESTAMP).str.to_datetime(strict=False, ambiguous="earliest").alias(Column.EVENT_TIMESTAMP)
+            pl.col(Column.EVENT_TIMESTAMP)
+            .str.to_datetime(strict=False, ambiguous="earliest")
+            .alias(Column.EVENT_TIMESTAMP)
             if event_rows[Column.EVENT_TIMESTAMP].dtype == pl.String
             else pl.col(Column.EVENT_TIMESTAMP)
         )

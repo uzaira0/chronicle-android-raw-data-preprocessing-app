@@ -37,7 +37,9 @@ class FrameSchema:
             raise ValueError(msg)
 
         if self.allowed_interactions is not None and ColName.INTERACTION_TYPE in frame.columns:
-            invalid = frame.filter(~pl.col(ColName.INTERACTION_TYPE).is_in(self.allowed_interactions))
+            invalid = frame.filter(
+                ~pl.col(ColName.INTERACTION_TYPE).is_in(self.allowed_interactions)
+            )
             if not invalid.is_empty():
                 values = invalid.get_column(ColName.INTERACTION_TYPE).unique().to_list()
                 msg = f"Invalid interaction_type values: {values}"
@@ -46,7 +48,9 @@ class FrameSchema:
         for column in self.non_negative_columns:
             if column not in frame.columns:
                 continue
-            invalid = frame.filter(pl.col(column).is_not_null() & (pl.col(column).cast(pl.Float64) < 0))
+            invalid = frame.filter(
+                pl.col(column).is_not_null() & (pl.col(column).cast(pl.Float64) < 0)
+            )
             if not invalid.is_empty():
                 msg = f"Column {column!r} cannot contain negative values"
                 raise ValueError(msg)

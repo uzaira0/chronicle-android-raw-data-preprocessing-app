@@ -131,7 +131,9 @@ class ProcessingStats:
             self.plot_success_types[success_type] = 0
         self.plot_success_types[success_type] += 1
 
-    def mark_plot_failed(self, filename: str, error_message: str, error_type: str = "general") -> None:
+    def mark_plot_failed(
+        self, filename: str, error_message: str, error_type: str = "general"
+    ) -> None:
         """
         Mark a file as failed during plotting.
 
@@ -206,7 +208,9 @@ class ProcessingStats:
 
         return "\n".join(summary)
 
-    def add_plot_error(self, filename: str, error_message: str, error_type: str = "general") -> None:
+    def add_plot_error(
+        self, filename: str, error_message: str, error_type: str = "general"
+    ) -> None:
         """
         Add a specific error related to plot generation.
 
@@ -238,9 +242,13 @@ class ProcessingStats:
             str: A short summary message
         """
         success_pct = self.success_rate()
-        plot_success_pct = (self.plotted_files / self.processed_files) * 100.0 if self.processed_files > 0 else 0.0
+        plot_success_pct = (
+            (self.plotted_files / self.processed_files) * 100.0 if self.processed_files > 0 else 0.0
+        )
 
-        summary_text = f"Processed {self.processed_files}/{self.total_files} files ({success_pct:.1f}%)"
+        summary_text = (
+            f"Processed {self.processed_files}/{self.total_files} files ({success_pct:.1f}%)"
+        )
 
         if self.plotted_files > 0:
             summary_text += f", Plotted {self.plotted_files}/{self.processed_files} files ({plot_success_pct:.1f}%)"

@@ -103,7 +103,9 @@ def test_memory_peak_500_rows_below_50mb(tmp_path, monkeypatch: pytest.MonkeyPat
 
 
 @pytest.mark.slow
-def test_memory_peak_pathological_fixture_below_200mb(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_memory_peak_pathological_fixture_below_200mb(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Pathological fixture (2 weeks ≈ 800+ rows) must stay under 200 MB peak.
 
     This fixture exercises DST transitions, duplicate timestamps, mixed

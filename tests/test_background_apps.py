@@ -53,9 +53,7 @@ def _process(*, background: bool) -> pl.DataFrame:
         use_background_apps_file=background,
         background_apps_dict={BACKGROUND_APP: "Audio"} if background else {},
     )
-    return PolarsFastPathPreprocessor(options)._process_valid_app_usage(
-        _background_overlap_raw()
-    )
+    return PolarsFastPathPreprocessor(options)._process_valid_app_usage(_background_overlap_raw())
 
 
 def test_flag_off_background_app_closed_by_foreground_switch():

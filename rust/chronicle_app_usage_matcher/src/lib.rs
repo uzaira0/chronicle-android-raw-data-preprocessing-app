@@ -607,6 +607,7 @@ impl SparseOpenStarts {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn match_app_usage_core(
     app_codes: &[i32],
     timestamp_ns: &[i64],
@@ -700,6 +701,7 @@ pub fn match_app_usage_core(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn match_app_usage_update_indices_core(
     app_codes: &[i32],
     timestamp_ns: &[i64],

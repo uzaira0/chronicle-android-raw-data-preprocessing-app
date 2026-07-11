@@ -7,7 +7,6 @@ generate/refresh the stored snapshots, then without the flag to verify stability
 from __future__ import annotations
 
 import polars as pl
-import pytest
 from syrupy.assertion import SnapshotAssertion
 
 from chronicle_preprocessing_app.config.constants import Column, InteractionType, UsageSessionMode
@@ -183,10 +182,14 @@ def test_snapshot_app_only_column_names(snapshot: SnapshotAssertion, tmp_path, m
     assert sorted(df.columns) == snapshot
 
 
-def test_snapshot_app_only_row_count_and_interaction_types(snapshot: SnapshotAssertion, tmp_path, monkeypatch) -> None:
+def test_snapshot_app_only_row_count_and_interaction_types(
+    snapshot: SnapshotAssertion, tmp_path, monkeypatch
+) -> None:
     """App-only pipeline: row count and interaction types present are stable."""
     df = _preprocess_to_csv(_app_only_raw_fixture(), tmp_path, monkeypatch=monkeypatch)
-    interaction_types = sorted(df.get_column(Column.INTERACTION_TYPE).drop_nulls().unique().to_list())
+    interaction_types = sorted(
+        df.get_column(Column.INTERACTION_TYPE).drop_nulls().unique().to_list()
+    )
     result = {
         "row_count": df.height,
         "interaction_types": interaction_types,
@@ -194,9 +197,13 @@ def test_snapshot_app_only_row_count_and_interaction_types(snapshot: SnapshotAss
     assert result == snapshot
 
 
-def test_snapshot_multi_app_output_shape(snapshot: SnapshotAssertion, tmp_path, monkeypatch) -> None:
+def test_snapshot_multi_app_output_shape(
+    snapshot: SnapshotAssertion, tmp_path, monkeypatch
+) -> None:
     """Multi-app session: row count and package names present are stable."""
-    df = _preprocess_to_csv(_multi_app_raw_fixture(), tmp_path, study_name="MultiApp", monkeypatch=monkeypatch)
+    df = _preprocess_to_csv(
+        _multi_app_raw_fixture(), tmp_path, study_name="MultiApp", monkeypatch=monkeypatch
+    )
     package_names = sorted(df.get_column(Column.APP_PACKAGE_NAME).drop_nulls().unique().to_list())
     result = {
         "row_count": df.height,
@@ -205,7 +212,9 @@ def test_snapshot_multi_app_output_shape(snapshot: SnapshotAssertion, tmp_path, 
     assert result == snapshot
 
 
-def test_snapshot_preprocessed_timestamp_format(snapshot: SnapshotAssertion, tmp_path, monkeypatch) -> None:
+def test_snapshot_preprocessed_timestamp_format(
+    snapshot: SnapshotAssertion, tmp_path, monkeypatch
+) -> None:
     """The datetime_of_preprocessing column value must match the override exactly."""
     df = _preprocess_to_csv(_app_only_raw_fixture(), tmp_path, monkeypatch=monkeypatch)
     timestamps = df.get_column(Column.DATETIME_OF_PREPROCESSING).drop_nulls().unique().to_list()
@@ -213,7 +222,9 @@ def test_snapshot_preprocessed_timestamp_format(snapshot: SnapshotAssertion, tmp
     assert sorted(timestamps) == snapshot
 
 
-def test_snapshot_app_and_screen_output_has_screen_usage_type(snapshot: SnapshotAssertion, tmp_path, monkeypatch) -> None:
+def test_snapshot_app_and_screen_output_has_screen_usage_type(
+    snapshot: SnapshotAssertion, tmp_path, monkeypatch
+) -> None:
     """APP_AND_SCREEN_USAGE mode must produce SCREEN_USAGE interaction_type rows."""
     raw_folder = tmp_path / "raw"
     raw_folder.mkdir(parents=True, exist_ok=True)
@@ -242,7 +253,9 @@ def test_snapshot_app_and_screen_output_has_screen_usage_type(snapshot: Snapshot
     for csv_file in screen_csvs + app_csvs:
         df = pl.read_csv(csv_file, infer_schema=False)
         if Column.INTERACTION_TYPE in df.columns:
-            interaction_types_present.update(df.get_column(Column.INTERACTION_TYPE).drop_nulls().unique().to_list())
+            interaction_types_present.update(
+                df.get_column(Column.INTERACTION_TYPE).drop_nulls().unique().to_list()
+            )
 
     result = {
         "has_screen_usage_rows": str(InteractionType.SCREEN_USAGE) in interaction_types_present,

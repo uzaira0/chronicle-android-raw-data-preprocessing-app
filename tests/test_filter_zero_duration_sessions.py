@@ -17,11 +17,43 @@ from chronicle_preprocessing_app.core.preprocessing.polars_fast_path import (
 
 _HEADER_ROWS = [
     # com.norm → a zero-duration App Usage (resume == stop).
-    ("P01", "Activity Resumed", "com.norm", "Norm", "Target Child", "America/Chicago", "2026-01-01T08:00:00+00:00"),
-    ("P01", "Activity Stopped", "com.norm", "Norm", "Target Child", "America/Chicago", "2026-01-01T08:00:00+00:00"),
+    (
+        "P01",
+        "Activity Resumed",
+        "com.norm",
+        "Norm",
+        "Target Child",
+        "America/Chicago",
+        "2026-01-01T08:00:00+00:00",
+    ),
+    (
+        "P01",
+        "Activity Stopped",
+        "com.norm",
+        "Norm",
+        "Target Child",
+        "America/Chicago",
+        "2026-01-01T08:00:00+00:00",
+    ),
     # com.filtered → a zero-duration Filtered App Usage (in the filter dict).
-    ("P01", "Activity Resumed", "com.filtered", "Filt", "Target Child", "America/Chicago", "2026-01-01T08:10:00+00:00"),
-    ("P01", "Activity Stopped", "com.filtered", "Filt", "Target Child", "America/Chicago", "2026-01-01T08:10:00+00:00"),
+    (
+        "P01",
+        "Activity Resumed",
+        "com.filtered",
+        "Filt",
+        "Target Child",
+        "America/Chicago",
+        "2026-01-01T08:10:00+00:00",
+    ),
+    (
+        "P01",
+        "Activity Stopped",
+        "com.filtered",
+        "Filt",
+        "Target Child",
+        "America/Chicago",
+        "2026-01-01T08:10:00+00:00",
+    ),
 ]
 
 
@@ -59,7 +91,9 @@ def _process(tmp_path, *, filter_zero: bool) -> pl.DataFrame:
 
 
 def test_filter_drops_zero_app_usage_but_keeps_filtered(tmp_path):
-    interactions = _process(tmp_path, filter_zero=True).get_column(Column.INTERACTION_TYPE).to_list()
+    interactions = (
+        _process(tmp_path, filter_zero=True).get_column(Column.INTERACTION_TYPE).to_list()
+    )
     # Zero-duration App Usage is dropped…
     assert str(InteractionType.APP_USAGE) not in interactions
     # …but a zero-duration Filtered App Usage row is kept (web parity).
@@ -67,6 +101,8 @@ def test_filter_drops_zero_app_usage_but_keeps_filtered(tmp_path):
 
 
 def test_filter_off_keeps_both_zero_duration_rows(tmp_path):
-    interactions = _process(tmp_path, filter_zero=False).get_column(Column.INTERACTION_TYPE).to_list()
+    interactions = (
+        _process(tmp_path, filter_zero=False).get_column(Column.INTERACTION_TYPE).to_list()
+    )
     assert str(InteractionType.APP_USAGE) in interactions
     assert str(InteractionType.FILTERED_APP_USAGE) in interactions

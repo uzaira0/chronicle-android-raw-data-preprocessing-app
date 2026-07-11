@@ -4,8 +4,8 @@ import polars as pl
 import pytest
 
 from chronicle_preprocessing_app.core.preprocessing.polars_fast_path import (
-    PolarsFastPathPreprocessor,
     _BROAD_CATEGORY_SOURCE_COLUMNS,
+    PolarsFastPathPreprocessor,
 )
 
 # Cross-surface contract for the optional broad_app_category output column (#10).

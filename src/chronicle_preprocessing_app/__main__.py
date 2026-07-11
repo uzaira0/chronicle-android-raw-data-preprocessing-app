@@ -16,7 +16,9 @@ def main():
     print("    from chronicle_preprocessing_app.core import MainPreprocessor, PreprocessingOptions")
     print("    from chronicle_preprocessing_app.core import PlottingManager, ProcessingStats")
     print("    from chronicle_preprocessing_app.core.preprocessing import TimestampPreprocessor")
-    print("    from chronicle_preprocessing_app.core.preprocessing.algorithms import OptimizedAppUsageAlgorithm")
+    print(
+        "    from chronicle_preprocessing_app.core.preprocessing.algorithms import OptimizedAppUsageAlgorithm"
+    )
     print()
     print("Get help:")
     print("    >>> from chronicle_preprocessing_app.core import MainPreprocessor")

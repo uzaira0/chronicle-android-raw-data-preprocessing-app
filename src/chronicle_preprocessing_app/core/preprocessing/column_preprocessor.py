@@ -31,4 +31,6 @@ class ColumnPreprocessor(BasePreprocessor):
         df: pl.DataFrame,
         device_model: ChronicleDeviceType,
     ) -> pl.DataFrame:
-        return self._helper._create_additional_columns(df).with_columns(pl.lit(device_model.value).alias(Column.POSSIBLE_DEVICE_MODEL))
+        return self._helper._create_additional_columns(df).with_columns(
+            pl.lit(device_model.value).alias(Column.POSSIBLE_DEVICE_MODEL)
+        )

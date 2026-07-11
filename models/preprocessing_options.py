@@ -61,10 +61,18 @@ class ChronicleAndroidRawDataPreprocessingOptions:
     apps_to_filter_dict: dict[str, str] = field(default_factory=lambda: {"": ""})
     minimum_usage_duration: int = DEFAULT_MINIMUM_USAGE_DURATION  # in seconds
     custom_app_engagement_duration: int = DEFAULT_CUSTOM_APP_ENGAGEMENT_DURATION  # in seconds
-    long_usage_duration_thresholds: list[int] = field(default_factory=lambda: [1, 6, 12, 24])  # in hours
-    long_data_time_gap_thresholds: list[int] = field(default_factory=lambda: [1, 6, 12, 24])  # in hours
-    timezone_handling_option: TimezoneHandlingOption = TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE
-    available_timezones: list[str] = field(default_factory=list)  # Available timezones from input files
+    long_usage_duration_thresholds: list[int] = field(
+        default_factory=lambda: [1, 6, 12, 24]
+    )  # in hours
+    long_data_time_gap_thresholds: list[int] = field(
+        default_factory=lambda: [1, 6, 12, 24]
+    )  # in hours
+    timezone_handling_option: TimezoneHandlingOption = (
+        TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE
+    )
+    available_timezones: list[str] = field(
+        default_factory=list
+    )  # Available timezones from input files
     custom_timezones: list[str] = field(default_factory=list)  # Custom timezones added by user
     selected_timezone: str | tzinfo | None = None
     correct_duplicate_event_timestamps: bool = True
@@ -77,7 +85,9 @@ class ChronicleAndroidRawDataPreprocessingOptions:
         default_factory=lambda: set(POSSIBLE_OTHER_INTERACTION_TYPES_TO_STOP_USAGE_AT.values())
     )
 
-    interaction_types_to_remove: set[InteractionType] = field(default_factory=lambda: set(POSSIBLE_INTERACTION_TYPES_TO_REMOVE.values()))
+    interaction_types_to_remove: set[InteractionType] = field(
+        default_factory=lambda: set(POSSIBLE_INTERACTION_TYPES_TO_REMOVE.values())
+    )
 
     same_app_interaction_types_configured: bool = False
     other_interaction_types_configured: bool = False
@@ -98,7 +108,9 @@ class ChronicleAndroidRawDataPreprocessingOptions:
     )
 
     # Plotting options
-    include_filtered_app_usage_in_plots: bool = False  # Whether to include filtered app usage in plots
+    include_filtered_app_usage_in_plots: bool = (
+        False  # Whether to include filtered app usage in plots
+    )
     plot_only_target_child_data: bool = False  # Whether to plot only target child data
 
     # Process control options
@@ -134,7 +146,9 @@ class ChronicleAndroidRawDataPreprocessingOptions:
         self.filtered_same_app_interaction_types_to_stop_usage_at = filtered_same_app_types
 
         # For other interaction types, we use the same types since they're not app-specific
-        self.filtered_other_interaction_types_to_stop_usage_at = self.other_interaction_types_to_stop_usage_at.copy()
+        self.filtered_other_interaction_types_to_stop_usage_at = (
+            self.other_interaction_types_to_stop_usage_at.copy()
+        )
 
     @property
     def output_folder(self) -> Path:

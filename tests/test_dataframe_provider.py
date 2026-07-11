@@ -5,7 +5,12 @@ polars_testing = pytest.importorskip("polars.testing")
 assert_frame_equal = polars_testing.assert_frame_equal
 
 from chronicle_preprocessing_app.core import dataframe_provider  # noqa: E402
-from chronicle_preprocessing_app.core.dataframe_provider import PolarsProvider, _normalize_schema, _strip_string_columns, read_csv_rows  # noqa: E402
+from chronicle_preprocessing_app.core.dataframe_provider import (  # noqa: E402
+    PolarsProvider,
+    _normalize_schema,
+    _strip_string_columns,
+    read_csv_rows,
+)
 
 
 def test_get_dataframe_provider_returns_polars_provider() -> None:
@@ -106,7 +111,9 @@ def test_polars_provider_concat_and_csv_dict_reader(tmp_path) -> None:
 
     assert provider.concat([]).is_empty()
     assert provider.concat([left, right]).get_column("name").to_list() == ["Alice", "Bob"]
-    assert provider.concat([left, pl.DataFrame({"name": ["Cara"], "flag": [True]})], ignore_index=False).columns == [
+    assert provider.concat(
+        [left, pl.DataFrame({"name": ["Cara"], "flag": [True]})], ignore_index=False
+    ).columns == [
         "name",
         "score",
         "flag",

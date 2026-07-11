@@ -38,7 +38,9 @@ STORE_APPS = [
 ]
 
 
-def _row(timestamp: object, interaction_type: InteractionType, package_name: str) -> dict[str, object]:
+def _row(
+    timestamp: object, interaction_type: InteractionType, package_name: str
+) -> dict[str, object]:
     return {
         Column.INTERACTION_TYPE: str(interaction_type),
         Column.APP_PACKAGE_NAME: package_name,
@@ -50,7 +52,12 @@ def _row(timestamp: object, interaction_type: InteractionType, package_name: str
 
 
 def _frame(rows: list[tuple[str, InteractionType, str]]) -> pl.DataFrame:
-    return frame([_row(ts(timestamp), interaction_type, package_name) for timestamp, interaction_type, package_name in rows])
+    return frame(
+        [
+            _row(ts(timestamp), interaction_type, package_name)
+            for timestamp, interaction_type, package_name in rows
+        ]
+    )
 
 
 def _options(**overrides: object) -> PreprocessingOptions:
@@ -71,10 +78,16 @@ def _options(**overrides: object) -> PreprocessingOptions:
     )
 
 
-def _run_algorithm(algorithm: object, df: pl.DataFrame, options: PreprocessingOptions) -> pl.DataFrame:
+def _run_algorithm(
+    algorithm: object, df: pl.DataFrame, options: PreprocessingOptions
+) -> pl.DataFrame:
     resumed_mask = df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_RESUMED)
-    same_app_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in([str(value) for value in options.same_app_interaction_types_to_stop_usage_at])
-    other_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in([str(value) for value in options.other_interaction_types_to_stop_usage_at])
+    same_app_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in(
+        [str(value) for value in options.same_app_interaction_types_to_stop_usage_at]
+    )
+    other_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in(
+        [str(value) for value in options.other_interaction_types_to_stop_usage_at]
+    )
     stopped_mask = df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_STOPPED)
     return algorithm.process_app_usage(
         df,
@@ -102,7 +115,13 @@ def _generated_multiweek_dst_stress_data() -> pl.DataFrame:
     all_packages = SYSTEM_APPS + STORE_APPS
 
     for index, interaction_type in enumerate(InteractionType):
-        rows.append(_row(base + td(minutes=index * 17), interaction_type, all_packages[index % len(all_packages)]))
+        rows.append(
+            _row(
+                base + td(minutes=index * 17),
+                interaction_type,
+                all_packages[index % len(all_packages)],
+            )
+        )
 
     for day in range(28):
         day_start = base + td(days=day)
@@ -116,13 +135,23 @@ def _generated_multiweek_dst_stress_data() -> pl.DataFrame:
             else:
                 rows.append(_row(stop, InteractionType.ACTIVITY_PAUSED, app))
             if session_index % 3 == 0:
-                rows.append(_row(stop + td(minutes=1), InteractionType.ACTIVITY_RESUMED, STORE_APPS[(session_index + 1) % len(STORE_APPS)]))
+                rows.append(
+                    _row(
+                        stop + td(minutes=1),
+                        InteractionType.ACTIVITY_RESUMED,
+                        STORE_APPS[(session_index + 1) % len(STORE_APPS)],
+                    )
+                )
 
         filtered_start = day_start + td(hours=20)
         rows.extend(
             [
                 _row(filtered_start, InteractionType.FILTERED_APP_RESUMED, "com.filtered.app"),
-                _row(filtered_start + td(minutes=10), InteractionType.FILTERED_APP_PAUSED, "com.filtered.app"),
+                _row(
+                    filtered_start + td(minutes=10),
+                    InteractionType.FILTERED_APP_PAUSED,
+                    "com.filtered.app",
+                ),
             ]
         )
 
@@ -166,8 +195,16 @@ def test_spring_forward_session_duration_uses_elapsed_time_not_wall_clock_gap() 
     result = AppUsagePreprocessor(options).process_valid_app_usage(
         frame(
             [
-                _row(ts("2026-03-08 01:55:00", "America/Chicago"), InteractionType.ACTIVITY_RESUMED, "com.dst.app"),
-                _row(ts("2026-03-08 03:05:00", "America/Chicago"), InteractionType.ACTIVITY_PAUSED, "com.dst.app"),
+                _row(
+                    ts("2026-03-08 01:55:00", "America/Chicago"),
+                    InteractionType.ACTIVITY_RESUMED,
+                    "com.dst.app",
+                ),
+                _row(
+                    ts("2026-03-08 03:05:00", "America/Chicago"),
+                    InteractionType.ACTIVITY_PAUSED,
+                    "com.dst.app",
+                ),
             ]
         )
     )
@@ -181,7 +218,9 @@ def test_missing_stop_remains_explicitly_missing_instead_of_extending_multiple_d
     result = AppUsagePreprocessor(options).process_valid_app_usage(
         frame(
             [
-                _row(ts("2026-01-01 00:00:00"), InteractionType.ACTIVITY_RESUMED, "com.example.app"),
+                _row(
+                    ts("2026-01-01 00:00:00"), InteractionType.ACTIVITY_RESUMED, "com.example.app"
+                ),
                 _row(ts("2026-01-03 00:00:00"), InteractionType.NOTIFICATION_SEEN, "android"),
             ]
         )
@@ -204,13 +243,17 @@ def test_rust_and_python_matchers_produce_identical_sparse_updates() -> None:
             df.clone(),
             app_packages=df.get_column(Column.APP_PACKAGE_NAME).fill_null("").to_numpy(),
             timestamp_ns=df.get_column(Column.EVENT_TIMESTAMP).dt.epoch("ns").to_numpy(),
-            resumed_flags=(df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_RESUMED)).to_numpy(),
+            resumed_flags=(
+                df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_RESUMED)
+            ).to_numpy(),
             same_stop_flags=df.get_column(Column.INTERACTION_TYPE)
             .is_in([str(value) for value in options.same_app_interaction_types_to_stop_usage_at])
             .to_numpy(),
             other_stop_flags=df.get_column(Column.INTERACTION_TYPE)
             .is_in([str(value) for value in options.other_interaction_types_to_stop_usage_at])
             .to_numpy(),
-            stopped_flags=(df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_STOPPED)).to_numpy(),
+            stopped_flags=(
+                df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_STOPPED)
+            ).to_numpy(),
         )
         assert _normalize(rust_result).equals(_normalize(optimized_result))

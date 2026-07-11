@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import polars as pl
-import pytest
 
 from chronicle_preprocessing_app.config.constants import Column, InteractionType
-from chronicle_preprocessing_app.core.preprocessing.app_filter_preprocessor import AppFilterPreprocessor
-from tests.polars_helpers import frame
+from chronicle_preprocessing_app.core.preprocessing.app_filter_preprocessor import (
+    AppFilterPreprocessor,
+)
 from tests.polars_helpers import options as _options
 
 

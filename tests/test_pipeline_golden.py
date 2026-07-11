@@ -18,7 +18,12 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from chronicle_preprocessing_app.config.constants import Column, InteractionType, TimezoneHandlingOption, UsageSessionMode
+from chronicle_preprocessing_app.config.constants import (
+    Column,
+    InteractionType,
+    TimezoneHandlingOption,
+    UsageSessionMode,
+)
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
 from chronicle_preprocessing_app.core.preprocessing.main_preprocessor import (
     ChronicleAndroidRawDataPreprocessor,
@@ -267,7 +272,9 @@ def test_golden_filtered_app_output(tmp_path, request) -> None:
     _filtered_raw().write_csv(raw_file)
 
     filter_path = tmp_path / "filter.csv"
-    pl.DataFrame({"app_package_name": ["com.example.app"], "application_label": ["Example App"]}).write_csv(filter_path)
+    pl.DataFrame(
+        {"app_package_name": ["com.example.app"], "application_label": ["Example App"]}
+    ).write_csv(filter_path)
 
     options = PreprocessingOptions(
         study_name="Golden",

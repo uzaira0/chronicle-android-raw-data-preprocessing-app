@@ -63,21 +63,29 @@ def main() -> int:
             command.extend(
                 [
                     "--filter",
-                    str(REPO_ROOT / "web/src/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv"),
+                    str(
+                        REPO_ROOT
+                        / "web/src/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv"
+                    ),
                 ]
             )
         if args.use_apps_forcing_screen_open_file:
             command.extend(
                 [
                     "--keep-awake",
-                    str(REPO_ROOT / "apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv"),
+                    str(
+                        REPO_ROOT
+                        / "apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv"
+                    ),
                 ]
             )
         if args.use_app_codebook:
             command.extend(
                 [
                     "--codebook",
-                    str(REPO_ROOT / "src/chronicle_preprocessing_app/data/unified_app_codebook.csv"),
+                    str(
+                        REPO_ROOT / "src/chronicle_preprocessing_app/data/unified_app_codebook.csv"
+                    ),
                 ]
             )
 

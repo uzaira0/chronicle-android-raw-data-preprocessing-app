@@ -105,7 +105,9 @@ def test_get_matching_files_multiple_ignore_names(tmp_path: Path) -> None:
     (tmp_path / "keep.csv").write_text("x")
     (tmp_path / "Backup_data.csv").write_text("x")
     (tmp_path / "Archive_data.csv").write_text("x")
-    result = get_matching_files_from_folder(tmp_path, r".*\.csv", ignore_names=["Backup", "Archive"])
+    result = get_matching_files_from_folder(
+        tmp_path, r".*\.csv", ignore_names=["Backup", "Archive"]
+    )
     names = [p.name for p in result]
     assert names == ["keep.csv"]
 

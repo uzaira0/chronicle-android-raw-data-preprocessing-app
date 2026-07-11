@@ -6,10 +6,11 @@ import polars as pl
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from chronicle_preprocessing_app.config.constants import Column, InteractionType, TimestampFormat
-from chronicle_preprocessing_app.core.preprocessing.timestamp_preprocessor import TimestampPreprocessor
+from chronicle_preprocessing_app.config.constants import Column, InteractionType
+from chronicle_preprocessing_app.core.preprocessing.timestamp_preprocessor import (
+    TimestampPreprocessor,
+)
 from tests.polars_helpers import options as _options
-from tests.polars_helpers import ts
 
 # ---------------------------------------------------------------------------
 # Shared strategies
@@ -43,7 +44,11 @@ def _event_df(values: list[object]) -> pl.DataFrame:
 
 
 @settings(max_examples=75)
-@given(st.datetimes(timezones=st.just(UTC)).filter(lambda value: value.year >= 1900 and value.microsecond <= 999_999))
+@given(
+    st.datetimes(timezones=st.just(UTC)).filter(
+        lambda value: value.year >= 1900 and value.microsecond <= 999_999
+    )
+)
 def test_fix_timestamp_format_preserves_utc_instants_with_z_suffix(value) -> None:
     formatted = TimestampPreprocessor.fix_timestamp_format(value.isoformat().replace("+00:00", "Z"))
 
@@ -73,7 +78,11 @@ def test_fix_timestamp_format_returns_none_or_non_z_terminated(value: object) ->
 
 
 @settings(max_examples=100)
-@given(st.datetimes(timezones=st.just(UTC)).filter(lambda d: d.year >= 1900 and d.microsecond <= 999_999))
+@given(
+    st.datetimes(timezones=st.just(UTC)).filter(
+        lambda d: d.year >= 1900 and d.microsecond <= 999_999
+    )
+)
 def test_fix_timestamp_format_z_suffix_becomes_plus_zero(value) -> None:
     """Any string ending in Z must become a string ending in +00:00."""
     z_str = value.isoformat().replace("+00:00", "Z")
@@ -124,7 +133,9 @@ def test_correct_timestamp_column_null_count_never_decreases(values: list[object
     original_null_count = df[Column.EVENT_TIMESTAMP].null_count()
     result = _preprocessor().correct_timestamp_column(df)
     result_null_count = result[Column.EVENT_TIMESTAMP].null_count()
-    assert result_null_count >= original_null_count, f"Null count decreased from {original_null_count} to {result_null_count}"
+    assert result_null_count >= original_null_count, (
+        f"Null count decreased from {original_null_count} to {result_null_count}"
+    )
 
 
 @settings(max_examples=100)
@@ -149,7 +160,9 @@ def test_correct_timestamp_column_invalid_original_only_where_input_was_non_null
     # Each non-null value in the invalid column must come from a row that was non-null originally
     original_series = df[Column.EVENT_TIMESTAMP]
     invalid_series = result[invalid_col]
-    for i, (orig, inv) in enumerate(zip(original_series.to_list(), invalid_series.to_list(), strict=False)):
+    for i, (orig, inv) in enumerate(
+        zip(original_series.to_list(), invalid_series.to_list(), strict=False)
+    ):
         if inv is not None:
             assert orig is not None, f"Row {i}: invalid_original is non-null but original was null"
 
@@ -222,7 +235,9 @@ def _datetime_df_full(timestamps: list) -> pl.DataFrame:
     return pl.DataFrame(
         {
             Column.EVENT_TIMESTAMP: pl.Series(timestamps, dtype=pl.Datetime("us", "UTC")),
-            Column.INTERACTION_TYPE: pl.Series([str(InteractionType.ACTIVITY_RESUMED)] * n, dtype=pl.String),
+            Column.INTERACTION_TYPE: pl.Series(
+                [str(InteractionType.ACTIVITY_RESUMED)] * n, dtype=pl.String
+            ),
             Column.APP_PACKAGE_NAME: pl.Series(["com.example.a"] * n, dtype=pl.String),
         }
     )

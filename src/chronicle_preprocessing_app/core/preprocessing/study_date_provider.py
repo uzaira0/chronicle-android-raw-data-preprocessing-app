@@ -39,7 +39,7 @@ def _coerce_to_datetime(
                 )
             ).item()
         if timestamp_dtype is None:
-            return datetime.datetime(value.year, value.month, value.day, tzinfo=datetime.timezone.utc)
+            return datetime.datetime(value.year, value.month, value.day, tzinfo=datetime.UTC)
         return datetime.datetime(value.year, value.month, value.day)
     return value
 
@@ -98,15 +98,23 @@ class StudyDateRangeProvider:
             if isinstance(validated_id, TECHParticipantID):
                 cache_key = "ProjectOneProjectTwoTrackingSheet"
                 if cache_key not in self._tracking_sheet_cache:
-                    self._tracking_sheet_cache[cache_key] = ProjectOneProjectTwoTrackingSheet(force_redownload=False)
+                    self._tracking_sheet_cache[cache_key] = ProjectOneProjectTwoTrackingSheet(
+                        force_redownload=False
+                    )
                 date_tracking_sheet = self._tracking_sheet_cache[cache_key]
-                study_date_range = date_tracking_sheet.get_specific_participant_study_date_range(participant_id=validated_id)
+                study_date_range = date_tracking_sheet.get_specific_participant_study_date_range(
+                    participant_id=validated_id
+                )
             else:
                 cache_key = type(validated_id).__name__
                 if cache_key not in self._tracking_sheet_cache:
-                    self._tracking_sheet_cache[cache_key] = TrackingSheet.get_correct_tracking_sheet_for_participant(validated_id)
+                    self._tracking_sheet_cache[cache_key] = (
+                        TrackingSheet.get_correct_tracking_sheet_for_participant(validated_id)
+                    )
                 tracking_sheet = self._tracking_sheet_cache[cache_key]
-                study_date_range = tracking_sheet.get_specific_participant_study_date_range(participant_id=validated_id)
+                study_date_range = tracking_sheet.get_specific_participant_study_date_range(
+                    participant_id=validated_id
+                )
 
             if study_date_range is None or len(study_date_range) == 0:
                 return None
@@ -130,10 +138,16 @@ class StudyDateRangeProvider:
 
         start_date, end_date = date_range
         timestamp_dtype = df.schema[timestamp_column]
-        start_scalar = pl.Series([_coerce_to_datetime(start_date, timestamp_dtype)], dtype=timestamp_dtype).item()
-        end_scalar = pl.Series([_coerce_to_datetime(end_date, timestamp_dtype)], dtype=timestamp_dtype).item()
+        start_scalar = pl.Series(
+            [_coerce_to_datetime(start_date, timestamp_dtype)], dtype=timestamp_dtype
+        ).item()
+        end_scalar = pl.Series(
+            [_coerce_to_datetime(end_date, timestamp_dtype)], dtype=timestamp_dtype
+        ).item()
         exclusive_end_value = end_scalar + datetime.timedelta(days=1)
 
         return df.filter(
-            pl.col(timestamp_column).is_not_null() & (pl.col(timestamp_column) >= start_scalar) & (pl.col(timestamp_column) < exclusive_end_value)
+            pl.col(timestamp_column).is_not_null()
+            & (pl.col(timestamp_column) >= start_scalar)
+            & (pl.col(timestamp_column) < exclusive_end_value)
         )

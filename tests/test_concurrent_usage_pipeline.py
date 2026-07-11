@@ -23,9 +23,9 @@ def _two_overlapping_apps_raw() -> pl.DataFrame:
         {
             Column.INTERACTION_TYPE: [r[0] for r in rows],
             Column.APP_PACKAGE_NAME: [r[1] for r in rows],
-            Column.EVENT_TIMESTAMP: pl.Series(
-                [r[2] for r in rows]
-            ).str.to_datetime(time_zone="UTC"),
+            Column.EVENT_TIMESTAMP: pl.Series([r[2] for r in rows]).str.to_datetime(
+                time_zone="UTC"
+            ),
         }
     )
 
@@ -33,10 +33,42 @@ def _two_overlapping_apps_raw() -> pl.DataFrame:
 def _two_overlapping_apps_raw_file(tmp_path):
     """Write the two-overlapping-apps fixture to a CSV file and return the path."""
     rows = [
-        ("P01", "Activity Resumed", "com.a", "App A", "Target Child", "America/Chicago", "2026-01-01T08:00:00+00:00"),
-        ("P01", "Activity Resumed", "com.b", "App B", "Target Child", "America/Chicago", "2026-01-01T08:10:00+00:00"),
-        ("P01", "Activity Stopped", "com.b", "App B", "Target Child", "America/Chicago", "2026-01-01T08:20:00+00:00"),
-        ("P01", "Activity Stopped", "com.a", "App A", "Target Child", "America/Chicago", "2026-01-01T08:30:00+00:00"),
+        (
+            "P01",
+            "Activity Resumed",
+            "com.a",
+            "App A",
+            "Target Child",
+            "America/Chicago",
+            "2026-01-01T08:00:00+00:00",
+        ),
+        (
+            "P01",
+            "Activity Resumed",
+            "com.b",
+            "App B",
+            "Target Child",
+            "America/Chicago",
+            "2026-01-01T08:10:00+00:00",
+        ),
+        (
+            "P01",
+            "Activity Stopped",
+            "com.b",
+            "App B",
+            "Target Child",
+            "America/Chicago",
+            "2026-01-01T08:20:00+00:00",
+        ),
+        (
+            "P01",
+            "Activity Stopped",
+            "com.a",
+            "App A",
+            "Target Child",
+            "America/Chicago",
+            "2026-01-01T08:30:00+00:00",
+        ),
     ]
     df = pl.DataFrame(
         {
@@ -92,9 +124,7 @@ def test_flag_on_csv_contains_usage_layer_column_with_primary_and_secondary(tmp_
     assert len(csv_files) == 1
     written = pl.read_csv(csv_files[0])
     assert Column.USAGE_LAYER in written.columns
-    app_usage = written.filter(
-        pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)
-    )
+    app_usage = written.filter(pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE))
     layers = set(app_usage.get_column(Column.USAGE_LAYER).drop_nulls().to_list())
     assert str(UsageLayer.PRIMARY) in layers
     assert str(UsageLayer.SECONDARY) in layers
@@ -172,9 +202,9 @@ def _single_short_session_raw(stop: str) -> pl.DataFrame:
         {
             Column.INTERACTION_TYPE: [r[0] for r in rows],
             Column.APP_PACKAGE_NAME: [r[1] for r in rows],
-            Column.EVENT_TIMESTAMP: pl.Series(
-                [r[2] for r in rows]
-            ).str.to_datetime(time_zone="UTC"),
+            Column.EVENT_TIMESTAMP: pl.Series([r[2] for r in rows]).str.to_datetime(
+                time_zone="UTC"
+            ),
         }
     )
 

@@ -49,14 +49,22 @@ class TimezonePreprocessor(BasePreprocessor):
         timestamp_column: str = Column.EVENT_TIMESTAMP,
     ) -> pl.DataFrame:
         rows_in = len(df)
-        LOGGER.debug("Starting %s", self.__class__.__name__, extra={"row_count": rows_in, "file": getattr(self, "_current_file", None)})
+        LOGGER.debug(
+            "Starting %s",
+            self.__class__.__name__,
+            extra={"row_count": rows_in, "file": getattr(self, "_current_file", None)},
+        )
         result = self.apply_timezone_handling(df, timestamp_column)
-        LOGGER.debug("Completed %s", self.__class__.__name__, extra={"rows_in": rows_in, "rows_out": len(result)})
+        LOGGER.debug(
+            "Completed %s",
+            self.__class__.__name__,
+            extra={"rows_in": rows_in, "rows_out": len(result)},
+        )
         return result
 
     @staticmethod
     def get_local_timezone() -> str:
-        local_now = datetime_class.now(datetime.timezone.utc).astimezone()
+        local_now = datetime_class.now(datetime.UTC).astimezone()
         offset = local_now.strftime("%z")
         return f"UTC{offset[:3]}:{offset[3:]}"
 
@@ -76,7 +84,11 @@ class TimezonePreprocessor(BasePreprocessor):
                 continue
             timezones.update(
                 timezone
-                for value in df.get_column(Column.TIMEZONE).drop_nulls().cast(pl.String).unique().to_list()
+                for value in df.get_column(Column.TIMEZONE)
+                .drop_nulls()
+                .cast(pl.String)
+                .unique()
+                .to_list()
                 if (timezone := _normalize_timezone_value(value)) is not None
             )
         return sorted(timezones)
@@ -90,7 +102,11 @@ class TimezonePreprocessor(BasePreprocessor):
         if Column.TIMEZONE in df.columns:
             timezones.update(
                 timezone
-                for value in df.get_column(Column.TIMEZONE).drop_nulls().cast(pl.String).unique().to_list()
+                for value in df.get_column(Column.TIMEZONE)
+                .drop_nulls()
+                .cast(pl.String)
+                .unique()
+                .to_list()
                 if (timezone := _normalize_timezone_value(value)) is not None
             )
         if timestamp_column in df.columns:
@@ -108,14 +124,20 @@ class TimezonePreprocessor(BasePreprocessor):
         if Column.TIMEZONE in df.columns:
             normalized_timezone_column = "__chronicle_timezone_normalized"
             timezone_values = (
-                df.with_columns(_normalize_timezone_expr(pl.col(Column.TIMEZONE)).alias(normalized_timezone_column))
+                df.with_columns(
+                    _normalize_timezone_expr(pl.col(Column.TIMEZONE)).alias(
+                        normalized_timezone_column
+                    )
+                )
                 .filter(pl.col(normalized_timezone_column).is_not_null())
                 .group_by(normalized_timezone_column)
                 .len()
                 .sort("len", descending=True)
             )
             if not timezone_values.is_empty():
-                self.current_data_primary_timezone = str(timezone_values[0, normalized_timezone_column])
+                self.current_data_primary_timezone = str(
+                    timezone_values[0, normalized_timezone_column]
+                )
                 return self.current_data_primary_timezone
 
         tz_name = df.schema.get(timestamp_column)
@@ -143,9 +165,15 @@ class TimezonePreprocessor(BasePreprocessor):
         df: pl.DataFrame,
         columns: list[str] | None = None,
     ) -> pl.DataFrame:
-        target_columns = columns or [Column.EVENT_TIMESTAMP, Column.START_TIMESTAMP, Column.STOP_TIMESTAMP]
+        target_columns = columns or [
+            Column.EVENT_TIMESTAMP,
+            Column.START_TIMESTAMP,
+            Column.STOP_TIMESTAMP,
+        ]
         result = df
-        target_timezone = str(self.options.selected_timezone or self.current_data_primary_timezone or "UTC")
+        target_timezone = str(
+            self.options.selected_timezone or self.current_data_primary_timezone or "UTC"
+        )
         for column in target_columns:
             if column not in result.columns:
                 continue

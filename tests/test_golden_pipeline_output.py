@@ -8,9 +8,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import polars as pl
-import pytest
 
-from chronicle_preprocessing_app.config.constants import Column, UsageSessionMode
+from chronicle_preprocessing_app.config.constants import UsageSessionMode
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
 from chronicle_preprocessing_app.core.preprocessing.main_preprocessor import (
     ChronicleAndroidRawDataPreprocessor,
@@ -58,7 +57,9 @@ def _write_fixture(folder: Path, name: str, csv_text: str) -> Path:
     return path
 
 
-def _base_options(raw_folder: Path, *, mode: UsageSessionMode = UsageSessionMode.APP_USAGE) -> PreprocessingOptions:
+def _base_options(
+    raw_folder: Path, *, mode: UsageSessionMode = UsageSessionMode.APP_USAGE
+) -> PreprocessingOptions:
     return PreprocessingOptions(
         study_name="GoldenStudy",
         raw_data_folder=raw_folder,
@@ -92,7 +93,9 @@ def _compare_or_update(actual_path: Path, golden_path: Path, *, update: bool) ->
         shutil.copy2(actual_path, golden_path)
         return
 
-    assert golden_path.exists(), f"Golden file missing: {golden_path}. Run with --update-golden to create it."
+    assert golden_path.exists(), (
+        f"Golden file missing: {golden_path}. Run with --update-golden to create it."
+    )
     actual = _read_csv_sorted(actual_path)
     expected = _read_csv_sorted(golden_path)
     assert actual.equals(expected), (
@@ -158,7 +161,9 @@ def test_golden_app_and_screen_screen_usage(tmp_path: Path, request) -> None:
             golden_path.parent.mkdir(parents=True, exist_ok=True)
             golden_path.write_text("")
         else:
-            assert golden_path.exists(), f"Golden file missing: {golden_path}. Run with --update-golden."
+            assert golden_path.exists(), (
+                f"Golden file missing: {golden_path}. Run with --update-golden."
+            )
             assert golden_path.read_text() == "", (
                 "Expected no screen usage output, but golden file is non-empty. Run with --update-golden to regenerate."
             )

@@ -42,9 +42,7 @@ def split_overlapping_sessions(
     for t0, t1 in zip(boundaries, boundaries[1:], strict=False):
         if t1 <= t0:
             continue
-        open_sessions = [
-            i for i in range(len(starts)) if starts[i] <= t0 and stops[i] >= t1
-        ]
+        open_sessions = [i for i in range(len(starts)) if starts[i] <= t0 and stops[i] >= t1]
         if not open_sessions:
             continue
         primary = max(open_sessions, key=lambda i: (starts[i], i))

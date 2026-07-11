@@ -78,7 +78,9 @@ class DataFrameProviderProtocol(Protocol):
 
     def filter(self, df: pl.DataFrame, mask: pl.Series) -> pl.DataFrame: ...
 
-    def sort_by(self, df: pl.DataFrame, column: str, *, descending: bool = False) -> pl.DataFrame: ...
+    def sort_by(
+        self, df: pl.DataFrame, column: str, *, descending: bool = False
+    ) -> pl.DataFrame: ...
 
     def reset_index(self, df: pl.DataFrame) -> pl.DataFrame: ...
 
@@ -110,7 +112,11 @@ class PolarsProvider:
         if skipinitialspace:
             df = _strip_string_columns(df)
         if schema_overrides:
-            cast_exprs = [pl.col(name).cast(dtype).alias(name) for name, dtype in schema_overrides.items() if name in df.columns]
+            cast_exprs = [
+                pl.col(name).cast(dtype).alias(name)
+                for name, dtype in schema_overrides.items()
+                if name in df.columns
+            ]
             if cast_exprs:
                 df = df.with_columns(cast_exprs)
         return df
@@ -134,7 +140,9 @@ class PolarsProvider:
         return df.get_column(column)
 
     def set_column(self, df: pl.DataFrame, column: str, values: Any) -> pl.DataFrame:
-        return df.with_columns(pl.Series(column, values) if not isinstance(values, pl.Series) else values.alias(column))
+        return df.with_columns(
+            pl.Series(column, values) if not isinstance(values, pl.Series) else values.alias(column)
+        )
 
     def filter(self, df: pl.DataFrame, mask: pl.Series) -> pl.DataFrame:
         return df.filter(mask)

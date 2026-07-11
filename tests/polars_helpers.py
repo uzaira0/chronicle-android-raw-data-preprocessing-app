@@ -24,10 +24,14 @@ def frame(rows: list[dict[str, object]]) -> pl.DataFrame:
     schema_overrides: dict[str, pl.DataType] = {}
     if rows:
         for column in rows[0]:
-            first_non_null = next((row.get(column) for row in rows if row.get(column) is not None), None)
+            first_non_null = next(
+                (row.get(column) for row in rows if row.get(column) is not None), None
+            )
             if isinstance(first_non_null, datetime):
                 if first_non_null.tzinfo is not None:
-                    timezone_name = getattr(first_non_null.tzinfo, "key", str(first_non_null.tzinfo))
+                    timezone_name = getattr(
+                        first_non_null.tzinfo, "key", str(first_non_null.tzinfo)
+                    )
                     schema_overrides[column] = pl.Datetime("us", timezone_name)
                 else:
                     schema_overrides[column] = pl.Datetime("us")

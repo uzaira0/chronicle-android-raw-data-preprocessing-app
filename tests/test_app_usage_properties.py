@@ -59,8 +59,12 @@ def _options(**overrides: object) -> PreprocessingOptions:
 def _run_algorithm(df: pl.DataFrame, options: PreprocessingOptions) -> pl.DataFrame:
     algorithm = OptimizedAppUsageAlgorithm(options)
     resumed_mask = df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_RESUMED)
-    same_app_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in([str(v) for v in options.same_app_interaction_types_to_stop_usage_at])
-    other_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in([str(v) for v in options.other_interaction_types_to_stop_usage_at])
+    same_app_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in(
+        [str(v) for v in options.same_app_interaction_types_to_stop_usage_at]
+    )
+    other_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in(
+        [str(v) for v in options.other_interaction_types_to_stop_usage_at]
+    )
     stopped_mask = df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_STOPPED)
     return algorithm.process_app_usage(
         df,
@@ -137,8 +141,12 @@ def test_output_row_count_ge_activity_resumed_count(df: pl.DataFrame) -> None:
     """Algorithm must produce at least as many rows as there are ACTIVITY_RESUMED events."""
     options = _options()
     result = _run_algorithm(df, options)
-    resumed_count = (df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_RESUMED)).sum()
-    assert result.height >= resumed_count, f"Output has {result.height} rows but input had {resumed_count} ACTIVITY_RESUMED rows"
+    resumed_count = (
+        df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_RESUMED)
+    ).sum()
+    assert result.height >= resumed_count, (
+        f"Output has {result.height} rows but input had {resumed_count} ACTIVITY_RESUMED rows"
+    )
 
 
 @settings(max_examples=100)
@@ -147,7 +155,9 @@ def test_app_usage_rows_have_non_null_package_name(df: pl.DataFrame) -> None:
     """All APP_USAGE rows must have a non-null app package name."""
     options = _options()
     result = _run_algorithm(df, options)
-    app_usage_rows = result.filter(pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE))
+    app_usage_rows = result.filter(
+        pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)
+    )
     if app_usage_rows.height == 0:
         return
     null_count = app_usage_rows[Column.APP_PACKAGE_NAME].null_count()
@@ -160,7 +170,9 @@ def test_app_usage_rows_have_non_null_start_timestamp(df: pl.DataFrame) -> None:
     """All APP_USAGE rows must have a non-null start timestamp."""
     options = _options()
     result = _run_algorithm(df, options)
-    app_usage_rows = result.filter(pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE))
+    app_usage_rows = result.filter(
+        pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)
+    )
     if app_usage_rows.height == 0:
         return
     null_count = app_usage_rows[Column.START_TIMESTAMP].null_count()
@@ -171,7 +183,9 @@ def test_empty_input_produces_empty_or_no_app_usage_rows() -> None:
     """Empty input dataframe must produce no APP_USAGE rows."""
     options = _options()
     result = _run_algorithm(_EMPTY_DF, options)
-    app_usage_rows = result.filter(pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE))
+    app_usage_rows = result.filter(
+        pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)
+    )
     assert app_usage_rows.height == 0
 
 
@@ -205,7 +219,9 @@ def test_all_paused_input_has_no_app_usage_rows(timestamps: list[datetime]) -> N
         ]
         df = frame(rows)
     result = _run_algorithm(df, options)
-    app_usage_rows = result.filter(pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE))
+    app_usage_rows = result.filter(
+        pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)
+    )
     assert app_usage_rows.height == 0
 
 
@@ -229,8 +245,12 @@ def test_interaction_type_values_are_not_raw_unknown_importance(df: pl.DataFrame
         return
     # Cast to String to handle Object dtype returned for empty inputs
     result_str = result.with_columns(pl.col(Column.INTERACTION_TYPE).cast(pl.String))
-    bad_rows = result_str.filter(pl.col(Column.INTERACTION_TYPE).str.starts_with("Unknown importance:"))
-    assert bad_rows.height == 0, f"Found {bad_rows.height} rows with raw 'Unknown importance:' interaction type"
+    bad_rows = result_str.filter(
+        pl.col(Column.INTERACTION_TYPE).str.starts_with("Unknown importance:")
+    )
+    assert bad_rows.height == 0, (
+        f"Found {bad_rows.height} rows with raw 'Unknown importance:' interaction type"
+    )
 
 
 @settings(max_examples=100)
@@ -239,8 +259,12 @@ def test_app_usage_start_le_stop_when_both_present(df: pl.DataFrame) -> None:
     """For APP_USAGE rows, START_TIMESTAMP must be ≤ STOP_TIMESTAMP when both are non-null."""
     options = _options()
     result = _run_algorithm(df, options)
-    app_usage_rows = result.filter(pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE))
-    both_present = app_usage_rows.filter(pl.col(Column.START_TIMESTAMP).is_not_null() & pl.col(Column.STOP_TIMESTAMP).is_not_null())
+    app_usage_rows = result.filter(
+        pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)
+    )
+    both_present = app_usage_rows.filter(
+        pl.col(Column.START_TIMESTAMP).is_not_null() & pl.col(Column.STOP_TIMESTAMP).is_not_null()
+    )
     if both_present.height == 0:
         return
     disordered = both_present.filter(pl.col(Column.START_TIMESTAMP) > pl.col(Column.STOP_TIMESTAMP))
@@ -271,7 +295,9 @@ def test_output_row_count_is_at_least_input_row_count(df: pl.DataFrame) -> None:
     """Algorithm may add END_OF_USAGE_MISSING rows but must not silently drop rows."""
     options = _options()
     result = _run_algorithm(df, options)
-    assert result.height >= df.height, f"Output ({result.height} rows) is smaller than input ({df.height} rows)"
+    assert result.height >= df.height, (
+        f"Output ({result.height} rows) is smaller than input ({df.height} rows)"
+    )
 
 
 @settings(max_examples=100)
@@ -305,7 +331,9 @@ def test_app_usage_rows_have_non_null_event_timestamp(df: pl.DataFrame) -> None:
     """Every APP_USAGE row must carry a non-null EVENT_TIMESTAMP."""
     options = _options()
     result = _run_algorithm(df, options)
-    app_usage_rows = result.filter(pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE))
+    app_usage_rows = result.filter(
+        pl.col(Column.INTERACTION_TYPE) == str(InteractionType.APP_USAGE)
+    )
     if app_usage_rows.height == 0:
         return
     null_count = app_usage_rows[Column.EVENT_TIMESTAMP].null_count()
@@ -379,10 +407,14 @@ def test_all_column_names_are_strings(df: pl.DataFrame) -> None:
     event_df().filter(lambda d: d.height > 0),
     event_df().filter(lambda d: d.height > 0),
 )
-def test_algorithm_processes_independent_inputs_without_cross_contamination(df_a: pl.DataFrame, df_b: pl.DataFrame) -> None:
+def test_algorithm_processes_independent_inputs_without_cross_contamination(
+    df_a: pl.DataFrame, df_b: pl.DataFrame
+) -> None:
     """Processing df_a must not affect the result for df_b."""
     options = _options()
     result_b_before = _run_algorithm(df_b.clone(), options)
     _run_algorithm(df_a.clone(), options)  # side-effect check
     result_b_after = _run_algorithm(df_b.clone(), options)
-    assert result_b_before.equals(result_b_after), "Processing df_a changed the result for df_b — stateful bug detected"
+    assert result_b_before.equals(result_b_after), (
+        "Processing df_a changed the result for df_b — stateful bug detected"
+    )

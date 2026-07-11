@@ -39,7 +39,9 @@ def test_parallel_worker_options_preserve_behavior_settings() -> None:
     recreated = PreprocessingOptions(**worker_options)
 
     assert "survey_data_df" not in worker_options
-    assert recreated.same_app_interaction_types_to_stop_usage_at == {InteractionType.ACTIVITY_DESTROYED}
+    assert recreated.same_app_interaction_types_to_stop_usage_at == {
+        InteractionType.ACTIVITY_DESTROYED
+    }
     assert recreated.other_interaction_types_to_stop_usage_at == {InteractionType.DEVICE_SHUTDOWN}
     assert recreated.interaction_types_to_remove == {InteractionType.NOTIFICATION_SEEN}
     assert recreated.allow_stop_event_reuse is True

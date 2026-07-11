@@ -65,9 +65,7 @@ def test_python_matches_rust_on_random_inputs():
         py = split_overlapping_sessions(starts, stops)
         starts_arr = np.array(starts, dtype=np.int64)
         stops_arr = np.array(stops, dtype=np.int64)
-        idx, r_start, r_stop, is_primary = rust.split_overlapping_sessions_py(
-            starts_arr, stops_arr
-        )
+        idx, r_start, r_stop, is_primary = rust.split_overlapping_sessions_py(starts_arr, stops_arr)
         rust_rows = [
             LayeredRow(i, a, b, "primary" if p else "secondary")
             for i, a, b, p in zip(idx, r_start, r_stop, is_primary, strict=True)

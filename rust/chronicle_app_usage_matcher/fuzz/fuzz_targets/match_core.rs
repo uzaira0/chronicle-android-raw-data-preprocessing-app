@@ -16,6 +16,7 @@ struct FuzzEvent {
     same_stop: bool,
     other_stop: bool,
     stopped: bool,
+    background: bool,
 }
 
 #[derive(Debug, Arbitrary)]
@@ -50,6 +51,7 @@ fuzz_target!(|input: FuzzInput| {
     let mut same_stop: Vec<bool> = Vec::with_capacity(len);
     let mut other_stop: Vec<bool> = Vec::with_capacity(len);
     let mut stopped: Vec<bool> = Vec::with_capacity(len);
+    let mut background: Vec<bool> = Vec::with_capacity(len);
 
     let mut ts: i64 = 0;
     for ev in &input.events {
@@ -60,6 +62,7 @@ fuzz_target!(|input: FuzzInput| {
         same_stop.push(ev.same_stop);
         other_stop.push(ev.other_stop);
         stopped.push(ev.stopped);
+        background.push(ev.background);
     }
 
     let threshold_ns: i64 = input.options.threshold_hours as i64 * 3600 * 1_000_000_000;
@@ -79,6 +82,7 @@ fuzz_target!(|input: FuzzInput| {
         &same_stop,
         &other_stop,
         &stopped,
+        &background,
         options,
     );
 
@@ -89,6 +93,7 @@ fuzz_target!(|input: FuzzInput| {
         &same_stop,
         &other_stop,
         &stopped,
+        &background,
         options,
     );
 });

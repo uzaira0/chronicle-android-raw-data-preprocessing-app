@@ -9,7 +9,7 @@ from chronicle_preprocessing_app.core.preprocessing.screen_usage_preprocessor im
     ScreenUsageEndReason,
     ScreenUsagePreprocessor,
 )
-from tests.polars_helpers import cell, frame, is_null, options, rows_where, td, ts
+from tests.polars_helpers import cell, frame, is_null, options, rows_where, ts
 
 _SCREEN_DEFAULTS: dict[str, object] = {
     "derive_screen_usage_sessions": True,
@@ -48,21 +48,31 @@ def test_screen_usage_derivation_truth_table_outputs_expected_end_reasons() -> N
     df = frame(
         [
             _screen_row(ts("2026-03-07 10:00:00"), InteractionType.SCREEN_INTERACTIVE),
-            _screen_row(ts("2026-03-07 10:00:05"), InteractionType.ACTIVITY_RESUMED, "com.example.chat"),
+            _screen_row(
+                ts("2026-03-07 10:00:05"), InteractionType.ACTIVITY_RESUMED, "com.example.chat"
+            ),
             _screen_row(ts("2026-03-07 10:00:20"), InteractionType.SCREEN_NON_INTERACTIVE),
             _screen_row(ts("2026-03-07 11:00:00"), InteractionType.SCREEN_INTERACTIVE),
             _screen_row(ts("2026-03-07 11:00:01"), InteractionType.KEYGUARD_SHOWN),
             _screen_row(ts("2026-03-07 11:00:10"), InteractionType.KEYGUARD_HIDDEN),
-            _screen_row(ts("2026-03-07 11:00:15"), InteractionType.ACTIVITY_RESUMED, "com.example.reader"),
+            _screen_row(
+                ts("2026-03-07 11:00:15"), InteractionType.ACTIVITY_RESUMED, "com.example.reader"
+            ),
             _screen_row(ts("2026-03-07 11:02:15"), InteractionType.SCREEN_NON_INTERACTIVE),
             _screen_row(ts("2026-03-07 12:00:00"), InteractionType.SCREEN_INTERACTIVE),
-            _screen_row(ts("2026-03-07 12:00:10"), InteractionType.ACTIVITY_RESUMED, "com.google.android.youtube"),
+            _screen_row(
+                ts("2026-03-07 12:00:10"),
+                InteractionType.ACTIVITY_RESUMED,
+                "com.google.android.youtube",
+            ),
             _screen_row(ts("2026-03-07 12:30:10"), InteractionType.SCREEN_NON_INTERACTIVE),
             _screen_row(ts("2026-03-07 13:00:00"), InteractionType.SCREEN_INTERACTIVE),
             _screen_row(ts("2026-03-07 13:00:01"), InteractionType.KEYGUARD_SHOWN),
             _screen_row(ts("2026-03-07 13:00:20"), InteractionType.SCREEN_NON_INTERACTIVE),
             _screen_row(ts("2026-03-07 16:00:00"), InteractionType.SCREEN_INTERACTIVE),
-            _screen_row(ts("2026-03-07 16:00:10"), InteractionType.ACTIVITY_RESUMED, "com.example.chat"),
+            _screen_row(
+                ts("2026-03-07 16:00:10"), InteractionType.ACTIVITY_RESUMED, "com.example.chat"
+            ),
         ]
     )
 
@@ -85,7 +95,9 @@ def test_screen_usage_handles_dst_shift_without_multi_hour_artifact() -> None:
     df = frame(
         [
             _screen_row(ts("2026-03-08 07:55:00+00:00"), InteractionType.SCREEN_INTERACTIVE),
-            _screen_row(ts("2026-03-08 07:56:00+00:00"), InteractionType.ACTIVITY_RESUMED, "com.screen.dst"),
+            _screen_row(
+                ts("2026-03-08 07:56:00+00:00"), InteractionType.ACTIVITY_RESUMED, "com.screen.dst"
+            ),
             _screen_row(ts("2026-03-08 08:05:00+00:00"), InteractionType.SCREEN_NON_INTERACTIVE),
         ]
     )
@@ -116,7 +128,9 @@ def test_app_and_screen_usage_mode_writes_separate_output_files(tmp_path) -> Non
     preprocessor.current_participant_raw_data_df = frame(
         [
             {
-                **_screen_row(ts("2026-03-07 10:00:00"), InteractionType.APP_USAGE, "com.example.app"),
+                **_screen_row(
+                    ts("2026-03-07 10:00:00"), InteractionType.APP_USAGE, "com.example.app"
+                ),
                 Column.START_TIMESTAMP: ts("2026-03-07 10:00:00"),
                 Column.STOP_TIMESTAMP: ts("2026-03-07 10:01:00"),
                 Column.DURATION_SECONDS: 60.0,
@@ -127,7 +141,9 @@ def test_app_and_screen_usage_mode_writes_separate_output_files(tmp_path) -> Non
     preprocessor.current_participant_screen_usage_df = frame(
         [
             {
-                **_screen_row(ts("2026-03-07 10:00:00"), InteractionType.SCREEN_USAGE, "com.example.app"),
+                **_screen_row(
+                    ts("2026-03-07 10:00:00"), InteractionType.SCREEN_USAGE, "com.example.app"
+                ),
                 Column.START_TIMESTAMP: ts("2026-03-07 10:00:00"),
                 Column.STOP_TIMESTAMP: ts("2026-03-07 10:05:00"),
                 Column.DURATION_SECONDS: 300.0,
@@ -143,8 +159,12 @@ def test_app_and_screen_usage_mode_writes_separate_output_files(tmp_path) -> Non
     screen_file = output_folder / "P01 Screen Usage Automatically Preprocessed.csv"
     assert app_file.exists()
     assert screen_file.exists()
-    assert pl.read_csv(app_file).get_column(Column.INTERACTION_TYPE).to_list() == [str(InteractionType.APP_USAGE)]
-    assert pl.read_csv(screen_file).get_column(Column.INTERACTION_TYPE).to_list() == [str(InteractionType.SCREEN_USAGE)]
+    assert pl.read_csv(app_file).get_column(Column.INTERACTION_TYPE).to_list() == [
+        str(InteractionType.APP_USAGE)
+    ]
+    assert pl.read_csv(screen_file).get_column(Column.INTERACTION_TYPE).to_list() == [
+        str(InteractionType.SCREEN_USAGE)
+    ]
 
 
 def test_screen_usage_returns_original_when_disabled_or_no_start_events() -> None:
@@ -161,7 +181,9 @@ def test_screen_usage_returns_original_when_disabled_or_no_start_events() -> Non
 
 def test_screen_usage_rejects_missing_required_columns() -> None:
     with pytest.raises(ValueError, match="required columns"):
-        ScreenUsagePreprocessor(_screen_options()).derive_screen_usage_sessions(pl.DataFrame({Column.EVENT_TIMESTAMP: [ts("2026-03-07 10:00:00")]}))
+        ScreenUsagePreprocessor(_screen_options()).derive_screen_usage_sessions(
+            pl.DataFrame({Column.EVENT_TIMESTAMP: [ts("2026-03-07 10:00:00")]})
+        )
 
 
 def test_screen_usage_ignores_null_timestamp_start_without_creating_session() -> None:
@@ -191,7 +213,10 @@ def test_screen_usage_keeps_blank_foreground_package_as_missing() -> None:
     screen_usage = rows_where(result, Column.INTERACTION_TYPE, str(InteractionType.SCREEN_USAGE))
 
     assert is_null(cell(screen_usage, 0, Column.APP_PACKAGE_NAME))
-    assert cell(screen_usage, 0, Column.SCREEN_USAGE_END_REASON) == ScreenUsageEndReason.PROBABLE_MANUAL_LOCK
+    assert (
+        cell(screen_usage, 0, Column.SCREEN_USAGE_END_REASON)
+        == ScreenUsageEndReason.PROBABLE_MANUAL_LOCK
+    )
 
 
 def test_screen_usage_classifies_unknown_extended_idle_and_near_keyguard_stop() -> None:
@@ -211,7 +236,11 @@ def test_screen_usage_classifies_unknown_extended_idle_and_near_keyguard_stop() 
     )
 
     result = ScreenUsagePreprocessor(options).derive_screen_usage_sessions(df)
-    reasons = rows_where(result, Column.INTERACTION_TYPE, str(InteractionType.SCREEN_USAGE)).get_column(Column.SCREEN_USAGE_END_REASON).to_list()
+    reasons = (
+        rows_where(result, Column.INTERACTION_TYPE, str(InteractionType.SCREEN_USAGE))
+        .get_column(Column.SCREEN_USAGE_END_REASON)
+        .to_list()
+    )
 
     assert reasons == [
         ScreenUsageEndReason.UNKNOWN,

@@ -53,10 +53,16 @@ def _algorithm_options(**overrides: object) -> PreprocessingOptions:
     return PreprocessingOptions(**values)
 
 
-def _run_algorithm(algorithm: object, df: pl.DataFrame, options: PreprocessingOptions) -> pl.DataFrame:
+def _run_algorithm(
+    algorithm: object, df: pl.DataFrame, options: PreprocessingOptions
+) -> pl.DataFrame:
     resumed_mask = df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_RESUMED)
-    same_app_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in([str(value) for value in options.same_app_interaction_types_to_stop_usage_at])
-    other_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in([str(value) for value in options.other_interaction_types_to_stop_usage_at])
+    same_app_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in(
+        [str(value) for value in options.same_app_interaction_types_to_stop_usage_at]
+    )
+    other_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in(
+        [str(value) for value in options.other_interaction_types_to_stop_usage_at]
+    )
     stopped_mask = df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_STOPPED)
     return algorithm.process_app_usage(
         df,
@@ -81,7 +87,11 @@ def test_pathological_raw_fixture_contains_expected_android_pathologies() -> Non
     raw_df = build_pathological_raw_dataframe(config=FixtureBuildConfig(weeks=2))
 
     duplicate_timestamps = raw_df.group_by(Column.EVENT_TIMESTAMP).len().filter(pl.col("len") > 1)
-    exact_duplicates = raw_df.group_by([Column.EVENT_TIMESTAMP, Column.INTERACTION_TYPE, Column.APP_PACKAGE_NAME]).len().filter(pl.col("len") > 1)
+    exact_duplicates = (
+        raw_df.group_by([Column.EVENT_TIMESTAMP, Column.INTERACTION_TYPE, Column.APP_PACKAGE_NAME])
+        .len()
+        .filter(pl.col("len") > 1)
+    )
 
     timestamps = raw_df.get_column(Column.EVENT_TIMESTAMP).cast(pl.String).to_list()
     interactions = set(raw_df.get_column(Column.INTERACTION_TYPE).unique().to_list())
@@ -95,8 +105,12 @@ def test_pathological_raw_fixture_contains_expected_android_pathologies() -> Non
     assert any(value.startswith("2026-11-01") for value in timestamps)
     assert any("+" in value[10:] or "-" in value[10:] for value in timestamps)
     assert any("+" not in value[10:] and "-" not in value[10:] for value in timestamps)
-    assert set(FILTERED_APPS).issubset(set(raw_df.get_column(Column.APP_PACKAGE_NAME).unique().to_list()))
-    assert set(APPS_FORCING_SCREEN_OPEN).issubset(set(raw_df.get_column(Column.APP_PACKAGE_NAME).unique().to_list()))
+    assert set(FILTERED_APPS).issubset(
+        set(raw_df.get_column(Column.APP_PACKAGE_NAME).unique().to_list())
+    )
+    assert set(APPS_FORCING_SCREEN_OPEN).issubset(
+        set(raw_df.get_column(Column.APP_PACKAGE_NAME).unique().to_list())
+    )
     assert {str(value) for value in InteractionType}.issubset(interactions)
 
 
@@ -140,8 +154,12 @@ def test_pathological_fixture_screen_usage_smoke_covers_expected_end_reasons() -
     )
 
     result = ScreenUsagePreprocessor(options).derive_screen_usage_sessions(df)
-    screen_usage = result.filter(pl.col(Column.INTERACTION_TYPE) == str(InteractionType.SCREEN_USAGE))
-    end_reasons = set(screen_usage.get_column(Column.SCREEN_USAGE_END_REASON).drop_nulls().to_list())
+    screen_usage = result.filter(
+        pl.col(Column.INTERACTION_TYPE) == str(InteractionType.SCREEN_USAGE)
+    )
+    end_reasons = set(
+        screen_usage.get_column(Column.SCREEN_USAGE_END_REASON).drop_nulls().to_list()
+    )
 
     assert ScreenUsageEndReason.PROBABLE_MANUAL_LOCK in end_reasons
     assert ScreenUsageEndReason.PROBABLE_AUTO_LOCK in end_reasons
@@ -174,5 +192,7 @@ def test_timestamp_preprocessor_handles_mixed_naive_and_offset_raw_strings() -> 
         ]
     )
 
-    result = TimestampPreprocessor(PreprocessingOptions(raw_data_folder="", use_app_codebook=False)).correct_timestamp_column(df)
+    result = TimestampPreprocessor(
+        PreprocessingOptions(raw_data_folder="", use_app_codebook=False)
+    ).correct_timestamp_column(df)
     assert result.filter(pl.col(Column.EVENT_TIMESTAMP).is_null()).is_empty()

@@ -7,7 +7,9 @@ import polars as pl
 import pytest
 
 from chronicle_preprocessing_app.config.constants import Column
-from chronicle_preprocessing_app.core.preprocessing import study_date_provider as study_date_provider_module
+from chronicle_preprocessing_app.core.preprocessing import (
+    study_date_provider as study_date_provider_module,
+)
 from chronicle_preprocessing_app.core.preprocessing.study_date_provider import (
     StudyDateRangeProvider,
 )
@@ -114,7 +116,9 @@ def test_is_available_false_when_empty_map_and_no_internal_modules() -> None:
 
 
 def test_is_available_true_when_map_has_entries() -> None:
-    provider = StudyDateRangeProvider({"P01": (datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 31, tzinfo=UTC))})
+    provider = StudyDateRangeProvider(
+        {"P01": (datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 31, tzinfo=UTC))}
+    )
     assert provider.is_available is True
 
 
@@ -124,7 +128,9 @@ def test_is_available_true_when_map_has_entries() -> None:
 
 
 def test_set_study_date_map_replaces_existing_map() -> None:
-    provider = StudyDateRangeProvider({"OLD": (datetime(2025, 1, 1, tzinfo=UTC), datetime(2025, 1, 31, tzinfo=UTC))})
+    provider = StudyDateRangeProvider(
+        {"OLD": (datetime(2025, 1, 1, tzinfo=UTC), datetime(2025, 1, 31, tzinfo=UTC))}
+    )
     new_map = {"NEW": (datetime(2026, 5, 1, tzinfo=UTC), datetime(2026, 5, 31, tzinfo=UTC))}
     provider.set_study_date_map(new_map)
 
@@ -134,7 +140,9 @@ def test_set_study_date_map_replaces_existing_map() -> None:
 
 def test_set_study_dates_for_participant_adds_entry() -> None:
     provider = StudyDateRangeProvider()
-    provider.set_study_dates_for_participant("P99", datetime(2026, 6, 1, tzinfo=UTC), datetime(2026, 6, 30, tzinfo=UTC))
+    provider.set_study_dates_for_participant(
+        "P99", datetime(2026, 6, 1, tzinfo=UTC), datetime(2026, 6, 30, tzinfo=UTC)
+    )
     result = provider.get_study_date_range("P99")
     assert result is not None
     assert result[0] == datetime(2026, 6, 1, tzinfo=UTC)
@@ -142,8 +150,12 @@ def test_set_study_dates_for_participant_adds_entry() -> None:
 
 
 def test_set_study_dates_for_participant_overwrites_existing_entry() -> None:
-    provider = StudyDateRangeProvider({"P01": (datetime(2025, 1, 1, tzinfo=UTC), datetime(2025, 12, 31, tzinfo=UTC))})
-    provider.set_study_dates_for_participant("P01", datetime(2026, 3, 1, tzinfo=UTC), datetime(2026, 3, 31, tzinfo=UTC))
+    provider = StudyDateRangeProvider(
+        {"P01": (datetime(2025, 1, 1, tzinfo=UTC), datetime(2025, 12, 31, tzinfo=UTC))}
+    )
+    provider.set_study_dates_for_participant(
+        "P01", datetime(2026, 3, 1, tzinfo=UTC), datetime(2026, 3, 31, tzinfo=UTC)
+    )
     result = provider.get_study_date_range("P01")
     assert result is not None
     assert result[0].year == 2026
@@ -155,19 +167,25 @@ def test_set_study_dates_for_participant_overwrites_existing_entry() -> None:
 
 
 def test_get_study_date_range_returns_none_for_unknown_participant() -> None:
-    provider = StudyDateRangeProvider({"P01": (datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 31, tzinfo=UTC))})
+    provider = StudyDateRangeProvider(
+        {"P01": (datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 31, tzinfo=UTC))}
+    )
     assert provider.get_study_date_range("UNKNOWN-999") is None
 
 
 def test_get_study_date_range_finds_by_exact_id() -> None:
-    provider = StudyDateRangeProvider({"EXACT-42": (datetime(2026, 4, 1, tzinfo=UTC), datetime(2026, 4, 30, tzinfo=UTC))})
+    provider = StudyDateRangeProvider(
+        {"EXACT-42": (datetime(2026, 4, 1, tzinfo=UTC), datetime(2026, 4, 30, tzinfo=UTC))}
+    )
     result = provider.get_study_date_range("EXACT-42")
     assert result is not None
     assert result[0].month == 4
 
 
 def test_get_study_date_range_finds_by_numeric_id_extraction() -> None:
-    provider = StudyDateRangeProvider({"P01-5678": (datetime(2026, 2, 1, tzinfo=UTC), datetime(2026, 2, 28, tzinfo=UTC))})
+    provider = StudyDateRangeProvider(
+        {"P01-5678": (datetime(2026, 2, 1, tzinfo=UTC), datetime(2026, 2, 28, tzinfo=UTC))}
+    )
     # Numeric portion "5678" should match the key "P01-5678"
     result = provider.get_study_date_range("5678")
     assert result is not None
@@ -175,13 +193,17 @@ def test_get_study_date_range_finds_by_numeric_id_extraction() -> None:
 
 
 def test_get_study_date_range_cross_prefix_numeric_match() -> None:
-    provider = StudyDateRangeProvider({"P02-9900": (datetime(2026, 7, 1, tzinfo=UTC), datetime(2026, 7, 31, tzinfo=UTC))})
+    provider = StudyDateRangeProvider(
+        {"P02-9900": (datetime(2026, 7, 1, tzinfo=UTC), datetime(2026, 7, 31, tzinfo=UTC))}
+    )
     # P03-9900 extracts "9900" and P02-9900 also extracts "9900" → match
     result = provider.get_study_date_range("P03-9900")
     assert result is not None
 
 
-def test_get_study_date_range_uses_cached_tech_tracking_sheet(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_study_date_range_uses_cached_tech_tracking_sheet(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class FakeTechParticipantID:
         def __init__(self, raw_id: str) -> None:
             self.raw_id = raw_id
@@ -199,13 +221,19 @@ def test_get_study_date_range_uses_cached_tech_tracking_sheet(monkeypatch: pytes
             FakeProjectOneProjectTwoTrackingSheet.init_count += 1
             self.force_redownload = force_redownload
 
-        def get_specific_participant_study_date_range(self, *, participant_id: FakeTechParticipantID) -> pl.Series:
+        def get_specific_participant_study_date_range(
+            self, *, participant_id: FakeTechParticipantID
+        ) -> pl.Series:
             FakeProjectOneProjectTwoTrackingSheet.requested_ids.append(participant_id.raw_id)
             return pl.Series([date(2026, 2, 5), date(2026, 2, 7)])
 
     monkeypatch.setattr(study_date_provider_module, "INTERNAL_MODULES_AVAILABLE", True)
-    monkeypatch.setattr(study_date_provider_module, "ParticipantID", FakeParticipantID, raising=False)
-    monkeypatch.setattr(study_date_provider_module, "TECHParticipantID", FakeTechParticipantID, raising=False)
+    monkeypatch.setattr(
+        study_date_provider_module, "ParticipantID", FakeParticipantID, raising=False
+    )
+    monkeypatch.setattr(
+        study_date_provider_module, "TECHParticipantID", FakeTechParticipantID, raising=False
+    )
     monkeypatch.setattr(
         study_date_provider_module,
         "ProjectOneProjectTwoTrackingSheet",
@@ -221,7 +249,9 @@ def test_get_study_date_range_uses_cached_tech_tracking_sheet(monkeypatch: pytes
     assert FakeProjectOneProjectTwoTrackingSheet.requested_ids == ["TECH-001", "TECH-002"]
 
 
-def test_get_study_date_range_uses_cached_standard_tracking_sheet(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_study_date_range_uses_cached_standard_tracking_sheet(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class FakeTechParticipantID:
         pass
 
@@ -239,23 +269,39 @@ def test_get_study_date_range_uses_cached_standard_tracking_sheet(monkeypatch: p
         requested_ids: ClassVar[list[str]] = []
 
         @staticmethod
-        def get_correct_tracking_sheet_for_participant(participant_id: FakeStandardParticipantID) -> FakeTrackingSheet:
+        def get_correct_tracking_sheet_for_participant(
+            participant_id: FakeStandardParticipantID,
+        ) -> FakeTrackingSheet:
             FakeTrackingSheet.factory_ids.append(participant_id.raw_id)
             return FakeTrackingSheet()
 
-        def get_specific_participant_study_date_range(self, *, participant_id: FakeStandardParticipantID) -> pl.Series:
+        def get_specific_participant_study_date_range(
+            self, *, participant_id: FakeStandardParticipantID
+        ) -> pl.Series:
             FakeTrackingSheet.requested_ids.append(participant_id.raw_id)
             return pl.Series([datetime(2026, 4, 3, tzinfo=UTC), datetime(2026, 4, 9, tzinfo=UTC)])
 
     monkeypatch.setattr(study_date_provider_module, "INTERNAL_MODULES_AVAILABLE", True)
-    monkeypatch.setattr(study_date_provider_module, "ParticipantID", FakeParticipantID, raising=False)
-    monkeypatch.setattr(study_date_provider_module, "TECHParticipantID", FakeTechParticipantID, raising=False)
-    monkeypatch.setattr(study_date_provider_module, "TrackingSheet", FakeTrackingSheet, raising=False)
+    monkeypatch.setattr(
+        study_date_provider_module, "ParticipantID", FakeParticipantID, raising=False
+    )
+    monkeypatch.setattr(
+        study_date_provider_module, "TECHParticipantID", FakeTechParticipantID, raising=False
+    )
+    monkeypatch.setattr(
+        study_date_provider_module, "TrackingSheet", FakeTrackingSheet, raising=False
+    )
 
     provider = StudyDateRangeProvider()
 
-    assert provider.get_study_date_range("P01-111") == (datetime(2026, 4, 3, tzinfo=UTC), datetime(2026, 4, 9, tzinfo=UTC))
-    assert provider.get_study_date_range("P01-222") == (datetime(2026, 4, 3, tzinfo=UTC), datetime(2026, 4, 9, tzinfo=UTC))
+    assert provider.get_study_date_range("P01-111") == (
+        datetime(2026, 4, 3, tzinfo=UTC),
+        datetime(2026, 4, 9, tzinfo=UTC),
+    )
+    assert provider.get_study_date_range("P01-222") == (
+        datetime(2026, 4, 3, tzinfo=UTC),
+        datetime(2026, 4, 9, tzinfo=UTC),
+    )
     assert FakeTrackingSheet.factory_ids == ["P01-111"]
     assert FakeTrackingSheet.requested_ids == ["P01-111", "P01-222"]
 
@@ -266,8 +312,12 @@ def test_get_study_date_range_uses_cached_standard_tracking_sheet(monkeypatch: p
 
 
 def test_filter_returns_empty_df_unchanged() -> None:
-    provider = StudyDateRangeProvider({"P01": (datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 31, tzinfo=UTC))})
-    empty_df = pl.DataFrame({Column.EVENT_TIMESTAMP: []}).cast({Column.EVENT_TIMESTAMP: pl.Datetime("us", "UTC")})
+    provider = StudyDateRangeProvider(
+        {"P01": (datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 31, tzinfo=UTC))}
+    )
+    empty_df = pl.DataFrame({Column.EVENT_TIMESTAMP: []}).cast(
+        {Column.EVENT_TIMESTAMP: pl.Datetime("us", "UTC")}
+    )
     result = provider.filter_data_to_study_dates(empty_df, "P01", Column.EVENT_TIMESTAMP)
     assert result.is_empty()
 
@@ -280,7 +330,9 @@ def test_filter_returns_df_unchanged_when_no_date_range_for_participant() -> Non
 
 
 def test_filter_returns_df_unchanged_when_column_not_in_df() -> None:
-    provider = StudyDateRangeProvider({"P01": (datetime(2026, 5, 1, tzinfo=UTC), datetime(2026, 5, 31, tzinfo=UTC))})
+    provider = StudyDateRangeProvider(
+        {"P01": (datetime(2026, 5, 1, tzinfo=UTC), datetime(2026, 5, 31, tzinfo=UTC))}
+    )
     df = pl.DataFrame({"value": [1, 2, 3]})
     result = provider.filter_data_to_study_dates(df, "P01", "nonexistent_column")
     assert result.equals(df)
@@ -292,7 +344,9 @@ def test_filter_returns_df_unchanged_when_column_not_in_df() -> None:
 
 
 def test_filter_removes_events_before_start_date() -> None:
-    provider = StudyDateRangeProvider({"P01": (datetime(2026, 5, 10, tzinfo=UTC), datetime(2026, 5, 20, tzinfo=UTC))})
+    provider = StudyDateRangeProvider(
+        {"P01": (datetime(2026, 5, 10, tzinfo=UTC), datetime(2026, 5, 20, tzinfo=UTC))}
+    )
     df = frame(
         [
             {Column.EVENT_TIMESTAMP: ts("2026-05-09 23:59:59", "UTC"), "v": "before"},
@@ -307,7 +361,9 @@ def test_filter_removes_events_before_start_date() -> None:
 
 
 def test_filter_removes_events_after_end_date_plus_one_day() -> None:
-    provider = StudyDateRangeProvider({"P01": (datetime(2026, 5, 10, tzinfo=UTC), datetime(2026, 5, 20, tzinfo=UTC))})
+    provider = StudyDateRangeProvider(
+        {"P01": (datetime(2026, 5, 10, tzinfo=UTC), datetime(2026, 5, 20, tzinfo=UTC))}
+    )
     df = frame(
         [
             {Column.EVENT_TIMESTAMP: ts("2026-05-20 23:59:59", "UTC"), "v": "last-second"},
@@ -322,7 +378,9 @@ def test_filter_removes_events_after_end_date_plus_one_day() -> None:
 
 
 def test_filter_same_day_range_keeps_only_that_days_events() -> None:
-    provider = StudyDateRangeProvider({"P01": (datetime(2026, 3, 15, tzinfo=UTC), datetime(2026, 3, 15, tzinfo=UTC))})
+    provider = StudyDateRangeProvider(
+        {"P01": (datetime(2026, 3, 15, tzinfo=UTC), datetime(2026, 3, 15, tzinfo=UTC))}
+    )
     df = frame(
         [
             {Column.EVENT_TIMESTAMP: ts("2026-03-14 23:59:59", "UTC"), "v": "day-before"},
@@ -342,7 +400,9 @@ def test_filter_same_day_range_keeps_only_that_days_events() -> None:
 
 
 def test_filter_three_day_range_keeps_middle_day() -> None:
-    provider = StudyDateRangeProvider({"P01": (datetime(2026, 6, 1, tzinfo=UTC), datetime(2026, 6, 3, tzinfo=UTC))})
+    provider = StudyDateRangeProvider(
+        {"P01": (datetime(2026, 6, 1, tzinfo=UTC), datetime(2026, 6, 3, tzinfo=UTC))}
+    )
     df = frame(
         [
             {Column.EVENT_TIMESTAMP: ts("2026-05-31 23:00:00", "UTC"), "v": "before"},
@@ -362,7 +422,9 @@ def test_filter_three_day_range_keeps_middle_day() -> None:
 
 
 def test_filter_null_timestamps_do_not_crash() -> None:
-    provider = StudyDateRangeProvider({"P01": (datetime(2026, 5, 1, tzinfo=UTC), datetime(2026, 5, 31, tzinfo=UTC))})
+    provider = StudyDateRangeProvider(
+        {"P01": (datetime(2026, 5, 1, tzinfo=UTC), datetime(2026, 5, 31, tzinfo=UTC))}
+    )
     df = frame(
         [
             {Column.EVENT_TIMESTAMP: ts("2026-05-10 09:00:00", "UTC"), "v": "valid"},
@@ -396,7 +458,9 @@ def test_filter_accepts_date_objects_via_coerce() -> None:
 
 
 def test_filter_with_tz_aware_column_and_utc_bounds() -> None:
-    provider = StudyDateRangeProvider({"P01": (datetime(2026, 4, 10, tzinfo=UTC), datetime(2026, 4, 12, tzinfo=UTC))})
+    provider = StudyDateRangeProvider(
+        {"P01": (datetime(2026, 4, 10, tzinfo=UTC), datetime(2026, 4, 12, tzinfo=UTC))}
+    )
     df = frame(
         [
             {Column.EVENT_TIMESTAMP: ts("2026-04-09 23:00:00", "UTC"), "v": "before"},
@@ -414,7 +478,9 @@ def test_filter_with_tz_aware_column_and_utc_bounds() -> None:
 
 
 def test_filter_multi_day_range_inclusive_on_both_ends() -> None:
-    provider = StudyDateRangeProvider({"P01": (datetime(2026, 9, 1, tzinfo=UTC), datetime(2026, 9, 5, tzinfo=UTC))})
+    provider = StudyDateRangeProvider(
+        {"P01": (datetime(2026, 9, 1, tzinfo=UTC), datetime(2026, 9, 5, tzinfo=UTC))}
+    )
     df = frame(
         [
             {Column.EVENT_TIMESTAMP: ts("2026-09-01 00:00:00", "UTC"), "v": "start"},
@@ -428,7 +494,9 @@ def test_filter_multi_day_range_inclusive_on_both_ends() -> None:
 
 
 def test_filter_exclusive_end_boundary_excludes_midnight_of_next_day() -> None:
-    provider = StudyDateRangeProvider({"P01": (datetime(2026, 10, 1, tzinfo=UTC), datetime(2026, 10, 3, tzinfo=UTC))})
+    provider = StudyDateRangeProvider(
+        {"P01": (datetime(2026, 10, 1, tzinfo=UTC), datetime(2026, 10, 3, tzinfo=UTC))}
+    )
     # exclusive end is 2026-10-04 00:00:00; that exact moment must be excluded
     df = frame(
         [
@@ -443,7 +511,9 @@ def test_filter_exclusive_end_boundary_excludes_midnight_of_next_day() -> None:
 
 
 def test_filter_inclusive_start_boundary_includes_exact_start_datetime() -> None:
-    provider = StudyDateRangeProvider({"P01": (datetime(2026, 11, 5, tzinfo=UTC), datetime(2026, 11, 10, tzinfo=UTC))})
+    provider = StudyDateRangeProvider(
+        {"P01": (datetime(2026, 11, 5, tzinfo=UTC), datetime(2026, 11, 10, tzinfo=UTC))}
+    )
     df = frame(
         [
             {Column.EVENT_TIMESTAMP: ts("2026-11-04 23:59:59.999999", "UTC"), "v": "one-us-before"},
@@ -476,7 +546,7 @@ def test_coerce_to_datetime_converts_date_to_utc_midnight() -> None:
     assert result.day == 4
     assert result.hour == 0
     assert result.minute == 0
-    assert result.tzinfo == dt.timezone.utc
+    assert result.tzinfo == dt.UTC
 
 
 def test_coerce_to_datetime_passes_through_datetime_unchanged() -> None:
@@ -486,7 +556,7 @@ def test_coerce_to_datetime_passes_through_datetime_unchanged() -> None:
         _coerce_to_datetime,
     )
 
-    original = dt.datetime(2026, 7, 4, 15, 30, tzinfo=dt.timezone.utc)
+    original = dt.datetime(2026, 7, 4, 15, 30, tzinfo=dt.UTC)
     result = _coerce_to_datetime(original)
     assert result is original
 

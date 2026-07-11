@@ -14,7 +14,6 @@ import polars as pl
 import pytest
 
 from chronicle_preprocessing_app.config.constants import (
-    PREPROCESSED_FILE_SUFFIX,
     Column,
     InteractionType,
     UsageSessionMode,
@@ -85,7 +84,9 @@ def _make_options(
 # ---------------------------------------------------------------------------
 
 
-def test_single_file_produces_output_csv_with_expected_columns(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_single_file_produces_output_csv_with_expected_columns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Processing a single valid raw CSV file produces a preprocessed output CSV
     that contains the core columns required for downstream analysis."""
     monkeypatch.setenv("CHRONICLE_USE_POLARS_FAST_PATH", "true")
@@ -96,7 +97,9 @@ def test_single_file_produces_output_csv_with_expected_columns(tmp_path: Path, m
 
     options = _make_options(raw_folder)
     preprocessor = ChronicleAndroidRawDataPreprocessor(options)
-    output_folder, success, _ = preprocessor.preprocess_Chronicle_Android_raw_data_file(raw_folder / "Raw P01.csv")
+    output_folder, success, _ = preprocessor.preprocess_Chronicle_Android_raw_data_file(
+        raw_folder / "Raw P01.csv"
+    )
 
     assert success, "Preprocessor returned success=False"
     output_csvs = list(output_folder.glob("*.csv"))
@@ -123,7 +126,9 @@ def test_single_file_produces_output_csv_with_expected_columns(tmp_path: Path, m
 # ---------------------------------------------------------------------------
 
 
-def test_folder_with_multiple_participants_produces_one_output_per_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_folder_with_multiple_participants_produces_one_output_per_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """preprocess_Chronicle_Android_raw_data_folder processes every matching file
     and writes one preprocessed CSV per participant."""
     monkeypatch.setenv("CHRONICLE_USE_POLARS_FAST_PATH", "true")
@@ -141,12 +146,16 @@ def test_folder_with_multiple_participants_produces_one_output_per_file(tmp_path
     assert stats.failed_files == 0, f"Expected 0 failures, got {stats.failed_files}"
 
     output_csvs = list(output_folder.glob("*.csv"))
-    assert len(output_csvs) == 3, f"Expected 3 output CSVs, found {len(output_csvs)}: {[f.name for f in output_csvs]}"
+    assert len(output_csvs) == 3, (
+        f"Expected 3 output CSVs, found {len(output_csvs)}: {[f.name for f in output_csvs]}"
+    )
 
     # Each output CSV must have the participant_id column
     for csv_file in output_csvs:
         df = pl.read_csv(csv_file, infer_schema=False)
-        assert Column.PARTICIPANT_ID in df.columns, f"{csv_file.name} is missing {Column.PARTICIPANT_ID}"
+        assert Column.PARTICIPANT_ID in df.columns, (
+            f"{csv_file.name} is missing {Column.PARTICIPANT_ID}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +163,9 @@ def test_folder_with_multiple_participants_produces_one_output_per_file(tmp_path
 # ---------------------------------------------------------------------------
 
 
-def test_file_with_no_app_usage_events_returns_failure_without_raising(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_file_with_no_app_usage_events_returns_failure_without_raising(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A raw file that contains only non-app-usage events (so the algorithm
     finds nothing to match) must result in success=False — not an unhandled
     exception — and the stats should record it as an empty file."""
@@ -187,12 +198,14 @@ def test_file_with_no_app_usage_events_returns_failure_without_raising(tmp_path:
 
     options = _make_options(raw_folder)
     preprocessor = ChronicleAndroidRawDataPreprocessor(options)
-    output_folder, success, _ = preprocessor.preprocess_Chronicle_Android_raw_data_file(raw_folder / "Raw P01.csv")
+    output_folder, success, _ = preprocessor.preprocess_Chronicle_Android_raw_data_file(
+        raw_folder / "Raw P01.csv"
+    )
 
     # Either success=False (NoAppUsageDataError path) or success=True with empty output
     # depending on whether the fast path handles it.  Either way: no unhandled exception.
     if not success:
-        assert output_folder == Path(""), "Expected empty output_folder when success=False"
+        assert output_folder == Path(), "Expected empty output_folder when success=False"
         assert preprocessor.stats.empty_files == 1
 
 
@@ -215,4 +228,4 @@ def test_empty_folder_returns_empty_stats_without_raising(
 
     assert stats.total_files == 0
     assert stats.processed_files == 0
-    assert output_folder == Path("")
+    assert output_folder == Path()

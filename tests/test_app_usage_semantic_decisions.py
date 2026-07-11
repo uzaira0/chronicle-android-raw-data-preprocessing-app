@@ -30,7 +30,12 @@ def _row(
 
 
 def _frame(rows: list[tuple[str, InteractionType, str]]) -> pl.DataFrame:
-    return frame([_row(timestamp, interaction_type, package_name) for timestamp, interaction_type, package_name in rows])
+    return frame(
+        [
+            _row(timestamp, interaction_type, package_name)
+            for timestamp, interaction_type, package_name in rows
+        ]
+    )
 
 
 def _options(**overrides: object) -> PreprocessingOptions:
@@ -53,8 +58,12 @@ def _options(**overrides: object) -> PreprocessingOptions:
 
 def _run(df: pl.DataFrame, options: PreprocessingOptions) -> pl.DataFrame:
     resumed_mask = df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_RESUMED)
-    same_app_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in([str(value) for value in options.same_app_interaction_types_to_stop_usage_at])
-    other_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in([str(value) for value in options.other_interaction_types_to_stop_usage_at])
+    same_app_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in(
+        [str(value) for value in options.same_app_interaction_types_to_stop_usage_at]
+    )
+    other_stop_mask = df.get_column(Column.INTERACTION_TYPE).is_in(
+        [str(value) for value in options.other_interaction_types_to_stop_usage_at]
+    )
     stopped_mask = df.get_column(Column.INTERACTION_TYPE) == str(InteractionType.ACTIVITY_STOPPED)
 
     return OptimizedAppUsageAlgorithm(options).process_app_usage(

@@ -39,8 +39,12 @@ def test_selected_interaction_removal_preserves_only_thresholded_gap_rows() -> N
 
     preprocessor.remove_selected_interaction_types()
 
-    assert preprocessor.current_participant_raw_data_df.get_column(Column.INTERACTION_TYPE).to_list() == [
+    assert preprocessor.current_participant_raw_data_df.get_column(
+        Column.INTERACTION_TYPE
+    ).to_list() == [
         str(InteractionType.SCREEN_INTERACTIVE),
         str(InteractionType.ACTIVITY_RESUMED),
     ]
-    assert preprocessor.current_participant_raw_data_df.get_column(Column.DATA_TIME_GAP_HOURS).to_list() == [1.0, 0.0]
+    assert preprocessor.current_participant_raw_data_df.get_column(
+        Column.DATA_TIME_GAP_HOURS
+    ).to_list() == [1.0, 0.0]

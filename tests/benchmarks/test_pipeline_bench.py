@@ -18,8 +18,11 @@ from chronicle_preprocessing_app.core.preprocessing.timezone_preprocessor import
 def _make_timestamp_df(n: int) -> pl.DataFrame:
     import datetime
 
-    base = datetime.datetime(2024, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
-    timestamps = [(base + datetime.timedelta(seconds=i * 10)).strftime("%Y-%m-%dT%H:%M:%S+00:00") for i in range(n)]
+    base = datetime.datetime(2024, 1, 1, 0, 0, 0, tzinfo=datetime.UTC)
+    timestamps = [
+        (base + datetime.timedelta(seconds=i * 10)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        for i in range(n)
+    ]
     return pl.DataFrame({"event_timestamp": timestamps, "App": ["com.example.app"] * n})
 
 

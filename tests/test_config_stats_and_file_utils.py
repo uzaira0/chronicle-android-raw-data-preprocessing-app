@@ -70,7 +70,10 @@ def test_processing_stats_tracks_errors_warnings_plots_and_rates(tmp_path) -> No
     assert stats.plot_success_types == {"with_app_usage": 1}
     assert stats.plot_error_types == {"validation": 1, "schema": 1}
     assert stats.failed_files == 3
-    assert "Processed 1/2 files (50.0%), Plotted 1/1 files (100.0%), Failed: 3, Empty: 1" == stats.summary()
+    assert (
+        stats.summary()
+        == "Processed 1/2 files (50.0%), Plotted 1/1 files (100.0%), Failed: 3, Empty: 1"
+    )
     detailed = stats.get_detailed_summary()
     assert "Raw P02.csv" in detailed
     assert "large gap" in detailed
@@ -89,7 +92,9 @@ def test_get_matching_files_filters_ignored_paths_and_rejects_bad_roots(tmp_path
     (ignored / "Raw P02.csv").write_text("ignored", encoding="utf-8")
 
     assert get_matching_files_from_folder(raw, r"Raw .*\.csv") == [raw / "Raw P01.csv"]
-    assert get_matching_files_from_folder(raw, r"Raw .*\.csv", ignore_names=["P01"]) == [ignored / "Raw P02.csv"]
+    assert get_matching_files_from_folder(raw, r"Raw .*\.csv", ignore_names=["P01"]) == [
+        ignored / "Raw P02.csv"
+    ]
     with pytest.raises(ValueError, match="Folder does not exist"):
         get_matching_files_from_folder(tmp_path / "missing", r".*")
     with pytest.raises(ValueError, match="Path is not a directory"):

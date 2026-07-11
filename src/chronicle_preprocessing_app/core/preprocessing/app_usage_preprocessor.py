@@ -49,9 +49,17 @@ class AppUsagePreprocessor(BasePreprocessor):
 
     def preprocess(self, df: pl.DataFrame) -> pl.DataFrame:
         rows_in = len(df)
-        LOGGER.debug("Starting %s", self.__class__.__name__, extra={"row_count": rows_in, "file": getattr(self, "_current_file", None)})
+        LOGGER.debug(
+            "Starting %s",
+            self.__class__.__name__,
+            extra={"row_count": rows_in, "file": getattr(self, "_current_file", None)},
+        )
         result = self.run_app_usage_algorithm(df, raise_on_no_valid_usage=True)
-        LOGGER.debug("Completed %s", self.__class__.__name__, extra={"rows_in": rows_in, "rows_out": len(result)})
+        LOGGER.debug(
+            "Completed %s",
+            self.__class__.__name__,
+            extra={"rows_in": rows_in, "rows_out": len(result)},
+        )
         return result
 
     def process_app_usage(self, df: pl.DataFrame) -> pl.DataFrame:
