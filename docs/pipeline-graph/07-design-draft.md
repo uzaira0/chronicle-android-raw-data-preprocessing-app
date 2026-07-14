@@ -1,7 +1,28 @@
 # Design Draft — Pipeline Graph + Feature Wiring (Approach A)
 
-STATUS: in-progress design. Sections 1-2 APPROVED by the owner (2026-07-14).
-Sections 3-6 pending presentation/approval. The final spec supersedes this draft.
+STATUS: IMPLEMENTED (2026-07-14) for the phases 1, 2 and 4 subset — superseded by the
+normative spec at `docs/superpowers/specs/2026-07-14-pipeline-graph-design.md`.
+
+What is live in `web/`:
+- Graph spine: `src/lib/pipelineGraph/` (graphTypes / engine / analysis / graphDef) — the
+  declared graph IS the execution path of `processRawCsvContent`, with per-node
+  content-hash memoization and per-file engine reuse. Headline outputs byte-identical.
+- Clean tier: `src/lib/stages/effectiveUsage.ts` (screen-gated usage credit, validated
+  row-for-row against the reference implementation via golden fixtures).
+- Analyze tier: `src/lib/stages/{studySupportFiles,observationWindow,attributePerson,
+  scoreCompliance,dayCoverage}.ts` — all side-by-side outputs (Credited App Usage,
+  Compliance Report, Day Coverage); the headline CSVs never change.
+- UI: Study inputs card (four study tables, needs-input states), Study analysis card
+  (ten new contract options), Process-tab Preprocess/Clean/Analyze strip, and the
+  Graph tab (`src/components/GraphPanel/`, React Flow 12 + dagre) with status badges
+  from the last run and taxonomy-free path-query highlights + sentences (doc 06).
+- Contract: ten option slots + four support-file slots in the LinkML schema.
+
+Deferred (unchanged from the plan): `validate_clock` node internals, lineage ledger,
+`eyes_triplet_v1` / `parry_toth_forward_pair_2025` strategies + conformance fixtures,
+ordered app-policy rule schema (+ `interval_quality` knob split), multi-stream witnesses.
+The file layout below shows the full target shape; the stage files above live flat under
+`src/lib/stages/` until more nodes land.
 
 ## Section 1 — Architecture & module boundaries (APPROVED)
 
