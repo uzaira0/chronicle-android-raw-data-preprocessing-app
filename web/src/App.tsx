@@ -46,6 +46,8 @@ import type {
 } from "@/lib/types";
 
 import { FilesAndInputsCard } from "@/components/FilesAndInputsCard";
+import { StudyInputsCard } from "@/components/StudyInputsCard";
+import { AnalyzeSettingsCard } from "@/components/AnalyzeSettingsCard";
 import { TimezoneCard } from "@/components/TimezoneCard";
 import { SessionDetectionCard } from "@/components/SessionDetectionCard";
 import { ScreenDetectionCard } from "@/components/ScreenDetectionCard";
@@ -129,6 +131,10 @@ export default function App(): ReactElement {
   const [appsForcingScreenOpenFile, setAppsForcingScreenOpenFile] = useState<File | null>(null);
   const [backgroundAppsFile, setBackgroundAppsFile] = useState<File | null>(null);
   const [appCodebookFile, setAppCodebookFile] = useState<File | null>(null);
+  const [studyDatesFile, setStudyDatesFile] = useState<File | null>(null);
+  const [deviceSharingFile, setDeviceSharingFile] = useState<File | null>(null);
+  const [surveyAttributionFile, setSurveyAttributionFile] = useState<File | null>(null);
+  const [enrolledDevicesFile, setEnrolledDevicesFile] = useState<File | null>(null);
   const [discoveredTimezones, setDiscoveredTimezones] = useState<string[]>([]);
   // When options are seeded from a shared link we skip the very first persist so
   // that merely *opening* someone's link does not silently overwrite the
@@ -360,6 +366,16 @@ export default function App(): ReactElement {
     );
     setBackgroundAppsFile(support.backgroundAppsFile ? storedFileToFile(support.backgroundAppsFile) : null);
     setAppCodebookFile(support.appCodebookFile ? storedFileToFile(support.appCodebookFile) : null);
+    setStudyDatesFile(support.studyDatesFile ? storedFileToFile(support.studyDatesFile) : null);
+    setDeviceSharingFile(
+      support.deviceSharingFile ? storedFileToFile(support.deviceSharingFile) : null,
+    );
+    setSurveyAttributionFile(
+      support.surveyAttributionFile ? storedFileToFile(support.surveyAttributionFile) : null,
+    );
+    setEnrolledDevicesFile(
+      support.enrolledDevicesFile ? storedFileToFile(support.enrolledDevicesFile) : null,
+    );
     // Reuse the upload path so restored files are inspected like fresh uploads;
     // a config-only project clears the raw files to a clean slate.
     onFilesChange(record.includesFiles ? record.rawFiles.map(storedFileToFile) : []);
@@ -379,6 +395,20 @@ export default function App(): ReactElement {
       : {}),
     ...(forOptions.useAppCodebook && appCodebookFile
       ? { appCodebookFile: await readSupportFile(appCodebookFile) }
+      : {}),
+    // Study Inputs: sent along whenever any enabled analyze step consumes them.
+    ...((forOptions.enableStudyWindowFilter || forOptions.enableDayCoverage) && studyDatesFile
+      ? { studyDatesFile: await readSupportFile(studyDatesFile) }
+      : {}),
+    ...((forOptions.enablePersonAttribution || forOptions.enableComplianceScoring) &&
+    deviceSharingFile
+      ? { deviceSharingFile: await readSupportFile(deviceSharingFile) }
+      : {}),
+    ...(forOptions.enablePersonAttribution && surveyAttributionFile
+      ? { surveyAttributionFile: await readSupportFile(surveyAttributionFile) }
+      : {}),
+    ...(forOptions.enableComplianceScoring && enrolledDevicesFile
+      ? { enrolledDevicesFile: await readSupportFile(enrolledDevicesFile) }
       : {}),
   });
 
@@ -411,7 +441,18 @@ export default function App(): ReactElement {
     },
     // filterFile et al. are read inside buildSupportFilesForOptions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [uploadedFiles, options, filterFile, appsForcingScreenOpenFile, backgroundAppsFile, appCodebookFile],
+    [
+      uploadedFiles,
+      options,
+      filterFile,
+      appsForcingScreenOpenFile,
+      backgroundAppsFile,
+      appCodebookFile,
+      studyDatesFile,
+      deviceSharingFile,
+      surveyAttributionFile,
+      enrolledDevicesFile,
+    ],
   );
 
   const discoverAvailableTimezones = async () => {
@@ -886,6 +927,10 @@ export default function App(): ReactElement {
                   appsForcingScreenOpenFile,
                   backgroundAppsFile,
                   appCodebookFile,
+                  studyDatesFile,
+                  deviceSharingFile,
+                  surveyAttributionFile,
+                  enrolledDevicesFile,
                 }}
                 onApplyProject={applyProject}
                 onStatus={(message, isError = false) => setToast({ message, isError })}
@@ -929,6 +974,31 @@ export default function App(): ReactElement {
                 ) : null}
                 {shows("performance parallel workers") ? (
                   <PerformanceCard options={options} setOptions={setOptions} />
+                ) : null}
+                {shows(
+                  "study inputs dates device sharing survey enrolled devices upload analyze",
+                ) ? (
+                  <StudyInputsCard
+                    options={options}
+                    studyDatesFile={studyDatesFile}
+                    setStudyDatesFile={setStudyDatesFile}
+                    deviceSharingFile={deviceSharingFile}
+                    setDeviceSharingFile={setDeviceSharingFile}
+                    surveyAttributionFile={surveyAttributionFile}
+                    setSurveyAttributionFile={setSurveyAttributionFile}
+                    enrolledDevicesFile={enrolledDevicesFile}
+                    setEnrolledDevicesFile={setEnrolledDevicesFile}
+                  />
+                ) : null}
+                {shows(
+                  "study analysis screen gated credit window attribution compliance coverage analyze",
+                ) ? (
+                  <AnalyzeSettingsCard
+                    options={options}
+                    setOptions={setOptions}
+                    studyDatesLoaded={Boolean(studyDatesFile)}
+                    deviceSharingLoaded={Boolean(deviceSharingFile)}
+                  />
                 ) : null}
               </div>
             </section>

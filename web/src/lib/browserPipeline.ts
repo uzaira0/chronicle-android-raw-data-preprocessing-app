@@ -563,6 +563,13 @@ export async function resolveDefaultSupportFiles(
       );
     }
   }
+  // Study Inputs (study dates / device sharing / survey answers / enrolled
+  // devices) have NO bundled defaults — they are study-specific tables. Pass
+  // the user's uploads straight through so the worker sees them.
+  if (uploads?.studyDatesFile) result.studyDatesFile = uploads.studyDatesFile;
+  if (uploads?.deviceSharingFile) result.deviceSharingFile = uploads.deviceSharingFile;
+  if (uploads?.surveyAttributionFile) result.surveyAttributionFile = uploads.surveyAttributionFile;
+  if (uploads?.enrolledDevicesFile) result.enrolledDevicesFile = uploads.enrolledDevicesFile;
   await Promise.all(tasks);
   return result;
 }

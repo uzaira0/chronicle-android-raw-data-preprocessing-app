@@ -103,6 +103,45 @@ export function ProcessPanel({
       </div>
 
       <div id="process-details" className="process-section__body" hidden={!expanded}>
+        <div className="process-sections" data-testid="process-sections">
+          <div className="process-sections__item">
+            <strong>Preprocess</strong>
+            <span>
+              Parse, timezone normalization, dedup &amp; ordering, session reconstruction
+              {options.processScreenUsage ? ", screen usage derivation" : ""}.
+            </span>
+          </div>
+          <div className="process-sections__item">
+            <strong>Clean</strong>
+            <span>
+              {[
+                options.useFilterFile ? "app filter list" : null,
+                options.minimumUsageDuration ? "minimum-duration floor" : null,
+                "long-session flags",
+                options.enableScreenGatedCrediting ? "screen-gated usage credit (side-by-side)" : null,
+              ]
+                .filter(Boolean)
+                .join(", ")}
+              .
+            </span>
+          </div>
+          <div className="process-sections__item">
+            <strong>Analyze</strong>
+            <span>
+              {(() => {
+                const active = [
+                  options.enableStudyWindowFilter ? "study-window filter" : null,
+                  options.enablePersonAttribution ? "person attribution" : null,
+                  options.enableComplianceScoring ? "compliance scoring" : null,
+                  options.enableDayCoverage ? "day coverage report" : null,
+                ].filter(Boolean);
+                return active.length
+                  ? `${active.join(", ")}.`
+                  : "Off. Turn on study analysis steps in Settings → Study analysis.";
+              })()}
+            </span>
+          </div>
+        </div>
         <div className="process-controls">
           <ToggleField
             label="Parallel processing"

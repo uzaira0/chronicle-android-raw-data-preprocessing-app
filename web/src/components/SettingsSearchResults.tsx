@@ -13,6 +13,7 @@ type SectionKey =
   | "interaction"
   | "performance"
   | "study"
+  | "studyInputs"
   | "management";
 
 type Section = { label: string; selector: string };
@@ -27,7 +28,8 @@ const SECTIONS: Record<SectionKey, Section> = {
   screen: { label: "Screen detection", selector: '[data-section-id="screen-detection"]' },
   interaction: { label: "Interaction semantics", selector: '[data-section-id="interaction-semantics"]' },
   performance: { label: "Performance", selector: '[data-section-id="performance"]' },
-  study: { label: "Study analysis", selector: '[data-section-id="study-inputs"]' },
+  study: { label: "Study analysis", selector: '[data-section-id="study-analysis"]' },
+  studyInputs: { label: "Study inputs", selector: '[data-section-id="study-inputs"]' },
   management: { label: "Settings management", selector: '[data-settings-anchor="management"]' },
 };
 
@@ -123,6 +125,30 @@ const ITEMS: SearchItem[] = [
     return { key, label, sectionKey, keywords };
   }),
   // UI-only controls that aren't processing options but live in the Settings tab.
+  {
+    key: "__studyDatesFile",
+    label: "Study dates table",
+    sectionKey: "studyInputs",
+    keywords: "study dates window start end date table upload participant study inputs",
+  },
+  {
+    key: "__deviceSharingFile",
+    label: "Device sharing table",
+    sectionKey: "studyInputs",
+    keywords: "device sharing shared non-shared table upload attribution study inputs",
+  },
+  {
+    key: "__surveyAttributionFile",
+    label: "Usage survey answers",
+    sectionKey: "studyInputs",
+    keywords: "usage survey answers users attribution relabel table upload study inputs",
+  },
+  {
+    key: "__enrolledDevicesFile",
+    label: "Enrolled devices table",
+    sectionKey: "studyInputs",
+    keywords: "enrolled devices expected device count compliance table upload study inputs",
+  },
   {
     key: "__demoMode",
     label: "Demo mode (hide labels)",

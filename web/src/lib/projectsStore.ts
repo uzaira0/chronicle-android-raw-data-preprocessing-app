@@ -22,7 +22,11 @@ export type SupportFileSlot =
   | "filterFile"
   | "appsForcingScreenOpenFile"
   | "backgroundAppsFile"
-  | "appCodebookFile";
+  | "appCodebookFile"
+  | "studyDatesFile"
+  | "deviceSharingFile"
+  | "surveyAttributionFile"
+  | "enrolledDevicesFile";
 
 export type ProjectRecord = {
   id: string;
