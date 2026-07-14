@@ -243,4 +243,13 @@ export type ProcessedFileResult = {
    * re-run. The UI uses this to explain why and to skip "no outputs" warnings.
    */
   restoredWithoutArtifacts?: boolean;
+  /**
+   * Per-node engine statuses + errors from the pipeline graph run that produced
+   * this result (Graph tab badges: cached / recomputed / dirty / error /
+   * skipped). Optional: absent on results persisted before this field existed.
+   */
+  graphReport?: {
+    statuses: Record<string, "cached" | "recomputed" | "dirty" | "error" | "skipped">;
+    errors: Record<string, string>;
+  };
 };

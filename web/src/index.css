@@ -1189,6 +1189,134 @@ a:hover {
 }
 
 /* ==========================================================================
+   Graph tab — interactive pipeline dependency view
+   ========================================================================== */
+
+.graph-canvas {
+  height: min(72vh, 760px);
+  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.25));
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--color-surface, transparent);
+}
+
+.graph-sentence {
+  margin: var(--space-2) 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--accent-study);
+  background: var(--accent-study-soft);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.graph-report-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.85rem;
+}
+
+.graph-node {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 1.5px solid var(--graph-node-accent, var(--accent-performance));
+  border-left-width: 5px;
+  border-radius: 8px;
+  background: var(--color-surface, #fff);
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.graph-node--preprocess { --graph-node-accent: var(--accent-session); }
+.graph-node--clean { --graph-node-accent: var(--accent-files); }
+.graph-node--analyze { --graph-node-accent: var(--accent-study); }
+.graph-node--output { --graph-node-accent: var(--accent-performance); }
+
+.graph-node__section {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--graph-node-accent);
+  font-weight: 700;
+}
+
+.graph-node__label {
+  font-weight: 600;
+}
+
+.graph-node__badges {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.graph-node__status,
+.graph-node__join {
+  font-size: 0.62rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--color-info-soft);
+  color: var(--color-info);
+}
+
+.graph-node__status--recomputed { background: var(--color-success-soft, #e5f6ec); color: var(--color-success, #157f3d); }
+.graph-node__status--error { background: var(--color-danger-soft); color: var(--color-danger); }
+.graph-node__status--dirty,
+.graph-node__status--skipped { background: var(--color-warning-soft); color: var(--color-warning); }
+
+.graph-node__join {
+  background: var(--accent-interaction-soft);
+  color: var(--accent-interaction);
+}
+
+.graph-flow-node { transition: opacity 160ms ease; }
+.graph-flow-node.is-dimmed { opacity: 0.22; }
+.graph-flow-node.is-selected .graph-node {
+  box-shadow: 0 0 0 2px var(--graph-node-accent);
+}
+.graph-flow-node.is-emphasized .graph-node {
+  border-width: 2.5px;
+  border-left-width: 7px;
+}
+.graph-flow-node.is-pulsing .graph-node {
+  animation: graph-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes graph-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--graph-node-accent); }
+  50% { box-shadow: 0 0 0 5px transparent; }
+}
+
+.graph-flow-edge.is-dimmed { opacity: 0.15; }
+
+.graph-legend {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  font-size: 0.75rem;
+}
+
+.graph-legend__item::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  background: var(--graph-node-accent, var(--accent-performance));
+}
+
+.graph-legend__item--preprocess { --graph-node-accent: var(--accent-session); }
+.graph-legend__item--clean { --graph-node-accent: var(--accent-files); }
+.graph-legend__item--analyze { --graph-node-accent: var(--accent-study); }
+.graph-legend__item--output { --graph-node-accent: var(--accent-performance); }
+
+/* ==========================================================================
    Settings field — labeled control with tooltip + default/modified state
    ========================================================================== */
 

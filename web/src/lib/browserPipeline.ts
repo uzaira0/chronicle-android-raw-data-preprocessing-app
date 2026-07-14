@@ -2922,6 +2922,7 @@ export async function processRawCsvContent(
     exactDuplicateRowsRemoved,
     timelineView,
     reviewSummary,
+    graphReport: graphRun.report,
   };
 }
 

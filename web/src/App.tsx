@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+} from "react";
 import { PREPROCESSOR_VERSION, resolveDefaultSupportFiles } from "@/lib/browserPipeline";
 import {
   WorkerPool,
@@ -48,6 +57,13 @@ import type {
 import { FilesAndInputsCard } from "@/components/FilesAndInputsCard";
 import { StudyInputsCard } from "@/components/StudyInputsCard";
 import { AnalyzeSettingsCard } from "@/components/AnalyzeSettingsCard";
+
+// Lazy: React Flow + dagre only load when the Graph tab is opened.
+const GraphPanel = lazy(() =>
+  import("@/components/GraphPanel/GraphPanel").then((module) => ({
+    default: module.GraphPanel,
+  })),
+);
 import { TimezoneCard } from "@/components/TimezoneCard";
 import { SessionDetectionCard } from "@/components/SessionDetectionCard";
 import { ScreenDetectionCard } from "@/components/ScreenDetectionCard";
@@ -102,7 +118,13 @@ const STEP_ORDER: ProgressStepKind[] = [
 const WORKFLOW_STORAGE_KEY = "chronicle-web.activeWorkflow";
 
 function isWorkflowTab(value: string | null): value is WorkflowTab {
-  return value === "settings" || value === "files" || value === "process" || value === "view";
+  return (
+    value === "settings" ||
+    value === "files" ||
+    value === "process" ||
+    value === "view" ||
+    value === "graph"
+  );
 }
 
 function estimatedFilePercent(current: FileProgress): number {
@@ -1064,6 +1086,19 @@ export default function App(): ReactElement {
                 stale={resultsStale}
               />
             </div>
+          </div>
+
+          <div
+            id="graph-panel"
+            role="tabpanel"
+            aria-labelledby="graph-tab"
+            hidden={activeWorkflow !== "graph"}
+          >
+            {activeWorkflow === "graph" ? (
+              <Suspense fallback={<p className="empty-state">Loading the pipeline graph…</p>}>
+                <GraphPanel results={results} displayMasker={demoDisplay} />
+              </Suspense>
+            ) : null}
           </div>
 
           <div

@@ -24,6 +24,8 @@
     "build:wasm": "wasm-pack build ../rust/chronicle_app_usage_wasm --target web --out-dir ../../web/src/wasm/chronicle_app_usage_wasm/pkg"
   },
   "dependencies": {
+    "@dagrejs/dagre": "^3.0.0",
+    "@xyflow/react": "^12.11.2",
     "comlink": "^4.4.2",
     "hyparquet-writer": "^0.15.6",
     "papaparse": "^5.5.3",
