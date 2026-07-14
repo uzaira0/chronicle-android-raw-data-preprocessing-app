@@ -1293,7 +1293,23 @@ a:hover {
 
 .graph-flow-edge.is-dimmed { opacity: 0.15; }
 
-.graph-flow-edge .react-flow__edge-path { stroke-width: 1.6; }
+/* Edge stroke lives here (the arrowhead marker color must stay inline — React
+   Flow markers don't read the stylesheet). */
+.graph-flow-edge .react-flow__edge-path {
+  stroke: #64748b;
+  stroke-width: 2;
+}
+
+/* Handles exist only so React Flow will render the edges — keep them invisible. */
+.graph-node__handle {
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  min-height: 0;
+  border: none;
+  background: transparent;
+  pointer-events: none;
+}
 
 .graph-toolbar {
   display: flex;

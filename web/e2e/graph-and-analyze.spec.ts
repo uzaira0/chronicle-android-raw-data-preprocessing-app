@@ -71,10 +71,30 @@ test("@smoke Graph tab renders the pipeline and answers a click in plain English
   await nodes.filter({ hasText: "App policy" }).click();
   await expect(page.getByTestId("graph-sentence")).toContainText("one chain");
 
-  // Orientation toggle re-lays the same graph vertically.
-  await page.getByTestId("graph-direction-tb").click();
-  await expect(page.getByTestId("graph-canvas")).toBeVisible();
-  await expect(page.locator(".graph-node").first()).toBeVisible();
+  // Vertical is the default: chained steps stack top-to-bottom.
+  await expect(page.getByTestId("graph-direction-tb")).toHaveAttribute("aria-pressed", "true");
+  const parseNode = page.locator(".react-flow__node", { hasText: "Event parsing" });
+  const timezoneNode = page.locator(".react-flow__node", { hasText: "Timezone normalization" });
+  await expect(async () => {
+    const parseBox = (await parseNode.boundingBox())!;
+    const timezoneBox = (await timezoneNode.boundingBox())!;
+    expect(parseBox.y).toBeLessThan(timezoneBox.y);
+  }).toPass();
+
+  // The toggle re-lays the same graph horizontally: pressed state flips and
+  // the chain now runs left-to-right.
+  await page.getByTestId("graph-direction-lr").click();
+  await expect(page.getByTestId("graph-direction-lr")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("graph-direction-tb")).toHaveAttribute("aria-pressed", "false");
+  await expect(async () => {
+    const parseBox = (await parseNode.boundingBox())!;
+    const timezoneBox = (await timezoneNode.boundingBox())!;
+    expect(parseBox.x).toBeLessThan(timezoneBox.x);
+  }).toPass();
+  // Edges carry arrowhead markers (explicit markers, not bare lines). A
+  // straight edge's path has a zero-thickness bounding box, which Playwright
+  // reports as "hidden" — assert attachment, not visibility.
+  await expect(page.locator(".react-flow__edge path[marker-end]").first()).toBeAttached();
 
   expect(pageErrors).toEqual([]);
   assertNoExternalRequests(requestTracker);

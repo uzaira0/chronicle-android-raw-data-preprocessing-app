@@ -88,6 +88,7 @@ describe("sentenceFor", () => {
       sentenceFor("sharedUpstream", { a: "Compliance", b: "Effective usage", shared: "episode reconstruction" }),
       sentenceFor("mustPassThrough", { source: "this setting", target: "the compliance report", through: "person attribution" }),
       sentenceFor("joinPoint", { node: "effective usage" }),
+      sentenceFor("chain", { from: "App policy", to: "Compliance scoring", how: "along several parallel paths" }),
     ];
     const banned = /mediat|confound|collid|moderat|dominat|fan[s_-]?out|merges_at|collider|dag\b/i;
     for (const sentence of sentences) {

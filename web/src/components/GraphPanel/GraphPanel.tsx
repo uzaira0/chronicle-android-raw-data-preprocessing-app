@@ -1,19 +1,23 @@
-import { useMemo, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import {
   Background,
   Controls,
+  Handle,
   MarkerType,
+  Position,
   ReactFlow,
   type Edge,
   type Node,
   type NodeMouseHandler,
   type NodeProps,
+  type ReactFlowInstance,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
 import { buildChronicleGraph } from "@/lib/pipelineGraph/graphDef";
 import {
   affectedBy,
+  builtFrom,
   joinPoints,
   mustPassThrough,
   sentenceFor,
@@ -35,7 +39,8 @@ import { SentenceBar } from "@/components/GraphPanel/SentenceBar";
  * source of truth (web/src/lib/pipelineGraph/graphDef.ts); this panel renders
  * it with dagre positions and answers path questions visually:
  *   click        → everything downstream of the clicked step lights up
- *   second click → the shared upstream of the two steps pulses
+ *   second click → if one step is built from the other, the connecting path
+ *                  pulses (a chain); otherwise their shared upstream pulses
  *   hover (with a selection) → the steps every effect passes through thicken
  * Status badges come from the most recent run's engine report.
  */
@@ -55,6 +60,16 @@ const STATUS_LABELS: Record<NodeStatus, string> = {
   skipped: "skipped",
 };
 
+// React Flow markers do NOT inherit CSS edge styling, so the arrowhead needs a
+// concrete color (slate-500 reads on both themes). One shared object — edges
+// are rebuilt per render and must not allocate fresh marker literals each time.
+const EDGE_MARKER = {
+  type: MarkerType.ArrowClosed,
+  width: 22,
+  height: 22,
+  color: "#64748b",
+} as const;
+
 type PipelineNodeData = {
   label: string;
   section: Section;
@@ -65,9 +80,27 @@ type PipelineNodeData = {
 
 type PipelineFlowNode = Node<PipelineNodeData, "pipeline">;
 
-function PipelineNode({ data }: NodeProps<PipelineFlowNode>): ReactElement {
+function PipelineNode({
+  data,
+  targetPosition,
+  sourcePosition,
+}: NodeProps<PipelineFlowNode>): ReactElement {
   return (
     <div className={`graph-node graph-node--${data.section}`} data-testid={`graph-node-body`}>
+      {/* React Flow drops any edge whose endpoint node has no Handle —
+          these invisible handles are what let the edges render at all. */}
+      <Handle
+        type="target"
+        position={targetPosition ?? Position.Top}
+        className="graph-node__handle"
+        isConnectable={false}
+      />
+      <Handle
+        type="source"
+        position={sourcePosition ?? Position.Bottom}
+        className="graph-node__handle"
+        isConnectable={false}
+      />
       <span className="graph-node__section">{SECTION_LABELS[data.section]}</span>
       <span className="graph-node__label">{data.label}</span>
       <span className="graph-node__badges">
@@ -101,10 +134,54 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
   const [second, setSecond] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [reportFileName, setReportFileName] = useState<string | null>(null);
-  const [direction, setDirection] = useState<LayoutDirection>("LR");
+  const [direction, setDirection] = useState<LayoutDirection>("TB");
+  const instanceRef = useRef<ReactFlowInstance<PipelineFlowNode, Edge> | null>(null);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
 
   const def = useMemo<GraphDef<unknown>>(() => buildChronicleGraph() as GraphDef<unknown>, []);
   const layout = useMemo(() => layoutGraph(def, direction), [def, direction]);
+
+  const bounds = useMemo(() => {
+    const minX = Math.min(...layout.nodes.map((node) => node.x));
+    const minY = Math.min(...layout.nodes.map((node) => node.y));
+    const maxX = Math.max(...layout.nodes.map((node) => node.x + NODE_WIDTH));
+    const maxY = Math.max(...layout.nodes.map((node) => node.y + NODE_HEIGHT));
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }, [layout]);
+
+  // Readable anchored view: fit the graph's CROSS axis (sized to the canvas's
+  // real aspect ratio) and anchor at the start of the flow, so nodes open at
+  // legible size and the user scrolls along the flow — never "squeeze all
+  // ranks into the canvas" (unreadably small).
+  const applyAnchoredFit = useCallback(() => {
+    const instance = instanceRef.current;
+    if (!instance) return;
+    const canvas = canvasRef.current;
+    const aspect =
+      canvas && canvas.clientWidth > 0 ? canvas.clientHeight / canvas.clientWidth : 0.6;
+    const view =
+      direction === "TB"
+        ? {
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: Math.min(bounds.height, bounds.width * aspect),
+          }
+        : {
+            x: bounds.x,
+            y: bounds.y,
+            width: Math.min(bounds.width, bounds.height / aspect),
+            height: bounds.height,
+          };
+    void instance.fitBounds(view, { padding: 0.06 });
+  }, [bounds, direction]);
+
+  // Re-anchor whenever the layout orientation (and therefore bounds) changes —
+  // no React Flow remount needed.
+  useEffect(() => {
+    applyAnchoredFit();
+  }, [applyAnchoredFit]);
+
   const joins = useMemo(() => new Set(joinPoints(def)), [def]);
   const labelById = useMemo(
     () => new Map(def.nodes.map((node) => [node.id, node.label])),
@@ -122,29 +199,35 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
     () => (selected ? new Set(affectedBy(def, selected)) : null),
     [def, selected],
   );
-  // Two selected nodes are either a CHAIN (one is built from the other — say
-  // that, don't talk about common ancestors) or genuine siblings (then their
-  // shared upstream is what links them).
+  // Two selected nodes are either a CHAIN (one is built from the other — show
+  // the CONNECTING PATH and say how they connect) or genuine siblings (then
+  // their shared upstream is what links them).
   const relation = useMemo(() => {
-    if (!selected || !second) return null;
-    if (affectedBy(def, selected).includes(second)) {
+    if (!selected || !second || !cone) return null;
+    const nodeIds = new Set(def.nodes.map((node) => node.id));
+    const chainBetween = (from: string, to: string) => {
+      // Every node on SOME path from `from` to `to`: downstream of the first
+      // AND upstream of the second. `via` (nodes on EVERY path) is only the
+      // choke points — highlighting just those leaves the path visually
+      // disconnected wherever it branches.
+      const down = new Set(affectedBy(def, from));
+      const up = new Set(builtFrom(def, to).filter((id) => nodeIds.has(id)));
+      const path = new Set([from, to]);
+      for (const id of down) if (up.has(id)) path.add(id);
+      const toNode = def.nodes.find((node) => node.id === to);
       return {
         kind: "chain" as const,
-        from: selected,
-        to: second,
-        via: new Set(mustPassThrough(def, selected, second)),
+        from,
+        to,
+        direct: toNode?.inputs.includes(from) ?? false,
+        via: new Set(mustPassThrough(def, from, to)),
+        path,
       };
-    }
-    if (affectedBy(def, second).includes(selected)) {
-      return {
-        kind: "chain" as const,
-        from: second,
-        to: selected,
-        via: new Set(mustPassThrough(def, second, selected)),
-      };
-    }
+    };
+    if (cone.has(second)) return chainBetween(selected, second);
+    if (affectedBy(def, second).includes(selected)) return chainBetween(second, selected);
     return { kind: "siblings" as const, shared: new Set(sharedUpstream(def, selected, second)) };
-  }, [def, selected, second]);
+  }, [def, cone, selected, second]);
   const through = useMemo(
     () =>
       selected && !second && hovered && hovered !== selected
@@ -159,11 +242,18 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
   let sentence: string | null = null;
   if (selected && second && relation) {
     if (relation.kind === "chain") {
-      const from = labelById.get(relation.from) ?? relation.from;
-      const to = labelById.get(relation.to) ?? relation.to;
-      sentence = relation.via.size
-        ? `${from} feeds ${to} through ${labels(relation.via)} — one chain: the second step is built from the first, so they can never disagree independently.`
-        : `${from} feeds ${to} directly — one chain: the second step is built from the first, so they can never disagree independently.`;
+      // "directly" is claimed ONLY when a direct edge exists; an empty `via`
+      // on its own just means there is no single choke point between them.
+      const how = relation.direct
+        ? "directly"
+        : relation.via.size > 0
+          ? `through ${labels(relation.via)}`
+          : "along several parallel paths";
+      sentence = sentenceFor("chain", {
+        from: labelById.get(relation.from) ?? relation.from,
+        to: labelById.get(relation.to) ?? relation.to,
+        how,
+      });
     } else {
       sentence =
         relation.shared.size > 0
@@ -188,14 +278,22 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
     });
   }
 
+  // The full highlight set for a two-node selection: the connecting path for
+  // a chain, the common ancestors (plus the pair) for siblings.
+  const linked =
+    selected && second && relation
+      ? relation.kind === "chain"
+        ? relation.path
+        : new Set([...relation.shared, selected, second])
+      : null;
+
   const nodes: PipelineFlowNode[] = layout.nodes.map((node) => {
     const inCone = cone?.has(node.id) ?? false;
     const isSelected = node.id === selected;
     const isSecond = node.id === second;
     const classes = ["graph-flow-node"];
-    if (selected && second && relation) {
-      const linked = relation.kind === "chain" ? relation.via : relation.shared;
-      if (linked.has(node.id)) classes.push("is-pulsing");
+    if (linked) {
+      if (linked.has(node.id) && !isSelected && !isSecond) classes.push("is-pulsing");
       else if (!isSelected && !isSecond) classes.push("is-dimmed");
     } else if (selected) {
       if (!isSelected && !inCone) classes.push("is-dimmed");
@@ -208,6 +306,8 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
       position: { x: node.x, y: node.y },
       width: NODE_WIDTH,
       height: NODE_HEIGHT,
+      targetPosition: direction === "TB" ? Position.Top : Position.Left,
+      sourcePosition: direction === "TB" ? Position.Bottom : Position.Right,
       className: classes.join(" "),
       data: {
         label: node.label,
@@ -220,19 +320,11 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
     };
   });
 
-  const linkedWithEndpoints =
-    selected && second && relation
-      ? new Set([
-          ...(relation.kind === "chain" ? relation.via : relation.shared),
-          selected,
-          second,
-        ])
-      : null;
   const edges: Edge[] = layout.edges.map((edge) => {
     const active =
       !selected ||
-      (linkedWithEndpoints
-        ? linkedWithEndpoints.has(edge.source) && linkedWithEndpoints.has(edge.target)
+      (linked
+        ? linked.has(edge.source) && linked.has(edge.target)
         : (edge.source === selected || (cone?.has(edge.source) ?? false)) &&
           (cone?.has(edge.target) ?? false));
     return {
@@ -240,7 +332,7 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
       source: edge.source,
       target: edge.target,
       className: active ? "graph-flow-edge" : "graph-flow-edge is-dimmed",
-      markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
+      markerEnd: EDGE_MARKER,
     };
   });
 
@@ -256,6 +348,13 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
     }
     setSelected(node.id);
     setSecond(null);
+  };
+
+  const switchDirection = (next: LayoutDirection): void => {
+    setDirection(next);
+    // The layout shifts under the cursor and no mouseleave fires — a stale
+    // hover would keep describing a node the pointer is no longer on.
+    setHovered(null);
   };
 
   return (
@@ -277,7 +376,7 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
               className={`btn btn--ghost${direction === "LR" ? " is-active" : ""}`}
               data-testid="graph-direction-lr"
               aria-pressed={direction === "LR"}
-              onClick={() => setDirection("LR")}
+              onClick={() => switchDirection("LR")}
             >
               Horizontal
             </button>
@@ -286,11 +385,19 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
               className={`btn btn--ghost${direction === "TB" ? " is-active" : ""}`}
               data-testid="graph-direction-tb"
               aria-pressed={direction === "TB"}
-              onClick={() => setDirection("TB")}
+              onClick={() => switchDirection("TB")}
             >
               Vertical
             </button>
           </div>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            data-testid="graph-reset-view"
+            onClick={applyAnchoredFit}
+          >
+            Reset view
+          </button>
         </div>
         {reportedResults.length > 1 ? (
           <label className="graph-report-picker">
@@ -313,9 +420,8 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
 
       <SentenceBar sentence={sentence} />
 
-      <div className="graph-canvas" data-testid="graph-canvas">
+      <div className="graph-canvas" data-testid="graph-canvas" ref={canvasRef}>
         <ReactFlow
-          key={direction}
           nodes={nodes}
           edges={edges}
           nodeTypes={NODE_TYPES}
@@ -326,14 +432,22 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
             setSelected(null);
             setSecond(null);
           }}
-          fitView
-          fitViewOptions={{ padding: 0.1, maxZoom: 1 }}
+          onInit={(instance) => {
+            instanceRef.current = instance;
+            applyAnchoredFit();
+          }}
           minZoom={0.1}
+          maxZoom={2}
+          panOnScroll
+          zoomOnPinch
           nodesConnectable={false}
           nodesDraggable={false}
         >
           <Background gap={24} />
-          <Controls showInteractive={false} />
+          {/* The built-in fit-view button squeezes the WHOLE graph into the
+              canvas — exactly the unreadable view the anchored fit replaces —
+              so it is disabled in favor of the Reset view button above. */}
+          <Controls showInteractive={false} showFitView={false} />
         </ReactFlow>
       </div>
 

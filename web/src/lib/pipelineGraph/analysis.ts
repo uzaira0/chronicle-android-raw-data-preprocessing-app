@@ -153,12 +153,15 @@ export function joinPoints(def: GraphDef<unknown>): string[] {
 
 /** Plain-English sentence for a query result. No jargon, no taxonomy. */
 export function sentenceFor(
-  query: "affectedBy" | "sharedUpstream" | "mustPassThrough" | "joinPoint",
+  query: "affectedBy" | "sharedUpstream" | "mustPassThrough" | "joinPoint" | "chain",
   args: Record<string, string | number>,
 ): string {
   switch (query) {
     case "affectedBy":
       return `Changing ${args.source} re-runs ${args.count} step${args.count === 1 ? "" : "s"} and changes ${args.outputs ?? "the downstream results"}.`;
+    case "chain":
+      // `how` is one of: "directly", "through <steps>", "along several parallel paths".
+      return `${args.from} feeds ${args.to} ${args.how} — one chain: the second step is built from the first, so they can never disagree independently.`;
     case "sharedUpstream":
       return `${args.a} and ${args.b} both depend on ${args.shared} — they move together, so they are not independent checks.`;
     case "mustPassThrough":

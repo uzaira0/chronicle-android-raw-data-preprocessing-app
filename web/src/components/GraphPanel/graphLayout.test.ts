@@ -6,7 +6,7 @@ import { layoutGraph } from "@/components/GraphPanel/graphLayout";
 
 describe("graph layout", () => {
   const def = buildChronicleGraph() as GraphDef<unknown>;
-  const layout = layoutGraph(def);
+  const layout = layoutGraph(def, "LR");
   const byId = new Map(layout.nodes.map((node) => [node.id, node]));
 
   it("produces a finite position for every declared node", () => {

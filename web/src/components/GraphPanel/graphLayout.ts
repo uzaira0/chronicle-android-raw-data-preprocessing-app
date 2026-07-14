@@ -33,10 +33,7 @@ export interface GraphLayout {
   edges: LayoutEdge[];
 }
 
-export function layoutGraph(
-  def: GraphDef<unknown>,
-  direction: LayoutDirection = "LR",
-): GraphLayout {
+export function layoutGraph(def: GraphDef<unknown>, direction: LayoutDirection): GraphLayout {
   const graph = new dagre.graphlib.Graph();
   graph.setGraph({ rankdir: direction, nodesep: 28, ranksep: 72, marginx: 16, marginy: 16 });
   graph.setDefaultEdgeLabel(() => ({}));
