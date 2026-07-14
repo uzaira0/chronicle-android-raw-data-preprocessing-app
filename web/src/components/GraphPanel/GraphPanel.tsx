@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactElement } from "react";
 import {
   Background,
   Controls,
+  MarkerType,
   ReactFlow,
   type Edge,
   type Node,
@@ -21,7 +22,12 @@ import {
 import type { GraphDef, NodeStatus, Section } from "@/lib/pipelineGraph/graphTypes";
 import type { ProcessedFileResult } from "@/lib/types";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
-import { layoutGraph, NODE_HEIGHT, NODE_WIDTH } from "@/components/GraphPanel/graphLayout";
+import {
+  layoutGraph,
+  NODE_HEIGHT,
+  NODE_WIDTH,
+  type LayoutDirection,
+} from "@/components/GraphPanel/graphLayout";
 import { SentenceBar } from "@/components/GraphPanel/SentenceBar";
 
 /**
@@ -95,9 +101,10 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
   const [second, setSecond] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [reportFileName, setReportFileName] = useState<string | null>(null);
+  const [direction, setDirection] = useState<LayoutDirection>("LR");
 
   const def = useMemo<GraphDef<unknown>>(() => buildChronicleGraph() as GraphDef<unknown>, []);
-  const layout = useMemo(() => layoutGraph(def), [def]);
+  const layout = useMemo(() => layoutGraph(def, direction), [def, direction]);
   const joins = useMemo(() => new Set(joinPoints(def)), [def]);
   const labelById = useMemo(
     () => new Map(def.nodes.map((node) => [node.id, node.label])),
@@ -115,10 +122,29 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
     () => (selected ? new Set(affectedBy(def, selected)) : null),
     [def, selected],
   );
-  const shared = useMemo(
-    () => (selected && second ? new Set(sharedUpstream(def, selected, second)) : null),
-    [def, selected, second],
-  );
+  // Two selected nodes are either a CHAIN (one is built from the other — say
+  // that, don't talk about common ancestors) or genuine siblings (then their
+  // shared upstream is what links them).
+  const relation = useMemo(() => {
+    if (!selected || !second) return null;
+    if (affectedBy(def, selected).includes(second)) {
+      return {
+        kind: "chain" as const,
+        from: selected,
+        to: second,
+        via: new Set(mustPassThrough(def, selected, second)),
+      };
+    }
+    if (affectedBy(def, second).includes(selected)) {
+      return {
+        kind: "chain" as const,
+        from: second,
+        to: selected,
+        via: new Set(mustPassThrough(def, second, selected)),
+      };
+    }
+    return { kind: "siblings" as const, shared: new Set(sharedUpstream(def, selected, second)) };
+  }, [def, selected, second]);
   const through = useMemo(
     () =>
       selected && !second && hovered && hovered !== selected
@@ -131,15 +157,23 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
     [...ids].map((id) => labelById.get(id) ?? id).join(", ");
 
   let sentence: string | null = null;
-  if (selected && second && shared) {
-    sentence =
-      shared.size > 0
-        ? sentenceFor("sharedUpstream", {
-            a: labelById.get(selected) ?? selected,
-            b: labelById.get(second) ?? second,
-            shared: labels(shared),
-          })
-        : `${labelById.get(selected) ?? selected} and ${labelById.get(second) ?? second} share no upstream steps — they move independently.`;
+  if (selected && second && relation) {
+    if (relation.kind === "chain") {
+      const from = labelById.get(relation.from) ?? relation.from;
+      const to = labelById.get(relation.to) ?? relation.to;
+      sentence = relation.via.size
+        ? `${from} feeds ${to} through ${labels(relation.via)} — one chain: the second step is built from the first, so they can never disagree independently.`
+        : `${from} feeds ${to} directly — one chain: the second step is built from the first, so they can never disagree independently.`;
+    } else {
+      sentence =
+        relation.shared.size > 0
+          ? sentenceFor("sharedUpstream", {
+              a: labelById.get(selected) ?? selected,
+              b: labelById.get(second) ?? second,
+              shared: labels(relation.shared),
+            })
+          : `${labelById.get(selected) ?? selected} and ${labelById.get(second) ?? second} share no upstream steps — they move independently.`;
+    }
   } else if (selected && through && through.size > 0 && hovered) {
     sentence = sentenceFor("mustPassThrough", {
       source: labelById.get(selected) ?? selected,
@@ -159,8 +193,9 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
     const isSelected = node.id === selected;
     const isSecond = node.id === second;
     const classes = ["graph-flow-node"];
-    if (selected && second) {
-      if (shared?.has(node.id)) classes.push("is-pulsing");
+    if (selected && second && relation) {
+      const linked = relation.kind === "chain" ? relation.via : relation.shared;
+      if (linked.has(node.id)) classes.push("is-pulsing");
       else if (!isSelected && !isSecond) classes.push("is-dimmed");
     } else if (selected) {
       if (!isSelected && !inCone) classes.push("is-dimmed");
@@ -185,12 +220,19 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
     };
   });
 
+  const linkedWithEndpoints =
+    selected && second && relation
+      ? new Set([
+          ...(relation.kind === "chain" ? relation.via : relation.shared),
+          selected,
+          second,
+        ])
+      : null;
   const edges: Edge[] = layout.edges.map((edge) => {
     const active =
       !selected ||
-      (second
-        ? (shared?.has(edge.source) || edge.source === selected || edge.source === second) &&
-          (shared?.has(edge.target) || edge.target === selected || edge.target === second)
+      (linkedWithEndpoints
+        ? linkedWithEndpoints.has(edge.source) && linkedWithEndpoints.has(edge.target)
         : (edge.source === selected || (cone?.has(edge.source) ?? false)) &&
           (cone?.has(edge.target) ?? false));
     return {
@@ -198,6 +240,7 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
       source: edge.source,
       target: edge.target,
       className: active ? "graph-flow-edge" : "graph-flow-edge is-dimmed",
+      markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
     };
   });
 
@@ -227,6 +270,28 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
               : " Process a file to see per-step run status here."}
           </p>
         </div>
+        <div className="graph-toolbar">
+          <div className="graph-direction-toggle" role="group" aria-label="Graph orientation">
+            <button
+              type="button"
+              className={`btn btn--ghost${direction === "LR" ? " is-active" : ""}`}
+              data-testid="graph-direction-lr"
+              aria-pressed={direction === "LR"}
+              onClick={() => setDirection("LR")}
+            >
+              Horizontal
+            </button>
+            <button
+              type="button"
+              className={`btn btn--ghost${direction === "TB" ? " is-active" : ""}`}
+              data-testid="graph-direction-tb"
+              aria-pressed={direction === "TB"}
+              onClick={() => setDirection("TB")}
+            >
+              Vertical
+            </button>
+          </div>
+        </div>
         {reportedResults.length > 1 ? (
           <label className="graph-report-picker">
             Run status from
@@ -250,6 +315,7 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
 
       <div className="graph-canvas" data-testid="graph-canvas">
         <ReactFlow
+          key={direction}
           nodes={nodes}
           edges={edges}
           nodeTypes={NODE_TYPES}
@@ -261,7 +327,8 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
             setSecond(null);
           }}
           fitView
-          minZoom={0.2}
+          fitViewOptions={{ padding: 0.1, maxZoom: 1 }}
+          minZoom={0.1}
           nodesConnectable={false}
           nodesDraggable={false}
         >

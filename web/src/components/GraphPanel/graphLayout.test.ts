@@ -30,6 +30,16 @@ describe("graph layout", () => {
     }
   });
 
+  it("lays data flow top to bottom in TB mode: every edge source sits above its target", () => {
+    const vertical = layoutGraph(def, "TB");
+    const verticalById = new Map(vertical.nodes.map((node) => [node.id, node]));
+    for (const edge of vertical.edges) {
+      const source = verticalById.get(edge.source)!;
+      const target = verticalById.get(edge.target)!;
+      expect(source.y).toBeLessThan(target.y);
+    }
+  });
+
   it("orders the section lanes preprocess → analyze → output by mean x", () => {
     const meanX = (section: string): number => {
       const nodes = layout.nodes.filter((node) => node.section === section);

@@ -66,6 +66,16 @@ test("@smoke Graph tab renders the pipeline and answers a click in plain English
   await nodes.filter({ hasText: "Event dedup & ordering" }).click();
   await expect(page.getByTestId("graph-sentence")).toContainText("re-runs");
 
+  // A second click on a step DOWNSTREAM of the first is described as a chain,
+  // not as two siblings with shared ancestry.
+  await nodes.filter({ hasText: "App policy" }).click();
+  await expect(page.getByTestId("graph-sentence")).toContainText("one chain");
+
+  // Orientation toggle re-lays the same graph vertically.
+  await page.getByTestId("graph-direction-tb").click();
+  await expect(page.getByTestId("graph-canvas")).toBeVisible();
+  await expect(page.locator(".graph-node").first()).toBeVisible();
+
   expect(pageErrors).toEqual([]);
   assertNoExternalRequests(requestTracker);
 });

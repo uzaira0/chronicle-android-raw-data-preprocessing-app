@@ -3,10 +3,13 @@ import dagre from "@dagrejs/dagre";
 import type { GraphDef, Section } from "@/lib/pipelineGraph/graphTypes";
 
 /**
- * Pure dagre layout over the declared pipeline graph: left-to-right ranks so
- * data flows preprocess → clean → analyze → output. Only `feeds` edges are
- * drawn; option bindings surface as node details, not as graph nodes.
+ * Pure dagre layout over the declared pipeline graph. Ranks follow data flow
+ * (preprocess → clean → analyze → output): left-to-right by default, or
+ * top-to-bottom when the caller asks. Only `feeds` edges are drawn; option
+ * bindings surface as node details, not as graph nodes.
  */
+
+export type LayoutDirection = "LR" | "TB";
 
 export const NODE_WIDTH = 216;
 export const NODE_HEIGHT = 64;
@@ -30,9 +33,12 @@ export interface GraphLayout {
   edges: LayoutEdge[];
 }
 
-export function layoutGraph(def: GraphDef<unknown>): GraphLayout {
+export function layoutGraph(
+  def: GraphDef<unknown>,
+  direction: LayoutDirection = "LR",
+): GraphLayout {
   const graph = new dagre.graphlib.Graph();
-  graph.setGraph({ rankdir: "LR", nodesep: 28, ranksep: 72, marginx: 16, marginy: 16 });
+  graph.setGraph({ rankdir: direction, nodesep: 28, ranksep: 72, marginx: 16, marginy: 16 });
   graph.setDefaultEdgeLabel(() => ({}));
 
   for (const node of def.nodes) {
