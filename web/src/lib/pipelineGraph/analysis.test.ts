@@ -1,0 +1,98 @@
+import { describe, expect, it } from "vitest";
+import {
+  affectedBy,
+  builtFrom,
+  joinPoints,
+  mustPassThrough,
+  sentenceFor,
+  sharedUpstream,
+} from "@/lib/pipelineGraph/analysis";
+import type { GraphDef, NodeDef } from "@/lib/pipelineGraph/graphTypes";
+
+function node(id: string, inputs: string[], knobs: string[] = []): NodeDef<unknown> {
+  return {
+    id,
+    label: id,
+    section: "preprocess",
+    inputs,
+    knobs: knobs.map((optionKey) => ({ optionKey, edge: "tunes" as const })),
+    run: () => null,
+  };
+}
+
+// Diamond: a → b → d, a → c → d; option k tunes b.
+const DIAMOND: GraphDef<unknown> = {
+  nodes: [node("a", []), node("b", ["a"], ["k"]), node("c", ["a"]), node("d", ["b", "c"])],
+};
+
+describe("affectedBy", () => {
+  it("resolves an option key to its bound node plus the downstream cone", () => {
+    expect(affectedBy(DIAMOND, "k")).toEqual(["b", "d"]);
+  });
+
+  it("for a node id, returns strictly downstream nodes", () => {
+    expect(affectedBy(DIAMOND, "a")).toEqual(["b", "c", "d"]);
+    expect(affectedBy(DIAMOND, "d")).toEqual([]);
+  });
+});
+
+describe("builtFrom", () => {
+  it("returns the upstream cone plus bound option keys along it", () => {
+    expect(builtFrom(DIAMOND, "d")).toEqual(["a", "b", "c", "k"]);
+  });
+});
+
+describe("sharedUpstream", () => {
+  it("finds the common ancestor of two branches", () => {
+    expect(sharedUpstream(DIAMOND, "b", "c")).toEqual(["a"]);
+  });
+
+  it("is empty for genuinely independent nodes", () => {
+    const def: GraphDef<unknown> = { nodes: [node("x", []), node("y", [])] };
+    expect(sharedUpstream(def, "x", "y")).toEqual([]);
+  });
+});
+
+describe("mustPassThrough", () => {
+  it("is empty when two disjoint routes exist", () => {
+    expect(mustPassThrough(DIAMOND, "a", "d")).toEqual([]);
+  });
+
+  it("finds the single funnel for an option that reaches the target one way", () => {
+    expect(mustPassThrough(DIAMOND, "k", "d")).toEqual(["b"]);
+  });
+
+  it("is empty when the target is unreachable", () => {
+    expect(mustPassThrough(DIAMOND, "k", "c")).toEqual([]);
+  });
+});
+
+describe("joinPoints", () => {
+  it("flags nodes where disjoint chains merge", () => {
+    expect(joinPoints(DIAMOND)).toEqual(["d"]);
+  });
+
+  it("does not flag a node whose two inputs lie on one chain", () => {
+    // a → b, and c consumes both a and b — but b is downstream of a, so no disjoint pair.
+    const def: GraphDef<unknown> = {
+      nodes: [node("a", []), node("b", ["a"]), node("c", ["a", "b"])],
+    };
+    expect(joinPoints(def)).toEqual([]);
+  });
+});
+
+describe("sentenceFor", () => {
+  it("emits plain-English sentences with no taxonomy words", () => {
+    const sentences = [
+      sentenceFor("affectedBy", { source: "the app policy", count: 3, outputs: "2 outputs" }),
+      sentenceFor("sharedUpstream", { a: "Compliance", b: "Effective usage", shared: "episode reconstruction" }),
+      sentenceFor("mustPassThrough", { source: "this setting", target: "the compliance report", through: "person attribution" }),
+      sentenceFor("joinPoint", { node: "effective usage" }),
+    ];
+    const banned = /mediat|confound|collid|moderat|dominat|fan[s_-]?out|merges_at|collider|dag\b/i;
+    for (const sentence of sentences) {
+      expect(sentence).not.toMatch(banned);
+      expect(sentence.length).toBeGreaterThan(20);
+    }
+  });
+});
