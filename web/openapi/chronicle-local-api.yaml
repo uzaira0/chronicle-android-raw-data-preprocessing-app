@@ -68,6 +68,28 @@ components:
           $ref: "#/components/schemas/BrowserSupportFile"
         appCodebookFile:
           $ref: "#/components/schemas/BrowserSupportFile"
+        studyDatesFile:
+          $ref: "#/components/schemas/BrowserSupportFile"
+          description: "Study-dates table (CSV/XLSX): one row per participant with the
+            study window start and end dates. Consumed by the observation-window
+            step. Columns: participant_id, start_date, end_date (ISO dates,
+            inclusive)."
+        deviceSharingFile:
+          $ref: "#/components/schemas/BrowserSupportFile"
+          description: "Device-sharing table (CSV/XLSX): which usernames share each device
+            and which one is the target participant. Consumed by person
+            attribution. Columns: participant_id, users (semicolon-separated),
+            target_user."
+        surveyAttributionFile:
+          $ref: "#/components/schemas/BrowserSupportFile"
+          description: "Usage-survey answers (CSV/XLSX) that relabel a session's username
+            at an exact event timestamp. Columns: participant_id,
+            event_timestamp, username."
+        enrolledDevicesFile:
+          $ref: "#/components/schemas/BrowserSupportFile"
+          description: "Enrolled/expected device counts per participant (CSV/XLSX) — the
+            denominator for compliance validity. Columns: participant_id,
+            device_count."
     BrowserProcessingRuntime:
       type: object
       properties:
@@ -123,6 +145,16 @@ components:
         - interactionTypeRemap
         - proximityIntervalSeconds
         - addNoActivityPlaceholderDays
+        - enableScreenGatedCrediting
+        - creditedSessionCapMinutes
+        - deviceLivenessGapToleranceMinutes
+        - autoLockBridgeSeconds
+        - noWitnessMinDayApps
+        - enableStudyWindowFilter
+        - enablePersonAttribution
+        - enableComplianceScoring
+        - complianceThresholdPercent
+        - enableDayCoverage
       properties:
         studyName:
           type: string
@@ -388,6 +420,63 @@ components:
             distinguish a genuine no-use day from a day with no data at all. The
             window is derived from the participant's own data (first to last day
             with raw events). Default off.
+        enableScreenGatedCrediting:
+          type: boolean
+          description: Emit an additional, side-by-side "Credited App Usage" CSV in which
+            each app session is reduced to the intervals where the screen was
+            witnessed ON and the device was demonstrably alive (event cadence
+            within the liveness tolerance), truncated at the credited-session
+            cap. The headline app-usage output is never changed by this option.
+            Long held-open sessions are credited only while the device was
+            actually lit and alive. Off by default.
+        creditedSessionCapMinutes:
+          type: integer
+          description: Upper bound on any single credited session interval. Credit is
+            truncated at this many minutes from the session start (never zeroed
+            out).
+        deviceLivenessGapToleranceMinutes:
+          type: integer
+          description: An event silence shorter than this keeps the device "alive" for
+            crediting; a longer silence breaks the chain. A Device Startup
+            landing inside a silence always breaks it (a boot proves the device
+            was off).
+        autoLockBridgeSeconds:
+          type: integer
+          description: A screen-OFF blip shorter than this cannot be the device auto-lock,
+            so credit bridges across it (screen bounce, not a real lock).
+        noWitnessMinDayApps:
+          type: integer
+          description: When a session has no screen witness at all, credit its alive time
+            only if the participant-day switched across at least this many
+            distinct apps (you cannot switch apps on a dark screen). Below the
+            floor, the session earns no credit.
+        enableStudyWindowFilter:
+          type: boolean
+          description: Keep only sessions whose LOCAL calendar date falls inside the
+            participant's study window from the study-dates file (inclusive).
+            Requires the study-dates support file.
+        enablePersonAttribution:
+          type: boolean
+          description: On shared devices, attribute each session to a person using the
+            device-sharing table (exact participant match only) and optional
+            usage-survey answers; usage attributed to someone other than the
+            target becomes "Non-Target Child App Usage" (kept, excluded from
+            screen time). Requires the device-sharing support file.
+        enableComplianceScoring:
+          type: boolean
+          description: "Emit a per-participant-day compliance report: known / (known +
+            unknown) attributed minutes, with non-shared devices at 100 by
+            definition. Days at 100 with zero real usage are kept but flagged."
+        complianceThresholdPercent:
+          type: number
+          description: A day counts as valid when its compliance is at or above this
+            percent. Study-specific; the default mirrors the common 70% rule.
+        enableDayCoverage:
+          type: boolean
+          description: Emit a per-participant-day coverage report distinguishing days with
+            usage, "no activity" days (raw events but no usage), and "no data"
+            days (device silent), across the study window when one is loaded.
+            Fails loudly if any windowed day would end uncovered.
     DiscoverTimezonesRequest:
       type: object
       required:

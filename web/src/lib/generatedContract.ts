@@ -67,6 +67,16 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "interactionTypeRemap",
   "proximityIntervalSeconds",
   "addNoActivityPlaceholderDays",
+  "enableScreenGatedCrediting",
+  "creditedSessionCapMinutes",
+  "deviceLivenessGapToleranceMinutes",
+  "autoLockBridgeSeconds",
+  "noWitnessMinDayApps",
+  "enableStudyWindowFilter",
+  "enablePersonAttribution",
+  "enableComplianceScoring",
+  "complianceThresholdPercent",
+  "enableDayCoverage",
 ] as const;
 
 export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
@@ -112,6 +122,16 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "interactionTypeRemap",
   "proximityIntervalSeconds",
   "addNoActivityPlaceholderDays",
+  "enableScreenGatedCrediting",
+  "creditedSessionCapMinutes",
+  "deviceLivenessGapToleranceMinutes",
+  "autoLockBridgeSeconds",
+  "noWitnessMinDayApps",
+  "enableStudyWindowFilter",
+  "enablePersonAttribution",
+  "enableComplianceScoring",
+  "complianceThresholdPercent",
+  "enableDayCoverage",
 ] as const;
 
 export const BROWSER_SUPPORT_FILE_KEYS = [
@@ -119,6 +139,10 @@ export const BROWSER_SUPPORT_FILE_KEYS = [
   "appsForcingScreenOpenFile",
   "backgroundAppsFile",
   "appCodebookFile",
+  "studyDatesFile",
+  "deviceSharingFile",
+  "surveyAttributionFile",
+  "enrolledDevicesFile",
 ] as const;
 
 export const BROWSER_RUNTIME_KEYS = [
@@ -174,6 +198,16 @@ export type BrowserProcessingOptions = {
   interactionTypeRemap: string[];
   proximityIntervalSeconds: number;
   addNoActivityPlaceholderDays: boolean;
+  enableScreenGatedCrediting: boolean;
+  creditedSessionCapMinutes: number;
+  deviceLivenessGapToleranceMinutes: number;
+  autoLockBridgeSeconds: number;
+  noWitnessMinDayApps: number;
+  enableStudyWindowFilter: boolean;
+  enablePersonAttribution: boolean;
+  enableComplianceScoring: boolean;
+  complianceThresholdPercent: number;
+  enableDayCoverage: boolean;
 };
 
 // Key arrays by sanitization type — used by settingsPersistence to stay in sync with the schema.
@@ -203,6 +237,11 @@ export const BOOLEAN_BROWSER_OPTION_KEYS = [
   "modelConcurrentUsage",
   "applyMinimumUsageDurationToConcurrentSubintervals",
   "addNoActivityPlaceholderDays",
+  "enableScreenGatedCrediting",
+  "enableStudyWindowFilter",
+  "enablePersonAttribution",
+  "enableComplianceScoring",
+  "enableDayCoverage",
 ] as const;
 export const NUMBER_BROWSER_OPTION_KEYS = [
   "longDurationThresholdHours",
@@ -213,6 +252,11 @@ export const NUMBER_BROWSER_OPTION_KEYS = [
   "screenUsageManualLockMaxTailGapSeconds",
   "screenUsageKeyguardNearStopSeconds",
   "proximityIntervalSeconds",
+  "creditedSessionCapMinutes",
+  "deviceLivenessGapToleranceMinutes",
+  "autoLockBridgeSeconds",
+  "noWitnessMinDayApps",
+  "complianceThresholdPercent",
 ] as const;
 export const NUMBER_ARRAY_BROWSER_OPTION_KEYS = [
   "longUsageDurationThresholds",
@@ -276,6 +320,16 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   interactionTypeRemap: [],
   proximityIntervalSeconds: 0,
   addNoActivityPlaceholderDays: false,
+  enableScreenGatedCrediting: false,
+  creditedSessionCapMinutes: 360,
+  deviceLivenessGapToleranceMinutes: 120,
+  autoLockBridgeSeconds: 120,
+  noWitnessMinDayApps: 2,
+  enableStudyWindowFilter: false,
+  enablePersonAttribution: false,
+  enableComplianceScoring: false,
+  complianceThresholdPercent: 70,
+  enableDayCoverage: false,
 };
 
 export const BROWSER_OPTION_TOOLTIPS = {
@@ -464,5 +518,50 @@ export const BROWSER_OPTION_TOOLTIPS = {
   addNoActivityPlaceholderDays: {
     title: "Add no-activity placeholder days",
     body: "For each participant, any calendar day that has raw event data but produces no app-usage sessions gets one zero-duration placeholder row (com.placeholder.noactivity) so day-level summaries can distinguish a genuine no-use day from a day with no data at all. The window is derived from the participant's own data (first to last day with raw events). Default off.",
+  },
+  enableScreenGatedCrediting: {
+    title: "Screen-gated usage credit",
+    body: "Emit an additional, side-by-side \"Credited App Usage\" CSV in which each app session is reduced to the intervals where the screen was witnessed ON and the device was demonstrably alive (event cadence within the liveness tolerance), truncated at the credited-session cap. The headline app-usage output is never changed by this option. Long held-open sessions are credited only while the device was actually lit and alive. Off by default.",
+  },
+  creditedSessionCapMinutes: {
+    title: "Credited-session cap (minutes)",
+    body: "Upper bound on any single credited session interval. Credit is truncated at this many minutes from the session start (never zeroed out).",
+    example: "default 360 minutes (6 hours)",
+  },
+  deviceLivenessGapToleranceMinutes: {
+    title: "Device-liveness gap tolerance (minutes)",
+    body: "An event silence shorter than this keeps the device \"alive\" for crediting; a longer silence breaks the chain. A Device Startup landing inside a silence always breaks it (a boot proves the device was off).",
+    example: "default 120 minutes",
+  },
+  autoLockBridgeSeconds: {
+    title: "Auto-lock bridge (seconds)",
+    body: "A screen-OFF blip shorter than this cannot be the device auto-lock, so credit bridges across it (screen bounce, not a real lock).",
+    example: "default 120 seconds",
+  },
+  noWitnessMinDayApps: {
+    title: "No-witness fallback: min distinct apps per day",
+    body: "When a session has no screen witness at all, credit its alive time only if the participant-day switched across at least this many distinct apps (you cannot switch apps on a dark screen). Below the floor, the session earns no credit.",
+    example: "default 2",
+  },
+  enableStudyWindowFilter: {
+    title: "Study-window filter",
+    body: "Keep only sessions whose LOCAL calendar date falls inside the participant's study window from the study-dates file (inclusive). Requires the study-dates support file.",
+  },
+  enablePersonAttribution: {
+    title: "Person attribution (shared devices)",
+    body: "On shared devices, attribute each session to a person using the device-sharing table (exact participant match only) and optional usage-survey answers; usage attributed to someone other than the target becomes \"Non-Target Child App Usage\" (kept, excluded from screen time). Requires the device-sharing support file.",
+  },
+  enableComplianceScoring: {
+    title: "Compliance scoring",
+    body: "Emit a per-participant-day compliance report: known / (known + unknown) attributed minutes, with non-shared devices at 100 by definition. Days at 100 with zero real usage are kept but flagged.",
+  },
+  complianceThresholdPercent: {
+    title: "Compliance threshold (%)",
+    body: "A day counts as valid when its compliance is at or above this percent. Study-specific; the default mirrors the common 70% rule.",
+    example: "default 70",
+  },
+  enableDayCoverage: {
+    title: "Day coverage report",
+    body: "Emit a per-participant-day coverage report distinguishing days with usage, \"no activity\" days (raw events but no usage), and \"no data\" days (device silent), across the study window when one is loaded. Fails loudly if any windowed day would end uncovered.",
   },
 } as const;

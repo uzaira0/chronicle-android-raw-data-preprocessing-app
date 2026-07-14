@@ -66,6 +66,10 @@ classes:
       - apps_forcing_screen_open_file
       - background_apps_file
       - app_codebook_file
+      - study_dates_file
+      - device_sharing_file
+      - survey_attribution_file
+      - enrolled_devices_file
 
   BrowserProcessingRuntime:
     slots:
@@ -117,6 +121,16 @@ classes:
       - interaction_type_remap
       - proximity_interval_seconds
       - add_no_activity_placeholder_days
+      - enable_screen_gated_crediting
+      - credited_session_cap_minutes
+      - device_liveness_gap_tolerance_minutes
+      - auto_lock_bridge_seconds
+      - no_witness_min_day_apps
+      - enable_study_window_filter
+      - enable_person_attribution
+      - enable_compliance_scoring
+      - compliance_threshold_percent
+      - enable_day_coverage
 
   ProcessedOutputFileResult:
     slots:
@@ -155,6 +169,28 @@ slots:
     range: BrowserSupportFile
   app_codebook_file:
     range: BrowserSupportFile
+  study_dates_file:
+    range: BrowserSupportFile
+    description: >-
+      Study-dates table (CSV/XLSX): one row per participant with the study
+      window start and end dates. Consumed by the observation-window step.
+      Columns: participant_id, start_date, end_date (ISO dates, inclusive).
+  device_sharing_file:
+    range: BrowserSupportFile
+    description: >-
+      Device-sharing table (CSV/XLSX): which usernames share each device and
+      which one is the target participant. Consumed by person attribution.
+      Columns: participant_id, users (semicolon-separated), target_user.
+  survey_attribution_file:
+    range: BrowserSupportFile
+    description: >-
+      Usage-survey answers (CSV/XLSX) that relabel a session's username at an
+      exact event timestamp. Columns: participant_id, event_timestamp, username.
+  enrolled_devices_file:
+    range: BrowserSupportFile
+    description: >-
+      Enrolled/expected device counts per participant (CSV/XLSX) — the
+      denominator for compliance validity. Columns: participant_id, device_count.
   datetime_of_preprocessing:
     description: >
       Internal/test-only fixed preprocessing timestamp used to make output stamping
@@ -438,6 +474,105 @@ slots:
       proximity parameter); with it off the output is byte-identical to before.
     example: "default 0 (disabled)"
     default: 0.0
+  enable_screen_gated_crediting:
+    range: boolean
+    required: true
+    title: "Screen-gated usage credit"
+    description: >-
+      Emit an additional, side-by-side "Credited App Usage" CSV in which each
+      app session is reduced to the intervals where the screen was witnessed ON
+      and the device was demonstrably alive (event cadence within the liveness
+      tolerance), truncated at the credited-session cap. The headline app-usage
+      output is never changed by this option. Long held-open sessions are
+      credited only while the device was actually lit and alive. Off by default.
+    default: false
+  credited_session_cap_minutes:
+    range: integer
+    required: true
+    title: "Credited-session cap (minutes)"
+    description: >-
+      Upper bound on any single credited session interval. Credit is truncated
+      at this many minutes from the session start (never zeroed out).
+    example: "default 360 minutes (6 hours)"
+    default: 360
+  device_liveness_gap_tolerance_minutes:
+    range: integer
+    required: true
+    title: "Device-liveness gap tolerance (minutes)"
+    description: >-
+      An event silence shorter than this keeps the device "alive" for
+      crediting; a longer silence breaks the chain. A Device Startup landing
+      inside a silence always breaks it (a boot proves the device was off).
+    example: "default 120 minutes"
+    default: 120
+  auto_lock_bridge_seconds:
+    range: integer
+    required: true
+    title: "Auto-lock bridge (seconds)"
+    description: >-
+      A screen-OFF blip shorter than this cannot be the device auto-lock, so
+      credit bridges across it (screen bounce, not a real lock).
+    example: "default 120 seconds"
+    default: 120
+  no_witness_min_day_apps:
+    range: integer
+    required: true
+    title: "No-witness fallback: min distinct apps per day"
+    description: >-
+      When a session has no screen witness at all, credit its alive time only
+      if the participant-day switched across at least this many distinct apps
+      (you cannot switch apps on a dark screen). Below the floor, the session
+      earns no credit.
+    example: "default 2"
+    default: 2
+  enable_study_window_filter:
+    range: boolean
+    required: true
+    title: "Study-window filter"
+    description: >-
+      Keep only sessions whose LOCAL calendar date falls inside the
+      participant's study window from the study-dates file (inclusive).
+      Requires the study-dates support file.
+    default: false
+  enable_person_attribution:
+    range: boolean
+    required: true
+    title: "Person attribution (shared devices)"
+    description: >-
+      On shared devices, attribute each session to a person using the
+      device-sharing table (exact participant match only) and optional
+      usage-survey answers; usage attributed to someone other than the target
+      becomes "Non-Target Child App Usage" (kept, excluded from screen time).
+      Requires the device-sharing support file.
+    default: false
+  enable_compliance_scoring:
+    range: boolean
+    required: true
+    title: "Compliance scoring"
+    description: >-
+      Emit a per-participant-day compliance report: known / (known + unknown)
+      attributed minutes, with non-shared devices at 100 by definition. Days
+      at 100 with zero real usage are kept but flagged.
+    default: false
+  compliance_threshold_percent:
+    range: float
+    required: true
+    title: "Compliance threshold (%)"
+    description: >-
+      A day counts as valid when its compliance is at or above this percent.
+      Study-specific; the default mirrors the common 70% rule.
+    example: "default 70"
+    default: 70
+  enable_day_coverage:
+    range: boolean
+    required: true
+    title: "Day coverage report"
+    description: >-
+      Emit a per-participant-day coverage report distinguishing days with
+      usage, "no activity" days (raw events but no usage), and "no data" days
+      (device silent), across the study window when one is loaded. Fails loudly
+      if any windowed day would end uncovered.
+    default: false
   add_no_activity_placeholder_days:
     range: boolean
     required: true

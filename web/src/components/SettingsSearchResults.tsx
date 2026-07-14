@@ -12,6 +12,7 @@ type SectionKey =
   | "screen"
   | "interaction"
   | "performance"
+  | "study"
   | "management";
 
 type Section = { label: string; selector: string };
@@ -26,6 +27,7 @@ const SECTIONS: Record<SectionKey, Section> = {
   screen: { label: "Screen detection", selector: '[data-section-id="screen-detection"]' },
   interaction: { label: "Interaction semantics", selector: '[data-section-id="interaction-semantics"]' },
   performance: { label: "Performance", selector: '[data-section-id="performance"]' },
+  study: { label: "Study analysis", selector: '[data-section-id="study-inputs"]' },
   management: { label: "Settings management", selector: '[data-settings-anchor="management"]' },
 };
 
@@ -78,6 +80,16 @@ export const SECTION_BY_KEY: Record<string, SectionKey> = {
   interactionTypeRemap: "interaction",
   parallelProcessing: "performance",
   parallelMaxWorkers: "performance",
+  enableScreenGatedCrediting: "study",
+  creditedSessionCapMinutes: "study",
+  deviceLivenessGapToleranceMinutes: "study",
+  autoLockBridgeSeconds: "study",
+  noWitnessMinDayApps: "study",
+  enableStudyWindowFilter: "study",
+  enablePersonAttribution: "study",
+  enableComplianceScoring: "study",
+  complianceThresholdPercent: "study",
+  enableDayCoverage: "study",
 };
 
 type SearchItem = {

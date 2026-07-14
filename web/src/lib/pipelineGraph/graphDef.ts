@@ -337,4 +337,16 @@ export const UNBOUND_OPTION_KEYS: ReadonlySet<string> = new Set([
   "parallelProcessing",
   "parallelMaxWorkers",
   "datetimeOfPreprocessing", // covered by the run input hash
+  // Clean/Analyze feature options — bound when their nodes are wired in
+  // (stages ship first; the graph wiring task moves these to knob bindings).
+  "enableScreenGatedCrediting",
+  "creditedSessionCapMinutes",
+  "deviceLivenessGapToleranceMinutes",
+  "autoLockBridgeSeconds",
+  "noWitnessMinDayApps",
+  "enableStudyWindowFilter",
+  "enablePersonAttribution",
+  "enableComplianceScoring",
+  "complianceThresholdPercent",
+  "enableDayCoverage",
 ]);

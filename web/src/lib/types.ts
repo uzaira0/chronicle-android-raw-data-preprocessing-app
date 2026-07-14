@@ -95,6 +95,11 @@ export type BrowserSupportFiles = {
   appsForcingScreenOpenFile?: BrowserSupportFile;
   backgroundAppsFile?: BrowserSupportFile;
   appCodebookFile?: BrowserSupportFile;
+  /** Study Inputs (Analyze tier) — see docs/pipeline-graph/. */
+  studyDatesFile?: BrowserSupportFile;
+  deviceSharingFile?: BrowserSupportFile;
+  surveyAttributionFile?: BrowserSupportFile;
+  enrolledDevicesFile?: BrowserSupportFile;
 };
 
 export type BrowserProcessingRuntime = {
