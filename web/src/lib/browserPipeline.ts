@@ -45,6 +45,15 @@ import type {
 import { buildTimelineViewerHtml } from "@/lib/timelineViewer";
 import { buildReviewSummary } from "@/lib/reviewMetrics";
 import { matchAppUsageWithProximity } from "@/lib/proximityMatcher";
+import { GraphEngine, hashValue } from "@/lib/pipelineGraph/engine";
+import {
+  buildChronicleGraph,
+  type DedupAndOrderOutput,
+  type NormalizeTimezonesOutput,
+  type ParseEventsOutput,
+  type PipelineCtx,
+  type PipelineOutputs,
+} from "@/lib/pipelineGraph/graphDef";
 
 export const PREPROCESSOR_VERSION = "1.0.0";
 
@@ -281,9 +290,9 @@ export type CanonicalRow = {
   usage_layer?: string | null;
 };
 
-type CodebookRecord = Record<string, string | null>;
-type MatcherRunner = (input: MatcherInput) => Promise<MatcherOutput>;
-type SplitterRunner = (input: SplitterInput) => Promise<SplitterOutput>;
+export type CodebookRecord = Record<string, string | null>;
+export type MatcherRunner = (input: MatcherInput) => Promise<MatcherOutput>;
+export type SplitterRunner = (input: SplitterInput) => Promise<SplitterOutput>;
 type ScreenState = {
   startIndex: number;
   startTimestampNs: bigint;
@@ -2370,6 +2379,35 @@ function deriveOutputFileName(inputFileName: string, suffix: string): string {
   return inputFileName.replace(/\.csv$/i, "") + suffix;
 }
 
+/**
+ * Per-file graph engines (LRU, bounded). Re-running the same file with a
+ * changed option recomputes only the affected downstream cone; unrelated
+ * nodes serve their cached outputs from the previous run.
+ */
+const pipelineEngines = new Map<string, GraphEngine<PipelineCtx>>();
+const MAX_PIPELINE_ENGINES = 2;
+
+function getPipelineEngine(fileName: string): GraphEngine<PipelineCtx> {
+  const existing = pipelineEngines.get(fileName);
+  if (existing) {
+    pipelineEngines.delete(fileName);
+    pipelineEngines.set(fileName, existing);
+    return existing;
+  }
+  const engine = new GraphEngine(buildChronicleGraph());
+  if (pipelineEngines.size >= MAX_PIPELINE_ENGINES) {
+    const oldest = pipelineEngines.keys().next().value;
+    if (oldest !== undefined) pipelineEngines.delete(oldest);
+  }
+  pipelineEngines.set(fileName, engine);
+  return engine;
+}
+
+/** Drop all per-file graph caches (memory pressure / tests). */
+export function clearPipelineEngines(): void {
+  pipelineEngines.clear();
+}
+
 export async function processRawCsvContent(
   inputFileName: string,
   csvText: string,
@@ -2385,76 +2423,107 @@ export async function processRawCsvContent(
   };
   const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
 
-  emit("parse", 0);
-  const interactionRemap = parseInteractionRemap(options.interactionTypeRemap);
-  const originalRows = parseRawRows(csvText, runtime, interactionRemap);
-  const originalRowCount = originalRows.length;
-  const availableTimezones = Array.from(
-    new Set(originalRows.map((row) => row.timezone).filter(Boolean)),
-  ).sort((left, right) => left.localeCompare(right));
-  emit("parse", 1);
-
-  emit("timezone", 0);
-  const timezoneResult = applyTimezoneHandling(originalRows, options);
-  const { rows: timezoneHandledRows, timezone } = timezoneResult;
-  const dedupeResult = options.deduplicateExactRows
-    ? dedupeExactRows(timezoneHandledRows)
-    : { rows: timezoneHandledRows, removed: 0 };
-  const deduped = dedupeResult.rows;
-  const exactDuplicateRowsRemoved = dedupeResult.removed;
-  const duplicatesBefore = countDuplicateTimestampGroups(deduped);
-  const duplicateCorrected = options.correctDuplicateEventTimestamps
-    ? unalignDuplicateTimestamps(deduped, options)
-    : deduped;
-  const duplicateTimestampsCorrected =
-    options.correctDuplicateEventTimestamps ? duplicatesBefore : 0;
-  let rows = markDataTimeGaps(duplicateCorrected);
-  emit("timezone", 1);
-
-  emit("filter", 0);
+  // ── Support-file loading (async; kept OUTSIDE the graph so node bodies
+  //    stay deterministic — the loaded content participates in cache keys
+  //    via supportFileHashes below).
   let filterMap = new Map<string, Set<string>>();
   if (options.useFilterFile) {
     filterMap = buildFilterMap(
       await loadSupportRows(supportFiles?.filterFile, defaultAppsToFilterUrl),
     );
-    rows = labelFilteredApps(rows, filterMap);
   }
-
   let appsForcingScreenOpenMap = new Map<string, string>();
   if (options.useAppsForcingScreenOpenFile) {
     appsForcingScreenOpenMap = buildAppsForcingScreenOpenMap(
       await loadSupportRows(supportFiles?.appsForcingScreenOpenFile, defaultAppsForcingScreenOpenUrl),
     );
   }
-
   let backgroundAppsSet = new Set<string>();
   if (options.useBackgroundAppsFile) {
     backgroundAppsSet = buildBackgroundAppsSet(
       await loadSupportRows(supportFiles?.backgroundAppsFile, defaultBackgroundAppsUrl),
     );
   }
-  emit("filter", 1);
-
-  const outputs: ProcessedOutputFileResult[] = [];
-  let screenRows: CanonicalRow[] = [];
-  let appRows: CanonicalRow[] = [];
-
-  // Screen usage derivation (independent of app usage)
-  if (options.processScreenUsage) {
-    emit("screen", 0);
-    screenRows = deriveScreenUsageSessions(rows, options, appsForcingScreenOpenMap);
-    emit("screen", 1);
+  let codebookMap = new Map<string, CodebookRecord>();
+  if (options.processAppUsage && options.useAppCodebook) {
+    codebookMap = buildCodebookMap(
+      await loadSupportRows(supportFiles?.appCodebookFile, defaultAppCodebookUrl),
+    );
   }
 
-  // App usage algorithm + enrichment
+  // Guard: the concurrent split requires a real splitter; a no-op would
+  // silently drop every App Usage row (nonUsageRows excludes them and the
+  // no-op returns nothing). The split runs when concurrent usage is modeled
+  // OR when background apps are active (their overlaps must be resolved).
+  if (
+    options.processAppUsage &&
+    (options.modelConcurrentUsage || backgroundAppsSet.size > 0) &&
+    !runSplitter
+  ) {
+    throw new Error(
+      "runSplitter must be supplied when modelConcurrentUsage is true or background apps are used; got undefined",
+    );
+  }
+  const effectiveSplitter: SplitterRunner = runSplitter ?? (() => Promise.resolve([]));
+
+  // ── Graph run: the declared typed dependency graph is the execution
+  //    spine (docs/pipeline-graph/). Engines persist per input file so a
+  //    knob change recomputes only the affected downstream cone.
+  const ctx: PipelineCtx = {
+    csvText,
+    options,
+    runtime,
+    support: { filterMap, appsForcingScreenOpenMap, backgroundAppsSet, codebookMap },
+    runMatcher,
+    runSplitter: effectiveSplitter,
+    emit,
+  };
+  const engine = getPipelineEngine(inputFileName);
+  const supportFileHashes: Record<string, string> = {};
+  for (const [key, file] of Object.entries(supportFiles ?? {})) {
+    if (file) supportFileHashes[key] = await computeSupportFileCacheKey(file);
+  }
+  const graphRun = await engine.run(ctx, {
+    options: options as unknown as Record<string, unknown>,
+    supportFileHashes,
+    inputHash: hashValue([csvText, runtime?.datetimeOfPreprocessing ?? null]),
+  });
+  const failedNode = Object.keys(graphRun.report.errors)[0];
+  if (failedNode) {
+    throw new Error(graphRun.report.errors[failedNode]!);
+  }
+
+  const parseOut = graphRun.outputs.get("parse_events") as ParseEventsOutput;
+  const timezoneResult = graphRun.outputs.get("normalize_timezones") as NormalizeTimezonesOutput;
+  const dedupOut = graphRun.outputs.get("dedup_and_order") as DedupAndOrderOutput;
+  const policyOut = graphRun.outputs.get("app_policy") as { rows: CanonicalRow[] };
+  const pipelineOutputs = graphRun.outputs.get("outputs") as PipelineOutputs;
+
+  const originalRowCount = parseOut.originalRowCount;
+  const availableTimezones = parseOut.availableTimezones;
+  const timezone = timezoneResult.timezone;
+  const duplicateTimestampsCorrected = dedupOut.duplicateTimestampsCorrected;
+  const exactDuplicateRowsRemoved = dedupOut.exactDuplicateRowsRemoved;
+  const rows = policyOut.rows;
+  const screenRows: CanonicalRow[] = pipelineOutputs.screenRows;
+  let appRows: CanonicalRow[] = pipelineOutputs.appRows;
+
+  // Cached nodes emit no live progress — re-emit the canonical step kinds
+  // so the progress surface always reaches a complete final state.
+  const canonicalSteps: ProgressStepKind[] = [
+    "parse", "timezone", "filter", "screen", "matcher", "codebook", "enrich",
+  ];
+  for (const stepKind of canonicalSteps) emit(stepKind, 1);
+
+  const outputs: ProcessedOutputFileResult[] = [];
+
   // Capture all raw event timestamps per participant before the algorithm
   // transforms rows into session-level output types. Used for data-gap shading
   // in both the app-usage and screen-usage plots, so a gap reflects genuinely
   // absent device activity (all 30+ raw interaction types), not just missing
-  // session rows. The timeline scenes are now built on EVERY run (the View tab's
+  // session rows. The timeline scenes are built on EVERY run (the View tab's
   // review surface always renders them), so this map must be populated
-  // unconditionally — gating it on the plotting/timeline flags left the View-tab
-  // waterfall with no gap shading whenever plotting was turned off.
+  // unconditionally.
   const preAlgoTsByParticipant = new Map<string, bigint[]>();
   for (const row of rows) {
     const pid = row.participant_id || "unknown";
@@ -2464,45 +2533,6 @@ export async function processRawCsvContent(
   }
 
   if (options.processAppUsage) {
-    // Guard: the concurrent split requires a real splitter; a no-op would
-    // silently drop every App Usage row (nonUsageRows excludes them and the
-    // no-op returns nothing). The split runs when concurrent usage is modeled
-    // OR when background apps are active (their overlaps must be resolved).
-    if ((options.modelConcurrentUsage || backgroundAppsSet.size > 0) && !runSplitter) {
-      throw new Error(
-        "runSplitter must be supplied when modelConcurrentUsage is true or background apps are used; got undefined",
-      );
-    }
-    const effectiveSplitter: SplitterRunner = runSplitter ?? (() => Promise.resolve([]));
-    emit("matcher", 0);
-    appRows = await runAppUsageAlgorithm(rows, options, runMatcher, effectiveSplitter, backgroundAppsSet);
-    emit("matcher", 1);
-
-    emit("codebook", 0);
-    let codebookMap = new Map<string, CodebookRecord>();
-    if (options.useAppCodebook) {
-      codebookMap = buildCodebookMap(
-        await loadSupportRows(supportFiles?.appCodebookFile, defaultAppCodebookUrl),
-      );
-    }
-    emit("codebook", 1);
-
-    emit("enrich", 0);
-    appRows = enrichWithCodebookData(appRows, options, codebookMap);
-    appRows = addAppUsageDetailColumns(appRows, options);
-    appRows = markAppUsageFlags(appRows, options);
-    appRows = clearFilteredUsageTiming(appRows);
-    appRows = removeSelectedInteractionTypes(appRows, options);
-    if (options.filterZeroDurationSessions) {
-      appRows = appRows.filter(
-        (row) => row.interaction_type !== "App Usage" || row.duration_seconds === null || row.duration_seconds > 0,
-      );
-    }
-    if (options.addNoActivityPlaceholderDays) {
-      appRows = addNoActivityPlaceholderRows(appRows, rows);
-    }
-    emit("enrich", 1);
-
     emit("output", 0);
     const includeCodebookAliases = !(options.useAppCodebook && codebookMap.size > 0);
     // usage_layer is emitted exactly when the concurrent split ran (model
@@ -2792,7 +2822,25 @@ export async function processRawCsvContent(
   };
 }
 
-function countDuplicateTimestampGroups(rows: CanonicalRow[]): number {
+// Stage internals consumed by the graph definition
+// (web/src/lib/pipelineGraph/graphDef.ts). The graph is the only intended
+// caller besides tests; treat these as package-private.
+export {
+  parseRawRows,
+  applyTimezoneHandling,
+  unalignDuplicateTimestamps,
+  markDataTimeGaps,
+  labelFilteredApps,
+  deriveScreenUsageSessions,
+  runAppUsageAlgorithm,
+  enrichWithCodebookData,
+  markAppUsageFlags,
+  clearFilteredUsageTiming,
+  removeSelectedInteractionTypes,
+  addNoActivityPlaceholderRows,
+};
+
+export function countDuplicateTimestampGroups(rows: CanonicalRow[]): number {
   if (rows.length <= 1) return 0;
   let duplicates = 0;
   let runStart = 0;
