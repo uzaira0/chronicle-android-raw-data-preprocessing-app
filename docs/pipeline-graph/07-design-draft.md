@@ -10,13 +10,14 @@ All work in this repo's `web/`.
 ```
 web/src/lib/pipelineGraph/     graphDef.ts   one declarative graph: nodes, typed edges, knob bindings
                                engine.ts     topo sort, dirty-propagation, content-hash memoization
-                               analysis.ts   derived causal-role queries (see doc 06)
+                               analysis.ts   derived path queries (see doc 06 — visual, no taxonomy)
 web/src/lib/stages/            processRawCsvContent DECOMPOSED, one file per node
-  preprocess/                  rawEventParsing, timezoneNormalization, eventDedupAndOrdering,
-                               screenSessionDerivation, usageSessionReconstruction, appCategoryEnrichment
-  clean/                       systemAppMarking, kidsShellLauncherRule, screenGatedUsageCredit ← new ports
-  analyze/                     studyWindowFiltering, sharedDeviceAttribution,
-                               missingDayAccounting, dailyComplianceScoring ← new ports
+                               (file names follow the doc-08 node ids)
+  preprocess/                  parse_events, validate_clock, normalize_timezones, dedup_and_order,
+                               device_state_timeline, reconstruct_episodes, categorize_apps
+  clean/                       app_policy, effective_usage ← new ports
+  analyze/                     observation_window, attribute_person,
+                               day_coverage, score_compliance ← new ports
 web/src/components/GraphPanel/ React Flow 12 + dagre rendered view
 ```
 
@@ -34,10 +35,12 @@ web/src/components/GraphPanel/ React Flow 12 + dagre rendered view
 - All new knobs/sections flow through the LinkML contract (section + node-binding
   annotations) → regenerated TS/OpenAPI → `check:contract` CI.
 
-## Section 2 — Typed-edge ontology (APPROVED)
+## Section 2 — Typed-edge ontology (APPROVED; derived layer REVISED 2026-07-14)
 
-See doc 06. Primitive: feeds / gates / moderates (declared, drive execution). Derived:
-mediates / confounds / collides (computed path properties, drive the analysis sidebar).
+See doc 06. Primitive: feeds / gates / tunes (declared, drive execution). Derived layer:
+NO named taxonomy (owner decision — causal vocabulary and graph-theory replacements both
+rejected). Instead: path queries (`affectedBy`, `builtFrom`, `sharedUpstream`,
+`mustPassThrough`, `joinPoint`) rendered as graph highlights + plain-English sentences.
 
 ## Section 3 — Node catalog (REVISED: community-grounded naming + sublation expansions)
 
@@ -55,11 +58,15 @@ Analyze: observation_window → attribute_person → score_compliance → day_co
 effective_usage takes TWO feed edges (episodes + device_state_timeline) and device_usage
 branches off the timeline alone — the graph is genuinely a DAG, not a chain.
 
-Five ontology expansions from the sublation audit (doc 09, REQUIRED): richer device-state
-alphabet + state_inference paradigm knob; device_usage branch; table-driven app_policy;
-row-level provenance contract (end_source/credit_state/truncated_secs/day_flags + mutation
-log); device-class conditional bindings. State alphabet pending the independent second
-audit's state-machine verdict.
+Ontology expansions: the first audit's five (doc 09) as AMENDED by the second audit
+(doc 11) — factored device state + overlays with a named screen-time projection (the flat
+six-state alphabet was refuted); reconstruction strategies as first-class versioned
+algorithms; interval algebra + censoring contracts; ordered app-policy rule schema
+(launcher = metadata, reattribute moved to attribution); a general interval-quality-policy
+node; an immutable lineage ledger instead of appended flags; `validate_clock` before
+timezone normalization; three additional Analyze support files (survey attribution,
+eligibility/roster, enrolled-device denominator); `screen_witness_coverage` replaces
+"screen-incapable"; named output contracts for prior-art export shapes.
 
 ## Section 4 — Parity & testing (DRAFT)
 
@@ -74,8 +81,10 @@ audit's state-machine verdict.
 ## Section 5 — UI integration (DRAFT)
 
 - Settings regrouped into Preprocess/Clean/Analyze; new Graph tab (React Flow + dagre);
-  per-node dirty/cached/recomputed badges; analysis sidebar with plain-language derived
-  roles; new Study Inputs card for the two Analyze support files; ResultPanel gains
+  per-node dirty/cached/recomputed badges; path-query interactions (click → affected cone,
+  two-select → shared upstream, hover → must-pass-through) with plain-English sentences —
+  no taxonomy labels anywhere in the UI; Study Inputs card for the Analyze support files
+  (sharing, study dates, survey attribution, roster, enrolled devices); ResultPanel gains
   Analyze-tier outputs (attributed stream, compliance report).
 
 ## Section 6 — Error handling (DRAFT)

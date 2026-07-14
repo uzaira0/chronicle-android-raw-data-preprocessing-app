@@ -21,6 +21,11 @@ No caps, no gap logic; idle within a bracket is unbounded (T=∞) — safe only 
 events are reliable. Their package blacklist is deliberately conservative and they argue
 LAUNCHERS SHOULD BE KEPT (users really interact with home screens).
 
+Forward-pairing is a DISTINCT reconstruction algorithm, not a knob setting: it changes
+episode counts (start-only), dedups consecutive resumes, and takes episode endpoints from
+the merged event stream. It is not reproducible via closer-vocabulary/proximity knobs —
+it must be a named strategy of `reconstruct_episodes` (doc 11, required change #2).
+
 ## EYES toolbox (ACOI-UofSC; complement-based device-state segmentation)
 
 Detects the NON-active states explicitly; ACTIVE = ¬(SHUTDOWN ∪ IDLE ∪ GAP ∪ GLANCE).
@@ -32,7 +37,7 @@ Detects the NON-active states explicitly; ACTIVE = ¬(SHUTDOWN ∪ IDLE ∪ GAP 
 | **GAP block** | Missing data — "either shutdown or idle, cannot tell"; reconciled/relabelled when a nearby real signal exists (precedence SHUTDOWN > IDLE > GAP) | ≥3 h silence, or reboot with ≥1 s silent neighbor; 10 s reconcile tolerance |
 | **GLANCE block** | Screen-Interactive → Screen-Non-Interactive with NO intervening Keyguard-Hidden; an unlock REVOKES the glance candidate | no time cap |
 | **ACTIVE** | Complement of all the above (not a guarantee of real use) | — |
-| **Pickup** | An ACTIVE interval in the filled block timeline | ≥5 s; 5 s fill tolerance |
+| **Pickup** | An ACTIVE interval in the filled block timeline. NOTE: the pickups EXPORT file contains EVERY block type passing the duration floor (with a `block_type` column) — the ACTIVE rows within it are the pickups | ≥5 s; 5 s fill tolerance |
 | **App triplets** | resume/pause/stop reconstruction, 2 s proximity-binding, T=∞ (closed only by real signals: stop, app-kill, reboot); every episode carries an inference tag (how its end was determined) | 2 s |
 | **FAU ("Final App Usage")** | App usage ∩ ACTIVE — app time counted only while the device state is ACTIVE | status=ACTIVE, primary layer |
 
@@ -43,8 +48,8 @@ Never redefines episodes; bounds implausibility, transparently.
 | Term | Definition | Default |
 |---|---|---|
 | **Block (collapse)** | Adjacent same-app rows with gap ≤ threshold merged ("multiple app instances reflect one usage") | 1 s |
-| **bad_apps cap** | Per-package duration cap for launchers/system/clock/implausible apps — truncate + flag + log, never delete (legitimate BRIEF use is kept; the cap amputates the implausible idle tail) | 43 pkgs, 10 min |
-| **long_3h / long_6h** | ≥3 h → flag for human review; >6 h → configurable action (none/truncate/drop) | truncate |
+| **bad_apps cap** | Per-package duration cap for launchers/system/clock/implausible apps — truncate + flag + log, never delete (legitimate BRIEF use is kept; the cap amputates the implausible idle tail) | 42 pkgs, 10 min |
+| **long_3h / long_6h** | MUTUALLY EXCLUSIVE flags (a >6 h row is long_6h only, not both); >6 h → configurable action. Default action = `truncate_to_bad_app`: truncate to the 10-MIN bad-app cap (not to 6 h), applied to ALL row types (App Usage, Session, Glance) | truncate_to_bad_app (10 min), scope=all |
 | **day_flags** | `partial_day` (first/last day; >12 h-gap boundary days — PARENT devices only), `DST_day`. Flag-and-retain, never drop | 12 h |
 | **event_flags / truncated_secs** | Every mutation stamped in-row + logged to CSVs | — |
 
@@ -70,6 +75,7 @@ only at witnessed events) vs complement-based (detect non-active, call the rest 
 | Node id | UI label | Anchor |
 |---|---|---|
 | `parse_events` | Event parsing | — |
+| `validate_clock` | Clock & observability validation (quarantine invalid/discontinuous timestamps; preserve raw timestamp + original timezone) | second audit, doc 11 |
 | `normalize_timezones` | Timezone normalization | — |
 | `dedup_and_order` | Event dedup & ordering | EYES uniq + reorder |
 | `device_state_timeline` | Device-state timeline | EYES blocks; P&T brackets |
