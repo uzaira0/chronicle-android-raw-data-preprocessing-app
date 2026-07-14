@@ -23,5 +23,6 @@ in this repo's own defaults.
 | [09-sublation-audit.md](09-sublation-audit.md) | Sublation audit: what maps cleanly + the five required ontology expansions + the preset claim |
 | [10-multistream-superset.md](10-multistream-superset.md) | Streams → witnesses → fused state timeline; refined gap taxonomy; stream-availability gating |
 | [11-device-state-machine.md](11-device-state-machine.md) | Second-audit verdicts (all spot-checks verified): factored device state + overlays, 8-state projection, 12 adopted changes |
+| [12-settings-sublation-ledger.md](12-settings-sublation-ledger.md) | Every setting of this app (44 contract slots), the research pipeline, and EYES/P&T/Culverhouse → its ontology element |
 
 Status date: 2026-07-14.
