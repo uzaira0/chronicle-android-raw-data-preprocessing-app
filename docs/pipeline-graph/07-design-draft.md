@@ -39,18 +39,27 @@ web/src/components/GraphPanel/ React Flow 12 + dagre rendered view
 See doc 06. Primitive: feeds / gates / moderates (declared, drive execution). Derived:
 mediates / confounds / collides (computed path properties, drive the analysis sidebar).
 
-## Section 3 — Node catalog (DRAFT, pending approval)
+## Section 3 — Node catalog (REVISED: community-grounded naming + sublation expansions)
 
-Preprocess: rawEventParsing → timezoneNormalization → eventDedupAndOrdering →
-screenSessionDerivation → usageSessionReconstruction → appCategoryEnrichment.
-Clean: systemAppMarking → kidsShellLauncherRule → screenGatedUsageCredit (gated; default per
-stream preset). screenGatedUsageCredit takes a SECOND feed edge from eventDedupAndOrdering
-(the raw event stream — screen/liveness witnesses), which is why this is a DAG, not a chain.
-Analyze: studyWindowFiltering → sharedDeviceAttribution → dailyComplianceScoring →
-missingDayAccounting → reports.
-Naming convention: verb-noun, self-describing ids; no internal decision-record numbers, no
-engine jargon. Exact inputs/knobs/outputs per node + the stream presets
-(personal-device vs shared-tablet vs custom) to be enumerated in the final spec.
+Naming is grounded in the prior-art vocabulary (doc 08): P&T episodes/sessions/glances,
+EYES device states/pickups/FAU, Culverhouse flag-and-truncate. No invented compounds, no
+internal decision-record numbers, no engine jargon.
+
+Preprocess: parse_events → normalize_timezones → dedup_and_order →
+{device_state_timeline, reconstruct_episodes} → categorize_apps.
+Clean: app_policy (table-driven per-package actions) → effective_usage
+(episodes ∩ device-active states, truncated; the FAU-analog).
+Device branch: device_state_timeline → device_usage (sessions/glances/pickups — episode-free).
+Analyze: observation_window → attribute_person → score_compliance → day_coverage → reports.
+
+effective_usage takes TWO feed edges (episodes + device_state_timeline) and device_usage
+branches off the timeline alone — the graph is genuinely a DAG, not a chain.
+
+Five ontology expansions from the sublation audit (doc 09, REQUIRED): richer device-state
+alphabet + state_inference paradigm knob; device_usage branch; table-driven app_policy;
+row-level provenance contract (end_source/credit_state/truncated_secs/day_flags + mutation
+log); device-class conditional bindings. State alphabet pending the independent second
+audit's state-machine verdict.
 
 ## Section 4 — Parity & testing (DRAFT)
 
