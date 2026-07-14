@@ -178,14 +178,16 @@ slots:
   device_sharing_file:
     range: BrowserSupportFile
     description: >-
-      Device-sharing table (CSV/XLSX): which usernames share each device and
-      which one is the target participant. Consumed by person attribution.
-      Columns: participant_id, users (semicolon-separated), target_user.
+      Device-sharing table (CSV/XLSX): the sharing status per device.
+      Consumed by person attribution. Columns: participant_id,
+      sharing_status ("Shared" or "Non-Shared"). Devices are matched exactly
+      first, then by numerical id + device number (bare id = device 1);
+      a configured table that misses a device is a hard error.
   survey_attribution_file:
     range: BrowserSupportFile
     description: >-
       Usage-survey answers (CSV/XLSX) that relabel a session's username at an
-      exact event timestamp. Columns: participant_id, event_timestamp, username.
+      exact event timestamp. Columns: participant_id, event_timestamp, users.
   enrolled_devices_file:
     range: BrowserSupportFile
     description: >-
