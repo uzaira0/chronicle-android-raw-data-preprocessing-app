@@ -76,15 +76,16 @@ components:
             inclusive)."
         deviceSharingFile:
           $ref: "#/components/schemas/BrowserSupportFile"
-          description: "Device-sharing table (CSV/XLSX): which usernames share each device
-            and which one is the target participant. Consumed by person
-            attribution. Columns: participant_id, users (semicolon-separated),
-            target_user."
+          description: 'Device-sharing table (CSV/XLSX): the sharing status per device.
+            Consumed by person attribution. Columns: participant_id,
+            sharing_status ("Shared" or "Non-Shared"). Devices are matched
+            exactly first, then by numerical id + device number (bare id =
+            device 1); a configured table that misses a device is a hard error.'
         surveyAttributionFile:
           $ref: "#/components/schemas/BrowserSupportFile"
           description: "Usage-survey answers (CSV/XLSX) that relabel a session's username
             at an exact event timestamp. Columns: participant_id,
-            event_timestamp, username."
+            event_timestamp, users."
         enrolledDevicesFile:
           $ref: "#/components/schemas/BrowserSupportFile"
           description: "Enrolled/expected device counts per participant (CSV/XLSX) — the

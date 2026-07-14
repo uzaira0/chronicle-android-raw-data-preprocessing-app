@@ -54,6 +54,12 @@ import {
   type PipelineCtx,
   type PipelineOutputs,
 } from "@/lib/pipelineGraph/graphDef";
+import {
+  parseDeviceSharing,
+  parseEnrolledDevices,
+  parseStudyDates,
+  parseSurveyAttribution,
+} from "@/lib/stages/studySupportFiles";
 
 export const PREPROCESSOR_VERSION = "1.0.0";
 
@@ -2451,6 +2457,20 @@ export async function processRawCsvContent(
     );
   }
 
+  // Study Inputs (Analyze tier) — uploaded-only, no bundled defaults.
+  // Absent files stay null; the dependent node raises an actionable error
+  // only when its option is actually enabled.
+  const loadUploaded = async (file: BrowserSupportFile | undefined) =>
+    file ? await parseSupportRowsFromFile(file) : null;
+  const studyDatesRows = await loadUploaded(supportFiles?.studyDatesFile);
+  const deviceSharingRows = await loadUploaded(supportFiles?.deviceSharingFile);
+  const surveyRows = await loadUploaded(supportFiles?.surveyAttributionFile);
+  const enrolledRows = await loadUploaded(supportFiles?.enrolledDevicesFile);
+  const studyWindows = studyDatesRows ? parseStudyDates(studyDatesRows) : null;
+  const sharingEntries = deviceSharingRows ? parseDeviceSharing(deviceSharingRows) : null;
+  const surveyAnswers = surveyRows ? parseSurveyAttribution(surveyRows) : null;
+  const enrolledDevices = enrolledRows ? parseEnrolledDevices(enrolledRows) : null;
+
   // Guard: the concurrent split requires a real splitter; a no-op would
   // silently drop every App Usage row (nonUsageRows excludes them and the
   // no-op returns nothing). The split runs when concurrent usage is modeled
@@ -2473,7 +2493,16 @@ export async function processRawCsvContent(
     csvText,
     options,
     runtime,
-    support: { filterMap, appsForcingScreenOpenMap, backgroundAppsSet, codebookMap },
+    support: {
+      filterMap,
+      appsForcingScreenOpenMap,
+      backgroundAppsSet,
+      codebookMap,
+      studyWindows,
+      sharingEntries,
+      surveyAnswers,
+      enrolledDevices,
+    },
     runMatcher,
     runSplitter: effectiveSplitter,
     emit,
@@ -2727,6 +2756,73 @@ export async function processRawCsvContent(
       });
     }
     emit("output", 1);
+  }
+
+  // ── Analyze-tier side-by-side outputs (never replace the headline CSVs) ──
+  if (pipelineOutputs.credited) {
+    const credited = pipelineOutputs.credited;
+    const includeCodebookAliases = !(options.useAppCodebook && codebookMap.size > 0);
+    const usageLayerActive = options.modelConcurrentUsage || backgroundAppsSet.size > 0;
+    const creditedBundle = buildAppOutputBundle(
+      credited.creditedRows,
+      options,
+      includeCodebookAliases,
+      usageLayerActive,
+    );
+    outputs.push({
+      kind: "app",
+      outputFileName: deriveOutputFileName(inputFileName, " Credited App Usage.csv"),
+      blob: creditedBundle.blob,
+      rowCount: creditedBundle.rowCount,
+      previewRows: creditedBundle.previewRows,
+    });
+  }
+
+  if (pipelineOutputs.compliance) {
+    const expectedByPid = new Map(
+      (enrolledDevices ?? []).map((entry) => [entry.participantId, entry.deviceCount]),
+    );
+    const header = [
+      "participant_id", "date", "sharing_status", "known_minutes", "unknown_minutes",
+      "compliance_percent", "zero_real_usage", "is_valid", "expected_device_count",
+    ];
+    const lines = [header.join(",")];
+    for (const day of pipelineOutputs.compliance.days) {
+      lines.push(
+        [
+          csvEscape(day.participantId),
+          day.date,
+          day.sharingStatus,
+          day.knownMinutes,
+          day.unknownMinutes,
+          day.compliancePercent,
+          day.zeroRealUsage ? 1 : 0,
+          day.isValid ? 1 : 0,
+          expectedByPid.get(day.participantId) ?? "",
+        ].join(","),
+      );
+    }
+    outputs.push({
+      kind: "aggregate",
+      outputFileName: deriveOutputFileName(inputFileName, " Compliance Report.csv"),
+      blob: new Blob([lines.join("\n")], { type: CSV_MIME }),
+      rowCount: pipelineOutputs.compliance.days.length,
+      previewRows: [],
+    });
+  }
+
+  if (pipelineOutputs.coverage) {
+    const lines = ["participant_id,date,status"];
+    for (const day of pipelineOutputs.coverage.coverage) {
+      lines.push(`${csvEscape(day.participantId)},${day.date},${day.status}`);
+    }
+    outputs.push({
+      kind: "aggregate",
+      outputFileName: deriveOutputFileName(inputFileName, " Day Coverage.csv"),
+      blob: new Blob([lines.join("\n")], { type: CSV_MIME }),
+      rowCount: pipelineOutputs.coverage.coverage.length,
+      previewRows: [],
+    });
   }
 
   // Timeline viewer (#18) — the interactive waterfall scenes + per-session hover

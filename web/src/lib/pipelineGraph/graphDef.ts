@@ -26,15 +26,29 @@ import {
   type SplitterRunner,
 } from "@/lib/browserPipeline";
 import { parseInteractionRemap } from "@/lib/interactionTypes";
+import { applyScreenGatedCredit, type CreditResult } from "@/lib/stages/effectiveUsage";
+import {
+  applyObservationWindow,
+  type ObservationWindowResult,
+} from "@/lib/stages/observationWindow";
+import { attributePerson, type AttributionResult } from "@/lib/stages/attributePerson";
+import { scoreCompliance, type ComplianceResult } from "@/lib/stages/scoreCompliance";
+import { buildDayCoverage, type DayCoverageResult } from "@/lib/stages/dayCoverage";
+import type {
+  EnrolledDevice,
+  SharingEntry,
+  StudyWindow,
+  SurveyAnswer,
+} from "@/lib/stages/studySupportFiles";
 
 /**
  * The declared pipeline graph — the execution spine of the browser
  * pipeline. Node ids and labels use the community vocabulary
  * (docs/pipeline-graph/08-prior-art-vocabulary.md).
  *
- * Bodies wrap the existing stage functions of browserPipeline.ts 1:1;
- * every option a body reads MUST be declared as a knob binding so the
- * cache key covers it (staleness would otherwise be silent).
+ * Bodies wrap the stage functions 1:1; every option a body reads MUST be
+ * declared as a knob binding so the cache key covers it (staleness would
+ * otherwise be silent).
  */
 
 export interface PipelineSupportData {
@@ -42,6 +56,11 @@ export interface PipelineSupportData {
   appsForcingScreenOpenMap: Map<string, string>;
   backgroundAppsSet: Set<string>;
   codebookMap: Map<string, CodebookRecord>;
+  /** Study Inputs (Analyze tier); null = file not provided. */
+  studyWindows: StudyWindow[] | null;
+  sharingEntries: SharingEntry[] | null;
+  surveyAnswers: SurveyAnswer[] | null;
+  enrolledDevices: EnrolledDevice[] | null;
 }
 
 export interface PipelineCtx {
@@ -75,9 +94,33 @@ export interface DedupAndOrderOutput {
   exactDuplicateRowsRemoved: number;
 }
 
+export interface DayCoverageNodeOutput {
+  rows: CanonicalRow[];
+  coverage: DayCoverageResult | null;
+}
+
 export interface PipelineOutputs {
   appRows: CanonicalRow[];
   screenRows: CanonicalRow[];
+  credited: CreditResult | null;
+  windowReport: Pick<ObservationWindowResult, "droppedRows" | "participantsWithoutWindow"> | null;
+  attribution: AttributionResult["report"] | null;
+  coverage: DayCoverageResult | null;
+  compliance: ComplianceResult | null;
+}
+
+function requireStudyFile<T>(
+  value: T[] | null,
+  optionLabel: string,
+  fileLabel: string,
+): T[] {
+  if (value === null) {
+    throw new Error(
+      `${optionLabel} is enabled but no ${fileLabel} was provided. ` +
+        "Upload it under Study Inputs, or turn the option off.",
+    );
+  }
+  return value;
 }
 
 export function buildChronicleGraph(): GraphDef<PipelineCtx> {
@@ -283,35 +326,161 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         },
       },
       {
-        id: "day_coverage",
-        label: "Day coverage & placeholders",
-        section: "analyze",
+        id: "effective_usage",
+        label: "Effective usage (screen-gated credit)",
+        section: "clean",
         inputs: ["interval_quality", "app_policy"],
         knobs: [
           { optionKey: "processAppUsage", edge: "gates" },
-          { optionKey: "addNoActivityPlaceholderDays", edge: "gates" },
+          { optionKey: "enableScreenGatedCrediting", edge: "gates" },
+          { optionKey: "creditedSessionCapMinutes", edge: "tunes" },
+          { optionKey: "deviceLivenessGapToleranceMinutes", edge: "tunes" },
+          { optionKey: "autoLockBridgeSeconds", edge: "tunes" },
+          { optionKey: "noWitnessMinDayApps", edge: "tunes" },
         ],
-        run: (ctx, inputs): CanonicalRow[] => {
-          if (!ctx.options.processAppUsage) return [];
+        run: (ctx, inputs): CreditResult | null => {
+          if (!ctx.options.processAppUsage || !ctx.options.enableScreenGatedCrediting) return null;
           const quality = inputs.interval_quality as CanonicalRow[];
           const events = inputs.app_policy as { rows: CanonicalRow[] };
+          return applyScreenGatedCredit(quality, events.rows, {
+            capMinutes: ctx.options.creditedSessionCapMinutes,
+            livenessToleranceMinutes: ctx.options.deviceLivenessGapToleranceMinutes,
+            autoLockBridgeSeconds: ctx.options.autoLockBridgeSeconds,
+            noWitnessMinDayApps: ctx.options.noWitnessMinDayApps,
+          });
+        },
+      },
+      {
+        id: "observation_window",
+        label: "Observation-window filtering",
+        section: "analyze",
+        inputs: ["interval_quality"],
+        knobs: [
+          { optionKey: "processAppUsage", edge: "gates" },
+          { optionKey: "enableStudyWindowFilter", edge: "gates" },
+        ],
+        supportFiles: ["studyDatesFile"],
+        run: (ctx, inputs): ObservationWindowResult => {
+          const quality = inputs.interval_quality as CanonicalRow[];
+          if (!ctx.options.processAppUsage || !ctx.options.enableStudyWindowFilter) {
+            return { rows: quality, droppedRows: 0, participantsWithoutWindow: [] };
+          }
+          const windows = requireStudyFile(
+            ctx.support.studyWindows,
+            "The study-window filter",
+            "study-dates file",
+          );
+          return applyObservationWindow(quality, windows);
+        },
+      },
+      {
+        id: "attribute_person",
+        label: "Person attribution (shared devices)",
+        section: "analyze",
+        inputs: ["observation_window"],
+        knobs: [
+          { optionKey: "processAppUsage", edge: "gates" },
+          { optionKey: "enablePersonAttribution", edge: "gates" },
+        ],
+        supportFiles: ["deviceSharingFile", "surveyAttributionFile"],
+        run: (ctx, inputs): AttributionResult | { rows: CanonicalRow[]; report: null } => {
+          const windowed = inputs.observation_window as ObservationWindowResult;
+          if (!ctx.options.processAppUsage || !ctx.options.enablePersonAttribution) {
+            return { rows: windowed.rows, report: null };
+          }
+          const sharing = requireStudyFile(
+            ctx.support.sharingEntries,
+            "Person attribution",
+            "device-sharing file",
+          );
+          return attributePerson(windowed.rows, sharing, ctx.support.surveyAnswers ?? []);
+        },
+      },
+      {
+        id: "day_coverage",
+        label: "Day coverage & placeholders",
+        section: "analyze",
+        inputs: ["attribute_person", "app_policy"],
+        knobs: [
+          { optionKey: "processAppUsage", edge: "gates" },
+          { optionKey: "addNoActivityPlaceholderDays", edge: "gates" },
+          { optionKey: "enableDayCoverage", edge: "gates" },
+        ],
+        supportFiles: ["studyDatesFile"],
+        run: (ctx, inputs): DayCoverageNodeOutput => {
+          if (!ctx.options.processAppUsage) return { rows: [], coverage: null };
+          const attributed = inputs.attribute_person as { rows: CanonicalRow[] };
+          const events = inputs.app_policy as { rows: CanonicalRow[] };
           const rows = ctx.options.addNoActivityPlaceholderDays
-            ? addNoActivityPlaceholderRows(quality, events.rows)
-            : quality;
+            ? addNoActivityPlaceholderRows(attributed.rows, events.rows)
+            : attributed.rows;
+          let coverage: DayCoverageResult | null = null;
+          if (ctx.options.enableDayCoverage) {
+            const rawDates = new Map<string, Set<string>>();
+            for (const event of events.rows) {
+              const pid = event.participant_id || "unknown";
+              let set = rawDates.get(pid);
+              if (!set) {
+                set = new Set();
+                rawDates.set(pid, set);
+              }
+              set.add(event.date);
+            }
+            coverage = buildDayCoverage(rows, rawDates, ctx.support.studyWindows ?? []);
+          }
           ctx.emit("enrich", 1);
-          return rows;
+          return { rows, coverage };
+        },
+      },
+      {
+        id: "score_compliance",
+        label: "Compliance scoring",
+        section: "analyze",
+        inputs: ["day_coverage", "attribute_person"],
+        knobs: [
+          { optionKey: "processAppUsage", edge: "gates" },
+          { optionKey: "enableComplianceScoring", edge: "gates" },
+          { optionKey: "complianceThresholdPercent", edge: "tunes" },
+        ],
+        supportFiles: ["deviceSharingFile", "enrolledDevicesFile"],
+        run: (ctx, inputs): ComplianceResult | null => {
+          if (!ctx.options.processAppUsage || !ctx.options.enableComplianceScoring) return null;
+          const covered = inputs.day_coverage as DayCoverageNodeOutput;
+          const attributed = inputs.attribute_person as AttributionResult | { report: null };
+          const shared = new Set(attributed.report?.sharedParticipants ?? []);
+          return scoreCompliance(covered.rows, shared, ctx.options.complianceThresholdPercent);
         },
       },
       {
         id: "outputs",
         label: "Outputs",
         section: "output",
-        inputs: ["day_coverage", "device_state_timeline"],
+        inputs: [
+          "day_coverage",
+          "device_state_timeline",
+          "effective_usage",
+          "observation_window",
+          "attribute_person",
+          "score_compliance",
+        ],
         knobs: [],
-        run: (_ctx, inputs): PipelineOutputs => ({
-          appRows: inputs.day_coverage as CanonicalRow[],
-          screenRows: inputs.device_state_timeline as CanonicalRow[],
-        }),
+        run: (_ctx, inputs): PipelineOutputs => {
+          const covered = inputs.day_coverage as DayCoverageNodeOutput;
+          const windowed = inputs.observation_window as ObservationWindowResult;
+          const attributed = inputs.attribute_person as AttributionResult | { report: null };
+          return {
+            appRows: covered.rows,
+            screenRows: inputs.device_state_timeline as CanonicalRow[],
+            credited: inputs.effective_usage as CreditResult | null,
+            windowReport: {
+              droppedRows: windowed.droppedRows,
+              participantsWithoutWindow: windowed.participantsWithoutWindow,
+            },
+            attribution: attributed.report,
+            coverage: covered.coverage,
+            compliance: inputs.score_compliance as ComplianceResult | null,
+          };
+        },
       },
     ],
   };
@@ -337,16 +506,4 @@ export const UNBOUND_OPTION_KEYS: ReadonlySet<string> = new Set([
   "parallelProcessing",
   "parallelMaxWorkers",
   "datetimeOfPreprocessing", // covered by the run input hash
-  // Clean/Analyze feature options — bound when their nodes are wired in
-  // (stages ship first; the graph wiring task moves these to knob bindings).
-  "enableScreenGatedCrediting",
-  "creditedSessionCapMinutes",
-  "deviceLivenessGapToleranceMinutes",
-  "autoLockBridgeSeconds",
-  "noWitnessMinDayApps",
-  "enableStudyWindowFilter",
-  "enablePersonAttribution",
-  "enableComplianceScoring",
-  "complianceThresholdPercent",
-  "enableDayCoverage",
 ]);
