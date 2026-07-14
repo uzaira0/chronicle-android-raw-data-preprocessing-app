@@ -15,7 +15,7 @@ web/src/lib/stages/            processRawCsvContent DECOMPOSED, one file per nod
                                (file names follow the doc-08 node ids)
   preprocess/                  parse_events, validate_clock, normalize_timezones, dedup_and_order,
                                device_state_timeline, reconstruct_episodes, categorize_apps
-  clean/                       app_policy, effective_usage ← new ports
+  clean/                       app_policy, interval_quality, effective_usage ← new ports
   analyze/                     observation_window, attribute_person,
                                day_coverage, score_compliance ← new ports
 web/src/components/GraphPanel/ React Flow 12 + dagre rendered view
@@ -48,10 +48,11 @@ Naming is grounded in the prior-art vocabulary (doc 08): P&T episodes/sessions/g
 EYES device states/pickups/FAU, Culverhouse flag-and-truncate. No invented compounds, no
 internal decision-record numbers, no engine jargon.
 
-Preprocess: parse_events → normalize_timezones → dedup_and_order →
+Preprocess: parse_events → validate_clock → normalize_timezones → dedup_and_order →
 {device_state_timeline, reconstruct_episodes} → categorize_apps.
-Clean: app_policy (table-driven per-package actions) → effective_usage
-(episodes ∩ device-active states, truncated; the FAU-analog).
+Clean: app_policy (ordered rule table) → interval_quality (thresholds/caps/flags on any
+interval type) → effective_usage (episodes ∩ device-active states, truncated; the
+FAU-analog).
 Device branch: device_state_timeline → device_usage (sessions/glances/pickups — episode-free).
 Analyze: observation_window → attribute_person → score_compliance → day_coverage → reports.
 

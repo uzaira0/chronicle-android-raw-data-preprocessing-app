@@ -82,6 +82,7 @@ only at witnessed events) vs complement-based (detect non-active, call the rest 
 | `reconstruct_episodes` | Usage-episode reconstruction | P&T "usage episode" |
 | `categorize_apps` | App categorization | codebook |
 | `app_policy` | App policy (per-package actions) | Culverhouse bad_apps; P&T launcher doctrine |
+| `interval_quality` | Interval quality (thresholds/caps/flags on any interval type) | Culverhouse long-event actions, scope=all |
 | `effective_usage` | Effective usage (episodes ∩ device-active, truncated) | EYES FAU + Culverhouse truncate |
 | `device_usage` | Device-level usage (sessions/glances/pickups) | P&T totals; EYES pickups |
 | `observation_window` | Observation-window filtering | measurement convention |
