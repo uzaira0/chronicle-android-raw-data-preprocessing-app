@@ -829,7 +829,7 @@ function localWeekdayNumber(timestampNs: bigint, timeZone: string): number {
   return map[weekday] ?? 1;
 }
 
-function populateTimeColumns(row: CanonicalRow, timestampNs: bigint, timeZone: string): void {
+export function populateTimeColumns(row: CanonicalRow, timestampNs: bigint, timeZone: string): void {
   const parts = formatParts(timestampNs, timeZone);
   const day = localWeekdayNumber(timestampNs, timeZone);
   row.date = `${parts.year}-${parts.month}-${parts.day}`;
