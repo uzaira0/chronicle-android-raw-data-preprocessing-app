@@ -1242,6 +1242,12 @@ a:hover {
   line-height: 1.2;
 }
 
+.graph-sentence-detail {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #64748b);
+}
+
 .graph-node--preprocess { --graph-node-accent: var(--accent-session); }
 .graph-node--clean { --graph-node-accent: var(--accent-files); }
 .graph-node--analyze { --graph-node-accent: var(--accent-study); }

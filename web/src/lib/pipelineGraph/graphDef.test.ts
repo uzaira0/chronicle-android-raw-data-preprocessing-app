@@ -53,6 +53,8 @@ describe("buildChronicleGraph", () => {
       enableComplianceScoring: true,
       addNoActivityPlaceholderDays: true,
       enableDayCoverage: true,
+      interactionTypesToRemove: ["Usage Stat"],
+      filterZeroDurationSessions: true,
     };
     const bypassed = (id: string, options: Record<string, unknown>): boolean =>
       byId.get(id)!.bypassedWhen?.(options) === true;
@@ -78,7 +80,8 @@ describe("buildChronicleGraph", () => {
       for (const id of [
         "reconstruct_episodes",
         "categorize_apps",
-        "interval_quality",
+        "episode_annotations",
+        "interval_cleaning",
         "effective_usage",
         "observation_window",
         "attribute_person",
@@ -89,6 +92,23 @@ describe("buildChronicleGraph", () => {
       }
       // The screen chain is independent of the app gate.
       expect(bypassed("device_state_timeline", appOff)).toBe(false);
+    });
+
+    it("interval_cleaning needs ALL THREE lossy sub-steps off to be a pass-through", () => {
+      const allLossyOff = {
+        ...ALL_ON,
+        useFilterFile: false,
+        interactionTypesToRemove: [],
+        filterZeroDurationSessions: false,
+      };
+      expect(bypassed("interval_cleaning", allLossyOff)).toBe(true);
+      expect(bypassed("interval_cleaning", { ...allLossyOff, useFilterFile: true })).toBe(false);
+      expect(
+        bypassed("interval_cleaning", { ...allLossyOff, interactionTypesToRemove: ["Usage Stat"] }),
+      ).toBe(false);
+      expect(
+        bypassed("interval_cleaning", { ...allLossyOff, filterZeroDurationSessions: true }),
+      ).toBe(false);
     });
 
     it("day_coverage needs BOTH halves off to be a pass-through", () => {
@@ -119,7 +139,29 @@ describe("buildChronicleGraph", () => {
     const ids = def.nodes.map((node) => node.id);
     expect(ids).toContain("device_state_timeline");
     expect(ids).toContain("reconstruct_episodes");
-    expect(ids).toContain("interval_quality");
+    expect(ids).toContain("episode_annotations");
+    expect(ids).toContain("interval_cleaning");
     expect(ids).toContain("day_coverage");
+  });
+
+  it("every node carries a plain-English description", () => {
+    for (const node of def.nodes) {
+      expect(node.description, node.id).toBeTruthy();
+      expect(node.description!.length).toBeGreaterThan(40);
+    }
+  });
+
+  it("phase separation: lossless annotation is preprocess, lossy steps are clean", () => {
+    const byId = new Map(def.nodes.map((node) => [node.id, node]));
+    // The engagement walk + quality flags add columns only — preprocessing.
+    expect(byId.get("episode_annotations")!.section).toBe("preprocess");
+    // Blanking + row drops are the lossy half — cleaning, AFTER episodes are built.
+    expect(byId.get("interval_cleaning")!.section).toBe("clean");
+    expect(byId.get("interval_cleaning")!.inputs).toEqual(["episode_annotations"]);
+    // app_policy is the ONE clean decision pinned upstream (episode passes
+    // read its marks) — it must feed the episode builder, and its lossy
+    // treatment must NOT live there (it lives in interval_cleaning).
+    expect(byId.get("reconstruct_episodes")!.inputs).toEqual(["app_policy"]);
+    expect(byId.get("app_policy")!.label.toLowerCase()).toContain("mark");
   });
 });

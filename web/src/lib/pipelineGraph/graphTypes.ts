@@ -25,6 +25,13 @@ export interface NodeDef<Ctx> {
   id: string;
   /** Human label shown in the graph view. */
   label: string;
+  /**
+   * Plain-English explanation of what the step does (and, where relevant,
+   * why it sits where it sits) — shown as the node tooltip and under the
+   * sentence bar when the node is selected. Community-grounded wording
+   * (docs/pipeline-graph/08-prior-art-vocabulary.md), no jargon.
+   */
+  description?: string;
   section: Section;
   /** Upstream node ids — the `feeds` edges. */
   inputs: string[];

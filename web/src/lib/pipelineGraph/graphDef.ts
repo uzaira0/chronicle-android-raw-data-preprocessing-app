@@ -137,6 +137,9 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
       {
         id: "parse_events",
         label: "Event parsing",
+        description:
+          "Reads the raw Chronicle CSV into typed event rows (one row per " +
+          "logged interaction) and collects the timezones seen in the file.",
         section: "preprocess",
         inputs: [],
         knobs: [{ optionKey: "interactionTypeRemap", edge: "tunes" }],
@@ -154,6 +157,10 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
       {
         id: "normalize_timezones",
         label: "Timezone normalization",
+        description:
+          "Puts every event on one clock (convert or filter, per the " +
+          "timezone-handling setting) so durations and day boundaries are " +
+          "computed consistently. The original timezone column is preserved.",
         section: "preprocess",
         inputs: ["parse_events"],
         knobs: [
@@ -171,6 +178,10 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
       {
         id: "dedup_and_order",
         label: "Event dedup & ordering",
+        description:
+          "Removes exact duplicate rows, nudges same-timestamp events apart " +
+          "so ordering is deterministic, and marks gaps in the data stream. " +
+          "Also fixes the event order the episode builder depends on.",
         section: "preprocess",
         inputs: ["normalize_timezones"],
         knobs: [
@@ -201,7 +212,16 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
       },
       {
         id: "app_policy",
-        label: "App policy (per-package actions)",
+        label: "App policy — mark filtered packages",
+        description:
+          "MARKING ONLY, nothing is dropped or blanked here: rows from " +
+          "packages on the filter list are relabeled 'Filtered App Usage' " +
+          "(a package also on the background list is constructed-and-marked " +
+          "'Filtered App Background Usage' instead). The lossy treatment — " +
+          "blanking those rows' timing — happens later, in Interval cleaning. " +
+          "This is the one cleaning decision that must sit before episode " +
+          "building, because both episode passes read the marks; valid apps' " +
+          "episodes are identical with it on or off (pinned by tests).",
         section: "clean",
         inputs: ["dedup_and_order"],
         knobs: [{ optionKey: "useFilterFile", edge: "gates" }],
@@ -220,6 +240,11 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
       {
         id: "device_state_timeline",
         label: "Device-state timeline (screen sessions)",
+        description:
+          "Builds screen-on/screen-off sessions from the interactive/keyguard " +
+          "events (the device-state layer — EYES blocks / Parry & Toth " +
+          "brackets). Independent of app episodes; feeds screen outputs and " +
+          "the screen-gated credit.",
         section: "preprocess",
         inputs: ["app_policy"],
         knobs: [
@@ -248,6 +273,11 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
       {
         id: "reconstruct_episodes",
         label: "Usage-episode reconstruction",
+        description:
+          "Pairs app resume/pause/stop events into usage episodes (start, " +
+          "stop, duration per app run), applying the proximity glue, the " +
+          "minimum-duration floor, stop-event rules, and optional concurrent " +
+          "modeling. The measurement core of the pipeline.",
         section: "preprocess",
         inputs: ["app_policy"],
         knobs: [
@@ -285,6 +315,10 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
       {
         id: "categorize_apps",
         label: "App categorization",
+        description:
+          "Joins each episode's package name against the app codebook to add " +
+          "category and store-metadata columns. Label enrichment only — " +
+          "timing is untouched.",
         section: "preprocess",
         inputs: ["reconstruct_episodes"],
         knobs: [
@@ -305,27 +339,58 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         },
       },
       {
-        id: "interval_quality",
-        label: "Interval quality (flags & floors)",
-        section: "clean",
+        id: "episode_annotations",
+        label: "Episode annotation (engagement & flags)",
+        description:
+          "Adds columns, removes nothing: the engagement walk (new-engagement " +
+          "30 s / custom threshold, app switches, gaps between episodes) and " +
+          "flag-and-retain quality flags for long usage and long data gaps. " +
+          "Lossless annotation — the last preprocessing step.",
+        section: "preprocess",
         inputs: ["categorize_apps"],
         knobs: [
           { optionKey: "processAppUsage", edge: "gates" },
           { optionKey: "longUsageDurationThresholds", edge: "tunes" },
           { optionKey: "longDataTimeGapThresholds", edge: "tunes" },
           { optionKey: "customAppEngagementDuration", edge: "tunes" },
-          { optionKey: "interactionTypesToRemove", edge: "tunes" },
-          { optionKey: "filterZeroDurationSessions", edge: "gates" },
-          { optionKey: "minimumUsageDuration", edge: "tunes" },
         ],
         bypassedWhen: (options) => !opts(options).processAppUsage,
         run: (ctx, inputs): CanonicalRow[] => {
           if (!ctx.options.processAppUsage) return [];
           ctx.emit("enrich", 0);
           const categorized = inputs.categorize_apps as CanonicalRow[];
-          let rows = addAppUsageDetailColumns(categorized, ctx.options);
-          rows = markAppUsageFlags(rows, ctx.options);
-          rows = clearFilteredUsageTiming(rows);
+          const rows = addAppUsageDetailColumns(categorized, ctx.options);
+          return markAppUsageFlags(rows, ctx.options);
+        },
+      },
+      {
+        id: "interval_cleaning",
+        label: "Interval cleaning (blank & drop)",
+        description:
+          "The lossy steps, applied AFTER episodes are fully built and " +
+          "annotated: blanks the timing of rows marked by the app policy " +
+          "(plain filtered rows only — constructed background sessions keep " +
+          "real timing), drops event types selected for removal (kept when " +
+          "they witness a large data gap), and optionally drops zero-duration " +
+          "episodes.",
+        section: "clean",
+        inputs: ["episode_annotations"],
+        knobs: [
+          { optionKey: "processAppUsage", edge: "gates" },
+          { optionKey: "useFilterFile", edge: "tunes" },
+          { optionKey: "interactionTypesToRemove", edge: "tunes" },
+          { optionKey: "longDataTimeGapThresholds", edge: "tunes" },
+          { optionKey: "filterZeroDurationSessions", edge: "gates" },
+        ],
+        bypassedWhen: (options) =>
+          !opts(options).processAppUsage ||
+          (!opts(options).useFilterFile &&
+            (opts(options).interactionTypesToRemove?.length ?? 0) === 0 &&
+            !opts(options).filterZeroDurationSessions),
+        run: (ctx, inputs): CanonicalRow[] => {
+          if (!ctx.options.processAppUsage) return [];
+          const annotated = inputs.episode_annotations as CanonicalRow[];
+          let rows = clearFilteredUsageTiming(annotated);
           rows = removeSelectedInteractionTypes(rows, ctx.options);
           if (ctx.options.filterZeroDurationSessions) {
             rows = rows.filter(
@@ -342,8 +407,13 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
       {
         id: "effective_usage",
         label: "Effective usage (screen-gated credit)",
+        description:
+          "Credits app time only while the screen is on AND the device is " +
+          "provably alive (episodes ∩ device-active, like EYES's Final App " +
+          "Usage), then truncates each credited session at the cap. Optional " +
+          "and side-by-side — never mutates the headline output.",
         section: "clean",
-        inputs: ["interval_quality", "app_policy"],
+        inputs: ["interval_cleaning", "app_policy"],
         knobs: [
           { optionKey: "processAppUsage", edge: "gates" },
           { optionKey: "enableScreenGatedCrediting", edge: "gates" },
@@ -356,7 +426,7 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           !opts(options).processAppUsage || !opts(options).enableScreenGatedCrediting,
         run: (ctx, inputs): CreditResult | null => {
           if (!ctx.options.processAppUsage || !ctx.options.enableScreenGatedCrediting) return null;
-          const quality = inputs.interval_quality as CanonicalRow[];
+          const quality = inputs.interval_cleaning as CanonicalRow[];
           const events = inputs.app_policy as { rows: CanonicalRow[] };
           return applyScreenGatedCredit(quality, events.rows, {
             capMinutes: ctx.options.creditedSessionCapMinutes,
@@ -369,8 +439,12 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
       {
         id: "observation_window",
         label: "Observation-window filtering",
+        description:
+          "Keeps only rows inside each participant's study window (from the " +
+          "study-dates file) — a measurement convention applied at analysis " +
+          "time, never during preprocessing.",
         section: "analyze",
-        inputs: ["interval_quality"],
+        inputs: ["interval_cleaning"],
         knobs: [
           { optionKey: "processAppUsage", edge: "gates" },
           { optionKey: "enableStudyWindowFilter", edge: "gates" },
@@ -379,7 +453,7 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         bypassedWhen: (options) =>
           !opts(options).processAppUsage || !opts(options).enableStudyWindowFilter,
         run: (ctx, inputs): ObservationWindowResult => {
-          const quality = inputs.interval_quality as CanonicalRow[];
+          const quality = inputs.interval_cleaning as CanonicalRow[];
           if (!ctx.options.processAppUsage || !ctx.options.enableStudyWindowFilter) {
             return { rows: quality, droppedRows: 0, participantsWithoutWindow: [] };
           }
@@ -394,6 +468,10 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
       {
         id: "attribute_person",
         label: "Person attribution (shared devices)",
+        description:
+          "On shared devices, assigns each episode to a person (target child " +
+          "vs others) using the device-sharing file and survey answers. " +
+          "Single-user devices pass through unchanged.",
         section: "analyze",
         inputs: ["observation_window"],
         knobs: [
@@ -419,6 +497,10 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
       {
         id: "day_coverage",
         label: "Day coverage & placeholders",
+        description:
+          "Accounts for days, never changes timing: adds explicit no-activity " +
+          "placeholder rows for silent days, and builds the per-day coverage " +
+          "table (which study days have data, which are gaps).",
         section: "analyze",
         inputs: ["attribute_person", "app_policy"],
         knobs: [
@@ -460,6 +542,10 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
       {
         id: "score_compliance",
         label: "Compliance scoring",
+        description:
+          "Scores each shared-device day as known/(known+unknown) usage " +
+          "attribution against the compliance threshold. Reads the attributed " +
+          "rows; changes nothing upstream.",
         section: "analyze",
         inputs: ["day_coverage", "attribute_person"],
         knobs: [
@@ -481,6 +567,10 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
       {
         id: "outputs",
         label: "Outputs",
+        description:
+          "Assembles everything the run produced — app rows, screen sessions, " +
+          "credited usage, window/attribution/coverage/compliance reports — " +
+          "into the downloadable result set.",
         section: "output",
         inputs: [
           "day_coverage",

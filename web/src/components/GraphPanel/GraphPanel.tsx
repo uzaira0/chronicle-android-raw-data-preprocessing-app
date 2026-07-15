@@ -79,6 +79,8 @@ type PipelineNodeData = {
   isJoin: boolean;
   /** Gated off by the CURRENT settings (independent of any run report). */
   isOff: boolean;
+  /** Plain-English step explanation (tooltip + selection detail line). */
+  description: string | null;
   [key: string]: unknown;
 };
 
@@ -90,7 +92,11 @@ function PipelineNode({
   sourcePosition,
 }: NodeProps<PipelineFlowNode>): ReactElement {
   return (
-    <div className={`graph-node graph-node--${data.section}`} data-testid={`graph-node-body`}>
+    <div
+      className={`graph-node graph-node--${data.section}`}
+      data-testid={`graph-node-body`}
+      title={data.description ?? undefined}
+    >
       {/* React Flow drops any edge whose endpoint node has no Handle —
           these invisible handles are what let the edges render at all. */}
       <Handle
@@ -234,6 +240,10 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
     () => new Map(def.nodes.map((node) => [node.id, node.label])),
     [def],
   );
+  const descriptionById = useMemo(
+    () => new Map(def.nodes.map((node) => [node.id, node.description ?? null])),
+    [def],
+  );
 
   const reportedResults = results.filter((result) => result.graphReport);
   const activeResult =
@@ -366,6 +376,7 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
         status: statuses ? (statuses[node.id] ?? null) : null,
         isJoin: joins.has(node.id),
         isOff: offNodes.has(node.id),
+        description: descriptionById.get(node.id) ?? null,
       },
       draggable: false,
       connectable: false,
@@ -484,7 +495,18 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
         ) : null}
       </div>
 
-      <SentenceBar sentence={sentence} />
+      <SentenceBar
+        sentence={sentence}
+        detail={
+          selected && !second
+            ? (() => {
+                const description = descriptionById.get(selected);
+                const label = labelById.get(selected) ?? selected;
+                return description ? `${label}: ${description}` : null;
+              })()
+            : null
+        }
+      />
 
       <div className="graph-canvas" data-testid="graph-canvas" ref={canvasRef}>
         <ReactFlow

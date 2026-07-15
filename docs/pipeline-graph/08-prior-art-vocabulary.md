@@ -81,8 +81,9 @@ only at witnessed events) vs complement-based (detect non-active, call the rest 
 | `device_state_timeline` | Device-state timeline | EYES blocks; P&T brackets |
 | `reconstruct_episodes` | Usage-episode reconstruction | P&T "usage episode" |
 | `categorize_apps` | App categorization | codebook |
-| `app_policy` | App policy (per-package actions) | Culverhouse bad_apps; P&T launcher doctrine |
-| `interval_quality` | Interval quality (thresholds/caps/flags on any interval type) | Culverhouse long-event actions, scope=all |
+| `app_policy` | App policy — mark filtered packages (MARK only; the lossy blanking lives in `interval_cleaning`. Pinned before episode building — both episode passes read the marks) | Culverhouse bad_apps; P&T launcher doctrine; EYES mark-treatment-deferred |
+| `episode_annotations` | Episode annotation (engagement & flags — lossless columns: engagement walk + long-usage/data-gap flag-and-retain; split 2026-07-15 from `interval_quality`) | Culverhouse event_flags/long_3h/long_6h (flag-and-retain) |
+| `interval_cleaning` | Interval cleaning (blank & drop — the lossy half: filtered-timing blanking, selected-type removal, zero-duration drop; split 2026-07-15 from `interval_quality`) | Culverhouse trim-and-log |
 | `effective_usage` | Effective usage (episodes ∩ device-active, truncated) | EYES FAU + Culverhouse truncate |
 | `device_usage` | Device-level usage (sessions/glances/pickups) | P&T totals; EYES pickups |
 | `observation_window` | Observation-window filtering | measurement convention |
