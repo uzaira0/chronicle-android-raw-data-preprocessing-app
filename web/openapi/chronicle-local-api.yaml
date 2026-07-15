@@ -217,9 +217,11 @@ components:
             common zone, or anchor on the file's primary zone.
         useFilterFile:
           type: boolean
-          description: If on, the pipeline labels apps in your filter list as filtered
+          description: "If on, the pipeline labels apps in your filter list as filtered
             (instead of dropping them). Without an uploaded file the app falls
-            back to the bundled default.
+            back to the bundled default. Off by default: this is an app-policy
+            (cleaning) decision, not part of standard preprocessing — enable it
+            only when your study's protocol says to."
         useAppsForcingScreenOpenFile:
           type: boolean
           description: Apps in this list are treated as ones that force the screen to stay
@@ -311,7 +313,9 @@ components:
           type: integer
           description: Sessions shorter than this threshold have their duration_seconds
             and duration_minutes set to null in the output. The session row is
-            retained. Set to 0 to disable.
+            retained. Set to 0 to disable. The 60-second default nulls
+            sub-minute foreground blips (UI transitions and glances), matching
+            the studies' locked preprocessing configuration.
         filterZeroDurationSessions:
           type: boolean
           description: Removes app-usage session rows whose computed duration is exactly
@@ -412,7 +416,8 @@ components:
             stays open for the next genuine stop event. Set to 0 to disable.
             When on, app-usage matching runs in a JavaScript matcher path (the
             shared WASM matcher has no proximity parameter); with it off the
-            output is byte-identical to before.
+            output is byte-identical to before. The 2-second default matches the
+            studies' locked preprocessing configuration.
         addNoActivityPlaceholderDays:
           type: boolean
           description: For each participant, any calendar day that has raw event data but

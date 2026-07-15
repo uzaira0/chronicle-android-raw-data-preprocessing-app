@@ -314,8 +314,10 @@ slots:
     title: "Use filter file"
     description: >-
       If on, the pipeline labels apps in your filter list as filtered (instead of dropping them).
-      Without an uploaded file the app falls back to the bundled default.
-    default: true
+      Without an uploaded file the app falls back to the bundled default. Off by default:
+      this is an app-policy (cleaning) decision, not part of standard preprocessing —
+      enable it only when your study's protocol says to.
+    default: false
   use_apps_forcing_screen_open_file:
     range: boolean
     required: true
@@ -453,8 +455,10 @@ slots:
     description: >-
       Sessions shorter than this threshold have their duration_seconds and duration_minutes
       set to null in the output. The session row is retained. Set to 0 to disable.
-    example: "default 0 (disabled)"
-    default: 0
+      The 60-second default nulls sub-minute foreground blips (UI transitions and
+      glances), matching the studies' locked preprocessing configuration.
+    example: "default 60 seconds"
+    default: 60
   filter_zero_duration_sessions:
     range: boolean
     required: true
@@ -474,8 +478,9 @@ slots:
       session stays open for the next genuine stop event. Set to 0 to disable. When on,
       app-usage matching runs in a JavaScript matcher path (the shared WASM matcher has no
       proximity parameter); with it off the output is byte-identical to before.
-    example: "default 0 (disabled)"
-    default: 0.0
+      The 2-second default matches the studies' locked preprocessing configuration.
+    example: "default 2 seconds"
+    default: 2.0
   enable_screen_gated_crediting:
     range: boolean
     required: true

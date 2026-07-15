@@ -322,6 +322,9 @@ describe("browserPipeline", () => {
         useFilterFile: true,
         useAppsForcingScreenOpenFile: false,
         useAppCodebook: false,
+        // Pin the injected-matcher path: a proximity grace > 0 would route
+        // matching through the JS proximity matcher and bypass the mock.
+        proximityIntervalSeconds: 0,
       },
       {
         filterFile: {
@@ -380,6 +383,8 @@ describe("browserPipeline", () => {
         useAppCodebook: false,
         useBackgroundAppsFile: true,
         modelConcurrentUsage: false,
+        // Pin the injected-matcher path (proximity > 0 bypasses the mock).
+        proximityIntervalSeconds: 0,
       },
       { backgroundAppsFile: { name: "bg.csv", bytes: csvBytes(backgroundCsv) } },
       matcher,
@@ -425,6 +430,8 @@ describe("browserPipeline", () => {
           useAppsForcingScreenOpenFile: false,
           useAppCodebook: false,
           interactionTypeRemap,
+          // Pin the injected-matcher path (proximity > 0 bypasses the mock).
+          proximityIntervalSeconds: 0,
         },
         {},
         matcher,
@@ -959,6 +966,10 @@ describe("browserPipeline", () => {
       useFilterFile: false,
       useAppsForcingScreenOpenFile: false,
       useAppCodebook: false,
+      // Pin the injected-matcher path and keep the zero duration observable:
+      // a minimum-duration floor would null it before the zero-filter runs.
+      proximityIntervalSeconds: 0,
+      minimumUsageDuration: 0,
     };
 
     const withFilter = await processRawCsvContent("Raw P01.csv", csv, { ...baseOpts, filterZeroDurationSessions: true }, {}, matcher);

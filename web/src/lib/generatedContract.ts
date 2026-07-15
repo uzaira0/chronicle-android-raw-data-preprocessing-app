@@ -287,7 +287,7 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   deduplicateExactRows: true,
   selectedTimezone: "",
   timezoneHandling: "selected-filter",
-  useFilterFile: true,
+  useFilterFile: false,
   useAppsForcingScreenOpenFile: false,
   useBackgroundAppsFile: false,
   useAppCodebook: true,
@@ -301,7 +301,7 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   enableParquetExport: false,
   enableSpssExport: false,
   enableInteractiveTimeline: false,
-  minimumUsageDuration: 0,
+  minimumUsageDuration: 60,
   filterZeroDurationSessions: false,
   customAppEngagementDuration: 300,
   longUsageDurationThresholds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
@@ -318,7 +318,7 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   applyMinimumUsageDurationToConcurrentSubintervals: false,
   interactionTypesToRemove: [],
   interactionTypeRemap: [],
-  proximityIntervalSeconds: 0,
+  proximityIntervalSeconds: 2,
   addNoActivityPlaceholderDays: false,
   enableScreenGatedCrediting: false,
   creditedSessionCapMinutes: 360,
@@ -380,7 +380,7 @@ export const BROWSER_OPTION_TOOLTIPS = {
   },
   useFilterFile: {
     title: "Use filter file",
-    body: "If on, the pipeline labels apps in your filter list as filtered (instead of dropping them). Without an uploaded file the app falls back to the bundled default.",
+    body: "If on, the pipeline labels apps in your filter list as filtered (instead of dropping them). Without an uploaded file the app falls back to the bundled default. Off by default: this is an app-policy (cleaning) decision, not part of standard preprocessing — enable it only when your study's protocol says to.",
   },
   useAppsForcingScreenOpenFile: {
     title: "Use apps-forcing-screen-open file",
@@ -436,8 +436,8 @@ export const BROWSER_OPTION_TOOLTIPS = {
   },
   minimumUsageDuration: {
     title: "Minimum usage duration (seconds)",
-    body: "Sessions shorter than this threshold have their duration_seconds and duration_minutes set to null in the output. The session row is retained. Set to 0 to disable.",
-    example: "default 0 (disabled)",
+    body: "Sessions shorter than this threshold have their duration_seconds and duration_minutes set to null in the output. The session row is retained. Set to 0 to disable. The 60-second default nulls sub-minute foreground blips (UI transitions and glances), matching the studies' locked preprocessing configuration.",
+    example: "default 60 seconds",
   },
   filterZeroDurationSessions: {
     title: "Filter zero-duration sessions",
@@ -512,8 +512,8 @@ export const BROWSER_OPTION_TOOLTIPS = {
   },
   proximityIntervalSeconds: {
     title: "Intra-app teardown grace (seconds)",
-    body: "When greater than 0, an Activity Stopped fallback close landing within this many seconds of a re-resumed session's start is treated as an intra-app teardown artifact (the app was torn down then immediately re-resumed) rather than a real close, so the session stays open for the next genuine stop event. Set to 0 to disable. When on, app-usage matching runs in a JavaScript matcher path (the shared WASM matcher has no proximity parameter); with it off the output is byte-identical to before.",
-    example: "default 0 (disabled)",
+    body: "When greater than 0, an Activity Stopped fallback close landing within this many seconds of a re-resumed session's start is treated as an intra-app teardown artifact (the app was torn down then immediately re-resumed) rather than a real close, so the session stays open for the next genuine stop event. Set to 0 to disable. When on, app-usage matching runs in a JavaScript matcher path (the shared WASM matcher has no proximity parameter); with it off the output is byte-identical to before. The 2-second default matches the studies' locked preprocessing configuration.",
+    example: "default 2 seconds",
   },
   addNoActivityPlaceholderDays: {
     title: "Add no-activity placeholder days",
