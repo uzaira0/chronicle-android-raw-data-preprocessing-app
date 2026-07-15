@@ -109,6 +109,14 @@ export interface PipelineOutputs {
   compliance: ComplianceResult | null;
 }
 
+/**
+ * Typed view over the untyped options bag `bypassedWhen` receives (the
+ * engine and the graph panel both hand it a plain record).
+ */
+function opts(options: Record<string, unknown>): BrowserProcessingOptions {
+  return options as unknown as BrowserProcessingOptions;
+}
+
 function requireStudyFile<T>(
   value: T[] | null,
   optionLabel: string,
@@ -198,6 +206,7 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         inputs: ["dedup_and_order"],
         knobs: [{ optionKey: "useFilterFile", edge: "gates" }],
         supportFiles: ["filterFile"],
+        bypassedWhen: (options) => !opts(options).useFilterFile,
         run: (ctx, inputs): { rows: CanonicalRow[] } => {
           ctx.emit("filter", 0);
           const upstream = inputs.dedup_and_order as DedupAndOrderOutput;
@@ -222,6 +231,7 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           { optionKey: "screenUsageKeyguardNearStopSeconds", edge: "tunes" },
         ],
         supportFiles: ["appsForcingScreenOpenFile"],
+        bypassedWhen: (options) => !opts(options).processScreenUsage,
         run: (ctx, inputs): CanonicalRow[] => {
           if (!ctx.options.processScreenUsage) return [];
           ctx.emit("screen", 0);
@@ -256,6 +266,7 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           { optionKey: "otherInteractionTypesToStopUsageAt", edge: "tunes" },
         ],
         supportFiles: ["backgroundAppsFile"],
+        bypassedWhen: (options) => !opts(options).processAppUsage,
         run: async (ctx, inputs): Promise<CanonicalRow[]> => {
           if (!ctx.options.processAppUsage) return [];
           ctx.emit("matcher", 0);
@@ -282,6 +293,8 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           { optionKey: "includeCategoryColumn", edge: "tunes" },
         ],
         supportFiles: ["appCodebookFile"],
+        bypassedWhen: (options) =>
+          !opts(options).processAppUsage || !opts(options).useAppCodebook,
         run: (ctx, inputs): CanonicalRow[] => {
           if (!ctx.options.processAppUsage) return [];
           ctx.emit("codebook", 0);
@@ -305,6 +318,7 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           { optionKey: "filterZeroDurationSessions", edge: "gates" },
           { optionKey: "minimumUsageDuration", edge: "tunes" },
         ],
+        bypassedWhen: (options) => !opts(options).processAppUsage,
         run: (ctx, inputs): CanonicalRow[] => {
           if (!ctx.options.processAppUsage) return [];
           ctx.emit("enrich", 0);
@@ -338,6 +352,8 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           { optionKey: "autoLockBridgeSeconds", edge: "tunes" },
           { optionKey: "noWitnessMinDayApps", edge: "tunes" },
         ],
+        bypassedWhen: (options) =>
+          !opts(options).processAppUsage || !opts(options).enableScreenGatedCrediting,
         run: (ctx, inputs): CreditResult | null => {
           if (!ctx.options.processAppUsage || !ctx.options.enableScreenGatedCrediting) return null;
           const quality = inputs.interval_quality as CanonicalRow[];
@@ -360,6 +376,8 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           { optionKey: "enableStudyWindowFilter", edge: "gates" },
         ],
         supportFiles: ["studyDatesFile"],
+        bypassedWhen: (options) =>
+          !opts(options).processAppUsage || !opts(options).enableStudyWindowFilter,
         run: (ctx, inputs): ObservationWindowResult => {
           const quality = inputs.interval_quality as CanonicalRow[];
           if (!ctx.options.processAppUsage || !ctx.options.enableStudyWindowFilter) {
@@ -383,6 +401,8 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           { optionKey: "enablePersonAttribution", edge: "gates" },
         ],
         supportFiles: ["deviceSharingFile", "surveyAttributionFile"],
+        bypassedWhen: (options) =>
+          !opts(options).processAppUsage || !opts(options).enablePersonAttribution,
         run: (ctx, inputs): AttributionResult | { rows: CanonicalRow[]; report: null } => {
           const windowed = inputs.observation_window as ObservationWindowResult;
           if (!ctx.options.processAppUsage || !ctx.options.enablePersonAttribution) {
@@ -407,6 +427,11 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           { optionKey: "enableDayCoverage", edge: "gates" },
         ],
         supportFiles: ["studyDatesFile"],
+        // Both halves (placeholder rows + coverage table) must be off for the
+        // node to be a pure pass-through.
+        bypassedWhen: (options) =>
+          !opts(options).processAppUsage ||
+          (!opts(options).addNoActivityPlaceholderDays && !opts(options).enableDayCoverage),
         run: (ctx, inputs): DayCoverageNodeOutput => {
           if (!ctx.options.processAppUsage) return { rows: [], coverage: null };
           const attributed = inputs.attribute_person as { rows: CanonicalRow[] };
@@ -443,6 +468,8 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           { optionKey: "complianceThresholdPercent", edge: "tunes" },
         ],
         supportFiles: ["deviceSharingFile", "enrolledDevicesFile"],
+        bypassedWhen: (options) =>
+          !opts(options).processAppUsage || !opts(options).enableComplianceScoring,
         run: (ctx, inputs): ComplianceResult | null => {
           if (!ctx.options.processAppUsage || !ctx.options.enableComplianceScoring) return null;
           const covered = inputs.day_coverage as DayCoverageNodeOutput;

@@ -163,6 +163,39 @@ describe("GraphEngine", () => {
     expect(runs).toEqual({ a: 2, b: 1 });
   });
 
+  it("a gated-off node reports 'bypassed' (never 'ran'/'cached'), body still executes", async () => {
+    const runs: Record<string, number> = {};
+    const def: GraphDef<Ctx> = {
+      nodes: [
+        node("a", [], () => "A"),
+        node("b", ["a"], () => { runs.b = (runs.b ?? 0) + 1; return "pass-through"; }, {
+          knobs: [{ optionKey: "gateB", edge: "gates" }],
+          bypassedWhen: (options) => options.gateB !== true,
+        }),
+        node("c", ["b"], () => "C"),
+      ],
+    };
+    const engine = new GraphEngine(def);
+
+    const off = await engine.run(CTX, { ...KEYS, options: { gateB: false } });
+    expect(off.report.statuses.b).toBe("bypassed");
+    // The body ran anyway — downstream consumes its pass-through value.
+    expect(runs.b).toBe(1);
+    expect(off.outputs.get("b")).toBe("pass-through");
+    expect(off.report.statuses.c).toBe("recomputed");
+
+    // Unchanged keys: served from cache, but STILL reported off — a cache
+    // hit must not resurrect a "cached" badge on a disabled step.
+    const offAgain = await engine.run(CTX, { ...KEYS, options: { gateB: false } });
+    expect(offAgain.report.statuses.b).toBe("bypassed");
+    expect(runs.b).toBe(1);
+
+    // Turning the gate on recomputes (gate knob is in the cache key).
+    const on = await engine.run(CTX, { ...KEYS, options: { gateB: true } });
+    expect(on.report.statuses.b).toBe("recomputed");
+    expect(runs.b).toBe(2);
+  });
+
   it("support-file hash changes dirty the nodes declaring that file", async () => {
     const def: GraphDef<Ctx> = {
       nodes: [

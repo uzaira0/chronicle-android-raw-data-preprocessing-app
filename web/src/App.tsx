@@ -1107,7 +1107,7 @@ export default function App(): ReactElement {
           >
             {activeWorkflow === "graph" ? (
               <Suspense fallback={<p className="empty-state">Loading the pipeline graph…</p>}>
-                <GraphPanel results={results} displayMasker={demoDisplay} />
+                <GraphPanel results={results} displayMasker={demoDisplay} options={options} />
               </Suspense>
             ) : null}
           </div>

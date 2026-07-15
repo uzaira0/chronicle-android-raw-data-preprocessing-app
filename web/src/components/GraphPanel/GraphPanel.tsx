@@ -24,7 +24,7 @@ import {
   sharedUpstream,
 } from "@/lib/pipelineGraph/analysis";
 import type { GraphDef, NodeStatus, Section } from "@/lib/pipelineGraph/graphTypes";
-import type { ProcessedFileResult } from "@/lib/types";
+import type { BrowserProcessingOptions, ProcessedFileResult } from "@/lib/types";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
 import {
   layoutGraph,
@@ -58,6 +58,7 @@ const STATUS_LABELS: Record<NodeStatus, string> = {
   dirty: "needs re-run",
   error: "error",
   skipped: "skipped",
+  bypassed: "off",
 };
 
 // React Flow markers do NOT inherit CSS edge styling, so the arrowhead needs a
@@ -75,6 +76,8 @@ type PipelineNodeData = {
   section: Section;
   status: NodeStatus | null;
   isJoin: boolean;
+  /** Gated off by the CURRENT settings (independent of any run report). */
+  isOff: boolean;
   [key: string]: unknown;
 };
 
@@ -104,7 +107,16 @@ function PipelineNode({
       <span className="graph-node__section">{SECTION_LABELS[data.section]}</span>
       <span className="graph-node__label">{data.label}</span>
       <span className="graph-node__badges">
-        {data.status ? (
+        {/* Current settings win over a (possibly stale) run report: a step
+            that is off RIGHT NOW says so, whatever the last run did. */}
+        {data.isOff ? (
+          <span
+            className="graph-node__status graph-node__status--bypassed"
+            title="Turned off by the current settings — this step passes data through unchanged."
+          >
+            off
+          </span>
+        ) : data.status ? (
           <span className={`graph-node__status graph-node__status--${data.status}`}>
             {STATUS_LABELS[data.status]}
           </span>
@@ -127,9 +139,10 @@ const NODE_TYPES = { pipeline: PipelineNode };
 type Props = {
   results: ProcessedFileResult[];
   displayMasker: DemoDisplayMasker;
+  options: BrowserProcessingOptions;
 };
 
-export function GraphPanel({ results, displayMasker }: Props): ReactElement {
+export function GraphPanel({ results, displayMasker, options }: Props): ReactElement {
   const [selected, setSelected] = useState<string | null>(null);
   const [second, setSecond] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -181,6 +194,15 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
   useEffect(() => {
     applyAnchoredFit();
   }, [applyAnchoredFit]);
+
+  // Steps the CURRENT settings turn off entirely — evaluated live from the
+  // declared bypassedWhen predicates, no run needed.
+  const offNodes = useMemo(() => {
+    const bag = options as unknown as Record<string, unknown>;
+    return new Set(
+      def.nodes.filter((node) => node.bypassedWhen?.(bag) === true).map((node) => node.id),
+    );
+  }, [def, options]);
 
   const joins = useMemo(() => new Set(joinPoints(def)), [def]);
   const labelById = useMemo(
@@ -300,6 +322,7 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
       if (through?.has(node.id)) classes.push("is-emphasized");
     }
     if (isSelected || isSecond) classes.push("is-selected");
+    if (offNodes.has(node.id)) classes.push("is-off");
     return {
       id: node.id,
       type: "pipeline",
@@ -314,6 +337,7 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
         section: node.section,
         status: statuses ? (statuses[node.id] ?? null) : null,
         isJoin: joins.has(node.id),
+        isOff: offNodes.has(node.id),
       },
       draggable: false,
       connectable: false,
@@ -364,6 +388,7 @@ export function GraphPanel({ results, displayMasker }: Props): ReactElement {
           <h2 id="graph-title" className="workflow-section__title">Pipeline graph</h2>
           <p className="workflow-section__intro">
             Every step the app runs, what feeds it, and what your settings act on.
+            Steps your current settings turn off are dashed and badged &ldquo;off&rdquo;.
             {statuses
               ? " Badges show what the last run actually recomputed versus reused."
               : " Process a file to see per-step run status here."}

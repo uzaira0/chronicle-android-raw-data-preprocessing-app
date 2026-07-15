@@ -39,6 +39,15 @@ export interface NodeDef<Ctx> {
    */
   run: (ctx: Ctx, inputs: Record<string, unknown>) => Promise<unknown> | unknown;
   /**
+   * True when the current options turn this whole step off (its body is a
+   * pass-through / empty-return). The body STILL RUNS — downstream nodes
+   * need the pass-through value — but the run is reported as "bypassed"
+   * instead of "recomputed"/"cached", and the graph view can mark the node
+   * off without running anything. Omit for nodes that always do work
+   * (partial gates that only skip part of the body do not count as off).
+   */
+  bypassedWhen?: (options: Record<string, unknown>) => boolean;
+  /**
    * Optional content hash of the node's output. When provided and the
    * recomputed hash matches the previous one, downstream nodes stay
    * cached (early cutoff). When omitted, any recompute marks downstream
@@ -51,7 +60,7 @@ export interface GraphDef<Ctx> {
   nodes: NodeDef<Ctx>[];
 }
 
-export type NodeStatus = "cached" | "recomputed" | "dirty" | "error" | "skipped";
+export type NodeStatus = "cached" | "recomputed" | "dirty" | "error" | "skipped" | "bypassed";
 
 export interface RunReport {
   /** Status per node id after a run. */

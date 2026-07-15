@@ -1,5 +1,6 @@
 export type { BrowserProcessingOptions, BrowserTimezoneHandling, OutputKind } from "@/lib/generatedContract";
 import type { OutputKind } from "@/lib/generatedContract";
+import type { NodeStatus } from "@/lib/pipelineGraph/graphTypes";
 import type { Scene, SceneRegion } from "@/lib/plotScene";
 
 /** One participant's interactive day-grid timeline: the render scene plus the
@@ -253,11 +254,11 @@ export type ProcessedFileResult = {
   configNotices?: string[];
   /**
    * Per-node engine statuses + errors from the pipeline graph run that produced
-   * this result (Graph tab badges: cached / recomputed / dirty / error /
-   * skipped). Optional: absent on results persisted before this field existed.
+   * this result (Graph tab badges). Optional: absent on results persisted
+   * before this field existed.
    */
   graphReport?: {
-    statuses: Record<string, "cached" | "recomputed" | "dirty" | "error" | "skipped">;
+    statuses: Record<string, NodeStatus>;
     errors: Record<string, string>;
   };
 };

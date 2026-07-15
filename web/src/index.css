@@ -1277,6 +1277,7 @@ a:hover {
 .graph-node__status--error { background: var(--color-danger-soft); color: var(--color-danger); }
 .graph-node__status--dirty,
 .graph-node__status--skipped { background: var(--color-warning-soft); color: var(--color-warning); }
+.graph-node__status--bypassed { background: var(--color-border, #e2e8f0); color: var(--color-text-muted, #64748b); }
 
 .graph-node__join {
   background: var(--accent-interaction-soft);
@@ -1285,6 +1286,11 @@ a:hover {
 
 .graph-flow-node { transition: opacity 160ms ease; }
 .graph-flow-node.is-dimmed { opacity: 0.22; }
+/* Gated off by the current settings: present in the map, inert in the run. */
+.graph-flow-node.is-off .graph-node {
+  border-style: dashed;
+  opacity: 0.55;
+}
 .graph-flow-node.is-selected .graph-node {
   box-shadow: 0 0 0 2px var(--graph-node-accent);
 }

@@ -143,9 +143,14 @@ export class GraphEngine<Ctx> {
         node.inputs.length === 0 ? keys.inputHash : null,
       ]);
 
+      // A gated-off node still executes (downstream needs its pass-through
+      // value) but must never claim it "ran" — that would show e.g. a "ran"
+      // badge on Compliance scoring with the option off.
+      const bypassed = node.bypassedWhen?.(keys.options) === true;
+
       const cached = this.cache.get(id);
       if (cached && cached.key === key) {
-        statuses[id] = "cached";
+        statuses[id] = bypassed ? "bypassed" : "cached";
         outputs.set(id, cached.value);
         stamps.set(id, cached.stamp);
         continue;
@@ -164,7 +169,7 @@ export class GraphEngine<Ctx> {
         // downstream even though this node reran.
         const finalStamp = cached && node.outputHash && cached.stamp === stamp ? cached.stamp : stamp;
         this.cache.set(id, { key, value, stamp: finalStamp });
-        statuses[id] = "recomputed";
+        statuses[id] = bypassed ? "bypassed" : "recomputed";
         outputs.set(id, value);
         stamps.set(id, finalStamp);
       } catch (error) {
