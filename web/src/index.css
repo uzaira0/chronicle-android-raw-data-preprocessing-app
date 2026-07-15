@@ -873,6 +873,16 @@ a:hover {
   color: var(--color-text-muted);
 }
 
+/* Unlike .status-pill (short fixed labels), these carry sentence-length text
+   and must shrink and wrap inside narrow viewports instead of forcing
+   page-level horizontal scroll. */
+.support-file-state {
+  width: auto;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .status-pill.is-success,
 .support-file-state.is-enabled {
   background: var(--color-success-soft);
@@ -3717,4 +3727,134 @@ a:hover {
   justify-content: flex-end;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3) var(--space-3);
+}
+
+/* Guide (step-by-step MOP) */
+.guide {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 4px 4px 32px;
+  color: var(--color-text);
+}
+.guide__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+.guide__header h2 {
+  margin: 0 0 4px;
+  color: var(--color-text-strong);
+}
+.guide__lede {
+  margin: 0;
+  color: var(--color-text-muted);
+  max-width: 56ch;
+}
+.guide__print {
+  flex: none;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.guide__print:hover {
+  border-color: var(--color-border-focus);
+}
+.guide-steps {
+  list-style: none;
+  counter-reset: guide-step;
+  margin: 20px 0 0;
+  padding: 0;
+}
+.guide-steps > li {
+  counter-increment: guide-step;
+  position: relative;
+  padding: 14px 16px 14px 58px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  margin-bottom: 12px;
+}
+.guide-steps > li::before {
+  content: counter(guide-step);
+  position: absolute;
+  left: 16px;
+  top: 14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.guide-steps h3 {
+  margin: 2px 0 6px;
+  color: var(--color-text-strong);
+  font-size: 1rem;
+}
+.guide-steps p,
+.guide-steps ul {
+  margin: 0 0 8px;
+  color: var(--color-text);
+}
+.guide-steps > li > :last-child {
+  margin-bottom: 0;
+}
+.guide-warning {
+  border-left: 3px solid var(--color-warning);
+  background: var(--color-warning-soft);
+  padding: 8px 12px;
+  border-radius: 0 8px 8px 0;
+}
+.guide-link {
+  display: inline;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--color-info);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+.guide-section {
+  margin-top: 24px;
+}
+.guide-section h3 {
+  margin: 0 0 6px;
+  color: var(--color-text-strong);
+}
+.guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 0.925rem;
+}
+.guide-table th,
+.guide-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+}
+.guide-table th {
+  background: var(--color-surface-sunken);
+  color: var(--color-text-strong);
+}
+@media print {
+  .workflow-nav,
+  .guide__print,
+  .app-header {
+    display: none !important;
+  }
+  .guide {
+    max-width: none;
+    padding: 0;
+  }
 }

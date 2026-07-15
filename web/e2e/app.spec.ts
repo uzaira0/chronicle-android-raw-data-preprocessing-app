@@ -60,6 +60,8 @@ test("processes app and screen outputs with CSV support files and downloads both
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
   await page.getByTestId("toggle-processScreenUsage").check();
   await page.getByTestId("toggle-useAppsForcingScreenOpenFile").check();
+  // App filtering is a cleaning step and off by default; this spec exercises it.
+  await page.getByTestId("toggle-useFilterFile").check();
   await setInputFile(page, "filter-file-input", "filter.csv", FILTER_FILE_CSV, "text/csv");
   await setInputFile(page, "apps-forcing-screen-open-file-input", "apps_forcing_screen_open.csv", APPS_FORCING_SCREEN_OPEN_CSV, "text/csv");
   await setInputFile(page, "app-codebook-file-input", "codebook.csv", CODEBOOK_CSV, "text/csv");
@@ -233,7 +235,8 @@ test("has no automated axe accessibility violations across workflow tabs", async
 test("supports keyboard-only skip and workflow tab navigation", async ({ page }) => {
   const settingsTab = page.getByRole("tab", { name: /Settings/i });
   const filesTab = page.getByRole("tab", { name: /Files/i });
-  const viewTab = page.getByRole("tab", { name: /View/i });
+  const guideTab = page.getByRole("tab", { name: /Guide/i });
+  const graphTab = page.getByRole("tab", { name: /Graph/i });
 
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: /Skip to workflow tabs/i })).toBeFocused();
@@ -245,11 +248,11 @@ test("supports keyboard-only skip and workflow tab navigation", async ({ page })
   await expect(filesTab).toBeFocused();
   await expect(filesTab).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("End");
-  await expect(viewTab).toBeFocused();
-  await expect(viewTab).toHaveAttribute("aria-selected", "true");
+  await expect(graphTab).toBeFocused();
+  await expect(graphTab).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("Home");
-  await expect(settingsTab).toBeFocused();
-  await expect(settingsTab).toHaveAttribute("aria-selected", "true");
+  await expect(guideTab).toBeFocused();
+  await expect(guideTab).toHaveAttribute("aria-selected", "true");
   assertNoExternalRequests(requestTracker);
 });
 
@@ -358,6 +361,8 @@ test("accepts an XLSX filter file and still produces filtered app usage locally"
 }) => {
   const xlsxBytes = await createFilterWorkbookBytes();
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
+  // App filtering is a cleaning step and off by default; this spec exercises it.
+  await page.getByTestId("toggle-useFilterFile").check();
   await setInputFile(
     page,
     "filter-file-input",
@@ -555,6 +560,9 @@ test("View tab renders the review surface (rail, metrics, timeline) with file an
   page,
 }, testInfo) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
+  // App filtering is a cleaning step and off by default; this spec asserts
+  // filtered events appear in the review rail, so turn it on.
+  await page.getByTestId("toggle-useFilterFile").check();
   await setInputFile(page, "filter-file-input", "filter.csv", FILTER_FILE_CSV, "text/csv");
   await page.getByTestId("toggle-enableInteractiveTimeline").check();
   await page.getByTestId("toggle-includeFilteredAppUsageInPlots").check();

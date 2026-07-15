@@ -70,6 +70,9 @@ test("configures every export + processing feature and the artifacts reflect the
   await page.getByTestId("toggle-enableSpssExport").check();
   await page.getByTestId("toggle-enableInteractiveTimeline").check();
   await page.getByTestId("toggle-includeFilteredAppUsageInPlots").check();
+  // App filtering is a cleaning step and off by default; this persona turns
+  // every processing feature on and asserts filter semantics in the output.
+  await page.getByTestId("toggle-useFilterFile").check();
 
   await uploadFullSupportSet(page);
   await setInputFile(

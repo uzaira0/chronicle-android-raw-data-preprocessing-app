@@ -73,6 +73,7 @@ import { ResultPanel } from "@/components/ResultPanel";
 import { ViewPanel } from "@/components/ViewPanel";
 import type { FileProgress } from "@/components/ProgressList";
 import { Toast } from "@/components/Toast";
+import { GuidePanel } from "@/components/GuidePanel";
 import { WorkflowNav, type WorkflowTab } from "@/components/WorkflowNav";
 import { RawFilesCard } from "@/components/RawFilesCard";
 import { ProcessPanel } from "@/components/ProcessPanel";
@@ -119,6 +120,7 @@ const WORKFLOW_STORAGE_KEY = "chronicle-web.activeWorkflow";
 
 function isWorkflowTab(value: string | null): value is WorkflowTab {
   return (
+    value === "guide" ||
     value === "settings" ||
     value === "files" ||
     value === "process" ||
@@ -1086,6 +1088,15 @@ export default function App(): ReactElement {
                 stale={resultsStale}
               />
             </div>
+          </div>
+
+          <div
+            id="guide-panel"
+            role="tabpanel"
+            aria-labelledby="guide-tab"
+            hidden={activeWorkflow !== "guide"}
+          >
+            {activeWorkflow === "guide" ? <GuidePanel onNavigate={setActiveWorkflow} /> : null}
           </div>
 
           <div
