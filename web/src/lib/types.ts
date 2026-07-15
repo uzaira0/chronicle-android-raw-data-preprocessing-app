@@ -244,6 +244,14 @@ export type ProcessedFileResult = {
    */
   restoredWithoutArtifacts?: boolean;
   /**
+   * Loud configuration-contradiction notices. Populated when active support
+   * lists make contradictory claims about the same package (e.g. an app on
+   * both the filter list and the background-apps list) and the pipeline had
+   * to apply a precedence rule. Each entry names the packages and states the
+   * rule applied, so the resolution is declared instead of silent.
+   */
+  configNotices?: string[];
+  /**
    * Per-node engine statuses + errors from the pipeline graph run that produced
    * this result (Graph tab badges: cached / recomputed / dirty / error /
    * skipped). Optional: absent on results persisted before this field existed.

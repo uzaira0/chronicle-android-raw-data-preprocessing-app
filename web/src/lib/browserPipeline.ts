@@ -2464,6 +2464,22 @@ export async function processRawCsvContent(
     );
   }
 
+  // A package on BOTH the filter list and the background-apps list is a
+  // configuration contradiction ("junk to be filtered" vs "background-
+  // privileged"). Filtering wins: the filtered pass never grants the
+  // background-session extension. Declare that resolution loudly instead of
+  // leaving it implicit in matcher pass order. (Both maps are empty unless
+  // their option is on, so this only fires when both features are active.)
+  const configNotices: string[] = [];
+  const filteredBackgroundOverlap = [...backgroundAppsSet].filter((pkg) => filterMap.has(pkg)).sort();
+  if (filteredBackgroundOverlap.length > 0) {
+    configNotices.push(
+      `${filteredBackgroundOverlap.join(", ")}: listed as both a filtered app and a background app. ` +
+        "Filtering wins — usage is marked Filtered App Usage with blanked timing and does not get " +
+        "the background-session extension to its own Activity Stopped.",
+    );
+  }
+
   // Study Inputs (Analyze tier) — uploaded-only, no bundled defaults.
   // Absent files stay null; the dependent node raises an actionable error
   // only when its option is actually enabled.
@@ -2923,6 +2939,7 @@ export async function processRawCsvContent(
     timelineView,
     reviewSummary,
     graphReport: graphRun.report,
+    ...(configNotices.length > 0 ? { configNotices } : {}),
   };
 }
 

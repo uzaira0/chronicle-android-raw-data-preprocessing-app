@@ -141,7 +141,9 @@ describe("filter labels are a matcher vocabulary, not a post-hoc tag", () => {
   ].join("\n");
   const BACKGROUND_CSV = ["package_name,label_or_note", "com.spotify.music,Audio"].join("\n");
 
-  async function backgroundRun(useFilter: boolean): Promise<OutputRow[]> {
+  async function backgroundRunResult(
+    useFilter: boolean,
+  ): Promise<Awaited<ReturnType<typeof processRawCsvContent>>> {
     const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => {
       throw new Error("mock matcher should be bypassed (proximity default > 0)");
     };
@@ -185,6 +187,11 @@ describe("filter labels are a matcher vocabulary, not a post-hoc tag", () => {
       undefined,
       splitter,
     );
+    return result;
+  }
+
+  async function backgroundRun(useFilter: boolean): Promise<OutputRow[]> {
+    const result = await backgroundRunResult(useFilter);
     const blob = result.outputs.find((output) => output.kind === "app")?.blob;
     const text = blob ? await blob.text() : "";
     const lines = text.trim().split("\n");
@@ -220,5 +227,16 @@ describe("filter labels are a matcher vocabulary, not a post-hoc tag", () => {
 
     // The valid app is untouched by the choice, as the inertness suite pins.
     expect(validEpisodes(on)).toEqual(validEpisodes(off));
+  });
+
+  it("declares the filter-wins precedence as a config notice when both lists claim a package", async () => {
+    const contradictory = await backgroundRunResult(true);
+    expect(contradictory.configNotices ?? []).toHaveLength(1);
+    expect(contradictory.configNotices![0]).toContain("com.spotify.music");
+    expect(contradictory.configNotices![0]).toContain("Filtering wins");
+
+    // No contradiction active (filter off) -> no notice.
+    const clean = await backgroundRunResult(false);
+    expect(clean.configNotices).toBeUndefined();
   });
 });

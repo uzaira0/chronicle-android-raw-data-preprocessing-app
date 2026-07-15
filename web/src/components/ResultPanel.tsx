@@ -89,6 +89,9 @@ function buildPerFileWarnings(
   if (options.processScreenUsage && result.screenRowCount === 0) {
     warnings.push("Zero screen usage rows.");
   }
+  (result.configNotices ?? []).forEach((notice) => {
+    warnings.push(notice);
+  });
   if (result.restoredWithoutArtifacts) {
     return warnings;
   }
