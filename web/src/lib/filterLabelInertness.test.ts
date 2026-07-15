@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { processRawCsvContent } from "@/lib/browserPipeline";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
-import type { MatcherInput, MatcherOutput } from "@/lib/types";
+import type {
+  MatcherInput,
+  MatcherOutput,
+  SplitterInput,
+  SplitterOutput,
+} from "@/lib/types";
 
 /**
  * App filtering must MARK, not alter: labeling an app as filtered blanks that
@@ -58,7 +63,7 @@ async function appOutputRows(csv: string, useFilter: boolean): Promise<OutputRow
       minimumUsageDuration: 0,
     },
     useFilter
-      ? { filterFile: { name: "filter.csv", bytes: new TextEncoder().encode(FILTER_CSV) } }
+      ? { filterFile: { name: "filter.csv", bytes: new TextEncoder().encode(FILTER_CSV).buffer as ArrayBuffer } }
       : {},
     matcher,
   );
@@ -104,5 +109,116 @@ describe("filter labels mark filtered apps without altering valid apps' episodes
     expect(junk.some((r) => r.type === "Filtered App Usage")).toBe(true);
     expect(junk.every((r) => r.type !== "App Usage")).toBe(true);
     expect(junk.every((r) => r.duration === "")).toBe(true);
+  });
+});
+
+/**
+ * WHERE inertness ends — and why the label cannot simply be applied after
+ * episode reconstruction. Filtering is a matcher VOCABULARY, not just a tag:
+ * the filtered pass deliberately withholds background-app semantics
+ * ("background apps are a valid-app concept"). A filtered background app's
+ * session therefore ends at its backgrounding, while unfiltered the same app
+ * gets a session extended to its own Activity Stopped. Relabeling finished
+ * episodes post-hoc would blank an extended session the filtered vocabulary
+ * says should never have been constructed. The valid app stays identical
+ * either way.
+ */
+describe("filter labels are a matcher vocabulary, not a post-hoc tag", () => {
+  // Spotify is BOTH a background app and in the filter list; Chat runs in the
+  // foreground inside what would be Spotify's extended session.
+  const BACKGROUND_OVERLAP = [
+    HEADER,
+    row("Audio", "Activity Resumed", "com.spotify.music", "2026-03-07 10:00:00"),
+    row("Audio", "Activity Paused", "com.spotify.music", "2026-03-07 10:01:00"),
+    row("Chat", "Activity Resumed", "com.valid.chat", "2026-03-07 10:02:00"),
+    row("Chat", "Activity Paused", "com.valid.chat", "2026-03-07 10:06:00"),
+    row("Audio", "Activity Stopped", "com.spotify.music", "2026-03-07 10:10:00"),
+  ].join("\n");
+
+  const BACKGROUND_FILTER_CSV = [
+    "app_package_name,known_application_labels",
+    "com.spotify.music,Audio",
+  ].join("\n");
+  const BACKGROUND_CSV = ["package_name,label_or_note", "com.spotify.music,Audio"].join("\n");
+
+  async function backgroundRun(useFilter: boolean): Promise<OutputRow[]> {
+    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => {
+      throw new Error("mock matcher should be bypassed (proximity default > 0)");
+    };
+    // Pass-through splitter (one primary sub-interval per session). Identical
+    // for both runs, so any on/off difference comes from the pipeline itself.
+    const splitter = async (input: SplitterInput): Promise<SplitterOutput> =>
+      Array.from(input.starts).map((startNs, sessionIndex) => ({
+        sessionIndex,
+        startNs,
+        stopNs: input.stops[sessionIndex]!,
+        layer: "primary",
+      }));
+    const result = await processRawCsvContent(
+      "Raw P01.csv",
+      BACKGROUND_OVERLAP,
+      {
+        ...DEFAULT_BROWSER_OPTIONS,
+        useFilterFile: useFilter,
+        useBackgroundAppsFile: true,
+        useAppCodebook: false,
+        processScreenUsage: false,
+        enablePlotting: false,
+        minimumUsageDuration: 0,
+      },
+      {
+        backgroundAppsFile: {
+          name: "bg.csv",
+          bytes: new TextEncoder().encode(BACKGROUND_CSV).buffer as ArrayBuffer,
+        },
+        ...(useFilter
+          ? {
+              filterFile: {
+                name: "filter.csv",
+                bytes: new TextEncoder().encode(BACKGROUND_FILTER_CSV).buffer as ArrayBuffer,
+              },
+            }
+          : {}),
+      },
+      matcher,
+      undefined,
+      undefined,
+      splitter,
+    );
+    const blob = result.outputs.find((output) => output.kind === "app")?.blob;
+    const text = blob ? await blob.text() : "";
+    const lines = text.trim().split("\n");
+    const headers = (lines[0] ?? "").split(",");
+    const pkgIdx = headers.indexOf("app_package_name");
+    const typeIdx = headers.indexOf("interaction_type");
+    const durIdx = headers.indexOf("duration_seconds");
+    return lines
+      .slice(1)
+      .map((line) => line.split(","))
+      .map((cols) => ({
+        pkg: cols[pkgIdx] ?? "",
+        type: cols[typeIdx] ?? "",
+        duration: cols[durIdx] ?? "",
+      }));
+  }
+
+  it("a filtered background app is denied the background-session extension", async () => {
+    const on = await backgroundRun(true);
+    const off = await backgroundRun(false);
+
+    // Unfiltered: background semantics extend the session to Activity Stopped.
+    const offSpotify = off.filter((r) => r.pkg === "com.spotify.music" && r.type === "App Usage");
+    expect(offSpotify).toHaveLength(1);
+    expect(offSpotify[0]!.duration).toBe("600.0");
+
+    // Filtered: matched by the filtered vocabulary WITHOUT background
+    // semantics — marked, blanked, and never extended.
+    const onSpotify = on.filter((r) => r.pkg === "com.spotify.music");
+    expect(onSpotify.some((r) => r.type === "Filtered App Usage")).toBe(true);
+    expect(onSpotify.every((r) => r.type !== "App Usage")).toBe(true);
+    expect(onSpotify.every((r) => r.duration === "")).toBe(true);
+
+    // The valid app is untouched by the choice, as the inertness suite pins.
+    expect(validEpisodes(on)).toEqual(validEpisodes(off));
   });
 });
