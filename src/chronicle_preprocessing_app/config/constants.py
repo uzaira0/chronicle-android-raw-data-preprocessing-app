@@ -136,6 +136,10 @@ class InteractionType(StrEnum):
     FILTERED_APP_STOPPED = "Filtered App Stopped"
     FILTERED_APP_DESTROYED = "Filtered App Destroyed"
     FILTERED_APP_USAGE = "Filtered App Usage"
+    # Construct-and-mark: a filter-listed app that is ALSO background-listed
+    # keeps its constructed background session (real timing) under this
+    # distinct, analytically-deferred category.
+    FILTERED_APP_BACKGROUND_USAGE = "Filtered App Background Usage"
     END_OF_USAGE_MISSING = "End of Usage Missing"
     NON_TARGET_CHILD_APP_USAGE = "Non-Target Child App Usage"
 
@@ -434,6 +438,7 @@ POSSIBLE_OTHER_INTERACTION_TYPES_TO_STOP_USAGE_AT = {
     "Unknown importance: 29": InteractionType.USER_STOPPED,
     "Activity Resumed for a Filtered App": InteractionType.FILTERED_APP_RESUMED,
     "Instance of Usage for a Filtered App": InteractionType.FILTERED_APP_USAGE,
+    "Background Usage for a Filtered App": InteractionType.FILTERED_APP_BACKGROUND_USAGE,
 }
 
 AMAZON_APPS = {

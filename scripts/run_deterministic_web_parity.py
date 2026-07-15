@@ -169,6 +169,14 @@ def _build_options(
         timezone_handling_option=TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE,
         datetime_of_preprocessing_override=datetime_override,
         model_concurrent_usage=model_concurrent_usage,
+        # Parity compares the ENGINES under identical knob values. The web app
+        # ships preprocessing-locked defaults (minimum_usage_duration 60,
+        # proximity 2.0) while the desktop defaults are 0/0 — relying on
+        # defaults silently diverged the surfaces, so pin both sides here
+        # (browser specs pin the same values) and keep the 0-proximity WASM ↔
+        # Rust matcher comparison this harness was built for.
+        minimum_usage_duration=0,
+        proximity_interval_seconds=0,
     )
     if options.use_filter_file:
         options.apps_to_filter_dict = read_filter_file(options.filter_file)
@@ -255,6 +263,8 @@ def main() -> int:
             output_dir=browser_full_output_dir,
             options={
                 "studyName": "Deterministic Parity",
+                "minimumUsageDuration": 0,
+                "proximityIntervalSeconds": 0,
                 "processAppUsage": True,
                 "processScreenUsage": True,
                 # Parity compares CSV outputs only; plotting renders a canvas
@@ -291,6 +301,8 @@ def main() -> int:
             output_dir=browser_core_output_dir,
             options={
                 "studyName": "Deterministic Parity",
+                "minimumUsageDuration": 0,
+                "proximityIntervalSeconds": 0,
                 "processAppUsage": True,
                 "processScreenUsage": False,
                 "enablePlotting": False,
@@ -351,6 +363,8 @@ def main() -> int:
             output_dir=browser_category_output_dir,
             options={
                 "studyName": "Deterministic Parity",
+                "minimumUsageDuration": 0,
+                "proximityIntervalSeconds": 0,
                 "processAppUsage": True,
                 "processScreenUsage": False,
                 "enablePlotting": False,
@@ -401,6 +415,8 @@ def main() -> int:
                 output_dir=browser_pip_output_dir,
                 options={
                     "studyName": "Deterministic Parity",
+                    "minimumUsageDuration": 0,
+                    "proximityIntervalSeconds": 0,
                     "processAppUsage": True,
                     "processScreenUsage": False,
                     "enablePlotting": False,
@@ -445,6 +461,8 @@ def main() -> int:
                 output_dir=browser_bg_output_dir,
                 options={
                     "studyName": "Deterministic Parity",
+                    "minimumUsageDuration": 0,
+                    "proximityIntervalSeconds": 0,
                     "processAppUsage": True,
                     "processScreenUsage": False,
                     "enablePlotting": False,
@@ -463,6 +481,69 @@ def main() -> int:
             report["background_app"] = _compare_csvs(
                 desktop_bg_app,
                 browser_bg_output_dir / "Raw P01 Automatically Preprocessed.csv",
+            )
+
+            # Construct-and-mark cross-surface entry: filter AND background
+            # lists active together. The fixture carries com.spotify.music on
+            # both lists (label match -> Filtered App Background Usage with
+            # real timing) and com.google.android.apps.maps on the background
+            # list with a fixture label the filter list does not know
+            # ("Google Maps" vs "Maps" -> stays a normal background App Usage).
+            desktop_fbg_root = temp_root / "desktop_filter_background"
+            desktop_fbg_raw_dir = desktop_fbg_root / "raw"
+            desktop_fbg_raw_dir.mkdir(parents=True)
+            desktop_fbg_raw_path = desktop_fbg_raw_dir / RAW_FILE_NAME
+            raw_df.write_csv(desktop_fbg_raw_path)
+            fbg_options = _build_options(
+                raw_data_folder=desktop_fbg_raw_dir,
+                use_app_codebook=False,
+                use_filter_file=True,
+                use_apps_forcing_screen_open_file=False,
+                usage_session_mode=UsageSessionMode.APP_USAGE,
+                datetime_override=args.datetime,
+                use_background_apps_file=True,
+            )
+            desktop_fbg_app, _ = _run_desktop(
+                desktop_fbg_raw_path,
+                fbg_options,
+                desktop_fbg_root,
+            )
+
+            browser_fbg_output_dir = temp_root / "browser_filter_background"
+            browser_fbg_output_dir.mkdir()
+            fbg_spec_path = temp_root / "browser_filter_background_spec.json"
+            _write_browser_spec(
+                fbg_spec_path,
+                raw_csv_path=browser_raw_path,
+                output_dir=browser_fbg_output_dir,
+                options={
+                    "studyName": "Deterministic Parity",
+                    "minimumUsageDuration": 0,
+                    "proximityIntervalSeconds": 0,
+                    "processAppUsage": True,
+                    "processScreenUsage": False,
+                    "enablePlotting": False,
+                    "parallelProcessing": False,
+                    "selectedTimezone": "America/Chicago",
+                    "timezoneHandling": "selected-filter",
+                    "useFilterFile": True,
+                    "useAppsForcingScreenOpenFile": False,
+                    "useAppCodebook": False,
+                    "useBackgroundAppsFile": True,
+                },
+                datetime_override=args.datetime,
+                support_file_paths={
+                    "backgroundAppsFile": str(BACKGROUND_APPS_FILE),
+                    "filterFile": str(
+                        REPO_ROOT
+                        / "web/src/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv"
+                    ),
+                },
+            )
+            _run_browser_processing(fbg_spec_path)
+            report["filter_background_construct_and_mark"] = _compare_csvs(
+                desktop_fbg_app,
+                browser_fbg_output_dir / "Raw P01 Automatically Preprocessed.csv",
             )
 
         if args.report_json:

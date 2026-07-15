@@ -115,6 +115,10 @@ export const OTHER_INTERACTION_TYPE_OPTIONS = [
   { label: "User Stopped", value: "User Stopped" },
   { label: "Activity Resumed for a Filtered App", value: "Filtered App Resumed" },
   { label: "Instance of Usage for a Filtered App", value: "Filtered App Usage" },
+  {
+    label: "Background Usage for a Filtered App",
+    value: "Filtered App Background Usage",
+  },
 ];
 
 export const INTERACTION_TYPES_TO_REMOVE_OPTIONS = [
@@ -1299,9 +1303,24 @@ async function processUsageRows(
         (row.start_timestamp_ns !== null && row.stop_timestamp_ns !== null),
     )
     .map((row) => {
+      // Construct-and-mark: a background app matched by the FILTERED pass keeps
+      // its constructed session (real timing) under the distinct category
+      // "Filtered App Background Usage". No minimum-duration nulling — the
+      // desktop reference gates the floor on App Usage, and the category is
+      // deferred, not credited.
+      const backgroundFiltered =
+        usageType === "Filtered App Usage" && backgroundApps.has(row.app_package_name);
       if (row.interaction_type === resumedType) {
-        const updated = { ...row, interaction_type: usageType };
-        if (usageType === "Filtered App Usage") {
+        const updated = {
+          ...row,
+          interaction_type: backgroundFiltered ? "Filtered App Background Usage" : usageType,
+        };
+        if (backgroundFiltered) {
+          const durationSeconds =
+            Number(updated.stop_timestamp_ns! - updated.start_timestamp_ns!) / 1_000_000_000;
+          updated.duration_seconds = durationSeconds;
+          updated.duration_minutes = durationSeconds / 60;
+        } else if (usageType === "Filtered App Usage") {
           updated.start_timestamp_ns = null;
           updated.stop_timestamp_ns = null;
           updated.duration_seconds = null;
@@ -1400,8 +1419,14 @@ async function runAppUsageAlgorithm(
       options,
       runMatcher,
       runSplitter,
-      // Background apps are a valid-app concept; the filtered path never gets them.
-      new Set<string>(),
+      // Construct-and-mark: the filtered pass receives the background set, so a
+      // package on BOTH lists gets its background session CONSTRUCTED (extended
+      // to its own Filtered App Stopped) and MARKED as the deferred category
+      // "Filtered App Background Usage" (real timing, excluded from App Usage
+      // totals). EYES-precedent: background activity is its own category whose
+      // treatment is an open analytic decision, not a session the vocabulary
+      // refuses to build.
+      backgroundApps,
     );
   }
 
@@ -2464,19 +2489,23 @@ export async function processRawCsvContent(
     );
   }
 
-  // A package on BOTH the filter list and the background-apps list is a
-  // configuration contradiction ("junk to be filtered" vs "background-
-  // privileged"). Filtering wins: the filtered pass never grants the
-  // background-session extension. Declare that resolution loudly instead of
-  // leaving it implicit in matcher pass order. (Both maps are empty unless
-  // their option is on, so this only fires when both features are active.)
+  // A package on BOTH the filter list and the background-apps list gets BOTH
+  // honored (construct-and-mark, per the EYES precedent that background
+  // activity is its own category): the background session is constructed —
+  // extended to the app's own stop — and marked with the distinct type
+  // "Filtered App Background Usage" (real timing, excluded from App Usage
+  // totals and crediting; its analytic treatment is deferred). Declare this
+  // loudly so nobody assumes the row was either dropped or credited. (Both
+  // maps are empty unless their option is on, so this only fires when both
+  // features are active.)
   const configNotices: string[] = [];
   const filteredBackgroundOverlap = [...backgroundAppsSet].filter((pkg) => filterMap.has(pkg)).sort();
   if (filteredBackgroundOverlap.length > 0) {
     configNotices.push(
       `${filteredBackgroundOverlap.join(", ")}: listed as both a filtered app and a background app. ` +
-        "Filtering wins — usage is marked Filtered App Usage with blanked timing and does not get " +
-        "the background-session extension to its own Activity Stopped.",
+        "Both are honored — the background session is constructed (extended to the app's own stop) " +
+        "and marked Filtered App Background Usage: real timing, its own category, excluded from " +
+        "App Usage totals. How to treat it analytically is deferred to the study.",
     );
   }
 

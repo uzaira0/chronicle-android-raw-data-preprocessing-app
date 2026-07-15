@@ -113,17 +113,17 @@ describe("filter labels mark filtered apps without altering valid apps' episodes
 });
 
 /**
- * WHERE inertness ends — and why the label cannot simply be applied after
- * episode reconstruction. Filtering is a matcher VOCABULARY, not just a tag:
- * the filtered pass deliberately withholds background-app semantics
- * ("background apps are a valid-app concept"). A filtered background app's
- * session therefore ends at its backgrounding, while unfiltered the same app
- * gets a session extended to its own Activity Stopped. Relabeling finished
- * episodes post-hoc would blank an extended session the filtered vocabulary
- * says should never have been constructed. The valid app stays identical
- * either way.
+ * CONSTRUCT-AND-MARK (EYES precedent: background activity is its own category
+ * whose treatment is an open analytic decision). A package on BOTH the filter
+ * list and the background-apps list gets BOTH honored: the background session
+ * is CONSTRUCTED — extended to the app's own stop, real timing — and MARKED
+ * with the distinct type "Filtered App Background Usage". It is excluded from
+ * App Usage totals/crediting; how to treat it analytically is deferred. The
+ * valid app stays identical either way, which requires the new type to sit in
+ * the default `otherInteractionTypesToStopUsageAt` (the constructed row must
+ * interrupt valid sessions exactly where the raw Activity Resumed would have).
  */
-describe("filter labels are a matcher vocabulary, not a post-hoc tag", () => {
+describe("filtered background apps are constructed and marked, never blanked", () => {
   // Spotify is BOTH a background app and in the filter list; Chat runs in the
   // foreground inside what would be Spotify's extended session.
   const BACKGROUND_OVERLAP = [
@@ -209,7 +209,7 @@ describe("filter labels are a matcher vocabulary, not a post-hoc tag", () => {
       }));
   }
 
-  it("a filtered background app is denied the background-session extension", async () => {
+  it("a filtered background app gets its session constructed AND marked", async () => {
     const on = await backgroundRun(true);
     const off = await backgroundRun(false);
 
@@ -218,25 +218,113 @@ describe("filter labels are a matcher vocabulary, not a post-hoc tag", () => {
     expect(offSpotify).toHaveLength(1);
     expect(offSpotify[0]!.duration).toBe("600.0");
 
-    // Filtered: matched by the filtered vocabulary WITHOUT background
-    // semantics — marked, blanked, and never extended.
-    const onSpotify = on.filter((r) => r.pkg === "com.spotify.music");
-    expect(onSpotify.some((r) => r.type === "Filtered App Usage")).toBe(true);
-    expect(onSpotify.every((r) => r.type !== "App Usage")).toBe(true);
-    expect(onSpotify.every((r) => r.duration === "")).toBe(true);
+    // Filtered: the SAME session is constructed (same 600s extension to the
+    // app's own stop) but marked as the deferred category — never counted as
+    // App Usage, never blanked.
+    const onSpotify = on.filter(
+      (r) => r.pkg === "com.spotify.music" && r.type === "Filtered App Background Usage",
+    );
+    expect(onSpotify).toHaveLength(1);
+    expect(onSpotify[0]!.duration).toBe("600.0");
+    expect(
+      on.filter((r) => r.pkg === "com.spotify.music").every((r) => r.type !== "App Usage"),
+    ).toBe(true);
 
     // The valid app is untouched by the choice, as the inertness suite pins.
     expect(validEpisodes(on)).toEqual(validEpisodes(off));
   });
 
-  it("declares the filter-wins precedence as a config notice when both lists claim a package", async () => {
+  it("declares construct-and-mark as a config notice when both lists claim a package", async () => {
     const contradictory = await backgroundRunResult(true);
     expect(contradictory.configNotices ?? []).toHaveLength(1);
     expect(contradictory.configNotices![0]).toContain("com.spotify.music");
-    expect(contradictory.configNotices![0]).toContain("Filtering wins");
+    expect(contradictory.configNotices![0]).toContain("Filtered App Background Usage");
+    expect(contradictory.configNotices![0]).toContain("Both are honored");
 
     // No contradiction active (filter off) -> no notice.
     const clean = await backgroundRunResult(false);
     expect(clean.configNotices).toBeUndefined();
+  });
+
+  it("a constructed-and-marked row still interrupts valid sessions where the raw resume would", async () => {
+    // The background junk app foregrounds DURING the valid app's session. With
+    // the filter OFF its Activity Resumed is an other-stop for Chat; with the
+    // filter ON that same event becomes the constructed Filtered App Background
+    // Usage row, which sits in the default otherInteractionTypesToStopUsageAt
+    // precisely so Chat is interrupted at the identical timestamp.
+    const INTERRUPT = [
+      HEADER,
+      row("Chat", "Activity Resumed", "com.valid.chat", "2026-03-07 10:00:00"),
+      row("Audio", "Activity Resumed", "com.spotify.music", "2026-03-07 10:02:00"),
+      row("Audio", "Activity Paused", "com.spotify.music", "2026-03-07 10:03:00"),
+      row("Chat", "Activity Paused", "com.valid.chat", "2026-03-07 10:06:00"),
+      row("Audio", "Activity Stopped", "com.spotify.music", "2026-03-07 10:10:00"),
+    ].join("\n");
+
+    const run = async (useFilter: boolean): Promise<OutputRow[]> => {
+      const result = await processRawCsvContent(
+        "Raw P01.csv",
+        INTERRUPT,
+        {
+          ...DEFAULT_BROWSER_OPTIONS,
+          useFilterFile: useFilter,
+          useBackgroundAppsFile: true,
+          useAppCodebook: false,
+          processScreenUsage: false,
+          enablePlotting: false,
+          minimumUsageDuration: 0,
+        },
+        {
+          backgroundAppsFile: {
+            name: "bg.csv",
+            bytes: new TextEncoder().encode(BACKGROUND_CSV).buffer as ArrayBuffer,
+          },
+          ...(useFilter
+            ? {
+                filterFile: {
+                  name: "filter.csv",
+                  bytes: new TextEncoder().encode(BACKGROUND_FILTER_CSV).buffer as ArrayBuffer,
+                },
+              }
+            : {}),
+        },
+        async (_input: MatcherInput): Promise<MatcherOutput> => {
+          throw new Error("mock matcher should be bypassed (proximity default > 0)");
+        },
+        undefined,
+        undefined,
+        async (input: SplitterInput): Promise<SplitterOutput> =>
+          Array.from(input.starts).map((startNs, sessionIndex) => ({
+            sessionIndex,
+            startNs,
+            stopNs: input.stops[sessionIndex]!,
+            layer: "primary",
+          })),
+      );
+      const blob = result.outputs.find((output) => output.kind === "app")?.blob;
+      const text = blob ? await blob.text() : "";
+      const lines = text.trim().split("\n");
+      const headers = (lines[0] ?? "").split(",");
+      const pkgIdx = headers.indexOf("app_package_name");
+      const typeIdx = headers.indexOf("interaction_type");
+      const durIdx = headers.indexOf("duration_seconds");
+      return lines
+        .slice(1)
+        .map((line) => line.split(","))
+        .map((cols) => ({
+          pkg: cols[pkgIdx] ?? "",
+          type: cols[typeIdx] ?? "",
+          duration: cols[durIdx] ?? "",
+        }));
+    };
+
+    const on = await run(true);
+    const off = await run(false);
+    expect(validEpisodes(on)).toEqual(validEpisodes(off));
+    expect(validEpisodes(on).length).toBeGreaterThan(0);
+    // And the marked category carries the full constructed extension.
+    const fabu = on.filter((r) => r.type === "Filtered App Background Usage");
+    expect(fabu).toHaveLength(1);
+    expect(fabu[0]!.pkg).toBe("com.spotify.music");
   });
 });

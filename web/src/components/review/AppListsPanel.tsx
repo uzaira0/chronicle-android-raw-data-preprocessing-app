@@ -11,7 +11,7 @@ type Row = Record<string, string>;
 
 const NOTES: Record<string, string> = {
   apps_to_filter:
-    "Engine setting: use filter file. Matching usage is relabelled “Filtered App Usage” — visible but excluded from target minutes, and it closes other apps' sessions.",
+    "Engine setting: use filter file. Matching usage is relabelled “Filtered App Usage” — visible but excluded from target minutes, and it closes other apps' sessions. A package also on the background list is constructed-and-marked instead: “Filtered App Background Usage” with real timing, its own deferred category.",
   background_apps:
     "Engine setting: use background apps file. Overlap with the foreground app is split into concurrent (primary/secondary) layers only for these packages.",
   apps_forcing_screen_open:

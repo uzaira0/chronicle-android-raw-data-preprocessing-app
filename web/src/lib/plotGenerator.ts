@@ -103,6 +103,10 @@ const GAP_COLOR = "#808080";
 
 const APP_USAGE_TYPE = "App Usage";
 const FILTERED_APP_USAGE_TYPE = "Filtered App Usage";
+/** Construct-and-mark category: a filtered app's CONSTRUCTED background session
+ * (real timing). Plots as a bar (not an event tick) under the same
+ * include-filtered toggle. */
+const FILTERED_APP_BACKGROUND_USAGE_TYPE = "Filtered App Background Usage";
 const FILTERED_USAGE_EVENT_DETAIL = "Filtered App Usage event";
 const DEVICE_SHUTDOWN_TYPE = "Device Shutdown";
 const DEVICE_STARTUP_TYPE = "Device Startup";
@@ -968,7 +972,10 @@ export function buildTimelineScene(
 
   // ── app-usage bars ────────────────────────────────────────────────────────
   const usageTypes = new Set([APP_USAGE_TYPE]);
-  if (options.includeFilteredAppUsageInPlots) usageTypes.add(FILTERED_APP_USAGE_TYPE);
+  if (options.includeFilteredAppUsageInPlots) {
+    usageTypes.add(FILTERED_APP_USAGE_TYPE);
+    usageTypes.add(FILTERED_APP_BACKGROUND_USAGE_TYPE);
+  }
 
   for (const row of rows) {
     if (!usageTypes.has(row.interaction_type)) continue;
@@ -1546,7 +1553,10 @@ export function buildAppTimelineViews(
   void version;
   const views: ParticipantTimelineView[] = [];
   const usageTypes = new Set([APP_USAGE_TYPE]);
-  if (includeFilteredOverride) usageTypes.add(FILTERED_APP_USAGE_TYPE);
+  if (includeFilteredOverride) {
+    usageTypes.add(FILTERED_APP_USAGE_TYPE);
+    usageTypes.add(FILTERED_APP_BACKGROUND_USAGE_TYPE);
+  }
   for (const [pid, pRows] of groupByParticipant(rows)) {
     const regions: SceneRegion[] = [];
     const sessions: WaterfallSession[] = [];
@@ -1682,7 +1692,10 @@ export function computeHourDayMatrix(
   const nsToIso = (ns: bigint): string => dateFmt.format(new Date(Number(ns / 1_000_000n)));
 
   const usageTypes = new Set([APP_USAGE_TYPE]);
-  if (options.includeFilteredAppUsageInPlots) usageTypes.add(FILTERED_APP_USAGE_TYPE);
+  if (options.includeFilteredAppUsageInPlots) {
+    usageTypes.add(FILTERED_APP_USAGE_TYPE);
+    usageTypes.add(FILTERED_APP_BACKGROUND_USAGE_TYPE);
+  }
 
   // Seed the date axis from the calendar dates each usage session actually spans
   // (start date through stop date), not just row.date. A session crossing

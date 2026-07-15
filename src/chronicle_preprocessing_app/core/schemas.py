@@ -86,6 +86,7 @@ AppUsageRowSchema = FrameSchema(
         {
             str(InteractionType.APP_USAGE),
             str(InteractionType.FILTERED_APP_USAGE),
+            str(InteractionType.FILTERED_APP_BACKGROUND_USAGE),
             str(InteractionType.NON_TARGET_CHILD_APP_USAGE),
         }
     ),

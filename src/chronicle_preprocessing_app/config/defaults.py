@@ -114,6 +114,9 @@ DEFAULT_OTHER_INTERACTION_TYPES_TO_STOP_USAGE_AT: frozenset[InteractionType] = f
         InteractionType.ACTIVITY_RESUMED,
         InteractionType.FILTERED_APP_RESUMED,
         InteractionType.FILTERED_APP_USAGE,
+        # Construct-and-mark: the constructed background row of a filtered app
+        # must interrupt valid sessions exactly where its raw resume would.
+        InteractionType.FILTERED_APP_BACKGROUND_USAGE,
         InteractionType.DEVICE_SHUTDOWN,
     }
 )

@@ -628,9 +628,19 @@ class PolarsFastPathPreprocessor:
                 for value in self.options.filtered_same_app_interaction_types_to_stop_usage_at
             },
             other_stop_types=other_stop_types,
-            # Background apps are a valid-app concept; the filtered path never gets
-            # them. Its split policy is unchanged (filtered usage is never split).
+            # Split policy unchanged (filtered usage is never split); construct-
+            # and-mark keeps the whole background session as one row.
             concurrent=self.options.model_concurrent_usage,
+            # Construct-and-mark: the filtered pass receives the background set,
+            # so a package on BOTH lists gets its background session CONSTRUCTED
+            # (extended to its own Filtered App Stopped) and MARKED as the
+            # deferred category Filtered App Background Usage (real timing,
+            # excluded from App Usage totals). Mirrors web runAppUsageAlgorithm.
+            background_packages=(
+                set(self.options.background_apps_dict)
+                if self.options.use_background_apps_file
+                else None
+            ),
         )
         return df
 
@@ -826,6 +836,30 @@ class PolarsFastPathPreprocessor:
         stop_ns = np.full(row_count, _MISSING_INT64, dtype=np.int64)
         interaction_updates = interactions.copy()
 
+        # Construct-and-mark: `_apply_timestamp_update_arrays` overwrites the
+        # whole START/STOP columns, which is what incidentally blanks the plain
+        # Filtered App Usage rows when the valid pass runs after the filtered
+        # pass. Filtered App Background Usage rows carry a CONSTRUCTED session,
+        # so their timing must survive that overwrite — seed it from the
+        # existing columns. (No such rows exist during the filtered pass
+        # itself; the relabel below runs at its end.)
+        preserve_mask = interactions == str(InteractionType.FILTERED_APP_BACKGROUND_USAGE)
+        if preserve_mask.any():
+            existing_start = (
+                df.get_column(Column.START_TIMESTAMP)
+                .dt.epoch("ns")
+                .fill_null(_MISSING_INT64)
+                .to_numpy()
+            )
+            existing_stop = (
+                df.get_column(Column.STOP_TIMESTAMP)
+                .dt.epoch("ns")
+                .fill_null(_MISSING_INT64)
+                .to_numpy()
+            )
+            start_ns[preserve_mask] = existing_start[preserve_mask]
+            stop_ns[preserve_mask] = existing_stop[preserve_mask]
+
         if start_indices.size:
             start_ns[start_indices] = timestamp_ns[start_indices]
         if stop_start_indices.size:
@@ -854,6 +888,19 @@ class PolarsFastPathPreprocessor:
                 Column.INTERACTION_TYPE
             )
         )
+        if background_packages and usage_type == str(InteractionType.FILTERED_APP_USAGE):
+            # Construct-and-mark: a background app matched by the FILTERED pass
+            # keeps its constructed session under the distinct deferred category.
+            # Mirrors web processUsageRows (`backgroundFiltered`).
+            df = df.with_columns(
+                pl.when(
+                    (pl.col(Column.INTERACTION_TYPE) == usage_type)
+                    & pl.col(Column.APP_PACKAGE_NAME).is_in(list(background_packages))
+                )
+                .then(pl.lit(str(InteractionType.FILTERED_APP_BACKGROUND_USAGE)))
+                .otherwise(pl.col(Column.INTERACTION_TYPE))
+                .alias(Column.INTERACTION_TYPE)
+            )
         if concurrent and usage_type == str(InteractionType.APP_USAGE):
             df = self._apply_concurrent_usage_split(df, usage_type)
         # Durations are derived from microseconds (not nanoseconds) on purpose.

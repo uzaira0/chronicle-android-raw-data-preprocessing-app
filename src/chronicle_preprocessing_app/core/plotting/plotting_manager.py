@@ -319,6 +319,7 @@ class PlottingManager:
         types_to_plot = [InteractionType.APP_USAGE]
         if self.options.include_filtered_app_usage_in_plots:
             types_to_plot.append(InteractionType.FILTERED_APP_USAGE)
+            types_to_plot.append(InteractionType.FILTERED_APP_BACKGROUND_USAGE)
 
         usage_dat = dat.filter(pl.col(Column.INTERACTION_TYPE).is_in(types_to_plot))
         if self.options.plot_only_target_child_data and Column.USERNAME in usage_dat.columns:
