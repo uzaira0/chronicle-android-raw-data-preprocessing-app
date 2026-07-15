@@ -31,6 +31,8 @@ type Props = {
   /** True when the current settings differ from the ones that produced these
    * results — surfaces an "out of date, re-run" banner. */
   stale?: boolean;
+  /** Delete the results (and the persisted last-run cache backing them). */
+  onDelete?: () => void;
 };
 
 type BatchOutput = {
@@ -170,6 +172,7 @@ export function ResultPanel({
   progressRows,
   displayMasker,
   stale = false,
+  onDelete,
 }: Props): ReactElement | null {
   const summary = useMemo(() => {
     return results.reduce(
@@ -360,6 +363,17 @@ export function ResultPanel({
           >
             Copy report
           </button>
+          {onDelete ? (
+            <button
+              type="button"
+              className="btn btn--ghost"
+              data-testid="delete-results"
+              title="Remove these results and the saved copy that would restore them on the next visit."
+              onClick={onDelete}
+            >
+              Delete results
+            </button>
+          ) : null}
         </div>
       </header>
       {error ? <p className="error-text u-mb-3">{error}</p> : null}

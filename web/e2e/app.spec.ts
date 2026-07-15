@@ -759,6 +759,16 @@ test("restores last processed results after refresh and collapses process detail
   // on the next boot). The note explains it and downloads are disabled.
   await expect(page.getByTestId("restored-lightweight-note")).toBeVisible();
   await expect(page.getByTestId("download-all-zip")).toBeDisabled();
+
+  // Delete results: the panel empties AND the persisted copy is gone, so a
+  // further refresh starts clean instead of restoring the run again.
+  await page.getByTestId("delete-results").click();
+  await expect(page.getByTestId("result-panel")).toBeHidden();
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" }),
+  ).toBeVisible();
+  await expect(page.getByTestId("result-panel")).toBeHidden();
   assertNoExternalRequests(requestTracker);
 });
 

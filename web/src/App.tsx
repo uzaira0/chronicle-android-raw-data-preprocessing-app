@@ -285,13 +285,12 @@ export default function App(): ReactElement {
     void loadLastRun()
       .then((record) => {
         if (cancelled || !record) return;
-        const restoredOptions = sanitizeOptions(record.options);
-        // Don't let restoring the last run's options re-persist over the user's
-        // most recently saved settings (which may be newer if they edited after
-        // the run without re-processing).
-        skipNextPersist.current = true;
-        setOptions(restoredOptions);
-        setResultsOptions(restoredOptions);
+        // Provenance only — the restored run's options are kept so the stale
+        // banner can compare, but the user's CURRENT settings stay in charge.
+        // (This used to setOptions(restoredOptions), silently flipping the
+        // user's toggles back to whatever the last run used on every boot —
+        // e.g. re-enabling features they had just turned off.)
+        setResultsOptions(sanitizeOptions(record.options));
         setResults(record.results);
         const timezones = record.discoveredTimezones.length
           ? record.discoveredTimezones
@@ -1086,6 +1085,16 @@ export default function App(): ReactElement {
                 expectedFileCount={uploadedFiles.length}
                 progressRows={progressRows}
                 stale={resultsStale}
+                onDelete={() => {
+                  setResults([]);
+                  setResultsOptions(null);
+                  setProgressOrder([]);
+                  setProgressByFile({});
+                  void clearLastRun()
+                    .then(() => refreshStoragePressure())
+                    .catch(() => {});
+                  setToast({ message: "Deleted the processed results.", isError: false });
+                }}
               />
             </div>
           </div>
