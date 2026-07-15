@@ -58,8 +58,15 @@ test("@smoke Graph tab renders the pipeline and answers a click in plain English
   await expect(page.getByTestId("graph-sentence")).toContainText("Click a step");
 
   const nodes = page.locator(".graph-node");
-  expect(await nodes.count()).toBeGreaterThanOrEqual(10);
+  // Steps the current settings turn off (filtering + the Analyze tier under
+  // shipped defaults) are HIDDEN — the default view is the pipeline that
+  // actually runs, not the full declared DAG.
   await expect(nodes.filter({ hasText: "Usage-episode reconstruction" })).toHaveCount(1);
+  await expect(nodes.filter({ hasText: "Compliance scoring" })).toHaveCount(0);
+
+  // The toolbar toggle reveals the off steps (rendered dashed).
+  await page.getByTestId("graph-show-off-toggle").click();
+  expect(await nodes.count()).toBeGreaterThanOrEqual(10);
   await expect(nodes.filter({ hasText: "Compliance scoring" })).toHaveCount(1);
 
   // Clicking a step lights up its downstream cone and explains it in a sentence.

@@ -151,6 +151,35 @@ export function joinPoints(def: GraphDef<unknown>): string[] {
   return result;
 }
 
+/**
+ * The graph with `hidden` nodes spliced out: each consumer of a hidden
+ * node is rewired to that node's nearest visible ancestors (transitively,
+ * so chains of hidden nodes collapse). Sound because hidden nodes are
+ * gated-off pass-throughs — data flows through them unchanged, so the
+ * spliced edge is the path the data actually takes.
+ */
+export function spliceOut<Ctx>(def: GraphDef<Ctx>, hidden: ReadonlySet<string>): GraphDef<Ctx> {
+  const byId = new Map(def.nodes.map((node) => [node.id, node]));
+  const resolved = new Map<string, string[]>();
+  const resolve = (id: string): string[] => {
+    if (!hidden.has(id)) return [id];
+    const memo = resolved.get(id);
+    if (memo) return memo;
+    resolved.set(id, []); // cycle guard (a DAG never hits it, but stay total)
+    const ancestors = [...new Set((byId.get(id)?.inputs ?? []).flatMap(resolve))];
+    resolved.set(id, ancestors);
+    return ancestors;
+  };
+  return {
+    nodes: def.nodes
+      .filter((node) => !hidden.has(node.id))
+      .map((node) => ({
+        ...node,
+        inputs: [...new Set(node.inputs.flatMap(resolve))],
+      })),
+  };
+}
+
 /** Plain-English sentence for a query result. No jargon, no taxonomy. */
 export function sentenceFor(
   query: "affectedBy" | "sharedUpstream" | "mustPassThrough" | "joinPoint" | "chain",

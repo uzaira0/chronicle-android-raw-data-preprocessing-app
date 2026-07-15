@@ -22,6 +22,7 @@ import {
   mustPassThrough,
   sentenceFor,
   sharedUpstream,
+  spliceOut,
 } from "@/lib/pipelineGraph/analysis";
 import type { GraphDef, NodeStatus, Section } from "@/lib/pipelineGraph/graphTypes";
 import type { BrowserProcessingOptions, ProcessedFileResult } from "@/lib/types";
@@ -148,11 +149,44 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
   const [hovered, setHovered] = useState<string | null>(null);
   const [reportFileName, setReportFileName] = useState<string | null>(null);
   const [direction, setDirection] = useState<LayoutDirection>("TB");
+  const [showOff, setShowOff] = useState(false);
   const instanceRef = useRef<ReactFlowInstance<PipelineFlowNode, Edge> | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
   const def = useMemo<GraphDef<unknown>>(() => buildChronicleGraph() as GraphDef<unknown>, []);
-  const layout = useMemo(() => layoutGraph(def, direction), [def, direction]);
+
+  // Steps the CURRENT settings turn off entirely — evaluated live from the
+  // declared bypassedWhen predicates, no run needed.
+  const offNodes = useMemo(() => {
+    const bag = options as unknown as Record<string, unknown>;
+    return new Set(
+      def.nodes.filter((node) => node.bypassedWhen?.(bag) === true).map((node) => node.id),
+    );
+  }, [def, options]);
+
+  // Off steps are HIDDEN by default (the graph shows the pipeline your
+  // settings actually run); the toggle reveals them dashed. Hiding splices
+  // each off pass-through out, rewiring consumers to visible ancestors.
+  const visibleDef = useMemo(
+    () => (showOff || offNodes.size === 0 ? def : spliceOut(def, offNodes)),
+    [def, offNodes, showOff],
+  );
+
+  // A node can disappear under an active selection (option toggled off, or
+  // the reveal toggle flipped) — drop stale references or the path queries
+  // would ask about ids the visible graph no longer has.
+  useEffect(() => {
+    const ids = new Set(visibleDef.nodes.map((node) => node.id));
+    if (selected && !ids.has(selected)) {
+      setSelected(null);
+      setSecond(null);
+    } else if (second && !ids.has(second)) {
+      setSecond(null);
+    }
+    if (hovered && !ids.has(hovered)) setHovered(null);
+  }, [visibleDef, selected, second, hovered]);
+
+  const layout = useMemo(() => layoutGraph(visibleDef, direction), [visibleDef, direction]);
 
   const bounds = useMemo(() => {
     const minX = Math.min(...layout.nodes.map((node) => node.x));
@@ -195,16 +229,7 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
     applyAnchoredFit();
   }, [applyAnchoredFit]);
 
-  // Steps the CURRENT settings turn off entirely — evaluated live from the
-  // declared bypassedWhen predicates, no run needed.
-  const offNodes = useMemo(() => {
-    const bag = options as unknown as Record<string, unknown>;
-    return new Set(
-      def.nodes.filter((node) => node.bypassedWhen?.(bag) === true).map((node) => node.id),
-    );
-  }, [def, options]);
-
-  const joins = useMemo(() => new Set(joinPoints(def)), [def]);
+  const joins = useMemo(() => new Set(joinPoints(visibleDef)), [visibleDef]);
   const labelById = useMemo(
     () => new Map(def.nodes.map((node) => [node.id, node.label])),
     [def],
@@ -218,44 +243,47 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
   const statuses = activeResult?.graphReport?.statuses ?? null;
 
   const cone = useMemo(
-    () => (selected ? new Set(affectedBy(def, selected)) : null),
-    [def, selected],
+    () => (selected ? new Set(affectedBy(visibleDef, selected)) : null),
+    [visibleDef, selected],
   );
   // Two selected nodes are either a CHAIN (one is built from the other — show
   // the CONNECTING PATH and say how they connect) or genuine siblings (then
   // their shared upstream is what links them).
   const relation = useMemo(() => {
     if (!selected || !second || !cone) return null;
-    const nodeIds = new Set(def.nodes.map((node) => node.id));
+    const nodeIds = new Set(visibleDef.nodes.map((node) => node.id));
     const chainBetween = (from: string, to: string) => {
       // Every node on SOME path from `from` to `to`: downstream of the first
       // AND upstream of the second. `via` (nodes on EVERY path) is only the
       // choke points — highlighting just those leaves the path visually
       // disconnected wherever it branches.
-      const down = new Set(affectedBy(def, from));
-      const up = new Set(builtFrom(def, to).filter((id) => nodeIds.has(id)));
+      const down = new Set(affectedBy(visibleDef, from));
+      const up = new Set(builtFrom(visibleDef, to).filter((id) => nodeIds.has(id)));
       const path = new Set([from, to]);
       for (const id of down) if (up.has(id)) path.add(id);
-      const toNode = def.nodes.find((node) => node.id === to);
+      const toNode = visibleDef.nodes.find((node) => node.id === to);
       return {
         kind: "chain" as const,
         from,
         to,
         direct: toNode?.inputs.includes(from) ?? false,
-        via: new Set(mustPassThrough(def, from, to)),
+        via: new Set(mustPassThrough(visibleDef, from, to)),
         path,
       };
     };
     if (cone.has(second)) return chainBetween(selected, second);
-    if (affectedBy(def, second).includes(selected)) return chainBetween(second, selected);
-    return { kind: "siblings" as const, shared: new Set(sharedUpstream(def, selected, second)) };
-  }, [def, cone, selected, second]);
+    if (affectedBy(visibleDef, second).includes(selected)) return chainBetween(second, selected);
+    return {
+      kind: "siblings" as const,
+      shared: new Set(sharedUpstream(visibleDef, selected, second)),
+    };
+  }, [visibleDef, cone, selected, second]);
   const through = useMemo(
     () =>
       selected && !second && hovered && hovered !== selected
-        ? new Set(mustPassThrough(def, selected, hovered))
+        ? new Set(mustPassThrough(visibleDef, selected, hovered))
         : null,
-    [def, selected, second, hovered],
+    [visibleDef, selected, second, hovered],
   );
 
   const labels = (ids: Iterable<string>): string =>
@@ -388,7 +416,9 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
           <h2 id="graph-title" className="workflow-section__title">Pipeline graph</h2>
           <p className="workflow-section__intro">
             Every step the app runs, what feeds it, and what your settings act on.
-            Steps your current settings turn off are dashed and badged &ldquo;off&rdquo;.
+            {offNodes.size > 0
+              ? ` ${offNodes.size} step${offNodes.size === 1 ? " is" : "s are"} turned off by your current settings${showOff ? " (shown dashed)" : " and hidden"}.`
+              : ""}
             {statuses
               ? " Badges show what the last run actually recomputed versus reused."
               : " Process a file to see per-step run status here."}
@@ -415,6 +445,17 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
               Vertical
             </button>
           </div>
+          {offNodes.size > 0 ? (
+            <button
+              type="button"
+              className={`btn btn--ghost${showOff ? " is-active" : ""}`}
+              data-testid="graph-show-off-toggle"
+              aria-pressed={showOff}
+              onClick={() => setShowOff((current) => !current)}
+            >
+              {showOff ? "Hide" : "Show"} {offNodes.size} off step{offNodes.size === 1 ? "" : "s"}
+            </button>
+          ) : null}
           <button
             type="button"
             className="btn btn--ghost"

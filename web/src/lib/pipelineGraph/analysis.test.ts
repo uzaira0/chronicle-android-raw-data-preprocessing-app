@@ -6,6 +6,7 @@ import {
   mustPassThrough,
   sentenceFor,
   sharedUpstream,
+  spliceOut,
 } from "@/lib/pipelineGraph/analysis";
 import type { GraphDef, NodeDef } from "@/lib/pipelineGraph/graphTypes";
 
@@ -78,6 +79,52 @@ describe("joinPoints", () => {
       nodes: [node("a", []), node("b", ["a"]), node("c", ["a", "b"])],
     };
     expect(joinPoints(def)).toEqual([]);
+  });
+});
+
+describe("spliceOut", () => {
+  const inputsOf = (def: GraphDef<unknown>, id: string) =>
+    def.nodes.find((n) => n.id === id)?.inputs;
+
+  it("rewires a consumer past one hidden pass-through", () => {
+    const def: GraphDef<unknown> = {
+      nodes: [node("a", []), node("b", ["a"]), node("c", ["b"])],
+    };
+    const spliced = spliceOut(def, new Set(["b"]));
+    expect(spliced.nodes.map((n) => n.id)).toEqual(["a", "c"]);
+    expect(inputsOf(spliced, "c")).toEqual(["a"]);
+  });
+
+  it("collapses a chain of hidden nodes to the nearest visible ancestor", () => {
+    const def: GraphDef<unknown> = {
+      nodes: [node("a", []), node("b", ["a"]), node("c", ["b"]), node("d", ["c"])],
+    };
+    const spliced = spliceOut(def, new Set(["b", "c"]));
+    expect(inputsOf(spliced, "d")).toEqual(["a"]);
+  });
+
+  it("keeps a diamond intact and dedupes rewired inputs", () => {
+    // a → {b, c} → d with b hidden: d gets a (via b) + c, no duplicate a.
+    const def: GraphDef<unknown> = {
+      nodes: [node("a", []), node("b", ["a"]), node("c", ["a"]), node("d", ["b", "c"])],
+    };
+    const spliced = spliceOut(def, new Set(["b"]));
+    expect(inputsOf(spliced, "d")).toEqual(["a", "c"]);
+    expect(joinPoints(spliced)).toEqual([]);
+  });
+
+  it("a hidden source node simply drops its edge", () => {
+    const def: GraphDef<unknown> = {
+      nodes: [node("a", []), node("b", []), node("c", ["a", "b"])],
+    };
+    const spliced = spliceOut(def, new Set(["b"]));
+    expect(inputsOf(spliced, "c")).toEqual(["a"]);
+  });
+
+  it("is the identity when nothing is hidden", () => {
+    const spliced = spliceOut(DIAMOND, new Set());
+    expect(spliced.nodes.map((n) => n.id)).toEqual(DIAMOND.nodes.map((n) => n.id));
+    expect(spliced.nodes.map((n) => n.inputs)).toEqual(DIAMOND.nodes.map((n) => n.inputs));
   });
 });
 
