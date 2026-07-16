@@ -344,14 +344,8 @@ describe("browserPipeline", () => {
     const interactionIndex = headers.indexOf("interaction_type");
     const startTimestampIndex = headers.indexOf("start_timestamp");
     expect(rows).toHaveLength(2);
-    // An unmatched FILTERED foreground stays an interrupt-carrying "Filtered
-    // App Usage" marker (timing blanked) so it still stops valid sessions in
-    // the valid pass — it is NOT dropped to "End of Usage Missing" (which is
-    // not in the other-stop set and silently leaked the interrupt).
-    expect(rows[0]?.[interactionIndex]).toBe("Filtered App Usage");
+    expect(rows[0]?.[interactionIndex]).toBe("End of Usage Missing");
     expect(rows[0]?.[startTimestampIndex]).toBe("");
-    // An unmatched VALID app end is still reported "End of Usage Missing" with
-    // its real start retained.
     expect(rows[1]?.[interactionIndex]).toBe("End of Usage Missing");
     expect(rows[1]?.[startTimestampIndex]).not.toBe("");
   });

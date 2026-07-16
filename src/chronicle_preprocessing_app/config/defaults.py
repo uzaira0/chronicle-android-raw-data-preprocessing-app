@@ -117,6 +117,14 @@ DEFAULT_OTHER_INTERACTION_TYPES_TO_STOP_USAGE_AT: frozenset[InteractionType] = f
         # Construct-and-mark: the constructed background row of a filtered app
         # must interrupt valid sessions exactly where its raw resume would.
         InteractionType.FILTERED_APP_BACKGROUND_USAGE,
+        # End of Usage Missing is an unmatched FOREGROUND/resume event (the app
+        # came to the foreground; only its close was never seen). A resume
+        # displaces whatever was foreground, so it must interrupt other app
+        # usage. Without it, an unmatched filtered foreground (retyped to
+        # End of Usage Missing by the filtered pass) silently stopped
+        # interrupting valid sessions in the following valid pass — the
+        # two-pass interrupt leak that made filtering change valid apps.
+        InteractionType.END_OF_USAGE_MISSING,
         InteractionType.DEVICE_SHUTDOWN,
     }
 )

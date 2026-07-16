@@ -313,7 +313,7 @@ export const DEFAULT_BROWSER_OPTIONS: BrowserProcessingOptions = {
   parallelProcessing: true,
   parallelMaxWorkers: undefined,
   sameAppInteractionTypesToStopUsageAt: ["Activity Paused", "Activity Resumed"],
-  otherInteractionTypesToStopUsageAt: ["Activity Resumed", "Filtered App Resumed", "Filtered App Usage", "Filtered App Background Usage", "Device Shutdown"],
+  otherInteractionTypesToStopUsageAt: ["Activity Resumed", "Filtered App Resumed", "Filtered App Usage", "Filtered App Background Usage", "End of Usage Missing", "Device Shutdown"],
   modelConcurrentUsage: false,
   applyMinimumUsageDurationToConcurrentSubintervals: false,
   interactionTypesToRemove: [],
@@ -492,7 +492,7 @@ export const BROWSER_OPTION_TOOLTIPS = {
   },
   otherInteractionTypesToStopUsageAt: {
     title: "Other-app stop types",
-    body: "Interaction types from any other source that close the current session — e.g. a different app coming to the foreground or the device shutting down.",
+    body: "Interaction types from any other source that close the current session — e.g. a different app coming to the foreground or the device shutting down. \"End of Usage Missing\" is an unmatched foreground/resume (the app came to the foreground; only its close was never seen), so it also displaces whatever was foreground and must interrupt other app usage — without it an unmatched filtered foreground silently stopped interrupting valid sessions only when the filter was on (the two-pass interrupt leak).",
   },
   modelConcurrentUsage: {
     title: "Model concurrent (Picture-in-Picture) usage",

@@ -43,13 +43,14 @@ const MISSING_END = [
   row("Chat", "Activity Paused", "com.valid.chat", "2026-03-07 10:05:00"),
 ].join("\n");
 
-// Edge: the junk app's foreground is UNMATCHED (it never closes) AND is the
-// ONLY event that can end the valid app's session (Chat never gets its own
-// pause/stop). This is the two-pass interrupt leak: before the fix, the
-// filtered pass dropped the unmatched junk foreground to "End of Usage Missing"
-// (not an other-stop), so filtering silently stopped it from interrupting Chat
-// — Chat stayed open filter-on but closed at the junk foreground filter-off,
-// changing a valid app's duration. It must interrupt identically either way.
+// Edge: the junk app's foreground is UNMATCHED (it never closes). The filtered
+// pass retypes it to "End of Usage Missing" — an unmatched RESUME, which is why
+// End of Usage Missing sits in the default otherInteractionTypesToStopUsageAt:
+// a resume displaces whatever was foreground, so it must interrupt other app
+// usage. Before it was in the stop set, filtering silently dropped that
+// interrupt only when the filter was on, changing valid apps' numbers (the
+// two-pass interrupt leak; the real destructive case is pinned by the desktop
+// pathological on/off test). It must interrupt identically either way.
 const UNMATCHED_JUNK_ONLY_CLOSE = [
   HEADER,
   row("Chat", "Activity Resumed", "com.valid.chat", "2026-03-07 10:00:00"),
@@ -123,9 +124,10 @@ describe("filter labels mark filtered apps without altering valid apps' episodes
     expect(validEpisodes(on)).toEqual(validEpisodes(off));
     expect(validEpisodes(on).length).toBeGreaterThan(0);
     expect(validEpisodes(on)[0]?.duration).not.toBe("");
-    // The junk foreground itself is the interrupt marker, blanked, never counted.
+    // The unmatched junk foreground is the interrupt: End of Usage Missing (an
+    // unmatched resume), blanked timing, never counted as App Usage.
     const junkOn = on.filter((r) => r.pkg === "com.junk.app");
-    expect(junkOn.some((r) => r.type === "Filtered App Usage")).toBe(true);
+    expect(junkOn.some((r) => r.type === "End of Usage Missing")).toBe(true);
     expect(junkOn.every((r) => r.type !== "App Usage")).toBe(true);
     expect(junkOn.every((r) => r.duration === "")).toBe(true);
   });

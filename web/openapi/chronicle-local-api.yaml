@@ -377,7 +377,12 @@ components:
             type: string
           description: Interaction types from any other source that close the current
             session — e.g. a different app coming to the foreground or the
-            device shutting down.
+            device shutting down. "End of Usage Missing" is an unmatched
+            foreground/resume (the app came to the foreground; only its close
+            was never seen), so it also displaces whatever was foreground and
+            must interrupt other app usage — without it an unmatched filtered
+            foreground silently stopped interrupting valid sessions only when
+            the filter was on (the two-pass interrupt leak).
         modelConcurrentUsage:
           type: boolean
           description: When enabled, an app session runs to its own stop event instead of
