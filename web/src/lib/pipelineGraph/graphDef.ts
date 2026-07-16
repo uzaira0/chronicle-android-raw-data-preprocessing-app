@@ -212,16 +212,17 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
       },
       {
         id: "app_policy",
-        label: "App policy — mark filtered packages",
+        label: "App policy — tag filtered packages",
         description:
-          "MARKING ONLY, nothing is dropped or blanked here: rows from " +
-          "packages on the filter list are relabeled 'Filtered App Usage' " +
-          "(a package also on the background list is constructed-and-marked " +
-          "'Filtered App Background Usage' instead). The lossy treatment — " +
-          "blanking those rows' timing — happens later, in Interval cleaning. " +
-          "This is the one cleaning decision that must sit before episode " +
-          "building, because both episode passes read the marks; valid apps' " +
-          "episodes are identical with it on or off (pinned by tests).",
+          "TAGGING ONLY, nothing is dropped, blanked, or matched here: a junk " +
+          "(filter-listed) package's raw events are tagged 'Filtered App *' so " +
+          "the filter list is visible downstream. The matcher is junk-BLIND — it " +
+          "folds these tags back and matches every app identically — and the one " +
+          "lossy filter decision (relabel + blank the junk apps' own episodes) " +
+          "lives after matching, in episode reconstruction. So the filter choice " +
+          "is NOT a matcher input and valid apps' episodes are provably identical " +
+          "with it on or off (pinned by tests). This tag also feeds the screen " +
+          "timeline, which is invariant to app-event labels.",
         section: "clean",
         inputs: ["dedup_and_order"],
         knobs: [{ optionKey: "useFilterFile", edge: "gates" }],
@@ -277,7 +278,11 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           "Pairs app resume/pause/stop events into usage episodes (start, " +
           "stop, duration per app run), applying the proximity glue, the " +
           "minimum-duration floor, stop-event rules, and optional concurrent " +
-          "modeling. The measurement core of the pipeline.",
+          "modeling. The measurement core of the pipeline. Runs JUNK-BLIND: " +
+          "every app is matched identically, then the junk (filter-listed) apps' " +
+          "OWN episodes are relabeled 'Filtered App Usage' (blanked) — or kept as " +
+          "'Filtered App Background Usage' for a background app — the one lossy " +
+          "filter decision, downstream of matching.",
         section: "preprocess",
         inputs: ["app_policy"],
         knobs: [

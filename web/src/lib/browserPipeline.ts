@@ -1165,6 +1165,55 @@ function labelFilteredApps(rows: CanonicalRow[], filterMap: Map<string, Set<stri
   });
 }
 
+// Event types that mark a package as junk (filter-listed). A package carrying
+// any of these — after the app-policy pre-relabel, or in already-filtered input
+// — is on the filter list. The junk-blind matcher keys the downstream mark off
+// this package set, NOT off the interaction type, so every app is matched alike.
+const FILTERED_EVENT_TYPES = new Set([
+  "Filtered App Resumed",
+  "Filtered App Paused",
+  "Filtered App Stopped",
+  "Filtered App Destroyed",
+  "Filtered App Usage",
+  "Filtered App Background Usage",
+]);
+
+const FILTERED_TO_ACTIVITY: Record<string, string> = {
+  "Filtered App Resumed": "Activity Resumed",
+  "Filtered App Paused": "Activity Paused",
+  "Filtered App Stopped": "Activity Stopped",
+  "Filtered App Destroyed": "Activity Destroyed",
+};
+
+/** Packages carrying any Filtered-* event = the junk (filter-listed) set. */
+function computeFilteredPackagesFromRows(rows: CanonicalRow[]): Set<string> {
+  const packages = new Set<string>();
+  for (const row of rows) {
+    if (FILTERED_EVENT_TYPES.has(row.interaction_type)) {
+      packages.add(row.app_package_name);
+    }
+  }
+  return packages;
+}
+
+/**
+ * Fold pre-relabeled junk events (Filtered App {Resumed,Paused,Stopped,
+ * Destroyed}) back to their Activity equivalents so the junk-blind matcher sees
+ * every app identically. Filtered App Usage / Background Usage are constructed
+ * episode rows, not raw events — they pass through untouched. Mirrors the
+ * desktop `_normalize_prefiltered_event_types`.
+ */
+function normalizePrefilteredEventTypes(
+  rows: CanonicalRow[],
+  filteredPackages: Set<string>,
+): CanonicalRow[] {
+  return rows.map((row) => {
+    if (!filteredPackages.has(row.app_package_name)) return row;
+    const mapped = FILTERED_TO_ACTIVITY[row.interaction_type];
+    return mapped ? { ...row, interaction_type: mapped } : row;
+  });
+}
+
 function stableFactorize(values: string[]): Int32Array {
   const lookup = new Map<string, number>();
   const codes = new Int32Array(values.length);
@@ -1256,6 +1305,7 @@ async function processUsageRows(
   runMatcher: MatcherRunner,
   runSplitter: SplitterRunner,
   backgroundApps: Set<string>,
+  filteredPackages: Set<string> = new Set(),
 ): Promise<CanonicalRow[]> {
   const matcherInput = buildMatcherInput(
     rows,
@@ -1287,15 +1337,14 @@ async function processUsageRows(
     nextRows[index]!.stop_timestamp_ns = null;
     nextRows[index]!.duration_seconds = null;
     nextRows[index]!.duration_minutes = null;
-    if (
-      usageType === "Filtered App Usage" ||
-      (options.useFilterFile && nextRows[index]!.app_package_name === "android")
-    ) {
+    // A junk app's unmatched resume gets its start blanked too (the downstream
+    // mark blanks all junk rows except the constructed background sessions).
+    if (filteredPackages.has(nextRows[index]!.app_package_name)) {
       nextRows[index]!.start_timestamp_ns = null;
     }
   });
 
-  const filtered = nextRows
+  const usageRelabeled = nextRows
     .filter((row) => row.interaction_type !== pausedType)
     .filter(
       (row) =>
@@ -1303,43 +1352,65 @@ async function processUsageRows(
         (row.start_timestamp_ns !== null && row.stop_timestamp_ns !== null),
     )
     .map((row) => {
-      // Construct-and-mark: a background app matched by the FILTERED pass keeps
-      // its constructed session (real timing) under the distinct category
-      // "Filtered App Background Usage". No minimum-duration nulling — the
-      // desktop reference gates the floor on App Usage, and the category is
-      // deferred, not credited.
-      const backgroundFiltered =
-        usageType === "Filtered App Usage" && backgroundApps.has(row.app_package_name);
-      if (row.interaction_type === resumedType) {
-        const updated = {
-          ...row,
-          interaction_type: backgroundFiltered ? "Filtered App Background Usage" : usageType,
-        };
-        if (backgroundFiltered) {
-          const durationSeconds =
-            Number(updated.stop_timestamp_ns! - updated.start_timestamp_ns!) / 1_000_000_000;
-          updated.duration_seconds = durationSeconds;
-          updated.duration_minutes = durationSeconds / 60;
-        } else if (usageType === "Filtered App Usage") {
-          updated.start_timestamp_ns = null;
-          updated.stop_timestamp_ns = null;
-          updated.duration_seconds = null;
-          updated.duration_minutes = null;
-        } else {
-          const durationSeconds =
-            Number(updated.stop_timestamp_ns! - updated.start_timestamp_ns!) / 1_000_000_000;
-          if (options.minimumUsageDuration > 0 && durationSeconds < options.minimumUsageDuration) {
-            updated.duration_seconds = null;
-            updated.duration_minutes = null;
-          } else {
-            updated.duration_seconds = durationSeconds;
-            updated.duration_minutes = durationSeconds / 60;
-          }
-        }
-        return updated;
-      }
-      return row;
+      // Plain resume -> usage relabel with the minimum-duration floor. Junk apps
+      // are re-marked below; the floor targets App Usage only and never re-touches
+      // a marked filtered row. Concurrent App-Usage rows are re-floored per split
+      // sub-interval further down (this value is discarded when they are split).
+      if (row.interaction_type !== resumedType) return row;
+      const durationSeconds =
+        Number(row.stop_timestamp_ns! - row.start_timestamp_ns!) / 1_000_000_000;
+      const belowThreshold =
+        options.minimumUsageDuration > 0 && durationSeconds < options.minimumUsageDuration;
+      return {
+        ...row,
+        interaction_type: usageType,
+        duration_seconds: belowThreshold ? null : durationSeconds,
+        duration_minutes: belowThreshold ? null : durationSeconds / 60,
+      };
     });
+
+  // DOWNSTREAM MARK (junk-blind — the ONE lossy filter decision). The matcher
+  // ran junk-blind: junk apps were matched as ordinary App Usage, so their
+  // foregrounds interrupted valid sessions exactly like any app's, and valid-app
+  // inertness is structural, not something the mark preserves. Relabel the junk
+  // apps' OWN rows and blank their timing — EXCEPT a junk app that is also a
+  // background app, whose constructed session is kept (real timing) under the
+  // deferred category "Filtered App Background Usage". Mirrors the desktop
+  // _process_usage_rows mark block.
+  const filtered = filteredPackages.size
+    ? usageRelabeled.map((row) => {
+        if (!filteredPackages.has(row.app_package_name)) return row;
+        if (row.interaction_type === usageType && backgroundApps.has(row.app_package_name)) {
+          const durationSeconds =
+            row.start_timestamp_ns !== null && row.stop_timestamp_ns !== null
+              ? Number(row.stop_timestamp_ns - row.start_timestamp_ns) / 1_000_000_000
+              : null;
+          return {
+            ...row,
+            interaction_type: "Filtered App Background Usage",
+            duration_seconds: durationSeconds,
+            duration_minutes: durationSeconds === null ? null : durationSeconds / 60,
+          };
+        }
+        // Every other junk row: relabel App Usage -> Filtered App Usage and
+        // Activity Stopped -> Filtered App Stopped (leave End of Usage Missing /
+        // Activity Destroyed as-is), then blank the timing.
+        const interaction =
+          row.interaction_type === usageType
+            ? "Filtered App Usage"
+            : row.interaction_type === stoppedType
+              ? "Filtered App Stopped"
+              : row.interaction_type;
+        return {
+          ...row,
+          interaction_type: interaction,
+          start_timestamp_ns: null,
+          stop_timestamp_ns: null,
+          duration_seconds: null,
+          duration_minutes: null,
+        };
+      })
+    : usageRelabeled;
 
   const sorted = filtered.sort(compareByEventThenIndex);
 
@@ -1397,38 +1468,19 @@ async function runAppUsageAlgorithm(
   runSplitter: SplitterRunner,
   backgroundApps: Set<string>,
 ): Promise<CanonicalRow[]> {
-  let nextRows = rows;
-  if (options.useFilterFile) {
-    nextRows = await processUsageRows(
-      nextRows,
-      "Filtered App Resumed",
-      "Filtered App Paused",
-      "Filtered App Usage",
-      "Filtered App Stopped",
-      new Set(
-        options.sameAppInteractionTypesToStopUsageAt.map((value) =>
-          ({
-            "Activity Paused": "Filtered App Paused",
-            "Activity Resumed": "Filtered App Resumed",
-            "Activity Stopped": "Filtered App Stopped",
-            "Activity Destroyed": "Filtered App Destroyed",
-          })[value] ?? value,
-        ),
-      ),
-      new Set(options.otherInteractionTypesToStopUsageAt),
-      options,
-      runMatcher,
-      runSplitter,
-      // Construct-and-mark: the filtered pass receives the background set, so a
-      // package on BOTH lists gets its background session CONSTRUCTED (extended
-      // to its own Filtered App Stopped) and MARKED as the deferred category
-      // "Filtered App Background Usage" (real timing, excluded from App Usage
-      // totals). EYES-precedent: background activity is its own category whose
-      // treatment is an open analytic decision, not a session the vocabulary
-      // refuses to build.
-      backgroundApps,
-    );
-  }
+  // JUNK-BLIND single pass. The filter choice is NOT a matcher input: the junk
+  // apps (pre-relabeled to Filtered-* upstream, which feeds screen derivation)
+  // are folded back to Activity, every app is matched identically, and the junk
+  // apps' OWN rows are relabeled downstream in processUsageRows. A foreground
+  // interrupts whatever it displaces regardless of any mark, so valid-app
+  // episodes are provably independent of the junk list. Mirrors the desktop
+  // fast/legacy SSOT (_run_app_usage_algorithm).
+  const filteredPackages = options.useFilterFile
+    ? computeFilteredPackagesFromRows(rows)
+    : new Set<string>();
+  const nextRows = filteredPackages.size
+    ? normalizePrefilteredEventTypes(rows, filteredPackages)
+    : rows;
 
   if (!nextRows.some((row) => row.interaction_type === "Activity Resumed" || row.interaction_type === "Activity Paused")) {
     throw new Error("No valid app usage data during the study period");
@@ -1446,6 +1498,7 @@ async function runAppUsageAlgorithm(
     runMatcher,
     runSplitter,
     backgroundApps,
+    filteredPackages,
   );
 }
 

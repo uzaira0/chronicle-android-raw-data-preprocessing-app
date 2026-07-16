@@ -193,7 +193,6 @@ class PolarsFastPathPreprocessor:
         df = self._rename_interaction_types(df)
         df = self._correct_event_timestamp_column(df)
         df = self._create_additional_columns(df)
-        df = self._label_filtered_apps(df)
         # Capture after timestamp/TZ/dedup corrections but before the algorithm
         # removes rows. These timestamps power gap detection in the plotter.
         pre_algo_ts = df.get_column(Column.EVENT_TIMESTAMP).drop_nulls()
@@ -592,59 +591,124 @@ class PolarsFastPathPreprocessor:
         return df.drop(["__filter_candidate", "__valid_filter_match"], strict=False)
 
     def _run_app_usage_algorithm(self, df: pl.DataFrame) -> pl.DataFrame:
-        if self.options.use_filter_file:
-            df = self._process_filtered_app_usage(df)
-        df = self._process_valid_app_usage(df)
-        return df
+        # JUNK-BLIND matcher + downstream mark. The filter choice is NOT a
+        # preprocessing input: we match every app identically (junk apps as
+        # ordinary App Usage), then a single downstream mark inside
+        # _process_valid_app_usage relabels the junk apps' own rows. A foreground
+        # interrupts whatever it displaces regardless of whether it is marked, so
+        # valid-app episodes are provably independent of the junk list. The mark
+        # is the ONE lossy filter decision and it lives after matching.
+        filtered_packages = self._filtered_package_set(df)
+        if filtered_packages:
+            # Idempotency: real Chronicle raw carries only Activity-* events, but
+            # the engine also accepts already-filtered-typed input (re-processing,
+            # mixed streams; the pathological fixture bakes a full parade). Fold
+            # those junk Filtered App Resumed/Paused/Stopped/Destroyed back to
+            # their Activity equivalents so the single blind pass matches them.
+            df = self._normalize_prefiltered_event_types(df, filtered_packages)
+        return self._process_valid_app_usage(df, filtered_packages=filtered_packages)
 
-    def _process_filtered_app_usage(self, df: pl.DataFrame) -> pl.DataFrame:
-        interactions = df.get_column(Column.INTERACTION_TYPE).to_numpy()
-        if not np.isin(
-            interactions,
-            [str(InteractionType.FILTERED_APP_RESUMED), str(InteractionType.FILTERED_APP_PAUSED)],
-        ).any():
-            return df
+    def _filtered_package_set(self, df: pl.DataFrame) -> set[str]:
+        """Junk packages whose (package,label) pair is on the filter list.
 
-        # Phase 1: when model_concurrent_usage is on, another app resuming does
-        # not stop the prior session — empty the other-stop set, matching the
-        # valid-app path and the web/Rust surfaces (which empty it for the
-        # filtered path too).
-        if self.options.model_concurrent_usage:
-            other_stop_types: set[str] = set()
-        else:
-            other_stop_types = {
-                str(value)
-                for value in self.options.filtered_other_interaction_types_to_stop_usage_at
-            }
+        Emits the app-label mismatch warning (a filter-listed package seen under
+        an unexpected label is NOT filtered). Pure lookup — no relabel; the mark
+        happens downstream in _process_usage_rows.
+        """
+        if not self.options.use_filter_file or not self.options.apps_to_filter_dict:
+            return set()
 
-        df = self._process_usage_rows(
-            df,
-            resumed_type=str(InteractionType.FILTERED_APP_RESUMED),
-            paused_type=str(InteractionType.FILTERED_APP_PAUSED),
-            usage_type=str(InteractionType.FILTERED_APP_USAGE),
-            stopped_type=str(InteractionType.FILTERED_APP_STOPPED),
-            same_stop_types={
-                str(value)
-                for value in self.options.filtered_same_app_interaction_types_to_stop_usage_at
-            },
-            other_stop_types=other_stop_types,
-            # Split policy unchanged (filtered usage is never split); construct-
-            # and-mark keeps the whole background session as one row.
-            concurrent=self.options.model_concurrent_usage,
-            # Construct-and-mark: the filtered pass receives the background set,
-            # so a package on BOTH lists gets its background session CONSTRUCTED
-            # (extended to its own Filtered App Stopped) and MARKED as the
-            # deferred category Filtered App Background Usage (real timing,
-            # excluded from App Usage totals). Mirrors web runAppUsageAlgorithm.
-            background_packages=(
-                set(self.options.background_apps_dict)
-                if self.options.use_background_apps_file
-                else None
-            ),
+        filter_rows = []
+        package_names = []
+        for package_name, labels_str in self.options.apps_to_filter_dict.items():
+            package_names.append(package_name)
+            for label in labels_str.split(","):
+                filter_rows.append(
+                    {
+                        Column.APP_PACKAGE_NAME: package_name,
+                        Column.APPLICATION_LABEL: label.strip(),
+                        "__valid_filter_match": True,
+                    }
+                )
+        if not filter_rows:
+            return set()
+
+        lookup_df = pl.DataFrame(filter_rows).unique()
+        marked = df.with_columns(
+            pl.col(Column.APP_PACKAGE_NAME).is_in(package_names).alias("__filter_candidate")
+        ).join(lookup_df, on=[Column.APP_PACKAGE_NAME, Column.APPLICATION_LABEL], how="left")
+
+        mismatch_df = marked.filter(
+            pl.col("__filter_candidate") & pl.col("__valid_filter_match").is_null()
         )
-        return df
+        if not mismatch_df.is_empty():
+            for package_name, app_label in (
+                mismatch_df.select([Column.APP_PACKAGE_NAME, Column.APPLICATION_LABEL])
+                .unique()
+                .iter_rows()
+            ):
+                LOGGER.warning(
+                    "App label mismatch for package %s: found '%s'", package_name, app_label
+                )
 
-    def _process_valid_app_usage(self, df: pl.DataFrame) -> pl.DataFrame:
+        listed = set(
+            marked.filter(pl.col("__valid_filter_match").fill_null(False))
+            .get_column(Column.APP_PACKAGE_NAME)
+            .unique()
+            .to_list()
+        )
+        # A package that ARRIVES with already-filtered-typed events (re-processed
+        # or mixed input) is filtered too — the pre-refactor filtered pass keyed
+        # off interaction type, not filter-list membership. Include them so the
+        # junk-blind pass normalizes + marks them identically.
+        filtered_event_types = [
+            str(InteractionType.FILTERED_APP_RESUMED),
+            str(InteractionType.FILTERED_APP_PAUSED),
+            str(InteractionType.FILTERED_APP_STOPPED),
+            str(InteractionType.FILTERED_APP_DESTROYED),
+            str(InteractionType.FILTERED_APP_USAGE),
+            str(InteractionType.FILTERED_APP_BACKGROUND_USAGE),
+        ]
+        prefiltered = set(
+            df.filter(pl.col(Column.INTERACTION_TYPE).is_in(filtered_event_types))
+            .get_column(Column.APP_PACKAGE_NAME)
+            .unique()
+            .to_list()
+        )
+        return listed | prefiltered
+
+    def _normalize_prefiltered_event_types(
+        self, df: pl.DataFrame, filtered_packages: set[str]
+    ) -> pl.DataFrame:
+        """Fold pre-existing junk Filtered App {Resumed,Paused,Stopped,Destroyed}
+        back to their Activity equivalents so the junk-blind pass matches them.
+
+        Filtered App Usage / Filtered App Background Usage are already-computed
+        episode rows (not raw events); they pass through untouched.
+        """
+        reverse = {
+            str(InteractionType.FILTERED_APP_RESUMED): str(InteractionType.ACTIVITY_RESUMED),
+            str(InteractionType.FILTERED_APP_PAUSED): str(InteractionType.ACTIVITY_PAUSED),
+            str(InteractionType.FILTERED_APP_STOPPED): str(InteractionType.ACTIVITY_STOPPED),
+            str(InteractionType.FILTERED_APP_DESTROYED): str(InteractionType.ACTIVITY_DESTROYED),
+        }
+        junk = pl.col(Column.APP_PACKAGE_NAME).is_in(list(filtered_packages))
+        return df.with_columns(
+            pl.when(junk)
+            .then(
+                pl.col(Column.INTERACTION_TYPE).replace(
+                    list(reverse.keys()),
+                    list(reverse.values()),
+                    default=pl.col(Column.INTERACTION_TYPE),
+                )
+            )
+            .otherwise(pl.col(Column.INTERACTION_TYPE))
+            .alias(Column.INTERACTION_TYPE)
+        )
+
+    def _process_valid_app_usage(
+        self, df: pl.DataFrame, filtered_packages: set[str] | None = None
+    ) -> pl.DataFrame:
         interactions = df.get_column(Column.INTERACTION_TYPE).to_numpy()
         if not np.isin(
             interactions,
@@ -682,6 +746,7 @@ class PolarsFastPathPreprocessor:
             other_stop_types=other_stop_types,
             concurrent=concurrent,
             background_packages=background_packages,
+            filtered_packages=filtered_packages or set(),
         )
 
     @staticmethod
@@ -788,6 +853,7 @@ class PolarsFastPathPreprocessor:
         other_stop_types: set[str],
         concurrent: bool,
         background_packages: set[str] | None = None,
+        filtered_packages: set[str] | None = None,
     ) -> pl.DataFrame:
         interactions = df.get_column(Column.INTERACTION_TYPE).to_numpy()
         app_packages = (
@@ -888,18 +954,51 @@ class PolarsFastPathPreprocessor:
                 Column.INTERACTION_TYPE
             )
         )
-        if background_packages and usage_type == str(InteractionType.FILTERED_APP_USAGE):
-            # Construct-and-mark: a background app matched by the FILTERED pass
-            # keeps its constructed session under the distinct deferred category.
-            # Mirrors web processUsageRows (`backgroundFiltered`).
+        if filtered_packages:
+            # DOWNSTREAM MARK (the ONE lossy filter decision). The matcher ran
+            # junk-blind — junk apps were matched as ordinary App Usage — so their
+            # foregrounds interrupted valid sessions exactly like any app's, and
+            # valid-app inertness is structural, not something the mark has to
+            # preserve. Here we relabel the junk apps' OWN rows:
+            #   * a junk App Usage session -> Filtered App Usage, timing blanked
+            #     (never counted), UNLESS the app is also a background app, in
+            #     which case its constructed session is kept and marked Filtered
+            #     App Background Usage (deferred category, real timing);
+            #   * a junk leftover Activity Stopped -> Filtered App Stopped.
+            # Doing this BEFORE the App-Usage min-duration / zero-drop steps below
+            # keeps those steps off the filtered rows (they target App Usage),
+            # matching the pre-refactor filtered pass. Mirrors web applyFilterMarks.
+            junk = pl.col(Column.APP_PACKAGE_NAME).is_in(list(filtered_packages))
+            bg_list = list(background_packages) if background_packages else []
+            is_bg = (
+                pl.col(Column.APP_PACKAGE_NAME).is_in(bg_list) if bg_list else pl.lit(False)
+            )
             df = df.with_columns(
-                pl.when(
-                    (pl.col(Column.INTERACTION_TYPE) == usage_type)
-                    & pl.col(Column.APP_PACKAGE_NAME).is_in(list(background_packages))
-                )
+                pl.when(junk & (pl.col(Column.INTERACTION_TYPE) == usage_type) & is_bg)
                 .then(pl.lit(str(InteractionType.FILTERED_APP_BACKGROUND_USAGE)))
+                .when(junk & (pl.col(Column.INTERACTION_TYPE) == usage_type))
+                .then(pl.lit(str(InteractionType.FILTERED_APP_USAGE)))
+                .when(junk & (pl.col(Column.INTERACTION_TYPE) == stopped_type))
+                .then(pl.lit(str(InteractionType.FILTERED_APP_STOPPED)))
                 .otherwise(pl.col(Column.INTERACTION_TYPE))
                 .alias(Column.INTERACTION_TYPE)
+            )
+            # Blank every junk row's timing EXCEPT the constructed Filtered App
+            # Background Usage rows (which keep their real session timing). The
+            # pre-refactor filtered pass blanked all filtered rows' start/stop
+            # via the whole-column overwrite; reproduce that here (junk Filtered
+            # App Usage, End of Usage Missing, Filtered App Stopped, etc.).
+            blank = junk & (
+                pl.col(Column.INTERACTION_TYPE)
+                != str(InteractionType.FILTERED_APP_BACKGROUND_USAGE)
+            )
+            df = df.with_columns(
+                pl.when(blank).then(None).otherwise(pl.col(Column.START_TIMESTAMP)).alias(
+                    Column.START_TIMESTAMP
+                ),
+                pl.when(blank).then(None).otherwise(pl.col(Column.STOP_TIMESTAMP)).alias(
+                    Column.STOP_TIMESTAMP
+                ),
             )
         if concurrent and usage_type == str(InteractionType.APP_USAGE):
             df = self._apply_concurrent_usage_split(df, usage_type)

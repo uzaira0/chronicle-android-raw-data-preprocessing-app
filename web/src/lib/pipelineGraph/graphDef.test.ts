@@ -158,10 +158,12 @@ describe("buildChronicleGraph", () => {
     // Blanking + row drops are the lossy half — cleaning, AFTER episodes are built.
     expect(byId.get("interval_cleaning")!.section).toBe("clean");
     expect(byId.get("interval_cleaning")!.inputs).toEqual(["episode_annotations"]);
-    // app_policy is the ONE clean decision pinned upstream (episode passes
-    // read its marks) — it must feed the episode builder, and its lossy
-    // treatment must NOT live there (it lives in interval_cleaning).
+    // Junk-blind: app_policy only TAGS filter-listed packages (lossless — it
+    // feeds the screen timeline and marks the junk set). The matcher folds the
+    // tag back and matches every app identically; the one lossy filter decision
+    // (relabel + blank the junk apps' own episodes) lives downstream, INSIDE the
+    // episode builder — so the episode builder must consume app_policy.
     expect(byId.get("reconstruct_episodes")!.inputs).toEqual(["app_policy"]);
-    expect(byId.get("app_policy")!.label.toLowerCase()).toContain("mark");
+    expect(byId.get("app_policy")!.label.toLowerCase()).toContain("tag");
   });
 });

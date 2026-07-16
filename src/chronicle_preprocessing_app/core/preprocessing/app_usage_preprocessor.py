@@ -59,19 +59,21 @@ class AppUsagePreprocessor(BasePreprocessor):
         *,
         raise_on_no_valid_usage: bool = True,
     ) -> pl.DataFrame:
-        if self.options.use_filter_file:
-            df = self.process_filtered_app_usage(df)
-
+        # JUNK-BLIND SSOT: the legacy (app+screen) path runs the SAME single
+        # blind matcher + downstream mark as the fast path. The filter choice is
+        # not a matcher input — every app is matched identically and the junk
+        # apps' own rows are relabeled downstream. `label_filtered_apps` may have
+        # pre-relabeled junk events to Filtered-* types upstream (it feeds screen
+        # derivation, which is invariant to app-event labels); `_run_app_usage_
+        # algorithm` folds those back to Activity types before matching, so
+        # pre-labeled and raw-Activity input produce identical matcher output.
         try:
-            return self.process_valid_app_usage(df)
-        except NoAppUsageDataError:
+            return self._helper._run_app_usage_algorithm(df)
+        except ValueError as exc:
             if raise_on_no_valid_usage:
-                raise
+                raise NoAppUsageDataError(str(exc)) from exc
             LOGGER.warning("No valid app usage data during the study period")
             return df
-
-    def process_filtered_app_usage(self, df: pl.DataFrame) -> pl.DataFrame:
-        return self._helper._process_filtered_app_usage(df)
 
     def process_valid_app_usage(self, df: pl.DataFrame) -> pl.DataFrame:
         try:
