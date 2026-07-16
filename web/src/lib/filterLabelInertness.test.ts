@@ -43,6 +43,19 @@ const MISSING_END = [
   row("Chat", "Activity Paused", "com.valid.chat", "2026-03-07 10:05:00"),
 ].join("\n");
 
+// Edge: the junk app's foreground is UNMATCHED (it never closes) AND is the
+// ONLY event that can end the valid app's session (Chat never gets its own
+// pause/stop). This is the two-pass interrupt leak: before the fix, the
+// filtered pass dropped the unmatched junk foreground to "End of Usage Missing"
+// (not an other-stop), so filtering silently stopped it from interrupting Chat
+// — Chat stayed open filter-on but closed at the junk foreground filter-off,
+// changing a valid app's duration. It must interrupt identically either way.
+const UNMATCHED_JUNK_ONLY_CLOSE = [
+  HEADER,
+  row("Chat", "Activity Resumed", "com.valid.chat", "2026-03-07 10:00:00"),
+  row("Junk", "Activity Resumed", "com.junk.app", "2026-03-07 10:02:00"),
+].join("\n");
+
 const FILTER_CSV = ["app_package_name,known_application_labels", "com.junk.app,Junk"].join("\n");
 
 type OutputRow = { pkg: string; type: string; duration: string };
@@ -101,6 +114,20 @@ describe("filter labels mark filtered apps without altering valid apps' episodes
     const off = await appOutputRows(MISSING_END, false);
     expect(validEpisodes(on)).toEqual(validEpisodes(off));
     expect(validEpisodes(on).length).toBeGreaterThan(0);
+  });
+
+  it("an UNMATCHED junk foreground still interrupts a valid session identically (interrupt-leak regression)", async () => {
+    const on = await appOutputRows(UNMATCHED_JUNK_ONLY_CLOSE, true);
+    const off = await appOutputRows(UNMATCHED_JUNK_ONLY_CLOSE, false);
+    // Valid app closes at the junk foreground in BOTH worlds (not left open).
+    expect(validEpisodes(on)).toEqual(validEpisodes(off));
+    expect(validEpisodes(on).length).toBeGreaterThan(0);
+    expect(validEpisodes(on)[0]?.duration).not.toBe("");
+    // The junk foreground itself is the interrupt marker, blanked, never counted.
+    const junkOn = on.filter((r) => r.pkg === "com.junk.app");
+    expect(junkOn.some((r) => r.type === "Filtered App Usage")).toBe(true);
+    expect(junkOn.every((r) => r.type !== "App Usage")).toBe(true);
+    expect(junkOn.every((r) => r.duration === "")).toBe(true);
   });
 
   it("the junk app itself IS marked: Filtered App Usage with blanked timing", async () => {

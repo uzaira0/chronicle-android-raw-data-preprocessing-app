@@ -1283,14 +1283,28 @@ async function processUsageRows(
     nextRows[startIndex]!.stop_timestamp_ns = nextRows[stopEventIndex]!.event_timestamp_ns;
   });
   matcherOutput.missingIndices.forEach((index) => {
+    // An UNMATCHED filtered foreground must still interrupt valid sessions: a
+    // resume means the app came to the foreground regardless of whether its own
+    // session ever closed, so the app it displaced really did stop being
+    // foreground. Keeping the row as "Filtered App Usage" (in the default
+    // other-stop set) preserves that interrupt through the subsequent valid
+    // pass. Retyping it to "End of Usage Missing" (NOT an other-stop) silently
+    // dropped the interrupt, which made the filter change valid apps' durations
+    // — the two-pass interrupt leak. Valid-pass (App Usage) missing ends stay
+    // "End of Usage Missing" as before.
+    if (usageType === "Filtered App Usage") {
+      nextRows[index]!.interaction_type = "Filtered App Usage";
+      nextRows[index]!.start_timestamp_ns = null;
+      nextRows[index]!.stop_timestamp_ns = null;
+      nextRows[index]!.duration_seconds = null;
+      nextRows[index]!.duration_minutes = null;
+      return;
+    }
     nextRows[index]!.interaction_type = "End of Usage Missing";
     nextRows[index]!.stop_timestamp_ns = null;
     nextRows[index]!.duration_seconds = null;
     nextRows[index]!.duration_minutes = null;
-    if (
-      usageType === "Filtered App Usage" ||
-      (options.useFilterFile && nextRows[index]!.app_package_name === "android")
-    ) {
+    if (options.useFilterFile && nextRows[index]!.app_package_name === "android") {
       nextRows[index]!.start_timestamp_ns = null;
     }
   });

@@ -865,7 +865,21 @@ class PolarsFastPathPreprocessor:
         if stop_start_indices.size:
             stop_ns[stop_start_indices] = timestamp_ns[stop_event_indices]
         if missing_indices.size:
-            interaction_updates[missing_indices] = str(InteractionType.END_OF_USAGE_MISSING)
+            if usage_type == str(InteractionType.FILTERED_APP_USAGE):
+                # An unmatched filtered foreground must still interrupt valid
+                # sessions: a resume means the app came to the foreground
+                # regardless of whether its own session ever closed. Keep it as
+                # Filtered App Usage (an other-stop) with blanked timing so it
+                # still interrupts valid sessions in the following valid pass,
+                # instead of dropping it to End of Usage Missing (NOT an
+                # other-stop), which silently leaked the interrupt and made the
+                # filter change valid apps' durations. Mirrors the web
+                # browserPipeline.ts processUsageRows missing-index handling.
+                interaction_updates[missing_indices] = str(InteractionType.FILTERED_APP_USAGE)
+                start_ns[missing_indices] = _MISSING_INT64
+                stop_ns[missing_indices] = _MISSING_INT64
+            else:
+                interaction_updates[missing_indices] = str(InteractionType.END_OF_USAGE_MISSING)
 
         timestamp_tz = df.schema[Column.EVENT_TIMESTAMP].time_zone or "UTC"
         df = self._apply_timestamp_update_arrays(
@@ -890,12 +904,19 @@ class PolarsFastPathPreprocessor:
         )
         if background_packages and usage_type == str(InteractionType.FILTERED_APP_USAGE):
             # Construct-and-mark: a background app matched by the FILTERED pass
-            # keeps its constructed session under the distinct deferred category.
-            # Mirrors web processUsageRows (`backgroundFiltered`).
+            # keeps its CONSTRUCTED session (real timing) under the distinct
+            # deferred category. Only promote rows that actually carry timing —
+            # an UNMATCHED filtered foreground is a timing-less interrupt marker
+            # ("Filtered App Usage", stop null) and is NOT a constructed
+            # background session, so it stays Filtered App Usage. (Web only ever
+            # promotes matched resumes, which have timing; this guard keeps the
+            # two surfaces in parity now that unmatched filtered foregrounds are
+            # retained as interrupt markers.)
             df = df.with_columns(
                 pl.when(
                     (pl.col(Column.INTERACTION_TYPE) == usage_type)
                     & pl.col(Column.APP_PACKAGE_NAME).is_in(list(background_packages))
+                    & pl.col(Column.STOP_TIMESTAMP).is_not_null()
                 )
                 .then(pl.lit(str(InteractionType.FILTERED_APP_BACKGROUND_USAGE)))
                 .otherwise(pl.col(Column.INTERACTION_TYPE))
