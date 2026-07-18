@@ -328,11 +328,20 @@ CSV rows, and get a before-number at t=2/3/4 — then generate arrays to close t
 1. **S1 gaps first**: fast-check mutation-sequence parity (from-scratch consistency) +
    recompute-set set-equality with ≤1 counters + the engine MR battery (S1 #6). Direct
    continuation of the bug-hunt that just paid off; tests the ENGINE.
+   ✅ DONE 2026-07-17 — enginePropertyValidation.test.ts + validationHarness.ts; found and
+   fixed the wall-clock `datetime_of_preprocessing` purity bug (session-stable stamp in
+   browserPipeline.ts).
 2. **S2 MR suite** (the 24 relations, metamorphic-differential through the parity
    harness, Hypothesis/fast-check Track-A generators). Tests the SEMANTICS — the class of
    shared bugs byte-parity can never catch.
+   ✅ DONE 2026-07-17 (battery v1: MR-1/2/8/17/19/20) — scripts/run_metamorphic_suite.py +
+   `make metamorphic`; all relations hold, cross-engine parity clean on every transform.
 3. **S3**: NIST CCM coverage measurement of the existing scenarios, then PICT covering
-   arrays to close the measured gap.
+   arrays to close the measured gap. ✅ DONE 2026-07-17 — `web/combinatorial/` +
+   `make combinatorial`. Before: 43.5% 2-way / 26.4% 3-way (150 executed configs).
+   After adding PICT arrays (18 t=2 + 62 t=3 rows, executed in
+   coveringArrayValidation.test.ts): 100% at both strengths. CCM needed a headless
+   recompile (JFrame in static init) — patched build at /home/opt/nist-ccm.
 4. **O1 + V7** (DAG into the existing LinkML SSOT + bijection test) — makes the graph a
    schema-governed artifact instead of hand-authored TS.
 5. **O2 + P1** (column semantics + generated codebook) — the researcher-facing product.

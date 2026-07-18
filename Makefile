@@ -22,7 +22,7 @@ MATCHER := rust/chronicle_app_usage_matcher/Cargo.toml
 .PHONY: help ci all security web \
         test rust \
         semgrep ast-grep bandit pip-audit cargo-audit trivy gitleaks \
-        typecheck web-test contract parity e2e deploy-artifact
+        typecheck web-test contract parity metamorphic combinatorial e2e deploy-artifact
 
 help:
 	@echo 'Local CI (replaces the deleted GitHub Actions workflows):'
@@ -126,6 +126,13 @@ parity:
 # on every transform. Catches SHARED bugs byte-parity alone cannot.
 metamorphic:
 	PYTHONPATH=src $(PYTHON) scripts/run_metamorphic_suite.py
+
+# Combinatorial coverage: regenerates the PICT/ACTS models from the contract
+# SSOT, generates t=2/t=3 covering arrays (executed by
+# coveringArrayValidation.test.ts), and measures test-suite coverage with
+# NIST CCM. Needs the PICT binary + headless CCM build (see script header).
+combinatorial:
+	scripts/run_combinatorial_coverage.sh
 
 e2e:
 	cd web && npm run test:e2e:smoke
