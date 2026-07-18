@@ -53,6 +53,20 @@ enums:
         description: The app was the sole foreground app for the sub-interval.
       secondary:
         description: The app was running underneath another foreground app.
+  PipelineSection:
+    description: The four processing tiers of the pipeline graph.
+    permissible_values:
+      preprocess:
+      clean:
+      analyze:
+      output:
+  PipelineKnobEdge:
+    description: >-
+      How an option binds to a pipeline node: 'gates' turns the step on/off,
+      'tunes' parameterizes its transform ('feeds' edges are the inputs list).
+    permissible_values:
+      gates:
+      tunes:
 
 classes:
   BrowserSupportFile:
@@ -131,6 +145,33 @@ classes:
       - enable_compliance_scoring
       - compliance_threshold_percent
       - enable_day_coverage
+
+  PipelineKnobBinding:
+    description: An option bound to a pipeline node (a 'gates' or 'tunes' edge).
+    slots:
+      - option_key
+      - edge
+
+  PipelineNode:
+    description: >-
+      One step of the browser pipeline graph. Declarative projection of
+      web/src/lib/pipelineGraph/graphDef.ts, regenerated (or drift-checked) by
+      web/scripts/generate_pipeline_graph_artifacts.mts; node bodies stay in
+      TypeScript, everything structural lives here.
+    slots:
+      - node_id
+      - node_label
+      - section
+      - node_inputs
+      - node_knobs
+      - node_support_files
+      - has_bypass
+      - has_output_hash
+
+  PipelineGraph:
+    description: The full pipeline DAG (nodes carry their 'feeds' edges as inputs).
+    slots:
+      - graph_nodes
 
   ProcessedOutputFileResult:
     slots:
@@ -800,3 +841,47 @@ slots:
       For concurrent-usage output only: 'primary' when the app was the sole
       foreground app for the row's sub-interval, 'secondary' when it was running
       underneath another app. Absent when model_concurrent_usage is off.
+
+  # ── Pipeline graph (PipelineGraph / PipelineNode / PipelineKnobBinding) ──
+  option_key:
+    required: true
+    description: >-
+      snake_case slot name of the bound BrowserProcessingOptions option (the
+      camelCase runtime key is derived the same way generatedContract.ts is).
+  edge:
+    range: PipelineKnobEdge
+    required: true
+  node_id:
+    required: true
+    identifier: true
+    description: Stable snake_case node id (community-grounded vocabulary).
+  node_label:
+    required: true
+    description: Human label shown in the graph view.
+  section:
+    range: PipelineSection
+    required: true
+  node_inputs:
+    multivalued: true
+    description: Upstream node ids — the 'feeds' edges.
+  node_knobs:
+    range: PipelineKnobBinding
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+  node_support_files:
+    multivalued: true
+    description: BrowserSupportFiles slot names whose content the node reads.
+  has_bypass:
+    range: boolean
+    required: true
+    description: Whether the node declares a bypassedWhen predicate.
+  has_output_hash:
+    range: boolean
+    required: true
+    description: Whether the node declares an outputHash (early cutoff).
+  graph_nodes:
+    range: PipelineNode
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
