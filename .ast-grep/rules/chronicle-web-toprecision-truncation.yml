@@ -1,0 +1,15 @@
+id: chronicle-web-toprecision-truncation
+language: typescript
+message: >-
+  toPrecision with fewer than 17 digits truncates the shortest round-trip
+  representation — the toPrecision(15) form was the sole cause of the
+  "15th-digit residual" parity diffs. Use 17 (round-trip exact for f64) or the
+  no-argument shortest form.
+severity: error
+files:
+  - web/src/**/*.ts
+rule:
+  pattern: $V.toPrecision($P)
+constraints:
+  P:
+    regex: ^(1[0-6]|[1-9])$

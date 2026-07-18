@@ -1,0 +1,26 @@
+id: chronicle-web-minutes-division
+snapshots:
+  'const row = { duration_minutes: durationSeconds / 60 };':
+    labels:
+    - source: 'duration_minutes: durationSeconds / 60'
+      style: primary
+      start: 14
+      end: 52
+  'const row = { duration_minutes: stop ? null : seconds / 60 };':
+    labels:
+    - source: 'duration_minutes: stop ? null : seconds / 60'
+      style: primary
+      start: 14
+      end: 58
+  'const row = { duration_minutes: stop ? seconds / 60 : null };':
+    labels:
+    - source: 'duration_minutes: stop ? seconds / 60 : null'
+      style: primary
+      start: 14
+      end: 58
+  row.duration_minutes = durationSeconds / 60;:
+    labels:
+    - source: row.duration_minutes = durationSeconds / 60
+      style: primary
+      start: 0
+      end: 43

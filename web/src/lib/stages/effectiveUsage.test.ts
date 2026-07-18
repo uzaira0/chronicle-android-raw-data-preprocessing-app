@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyScreenGatedCredit, type CreditOptions } from "@/lib/stages/effectiveUsage";
-import { populateTimeColumns, type CanonicalRow } from "@/lib/browserPipeline";
+import { populateTimeColumns, RECIP_60, type CanonicalRow } from "@/lib/browserPipeline";
 import fixture from "@/lib/stages/__fixtures__/screen_gated_credit/basic.json";
 
 const DEFAULT_OPTS: CreditOptions = {
@@ -46,7 +46,7 @@ function sessionRow(
     stop_timestamp_ns: stop,
     event_timestamp_ns: start,
     duration_seconds: durationSeconds,
-    duration_minutes: durationSeconds / 60,
+    duration_minutes: durationSeconds * RECIP_60,
     date: "",
     hour: 0,
     day: 0,
@@ -91,7 +91,7 @@ describe("applyScreenGatedCredit — Python parity fixture", () => {
       interaction_type: session.interaction_type,
       duration_seconds: session.duration_seconds,
       duration_minutes:
-        session.duration_minutes === null ? null : session.duration_seconds! / 60,
+        session.duration_minutes === null ? null : session.duration_seconds! * RECIP_60,
     }),
   );
 

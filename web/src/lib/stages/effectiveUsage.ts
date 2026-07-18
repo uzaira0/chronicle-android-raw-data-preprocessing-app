@@ -1,4 +1,4 @@
-import { populateTimeColumns, type CanonicalRow } from "@/lib/browserPipeline";
+import { populateTimeColumns, RECIP_60, type CanonicalRow } from "@/lib/browserPipeline";
 
 /**
  * Effective usage — the screen-gated usage credit (Clean tier).
@@ -412,7 +412,9 @@ export function applyScreenGatedCredit(
         stop_timestamp_ns: b,
         event_timestamp_ns: a,
         duration_seconds: durationSeconds,
-        duration_minutes: durationSeconds / 60,
+        // RECIP_60, not /60: credited rows are clones of app rows, whose
+        // minutes are polars-reciprocal semantics everywhere else.
+        duration_minutes: durationSeconds * RECIP_60,
       };
       populateTimeColumns(clone, a, row.timezone || "UTC");
       credited.push(clone);

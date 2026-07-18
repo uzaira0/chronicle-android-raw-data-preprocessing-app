@@ -22,7 +22,7 @@ MATCHER := rust/chronicle_app_usage_matcher/Cargo.toml
 .PHONY: help ci all security web \
         test rust \
         semgrep ast-grep bandit pip-audit cargo-audit trivy gitleaks \
-        typecheck web-test contract parity metamorphic combinatorial e2e deploy-artifact
+        typecheck web-test contract parity metamorphic combinatorial gate-truth mutation e2e deploy-artifact
 
 help:
 	@echo 'Local CI (replaces the deleted GitHub Actions workflows):'
@@ -81,8 +81,11 @@ rust:
 semgrep:
 	semgrep --config .semgrep/chronicle-security.yml --error .
 
+# scan = enforce the rules; test = meta-tests proving each rule still catches
+# its pinned bug shape (.ast-grep/rule-tests, snapshots committed).
 ast-grep:
 	sg scan
+	sg test
 
 bandit:
 	bandit -c bandit.yaml -r src/chronicle_preprocessing_app -ll
@@ -133,6 +136,16 @@ metamorphic:
 # NIST CCM. Needs the PICT binary + headless CCM build (see script header).
 combinatorial:
 	scripts/run_combinatorial_coverage.sh
+
+# Detector-truth: seed a defect into each generate-or-check artifact and
+# assert the drift gate FIRES (restores on exit, interrupt-safe).
+gate-truth:
+	scripts/run_gate_truth_checks.sh
+
+# Mutation-score the validation suite (StrykerJS, ~25s): mutants that survive
+# mark assertions the engine/provenance tests do not actually pin.
+mutation:
+	cd web && ENGINE_PBT_RUNS=10 ./node_modules/.bin/stryker run
 
 e2e:
 	cd web && npm run test:e2e:smoke

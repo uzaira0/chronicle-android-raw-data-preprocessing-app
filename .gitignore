@@ -198,6 +198,10 @@ preprocessors/survey_data_preprocessor.py
 !tests/
 !tests/**/*.py
 !web/src/**/*.test.ts
+# ast-grep rule meta-tests (sg test walks with gitignore, so the blanket
+# *test* pattern above would hide them from BOTH git and the test runner)
+!.ast-grep/rule-tests/
+!.ast-grep/rule-tests/**
 !web/src/**/*.test.tsx
 *demo*
 *benchmark*

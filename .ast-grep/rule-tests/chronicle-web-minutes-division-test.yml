@@ -1,0 +1,13 @@
+# Meta-test for a parity bug-shape rule (run with: sg test).
+# The `invalid` snippets resurrect a FIXED parity bug — if the rule stops
+# matching them, the guard itself has broken.
+id: chronicle-web-minutes-division
+valid:
+  - "const row = { duration_minutes: durationSeconds * RECIP_60 };"
+  - "const row = { duration_minutes: below ? null : durationSeconds * RECIP_60 };"
+  - "const hours = row.duration_minutes / 60;"
+invalid:
+  - "const row = { duration_minutes: durationSeconds / 60 };"
+  - "const row = { duration_minutes: stop ? seconds / 60 : null };"
+  - "const row = { duration_minutes: stop ? null : seconds / 60 };"
+  - "row.duration_minutes = durationSeconds / 60;"

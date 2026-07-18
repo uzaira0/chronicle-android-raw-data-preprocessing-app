@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation-scores the validation suite itself (research doc step 7): mutants that survive mark assertions the graph/report tests do not actually pin. Scoped to the pure, fast modules — the graph engine and the provenance builders — so a full run stays in CI-viable time. Run: make mutation (repo root) or npx stryker run (web/).",
+  "mutate": [
+    "src/lib/pipelineGraph/engine.ts",
+    "src/lib/processingReport.ts"
+  ],
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.config.ts"
+  },
+  "coverageAnalysis": "perTest",
+  "reporters": ["clear-text", "progress"],
+  "thresholds": { "high": 90, "low": 75, "break": null },
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true
+}

@@ -1,0 +1,19 @@
+id: chronicle-web-fau-blank-outside-interval-cleaning
+language: typescript
+message: >-
+  Filtered App Usage timing must be blanked ONLY in clearFilteredUsageTiming
+  (the interval-cleaning stage) — blanking it anywhere else diverges from the
+  desktop's stage order, where FAU rows keep their timing through the walk and
+  lose it after (the sentinel-gap fix, commit 5daee9f).
+severity: error
+files:
+  - web/src/**/*.ts
+rule:
+  pattern: 'row.interaction_type === "Filtered App Usage" ? $BLANKED : $KEPT'
+  not:
+    inside:
+      kind: function_declaration
+      stopBy: end
+      has:
+        field: name
+        regex: ^clearFilteredUsageTiming$

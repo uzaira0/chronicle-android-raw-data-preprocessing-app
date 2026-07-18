@@ -232,7 +232,7 @@ const MISSING_INT64 = -(1n << 63n);
  * Multiplying by the same precomputed reciprocal reproduces the desktop
  * doubles bit-for-bit (verified against polars output).
  */
-const RECIP_60 = 1 / 60;
+export const RECIP_60 = 1 / 60;
 
 export type CanonicalRow = {
   study_id: string;
@@ -1624,6 +1624,11 @@ function deriveScreenUsageSessions(
       start_timestamp_ns: currentState.startTimestampNs,
       stop_timestamp_ns: stopTimestampNs,
       duration_seconds: stopTimestampNs ? secondsBetween(currentState.startTimestampNs, stopTimestampNs) : null,
+      // Screen minutes use TRUE division: the desktop computes this row in
+      // plain Python (screen_usage_preprocessor.py `duration_seconds / 60.0`),
+      // not through a polars expression, so there is no reciprocal lowering to
+      // mirror here. Only the APP path needs RECIP_60.
+      // ast-grep-ignore: chronicle-web-minutes-division
       duration_minutes: stopTimestampNs
         ? secondsBetween(currentState.startTimestampNs, stopTimestampNs) / 60
         : null,

@@ -1,0 +1,13 @@
+id: chronicle-web-fau-blank-outside-interval-cleaning
+snapshots:
+  ? |
+    function someOtherStage(rows: CanonicalRow[]): CanonicalRow[] {
+      return rows.map((row) =>
+        row.interaction_type === "Filtered App Usage" ? { ...row, duration_seconds: null } : row,
+      );
+    }
+  : labels:
+    - source: 'row.interaction_type === "Filtered App Usage" ? { ...row, duration_seconds: null } : row'
+      style: primary
+      start: 95
+      end: 183

@@ -1,0 +1,18 @@
+id: chronicle-web-missing-int64-arithmetic
+language: typescript
+message: >-
+  Arithmetic on the MISSING_INT64 sentinel — the sentinel marks "no
+  timestamp"; adding/subtracting/multiplying it produces a plausible-looking
+  garbage timestamp that desktop polars (which keeps nulls) never computes.
+  Compare against it or null-check first.
+severity: error
+files:
+  - web/src/**/*.ts
+rule:
+  any:
+    - pattern: MISSING_INT64 + $X
+    - pattern: $X + MISSING_INT64
+    - pattern: MISSING_INT64 - $X
+    - pattern: $X - MISSING_INT64
+    - pattern: MISSING_INT64 * $X
+    - pattern: $X * MISSING_INT64

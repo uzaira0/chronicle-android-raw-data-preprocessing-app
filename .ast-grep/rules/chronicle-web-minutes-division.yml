@@ -1,0 +1,28 @@
+# Structural pins for FIXED cross-engine parity bugs — each rule encodes a bug
+# shape that once produced byte diffs between the desktop (Python/polars) and
+# browser (TypeScript) engines, so the shape cannot silently return.
+# Meta-tests: .ast-grep/rule-tests/parity-bug-shapes-test.yml (sg test).
+id: chronicle-web-minutes-division
+language: typescript
+message: >-
+  duration_minutes computed with `/ 60` — the APP-usage path must multiply by
+  RECIP_60: desktop app minutes go through a polars expression whose `/ 60.0`
+  is lowered to a reciprocal multiply, which rounds differently in the last
+  ulp. Only the SCREEN path (plain-Python `/ 60.0` on the desktop,
+  screen_usage_preprocessor.py:264) legitimately divides — that one site is
+  annotated with an ast-grep-ignore explaining why.
+severity: error
+files:
+  - web/src/**/*.ts
+rule:
+  any:
+    - pattern:
+        context: "({ duration_minutes: $X / $D })"
+        selector: pair
+    - pattern:
+        context: "({ duration_minutes: $C ? $X / $D : $E })"
+        selector: pair
+    - pattern:
+        context: "({ duration_minutes: $C ? $E : $X / $D })"
+        selector: pair
+    - pattern: $ROW.duration_minutes = $X / $D

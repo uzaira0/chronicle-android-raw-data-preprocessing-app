@@ -176,4 +176,14 @@ describe("buildProvenanceJsonLd (PROV-O sidecar)", () => {
   it("is deterministic given fixed inputs", () => {
     expect(buildProvenanceJsonLd(input)).toBe(buildProvenanceJsonLd(input));
   });
+
+  it("pins the JSON-LD @context IRIs (they define what every prefixed term MEANS)", () => {
+    const doc = JSON.parse(buildProvenanceJsonLd(input)) as { "@context": unknown };
+    expect(doc["@context"]).toEqual({
+      prov: "http://www.w3.org/ns/prov#",
+      rdfs: "http://www.w3.org/2000/01/rdf-schema#",
+      xsd: "http://www.w3.org/2001/XMLSchema#",
+      chronicle: "https://chronicle.local/schemas/",
+    });
+  });
 });

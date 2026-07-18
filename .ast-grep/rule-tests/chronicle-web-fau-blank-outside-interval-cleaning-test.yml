@@ -1,0 +1,18 @@
+# Meta-test for a parity bug-shape rule (run with: sg test).
+# The `invalid` snippets resurrect a FIXED parity bug — if the rule stops
+# matching them, the guard itself has broken.
+id: chronicle-web-fau-blank-outside-interval-cleaning
+valid:
+  - |
+    function clearFilteredUsageTiming(rows: CanonicalRow[]): CanonicalRow[] {
+      return rows.map((row) =>
+        row.interaction_type === "Filtered App Usage" ? { ...row, duration_seconds: null } : row,
+      );
+    }
+invalid:
+  - |
+    function someOtherStage(rows: CanonicalRow[]): CanonicalRow[] {
+      return rows.map((row) =>
+        row.interaction_type === "Filtered App Usage" ? { ...row, duration_seconds: null } : row,
+      );
+    }

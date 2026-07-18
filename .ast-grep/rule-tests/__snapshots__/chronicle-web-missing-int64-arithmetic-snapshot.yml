@@ -1,0 +1,20 @@
+id: chronicle-web-missing-int64-arithmetic
+snapshots:
+  const gap = stopNs - MISSING_INT64;:
+    labels:
+    - source: stopNs - MISSING_INT64
+      style: primary
+      start: 12
+      end: 34
+  const scaled = MISSING_INT64 * 2n;:
+    labels:
+    - source: MISSING_INT64 * 2n
+      style: primary
+      start: 15
+      end: 33
+  const shifted = MISSING_INT64 + offsetNs;:
+    labels:
+    - source: MISSING_INT64 + offsetNs
+      style: primary
+      start: 16
+      end: 40
