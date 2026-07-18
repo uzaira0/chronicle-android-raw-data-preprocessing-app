@@ -28,7 +28,7 @@ not aspirations):
   MR-20  pid-bijection       renaming the participant (file name + ID
                              columns) yields the identical output modulo the
                              same renaming (byte-equal after back-rename).
-  MR-8   day-shift (+7d)     shifting every event by exactly 7×24h preserves
+  MR-8   day-shift (+7d)     shifting every event by exactly 7x24h preserves
                              usage CONTENT: per-type row counts and the
                              multiset of durations are invariant (calendar
                              columns legitimately move; DST edges may move a
@@ -64,6 +64,7 @@ from run_deterministic_web_parity import (  # noqa: E402
     _run_desktop,
     _write_browser_spec,
 )
+
 from chronicle_preprocessing_app.config.constants import UsageSessionMode  # noqa: E402
 from chronicle_preprocessing_app.utils.pathological_fixture_builder import (  # noqa: E402
     FixtureBuildConfig,
@@ -94,7 +95,7 @@ def transform_shuffle_unique(df: pl.DataFrame) -> pl.DataFrame:
     permuted = singleton_positions[:]
     random.Random(42).shuffle(permuted)
     new_order = list(range(df.height))
-    for position, source in zip(singleton_positions, permuted):
+    for position, source in zip(singleton_positions, permuted, strict=True):
         new_order[position] = source
     return df[new_order]
 
@@ -108,7 +109,7 @@ def transform_tie_permute(df: pl.DataFrame) -> pl.DataFrame:
     new_order = list(range(df.height))
     for indices in groups.values():
         if len(indices) > 1:
-            for position, source in zip(indices, reversed(indices)):
+            for position, source in zip(indices, reversed(indices), strict=True):
                 new_order[position] = source
     return df[new_order]
 
@@ -120,7 +121,7 @@ def transform_duplicate_row(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def transform_day_shift(df: pl.DataFrame, days: int = 7) -> pl.DataFrame:
-    """Add exactly days×24h by rewriting the leading YYYY-MM-DD of each
+    """Add exactly daysx24h by rewriting the leading YYYY-MM-DD of each
     timestamp (format-preserving; the time-of-day text is untouched)."""
 
     def shift(ts: str) -> str:
@@ -197,11 +198,13 @@ def run_both_engines(
         support_file_paths={
             "filterFile": str(
                 REPO_ROOT
-                / "web/src/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv"
+                / "web/src/assets/defaults"
+                / "Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv"
             ),
             "appsForcingScreenOpenFile": str(
                 REPO_ROOT
-                / "apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv"
+                / "apps_forcing_screen_open_files"
+                / "Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv"
             ),
             "appCodebookFile": str(
                 REPO_ROOT / "src/chronicle_preprocessing_app/data/unified_app_codebook.csv"
@@ -238,6 +241,13 @@ def read_text(path: Path) -> str:
 def relation_byte_equal(base: Path, transformed: Path) -> dict:
     equal = read_text(base) == read_text(transformed)
     return {"holds": equal, "detail": None if equal else "outputs differ"}
+
+
+def invariant_relations(
+    base: dict[str, Path], outputs: dict[str, Path], keys: tuple[str, ...]
+) -> dict[str, dict]:
+    """Byte-invariance relations for the given output surfaces."""
+    return {f"{key}_invariant": relation_byte_equal(base[key], outputs[key]) for key in keys}
 
 
 def relation_byte_equal_after_rename(base: Path, transformed: Path, old: str, new: str) -> dict:
@@ -318,11 +328,7 @@ def main() -> int:
         check(
             "mr1_shuffle_unique",
             outputs,
-            {
-                "desktop_app_invariant": relation_byte_equal(base["desktop_app"], outputs["desktop_app"]),
-                "browser_app_invariant": relation_byte_equal(base["browser_app"], outputs["browser_app"]),
-                "desktop_screen_invariant": relation_byte_equal(base["desktop_screen"], outputs["desktop_screen"]),
-            },
+            invariant_relations(base, outputs, ("desktop_app", "browser_app", "desktop_screen")),
         )
 
         # MR-2 tie-permute → differential only (tie-break is input order by spec).
@@ -338,10 +344,7 @@ def main() -> int:
         check(
             "mr17_duplicate_row",
             outputs,
-            {
-                "desktop_app_invariant": relation_byte_equal(base["desktop_app"], outputs["desktop_app"]),
-                "browser_app_invariant": relation_byte_equal(base["browser_app"], outputs["browser_app"]),
-            },
+            invariant_relations(base, outputs, ("desktop_app", "browser_app")),
         )
 
         # MR-19 CRLF input → invariant.
@@ -349,17 +352,14 @@ def main() -> int:
         check(
             "mr19_crlf",
             outputs,
-            {
-                "desktop_app_invariant": relation_byte_equal(base["desktop_app"], outputs["desktop_app"]),
-                "browser_app_invariant": relation_byte_equal(base["browser_app"], outputs["browser_app"]),
-            },
+            invariant_relations(base, outputs, ("desktop_app", "browser_app")),
         )
 
         # MR-20 participant bijection P01→P99 → identical modulo rename.
         renamed_df = base_df.with_columns(
             [
                 pl.col(column).str.replace_all("P01", "P99").alias(column)
-                for column, dtype in zip(base_df.columns, base_df.dtypes)
+                for column, dtype in zip(base_df.columns, base_df.dtypes, strict=True)
                 if dtype == pl.String
             ]
         )
@@ -383,7 +383,7 @@ def main() -> int:
             },
         )
 
-        # MR-8 +7×24h shift → usage content invariant (calendar columns move).
+        # MR-8 +7x24h shift → usage content invariant (calendar columns move).
         outputs = run_both_engines(
             "mr8_day_shift", transform_day_shift(base_df), temp_root, args.datetime
         )
