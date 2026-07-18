@@ -280,9 +280,11 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           "minimum-duration floor, stop-event rules, and optional concurrent " +
           "modeling. The measurement core of the pipeline. Runs JUNK-BLIND: " +
           "every app is matched identically, then the junk (filter-listed) apps' " +
-          "OWN episodes are relabeled 'Filtered App Usage' (blanked) — or kept as " +
+          "OWN episodes are relabeled 'Filtered App Usage' — or kept as " +
           "'Filtered App Background Usage' for a background app — the one lossy " +
-          "filter decision, downstream of matching.",
+          "filter decision, downstream of matching. Their timing stays real " +
+          "through episode annotation (so engagement gaps are computed against " +
+          "real neighbours) and is blanked in interval cleaning.",
         section: "preprocess",
         inputs: ["app_policy"],
         knobs: [
@@ -373,9 +375,10 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         label: "Interval cleaning (blank & drop)",
         description:
           "The lossy steps, applied AFTER episodes are fully built and " +
-          "annotated: blanks the timing of rows marked by the app policy " +
-          "(plain filtered rows only — constructed background sessions keep " +
-          "real timing), drops event types selected for removal (kept when " +
+          "annotated: blanks the timing of junk (filter-listed) usage rows — " +
+          "the SOLE blanking site, after the engagement walk has read their " +
+          "real timing; constructed background sessions keep real timing — " +
+          "drops event types selected for removal (kept when " +
           "they witness a large data gap), and optionally drops zero-duration " +
           "episodes.",
         section: "clean",

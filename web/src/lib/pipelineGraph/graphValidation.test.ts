@@ -260,23 +260,21 @@ const VALID_SUPPORT_FILE_KEYS = new Set(Object.values(SUPPORT_FIELD_TO_FILE));
 const CONTRACT_KEYS = new Set(Object.keys(DEFAULT_BROWSER_OPTIONS));
 
 /**
- * Columns computed by the engagement walk (episode_annotations). These are
- * DEFINED over filter-dependent universes — the valid walk excludes junk
- * apps, the any walk includes junk apps (whose timing the downstream mark
- * blanks) — so they legitimately differ with the filter on vs off. The
- * junk-blind theorem is about EPISODES: identical row set, timestamps and
- * durations for valid apps. (Both engines agree byte-for-byte on the
- * annotation values too — verified by the web↔desktop parity harness.)
+ * The valid_app_* engagement-walk columns are DEFINED over a filter-dependent
+ * universe (the valid walk excludes junk apps), so they legitimately differ
+ * with the filter on vs off. The any_app_* columns are NOT excluded: junk
+ * rows keep real timing through the walk (blanked only afterwards, in
+ * interval cleaning), so the any-app walk sees the same neighbours and the
+ * same timestamps in both worlds. Caveat: under concurrent modeling a junk
+ * session that OVERLAPS other usage is split in the filter-off world but not
+ * in the filter-on world, which can shift any_app_* gaps around the overlap —
+ * this fixture has no such overlap, so the strict assertion holds.
  */
 const FILTER_DEPENDENT_ANNOTATION_COLUMNS = new Set([
   "valid_app_new_engage_30s",
   "valid_app_new_engage_custom",
   "valid_app_switched_app",
   "valid_app_usage_time_gap_hours",
-  "any_app_new_engage_30s",
-  "any_app_new_engage_custom",
-  "any_app_switched_app",
-  "any_app_usage_time_gap_hours",
 ]);
 
 function serializeRows(rows: CanonicalRow[], omit: ReadonlySet<string> = new Set()): string {

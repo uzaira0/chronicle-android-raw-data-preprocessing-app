@@ -359,6 +359,10 @@ class ChronicleAndroidRawDataPreprocessor:
                 df = self.fast_preprocessor._enrich_with_app_codebook_data(df)
                 df = self.app_usage_processor.add_app_usage_details(df)
                 df = self.app_usage_processor.add_app_usage_flags(df)
+                # Filtered App Usage timing survives until AFTER the engagement
+                # walk above (real gaps, no int64-min sentinel); blank it now —
+                # the output never carries junk timing.
+                df = self.app_usage_processor.clear_filtered_usage_timing(df)
                 self.current_participant_raw_data_df = df
             else:
                 self.current_participant_raw_data_df = df

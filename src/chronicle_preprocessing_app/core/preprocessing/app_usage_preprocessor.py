@@ -90,6 +90,10 @@ class AppUsagePreprocessor(BasePreprocessor):
     def add_app_usage_flags(self, df: pl.DataFrame) -> pl.DataFrame:
         return self._helper._mark_app_usage_flags(df)
 
+    def clear_filtered_usage_timing(self, df: pl.DataFrame) -> pl.DataFrame:
+        """Blank Filtered App Usage start/stop AFTER the engagement walk (SSOT)."""
+        return self._helper._clear_filtered_usage_timing(df)
+
     def _get_app_usage_flags(
         self,
         time_gaps: pl.Series,

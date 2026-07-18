@@ -225,6 +225,15 @@ const defaultSupportCache = new Map<string, Promise<SupportRows>>();
 const uploadedSupportCache = new Map<string, Promise<SupportRows>>();
 const MISSING_INT64 = -(1n << 63n);
 
+/**
+ * duration_minutes = duration_seconds * (1/60), NOT / 60: polars lowers the
+ * desktop's `/ 60.0` to a reciprocal multiply, which rounds differently in
+ * the last ulp on some values (e.g. 3 µs -> 5e-8 vs 5.0000000000000004e-8).
+ * Multiplying by the same precomputed reciprocal reproduces the desktop
+ * doubles bit-for-bit (verified against polars output).
+ */
+const RECIP_60 = 1 / 60;
+
 export type CanonicalRow = {
   study_id: string;
   participant_id: string;
@@ -793,7 +802,11 @@ function normalizeFloatString(value: number): string {
   }
   const absValue = Math.abs(value);
   if (absValue !== 0 && absValue < 1e-4) {
-    return Number.parseFloat(value.toPrecision(15))
+    // Shortest round-trip digits (no precision argument) — matches the desktop
+    // polars/ryu CSV serialization exactly. The old toPrecision(15) truncation
+    // was the sole cause of the documented "15th-digit residual" parity diffs
+    // (the underlying doubles were bit-identical).
+    return value
       .toExponential()
       .replace(/\.0+e/, "e")
       .replace(/e([+-])0+/, "e$1");
@@ -1365,7 +1378,7 @@ async function processUsageRows(
         ...row,
         interaction_type: usageType,
         duration_seconds: belowThreshold ? null : durationSeconds,
-        duration_minutes: belowThreshold ? null : durationSeconds / 60,
+        duration_minutes: belowThreshold ? null : durationSeconds * RECIP_60,
       };
     });
 
@@ -1389,18 +1402,32 @@ async function processUsageRows(
             ...row,
             interaction_type: "Filtered App Background Usage",
             duration_seconds: durationSeconds,
-            duration_minutes: durationSeconds === null ? null : durationSeconds / 60,
+            duration_minutes: durationSeconds === null ? null : durationSeconds * RECIP_60,
           };
         }
         // Every other junk row: relabel App Usage -> Filtered App Usage and
         // Activity Stopped -> Filtered App Stopped (leave End of Usage Missing /
-        // Activity Destroyed as-is), then blank the timing.
+        // Activity Destroyed as-is). A Filtered App Usage row keeps its REAL
+        // start/stop through episode annotation — the any-app engagement walk
+        // reads neighbours' start/stop, and a null here became the int64-min
+        // sentinel and wrapped into garbage gap values on adjacent valid rows.
+        // Interval cleaning blanks it afterwards (clearFilteredUsageTiming).
+        // Durations are nulled NOW so flag marking never flags a junk session.
+        // All other junk rows blank timing immediately (nothing reads them).
         const interaction =
           row.interaction_type === usageType
             ? "Filtered App Usage"
             : row.interaction_type === stoppedType
               ? "Filtered App Stopped"
               : row.interaction_type;
+        if (interaction === "Filtered App Usage") {
+          return {
+            ...row,
+            interaction_type: interaction,
+            duration_seconds: null,
+            duration_minutes: null,
+          };
+        }
         return {
           ...row,
           interaction_type: interaction,
@@ -1449,7 +1476,7 @@ async function processUsageRows(
           start_timestamp_ns: ls.startNs,
           stop_timestamp_ns: ls.stopNs,
           duration_seconds: durationBelowThreshold ? null : durationSeconds,
-          duration_minutes: durationBelowThreshold ? null : durationSeconds / 60,
+          duration_minutes: durationBelowThreshold ? null : durationSeconds * RECIP_60,
           usage_layer: ls.layer,
         };
       });

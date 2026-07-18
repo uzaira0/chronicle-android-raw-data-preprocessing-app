@@ -201,6 +201,7 @@ class PolarsFastPathPreprocessor:
         df = self._enrich_with_app_codebook_data(df)
         df = self._add_app_usage_detail_columns(df)
         df = self._mark_app_usage_flags(df)
+        df = self._clear_filtered_usage_timing(df)
         df = self._remove_selected_interaction_types(df)
         df = self._add_missing_study_date_placeholder_rows(df, participant_id)
         return PolarsFastPathResult(participant_id=participant_id, data=df, pre_algo_event_timestamps=pre_algo_ts)
@@ -983,14 +984,22 @@ class PolarsFastPathPreprocessor:
                 .otherwise(pl.col(Column.INTERACTION_TYPE))
                 .alias(Column.INTERACTION_TYPE)
             )
-            # Blank every junk row's timing EXCEPT the constructed Filtered App
-            # Background Usage rows (which keep their real session timing). The
-            # pre-refactor filtered pass blanked all filtered rows' start/stop
-            # via the whole-column overwrite; reproduce that here (junk Filtered
-            # App Usage, End of Usage Missing, Filtered App Stopped, etc.).
-            blank = junk & (
-                pl.col(Column.INTERACTION_TYPE)
-                != str(InteractionType.FILTERED_APP_BACKGROUND_USAGE)
+            # Blank the junk rows' timing EXCEPT:
+            #   * Filtered App Background Usage — constructed sessions keep their
+            #     real timing permanently;
+            #   * Filtered App Usage — keeps REAL start/stop through the
+            #     engagement walk (_add_app_usage_detail_columns reads the any-app
+            #     neighbours' start/stop; a null here became the int64-min
+            #     sentinel and wrapped into garbage gap values on adjacent valid
+            #     rows). Its timing is blanked AFTER the walk, in
+            #     _clear_filtered_usage_timing; its durations are nulled right
+            #     after the duration recompute below so the min-duration /
+            #     zero-drop / flag steps never act on a junk session.
+            blank = junk & ~pl.col(Column.INTERACTION_TYPE).is_in(
+                [
+                    str(InteractionType.FILTERED_APP_BACKGROUND_USAGE),
+                    str(InteractionType.FILTERED_APP_USAGE),
+                ]
             )
             df = df.with_columns(
                 pl.when(blank).then(None).otherwise(pl.col(Column.START_TIMESTAMP)).alias(
@@ -1006,9 +1015,9 @@ class PolarsFastPathPreprocessor:
         # Polars lowers `/ const` to a reciprocal multiply, and µs/1e6 reproduces
         # the browser's exact f64 for whole-second durations (e.g. 60.0), whereas
         # ns/1e9 yields 60.00000000000001 and breaks cross-surface parity on the
-        # common case. (A residual 15th-digit duration_minutes diff remains only on
-        # sub-microsecond concurrent sub-intervals — same value, not worth a
-        # regression to chase.)
+        # common case. The browser mirrors the minutes reciprocal too
+        # (duration_seconds * (1/60), browserPipeline RECIP_60) — duration doubles
+        # are bit-identical across surfaces; the old 15th-digit residual is gone.
         duration_expr = (
             (pl.col(Column.STOP_TIMESTAMP) - pl.col(Column.START_TIMESTAMP))
             .dt.total_microseconds()
@@ -1020,6 +1029,24 @@ class PolarsFastPathPreprocessor:
                 duration_expr.alias(Column.DURATION_SECONDS),
                 (duration_expr / 60.0).alias(Column.DURATION_MINUTES),
             ]
+        )
+        # Filtered App Usage keeps real start/stop until after the engagement
+        # walk (see the mark block above), so the recompute above just produced
+        # real durations for junk sessions. Null them here — a junk session must
+        # never be counted, min-duration-floored, zero-dropped, or usage-flagged.
+        filtered_usage_row = pl.col(Column.INTERACTION_TYPE) == str(
+            InteractionType.FILTERED_APP_USAGE
+        )
+        null_f64 = pl.lit(None, dtype=pl.Float64)
+        df = df.with_columns(
+            pl.when(filtered_usage_row)
+            .then(null_f64)
+            .otherwise(pl.col(Column.DURATION_SECONDS))
+            .alias(Column.DURATION_SECONDS),
+            pl.when(filtered_usage_row)
+            .then(null_f64)
+            .otherwise(pl.col(Column.DURATION_MINUTES))
+            .alias(Column.DURATION_MINUTES),
         )
         apply_min_duration = (
             usage_type == str(InteractionType.APP_USAGE)
@@ -1470,6 +1497,33 @@ class PolarsFastPathPreprocessor:
 
         genre_id_expr = pl.lit("Unknown").alias(Column.GENRE_ID_SCRAPED)
         return df.with_columns([broad_category_expr, genre_id_expr])
+
+    def _clear_filtered_usage_timing(self, df: pl.DataFrame) -> pl.DataFrame:
+        """Blank Filtered App Usage start/stop AFTER the engagement walk.
+
+        The downstream mark keeps a junk session's real start/stop through
+        _add_app_usage_detail_columns so the any-app engagement walk computes
+        real inter-session gaps (a null there became the int64-min sentinel and
+        wrapped into ~-2.07e9-second gaps on the adjacent valid rows). This is
+        the single lossy blanking site for those rows — the output never carries
+        junk timing. Durations were already nulled in _process_usage_rows.
+        Mirrors web interval_cleaning (clearFilteredUsageTiming).
+        """
+        if Column.START_TIMESTAMP not in df.columns:
+            return df
+        filtered_usage_row = pl.col(Column.INTERACTION_TYPE) == str(
+            InteractionType.FILTERED_APP_USAGE
+        )
+        return df.with_columns(
+            pl.when(filtered_usage_row)
+            .then(None)
+            .otherwise(pl.col(Column.START_TIMESTAMP))
+            .alias(Column.START_TIMESTAMP),
+            pl.when(filtered_usage_row)
+            .then(None)
+            .otherwise(pl.col(Column.STOP_TIMESTAMP))
+            .alias(Column.STOP_TIMESTAMP),
+        )
 
     def _add_app_usage_detail_columns(self, df: pl.DataFrame) -> pl.DataFrame:
         row_count = len(df)
