@@ -120,6 +120,13 @@ contract:
 parity:
 	PYTHONPATH=src $(PYTHON) scripts/run_deterministic_web_parity.py
 
+# Metamorphic-differential battery: transforms the fixture (shuffle, ties,
+# duplicates, CRLF, participant rename, +7d shift), asserts the known
+# input/output relation on BOTH engines, and re-checks cross-engine parity
+# on every transform. Catches SHARED bugs byte-parity alone cannot.
+metamorphic:
+	PYTHONPATH=src $(PYTHON) scripts/run_metamorphic_suite.py
+
 e2e:
 	cd web && npm run test:e2e:smoke
 
