@@ -1,0 +1,882 @@
+PREFIX chron: <https://w3id.org/chronicle-usage-ontology/core/>
+PREFIX pplan: <http://purl.org/net/p-plan#>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX qudt: <http://qudt.org/schema/qudt/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX sh: <http://www.w3.org/ns/shacl#>
+PREFIX sosa: <http://www.w3.org/ns/sosa/>
+PREFIX time: <http://www.w3.org/2006/time#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+chron:AttributionAssertionContractShape
+    a sh:NodeShape ;
+    sh:message "An unresolved attribution (person == None/blank) must not name an attributed_person." ;
+    sh:not
+        [
+            a sh:NodeShape ;
+            sh:property 
+                [
+                    sh:hasValue <https://w3id.org/chronicle-usage-ontology/core/AttributionStatus#unresolved> ;
+                    sh:minCount 1 ;
+                    sh:path chron:attribution_status ;
+                ] ,
+                [
+                    sh:minCount 1 ;
+                    sh:path chron:attributed_person ;
+                ] ;
+        ] ;
+    sh:property
+        [
+            sh:maxCount 1 ;
+            sh:message "AttributionAssertion must carry exactly one attribution_status." ;
+            sh:minCount 1 ;
+            sh:path chron:attribution_status ;
+        ] ;
+    sh:targetClass chron:AttributionAssertion ;
+.
+
+chron:CoverageAssessmentShape
+    a sh:NodeShape ;
+    sh:message "A no-data assessment (actually_available = false) requires expected_available to be stated." ;
+    sh:not
+        [
+            a sh:NodeShape ;
+            sh:property 
+                [
+                    sh:maxCount 0 ;
+                    sh:path chron:expected_available ;
+                ] ,
+                [
+                    sh:hasValue false ;
+                    sh:minCount 1 ;
+                    sh:path chron:actually_available ;
+                ] ;
+        ] ;
+    sh:targetClass chron:CoverageAssessment ;
+.
+
+chron:EffectiveUsageProvenanceShape
+    a sh:NodeShape ;
+    sh:property 
+        [
+            sh:message "An effective-usage measure must name the node execution that produced it." ;
+            sh:minCount 1 ;
+            sh:path chron:produced_by ;
+        ] ,
+        [
+            sh:message "An effective-usage measure must cite the ParameterSet it was produced under." ;
+            sh:minCount 1 ;
+            sh:path chron:cites_parameter_set ;
+        ] ;
+    sh:targetClass chron:EffectiveUsageMeasure ;
+.
+
+chron:UsageEpisodeProvenanceShape
+    a sh:NodeShape ;
+    sh:property
+        [
+            sh:message "A usage episode assertion must be reconstructed_by an execution." ;
+            sh:minCount 1 ;
+            sh:path chron:reconstructed_by ;
+        ] ;
+    sh:targetClass chron:UsageEpisodeAssertion ;
+.
+
+chron:UsageIntervalEndpointShape
+    a sh:NodeShape ;
+    sh:message "An endpoint marked 'observed' must carry its instant." ;
+    sh:not 
+        [
+            a sh:NodeShape ;
+            sh:property 
+                [
+                    sh:maxCount 0 ;
+                    sh:path chron:end_instant ;
+                ] ,
+                [
+                    sh:hasValue <https://w3id.org/chronicle-usage-ontology/core/EndpointStatus#observed> ;
+                    sh:minCount 1 ;
+                    sh:path chron:end_status ;
+                ] ;
+        ] ,
+        [
+            a sh:NodeShape ;
+            sh:property 
+                [
+                    sh:maxCount 0 ;
+                    sh:path chron:start_instant ;
+                ] ,
+                [
+                    sh:hasValue <https://w3id.org/chronicle-usage-ontology/core/EndpointStatus#observed> ;
+                    sh:minCount 1 ;
+                    sh:path chron:start_status ;
+                ] ;
+        ] ;
+    sh:targetClass chron:UsageInterval ;
+.
+
+pplan:Plan
+    a sh:NodeShape ;
+    rdfs:comment "The prospective processing workflow. A p-plan:Plan / prov:Plan." ;
+    sh:closed true ;
+    sh:ignoredProperties (
+        rdf:type
+    ) ;
+    sh:property 
+        [
+            sh:class pplan:Step ;
+            sh:description "Steps of the plan." ;
+            sh:nodeKind sh:IRI ;
+            sh:order 1 ;
+            sh:path chron:steps ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Plan identifier." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 0 ;
+            sh:path chron:plan_id ;
+        ] ;
+    sh:targetClass pplan:Plan ;
+.
+
+sosa:Observation
+    a sh:NodeShape ;
+    rdfs:comment "OPTIONAL. The OS logger's act of observing a device property, modeled only if that abstraction is genuinely needed. Do NOT type UsageEventRecord as this." ;
+    sh:closed true ;
+    sh:ignoredProperties (
+        rdf:type
+    ) ;
+    sh:property 
+        [
+            sh:datatype xsd:string ;
+            sh:description "The device property the logger observed." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 0 ;
+            sh:path chron:observed_property ;
+        ] ,
+        [
+            sh:class prov:Entity ;
+            sh:description "The event record produced by the logging observation." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 1 ;
+            sh:path chron:result_record ;
+        ] ;
+    sh:targetClass sosa:Observation ;
+.
+
+sosa:Procedure
+    a sh:NodeShape ;
+    rdfs:comment "A named, versioned episode-reconstruction algorithm (semantic category + canonical IRI). Subclass only where formal restrictions genuinely differ." ;
+    sh:closed true ;
+    sh:ignoredProperties (
+        rdf:type
+    ) ;
+    sh:property 
+        [
+            sh:description "Canonical strategy category (IRI-bearing enum value)." ;
+            sh:in (
+                "parry_toth_forward_pairing"
+                "fused_matcher"
+                "eyes_complement"
+            ) ;
+            sh:maxCount 1 ;
+            sh:order 1 ;
+            sh:path chron:strategy_kind ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Strategy version." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 2 ;
+            sh:path chron:strategy_version ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Strategy identifier (unique key)." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 0 ;
+            sh:path chron:strategy_id ;
+        ] ,
+        [
+            sh:datatype xsd:anyURI ;
+            sh:description "Canonical IRI carried by the runtime enum." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 3 ;
+            sh:path chron:canonical_iri ;
+        ] ;
+    sh:targetClass sosa:Procedure ;
+.
+
+chron:CoverageAssessment
+    a sh:NodeShape ;
+    rdfs:comment "A coverage/observability judgement over a stream window: expected vs actual data availability, its threshold, bounding events, and best-supported cause. A gap MAY CONCEAL usage — this asserts only how the measurement policy treats the interval, never that the device was inactive." ;
+    sh:closed true ;
+    sh:ignoredProperties (
+        rdf:type
+    ) ;
+    sh:property 
+        [
+            sh:datatype xsd:string ;
+            sh:description "Device identifier." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 2 ;
+            sh:path chron:device_id ;
+        ] ,
+        [
+            sh:datatype xsd:boolean ;
+            sh:description "Whether any data was actually present." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 4 ;
+            sh:path chron:actually_available ;
+        ] ,
+        [
+            sh:datatype xsd:boolean ;
+            sh:description "Whether data was expected to be available (needs a heartbeat/expectation to assert NoData)." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 3 ;
+            sh:path chron:expected_available ;
+        ] ,
+        [
+            sh:description "Best-supported cause." ;
+            sh:in (
+                "shutdown_boundary"
+                "unclean_power_loss"
+                "collector_reporting_gap"
+                "unknown"
+            ) ;
+            sh:maxCount 1 ;
+            sh:order 6 ;
+            sh:path chron:coverage_cause ;
+        ] ,
+        [
+            sh:class time:ProperInterval ;
+            sh:description "The stream window assessed." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 0 ;
+            sh:path chron:assesses_interval ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "How the measurement policy treats this interval (e.g. pass / na / exclude)." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 7 ;
+            sh:path chron:policy_treatment ;
+        ] ,
+        [
+            sh:datatype xsd:float ;
+            sh:description "Coverage threshold applied." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 5 ;
+            sh:path chron:availability_threshold ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Participant/device identifier (string, always)." ;
+            sh:maxCount 1 ;
+            sh:minCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 1 ;
+            sh:path chron:participant_id ;
+        ] ;
+    sh:targetClass chron:CoverageAssessment ;
+.
+
+chron:ParameterBinding
+    a sh:NodeShape ;
+    rdfs:comment "One knob = value binding within a ParameterSet." ;
+    sh:closed true ;
+    sh:ignoredProperties (
+        rdf:type
+    ) ;
+    sh:property 
+        [
+            sh:datatype xsd:string ;
+            sh:description "Option/knob key." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 0 ;
+            sh:path chron:knob_key ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Bound value (canonical JSON string)." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 1 ;
+            sh:path chron:knob_value ;
+        ] ;
+    sh:targetClass chron:ParameterBinding ;
+.
+
+chron:PlatformEventOccurrence
+    a sh:NodeShape ;
+    rdfs:comment "The real-world Android lifecycle/system occurrence (an app resuming, the screen turning off, a shutdown). This is the thing that happened in the world — NOT the logged record and NOT an observation. Deliberately untyped as sosa:Observation." ;
+    sh:closed true ;
+    sh:ignoredProperties (
+        rdf:type
+    ) ;
+    sh:property 
+        [
+            sh:datatype xsd:string ;
+            sh:description "When the occurrence happened." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 0 ;
+            sh:path time:inXSDDateTimeStamp ;
+        ] ,
+        [
+            sh:description "Canonical event type." ;
+            sh:in (
+                "activity_resumed"
+                "activity_paused"
+                "activity_stopped"
+                "screen_interactive"
+                "screen_non_interactive"
+                "keyguard_shown"
+                "keyguard_hidden"
+                "device_shutdown"
+                "device_startup"
+            ) ;
+            sh:maxCount 1 ;
+            sh:order 1 ;
+            sh:path chron:event_code ;
+        ] ;
+    sh:targetClass chron:PlatformEventOccurrence ;
+.
+
+pplan:Step
+    a sh:NodeShape ;
+    rdfs:comment "One processing step in the plan (a graph node). A p-plan:Step. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on)." ;
+    sh:closed true ;
+    sh:ignoredProperties (
+        rdf:type
+    ) ;
+    sh:property 
+        [
+            sh:datatype xsd:boolean ;
+            sh:description "Whether a failure fails the whole workflow." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 6 ;
+            sh:path chron:is_fatal ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Named algorithm/engine the step realizes." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 2 ;
+            sh:path chron:engine ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Step identifier (= graph node id)." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 0 ;
+            sh:path chron:step_id ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Channels/outputs the step produces." ;
+            sh:nodeKind sh:Literal ;
+            sh:order 4 ;
+            sh:path chron:produces ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Channels/inputs the step reads." ;
+            sh:nodeKind sh:Literal ;
+            sh:order 3 ;
+            sh:path chron:consumes ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Action the step performs." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 1 ;
+            sh:path chron:verb ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Steps that must precede this one." ;
+            sh:nodeKind sh:Literal ;
+            sh:order 5 ;
+            sh:path chron:depends_on ;
+        ] ;
+    sh:targetClass pplan:Step ;
+.
+
+prov:Activity
+    a sh:NodeShape ;
+    rdfs:comment
+        "A retrospective execution of a StepDefinition. A prov:Activity." ,
+        "The execution that produced a usage assertion. A prov:Activity (and sosa:Execution)." ;
+    sh:closed true ;
+    sh:ignoredProperties  (
+        rdf:type
+    ) , (
+        rdf:type
+    ) ;
+    sh:property 
+        [
+            sh:class sosa:Procedure ;
+            sh:description "The reconstruction strategy followed." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:IRI ;
+            sh:order 0 ;
+            sh:path chron:follows_strategy ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Execution start." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 2 ;
+            sh:path chron:started_at ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Execution end." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 3 ;
+            sh:path chron:ended_at ;
+        ] ,
+        [
+            sh:class prov:Entity ;
+            sh:description "The ParameterSet the execution used." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 1 ;
+            sh:path chron:used_parameter_set ;
+        ] ,
+        [
+            sh:class pplan:Step ;
+            sh:description "The StepDefinition this execution runs." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:IRI ;
+            sh:order 0 ;
+            sh:path chron:executes_step ;
+        ] ,
+        [
+            sh:class prov:Entity ;
+            sh:description "The ParameterSet the execution used." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 1 ;
+            sh:path chron:used_parameter_set ;
+        ] ;
+    sh:targetClass prov:Activity ;
+.
+
+time:ProperInterval
+    a sh:NodeShape ;
+    rdfs:comment "A phenomenon-time interval a usage assertion denotes. A time:ProperInterval." ;
+    sh:closed true ;
+    sh:ignoredProperties (
+        rdf:type
+    ) ;
+    sh:property 
+        [
+            sh:description "Endpoint status of the end." ;
+            sh:in (
+                "observed"
+                "unobserved"
+                "right_censored"
+                "interval_censored"
+            ) ;
+            sh:maxCount 1 ;
+            sh:order 4 ;
+            sh:path chron:end_status ;
+        ] ,
+        [
+            sh:description "Endpoint status of the start." ;
+            sh:in (
+                "observed"
+                "unobserved"
+                "right_censored"
+                "interval_censored"
+            ) ;
+            sh:maxCount 1 ;
+            sh:order 3 ;
+            sh:path chron:start_status ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Interval end instant." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 1 ;
+            sh:path chron:end_instant ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Interval start instant." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 0 ;
+            sh:path chron:start_instant ;
+        ] ,
+        [
+            sh:datatype xsd:float ;
+            sh:description "Interval duration in seconds." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 2 ;
+            sh:path qudt:hasQuantityValue ;
+        ] ;
+    sh:targetClass time:ProperInterval ;
+.
+
+prov:Entity
+    a sh:NodeShape ;
+    rdfs:comment
+        "A claim of continuous device use between unlock and lock. Derived prov:Entity." ,
+        "A claim that one app was in continuous use over an interval. A derived prov:Entity (what the pipeline asserts, not a ground truth)." ,
+        "A claim that the screen activated then deactivated without an unlock. Derived prov:Entity." ,
+        "A content-addressed configuration entity — a set of ParameterBindings over the plan's variables. NOT a Plan: the plan is the workflow; this binds its variables." ,
+        "Attribution of usage to a person. Exactly one status is required; an actual person is attached only when known. The participant-device-day denominator must satisfy duration conservation: target + known_non_target + unresolved = eligible." ,
+        "The effective-usage duration (episode interval intersected with active coverage, per a named policy). Cites the ParameterSet and execution that produced it. NOT asserted as physical truth — carries the coverage policy that produced it." ,
+        "The logged information artifact for one Android usage event. A prov:Entity, not an observation." ;
+    sh:closed true ;
+    sh:ignoredProperties  (
+        rdf:type
+    ) , (
+        rdf:type
+    ) , (
+        rdf:type
+    ) , (
+        rdf:type
+    ) , (
+        rdf:type
+    ) , (
+        rdf:type
+    ) , (
+        rdf:type
+    ) ;
+    sh:property 
+        [
+            sh:datatype xsd:boolean ;
+            sh:description "Whether the device is shared." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 2 ;
+            sh:path chron:on_shared_device ;
+        ] ,
+        [
+            sh:class prov:Entity ;
+            sh:description "Person attribution for this episode." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 4 ;
+            sh:path chron:attribution ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Named policy for how coverage gaps were treated." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 6 ;
+            sh:path chron:coverage_policy ;
+        ] ,
+        [
+            sh:description "Required attribution status." ;
+            sh:in (
+                "target"
+                "known_non_target"
+                "unresolved"
+            ) ;
+            sh:maxCount 1 ;
+            sh:minCount 1 ;
+            sh:order 0 ;
+            sh:path chron:attribution_status ;
+        ] ,
+        [
+            sh:datatype xsd:date ;
+            sh:description "Study/local date the measure is assigned to." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 1 ;
+            sh:path chron:date ;
+        ] ,
+        [
+            sh:description "Canonical event type." ;
+            sh:in (
+                "activity_resumed"
+                "activity_paused"
+                "activity_stopped"
+                "screen_interactive"
+                "screen_non_interactive"
+                "keyguard_shown"
+                "keyguard_hidden"
+                "device_shutdown"
+                "device_startup"
+            ) ;
+            sh:maxCount 1 ;
+            sh:order 1 ;
+            sh:path chron:event_code ;
+        ] ,
+        [
+            sh:class prov:Activity ;
+            sh:description "The node execution that produced this measure." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 4 ;
+            sh:path chron:produced_by ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Device identifier." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 5 ;
+            sh:path chron:device_id ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Android activity class name." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 3 ;
+            sh:path chron:app_class_name ;
+        ] ,
+        [
+            sh:datatype xsd:float ;
+            sh:description "Effective usage minutes." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 2 ;
+            sh:path chron:effective_minutes ;
+        ] ,
+        [
+            sh:class prov:Entity ;
+            sh:description "The ParameterSet under which this measure was produced." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 5 ;
+            sh:path chron:cites_parameter_set ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "The actual person, attached only when known." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 1 ;
+            sh:path chron:attributed_person ;
+        ] ,
+        [
+            sh:class chron:PlatformEventOccurrence ;
+            sh:description "The real-world occurrence this record logs." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 7 ;
+            sh:path chron:records_occurrence ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Participant/device identifier (string, always)." ;
+            sh:maxCount 1 ;
+            sh:minCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 2 ;
+            sh:path chron:participant_id ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Content-addressed hash of the canonical parameter set." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 0 ;
+            sh:path chron:parameter_set_sha256 ;
+        ] ,
+        [
+            sh:class prov:Activity ;
+            sh:description "The execution that produced this assertion." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 2 ;
+            sh:path chron:reconstructed_by ;
+        ] ,
+        [
+            sh:description "Measurement-model layer." ;
+            sh:in (
+                "construct"
+                "validity"
+                "presence"
+                "engagement"
+                "person"
+                "attribution"
+            ) ;
+            sh:maxCount 1 ;
+            sh:order 5 ;
+            sh:path chron:measurement_layer ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Original recording timezone (preserved)." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 6 ;
+            sh:path chron:timezone ;
+        ] ,
+        [
+            sh:datatype xsd:integer ;
+            sh:description "Event timestamp in nanoseconds since epoch." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 0 ;
+            sh:path chron:event_timestamp_ns ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Participant/device identifier (string, always)." ;
+            sh:maxCount 1 ;
+            sh:minCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 4 ;
+            sh:path chron:participant_id ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Participant/device identifier (string, always)." ;
+            sh:maxCount 1 ;
+            sh:minCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 0 ;
+            sh:path chron:participant_id ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Android package name." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 2 ;
+            sh:path chron:app_package_name ;
+        ] ,
+        [
+            sh:description "Measurement-model layer." ;
+            sh:in (
+                "construct"
+                "validity"
+                "presence"
+                "engagement"
+                "person"
+                "attribution"
+            ) ;
+            sh:maxCount 1 ;
+            sh:order 3 ;
+            sh:path chron:measurement_layer ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Participant/device identifier (string, always)." ;
+            sh:maxCount 1 ;
+            sh:minCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 1 ;
+            sh:path chron:participant_id ;
+        ] ,
+        [
+            sh:class time:ProperInterval ;
+            sh:description "The phenomenon-time interval this assertion denotes." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 0 ;
+            sh:path chron:denotes_interval ;
+        ] ,
+        [
+            sh:class prov:Activity ;
+            sh:description "The execution that produced this assertion." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 3 ;
+            sh:path chron:reconstructed_by ;
+        ] ,
+        [
+            sh:class chron:ParameterBinding ;
+            sh:description "Knob=value bindings." ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 1 ;
+            sh:path chron:bindings ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Android package name." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 1 ;
+            sh:path chron:app_package_name ;
+        ] ,
+        [
+            sh:class prov:Activity ;
+            sh:description "The execution that produced this assertion." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 2 ;
+            sh:path chron:reconstructed_by ;
+        ] ,
+        [
+            sh:class time:ProperInterval ;
+            sh:description "The phenomenon-time interval this assertion denotes." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 0 ;
+            sh:path chron:denotes_interval ;
+        ] ,
+        [
+            sh:description "Measurement-model layer." ;
+            sh:in (
+                "construct"
+                "validity"
+                "presence"
+                "engagement"
+                "person"
+                "attribution"
+            ) ;
+            sh:maxCount 1 ;
+            sh:order 3 ;
+            sh:path chron:measurement_layer ;
+        ] ,
+        [
+            sh:class time:ProperInterval ;
+            sh:description "The phenomenon-time interval this assertion denotes." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 3 ;
+            sh:path chron:denotes_interval ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Participant/device identifier (string, always)." ;
+            sh:maxCount 1 ;
+            sh:minCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 1 ;
+            sh:path chron:participant_id ;
+        ] ,
+        [
+            sh:class time:ProperInterval ;
+            sh:description "The phenomenon-time interval this assertion denotes." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 0 ;
+            sh:path chron:denotes_interval ;
+        ] ;
+    sh:targetClass prov:Entity ;
+.

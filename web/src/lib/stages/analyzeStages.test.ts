@@ -7,7 +7,12 @@ import {
   parseSurveyAttribution,
 } from "@/lib/stages/studySupportFiles";
 import { applyObservationWindow, windowDates, windowFor } from "@/lib/stages/observationWindow";
-import { attributePerson, lookupDeviceSharing, NON_TARGET } from "@/lib/stages/attributePerson";
+import {
+  attributePerson,
+  classifyAttribution,
+  lookupDeviceSharing,
+  NON_TARGET,
+} from "@/lib/stages/attributePerson";
 import { scoreCompliance } from "@/lib/stages/scoreCompliance";
 import { buildDayCoverage, CoverageInvariantError } from "@/lib/stages/dayCoverage";
 
@@ -191,15 +196,30 @@ describe("compliance scoring", () => {
     expect(result.zeroUsageDays).toBe(1);
   });
 
-  it("a named non-target person counts as KNOWN minutes", () => {
+  it("closed attribution vocabulary {Target Child, Other, None}: Target Child + Other are KNOWN, None is unknown", () => {
+    // Chronicle attribution is a CLOSED set — Target Child / Other / None
+    // (survey answers arrive as "Other (From Survey)"). "Other" is an
+    // attributed person = known; only "None"/blank is unresolved = unknown.
     const rows = [
-      row({ username: "Sibling (From Survey)", duration_minutes: 30, interaction_type: NON_TARGET }),
-      row({ username: "None", duration_minutes: 30, interaction_type: NON_TARGET }),
+      row({ username: "Target Child", duration_minutes: 20 }),
+      row({ username: "Other", duration_minutes: 20, interaction_type: NON_TARGET }),
+      row({ username: "Other (From Survey)", duration_minutes: 20, interaction_type: NON_TARGET }),
+      row({ username: "None", duration_minutes: 20, interaction_type: NON_TARGET }),
     ];
     const result = scoreCompliance(rows, new Set(["P100"]), 70);
-    expect(result.days[0]!.knownMinutes).toBe(30);
-    expect(result.days[0]!.unknownMinutes).toBe(30);
-    expect(result.days[0]!.compliancePercent).toBe(50);
+    expect(result.days[0]!.knownMinutes).toBe(60);
+    expect(result.days[0]!.unknownMinutes).toBe(20);
+    expect(result.days[0]!.compliancePercent).toBe(75);
+  });
+
+  it("classifyAttribution maps the closed vocabulary correctly", () => {
+    expect(classifyAttribution("Target Child")).toBe("target");
+    expect(classifyAttribution("Target Child (From Survey)")).toBe("target");
+    expect(classifyAttribution("Other")).toBe("known_non_target");
+    expect(classifyAttribution("Other (From Survey)")).toBe("known_non_target");
+    expect(classifyAttribution("None")).toBe("unresolved");
+    expect(classifyAttribution("")).toBe("unresolved");
+    expect(classifyAttribution(null)).toBe("unresolved");
   });
 });
 

@@ -1,0 +1,118 @@
+# Hand-authored SHACL contract axioms for the Chronicle usage ontology.
+#
+# These encode the load-bearing invariants the ontology EXISTS to protect —
+# the ones that keep measurement honest (doc 13 §D4). gen-shacl emits basic
+# cardinality/range shapes from the LinkML schema; these add the conditional
+# invariants LinkML cannot express. `make merge-axioms` concatenates the
+# generated shapes with this file into generated/shacl/merged.shacl.ttl.
+#
+# Targets use the minted chron: class IRIs (NOT the shared prov:Entity /
+# prov:Activity class_uris) so each shape applies to exactly one class.
+
+@prefix sh:    <http://www.w3.org/ns/shacl#> .
+@prefix chron: <https://w3id.org/chronicle-usage-ontology/core/> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+# ── Attribution: closed, conservative, no phantom person ─────────────────────
+# A1. Every attribution assertion carries exactly one status (the compliance
+#     denominator contract — nothing usage-bearing may lack a status).
+# A2. An UNRESOLVED assertion must NOT carry an attributed person: "None"/blank
+#     means the person is genuinely unknown, so a named person would be a
+#     contradiction (mirrors classifyAttribution() in attributePerson.ts).
+chron:AttributionAssertionContractShape
+    a sh:NodeShape ;
+    sh:targetClass chron:AttributionAssertion ;
+    sh:property [
+        sh:path chron:attribution_status ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "AttributionAssertion must carry exactly one attribution_status." ;
+    ] ;
+    sh:not [
+        a sh:NodeShape ;
+        sh:property [
+            sh:path chron:attribution_status ;
+            sh:hasValue <https://w3id.org/chronicle-usage-ontology/core/AttributionStatus#unresolved> ;
+            sh:minCount 1 ;
+        ] ;
+        sh:property [
+            sh:path chron:attributed_person ;
+            sh:minCount 1 ;
+        ] ;
+    ] ;
+    sh:message "An unresolved attribution (person == None/blank) must not name an attributed_person." .
+
+# ── Absence is always explicit (open-world): endpoints ───────────────────────
+# A3. If an interval endpoint is marked `observed`, the corresponding instant
+#     must be present. A missing instant may only accompany a non-observed
+#     status (unobserved / right_censored / interval_censored) — you cannot
+#     claim to have observed an endpoint you did not record.
+chron:UsageIntervalEndpointShape
+    a sh:NodeShape ;
+    sh:targetClass chron:UsageInterval ;
+    sh:not [
+        a sh:NodeShape ;
+        sh:property [
+            sh:path chron:end_status ;
+            sh:hasValue <https://w3id.org/chronicle-usage-ontology/core/EndpointStatus#observed> ;
+            sh:minCount 1 ;
+        ] ;
+        sh:property [ sh:path chron:end_instant ; sh:maxCount 0 ] ;
+    ] ;
+    sh:not [
+        a sh:NodeShape ;
+        sh:property [
+            sh:path chron:start_status ;
+            sh:hasValue <https://w3id.org/chronicle-usage-ontology/core/EndpointStatus#observed> ;
+            sh:minCount 1 ;
+        ] ;
+        sh:property [ sh:path chron:start_instant ; sh:maxCount 0 ] ;
+    ] ;
+    sh:message "An endpoint marked 'observed' must carry its instant." .
+
+# ── Coverage: no NoData claim without an expectation ─────────────────────────
+# A4. Asserting that data was NOT available (actually_available = false) is only
+#     meaningful relative to an expectation, so expected_available must be set.
+#     A gap is an observability condition, never bare physical inactivity.
+chron:CoverageAssessmentShape
+    a sh:NodeShape ;
+    sh:targetClass chron:CoverageAssessment ;
+    sh:not [
+        a sh:NodeShape ;
+        sh:property [
+            sh:path chron:actually_available ;
+            sh:hasValue false ;
+            sh:minCount 1 ;
+        ] ;
+        sh:property [ sh:path chron:expected_available ; sh:maxCount 0 ] ;
+    ] ;
+    sh:message "A no-data assessment (actually_available = false) requires expected_available to be stated." .
+
+# ── Provenance completeness ──────────────────────────────────────────────────
+# A5. Every derived episode assertion must name the execution that produced it
+#     (what was RECONSTRUCTED must always point back to its activity).
+chron:UsageEpisodeProvenanceShape
+    a sh:NodeShape ;
+    sh:targetClass chron:UsageEpisodeAssertion ;
+    sh:property [
+        sh:path chron:reconstructed_by ;
+        sh:minCount 1 ;
+        sh:message "A usage episode assertion must be reconstructed_by an execution." ;
+    ] .
+
+# A6. Every effective-usage figure must cite the ParameterSet AND the node
+#     execution that produced it — a headline number with no provenance is
+#     exactly what this ontology forbids.
+chron:EffectiveUsageProvenanceShape
+    a sh:NodeShape ;
+    sh:targetClass chron:EffectiveUsageMeasure ;
+    sh:property [
+        sh:path chron:cites_parameter_set ;
+        sh:minCount 1 ;
+        sh:message "An effective-usage measure must cite the ParameterSet it was produced under." ;
+    ] ;
+    sh:property [
+        sh:path chron:produced_by ;
+        sh:minCount 1 ;
+        sh:message "An effective-usage measure must name the node execution that produced it." ;
+    ] .

@@ -1,0 +1,804 @@
+{
+    "$defs": {
+        "AttributionAssertion": {
+            "additionalProperties": false,
+            "description": "Attribution of usage to a person. Exactly one status is required; an actual person is attached only when known. The participant-device-day denominator must satisfy duration conservation: target + known_non_target + unresolved = eligible.",
+            "properties": {
+                "attributed_person": {
+                    "description": "The actual person, attached only when known.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "attribution_status": {
+                    "$ref": "#/$defs/AttributionStatus",
+                    "description": "Required attribution status."
+                },
+                "on_shared_device": {
+                    "description": "Whether the device is shared.",
+                    "type": [
+                        "boolean",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "attribution_status"
+            ],
+            "title": "AttributionAssertion",
+            "type": "object"
+        },
+        "AttributionStatus": {
+            "description": "Attribution status of an App-Usage assertion \u2014 the compliance denominator contract. Chronicle uses a CLOSED attribution vocabulary: \"Target Child\", \"Other\", or \"None\"/blank (survey answers arrive as \"Other (From Survey)\"). Mirrors classifyAttribution() in web/src/lib/stages/attributePerson.ts (the runtime SSOT). NEVER a null person and NEVER an \"unknown person\" class.",
+            "enum": [
+                "target",
+                "known_non_target",
+                "unresolved"
+            ],
+            "title": "AttributionStatus",
+            "type": "string"
+        },
+        "CoverageAssessment": {
+            "additionalProperties": false,
+            "description": "A coverage/observability judgement over a stream window: expected vs actual data availability, its threshold, bounding events, and best-supported cause. A gap MAY CONCEAL usage \u2014 this asserts only how the measurement policy treats the interval, never that the device was inactive.",
+            "properties": {
+                "actually_available": {
+                    "description": "Whether any data was actually present.",
+                    "type": [
+                        "boolean",
+                        "null"
+                    ]
+                },
+                "assesses_interval": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/UsageInterval"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "The stream window assessed."
+                },
+                "availability_threshold": {
+                    "description": "Coverage threshold applied.",
+                    "type": [
+                        "number",
+                        "null"
+                    ]
+                },
+                "coverage_cause": {
+                    "$ref": "#/$defs/CoverageCause",
+                    "description": "Best-supported cause."
+                },
+                "device_id": {
+                    "description": "Device identifier.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "expected_available": {
+                    "description": "Whether data was expected to be available (needs a heartbeat/expectation to assert NoData).",
+                    "type": [
+                        "boolean",
+                        "null"
+                    ]
+                },
+                "participant_id": {
+                    "description": "Participant/device identifier (string, always).",
+                    "type": "string"
+                },
+                "policy_treatment": {
+                    "description": "How the measurement policy treats this interval (e.g. pass / na / exclude).",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "participant_id"
+            ],
+            "title": "CoverageAssessment",
+            "type": "object"
+        },
+        "CoverageCause": {
+            "description": "Best-supported cause of a coverage gap. A gap is an OBSERVABILITY condition \u2014 never asserted as physical inactivity.",
+            "enum": [
+                "shutdown_boundary",
+                "unclean_power_loss",
+                "collector_reporting_gap",
+                "unknown"
+            ],
+            "title": "CoverageCause",
+            "type": "string"
+        },
+        "EffectiveUsageMeasure": {
+            "additionalProperties": false,
+            "description": "The effective-usage duration (episode interval intersected with active coverage, per a named policy). Cites the ParameterSet and execution that produced it. NOT asserted as physical truth \u2014 carries the coverage policy that produced it.",
+            "properties": {
+                "cites_parameter_set": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/ParameterSet"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "The ParameterSet under which this measure was produced."
+                },
+                "coverage_policy": {
+                    "description": "Named policy for how coverage gaps were treated.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "date": {
+                    "description": "Study/local date the measure is assigned to.",
+                    "format": "date",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "denotes_interval": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/UsageInterval"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "The phenomenon-time interval this assertion denotes."
+                },
+                "effective_minutes": {
+                    "description": "Effective usage minutes.",
+                    "type": [
+                        "number",
+                        "null"
+                    ]
+                },
+                "participant_id": {
+                    "description": "Participant/device identifier (string, always).",
+                    "type": "string"
+                },
+                "produced_by": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/NodeExecution"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "The node execution that produced this measure."
+                }
+            },
+            "required": [
+                "participant_id"
+            ],
+            "title": "EffectiveUsageMeasure",
+            "type": "object"
+        },
+        "EndpointStatus": {
+            "description": "Observation-endpoint qualification for a derived interval. Under RDF open-world semantics a missing endpoint is UNKNOWN, not observed-absent \u2014 so absence is always an explicit status, never a null result.",
+            "enum": [
+                "observed",
+                "unobserved",
+                "right_censored",
+                "interval_censored"
+            ],
+            "title": "EndpointStatus",
+            "type": "string"
+        },
+        "EventTypeCode": {
+            "description": "Canonical Android lifecycle / device-state event vocabulary. Modeled as a SKOS concept scheme. The FULL both-spellings scheme (human labels PLUS \"Unknown importance: N\" importance codes 26/27/28/29 ...) is generated from the engine constants; the values below are the canonical semantic anchors every spelling maps to.",
+            "enum": [
+                "activity_resumed",
+                "activity_paused",
+                "activity_stopped",
+                "screen_interactive",
+                "screen_non_interactive",
+                "keyguard_shown",
+                "keyguard_hidden",
+                "device_shutdown",
+                "device_startup"
+            ],
+            "title": "EventTypeCode",
+            "type": "string"
+        },
+        "GlanceAssertion": {
+            "additionalProperties": false,
+            "description": "A claim that the screen activated then deactivated without an unlock. Derived prov:Entity.",
+            "properties": {
+                "denotes_interval": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/UsageInterval"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "The phenomenon-time interval this assertion denotes."
+                },
+                "measurement_layer": {
+                    "$ref": "#/$defs/MeasurementLayer",
+                    "description": "Measurement-model layer."
+                },
+                "participant_id": {
+                    "description": "Participant/device identifier (string, always).",
+                    "type": "string"
+                },
+                "reconstructed_by": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/ReconstructionExecution"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "The execution that produced this assertion."
+                }
+            },
+            "required": [
+                "participant_id"
+            ],
+            "title": "GlanceAssertion",
+            "type": "object"
+        },
+        "LoggingObservation": {
+            "additionalProperties": false,
+            "description": "OPTIONAL. The OS logger's act of observing a device property, modeled only if that abstraction is genuinely needed. Do NOT type UsageEventRecord as this.",
+            "properties": {
+                "observed_property": {
+                    "description": "The device property the logger observed.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "result_record": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/UsageEventRecord"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "The event record produced by the logging observation."
+                }
+            },
+            "title": "LoggingObservation",
+            "type": "object"
+        },
+        "MeasurementLayer": {
+            "description": "The measurement-model layer a class/assertion belongs to (doc 13; chronicle-ontology.md).",
+            "enum": [
+                "construct",
+                "validity",
+                "presence",
+                "engagement",
+                "person",
+                "attribution"
+            ],
+            "title": "MeasurementLayer",
+            "type": "string"
+        },
+        "NodeExecution": {
+            "additionalProperties": false,
+            "description": "A retrospective execution of a StepDefinition. A prov:Activity.",
+            "properties": {
+                "ended_at": {
+                    "description": "Execution end.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "executes_step": {
+                    "description": "The StepDefinition this execution runs.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "started_at": {
+                    "description": "Execution start.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "used_parameter_set": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/ParameterSet"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "The ParameterSet the execution used."
+                }
+            },
+            "title": "NodeExecution",
+            "type": "object"
+        },
+        "ParameterBinding": {
+            "additionalProperties": false,
+            "description": "One knob = value binding within a ParameterSet.",
+            "properties": {
+                "knob_key": {
+                    "description": "Option/knob key.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "knob_value": {
+                    "description": "Bound value (canonical JSON string).",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "title": "ParameterBinding",
+            "type": "object"
+        },
+        "ParameterSet": {
+            "additionalProperties": false,
+            "description": "A content-addressed configuration entity \u2014 a set of ParameterBindings over the plan's variables. NOT a Plan: the plan is the workflow; this binds its variables.",
+            "properties": {
+                "bindings": {
+                    "description": "Knob=value bindings.",
+                    "items": {
+                        "$ref": "#/$defs/ParameterBinding"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "parameter_set_sha256": {
+                    "description": "Content-addressed hash of the canonical parameter set.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "title": "ParameterSet",
+            "type": "object"
+        },
+        "PipelinePlan": {
+            "additionalProperties": false,
+            "description": "The prospective processing workflow. A p-plan:Plan / prov:Plan.",
+            "properties": {
+                "plan_id": {
+                    "description": "Plan identifier.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "steps": {
+                    "description": "Steps of the plan.",
+                    "items": {
+                        "$ref": "#/$defs/StepDefinition"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "plan_id"
+            ],
+            "title": "PipelinePlan",
+            "type": "object"
+        },
+        "PlatformEventOccurrence": {
+            "additionalProperties": false,
+            "description": "The real-world Android lifecycle/system occurrence (an app resuming, the screen turning off, a shutdown). This is the thing that happened in the world \u2014 NOT the logged record and NOT an observation. Deliberately untyped as sosa:Observation.",
+            "properties": {
+                "event_code": {
+                    "$ref": "#/$defs/EventTypeCode",
+                    "description": "Canonical event type."
+                },
+                "occurrence_instant": {
+                    "description": "When the occurrence happened.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "title": "PlatformEventOccurrence",
+            "type": "object"
+        },
+        "ReconstructionExecution": {
+            "additionalProperties": false,
+            "description": "The execution that produced a usage assertion. A prov:Activity (and sosa:Execution).",
+            "properties": {
+                "follows_strategy": {
+                    "description": "The reconstruction strategy followed.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "used_parameter_set": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/ParameterSet"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "The ParameterSet the execution used."
+                }
+            },
+            "title": "ReconstructionExecution",
+            "type": "object"
+        },
+        "ReconstructionStrategy": {
+            "additionalProperties": false,
+            "description": "A named, versioned episode-reconstruction algorithm (semantic category + canonical IRI). Subclass only where formal restrictions genuinely differ.",
+            "properties": {
+                "canonical_iri": {
+                    "description": "Canonical IRI carried by the runtime enum.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "strategy_id": {
+                    "description": "Strategy identifier (unique key).",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "strategy_kind": {
+                    "$ref": "#/$defs/ReconstructionStrategyId",
+                    "description": "Canonical strategy category (IRI-bearing enum value)."
+                },
+                "strategy_version": {
+                    "description": "Strategy version.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "strategy_id"
+            ],
+            "title": "ReconstructionStrategy",
+            "type": "object"
+        },
+        "ReconstructionStrategyId": {
+            "description": "Canonical IRI-bearing identifiers for the named episode-reconstruction algorithms. Forward-pairing is a DISTINCT algorithm, not a knob setting (doc 08). The runtime enum carries the canonical procedure IRI; concrete strategies are versioned individuals of ReconstructionStrategy.",
+            "enum": [
+                "parry_toth_forward_pairing",
+                "fused_matcher",
+                "eyes_complement"
+            ],
+            "title": "ReconstructionStrategyId",
+            "type": "string"
+        },
+        "StepDefinition": {
+            "additionalProperties": false,
+            "description": "One processing step in the plan (a graph node). A p-plan:Step. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on).",
+            "properties": {
+                "consumes": {
+                    "description": "Channels/inputs the step reads.",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "depends_on": {
+                    "description": "Steps that must precede this one.",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "engine": {
+                    "description": "Named algorithm/engine the step realizes.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "is_fatal": {
+                    "description": "Whether a failure fails the whole workflow.",
+                    "type": [
+                        "boolean",
+                        "null"
+                    ]
+                },
+                "produces": {
+                    "description": "Channels/outputs the step produces.",
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": [
+                        "array",
+                        "null"
+                    ]
+                },
+                "step_id": {
+                    "description": "Step identifier (= graph node id).",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "verb": {
+                    "description": "Action the step performs.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "step_id"
+            ],
+            "title": "StepDefinition",
+            "type": "object"
+        },
+        "UsageEpisodeAssertion": {
+            "additionalProperties": false,
+            "description": "A claim that one app was in continuous use over an interval. A derived prov:Entity (what the pipeline asserts, not a ground truth).",
+            "properties": {
+                "app_package_name": {
+                    "description": "Android package name.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "attribution": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/AttributionAssertion"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "Person attribution for this episode."
+                },
+                "denotes_interval": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/UsageInterval"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "The phenomenon-time interval this assertion denotes."
+                },
+                "measurement_layer": {
+                    "$ref": "#/$defs/MeasurementLayer",
+                    "description": "Measurement-model layer."
+                },
+                "participant_id": {
+                    "description": "Participant/device identifier (string, always).",
+                    "type": "string"
+                },
+                "reconstructed_by": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/ReconstructionExecution"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "The execution that produced this assertion."
+                }
+            },
+            "required": [
+                "participant_id"
+            ],
+            "title": "UsageEpisodeAssertion",
+            "type": "object"
+        },
+        "UsageEventRecord": {
+            "additionalProperties": false,
+            "description": "The logged information artifact for one Android usage event. A prov:Entity, not an observation.",
+            "properties": {
+                "app_class_name": {
+                    "description": "Android activity class name.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "app_package_name": {
+                    "description": "Android package name.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "device_id": {
+                    "description": "Device identifier.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "event_code": {
+                    "$ref": "#/$defs/EventTypeCode",
+                    "description": "Canonical event type."
+                },
+                "event_timestamp_ns": {
+                    "description": "Event timestamp in nanoseconds since epoch.",
+                    "type": [
+                        "integer",
+                        "null"
+                    ]
+                },
+                "participant_id": {
+                    "description": "Participant/device identifier (string, always).",
+                    "type": "string"
+                },
+                "records_occurrence": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/PlatformEventOccurrence"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "The real-world occurrence this record logs."
+                },
+                "timezone": {
+                    "description": "Original recording timezone (preserved).",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "required": [
+                "participant_id"
+            ],
+            "title": "UsageEventRecord",
+            "type": "object"
+        },
+        "UsageInterval": {
+            "additionalProperties": false,
+            "description": "A phenomenon-time interval a usage assertion denotes. A time:ProperInterval.",
+            "properties": {
+                "duration_seconds": {
+                    "description": "Interval duration in seconds.",
+                    "type": [
+                        "number",
+                        "null"
+                    ]
+                },
+                "end_instant": {
+                    "description": "Interval end instant.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "end_status": {
+                    "$ref": "#/$defs/EndpointStatus",
+                    "description": "Endpoint status of the end."
+                },
+                "start_instant": {
+                    "description": "Interval start instant.",
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "start_status": {
+                    "$ref": "#/$defs/EndpointStatus",
+                    "description": "Endpoint status of the start."
+                }
+            },
+            "title": "UsageInterval",
+            "type": "object"
+        },
+        "UsageSessionAssertion": {
+            "additionalProperties": false,
+            "description": "A claim of continuous device use between unlock and lock. Derived prov:Entity.",
+            "properties": {
+                "denotes_interval": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/UsageInterval"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "The phenomenon-time interval this assertion denotes."
+                },
+                "measurement_layer": {
+                    "$ref": "#/$defs/MeasurementLayer",
+                    "description": "Measurement-model layer."
+                },
+                "participant_id": {
+                    "description": "Participant/device identifier (string, always).",
+                    "type": "string"
+                },
+                "reconstructed_by": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/ReconstructionExecution"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "The execution that produced this assertion."
+                }
+            },
+            "required": [
+                "participant_id"
+            ],
+            "title": "UsageSessionAssertion",
+            "type": "object"
+        }
+    },
+    "$id": "https://w3id.org/chronicle-usage-ontology/core",
+    "$schema": "https://json-schema.org/draft/2019-09/schema",
+    "additionalProperties": true,
+    "description": "The prospective processing workflow. A p-plan:Plan / prov:Plan.",
+    "metamodel_version": "1.7.0",
+    "properties": {
+        "plan_id": {
+            "description": "Plan identifier.",
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "steps": {
+            "description": "Steps of the plan.",
+            "items": {
+                "$ref": "#/$defs/StepDefinition"
+            },
+            "type": [
+                "array",
+                "null"
+            ]
+        }
+    },
+    "required": [
+        "plan_id"
+    ],
+    "title": "chronicle-usage-ontology-core",
+    "type": "object",
+    "version": null
+}
+

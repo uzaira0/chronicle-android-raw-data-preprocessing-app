@@ -54,6 +54,26 @@ function isNullName(username: string | null | undefined): boolean {
   return username == null || username === "" || username === "nan";
 }
 
+/** Attribution status of a finalized row — the compliance denominator contract. */
+export type AttributionStatus = "target" | "known_non_target" | "unresolved";
+
+/**
+ * Single source of truth for classifying a finalized username into its
+ * attribution status. Chronicle attribution is a CLOSED vocabulary —
+ * "Target Child", "Other" (survey answers arrive as "Other (From Survey)"),
+ * or "None"/blank. "Other" is an attributed person (known); "None"/blank is
+ * unresolved. `scoreCompliance` consumes this instead of classifying
+ * usernames itself, keeping ONE definition aligned with the ontology's
+ * `AttributionStatus` (docs/pipeline-graph/13-research-ontology-design.md).
+ */
+export function classifyAttribution(
+  username: string | null | undefined,
+): AttributionStatus {
+  if (username != null && TARGET_RX.test(username)) return "target";
+  if (isNullName(username) || username === "None") return "unresolved";
+  return "known_non_target";
+}
+
 /**
  * Sharing status for one device id. Exact → numerical+device-number.
  * Empty table → "Non-Shared" (machinery not configured). Configured table

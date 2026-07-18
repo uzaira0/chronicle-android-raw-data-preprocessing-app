@@ -90,3 +90,66 @@ only at witnessed events) vs complement-based (detect non-active, call the rest 
 | `attribute_person` | Person attribution (shared devices) | novel |
 | `score_compliance` | Compliance scoring | — |
 | `day_coverage` | Day coverage & flags | Culverhouse day_flags |
+
+---
+
+## External prior art & positioning (added 2026-07-18)
+
+The three engines above (P&T, EYES, Culverhouse) are the *processing* prior art and are
+already ported. The items below situate this work in the wider literature — where the
+measurement-science and reproducibility framing has already been done by others, so the
+paper claims the *intersection*, not ground that is taken. Sources verified via web
+search 2026-07-18; grep-weights + research-before-building run recorded in the session.
+
+### The collaborator context — Chronicle is the CAFE instrument
+- **CAFE = Comprehensive Assessment of Family Media Exposure Consortium** (Georgetown
+  Early Learning Project; Barr, Kirkorian, Coyne, Radesky). Its toolkit is **MAQ
+  (questionnaire) + TUD (time-use diary) + EMA + a passive-sensing app**, and that app
+  is **Chronicle (Android) / Screen Time (Apple)** — i.e. the collector this pipeline
+  processes. Conceptual frame = the **DREAMER** model. Toolkit paper: *Beyond Screen
+  Time* (Barr et al., Frontiers in Psychology 2020, PMC7365934). Latest: Barr, 2026
+  Presidential Address, *"Examining Family Media Ecology"*, Infancy (Wiley).
+  → **Positioning:** frame the paper as the reproducible, ontologized *processing +
+  validation layer under the CAFE Chronicle stream*. The CAFE toolkit papers specify
+  *what is collected*, not *how the event log becomes minutes* or *how that transform is
+  proven correct* — that is the uncontested niche.
+
+### P&T — formal citation for the bibliography
+- Parry, D. & Toth, R. (2025), *Extracting Meaningful Measures of Smartphone Usage from
+  Android Event Log Data: A Methodological Primer*, **Computational Communication
+  Research** (CCR2025.1.8.PARR). OSF preprint doi:10.31234/osf.io/mfnu9. Ships
+  pseudo-code + an R implementation + a sample raw log. This is the source the
+  `reconstruct_episodes` forward-pairing strategy and the bracket vocabulary are grounded
+  in (doc 08 §"Parry & Toth 2025").
+
+### The multiverse angle is ALREADY occupied for screen time — do not claim "first"
+- Valkenburg/Beyens (Amsterdam/ASCoR), *"Traces as Data"* — specification-curve analysis
+  over temporal operationalization (time-frame / time-lag) of logged smartphone use.
+- Published multiverse / specification-curve analyses of how logged smartphone use is
+  operationalized (usage metrics such as duration / frequency / fragmentation) already exist
+  from the same Amsterdam group and adjacent authors. ⚠ *Not yet verified against primaries:*
+  the exact specification count and the precise author/venue attribution for the
+  "duration/frequency/fragmented/sticky" multiverse are recalled from web snippets and were
+  conflated — confirm the citation before it goes in a paper. The load-bearing point (a
+  screen-time multiverse has been done) does not depend on the number.
+- General method precedent: *"A sensitivity analysis of preprocessing pipelines: toward
+  a solution for multiverse analyses"* (PMC12319823); crowdsourcing-multiverse tutorial
+  (2025).
+  → **Positioning:** the novelty is NOT "multiverse for screen time." It is a multiverse
+  **wired into a typed, PROV-O/LinkML-provenanced, incrementally-recomputed engine whose
+  every transform is proven correct** (metamorphic + covering-array + property tests).
+  None of the multiverse papers or the three ported engines do the verification half —
+  they report that estimates vary; we guarantee each specification is computed correctly
+  and regenerate the whole surface deterministically.
+
+### Adjacent tooling (related-work citations; none combine verification + ontology)
+- **RAPIDS** — Snakemake reproducible sensing-feature pipeline (closest architecture).
+- **ActivityWatch** — OSS automated usage tracker incl. Android sessionization.
+- **SplitLight** — toolkit to make preprocessing/split decisions "measurable,
+  comparable, reportable" (recsys domain; closest philosophy).
+- **Stanford Screenomics** open collection platform (Nature Health 2026 / medRxiv 2025)
+  — collection, not processing; the screenshot rival to event-log operationalization.
+
+See `docs/chronicle-ontology-ecosystem.md` (research-pipeline) for how this pipeline's
+LinkML contract fits the wider /home/opt ontology stack (sleep-scoring-ontology,
+chronicle-server collection ontology, actours computation-provenance, iOS tag ontology).

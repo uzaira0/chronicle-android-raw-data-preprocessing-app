@@ -1,5 +1,5 @@
 import type { CanonicalRow } from "@/lib/browserPipeline";
-import { APP_USAGE, NON_TARGET } from "@/lib/stages/attributePerson";
+import { APP_USAGE, NON_TARGET, classifyAttribution } from "@/lib/stages/attributePerson";
 
 /**
  * Per-day compliance scoring (Analyze tier).
@@ -53,10 +53,6 @@ export function scoreCompliance(
 
     if (row.interaction_type !== APP_USAGE && row.interaction_type !== NON_TARGET) continue;
     const minutes = row.duration_minutes ?? 0;
-    const username = (row.username ?? "").toLowerCase();
-    const isTarget = username.includes("target child");
-    const isOther = !isTarget && username.includes("other");
-    const isUnknown = !isTarget && !isOther && (username.includes("none") || username === "");
 
     const key = `${row.participant_id} ${row.date}`;
     let bucket = buckets.get(key);
@@ -64,9 +60,11 @@ export function scoreCompliance(
       bucket = { known: 0, unknown: 0 };
       buckets.set(key, bucket);
     }
-    if (isTarget || isOther) bucket.known += minutes;
-    else if (isUnknown) bucket.unknown += minutes;
-    // A named non-target person ("Sibling") counts as known: it IS attributed.
+    // Attribution status is decided ONCE in attributePerson; consume it here
+    // rather than re-deriving from username substrings. Only genuinely
+    // unresolved usage is "unknown"; target and named non-target ("Sibling")
+    // are both attributed = known.
+    if (classifyAttribution(row.username) === "unresolved") bucket.unknown += minutes;
     else bucket.known += minutes;
   }
 
