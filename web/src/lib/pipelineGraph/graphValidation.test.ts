@@ -9,6 +9,7 @@ import {
   ALL_ON,
   CONTRACT_KEYS,
   FILTER_DEPENDENT_ANNOTATION_COLUMNS,
+  FIXTURE_CSV,
   JUNK_PACKAGE,
   RUN_KEYS,
   SUPPORT_FIELD_TO_FILE,
@@ -22,6 +23,7 @@ import {
   expectedBypassed,
   makeCtx,
   order,
+  predictRecomputeCone,
   serializeRows,
 } from "@/lib/pipelineGraph/validationHarness";
 
@@ -397,7 +399,7 @@ describe("5. Incremental recompute (dirty cone per option key)", () => {
   for (const key of [...new Set(def.nodes.flatMap((node) => node.knobs.map((knob) => knob.optionKey)))]) {
     it(`flipping "${key}" recomputes exactly its binding nodes plus their downstream cone`, async () => {
       const engine = new GraphEngine<PipelineCtx>(buildChronicleGraph());
-      await engine.run(makeCtx(ALL_ON), RUN_KEYS(ALL_ON));
+      const base = await engine.run(makeCtx(ALL_ON), RUN_KEYS(ALL_ON));
 
       const flipped = {
         ...ALL_ON,
@@ -409,7 +411,11 @@ describe("5. Incremental recompute (dirty cone per option key)", () => {
       const binders = new Set(
         def.nodes.filter((node) => node.knobs.some((knob) => knob.optionKey === key)).map((node) => node.id),
       );
-      const cone = descendantsOf(binders);
+      // Value-driven: a binder whose output is unchanged by the flip (e.g. a
+      // remap of an absent event type, or a dedup flag on a file with no
+      // duplicates) cuts off, keeping its cone cached. predictRecomputeCone
+      // collapses to descendantsOf when no cutoff fires.
+      const cone = predictRecomputeCone(binders, base.outputs, run.outputs);
       for (const node of def.nodes) {
         const expected = expectedBypassed(node.id, flipped)
           ? "bypassed"
@@ -434,14 +440,20 @@ describe("5. Incremental recompute (dirty cone per option key)", () => {
 
   it("a support-file content change dirties exactly the declaring nodes' cones", async () => {
     const engine = new GraphEngine<PipelineCtx>(buildChronicleGraph());
-    await engine.run(makeCtx(ALL_ON), RUN_KEYS(ALL_ON, { supportFileHashes: { filterFile: "h1" } }));
+    const base = await engine.run(
+      makeCtx(ALL_ON),
+      RUN_KEYS(ALL_ON, { supportFileHashes: { filterFile: "h1" } }),
+    );
     const run = await engine.run(makeCtx(ALL_ON), RUN_KEYS(ALL_ON, { supportFileHashes: { filterFile: "h2" } }));
 
     const binders = new Set(
       def.nodes.filter((node) => (node.supportFiles ?? []).includes("filterFile")).map((node) => node.id),
     );
     expect(binders.size).toBeGreaterThan(0);
-    const cone = descendantsOf(binders);
+    // The filter map content is identical (same buildSupport), only the
+    // declared hash differs, so app_policy reruns but its tagged output is
+    // unchanged → early cutoff keeps the matcher cone cached.
+    const cone = predictRecomputeCone(binders, base.outputs, run.outputs);
     for (const node of def.nodes) {
       const expected = expectedBypassed(node.id, ALL_ON)
         ? "bypassed"
@@ -452,12 +464,37 @@ describe("5. Incremental recompute (dirty cone per option key)", () => {
     }
   }, 30_000);
 
-  it("an input-content change recomputes the entire graph", async () => {
+  it("a genuine input-content change recomputes the entire graph (parse output differs, no cutoff)", async () => {
     const engine = new GraphEngine<PipelineCtx>(buildChronicleGraph());
-    await engine.run(makeCtx(ALL_ON), RUN_KEYS(ALL_ON, { inputHash: hashValue(["a"]) }));
-    const run = await engine.run(makeCtx(ALL_ON), RUN_KEYS(ALL_ON, { inputHash: hashValue(["b"]) }));
+    // A real content change alters the parsed rows, so parse_events restamps
+    // and the whole graph reruns. (Contrast the next test: an inputHash change
+    // whose content is identical cuts off at parse_events.)
+    const variantCsv = `${FIXTURE_CSV}\nStudy,P01,Target Child,Chat,Unknown importance: 1,com.valid.chat,2026-03-08 10:00:00,America/Chicago`;
+    await engine.run(
+      { ...makeCtx(ALL_ON), csvText: FIXTURE_CSV },
+      RUN_KEYS(ALL_ON, { inputHash: hashValue([FIXTURE_CSV]) }),
+    );
+    const run = await engine.run(
+      { ...makeCtx(ALL_ON), csvText: variantCsv },
+      RUN_KEYS(ALL_ON, { inputHash: hashValue([variantCsv]) }),
+    );
     for (const node of def.nodes) {
       const expected = expectedBypassed(node.id, ALL_ON) ? "bypassed" : "recomputed";
+      expect(run.report.statuses[node.id], node.id).toBe(expected);
+    }
+  }, 30_000);
+
+  it("an inputHash change with identical content cuts off at parse_events", async () => {
+    const engine = new GraphEngine<PipelineCtx>(buildChronicleGraph());
+    // Same csvText, different declared inputHash: parse_events reruns but its
+    // output is byte-identical, so early cutoff keeps every downstream node
+    // cached — the whole point of declaring outputHash on the source.
+    await engine.run(makeCtx(ALL_ON), RUN_KEYS(ALL_ON, { inputHash: hashValue(["a"]) }));
+    const run = await engine.run(makeCtx(ALL_ON), RUN_KEYS(ALL_ON, { inputHash: hashValue(["b"]) }));
+    expect(run.report.statuses.parse_events).toBe("recomputed");
+    for (const node of def.nodes) {
+      if (node.id === "parse_events") continue;
+      const expected = expectedBypassed(node.id, ALL_ON) ? "bypassed" : "cached";
       expect(run.report.statuses[node.id], node.id).toBe(expected);
     }
   }, 30_000);

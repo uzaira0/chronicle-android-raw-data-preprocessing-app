@@ -351,3 +351,10 @@ CSV rows, and get a before-number at t=2/3/4 — then generate arrays to close t
    mutation-scoring of the whole validation suite — hardening, incremental.
 8. **Early-cutoff/backdating** (S1 #2) — an ENGINE change (stamp backdating on
    value-equality), do it with its own property tests once #1's harness exists to guard it.
+   ✅ DONE 2026-07-18 — the engine hook already existed (engine.ts:165-170); declared
+   `outputHash` on the four cheap preprocess/clean nodes (parse_events, normalize_timezones,
+   dedup_and_order, app_policy) that guard the expensive matcher + splitter. Made the shared
+   cone predictor value-driven (validationHarness.predictRecomputeCone) so the mutation-sequence
+   and single-flip suites stay exact under cutoff; added two dedicated graph-level cutoff tests
+   (no-op remap / support-file re-hash keep the matcher cached; genuine content change still
+   recomputes all). Byte parity + metamorphic unchanged.

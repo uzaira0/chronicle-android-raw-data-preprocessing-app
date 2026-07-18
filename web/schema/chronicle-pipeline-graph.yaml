@@ -27,7 +27,7 @@ graph_nodes:
       - option_key: interaction_type_remap
         edge: tunes
     has_bypass: false
-    has_output_hash: false
+    has_output_hash: true
   - node_id: normalize_timezones
     node_label: Timezone normalization
     section: preprocess
@@ -39,7 +39,7 @@ graph_nodes:
       - option_key: timezone_handling
         edge: tunes
     has_bypass: false
-    has_output_hash: false
+    has_output_hash: true
   - node_id: dedup_and_order
     node_label: Event dedup & ordering
     section: preprocess
@@ -55,7 +55,7 @@ graph_nodes:
       - option_key: other_interaction_types_to_stop_usage_at
         edge: tunes
     has_bypass: false
-    has_output_hash: false
+    has_output_hash: true
   - node_id: app_policy
     node_label: App policy — tag filtered packages
     section: clean
@@ -67,7 +67,7 @@ graph_nodes:
     node_support_files:
       - filter_file
     has_bypass: true
-    has_output_hash: false
+    has_output_hash: true
   - node_id: device_state_timeline
     node_label: Device-state timeline (screen sessions)
     section: preprocess

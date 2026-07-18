@@ -11,10 +11,10 @@ import {
   altValue,
   boundOptionKeys,
   def,
-  descendantsOf,
   ensureWasm,
   expectedBypassed,
   makeCtx,
+  predictRecomputeCone,
 } from "@/lib/pipelineGraph/validationHarness";
 
 /**
@@ -202,7 +202,10 @@ describe("6. Mutation-sequence properties (from-scratch consistency + minimality
             const prev = state;
             state = applyMutation(state, mutation);
             const seeds = new Set([...changedSeeds(prev, state), ...wiped]);
-            const predicted = seeds.size === 0 ? new Set<string>() : descendantsOf(seeds);
+            // Cutoff makes the cone value-dependent, so predict it from the
+            // two runs' outputs (the previous run's output is the cached value
+            // this run backdates against).
+            const prevOutputs = lastRun.outputs;
 
             const before = new Map(counters);
             lastRun = await engine.run(makeCtx(state.options), runKeysOf(state));
@@ -232,6 +235,10 @@ describe("6. Mutation-sequence properties (from-scratch consistency + minimality
               continue;
             }
 
+            const predicted =
+              seeds.size === 0
+                ? new Set<string>()
+                : predictRecomputeCone(seeds, prevOutputs, lastRun.outputs);
             for (const node of def.nodes) {
               const delta = (counters.get(node.id) ?? 0) - (before.get(node.id) ?? 0);
               const shouldRun = predicted.has(node.id);

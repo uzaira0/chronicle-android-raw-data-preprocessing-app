@@ -1,4 +1,5 @@
 import type { GraphDef } from "@/lib/pipelineGraph/graphTypes";
+import { hashValue } from "@/lib/pipelineGraph/engine";
 import type {
   BrowserProcessingOptions,
   BrowserProcessingRuntime,
@@ -143,6 +144,11 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         section: "preprocess",
         inputs: [],
         knobs: [{ optionKey: "interactionTypeRemap", edge: "tunes" }],
+        // Early cutoff (Salsa backdating): a remap that matches no event type
+        // in the file leaves the parsed rows byte-identical, so the whole
+        // downstream graph — including the expensive matcher and splitter —
+        // stays cached. Cheap to hash (parsing already walked every row).
+        outputHash: (value) => hashValue(value),
         run: (ctx): ParseEventsOutput => {
           ctx.emit("parse", 0);
           const remap = parseInteractionRemap(ctx.options.interactionTypeRemap);
@@ -167,6 +173,10 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           { optionKey: "selectedTimezone", edge: "tunes" },
           { optionKey: "timezoneHandling", edge: "tunes" },
         ],
+        // Early cutoff: an upstream restamp whose rows are unchanged, or a
+        // timezone-handling change that is a no-op on this file, keeps the
+        // downstream cone cached.
+        outputHash: (value) => hashValue(value),
         run: (ctx, inputs): NormalizeTimezonesOutput => {
           ctx.emit("timezone", 0);
           const parsed = inputs.parse_events as ParseEventsOutput;
@@ -190,6 +200,11 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           { optionKey: "sameAppInteractionTypesToStopUsageAt", edge: "tunes" },
           { optionKey: "otherInteractionTypesToStopUsageAt", edge: "tunes" },
         ],
+        // Early cutoff: on a file with no exact-duplicate rows and no
+        // duplicate timestamps, the dedup/correct flags are no-ops, so
+        // toggling them reruns this node but leaves its output unchanged and
+        // the matcher downstream cached.
+        outputHash: (value) => hashValue(value),
         run: (ctx, inputs): DedupAndOrderOutput => {
           const normalized = inputs.normalize_timezones as NormalizeTimezonesOutput;
           const dedupeResult = ctx.options.deduplicateExactRows
@@ -228,6 +243,10 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         knobs: [{ optionKey: "useFilterFile", edge: "gates" }],
         supportFiles: ["filterFile"],
         bypassedWhen: (options) => !opts(options).useFilterFile,
+        // Early cutoff: tagging is a pure pass-through when useFilterFile is
+        // off (or when the file names no package present here), so the
+        // matcher downstream stays cached across those changes.
+        outputHash: (value) => hashValue(value),
         run: (ctx, inputs): { rows: CanonicalRow[] } => {
           ctx.emit("filter", 0);
           const upstream = inputs.dedup_and_order as DedupAndOrderOutput;

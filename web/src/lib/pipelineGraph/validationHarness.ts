@@ -197,6 +197,47 @@ export function descendantsOf(seed: ReadonlySet<string>): Set<string> {
   return cone;
 }
 
+/**
+ * Value-driven recompute-cone predictor — the cutoff-aware generalization of
+ * {@link descendantsOf}. Mirrors the engine's stamp propagation exactly:
+ *
+ *   - a node RERUNS iff it is a changed seed OR any input RESTAMPED;
+ *   - a rerun node RESTAMPS (dirtying dependents) UNLESS it declares an
+ *     outputHash AND its output value is unchanged between the two runs —
+ *     the early-cutoff / backdating case, where the node reran but its
+ *     downstream cone stays cached.
+ *
+ * Value-equality is read from the two runs' output maps with each node's own
+ * outputHash (the same function the engine backdates against): the cached
+ * value going into this run is the previous run's output for that node, so
+ * `outputHash(prev) === outputHash(curr)` is exactly the engine's test.
+ * A node absent from prevOutputs (e.g. wiped by a prior error) can never
+ * value-match, so it always restamps — matching the engine, which has no
+ * cache entry to serve there. With no outputHash anywhere this collapses to
+ * descendantsOf(seeds).
+ */
+export function predictRecomputeCone(
+  seeds: ReadonlySet<string>,
+  prevOutputs: ReadonlyMap<string, unknown>,
+  currOutputs: ReadonlyMap<string, unknown>,
+): Set<string> {
+  const reran = new Set<string>();
+  const restamped = new Set<string>();
+  for (const id of order) {
+    const node = byId.get(id)!;
+    const didRerun = seeds.has(id) || node.inputs.some((input) => restamped.has(input));
+    if (!didRerun) continue;
+    reran.add(id);
+    const valueUnchanged =
+      node.outputHash !== undefined &&
+      prevOutputs.has(id) &&
+      currOutputs.has(id) &&
+      node.outputHash(prevOutputs.get(id)) === node.outputHash(currOutputs.get(id));
+    if (!valueUnchanged) restamped.add(id);
+  }
+  return reran;
+}
+
 /** Closed-form bypass spec — restates the intended state machine. */
 export function expectedBypassed(id: string, o: BrowserProcessingOptions): boolean {
   switch (id) {
