@@ -17,6 +17,23 @@ description: >-
 license: MIT
 default_range: string
 
+# External-framework alignment (doc 13 D3). Only VERIFIED anchors are asserted:
+#  - BCIO "participant engagement with behaviour change intervention" (BCIO_013000,
+#    verified via EBI OLS) is referenced by skos:relatedMatch on the `engagement`
+#    layer — NOT closeMatch: BCIO engagement is intervention-scoped, chronicle
+#    engagement is device/app usage, so the relation is associative, not interchange.
+#  - The Shaleha et al. 2026 screen-use measurement framework is a conceptual
+#    framework, NOT an ontology with class IRIs, so it is referenced via see_also to
+#    its DOI (below), never skos-mapped to a nonexistent class.
+see_also:
+  - https://doi.org/10.1177/21522715261417288
+comments:
+  - >-
+    Screen-use measurement framework alignment (Shaleha, Roque, Andrews, Calfee & Lee 2026,
+    doi:10.1177/21522715261417288): this ontology's measures sit on the framework's
+    OBJECTIVE-LOG / passive-sensing modality axis. Referenced, not class-mapped, because the
+    framework has no stable class IRIs.
+
 prefixes:
   linkml: https://w3id.org/linkml/
   chron: https://w3id.org/chronicle-usage-ontology/core/
@@ -30,6 +47,7 @@ prefixes:
   qudt: http://qudt.org/schema/qudt/
   unit: http://qudt.org/vocab/unit/
   dcterms: http://purl.org/dc/terms/
+  BCIO: http://humanbehaviourchange.org/ontology/BCIO_
 default_prefix: chron
 
 imports:
@@ -87,7 +105,15 @@ enums:
       construct: {}
       validity: {}
       presence: {}
-      engagement: {}
+      engagement:
+        description: >-
+          Device/app usage-engagement measurement (screen-on, app-in-foreground). RELATED to,
+          but deliberately NOT equated with, BCIO "participant engagement with behaviour change
+          intervention" (BCIO:013000): BCIO engagement is intervention-scoped whereas a
+          chronicle app is generally not a behaviour-change intervention — hence relatedMatch,
+          not closeMatch (doc 13 D3).
+        related_mappings:
+          - BCIO:013000
       person: {}
       attribution: {}
 

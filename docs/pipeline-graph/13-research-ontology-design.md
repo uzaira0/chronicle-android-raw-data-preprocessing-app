@@ -66,9 +66,14 @@ Everything below serves this ordering: reproduce first, then justify/visualize/v
   and provenance completeness (episodes reconstructed_by an execution; effective-usage cites a
   ParameterSet + node execution). `make merge-axioms` folds them into `merged.shacl.ttl`;
   pyshacl confirms they fire (violating instance fails, conforming passes).
-- **Deferred (documented, NOT invented):** `skos:closeMatch` mappings to BCIO / the Shaleha
-  2026 framework await primary-source IRI verification; BFO-vs-DOLCE grounding stays deferred
-  (federate via SSSOM). Recorded in `web/schema/README.md`, not asserted with unverified IRIs.
+- **External-framework mappings — DONE (from verified anchors only).** The `engagement` layer
+  carries `skos:relatedMatch` to BCIO `participant engagement with behaviour change intervention`
+  (`BCIO_013000`, verified via EBI OLS) — relatedMatch, NOT closeMatch, because BCIO engagement
+  is intervention-scoped and a chronicle app generally isn't an intervention. The Shaleha 2026
+  framework (no class IRIs) is referenced via `rdfs:seeAlso` its DOI + a `skos:note` on the
+  objective-log modality axis, not class-mapped. Verified the CURIE expands to the full BCIO IRI.
+- **Still deferred (documented, NOT invented):** BFO-vs-DOLCE upper grounding — federate later via
+  an SSSOM mapping set, don't re-ground this module (doc 13 D2).
 
 ## Inputs taken into account (every one)
 

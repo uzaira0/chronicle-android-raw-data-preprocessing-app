@@ -50,9 +50,13 @@ uvx --from pyshacl pyshacl -s generated/shacl/merged.shacl.ttl -sf turtle -df tu
 - `gen-shacl` prints `Overlapping type and slot names: date` — harmless: the slot
   `date` (analysis date) and the built-in `date` type share a name; generation is
   unaffected.
-- `skos:closeMatch` mappings to external frameworks (BCIO engagement classes;
-  the Shaleha et al. 2026 screen-use measurement framework) are a **documented
-  TODO** (doc 13 D3): those IRIs are not asserted here until verified against the
-  primary sources — an unverified external IRI is worse than an absent one.
+- External-framework mappings (doc 13 D3) are asserted only from VERIFIED anchors:
+  the `engagement` layer carries `skos:relatedMatch` to BCIO
+  `participant engagement with behaviour change intervention`
+  (`BCIO_013000`, verified via EBI OLS) — **relatedMatch, not closeMatch**, because
+  BCIO engagement is intervention-scoped while chronicle engagement is device/app
+  usage. The Shaleha et al. 2026 screen-use measurement framework is a conceptual
+  framework with no class IRIs, so it is referenced via `rdfs:seeAlso` its DOI plus
+  a `skos:note` (objective-log / passive-sensing modality axis), never class-mapped.
 - BFO-vs-DOLCE upper grounding is deliberately deferred; federation would come via
   an SSSOM mapping set, not by re-grounding this module (doc 13 D2).

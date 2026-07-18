@@ -66,7 +66,12 @@ class LinkMLMeta(RootModel):
         return key in self.root
 
 
-linkml_meta = LinkMLMeta({'default_prefix': 'chron',
+linkml_meta = LinkMLMeta({'comments': ['Screen-use measurement framework alignment (Shaleha, Roque, '
+                  'Andrews, Calfee & Lee 2026, doi:10.1177/21522715261417288): '
+                  "this ontology's measures sit on the framework's OBJECTIVE-LOG / "
+                  'passive-sensing modality axis. Referenced, not class-mapped, '
+                  'because the framework has no stable class IRIs.'],
+     'default_prefix': 'chron',
      'default_range': 'string',
      'description': 'Core entity model for the Android UsageStatsManager event-log '
                     '-> usage-measurement research ontology. Implements the D4 '
@@ -88,7 +93,9 @@ linkml_meta = LinkMLMeta({'default_prefix': 'chron',
      'imports': ['linkml:types'],
      'license': 'MIT',
      'name': 'chronicle-usage-ontology-core',
-     'prefixes': {'chron': {'prefix_prefix': 'chron',
+     'prefixes': {'BCIO': {'prefix_prefix': 'BCIO',
+                           'prefix_reference': 'http://humanbehaviourchange.org/ontology/BCIO_'},
+                  'chron': {'prefix_prefix': 'chron',
                             'prefix_reference': 'https://w3id.org/chronicle-usage-ontology/core/'},
                   'dcterms': {'prefix_prefix': 'dcterms',
                               'prefix_reference': 'http://purl.org/dc/terms/'},
@@ -112,6 +119,7 @@ linkml_meta = LinkMLMeta({'default_prefix': 'chron',
                            'prefix_reference': 'http://www.w3.org/2006/time#'},
                   'unit': {'prefix_prefix': 'unit',
                            'prefix_reference': 'http://qudt.org/vocab/unit/'}},
+     'see_also': ['https://doi.org/10.1177/21522715261417288'],
      'source_file': 'chronicle-research-ontology.linkml.yaml',
      'title': 'Chronicle Android Usage Measurement — Research Ontology (core '
               'module)'} )
@@ -206,6 +214,9 @@ class MeasurementLayer(str, Enum):
     validity = "validity"
     presence = "presence"
     engagement = "engagement"
+    """
+    Device/app usage-engagement measurement (screen-on, app-in-foreground). RELATED to, but deliberately NOT equated with, BCIO "participant engagement with behaviour change intervention" (BCIO:013000): BCIO engagement is intervention-scoped whereas a chronicle app is generally not a behaviour-change intervention — hence relatedMatch, not closeMatch (doc 13 D3).
+    """
     person = "person"
     attribution = "attribution"
 

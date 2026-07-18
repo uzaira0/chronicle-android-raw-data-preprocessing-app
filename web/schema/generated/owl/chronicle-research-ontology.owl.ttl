@@ -1,3 +1,4 @@
+PREFIX BCIO: <http://humanbehaviourchange.org/ontology/BCIO_>
 PREFIX chron: <https://w3id.org/chronicle-usage-ontology/core/>
 PREFIX dcterms: <http://purl.org/dc/terms/>
 PREFIX linkml: <https://w3id.org/linkml/>
@@ -16,8 +17,10 @@ PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
     rdfs:label "chronicle-usage-ontology-core" ;
     dcterms:license "MIT" ;
     dcterms:title "Chronicle Android Usage Measurement — Research Ontology (core module)" ;
+    rdfs:seeAlso <https://doi.org/10.1177/21522715261417288> ;
     skos:definition """Core entity model for the Android UsageStatsManager event-log -> usage-measurement research ontology. Implements the D4 five-way split from docs/pipeline-graph/13-research-ontology-design.md (occurrence / record / optional logging-observation / assertion / execution / interval) so provenance can always distinguish what was OBSERVED from what was RECONSTRUCTED, and so absence and unresolved attribution can never silently drop from denominators.
 Backbone (D2, upper-neutral): SOSA/SSN + OWL-Time + PROV-O + P-Plan. BFO-vs-DOLCE is deliberately deferred and, when needed, bridged via SSSOM — this module asserts only the free, standards-grounded mappings. This is the FOUNDATION module: SHACL axioms, BCIO/Shaleha close-mappings, DQV quality, and generator wiring are later build-order steps (doc 13 §"Prioritized build order").""" ;
+    skos:note "Screen-use measurement framework alignment (Shaleha, Roque, Andrews, Calfee & Lee 2026, doi:10.1177/21522715261417288): this ontology's measures sit on the framework's OBJECTIVE-LOG / passive-sensing modality axis. Referenced, not class-mapped, because the framework has no stable class IRIs." ;
 .
 
 chron:CoverageAssessment
@@ -782,6 +785,8 @@ chron:AttributionAssertion
     a owl:Class ;
     rdfs:label "engagement" ;
     rdfs:subClassOf chron:MeasurementLayer ;
+    skos:definition "Device/app usage-engagement measurement (screen-on, app-in-foreground). RELATED to, but deliberately NOT equated with, BCIO \"participant engagement with behaviour change intervention\" (BCIO:013000): BCIO engagement is intervention-scoped whereas a chronicle app is generally not a behaviour-change intervention — hence relatedMatch, not closeMatch (doc 13 D3)." ;
+    skos:relatedMatch BCIO:013000 ;
 .
 
 <https://w3id.org/chronicle-usage-ontology/core/MeasurementLayer#person>
