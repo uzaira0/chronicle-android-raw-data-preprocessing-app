@@ -43,6 +43,7 @@
     "@vitejs/plugin-react": "^5.1.0",
     "eslint": "^9.20.0",
     "fake-indexeddb": "^6.2.5",
+    "fast-check": "^4.9.0",
     "hyparquet": "^1.26.0",
     "read-excel-file": "^5.8.0",
     "sav-reader": "^2.0.8",

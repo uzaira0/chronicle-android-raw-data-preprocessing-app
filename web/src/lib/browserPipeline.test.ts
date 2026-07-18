@@ -4,6 +4,7 @@ import {
   addAppUsageDetailColumns,
   buildAppParquetColumnSpecs,
   type CanonicalRow,
+  clearPipelineEngines,
   DEFAULT_BROWSER_OPTIONS,
   discoverTimezonesFromRawCsv,
   processRawCsvContent,
@@ -131,7 +132,7 @@ describe("browserPipeline", () => {
 
     expect(result.outputs).toHaveLength(2);
     expect(result.outputs[0]?.kind).toBe("app");
-    expect(await readOutputCsv(result.outputs[0]!.blob)).toContain("App Usage");
+    expect(await readOutputCsv(result.outputs[0].blob)).toContain("App Usage");
     expect(result.outputs[1]?.kind).toBe("screen");
     const screenCsv = await readOutputCsv(result.outputs[1]!.blob);
     expect(screenCsv).toContain("Screen Usage");
@@ -175,7 +176,7 @@ describe("browserPipeline", () => {
       placeholderMatcher,
     );
 
-    const appCsv = await readOutputCsv(result.outputs[0]!.blob);
+    const appCsv = await readOutputCsv(result.outputs[0].blob);
     const placeholderLines = appCsv
       .split("\n")
       .filter((line) => line.includes("com.placeholder.noactivity"));
@@ -205,7 +206,7 @@ describe("browserPipeline", () => {
       placeholderMatcher,
     );
 
-    const appCsv = await readOutputCsv(result.outputs[0]!.blob);
+    const appCsv = await readOutputCsv(result.outputs[0].blob);
     expect(appCsv).not.toContain("com.placeholder.noactivity");
   });
 
@@ -1415,5 +1416,101 @@ describe("addAppUsageDetailColumns — concurrent-usage layer (FU2)", () => {
     const out = addAppUsageDetailColumns(rows, DEFAULT_BROWSER_OPTIONS);
     expect(out[1]!.any_app_usage_time_gap_hours).toBeCloseTo(10 / 60, 6); // (30-20)
     expect(out[1]!.any_app_switched_app).toBe(1); // com.a → com.b
+  });
+});
+
+describe("preprocessing stamp purity (session-stable datetime_of_preprocessing)", () => {
+  // Node bodies must never read the clock: the stamp is resolved ONCE per
+  // (file, content) session at the processing boundary and covered by the
+  // run's inputHash. Before this contract, a run with no supplied runtime
+  // stamped rows at node-execution time — so an incremental recompute could
+  // mix stamps within one output and a cold rerun with identical inputs
+  // produced different bytes whenever the wall clock crossed a second
+  // boundary (caught by the enginePropertyValidation from-scratch
+  // consistency property as a seed-independent flake).
+  const STAMP_CSV = [
+    "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+    "Study,P01,Target Child,System,Unknown importance: 15,android,2026-03-07 10:00:00,America/Chicago",
+    "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:05,America/Chicago",
+    "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:00:15,America/Chicago",
+    "Study,P01,Target Child,System,Unknown importance: 16,android,2026-03-07 10:00:20,America/Chicago",
+  ].join("\n");
+
+  const stampMatcher = (): Promise<MatcherOutput> =>
+    Promise.resolve({
+      startIndices: [1],
+      stopStartIndices: [1],
+      stopEventIndices: [2],
+      missingIndices: [],
+    });
+
+  const stampOptions = {
+    ...DEFAULT_BROWSER_OPTIONS,
+    useFilterFile: false,
+    useAppsForcingScreenOpenFile: false,
+    useAppCodebook: false,
+  };
+
+  const STAMP_PATTERN = /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC/g;
+
+  it("keeps ONE stamp per session across incremental option flips; new content starts a new session", async () => {
+    vi.useFakeTimers({ now: new Date("2026-05-01T10:00:00Z") });
+    try {
+      clearPipelineEngines();
+
+      const first = await processRawCsvContent("Raw P01.csv", STAMP_CSV, stampOptions, {}, stampMatcher);
+      const firstText = await first.outputs[0].blob.text();
+      expect(firstText).toContain("2026-05-01 10:00:00 UTC");
+
+      // 7 seconds later, an option flip recomputes part of the graph — every
+      // row must still carry the ORIGINAL session stamp (no mixed stamps, no
+      // silent full-output drift).
+      vi.setSystemTime(new Date("2026-05-01T10:00:07Z"));
+      const flipped = await processRawCsvContent(
+        "Raw P01.csv",
+        STAMP_CSV,
+        { ...stampOptions, filterZeroDurationSessions: !stampOptions.filterZeroDurationSessions },
+        {},
+        stampMatcher,
+      );
+      for (const output of flipped.outputs) {
+        const stamps = new Set((await output.blob.text()).match(STAMP_PATTERN) ?? []);
+        if (stamps.size > 0) {
+          expect(stamps, output.outputFileName).toEqual(new Set(["2026-05-01 10:00:00 UTC"]));
+        }
+      }
+
+      // Changed content = a new session = a fresh stamp.
+      vi.setSystemTime(new Date("2026-05-01T10:00:30Z"));
+      const changedCsv = STAMP_CSV.replace("2026-03-07 10:00:15", "2026-03-07 10:00:16");
+      const changed = await processRawCsvContent("Raw P01.csv", changedCsv, stampOptions, {}, stampMatcher);
+      const changedText = await changed.outputs[0].blob.text();
+      expect(changedText).toContain("2026-05-01 10:00:30 UTC");
+      expect(changedText).not.toContain("2026-05-01 10:00:00 UTC");
+    } finally {
+      vi.useRealTimers();
+      clearPipelineEngines();
+    }
+  });
+
+  it("an explicitly supplied runtime datetime always wins over the session stamp", async () => {
+    vi.useFakeTimers({ now: new Date("2026-05-01T10:00:00Z") });
+    try {
+      clearPipelineEngines();
+      const result = await processRawCsvContent(
+        "Raw P01.csv",
+        STAMP_CSV,
+        stampOptions,
+        {},
+        stampMatcher,
+        { datetimeOfPreprocessing: "2020-02-02 02:02:02 UTC" },
+      );
+      const text = await result.outputs[0].blob.text();
+      expect(text).toContain("2020-02-02 02:02:02 UTC");
+      expect(text).not.toContain("2026-05-01 10:00:00 UTC");
+    } finally {
+      vi.useRealTimers();
+      clearPipelineEngines();
+    }
   });
 });

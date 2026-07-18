@@ -2521,9 +2521,31 @@ function getPipelineEngine(fileName: string): GraphEngine<PipelineCtx> {
   return engine;
 }
 
+/**
+ * One preprocessing stamp per (file, content) session, resolved ONCE at the
+ * processing boundary. Node bodies must never read the clock: with per-node
+ * memoization, a mid-session clock read would stamp recomputed rows with a
+ * different datetime_of_preprocessing than their cached siblings (mixed
+ * stamps in one output) and break from-scratch consistency — the incremental
+ * result would differ from a cold run on the same inputs. The resolved value
+ * participates in the run's inputHash, so the cache key fully covers it; a
+ * content change starts a new session with a fresh stamp.
+ */
+const sessionDatetimes = new Map<string, { csvHash: string; datetime: string }>();
+
+function resolveSessionDatetime(fileName: string, csvText: string): string {
+  const csvHash = hashValue(csvText);
+  const existing = sessionDatetimes.get(fileName);
+  if (existing && existing.csvHash === csvHash) return existing.datetime;
+  const datetime = `${new Date().toISOString().slice(0, 19).replace("T", " ")} UTC`;
+  sessionDatetimes.set(fileName, { csvHash, datetime });
+  return datetime;
+}
+
 /** Drop all per-file graph caches (memory pressure / tests). */
 export function clearPipelineEngines(): void {
   pipelineEngines.clear();
+  sessionDatetimes.clear();
 }
 
 export async function processRawCsvContent(
@@ -2621,10 +2643,17 @@ export async function processRawCsvContent(
   // ── Graph run: the declared typed dependency graph is the execution
   //    spine (docs/pipeline-graph/). Engines persist per input file so a
   //    knob change recomputes only the affected downstream cone.
+  // Pin the preprocessing stamp for the whole run (see sessionDatetimes):
+  // callers that supply one keep it; otherwise the session's stamp is reused
+  // so incremental recomputes never mix stamps within one output.
+  const datetimeOfPreprocessing =
+    runtime?.datetimeOfPreprocessing ?? resolveSessionDatetime(inputFileName, csvText);
+  const effectiveRuntime: BrowserProcessingRuntime = { ...runtime, datetimeOfPreprocessing };
+
   const ctx: PipelineCtx = {
     csvText,
     options,
-    runtime,
+    runtime: effectiveRuntime,
     support: {
       filterMap,
       appsForcingScreenOpenMap,
@@ -2647,7 +2676,7 @@ export async function processRawCsvContent(
   const graphRun = await engine.run(ctx, {
     options: options as unknown as Record<string, unknown>,
     supportFileHashes,
-    inputHash: hashValue([csvText, runtime?.datetimeOfPreprocessing ?? null]),
+    inputHash: hashValue([csvText, datetimeOfPreprocessing]),
   });
   const failedNode = Object.keys(graphRun.report.errors)[0];
   if (failedNode) {
