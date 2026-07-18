@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.mjs.json",
     "lint": "eslint src e2e",
     "test": "node scripts/run-clean-env.mjs vitest run",
-    "check:contract": "node scripts/run-clean-env.mjs vite-node scripts/generate_contract_artifacts.mts --check && node scripts/run-clean-env.mjs vite-node scripts/check_contract_consistency.mts && node scripts/run-clean-env.mjs vite-node scripts/generate_pipeline_graph_artifacts.mts --check",
+    "check:contract": "node scripts/run-clean-env.mjs vite-node scripts/generate_contract_artifacts.mts --check && node scripts/run-clean-env.mjs vite-node scripts/check_contract_consistency.mts && node scripts/run-clean-env.mjs vite-node scripts/generate_pipeline_graph_artifacts.mts --check && node scripts/run-clean-env.mjs vite-node scripts/generate_output_codebook_artifacts.mts --check",
     "check:deploy-artifact": "node scripts/run-clean-env.mjs vite-node scripts/check_deploy_artifact.mts",
     "check:github-pages-artifact": "node scripts/run-clean-env.mjs vite-node scripts/check_deploy_artifact.mts github-pages",
     "test:e2e": "node scripts/run-clean-env.mjs playwright test",
@@ -22,7 +22,8 @@
     "process:browser": "vite-node scripts/run_browser_processing.mts",
     "benchmark:browser": "node scripts/benchmark_browser_processing.mjs",
     "build:wasm": "wasm-pack build ../rust/chronicle_app_usage_wasm --target web --out-dir ../../web/src/wasm/chronicle_app_usage_wasm/pkg",
-    "generate:pipeline-graph": "node scripts/run-clean-env.mjs vite-node scripts/generate_pipeline_graph_artifacts.mts"
+    "generate:pipeline-graph": "node scripts/run-clean-env.mjs vite-node scripts/generate_pipeline_graph_artifacts.mts",
+    "generate:output-codebook": "node scripts/run-clean-env.mjs vite-node scripts/generate_output_codebook_artifacts.mts"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",

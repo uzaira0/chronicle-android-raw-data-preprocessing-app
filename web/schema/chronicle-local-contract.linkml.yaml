@@ -53,6 +53,20 @@ enums:
         description: The app was the sole foreground app for the sub-interval.
       secondary:
         description: The app was running underneath another foreground app.
+  ColumnValueType:
+    description: Value type of an output CSV column (as researchers receive it).
+    permissible_values:
+      string:
+      integer:
+      float:
+      binary_flag:
+        description: 0/1 indicator column.
+      timestamp:
+        description: Wall-clock timestamp text in the row's output timezone.
+      date:
+        description: YYYY-MM-DD in the row's output timezone.
+      list_text:
+        description: Python-style list literal rendered as text (e.g. "['>12-HR TIME GAP']").
   PipelineSection:
     description: The four processing tiers of the pipeline graph.
     permissible_values:
@@ -145,6 +159,28 @@ classes:
       - enable_compliance_scoring
       - compliance_threshold_percent
       - enable_day_coverage
+
+  OutputColumn:
+    description: >-
+      Semantics of one column of the delivered App Usage / Screen Usage CSVs.
+      Hand-authored layer over the emit-order SSOT (buildAppOutputColumns /
+      buildScreenOutputColumns in browserPipeline.ts); the bijection between
+      this catalog and the code is enforced by
+      web/scripts/generate_output_codebook_artifacts.mts, which also renders
+      docs/researcher-output-codebook.md from it.
+    slots:
+      - column_name
+      - column_outputs
+      - value_type
+      - units
+      - column_description
+      - present_when
+      - filter_dependent
+      - vocabulary_alignment
+
+  OutputColumnCatalog:
+    slots:
+      - output_columns
 
   PipelineKnobBinding:
     description: An option bound to a pipeline node (a 'gates' or 'tunes' edge).
@@ -841,6 +877,46 @@ slots:
       For concurrent-usage output only: 'primary' when the app was the sole
       foreground app for the row's sub-interval, 'secondary' when it was running
       underneath another app. Absent when model_concurrent_usage is off.
+
+  # ── Output-column semantics (OutputColumn / OutputColumnCatalog) ──
+  column_name:
+    required: true
+    identifier: true
+    description: >-
+      Column header as delivered. Dynamic headers use a {placeholder} for the
+      option-dependent part (e.g. valid_app_new_engage_custom_{custom_app_engagement_duration}s).
+  column_outputs:
+    range: OutputKind
+    multivalued: true
+    required: true
+    description: Which delivered CSVs carry the column (app and/or screen).
+  value_type:
+    range: ColumnValueType
+    required: true
+  units:
+    description: Measurement units, when the column is a quantity (seconds, minutes, hours).
+  column_description:
+    required: true
+    description: Researcher-facing meaning of the column.
+  present_when:
+    description: >-
+      Option condition for conditional columns (snake_case contract slot
+      expression); absent for always-present columns.
+  filter_dependent:
+    range: boolean
+    description: >-
+      True when the column's value is defined over the filtered-app universe,
+      so toggling use_filter_file legitimately changes it (the valid_app_*
+      engagement walk).
+  vocabulary_alignment:
+    description: >-
+      Community vocabulary the column is grounded in (Android UsageEvents
+      constants, EYES manual metrics, P&T terminology), where one exists.
+  output_columns:
+    range: OutputColumn
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
 
   # ── Pipeline graph (PipelineGraph / PipelineNode / PipelineKnobBinding) ──
   option_key:

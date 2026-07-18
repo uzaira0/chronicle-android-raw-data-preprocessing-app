@@ -2023,7 +2023,9 @@ function removeSelectedInteractionTypes(
   );
 }
 
-function buildAppOutputColumns(
+// Exported for the output-column codebook bijection check
+// (scripts/generate_output_codebook_artifacts.mts).
+export function buildAppOutputColumns(
   options: BrowserProcessingOptions,
   includeCodebookAliases: boolean,
   usageLayerActive: boolean,
@@ -2072,7 +2074,7 @@ function buildAppOutputColumns(
   ];
 }
 
-function buildScreenOutputColumns(): string[] {
+export function buildScreenOutputColumns(): string[] {
   return [
     "study_id",
     "study_name",
