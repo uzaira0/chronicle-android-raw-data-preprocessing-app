@@ -367,23 +367,11 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
       position: { x: node.x, y: node.y },
       width: NODE_WIDTH,
       height: NODE_HEIGHT,
-      // Off-spine (clean) nodes hang to the side of the spine — both their tap-in
-      // and rejoin connectors face the spine (left in TB, top in LR). Spine nodes
-      // keep the normal flow-facing handles.
-      targetPosition: node.offSpine
-        ? direction === "TB"
-          ? Position.Left
-          : Position.Top
-        : direction === "TB"
-          ? Position.Top
-          : Position.Left,
-      sourcePosition: node.offSpine
-        ? direction === "TB"
-          ? Position.Left
-          : Position.Top
-        : direction === "TB"
-          ? Position.Bottom
-          : Position.Right,
+      // dagre places every node in flow order, so handles face the flow (TB:
+      // top-in / bottom-out, LR: left-in / right-out) for all nodes; clean nodes
+      // are distinguished by their branch position + dashed edges, not handles.
+      targetPosition: direction === "TB" ? Position.Top : Position.Left,
+      sourcePosition: direction === "TB" ? Position.Bottom : Position.Right,
       className: classes.join(" "),
       data: {
         label: node.label,
