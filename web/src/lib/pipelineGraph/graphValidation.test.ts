@@ -170,7 +170,9 @@ describe("2. Gate-space state machine (full 2^12 enumeration)", () => {
         }
       }
     }
-  });
+    // 4096 masks × every node × a tracing Proxy is legitimately ~5 s of work;
+    // give it headroom so a loaded machine doesn't trip the 5 s default.
+  }, 30_000);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

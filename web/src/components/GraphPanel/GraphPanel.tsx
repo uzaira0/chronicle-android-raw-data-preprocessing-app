@@ -367,8 +367,23 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
       position: { x: node.x, y: node.y },
       width: NODE_WIDTH,
       height: NODE_HEIGHT,
-      targetPosition: direction === "TB" ? Position.Top : Position.Left,
-      sourcePosition: direction === "TB" ? Position.Bottom : Position.Right,
+      // Off-spine (clean) nodes hang to the side of the spine — both their tap-in
+      // and rejoin connectors face the spine (left in TB, top in LR). Spine nodes
+      // keep the normal flow-facing handles.
+      targetPosition: node.offSpine
+        ? direction === "TB"
+          ? Position.Left
+          : Position.Top
+        : direction === "TB"
+          ? Position.Top
+          : Position.Left,
+      sourcePosition: node.offSpine
+        ? direction === "TB"
+          ? Position.Left
+          : Position.Top
+        : direction === "TB"
+          ? Position.Bottom
+          : Position.Right,
       className: classes.join(" "),
       data: {
         label: node.label,
@@ -390,11 +405,20 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
         ? linked.has(edge.source) && linked.has(edge.target)
         : (edge.source === selected || (cone?.has(edge.source) ?? false)) &&
           (cone?.has(edge.target) ?? false));
+    const tap = edge.variant === "tap";
     return {
       id: edge.id,
       source: edge.source,
       target: edge.target,
-      className: active ? "graph-flow-edge" : "graph-flow-edge is-dimmed",
+      className: [
+        "graph-flow-edge",
+        tap ? "graph-flow-edge--tap" : "",
+        active ? "" : "is-dimmed",
+      ]
+        .filter(Boolean)
+        .join(" "),
+      // Dashed connectors read as the optional off-spine detour; solid = backbone.
+      style: tap ? { strokeDasharray: "6 4" } : undefined,
       markerEnd: EDGE_MARKER,
     };
   });
