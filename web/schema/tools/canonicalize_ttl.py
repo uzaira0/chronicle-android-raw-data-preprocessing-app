@@ -25,7 +25,9 @@ files.
 
 from __future__ import annotations
 
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 from rdflib import Graph, Namespace
@@ -64,7 +66,26 @@ def canonicalize(input_path: Path, output_path: Path) -> None:
         out.bind(prefix, namespace)
     for triple in canonical:
         out.add(triple)
-    output_path.write_text(out.serialize(format="longturtle"))
+    # Write atomically: serialize to a UNIQUE sibling temp file then os.replace,
+    # so a crash mid-write can never leave a truncated/corrupt .ttl behind, and
+    # concurrent invocations can't collide on one temp name. This is what makes
+    # the in-place `canonicalize x x` (used by merge-axioms) safe — the source is
+    # fully parsed into memory above before any write begins.
+    serialized = out.serialize(format="longturtle")
+    fd, tmp_name = tempfile.mkstemp(
+        dir=output_path.parent, prefix=output_path.name + ".", suffix=".canon-tmp"
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(serialized)
+        os.replace(tmp_name, output_path)
+    except BaseException:
+        # Best-effort cleanup so a failed write never leaves a stale temp behind.
+        try:
+            os.unlink(tmp_name)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def main(argv: list[str]) -> int:

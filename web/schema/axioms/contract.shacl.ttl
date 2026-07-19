@@ -6,33 +6,37 @@
 # invariants LinkML cannot express. `make merge-axioms` concatenates the
 # generated shapes with this file into generated/shacl/merged.shacl.ttl.
 #
-# Targets use the minted chron: class IRIs (NOT the shared prov:Entity /
-# prov:Activity class_uris) so each shape applies to exactly one class.
+# Targets use the minted chron: class IRIs. Each domain class carries its own
+# chron: identity (upper-ontology types — prov:Entity, time:ProperInterval,
+# prov:Activity, sosa:*, pplan:* — are declared as broad_mappings → skos:broadMatch,
+# NOT class_uri), so LinkML types canonical instances `a chron:X` and each shape
+# applies to exactly one class. (broadMatch, not exactMatch: the upper type is
+# broader; exactMatch would falsely make all prov:Entity subclasses equivalent.)
+#
+# Enum-valued conditions match STRING LITERALS ("unresolved", "observed"): LinkML
+# serializes enum slots as their permissible-value text (xsd:string), not the
+# minted enum IRI, so `sh:hasValue "unresolved"` — not an IRI — is what fires.
 
 @prefix sh:    <http://www.w3.org/ns/shacl#> .
 @prefix chron: <https://w3id.org/chronicle-usage-ontology/core/> .
 @prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
 
 # ── Attribution: closed, conservative, no phantom person ─────────────────────
-# A1. Every attribution assertion carries exactly one status (the compliance
-#     denominator contract — nothing usage-bearing may lack a status).
+# A1 (exactly one attribution_status) is DELEGATED to the generated shape —
+#    attribution_status is required + single-valued there — so it is not
+#    duplicated here; the numbering below keeps A2–A6 for the conditional
+#    invariants LinkML can't express.
 # A2. An UNRESOLVED assertion must NOT carry an attributed person: "None"/blank
-#     means the person is genuinely unknown, so a named person would be a
-#     contradiction (mirrors classifyAttribution() in attributePerson.ts).
+#    means the person is genuinely unknown, so a named person would be a
+#    contradiction (mirrors classifyAttribution() in attributePerson.ts).
 chron:AttributionAssertionContractShape
     a sh:NodeShape ;
     sh:targetClass chron:AttributionAssertion ;
-    sh:property [
-        sh:path chron:attribution_status ;
-        sh:minCount 1 ;
-        sh:maxCount 1 ;
-        sh:message "AttributionAssertion must carry exactly one attribution_status." ;
-    ] ;
     sh:not [
         a sh:NodeShape ;
         sh:property [
             sh:path chron:attribution_status ;
-            sh:hasValue <https://w3id.org/chronicle-usage-ontology/core/AttributionStatus#unresolved> ;
+            sh:hasValue "unresolved" ;
             sh:minCount 1 ;
         ] ;
         sh:property [
@@ -54,7 +58,7 @@ chron:UsageIntervalEndpointShape
         a sh:NodeShape ;
         sh:property [
             sh:path chron:end_status ;
-            sh:hasValue <https://w3id.org/chronicle-usage-ontology/core/EndpointStatus#observed> ;
+            sh:hasValue "observed" ;
             sh:minCount 1 ;
         ] ;
         sh:property [ sh:path chron:end_instant ; sh:maxCount 0 ] ;
@@ -63,7 +67,7 @@ chron:UsageIntervalEndpointShape
         a sh:NodeShape ;
         sh:property [
             sh:path chron:start_status ;
-            sh:hasValue <https://w3id.org/chronicle-usage-ontology/core/EndpointStatus#observed> ;
+            sh:hasValue "observed" ;
             sh:minCount 1 ;
         ] ;
         sh:property [ sh:path chron:start_instant ; sh:maxCount 0 ] ;

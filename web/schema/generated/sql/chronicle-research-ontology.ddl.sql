@@ -81,7 +81,7 @@
 --     * Slot: started_at Description: Execution start.
 --     * Slot: ended_at Description: Execution end.
 --     * Slot: used_parameter_set_id Description: The ParameterSet the execution used.
--- # Class: ReconstructionExecution Description: The execution that produced a usage assertion. A prov:Activity (and sosa:Execution).
+-- # Class: ReconstructionExecution Description: The execution that produced a usage assertion. A prov:Activity.
 --     * Slot: id
 --     * Slot: follows_strategy Description: The reconstruction strategy followed.
 --     * Slot: used_parameter_set_id Description: The ParameterSet the execution used.
@@ -285,8 +285,8 @@ CREATE TABLE "StepDefinition_consumes" (
 	PRIMARY KEY ("StepDefinition_step_id", consumes),
 	FOREIGN KEY("StepDefinition_step_id") REFERENCES "StepDefinition" (step_id)
 );
-CREATE INDEX "ix_StepDefinition_consumes_consumes" ON "StepDefinition_consumes" (consumes);
 CREATE INDEX "ix_StepDefinition_consumes_StepDefinition_step_id" ON "StepDefinition_consumes" ("StepDefinition_step_id");
+CREATE INDEX "ix_StepDefinition_consumes_consumes" ON "StepDefinition_consumes" (consumes);
 
 CREATE TABLE "StepDefinition_produces" (
 	"StepDefinition_step_id" TEXT,

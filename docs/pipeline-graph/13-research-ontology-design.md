@@ -60,12 +60,22 @@ Everything below serves this ordering: reproduce first, then justify/visualize/v
   (`make repro-check` green). Fixed two schema blockers found while wiring: comma-in-inline-
   description YAML flow-mapping breaks, and an enum-ranged identifier slot that crashed
   gen-pydantic (split into a string id + `strategy_kind` enum slot).
-- **Hand-authored SHACL contract axioms — DONE.** `web/schema/axioms/contract.shacl.ttl`
-  encodes the invariants LinkML can't: closed & conservative attribution (unresolved ⇒ no named
-  person), explicit endpoint absence (observed ⇒ instant present), no-data needs an expectation,
-  and provenance completeness (episodes reconstructed_by an execution; effective-usage cites a
-  ParameterSet + node execution). `make merge-axioms` folds them into `merged.shacl.ttl`;
-  pyshacl confirms they fire (violating instance fails, conforming passes).
+- **Hand-authored SHACL contract axioms — DONE + AUTOMATICALLY VERIFIED.**
+  `web/schema/axioms/contract.shacl.ttl` encodes the invariants LinkML can't: closed &
+  conservative attribution (unresolved ⇒ no named person), explicit endpoint absence (observed ⇒
+  instant present), no-data needs an expectation, and provenance completeness (episodes
+  reconstructed_by an execution; effective-usage cites a ParameterSet + node execution).
+  `make merge-axioms` folds them into `merged.shacl.ttl`. For the axioms to fire on
+  canonically-produced instances the domain classes mint their OWN `chron:` IRIs (upper-ontology
+  types are `broad_mappings` → `skos:broadMatch`, NOT `class_uri`, which would type every instance
+  `a prov:Entity` and both miss the `sh:targetClass` and collapse the generated per-class shapes;
+  broadMatch not exactMatch, so the shared upper types don't falsely become equivalent),
+  and the enum conditions match string literals (LinkML dumps enum slots as text). `make validate`
+  (`tests/validate_axioms.py`) is the regression guard: it builds a canonical bad/good instance per
+  axiom via `linkml-convert` and asserts pyshacl fires / conforms — all 5 contract axioms (A2–A6;
+  A1 cardinality delegated to the generated shape) confirmed firing, each invariant guarded (incl.
+  both messages of the two-invariant provenance shape), and a valid `ParameterSet` conforms with no
+  spurious `participant_id` violation.
 - **External-framework mappings — DONE (from verified anchors only).** The `engagement` layer
   carries `skos:relatedMatch` to BCIO `participant engagement with behaviour change intervention`
   (`BCIO_013000`, verified via EBI OLS) — relatedMatch, NOT closeMatch, because BCIO engagement
@@ -148,6 +158,11 @@ records, procedures, executions, inferred assertions, and time intervals into
 makes censoring indistinguishable from missing RDF, and lets a valid-looking graph drop
 unresolved people / silent device-days from denominators.
 
+> Notation: upper-type alignment below is asserted in the generated artifacts as
+> `skos:broadMatch` (the upper type is *broader*), NOT OWL class equivalence — read
+> "≡ X" as "is a kind of X". exactMatch is deliberately avoided (it would falsely make
+> all `prov:Entity` subclasses interchangeable); see `web/schema` for the mappings.
+
 **Raw event — three entities, not one:**
 - `PlatformEventOccurrence` — the Android lifecycle/system occurrence in the world
   (Activity Resumed/Paused/Stopped, Screen on/off, Keyguard, Shutdown/Startup). A
@@ -163,13 +178,14 @@ unresolved people / silent device-days from denominators.
   (a derived information entity — what the pipeline *claims*).
 - the phenomenon time it denotes ≡ `time:ProperInterval` (topology via OWL-Time Allen
   relations: `episode intervalDuring session`).
-- `ReconstructionExecution` ≡ `sosa:Execution` **and** `prov:Activity` (the run that
-  produced the assertion); the strategy it follows ≡ `sosa:Procedure` / `p-plan:Step`.
+- `ReconstructionExecution` ≡ `prov:Activity` (the run that produced the assertion);
+  the strategy it follows ≡ `sosa:Procedure`. (SOSA has no `Execution` class, and the
+  strategy is an algorithm, not a `p-plan:Step` — neither is asserted.)
 - `effectiveUsage` is an assertion whose interval = episode ∩ active-coverage — with the
   policy that produced it named (NOT asserted as physical truth; see gaps below).
 
 **Pipeline structure (P-Plan, corrected from D7):**
-- `PipelinePlan` ≡ `p-plan:Plan` / `prov:Plan`; `StepDefinition` ≡ `p-plan:Step` — the 14
+- `PipelinePlan` ≡ `p-plan:Plan` (itself a `prov:Plan` in P-Plan); `StepDefinition` ≡ `p-plan:Step` — the 14
   processing nodes (+ `outputs`), following sleep-scoring's `ProcessingStep` shape (id, verb,
   engine, consumes, produces, depends_on, phase, fatal).
 - `NodeExecution` ≡ `prov:Activity` with `used`/`generated` edges.

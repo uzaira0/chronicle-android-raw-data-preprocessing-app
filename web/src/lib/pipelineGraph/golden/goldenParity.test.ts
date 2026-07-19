@@ -9,13 +9,17 @@ import {
 } from "@/lib/pipelineGraph/golden/goldenScenario";
 
 /**
- * Byte-for-byte reproduction lock for the whole pipeline.
+ * Byte-for-byte reproduction lock for the covered pipeline configs.
  *
  * The recorded files under `expected/` ARE the algorithm outputs we already
  * produce; this test fails the moment any change (refactor or ontology work)
  * alters a byte. To (re)record the baseline after an INTENTIONAL output change,
  * run: `UPDATE_GOLDEN=1 npm test -- goldenParity`, then review the git diff of
  * the golden files as part of the change.
+ *
+ * Scope/exclusions are documented in goldenScenario.ts ("COVERAGE BOUNDARY"):
+ * the WASM concurrent-usage/background-apps branch is not exercised, and the
+ * embedded local timestamps are ICU/tz-sensitive — record on the pinned Node.
  */
 
 const EXPECTED_DIR = join(dirname(fileURLToPath(import.meta.url)), "expected");
@@ -52,8 +56,13 @@ describe("pipeline golden reproduction", () => {
     }
 
     // The set of produced outputs must match the recorded set exactly — a new or
-    // vanished output file is itself a change worth surfacing.
-    const recorded = existsSync(EXPECTED_DIR) ? readdirSync(EXPECTED_DIR).sort() : [];
+    // vanished output file is itself a change worth surfacing. Sort with the SAME
+    // comparator produceAll() uses (localeCompare); readdirSync().sort() defaults
+    // to UTF-16 code-unit order, which disagrees with localeCompare on case and
+    // punctuation and would raise a spurious ordering mismatch on identical sets.
+    const recorded = existsSync(EXPECTED_DIR)
+      ? readdirSync(EXPECTED_DIR).sort((a, b) => a.localeCompare(b))
+      : [];
     expect(recorded.length).toBeGreaterThan(0);
     expect([...produced.keys()]).toEqual(recorded);
 

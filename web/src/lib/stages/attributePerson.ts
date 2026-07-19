@@ -59,12 +59,23 @@ export type AttributionStatus = "target" | "known_non_target" | "unresolved";
 
 /**
  * Single source of truth for classifying a finalized username into its
- * attribution status. Chronicle attribution is a CLOSED vocabulary —
- * "Target Child", "Other" (survey answers arrive as "Other (From Survey)"),
- * or "None"/blank. "Other" is an attributed person (known); "None"/blank is
- * unresolved. `scoreCompliance` consumes this instead of classifying
- * usernames itself, keeping ONE definition aligned with the ontology's
- * `AttributionStatus` (docs/pipeline-graph/13-research-ontology-design.md).
+ * attribution status. The finalized-username vocabulary is CLOSED and produced
+ * entirely by `attributePerson` above — exactly:
+ *   "None", "Target Child", "Other", "Target Child (From Survey)", "Other (From Survey)"
+ * (plus blank/null on rows attribution never touched). A survey answer of "None"
+ * is IMPOSSIBLE: the survey only ever names the target child or "Other", which
+ * arrive suffixed "(From Survey)". "None" is solely the self-assigned unresolved
+ * token this module writes for unlabeled shared-device usage. Because the
+ * producer emits these canonical strings, the unresolved token is matched
+ * EXACTLY (`=== "None"`); the target arm stays a case-insensitive test so both
+ * "Target Child" and "Target Child (From Survey)" match:
+ *  - matches /target child/i (with/without survey suffix) → `target`
+ *  - blank/null, or exactly "None"                        → `unresolved`
+ *  - otherwise ("Other"/"Other (From Survey)")            → `known_non_target`
+ *
+ * `scoreCompliance` consumes this instead of re-deriving the buckets itself,
+ * keeping ONE definition aligned with the ontology's `AttributionStatus`
+ * (docs/pipeline-graph/13-research-ontology-design.md).
  */
 export function classifyAttribution(
   username: string | null | undefined,

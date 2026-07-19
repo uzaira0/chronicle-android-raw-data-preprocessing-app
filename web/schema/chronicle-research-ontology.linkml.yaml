@@ -151,7 +151,7 @@ classes:
 
   UsageEventRecord:
     description: The logged information artifact for one Android usage event. A prov:Entity, not an observation.
-    class_uri: prov:Entity
+    broad_mappings: [prov:Entity]
     slots:
       - event_timestamp_ns
       - event_code
@@ -166,29 +166,29 @@ classes:
     description: >-
       OPTIONAL. The OS logger's act of observing a device property, modeled only if that
       abstraction is genuinely needed. Do NOT type UsageEventRecord as this.
-    class_uri: sosa:Observation
+    broad_mappings: [sosa:Observation]
     slots: [observed_property, result_record]
 
   # ---- Time (OWL-Time) ----
   UsageInterval:
     description: A phenomenon-time interval a usage assertion denotes. A time:ProperInterval.
-    class_uri: time:ProperInterval
+    broad_mappings: [time:ProperInterval]
     slots: [start_instant, end_instant, duration_seconds, start_status, end_status]
 
   # ---- Derived assertions: assertion != interval != execution (D4) ----
   UsageEpisodeAssertion:
     description: A claim that one app was in continuous use over an interval. A derived prov:Entity (what the pipeline asserts, not a ground truth).
-    class_uri: prov:Entity
+    broad_mappings: [prov:Entity]
     slots: [denotes_interval, app_package_name, participant_id, reconstructed_by, attribution, measurement_layer]
 
   UsageSessionAssertion:
     description: A claim of continuous device use between unlock and lock. Derived prov:Entity.
-    class_uri: prov:Entity
+    broad_mappings: [prov:Entity]
     slots: [denotes_interval, participant_id, reconstructed_by, measurement_layer]
 
   GlanceAssertion:
     description: A claim that the screen activated then deactivated without an unlock. Derived prov:Entity.
-    class_uri: prov:Entity
+    broad_mappings: [prov:Entity]
     slots: [denotes_interval, participant_id, reconstructed_by, measurement_layer]
 
   EffectiveUsageMeasure:
@@ -196,7 +196,7 @@ classes:
       The effective-usage duration (episode interval intersected with active coverage,
       per a named policy). Cites the ParameterSet and execution that produced it. NOT
       asserted as physical truth — carries the coverage policy that produced it.
-    class_uri: prov:Entity
+    broad_mappings: [prov:Entity]
     slots: [participant_id, date, effective_minutes, denotes_interval, produced_by, cites_parameter_set, coverage_policy]
 
   # ---- Absence / observability (D4) ----
@@ -214,41 +214,41 @@ classes:
       Attribution of usage to a person. Exactly one status is required; an actual person
       is attached only when known. The participant-device-day denominator must satisfy
       duration conservation: target + known_non_target + unresolved = eligible.
-    class_uri: prov:Entity
+    broad_mappings: [prov:Entity]
     slots: [attribution_status, attributed_person, on_shared_device]
 
   # ---- Pipeline structure (P-Plan) — ParameterSet is config, NOT a Plan (D4/D7) ----
   PipelinePlan:
     description: The prospective processing workflow. A p-plan:Plan / prov:Plan.
-    class_uri: pplan:Plan
+    broad_mappings: [pplan:Plan]
     tree_root: true
     slots: [plan_id, steps]
 
   StepDefinition:
     description: One processing step in the plan (a graph node). A p-plan:Step. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on).
-    class_uri: pplan:Step
+    broad_mappings: [pplan:Step]
     slots: [step_id, verb, engine, consumes, produces, depends_on, is_fatal]
 
   NodeExecution:
     description: A retrospective execution of a StepDefinition. A prov:Activity.
-    class_uri: prov:Activity
+    broad_mappings: [prov:Activity]
     slots: [executes_step, used_parameter_set, started_at, ended_at]
 
   ReconstructionExecution:
-    description: The execution that produced a usage assertion. A prov:Activity (and sosa:Execution).
-    class_uri: prov:Activity
+    description: The execution that produced a usage assertion. A prov:Activity.
+    broad_mappings: [prov:Activity]
     slots: [follows_strategy, used_parameter_set]
 
   ReconstructionStrategy:
     description: A named, versioned episode-reconstruction algorithm (semantic category + canonical IRI). Subclass only where formal restrictions genuinely differ.
-    class_uri: sosa:Procedure
+    broad_mappings: [sosa:Procedure]
     slots: [strategy_id, strategy_kind, strategy_version, canonical_iri]
 
   ParameterSet:
     description: >-
       A content-addressed configuration entity — a set of ParameterBindings over the
       plan's variables. NOT a Plan: the plan is the workflow; this binds its variables.
-    class_uri: prov:Entity
+    broad_mappings: [prov:Entity]
     slots: [parameter_set_sha256, bindings]
 
   ParameterBinding:

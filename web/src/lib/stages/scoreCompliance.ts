@@ -62,7 +62,7 @@ export function scoreCompliance(
     }
     // Attribution status is decided ONCE in attributePerson; consume it here
     // rather than re-deriving from username substrings. Only genuinely
-    // unresolved usage is "unknown"; target and named non-target ("Sibling")
+    // unresolved usage ("None"/blank) is "unknown"; target child and "Other"
     // are both attributed = known.
     if (classifyAttribution(row.username) === "unresolved") bucket.unknown += minutes;
     else bucket.known += minutes;

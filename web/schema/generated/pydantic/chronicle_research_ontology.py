@@ -277,7 +277,7 @@ class UsageEventRecord(ConfiguredBaseModel):
     """
     The logged information artifact for one Android usage event. A prov:Entity, not an observation.
     """
-    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'class_uri': 'prov:Entity',
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['prov:Entity'],
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
 
     event_timestamp_ns: Optional[int] = Field(default=None, description="""Event timestamp in nanoseconds since epoch.""", json_schema_extra = { "linkml_meta": {'domain_of': ['UsageEventRecord']} })
@@ -299,7 +299,7 @@ class LoggingObservation(ConfiguredBaseModel):
     """
     OPTIONAL. The OS logger's act of observing a device property, modeled only if that abstraction is genuinely needed. Do NOT type UsageEventRecord as this.
     """
-    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'class_uri': 'sosa:Observation',
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['sosa:Observation'],
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
 
     observed_property: Optional[str] = Field(default=None, description="""The device property the logger observed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['LoggingObservation']} })
@@ -310,7 +310,7 @@ class UsageInterval(ConfiguredBaseModel):
     """
     A phenomenon-time interval a usage assertion denotes. A time:ProperInterval.
     """
-    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'class_uri': 'time:ProperInterval',
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['time:ProperInterval'],
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
 
     start_instant: Optional[str] = Field(default=None, description="""Interval start instant.""", json_schema_extra = { "linkml_meta": {'domain_of': ['UsageInterval']} })
@@ -324,7 +324,7 @@ class UsageEpisodeAssertion(ConfiguredBaseModel):
     """
     A claim that one app was in continuous use over an interval. A derived prov:Entity (what the pipeline asserts, not a ground truth).
     """
-    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'class_uri': 'prov:Entity',
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['prov:Entity'],
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
 
     denotes_interval: Optional[UsageInterval] = Field(default=None, description="""The phenomenon-time interval this assertion denotes.""", json_schema_extra = { "linkml_meta": {'domain_of': ['UsageEpisodeAssertion',
@@ -351,7 +351,7 @@ class UsageSessionAssertion(ConfiguredBaseModel):
     """
     A claim of continuous device use between unlock and lock. Derived prov:Entity.
     """
-    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'class_uri': 'prov:Entity',
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['prov:Entity'],
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
 
     denotes_interval: Optional[UsageInterval] = Field(default=None, description="""The phenomenon-time interval this assertion denotes.""", json_schema_extra = { "linkml_meta": {'domain_of': ['UsageEpisodeAssertion',
@@ -376,7 +376,7 @@ class GlanceAssertion(ConfiguredBaseModel):
     """
     A claim that the screen activated then deactivated without an unlock. Derived prov:Entity.
     """
-    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'class_uri': 'prov:Entity',
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['prov:Entity'],
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
 
     denotes_interval: Optional[UsageInterval] = Field(default=None, description="""The phenomenon-time interval this assertion denotes.""", json_schema_extra = { "linkml_meta": {'domain_of': ['UsageEpisodeAssertion',
@@ -401,7 +401,7 @@ class EffectiveUsageMeasure(ConfiguredBaseModel):
     """
     The effective-usage duration (episode interval intersected with active coverage, per a named policy). Cites the ParameterSet and execution that produced it. NOT asserted as physical truth — carries the coverage policy that produced it.
     """
-    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'class_uri': 'prov:Entity',
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['prov:Entity'],
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
 
     participant_id: str = Field(default=..., description="""Participant/device identifier (string, always).""", json_schema_extra = { "linkml_meta": {'domain_of': ['UsageEventRecord',
@@ -446,7 +446,7 @@ class AttributionAssertion(ConfiguredBaseModel):
     """
     Attribution of usage to a person. Exactly one status is required; an actual person is attached only when known. The participant-device-day denominator must satisfy duration conservation: target + known_non_target + unresolved = eligible.
     """
-    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'class_uri': 'prov:Entity',
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['prov:Entity'],
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
 
     attribution_status: AttributionStatus = Field(default=..., description="""Required attribution status.""", json_schema_extra = { "linkml_meta": {'domain_of': ['AttributionAssertion']} })
@@ -458,7 +458,7 @@ class PipelinePlan(ConfiguredBaseModel):
     """
     The prospective processing workflow. A p-plan:Plan / prov:Plan.
     """
-    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'class_uri': 'pplan:Plan',
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['pplan:Plan'],
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core',
          'tree_root': True})
 
@@ -470,7 +470,7 @@ class StepDefinition(ConfiguredBaseModel):
     """
     One processing step in the plan (a graph node). A p-plan:Step. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on).
     """
-    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'class_uri': 'pplan:Step',
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['pplan:Step'],
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
 
     step_id: str = Field(default=..., description="""Step identifier (= graph node id).""", json_schema_extra = { "linkml_meta": {'domain_of': ['StepDefinition']} })
@@ -486,7 +486,7 @@ class NodeExecution(ConfiguredBaseModel):
     """
     A retrospective execution of a StepDefinition. A prov:Activity.
     """
-    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'class_uri': 'prov:Activity',
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['prov:Activity'],
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
 
     executes_step: Optional[str] = Field(default=None, description="""The StepDefinition this execution runs.""", json_schema_extra = { "linkml_meta": {'domain_of': ['NodeExecution']} })
@@ -497,9 +497,9 @@ class NodeExecution(ConfiguredBaseModel):
 
 class ReconstructionExecution(ConfiguredBaseModel):
     """
-    The execution that produced a usage assertion. A prov:Activity (and sosa:Execution).
+    The execution that produced a usage assertion. A prov:Activity.
     """
-    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'class_uri': 'prov:Activity',
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['prov:Activity'],
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
 
     follows_strategy: Optional[str] = Field(default=None, description="""The reconstruction strategy followed.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ReconstructionExecution']} })
@@ -510,7 +510,7 @@ class ReconstructionStrategy(ConfiguredBaseModel):
     """
     A named, versioned episode-reconstruction algorithm (semantic category + canonical IRI). Subclass only where formal restrictions genuinely differ.
     """
-    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'class_uri': 'sosa:Procedure',
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['sosa:Procedure'],
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
 
     strategy_id: str = Field(default=..., description="""Strategy identifier (unique key).""", json_schema_extra = { "linkml_meta": {'domain_of': ['ReconstructionStrategy']} })
@@ -523,7 +523,7 @@ class ParameterSet(ConfiguredBaseModel):
     """
     A content-addressed configuration entity — a set of ParameterBindings over the plan's variables. NOT a Plan: the plan is the workflow; this binds its variables.
     """
-    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'class_uri': 'prov:Entity',
+    linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['prov:Entity'],
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
 
     parameter_set_sha256: Optional[str] = Field(default=None, description="""Content-addressed hash of the canonical parameter set.""", json_schema_extra = { "linkml_meta": {'domain_of': ['ParameterSet']} })

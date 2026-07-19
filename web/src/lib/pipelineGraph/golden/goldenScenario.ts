@@ -27,11 +27,26 @@ import type {
  * Determinism by construction:
  *  - `proximityIntervalSeconds` stays at its default (2s), so the REAL in-process
  *    JS proximity matcher runs — no WASM, no injected mock. The `runMatcher` /
- *    `runSplitter` stubs THROW, proving the real matcher path is exercised and no
- *    concurrent split is taken.
+ *    `runSplitter` stubs THROW, so if any covered config were to route to the
+ *    WASM matcher or the concurrent-usage splitter the run would fail loudly
+ *    rather than pass on mocked output. (The throw guards the WASM *fallback*; it
+ *    does not by itself assert the matcher was invoked — every current scenario
+ *    feeds `Activity Resumed` rows so it is, and the byte-lock below is the actual
+ *    regression guard.)
  *  - `datetimeOfPreprocessing` is pinned, so stamped output columns are fixed.
  *  - Plotting/heatmaps (the only canvas-touching steps) are off; they are
  *    visualization, not algorithm output.
+ *
+ * COVERAGE BOUNDARY (do not read this as "the whole pipeline"):
+ *  - The concurrent-usage / background-apps branch is NOT locked. It requires the
+ *    WASM splitter, which is deliberately stubbed to throw here, so no scenario
+ *    sets `modelConcurrentUsage` or supplies a background-apps file. The
+ *    `usage_layer` column and Co-Usage aggregate are therefore not exercised by
+ *    any golden — changes to that branch will not fail this test.
+ *  - Outputs embed `Intl.DateTimeFormat`-rendered local timestamps, whose bytes
+ *    depend on the runtime's ICU/tz data. Record and verify goldens on the pinned
+ *    toolchain (web/.node-version); an ICU/tz-rule change can shift bytes with no
+ *    real algorithm change (re-record with `UPDATE_GOLDEN=1` only on that pin).
  *
  * ONE PARTICIPANT PER SCENARIO. The matcher keys sessions on `app_package_name`,
  * not participant (production feeds one raw file per participant), so mixing

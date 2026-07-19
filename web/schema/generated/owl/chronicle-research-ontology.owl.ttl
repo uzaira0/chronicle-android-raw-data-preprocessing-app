@@ -260,8 +260,8 @@ chron:EffectiveUsageMeasure
             owl:maxCardinality 1 ;
             owl:onProperty chron:denotes_interval ;
         ] ;
+    skos:broadMatch prov:Entity ;
     skos:definition "The effective-usage duration (episode interval intersected with active coverage, per a named policy). Cites the ParameterSet and execution that produced it. NOT asserted as physical truth — carries the coverage policy that produced it." ;
-    skos:exactMatch prov:Entity ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -329,8 +329,8 @@ chron:GlanceAssertion
             owl:maxCardinality 1 ;
             owl:onProperty chron:denotes_interval ;
         ] ;
+    skos:broadMatch prov:Entity ;
     skos:definition "A claim that the screen activated then deactivated without an unlock. Derived prov:Entity." ;
-    skos:exactMatch prov:Entity ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -368,8 +368,8 @@ chron:LoggingObservation
             owl:maxCardinality 1 ;
             owl:onProperty chron:observed_property ;
         ] ;
+    skos:broadMatch sosa:Observation ;
     skos:definition "OPTIONAL. The OS logger's act of observing a device property, modeled only if that abstraction is genuinely needed. Do NOT type UsageEventRecord as this." ;
-    skos:exactMatch sosa:Observation ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -402,8 +402,8 @@ chron:PipelinePlan
             owl:allValuesFrom chron:StepDefinition ;
             owl:onProperty chron:steps ;
         ] ;
+    skos:broadMatch pplan:Plan ;
     skos:definition "The prospective processing workflow. A p-plan:Plan / prov:Plan." ;
-    skos:exactMatch pplan:Plan ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -501,8 +501,8 @@ chron:UsageEpisodeAssertion
             owl:maxCardinality 1 ;
             owl:onProperty chron:denotes_interval ;
         ] ;
+    skos:broadMatch prov:Entity ;
     skos:definition "A claim that one app was in continuous use over an interval. A derived prov:Entity (what the pipeline asserts, not a ground truth)." ;
-    skos:exactMatch prov:Entity ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -570,8 +570,8 @@ chron:UsageSessionAssertion
             owl:maxCardinality 1 ;
             owl:onProperty chron:denotes_interval ;
         ] ;
+    skos:broadMatch prov:Entity ;
     skos:definition "A claim of continuous device use between unlock and lock. Derived prov:Entity." ;
-    skos:exactMatch prov:Entity ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -624,8 +624,8 @@ chron:AttributionAssertion
             owl:maxCardinality 1 ;
             owl:onProperty chron:attributed_person ;
         ] ;
+    skos:broadMatch prov:Entity ;
     skos:definition "Attribution of usage to a person. Exactly one status is required; an actual person is attached only when known. The participant-device-day denominator must satisfy duration conservation: target + known_non_target + unresolved = eligible." ;
-    skos:exactMatch prov:Entity ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -871,8 +871,8 @@ chron:NodeExecution
             owl:allValuesFrom chron:StepDefinition ;
             owl:onProperty chron:executes_step ;
         ] ;
+    skos:broadMatch prov:Activity ;
     skos:definition "A retrospective execution of a StepDefinition. A prov:Activity." ;
-    skos:exactMatch prov:Activity ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -1016,8 +1016,8 @@ chron:ReconstructionStrategy
             owl:maxCardinality 1 ;
             owl:onProperty chron:strategy_kind ;
         ] ;
+    skos:broadMatch sosa:Procedure ;
     skos:definition "A named, versioned episode-reconstruction algorithm (semantic category + canonical IRI). Subclass only where formal restrictions genuinely differ." ;
-    skos:exactMatch sosa:Procedure ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -1166,8 +1166,8 @@ chron:UsageEventRecord
             owl:allValuesFrom xsd:integer ;
             owl:onProperty chron:event_timestamp_ns ;
         ] ;
+    skos:broadMatch prov:Entity ;
     skos:definition "The logged information artifact for one Android usage event. A prov:Entity, not an observation." ;
-    skos:exactMatch prov:Entity ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -1589,8 +1589,8 @@ chron:ReconstructionExecution
             owl:allValuesFrom chron:ReconstructionStrategy ;
             owl:onProperty chron:follows_strategy ;
         ] ;
-    skos:definition "The execution that produced a usage assertion. A prov:Activity (and sosa:Execution)." ;
-    skos:exactMatch prov:Activity ;
+    skos:broadMatch prov:Activity ;
+    skos:definition "The execution that produced a usage assertion. A prov:Activity." ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -1688,8 +1688,8 @@ chron:StepDefinition
             owl:allValuesFrom xsd:string ;
             owl:onProperty chron:produces ;
         ] ;
+    skos:broadMatch pplan:Step ;
     skos:definition "One processing step in the plan (a graph node). A p-plan:Step. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on)." ;
-    skos:exactMatch pplan:Step ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -1738,8 +1738,8 @@ chron:ParameterSet
             owl:allValuesFrom chron:ParameterBinding ;
             owl:onProperty chron:bindings ;
         ] ;
+    skos:broadMatch prov:Entity ;
     skos:definition "A content-addressed configuration entity — a set of ParameterBindings over the plan's variables. NOT a Plan: the plan is the workflow; this binds its variables." ;
-    skos:exactMatch prov:Entity ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
@@ -1888,8 +1888,8 @@ chron:UsageInterval
             owl:maxCardinality 1 ;
             owl:onProperty chron:start_status ;
         ] ;
+    skos:broadMatch time:ProperInterval ;
     skos:definition "A phenomenon-time interval a usage assertion denotes. A time:ProperInterval." ;
-    skos:exactMatch time:ProperInterval ;
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 

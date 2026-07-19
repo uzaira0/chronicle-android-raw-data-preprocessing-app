@@ -197,9 +197,10 @@ describe("compliance scoring", () => {
   });
 
   it("closed attribution vocabulary {Target Child, Other, None}: Target Child + Other are KNOWN, None is unknown", () => {
-    // Chronicle attribution is a CLOSED set — Target Child / Other / None
-    // (survey answers arrive as "Other (From Survey)"). "Other" is an
-    // attributed person = known; only "None"/blank is unresolved = unknown.
+    // The finalized-username vocabulary is CLOSED — exactly Target Child / Other
+    // / None (survey answers name only Target Child or Other, arriving suffixed
+    // "(From Survey)"). "Other" is an attributed person = known; only "None"/blank
+    // is unresolved = unknown. A survey answer of "None" is impossible.
     const rows = [
       row({ username: "Target Child", duration_minutes: 20 }),
       row({ username: "Other", duration_minutes: 20, interaction_type: NON_TARGET }),
@@ -212,12 +213,14 @@ describe("compliance scoring", () => {
     expect(result.days[0]!.compliancePercent).toBe(75);
   });
 
-  it("classifyAttribution maps the closed vocabulary correctly", () => {
+  it("classifyAttribution maps the closed vocabulary exactly", () => {
+    // The exhaustive finalized vocabulary — no other value is producible.
     expect(classifyAttribution("Target Child")).toBe("target");
     expect(classifyAttribution("Target Child (From Survey)")).toBe("target");
     expect(classifyAttribution("Other")).toBe("known_non_target");
     expect(classifyAttribution("Other (From Survey)")).toBe("known_non_target");
     expect(classifyAttribution("None")).toBe("unresolved");
+    // blank/null: rows attribution never touched
     expect(classifyAttribution("")).toBe("unresolved");
     expect(classifyAttribution(null)).toBe("unresolved");
   });

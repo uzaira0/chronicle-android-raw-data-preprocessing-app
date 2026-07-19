@@ -428,7 +428,7 @@
         },
         "ReconstructionExecution": {
             "additionalProperties": false,
-            "description": "The execution that produced a usage assertion. A prov:Activity (and sosa:Execution).",
+            "description": "The execution that produced a usage assertion. A prov:Activity.",
             "properties": {
                 "follows_strategy": {
                     "description": "The reconstruction strategy followed.",
