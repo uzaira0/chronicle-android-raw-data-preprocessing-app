@@ -1,3 +1,5 @@
+import { Graph, alg } from "@dagrejs/graphlib";
+
 import type {
   GraphDef,
   NodeDef,
@@ -45,42 +47,39 @@ function stableStringify(value: unknown): string {
   });
 }
 
-/** Kahn topological sort. Throws on unknown input references and cycles. */
+/**
+ * Topological execution order via graphlib's `alg.topsort` (the graph library
+ * dagre already ships). We keep the two domain validations graphlib does not do
+ * — duplicate node ids and feeds-from-unknown-node — and translate its generic
+ * CycleException into a message naming the nodes on the cycle. Every edge runs
+ * input → consumer, so the result orders each input before every node that
+ * reads it; the engine's outputs are order-independent across valid sorts.
+ */
 export function topoSort(def: GraphDef<unknown>): string[] {
   const byId = new Map<string, NodeDef<unknown>>();
   for (const node of def.nodes) {
     if (byId.has(node.id)) throw new Error(`pipelineGraph: duplicate node id "${node.id}"`);
     byId.set(node.id, node);
   }
-  const dependents = new Map<string, string[]>();
-  const inDegree = new Map<string, number>();
+  const graph = new Graph({ directed: true });
+  for (const node of def.nodes) graph.setNode(node.id);
   for (const node of def.nodes) {
-    inDegree.set(node.id, node.inputs.length);
     for (const input of node.inputs) {
       if (!byId.has(input)) {
         throw new Error(`pipelineGraph: node "${node.id}" feeds from unknown node "${input}"`);
       }
-      const list = dependents.get(input) ?? [];
-      list.push(node.id);
-      dependents.set(input, list);
+      graph.setEdge(input, node.id);
     }
   }
-  const queue = def.nodes.filter((node) => node.inputs.length === 0).map((node) => node.id);
-  const order: string[] = [];
-  while (queue.length > 0) {
-    const id = queue.shift()!;
-    order.push(id);
-    for (const dependent of dependents.get(id) ?? []) {
-      const remaining = inDegree.get(dependent)! - 1;
-      inDegree.set(dependent, remaining);
-      if (remaining === 0) queue.push(dependent);
+  try {
+    return alg.topsort(graph);
+  } catch (error) {
+    if (error instanceof alg.CycleException) {
+      const stuck = [...new Set(alg.findCycles(graph).flat())];
+      throw new Error(`pipelineGraph: cycle involving [${stuck.join(", ")}]`);
     }
+    throw error;
   }
-  if (order.length !== def.nodes.length) {
-    const stuck = def.nodes.filter((node) => !order.includes(node.id)).map((node) => node.id);
-    throw new Error(`pipelineGraph: cycle involving [${stuck.join(", ")}]`);
-  }
-  return order;
 }
 
 interface CacheEntry {

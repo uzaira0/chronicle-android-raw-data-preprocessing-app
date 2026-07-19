@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
+    "@dagrejs/graphlib": "^4.0.1",
     "@xyflow/react": "^12.11.2",
     "comlink": "^4.4.2",
     "hyparquet-writer": "^0.15.6",
