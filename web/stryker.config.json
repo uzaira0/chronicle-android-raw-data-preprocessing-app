@@ -1,17 +1,27 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Mutation-scores the validation suite itself (research doc step 7): mutants that survive mark assertions the graph/report tests do not actually pin. Scoped to the pure, fast modules — the graph engine and the provenance builders — so a full run stays in CI-viable time. Run: make mutation (repo root) or npx stryker run (web/).",
+  "_comment": "Mutation-scores the validation suite itself (research doc step 7): mutants that survive mark assertions the graph/step/report tests do not actually pin. Scope = the execution spine (engine, step runner/graph, step wirings, stage logic) plus the provenance builders. Run: make mutation (repo root) or npx stryker run (web/). `break` is set a few points under the measured score so regressions bite without flaking; re-measure before raising it.",
   "mutate": [
     "src/lib/pipelineGraph/engine.ts",
+    "src/lib/pipelineGraph/stepRunner.ts",
+    "src/lib/pipelineGraph/stepGraph.ts",
+    "src/lib/pipelineGraph/executionRecords.ts",
+    "src/lib/pipelineGraph/steps/**/*.ts",
+    "!src/lib/pipelineGraph/steps/index.ts",
+    "src/lib/stages/**/*.ts",
+    "!src/lib/**/*.test.ts",
     "src/lib/processingReport.ts"
   ],
+  "_ignoreStatic_comment": "Static mutants (module-load wiring literals: unit-id strings, wireUnit name args, steps arrays) are false-survivors under the vitest runner: the mutated init runs during the untracked initial import and is module-cached, so the active-mutant gate never sees it. Proven empirically 2026-07-20 — stepGraph.test.ts asserts the exact literal values (e.g. intervalCleaningWiring.unit === 'interval_cleaning') and the corresponding mutants still survived. 45 such false-survivors vs 516 statics the fresh-process path does kill; ignoring statics trades those detections away for an honest denominator.",
+  "ignoreStatic": true,
   "testRunner": "vitest",
   "vitest": {
     "configFile": "vitest.config.ts"
   },
   "coverageAnalysis": "perTest",
-  "reporters": ["clear-text", "progress"],
-  "thresholds": { "high": 90, "low": 75, "break": null },
+  "reporters": ["clear-text", "progress", "json", "html"],
+  "_thresholds_comment": "Measured 2026-07-20 after the survivor burn-down (two verify-by-injection rounds, +160 tests): 96.22% with ignoreStatic (1,835 detected / 72 survived / 0 no-coverage). The 72 survivors are documented-equivalent mutants (proofs in the burn-down session notes: comparator sign-only sorts, boundary ties selecting equal values, subsumed guards, coercion identities). break=93 bites on regression without flaking on mutant-set drift; re-measure before raising.",
+  "thresholds": { "high": 95, "low": 90, "break": 93 },
   "tempDirName": ".stryker-tmp",
   "cleanTempDir": true
 }

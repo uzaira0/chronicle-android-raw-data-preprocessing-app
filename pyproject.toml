@@ -72,6 +72,27 @@ optional = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+# Collect ONLY tests/ — a bare rootdir walk also collects the mutmut sandbox
+# (mutants/tests/*, same module basenames) and dies on import-file mismatch.
+testpaths = ["tests"]
+
+# Python mutation twin of the web Stryker gate (make mutation-python,
+# local-only). Scoped to the desktop engine's preprocessing core — the
+# parity-relevant logic — so a run stays overnight-viable. mutmut 3 runs
+# pytest in-process: install mutmut into the project venv
+# (.venv/bin/pip install mutmut) so the engine's deps resolve.
+[tool.mutmut]
+source_paths = ["src/chronicle_preprocessing_app/core/preprocessing/"]
+pytest_add_cli_args_test_selection = ["tests/"]
+# The mutants/ sandbox gets only source_paths by default; the engine imports
+# the whole package (config, data, the optional Rust matcher .so), and some
+# tests resolve repo-root fixture files — copy all of them into the sandbox
+# (web/src/assets/defaults feeds the web/desktop filter-file parity test).
+also_copy = [
+    "src/chronicle_preprocessing_app/",
+    "apps_to_filter_files/",
+    "web/src/assets/defaults/",
+]
 
 # research-canonical: python-config v1 — adopted canonical ruff + basedpyright baseline.
 [tool.ruff]
