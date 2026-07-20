@@ -82,6 +82,21 @@ Everything below serves this ordering: reproduce first, then justify/visualize/v
   is intervention-scoped and a chronicle app generally isn't an intervention. The Shaleha 2026
   framework (no class IRIs) is referenced via `rdfs:seeAlso` its DOI + a `skos:note` on the
   objective-log modality axis, not class-mapped. Verified the CURIE expands to the full BCIO IRI.
+- **Runtime lineage projected into the sidecar — DONE (2026-07, execution-lineage wave).**
+  The run-level `prov:Activity` sidecar grew per-node lineage: every unit and step execution
+  is a `chron:NodeExecution` activity (file-scoped IRIs
+  `urn:chronicle:nodeexec:{runId}:{file}:{unitId}[:{stepId}]`) with `chron:executes_step` →
+  minted typed `chron:StepDefinition` nodes (`chron:part_of_step` recursion),
+  `chron:used_parameter_set` → the content-addressed ParameterSet,
+  `prov:startedAtTime`/`endedAtTime`, row counts and dropped-row loss accounting, and
+  `dcterms:isPartOf` nesting of step under unit executions. Source of truth is the
+  `ExecutionLedger` (`executionRecords.ts`) — engine + step-runner records assembled once in
+  browserPipeline; the manifest, the sidecar, and the Graph-panel metrics are projections of
+  that single ledger. A7 (`chron:NodeExecutionContractShape`) extends the hand-authored
+  axioms; `make -C web/schema check` now also emits a REAL golden-scenario sidecar and
+  pyshacl-validates it against the merged shapes (`validate-sidecar`), so the loop
+  runtime-JSON-LD → SHACL is closed, not aspirational. Expectations riding the ledger are
+  warn-only by contract — provenance describes, never decides.
 - **Still deferred (documented, NOT invented):** BFO-vs-DOLCE upper grounding — federate later via
   an SSSOM mapping set, don't re-ground this module (doc 13 D2).
 

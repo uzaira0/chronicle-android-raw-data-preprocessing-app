@@ -42,6 +42,14 @@ claims were verified true against the source code before adoption.
    `truncated_secs`, `day_flags`) are kept but are NOT sufficient: splits and collapses need
    an append-only ledger with source-row/parent-interval IDs, node/preset/version/config
    hashes, action/reason, old/new values, one-to-many relations.
+   ✎ **REALIZED at execution granularity (2026-07, execution-lineage wave):** the
+   `ExecutionLedger` (`src/lib/pipelineGraph/executionRecords.ts`) records every unit and
+   step execution — status, rows in/out, declared/derived dropped-row counts under a
+   `rowsIn = rowsOut + dropped` conservation law, warn-only expectation results, and
+   wall-clock timing — assembled once in browserPipeline and projected verbatim into the
+   run manifest and into per-node `chron:NodeExecution` activities in the PROV-O sidecar
+   (SHACL-validated by `make -C web/schema check`). Per-ROW lineage
+   (source-row/parent-interval IDs for splits and collapses) remains the open remainder.
 5. **Conditional bindings** — broadened beyond device class + screen capability: conditions
    may reference profile, stream, asserted capabilities, witness coverage
    (`screen_witness_coverage = none|on_only|off_only|both` — never silently promoted to
