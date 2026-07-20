@@ -28,7 +28,7 @@ const CSV = [
   "S,P100,,Game,Activity Paused,com.example.game,2026-03-07 10:30:00,America/Chicago",
 ].join("\n");
 
-const matcher = async (input: MatcherInput): Promise<MatcherOutput> => {
+const matcher = (input: MatcherInput): Promise<MatcherOutput> => {
   // Pair each resume with the next same/other-stop event after it.
   const startIndices: number[] = [];
   const stopStartIndices: number[] = [];
@@ -44,11 +44,11 @@ const matcher = async (input: MatcherInput): Promise<MatcherOutput> => {
       }
     }
   }
-  return { startIndices, stopStartIndices, stopEventIndices, missingIndices: [] };
+  return Promise.resolve({ startIndices, stopStartIndices, stopEventIndices, missingIndices: [] });
 };
 
 function supportFile(name: string, text: string): BrowserSupportFile {
-  return { name, bytes: new TextEncoder().encode(text).buffer as ArrayBuffer };
+  return { name, bytes: new TextEncoder().encode(text).buffer };
 }
 
 const BASE_OPTIONS: Partial<BrowserProcessingOptions> = {

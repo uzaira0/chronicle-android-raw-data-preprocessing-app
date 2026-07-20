@@ -15,7 +15,8 @@ function formatValue(value: unknown): string {
   if (Array.isArray(value)) return value.length ? value.join(", ") : "(none)";
   if (typeof value === "boolean") return value ? "on" : "off";
   if (value === undefined || value === "") return "(default)";
-  return String(value);
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  return "(invalid)";
 }
 
 const KIND_LABEL: Record<OutputKind, string> = {

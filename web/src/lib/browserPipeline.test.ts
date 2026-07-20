@@ -26,12 +26,12 @@ import {
 // tested directly in heatmap.test.ts.
 vi.mock("@/lib/plotGenerator", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/plotGenerator")>()),
-  generateAllPlots: vi.fn(async () => new Map()),
-  generateAllScreenPlots: vi.fn(async () => new Map()),
-  generateAllScreenPlotSvgs: vi.fn(async () => new Map()),
-  generateAllHeatmaps: vi.fn(async () => new Map()),
-  generateAllPlotSvgs: vi.fn(async () => new Map()),
-  generateAllHeatmapSvgs: vi.fn(async () => new Map()),
+  generateAllPlots: vi.fn(() => Promise.resolve(new Map())),
+  generateAllScreenPlots: vi.fn(() => Promise.resolve(new Map())),
+  generateAllScreenPlotSvgs: vi.fn(() => Promise.resolve(new Map())),
+  generateAllHeatmaps: vi.fn(() => Promise.resolve(new Map())),
+  generateAllPlotSvgs: vi.fn(() => Promise.resolve(new Map())),
+  generateAllHeatmapSvgs: vi.fn(() => Promise.resolve(new Map())),
 }));
 import type {
   LayeredSessionRow,
@@ -39,7 +39,6 @@ import type {
   MatcherOutput,
   ProgressEvent,
   ProgressStepKind,
-  SplitterInput,
   SplitterOutput,
 } from "@/lib/types";
 
@@ -72,7 +71,7 @@ describe("browserPipeline", () => {
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,America/Chicago",
     ].join("\n");
 
-    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+    const matcher = (): Promise<MatcherOutput> => Promise.resolve({
       startIndices: [0],
       stopStartIndices: [0],
       stopEventIndices: [1],
@@ -108,7 +107,7 @@ describe("browserPipeline", () => {
       "Study,P01,Target Child,System,Unknown importance: 16,android,2026-03-07 10:00:20,America/Chicago",
     ].join("\n");
 
-    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+    const matcher = (): Promise<MatcherOutput> => Promise.resolve({
       startIndices: [1],
       stopStartIndices: [1],
       stopEventIndices: [2],
@@ -134,7 +133,7 @@ describe("browserPipeline", () => {
     expect(result.outputs[0]?.kind).toBe("app");
     expect(await readOutputCsv(result.outputs[0].blob)).toContain("App Usage");
     expect(result.outputs[1]?.kind).toBe("screen");
-    const screenCsv = await readOutputCsv(result.outputs[1]!.blob);
+    const screenCsv = await readOutputCsv(result.outputs[1].blob);
     expect(screenCsv).toContain("Screen Usage");
     expect(screenCsv).toContain("probable_manual_lock");
   });
@@ -152,7 +151,7 @@ describe("browserPipeline", () => {
 
   // Matcher indices are positions in the full sorted row array: the chat session
   // spans rows 1→2; the 03-08 screen event (row 4) is never matched.
-  const placeholderMatcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+  const placeholderMatcher = (): Promise<MatcherOutput> => Promise.resolve({
     startIndices: [1],
     stopStartIndices: [1],
     stopEventIndices: [2],
@@ -225,7 +224,7 @@ describe("browserPipeline", () => {
       "com.example.disagree,Disagree,NEWS_AND_MAGAZINES,SOCIAL,SOCIAL",
     ].join("\n");
 
-    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+    const matcher = (): Promise<MatcherOutput> => Promise.resolve({
       startIndices: [0, 2],
       stopStartIndices: [0, 2],
       stopEventIndices: [1, 3],
@@ -264,7 +263,7 @@ describe("browserPipeline", () => {
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:01:00,America/Chicago",
     ].join("\n");
 
-    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+    const matcher = (): Promise<MatcherOutput> => Promise.resolve({
       startIndices: [0],
       stopStartIndices: [0],
       stopEventIndices: [1],
@@ -303,16 +302,16 @@ describe("browserPipeline", () => {
       "com.example.filtered,Filtered",
     ].join("\n");
 
-    const matcher = async (input: MatcherInput): Promise<MatcherOutput> => {
+    const matcher = (input: MatcherInput): Promise<MatcherOutput> => {
       const resumedIndices = Array.from(input.resumed)
         .map((value, index) => (value ? index : -1))
         .filter((index) => index >= 0);
-      return {
+      return Promise.resolve({
         startIndices: resumedIndices,
         stopStartIndices: [],
         stopEventIndices: [],
         missingIndices: resumedIndices,
-      };
+      });
     };
 
     const result = await processRawCsvContent(
@@ -367,11 +366,11 @@ describe("browserPipeline", () => {
     const backgroundCsv = ["package_name,label_or_note", "com.spotify.music,Audio"].join("\n");
 
     let captured: MatcherInput | null = null;
-    const matcher = async (input: MatcherInput): Promise<MatcherOutput> => {
+    const matcher = (input: MatcherInput): Promise<MatcherOutput> => {
       captured = input;
-      return { startIndices: [], stopStartIndices: [], stopEventIndices: [], missingIndices: [] };
+      return Promise.resolve({ startIndices: [], stopStartIndices: [], stopEventIndices: [], missingIndices: [] });
     };
-    const splitter = async (_input: SplitterInput): Promise<SplitterOutput> => [];
+    const splitter = (): Promise<SplitterOutput> => Promise.resolve([]);
 
     await processRawCsvContent(
       "Raw P01.csv",
@@ -417,9 +416,9 @@ describe("browserPipeline", () => {
 
     const runWith = async (interactionTypeRemap: string[]): Promise<MatcherInput> => {
       let captured: MatcherInput | null = null;
-      const matcher = async (input: MatcherInput): Promise<MatcherOutput> => {
+      const matcher = (input: MatcherInput): Promise<MatcherOutput> => {
         captured = input;
-        return { startIndices: [], stopStartIndices: [], stopEventIndices: [], missingIndices: [] };
+        return Promise.resolve({ startIndices: [], stopStartIndices: [], stopEventIndices: [], missingIndices: [] });
       };
       await processRawCsvContent(
         "Raw P01.csv",
@@ -456,7 +455,7 @@ describe("browserPipeline", () => {
       "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
       "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago",
     ].join("\n");
-    const matcher = async (): Promise<MatcherOutput> => ({
+    const matcher = (): Promise<MatcherOutput> => Promise.resolve({
       startIndices: [0],
       stopStartIndices: [0],
       stopEventIndices: [1],
@@ -508,7 +507,7 @@ describe("browserPipeline", () => {
       "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
       "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago",
     ].join("\n");
-    const matcher = async (): Promise<MatcherOutput> => ({
+    const matcher = (): Promise<MatcherOutput> => Promise.resolve({
       startIndices: [0],
       stopStartIndices: [0],
       stopEventIndices: [1],
@@ -556,13 +555,13 @@ describe("browserPipeline", () => {
     expect(rows).toHaveLength(appCsv.rowCount);
 
     // Parquet columns mirror the CSV header exactly (set equality).
-    const csvHeader = (await appCsv.blob.text()).split("\n")[0]!.split(",");
-    expect(new Set(Object.keys(rows[0]!))).toEqual(new Set(csvHeader));
+    const csvHeader = (await appCsv.blob.text()).split("\n")[0].split(",");
+    expect(new Set(Object.keys(rows[0]))).toEqual(new Set(csvHeader));
 
     // Native dtypes preserved: strings stay strings, numerics are real numbers.
-    expect(rows[0]!.participant_id).toBe("P01");
-    expect(typeof rows[0]!.duration_minutes).toBe("number");
-    expect(typeof rows[0]!.day).toBe("number");
+    expect(rows[0].participant_id).toBe("P01");
+    expect(typeof rows[0].duration_minutes).toBe("number");
+    expect(typeof rows[0].day).toBe("number");
 
     // Invariant: EVERY declared-numeric column reads back as a number (or null) —
     // catches drift between the type map and the row*ParquetCells overrides.
@@ -585,7 +584,7 @@ describe("browserPipeline", () => {
       "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
       "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago",
     ].join("\n");
-    const matcher = async (): Promise<MatcherOutput> => ({
+    const matcher = (): Promise<MatcherOutput> => Promise.resolve({
       startIndices: [0],
       stopStartIndices: [0],
       stopEventIndices: [1],
@@ -632,7 +631,7 @@ describe("browserPipeline", () => {
       "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
       "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago",
     ].join("\n");
-    const matcher = async (): Promise<MatcherOutput> => ({
+    const matcher = (): Promise<MatcherOutput> => Promise.resolve({
       startIndices: [0],
       stopStartIndices: [0],
       stopEventIndices: [1],
@@ -684,7 +683,7 @@ describe("browserPipeline", () => {
       "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago",
       "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago",
     ].join("\n");
-    const matcher = async (): Promise<MatcherOutput> => ({
+    const matcher = (): Promise<MatcherOutput> => Promise.resolve({
       startIndices: [0],
       stopStartIndices: [0],
       stopEventIndices: [1],
@@ -722,10 +721,10 @@ describe("browserPipeline", () => {
     expect(on.timelineView!.appFilteredIncluded).toHaveLength(1);
     expect(on.timelineView!.appFilteredExcluded).toHaveLength(1);
     expect(on.timelineView!.app).toHaveLength(1);
-    expect(on.timelineView!.app[0]!.participantId).toBe("P01");
-    expect(on.timelineView!.app[0]!.scene.primitives.length).toBeGreaterThan(0);
-    expect(on.timelineView!.app[0]!.regions.length).toBeGreaterThan(0);
-    const region = on.timelineView!.app[0]!.regions[0]!;
+    expect(on.timelineView!.app[0].participantId).toBe("P01");
+    expect(on.timelineView!.app[0].scene.primitives.length).toBeGreaterThan(0);
+    expect(on.timelineView!.app[0].regions.length).toBeGreaterThan(0);
+    const region = on.timelineView!.app[0].regions[0];
     expect(region.title).toBe("Chat");
     expect(region.lines).toContain("com.example.chat");
     expect(on.timelineView!.screen).toHaveLength(0);
@@ -750,7 +749,7 @@ describe("browserPipeline", () => {
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:01:00,America/Chicago",
     ].join("\n");
 
-    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+    const matcher = (): Promise<MatcherOutput> => Promise.resolve({
       startIndices: [0],
       stopStartIndices: [0],
       stopEventIndices: [1],
@@ -809,7 +808,7 @@ describe("browserPipeline", () => {
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:01:00,America/Chicago",
     ].join("\n");
 
-    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+    const matcher = (): Promise<MatcherOutput> => Promise.resolve({
       startIndices: [0],
       stopStartIndices: [0],
       stopEventIndices: [1],
@@ -841,7 +840,7 @@ describe("browserPipeline", () => {
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:01:00,America/Chicago",
     ].join("\n");
 
-    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+    const matcher = (): Promise<MatcherOutput> => Promise.resolve({
       startIndices: [0],
       stopStartIndices: [0],
       stopEventIndices: [1],
@@ -872,7 +871,7 @@ describe("browserPipeline", () => {
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:00:03,America/Chicago",
     ].join("\n");
 
-    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+    const matcher = (): Promise<MatcherOutput> => Promise.resolve({
       startIndices: [0],
       stopStartIndices: [0],
       stopEventIndices: [1],
@@ -915,7 +914,7 @@ describe("browserPipeline", () => {
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:00:10,America/Chicago",
     ].join("\n");
 
-    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+    const matcher = (): Promise<MatcherOutput> => Promise.resolve({
       startIndices: [0],
       stopStartIndices: [0],
       stopEventIndices: [1],
@@ -954,7 +953,7 @@ describe("browserPipeline", () => {
       "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:00:00,America/Chicago",
     ].join("\n");
 
-    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+    const matcher = (): Promise<MatcherOutput> => Promise.resolve({
       startIndices: [0],
       stopStartIndices: [0],
       stopEventIndices: [1],
@@ -1001,7 +1000,7 @@ describe("browserPipeline", () => {
       const mockBlob = new Blob(["fake-png"], { type: "image/png" });
       vi.mocked(generateAllPlots).mockResolvedValue(new Map([["P01", mockBlob]]));
 
-      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+      const matcher = (): Promise<MatcherOutput> => Promise.resolve({
         startIndices: [0],
         stopStartIndices: [0],
         stopEventIndices: [1],
@@ -1028,7 +1027,7 @@ describe("browserPipeline", () => {
         "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
         "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,America/Chicago",
       ].join("\n");
-      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+      const matcher = (): Promise<MatcherOutput> => Promise.resolve({
         startIndices: [0], stopStartIndices: [0], stopEventIndices: [1], missingIndices: [],
       });
       const pngBlob = new Blob(["fake-png"], { type: "image/png" });
@@ -1057,7 +1056,7 @@ describe("browserPipeline", () => {
         "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago",
         "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,America/Chicago",
       ].join("\n");
-      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+      const matcher = (): Promise<MatcherOutput> => Promise.resolve({
         startIndices: [0], stopStartIndices: [0], stopEventIndices: [1], missingIndices: [],
       });
       const svgBlob = new Blob(["<svg/>"], { type: "image/svg+xml" });
@@ -1091,7 +1090,7 @@ describe("browserPipeline", () => {
         "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,America/Chicago",
       ].join("\n");
 
-      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+      const matcher = (): Promise<MatcherOutput> => Promise.resolve({
         startIndices: [0], stopStartIndices: [0], stopEventIndices: [1], missingIndices: [],
       });
 
@@ -1120,13 +1119,13 @@ describe("browserPipeline", () => {
 
       let capturedPreAlgoTs: Map<string, bigint[]> | undefined;
       vi.mocked(generateAllPlots).mockImplementation(
-        async (_rows, _tz, _opts, _version, preAlgoTs) => {
-          capturedPreAlgoTs = preAlgoTs as Map<string, bigint[]>;
-          return new Map();
+        (_rows, _tz, _opts, _version, preAlgoTs) => {
+          capturedPreAlgoTs = preAlgoTs;
+          return Promise.resolve(new Map<string, Blob>());
         },
       );
 
-      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+      const matcher = (): Promise<MatcherOutput> => Promise.resolve({
         startIndices: [0], stopStartIndices: [0], stopEventIndices: [3], missingIndices: [],
       });
 
@@ -1156,7 +1155,7 @@ describe("browserPipeline", () => {
         "Study,P01,Target Child,Outer,Unknown importance: 2,com.example.outer,2026-03-07 10:05:00,America/Chicago",
       ].join("\n");
 
-      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+      const matcher = (): Promise<MatcherOutput> => Promise.resolve({
         startIndices: [0, 1],
         stopStartIndices: [0, 1],
         stopEventIndices: [3, 2],
@@ -1166,7 +1165,7 @@ describe("browserPipeline", () => {
       // Mock splitter: returns a fixed set of LayeredSessionRow objects
       // representing the outer session split into 3 sub-intervals and the
       // inner session as a single primary sub-interval.
-      const mockSplitter = async (_input: SplitterInput): Promise<SplitterOutput> => {
+      const mockSplitter = (): Promise<SplitterOutput> => {
         const rows: LayeredSessionRow[] = [
           // session 0 (outer): [0,60s) primary, [60,180s) secondary, [180,300s) primary
           { sessionIndex: 0, startNs: 1741341600000000000n, stopNs: 1741341660000000000n, layer: "primary" },
@@ -1175,7 +1174,7 @@ describe("browserPipeline", () => {
           // session 1 (inner): [0,120s) primary
           { sessionIndex: 1, startNs: 1741341660000000000n, stopNs: 1741341780000000000n, layer: "primary" },
         ];
-        return rows;
+        return Promise.resolve(rows);
       };
 
       const result = await processRawCsvContent(
@@ -1224,7 +1223,7 @@ describe("browserPipeline", () => {
         "Study,P01,Target Child,Outer,Unknown importance: 2,com.example.outer,2026-03-07 10:00:10,America/Chicago",
       ].join("\n");
 
-      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+      const matcher = (): Promise<MatcherOutput> => Promise.resolve({
         startIndices: [0],
         stopStartIndices: [0],
         stopEventIndices: [1],
@@ -1232,12 +1231,12 @@ describe("browserPipeline", () => {
       });
 
       // Sub-interval that is only 2 seconds long (below minimumUsageDuration=5)
-      const shortSubIntervalSplitter = async (_input: SplitterInput): Promise<SplitterOutput> => {
+      const shortSubIntervalSplitter = (): Promise<SplitterOutput> => {
         const rows: LayeredSessionRow[] = [
           // 2-second primary sub-interval
           { sessionIndex: 0, startNs: 1741341600000000000n, stopNs: 1741341602000000000n, layer: "primary" },
         ];
-        return rows;
+        return Promise.resolve(rows);
       };
 
       const result = await processRawCsvContent(
@@ -1282,7 +1281,7 @@ describe("browserPipeline", () => {
         "Study,P01,Target Child,Outer,Unknown importance: 2,com.example.outer,2026-03-07 10:00:10,America/Chicago",
       ].join("\n");
 
-      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+      const matcher = (): Promise<MatcherOutput> => Promise.resolve({
         startIndices: [0],
         stopStartIndices: [0],
         stopEventIndices: [1],
@@ -1290,9 +1289,10 @@ describe("browserPipeline", () => {
       });
 
       // 2-second sub-interval, below minimumUsageDuration = 5.
-      const shortSubIntervalSplitter = async (_input: SplitterInput): Promise<SplitterOutput> => [
-        { sessionIndex: 0, startNs: 1741341600000000000n, stopNs: 1741341602000000000n, layer: "primary" },
-      ];
+      const shortSubIntervalSplitter = (): Promise<SplitterOutput> =>
+        Promise.resolve([
+          { sessionIndex: 0, startNs: 1741341600000000000n, stopNs: 1741341602000000000n, layer: "primary" },
+        ]);
 
       const result = await processRawCsvContent(
         "Raw P01.csv",
@@ -1333,7 +1333,7 @@ describe("browserPipeline", () => {
         "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:01:00,America/Chicago",
       ].join("\n");
 
-      const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => ({
+      const matcher = (): Promise<MatcherOutput> => Promise.resolve({
         startIndices: [0],
         stopStartIndices: [0],
         stopEventIndices: [1],
@@ -1402,10 +1402,10 @@ describe("addAppUsageDetailColumns — concurrent-usage layer (FU2)", () => {
 
     expect(out.every((r) => r.any_app_usage_time_gap_hours >= 0)).toBe(true);
     // The secondary row isn't treated as an engagement and has no gap.
-    expect(out[1]!.any_app_usage_time_gap_hours).toBe(0);
-    expect(out[1]!.any_app_new_engage_30s).toBe(0);
+    expect(out[1].any_app_usage_time_gap_hours).toBe(0);
+    expect(out[1].any_app_new_engage_30s).toBe(0);
     // Second primary gap is (30-20)=10 min from the first primary's stop.
-    expect(out[2]!.any_app_usage_time_gap_hours).toBeCloseTo(10 / 60, 6);
+    expect(out[2].any_app_usage_time_gap_hours).toBeCloseTo(10 / 60, 6);
   });
 
   it("is a no-op when no row is secondary (concurrent off → unchanged)", () => {
@@ -1414,8 +1414,8 @@ describe("addAppUsageDetailColumns — concurrent-usage layer (FU2)", () => {
       drow({ app: "com.b", startMin: 30, stopMin: 40 }),
     ];
     const out = addAppUsageDetailColumns(rows, DEFAULT_BROWSER_OPTIONS);
-    expect(out[1]!.any_app_usage_time_gap_hours).toBeCloseTo(10 / 60, 6); // (30-20)
-    expect(out[1]!.any_app_switched_app).toBe(1); // com.a → com.b
+    expect(out[1].any_app_usage_time_gap_hours).toBeCloseTo(10 / 60, 6); // (30-20)
+    expect(out[1].any_app_switched_app).toBe(1); // com.a → com.b
   });
 });
 

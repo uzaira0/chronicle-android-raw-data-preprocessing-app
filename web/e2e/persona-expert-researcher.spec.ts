@@ -147,11 +147,13 @@ test("saves a named preset and a named config, then exports the whole config", a
   const download = await downloadPromise;
   const stream = await download.createReadStream();
   if (!stream) throw new Error("config export produced no stream");
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
-  const exported = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+  const chunks: Array<Buffer | Uint8Array> = [];
+  for await (const chunk of stream) {
+    chunks.push(chunk instanceof Buffer ? chunk : Buffer.from(chunk as ArrayLike<number>));
+  }
+  const exported = JSON.parse(Buffer.concat(chunks).toString("utf-8")) as { currentSettings: { studyName: string }; presets: Array<{ name: string }> };
   expect(exported.currentSettings.studyName).toBe("ExpertConfig");
-  expect(exported.presets.map((p: { name: string }) => p.name)).toContain("Expert Snapshot");
+  expect(exported.presets.map((p) => p.name)).toContain("Expert Snapshot");
   assertNoExternalRequests(requestTracker);
 });
 

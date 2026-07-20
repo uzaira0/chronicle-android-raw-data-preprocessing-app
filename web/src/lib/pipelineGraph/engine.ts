@@ -1,5 +1,10 @@
 import { Graph, alg } from "@dagrejs/graphlib";
 
+import {
+  deriveRowCount,
+  deriveRowsInPrimary,
+  type UnitExecutionRecord,
+} from "@/lib/pipelineGraph/executionRecords";
 import type {
   GraphDef,
   NodeDef,
@@ -26,6 +31,74 @@ function fnv1a(text: string, seed: number): number {
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
   return hash >>> 0;
+}
+
+/**
+ * Deterministic deep equality for node outputs — the early-cutoff test.
+ * Mirrors the equivalence classes of the serialized form hashValue used
+ * to produce (undefined-valued object keys are ignored, like JSON), but
+ * walks both values directly: no serialization, no allocation, and an
+ * exit at the first difference. NaN equals NaN (SameValueZero) — being
+ * stricter or looser here only trades backdating opportunities, never
+ * correctness, EXCEPT looseness: two unequal values must never compare
+ * equal, or downstream would serve stale caches.
+ *
+ * Cyclic values compare unequal instead of overflowing the stack: a cycle
+ * on the current descent path returns false (stricter-only, so still safe),
+ * while acyclic sharing of the same sub-object is unaffected.
+ */
+export function valuesEqual(a: unknown, b: unknown): boolean {
+  return valuesEqualInner(a, b, new WeakSet());
+}
+
+function valuesEqualInner(a: unknown, b: unknown, path: WeakSet<object>): boolean {
+  if (a === b) return true;
+  // SameValueZero: NaN is equal to itself.
+  if (typeof a === "number" && typeof b === "number") {
+    return Number.isNaN(a) && Number.isNaN(b);
+  }
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) {
+    return false;
+  }
+  if (path.has(a)) return false;
+  path.add(a);
+  try {
+    if (Array.isArray(a) || Array.isArray(b)) {
+      if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+      for (let index = 0; index < a.length; index += 1) {
+        if (!valuesEqualInner(a[index], b[index], path)) return false;
+      }
+      return true;
+    }
+    if (a instanceof Date || b instanceof Date) {
+      return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
+    }
+    if (a instanceof Map || b instanceof Map) {
+      if (!(a instanceof Map) || !(b instanceof Map) || a.size !== b.size) return false;
+      for (const [key, value] of a) {
+        if (!b.has(key) || !valuesEqualInner(value, b.get(key), path)) return false;
+      }
+      return true;
+    }
+    if (a instanceof Set || b instanceof Set) {
+      if (!(a instanceof Set) || !(b instanceof Set) || a.size !== b.size) return false;
+      for (const value of a) if (!b.has(value)) return false;
+      return true;
+    }
+    const recordA = a as Record<string, unknown>;
+    const recordB = b as Record<string, unknown>;
+    // Keys with undefined values are treated as absent (JSON semantics).
+    for (const key of Object.keys(recordA)) {
+      if (recordA[key] === undefined) continue;
+      if (!valuesEqualInner(recordA[key], recordB[key], path)) return false;
+    }
+    for (const key of Object.keys(recordB)) {
+      if (recordB[key] !== undefined && recordA[key] === undefined) return false;
+    }
+    return true;
+  } finally {
+    path.delete(a);
+  }
 }
 
 function stableStringify(value: unknown): string {
@@ -95,8 +168,9 @@ interface CacheEntry {
  * Cache key per node = hash(upstream output stamps, bound option values,
  * support-file hashes, and — for source nodes — the raw input hash).
  * A node whose key is unchanged serves its cached output ("cached").
- * A recomputed node gets a fresh stamp (or its outputHash when declared,
- * enabling early cutoff), which dirties exactly the downstream cone.
+ * A recomputed node gets a fresh stamp — unless it declares `earlyCutoff`
+ * and its output is deep-equal to the cached value, in which case it keeps
+ * the old stamp (Salsa backdating) and the downstream cone stays cached.
  *
  * A node that throws is reported as "error" with its message; every node
  * downstream of it is "skipped". Independent branches keep running.
@@ -122,16 +196,50 @@ export class GraphEngine<Ctx> {
     const outputs = new Map<string, unknown>();
     const statuses: Record<string, NodeStatus> = {};
     const errors: Record<string, string> = {};
+    const executions: UnitExecutionRecord[] = [];
     const stamps = new Map<string, string>();
     const failed = new Set<string>();
 
+    // One ledger record per node, whatever its status — the engine half of
+    // the ExecutionLedger (steps are recorded by the step runner and joined
+    // downstream). Timing is wall-clock and lives apart from the
+    // deterministic fields.
+    const record = (
+      id: string,
+      status: NodeStatus,
+      startedAt: string,
+      startMark: number,
+      inputValues: Record<string, unknown> | null,
+      value: unknown,
+      node: NodeDef<Ctx>,
+    ): void => {
+      const durationMs = performance.now() - startMark;
+      executions.push({
+        unit: id,
+        status,
+        rowsIn: inputValues ? deriveRowsInPrimary(inputValues) : null,
+        rowsOut: status === "error" || status === "skipped" ? null : deriveRowCount(value),
+        // Expectations are pure over (output, inputs) and warn-only, so they
+        // are evaluated on cached values too — every run gets a full ledger.
+        expectations:
+          status === "error" || status === "skipped" || !node.expectations
+            ? []
+            : node.expectations(value, inputValues ?? {}),
+        steps: [],
+        timing: { startedAt, endedAt: new Date().toISOString(), durationMs },
+      });
+    };
+
     for (const id of this.order) {
       const node = this.byId.get(id)!;
+      const startedAt = new Date().toISOString();
+      const startMark = performance.now();
 
       if (node.inputs.some((input) => failed.has(input))) {
         statuses[id] = "skipped";
         failed.add(id);
         this.cache.delete(id);
+        record(id, "skipped", startedAt, startMark, null, null, node);
         continue;
       }
 
@@ -147,38 +255,45 @@ export class GraphEngine<Ctx> {
       // badge on Compliance scoring with the option off.
       const bypassed = node.bypassedWhen?.(keys.options) === true;
 
-      const cached = this.cache.get(id);
-      if (cached && cached.key === key) {
-        statuses[id] = bypassed ? "bypassed" : "cached";
-        outputs.set(id, cached.value);
-        stamps.set(id, cached.stamp);
-        continue;
-      }
-
       const inputValues: Record<string, unknown> = {};
       for (const input of node.inputs) inputValues[input] = outputs.get(input);
 
+      const cached = this.cache.get(id);
+      if (cached && cached.key === key) {
+        const status = bypassed ? "bypassed" : "cached";
+        statuses[id] = status;
+        outputs.set(id, cached.value);
+        stamps.set(id, cached.stamp);
+        record(id, status, startedAt, startMark, inputValues, cached.value, node);
+        continue;
+      }
+
       try {
         const value = await node.run(ctx, inputValues);
-        this.stampCounter += 1;
-        const stamp = node.outputHash
-          ? node.outputHash(value)
-          : `run-${this.stampCounter}`;
-        // Early cutoff: identical declared output hash keeps the old stamp
-        // downstream even though this node reran.
-        const finalStamp = cached && node.outputHash && cached.stamp === stamp ? cached.stamp : stamp;
+        // Early cutoff: a rerun whose output is deep-equal to the cached
+        // value keeps the old stamp downstream even though this node reran.
+        let finalStamp: string;
+        if (cached !== undefined && node.earlyCutoff === true && valuesEqual(cached.value, value)) {
+          finalStamp = cached.stamp;
+        } else {
+          this.stampCounter += 1;
+          finalStamp = `run-${this.stampCounter}`;
+        }
         this.cache.set(id, { key, value, stamp: finalStamp });
-        statuses[id] = bypassed ? "bypassed" : "recomputed";
+        const status = bypassed ? "bypassed" : "recomputed";
+        statuses[id] = status;
         outputs.set(id, value);
         stamps.set(id, finalStamp);
+        record(id, status, startedAt, startMark, inputValues, value, node);
       } catch (error) {
         statuses[id] = "error";
         errors[id] = error instanceof Error ? error.message : String(error);
         failed.add(id);
         this.cache.delete(id);
+        record(id, "error", startedAt, startMark, inputValues, null, node);
       }
     }
 
-    return { outputs, report: { statuses, errors } };
+    return { outputs, report: { statuses, errors, executions } };
   }
 }

@@ -2,12 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { processRawCsvContent } from "@/lib/browserPipeline";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
-import type {
-  MatcherInput,
-  MatcherOutput,
-  SplitterInput,
-  SplitterOutput,
-} from "@/lib/types";
+import type { MatcherOutput, SplitterInput, SplitterOutput } from "@/lib/types";
 
 /**
  * App filtering must MARK, not alter: labeling an app as filtered blanks that
@@ -62,9 +57,8 @@ const FILTER_CSV = ["app_package_name,known_application_labels", "com.junk.app,J
 type OutputRow = { pkg: string; type: string; duration: string };
 
 async function appOutputRows(csv: string, useFilter: boolean): Promise<OutputRow[]> {
-  const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => {
-    throw new Error("mock matcher should be bypassed (proximity default > 0)");
-  };
+  const matcher = (): Promise<MatcherOutput> =>
+    Promise.reject(new Error("mock matcher should be bypassed (proximity default > 0)"));
   const result = await processRawCsvContent(
     "Raw P01.csv",
     csv,
@@ -77,7 +71,7 @@ async function appOutputRows(csv: string, useFilter: boolean): Promise<OutputRow
       minimumUsageDuration: 0,
     },
     useFilter
-      ? { filterFile: { name: "filter.csv", bytes: new TextEncoder().encode(FILTER_CSV).buffer as ArrayBuffer } }
+      ? { filterFile: { name: "filter.csv", bytes: new TextEncoder().encode(FILTER_CSV).buffer } }
       : {},
     matcher,
   );
@@ -173,18 +167,19 @@ describe("filtered background apps are constructed and marked, never blanked", (
   async function backgroundRunResult(
     useFilter: boolean,
   ): Promise<Awaited<ReturnType<typeof processRawCsvContent>>> {
-    const matcher = async (_input: MatcherInput): Promise<MatcherOutput> => {
-      throw new Error("mock matcher should be bypassed (proximity default > 0)");
-    };
+    const matcher = (): Promise<MatcherOutput> =>
+      Promise.reject(new Error("mock matcher should be bypassed (proximity default > 0)"));
     // Pass-through splitter (one primary sub-interval per session). Identical
     // for both runs, so any on/off difference comes from the pipeline itself.
-    const splitter = async (input: SplitterInput): Promise<SplitterOutput> =>
-      Array.from(input.starts).map((startNs, sessionIndex) => ({
-        sessionIndex,
-        startNs,
-        stopNs: input.stops[sessionIndex]!,
-        layer: "primary",
-      }));
+    const splitter = (input: SplitterInput): Promise<SplitterOutput> =>
+      Promise.resolve(
+        Array.from(input.starts).map((startNs, sessionIndex) => ({
+          sessionIndex,
+          startNs,
+          stopNs: input.stops[sessionIndex],
+          layer: "primary",
+        })),
+      );
     const result = await processRawCsvContent(
       "Raw P01.csv",
       BACKGROUND_OVERLAP,
@@ -200,13 +195,13 @@ describe("filtered background apps are constructed and marked, never blanked", (
       {
         backgroundAppsFile: {
           name: "bg.csv",
-          bytes: new TextEncoder().encode(BACKGROUND_CSV).buffer as ArrayBuffer,
+          bytes: new TextEncoder().encode(BACKGROUND_CSV).buffer,
         },
         ...(useFilter
           ? {
               filterFile: {
                 name: "filter.csv",
-                bytes: new TextEncoder().encode(BACKGROUND_FILTER_CSV).buffer as ArrayBuffer,
+                bytes: new TextEncoder().encode(BACKGROUND_FILTER_CSV).buffer,
               },
             }
           : {}),
@@ -245,7 +240,7 @@ describe("filtered background apps are constructed and marked, never blanked", (
     // Unfiltered: background semantics extend the session to Activity Stopped.
     const offSpotify = off.filter((r) => r.pkg === "com.spotify.music" && r.type === "App Usage");
     expect(offSpotify).toHaveLength(1);
-    expect(offSpotify[0]!.duration).toBe("600.0");
+    expect(offSpotify[0].duration).toBe("600.0");
 
     // Filtered: the SAME session is constructed (same 600s extension to the
     // app's own stop) but marked as the deferred category — never counted as
@@ -254,7 +249,7 @@ describe("filtered background apps are constructed and marked, never blanked", (
       (r) => r.pkg === "com.spotify.music" && r.type === "Filtered App Background Usage",
     );
     expect(onSpotify).toHaveLength(1);
-    expect(onSpotify[0]!.duration).toBe("600.0");
+    expect(onSpotify[0].duration).toBe("600.0");
     expect(
       on.filter((r) => r.pkg === "com.spotify.music").every((r) => r.type !== "App Usage"),
     ).toBe(true);
@@ -306,29 +301,30 @@ describe("filtered background apps are constructed and marked, never blanked", (
         {
           backgroundAppsFile: {
             name: "bg.csv",
-            bytes: new TextEncoder().encode(BACKGROUND_CSV).buffer as ArrayBuffer,
+            bytes: new TextEncoder().encode(BACKGROUND_CSV).buffer,
           },
           ...(useFilter
             ? {
                 filterFile: {
                   name: "filter.csv",
-                  bytes: new TextEncoder().encode(BACKGROUND_FILTER_CSV).buffer as ArrayBuffer,
+                  bytes: new TextEncoder().encode(BACKGROUND_FILTER_CSV).buffer,
                 },
               }
             : {}),
         },
-        async (_input: MatcherInput): Promise<MatcherOutput> => {
-          throw new Error("mock matcher should be bypassed (proximity default > 0)");
-        },
+        (): Promise<MatcherOutput> =>
+          Promise.reject(new Error("mock matcher should be bypassed (proximity default > 0)")),
         undefined,
         undefined,
-        async (input: SplitterInput): Promise<SplitterOutput> =>
-          Array.from(input.starts).map((startNs, sessionIndex) => ({
-            sessionIndex,
-            startNs,
-            stopNs: input.stops[sessionIndex]!,
-            layer: "primary",
-          })),
+        (input: SplitterInput): Promise<SplitterOutput> =>
+          Promise.resolve(
+            Array.from(input.starts).map((startNs, sessionIndex) => ({
+              sessionIndex,
+              startNs,
+              stopNs: input.stops[sessionIndex],
+              layer: "primary",
+            })),
+          ),
       );
       const blob = result.outputs.find((output) => output.kind === "app")?.blob;
       const text = blob ? await blob.text() : "";
@@ -354,6 +350,6 @@ describe("filtered background apps are constructed and marked, never blanked", (
     // And the marked category carries the full constructed extension.
     const fabu = on.filter((r) => r.type === "Filtered App Background Usage");
     expect(fabu).toHaveLength(1);
-    expect(fabu[0]!.pkg).toBe("com.spotify.music");
+    expect(fabu[0].pkg).toBe("com.spotify.music");
   });
 });

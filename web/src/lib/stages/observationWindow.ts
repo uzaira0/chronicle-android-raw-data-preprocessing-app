@@ -29,9 +29,32 @@ export function windowFor(
   return windows.find((window) => numericalId(window.participantId) === numerical) ?? null;
 }
 
-export function applyObservationWindow(
+/**
+ * Resolve each participant seen in the rows to their study window (or null),
+ * in first-appearance order. Empty when no windows are configured.
+ */
+export function resolveParticipantWindows(
   rows: readonly CanonicalRow[],
   windows: readonly StudyWindow[],
+): Map<string, StudyWindow | null> {
+  const cache = new Map<string, StudyWindow | null>();
+  if (windows.length === 0) return cache;
+  for (const row of rows) {
+    if (!cache.has(row.participant_id)) {
+      cache.set(row.participant_id, windowFor(row.participant_id, windows));
+    }
+  }
+  return cache;
+}
+
+/**
+ * Keep rows whose local date falls inside their participant's window;
+ * participants without a window are kept whole and reported.
+ */
+export function applyWindowFilter(
+  rows: readonly CanonicalRow[],
+  windows: readonly StudyWindow[],
+  cache: ReadonlyMap<string, StudyWindow | null>,
 ): ObservationWindowResult {
   if (windows.length === 0) {
     return {
@@ -43,13 +66,8 @@ export function applyObservationWindow(
   const kept: CanonicalRow[] = [];
   let dropped = 0;
   const noWindow = new Set<string>();
-  const cache = new Map<string, StudyWindow | null>();
   for (const row of rows) {
-    let window = cache.get(row.participant_id);
-    if (window === undefined) {
-      window = windowFor(row.participant_id, windows);
-      cache.set(row.participant_id, window);
-    }
+    const window = cache.get(row.participant_id) ?? null;
     if (window === null) {
       noWindow.add(row.participant_id);
       kept.push(row);
@@ -62,6 +80,13 @@ export function applyObservationWindow(
     }
   }
   return { rows: kept, droppedRows: dropped, participantsWithoutWindow: [...noWindow].sort() };
+}
+
+export function applyObservationWindow(
+  rows: readonly CanonicalRow[],
+  windows: readonly StudyWindow[],
+): ObservationWindowResult {
+  return applyWindowFilter(rows, windows, resolveParticipantWindows(rows, windows));
 }
 
 /** All ISO dates of a window, inclusive (UTC-midnight arithmetic on date-only values). */

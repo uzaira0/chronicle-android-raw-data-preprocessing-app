@@ -70,7 +70,7 @@ export interface CreditResult {
 type ChangePoint = { t: bigint; state: "ON" | "OFF" };
 type Interval = [bigint, bigint];
 
-interface Substrate {
+export interface Substrate {
   pts: Map<string, ChangePoint[]>;
   boots: Map<string, bigint[]>;
   allTs: Map<string, bigint[]>;
@@ -107,7 +107,7 @@ function bisectRightTs(ts: readonly bigint[], target: bigint): number {
   let hi = ts.length;
   while (lo < hi) {
     const mid = (lo + hi) >> 1;
-    if (ts[mid]! <= target) lo = mid + 1;
+    if (ts[mid] <= target) lo = mid + 1;
     else hi = mid;
   }
   return lo;
@@ -118,7 +118,7 @@ function bisectLeftTs(ts: readonly bigint[], target: bigint): number {
   let hi = ts.length;
   while (lo < hi) {
     const mid = (lo + hi) >> 1;
-    if (ts[mid]! < target) lo = mid + 1;
+    if (ts[mid] < target) lo = mid + 1;
     else hi = mid;
   }
   return lo;
@@ -128,7 +128,7 @@ function bisectLeftTs(ts: readonly bigint[], target: bigint): number {
 function stateAt(pts: readonly ChangePoint[], t: bigint): "ON" | "OFF" | null {
   const ts = pts.map((p) => p.t);
   const index = bisectRightTs(ts, t) - 1;
-  return index >= 0 ? pts[index]!.state : null;
+  return index >= 0 ? pts[index].state : null;
 }
 
 /** (start, end, state) segments over [s, e) from forward-filled change points. */
@@ -139,17 +139,17 @@ function segments(
 ): Array<{ a: bigint; b: bigint; state: "ON" | "OFF" | null }> {
   const ts = pts.map((p) => p.t);
   const startIndex = bisectRightTs(ts, s) - 1;
-  let state: "ON" | "OFF" | null = startIndex >= 0 ? pts[startIndex]!.state : null;
+  let state: "ON" | "OFF" | null = startIndex >= 0 ? pts[startIndex].state : null;
   let j = bisectRightTs(ts, s);
   let cur = s;
   const out: Array<{ a: bigint; b: bigint; state: "ON" | "OFF" | null }> = [];
   while (cur < e) {
-    const next = j < ts.length ? ts[j]! : e;
+    const next = j < ts.length ? ts[j] : e;
     const segEnd = next < e ? next : e;
     if (segEnd > cur) out.push({ a: cur, b: segEnd, state });
     cur = segEnd;
     if (j < ts.length) {
-      state = pts[j]!.state;
+      state = pts[j].state;
       j += 1;
     } else {
       break;
@@ -179,14 +179,14 @@ function aliveIntervals(
 
   const booted = (a: bigint, b: bigint): boolean => {
     const index = bisectRightTs(boots, a);
-    return index < boots.length && boots[index]! <= b + BOOT_EPSILON_NS;
+    return index < boots.length && boots[index] <= b + BOOT_EPSILON_NS;
   };
 
   const spans: Interval[] = [];
-  let start = win[0]!;
-  let last = win[0]!;
+  let start = win[0];
+  let last = win[0];
   for (let index = 1; index < win.length; index += 1) {
-    const t = win[index]!;
+    const t = win[index];
     if (t - last <= tolNs && !booted(last, t)) {
       last = t;
     } else {
@@ -212,8 +212,8 @@ function intersect(A: readonly Interval[], B: readonly Interval[]): Interval[] {
   let i = 0;
   let j = 0;
   while (i < A.length && j < B.length) {
-    const [a0, a1] = A[i]!;
-    const [b0, b1] = B[j]!;
+    const [a0, a1] = A[i];
+    const [b0, b1] = B[j];
     const lo = a0 > b0 ? a0 : b0;
     const hi = a1 < b1 ? a1 : b1;
     if (hi > lo) out.push([lo, hi]);
@@ -253,7 +253,7 @@ function creditableIntervals(
   return out;
 }
 
-function buildSubstrate(rawEvents: readonly CanonicalRow[]): Substrate {
+export function buildSubstrate(rawEvents: readonly CanonicalRow[]): Substrate {
   const byPid = new Map<string, Array<{ t: bigint; type: string }>>();
   for (const row of rawEvents) {
     const pid = row.participant_id || "unknown";
@@ -323,55 +323,41 @@ function creditIntervalsForSession(
   return { intervals: credit, usedNoWitnessFallback: false };
 }
 
-/**
- * Rewrite every engine "App Usage" session (that passed the minimum-duration
- * floor) into one row per credited interval. All other rows pass through
- * untouched. A fully-dead session emits no rows.
- */
-export function applyScreenGatedCredit(
-  appRows: readonly CanonicalRow[],
-  rawEvents: readonly CanonicalRow[],
-  opts: CreditOptions,
-): CreditResult {
-  const tolNs = BigInt(Math.round(opts.livenessToleranceMinutes * 60)) * NS_PER_SECOND;
-  const capNs = BigInt(Math.round(opts.capMinutes * 60)) * NS_PER_SECOND;
-  const autoLockNs = BigInt(Math.round(opts.autoLockBridgeSeconds)) * NS_PER_SECOND;
+export interface CreditSessionPartition {
+  /** Engine App-Usage sessions eligible for crediting (positive duration). */
+  sessions: CanonicalRow[];
+  /** Everything else — passed through untouched after the credited rows. */
+  rest: CanonicalRow[];
+}
 
+/** Split rows into credit-eligible App-Usage sessions vs pass-through rest. */
+export function partitionCreditSessions(appRows: readonly CanonicalRow[]): CreditSessionPartition {
   const eligible = (row: CanonicalRow): boolean =>
     row.interaction_type === "App Usage" &&
     row.duration_minutes !== null &&
     row.duration_minutes > 0;
-
-  const sessions = appRows.filter(eligible);
-  const rest = appRows.filter((row) => !eligible(row));
-
-  const report: CreditReport = {
-    sessions: sessions.length,
-    creditedRows: 0,
-    creditedMinutes: 0,
-    rawSessionMinutes: sessions.reduce((sum, row) => sum + (row.duration_minutes ?? 0), 0),
-    truncatedSessions: 0,
-    fullyDeadSessions: 0,
-    noWitnessFallbacks: 0,
-    screenIncapableParticipants: [],
+  return {
+    sessions: appRows.filter(eligible),
+    rest: appRows.filter((row) => !eligible(row)),
   };
+}
 
-  if (sessions.length === 0) {
-    return { creditedRows: [...appRows], report };
-  }
-
-  const sub = buildSubstrate(rawEvents);
-  report.screenIncapableParticipants = [
-    ...new Set(sessions.map((row) => row.participant_id)),
-  ].filter((pid) => {
+/** Participants whose stream carries no usable screen change points. */
+export function screenIncapableParticipants(
+  sessions: readonly CanonicalRow[],
+  sub: Substrate,
+): string[] {
+  return [...new Set(sessions.map((row) => row.participant_id))].filter((pid) => {
     const pts = sub.pts.get(pid);
     return !pts || pts.length === 0 || !sub.capable.has(pid);
   });
+}
 
-  // Distinct apps per (participant, date) — the no-witness fallback gate.
+/** Distinct apps per (participant, date) — the no-witness fallback gate. */
+export function countDayApps(sessions: readonly CanonicalRow[]): Map<string, Set<string>> {
   const dayApps = new Map<string, Set<string>>();
   for (const row of sessions) {
-    const key = `${row.participant_id} ${row.date}`;
+    const key = `${row.participant_id} ${row.date}`;
     let set = dayApps.get(key);
     if (!set) {
       set = new Set();
@@ -379,17 +365,35 @@ export function applyScreenGatedCredit(
     }
     set.add(row.app_package_name);
   }
+  return dayApps;
+}
 
-  const credited: CanonicalRow[] = [];
-  for (const row of sessions) {
+export interface CreditedSessionOutcome {
+  row: CanonicalRow;
+  /** Credited intervals; null = malformed session kept verbatim. */
+  intervals: Interval[] | null;
+  truncated: boolean;
+  usedNoWitnessFallback: boolean;
+}
+
+/** Compute the credited intervals for every eligible session, in order. */
+export function creditAllSessions(
+  sessions: readonly CanonicalRow[],
+  sub: Substrate,
+  dayApps: ReadonlyMap<string, Set<string>>,
+  opts: CreditOptions,
+): CreditedSessionOutcome[] {
+  const tolNs = BigInt(Math.round(opts.livenessToleranceMinutes * 60)) * NS_PER_SECOND;
+  const capNs = BigInt(Math.round(opts.capMinutes * 60)) * NS_PER_SECOND;
+  const autoLockNs = BigInt(Math.round(opts.autoLockBridgeSeconds)) * NS_PER_SECOND;
+  return sessions.map((row) => {
     const s = row.start_timestamp_ns;
     const eRaw = row.stop_timestamp_ns;
     if (s === null || eRaw === null || eRaw <= s) {
-      credited.push(row); // defensive: keep malformed rows verbatim
-      continue;
+      // defensive: keep malformed rows verbatim
+      return { row, intervals: null, truncated: false, usedNoWitnessFallback: false };
     }
-    if (eRaw > s + capNs) report.truncatedSessions += 1;
-    const dayAppCount = dayApps.get(`${row.participant_id} ${row.date}`)?.size ?? 0;
+    const dayAppCount = dayApps.get(`${row.participant_id} ${row.date}`)?.size ?? 0;
     const outcome = creditIntervalsForSession(
       row.participant_id,
       s,
@@ -401,9 +405,42 @@ export function applyScreenGatedCredit(
       autoLockNs,
       opts.noWitnessMinDayApps,
     );
-    if (outcome.usedNoWitnessFallback) report.noWitnessFallbacks += 1;
+    return {
+      row,
+      intervals: outcome.intervals,
+      truncated: eRaw > s + capNs,
+      usedNoWitnessFallback: outcome.usedNoWitnessFallback,
+    };
+  });
+}
+
+export interface CreditedRowsEmission {
+  credited: CanonicalRow[];
+  truncatedSessions: number;
+  noWitnessFallbacks: number;
+  fullyDeadSessions: number;
+}
+
+/** Rewrite each credited session into one row per credited interval. */
+export function emitCreditedRows(
+  outcomes: readonly CreditedSessionOutcome[],
+): CreditedRowsEmission {
+  const emission: CreditedRowsEmission = {
+    credited: [],
+    truncatedSessions: 0,
+    noWitnessFallbacks: 0,
+    fullyDeadSessions: 0,
+  };
+  for (const outcome of outcomes) {
+    const { row, intervals } = outcome;
+    if (intervals === null) {
+      emission.credited.push(row); // malformed session kept verbatim
+      continue;
+    }
+    if (outcome.truncated) emission.truncatedSessions += 1;
+    if (outcome.usedNoWitnessFallback) emission.noWitnessFallbacks += 1;
     let emitted = 0;
-    for (const [a, b] of outcome.intervals) {
+    for (const [a, b] of intervals) {
       if (b <= a) continue;
       const durationSeconds = Number(b - a) / 1e9;
       const clone: CanonicalRow = {
@@ -417,13 +454,52 @@ export function applyScreenGatedCredit(
         duration_minutes: durationSeconds * RECIP_60,
       };
       populateTimeColumns(clone, a, row.timezone || "UTC");
-      credited.push(clone);
+      emission.credited.push(clone);
       emitted += 1;
     }
-    if (emitted === 0) report.fullyDeadSessions += 1;
+    if (emitted === 0) emission.fullyDeadSessions += 1;
   }
+  return emission;
+}
 
-  report.creditedRows = credited.length;
-  report.creditedMinutes = credited.reduce((sum, row) => sum + (row.duration_minutes ?? 0), 0);
-  return { creditedRows: [...credited, ...rest], report };
+/** Assemble the final CreditResult: credited rows first, then the pass-through rest. */
+export function assembleCreditResult(
+  partition: CreditSessionPartition,
+  incapableParticipants: string[],
+  emission: CreditedRowsEmission,
+): CreditResult {
+  const report: CreditReport = {
+    sessions: partition.sessions.length,
+    creditedRows: emission.credited.length,
+    creditedMinutes: emission.credited.reduce((sum, row) => sum + (row.duration_minutes ?? 0), 0),
+    rawSessionMinutes: partition.sessions.reduce(
+      (sum, row) => sum + (row.duration_minutes ?? 0),
+      0,
+    ),
+    truncatedSessions: emission.truncatedSessions,
+    fullyDeadSessions: emission.fullyDeadSessions,
+    noWitnessFallbacks: emission.noWitnessFallbacks,
+    screenIncapableParticipants: incapableParticipants,
+  };
+  return { creditedRows: [...emission.credited, ...partition.rest], report };
+}
+
+/**
+ * Rewrite every engine "App Usage" session (that passed the minimum-duration
+ * floor) into one row per credited interval. All other rows pass through
+ * untouched. A fully-dead session emits no rows. (The zero-session case takes
+ * the same path — every piece is total on empty input and the result is the
+ * identical pass-through.)
+ */
+export function applyScreenGatedCredit(
+  appRows: readonly CanonicalRow[],
+  rawEvents: readonly CanonicalRow[],
+  opts: CreditOptions,
+): CreditResult {
+  const partition = partitionCreditSessions(appRows);
+  const sub = buildSubstrate(rawEvents);
+  const incapable = screenIncapableParticipants(partition.sessions, sub);
+  const dayApps = countDayApps(partition.sessions);
+  const outcomes = creditAllSessions(partition.sessions, sub, dayApps, opts);
+  return assembleCreditResult(partition, incapable, emitCreditedRows(outcomes));
 }

@@ -38,5 +38,5 @@ export function resetOption<K extends OptionKey>(
   options: BrowserProcessingOptions,
   key: K,
 ): BrowserProcessingOptions {
-  return { ...options, [key]: DEFAULT_BROWSER_OPTIONS[key] } as BrowserProcessingOptions;
+  return { ...options, [key]: DEFAULT_BROWSER_OPTIONS[key] };
 }

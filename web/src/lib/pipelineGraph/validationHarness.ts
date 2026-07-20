@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import { buildChronicleGraph } from "@/lib/pipelineGraph/graphDef";
-import { topoSort } from "@/lib/pipelineGraph/engine";
+import { topoSort, valuesEqual } from "@/lib/pipelineGraph/engine";
 import type { PipelineCtx, PipelineSupportData } from "@/lib/pipelineGraph/graphDef";
 import type { GraphDef } from "@/lib/pipelineGraph/graphTypes";
 import type {
@@ -202,18 +202,18 @@ export function descendantsOf(seed: ReadonlySet<string>): Set<string> {
  * {@link descendantsOf}. Mirrors the engine's stamp propagation exactly:
  *
  *   - a node RERUNS iff it is a changed seed OR any input RESTAMPED;
- *   - a rerun node RESTAMPS (dirtying dependents) UNLESS it declares an
- *     outputHash AND its output value is unchanged between the two runs —
+ *   - a rerun node RESTAMPS (dirtying dependents) UNLESS it declares
+ *     earlyCutoff AND its output value is unchanged between the two runs —
  *     the early-cutoff / backdating case, where the node reran but its
  *     downstream cone stays cached.
  *
- * Value-equality is read from the two runs' output maps with each node's own
- * outputHash (the same function the engine backdates against): the cached
- * value going into this run is the previous run's output for that node, so
- * `outputHash(prev) === outputHash(curr)` is exactly the engine's test.
- * A node absent from prevOutputs (e.g. wiped by a prior error) can never
- * value-match, so it always restamps — matching the engine, which has no
- * cache entry to serve there. With no outputHash anywhere this collapses to
+ * Value-equality is read from the two runs' output maps with valuesEqual
+ * (the same predicate the engine backdates with): the cached value going
+ * into this run is the previous run's output for that node, so
+ * `valuesEqual(prev, curr)` is exactly the engine's test. A node absent
+ * from prevOutputs (e.g. wiped by a prior error) can never value-match, so
+ * it always restamps — matching the engine, which has no cache entry to
+ * serve there. With no earlyCutoff anywhere this collapses to
  * descendantsOf(seeds).
  */
 export function predictRecomputeCone(
@@ -229,10 +229,10 @@ export function predictRecomputeCone(
     if (!didRerun) continue;
     reran.add(id);
     const valueUnchanged =
-      node.outputHash !== undefined &&
+      node.earlyCutoff === true &&
       prevOutputs.has(id) &&
       currOutputs.has(id) &&
-      node.outputHash(prevOutputs.get(id)) === node.outputHash(currOutputs.get(id));
+      valuesEqual(prevOutputs.get(id), currOutputs.get(id));
     if (!valueUnchanged) restamped.add(id);
   }
   return reran;
@@ -344,3 +344,109 @@ export function altValue(key: string, value: unknown): unknown {
 export const boundOptionKeys = [
   ...new Set(def.nodes.flatMap((node) => node.knobs.map((knob) => knob.optionKey))),
 ];
+
+// ── Traced execution: reads ⊆ declarations (cache-key soundness)
+
+export interface TraceResult {
+  /** One entry per undeclared read — empty means the cache key is sound. */
+  violations: string[];
+  /** First node whose body threw (trace stops there); null on a clean walk. */
+  error: { nodeId: string; message: string } | null;
+}
+
+/**
+ * Runs every node body in topological order with tracing Proxies over
+ * ctx.options / ctx.support / the inputs record, and checks that each node
+ * reads ONLY its declared knobs, support files, and upstream inputs (and that
+ * csvText stays confined to source nodes). Any undeclared read is a
+ * stale-cache bug: the engine's memo key would not include it, so a change to
+ * that value would serve a stale cached output. Shared by the hand-picked
+ * TRACE_CONFIGS in graphValidation.test.ts §3 and the PICT covering arrays in
+ * coveringArrayValidation.test.ts.
+ *
+ * Node bodies run unconditionally (no bypass check) — off-state bodies are
+ * expected to take their internal gate branch, which is exactly the branch
+ * whose reads need auditing too.
+ */
+export async function traceGraphExecution(options: BrowserProcessingOptions): Promise<TraceResult> {
+  const support = buildSupport(options);
+  const outputs = new Map<string, unknown>();
+  const violations: string[] = [];
+
+  for (const id of order) {
+    const node = byId.get(id)!;
+    const optionReads = new Set<string>();
+    const supportReads = new Set<string>();
+    const ctxReads = new Set<string>();
+    const inputReads = new Set<string>();
+
+    const optionsRecord: Record<string, unknown> = options;
+    const tracedOptions = new Proxy(optionsRecord, {
+      get(target, prop, receiver) {
+        if (typeof prop === "string") optionReads.add(prop);
+        return Reflect.get(target, prop, receiver) as unknown;
+      },
+    });
+    const tracedSupport = new Proxy(support as unknown as Record<string, unknown>, {
+      get(target, prop, receiver) {
+        if (typeof prop === "string") supportReads.add(prop);
+        return Reflect.get(target, prop, receiver) as unknown;
+      },
+    });
+    const baseCtx = makeCtx(options, support);
+    const tracedCtx = new Proxy(baseCtx as unknown as Record<string, unknown>, {
+      get(target, prop, receiver) {
+        if (typeof prop === "string") ctxReads.add(prop);
+        if (prop === "options") return tracedOptions;
+        if (prop === "support") return tracedSupport;
+        return Reflect.get(target, prop, receiver) as unknown;
+      },
+    }) as unknown as PipelineCtx;
+
+    const inputValues: Record<string, unknown> = {};
+    for (const input of node.inputs) inputValues[input] = outputs.get(input);
+    const tracedInputs = new Proxy(inputValues, {
+      get(target, prop, receiver) {
+        if (typeof prop === "string") inputReads.add(prop);
+        return Reflect.get(target, prop, receiver) as unknown;
+      },
+    });
+
+    let value: unknown;
+    try {
+      value = await node.run(tracedCtx, tracedInputs);
+    } catch (cause) {
+      return {
+        violations,
+        error: { nodeId: id, message: cause instanceof Error ? cause.message : String(cause) },
+      };
+    }
+    outputs.set(id, value);
+
+    const declaredKnobs = new Set(node.knobs.map((knob) => knob.optionKey));
+    for (const read of optionReads) {
+      if (!declaredKnobs.has(read)) {
+        violations.push(`${id} reads option "${read}" not in its knob set (stale-cache bug)`);
+      }
+    }
+    const declaredFiles = new Set(node.supportFiles ?? []);
+    for (const read of supportReads) {
+      const file = SUPPORT_FIELD_TO_FILE[read as keyof PipelineSupportData];
+      if (!file) {
+        violations.push(`${id} reads unknown support field "${read}"`);
+      } else if (!declaredFiles.has(file)) {
+        violations.push(`${id} reads support "${read}" (${file}) not declared (stale-cache bug)`);
+      }
+    }
+    for (const read of inputReads) {
+      if (!node.inputs.includes(read)) {
+        violations.push(`${id} reads undeclared upstream "${read}"`);
+      }
+    }
+    if (ctxReads.has("csvText") && node.inputs.length > 0) {
+      violations.push(`${id} reads csvText but is not a source node`);
+    }
+  }
+
+  return { violations, error: null };
+}

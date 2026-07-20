@@ -36,7 +36,7 @@ export interface EnrolledDevice {
 }
 
 function headerLookup(rows: SupportRows, wanted: string[]): Record<string, string> {
-  const available = rows.length > 0 ? Object.keys(rows[0]!) : [];
+  const available = rows.length > 0 ? Object.keys(rows[0]) : [];
   const map: Record<string, string> = {};
   for (const name of wanted) {
     const found = available.find((column) => column.trim().toLowerCase() === name);
@@ -49,7 +49,7 @@ function requireColumns(fileLabel: string, rows: SupportRows, required: string[]
   const map = headerLookup(rows, required);
   const missing = required.filter((name) => !(name in map));
   if (missing.length > 0) {
-    const available = rows.length > 0 ? Object.keys(rows[0]!).join(", ") : "(no rows)";
+    const available = rows.length > 0 ? Object.keys(rows[0]).join(", ") : "(no rows)";
     throw new Error(
       `${fileLabel}: missing required column(s) ${missing.join(", ")}. Found: ${available}`,
     );
@@ -65,7 +65,7 @@ function normalizeDate(fileLabel: string, value: string): string {
     // Accept M/D/YYYY (sheet exports) as a convenience.
     const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value.trim());
     if (us) {
-      return `${us[3]}-${us[1]!.padStart(2, "0")}-${us[2]!.padStart(2, "0")}`;
+      return `${us[3]}-${us[1].padStart(2, "0")}-${us[2].padStart(2, "0")}`;
     }
     throw new Error(`${fileLabel}: unparseable date "${value}" (expected YYYY-MM-DD)`);
   }
@@ -76,10 +76,10 @@ export function parseStudyDates(rows: SupportRows): StudyWindow[] {
   const col = requireColumns("Study dates file", rows, ["participant_id", "start_date", "end_date"]);
   const out: StudyWindow[] = [];
   for (const row of rows) {
-    const pid = (row[col.participant_id!] ?? "").trim();
+    const pid = (row[col.participant_id] ?? "").trim();
     if (!pid) continue;
-    const startDate = normalizeDate("Study dates file", row[col.start_date!] ?? "");
-    const endDate = normalizeDate("Study dates file", row[col.end_date!] ?? "");
+    const startDate = normalizeDate("Study dates file", row[col.start_date] ?? "");
+    const endDate = normalizeDate("Study dates file", row[col.end_date] ?? "");
     if (endDate < startDate) {
       throw new Error(
         `Study dates file: window for ${pid} ends (${endDate}) before it starts (${startDate})`,
@@ -94,15 +94,15 @@ export function parseDeviceSharing(rows: SupportRows): SharingEntry[] {
   const col = requireColumns("Device sharing file", rows, ["participant_id", "sharing_status"]);
   const out: SharingEntry[] = [];
   for (const row of rows) {
-    const pid = (row[col.participant_id!] ?? "").trim();
+    const pid = (row[col.participant_id] ?? "").trim();
     if (!pid) continue;
-    const raw = (row[col.sharing_status!] ?? "").trim().toLowerCase();
+    const raw = (row[col.sharing_status] ?? "").trim().toLowerCase();
     let status: SharingStatus;
     if (raw === "shared") status = "Shared";
     else if (raw === "non-shared" || raw === "nonshared" || raw === "not shared") status = "Non-Shared";
     else {
       throw new Error(
-        `Device sharing file: unknown sharing_status "${row[col.sharing_status!]}" for ${pid} ` +
+        `Device sharing file: unknown sharing_status "${row[col.sharing_status]}" for ${pid} ` +
           '(expected "Shared" or "Non-Shared")',
       );
     }
@@ -135,9 +135,9 @@ export function parseSurveyAttribution(rows: SupportRows): SurveyAnswer[] {
   ]);
   const out: SurveyAnswer[] = [];
   for (const row of rows) {
-    const pid = (row[col.participant_id!] ?? "").trim();
-    const rawTs = (row[col.event_timestamp!] ?? "").trim();
-    const user = (row[col.users!] ?? "").trim().replace(/^[{"]+|[}"]+$/g, "");
+    const pid = (row[col.participant_id] ?? "").trim();
+    const rawTs = (row[col.event_timestamp] ?? "").trim();
+    const user = (row[col.users] ?? "").trim().replace(/^[{"]+|[}"]+$/g, "");
     if (!pid || !rawTs || !user) continue;
     out.push({
       participantId: pid,
@@ -152,12 +152,12 @@ export function parseEnrolledDevices(rows: SupportRows): EnrolledDevice[] {
   const col = requireColumns("Enrolled devices file", rows, ["participant_id", "device_count"]);
   const out: EnrolledDevice[] = [];
   for (const row of rows) {
-    const pid = (row[col.participant_id!] ?? "").trim();
+    const pid = (row[col.participant_id] ?? "").trim();
     if (!pid) continue;
-    const count = Number((row[col.device_count!] ?? "").trim());
+    const count = Number((row[col.device_count] ?? "").trim());
     if (!Number.isFinite(count) || count < 0 || !Number.isInteger(count)) {
       throw new Error(
-        `Enrolled devices file: invalid device_count "${row[col.device_count!]}" for ${pid}`,
+        `Enrolled devices file: invalid device_count "${row[col.device_count]}" for ${pid}`,
       );
     }
     out.push({ participantId: pid, deviceCount: count });
@@ -168,7 +168,7 @@ export function parseEnrolledDevices(rows: SupportRows): EnrolledDevice[] {
 /** First run of >=3 digits — the cross-device numerical id. */
 export function numericalId(participantId: string): string | null {
   const match = /(\d{3,})/.exec(participantId);
-  return match ? match[1]! : null;
+  return match ? match[1] : null;
 }
 
 /** -D<n> suffix; a bare id is device 1. */

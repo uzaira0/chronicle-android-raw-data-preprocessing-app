@@ -31,15 +31,22 @@ export interface ComplianceResult {
   zeroUsageDays: number;
 }
 
-export function scoreCompliance(
+interface Bucket {
+  known: number;
+  unknown: number;
+}
+
+export interface AttributionMinutesAccumulation {
+  /** (participant date) → known/unknown attributed minutes. */
+  buckets: Map<string, Bucket>;
+  /** pid → dates with ANY row. */
+  participantsSeen: Map<string, Set<string>>;
+}
+
+/** Bucket known vs unknown attributed minutes per (participant, day). */
+export function accumulateAttributionMinutes(
   rows: readonly CanonicalRow[],
-  sharedParticipants: ReadonlySet<string>,
-  thresholdPercent: number,
-): ComplianceResult {
-  interface Bucket {
-    known: number;
-    unknown: number;
-  }
+): AttributionMinutesAccumulation {
   const buckets = new Map<string, Bucket>();
   const participantsSeen = new Map<string, Set<string>>(); // pid -> dates with ANY row
 
@@ -68,6 +75,16 @@ export function scoreCompliance(
     else bucket.known += minutes;
   }
 
+  return { buckets, participantsSeen };
+}
+
+/** Score each (participant, day) against the compliance threshold. */
+export function scoreComplianceDays(
+  accumulation: AttributionMinutesAccumulation,
+  sharedParticipants: ReadonlySet<string>,
+  thresholdPercent: number,
+): ComplianceResult {
+  const { buckets, participantsSeen } = accumulation;
   const days: ComplianceDay[] = [];
   for (const [pid, dates] of participantsSeen) {
     const shared = sharedParticipants.has(pid);
@@ -103,4 +120,12 @@ export function scoreCompliance(
     invalidDays: days.filter((day) => !day.isValid).length,
     zeroUsageDays: days.filter((day) => day.zeroRealUsage).length,
   };
+}
+
+export function scoreCompliance(
+  rows: readonly CanonicalRow[],
+  sharedParticipants: ReadonlySet<string>,
+  thresholdPercent: number,
+): ComplianceResult {
+  return scoreComplianceDays(accumulateAttributionMinutes(rows), sharedParticipants, thresholdPercent);
 }

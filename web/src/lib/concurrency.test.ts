@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { computeSafeConcurrency, deviceMemoryBudgetScale } from "@/lib/concurrency";
+import {
+  computeSafeConcurrency,
+  deviceMemoryBudgetScale,
+  readDeviceMemory,
+} from "@/lib/concurrency";
 
 const MB = 1024 * 1024;
 
@@ -57,5 +61,19 @@ describe("computeSafeConcurrency", () => {
         deviceMemory: 8,
       }),
     ).toBeLessThanOrEqual(2);
+  });
+});
+
+describe("readDeviceMemory", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("returns navigator.deviceMemory when the browser exposes it", () => {
+    vi.stubGlobal("navigator", { deviceMemory: 4 });
+    expect(readDeviceMemory()).toBe(4);
+  });
+
+  it("returns undefined when navigator is unavailable", () => {
+    vi.stubGlobal("navigator", undefined);
+    expect(readDeviceMemory()).toBeUndefined();
   });
 });

@@ -8,9 +8,7 @@ import type {
   BrowserProcessingRuntime,
   BrowserSupportFile,
   BrowserSupportFiles,
-  MatcherInput,
   ProcessedFileResult,
-  SplitterInput,
 } from "@/lib/types";
 
 /**
@@ -236,20 +234,22 @@ export const GOLDEN_SCENARIOS: GoldenScenario[] = [
 ];
 
 /** A matcher that MUST NOT be called — proves the real proximity path is used. */
-const throwingMatcher = async (_input: MatcherInput): Promise<never> => {
-  throw new Error(
-    "golden: runMatcher was called, but proximityIntervalSeconds>0 must route " +
-      "through the real in-process JS proximity matcher instead.",
+const throwingMatcher = (): Promise<never> =>
+  Promise.reject(
+    new Error(
+      "golden: runMatcher was called, but proximityIntervalSeconds>0 must route " +
+        "through the real in-process JS proximity matcher instead.",
+    ),
   );
-};
 
 /** A splitter that MUST NOT be called — proves no concurrent split is taken. */
-const throwingSplitter = async (_input: SplitterInput): Promise<never> => {
-  throw new Error(
-    "golden: runSplitter was called, but modelConcurrentUsage is off and no " +
-      "background apps are configured, so no split should run.",
+const throwingSplitter = (): Promise<never> =>
+  Promise.reject(
+    new Error(
+      "golden: runSplitter was called, but modelConcurrentUsage is off and no " +
+        "background apps are configured, so no split should run.",
+    ),
   );
-};
 
 /**
  * Run the real algorithm end-to-end for one scenario. Clears the per-file engine

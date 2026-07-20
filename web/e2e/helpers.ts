@@ -158,15 +158,15 @@ async function readDownload(download: Download): Promise<string> {
 }
 
 function readUint16(bytes: Uint8Array, offset: number): number {
-  return bytes[offset]! | (bytes[offset + 1]! << 8);
+  return bytes[offset] | (bytes[offset + 1] << 8);
 }
 
 function readUint32(bytes: Uint8Array, offset: number): number {
   return (
-    bytes[offset]! |
-    (bytes[offset + 1]! << 8) |
-    (bytes[offset + 2]! << 16) |
-    (bytes[offset + 3]! << 24)
+    bytes[offset] |
+    (bytes[offset + 1] << 8) |
+    (bytes[offset + 2] << 16) |
+    (bytes[offset + 3] << 24)
   ) >>> 0;
 }
 

@@ -29,10 +29,10 @@ describe("buildParquetBuffer", () => {
     const rows = await readBack(buffer);
     expect(rows).toHaveLength(3);
     expect(rows[0]).toMatchObject({ participant_id: "P1", count: 1, valid: true });
-    expect(rows[0]!.ts_ns).toBe(10n);
-    expect(rows[1]!.duration ?? null).toBe(null);
-    expect(rows[2]!.ts_ns ?? null).toBe(null);
-    expect(rows[2]!.duration).toBe(3.25);
+    expect(rows[0].ts_ns).toBe(10n);
+    expect(rows[1].duration ?? null).toBe(null);
+    expect(rows[2].ts_ns ?? null).toBe(null);
+    expect(rows[2].duration).toBe(3.25);
   });
 
   it("writes a valid, readable file with zero rows", async () => {
@@ -50,7 +50,7 @@ describe("buildParquetBuffer", () => {
       [{ a: "x" }],
     );
     const rows = await readBack(buffer);
-    expect(rows[0]!.a).toBe("x");
-    expect(rows[0]!.b ?? null).toBe(null);
+    expect(rows[0].a).toBe("x");
+    expect(rows[0].b ?? null).toBe(null);
   });
 });

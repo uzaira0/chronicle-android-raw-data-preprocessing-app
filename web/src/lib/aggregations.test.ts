@@ -63,6 +63,12 @@ describe("isoWeekInfo", () => {
     // A late-December Monday belonging to the next ISO year's week 1.
     expect(isoWeekInfo("2025-12-29")).toEqual({ key: "2026-W01", weekStart: "2025-12-29" });
   });
+
+  it("defaults a year-only date's missing month/day to January 1st", () => {
+    // "2026".split("-") yields only the year, so month and day resolve through
+    // their `?? 1` arms — the same instant as an explicit 2026-01-01.
+    expect(isoWeekInfo("2026")).toEqual(isoWeekInfo("2026-01-01"));
+  });
 });
 
 describe("computePeriodSummaries (daily)", () => {
@@ -75,9 +81,9 @@ describe("computePeriodSummaries (daily)", () => {
 
   it("computes per-day totals, counts, switches, pickups, mean, longest, window", () => {
     const [entry] = computePeriodSummaries(appRows, screenRows, (date) => date);
-    expect(entry!.participant_id).toBe("P1");
-    expect(entry!.period).toBe("2026-06-01");
-    const s = entry!.summary;
+    expect(entry.participant_id).toBe("P1");
+    expect(entry.period).toBe("2026-06-01");
+    const s = entry.summary;
     expect(s.total_app_usage_minutes).toBe(10);
     expect(s.total_screen_usage_minutes).toBe(17);
     expect(s.app_session_count).toBe(3);
@@ -103,13 +109,48 @@ describe("computePeriodSummaries (daily)", () => {
     ]);
   });
 
+  it("sorts equal-start and out-of-order sessions deterministically (compareBigint ties)", () => {
+    // Reversed input plus a tie forces every arm of the bigint comparator: the
+    // later start (a>b), the tie (a===b → 0), and the earlier start (a<b).
+    const rows = [
+      appSession({ app_package_name: "com.late", startMin: 10, stopMin: 12 }),
+      appSession({ app_package_name: "com.a", startMin: 0, stopMin: 3 }),
+      appSession({ app_package_name: "com.b", startMin: 0, stopMin: 4 }), // ties com.a's start
+    ];
+    const [entry] = computePeriodSummaries(rows, [], (date) => date);
+    expect(entry.summary.app_session_count).toBe(3);
+    expect(entry.summary.first_use_ns).toBe(at(0));
+    expect(entry.summary.last_use_ns).toBe(at(12));
+  });
+
+  it("does not count an app switch between adjacent sessions of the SAME package", () => {
+    const rows = [
+      appSession({ app_package_name: "com.a", startMin: 0, stopMin: 5 }),
+      appSession({ app_package_name: "com.a", startMin: 5, stopMin: 8 }), // same pkg → no switch
+      appSession({ app_package_name: "com.b", startMin: 8, stopMin: 10 }), // switch
+    ];
+    const [entry] = computePeriodSummaries(rows, [], (date) => date);
+    expect(entry.summary.app_switches).toBe(1);
+  });
+
+  it("excludes a null-duration screen session from the screen total", () => {
+    const appRows = [appSession({ app_package_name: "com.a", startMin: 0, stopMin: 5 })];
+    const screenRows = [
+      screenSession(0, 10),
+      screenSession(20, 30, { duration_minutes: null }), // counted as a session, 0 minutes
+    ];
+    const [entry] = computePeriodSummaries(appRows, screenRows, (date) => date);
+    expect(entry.summary.total_screen_usage_minutes).toBe(10);
+    expect(entry.summary.screen_session_count).toBe(2);
+  });
+
   it("counts a nulled-duration session but excludes it from time totals/mean/longest", () => {
     const withNull = [
       ...appRows,
       appSession({ app_package_name: "com.c", startMin: 30, stopMin: 31, duration_minutes: null }),
     ];
     const [entry] = computePeriodSummaries(withNull, screenRows, (date) => date);
-    const s = entry!.summary;
+    const s = entry.summary;
     expect(s.app_session_count).toBe(4); // counted
     expect(s.total_app_usage_minutes).toBe(10); // 0 contribution
     expect(s.mean_app_session_minutes).toBe(3.3333); // denominator still 3
@@ -176,7 +217,20 @@ describe("computeCategoryBudget", () => {
 
   it("buckets missing categories as Unknown", () => {
     const rows = [appSession({ app_package_name: "com.a", startMin: 0, stopMin: 5, broad_app_category: "  " })];
-    expect(computeCategoryBudget(rows)[0]!.broad_app_category).toBe("Unknown");
+    expect(computeCategoryBudget(rows)[0].broad_app_category).toBe("Unknown");
+  });
+
+  it("excludes a null-duration session from a category's minute totals but still counts it", () => {
+    // The null-duration row takes sumDurationNs's `duration_minutes === null` arm
+    // (0 contribution) while remaining part of the category's session_count.
+    const rows = [
+      appSession({ app_package_name: "com.a", startMin: 0, stopMin: 5, broad_app_category: "Games" }),
+      appSession({ app_package_name: "com.b", startMin: 5, stopMin: 9, broad_app_category: "Games", duration_minutes: null }),
+    ];
+    const [budget] = computeCategoryBudget(rows);
+    expect(budget.foreground_minutes).toBe(5);
+    expect(budget.total_minutes).toBe(5);
+    expect(budget.session_count).toBe(2);
   });
 });
 
@@ -214,6 +268,76 @@ describe("computeCoUsage", () => {
     ];
     expect(computeCoUsage(rows)).toEqual([]);
   });
+
+  it("accumulates count and overlap when the same app pair overlaps more than once", () => {
+    // com.a spans the whole window; com.b overlaps it in two separate bursts, so
+    // the (a,b) pair is seen twice and its existing map entry is incremented.
+    const rows = [
+      appSession({ app_package_name: "com.a", startMin: 0, stopMin: 100 }),
+      appSession({ app_package_name: "com.b", startMin: 5, stopMin: 15 }),
+      appSession({ app_package_name: "com.b", startMin: 20, stopMin: 30 }),
+    ];
+    expect(computeCoUsage(rows)).toEqual([
+      {
+        study_id: "S",
+        participant_id: "P1",
+        app_a: "com.a",
+        app_b: "com.b",
+        co_usage_count: 2,
+        total_overlap_minutes: 20,
+      },
+    ]);
+  });
+
+  it("skips a self-pair when two overlapping sessions share a package name", () => {
+    // Same package overlapping itself hits the `other === session` package guard
+    // (line 531) → no co-usage pair is recorded.
+    const rows = [
+      appSession({ app_package_name: "com.a", startMin: 0, stopMin: 10 }),
+      appSession({ app_package_name: "com.a", startMin: 5, stopMin: 15 }),
+    ];
+    expect(computeCoUsage(rows)).toEqual([]);
+  });
+
+  it("skips a zero-length overlap between two different apps", () => {
+    // com.b is a zero-duration session starting exactly where the overlap would
+    // begin, so overlapNs is 0 and the `overlapNs <= 0n` guard (line 538) skips it.
+    const rows = [
+      appSession({ app_package_name: "com.a", startMin: 0, stopMin: 10 }),
+      appSession({ app_package_name: "com.b", startMin: 5, stopMin: 5 }),
+    ];
+    expect(computeCoUsage(rows)).toEqual([]);
+  });
+
+  it("orders multiple pairs of one participant by app_a then app_b", () => {
+    // Three mutually overlapping apps produce pairs (a,b),(a,c),(b,c). With
+    // study_id and participant_id equal, the sort falls through to the app_a and
+    // then app_b comparators (line 568 later arms).
+    const rows = [
+      appSession({ app_package_name: "com.a", startMin: 0, stopMin: 30 }),
+      appSession({ app_package_name: "com.b", startMin: 5, stopMin: 25 }),
+      appSession({ app_package_name: "com.c", startMin: 10, stopMin: 20 }),
+    ];
+    const out = computeCoUsage(rows);
+    expect(out.map((r) => [r.app_a, r.app_b])).toEqual([
+      ["com.a", "com.b"],
+      ["com.a", "com.c"],
+      ["com.b", "com.c"],
+    ]);
+  });
+
+  it("orders output rows by participant_id within the same study", () => {
+    // Two participants in the same study each produce one co-usage pair; the sort
+    // tie-breaks on participant_id (study_id being equal).
+    const rows = [
+      appSession({ participant_id: "P2", app_package_name: "com.a", startMin: 0, stopMin: 10 }),
+      appSession({ participant_id: "P2", app_package_name: "com.b", startMin: 5, stopMin: 15 }),
+      appSession({ participant_id: "P1", app_package_name: "com.a", startMin: 0, stopMin: 10 }),
+      appSession({ participant_id: "P1", app_package_name: "com.b", startMin: 5, stopMin: 15 }),
+    ];
+    const out = computeCoUsage(rows);
+    expect(out.map((r) => r.participant_id)).toEqual(["P1", "P2"]);
+  });
 });
 
 describe("buildAggregateOutputs", () => {
@@ -249,7 +373,7 @@ describe("buildAggregateOutputs", () => {
       includeCoUsage: true,
     });
     const headerOf = (suffix: string): string =>
-      outputs.find((o) => o.suffix === suffix)!.csv.split("\n")[0]!;
+      outputs.find((o) => o.suffix === suffix)!.csv.split("\n")[0];
     // FU5: study_name now follows study_id on every secondary output, matching the
     // daily/weekly summaries (uniform leading identity columns across all CSVs).
     expect(headerOf(" Top Apps.csv").startsWith("study_id,study_name,participant_id,")).toBe(true);
@@ -258,8 +382,8 @@ describe("buildAggregateOutputs", () => {
   });
 
   it("wide daily summary has metric columns plus first_use/last_use", () => {
-    const daily = buildAggregateOutputs(appRows, screenRows, STUB_OPTIONS)[0]!;
-    const header = daily.csv.split("\n")[0]!;
+    const daily = buildAggregateOutputs(appRows, screenRows, STUB_OPTIONS)[0];
+    const header = daily.csv.split("\n")[0];
     expect(header).toContain("total_app_usage_minutes");
     expect(header).toContain("first_use");
     expect(header).toContain("last_use");
@@ -267,13 +391,41 @@ describe("buildAggregateOutputs", () => {
   });
 
   it("long daily summary melts numeric scalars only (metric/value), 10 rows per period", () => {
-    const daily = buildAggregateOutputs(appRows, screenRows, { ...STUB_OPTIONS, shape: "long" })[0]!;
-    const header = daily.csv.split("\n")[0]!;
+    const daily = buildAggregateOutputs(appRows, screenRows, { ...STUB_OPTIONS, shape: "long" })[0];
+    const header = daily.csv.split("\n")[0];
     expect(header).toBe("study_id,study_name,participant_id,date,timezone,metric,value");
     expect(header).not.toContain("first_use");
     // 10 numeric metrics: total_app_usage_minutes now has total_background_app_usage_minutes beside it.
     expect(daily.rowCount).toBe(10); // 1 period × 10 numeric metrics
     expect(daily.csv).toContain("total_background_app_usage_minutes");
+  });
+
+  it("CSV-escapes a cell containing a comma (study name with punctuation)", () => {
+    const daily = buildAggregateOutputs(appRows, screenRows, {
+      ...STUB_OPTIONS,
+      studyName: "Demo, Inc",
+    })[0];
+    // escapeCell wraps the comma-bearing study_name in quotes rather than
+    // splitting it across columns.
+    expect(daily.csv).toContain('"Demo, Inc"');
+  });
+
+  it("emits blank first_use/last_use for a background-only period (no foreground/screen span)", () => {
+    // A lone secondary (background) session lands on a period key with no
+    // foreground or screen rows, so first_use_ns / last_use_ns stay null and their
+    // wide-summary cells take the `: ""` arms (lines 661/662).
+    const bgOnly = [
+      appSession({ app_package_name: "com.bg", startMin: 0, stopMin: 6, usage_layer: "secondary" }),
+    ];
+    const daily = buildAggregateOutputs(bgOnly, [], STUB_OPTIONS)[0];
+    const lines = daily.csv.trim().split("\n");
+    const header = lines[0].split(",");
+    const cells = lines[1].split(",");
+    const firstUse = cells[header.indexOf("first_use")];
+    const lastUse = cells[header.indexOf("last_use")];
+    expect(firstUse).toBe("");
+    expect(lastUse).toBe("");
+    expect(cells[header.indexOf("total_background_app_usage_minutes")]).toBe("6");
   });
 });
 
@@ -289,7 +441,7 @@ describe("concurrent-usage layer handling (FU1 — show foreground/background se
   ];
 
   it("period summary keeps total_app_usage_minutes foreground-only and reports background beside it", () => {
-    const summary = computePeriodSummaries(layered, [], (d) => d)[0]!.summary;
+    const summary = computePeriodSummaries(layered, [], (d) => d)[0].summary;
     expect(summary.total_app_usage_minutes).toBe(10); // foreground device timeline, not 14
     expect(summary.total_background_app_usage_minutes).toBe(4); // secondary, shown separately
     expect(summary.app_session_count).toBe(1); // one foreground session, not 2
@@ -315,8 +467,8 @@ describe("concurrent-usage layer handling (FU1 — show foreground/background se
       appSession({ app_package_name: "com.spotify", startMin: 5, stopMin: 12, usage_layer: "secondary" }),
     ];
     const [row] = computeTopApps(mixed, (d) => d);
-    expect([row!.foreground_minutes, row!.background_minutes, row!.total_minutes]).toEqual([5, 7, 12]);
-    expect(row!.session_count).toBe(2);
+    expect([row.foreground_minutes, row.background_minutes, row.total_minutes]).toEqual([5, 7, 12]);
+    expect(row.session_count).toBe(2);
   });
 
   it("category budget reports foreground and background minutes separately", () => {
@@ -326,10 +478,10 @@ describe("concurrent-usage layer handling (FU1 — show foreground/background se
     ];
     const budget = computeCategoryBudget(withCat);
     expect(budget).toHaveLength(1);
-    expect(budget[0]!.foreground_minutes).toBe(10);
-    expect(budget[0]!.background_minutes).toBe(4);
-    expect(budget[0]!.total_minutes).toBe(14); // fg + bg (distinct apps in the category)
-    expect(budget[0]!.session_count).toBe(2);
+    expect(budget[0].foreground_minutes).toBe(10);
+    expect(budget[0].background_minutes).toBe(4);
+    expect(budget[0].total_minutes).toBe(14); // fg + bg (distinct apps in the category)
+    expect(budget[0].session_count).toBe(2);
   });
 
   it("attributes a background overlap crossing midnight to its own date (no silent drop)", () => {
@@ -350,8 +502,8 @@ describe("concurrent-usage layer handling (FU1 — show foreground/background se
   it("co-usage DOES use both layers (the overlap it measures)", () => {
     const co = computeCoUsage(layered);
     expect(co).toHaveLength(1);
-    expect([co[0]!.app_a, co[0]!.app_b].sort()).toEqual(["com.a", "com.b"]);
-    expect(co[0]!.total_overlap_minutes).toBe(4); // [3,7] overlap = 4 min
+    expect([co[0].app_a, co[0].app_b].sort()).toEqual(["com.a", "com.b"]);
+    expect(co[0].total_overlap_minutes).toBe(4); // [3,7] overlap = 4 min
   });
 
   it("is a no-op when no row is secondary (concurrent off → background 0, total == foreground)", () => {
@@ -359,7 +511,7 @@ describe("concurrent-usage layer handling (FU1 — show foreground/background se
       appSession({ app_package_name: "com.a", startMin: 0, stopMin: 10, usage_layer: "primary" }),
       appSession({ app_package_name: "com.b", startMin: 20, stopMin: 25, usage_layer: null }),
     ];
-    const summary = computePeriodSummaries(primaryOnly, [], (d) => d)[0]!.summary;
+    const summary = computePeriodSummaries(primaryOnly, [], (d) => d)[0].summary;
     expect(summary.total_app_usage_minutes).toBe(15);
     expect(summary.total_background_app_usage_minutes).toBe(0);
     expect(summary.app_session_count).toBe(2);
@@ -380,7 +532,7 @@ describe("aggregate CSV column consistency (FU5)", () => {
   it("Top Apps / Category / Co-Usage all carry a study_name column", () => {
     const outputs = buildAggregateOutputs(rows, [], opts);
     const headerFor = (suffix: string): string =>
-      outputs.find((o) => o.suffix.includes(suffix))!.csv.split("\n")[0]!;
+      outputs.find((o) => o.suffix.includes(suffix))!.csv.split("\n")[0];
     expect(headerFor("Top Apps")).toBe(
       "study_id,study_name,participant_id,date,rank,app_package_name,application_label,foreground_minutes,background_minutes,total_minutes,session_count",
     );

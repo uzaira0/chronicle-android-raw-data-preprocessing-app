@@ -50,7 +50,7 @@ export function matchAppUsageWithProximity(input: MatcherInput): MatcherOutput {
     stopIndex: number,
     enforceThreshold: boolean,
   ): boolean => {
-    const durationNs = timestampNs[stopIndex]! - timestampNs[startIndex]!;
+    const durationNs = timestampNs[stopIndex] - timestampNs[startIndex];
     if (durationNs < 0n) {
       return false;
     }
@@ -58,7 +58,7 @@ export function matchAppUsageWithProximity(input: MatcherInput): MatcherOutput {
   };
 
   for (let index = 0; index < length; index += 1) {
-    const currentApp = appCodes[index]!;
+    const currentApp = appCodes[index];
     const isNormalStop = sameStop[index] === 1 || otherStop[index] === 1;
     const isFallbackStop = stopped[index] === 1 && useActivityStoppedAsFallback;
 
@@ -67,7 +67,7 @@ export function matchAppUsageWithProximity(input: MatcherInput): MatcherOutput {
       // Proximity does not apply here (it only relaxes the single-close path).
       const stillOpen: number[] = [];
       for (const startIndex of openStartIndices) {
-        const startApp = appCodes[startIndex]!;
+        const startApp = appCodes[startIndex];
         const sameAppCompatible = sameStop[index] === 1 && startApp === currentApp;
         const otherAppCompatible =
           otherStop[index] === 1 && startApp !== currentApp && background[startIndex] === 0;
@@ -89,8 +89,8 @@ export function matchAppUsageWithProximity(input: MatcherInput): MatcherOutput {
       // Single-close mode: the most recent compatible open start wins.
       let matchedPosition: number | null = null;
       for (let position = openStartIndices.length - 1; position >= 0; position -= 1) {
-        const startIndex = openStartIndices[position]!;
-        const startApp = appCodes[startIndex]!;
+        const startIndex = openStartIndices[position];
+        const startApp = appCodes[startIndex];
         const sameAppCompatible = sameStop[index] === 1 && startApp === currentApp;
         const otherAppCompatible =
           otherStop[index] === 1 && startApp !== currentApp && background[startIndex] === 0;
@@ -104,7 +104,7 @@ export function matchAppUsageWithProximity(input: MatcherInput): MatcherOutput {
             proximityNs > 0n &&
             fallbackCompatible &&
             isReresume.get(startIndex) === true &&
-            timestampNs[index]! - timestampNs[startIndex]! < proximityNs
+            timestampNs[index] - timestampNs[startIndex] < proximityNs
           ) {
             // Intra-app teardown, not a real close: leave the start open for the
             // next genuine stop event.
@@ -116,7 +116,7 @@ export function matchAppUsageWithProximity(input: MatcherInput): MatcherOutput {
         }
       }
       if (matchedPosition !== null) {
-        const startIndex = openStartIndices.splice(matchedPosition, 1)[0]!;
+        const startIndex = openStartIndices.splice(matchedPosition, 1)[0];
         stopStartIndices.push(startIndex);
         stopEventIndices.push(index);
       }
@@ -129,7 +129,7 @@ export function matchAppUsageWithProximity(input: MatcherInput): MatcherOutput {
           index,
           last !== undefined &&
             lastWasSameStop.get(currentApp) === true &&
-            timestampNs[index]! - last < proximityNs,
+            timestampNs[index] - last < proximityNs,
         );
       }
       startIndices.push(index);
@@ -137,7 +137,7 @@ export function matchAppUsageWithProximity(input: MatcherInput): MatcherOutput {
     }
 
     if (proximityNs > 0n) {
-      lastEventNs.set(currentApp, timestampNs[index]!);
+      lastEventNs.set(currentApp, timestampNs[index]);
       lastWasSameStop.set(currentApp, sameStop[index] === 1);
     }
   }

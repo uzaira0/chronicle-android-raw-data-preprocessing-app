@@ -462,8 +462,6 @@ export default function App(): ReactElement {
       const text = await file.text();
       return processRawCsv(file.name, text, armBOptions, supportFiles, getInjectedRuntime());
     },
-    // filterFile et al. are read inside buildSupportFilesForOptions.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       uploadedFiles,
       options,
@@ -534,7 +532,7 @@ export default function App(): ReactElement {
     let keepDetailsOpen = false;
     try {
       const userSupportFiles = await buildSupportFiles();
-      const nextResults: ProcessedFileResult[] = new Array(uploadedFiles.length);
+      const nextResults: Array<ProcessedFileResult | undefined> = Array.from({ length: uploadedFiles.length }, () => undefined);
       const totalInputBytes = uploadedFiles.reduce((sum, file) => sum + file.size, 0);
       const concurrency = options.parallelProcessing
         ? computeSafeConcurrency({
@@ -559,7 +557,7 @@ export default function App(): ReactElement {
           const index = cursor;
           cursor += 1;
           if (index >= uploadedFiles.length) return;
-          const file = uploadedFiles[index]!;
+          const file = uploadedFiles[index];
           handleProgressEvent({ type: "file-start", fileName: file.name });
           try {
             let result: ProcessedFileResult;
@@ -605,7 +603,7 @@ export default function App(): ReactElement {
       };
       await Promise.all(Array.from({ length: concurrency }, () => runner()));
 
-      const successful = nextResults.filter(Boolean);
+      const successful = nextResults.filter(Boolean) as ProcessedFileResult[];
       keepDetailsOpen = failures.length > 0;
       setResults(successful);
       if (successful.length) {
@@ -760,8 +758,6 @@ export default function App(): ReactElement {
         setRetryingFile(null);
       }
     },
-    // support-file refs are read inside buildSupportFiles.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       isRunning,
       retryingFile,

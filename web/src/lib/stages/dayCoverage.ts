@@ -38,6 +38,23 @@ export class CoverageInvariantError extends Error {
   }
 }
 
+/** Per-participant set of raw event dates — the "device was alive" evidence. */
+export function buildRawEventDateIndex(
+  events: readonly CanonicalRow[],
+): Map<string, Set<string>> {
+  const rawDates = new Map<string, Set<string>>();
+  for (const event of events) {
+    const pid = event.participant_id || "unknown";
+    let set = rawDates.get(pid);
+    if (!set) {
+      set = new Set();
+      rawDates.set(pid, set);
+    }
+    set.add(event.date);
+  }
+  return rawDates;
+}
+
 function dateRange(dates: ReadonlySet<string>): string[] {
   if (dates.size === 0) return [];
   const sorted = [...dates].sort();

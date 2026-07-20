@@ -38,7 +38,7 @@ import {
  *  3. Engine METAMORPHIC RELATIONS — idempotent re-run, edit-order
  *     commutativity on distinct keys, and edit+inverse value round-trip.
  *  4. EARLY CUTOFF (Salsa "backdating") — on a synthetic graph with a
- *     declared outputHash, a rerun yielding an identical output must keep
+ *     declared earlyCutoff, a rerun yielding an identical output must keep
  *     the downstream cone cached, under random value sequences.
  *
  * Run counts stay modest because every step executes the real pipeline with
@@ -345,7 +345,7 @@ describe("7. Early cutoff (backdating) — engine-level property on a synthetic 
     return { id, label: id, section: "preprocess", inputs, knobs: [], run, ...extra };
   }
 
-  it("a rerun with an unchanged declared outputHash never recomputes downstream; a changed one always does", async () => {
+  it("a rerun with an unchanged earlyCutoff output never recomputes downstream; a changed one always does", async () => {
     await fc.assert(
       fc.asyncProperty(fc.array(fc.integer({ min: 0, max: 7 }), { minLength: 1, maxLength: 20 }), async (knobValues) => {
         const counters = new Map<string, number>();
@@ -360,7 +360,7 @@ describe("7. Early cutoff (backdating) — engine-level property on a synthetic 
               return currentKnob % 2;
             }, {
               knobs: [{ optionKey: "knob", edge: "tunes" }],
-              outputHash: (value) => hashValue(value),
+              earlyCutoff: true,
             }),
             syntheticNode("b", ["a"], (_ctx, inputs) => {
               count("b");

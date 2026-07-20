@@ -93,7 +93,7 @@ export function sanitizeOptions(value: unknown): BrowserProcessingOptions {
     next.processScreenUsage = mode === "screen_usage" || mode === "app_and_screen_usage";
   }
 
-  const src = source as Record<string, unknown>;
+  const src = source;
   for (const key of BOOLEAN_BROWSER_OPTION_KEYS) {
     if (typeof src[key] === "boolean") (next as Record<string, unknown>)[key] = src[key];
   }
@@ -166,8 +166,8 @@ export function readPersistedPresets(): SettingsPreset[] {
   try {
     const raw = window.localStorage.getItem(PRESETS_STORAGE_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    const presets = isRecord(parsed) && Array.isArray(parsed.presets) ? parsed.presets : parsed;
+    const parsed = JSON.parse(raw) as unknown;
+    const presets = isRecord(parsed) && Array.isArray(parsed.presets) ? (parsed.presets as unknown) : parsed;
     if (!Array.isArray(presets)) return [];
     return presets
       .filter(isRecord)
@@ -225,7 +225,7 @@ export function buildConfigExportBlob(
 }
 
 export async function readConfigFile(file: File): Promise<ImportedConfig> {
-  const parsed = JSON.parse(await file.text());
+  const parsed = JSON.parse(await file.text()) as unknown;
   const source = isRecord(parsed) ? parsed : {};
   return {
     options: sanitizeOptions(source.currentSettings),
@@ -256,7 +256,7 @@ export function diffOptionsFromDefaults(
       diff[key] = sanitized[key];
     }
   }
-  return diff as Partial<BrowserProcessingOptions>;
+  return diff;
 }
 
 /** Encode options (diff from defaults) into a URL-param string value. */

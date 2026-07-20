@@ -106,10 +106,10 @@ export function ViewPanel({
   }
 
   const activeFile =
-    reviewableFiles.find((r) => r.inputFileName === selectedFile) ?? reviewableFiles[0]!;
+    reviewableFiles.find((r) => r.inputFileName === selectedFile) ?? reviewableFiles[0];
   const participants: ReviewParticipantSummary[] = activeFile.reviewSummary.participants;
   const activeParticipant =
-    participants.find((p) => p.participantId === selectedParticipant) ?? participants[0]!;
+    participants.find((p) => p.participantId === selectedParticipant) ?? participants[0];
 
   // Reset the focused day whenever the participant or file context changes.
   const participantKey = `${activeFile.inputFileName}:${activeParticipant.participantId}`;
@@ -359,7 +359,7 @@ export function ViewPanel({
         <CompareConfigDrawer
           options={compareOptions}
           setOptions={setCompareOptions}
-          onRun={runComparison}
+          onRun={() => void runComparison()}
           onResetToA={resetToA}
           onClose={() => setDrawerOpen(false)}
           running={running}

@@ -26,7 +26,7 @@ export function sendNotification(title: string, body?: string): void {
   if (!notificationSupported()) return;
   if (Notification.permission !== "granted") return;
   try {
-    // eslint-disable-next-line no-new
+     
     new Notification(title, { body });
   } catch {
     // Some browsers restrict notifications outside secure contexts — swallow.

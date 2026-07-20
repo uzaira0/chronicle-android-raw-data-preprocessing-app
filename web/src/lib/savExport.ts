@@ -122,7 +122,7 @@ function utf8TruncatedLength(bytes: Uint8Array, maxLen: number): number {
   let len = maxLen;
   // 0b10xxxxxx bytes are UTF-8 continuation bytes; if the cut lands on one we are
   // inside a multibyte char, so back up to its lead byte.
-  while (len > 0 && (bytes[len]! & 0xc0) === 0x80) len -= 1;
+  while (len > 0 && (bytes[len] & 0xc0) === 0x80) len -= 1;
   return len;
 }
 
@@ -163,7 +163,7 @@ export function buildSavBuffer(variables: readonly SavVariable[], rows: readonly
   // ── Variable records (type 2), with continuations for wide strings ─────────
   const shortNames = variables.map((_, i) => `V${i + 1}`);
   variables.forEach((variable, index) => {
-    const shortName = shortNames[index]!;
+    const shortName = shortNames[index];
     const labelBytes = variable.label ? utf8Bytes(variable.label) : null;
     if (variable.type === "numeric") {
       const decimals = variable.decimals ?? 2;
@@ -254,7 +254,13 @@ export function buildSavBuffer(variables: readonly SavVariable[], rows: readonly
   const literals: Uint8Array[] = [];
   const flush = (force: boolean): void => {
     if (commands.length === 0) return;
+    // Unreachable defensive guard: the only non-forced caller is emit(), which
+    // invokes flush(false) exactly when commands.length === 8; the sole
+    // end-of-data flush uses force=true. So a non-forced flush of a partial
+    // (<8) block never occurs. Kept to make flush() safe under future callers.
+    /* v8 ignore start */
     if (!force && commands.length < 8) return;
+    /* v8 ignore stop */
     while (commands.length < 8) commands.push(0); // pad final block; reader skips 0
     for (const code of commands) sink.u8(code);
     for (const literal of literals) sink.bytes(literal);
@@ -267,7 +273,6 @@ export function buildSavBuffer(variables: readonly SavVariable[], rows: readonly
     if (commands.length === 8) flush(false);
   };
 
-  const spaces8 = new Uint8Array(8).fill(0x20);
   for (const row of rows) {
     for (const variable of variables) {
       const value = variable.name in row ? row[variable.name] : null;

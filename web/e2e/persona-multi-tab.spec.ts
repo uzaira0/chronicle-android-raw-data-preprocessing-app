@@ -4,7 +4,6 @@ import { APP_ONLY_RAW_CSV } from "./fixtures";
 import {
   gotoApp,
   installDeterministicRuntime,
-  processFiles,
   setInputFile,
 } from "./helpers";
 
@@ -22,7 +21,7 @@ test.describe.configure({ mode: "serial" });
 async function readLastRun(page: Page): Promise<{ results?: unknown[] } | null> {
   return page.evaluate(
     () =>
-      new Promise((resolve) => {
+      new Promise<{ results?: unknown[] } | null>((resolve) => {
         const open = indexedDB.open("chronicle-last-run", 1);
         open.onupgradeneeded = () => {
           if (!open.result.objectStoreNames.contains("lastRun")) {
@@ -34,14 +33,14 @@ async function readLastRun(page: Page): Promise<{ results?: unknown[] } | null> 
           try {
             const tx = open.result.transaction("lastRun", "readonly");
             const get = tx.objectStore("lastRun").get("last");
-            get.onsuccess = () => resolve(get.result ?? null);
+            get.onsuccess = () => resolve(get.result as { results?: unknown[] } | null);
             get.onerror = () => resolve(null);
           } catch {
             resolve(null);
           }
         };
       }),
-  ) as Promise<{ results?: unknown[] } | null>;
+  );
 }
 
 test("concurrent settings edits in two tabs reconcile to a valid value, never corrupt", async ({
@@ -109,7 +108,7 @@ test("two tabs processing at once leave a single, valid cached run", async ({ co
   // The shared cache is a single keyed record — never duplicated or torn.
   await expect
     .poll(async () => {
-      const record = await readLastRun(tab1);
+      const record: { results?: unknown[] } | null = await readLastRun(tab1);
       return record?.results?.length ?? 0;
     })
     .toBe(1);

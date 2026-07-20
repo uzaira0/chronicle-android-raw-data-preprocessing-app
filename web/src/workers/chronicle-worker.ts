@@ -87,11 +87,11 @@ const api = {
     const module = await import("@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
     return module.matcherVersion();
   },
-  async discoverTimezones(
+  discoverTimezones(
     csvText: string,
     runtime?: BrowserProcessingRuntime,
   ): Promise<string[]> {
-    return discoverTimezonesFromRawCsv(csvText, runtime);
+    return Promise.resolve(discoverTimezonesFromRawCsv(csvText, runtime));
   },
   async processRawCsv(
     inputFileName: string,

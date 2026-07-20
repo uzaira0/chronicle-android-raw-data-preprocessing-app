@@ -38,7 +38,8 @@ function formatPresetValue(value: unknown): string {
   if (Array.isArray(value)) return value.length ? `[${value.join(", ")}]` : "(none)";
   if (typeof value === "boolean") return value ? "On" : "Off";
   if (value === undefined || value === null || value === "") return "(default)";
-  return String(value);
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  return "(invalid)";
 }
 
 type PresetDiffEntry = { key: string; label: string; from: string; to: string };

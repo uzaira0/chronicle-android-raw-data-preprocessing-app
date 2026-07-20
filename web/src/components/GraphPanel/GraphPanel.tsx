@@ -15,6 +15,8 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import { buildChronicleGraph } from "@/lib/pipelineGraph/graphDef";
+import { buildStepGraph } from "@/lib/pipelineGraph/stepGraph";
+import { ALL_UNIT_WIRINGS } from "@/lib/pipelineGraph/steps";
 import {
   affectedBy,
   builtFrom,
@@ -56,7 +58,6 @@ const SECTION_LABELS: Record<Section, string> = {
 const STATUS_LABELS: Record<NodeStatus, string> = {
   cached: "cached",
   recomputed: "ran",
-  dirty: "needs re-run",
   error: "error",
   skipped: "skipped",
   bypassed: "off",
@@ -72,6 +73,15 @@ const EDGE_MARKER = {
   color: "#64748b",
 } as const;
 
+/** Per-node run metrics projected from the ExecutionLedger. */
+type NodeMetrics = {
+  rowsIn: number | null;
+  rowsOut: number | null;
+  durationMs: number;
+  /** Messages of VIOLATED (ok: false) expectations on this record. */
+  violations: string[];
+};
+
 type PipelineNodeData = {
   label: string;
   section: Section;
@@ -81,8 +91,27 @@ type PipelineNodeData = {
   isOff: boolean;
   /** Plain-English step explanation (tooltip + selection detail line). */
   description: string | null;
+  /**
+   * At step scale: the label of the execution unit this step runs inside
+   * (the engine's memoization boundary — an arbitrary grouping, shown as
+   * the eyebrow). Null at unit scale.
+   */
+  unit: string | null;
+  /** Ledger metrics from the active run (null before any run). */
+  metrics: NodeMetrics | null;
   [key: string]: unknown;
 };
+
+/** Compact "in→out" row-count text; null when neither side is row-shaped. */
+function formatRows(metrics: NodeMetrics): string | null {
+  if (metrics.rowsIn === null && metrics.rowsOut === null) return null;
+  const side = (count: number | null): string => (count === null ? "·" : String(count));
+  return `${side(metrics.rowsIn)}→${side(metrics.rowsOut)}`;
+}
+
+function formatDuration(durationMs: number): string {
+  return durationMs < 1 ? "<1ms" : `${Math.round(durationMs)}ms`;
+}
 
 type PipelineFlowNode = Node<PipelineNodeData, "pipeline">;
 
@@ -111,7 +140,9 @@ function PipelineNode({
         className="graph-node__handle"
         isConnectable={false}
       />
-      <span className="graph-node__section">{SECTION_LABELS[data.section]}</span>
+      <span className="graph-node__section">
+        {data.unit ?? SECTION_LABELS[data.section]}
+      </span>
       <span className="graph-node__label">{data.label}</span>
       <span className="graph-node__badges">
         {/* Current settings win over a (possibly stale) run report: a step
@@ -136,6 +167,26 @@ function PipelineNode({
             join
           </span>
         ) : null}
+        {data.metrics ? (
+          <span
+            className="graph-node__metrics"
+            data-testid="graph-node-metrics"
+            title={`Last run: ${formatRows(data.metrics) ?? "no row-shaped data"} rows, ${formatDuration(data.metrics.durationMs)}`}
+          >
+            {[formatRows(data.metrics), formatDuration(data.metrics.durationMs)]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+        ) : null}
+        {data.metrics && data.metrics.violations.length > 0 ? (
+          <span
+            className="graph-node__warn"
+            data-testid="graph-node-warn"
+            title={data.metrics.violations.join("\n")}
+          >
+            ⚠ {data.metrics.violations.length}
+          </span>
+        ) : null}
       </span>
     </div>
   );
@@ -149,17 +200,34 @@ type Props = {
   options: BrowserProcessingOptions;
 };
 
+/**
+ * The unit/step boundary is an ARBITRARY scale choice — units are only the
+ * engine's memoization boundary. "steps" (the default) is the full flat DAG
+ * of every real transformation; "units" is the coarse grouping.
+ */
+type GraphScale = "units" | "steps";
+
 export function GraphPanel({ results, displayMasker, options }: Props): ReactElement {
   const [selected, setSelected] = useState<string | null>(null);
   const [second, setSecond] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [reportFileName, setReportFileName] = useState<string | null>(null);
   const [direction, setDirection] = useState<LayoutDirection>("TB");
+  const [scale, setScale] = useState<GraphScale>("steps");
   const [showOff, setShowOff] = useState(false);
   const instanceRef = useRef<ReactFlowInstance<PipelineFlowNode, Edge> | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
-  const def = useMemo<GraphDef<unknown>>(() => buildChronicleGraph() as GraphDef<unknown>, []);
+  const unitDef = useMemo<GraphDef<unknown>>(() => buildChronicleGraph() as GraphDef<unknown>, []);
+  // The flat step DAG, derived from the same wiring objects the runner
+  // executes (cannot drift from what actually runs).
+  const stepGraph = useMemo(() => buildStepGraph(unitDef, ALL_UNIT_WIRINGS), [unitDef]);
+  const def = scale === "steps" ? stepGraph.def : unitDef;
+  const stepToUnit = stepGraph.stepToUnit;
+  const unitLabelById = useMemo(
+    () => new Map(unitDef.nodes.map((node) => [node.id, node.label])),
+    [unitDef],
+  );
 
   // Steps the CURRENT settings turn off entirely — evaluated live from the
   // declared bypassedWhen predicates, no run needed.
@@ -251,6 +319,34 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
     reportedResults[reportedResults.length - 1] ??
     null;
   const statuses = activeResult?.graphReport?.statuses ?? null;
+
+  // Ledger metrics keyed by node id. Unit ids and step ids share one
+  // collision-free namespace (checked at build time), so one map serves
+  // both scales.
+  const ledger = activeResult?.executionLedger ?? null;
+  const metricsById = useMemo(() => {
+    if (!ledger) return null;
+    const map = new Map<string, NodeMetrics>();
+    const violationsOf = (expectations: { ok: boolean; message: string }[]): string[] =>
+      expectations.filter((expectation) => !expectation.ok).map((expectation) => expectation.message);
+    for (const unit of ledger) {
+      map.set(unit.unit, {
+        rowsIn: unit.rowsIn,
+        rowsOut: unit.rowsOut,
+        durationMs: unit.timing.durationMs,
+        violations: violationsOf(unit.expectations),
+      });
+      for (const step of unit.steps) {
+        map.set(step.stepId, {
+          rowsIn: step.rowsIn,
+          rowsOut: step.rowsOut,
+          durationMs: step.timing.durationMs,
+          violations: violationsOf(step.expectations),
+        });
+      }
+    }
+    return map;
+  }, [ledger]);
 
   const cone = useMemo(
     () => (selected ? new Set(affectedBy(visibleDef, selected)) : null),
@@ -376,10 +472,17 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
       data: {
         label: node.label,
         section: node.section,
-        status: statuses ? (statuses[node.id] ?? null) : null,
+        // Run statuses are recorded per UNIT (the engine's memoization
+        // boundary) — a step displays its unit's status.
+        status: statuses ? (statuses[stepToUnit.get(node.id) ?? node.id] ?? null) : null,
         isJoin: joins.has(node.id),
         isOff: offNodes.has(node.id),
         description: descriptionById.get(node.id) ?? null,
+        unit:
+          scale === "steps"
+            ? (unitLabelById.get(stepToUnit.get(node.id) ?? "") ?? null)
+            : null,
+        metrics: metricsById?.get(node.id) ?? null,
       },
       draggable: false,
       connectable: false,
@@ -432,6 +535,14 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
     setHovered(null);
   };
 
+  const switchScale = (next: GraphScale): void => {
+    setScale(next);
+    // Node ids differ between scales — a selection cannot survive the switch.
+    setSelected(null);
+    setSecond(null);
+    setHovered(null);
+  };
+
   return (
     <section className="workflow-section" aria-labelledby="graph-title">
       <div className="workflow-section__header">
@@ -448,6 +559,28 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
           </p>
         </div>
         <div className="graph-toolbar">
+          <div className="graph-direction-toggle" role="group" aria-label="Graph scale">
+            <button
+              type="button"
+              className={`btn btn--ghost${scale === "steps" ? " is-active" : ""}`}
+              data-testid="graph-scale-steps"
+              aria-pressed={scale === "steps"}
+              onClick={() => switchScale("steps")}
+              title="Every real transformation as its own node — the full DAG."
+            >
+              Steps
+            </button>
+            <button
+              type="button"
+              className={`btn btn--ghost${scale === "units" ? " is-active" : ""}`}
+              data-testid="graph-scale-units"
+              aria-pressed={scale === "units"}
+              onClick={() => switchScale("units")}
+              title="Grouped by execution unit (the engine's caching boundary)."
+            >
+              Units
+            </button>
+          </div>
           <div className="graph-direction-toggle" role="group" aria-label="Graph orientation">
             <button
               type="button"
@@ -514,7 +647,13 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
             ? (() => {
                 const description = descriptionById.get(selected);
                 const label = labelById.get(selected) ?? selected;
-                return description ? `${label}: ${description}` : null;
+                const unit =
+                  scale === "steps"
+                    ? unitLabelById.get(stepToUnit.get(selected) ?? "")
+                    : null;
+                return description
+                  ? `${unit ? `${unit} · ` : ""}${label}: ${description}`
+                  : null;
               })()
             : null
         }

@@ -2,8 +2,7 @@ import { describe, expect, it, beforeAll } from "vitest";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import { GraphEngine, hashValue } from "@/lib/pipelineGraph/engine";
 import { buildChronicleGraph, UNBOUND_OPTION_KEYS } from "@/lib/pipelineGraph/graphDef";
-import type { PipelineCtx, PipelineOutputs, PipelineSupportData } from "@/lib/pipelineGraph/graphDef";
-import type { NodeDef } from "@/lib/pipelineGraph/graphTypes";
+import type { PipelineCtx, PipelineOutputs } from "@/lib/pipelineGraph/graphDef";
 import type { BrowserProcessingOptions } from "@/lib/types";
 import {
   ALL_ON,
@@ -12,7 +11,6 @@ import {
   FIXTURE_CSV,
   JUNK_PACKAGE,
   RUN_KEYS,
-  SUPPORT_FIELD_TO_FILE,
   VALID_SUPPORT_FILE_KEYS,
   altValue,
   buildSupport,
@@ -25,6 +23,7 @@ import {
   order,
   predictRecomputeCone,
   serializeRows,
+  traceGraphExecution,
 } from "@/lib/pipelineGraph/validationHarness";
 
 /**
@@ -143,7 +142,7 @@ describe("2. Gate-space state machine (full 2^12 enumeration)", () => {
   it("bypassedWhen matches the closed-form spec in every one of the 4096 gate states, and each predicate only reads its own node's knobs", () => {
     const combos = 1 << (GATE_BOOLEANS.length + 1);
     for (let mask = 0; mask < combos; mask += 1) {
-      const options = { ...DEFAULT_BROWSER_OPTIONS } as BrowserProcessingOptions;
+      const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS };
       GATE_BOOLEANS.forEach((key, bit) => {
         (options as unknown as Record<string, boolean>)[key] = Boolean(mask & (1 << bit));
       });
@@ -156,10 +155,11 @@ describe("2. Gate-space state machine (full 2^12 enumeration)", () => {
           continue;
         }
         const reads = new Set<string>();
-        const traced = new Proxy(options as unknown as Record<string, unknown>, {
+        const optionsRecord: Record<string, unknown> = options;
+        const traced = new Proxy(optionsRecord, {
           get(target, prop, receiver) {
             if (typeof prop === "string") reads.add(prop);
-            return Reflect.get(target, prop, receiver);
+            return Reflect.get(target, prop, receiver) as unknown;
           },
         });
         const actual = node.bypassedWhen(traced);
@@ -199,67 +199,9 @@ describe("3. Cache-key soundness — traced execution (reads ⊆ declarations)",
 
   for (const [name, options] of TRACE_CONFIGS) {
     it(`config "${name}": every node reads only declared knobs, support files, and inputs`, async () => {
-      const support = buildSupport(options);
-      const outputs = new Map<string, unknown>();
-
-      for (const id of order) {
-        const node = byId.get(id)! as NodeDef<PipelineCtx>;
-        const optionReads = new Set<string>();
-        const supportReads = new Set<string>();
-        const ctxReads = new Set<string>();
-        const inputReads = new Set<string>();
-
-        const tracedOptions = new Proxy(options as unknown as Record<string, unknown>, {
-          get(target, prop, receiver) {
-            if (typeof prop === "string") optionReads.add(prop);
-            return Reflect.get(target, prop, receiver);
-          },
-        });
-        const tracedSupport = new Proxy(support as unknown as Record<string, unknown>, {
-          get(target, prop, receiver) {
-            if (typeof prop === "string") supportReads.add(prop);
-            return Reflect.get(target, prop, receiver);
-          },
-        });
-        const baseCtx = makeCtx(options, support);
-        const tracedCtx = new Proxy(baseCtx as unknown as Record<string, unknown>, {
-          get(target, prop, receiver) {
-            if (typeof prop === "string") ctxReads.add(prop);
-            if (prop === "options") return tracedOptions;
-            if (prop === "support") return tracedSupport;
-            return Reflect.get(target, prop, receiver);
-          },
-        }) as unknown as PipelineCtx;
-
-        const inputValues: Record<string, unknown> = {};
-        for (const input of node.inputs) inputValues[input] = outputs.get(input);
-        const tracedInputs = new Proxy(inputValues, {
-          get(target, prop, receiver) {
-            if (typeof prop === "string") inputReads.add(prop);
-            return Reflect.get(target, prop, receiver);
-          },
-        });
-
-        const value = await node.run(tracedCtx, tracedInputs);
-        outputs.set(id, value);
-
-        const declaredKnobs = new Set(node.knobs.map((knob) => knob.optionKey));
-        for (const read of optionReads) {
-          expect(declaredKnobs.has(read), `${id} reads option "${read}" not in its knob set (stale-cache bug)`).toBe(true);
-        }
-        const declaredFiles = new Set(node.supportFiles ?? []);
-        for (const read of supportReads) {
-          const file = SUPPORT_FIELD_TO_FILE[read as keyof PipelineSupportData];
-          expect(file, `${id} reads unknown support field "${read}"`).toBeTruthy();
-          expect(declaredFiles.has(file), `${id} reads support "${read}" (${file}) not declared (stale-cache bug)`).toBe(true);
-        }
-        for (const read of inputReads) {
-          expect(node.inputs, `${id} reads undeclared upstream "${read}"`).toContain(read);
-        }
-        if (ctxReads.has("csvText")) {
-          expect(node.inputs.length, `${id} reads csvText but is not a source node`).toBe(0);
-        }
-      }
+      const result = await traceGraphExecution(options);
+      expect(result.error, `node "${result.error?.nodeId}" threw: ${result.error?.message}`).toBeNull();
+      expect(result.violations).toEqual([]);
     }, 30_000);
   }
 });
@@ -295,7 +237,7 @@ describe("4. Execution state machine (real engine, real matcher)", () => {
   it("all 128 gate states: no errors, statuses match the bypass vector, output shapes match the state", async () => {
     const byCombo = new Map<number, ExecResult>();
     for (let mask = 0; mask < 1 << EXEC_GATES.length; mask += 1) {
-      const options = { ...ALL_ON } as BrowserProcessingOptions;
+      const options: BrowserProcessingOptions = { ...ALL_ON };
       EXEC_GATES.forEach((key, bit) => {
         (options as unknown as Record<string, boolean>)[key] = Boolean(mask & (1 << bit));
       });
@@ -350,7 +292,7 @@ describe("4. Execution state machine (real engine, real matcher)", () => {
       "addNoActivityPlaceholderDays",
     ] as const;
     for (let mask = 0; mask < 1 << ANALYZE_GATES.length; mask += 1) {
-      const options = { ...ALL_ON } as BrowserProcessingOptions;
+      const options: BrowserProcessingOptions = { ...ALL_ON };
       ANALYZE_GATES.forEach((key, bit) => {
         (options as unknown as Record<string, boolean>)[key] = Boolean(mask & (1 << bit));
       });
@@ -403,10 +345,11 @@ describe("5. Incremental recompute (dirty cone per option key)", () => {
       const engine = new GraphEngine<PipelineCtx>(buildChronicleGraph());
       const base = await engine.run(makeCtx(ALL_ON), RUN_KEYS(ALL_ON));
 
+      const allOnRecord: Record<string, unknown> = ALL_ON;
       const flipped = {
         ...ALL_ON,
-        [key]: altValue(key, (ALL_ON as unknown as Record<string, unknown>)[key]),
-      } as BrowserProcessingOptions;
+        [key]: altValue(key, allOnRecord[key]),
+      };
       const run = await engine.run(makeCtx(flipped), RUN_KEYS(flipped));
       expect(run.report.errors).toEqual({});
 
@@ -490,7 +433,7 @@ describe("5. Incremental recompute (dirty cone per option key)", () => {
     const engine = new GraphEngine<PipelineCtx>(buildChronicleGraph());
     // Same csvText, different declared inputHash: parse_events reruns but its
     // output is byte-identical, so early cutoff keeps every downstream node
-    // cached — the whole point of declaring outputHash on the source.
+    // cached — the whole point of declaring earlyCutoff on the source.
     await engine.run(makeCtx(ALL_ON), RUN_KEYS(ALL_ON, { inputHash: hashValue(["a"]) }));
     const run = await engine.run(makeCtx(ALL_ON), RUN_KEYS(ALL_ON, { inputHash: hashValue(["b"]) }));
     expect(run.report.statuses.parse_events).toBe("recomputed");

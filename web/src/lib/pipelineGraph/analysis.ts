@@ -141,9 +141,9 @@ export function joinPoints(def: GraphDef<unknown>): string[] {
     let disjointPair = false;
     for (let i = 0; i < node.inputs.length && !disjointPair; i += 1) {
       for (let j = i + 1; j < node.inputs.length && !disjointPair; j += 1) {
-        const upI = reach([node.inputs[i]!], adj.upstream);
-        const upJ = reach([node.inputs[j]!], adj.upstream);
-        if (!upI.has(node.inputs[j]!) && !upJ.has(node.inputs[i]!)) disjointPair = true;
+        const upI = reach([node.inputs[i]], adj.upstream);
+        const upJ = reach([node.inputs[j]], adj.upstream);
+        if (!upI.has(node.inputs[j]) && !upJ.has(node.inputs[i])) disjointPair = true;
       }
     }
     if (disjointPair) result.push(node.id);

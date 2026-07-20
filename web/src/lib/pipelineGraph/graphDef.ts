@@ -1,114 +1,61 @@
 import type { GraphDef } from "@/lib/pipelineGraph/graphTypes";
-import { hashValue } from "@/lib/pipelineGraph/engine";
+import type { BrowserProcessingOptions } from "@/lib/types";
+import type { CanonicalRow } from "@/lib/browserPipeline";
+import type { CreditResult } from "@/lib/stages/effectiveUsage";
+import type { ObservationWindowResult } from "@/lib/stages/observationWindow";
+import type { ComplianceResult } from "@/lib/stages/scoreCompliance";
+import { runUnit } from "@/lib/pipelineGraph/stepRunner";
+// Direct module imports (not the steps/index barrel): graphDef is in the
+// same Rollup chunk as the wiring modules, and re-importing them through the
+// barrel would create a circular chunk dependency with GraphPanel's lazy
+// ALL_UNIT_WIRINGS import.
+import { appPolicyWiring } from "@/lib/pipelineGraph/steps/appPolicy";
+import { attributePersonWiring } from "@/lib/pipelineGraph/steps/attributePerson";
+import { categorizeAppsWiring } from "@/lib/pipelineGraph/steps/categorizeApps";
+import { dayCoverageWiring } from "@/lib/pipelineGraph/steps/dayCoverage";
+import { dedupAndOrderWiring } from "@/lib/pipelineGraph/steps/dedupAndOrder";
+import { deviceStateTimelineWiring } from "@/lib/pipelineGraph/steps/deviceStateTimeline";
+import { effectiveUsageWiring } from "@/lib/pipelineGraph/steps/effectiveUsage";
+import { episodeAnnotationsWiring } from "@/lib/pipelineGraph/steps/episodeAnnotations";
+import { intervalCleaningWiring } from "@/lib/pipelineGraph/steps/intervalCleaning";
+import { normalizeTimezonesWiring } from "@/lib/pipelineGraph/steps/normalizeTimezones";
+import { observationWindowWiring } from "@/lib/pipelineGraph/steps/observationWindow";
+import { outputsWiring } from "@/lib/pipelineGraph/steps/outputs";
+import { parseEventsWiring } from "@/lib/pipelineGraph/steps/parseEvents";
+import { reconstructEpisodesWiring } from "@/lib/pipelineGraph/steps/reconstructEpisodes";
+import { scoreComplianceWiring } from "@/lib/pipelineGraph/steps/scoreCompliance";
 import type {
-  BrowserProcessingOptions,
-  BrowserProcessingRuntime,
-  ProgressStepKind,
-} from "@/lib/types";
-import {
-  addAppUsageDetailColumns,
-  addNoActivityPlaceholderRows,
-  applyTimezoneHandling,
-  clearFilteredUsageTiming,
-  countDuplicateTimestampGroups,
-  dedupeExactRows,
-  deriveScreenUsageSessions,
-  enrichWithCodebookData,
-  labelFilteredApps,
-  markAppUsageFlags,
-  markDataTimeGaps,
-  parseRawRows,
-  removeSelectedInteractionTypes,
-  runAppUsageAlgorithm,
-  unalignDuplicateTimestamps,
-  type CanonicalRow,
-  type CodebookRecord,
-  type MatcherRunner,
-  type SplitterRunner,
-} from "@/lib/browserPipeline";
-import { parseInteractionRemap } from "@/lib/interactionTypes";
-import { applyScreenGatedCredit, type CreditResult } from "@/lib/stages/effectiveUsage";
-import {
-  applyObservationWindow,
-  type ObservationWindowResult,
-} from "@/lib/stages/observationWindow";
-import { attributePerson, type AttributionResult } from "@/lib/stages/attributePerson";
-import { scoreCompliance, type ComplianceResult } from "@/lib/stages/scoreCompliance";
-import { buildDayCoverage, type DayCoverageResult } from "@/lib/stages/dayCoverage";
-import type {
-  EnrolledDevice,
-  SharingEntry,
-  StudyWindow,
-  SurveyAnswer,
-} from "@/lib/stages/studySupportFiles";
+  AttributePersonOutput,
+  DayCoverageNodeOutput,
+  DedupAndOrderOutput,
+  NormalizeTimezonesOutput,
+  ParseEventsOutput,
+  PipelineCtx,
+  PipelineOutputs,
+} from "@/lib/pipelineGraph/unitContracts";
 
 /**
  * The declared pipeline graph — the execution spine of the browser
  * pipeline. Node ids and labels use the community vocabulary
  * (docs/pipeline-graph/08-prior-art-vocabulary.md).
  *
- * Bodies wrap the stage functions 1:1; every option a body reads MUST be
- * declared as a knob binding so the cache key covers it (staleness would
- * otherwise be silent).
+ * Bodies execute the unit's STEP WIRING (src/lib/pipelineGraph/steps/*)
+ * through the step runner, so the fine-grained DAG the graph view and the
+ * contract artifact derive is exactly the dataflow that runs. Every option
+ * a step reads MUST be declared as a knob binding so the cache key covers
+ * it (staleness would otherwise be silent).
  */
 
-export interface PipelineSupportData {
-  filterMap: Map<string, Set<string>>;
-  appsForcingScreenOpenMap: Map<string, string>;
-  backgroundAppsSet: Set<string>;
-  codebookMap: Map<string, CodebookRecord>;
-  /** Study Inputs (Analyze tier); null = file not provided. */
-  studyWindows: StudyWindow[] | null;
-  sharingEntries: SharingEntry[] | null;
-  surveyAnswers: SurveyAnswer[] | null;
-  enrolledDevices: EnrolledDevice[] | null;
-}
-
-export interface PipelineCtx {
-  csvText: string;
-  options: BrowserProcessingOptions;
-  runtime?: BrowserProcessingRuntime;
-  support: PipelineSupportData;
-  runMatcher: MatcherRunner;
-  runSplitter: SplitterRunner;
-  emit: (stepKind: ProgressStepKind, percent: number) => void;
-}
-
-export interface ParseEventsOutput {
-  rows: CanonicalRow[];
-  availableTimezones: string[];
-  originalRowCount: number;
-}
-
-export interface NormalizeTimezonesOutput {
-  rows: CanonicalRow[];
-  timezone: string;
-  action: ReturnType<typeof applyTimezoneHandling>["action"];
-  rowsBefore: number;
-  rowsAfter: number;
-  rowsRemoved: number;
-}
-
-export interface DedupAndOrderOutput {
-  rows: CanonicalRow[];
-  duplicateTimestampsCorrected: number;
-  exactDuplicateRowsRemoved: number;
-}
-
-export interface DayCoverageNodeOutput {
-  rows: CanonicalRow[];
-  coverage: DayCoverageResult | null;
-}
-
-export interface PipelineOutputs {
-  appRows: CanonicalRow[];
-  screenRows: CanonicalRow[];
-  credited: CreditResult | null;
-  windowReport: Pick<ObservationWindowResult, "droppedRows" | "participantsWithoutWindow"> | null;
-  attribution: AttributionResult["report"] | null;
-  coverage: DayCoverageResult | null;
-  compliance: ComplianceResult | null;
-}
+export type {
+  AttributePersonOutput,
+  DayCoverageNodeOutput,
+  DedupAndOrderOutput,
+  NormalizeTimezonesOutput,
+  ParseEventsOutput,
+  PipelineCtx,
+  PipelineOutputs,
+  PipelineSupportData,
+} from "@/lib/pipelineGraph/unitContracts";
 
 /**
  * Typed view over the untyped options bag `bypassedWhen` receives (the
@@ -145,19 +92,16 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         inputs: [],
         knobs: [{ optionKey: "interactionTypeRemap", edge: "tunes" }],
         // Early cutoff (Salsa backdating): a remap that matches no event type
-        // in the file leaves the parsed rows byte-identical, so the whole
+        // in the file leaves the parsed rows identical, so the whole
         // downstream graph — including the expensive matcher and splitter —
-        // stays cached. Cheap to hash (parsing already walked every row).
-        outputHash: (value) => hashValue(value),
-        run: (ctx): ParseEventsOutput => {
+        // stays cached. Checked by deep equality against the cached value
+        // (free on first run; hashing here cost ~14% of pipeline wall time).
+        earlyCutoff: true,
+        run: async (ctx, inputs): Promise<ParseEventsOutput> => {
           ctx.emit("parse", 0);
-          const remap = parseInteractionRemap(ctx.options.interactionTypeRemap);
-          const rows = parseRawRows(ctx.csvText, ctx.runtime, remap);
-          const availableTimezones = Array.from(
-            new Set(rows.map((row) => row.timezone).filter(Boolean)),
-          ).sort((left, right) => left.localeCompare(right));
+          const parsed = await runUnit(parseEventsWiring, ctx, inputs);
           ctx.emit("parse", 1);
-          return { rows, availableTimezones, originalRowCount: rows.length };
+          return parsed;
         },
       },
       {
@@ -176,11 +120,10 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         // Early cutoff: an upstream restamp whose rows are unchanged, or a
         // timezone-handling change that is a no-op on this file, keeps the
         // downstream cone cached.
-        outputHash: (value) => hashValue(value),
-        run: (ctx, inputs): NormalizeTimezonesOutput => {
+        earlyCutoff: true,
+        run: async (ctx, inputs): Promise<NormalizeTimezonesOutput> => {
           ctx.emit("timezone", 0);
-          const parsed = inputs.parse_events as ParseEventsOutput;
-          const result = applyTimezoneHandling(parsed.rows, ctx.options);
+          const result = await runUnit(normalizeTimezonesWiring, ctx, inputs);
           ctx.emit("timezone", 0.5);
           return result;
         },
@@ -204,25 +147,11 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         // duplicate timestamps, the dedup/correct flags are no-ops, so
         // toggling them reruns this node but leaves its output unchanged and
         // the matcher downstream cached.
-        outputHash: (value) => hashValue(value),
-        run: (ctx, inputs): DedupAndOrderOutput => {
-          const normalized = inputs.normalize_timezones as NormalizeTimezonesOutput;
-          const dedupeResult = ctx.options.deduplicateExactRows
-            ? dedupeExactRows(normalized.rows)
-            : { rows: normalized.rows, removed: 0 };
-          const duplicatesBefore = countDuplicateTimestampGroups(dedupeResult.rows);
-          const corrected = ctx.options.correctDuplicateEventTimestamps
-            ? unalignDuplicateTimestamps(dedupeResult.rows, ctx.options)
-            : dedupeResult.rows;
-          const rows = markDataTimeGaps(corrected);
+        earlyCutoff: true,
+        run: async (ctx, inputs): Promise<DedupAndOrderOutput> => {
+          const result = await runUnit(dedupAndOrderWiring, ctx, inputs);
           ctx.emit("timezone", 1);
-          return {
-            rows,
-            duplicateTimestampsCorrected: ctx.options.correctDuplicateEventTimestamps
-              ? duplicatesBefore
-              : 0,
-            exactDuplicateRowsRemoved: dedupeResult.removed,
-          };
+          return result;
         },
       },
       {
@@ -246,15 +175,12 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         // Early cutoff: tagging is a pure pass-through when useFilterFile is
         // off (or when the file names no package present here), so the
         // matcher downstream stays cached across those changes.
-        outputHash: (value) => hashValue(value),
-        run: (ctx, inputs): { rows: CanonicalRow[] } => {
+        earlyCutoff: true,
+        run: async (ctx, inputs): Promise<{ rows: CanonicalRow[] }> => {
           ctx.emit("filter", 0);
-          const upstream = inputs.dedup_and_order as DedupAndOrderOutput;
-          const rows = ctx.options.useFilterFile
-            ? labelFilteredApps(upstream.rows, ctx.support.filterMap)
-            : upstream.rows;
+          const result = await runUnit(appPolicyWiring, ctx, inputs);
           ctx.emit("filter", 1);
-          return { rows };
+          return result;
         },
       },
       {
@@ -277,15 +203,10 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         ],
         supportFiles: ["appsForcingScreenOpenFile"],
         bypassedWhen: (options) => !opts(options).processScreenUsage,
-        run: (ctx, inputs): CanonicalRow[] => {
+        run: async (ctx, inputs): Promise<CanonicalRow[]> => {
           if (!ctx.options.processScreenUsage) return [];
           ctx.emit("screen", 0);
-          const upstream = inputs.app_policy as { rows: CanonicalRow[] };
-          const screenRows = deriveScreenUsageSessions(
-            upstream.rows,
-            ctx.options,
-            ctx.support.appsForcingScreenOpenMap,
-          );
+          const screenRows = await runUnit(deviceStateTimelineWiring, ctx, inputs);
           ctx.emit("screen", 1);
           return screenRows;
         },
@@ -326,14 +247,7 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         run: async (ctx, inputs): Promise<CanonicalRow[]> => {
           if (!ctx.options.processAppUsage) return [];
           ctx.emit("matcher", 0);
-          const upstream = inputs.app_policy as { rows: CanonicalRow[] };
-          const appRows = await runAppUsageAlgorithm(
-            upstream.rows,
-            ctx.options,
-            ctx.runMatcher,
-            ctx.runSplitter,
-            ctx.support.backgroundAppsSet,
-          );
+          const appRows = await runUnit(reconstructEpisodesWiring, ctx, inputs);
           ctx.emit("matcher", 1);
           return appRows;
         },
@@ -355,11 +269,10 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         supportFiles: ["appCodebookFile"],
         bypassedWhen: (options) =>
           !opts(options).processAppUsage || !opts(options).useAppCodebook,
-        run: (ctx, inputs): CanonicalRow[] => {
+        run: async (ctx, inputs): Promise<CanonicalRow[]> => {
           if (!ctx.options.processAppUsage) return [];
           ctx.emit("codebook", 0);
-          const episodes = inputs.reconstruct_episodes as CanonicalRow[];
-          const enriched = enrichWithCodebookData(episodes, ctx.options, ctx.support.codebookMap);
+          const enriched = await runUnit(categorizeAppsWiring, ctx, inputs);
           ctx.emit("codebook", 1);
           return enriched;
         },
@@ -381,12 +294,10 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           { optionKey: "customAppEngagementDuration", edge: "tunes" },
         ],
         bypassedWhen: (options) => !opts(options).processAppUsage,
-        run: (ctx, inputs): CanonicalRow[] => {
+        run: async (ctx, inputs): Promise<CanonicalRow[]> => {
           if (!ctx.options.processAppUsage) return [];
           ctx.emit("enrich", 0);
-          const categorized = inputs.categorize_apps as CanonicalRow[];
-          const rows = addAppUsageDetailColumns(categorized, ctx.options);
-          return markAppUsageFlags(rows, ctx.options);
+          return runUnit(episodeAnnotationsWiring, ctx, inputs);
         },
       },
       {
@@ -414,19 +325,9 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           (!opts(options).useFilterFile &&
             (opts(options).interactionTypesToRemove?.length ?? 0) === 0 &&
             !opts(options).filterZeroDurationSessions),
-        run: (ctx, inputs): CanonicalRow[] => {
+        run: async (ctx, inputs): Promise<CanonicalRow[]> => {
           if (!ctx.options.processAppUsage) return [];
-          const annotated = inputs.episode_annotations as CanonicalRow[];
-          let rows = clearFilteredUsageTiming(annotated);
-          rows = removeSelectedInteractionTypes(rows, ctx.options);
-          if (ctx.options.filterZeroDurationSessions) {
-            rows = rows.filter(
-              (row) =>
-                row.interaction_type !== "App Usage" ||
-                row.duration_seconds === null ||
-                row.duration_seconds > 0,
-            );
-          }
+          const rows = await runUnit(intervalCleaningWiring, ctx, inputs);
           ctx.emit("enrich", 0.5);
           return rows;
         },
@@ -451,16 +352,9 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         ],
         bypassedWhen: (options) =>
           !opts(options).processAppUsage || !opts(options).enableScreenGatedCrediting,
-        run: (ctx, inputs): CreditResult | null => {
+        run: async (ctx, inputs): Promise<CreditResult | null> => {
           if (!ctx.options.processAppUsage || !ctx.options.enableScreenGatedCrediting) return null;
-          const quality = inputs.interval_cleaning as CanonicalRow[];
-          const events = inputs.app_policy as { rows: CanonicalRow[] };
-          return applyScreenGatedCredit(quality, events.rows, {
-            capMinutes: ctx.options.creditedSessionCapMinutes,
-            livenessToleranceMinutes: ctx.options.deviceLivenessGapToleranceMinutes,
-            autoLockBridgeSeconds: ctx.options.autoLockBridgeSeconds,
-            noWitnessMinDayApps: ctx.options.noWitnessMinDayApps,
-          });
+          return runUnit(effectiveUsageWiring, ctx, inputs);
         },
       },
       {
@@ -479,17 +373,17 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         supportFiles: ["studyDatesFile"],
         bypassedWhen: (options) =>
           !opts(options).processAppUsage || !opts(options).enableStudyWindowFilter,
-        run: (ctx, inputs): ObservationWindowResult => {
-          const quality = inputs.interval_cleaning as CanonicalRow[];
+        run: async (ctx, inputs): Promise<ObservationWindowResult> => {
           if (!ctx.options.processAppUsage || !ctx.options.enableStudyWindowFilter) {
+            const quality = inputs.interval_cleaning as CanonicalRow[];
             return { rows: quality, droppedRows: 0, participantsWithoutWindow: [] };
           }
-          const windows = requireStudyFile(
+          requireStudyFile(
             ctx.support.studyWindows,
             "The study-window filter",
             "study-dates file",
           );
-          return applyObservationWindow(quality, windows);
+          return runUnit(observationWindowWiring, ctx, inputs);
         },
       },
       {
@@ -508,17 +402,17 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         supportFiles: ["deviceSharingFile", "surveyAttributionFile"],
         bypassedWhen: (options) =>
           !opts(options).processAppUsage || !opts(options).enablePersonAttribution,
-        run: (ctx, inputs): AttributionResult | { rows: CanonicalRow[]; report: null } => {
-          const windowed = inputs.observation_window as ObservationWindowResult;
+        run: async (ctx, inputs): Promise<AttributePersonOutput> => {
           if (!ctx.options.processAppUsage || !ctx.options.enablePersonAttribution) {
+            const windowed = inputs.observation_window as ObservationWindowResult;
             return { rows: windowed.rows, report: null };
           }
-          const sharing = requireStudyFile(
+          requireStudyFile(
             ctx.support.sharingEntries,
             "Person attribution",
             "device-sharing file",
           );
-          return attributePerson(windowed.rows, sharing, ctx.support.surveyAnswers ?? []);
+          return runUnit(attributePersonWiring, ctx, inputs);
         },
       },
       {
@@ -541,29 +435,11 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         bypassedWhen: (options) =>
           !opts(options).processAppUsage ||
           (!opts(options).addNoActivityPlaceholderDays && !opts(options).enableDayCoverage),
-        run: (ctx, inputs): DayCoverageNodeOutput => {
+        run: async (ctx, inputs): Promise<DayCoverageNodeOutput> => {
           if (!ctx.options.processAppUsage) return { rows: [], coverage: null };
-          const attributed = inputs.attribute_person as { rows: CanonicalRow[] };
-          const events = inputs.app_policy as { rows: CanonicalRow[] };
-          const rows = ctx.options.addNoActivityPlaceholderDays
-            ? addNoActivityPlaceholderRows(attributed.rows, events.rows)
-            : attributed.rows;
-          let coverage: DayCoverageResult | null = null;
-          if (ctx.options.enableDayCoverage) {
-            const rawDates = new Map<string, Set<string>>();
-            for (const event of events.rows) {
-              const pid = event.participant_id || "unknown";
-              let set = rawDates.get(pid);
-              if (!set) {
-                set = new Set();
-                rawDates.set(pid, set);
-              }
-              set.add(event.date);
-            }
-            coverage = buildDayCoverage(rows, rawDates, ctx.support.studyWindows ?? []);
-          }
+          const result = await runUnit(dayCoverageWiring, ctx, inputs);
           ctx.emit("enrich", 1);
-          return { rows, coverage };
+          return result;
         },
       },
       {
@@ -583,12 +459,9 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         supportFiles: ["deviceSharingFile", "enrolledDevicesFile"],
         bypassedWhen: (options) =>
           !opts(options).processAppUsage || !opts(options).enableComplianceScoring,
-        run: (ctx, inputs): ComplianceResult | null => {
+        run: async (ctx, inputs): Promise<ComplianceResult | null> => {
           if (!ctx.options.processAppUsage || !ctx.options.enableComplianceScoring) return null;
-          const covered = inputs.day_coverage as DayCoverageNodeOutput;
-          const attributed = inputs.attribute_person as AttributionResult | { report: null };
-          const shared = new Set(attributed.report?.sharedParticipants ?? []);
-          return scoreCompliance(covered.rows, shared, ctx.options.complianceThresholdPercent);
+          return runUnit(scoreComplianceWiring, ctx, inputs);
         },
       },
       {
@@ -608,23 +481,7 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           "score_compliance",
         ],
         knobs: [],
-        run: (_ctx, inputs): PipelineOutputs => {
-          const covered = inputs.day_coverage as DayCoverageNodeOutput;
-          const windowed = inputs.observation_window as ObservationWindowResult;
-          const attributed = inputs.attribute_person as AttributionResult | { report: null };
-          return {
-            appRows: covered.rows,
-            screenRows: inputs.device_state_timeline as CanonicalRow[],
-            credited: inputs.effective_usage as CreditResult | null,
-            windowReport: {
-              droppedRows: windowed.droppedRows,
-              participantsWithoutWindow: windowed.participantsWithoutWindow,
-            },
-            attribution: attributed.report,
-            coverage: covered.coverage,
-            compliance: inputs.score_compliance as ComplianceResult | null,
-          };
-        },
+        run: (ctx, inputs): Promise<PipelineOutputs> => runUnit(outputsWiring, ctx, inputs),
       },
     ],
   };

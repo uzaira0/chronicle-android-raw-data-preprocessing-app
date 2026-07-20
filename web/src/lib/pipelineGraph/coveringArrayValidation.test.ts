@@ -6,7 +6,7 @@ import type { PipelineCtx } from "@/lib/pipelineGraph/graphDef";
 import type { BrowserProcessingOptions } from "@/lib/types";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 
-import { def, expectedBypassed, makeCtx, RUN_KEYS } from "./validationHarness";
+import { def, expectedBypassed, makeCtx, RUN_KEYS, traceGraphExecution } from "./validationHarness";
 
 import coveringT2 from "../../../combinatorial/covering_array_t2.json";
 import coveringT3 from "../../../combinatorial/covering_array_t3.json";
@@ -41,6 +41,33 @@ function wipesAllRows(options: BrowserProcessingOptions): boolean {
     options.selectedTimezone !== "America/Chicago"
   );
 }
+
+describe("PICT covering arrays: traced reads ⊆ declarations (cache-key soundness)", () => {
+  // The same reads-⊆-declarations audit graphValidation.test.ts §3 runs over
+  // its 10 hand-picked configs, here over all 80 covering-array configs: an
+  // undeclared read that only manifests under a rare option interaction is
+  // exactly what a pairwise/three-way array exists to surface.
+  for (const array of ARRAYS) {
+    it(`${array.source}: every node reads only declared knobs, support files, and inputs`, async () => {
+      for (const config of array.configs) {
+        const options: BrowserProcessingOptions = {
+          ...DEFAULT_BROWSER_OPTIONS,
+          ...(config.options as Partial<BrowserProcessingOptions>),
+        };
+        const result = await traceGraphExecution(options);
+        if (result.error) {
+          // Same tolerance as the engine suite below: the only acceptable
+          // throw is the documented fail-loud all-rows wipe.
+          expect(
+            wipesAllRows(options),
+            `${config.id}: node "${result.error.nodeId}" threw: ${result.error.message}`,
+          ).toBe(true);
+        }
+        expect(result.violations, config.id).toEqual([]);
+      }
+    }, 240_000);
+  }
+});
 
 describe("PICT covering arrays execute clean on the real engine", () => {
   for (const array of ARRAYS) {

@@ -56,8 +56,8 @@ export function readDemoDisplayEnabled(): boolean {
   try {
     const raw = window.localStorage.getItem(DEMO_DISPLAY_STORAGE_KEY);
     if (!raw) return false;
-    const parsed = JSON.parse(raw);
-    return Boolean(parsed?.hideDemoMetadata);
+    const parsed = JSON.parse(raw) as unknown;
+    return Boolean((parsed as Record<string, unknown>)?.hideDemoMetadata);
   } catch {
     return false;
   }

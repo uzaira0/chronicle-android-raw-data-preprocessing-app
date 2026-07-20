@@ -1281,9 +1281,25 @@ a:hover {
 
 .graph-node__status--recomputed { background: var(--color-success-soft, #e5f6ec); color: var(--color-success, #157f3d); }
 .graph-node__status--error { background: var(--color-danger-soft); color: var(--color-danger); }
-.graph-node__status--dirty,
 .graph-node__status--skipped { background: var(--color-warning-soft); color: var(--color-warning); }
 .graph-node__status--bypassed { background: var(--color-border, #e2e8f0); color: var(--color-text-muted, #64748b); }
+
+/* Ledger metrics from the last run: rows in→out and wall-clock duration. */
+.graph-node__metrics {
+  font-size: 0.62rem;
+  color: var(--color-text-muted, #64748b);
+  white-space: nowrap;
+}
+
+/* Violated (warn-only) expectations on the node's last run. */
+.graph-node__warn {
+  font-size: 0.62rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+  white-space: nowrap;
+}
 
 .graph-node__join {
   background: var(--accent-interaction-soft);
@@ -1292,6 +1308,14 @@ a:hover {
 
 .graph-flow-node { transition: opacity 160ms ease; }
 .graph-flow-node.is-dimmed { opacity: 0.22; }
+
+/* React Flow's attribution ships at #999 on white (2.84:1) — below WCAG AA at
+ * its 10px size. Keep the attribution visible but darken it to meet 4.5:1
+ * (persona-accessibility graph-panel scan enforces this). */
+.graph-canvas .react-flow__attribution,
+.graph-canvas .react-flow__attribution a {
+  color: #595959;
+}
 /* Gated off by the current settings: present in the map, inert in the run. */
 .graph-flow-node.is-off .graph-node {
   border-style: dashed;

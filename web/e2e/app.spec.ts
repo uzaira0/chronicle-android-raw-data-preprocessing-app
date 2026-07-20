@@ -71,14 +71,38 @@ test("processes app and screen outputs with CSV support files and downloads both
 
   const zipEntries = await downloadZipEntries(page, "download-all-zip");
   expect(Array.from(zipEntries.keys())).toContain("chronicle-processing-report.json");
-  const report = JSON.parse(zipEntries.get("chronicle-processing-report.json") ?? "{}");
-  expect(report.preprocessorVersion).toBe("1.0.0");
-  expect(report.files).toHaveLength(1);
+  const report = JSON.parse(zipEntries.get("chronicle-processing-report.json") ?? "{}") as unknown;
+  expect((report as Record<string, unknown>).preprocessorVersion).toBe("1.0.0");
+  const reportFiles = (report as Record<string, unknown>).files as Array<Record<string, unknown>>;
+  expect(reportFiles).toHaveLength(1);
   // Plots are on by default, so outputs also include "plot" entries; assert the
   // CSV kinds are present rather than pinning the exact set.
-  const outputKinds = report.files[0].outputs.map((output: { kind: string }) => output.kind);
+  const outputKinds = (reportFiles[0]?.outputs as Array<{ kind: string }>).map((output) => output.kind);
   expect(outputKinds).toContain("app");
   expect(outputKinds).toContain("screen");
+  // The manifest carries the run's ExecutionLedger (per-unit/per-step lineage).
+  expect(((reportFiles[0]?.executions as unknown[]) ?? []).length).toBeGreaterThan(0);
+  expect(
+    ((reportFiles[0]?.executions as Array<{ steps: unknown[] }>) ?? []).flatMap((unit) => unit.steps).length,
+  ).toBeGreaterThan(0);
+
+  // The PROV-O sidecar rides in the same ZIP and carries per-node
+  // chron:NodeExecution activities (the runtime lineage ledger) alongside
+  // the run activity — not just the run-level summary.
+  expect(Array.from(zipEntries.keys())).toContain("chronicle-provenance.jsonld");
+  const provenance = JSON.parse(zipEntries.get("chronicle-provenance.jsonld") ?? "{}") as unknown;
+  const provGraph: Array<Record<string, unknown>> = (provenance as Record<string, unknown>)["@graph"] as Array<Record<string, unknown>> ?? [];
+  const nodeExecutions = provGraph.filter(
+    (node) => Array.isArray(node["@type"]) && (node["@type"] as string[]).includes("chron:NodeExecution"),
+  );
+  expect(nodeExecutions.length).toBeGreaterThan(0);
+  expect(
+    nodeExecutions.every(
+      (node) => node["chron:executes_step"] && node["chron:used_parameter_set"],
+    ),
+  ).toBe(true);
+  // Step-scale executions nest under their unit via dcterms:isPartOf.
+  expect(nodeExecutions.some((node) => node["dcterms:isPartOf"])).toBe(true);
 
   const appCsv = await downloadCsv(page, "download-app-csv");
   const screenCsv = await downloadCsv(page, "download-screen-csv");
@@ -516,19 +540,19 @@ test("@smoke the exported HTML timeline viewer runs its inlined interactivity of
   // (3) Hovering a session bar shows the per-session detail tooltip. The bar's
   // screen position is derived from the embedded scene at the auto-fit transform
   // (scale = width / sceneWidth, tx = ty = 0).
-  const target = await viewer.evaluate(() => {
-    const data = JSON.parse(document.getElementById("tv-data")!.textContent!);
-    const view = data.app[0];
-    const region = view.regions[0];
+  const target: { x: number; y: number; title: string } = await viewer.evaluate(() => {
+    const data = JSON.parse(document.getElementById("tv-data")!.textContent) as unknown;
+    const view = (data as Record<string, unknown>).app as Array<Record<string, unknown>>;
+    const region = (view[0]?.regions as Array<Record<string, unknown>>)?.[0];
     const el = document.querySelector(
       '[data-tv-type="app"][data-tv-index="0"] .tv-canvas',
     ) as HTMLCanvasElement;
     const rect = el.getBoundingClientRect();
-    const scale = rect.width / view.scene.width;
+    const scale = rect.width / ((view[0]?.scene as Record<string, unknown>)?.width as number);
     return {
-      x: rect.left + (region.x + region.w / 2) * scale,
-      y: rect.top + (region.y + region.h / 2) * scale,
-      title: region.title,
+      x: rect.left + (((region?.x as number) ?? 0) + (((region?.w as number) ?? 0) / 2)) * scale,
+      y: rect.top + (((region?.y as number) ?? 0) + (((region?.h as number) ?? 0) / 2)) * scale,
+      title: region?.title as string,
     };
   });
   const beforeZoom = await canvas.evaluate((c) => ({
@@ -577,17 +601,17 @@ test("View tab renders the review surface (rail, metrics, timeline) with file an
   const html = await readFile(htmlPath, "utf-8");
   const dataMatch = html.match(/<script type="application\/json" id="tv-data">([^<]*)<\/script>/);
   expect(dataMatch).not.toBeNull();
-  const data = JSON.parse(dataMatch![1]!);
-  const view = data.app[0];
-  const includedView = data.appFilteredIncluded?.[0] ?? data.app[0];
-  const excludedView = data.appFilteredExcluded?.[0];
+  const data = JSON.parse(dataMatch![1]) as unknown;
+  const view = (data as Record<string, unknown>).app as Array<Record<string, unknown>>;
+  const includedView = ((data as Record<string, unknown>).appFilteredIncluded as Array<Record<string, unknown>> | undefined)?.[0] ?? view[0];
+  const excludedView = ((data as Record<string, unknown>).appFilteredExcluded as Array<Record<string, unknown>> | undefined)?.[0];
   expect(
-    includedView.regions.some((r: { lines: string[] }) =>
+    ((includedView?.regions as Array<{ lines: string[] }>) ?? []).some((r) =>
       r.lines.some((line) => line.includes("Filtered App Usage event")),
     ),
   ).toBe(true);
   expect(
-    excludedView?.regions.some((r: { lines: string[] }) =>
+    ((excludedView?.regions as Array<{ lines: string[] }>) ?? []).some((r) =>
       r.lines.some((line) => line.includes("Filtered App Usage event")),
     ) ?? false,
   ).toBe(false);
@@ -639,21 +663,21 @@ test("View tab renders the review surface (rail, metrics, timeline) with file an
     .poll(async () => canvas.evaluate((c) => (c as HTMLCanvasElement).toDataURL()))
     .not.toBe(includedBitmap);
 
-  const zoomView = excludedView ?? view;
-  const region = zoomView.regions.find((r: { lines: string[] }) => r.lines.some((line) => line.includes("→")));
+  const zoomView = excludedView ?? view[0];
+  const region = (zoomView?.regions as Array<{ lines: string[] }>)?.find((r) => r.lines.some((line) => line.includes("→")));
   expect(region).toBeDefined();
 
-  const target = await canvas.evaluate(
-    (el, payload) => {
+  const target: { x: number; y: number; title: string } = await canvas.evaluate(
+    (el, payload: { region: Record<string, unknown>; scene: Record<string, unknown> }) => {
       const rect = el.getBoundingClientRect();
-      const scale = rect.width / payload.scene.width;
+      const scale = rect.width / (payload.scene.width as number);
       return {
-        x: rect.left + (payload.region.x + payload.region.w / 2) * scale,
-        y: rect.top + (payload.region.y + payload.region.h / 2) * scale,
-        title: payload.region.title,
+        x: rect.left + (((payload.region.x as number) ?? 0) + (((payload.region.w as number) ?? 0) / 2)) * scale,
+        y: rect.top + (((payload.region.y as number) ?? 0) + (((payload.region.h as number) ?? 0) / 2)) * scale,
+        title: payload.region.title as string,
       };
     },
-    { region: region!, scene: zoomView.scene },
+    { region: region as Record<string, unknown>, scene: zoomView?.scene as Record<string, unknown> },
   );
   const beforeZoom = await canvas.evaluate((c) => ({
     bitmap: (c as HTMLCanvasElement).toDataURL(),
@@ -1142,10 +1166,12 @@ test("config export round-trips both active settings and the preset library", as
   const download = await downloadPromise;
   const stream = await download.createReadStream();
   if (!stream) throw new Error("download stream missing");
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
-  const exported = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+  const chunks: Array<Buffer | Uint8Array> = [];
+  for await (const chunk of stream) {
+    chunks.push(chunk instanceof Buffer ? chunk : Buffer.from(chunk as ArrayLike<number>));
+  }
+  const exported = JSON.parse(Buffer.concat(chunks).toString("utf-8")) as { currentSettings: { studyName: string }; presets: Array<{ name: string }> };
   expect(exported.currentSettings.studyName).toBe("RoundTrip");
-  expect(exported.presets.map((p: { name: string }) => p.name)).toContain("Snapshot A");
+  expect(exported.presets.map((p) => p.name)).toContain("Snapshot A");
   assertNoExternalRequests(requestTracker);
 });

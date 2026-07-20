@@ -46,7 +46,7 @@ function openDb(): Promise<IDBDatabase> {
       }
     };
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onerror = () => reject(request.error instanceof Error ? request.error : new Error(String(request.error)));
   });
 }
 
@@ -65,7 +65,7 @@ function runStore<T>(
         };
         transaction.onerror = () => {
           db.close();
-          reject(transaction.error);
+          reject(transaction.error instanceof Error ? transaction.error : new Error(String(transaction.error)));
         };
       }),
   );
@@ -101,7 +101,7 @@ export async function loadLastRun(): Promise<LastRunRecord | undefined> {
   let record: LastRunRecord | undefined;
   try {
     record = await runStore<LastRunRecord | undefined>("readonly", (store) =>
-      store.get(LAST_RUN_ID),
+      store.get(LAST_RUN_ID) as IDBRequest<LastRunRecord | undefined>,
     );
   } catch {
     // A corrupt/unreadable record would otherwise throw on every boot. Self-heal:

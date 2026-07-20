@@ -281,7 +281,7 @@ function summarizeGroup(
 
   let appSwitches = 0;
   for (let index = 1; index < sortedApp.length; index += 1) {
-    if (sortedApp[index]!.app_package_name !== sortedApp[index - 1]!.app_package_name) {
+    if (sortedApp[index].app_package_name !== sortedApp[index - 1].app_package_name) {
       appSwitches += 1;
     }
   }
@@ -356,7 +356,7 @@ export function computePeriodSummaries(
     const appGroup = appByKey.get(key) ?? [];
     const screenGroup = screenByKey.get(key) ?? [];
     const backgroundGroup = backgroundByKey.get(key) ?? [];
-    const sample = appGroup[0] ?? screenGroup[0] ?? backgroundGroup[0]!;
+    const sample = appGroup[0] ?? screenGroup[0] ?? backgroundGroup[0];
     const backgroundMinutes = nsToMinutes(sumDurationNs(backgroundGroup));
     const metrics = summarizeGroup(appGroup, screenGroup, backgroundMinutes);
     out.push({
@@ -412,7 +412,7 @@ export function computeTopApps(
   );
   const out: TopAppRow[] = [];
   for (const group of byKey.values()) {
-    const sample = group[0]!;
+    const sample = group[0];
     const study_id = sample.study_id;
     const participant_id = sample.participant_id;
     const period = periodOf(sample.date);
@@ -421,8 +421,8 @@ export function computeTopApps(
       const fgNs = sumDurationNs(rows.filter((row) => row.usage_layer !== "secondary"));
       const bgNs = sumDurationNs(rows.filter((row) => row.usage_layer === "secondary"));
       return {
-        app_package_name: rows[0]!.app_package_name,
-        application_label: rows[0]!.application_label,
+        app_package_name: rows[0].app_package_name,
+        application_label: rows[0].application_label,
         foreground_minutes: nsToMinutes(fgNs),
         background_minutes: nsToMinutes(bgNs),
         total_minutes: nsToMinutes(fgNs + bgNs),
@@ -475,7 +475,7 @@ export function computeCategoryBudget(appRows: readonly AggregateInputRow[]): Ca
   );
   const out: CategoryBudgetRow[] = [];
   for (const rows of byKey.values()) {
-    const sample = rows[0]!;
+    const sample = rows[0];
     const fgNs = sumDurationNs(rows.filter((row) => row.usage_layer !== "secondary"));
     const bgNs = sumDurationNs(rows.filter((row) => row.usage_layer === "secondary"));
     out.push({
@@ -550,8 +550,8 @@ export function computeCoUsage(appRows: readonly AggregateInputRow[]): CoUsageRo
       }
       active.push(session);
     }
-    const study_id = sessions[0]!.study_id;
-    const participant_id = sessions[0]!.participant_id;
+    const study_id = sessions[0].study_id;
+    const participant_id = sessions[0].participant_id;
     for (const entry of pairs.values()) {
       out.push({
         study_id,

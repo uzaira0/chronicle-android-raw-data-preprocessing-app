@@ -58,6 +58,18 @@ test("@smoke Graph tab renders the pipeline and answers a click in plain English
   await expect(page.getByTestId("graph-sentence")).toContainText("Click a step");
 
   const nodes = page.locator(".graph-node");
+
+  // Steps is the default scale: the full fine-grained DAG, every real
+  // transformation as its own node (units are only the engine's caching
+  // boundary — an arbitrary grouping).
+  await expect(page.getByTestId("graph-scale-steps")).toHaveAttribute("aria-pressed", "true");
+  await expect(nodes.filter({ hasText: "CSV parse" })).toHaveCount(1);
+  expect(await nodes.count()).toBeGreaterThanOrEqual(20);
+
+  // The Units toggle regroups the same DAG at execution-unit scale.
+  await page.getByTestId("graph-scale-units").click();
+  await expect(page.getByTestId("graph-scale-units")).toHaveAttribute("aria-pressed", "true");
+
   // Steps the current settings turn off (filtering + the Analyze tier under
   // shipped defaults) are HIDDEN — the default view is the pipeline that
   // actually runs, not the full declared DAG.

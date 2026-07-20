@@ -8,11 +8,9 @@ import type {
   BrowserProcessingOptions,
   BrowserProcessingRuntime,
   BrowserSupportFiles,
-  MatcherInput,
-  MatcherOutput,
-  SplitterInput,
-  SplitterOutput,
 } from "../src/lib/types";
+
+import { runMatcher, runSplitter } from "./_matcherHarness.mjs";
 
 type ProcessingSpec = {
   inputFileName: string;
@@ -54,50 +52,6 @@ async function loadSupportFiles(
     ...(backgroundAppsFile ? { backgroundAppsFile } : {}),
     ...(appCodebookFile ? { appCodebookFile } : {}),
   };
-}
-
-let initPromise: Promise<void> | null = null;
-
-async function ensureInit(): Promise<void> {
-  if (initPromise) {
-    return initPromise;
-  }
-  initPromise = (async () => {
-    const module = await import("../src/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
-    const wasmPath = path.resolve(
-      path.dirname(new URL(import.meta.url).pathname),
-      "../src/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm_bg.wasm",
-    );
-    await module.default({ module_or_path: await readFile(wasmPath) });
-  })();
-  return initPromise;
-}
-
-async function runMatcher(input: MatcherInput): Promise<MatcherOutput> {
-  await ensureInit();
-  const module = await import("../src/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
-  return module.matchAppUsageUpdateIndices(
-    input.appCodes,
-    input.timestampNs,
-    input.resumed,
-    input.sameStop,
-    input.otherStop,
-    input.stopped,
-    input.background,
-    input.options.allowStopEventReuse,
-    input.options.useActivityStoppedAsFallback,
-    input.options.applyThresholdToFallback,
-    input.options.longDurationThresholdNs,
-  ) as MatcherOutput;
-}
-
-async function runSplitter(input: SplitterInput): Promise<SplitterOutput> {
-  await ensureInit();
-  const module = await import("../src/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
-  const wasmModule = module as unknown as {
-    splitOverlappingSessions: (starts: BigInt64Array, stops: BigInt64Array) => SplitterOutput;
-  };
-  return wasmModule.splitOverlappingSessions(input.starts, input.stops);
 }
 
 async function main(): Promise<void> {

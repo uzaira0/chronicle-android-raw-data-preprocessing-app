@@ -114,38 +114,62 @@ export function lookupDeviceSharing(
   );
 }
 
-export function attributePerson(
+export interface SharingResolution {
+  statusByPid: Map<string, "Shared" | "Non-Shared">;
+  sharedParticipants: string[];
+  nonSharedParticipants: string[];
+}
+
+/** Resolve every participant in the rows to a sharing status (throws on gaps). */
+export function resolveSharingStatuses(
   rows: readonly CanonicalRow[],
   sharing: readonly SharingEntry[],
-  survey: readonly SurveyAnswer[],
+): SharingResolution {
+  const statusByPid = new Map<string, "Shared" | "Non-Shared">();
+  for (const pid of new Set(rows.map((row) => row.participant_id))) {
+    statusByPid.set(pid, lookupDeviceSharing(pid, sharing));
+  }
+  return {
+    statusByPid,
+    sharedParticipants: [...statusByPid.entries()]
+      .filter(([, status]) => status === "Shared")
+      .map(([pid]) => pid)
+      .sort(),
+    nonSharedParticipants: [...statusByPid.entries()]
+      .filter(([, status]) => status === "Non-Shared")
+      .map(([pid]) => pid)
+      .sort(),
+  };
+}
+
+/** Survey lookup: (participant, exact event timestamp) → user; later rows win. */
+export function buildSurveyLookup(survey: readonly SurveyAnswer[]): Map<string, string> {
+  const surveyByKey = new Map<string, string>();
+  for (const answer of survey) {
+    surveyByKey.set(`${answer.participantId} ${answer.eventTimestampNs}`, answer.user);
+  }
+  return surveyByKey;
+}
+
+/**
+ * Attribute each row to a person given the resolved sharing statuses and the
+ * survey lookup: fill null usernames, apply survey relabels, and re-mark
+ * non-target App Usage on shared devices.
+ */
+export function attributeRows(
+  rows: readonly CanonicalRow[],
+  resolution: SharingResolution,
+  surveyByKey: ReadonlyMap<string, string>,
 ): AttributionResult {
   const report: AttributionReport = {
-    sharedParticipants: [],
-    nonSharedParticipants: [],
+    sharedParticipants: resolution.sharedParticipants,
+    nonSharedParticipants: resolution.nonSharedParticipants,
     surveyRelabels: 0,
     nonTargetRows: 0,
     kidsShellAttributions: 0,
     nullUsernamesFilled: 0,
   };
-
-  const statusByPid = new Map<string, "Shared" | "Non-Shared">();
-  for (const pid of new Set(rows.map((row) => row.participant_id))) {
-    statusByPid.set(pid, lookupDeviceSharing(pid, sharing));
-  }
-  report.sharedParticipants = [...statusByPid.entries()]
-    .filter(([, status]) => status === "Shared")
-    .map(([pid]) => pid)
-    .sort();
-  report.nonSharedParticipants = [...statusByPid.entries()]
-    .filter(([, status]) => status === "Non-Shared")
-    .map(([pid]) => pid)
-    .sort();
-
-  // Survey lookup: (participant, exact event timestamp) → user; later rows win.
-  const surveyByKey = new Map<string, string>();
-  for (const answer of survey) {
-    surveyByKey.set(`${answer.participantId} ${answer.eventTimestampNs}`, answer.user);
-  }
+  const statusByPid = resolution.statusByPid;
 
   const out: CanonicalRow[] = rows.map((row) => {
     const status = statusByPid.get(row.participant_id)!;
@@ -185,4 +209,12 @@ export function attributePerson(
   });
 
   return { rows: out, report };
+}
+
+export function attributePerson(
+  rows: readonly CanonicalRow[],
+  sharing: readonly SharingEntry[],
+  survey: readonly SurveyAnswer[],
+): AttributionResult {
+  return attributeRows(rows, resolveSharingStatuses(rows, sharing), buildSurveyLookup(survey));
 }

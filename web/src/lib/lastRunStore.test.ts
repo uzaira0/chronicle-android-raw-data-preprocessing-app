@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import {
@@ -42,7 +42,7 @@ function result(): ProcessedFileResult {
       ],
       screen: [],
     },
-    reviewSummary: { participants: [] } as ProcessedFileResult["reviewSummary"],
+    reviewSummary: { participants: [] },
   };
 }
 
@@ -53,12 +53,12 @@ beforeEach(async () => {
 describe("toLightweightResults", () => {
   it("drops heavy artifacts, keeps counts + reviewSummary, flags the result", () => {
     const [light] = toLightweightResults([result()]);
-    expect(light!.outputs).toEqual([]);
-    expect(light!.timelineView).toBeUndefined();
-    expect(light!.restoredWithoutArtifacts).toBe(true);
-    expect(light!.appRowCount).toBe(1);
-    expect(light!.timezone).toBe("America/Chicago");
-    expect(light!.reviewSummary).toBeTruthy();
+    expect(light.outputs).toEqual([]);
+    expect(light.timelineView).toBeUndefined();
+    expect(light.restoredWithoutArtifacts).toBe(true);
+    expect(light.appRowCount).toBe(1);
+    expect(light.timezone).toBe("America/Chicago");
+    expect(light.reviewSummary).toBeTruthy();
   });
 
   it("does not mutate the live result — this session's downloads still work", () => {
@@ -99,5 +99,77 @@ describe("lastRunStore", () => {
     });
     await clearLastRun();
     expect(await loadLastRun()).toBeUndefined();
+  });
+
+  it("self-heals an empty cached run instead of re-reading it forever", async () => {
+    await saveLastRun({
+      options: DEFAULT_BROWSER_OPTIONS,
+      results: [],
+      discoveredTimezones: [],
+    });
+    expect(await loadLastRun()).toBeUndefined();
+    // The stale record was cleared, not just skipped.
+    expect(await loadLastRun()).toBeUndefined();
+  });
+
+  it("drops the record and rethrows when the write itself fails", async () => {
+    const unsavable = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      poison: () => {},
+    } as unknown as typeof DEFAULT_BROWSER_OPTIONS;
+    await expect(
+      saveLastRun({ options: unsavable, results: [result()], discoveredTimezones: [] }),
+    ).rejects.toThrow();
+    expect(await loadLastRun()).toBeUndefined();
+  });
+});
+
+describe("lastRunStore under a failing IndexedDB", () => {
+  /**
+   * Fake indexedDB whose every transaction fires onerror — models quota
+   * exhaustion / a corrupt store, where the transaction (not the request
+   * call) is what fails.
+   */
+  function failingIndexedDB() {
+    const db = {
+      close: () => {},
+      transaction: () => {
+        const tx: {
+          error: Error;
+          objectStore: () => { put: () => object; get: () => object; delete: () => object };
+          onerror?: () => void;
+          oncomplete?: () => void;
+        } = {
+          error: new Error("quota exhausted"),
+          objectStore: () => ({ put: () => ({}), get: () => ({}), delete: () => ({}) }),
+        };
+        queueMicrotask(() => tx.onerror?.());
+        return tx;
+      },
+    };
+    return {
+      open: () => {
+        const request: { result: typeof db; onsuccess?: () => void; onerror?: () => void } = {
+          result: db,
+        };
+        queueMicrotask(() => request.onsuccess?.());
+        return request;
+      },
+    };
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal("indexedDB", failingIndexedDB());
+    return () => vi.unstubAllGlobals();
+  });
+
+  it("saveLastRun surfaces the transaction failure after attempting cleanup", async () => {
+    await expect(
+      saveLastRun({ options: DEFAULT_BROWSER_OPTIONS, results: [result()], discoveredTimezones: [] }),
+    ).rejects.toThrow("quota exhausted");
+  });
+
+  it("loadLastRun self-heals to undefined instead of throwing on every boot", async () => {
+    await expect(loadLastRun()).resolves.toBeUndefined();
   });
 });

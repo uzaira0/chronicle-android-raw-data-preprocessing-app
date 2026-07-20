@@ -30,11 +30,11 @@ describe("computeHourDayMatrix (#19 heatmap)", () => {
       "UTC",
     );
     expect(m.dates).toEqual(["2026-03-07"]);
-    expect(m.cells[0]![10]).toBe(1800); // 30 min in hour 10
+    expect(m.cells[0][10]).toBe(1800); // 30 min in hour 10
     expect(m.maxCell).toBe(1800);
     // Untouched hours stay zero.
-    expect(m.cells[0]![9]).toBe(0);
-    expect(m.cells[0]![11]).toBe(0);
+    expect(m.cells[0][9]).toBe(0);
+    expect(m.cells[0][11]).toBe(0);
   });
 
   it("distributes a multi-hour session across hour buckets", () => {
@@ -42,9 +42,9 @@ describe("computeHourDayMatrix (#19 heatmap)", () => {
       [row(at(2026, 3, 7, 10, 0), at(2026, 3, 7, 12, 30), "2026-03-07")],
       "UTC",
     );
-    expect(m.cells[0]![10]).toBe(3600);
-    expect(m.cells[0]![11]).toBe(3600);
-    expect(m.cells[0]![12]).toBe(1800);
+    expect(m.cells[0][10]).toBe(3600);
+    expect(m.cells[0][11]).toBe(3600);
+    expect(m.cells[0][12]).toBe(1800);
     expect(m.maxCell).toBe(3600);
   });
 
@@ -58,8 +58,8 @@ describe("computeHourDayMatrix (#19 heatmap)", () => {
       "UTC",
     );
     expect(m.dates).toEqual(["2026-03-07", "2026-03-08"]);
-    expect(m.cells[0]![23]).toBe(3600); // 23:00–24:00 on the 7th
-    expect(m.cells[1]![0]).toBe(3600); // 00:00–01:00 on the 8th
+    expect(m.cells[0][23]).toBe(3600); // 23:00–24:00 on the 7th
+    expect(m.cells[1][0]).toBe(3600); // 00:00–01:00 on the 8th
   });
 
   it("keeps a midnight-crossing session's post-midnight slice with no other rows", () => {
@@ -71,15 +71,15 @@ describe("computeHourDayMatrix (#19 heatmap)", () => {
       "UTC",
     );
     expect(m.dates).toEqual(["2026-03-07", "2026-03-08"]);
-    expect(m.cells[0]![23]).toBe(1800); // 23:30–24:00 on the 7th
-    expect(m.cells[1]![0]).toBe(1800); // 00:00–00:30 on the 8th
+    expect(m.cells[0][23]).toBe(1800); // 23:30–24:00 on the 7th
+    expect(m.cells[1][0]).toBe(1800); // 00:00–00:30 on the 8th
   });
 
   it("excludes filtered app usage unless the option enables it", () => {
     const rows = [row(at(2026, 3, 7, 9, 0), at(2026, 3, 7, 9, 30), "2026-03-07", "Filtered App Usage")];
     expect(computeHourDayMatrix(rows, "UTC").maxCell).toBe(0);
     expect(
-      computeHourDayMatrix(rows, "UTC", { includeFilteredAppUsageInPlots: true }).cells[0]![9],
+      computeHourDayMatrix(rows, "UTC", { includeFilteredAppUsageInPlots: true }).cells[0][9],
     ).toBe(1800);
   });
 
@@ -91,7 +91,7 @@ describe("computeHourDayMatrix (#19 heatmap)", () => {
       ],
       "UTC",
     );
-    expect(m.cells[0]![14]).toBe(900);
+    expect(m.cells[0][14]).toBe(900);
     expect(m.maxCell).toBe(900);
   });
 });

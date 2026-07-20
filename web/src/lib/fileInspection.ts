@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 
+import { REQUIRED_RAW_COLUMNS } from "@/lib/generatedContract";
 import { ALL_INTERACTION_TYPES_MAP, parseInteractionRemap } from "@/lib/interactionTypes";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
@@ -71,15 +72,9 @@ export function effectiveWarnings(
   return warnings;
 }
 
-const REQUIRED_RAW_COLUMNS = [
-  "study_id",
-  "participant_id",
-  "application_label",
-  "interaction_type",
-  "app_package_name",
-  "event_timestamp",
-  "timezone",
-];
+// REQUIRED_RAW_COLUMNS comes from the generated contract (SSOT:
+// RawChronicleEventRecord in schema/chronicle-local-contract.linkml.yaml).
+// It is advisory — a missing header WARNS, never blocks (desktop parity).
 
 function humanColumnSet(columns: string[]): Set<string> {
   return new Set(columns.map((column) => column.trim()));
@@ -102,7 +97,12 @@ function isValidTimezone(timezone: string): boolean {
 
 function isValidChronicleTimestamp(value: string): boolean {
   const text = value.trim();
+  // Unreachable defensive guard: both call sites already pass a trimmed,
+  // truthy string (line 126 gates on `value && …`, line 147 on `!value || …`),
+  // so `text` is never empty here. Kept so the validator is safe standalone.
+  /* v8 ignore start */
   if (!text) return false;
+  /* v8 ignore stop */
   if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?$/.test(text)) {
     return true;
   }

@@ -1,5 +1,5 @@
 import Papa from "papaparse";
-import { ALL_INTERACTION_TYPES_MAP, parseInteractionRemap } from "@/lib/interactionTypes";
+import { ALL_INTERACTION_TYPES_MAP } from "@/lib/interactionTypes";
 import { buildAggregateOutputs } from "@/lib/aggregations";
 import {
   buildParquetBuffer,
@@ -46,6 +46,10 @@ import { buildTimelineViewerHtml } from "@/lib/timelineViewer";
 import { buildReviewSummary } from "@/lib/reviewMetrics";
 import { matchAppUsageWithProximity } from "@/lib/proximityMatcher";
 import { GraphEngine, hashValue } from "@/lib/pipelineGraph/engine";
+import {
+  assembleLedger,
+  type StepExecutionRecord,
+} from "@/lib/pipelineGraph/executionRecords";
 import {
   buildChronicleGraph,
   type DedupAndOrderOutput,
@@ -194,20 +198,26 @@ const AMAZON_APPS = [
   "com.amazon.media.session.monitor",
 ];
 
-const SCREEN_START_EVENTS = new Set(["Screen Interactive", "Screen Interactive/Keyguard Shown"]);
-const SCREEN_STOP_EVENTS = new Set([
+// Screen state-machine event categories. Exported (with transitionScreenState)
+// so browserPipeline.screenFsm.test.ts can exercise the exhaustive
+// {CLOSED, OPEN} × category transition matrix against the same sets the
+// walker consumes — a test-local copy would drift silently. Note the two
+// dual-category events: "Screen Interactive/Keyguard Shown" is start+lock,
+// "Screen Non-Interactive/Keyguard Hidden" is stop+unlock.
+export const SCREEN_START_EVENTS = new Set(["Screen Interactive", "Screen Interactive/Keyguard Shown"]);
+export const SCREEN_STOP_EVENTS = new Set([
   "Screen Non-Interactive",
   "Device Screen Off",
   "Screen Non-Interactive/Keyguard Hidden",
 ]);
-const LOCK_SCREEN_EVENTS = new Set(["Keyguard Shown", "Screen Interactive/Keyguard Shown"]);
-const UNLOCK_EVENTS = new Set([
+export const LOCK_SCREEN_EVENTS = new Set(["Keyguard Shown", "Screen Interactive/Keyguard Shown"]);
+export const UNLOCK_EVENTS = new Set([
   "Keyguard Hidden",
   "User Unlocked",
   "Screen Non-Interactive/Keyguard Hidden",
 ]);
-const FOREGROUND_EVENTS = new Set(["Activity Resumed", "Filtered App Resumed"]);
-const MEANINGFUL_ACTIVITY_EVENTS = new Set([
+export const FOREGROUND_EVENTS = new Set(["Activity Resumed", "Filtered App Resumed"]);
+export const MEANINGFUL_ACTIVITY_EVENTS = new Set([
   "Activity Resumed",
   "Filtered App Resumed",
   "User Interaction",
@@ -220,7 +230,22 @@ const MEANINGFUL_ACTIVITY_EVENTS = new Set([
 
 const eventFormatterCache = new Map<string, Intl.DateTimeFormat>();
 const eventWithOffsetFormatterCache = new Map<string, Intl.DateTimeFormat>();
-const weekdayFormatterCache = new Map<string, Intl.DateTimeFormat>();
+// Per-run memoization of Intl.DateTimeFormat.formatToParts results. The output
+// of formatToParts is fully determined by (epoch-ms, timeZone) — the same ms is
+// formatted many times per run (a session's start/stop/last-activity are event
+// timestamps also stamped during parse; app rows re-format their own event ns
+// in the output stage) — so memoizing by that key is byte-identical and removes
+// the redundant native calls. Keyed by the millisecond value (formatToParts
+// truncates ns→ms via `new Date`, so ns sharing an ms already produce identical
+// output). Cleared per run in processRawCsvContent so it never outgrows one
+// file's distinct timestamps. Callers only READ the returned records.
+const formatPartsCache = new Map<string, Record<string, string>>();
+const eventTimestampCache = new Map<string, string>();
+
+function resetTimestampFormatCaches(): void {
+  formatPartsCache.clear();
+  eventTimestampCache.clear();
+}
 const defaultSupportCache = new Map<string, Promise<SupportRows>>();
 const uploadedSupportCache = new Map<string, Promise<SupportRows>>();
 const MISSING_INT64 = -(1n << 63n);
@@ -233,6 +258,16 @@ const MISSING_INT64 = -(1n << 63n);
  * doubles bit-for-bit (verified against polars output).
  */
 export const RECIP_60 = 1 / 60;
+
+/**
+ * duration_seconds = whole_microseconds * (1/1e6), NOT ns / 1e9: the desktop
+ * engine's app-usage durations come out as a reciprocal multiply over the
+ * µs count (real-corpus soak, 115/115 sampled rows across TECH+GNSM, plus a
+ * controlled 661 ms micro-fixture: desktop emits 0.6609999999999999, i.e.
+ * 661000 * (1/1e6), where true division gives 0.661). Whole-second durations
+ * are unaffected (60.0 stays 60.0), which is why fixture parity never saw it.
+ */
+export const RECIP_1E6 = 1 / 1_000_000;
 
 export type CanonicalRow = {
   study_id: string;
@@ -312,7 +347,7 @@ export type CanonicalRow = {
 export type CodebookRecord = Record<string, string | null>;
 export type MatcherRunner = (input: MatcherInput) => Promise<MatcherOutput>;
 export type SplitterRunner = (input: SplitterInput) => Promise<SplitterOutput>;
-type ScreenState = {
+export type ScreenState = {
   startIndex: number;
   startTimestampNs: bigint;
   startTimezone: string;
@@ -324,7 +359,11 @@ type ScreenState = {
 };
 
 type SupportRows = Array<Record<string, string>>;
-type ReadXlsxRows = (input: ArrayBuffer) => Promise<unknown[][]>;
+// Cell values produced by read-excel-file: primitives or Date (empty cells → null).
+// Typing them precisely (instead of `unknown`) keeps String() conversions
+// no-base-to-string-clean while preserving identical runtime stringification.
+type WorkbookCell = string | number | boolean | Date | null;
+type ReadXlsxRows = (input: ArrayBuffer) => Promise<WorkbookCell[][]>;
 
 function requireString(value: string | undefined, fallback = ""): string {
   return (value ?? fallback).trim();
@@ -338,7 +377,7 @@ function normalizeInteractionType(value: string, remap?: ReadonlyMap<string, str
   // `Object.hasOwn` (not `MAP[value]`) so a raw value matching a prototype key
   // like "toString"/"constructor" falls through to the literal string instead of
   // returning an inherited function.
-  return Object.hasOwn(ALL_INTERACTION_TYPES_MAP, value) ? ALL_INTERACTION_TYPES_MAP[value]! : value;
+  return Object.hasOwn(ALL_INTERACTION_TYPES_MAP, value) ? ALL_INTERACTION_TYPES_MAP[value] : value;
 }
 
 function parsePlainTimestampParts(value: string):
@@ -453,9 +492,9 @@ async function parseWorkbookRows(bytes: ArrayBuffer): Promise<SupportRows> {
   return rows;
 }
 
-async function readWorkbookRows(bytes: ArrayBuffer): Promise<unknown[][]> {
+async function readWorkbookRows(bytes: ArrayBuffer): Promise<WorkbookCell[][]> {
   const readXlsxFile = await loadWorkbookReader();
-  return (await readXlsxFile(bytes)) as unknown[][];
+  return (await readXlsxFile(bytes));
 }
 
 async function loadWorkbookReader(): Promise<ReadXlsxRows> {
@@ -599,6 +638,11 @@ async function fetchDefaultRows(url: string): Promise<SupportRows> {
     }
     return parseCsvRows(await response.text());
   })();
+  // Cache only successes: a transient fetch failure (offline start, flaky
+  // network) must not poison this URL for the rest of the session.
+  pending.catch(() => {
+    defaultSupportCache.delete(url);
+  });
   defaultSupportCache.set(url, pending);
   return pending;
 }
@@ -667,7 +711,49 @@ function buildBackgroundAppsSet(rows: SupportRows): Set<string> {
   return set;
 }
 
+const CODEBOOK_NUMERIC_RX = /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/;
+/**
+ * Mirror of the desktop codebook read (pl.read_csv(infer_schema_length=10000)):
+ * a column whose first 10 000 non-empty values are all numeric AND include at
+ * least one float-form value ("4.5", "1e3") is Float64 there, so its integral
+ * cells print as "4.0" — the browser kept them as the raw string "4" and broke
+ * real-corpus parity on bcm_play_store_rating. Int-typed and string-typed
+ * columns pass through unchanged, which already matches the desktop.
+ */
+const CODEBOOK_INFER_ROWS = 10_000;
+
+function inferCodebookFloatColumns(rows: SupportRows): Set<string> {
+  const allNumeric = new Map<string, boolean>();
+  const sawFloatForm = new Set<string>();
+  rows.slice(0, CODEBOOK_INFER_ROWS).forEach((row) => {
+    Object.entries(row).forEach(([key, value]) => {
+      const text = requireString(value);
+      if (!text) {
+        return;
+      }
+      if (!CODEBOOK_NUMERIC_RX.test(text)) {
+        allNumeric.set(key, false);
+        return;
+      }
+      if (!allNumeric.has(key)) {
+        allNumeric.set(key, true);
+      }
+      if (/[.eE]/.test(text)) {
+        sawFloatForm.add(key);
+      }
+    });
+  });
+  const floatColumns = new Set<string>();
+  allNumeric.forEach((isNumeric, key) => {
+    if (isNumeric && sawFloatForm.has(key)) {
+      floatColumns.add(key);
+    }
+  });
+  return floatColumns;
+}
+
 function buildCodebookMap(rows: SupportRows): Map<string, CodebookRecord> {
+  const floatColumns = inferCodebookFloatColumns(rows);
   const map = new Map<string, CodebookRecord>();
   for (const row of rows) {
     const packageName = requireString(row.app_package_name);
@@ -676,7 +762,9 @@ function buildCodebookMap(rows: SupportRows): Map<string, CodebookRecord> {
     }
     const normalized: CodebookRecord = {};
     Object.entries(row).forEach(([key, value]) => {
-      normalized[key] = requireString(value) || null;
+      const text = requireString(value) || null;
+      normalized[key] =
+        text !== null && floatColumns.has(key) ? normalizeFloatString(Number(text)) : text;
     });
     map.set(packageName, normalized);
   }
@@ -724,21 +812,14 @@ function eventOffsetFormatter(timeZone: string): Intl.DateTimeFormat {
   return formatter;
 }
 
-function weekdayFormatter(timeZone: string): Intl.DateTimeFormat {
-  const cached = weekdayFormatterCache.get(timeZone);
+function formatParts(timestampNs: bigint, timeZone: string): Record<string, string> {
+  const ms = Number(timestampNs / 1_000_000n);
+  const cacheKey = `${ms}|${timeZone}`;
+  const cached = formatPartsCache.get(cacheKey);
   if (cached) {
     return cached;
   }
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    weekday: "short",
-  });
-  weekdayFormatterCache.set(timeZone, formatter);
-  return formatter;
-}
-
-function formatParts(timestampNs: bigint, timeZone: string): Record<string, string> {
-  const date = new Date(Number(timestampNs / 1_000_000n));
+  const date = new Date(ms);
   const parts = eventFormatter(timeZone).formatToParts(date);
   const values: Record<string, string> = {};
   parts.forEach((part) => {
@@ -746,11 +827,18 @@ function formatParts(timestampNs: bigint, timeZone: string): Record<string, stri
       values[part.type] = part.value;
     }
   });
+  formatPartsCache.set(cacheKey, values);
   return values;
 }
 
 function formatEventTimestamp(timestampNs: bigint, timeZone: string): string {
-  const date = new Date(Number(timestampNs / 1_000_000n));
+  const ms = Number(timestampNs / 1_000_000n);
+  const cacheKey = `${ms}|${timeZone}`;
+  const cachedEvent = eventTimestampCache.get(cacheKey);
+  if (cachedEvent !== undefined) {
+    return cachedEvent;
+  }
+  const date = new Date(ms);
   const parts = eventOffsetFormatter(timeZone).formatToParts(date);
   const values: Record<string, string> = {};
   parts.forEach((part) => {
@@ -760,6 +848,12 @@ function formatEventTimestamp(timestampNs: bigint, timeZone: string): string {
   });
   let offset = values.timeZoneName ?? "+00:00";
   offset = offset.replace("GMT", "");
+  // ICU `longOffset` always emits `GMT±HH:MM` (verified for UTC/half-hour/45-min
+  // zones on the pinned Node — the UTC test keeps line-below `offset === ""`
+  // unhit), so after stripping `GMT` the offset is always a colon-bearing
+  // `±HH:MM`. The empty, bare-hour (`+5`), and colonless (`+0500`) normalizations
+  // below are defensive for other ICU builds and unreachable in this environment.
+  /* v8 ignore start */
   if (offset === "") {
     offset = "+00:00";
   }
@@ -769,7 +863,10 @@ function formatEventTimestamp(timestampNs: bigint, timeZone: string): string {
   if (/^[+-]\d{2}\d{2}$/.test(offset)) {
     offset = `${offset.slice(0, 3)}:${offset.slice(3)}`;
   }
-  return `${values.year}-${values.month}-${values.day} ${values.hour}:${values.minute}:${values.second}${offset}`;
+  /* v8 ignore stop */
+  const formatted = `${values.year}-${values.month}-${values.day} ${values.hour}:${values.minute}:${values.second}${offset}`;
+  eventTimestampCache.set(cacheKey, formatted);
+  return formatted;
 }
 
 function formatSessionTimestamp(timestampNs: bigint | null, timeZone: string): string {
@@ -780,12 +877,24 @@ function formatSessionTimestamp(timestampNs: bigint | null, timeZone: string): s
   return `${parts.month}-${parts.day}-${parts.year} ${parts.hour}:${parts.minute}:${parts.second}`;
 }
 
+/**
+ * Six-digit microsecond suffix from the timestamp itself. The base string from
+ * formatEventTimestamp is second-granular (Intl has no fraction parts), so the
+ * fraction must be spliced in from the ns value — a hardcoded ".000000" matched
+ * the desktop only on whole-second fixtures and truncated real-corpus
+ * milliseconds (desktop keeps them: "…45.801000-06:00").
+ */
+function screenMicrosSuffix(timestampNs: bigint): string {
+  const micros = (timestampNs / 1_000n) % 1_000_000n;
+  return `.${micros.toString().padStart(6, "0")}`;
+}
+
 function formatScreenTimestamp(timestampNs: bigint | null, timeZone: string): string {
   if (timestampNs == null) {
     return "";
   }
   const base = formatEventTimestamp(timestampNs, timeZone);
-  return base.replace(/([+-]\d{2}:\d{2})$/, ".000000$1");
+  return base.replace(/([+-]\d{2}:\d{2})$/, `${screenMicrosSuffix(timestampNs)}$1`);
 }
 
 function formatScreenLastActivityTimestamp(timestampNs: bigint | null, timeZone: string): string {
@@ -793,19 +902,35 @@ function formatScreenLastActivityTimestamp(timestampNs: bigint | null, timeZone:
     return "";
   }
   const base = formatEventTimestamp(timestampNs, timeZone);
-  return base.replace(" ", "T").replace(/([+-]\d{2}):(\d{2})$/, ".000000$1$2");
+  return base
+    .replace(" ", "T")
+    .replace(/([+-]\d{2}):(\d{2})$/, `${screenMicrosSuffix(timestampNs)}$1$2`);
 }
 
 function normalizeFloatString(value: number): string {
+  // Every floatStyle caller (durations, time-gaps, screen confidence/tail-gap)
+  // passes a finite double from finite arithmetic; null is short-circuited to ""
+  // in formatCsvNumber before reaching here, so the non-finite guard is defensive
+  // and unreachable via the pipeline.
+  /* v8 ignore start */
   if (!Number.isFinite(value)) {
     return String(value);
   }
+  /* v8 ignore stop */
   const absValue = Math.abs(value);
-  if (absValue !== 0 && absValue < 1e-4) {
+  if (absValue !== 0 && absValue < 1e-5) {
     // Shortest round-trip digits (no precision argument) — matches the desktop
     // polars/ryu CSV serialization exactly. The old toPrecision(15) truncation
     // was the sole cause of the documented "15th-digit residual" parity diffs
     // (the underlying doubles were bit-identical).
+    //
+    // Threshold is 1e-5, NOT 1e-4: polars keeps decimal expansion down to
+    // 1e-5 ("0.000095", "0.000041666666666666665", "0.00001") and switches to
+    // exponent only below it ("9.9999e-6", "5e-8") — measured directly against
+    // polars 1.41.2 write_csv. The old 1e-4 cutoff exponentialized the
+    // [1e-5, 1e-4) band and broke real-corpus parity on small time gaps; JS
+    // toString covers that band in decimal (it flips to exponent below 1e-6),
+    // so the decimal branch below reproduces polars byte-for-byte there.
     return value
       .toExponential()
       .replace(/\.0+e/, "e")
@@ -827,9 +952,14 @@ function formatCsvNumber(
 }
 
 function formatCsvScalar(value: string | number | boolean | null | undefined): string | number {
+  // The only caller passes codebook column values, which buildCodebookMap
+  // normalizes to string|null (requireString) before the join, so an actual JS
+  // boolean never reaches this scalar formatter.
+  /* v8 ignore start */
   if (typeof value === "boolean") {
     return value ? "true" : "false";
   }
+  /* v8 ignore stop */
   if (typeof value === "string") {
     if (value === "True") {
       return "true";
@@ -845,23 +975,27 @@ function wrapInt64(value: bigint): bigint {
   return BigInt.asIntN(64, value);
 }
 
-function localWeekdayNumber(timestampNs: bigint, timeZone: string): number {
-  const weekday = weekdayFormatter(timeZone).format(new Date(Number(timestampNs / 1_000_000n)));
-  const map: Record<string, number> = {
-    Sun: 1,
-    Mon: 2,
-    Tue: 3,
-    Wed: 4,
-    Thu: 5,
-    Fri: 6,
-    Sat: 7,
-  };
-  return map[weekday] ?? 1;
+/**
+ * Chronicle weekday (Sun=1 … Sat=7) from a LOCAL calendar date — pure
+ * Gregorian arithmetic (Howard Hinnant's days_from_civil). The weekday is a
+ * function of the local date alone, so this is exactly equivalent to
+ * formatting the same timestamp with a weekday pattern; doing it in math
+ * removes the second per-row Intl.DateTimeFormat call (measured ~half the
+ * pipeline's Intl time — see docs/perf/BASELINE.md).
+ */
+export function weekdayFromCivilDate(year: number, month: number, day: number): number {
+  const shiftedYear = month <= 2 ? year - 1 : year;
+  const era = Math.floor(shiftedYear / 400);
+  const yearOfEra = shiftedYear - era * 400;
+  const dayOfYear = Math.floor((153 * (month + (month > 2 ? -3 : 9)) + 2) / 5) + day - 1;
+  const dayOfEra = yearOfEra * 365 + Math.floor(yearOfEra / 4) - Math.floor(yearOfEra / 100) + dayOfYear;
+  const daysFromEpoch = era * 146097 + dayOfEra - 719468;
+  return ((((daysFromEpoch + 4) % 7) + 7) % 7) + 1;
 }
 
 export function populateTimeColumns(row: CanonicalRow, timestampNs: bigint, timeZone: string): void {
   const parts = formatParts(timestampNs, timeZone);
-  const day = localWeekdayNumber(timestampNs, timeZone);
+  const day = weekdayFromCivilDate(Number(parts.year), Number(parts.month), Number(parts.day));
   row.date = `${parts.year}-${parts.month}-${parts.day}`;
   row.day = day;
   row.weekdayMF = day >= 2 && day <= 6 ? 1 : 0;
@@ -930,7 +1064,7 @@ function createBaseRow(
   return base;
 }
 
-function getPossibleDeviceModel(rows: RawChronicleRow[]): string {
+export function getPossibleDeviceModel(rows: RawChronicleRow[]): string {
   return rows.some((row) =>
     AMAZON_APPS.some((packagePrefix) => requireString(row.app_package_name).includes(packagePrefix)),
   )
@@ -938,7 +1072,7 @@ function getPossibleDeviceModel(rows: RawChronicleRow[]): string {
     : "Android";
 }
 
-function resolveDatetimeOfPreprocessing(
+export function resolveDatetimeOfPreprocessing(
   runtime: BrowserProcessingRuntime | undefined,
 ): string {
   return runtime?.datetimeOfPreprocessing ?? `${new Date().toISOString().slice(0, 19).replace("T", " ")} UTC`;
@@ -953,11 +1087,8 @@ function compareByEventThenIndex(
   return left.__index - right.__index;
 }
 
-function parseRawRows(
-  csvText: string,
-  runtime?: BrowserProcessingRuntime,
-  interactionRemap?: ReadonlyMap<string, string>,
-): CanonicalRow[] {
+/** Parse the raw Chronicle CSV text into header-keyed raw rows (throws on parse errors). */
+export function parseCsvRaw(csvText: string): RawChronicleRow[] {
   const parsed = Papa.parse<RawChronicleRow>(csvText, {
     header: true,
     skipEmptyLines: true,
@@ -965,27 +1096,72 @@ function parseRawRows(
   if (parsed.errors.length > 0) {
     throw new Error(parsed.errors[0]?.message ?? "Failed to parse CSV");
   }
-  const filtered = parsed.data.filter((row) => requireString(row.event_timestamp).length > 0);
-  const possibleDeviceModel = getPossibleDeviceModel(filtered);
-  const nowText = resolveDatetimeOfPreprocessing(runtime);
-  return filtered
-    .map((row, index) =>
-      createBaseRow(row, index, nowText, possibleDeviceModel, interactionRemap),
-    )
-    .sort(compareByEventThenIndex);
+  return parsed.data;
+}
+
+/** Drop raw rows with no event timestamp — unusable by every downstream step. */
+export function dropEmptyTimestampRows(rows: RawChronicleRow[]): RawChronicleRow[] {
+  return rows.filter((row) => requireString(row.event_timestamp).length > 0);
+}
+
+/** Build canonical typed rows: normalize strings, remap interaction types, parse ns timestamps, stamp time columns. */
+export function buildCanonicalRows(
+  rows: RawChronicleRow[],
+  nowText: string,
+  possibleDeviceModel: string,
+  interactionRemap?: ReadonlyMap<string, string>,
+): CanonicalRow[] {
+  return rows.map((row, index) =>
+    createBaseRow(row, index, nowText, possibleDeviceModel, interactionRemap),
+  );
+}
+
+/** Stable event-time sort, ties broken by original row index. Sorts in place and returns the array. */
+export function sortByEventThenIndex(rows: CanonicalRow[]): CanonicalRow[] {
+  return rows.sort(compareByEventThenIndex);
+}
+
+/** Distinct, locale-sorted timezones present on the rows. */
+export function collectAvailableTimezones(rows: CanonicalRow[]): string[] {
+  return Array.from(new Set(rows.map((row) => row.timezone).filter(Boolean))).sort(
+    (left, right) => left.localeCompare(right),
+  );
+}
+
+function parseRawRows(
+  csvText: string,
+  runtime?: BrowserProcessingRuntime,
+  interactionRemap?: ReadonlyMap<string, string>,
+): CanonicalRow[] {
+  const filtered = dropEmptyTimestampRows(parseCsvRaw(csvText));
+  return sortByEventThenIndex(
+    buildCanonicalRows(
+      filtered,
+      resolveDatetimeOfPreprocessing(runtime),
+      getPossibleDeviceModel(filtered),
+      interactionRemap,
+    ),
+  );
 }
 
 export function discoverTimezonesFromRawCsv(
   csvText: string,
   runtime?: BrowserProcessingRuntime,
 ): string[] {
-  const rows = parseRawRows(csvText, runtime);
-  return Array.from(
-    new Set(rows.map((row) => row.timezone).filter(Boolean)),
-  ).sort((left, right) => left.localeCompare(right));
+  // parseRawRows reaches Intl.DateTimeFormat, which throws a raw RangeError on
+  // an invalid IANA timezone value in the file. The pipeline path wraps node
+  // failures in a structured Error at the graph engine; this direct path must
+  // do the same so the UI's discovery step never sees an internal RangeError.
+  try {
+    return collectAvailableTimezones(parseRawRows(csvText, runtime));
+  } catch (error) {
+    throw new Error(
+      `Timezone discovery failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
 
-function dominantTimezone(rows: CanonicalRow[]): string {
+export function dominantTimezone(rows: CanonicalRow[]): string {
   const counts = new Map<string, number>();
   rows.forEach((row) => {
     if (!row.timezone) {
@@ -1004,19 +1180,23 @@ function dominantTimezone(rows: CanonicalRow[]): string {
   return best;
 }
 
-function applyTimezoneHandling(
-  rows: CanonicalRow[],
-  options: BrowserProcessingOptions,
-): {
-  rows: CanonicalRow[];
-  timezone: string;
+export interface TimezoneStrategySelection {
+  nextRows: CanonicalRow[];
+  targetTimezone: string;
   action: TimezoneAction;
   rowsBefore: number;
-  rowsAfter: number;
-  rowsRemoved: number;
-} {
+}
+
+/**
+ * Pick the target timezone and (for filter strategies) the surviving rows,
+ * per the timezone-handling setting. Pure selection — no restamping yet.
+ */
+export function selectTimezoneStrategy(
+  rows: CanonicalRow[],
+  primary: string,
+  options: BrowserProcessingOptions,
+): TimezoneStrategySelection {
   const selected = options.selectedTimezone?.trim();
-  const primary = dominantTimezone(rows);
   const rowsBefore = rows.length;
   let nextRows = rows;
   let targetTimezone = primary;
@@ -1036,18 +1216,59 @@ function applyTimezoneHandling(
     targetTimezone = primary;
     action = "converted_to_primary";
   }
-  const adjustedRows = nextRows.map((row) => {
+  return { nextRows, targetTimezone, action, rowsBefore };
+}
+
+/** Restamp every row onto the target timezone and recompute its calendar columns. */
+export function restampRowsToTimezone(
+  rows: CanonicalRow[],
+  targetTimezone: string,
+): CanonicalRow[] {
+  return rows.map((row) => {
+    // Rows parsed on this clock already carry the target-tz time columns
+    // (createBaseRow stamps with the row's own timezone, and
+    // populateTimeColumns is deterministic in (timestamp, timezone)) — a
+    // recompute would rewrite identical values. Under selected-filter every
+    // surviving row takes this branch.
+    if (row.timezone === targetTimezone) {
+      return { ...row };
+    }
     const updated = { ...row, timezone: targetTimezone };
     populateTimeColumns(updated, updated.event_timestamp_ns, targetTimezone);
     return updated;
   });
+}
+
+/** Before/after/removed row counts for the timezone step's report. */
+export function summarizeTimezoneRowCounts(
+  rowsBefore: number,
+  adjustedRows: readonly CanonicalRow[],
+): { rowsBefore: number; rowsAfter: number; rowsRemoved: number } {
   return {
-    rows: adjustedRows,
-    timezone: targetTimezone,
-    action,
     rowsBefore,
     rowsAfter: adjustedRows.length,
     rowsRemoved: Math.max(0, rowsBefore - adjustedRows.length),
+  };
+}
+
+function applyTimezoneHandling(
+  rows: CanonicalRow[],
+  options: BrowserProcessingOptions,
+): {
+  rows: CanonicalRow[];
+  timezone: string;
+  action: TimezoneAction;
+  rowsBefore: number;
+  rowsAfter: number;
+  rowsRemoved: number;
+} {
+  const selection = selectTimezoneStrategy(rows, dominantTimezone(rows), options);
+  const adjustedRows = restampRowsToTimezone(selection.nextRows, selection.targetTimezone);
+  return {
+    rows: adjustedRows,
+    timezone: selection.targetTimezone,
+    action: selection.action,
+    ...summarizeTimezoneRowCounts(selection.rowsBefore, adjustedRows),
   };
 }
 
@@ -1100,7 +1321,7 @@ function unalignDuplicateTimestamps(
   const adjusted = [...rows];
   let hasDuplicates = false;
   for (let index = 1; index < adjusted.length; index += 1) {
-    if (adjusted[index]!.event_timestamp_ns <= adjusted[index - 1]!.event_timestamp_ns) {
+    if (adjusted[index].event_timestamp_ns <= adjusted[index - 1].event_timestamp_ns) {
       hasDuplicates = true;
       break;
     }
@@ -1114,7 +1335,7 @@ function unalignDuplicateTimestamps(
     let end = start + 1;
     while (
       end < adjusted.length &&
-      adjusted[end]!.event_timestamp_ns === adjusted[start]!.event_timestamp_ns
+      adjusted[end].event_timestamp_ns === adjusted[start].event_timestamp_ns
     ) {
       end += 1;
     }
@@ -1142,14 +1363,44 @@ function unalignDuplicateTimestamps(
   return adjusted.sort(compareByEventThenIndex);
 }
 
+/**
+ * polars `.round(2)` replica: scale by 100 in ONE f64 multiply, round half to
+ * EVEN on the scaled double, unscale. Verified 0/22,145 mismatches against
+ * polars 1.41.2 on a randomized + tie-dense battery (probes: 0.005→0.0,
+ * 0.015→0.02, 2.675→2.68, 22.725→22.72, 1.015→1.01 — the last three prove
+ * both that the multiply must be the f64 product, NOT decimal-string
+ * rounding, and that ties go to even). The gap operand is
+ * `total_microseconds * (1/3.6e9)` (reciprocal, matching the desktop; the
+ * 486 s real-corpus gap prints 0.13 only with the reciprocal operand). The
+ * old `toFixed(2)` (half away from zero) diverged on real-corpus ties
+ * (18 s → desktop 0.0 vs 0.01; 54 s → 0.02 vs 0.01) and on the golden DST
+ * row (22.72 vs 22.73). Gaps are non-negative (rows are sorted).
+ */
+function roundGapHoursLikePolars(gapHours: number): number {
+  const scaled = gapHours * 100;
+  const floor = Math.floor(scaled);
+  const diff = scaled - floor;
+  let cents: number;
+  if (diff > 0.5) {
+    cents = floor + 1;
+  } else if (diff < 0.5) {
+    cents = floor;
+  } else {
+    cents = floor % 2 === 0 ? floor : floor + 1;
+  }
+  return cents / 100;
+}
+
+export const RECIP_3_6E9 = 1 / 3_600_000_000;
+
 function markDataTimeGaps(rows: CanonicalRow[]): CanonicalRow[] {
   return rows.map((row, index) => {
     const previous = rows[index - 1];
     return {
       ...row,
       data_time_gap_hours: previous
-        ? Number(
-            ((Number(row.event_timestamp_ns - previous.event_timestamp_ns) / 3_600_000_000_000) || 0).toFixed(2),
+        ? roundGapHoursLikePolars(
+            Number((row.event_timestamp_ns - previous.event_timestamp_ns) / 1_000n) * RECIP_3_6E9,
           )
         : 0,
     };
@@ -1199,7 +1450,7 @@ const FILTERED_TO_ACTIVITY: Record<string, string> = {
 };
 
 /** Packages carrying any Filtered-* event = the junk (filter-listed) set. */
-function computeFilteredPackagesFromRows(rows: CanonicalRow[]): Set<string> {
+export function computeFilteredPackagesFromRows(rows: CanonicalRow[]): Set<string> {
   const packages = new Set<string>();
   for (const row of rows) {
     if (FILTERED_EVENT_TYPES.has(row.interaction_type)) {
@@ -1216,7 +1467,7 @@ function computeFilteredPackagesFromRows(rows: CanonicalRow[]): Set<string> {
  * episode rows, not raw events — they pass through untouched. Mirrors the
  * desktop `_normalize_prefiltered_event_types`.
  */
-function normalizePrefilteredEventTypes(
+export function normalizePrefilteredEventTypes(
   rows: CanonicalRow[],
   filteredPackages: Set<string>,
 ): CanonicalRow[] {
@@ -1241,7 +1492,7 @@ function stableFactorize(values: string[]): Int32Array {
   return codes;
 }
 
-function buildMatcherInput(
+export function buildMatcherInput(
   rows: CanonicalRow[],
   resumedType: string,
   stoppedType: string,
@@ -1306,58 +1557,64 @@ function buildMatcherInput(
   };
 }
 
-async function processUsageRows(
+/**
+ * Run the episode matcher over the prepared masks. Intra-app teardown grace
+ * runs in the JS matcher (the shared WASM matcher has no proximity parameter);
+ * with it off (the default), the WASM matcher is used unchanged so the common
+ * path and cross-surface parity are untouched.
+ */
+export async function runEpisodeMatcher(
+  matcherInput: MatcherInput,
+  runMatcher: MatcherRunner,
+): Promise<MatcherOutput> {
+  return matcherInput.options.proximityNs > 0n
+    ? matchAppUsageWithProximity(matcherInput)
+    : runMatcher(matcherInput);
+}
+
+/**
+ * Write the matcher's pairings back onto cloned rows: stamp episode
+ * start/stop timestamps and mark unmatched resumes "End of Usage Missing".
+ */
+export function applyMatcherOutput(
   rows: CanonicalRow[],
+  matcherOutput: MatcherOutput,
+  filteredPackages: Set<string>,
+): CanonicalRow[] {
+  const nextRows = rows.map((row) => ({ ...row }));
+  matcherOutput.startIndices.forEach((startIndex) => {
+    nextRows[startIndex].start_timestamp_ns = nextRows[startIndex].event_timestamp_ns;
+  });
+  matcherOutput.stopStartIndices.forEach((startIndex, position) => {
+    const stopEventIndex = matcherOutput.stopEventIndices[position];
+    nextRows[startIndex].stop_timestamp_ns = nextRows[stopEventIndex].event_timestamp_ns;
+  });
+  matcherOutput.missingIndices.forEach((index) => {
+    nextRows[index].interaction_type = "End of Usage Missing";
+    nextRows[index].stop_timestamp_ns = null;
+    nextRows[index].duration_seconds = null;
+    nextRows[index].duration_minutes = null;
+    // A junk app's unmatched resume gets its start blanked too (the downstream
+    // mark blanks all junk rows except the constructed background sessions).
+    if (filteredPackages.has(nextRows[index].app_package_name)) {
+      nextRows[index].start_timestamp_ns = null;
+    }
+  });
+  return nextRows;
+}
+
+/**
+ * Drop pauses and unmatched resumes, then relabel each matched resume as a
+ * usage episode with the minimum-duration floor applied.
+ */
+export function relabelUsageWithMinimumFloor(
+  nextRows: CanonicalRow[],
   resumedType: string,
   pausedType: string,
   usageType: string,
-  stoppedType: string,
-  sameStopTypes: Set<string>,
-  otherStopTypes: Set<string>,
   options: BrowserProcessingOptions,
-  runMatcher: MatcherRunner,
-  runSplitter: SplitterRunner,
-  backgroundApps: Set<string>,
-  filteredPackages: Set<string> = new Set(),
-): Promise<CanonicalRow[]> {
-  const matcherInput = buildMatcherInput(
-    rows,
-    resumedType,
-    stoppedType,
-    sameStopTypes,
-    otherStopTypes,
-    options,
-    backgroundApps,
-  );
-  // Intra-app teardown grace runs in the JS matcher (the shared WASM matcher has
-  // no proximity parameter); with it off (the default), the WASM matcher is used
-  // unchanged so the common path and cross-surface parity are untouched.
-  const matcherOutput =
-    matcherInput.options.proximityNs > 0n
-      ? matchAppUsageWithProximity(matcherInput)
-      : await runMatcher(matcherInput);
-
-  const nextRows = rows.map((row) => ({ ...row }));
-  matcherOutput.startIndices.forEach((startIndex) => {
-    nextRows[startIndex]!.start_timestamp_ns = nextRows[startIndex]!.event_timestamp_ns;
-  });
-  matcherOutput.stopStartIndices.forEach((startIndex, position) => {
-    const stopEventIndex = matcherOutput.stopEventIndices[position]!;
-    nextRows[startIndex]!.stop_timestamp_ns = nextRows[stopEventIndex]!.event_timestamp_ns;
-  });
-  matcherOutput.missingIndices.forEach((index) => {
-    nextRows[index]!.interaction_type = "End of Usage Missing";
-    nextRows[index]!.stop_timestamp_ns = null;
-    nextRows[index]!.duration_seconds = null;
-    nextRows[index]!.duration_minutes = null;
-    // A junk app's unmatched resume gets its start blanked too (the downstream
-    // mark blanks all junk rows except the constructed background sessions).
-    if (filteredPackages.has(nextRows[index]!.app_package_name)) {
-      nextRows[index]!.start_timestamp_ns = null;
-    }
-  });
-
-  const usageRelabeled = nextRows
+): CanonicalRow[] {
+  return nextRows
     .filter((row) => row.interaction_type !== pausedType)
     .filter(
       (row) =>
@@ -1371,7 +1628,7 @@ async function processUsageRows(
       // sub-interval further down (this value is discarded when they are split).
       if (row.interaction_type !== resumedType) return row;
       const durationSeconds =
-        Number(row.stop_timestamp_ns! - row.start_timestamp_ns!) / 1_000_000_000;
+        Number((row.stop_timestamp_ns! - row.start_timestamp_ns!) / 1_000n) * RECIP_1E6;
       const belowThreshold =
         options.minimumUsageDuration > 0 && durationSeconds < options.minimumUsageDuration;
       return {
@@ -1381,71 +1638,88 @@ async function processUsageRows(
         duration_minutes: belowThreshold ? null : durationSeconds * RECIP_60,
       };
     });
+}
 
-  // DOWNSTREAM MARK (junk-blind — the ONE lossy filter decision). The matcher
-  // ran junk-blind: junk apps were matched as ordinary App Usage, so their
-  // foregrounds interrupted valid sessions exactly like any app's, and valid-app
-  // inertness is structural, not something the mark preserves. Relabel the junk
-  // apps' OWN rows and blank their timing — EXCEPT a junk app that is also a
-  // background app, whose constructed session is kept (real timing) under the
-  // deferred category "Filtered App Background Usage". Mirrors the desktop
-  // _process_usage_rows mark block.
-  const filtered = filteredPackages.size
-    ? usageRelabeled.map((row) => {
-        if (!filteredPackages.has(row.app_package_name)) return row;
-        if (row.interaction_type === usageType && backgroundApps.has(row.app_package_name)) {
-          const durationSeconds =
-            row.start_timestamp_ns !== null && row.stop_timestamp_ns !== null
-              ? Number(row.stop_timestamp_ns - row.start_timestamp_ns) / 1_000_000_000
-              : null;
-          return {
-            ...row,
-            interaction_type: "Filtered App Background Usage",
-            duration_seconds: durationSeconds,
-            duration_minutes: durationSeconds === null ? null : durationSeconds * RECIP_60,
-          };
-        }
-        // Every other junk row: relabel App Usage -> Filtered App Usage and
-        // Activity Stopped -> Filtered App Stopped (leave End of Usage Missing /
-        // Activity Destroyed as-is). A Filtered App Usage row keeps its REAL
-        // start/stop through episode annotation — the any-app engagement walk
-        // reads neighbours' start/stop, and a null here became the int64-min
-        // sentinel and wrapped into garbage gap values on adjacent valid rows.
-        // Interval cleaning blanks it afterwards (clearFilteredUsageTiming).
-        // Durations are nulled NOW so flag marking never flags a junk session.
-        // All other junk rows blank timing immediately (nothing reads them).
-        const interaction =
-          row.interaction_type === usageType
-            ? "Filtered App Usage"
-            : row.interaction_type === stoppedType
-              ? "Filtered App Stopped"
-              : row.interaction_type;
-        if (interaction === "Filtered App Usage") {
-          return {
-            ...row,
-            interaction_type: interaction,
-            duration_seconds: null,
-            duration_minutes: null,
-          };
-        }
-        return {
-          ...row,
-          interaction_type: interaction,
-          start_timestamp_ns: null,
-          stop_timestamp_ns: null,
-          duration_seconds: null,
-          duration_minutes: null,
-        };
-      })
-    : usageRelabeled;
+/**
+ * DOWNSTREAM MARK (junk-blind — the ONE lossy filter decision). The matcher
+ * ran junk-blind: junk apps were matched as ordinary App Usage, so their
+ * foregrounds interrupted valid sessions exactly like any app's, and valid-app
+ * inertness is structural, not something the mark preserves. Relabel the junk
+ * apps' OWN rows and blank their timing — EXCEPT a junk app that is also a
+ * background app, whose constructed session is kept (real timing) under the
+ * deferred category "Filtered App Background Usage". Mirrors the desktop
+ * _process_usage_rows mark block.
+ */
+export function markJunkAppsDownstream(
+  usageRelabeled: CanonicalRow[],
+  usageType: string,
+  stoppedType: string,
+  filteredPackages: Set<string>,
+  backgroundApps: Set<string>,
+): CanonicalRow[] {
+  if (!filteredPackages.size) return usageRelabeled;
+  return usageRelabeled.map((row) => {
+    if (!filteredPackages.has(row.app_package_name)) return row;
+    if (row.interaction_type === usageType && backgroundApps.has(row.app_package_name)) {
+      const durationSeconds =
+        row.start_timestamp_ns !== null && row.stop_timestamp_ns !== null
+          ? Number((row.stop_timestamp_ns - row.start_timestamp_ns) / 1_000n) * RECIP_1E6
+          : null;
+      return {
+        ...row,
+        interaction_type: "Filtered App Background Usage",
+        duration_seconds: durationSeconds,
+        duration_minutes: durationSeconds === null ? null : durationSeconds * RECIP_60,
+      };
+    }
+    // Every other junk row: relabel App Usage -> Filtered App Usage and
+    // Activity Stopped -> Filtered App Stopped (leave End of Usage Missing /
+    // Activity Destroyed as-is). A Filtered App Usage row keeps its REAL
+    // start/stop through episode annotation — the any-app engagement walk
+    // reads neighbours' start/stop, and a null here became the int64-min
+    // sentinel and wrapped into garbage gap values on adjacent valid rows.
+    // Interval cleaning blanks it afterwards (clearFilteredUsageTiming).
+    // Durations are nulled NOW so flag marking never flags a junk session.
+    // All other junk rows blank timing immediately (nothing reads them).
+    const interaction =
+      row.interaction_type === usageType
+        ? "Filtered App Usage"
+        : row.interaction_type === stoppedType
+          ? "Filtered App Stopped"
+          : row.interaction_type;
+    if (interaction === "Filtered App Usage") {
+      return {
+        ...row,
+        interaction_type: interaction,
+        duration_seconds: null,
+        duration_minutes: null,
+      };
+    }
+    return {
+      ...row,
+      interaction_type: interaction,
+      start_timestamp_ns: null,
+      stop_timestamp_ns: null,
+      duration_seconds: null,
+      duration_minutes: null,
+    };
+  });
+}
 
-  const sorted = filtered.sort(compareByEventThenIndex);
-
-  // Phase 2: split overlapping sessions. Only for App Usage (not Filtered App
-  // Usage — that path has no timing to split) and only when concurrent usage is
-  // modeled OR background apps are in play (a background app's extended session
-  // overlaps the foreground app and must be resolved into primary/secondary to
-  // avoid double-counting).
+/**
+ * Phase 2: split overlapping sessions into layered sub-intervals. Only for App
+ * Usage (not Filtered App Usage — that path has no timing to split) and only
+ * when concurrent usage is modeled OR background apps are in play (a background
+ * app's extended session overlaps the foreground app and must be resolved into
+ * primary/secondary to avoid double-counting). Otherwise returns the rows as-is.
+ */
+export async function splitConcurrentSessions(
+  sorted: CanonicalRow[],
+  usageType: string,
+  options: BrowserProcessingOptions,
+  backgroundApps: Set<string>,
+  runSplitter: SplitterRunner,
+): Promise<CanonicalRow[]> {
   const backgroundActive = backgroundApps.size > 0 && usageType !== "Filtered App Usage";
   if ((options.modelConcurrentUsage || backgroundActive) && usageType !== "Filtered App Usage") {
     const appUsageRows = sorted.filter((row) => row.interaction_type === usageType);
@@ -1461,8 +1735,8 @@ async function processUsageRows(
       const layered: SplitterOutput = await runSplitter({ starts, stops });
 
       const expanded: CanonicalRow[] = layered.map((ls: LayeredSessionRow) => {
-        const source = appUsageRows[ls.sessionIndex]!;
-        const durationSeconds = Number(ls.stopNs - ls.startNs) / 1_000_000_000;
+        const source = appUsageRows[ls.sessionIndex];
+        const durationSeconds = Number((ls.stopNs - ls.startNs) / 1_000n) * RECIP_1E6;
         // Concurrent-usage option (default off): null — but keep — split
         // sub-intervals shorter than minimumUsageDuration. Gated so all three
         // surfaces agree; off means durations are always populated (parity with
@@ -1486,47 +1760,6 @@ async function processUsageRows(
   }
 
   return sorted;
-}
-
-async function runAppUsageAlgorithm(
-  rows: CanonicalRow[],
-  options: BrowserProcessingOptions,
-  runMatcher: MatcherRunner,
-  runSplitter: SplitterRunner,
-  backgroundApps: Set<string>,
-): Promise<CanonicalRow[]> {
-  // JUNK-BLIND single pass. The filter choice is NOT a matcher input: the junk
-  // apps (pre-relabeled to Filtered-* upstream, which feeds screen derivation)
-  // are folded back to Activity, every app is matched identically, and the junk
-  // apps' OWN rows are relabeled downstream in processUsageRows. A foreground
-  // interrupts whatever it displaces regardless of any mark, so valid-app
-  // episodes are provably independent of the junk list. Mirrors the desktop
-  // fast/legacy SSOT (_run_app_usage_algorithm).
-  const filteredPackages = options.useFilterFile
-    ? computeFilteredPackagesFromRows(rows)
-    : new Set<string>();
-  const nextRows = filteredPackages.size
-    ? normalizePrefilteredEventTypes(rows, filteredPackages)
-    : rows;
-
-  if (!nextRows.some((row) => row.interaction_type === "Activity Resumed" || row.interaction_type === "Activity Paused")) {
-    throw new Error("No valid app usage data during the study period");
-  }
-
-  return processUsageRows(
-    nextRows,
-    "Activity Resumed",
-    "Activity Paused",
-    "App Usage",
-    "Activity Stopped",
-    new Set(options.sameAppInteractionTypesToStopUsageAt),
-    new Set(options.otherInteractionTypesToStopUsageAt),
-    options,
-    runMatcher,
-    runSplitter,
-    backgroundApps,
-    filteredPackages,
-  );
 }
 
 const PLACEHOLDER_APP_PACKAGE_NAME = "com.placeholder.noactivity";
@@ -1600,24 +1833,109 @@ function secondsBetween(left: bigint, right: bigint): number {
   return Number(right - left) / 1_000_000_000;
 }
 
-function deriveScreenUsageSessions(
-  rows: CanonicalRow[],
-  options: BrowserProcessingOptions,
-  appsForcingScreenOpen: Map<string, string>,
-): CanonicalRow[] {
-  if (!rows.some((row) => SCREEN_START_EVENTS.has(row.interaction_type))) {
-    return [];
-  }
-  const keyguardShownTimestamps = rows
+/** Sorted timestamps of every keyguard-shown event (the lock-screen evidence stream). */
+export function collectKeyguardShownTimestamps(rows: CanonicalRow[]): bigint[] {
+  return rows
     .filter((row) => LOCK_SCREEN_EVENTS.has(row.interaction_type))
     .map((row) => row.event_timestamp_ns)
     .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+}
 
-  const sessions: CanonicalRow[] = [];
+/** One closed (or trailing-open) screen session emitted by the state machine. */
+export interface ScreenSessionClose {
+  /** Walker state snapshot at close time (never mutated afterwards). */
+  state: ScreenState;
+  /** Stop event timestamp; null = session still open at end of data. */
+  stopTimestampNs: bigint | null;
+  stopEventType: string | null;
+}
+
+/**
+ * The screen state machine: CLOSED —screen-start→ OPEN —screen-stop→ CLOSED,
+ * with OPEN-state accumulators (keyguard seen, unlock seen, foreground app,
+ * last meaningful activity). One transition per event row; emits a
+ * ScreenSessionClose on every OPEN→CLOSED transition.
+ */
+export function walkScreenStateMachine(rows: CanonicalRow[]): ScreenSessionClose[] {
+  const closes: ScreenSessionClose[] = [];
   let state: ScreenState | null = null;
+  rows.forEach((row, index) => {
+    state = transitionScreenState(state, row, index, closes);
+  });
+  if (state != null) {
+    closes.push({ state, stopTimestampNs: null, stopEventType: null });
+  }
+  return closes;
+}
+
+/** One state-machine transition: (state, event) → state', possibly emitting a close. */
+export function transitionScreenState(
+  state: ScreenState | null,
+  row: CanonicalRow,
+  index: number,
+  closes: ScreenSessionClose[],
+): ScreenState | null {
+  const interactionType = row.interaction_type;
+  const packageName = row.app_package_name || null;
+  if (SCREEN_START_EVENTS.has(interactionType)) {
+    if (state == null) {
+      return {
+        startIndex: index,
+        startTimestampNs: row.event_timestamp_ns,
+        startTimezone: row.timezone,
+        lockScreenSeen: LOCK_SCREEN_EVENTS.has(interactionType),
+        unlockedSeen: false,
+        foregroundAppPackage: null,
+        lastMeaningfulActivityTimestampNs: null,
+        lastMeaningfulActivityPackage: null,
+      };
+    }
+    return state;
+  }
+  if (state == null) {
+    return null;
+  }
+  if (LOCK_SCREEN_EVENTS.has(interactionType)) {
+    state.lockScreenSeen = true;
+  }
+  if (UNLOCK_EVENTS.has(interactionType)) {
+    state.unlockedSeen = true;
+  }
+  if (FOREGROUND_EVENTS.has(interactionType)) {
+    state.foregroundAppPackage = packageName;
+  }
+  if (MEANINGFUL_ACTIVITY_EVENTS.has(interactionType)) {
+    state.lastMeaningfulActivityTimestampNs = row.event_timestamp_ns;
+    state.lastMeaningfulActivityPackage = packageName ?? state.foregroundAppPackage;
+  }
+  if (SCREEN_STOP_EVENTS.has(interactionType)) {
+    closes.push({
+      state,
+      stopTimestampNs: row.event_timestamp_ns,
+      stopEventType: interactionType,
+    });
+    return null;
+  }
+  return state;
+}
+
+/**
+ * Materialize each state-machine close as a "Screen Usage" row and classify
+ * its end reason (missing_stop / lock_screen_only / app_kept_awake_or_extended
+ * / probable_manual_lock / probable_auto_lock / extended_idle_or_unknown /
+ * unknown) with a confidence.
+ */
+export function buildClassifiedScreenSessions(
+  rows: CanonicalRow[],
+  closes: readonly ScreenSessionClose[],
+  keyguardShownTimestamps: readonly bigint[],
+  options: BrowserProcessingOptions,
+  appsForcingScreenOpen: Map<string, string>,
+): CanonicalRow[] {
+  const sessions: CanonicalRow[] = [];
 
   const buildSession = (currentState: ScreenState, stopTimestampNs: bigint | null, stopEventType: string | null) => {
-    const startRow = rows[currentState.startIndex]!;
+    const startRow = rows[currentState.startIndex];
     const screenRow: CanonicalRow = {
       ...startRow,
       interaction_type: "Screen Usage",
@@ -1729,51 +2047,28 @@ function deriveScreenUsageSessions(
     sessions.push(screenRow);
   };
 
-  rows.forEach((row, index) => {
-    const interactionType = row.interaction_type;
-    const packageName = row.app_package_name || null;
-    if (SCREEN_START_EVENTS.has(interactionType)) {
-      if (state == null) {
-        state = {
-          startIndex: index,
-          startTimestampNs: row.event_timestamp_ns,
-          startTimezone: row.timezone,
-          lockScreenSeen: LOCK_SCREEN_EVENTS.has(interactionType),
-          unlockedSeen: false,
-          foregroundAppPackage: null,
-          lastMeaningfulActivityTimestampNs: null,
-          lastMeaningfulActivityPackage: null,
-        };
-      }
-      return;
-    }
-    if (state == null) {
-      return;
-    }
-    if (LOCK_SCREEN_EVENTS.has(interactionType)) {
-      state.lockScreenSeen = true;
-    }
-    if (UNLOCK_EVENTS.has(interactionType)) {
-      state.unlockedSeen = true;
-    }
-    if (FOREGROUND_EVENTS.has(interactionType)) {
-      state.foregroundAppPackage = packageName;
-    }
-    if (MEANINGFUL_ACTIVITY_EVENTS.has(interactionType)) {
-      state.lastMeaningfulActivityTimestampNs = row.event_timestamp_ns;
-      state.lastMeaningfulActivityPackage = packageName ?? state.foregroundAppPackage;
-    }
-    if (SCREEN_STOP_EVENTS.has(interactionType)) {
-      buildSession(state, row.event_timestamp_ns, interactionType);
-      state = null;
-    }
-  });
-
-  if (state != null) {
-    buildSession(state, null, null);
+  for (const close of closes) {
+    buildSession(close.state, close.stopTimestampNs, close.stopEventType);
   }
 
   return sessions;
+}
+
+function deriveScreenUsageSessions(
+  rows: CanonicalRow[],
+  options: BrowserProcessingOptions,
+  appsForcingScreenOpen: Map<string, string>,
+): CanonicalRow[] {
+  if (!rows.some((row) => SCREEN_START_EVENTS.has(row.interaction_type))) {
+    return [];
+  }
+  return buildClassifiedScreenSessions(
+    rows,
+    walkScreenStateMachine(rows),
+    collectKeyguardShownTimestamps(rows),
+    options,
+    appsForcingScreenOpen,
+  );
 }
 
 // The plot palette (CATEGORY_COLORS) is keyed by a fixed set of broad app
@@ -1813,7 +2108,7 @@ function normalizeBroadAppCategory(raw: string): string | null {
   if (PALETTE_CATEGORIES.has(value)) return value;
   // `Object.hasOwn` (not `value in`) so a codebook category literally named
   // "toString"/"constructor"/etc. doesn't resolve to an inherited prototype member.
-  if (Object.hasOwn(BROAD_CATEGORY_ALIASES, value)) return BROAD_CATEGORY_ALIASES[value]!;
+  if (Object.hasOwn(BROAD_CATEGORY_ALIASES, value)) return BROAD_CATEGORY_ALIASES[value];
   return null;
 }
 
@@ -1838,50 +2133,104 @@ export function deriveBroadAppCategory(
 
 export { BROAD_CATEGORY_ALIASES };
 
-function enrichWithCodebookData(
+/**
+ * Codebook join result. `hadCodebook` is null when the join was a
+ * passthrough (codebook off, or no codebook rows at all) — the later
+ * category/genre passes then leave the rows untouched. Otherwise it flags,
+ * per row, whether a codebook record was found (rows without one already
+ * carry their final Unknown values from the join).
+ */
+export interface CodebookJoinResult {
+  rows: CanonicalRow[];
+  hadCodebook: boolean[] | null;
+}
+
+/**
+ * Join each episode's package against the codebook: null-fill every codebook
+ * output column, copy the matched record through the rename map, and stamp
+ * Unknown category/genre sentinels on rows with no codebook record.
+ */
+export function joinCodebookColumns(
   rows: CanonicalRow[],
   options: BrowserProcessingOptions,
   codebookMap: Map<string, CodebookRecord>,
-): CanonicalRow[] {
+): CodebookJoinResult {
   if (!options.useAppCodebook) {
-    return rows;
+    return { rows, hadCodebook: null };
   }
   if (!codebookMap.size) {
-    return rows.map((row) => ({
-      ...row,
-      genreId_scraped: "Unknown",
-      broad_app_category: "Unknown",
-      ...Object.fromEntries(CODEBOOK_OUTPUT_COLUMNS.map((column) => [column, null])),
-    }));
+    return {
+      rows: rows.map((row) => ({
+        ...row,
+        genreId_scraped: "Unknown",
+        broad_app_category: "Unknown",
+        ...Object.fromEntries(CODEBOOK_OUTPUT_COLUMNS.map((column) => [column, null])),
+      })),
+      hadCodebook: null,
+    };
   }
-
-  return rows.map((row) => {
+  const hadCodebook: boolean[] = new Array<boolean>(rows.length);
+  const joined = rows.map((row, index) => {
     const codebook = codebookMap.get(row.app_package_name);
     const updated: CanonicalRow = { ...row };
     CODEBOOK_OUTPUT_COLUMNS.forEach((column) => {
       (updated as unknown as Record<string, string | number | null>)[column] = null;
     });
     if (!codebook) {
+      hadCodebook[index] = false;
       updated.genreId_scraped = "Unknown";
       updated.broad_app_category = "Unknown";
       return updated;
     }
+    hadCodebook[index] = true;
     Object.entries(CODEBOOK_COLUMN_RENAME_MAP).forEach(([sourceColumn, targetColumn]) => {
       (updated as unknown as Record<string, string | number | null>)[targetColumn] =
         codebook[sourceColumn] ?? null;
     });
-    // The unified codebook spreads categories across per-source columns; the old
-    // single broad_app_category column is deprecated and intentionally not read.
-    // play_store/usc/bcm already use the plot palette's vocabulary; babyemu uses
-    // UPPERCASE enums. deriveBroadAppCategory coalesces them in the desktop's
-    // order and normalises each onto the palette so bars are colour-coded.
-    updated.broad_app_category = deriveBroadAppCategory([
-      updated.bcm_play_store_broad_app_category,
-      updated.usc_broad_app_category,
-      updated.babyemu_broad_app_category,
-      updated.bcm_cnrc_heuristic_category,
-    ]);
+    return updated;
+  });
+  return { rows: joined, hadCodebook };
+}
 
+/**
+ * Derive the palette `broad_app_category` for every row that had a codebook
+ * record. The unified codebook spreads categories across per-source columns;
+ * the old single broad_app_category column is deprecated and intentionally not
+ * read. play_store/usc/bcm already use the plot palette's vocabulary; babyemu
+ * uses UPPERCASE enums. deriveBroadAppCategory coalesces them in the desktop's
+ * order and normalises each onto the palette so bars are colour-coded.
+ */
+export function applyBroadCategoryDerivation(join: CodebookJoinResult): CodebookJoinResult {
+  if (join.hadCodebook === null) return join;
+  const { hadCodebook } = join;
+  return {
+    rows: join.rows.map((row, index) => {
+      if (!hadCodebook[index]) return row;
+      return {
+        ...row,
+        broad_app_category: deriveBroadAppCategory([
+          row.bcm_play_store_broad_app_category,
+          row.usc_broad_app_category,
+          row.babyemu_broad_app_category,
+          row.bcm_cnrc_heuristic_category,
+        ]),
+      };
+    }),
+    hadCodebook,
+  };
+}
+
+/**
+ * Reconcile the per-source genre columns for every row that had a codebook
+ * record: a single agreed genre is promoted to `genreId_scraped` (and the
+ * source columns cleared), disagreement yields null, no genre yields Unknown.
+ */
+export function collapseGenreIds(join: CodebookJoinResult): CanonicalRow[] {
+  if (join.hadCodebook === null) return join.rows;
+  const { hadCodebook } = join;
+  return join.rows.map((row, index) => {
+    if (!hadCodebook[index]) return row;
+    const updated: CanonicalRow = { ...row };
     const genreValues = [
       updated.babyemu_genreId_scraped,
       updated.babyemu_genreId_manual,
@@ -1940,15 +2289,15 @@ export function addAppUsageDetailColumns(
     if (!indices.length) {
       return;
     }
-    update(nextRows[indices[0]]!, {
+    update(nextRows[indices[0]], {
       engage30: 1,
       engageCustom: 1,
       switched: 0,
       gapHours: 0,
     });
     for (let i = 1; i < indices.length; i += 1) {
-      const current = nextRows[indices[i]]!;
-      const previous = nextRows[indices[i - 1]]!;
+      const current = nextRows[indices[i]];
+      const previous = nextRows[indices[i - 1]];
       const currentStartNs = current.start_timestamp_ns ?? MISSING_INT64;
       const previousStopNs = previous.stop_timestamp_ns ?? MISSING_INT64;
       const gapDeltaNs = wrapInt64(currentStartNs - previousStopNs);
@@ -2025,6 +2374,16 @@ function removeSelectedInteractionTypes(
   return rows.filter(
     (row) =>
       !removeSet.has(row.interaction_type) || row.data_time_gap_hours >= threshold,
+  );
+}
+
+/** Drop zero-duration App Usage episodes (null-duration rows are kept). */
+export function filterZeroDurationUsage(rows: CanonicalRow[]): CanonicalRow[] {
+  return rows.filter(
+    (row) =>
+      row.interaction_type !== "App Usage" ||
+      row.duration_seconds === null ||
+      row.duration_seconds > 0,
   );
 }
 
@@ -2385,7 +2744,12 @@ function toSavRow(cells: Record<string, ParquetCellValue>): SavRow {
   const row: SavRow = {};
   for (const [key, value] of Object.entries(cells)) {
     if (typeof value === "boolean") row[key] = value ? 1 : 0;
-    else if (typeof value === "bigint") row[key] = Number(value);
+    // SAV cells come from row*ParquetCells, which only emit
+    // string/number/boolean/null values; no bigint cell reaches toSavRow, so the
+    // bigint coercion is defensive.
+    /* v8 ignore start */ else if (typeof value === "bigint")
+      row[key] = Number(value);
+    /* v8 ignore stop */
     else row[key] = value;
   }
   return row;
@@ -2446,7 +2810,7 @@ function buildAppOutputBundle(
   const blobParts: BlobPart[] = [];
   blobParts.push(columns.join(","), "\n");
   for (let i = 0; i < rows.length; i += 1) {
-    const record = rowToAppCsvRecord(rows[i]!, options, includeCodebookAliases, usageLayerActive);
+    const record = rowToAppCsvRecord(rows[i], options, includeCodebookAliases, usageLayerActive);
     const rawCells = columns.map((column) => {
       const value = record[column];
       return value == null ? "" : String(value);
@@ -2475,7 +2839,7 @@ function buildScreenOutputBundle(
   const blobParts: BlobPart[] = [];
   blobParts.push(columns.join(","), "\n");
   for (let i = 0; i < rows.length; i += 1) {
-    const record = rowToScreenCsvRecord(rows[i]!, options);
+    const record = rowToScreenCsvRecord(rows[i], options);
     const rawCells = columns.map((column) => {
       const value = record[column];
       return value == null ? "" : String(value);
@@ -2568,6 +2932,10 @@ export async function processRawCsvContent(
   const emit = (stepKind: ProgressStepKind, percent: number) => {
     onProgress?.({ type: "step", fileName: inputFileName, stepKind, percent });
   };
+  // Start each file with empty timestamp-format memos — they are scoped to one
+  // file's distinct (ms, timeZone) pairs so they never grow unbounded across a
+  // multi-file session.
+  resetTimestampFormatCaches();
   const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
 
   // ── Support-file loading (async; kept OUTSIDE the graph so node bodies
@@ -2657,6 +3025,10 @@ export async function processRawCsvContent(
     runtime?.datetimeOfPreprocessing ?? resolveSessionDatetime(inputFileName, csvText);
   const effectiveRuntime: BrowserProcessingRuntime = { ...runtime, datetimeOfPreprocessing };
 
+  // Step-level lineage sink: the step runner reports one record per
+  // executed step; joined with the engine's unit records into the
+  // ExecutionLedger after the run (observation only — never behavior).
+  const stepRecords: StepExecutionRecord[] = [];
   const ctx: PipelineCtx = {
     csvText,
     options,
@@ -2674,6 +3046,7 @@ export async function processRawCsvContent(
     runMatcher,
     runSplitter: effectiveSplitter,
     emit,
+    stepRecorder: (record) => stepRecords.push(record),
   };
   const engine = getPipelineEngine(inputFileName);
   const supportFileHashes: Record<string, string> = {};
@@ -2681,13 +3054,13 @@ export async function processRawCsvContent(
     if (file) supportFileHashes[key] = await computeSupportFileCacheKey(file);
   }
   const graphRun = await engine.run(ctx, {
-    options: options as unknown as Record<string, unknown>,
+    options: options,
     supportFileHashes,
     inputHash: hashValue([csvText, datetimeOfPreprocessing]),
   });
   const failedNode = Object.keys(graphRun.report.errors)[0];
   if (failedNode) {
-    throw new Error(graphRun.report.errors[failedNode]!);
+    throw new Error(graphRun.report.errors[failedNode]);
   }
 
   const parseOut = graphRun.outputs.get("parse_events") as ParseEventsOutput;
@@ -2703,7 +3076,7 @@ export async function processRawCsvContent(
   const exactDuplicateRowsRemoved = dedupOut.exactDuplicateRowsRemoved;
   const rows = policyOut.rows;
   const screenRows: CanonicalRow[] = pipelineOutputs.screenRows;
-  let appRows: CanonicalRow[] = pipelineOutputs.appRows;
+  const appRows: CanonicalRow[] = pipelineOutputs.appRows;
 
   // Cached nodes emit no live progress — re-emit the canonical step kinds
   // so the progress surface always reaches a complete final state.
@@ -2867,7 +3240,7 @@ export async function processRawCsvContent(
 
     if (options.enablePlotting) {
       const screenPlotBlobs = await generateAllScreenPlots(
-        screenRows as Parameters<typeof generateAllScreenPlots>[0],
+        screenRows,
         timezone,
         PREPROCESSOR_VERSION,
         preAlgoTsByParticipant,
@@ -2883,7 +3256,7 @@ export async function processRawCsvContent(
       }
       if (options.exportPlotsAsSvg) {
         const screenSvgBlobs = await generateAllScreenPlotSvgs(
-          screenRows as Parameters<typeof generateAllScreenPlotSvgs>[0],
+          screenRows,
           timezone,
           PREPROCESSOR_VERSION,
           preAlgoTsByParticipant,
@@ -3029,7 +3402,7 @@ export async function processRawCsvContent(
   const screenViews =
     options.processScreenUsage && screenRows.length > 0
       ? buildScreenTimelineViews(
-          screenRows as Parameters<typeof buildScreenTimelineViews>[0],
+          screenRows,
           timezone,
           PREPROCESSOR_VERSION,
           preAlgoTsByParticipant,
@@ -3084,6 +3457,7 @@ export async function processRawCsvContent(
     timelineView,
     reviewSummary,
     graphReport: graphRun.report,
+    executionLedger: assembleLedger(graphRun.report.executions, stepRecords),
     ...(configNotices.length > 0 ? { configNotices } : {}),
   };
 }
@@ -3098,8 +3472,6 @@ export {
   markDataTimeGaps,
   labelFilteredApps,
   deriveScreenUsageSessions,
-  runAppUsageAlgorithm,
-  enrichWithCodebookData,
   markAppUsageFlags,
   clearFilteredUsageTiming,
   removeSelectedInteractionTypes,
@@ -3111,7 +3483,7 @@ export function countDuplicateTimestampGroups(rows: CanonicalRow[]): number {
   let duplicates = 0;
   let runStart = 0;
   for (let index = 1; index < rows.length; index += 1) {
-    if (rows[index]!.event_timestamp_ns !== rows[runStart]!.event_timestamp_ns) {
+    if (rows[index].event_timestamp_ns !== rows[runStart].event_timestamp_ns) {
       const runLength = index - runStart;
       if (runLength > 1) duplicates += runLength - 1;
       runStart = index;

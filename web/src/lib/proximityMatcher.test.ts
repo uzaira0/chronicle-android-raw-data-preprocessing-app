@@ -91,6 +91,37 @@ describe("matchAppUsageWithProximity", () => {
     expect(out.missingIndices).toEqual([]);
   });
 
+  it("treats a stop earlier than its start as an invalid (negative) duration", () => {
+    // Single-close path: the same-stop at t=5 lands before the resume at t=10, so
+    // the duration is negative and the start cannot be closed — it stays missing.
+    const out = matchAppUsageWithProximity(
+      makeInput([
+        { app: 0, t: 10, resumed: 1 },
+        { app: 0, t: 5, sameStop: 1 },
+      ]),
+    );
+    expect(out.stopStartIndices).toEqual([]);
+    expect(out.stopEventIndices).toEqual([]);
+    expect(out.missingIndices).toEqual([0]);
+  });
+
+  it("in reuse mode, keeps an open start when the candidate close is an invalid duration", () => {
+    // allowStopEventReuse takes the reuse branch; the compatible same-stop has a
+    // negative duration, so the start is pushed back onto the still-open set.
+    const out = matchAppUsageWithProximity(
+      makeInput(
+        [
+          { app: 0, t: 10, resumed: 1 },
+          { app: 0, t: 5, sameStop: 1 },
+        ],
+        { allowStopEventReuse: true },
+      ),
+    );
+    expect(out.stopStartIndices).toEqual([]);
+    expect(out.stopEventIndices).toEqual([]);
+    expect(out.missingIndices).toEqual([0]);
+  });
+
   it("does not skip a fallback close when the start is not a re-resume", () => {
     // A first-time resume (not a re-resume) is closed by its fallback normally,
     // even with proximity on — the grace only protects re-resumed teardowns.

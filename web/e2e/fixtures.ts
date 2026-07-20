@@ -56,6 +56,6 @@ export const CODEBOOK_CSV = [
   "com.example.maps,Maps,TRAVEL_AND_LOCAL,Navigation,true",
 ].join("\n");
 
-export async function createFilterWorkbookBytes(): Promise<Uint8Array> {
-  return Uint8Array.from(Buffer.from(FILTER_WORKBOOK_BASE64, "base64"));
+export function createFilterWorkbookBytes(): Promise<Uint8Array> {
+  return Promise.resolve(Uint8Array.from(Buffer.from(FILTER_WORKBOOK_BASE64, "base64")));
 }

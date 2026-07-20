@@ -10,6 +10,8 @@
  * docs/pipeline-graph/08-prior-art-vocabulary.md.
  */
 
+import type { ExpectationResult, UnitExecutionRecord } from "@/lib/pipelineGraph/executionRecords";
+
 export type Section = "preprocess" | "clean" | "analyze" | "output";
 
 export type EdgeType = "feeds" | "gates" | "tunes";
@@ -42,9 +44,10 @@ export interface NodeDef<Ctx> {
   /**
    * Node body. Receives the shared run context and a map of upstream
    * outputs keyed by node id. Must be deterministic given (ctx-bound
-   * options, support files, inputs).
+   * options, support files, inputs). May return a value or a promise —
+   * the engine awaits either.
    */
-  run: (ctx: Ctx, inputs: Record<string, unknown>) => Promise<unknown> | unknown;
+  run: (ctx: Ctx, inputs: Record<string, unknown>) => unknown;
   /**
    * True when the current options turn this whole step off (its body is a
    * pass-through / empty-return). The body STILL RUNS — downstream nodes
@@ -55,25 +58,44 @@ export interface NodeDef<Ctx> {
    */
   bypassedWhen?: (options: Record<string, unknown>) => boolean;
   /**
-   * Optional content hash of the node's output. When provided and the
-   * recomputed hash matches the previous one, downstream nodes stay
-   * cached (early cutoff). When omitted, any recompute marks downstream
-   * dirty.
+   * Early cutoff (Salsa backdating). When true and a recompute yields a
+   * value deep-equal to the cached one, the node keeps its previous stamp
+   * so downstream nodes stay cached. Equality is checked against the
+   * cached value the engine already holds (`valuesEqual`): a first run
+   * pays nothing, and a changed rerun exits at the first difference —
+   * unlike the output-hashing this replaced, which serialized the full
+   * output on EVERY recompute (measured 44% of pipeline wall time on
+   * 123k-row files). When omitted, any recompute marks downstream dirty.
    */
-  outputHash?: (value: unknown) => string;
+  earlyCutoff?: boolean;
+  /**
+   * Optional unit-level runtime expectations, evaluated by the engine
+   * after a live run over (output, inputs). Results are REPORT data
+   * (severity "warn", recorded on the node's UnitExecutionRecord) — a
+   * violated expectation never throws or changes behavior.
+   */
+  expectations?: (
+    output: unknown,
+    inputs: Record<string, unknown>,
+  ) => ExpectationResult[];
 }
 
 export interface GraphDef<Ctx> {
   nodes: NodeDef<Ctx>[];
 }
 
-export type NodeStatus = "cached" | "recomputed" | "dirty" | "error" | "skipped" | "bypassed";
+export type NodeStatus = "cached" | "recomputed" | "error" | "skipped" | "bypassed";
 
 export interface RunReport {
   /** Status per node id after a run. */
   statuses: Record<string, NodeStatus>;
   /** Error message per node id for nodes with status "error". */
   errors: Record<string, string>;
+  /**
+   * Per-node execution records (timing, row counts, expectations), in run
+   * order — the engine half of the ExecutionLedger.
+   */
+  executions: UnitExecutionRecord[];
 }
 
 export interface RunKeys {

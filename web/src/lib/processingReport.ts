@@ -1,3 +1,4 @@
+import type { ExecutionLedger, UnitExecutionRecord } from "@/lib/pipelineGraph/executionRecords";
 import type { BrowserProcessingOptions, ProcessedFileResult } from "@/lib/types";
 
 /**
@@ -108,6 +109,11 @@ export function buildProcessingReportObject(input: ProcessingReportInput): {
         outputFileName: output.outputFileName,
         rowCount: output.rowCount,
       })),
+      // The ExecutionLedger, verbatim: per-unit/per-step statuses, row
+      // counts, loss accounting and expectation results. Deterministic
+      // core except the nested `timing` objects, which determinism
+      // assertions exclude by key. [] for results predating the ledger.
+      executions: result.executionLedger ?? [],
     })),
   };
 }
@@ -118,12 +124,103 @@ export function buildProcessingReport(input: ProcessingReportInput): string {
 }
 
 /**
+ * Per-node/per-step `chron:NodeExecution` activities for one file's
+ * ExecutionLedger — the runtime half of the research ontology's
+ * StepDefinition/NodeExecution pair (docs/pipeline-graph/13, expansion #4
+ * of doc 09). IRIs: `urn:chronicle:nodeexec:{runId}:{file}:{unitId}[:{stepId}]`
+ * (the encoded input file name scopes the per-file ledgers so multi-file
+ * runs cannot mint colliding activity IRIs);
+ * `chron:executes_step` points at the (recursive) StepDefinition IRI
+ * `urn:chronicle:step:{id}` — unit and step ids share one namespace with
+ * no collisions, mirroring the ontology's "one kind of step, any scale".
+ * Step executions are `dcterms:isPartOf` their unit execution (the
+ * runtime mirror of the ontology's `part_of_step`).
+ */
+function buildNodeExecutionNodes(
+  ledger: ExecutionLedger,
+  runIri: string,
+  scope: string,
+  parameterSetIri: string | null,
+): Array<Record<string, unknown>> {
+  const shared = (iri: string, stepIri: string, timing: UnitExecutionRecord["timing"]) => ({
+    "@id": iri,
+    "@type": ["prov:Activity", "chron:NodeExecution"],
+    "chron:executes_step": { "@id": stepIri },
+    ...(parameterSetIri ? { "chron:used_parameter_set": { "@id": parameterSetIri } } : {}),
+    "prov:startedAtTime": { "@value": timing.startedAt, "@type": "xsd:dateTime" },
+    "prov:endedAtTime": { "@value": timing.endedAt, "@type": "xsd:dateTime" },
+    "prov:wasInformedBy": { "@id": runIri },
+  });
+  const rowCounts = (record: { rowsIn: number | null; rowsOut: number | null }) => ({
+    ...(record.rowsIn !== null ? { "chronicle:rowsIn": record.rowsIn } : {}),
+    ...(record.rowsOut !== null ? { "chronicle:rowsOut": record.rowsOut } : {}),
+  });
+  return ledger.flatMap((unit) => {
+    const unitIri = `urn:chronicle:nodeexec:${scope}:${unit.unit}`;
+    return [
+      {
+        ...shared(unitIri, `urn:chronicle:step:${unit.unit}`, unit.timing),
+        "rdfs:label": `${unit.unit} (${unit.status})`,
+        "chronicle:status": unit.status,
+        ...rowCounts(unit),
+      },
+      ...unit.steps.map((step) => ({
+        ...shared(
+          `urn:chronicle:nodeexec:${scope}:${unit.unit}:${step.stepId}`,
+          `urn:chronicle:step:${step.stepId}`,
+          step.timing,
+        ),
+        "rdfs:label": `${unit.unit}/${step.stepId} (${step.status})`,
+        "chronicle:status": step.status,
+        ...rowCounts(step),
+        ...(step.droppedRows !== null ? { "chronicle:droppedRows": step.droppedRows } : {}),
+        "dcterms:isPartOf": { "@id": unitIri },
+      })),
+    ];
+  });
+}
+
+/**
+ * Minted `chron:StepDefinition` nodes for every unit and step the ledgers
+ * reference — the plan half of the StepDefinition/NodeExecution pair, so
+ * `chron:executes_step` targets are typed instances (the generated SHACL
+ * property shapes carry `sh:class chron:StepDefinition`). Steps declare
+ * `dcterms:isPartOf` → their unit — the ontology slot `part_of_step`
+ * declares `slot_uri: dcterms:isPartOf`, so the sidecar must emit the
+ * canonical predicate (and it matches the step-execution composition edge
+ * above). Deduped across files.
+ */
+function buildStepDefinitionNodes(
+  ledgers: readonly ExecutionLedger[],
+): Array<Record<string, unknown>> {
+  const partOfById = new Map<string, string | null>();
+  for (const ledger of ledgers) {
+    for (const unit of ledger) {
+      if (!partOfById.has(unit.unit)) partOfById.set(unit.unit, null);
+      for (const step of unit.steps) {
+        if (!partOfById.has(step.stepId)) partOfById.set(step.stepId, unit.unit);
+      }
+    }
+  }
+  return [...partOfById.entries()].map(([id, partOf]) => ({
+    "@id": `urn:chronicle:step:${id}`,
+    "@type": "chron:StepDefinition",
+    "chron:step_id": id,
+    "rdfs:label": id,
+    ...(partOf ? { "dcterms:isPartOf": { "@id": `urn:chronicle:step:${partOf}` } } : {}),
+  }));
+}
+
+/**
  * W3C PROV-O provenance sidecar (`chronicle-provenance.jsonld`), bundled next
  * to the run manifest in every output ZIP. Models the run as a
  * prov:Activity that prov:used each raw input (content-addressed by SHA-256)
  * and the ParameterSet entity, was associated with the preprocessor
- * SoftwareAgent, and generated each output entity. Pure — same injected
- * inputs as the report builder.
+ * SoftwareAgent, and generated each output entity — plus one
+ * `chron:NodeExecution` activity per executed pipeline unit and step (the
+ * append-only lineage ledger, projected from each result's
+ * ExecutionLedger) and the minted `chron:StepDefinition` plan nodes they
+ * execute. Pure — same injected inputs as the report builder.
  */
 export function buildProvenanceJsonLd(input: ProcessingReportInput): string {
   const { results, preprocessorVersion, generatedAt, runId, parameterSetSha256 } = input;
@@ -132,6 +229,28 @@ export function buildProvenanceJsonLd(input: ProcessingReportInput): string {
   const parameterSetIri = parameterSetSha256
     ? `urn:chronicle:parameterset:sha256:${parameterSetSha256}`
     : null;
+  // NodeExecutionContractShape (contract.shacl.ttl) requires every
+  // chron:NodeExecution to cite its ParameterSet (sh:minCount 1). Emitting a
+  // sidecar that silently violates its own contract is worse than failing
+  // loudly here — every real caller hashes the ParameterSet first.
+  if (!parameterSetIri && results.some((result) => (result.executionLedger?.length ?? 0) > 0)) {
+    throw new Error(
+      "buildProvenanceJsonLd: results carry an executionLedger but no parameterSetSha256 was supplied — " +
+        "NodeExecution activities must cite their ParameterSet (NodeExecutionContractShape)",
+    );
+  }
+
+  const nodeExecutions = results.flatMap((result) =>
+    buildNodeExecutionNodes(
+      result.executionLedger ?? [],
+      runIri,
+      `${runId}:${encodeURIComponent(result.inputFileName)}`,
+      parameterSetIri,
+    ),
+  );
+  const stepDefinitions = buildStepDefinitionNodes(
+    results.map((result) => result.executionLedger ?? []),
+  );
 
   const inputEntities = results.map((result) => ({
     "@id": result.inputSha256
@@ -176,14 +295,19 @@ export function buildProvenanceJsonLd(input: ProcessingReportInput): string {
       ? [
           {
             "@id": parameterSetIri,
-            "@type": "prov:Entity",
+            // Typed with the ontology class too, so chron:used_parameter_set
+            // references satisfy the generated `sh:class chron:ParameterSet`.
+            "@type": ["prov:Entity", "chron:ParameterSet"],
             "rdfs:label": "ParameterSet (full processing options, canonical JSON)",
             "chronicle:sha256": parameterSetSha256,
+            "chron:parameter_set_sha256": parameterSetSha256,
           },
         ]
       : []),
     ...inputEntities,
     ...outputEntities,
+    ...stepDefinitions,
+    ...nodeExecutions,
   ];
 
   return JSON.stringify(
@@ -192,6 +316,8 @@ export function buildProvenanceJsonLd(input: ProcessingReportInput): string {
         prov: "http://www.w3.org/ns/prov#",
         rdfs: "http://www.w3.org/2000/01/rdf-schema#",
         xsd: "http://www.w3.org/2001/XMLSchema#",
+        dcterms: "http://purl.org/dc/terms/",
+        chron: "https://w3id.org/chronicle-usage-ontology/core/",
         chronicle: "https://chronicle.local/schemas/",
       },
       "@graph": graph,

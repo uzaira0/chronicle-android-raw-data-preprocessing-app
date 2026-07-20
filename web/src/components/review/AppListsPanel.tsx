@@ -60,7 +60,7 @@ function SmallList({
         <table className="review-alist__table">
           <tbody>
             {(rows ?? []).map((row, index) => (
-              <tr key={`${row[columns[0]!.key] ?? index}`}>
+              <tr key={`${row[columns[0].key] ?? index}`}>
                 {columns.map((col) => (
                   <td key={col.key}>{row[col.key] ?? ""}</td>
                 ))}

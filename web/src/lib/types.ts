@@ -1,5 +1,6 @@
 export type { BrowserProcessingOptions, BrowserTimezoneHandling, OutputKind } from "@/lib/generatedContract";
-import type { OutputKind } from "@/lib/generatedContract";
+import type { OutputKind, RAW_CHRONICLE_COLUMNS } from "@/lib/generatedContract";
+import type { ExecutionLedger } from "@/lib/pipelineGraph/executionRecords";
 import type { NodeStatus } from "@/lib/pipelineGraph/graphTypes";
 import type { Scene, SceneRegion } from "@/lib/plotScene";
 
@@ -72,19 +73,17 @@ export type SplitterInput = {
 /** Output of `splitOverlappingSessions`. */
 export type SplitterOutput = LayeredSessionRow[];
 
-export type RawChronicleRow = {
-  study_id?: string;
-  participant_id?: string;
-  possible_device_model?: string;
-  username?: string;
-  application_label?: string;
-  interaction_type?: string;
-  app_package_name?: string;
-  event_timestamp?: string;
-  start_timestamp?: string;
-  stop_timestamp?: string;
-  timezone?: string;
-};
+/**
+ * One raw Chronicle CSV row, keyed by the LITERAL export headers. Derived
+ * from the generated contract (RawChronicleEventRecord in
+ * schema/chronicle-local-contract.linkml.yaml) so the ingest boundary has a
+ * single source of truth. Every field is optional at the type level — the
+ * required columns are an advisory expectation enforced as warnings by
+ * fileInspection, never a parse gate.
+ */
+export type RawChronicleRow = Partial<
+  Record<(typeof RAW_CHRONICLE_COLUMNS)[number], string>
+>;
 
 export type BrowserSupportFile = {
   name: string;
@@ -261,4 +260,12 @@ export type ProcessedFileResult = {
     statuses: Record<string, NodeStatus>;
     errors: Record<string, string>;
   };
+  /**
+   * Per-unit/per-step execution ledger for the run that produced this
+   * result (timing, row counts, loss accounting, expectation results) —
+   * the runtime-lineage SSOT projected into the run manifest and the
+   * PROV-O sidecar. Optional: absent on results persisted before this
+   * field existed.
+   */
+  executionLedger?: ExecutionLedger;
 };

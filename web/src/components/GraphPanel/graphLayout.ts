@@ -97,7 +97,9 @@ export function layoutGraph(def: GraphDef<unknown>, direction: LayoutDirection):
     }
   }
 
-  dagre.layout(graph);
+  // dagre.graphlib.Graph() creates Graph<any, any, any>, but dagre.layout accepts that.
+  // Type assertion is necessary because the library's type stubs are overly strict.
+  dagre.layout(graph as Parameters<typeof dagre.layout>[0]);
 
   const nodes: LayoutNode[] = def.nodes.map((node) => {
     const placed = graph.node(node.id) as { x: number; y: number };

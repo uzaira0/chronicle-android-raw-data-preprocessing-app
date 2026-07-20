@@ -50,7 +50,7 @@ describe("buildReviewSummary", () => {
 
     const summary = buildReviewSummary(appRows, screenRows);
     expect(summary.participants).toHaveLength(1);
-    const p = summary.participants[0]!;
+    const p = summary.participants[0];
     expect(p.participantId).toBe("P1");
     expect(p.totals.appUsageMinutes).toBeCloseTo(15, 4); // 5 + 3 + 7
     expect(p.totals.screenUsageMinutes).toBeCloseTo(4, 4);
@@ -66,7 +66,7 @@ describe("buildReviewSummary", () => {
       appSession({ app_package_name: "com.a", startMin: 0, stopMin: 5, date: "2026-06-03" }),
     ];
     const summary = buildReviewSummary(appRows, []);
-    const p = summary.participants[0]!;
+    const p = summary.participants[0];
     expect(p.perDay.map((d) => d.date)).toEqual(["2026-06-01", "2026-06-02", "2026-06-03"]);
     const gap = p.perDay.find((d) => d.date === "2026-06-02")!;
     expect(gap.flags).toContain("no_usage_day");
@@ -93,10 +93,10 @@ describe("buildReviewSummary", () => {
       }),
     ];
     const summary = buildReviewSummary(appRows, []);
-    const top = summary.participants[0]!.topAppsByDate["2026-06-01"]!;
+    const top = summary.participants[0].topAppsByDate["2026-06-01"];
     expect(top.map((a) => a.appPackageName)).toEqual(["com.long", "com.short"]);
-    expect(top[0]!.category).toBe("Games");
-    expect(top[0]!.minutes).toBeCloseTo(30, 4);
+    expect(top[0].category).toBe("Games");
+    expect(top[0].minutes).toBeCloseTo(30, 4);
   });
 
   it("separates participants and sorts them by id", () => {
@@ -110,5 +110,53 @@ describe("buildReviewSummary", () => {
 
   it("returns no participants for an empty run", () => {
     expect(buildReviewSummary([], []).participants).toEqual([]);
+  });
+
+  it("yields an empty per-day span when the observed date is unparseable", () => {
+    // A non-numeric date can't be turned into an epoch, so datesInSpan bails out
+    // (both the per-component finiteness guard and the NaN cursor/last guard),
+    // leaving the participant with an empty per-day span and zero total days.
+    const appRows = [
+      appSession({ app_package_name: "com.a", startMin: 0, stopMin: 5, date: "not-a-date" }),
+    ];
+    const summary = buildReviewSummary(appRows, []);
+    const p = summary.participants[0];
+    expect(p.perDay).toEqual([]);
+    expect(p.totals.totalDays).toBe(0);
+    expect(p.totals.daysWithUsage).toBe(0);
+  });
+
+  it("treats an undefined session duration as zero minutes in the top-apps roll-up", () => {
+    // duration_minutes filters only strict null; an undefined duration survives
+    // the filter and is coalesced to 0 in the per-app minutes sum.
+    const appRows = [
+      appSession({
+        app_package_name: "com.a",
+        startMin: 0,
+        stopMin: 5,
+        date: "2026-06-01",
+        duration_minutes: undefined,
+      }),
+    ];
+    const summary = buildReviewSummary(appRows, []);
+    const top = summary.participants[0].topAppsByDate["2026-06-01"];
+    expect(top).toBeDefined();
+    expect(top[0].appPackageName).toBe("com.a");
+    expect(top[0].minutes).toBe(0);
+  });
+
+  it("omits top-apps for a day that has only screen sessions (no app rows)", () => {
+    // The screen-only date is an observed day (it has a daily summary) but has no
+    // app rows, so the top-apps lookup finds nothing and that date is absent from
+    // topAppsByDate — while the app-bearing date still gets its list.
+    const appRows = [
+      appSession({ app_package_name: "com.a", startMin: 0, stopMin: 5, date: "2026-06-01" }),
+    ];
+    const screenRows = [screenSession({ startMin: 0, stopMin: 4, date: "2026-06-02" })];
+    const summary = buildReviewSummary(appRows, screenRows);
+    const p = summary.participants[0];
+    expect(p.perDay.map((d) => d.date)).toEqual(["2026-06-01", "2026-06-02"]);
+    expect(p.topAppsByDate["2026-06-01"]).toBeDefined();
+    expect(p.topAppsByDate["2026-06-02"]).toBeUndefined();
   });
 });
