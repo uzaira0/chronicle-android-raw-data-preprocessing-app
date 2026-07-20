@@ -506,7 +506,7 @@ Everything backing this memo is in the repo:
 
 | Script                                       | Purpose                                           |
 |----------------------------------------------|---------------------------------------------------|
-| `web/scripts/profile_pipeline_stages.mts`    | 8-stage TS-pipeline wall-clock breakdown          |
+| `web/scripts/profile_steps.mts (ledger-based; superseded profile_pipeline_stages.mts)`    | 8-stage TS-pipeline wall-clock breakdown          |
 | `web/scripts/profile_intl_breakdown.mts`     | per-stage Intl-call attribution                   |
 | `web/scripts/bench_kernels_full.mts`         | parse/format/dedup TS-vs-Rust per fixture         |
 | `web/scripts/bench_polars_kernel.mts`        | Intl vs lean-WASM vs polars-WASM, format only     |
@@ -518,7 +518,7 @@ Everything backing this memo is in the repo:
 
 | File                                          | Bench it came from                  |
 |-----------------------------------------------|-------------------------------------|
-| `web/.tmp/profile/log.txt`                    | `profile_pipeline_stages.mts`       |
+| `web/.tmp/profile/log.txt`                    | `profile_steps.mts`       |
 | `web/.tmp/profile/intl_log.txt`               | `profile_intl_breakdown.mts`        |
 | `web/.tmp/profile/kernels_full.log`           | `bench_kernels_full.mts`            |
 | `web/.tmp/profile/kernels_full.json`          | `bench_kernels_full.mts` (JSON)     |
@@ -601,3 +601,48 @@ For an implementer landing cold:
 Build the single end-to-end Rust kernel. Reject Polars. Keep the TS pipeline as the documented fallback. The numbers are 2.92× end-to-end at byteDiff=0 across 407K rows on five real Chronicle fixtures, in a 250–400 KB gzipped WASM budget, with a clear migration path that has byte-identical parity verification at every step.
 
 The work breakdown is well-defined: extend the parity harness, promote the prototype lean crate, wire one feature flag, port the remaining six stages in priority order, flip the default. Each step has a concrete verification command and the parity harness catches any drift the moment it appears.
+
+
+## 13. Addendum (2026-07-19) — Phase-8 ledger-driven optimization outcome
+
+The ExecutionLedger profiler (`web/scripts/profile_steps.mts`, fed by the
+Phase-1 lineage backbone) plus `make profile` (hyperfine A/B + desktop
+cProfile → `docs/perf/BASELINE.md`) re-ranked the browser pipeline before any
+porting. Two findings changed the plan of record for the *incremental* path
+(§12's end-to-end kernel remains the full-port endgame):
+
+1. **The dominant cost was the ENGINE, not a step.** The four graphDef nodes
+   declaring `outputHash: hashValue(value)` serialized their full row arrays
+   (~528 MB of JSON across a 4×30,880-row run) on every recompute — 4.66s of a
+   10.47s instrumented wall (44.5%). Fix: early cutoff is now **deep equality
+   against the cached value the engine already holds** (`valuesEqual`,
+   Salsa-style backdating; `NodeDef.earlyCutoff: boolean` replaced
+   `outputHash`). A first run pays nothing; a changed rerun exits at the first
+   difference. Measured: 4-fixture wall 8.99s → 5.79s from this change alone.
+
+2. **The next cost was duplicated Intl work, removed rather than ported.**
+   `profile_intl_breakdown.mts`: 551ms Intl / 1,619ms total (34%), 2 calls per
+   row. The per-row weekday `Intl.DateTimeFormat` call is now pure Gregorian
+   arithmetic on the already-formatted local date (`weekdayFromCivilDate`,
+   differential-tested against the Intl oracle across 8 zones incl. DST
+   transitions and fractional offsets), and `restamp_rows` skips rows already
+   stamped in the target timezone (recompute of identical values; ALL rows
+   under selected-filter). Measured: 4-fixture wall 5.79s → 4.64s
+   (8.99s → 4.64s, −48%, combined).
+
+**Why the per-step chrono-kernel wiring was NOT taken now** (the ledger
+decides, not intuition): after the two fixes no step dominates
+(build_canonical_rows 9.7%, restamp_rows 5.4% of wall); the prototype
+`chronicle_chrono_kernel_wasm` is a 1.2 MB `.wasm` against a deliberate
+160 KB wasm bundle budget (`web/bundle-budget.json`); and the golden harness
+pins output bytes to the runtime's ICU/tz data (`goldenScenario.ts` header) —
+a chrono-tz stamping path would swap the byte-source that goldens and
+cross-engine parity are pinned against for a sub-10% win. Removing work beat
+relocating it. The remaining Intl tail (~125k calls, ~190ms) sits in
+output/report construction outside the step DAG — first candidate for §12's
+end-to-end kernel, which absorbs the bundle cost once for the whole pipeline
+instead of per step.
+
+All gates green after both changes: 515 vitest (goldens byte-identical),
+typecheck, check:contract, schema check incl. sidecar SHACL, deterministic
+parity, metamorphic battery.

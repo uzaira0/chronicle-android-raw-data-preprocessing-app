@@ -66,64 +66,11 @@ import { processRawCsvContent } from "../src/lib/browserPipeline";
 import type {
   BrowserProcessingOptions,
   BrowserSupportFiles,
-  MatcherInput,
-  MatcherOutput,
   ProgressEvent,
   ProgressStepKind,
 } from "../src/lib/types";
 
-const DEFAULTS_DIR = path.resolve(
-  path.dirname(new URL(import.meta.url).pathname),
-  "../src/assets/defaults",
-);
-
-async function loadDefaultSupport(name: string): Promise<{
-  name: string;
-  bytes: ArrayBuffer;
-}> {
-  const bytes = await readFile(path.join(DEFAULTS_DIR, name));
-  return {
-    name,
-    bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
-  };
-}
-
-let initPromise: Promise<void> | null = null;
-
-async function ensureInit(): Promise<void> {
-  if (initPromise) return initPromise;
-  initPromise = (async () => {
-    const module = await import(
-      "../src/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js"
-    );
-    const wasmPath = path.resolve(
-      path.dirname(new URL(import.meta.url).pathname),
-      "../src/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm_bg.wasm",
-    );
-    await module.default({ module_or_path: await readFile(wasmPath) });
-  })();
-  return initPromise;
-}
-
-async function runMatcher(input: MatcherInput): Promise<MatcherOutput> {
-  await ensureInit();
-  const module = await import(
-    "../src/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js"
-  );
-  return module.matchAppUsageUpdateIndices(
-    input.appCodes,
-    input.timestampNs,
-    input.resumed,
-    input.sameStop,
-    input.otherStop,
-    input.stopped,
-    input.background,
-    input.options.allowStopEventReuse,
-    input.options.useActivityStoppedAsFallback,
-    input.options.applyThresholdToFallback,
-    input.options.longDurationThresholdNs,
-  ) as MatcherOutput;
-}
+import { loadDefaultSupport, runMatcher } from "./_matcherHarness.mjs";
 
 type StageRow = {
   stage: ProgressStepKind;
@@ -154,6 +101,10 @@ async function profileFile(
     useFilterFile: true,
     useAppsForcingScreenOpenFile: true,
     useAppCodebook: true,
+    // vite-node has no DOM — this profiler measures the DATA pipeline.
+    enablePlotting: false,
+    enableActivityHeatmap: false,
+    enableInteractiveTimeline: false,
   };
 
   const stageStart = new Map<
