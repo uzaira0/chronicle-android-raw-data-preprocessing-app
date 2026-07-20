@@ -48,8 +48,7 @@ from chronicle_preprocessing_app.utils.pathological_fixture_builder import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FILTER_XLSX = (
-    REPO_ROOT
-    / "apps_to_filter_files/Chronicle_Android_raw_data_preprocessor_apps_to_filter.xlsx"
+    REPO_ROOT / "apps_to_filter_files/Chronicle_Android_raw_data_preprocessor_apps_to_filter.xlsx"
 )
 
 JUNK_APP = "com.junk.app"
@@ -131,14 +130,17 @@ def _run_desktop(raw_df: pl.DataFrame, raw_dir: Path, *, use_filter: bool) -> pl
     return pl.read_csv(out_folder / "P01 Automatically Preprocessed.csv")
 
 
-def _valid_app_usage_seconds(df: pl.DataFrame, filtered_pkgs: set[str]) -> float:
+def _valid_app_usage_durations(df: pl.DataFrame, filtered_pkgs: set[str]) -> list[float]:
+    # Sorted per-row durations, NOT a float sum: polars' parallel sum reduces in a
+    # thread-count-dependent order, so `.sum()` differs in the last ulp between
+    # POLARS_MAX_THREADS settings. The multiset comparison is exact and stronger.
     valid = df.filter(
         (pl.col(Column.INTERACTION_TYPE) == APP_USAGE)
         & (~pl.col(Column.APP_PACKAGE_NAME).is_in(list(filtered_pkgs)))
     )
     if Column.DURATION_SECONDS not in valid.columns or valid.height == 0:
-        return 0.0
-    return float(valid.get_column(Column.DURATION_SECONDS).cast(pl.Float64).sum())
+        return []
+    return sorted(valid.get_column(Column.DURATION_SECONDS).cast(pl.Float64).to_list())
 
 
 def test_filter_preserves_valid_app_usage_on_pathological_fixture():
@@ -156,9 +158,9 @@ def test_filter_preserves_valid_app_usage_on_pathological_fixture():
         off = _run_desktop(raw_df, root / "off", use_filter=False)
         on = _run_desktop(raw_df, root / "on", use_filter=True)
 
-    off_secs = _valid_app_usage_seconds(off, filtered_pkgs)
-    on_secs = _valid_app_usage_seconds(on, filtered_pkgs)
+    off_durations = _valid_app_usage_durations(off, filtered_pkgs)
+    on_durations = _valid_app_usage_durations(on, filtered_pkgs)
 
-    assert off_secs > 0.0
-    # Filtering junk apps leaves every valid app's total usage untouched.
-    assert on_secs == off_secs
+    assert sum(off_durations) > 0.0
+    # Filtering junk apps leaves every valid app's usage untouched, row for row.
+    assert on_durations == off_durations

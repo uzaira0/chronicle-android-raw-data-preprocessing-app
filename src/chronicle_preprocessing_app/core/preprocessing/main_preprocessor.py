@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import logging
 import multiprocessing
+import uuid
+from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import polars as pl
 
@@ -18,9 +20,19 @@ from chronicle_preprocessing_app.config.constants import (
     PREPROCESSED_FOLDER_SUFFIX,
     Column,
     InteractionType,
-    UsageSessionMode,
 )
+from chronicle_preprocessing_app.config.version import __version__
 from chronicle_preprocessing_app.core.config import PreprocessingOptions, ProcessingStats
+from chronicle_preprocessing_app.core.lineage import (
+    PROVENANCE_SIDECAR_FILENAME,
+    STATUS_BYPASSED,
+    LineageCollector,
+    OutputArtifact,
+    build_provenance_jsonld,
+    parameter_set_sha256,
+    sha256_file,
+    utc_now_instant,
+)
 from chronicle_preprocessing_app.core.preprocessing.app_filter_preprocessor import (
     AppFilterPreprocessor,
 )
@@ -50,9 +62,9 @@ from chronicle_preprocessing_app.core.preprocessing.timezone_preprocessor import
 from chronicle_preprocessing_app.utils.file_utils import (
     get_matching_files_from_folder,
     read_app_codebook,
+    read_apps_forcing_screen_open_file,
     read_background_apps_file,
     read_filter_file,
-    read_apps_forcing_screen_open_file,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -272,21 +284,30 @@ class ChronicleAndroidRawDataPreprocessor:
         raw_data_file: Path | str,
     ) -> tuple[Path, bool, dict[str, Any] | None]:
         raw_path = Path(raw_data_file)
+        # Descriptive execution-lineage ledger for this file. Populating it and
+        # emitting the sidecar reads frame heights / file bytes and writes one
+        # extra JSON file — it never mutates a frame, so CSV output is unchanged.
+        lineage = LineageCollector(unit_id="preprocess_file")
         try:
             if supports_polars_fast_path(
                 self.options,
                 survey_data_processor_available=False,
             ):
-                result = self.fast_preprocessor.preprocess_raw_data_file(raw_path)
+                with lineage.stage("app_usage") as stage:
+                    result = self.fast_preprocessor.preprocess_raw_data_file(raw_path)
+                    stage.rows_out = result.data.height
                 self.current_participant_id = result.participant_id
                 self.current_participant_raw_data_df = result.data
-                output_folder = self.fast_preprocessor.save_preprocessed_output(
-                    result.data,
-                    raw_data_filename=raw_path.name,
-                    output_folder=self.options.output_folder,
-                    study_name=self.options.study_name,
-                    pre_algo_event_timestamps=result.pre_algo_event_timestamps,
-                )
+                with lineage.stage("write", rows_in=result.data.height) as stage:
+                    output_folder = self.fast_preprocessor.save_preprocessed_output(
+                        result.data,
+                        raw_data_filename=raw_path.name,
+                        output_folder=self.options.output_folder,
+                        study_name=self.options.study_name,
+                        pre_algo_event_timestamps=result.pre_algo_event_timestamps,
+                    )
+                    stage.rows_out = result.data.height
+                self._emit_provenance_sidecar(lineage, raw_path, output_folder)
                 self.stats.mark_processed(raw_path)
                 return output_folder, True, None
 
@@ -315,68 +336,165 @@ class ChronicleAndroidRawDataPreprocessor:
                     message,
                 )
 
-            raw_df = pl.read_csv(raw_path, infer_schema_length=10000)
+            with lineage.stage("read") as stage:
+                raw_df = pl.read_csv(raw_path, infer_schema_length=10000)
+                stage.rows_out = raw_df.height
             self.current_participant_raw_data_df = raw_df
             self.current_participant_id = self.get_participant_id_from_data()
 
-            df = self.column_processor.correct_username_column(raw_df)
-            # Canonicalize interaction-type spellings ("Move to Foreground",
-            # "Unknown importance: N") exactly like the fast path does — without
-            # this, devices logging the alternate vocabulary look like they have
-            # no app usage at all, and the screen-session derivation can't see
-            # Screen Interactive/Non-Interactive events.
-            df = self.fast_preprocessor._rename_interaction_types(df)
-            df = self.timestamp_processor.correct_timestamp_column(df, Column.EVENT_TIMESTAMP)
-            df = self.timezone_processor.apply_timezone_handling(df, Column.EVENT_TIMESTAMP)
-            if self.options.correct_duplicate_event_timestamps:
-                df = self.timestamp_processor.unalign_duplicate_timestamps(df, Column.EVENT_TIMESTAMP)
-            df = self.timestamp_processor.mark_data_time_gaps(
-                df,
-                Column.EVENT_TIMESTAMP,
-                Column.DATA_TIME_GAP_HOURS,
-            )
-            df = self.column_processor.create_additional_columns(
-                df,
-                self.fast_preprocessor._get_possible_device_model(df),
-            )
-            df = self.app_filter_processor.label_filtered_apps(df)
+            with lineage.stage("timestamp", rows_in=raw_df.height) as stage:
+                df = self.column_processor.correct_username_column(raw_df)
+                # Canonicalize interaction-type spellings ("Move to Foreground",
+                # "Unknown importance: N") exactly like the fast path does —
+                # without this, devices logging the alternate vocabulary look
+                # like they have no app usage at all, and the screen-session
+                # derivation can't see Screen Interactive/Non-Interactive events.
+                df = self.fast_preprocessor._rename_interaction_types(df)
+                df = self.timestamp_processor.correct_timestamp_column(df, Column.EVENT_TIMESTAMP)
+                stage.rows_out = df.height
+
+            with lineage.stage("timezone", rows_in=df.height) as stage:
+                df = self.timezone_processor.apply_timezone_handling(df, Column.EVENT_TIMESTAMP)
+                if self.options.correct_duplicate_event_timestamps:
+                    df = self.timestamp_processor.unalign_duplicate_timestamps(
+                        df, Column.EVENT_TIMESTAMP
+                    )
+                df = self.timestamp_processor.mark_data_time_gaps(
+                    df,
+                    Column.EVENT_TIMESTAMP,
+                    Column.DATA_TIME_GAP_HOURS,
+                )
+                df = self.column_processor.create_additional_columns(
+                    df,
+                    self.fast_preprocessor._get_possible_device_model(df),
+                )
+                df = self.app_filter_processor.label_filtered_apps(df)
+                stage.rows_out = df.height
 
             if self.options.process_screen_usage_sessions:
-                screen_df = self.screen_usage_processor.derive_screen_usage_sessions(df)
-                self.current_participant_screen_usage_df = screen_df.filter(
-                    pl.col(Column.INTERACTION_TYPE) == str(InteractionType.SCREEN_USAGE)
-                )
+                with lineage.stage("screen_usage", rows_in=df.height) as stage:
+                    screen_df = self.screen_usage_processor.derive_screen_usage_sessions(df)
+                    self.current_participant_screen_usage_df = screen_df.filter(
+                        pl.col(Column.INTERACTION_TYPE) == str(InteractionType.SCREEN_USAGE)
+                    )
+                    stage.rows_out = self.current_participant_screen_usage_df.height
                 if not self.options.process_app_usage_sessions:
                     self.current_participant_raw_data_df = self.current_participant_screen_usage_df
-                    output_folder = self.finalize_and_save_preprocessed_data_df(raw_path.name)
+                    with lineage.stage(
+                        "app_usage", rows_in=df.height, status=STATUS_BYPASSED
+                    ) as stage:
+                        stage.rows_out = df.height
+                    with lineage.stage(
+                        "write", rows_in=self.current_participant_screen_usage_df.height
+                    ) as stage:
+                        output_folder = self.finalize_and_save_preprocessed_data_df(raw_path.name)
+                        stage.rows_out = self.current_participant_screen_usage_df.height
+                    self._emit_provenance_sidecar(lineage, raw_path, output_folder)
                     self.stats.mark_processed(raw_path)
                     return output_folder, True, None
+            else:
+                with lineage.stage(
+                    "screen_usage", rows_in=df.height, status=STATUS_BYPASSED
+                ) as stage:
+                    stage.rows_out = df.height
 
             pre_algo_ts: pl.Series | None = None
             if self.options.process_app_usage_sessions:
-                pre_algo_ts = df.get_column(Column.EVENT_TIMESTAMP).drop_nulls()
-                df = self.app_usage_processor.run_app_usage_algorithm(df)
-                df = self.fast_preprocessor._enrich_with_app_codebook_data(df)
-                df = self.app_usage_processor.add_app_usage_details(df)
-                df = self.app_usage_processor.add_app_usage_flags(df)
-                # Filtered App Usage timing survives until AFTER the engagement
-                # walk above (real gaps, no int64-min sentinel); blank it now —
-                # the output never carries junk timing.
-                df = self.app_usage_processor.clear_filtered_usage_timing(df)
+                with lineage.stage("app_usage", rows_in=df.height) as stage:
+                    pre_algo_ts = df.get_column(Column.EVENT_TIMESTAMP).drop_nulls()
+                    df = self.app_usage_processor.run_app_usage_algorithm(df)
+                    df = self.fast_preprocessor._enrich_with_app_codebook_data(df)
+                    df = self.app_usage_processor.add_app_usage_details(df)
+                    df = self.app_usage_processor.add_app_usage_flags(df)
+                    # Filtered App Usage timing survives until AFTER the engagement
+                    # walk above (real gaps, no int64-min sentinel); blank it now —
+                    # the output never carries junk timing.
+                    df = self.app_usage_processor.clear_filtered_usage_timing(df)
+                    stage.rows_out = df.height
                 self.current_participant_raw_data_df = df
             else:
+                with lineage.stage("app_usage", rows_in=df.height, status=STATUS_BYPASSED) as stage:
+                    stage.rows_out = df.height
                 self.current_participant_raw_data_df = df
 
             self.remove_selected_interaction_types()
-            output_folder = self.finalize_and_save_preprocessed_data_df(raw_path.name, pre_algo_ts)
+            with lineage.stage(
+                "write", rows_in=self.current_participant_raw_data_df.height
+            ) as stage:
+                output_folder = self.finalize_and_save_preprocessed_data_df(
+                    raw_path.name, pre_algo_ts
+                )
+                stage.rows_out = self.current_participant_raw_data_df.height
+            self._emit_provenance_sidecar(lineage, raw_path, output_folder)
             self.stats.mark_processed(raw_path)
             return output_folder, True, None
         except NoAppUsageDataError:
             self.stats.mark_empty_file(raw_path.name)
-            return Path(""), False, None
+            return Path(), False, None
         except Exception as exc:
             self.stats.mark_error(raw_path, str(exc))
             raise
+
+    def _preprocessed_outputs(
+        self, raw_data_filename: str, output_folder: Path
+    ) -> list[OutputArtifact]:
+        """CSV outputs this file produced, for the provenance sidecar (descriptive).
+
+        Reconstructs the finalize step's output file names and pairs each with the
+        row count of the frame it was written from. Only files that actually exist
+        on disk are reported.
+        """
+        stem = Path(raw_data_filename).stem.replace("Raw ", "")
+        candidates = [
+            (
+                f"{stem} {PREPROCESSED_FILE_SUFFIX}",
+                "app_usage",
+                self.current_participant_raw_data_df.height,
+            ),
+            (
+                f"{stem} Screen Usage {PREPROCESSED_FILE_SUFFIX}",
+                "screen_usage",
+                self.current_participant_screen_usage_df.height,
+            ),
+        ]
+        return [
+            OutputArtifact(name=name, row_count=row_count, kind=kind)
+            for name, kind, row_count in candidates
+            if (output_folder / name).exists()
+        ]
+
+    def _emit_provenance_sidecar(
+        self,
+        lineage: LineageCollector,
+        raw_path: Path,
+        output_folder: Path,
+    ) -> None:
+        """Write ``chronicle-provenance.jsonld`` next to the CSV outputs.
+
+        Purely descriptive: a failure here is logged and swallowed so a
+        provenance hiccup can never fail a successful preprocessing run or touch
+        the CSV outputs.
+        """
+        if not output_folder or output_folder == Path():
+            return
+        try:
+            output_folder = Path(output_folder)
+            jsonld = build_provenance_jsonld(
+                run_id=str(uuid.uuid4()),
+                generated_at=utc_now_instant(),
+                preprocessor_version=__version__,
+                parameter_set_sha256=parameter_set_sha256(self.options),
+                input_file_name=raw_path.name,
+                input_sha256=sha256_file(raw_path),
+                outputs=self._preprocessed_outputs(raw_path.name, output_folder),
+                records=lineage.records,
+                unit_id=lineage.unit_id,
+            )
+            (output_folder / PROVENANCE_SIDECAR_FILENAME).write_text(jsonld, encoding="utf-8")
+        except Exception:
+            LOGGER.warning(
+                "Failed to emit provenance sidecar for %s", raw_path, exc_info=True
+            )
 
     def preprocess_Chronicle_Android_raw_data_folder(
         self,
@@ -390,9 +508,9 @@ class ChronicleAndroidRawDataPreprocessor:
         )
         self.stats.total_files = len(files)
         if not files:
-            return Path(""), self.stats
+            return Path(), self.stats
 
-        preprocessed_data_save_folder = Path("")
+        preprocessed_data_save_folder = Path()
         if self.options.parallel_processing and len(files) > 1:
             results, parallel_stats = preprocess_files_parallel(
                 files,
@@ -402,7 +520,7 @@ class ChronicleAndroidRawDataPreprocessor:
             )
             _merge_processing_stats(self.stats, parallel_stats)
             for output_folder, success, _ in results:
-                if success and output_folder != Path(""):
+                if success and output_folder != Path():
                     preprocessed_data_save_folder = output_folder
         else:
             for index, raw_data_file in enumerate(files, start=1):
@@ -413,10 +531,10 @@ class ChronicleAndroidRawDataPreprocessor:
                         len(files),
                     )
                 output_folder, _, _ = self.preprocess_Chronicle_Android_raw_data_file(raw_data_file)
-                if output_folder != Path(""):
+                if output_folder != Path():
                     preprocessed_data_save_folder = output_folder
 
-        if self.options.enable_plotting and preprocessed_data_save_folder != Path(""):
+        if self.options.enable_plotting and preprocessed_data_save_folder != Path():
             if plotting_started_callback:
                 plotting_started_callback()
             try:
@@ -457,7 +575,7 @@ def _process_single_file_worker(
         )
     except Exception as exc:
         preprocessor.stats.mark_error(Path(file_path), str(exc))
-        return input_index, Path(""), False, None, Path(file_path).name, preprocessor.stats
+        return input_index, Path(), False, None, Path(file_path).name, preprocessor.stats
 
 
 def _merge_processing_stats(destination: ProcessingStats, source: ProcessingStats) -> None:

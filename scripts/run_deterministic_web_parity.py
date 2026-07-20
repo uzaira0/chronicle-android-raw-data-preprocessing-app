@@ -10,15 +10,10 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from chronicle_preprocessing_app.config.constants import TimezoneHandlingOption, UsageSessionMode
+from chronicle_preprocessing_app.config.constants import UsageSessionMode
 from chronicle_preprocessing_app.core.config import PreprocessingOptions
 from chronicle_preprocessing_app.core.preprocessing.main_preprocessor import (
     ChronicleAndroidRawDataPreprocessor,
-)
-from chronicle_preprocessing_app.utils.file_utils import (
-    read_background_apps_file,
-    read_filter_file,
-    read_apps_forcing_screen_open_file,
 )
 from chronicle_preprocessing_app.utils.pathological_fixture_builder import (
     FixtureBuildConfig,
@@ -132,10 +127,9 @@ def _compare_csvs(desktop_csv: Path, browser_csv: Path) -> dict:
     }
 
 
-BACKGROUND_APPS_FILE = (
-    REPO_ROOT
-    / "background_apps_files/Chronicle_Android_raw_data_preprocessor_background_apps.csv"
-)
+# Shared with scripts/run_desktop_processing.py — the parity pins live in
+# scripts/_desktop_options.py (single source of truth for knob values).
+from _desktop_options import BACKGROUND_APPS_FILE, build_pinned_options
 
 
 def _build_options(
@@ -150,41 +144,18 @@ def _build_options(
     use_background_apps_file: bool = False,
     include_category_column: bool = False,
 ) -> PreprocessingOptions:
-    options = PreprocessingOptions(
+    return build_pinned_options(
         study_name="Deterministic Parity",
         raw_data_folder=raw_data_folder,
         use_app_codebook=use_app_codebook,
-        include_category_column=include_category_column,
-        app_codebook_path=REPO_ROOT / "src/chronicle_preprocessing_app/data/unified_app_codebook.csv",
         use_filter_file=use_filter_file,
-        filter_file=REPO_ROOT
-        / "apps_to_filter_files/Chronicle_Android_raw_data_preprocessor_apps_to_filter.xlsx",
         use_apps_forcing_screen_open_file=use_apps_forcing_screen_open_file,
-        apps_forcing_screen_open_file=REPO_ROOT
-        / "apps_forcing_screen_open_files/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv",
-        use_background_apps_file=use_background_apps_file,
-        background_apps_file=BACKGROUND_APPS_FILE,
         usage_session_mode=usage_session_mode,
-        selected_timezone="America/Chicago",
-        timezone_handling_option=TimezoneHandlingOption.REMOVE_ALL_DATA_WITHOUT_SELECTED_TIMEZONE,
-        datetime_of_preprocessing_override=datetime_override,
+        datetime_override=datetime_override,
         model_concurrent_usage=model_concurrent_usage,
-        # Parity compares the ENGINES under identical knob values. The web app
-        # ships preprocessing-locked defaults (minimum_usage_duration 60,
-        # proximity 2.0) while the desktop defaults are 0/0 — relying on
-        # defaults silently diverged the surfaces, so pin both sides here
-        # (browser specs pin the same values) and keep the 0-proximity WASM ↔
-        # Rust matcher comparison this harness was built for.
-        minimum_usage_duration=0,
-        proximity_interval_seconds=0,
+        use_background_apps_file=use_background_apps_file,
+        include_category_column=include_category_column,
     )
-    if options.use_filter_file:
-        options.apps_to_filter_dict = read_filter_file(options.filter_file)
-    if options.use_apps_forcing_screen_open_file:
-        options.apps_forcing_screen_open_dict = read_apps_forcing_screen_open_file(options.apps_forcing_screen_open_file)
-    if options.use_background_apps_file:
-        options.background_apps_dict = read_background_apps_file(options.background_apps_file)
-    return options
 
 
 def _run_desktop(raw_csv_path: Path, options: PreprocessingOptions, output_root: Path) -> tuple[Path, Path | None]:
