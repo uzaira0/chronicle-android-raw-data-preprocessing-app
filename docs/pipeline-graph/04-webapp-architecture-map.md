@@ -63,9 +63,10 @@ comparison that re-processes one file under override options and interleaves bot
 ## Parity mechanisms (already exist — extend, don't reinvent)
 
 - Layer A (types): LinkML → TS + OpenAPI with CI consistency check.
-- Layer B (algorithm): shared Rust crate compiled to WASM + Python; fixture-matrix parity
-  scripts (`scripts/run_deterministic_web_parity.py`, `scripts/run_web_parity_matrix.py`)
-  and Python parity tests.
+- Layer B (algorithm): shared Rust crate compiled to WASM; historically also a Python
+  build with fixture-matrix parity scripts (`run_deterministic_web_parity.py`,
+  `run_web_parity_matrix.py`) — removed with the desktop engine; final evidence frozen
+  in `docs/validation/CORPUS_SOAK.md`.
 
 ## What does NOT exist yet
 

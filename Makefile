@@ -1,85 +1,71 @@
-# Local CI — runs the gates that used to run on GitHub Actions, on your machine.
+# Local CI — runs every gate on your machine. GitHub carries CD only
+# (web-pwa-deploy.yml deploys to Pages; it re-runs the web build checks).
 #
-# Replaces the deleted remote workflows:
-#   .github/workflows/ci.yml        (python-tests, rust-tests, semgrep, ast-grep,
-#                                    python-security [bandit + pip-audit],
-#                                    cargo-audit, trivy)
-#   .github/workflows/gitleaks.yml  (secret scan)
-# The only workflow that still runs on GitHub is web-pwa-deploy.yml (it deploys
-# to GitHub Pages and cannot run locally; it also re-runs the web checks below).
+# The desktop Python engine, its pytest suite, and the cross-engine parity/
+# metamorphic/corpus-soak harnesses were REMOVED (fully deprecated — web is
+# the single engine). Their final evidence is frozen in
+# docs/validation/CORPUS_SOAK.md and docs/perf/BASELINE.md; the removal
+# commit message names the last ref that still carries them.
 #
 # Quick start:
-#   make ci      # everything the deleted remote CI ran (tests + every scanner)
-#   make all     # ci + web checks + cross-surface parity + browser e2e smoke
+#   make ci      # rust tests + every security scanner
+#   make all     # ci + web checks + browser e2e smoke + deploy artifact
 #   make help    # list every target
-#
-# Point PYTHON at the interpreter that has the project deps (polars, etc.):
-#   make ci PYTHON=/home/opt/eyes-parity-venv/bin/python
 
-PYTHON  ?= python
 MATCHER := rust/chronicle_app_usage_matcher/Cargo.toml
 
 .PHONY: help ci all security web \
-        test rust \
-        semgrep ast-grep bandit pip-audit cargo-audit trivy gitleaks \
-        typecheck web-test contract parity metamorphic combinatorial gate-truth mutation mutation-python \
+        rust \
+        semgrep ast-grep cargo-audit trivy gitleaks \
+        typecheck web-test contract combinatorial gate-truth mutation \
         coverage knip profile e2e deploy-artifact
 
 help:
-	@echo 'Local CI (replaces the deleted GitHub Actions workflows):'
+	@echo 'Local CI (GitHub Actions carries CD only):'
 	@echo ''
-	@echo '  make ci        tests + all security scanners  (= old ci.yml + gitleaks.yml)'
-	@echo '  make all       ci + web checks + parity + e2e smoke'
-	@echo '  make security  semgrep ast-grep bandit pip-audit cargo-audit trivy gitleaks'
+	@echo '  make ci        rust tests + all security scanners'
+	@echo '  make all       ci + web checks + e2e smoke + deploy artifact'
+	@echo '  make security  semgrep ast-grep cargo-audit trivy gitleaks'
 	@echo '  make web       typecheck + unit tests + contract check'
 	@echo ''
-	@echo '  Individual:  test rust semgrep ast-grep bandit pip-audit cargo-audit'
-	@echo '               trivy gitleaks typecheck web-test contract parity e2e'
-	@echo '               gate-truth mutation mutation-python coverage knip profile'
-	@echo ''
-	@echo '  Override the Python interpreter:'
-	@echo '    make ci PYTHON=/home/opt/eyes-parity-venv/bin/python'
+	@echo '  Individual:  rust semgrep ast-grep cargo-audit trivy gitleaks'
+	@echo '               typecheck web-test contract e2e gate-truth mutation'
+	@echo '               coverage knip profile combinatorial deploy-artifact'
 
 # ---------- aggregates ----------
-ci: test rust security
+ci: rust security
 
-# Run each phase as its own sequential sub-make rather than as four
-# prerequisites of one invocation. With prerequisites, `web`'s two
-# esbuild-spawning recipes (web-test + contract) run in the same make process
-# as `parity`/`e2e`, and under concurrent load make can intermittently finish
-# `web` and then exit 0 WITHOUT running the goals that follow it — a silent
-# false-green. Isolating each phase in its own `$(MAKE)` invocation removes that
-# condition; each line is exit-checked, so a failed or skipped phase aborts
-# before the final success line below. Do not collapse this back to
-# `all: ci web parity e2e`.
+# Run each phase as its own sequential sub-make rather than as prerequisites
+# of one invocation. With prerequisites, `web`'s two esbuild-spawning recipes
+# (web-test + contract) run in the same make process as `e2e`, and under
+# concurrent load make can intermittently finish `web` and then exit 0
+# WITHOUT running the goals that follow it — a silent false-green. Isolating
+# each phase in its own `$(MAKE)` invocation removes that condition; each
+# line is exit-checked, so a failed or skipped phase aborts before the final
+# success line below. Do not collapse this back to `all: ci web e2e ...`.
 all:
-	@echo "── make all: 1/5 ci ──────────────────────────────"
+	@echo "── make all: 1/4 ci ──────────────────────────────"
 	$(MAKE) --no-print-directory ci
-	@echo "── make all: 2/5 web ─────────────────────────────"
+	@echo "── make all: 2/4 web ─────────────────────────────"
 	$(MAKE) --no-print-directory web
-	@echo "── make all: 3/5 parity ──────────────────────────"
-	$(MAKE) --no-print-directory parity
-	@echo "── make all: 4/5 e2e ─────────────────────────────"
+	@echo "── make all: 3/4 e2e ─────────────────────────────"
 	$(MAKE) --no-print-directory e2e
-	@echo "── make all: 5/5 deploy-artifact ─────────────────"
+	@echo "── make all: 4/4 deploy-artifact ─────────────────"
 	$(MAKE) --no-print-directory deploy-artifact
-	@echo "✓ make all: ci + web + parity + e2e + deploy-artifact all completed"
+	@echo "✓ make all: ci + web + e2e + deploy-artifact all completed"
 
-security: semgrep ast-grep bandit pip-audit cargo-audit trivy gitleaks
+security: semgrep ast-grep cargo-audit trivy gitleaks
 
 web: typecheck web-test contract
 
-# ---------- Python tests (was: ci.yml python-tests) ----------
-test:
-	PYTHONPATH=src $(PYTHON) -m pytest -q
-
-# ---------- Rust tests (was: ci.yml rust-tests) ----------
-# CI built with default features (which link a Python dev library); the matcher
-# core tests run feature-free locally so no libpython is required on PATH.
+# ---------- Rust tests ----------
+# The matcher core is a library dependency of the web WASM crates
+# (chronicle_app_usage_wasm, chronicle_chrono_kernel_wasm); its tests run
+# feature-free so no libpython is required on PATH.
 rust:
 	cargo test --manifest-path $(MATCHER) --no-default-features
 
-# ---------- security scanners (was: ci.yml + gitleaks.yml) ----------
+# ---------- security scanners ----------
 semgrep:
 	semgrep --config .semgrep/chronicle-security.yml --error .
 
@@ -88,19 +74,6 @@ semgrep:
 ast-grep:
 	sg scan
 	sg test
-
-bandit:
-	bandit -c bandit.yaml -r src/chronicle_preprocessing_app -ll
-
-# Audit the project's third-party deps for known CVEs. Uses uv (the project's
-# package manager) to resolve pyproject deps into an isolated env and audit it
-# in environment mode — independent of $(PYTHON), and without building the local
-# package's Rust extension. Requires uv on PATH.
-pip-audit:
-	@reqs=$$(mktemp) && \
-	uv pip compile --quiet --extra dev pyproject.toml -o $$reqs && \
-	uv run --no-project --with-requirements $$reqs --with pip-audit pip-audit --strict; \
-	status=$$?; rm -f $$reqs; exit $$status
 
 cargo-audit:
 	cd rust/chronicle_app_usage_matcher && cargo audit
@@ -121,17 +94,6 @@ web-test:
 contract:
 	cd web && npm run check:contract
 
-# ---------- cross-surface parity + browser e2e (mirror web-pwa-deploy.yml) ----------
-parity:
-	PYTHONPATH=src $(PYTHON) scripts/run_deterministic_web_parity.py
-
-# Metamorphic-differential battery: transforms the fixture (shuffle, ties,
-# duplicates, CRLF, participant rename, +7d shift), asserts the known
-# input/output relation on BOTH engines, and re-checks cross-engine parity
-# on every transform. Catches SHARED bugs byte-parity alone cannot.
-metamorphic:
-	PYTHONPATH=src $(PYTHON) scripts/run_metamorphic_suite.py
-
 # Combinatorial coverage: regenerates the PICT/ACTS models from the contract
 # SSOT, generates t=2/t=3 covering arrays (executed by
 # coveringArrayValidation.test.ts), and measures test-suite coverage with
@@ -150,22 +112,10 @@ gate-truth:
 mutation:
 	cd web && ENGINE_PBT_RUNS=10 ./node_modules/.bin/stryker run
 
-# Python mutation twin (mutmut 3, config in pyproject [tool.mutmut]): mutates
-# the desktop engine's preprocessing core against the pytest suite. Local-only
-# (make mutation-python). Needs mutmut in the project venv:
-#   uv pip install --python .venv/bin/python mutmut
-# ALWAYS via the forksafe wrapper — bare `mutmut run` fork-deadlocks polars in
-# every mutant child and misfiles covered mutants as timeouts (see the
-# wrapper's docstring for the mechanism).
-mutation-python:
-	.venv/bin/python scripts/run_mutmut_forksafe.py run
-	.venv/bin/python scripts/run_mutmut_forksafe.py results
-
-# Performance baseline: hyperfine A/B of both engine CLIs + desktop cProfile +
-# the web ExecutionLedger per-step table, written to docs/perf/BASELINE.md.
-# Optimization/rustification claims must diff against that file.
+# Per-step performance table straight from the ExecutionLedger (the ledger is
+# the profiler). Point it at one or more raw Chronicle CSVs.
 profile:
-	PYTHONPATH=src $(PYTHON) scripts/run_profile_baseline.py
+	cd web && bunx vite-node scripts/profile_steps.mts $(CSV)
 
 # Vitest v8 line/branch coverage with ratcheted floors (vitest.config.ts).
 coverage:

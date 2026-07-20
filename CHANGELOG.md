@@ -15,6 +15,28 @@ run's processing report and provenance sidecar.
 
 ## [Unreleased] — contract version 1
 
+### Removed (desktop engine fully deprecated)
+
+- The Python desktop engine (`src/chronicle_preprocessing_app/` — PyQt6 GUI +
+  Polars pipeline), its pytest suite (`tests/`), the PyO3 chrono kernel crate
+  (`rust/chronicle_chrono_kernel_py`), Python packaging (`pyproject.toml`,
+  `requirements.txt`, `bandit.yaml`), and the desktop-dependent harnesses
+  (`run_deterministic_web_parity.py`, `run_web_parity_matrix.py`,
+  `run_metamorphic_suite.py`, `run_corpus_soak.py`, `run_desktop_processing.py`,
+  `_desktop_options.py`, `run_mutmut_forksafe.py`, `run_profile_baseline.py`,
+  `bench_python_kernels.py`, fixture builders, `run_security_checks.sh`).
+  The web engine is the single engine; the web golden scenarios are the sole
+  behavioral reference. Final dual-engine evidence is frozen in
+  `docs/validation/CORPUS_SOAK.md` (124-file byte-parity, zero mismatches) and
+  `docs/perf/BASELINE.md`. The parent of this commit is the last ref carrying
+  the desktop tree.
+- ⚠ The `research-pipeline` monorepo installs this repo as an editable path
+  dependency and imports `chronicle_preprocessing_app` from the working tree;
+  it must be repointed (vendored copy or pinned pre-removal ref) before this
+  removal is checked out or merged on the production machine.
+- `rust/chronicle_app_usage_matcher` is retained: the web WASM crates depend
+  on it as a library (`default-features = false`).
+
 ### Fixed (cross-engine parity, real-corpus soak 2026-07-20)
 
 A full-corpus soak (every TECH + GNSM personal-Android participant, 124 raw

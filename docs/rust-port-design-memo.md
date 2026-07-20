@@ -3,6 +3,15 @@
 Author: Claude (handoff to future implementer)
 Date: 2026-04-27
 
+> **Status note (2026-07-20):** the Python desktop engine and the
+> `scripts/run_deterministic_web_parity.py` harness this memo leans on were
+> removed as fully deprecated (they resolve at the last pre-removal ref).
+> Where the memo says "verify against the Python↔TS parity harness", the
+> substitute is the web golden scenarios
+> (`web/src/lib/pipelineGraph/golden/`) plus a TS-vs-Rust differential on the
+> same fixtures; the frozen dual-engine evidence is
+> `docs/validation/CORPUS_SOAK.md`.
+
 ## 1. TL;DR
 
 We instrumented the existing TypeScript browser pipeline, tagged every `Intl.DateTimeFormat` call site, and built two prototype Rust→WASM crates (`chronicle_chrono_kernel_wasm`, `chronicle_polars_kernels_wasm`) to measure where speed actually comes from. Per-stage WASM kernels lose to the JS baseline on parse and dedup once you add the WASM↔JS marshalling cost; only timestamp formatting wins on its own (4× with Polars, 7× with chrono-tz). The decisive result is that a single end-to-end Rust kernel — CSV bytes in, CSV bytes out, all intermediate columns living in Rust — produces byte-identical output **2.92×** faster than the equivalent TS pipeline at **byteDiff=0** across all five fixtures (407,647 rows). Polars-WASM is rejected: it is 9.17 MB (2.13 MB gzipped), 70% slower than the chrono-tz lean kernel, and brings nothing this workload uses. **Recommendation: build a single end-to-end Rust pipeline crate, reuse `chronicle_app_usage_matcher` via path dep, keep the TS pipeline as the fallback (mirroring how the Python CLI falls back when `_rust_app_usage_matcher` is absent).**

@@ -199,9 +199,10 @@ function encodeOptions(options: BrowserProcessingOptions): Record<string, string
 
 /**
  * Browser-side option payloads of the deterministic parity scenarios.
- * Source of truth: the `_write_browser_spec(options={...})` blocks in
- * scripts/run_deterministic_web_parity.py — keep in sync (drift shifts the
- * measured before-coverage, it does not affect correctness).
+ * Originally sourced from the `_write_browser_spec(options={...})` blocks in
+ * scripts/run_deterministic_web_parity.py (removed with the desktop engine;
+ * resolves at the last pre-removal ref). These payloads are now frozen here —
+ * they only shape the measured before-coverage, not correctness.
  */
 const PARITY_SPEC_OPTIONS: Array<Partial<BrowserProcessingOptions>> = [
   // full: codebook + filter + forcing, app + screen
