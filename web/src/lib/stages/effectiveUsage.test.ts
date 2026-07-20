@@ -407,7 +407,7 @@ describe("effectiveUsage — direct substrate / helper coverage", () => {
       stop_timestamp_ns: stopNs,
       event_timestamp_ns: startNs,
       duration_seconds: Number(stopNs - startNs) / 1e9,
-      duration_minutes: Number(stopNs - startNs) / 1e9 / 60,
+      duration_minutes: (Number(stopNs - startNs) / 1e9) * RECIP_60,
       date: "2026-03-07",
     } as unknown as CanonicalRow;
   }
@@ -670,7 +670,7 @@ describe("effectiveUsage — helper-path mutants via creditAllSessions", () => {
       stop_timestamp_ns: eNs,
       event_timestamp_ns: sNs,
       duration_seconds: Number(eNs - sNs) / 1e9,
-      duration_minutes: Number(eNs - sNs) / 1e9 / 60,
+      duration_minutes: (Number(eNs - sNs) / 1e9) * RECIP_60,
       date: "2026-03-07",
     } as unknown as CanonicalRow;
   }
