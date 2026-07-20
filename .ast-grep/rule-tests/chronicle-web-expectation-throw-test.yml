@@ -1,0 +1,45 @@
+# Meta-test (run with: sg test). The `invalid` snippets throw from inside an
+# expectation declaration — the warn-only contract violation the rule pins.
+id: chronicle-web-expectation-throw
+valid:
+  - |
+    const step = defineStep({
+      id: "stable_sort",
+      lossy: true,
+      expectations: [monotonicNonDecreasing({ id: "sorted", describe: "ts", value: (row) => row.ts })],
+      run: ({ rows }) => sortRows(rows),
+    });
+  - |
+    const expectation = {
+      id: "row_count",
+      check(output) {
+        return { ok: output.length > 0, actual: String(output.length) };
+      },
+    };
+  - |
+    function parseOrFail(text) {
+      if (!text) throw new Error("empty input");
+      return JSON.parse(text);
+    }
+invalid:
+  - |
+    const step = defineStep({
+      id: "bad",
+      expectations: [
+        {
+          id: "explodes",
+          check(output) {
+            if (output.length === 0) throw new Error("no rows");
+            return { ok: true, actual: "n" };
+          },
+        },
+      ],
+      run: ({ rows }) => rows,
+    });
+  - |
+    const expectation = {
+      id: "explodes",
+      check(output) {
+        throw new Error("boom");
+      },
+    };

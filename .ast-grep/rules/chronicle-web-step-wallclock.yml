@@ -1,0 +1,30 @@
+# Purity pin for the execution-lineage wave: step and stage bodies must be
+# deterministic — wall-clock reads live ONLY in stepRunner.ts / engine.ts,
+# where they populate StepTiming/UnitExecutionRecord. A clock read inside a
+# step body would make outputs non-reproducible (and break the golden +
+# from-scratch-consistency suites at second boundaries).
+# Meta-test: .ast-grep/rule-tests/chronicle-web-step-wallclock-test.yml
+id: chronicle-web-step-wallclock
+language: typescript
+message: >-
+  Wall-clock read inside a step/stage module. Steps and stages are pure over
+  their declared inputs; timing is recorded exclusively by stepRunner/engine
+  into the ExecutionLedger. Take the timestamp from ctx.runtime
+  (datetimeOfPreprocessing) or a declared input instead.
+severity: error
+files:
+  - web/src/lib/pipelineGraph/steps/**/*.ts
+  - web/src/lib/stages/**/*.ts
+ignores:
+  # Tests may construct Dates from FIXED inputs to build fixtures; the purity
+  # contract applies to the shipped step/stage bodies.
+  - web/src/**/*.test.ts
+rule:
+  # Only CLOCK reads are impure: Date.now(), performance.now(), and the
+  # argless `new Date()`. `new Date(<explicit ms>)` on values derived from the
+  # input data is deterministic UTC arithmetic (dayCoverage/observationWindow
+  # date-range walks) and stays allowed.
+  any:
+    - pattern: Date.now()
+    - pattern: new Date()
+    - pattern: performance.now()

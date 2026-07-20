@@ -1,0 +1,21 @@
+# Grep-speed twin of check_step_dataflow.mts pass 4: runUnit is the single
+# execution channel for step wirings and may be CALLED only from graphDef.ts
+# node bodies (stepRunner.ts defines it). A side-channel runUnit call would
+# execute steps outside the engine's memoization/lineage, so its records and
+# cache stamps would silently disagree with the graph run.
+# Meta-test: .ast-grep/rule-tests/chronicle-web-rununit-confinement-test.yml
+id: chronicle-web-rununit-confinement
+language: typescript
+message: >-
+  runUnit called outside graphDef.ts. All step execution must flow through the
+  pipeline nodes so memoization, lineage records, and the step ledger stay
+  consistent — wire the logic as a step and consume it via the graph instead.
+severity: error
+files:
+  - web/src/**/*.ts
+ignores:
+  - web/src/lib/pipelineGraph/graphDef.ts
+  - web/src/lib/pipelineGraph/stepRunner.ts
+  - web/src/**/*.test.ts
+rule:
+  pattern: runUnit($$$)

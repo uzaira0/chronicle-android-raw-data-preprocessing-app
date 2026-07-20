@@ -1,0 +1,61 @@
+id: chronicle-web-expectation-throw
+snapshots:
+  ? |
+    const expectation = {
+      id: "explodes",
+      check(output) {
+        throw new Error("boom");
+      },
+    };
+  : labels:
+    - source: throw new Error("boom");
+      style: primary
+      start: 62
+      end: 86
+    - source: check
+      style: secondary
+      start: 42
+      end: 47
+    - source: |-
+        check(output) {
+            throw new Error("boom");
+          }
+      style: secondary
+      start: 42
+      end: 90
+  ? |
+    const step = defineStep({
+      id: "bad",
+      expectations: [
+        {
+          id: "explodes",
+          check(output) {
+            if (output.length === 0) throw new Error("no rows");
+            return { ok: true, actual: "n" };
+          },
+        },
+      ],
+      run: ({ rows }) => rows,
+    });
+  : labels:
+    - source: throw new Error("no rows");
+      style: primary
+      start: 140
+      end: 167
+    - source: expectations
+      style: secondary
+      start: 41
+      end: 53
+    - source: |-
+        expectations: [
+            {
+              id: "explodes",
+              check(output) {
+                if (output.length === 0) throw new Error("no rows");
+                return { ok: true, actual: "n" };
+              },
+            },
+          ]
+      style: secondary
+      start: 41
+      end: 229

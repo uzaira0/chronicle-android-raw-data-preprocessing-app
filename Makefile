@@ -22,7 +22,8 @@ MATCHER := rust/chronicle_app_usage_matcher/Cargo.toml
 .PHONY: help ci all security web \
         test rust \
         semgrep ast-grep bandit pip-audit cargo-audit trivy gitleaks \
-        typecheck web-test contract parity metamorphic combinatorial gate-truth mutation e2e deploy-artifact
+        typecheck web-test contract parity metamorphic combinatorial gate-truth mutation mutation-python \
+        coverage knip profile e2e deploy-artifact
 
 help:
 	@echo 'Local CI (replaces the deleted GitHub Actions workflows):'
@@ -34,6 +35,7 @@ help:
 	@echo ''
 	@echo '  Individual:  test rust semgrep ast-grep bandit pip-audit cargo-audit'
 	@echo '               trivy gitleaks typecheck web-test contract parity e2e'
+	@echo '               gate-truth mutation mutation-python coverage knip profile'
 	@echo ''
 	@echo '  Override the Python interpreter:'
 	@echo '    make ci PYTHON=/home/opt/eyes-parity-venv/bin/python'
@@ -142,10 +144,36 @@ combinatorial:
 gate-truth:
 	scripts/run_gate_truth_checks.sh
 
-# Mutation-score the validation suite (StrykerJS, ~25s): mutants that survive
-# mark assertions the engine/provenance tests do not actually pin.
+# Mutation-score the validation suite (StrykerJS): mutants that survive mark
+# assertions the engine/step/stage/provenance tests do not actually pin.
+# Widened scope runs ~10 min — local-only (make mutation), run before raising break.
 mutation:
 	cd web && ENGINE_PBT_RUNS=10 ./node_modules/.bin/stryker run
+
+# Python mutation twin (mutmut 3, config in pyproject [tool.mutmut]): mutates
+# the desktop engine's preprocessing core against the pytest suite. Local-only
+# (make mutation-python). Needs mutmut in the project venv:
+#   uv pip install --python .venv/bin/python mutmut
+# ALWAYS via the forksafe wrapper — bare `mutmut run` fork-deadlocks polars in
+# every mutant child and misfiles covered mutants as timeouts (see the
+# wrapper's docstring for the mechanism).
+mutation-python:
+	.venv/bin/python scripts/run_mutmut_forksafe.py run
+	.venv/bin/python scripts/run_mutmut_forksafe.py results
+
+# Performance baseline: hyperfine A/B of both engine CLIs + desktop cProfile +
+# the web ExecutionLedger per-step table, written to docs/perf/BASELINE.md.
+# Optimization/rustification claims must diff against that file.
+profile:
+	PYTHONPATH=src $(PYTHON) scripts/run_profile_baseline.py
+
+# Vitest v8 line/branch coverage with ratcheted floors (vitest.config.ts).
+coverage:
+	cd web && npm run test:coverage
+
+# Dead-export sweep (report-only; not a gate until the report is clean).
+knip:
+	cd web && bunx knip --no-exit-code
 
 e2e:
 	cd web && npm run test:e2e:smoke

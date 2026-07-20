@@ -49,6 +49,12 @@ jobs:
         working-directory: web
         run: npm run prepare:github-pages
 
+      # Bundle-budget + artifact-shape gate: without this step the check
+      # scripts exist but no workflow runs them (a dead gate).
+      - name: Check GitHub Pages artifact (bundle budget)
+        working-directory: web
+        run: npm run check:github-pages-artifact
+
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:

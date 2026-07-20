@@ -1,4 +1,4 @@
-import { access, readFile } from "node:fs/promises";
+import { access, readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -36,6 +36,57 @@ function getArtifactDir(mode: string): string {
     return path.join(webDir, ".github-pages-dist");
   }
   return path.join(webDir, "dist");
+}
+
+type BundleBudget = {
+  totalBytes: number;
+  categories: Record<string, number>;
+};
+
+async function* walkFiles(dir: string): AsyncGenerator<string> {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) yield* walkFiles(full);
+    else yield full;
+  }
+}
+
+/**
+ * Size-budget assertion (bundle-budget.json): total artifact bytes plus
+ * per-extension category budgets. Fails on UNEXPLAINED growth — raising a
+ * budget is a deliberate, named change to bundle-budget.json.
+ */
+async function checkBundleBudget(artifactDir: string): Promise<Record<string, number>> {
+  const budget = JSON.parse(
+    await readFile(path.join(webDir, "bundle-budget.json"), "utf-8"),
+  ) as BundleBudget;
+
+  let total = 0;
+  const byExtension: Record<string, number> = {};
+  for await (const filePath of walkFiles(artifactDir)) {
+    const bytes = (await stat(filePath)).size;
+    total += bytes;
+    const extension = path.extname(filePath) || "(none)";
+    byExtension[extension] = (byExtension[extension] ?? 0) + bytes;
+  }
+
+  const failures: string[] = [];
+  if (total > budget.totalBytes) {
+    failures.push(`total ${total.toLocaleString()} B exceeds budget ${budget.totalBytes.toLocaleString()} B`);
+  }
+  for (const [extension, limit] of Object.entries(budget.categories)) {
+    const actual = byExtension[extension] ?? 0;
+    if (actual > limit) {
+      failures.push(`${extension} ${actual.toLocaleString()} B exceeds budget ${limit.toLocaleString()} B`);
+    }
+  }
+  if (failures.length > 0) {
+    throw new Error(
+      `bundle budget exceeded:\n  ${failures.join("\n  ")}\n` +
+        "If the growth is intentional, name the cause and raise bundle-budget.json in the same change.",
+    );
+  }
+  return { totalBytes: total, ...byExtension };
 }
 
 async function main(): Promise<void> {
@@ -86,6 +137,8 @@ async function main(): Promise<void> {
     }
   }
 
+  const bundleSizes = await checkBundleBudget(artifactDir);
+
   console.log(
     JSON.stringify(
       {
@@ -93,6 +146,7 @@ async function main(): Promise<void> {
         mode: artifactMode,
         artifactDir,
         verifiedFiles: requiredFiles,
+        bundleSizes,
       },
       null,
       2,
