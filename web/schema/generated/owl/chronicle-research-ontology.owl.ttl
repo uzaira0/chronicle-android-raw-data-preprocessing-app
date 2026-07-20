@@ -1443,6 +1443,14 @@ chron:parameter_set_sha256
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
+chron:part_of_step
+    a owl:ObjectProperty ;
+    rdfs:label "part_of_step" ;
+    rdfs:range chron:StepDefinition ;
+    skos:definition "The coarser-scale step this step is a proper part of (recursive composition — no separate \"substep\" class; scale is arbitrary). Referenced by step_id, not inlined." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
+.
+
 chron:plan_id
     a owl:DatatypeProperty ;
     rdfs:label "plan_id" ;
@@ -1594,105 +1602,6 @@ chron:ReconstructionExecution
     skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
-chron:StepDefinition
-    a owl:Class ;
-    rdfs:label "StepDefinition" ;
-    rdfs:subClassOf 
-        [
-            a owl:Restriction ;
-            owl:minCardinality 0 ;
-            owl:onProperty chron:verb ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom xsd:string ;
-            owl:onProperty chron:verb ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:maxCardinality 1 ;
-            owl:onProperty chron:verb ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:minCardinality 0 ;
-            owl:onProperty chron:is_fatal ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:minCardinality 0 ;
-            owl:onProperty chron:engine ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom xsd:string ;
-            owl:onProperty chron:step_id ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:maxCardinality 1 ;
-            owl:onProperty chron:step_id ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom xsd:string ;
-            owl:onProperty chron:engine ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:maxCardinality 1 ;
-            owl:onProperty chron:is_fatal ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:maxCardinality 1 ;
-            owl:onProperty chron:engine ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom xsd:boolean ;
-            owl:onProperty chron:is_fatal ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:minCardinality 1 ;
-            owl:onProperty chron:step_id ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:minCardinality 0 ;
-            owl:onProperty chron:consumes ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:minCardinality 0 ;
-            owl:onProperty chron:depends_on ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:minCardinality 0 ;
-            owl:onProperty chron:produces ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom xsd:string ;
-            owl:onProperty chron:consumes ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom xsd:string ;
-            owl:onProperty chron:depends_on ;
-        ] ,
-        [
-            a owl:Restriction ;
-            owl:allValuesFrom xsd:string ;
-            owl:onProperty chron:produces ;
-        ] ;
-    skos:broadMatch pplan:Step ;
-    skos:definition "One processing step in the plan (a graph node). A p-plan:Step. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on)." ;
-    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
-.
-
 chron:AttributionStatus
     a owl:Class ;
     rdfs:label "AttributionStatus" ;
@@ -1775,6 +1684,120 @@ chron:CoverageCause
         <https://w3id.org/chronicle-usage-ontology/core/CoverageCause#shutdown_boundary> ,
         <https://w3id.org/chronicle-usage-ontology/core/CoverageCause#unclean_power_loss> ,
         <https://w3id.org/chronicle-usage-ontology/core/CoverageCause#unknown> ;
+.
+
+chron:StepDefinition
+    a owl:Class ;
+    rdfs:label "StepDefinition" ;
+    rdfs:subClassOf 
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:verb ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:verb ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:verb ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:is_fatal ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:engine ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:step_id ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:part_of_step ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:step_id ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:engine ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:is_fatal ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:engine ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:boolean ;
+            owl:onProperty chron:is_fatal ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:maxCardinality 1 ;
+            owl:onProperty chron:part_of_step ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 1 ;
+            owl:onProperty chron:step_id ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:consumes ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:depends_on ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:minCardinality 0 ;
+            owl:onProperty chron:produces ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:consumes ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom chron:StepDefinition ;
+            owl:onProperty chron:part_of_step ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:depends_on ;
+        ] ,
+        [
+            a owl:Restriction ;
+            owl:allValuesFrom xsd:string ;
+            owl:onProperty chron:produces ;
+        ] ;
+    skos:broadMatch pplan:Step ;
+    skos:definition "One processing step in the plan (a graph node) at ANY scale — a p-plan:Step. Steps compose recursively via part_of_step: a coarse step (an execution/memoization unit) and the fine-grained transformations inside it are the SAME kind of thing, because the step boundary is an arbitrary scale choice, not an ontological distinction. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on)." ;
+    skos:inScheme <https://w3id.org/chronicle-usage-ontology/core> ;
 .
 
 chron:app_package_name

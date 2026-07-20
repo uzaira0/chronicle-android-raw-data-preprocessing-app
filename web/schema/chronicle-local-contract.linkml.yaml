@@ -202,12 +202,56 @@ classes:
       - node_knobs
       - node_support_files
       - has_bypass
-      - has_output_hash
+      - has_early_cutoff
+
+  PipelineStep:
+    description: >-
+      One transformation of the flat step DAG — the DAG of record, projected
+      from the executable step wirings in web/src/lib/pipelineGraph/steps/
+      (the same objects the step runner executes, so the projection cannot
+      drift from what runs). unit_id is only the engine's memoization
+      boundary: the step/unit split is an arbitrary scale choice, not an
+      ontological distinction.
+    slots:
+      - step_id
+      - step_label
+      - step_description
+      - unit_id
+      - step_inputs
+      - has_bypass
 
   PipelineGraph:
-    description: The full pipeline DAG (nodes carry their 'feeds' edges as inputs).
+    description: >-
+      The full pipeline DAG at both scales: unit nodes (the engine's
+      memoization boundary, carrying their 'feeds' edges as inputs) and the
+      flat step DAG they group.
     slots:
       - graph_nodes
+      - graph_steps
+
+  RawChronicleEventRecord:
+    description: >-
+      One row of the RAW Chronicle CSV as uploaded (the ingest boundary).
+      Slot names are the LITERAL raw column headers — they are deliberately
+      not camelized anywhere, and this class is not part of the OpenAPI
+      surface (raw rows travel inside csvText, never as JSON). The required
+      slots are ADVISORY: fileInspection derives REQUIRED_RAW_COLUMNS from
+      them and warns — never blocks — when a header is missing, preserving
+      the desktop preprocessor's ingest tolerance. start_timestamp /
+      stop_timestamp appear only in some Chronicle exports;
+      possible_device_model and username are likewise export-dependent.
+    slots:
+      - study_id
+      - participant_id
+      - possible_device_model
+      - username
+      - application_label
+      - interaction_type
+      - app_package_name
+      - event_timestamp
+      - start_timestamp
+      - stop_timestamp
+      - timezone
 
   ProcessedOutputFileResult:
     slots:
@@ -952,12 +996,70 @@ slots:
     range: boolean
     required: true
     description: Whether the node declares a bypassedWhen predicate.
-  has_output_hash:
+  has_early_cutoff:
     range: boolean
     required: true
-    description: Whether the node declares an outputHash (early cutoff).
+    description: >-
+      Whether the node declares early cutoff (Salsa backdating) — a rerun
+      whose output is deep-equal to the cached value keeps its stamp, so the
+      downstream cone stays cached.
   graph_nodes:
     range: PipelineNode
     multivalued: true
     inlined: true
     inlined_as_list: true
+  step_id:
+    required: true
+    identifier: true
+    description: Globally unique snake_case step id (flat step DAG).
+  step_label:
+    required: true
+    description: Human label shown in the graph view at step scale.
+  step_description:
+    required: true
+    description: One-liner — what the transformation actually does.
+  unit_id:
+    required: true
+    description: >-
+      PipelineNode id of the execution unit the step runs inside (the
+      engine's memoization boundary — an arbitrary-scale grouping).
+  step_inputs:
+    multivalued: true
+    description: >-
+      Upstream step ids — real dataflow edges (a cross-unit port edge
+      resolves to the port's source step).
+  graph_steps:
+    range: PipelineStep
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+
+  # ── RawChronicleEventRecord: literal raw CSV column headers ──────────────
+  # required = advisory presence expectation (fileInspection warns, never
+  # blocks). `timezone` (also required) is reused from the shared slots above.
+  study_id:
+    required: true
+    description: Chronicle study identifier stamped on every exported row.
+  participant_id:
+    required: true
+    description: Chronicle participant identifier (always treated as a string).
+  possible_device_model:
+    description: Device-model hint present in some Chronicle exports.
+  username:
+    description: Device username column present in some Chronicle exports.
+  application_label:
+    required: true
+    description: Human-readable app label as reported by Chronicle.
+  interaction_type:
+    required: true
+    description: Raw Chronicle interaction type (e.g. "Activity Resumed").
+  app_package_name:
+    required: true
+    description: Android package name of the app the event belongs to.
+  event_timestamp:
+    required: true
+    description: Event timestamp text; rows without one are dropped at parse.
+  start_timestamp:
+    description: Pre-paired session start present only in some exports.
+  stop_timestamp:
+    description: Pre-paired session stop present only in some exports.

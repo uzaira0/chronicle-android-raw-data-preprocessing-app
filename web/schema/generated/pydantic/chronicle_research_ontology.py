@@ -468,7 +468,7 @@ class PipelinePlan(ConfiguredBaseModel):
 
 class StepDefinition(ConfiguredBaseModel):
     """
-    One processing step in the plan (a graph node). A p-plan:Step. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on).
+    One processing step in the plan (a graph node) at ANY scale — a p-plan:Step. Steps compose recursively via part_of_step: a coarse step (an execution/memoization unit) and the fine-grained transformations inside it are the SAME kind of thing, because the step boundary is an arbitrary scale choice, not an ontological distinction. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on).
     """
     linkml_meta: ClassVar[LinkMLMeta] = LinkMLMeta({'broad_mappings': ['pplan:Step'],
          'from_schema': 'https://w3id.org/chronicle-usage-ontology/core'})
@@ -480,6 +480,7 @@ class StepDefinition(ConfiguredBaseModel):
     produces: Optional[list[str]] = Field(default=None, description="""Channels/outputs the step produces.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StepDefinition']} })
     depends_on: Optional[list[str]] = Field(default=None, description="""Steps that must precede this one.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StepDefinition']} })
     is_fatal: Optional[bool] = Field(default=None, description="""Whether a failure fails the whole workflow.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StepDefinition']} })
+    part_of_step: Optional[str] = Field(default=None, description="""The coarser-scale step this step is a proper part of (recursive composition — no separate \"substep\" class; scale is arbitrary). Referenced by step_id, not inlined.""", json_schema_extra = { "linkml_meta": {'domain_of': ['StepDefinition'], 'slot_uri': 'dcterms:isPartOf'} })
 
 
 class NodeExecution(ConfiguredBaseModel):

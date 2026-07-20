@@ -69,11 +69,12 @@
 --     * Slot: on_shared_device Description: Whether the device is shared.
 -- # Class: PipelinePlan Description: The prospective processing workflow. A p-plan:Plan / prov:Plan.
 --     * Slot: plan_id Description: Plan identifier.
--- # Class: StepDefinition Description: One processing step in the plan (a graph node). A p-plan:Step. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on).
+-- # Class: StepDefinition Description: One processing step in the plan (a graph node) at ANY scale — a p-plan:Step. Steps compose recursively via part_of_step: a coarse step (an execution/memoization unit) and the fine-grained transformations inside it are the SAME kind of thing, because the step boundary is an arbitrary scale choice, not an ontological distinction. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on).
 --     * Slot: step_id Description: Step identifier (= graph node id).
 --     * Slot: verb Description: Action the step performs.
 --     * Slot: engine Description: Named algorithm/engine the step realizes.
 --     * Slot: is_fatal Description: Whether a failure fails the whole workflow.
+--     * Slot: part_of_step Description: The coarser-scale step this step is a proper part of (recursive composition — no separate "substep" class; scale is arbitrary). Referenced by step_id, not inlined.
 --     * Slot: PipelinePlan_plan_id Description: Autocreated FK slot
 -- # Class: NodeExecution Description: A retrospective execution of a StepDefinition. A prov:Activity.
 --     * Slot: id
@@ -193,8 +194,10 @@ CREATE TABLE "StepDefinition" (
 	verb TEXT,
 	engine TEXT,
 	is_fatal BOOLEAN,
+	part_of_step TEXT,
 	"PipelinePlan_plan_id" TEXT,
 	PRIMARY KEY (step_id),
+	FOREIGN KEY(part_of_step) REFERENCES "StepDefinition" (step_id),
 	FOREIGN KEY("PipelinePlan_plan_id") REFERENCES "PipelinePlan" (plan_id)
 );
 CREATE INDEX "ix_StepDefinition_step_id" ON "StepDefinition" (step_id);

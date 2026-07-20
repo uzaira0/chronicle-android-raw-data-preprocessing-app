@@ -405,6 +405,12 @@ function buildOpenApiDocument(document: LinkMlDocument): OpenApiDocument {
 }
 
 function buildGeneratedTypeScript(document: LinkMlDocument): string {
+  // Raw CSV column headers are emitted VERBATIM (never camelized): the slot
+  // names of RawChronicleEventRecord are the literal Chronicle export headers.
+  const rawColumnSlots = assertClassSlots(document, "RawChronicleEventRecord");
+  const requiredRawColumns = rawColumnSlots.filter(
+    (slotName) => document.slots[slotName]?.required,
+  );
   const browserOptionSlots = assertClassSlots(document, "BrowserProcessingOptions").map(snakeToCamel);
   const browserRequiredOptionSlots = assertClassSlots(document, "BrowserProcessingOptions")
     .filter((slotName) => document.slots[slotName]?.required)
@@ -435,6 +441,13 @@ export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = ${toConstArray(browserReq
 export const BROWSER_SUPPORT_FILE_KEYS = ${toConstArray(browserSupportSlots)};
 
 export const BROWSER_RUNTIME_KEYS = ${toConstArray(browserRuntimeSlots)};
+
+// Literal raw Chronicle CSV column headers (RawChronicleEventRecord slots).
+export const RAW_CHRONICLE_COLUMNS = ${toConstArray(rawColumnSlots)};
+
+// Advisory presence expectation: fileInspection WARNS (never blocks) when one
+// of these headers is missing — desktop-parity ingest tolerance is unchanged.
+export const REQUIRED_RAW_COLUMNS = ${toConstArray(requiredRawColumns)};
 
 export type BrowserTimezoneHandling = (typeof TIMEZONE_HANDLING_VALUES)[number];
 export type OutputKind = (typeof OUTPUT_KIND_VALUES)[number];

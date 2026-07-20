@@ -20,6 +20,7 @@
 @prefix sh:    <http://www.w3.org/ns/shacl#> .
 @prefix chron: <https://w3id.org/chronicle-usage-ontology/core/> .
 @prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov:  <http://www.w3.org/ns/prov#> .
 
 # ── Attribution: closed, conservative, no phantom person ─────────────────────
 # A1 (exactly one attribution_status) is DELEGATED to the generated shape —
@@ -120,3 +121,36 @@ chron:EffectiveUsageProvenanceShape
         sh:minCount 1 ;
         sh:message "An effective-usage measure must name the node execution that produced it." ;
     ] .
+
+# ── Runtime lineage ledger: executions are auditable ─────────────────────────
+# A7. Every NodeExecution names the StepDefinition it executes and cites the
+#     ParameterSet it ran under, and an execution that records a start must
+#     record its end. Timestamps appear in TWO vocabularies — canonical
+#     LinkML instances serialize chron:started_at/chron:ended_at, while the
+#     PROV-idiomatic runtime sidecar (chronicle-provenance.jsonld) emits
+#     prov:startedAtTime/prov:endedAtTime — so the started⇒ended invariant
+#     is enforced over both pairs by one shape.
+chron:NodeExecutionContractShape
+    a sh:NodeShape ;
+    sh:targetClass chron:NodeExecution ;
+    sh:property [
+        sh:path chron:executes_step ;
+        sh:minCount 1 ;
+        sh:message "A node execution must name the StepDefinition it executes." ;
+    ] ;
+    sh:property [
+        sh:path chron:used_parameter_set ;
+        sh:minCount 1 ;
+        sh:message "A node execution must cite the ParameterSet it ran under." ;
+    ] ;
+    sh:not [
+        a sh:NodeShape ;
+        sh:property [ sh:path chron:started_at ; sh:minCount 1 ] ;
+        sh:property [ sh:path chron:ended_at ; sh:maxCount 0 ] ;
+    ] ;
+    sh:not [
+        a sh:NodeShape ;
+        sh:property [ sh:path prov:startedAtTime ; sh:minCount 1 ] ;
+        sh:property [ sh:path prov:endedAtTime ; sh:maxCount 0 ] ;
+    ] ;
+    sh:message "A node execution that records a start must record its end." .

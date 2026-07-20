@@ -1,4 +1,6 @@
 PREFIX chron: <https://w3id.org/chronicle-usage-ontology/core/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX prov: <http://www.w3.org/ns/prov#>
 PREFIX qudt: <http://qudt.org/schema/qudt/>
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -60,6 +62,48 @@ chron:EffectiveUsageProvenanceShape
             sh:path chron:cites_parameter_set ;
         ] ;
     sh:targetClass chron:EffectiveUsageMeasure ;
+.
+
+chron:NodeExecutionContractShape
+    a sh:NodeShape ;
+    sh:message "A node execution that records a start must record its end." ;
+    sh:not 
+        [
+            a sh:NodeShape ;
+            sh:property 
+                [
+                    sh:maxCount 0 ;
+                    sh:path prov:endedAtTime ;
+                ] ,
+                [
+                    sh:minCount 1 ;
+                    sh:path prov:startedAtTime ;
+                ] ;
+        ] ,
+        [
+            a sh:NodeShape ;
+            sh:property 
+                [
+                    sh:minCount 1 ;
+                    sh:path chron:started_at ;
+                ] ,
+                [
+                    sh:maxCount 0 ;
+                    sh:path chron:ended_at ;
+                ] ;
+        ] ;
+    sh:property 
+        [
+            sh:message "A node execution must cite the ParameterSet it ran under." ;
+            sh:minCount 1 ;
+            sh:path chron:used_parameter_set ;
+        ] ,
+        [
+            sh:message "A node execution must name the StepDefinition it executes." ;
+            sh:minCount 1 ;
+            sh:path chron:executes_step ;
+        ] ;
+    sh:targetClass chron:NodeExecution ;
 .
 
 chron:UsageEpisodeProvenanceShape
@@ -407,49 +451,6 @@ chron:EffectiveUsageMeasure
     sh:targetClass chron:EffectiveUsageMeasure ;
 .
 
-chron:NodeExecution
-    a sh:NodeShape ;
-    rdfs:comment "A retrospective execution of a StepDefinition. A prov:Activity." ;
-    sh:closed true ;
-    sh:ignoredProperties (
-        rdf:type
-    ) ;
-    sh:property 
-        [
-            sh:datatype xsd:string ;
-            sh:description "Execution start." ;
-            sh:maxCount 1 ;
-            sh:nodeKind sh:Literal ;
-            sh:order 2 ;
-            sh:path chron:started_at ;
-        ] ,
-        [
-            sh:datatype xsd:string ;
-            sh:description "Execution end." ;
-            sh:maxCount 1 ;
-            sh:nodeKind sh:Literal ;
-            sh:order 3 ;
-            sh:path chron:ended_at ;
-        ] ,
-        [
-            sh:class chron:StepDefinition ;
-            sh:description "The StepDefinition this execution runs." ;
-            sh:maxCount 1 ;
-            sh:nodeKind sh:IRI ;
-            sh:order 0 ;
-            sh:path chron:executes_step ;
-        ] ,
-        [
-            sh:class chron:ParameterSet ;
-            sh:description "The ParameterSet the execution used." ;
-            sh:maxCount 1 ;
-            sh:nodeKind sh:BlankNodeOrIRI ;
-            sh:order 1 ;
-            sh:path chron:used_parameter_set ;
-        ] ;
-    sh:targetClass chron:NodeExecution ;
-.
-
 chron:ParameterBinding
     a sh:NodeShape ;
     rdfs:comment "One knob = value binding within a ParameterSet." ;
@@ -749,68 +750,47 @@ chron:AttributionAssertion
     sh:targetClass chron:AttributionAssertion ;
 .
 
-chron:StepDefinition
+chron:NodeExecution
     a sh:NodeShape ;
-    rdfs:comment "One processing step in the plan (a graph node). A p-plan:Step. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on)." ;
+    rdfs:comment "A retrospective execution of a StepDefinition. A prov:Activity." ;
     sh:closed true ;
     sh:ignoredProperties (
         rdf:type
     ) ;
     sh:property 
         [
-            sh:datatype xsd:boolean ;
-            sh:description "Whether a failure fails the whole workflow." ;
-            sh:maxCount 1 ;
-            sh:nodeKind sh:Literal ;
-            sh:order 6 ;
-            sh:path chron:is_fatal ;
-        ] ,
-        [
             sh:datatype xsd:string ;
-            sh:description "Named algorithm/engine the step realizes." ;
+            sh:description "Execution start." ;
             sh:maxCount 1 ;
             sh:nodeKind sh:Literal ;
             sh:order 2 ;
-            sh:path chron:engine ;
+            sh:path chron:started_at ;
         ] ,
         [
             sh:datatype xsd:string ;
-            sh:description "Step identifier (= graph node id)." ;
+            sh:description "Execution end." ;
             sh:maxCount 1 ;
-            sh:nodeKind sh:Literal ;
-            sh:order 0 ;
-            sh:path chron:step_id ;
-        ] ,
-        [
-            sh:datatype xsd:string ;
-            sh:description "Channels/outputs the step produces." ;
-            sh:nodeKind sh:Literal ;
-            sh:order 4 ;
-            sh:path chron:produces ;
-        ] ,
-        [
-            sh:datatype xsd:string ;
-            sh:description "Channels/inputs the step reads." ;
             sh:nodeKind sh:Literal ;
             sh:order 3 ;
-            sh:path chron:consumes ;
+            sh:path chron:ended_at ;
         ] ,
         [
-            sh:datatype xsd:string ;
-            sh:description "Action the step performs." ;
+            sh:class chron:StepDefinition ;
+            sh:description "The StepDefinition this execution runs." ;
             sh:maxCount 1 ;
-            sh:nodeKind sh:Literal ;
-            sh:order 1 ;
-            sh:path chron:verb ;
+            sh:nodeKind sh:IRI ;
+            sh:order 0 ;
+            sh:path chron:executes_step ;
         ] ,
         [
-            sh:datatype xsd:string ;
-            sh:description "Steps that must precede this one." ;
-            sh:nodeKind sh:Literal ;
-            sh:order 5 ;
-            sh:path chron:depends_on ;
+            sh:class chron:ParameterSet ;
+            sh:description "The ParameterSet the execution used." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:BlankNodeOrIRI ;
+            sh:order 1 ;
+            sh:path chron:used_parameter_set ;
         ] ;
-    sh:targetClass chron:StepDefinition ;
+    sh:targetClass chron:NodeExecution ;
 .
 
 chron:ParameterSet
@@ -864,6 +844,78 @@ chron:ReconstructionExecution
             sh:path chron:used_parameter_set ;
         ] ;
     sh:targetClass chron:ReconstructionExecution ;
+.
+
+chron:StepDefinition
+    a sh:NodeShape ;
+    rdfs:comment "One processing step in the plan (a graph node) at ANY scale — a p-plan:Step. Steps compose recursively via part_of_step: a coarse step (an execution/memoization unit) and the fine-grained transformations inside it are the SAME kind of thing, because the step boundary is an arbitrary scale choice, not an ontological distinction. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on)." ;
+    sh:closed true ;
+    sh:ignoredProperties (
+        rdf:type
+    ) ;
+    sh:property 
+        [
+            sh:datatype xsd:boolean ;
+            sh:description "Whether a failure fails the whole workflow." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 6 ;
+            sh:path chron:is_fatal ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Named algorithm/engine the step realizes." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 2 ;
+            sh:path chron:engine ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Step identifier (= graph node id)." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 0 ;
+            sh:path chron:step_id ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Channels/outputs the step produces." ;
+            sh:nodeKind sh:Literal ;
+            sh:order 4 ;
+            sh:path chron:produces ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Channels/inputs the step reads." ;
+            sh:nodeKind sh:Literal ;
+            sh:order 3 ;
+            sh:path chron:consumes ;
+        ] ,
+        [
+            sh:class chron:StepDefinition ;
+            sh:description "The coarser-scale step this step is a proper part of (recursive composition — no separate \"substep\" class; scale is arbitrary). Referenced by step_id, not inlined." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:IRI ;
+            sh:order 7 ;
+            sh:path dcterms:isPartOf ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Action the step performs." ;
+            sh:maxCount 1 ;
+            sh:nodeKind sh:Literal ;
+            sh:order 1 ;
+            sh:path chron:verb ;
+        ] ,
+        [
+            sh:datatype xsd:string ;
+            sh:description "Steps that must precede this one." ;
+            sh:nodeKind sh:Literal ;
+            sh:order 5 ;
+            sh:path chron:depends_on ;
+        ] ;
+    sh:targetClass chron:StepDefinition ;
 .
 
 chron:UsageInterval

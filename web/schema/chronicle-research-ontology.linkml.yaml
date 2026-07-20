@@ -225,9 +225,15 @@ classes:
     slots: [plan_id, steps]
 
   StepDefinition:
-    description: One processing step in the plan (a graph node). A p-plan:Step. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on).
+    description: >-
+      One processing step in the plan (a graph node) at ANY scale — a
+      p-plan:Step. Steps compose recursively via part_of_step: a coarse step
+      (an execution/memoization unit) and the fine-grained transformations
+      inside it are the SAME kind of thing, because the step boundary is an
+      arbitrary scale choice, not an ontological distinction. Follows the
+      ProcessingStep shape (id/verb/engine/consumes/produces/depends_on).
     broad_mappings: [pplan:Step]
-    slots: [step_id, verb, engine, consumes, produces, depends_on, is_fatal]
+    slots: [step_id, verb, engine, consumes, produces, depends_on, is_fatal, part_of_step]
 
   NodeExecution:
     description: A retrospective execution of a StepDefinition. A prov:Activity.
@@ -307,6 +313,13 @@ slots:
   produces: {description: Channels/outputs the step produces., range: string, multivalued: true}
   depends_on: {description: Steps that must precede this one., range: string, multivalued: true}
   is_fatal: {description: Whether a failure fails the whole workflow., range: boolean}
+  part_of_step:
+    description: >-
+      The coarser-scale step this step is a proper part of (recursive
+      composition — no separate "substep" class; scale is arbitrary).
+      Referenced by step_id, not inlined.
+    range: StepDefinition
+    slot_uri: dcterms:isPartOf
   executes_step: {description: The StepDefinition this execution runs., range: StepDefinition}
   used_parameter_set: {description: The ParameterSet the execution used., range: ParameterSet}
   started_at: {description: Execution start., range: string}

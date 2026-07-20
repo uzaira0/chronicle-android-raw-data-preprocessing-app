@@ -149,6 +149,33 @@ export const BROWSER_RUNTIME_KEYS = [
   "datetimeOfPreprocessing",
 ] as const;
 
+// Literal raw Chronicle CSV column headers (RawChronicleEventRecord slots).
+export const RAW_CHRONICLE_COLUMNS = [
+  "study_id",
+  "participant_id",
+  "possible_device_model",
+  "username",
+  "application_label",
+  "interaction_type",
+  "app_package_name",
+  "event_timestamp",
+  "start_timestamp",
+  "stop_timestamp",
+  "timezone",
+] as const;
+
+// Advisory presence expectation: fileInspection WARNS (never blocks) when one
+// of these headers is missing — desktop-parity ingest tolerance is unchanged.
+export const REQUIRED_RAW_COLUMNS = [
+  "study_id",
+  "participant_id",
+  "application_label",
+  "interaction_type",
+  "app_package_name",
+  "event_timestamp",
+  "timezone",
+] as const;
+
 export type BrowserTimezoneHandling = (typeof TIMEZONE_HANDLING_VALUES)[number];
 export type OutputKind = (typeof OUTPUT_KIND_VALUES)[number];
 export type AggregateShape = (typeof AGGREGATE_SHAPE_VALUES)[number];

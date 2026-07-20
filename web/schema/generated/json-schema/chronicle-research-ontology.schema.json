@@ -500,7 +500,7 @@
         },
         "StepDefinition": {
             "additionalProperties": false,
-            "description": "One processing step in the plan (a graph node). A p-plan:Step. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on).",
+            "description": "One processing step in the plan (a graph node) at ANY scale \u2014 a p-plan:Step. Steps compose recursively via part_of_step: a coarse step (an execution/memoization unit) and the fine-grained transformations inside it are the SAME kind of thing, because the step boundary is an arbitrary scale choice, not an ontological distinction. Follows the ProcessingStep shape (id/verb/engine/consumes/produces/depends_on).",
             "properties": {
                 "consumes": {
                     "description": "Channels/inputs the step reads.",
@@ -533,6 +533,13 @@
                     "description": "Whether a failure fails the whole workflow.",
                     "type": [
                         "boolean",
+                        "null"
+                    ]
+                },
+                "part_of_step": {
+                    "description": "The coarser-scale step this step is a proper part of (recursive composition \u2014 no separate \"substep\" class; scale is arbitrary). Referenced by step_id, not inlined.",
+                    "type": [
+                        "string",
                         "null"
                     ]
                 },
