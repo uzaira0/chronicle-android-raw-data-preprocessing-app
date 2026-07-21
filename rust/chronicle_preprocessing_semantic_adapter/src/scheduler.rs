@@ -362,6 +362,38 @@ mod tests {
     }
 
     #[test]
+    fn assignments_and_materialized_outputs_advance_monotonic_revisions() {
+        let plan = embedded_plan();
+        let scheduler = Scheduler::new(plan.clone());
+        let mut workspace = Workspace::<MemoryCas> {
+            options: serde_json::json!({
+                "process_app_usage": true,
+                "process_screen_usage": true,
+                "use_filter_file": false,
+                "use_app_codebook": false
+            }),
+            ..Default::default()
+        };
+
+        assign_required(&mut workspace, &plan);
+        assert_eq!(workspace.revision, 2);
+        assert_eq!(workspace.assignments["raw_chronicle_csv"].revision, 1);
+        assert_eq!(workspace.assignments["processing_options"].revision, 2);
+
+        let revision_before_run = workspace.revision;
+        let runs = scheduler
+            .run(&mut workspace, &mut EchoExecutor::default())
+            .unwrap();
+        let produced_count = runs.iter().filter(|run| run.output.is_some()).count() as u64;
+        assert_eq!(produced_count, plan.nodes.len() as u64);
+        assert_eq!(workspace.revision, revision_before_run + produced_count);
+        assert_eq!(
+            workspace.cache.values().map(|entry| entry.revision).max(),
+            Some(workspace.revision)
+        );
+    }
+
+    #[test]
     fn warm_run_is_cached_and_raw_change_recomputes_the_reachable_graph() {
         let plan = embedded_plan();
         let scheduler = Scheduler::new(plan.clone());

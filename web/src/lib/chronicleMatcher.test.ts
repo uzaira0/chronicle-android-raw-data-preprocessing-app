@@ -2,7 +2,10 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 import type * as Comlink from "comlink";
 import {
   discoverTimezones,
+  exportVerifiedWorkspaceClosure,
   getMatcherVersion,
+  getPlanStageView,
+  importVerifiedWorkspaceClosure,
   processRawCsv,
   processRawCsvBytesViaPool,
   processRawCsvIsolated,
@@ -335,6 +338,20 @@ describe("shared worker fault handling (fake Worker global)", () => {
     );
     lastWorker().fire("error", { message: "dead again" });
     await expect(withProgress).rejects.toThrow("Chronicle worker failed: dead again");
+  });
+
+  it("routes workspace closure and pre-run view requests through the shared worker", async () => {
+    const exported = exportVerifiedWorkspaceClosure(`sha256:${"1".repeat(64)}`);
+    lastWorker().fire("error", { message: "export failed" });
+    await expect(exported).rejects.toThrow("export failed");
+
+    const imported = importVerifiedWorkspaceClosure(new Uint8Array([1, 2, 3]));
+    lastWorker().fire("error", { message: "import failed" });
+    await expect(imported).rejects.toThrow("import failed");
+
+    const view = getPlanStageView({} as Parameters<typeof getPlanStageView>[0]);
+    lastWorker().fire("error", { message: "view failed" });
+    await expect(view).rejects.toThrow("view failed");
   });
 
   it("processRawCsvIsolated tears its private one-shot pool down on fault", async () => {

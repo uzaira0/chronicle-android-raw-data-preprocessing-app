@@ -1,0 +1,43 @@
+[package]
+name = "chronicle_preprocessing_runtime_wasm"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-only"
+publish = false
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = [
+    '-Oz',
+    '--enable-simd',
+    '--enable-bulk-memory',
+    '--enable-nontrapping-float-to-int',
+    '--enable-mutable-globals',
+    '--enable-sign-ext',
+    '--enable-reference-types',
+]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+arrow-array = { version = "59.1.0", default-features = false }
+arrow-ipc = { version = "59.1.0", default-features = false }
+arrow-schema = { version = "59.1.0", default-features = false }
+calamine = { version = "0.36", default-features = false }
+chronicle_chrono_kernel_wasm = { path = "../chronicle_chrono_kernel_wasm" }
+chronicle_preprocessing_semantic_adapter = { path = "../chronicle_preprocessing_semantic_adapter" }
+hex = "0.4"
+csv = "1.3"
+parquet = { version = "59.1.0", default-features = false, features = ["arrow"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_jcs = "0.2"
+serde_json = "1.0"
+sha2 = "0.10"
+wasm-bindgen = "0.2"
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"

@@ -44,7 +44,6 @@ import type {
 } from "@/lib/types";
 import { buildTimelineViewerHtml } from "@/lib/timelineViewer";
 import { buildReviewSummary } from "@/lib/reviewMetrics";
-import { matchAppUsageWithProximity } from "@/lib/proximityMatcher";
 import { GraphEngine, hashValue } from "@/lib/pipelineGraph/engine";
 import {
   assembleLedger,
@@ -1558,18 +1557,14 @@ export function buildMatcherInput(
 }
 
 /**
- * Run the episode matcher over the prepared masks. Intra-app teardown grace
- * runs in the JS matcher (the shared WASM matcher has no proximity parameter);
- * with it off (the default), the WASM matcher is used unchanged so the common
- * path and cross-surface parity are untouched.
+ * Run the episode matcher over the prepared masks. The Rust/WASM v2 matcher
+ * owns both the sparse zero-proximity path and the intra-app teardown grace.
  */
 export async function runEpisodeMatcher(
   matcherInput: MatcherInput,
   runMatcher: MatcherRunner,
 ): Promise<MatcherOutput> {
-  return matcherInput.options.proximityNs > 0n
-    ? matchAppUsageWithProximity(matcherInput)
-    : runMatcher(matcherInput);
+  return runMatcher(matcherInput);
 }
 
 /**
@@ -2904,7 +2899,7 @@ function getPipelineEngine(fileName: string): GraphEngine<PipelineCtx> {
  */
 const sessionDatetimes = new Map<string, { csvHash: string; datetime: string }>();
 
-function resolveSessionDatetime(fileName: string, csvText: string): string {
+export function resolveSessionDatetime(fileName: string, csvText: string): string {
   const csvHash = hashValue(csvText);
   const existing = sessionDatetimes.get(fileName);
   if (existing && existing.csvHash === csvHash) return existing.datetime;

@@ -11,6 +11,11 @@
 //     → decodes a PICT output table back into full BrowserProcessingOptions objects
 //       (consumed by coveringArrayValidation.test.ts)
 //
+//   vite-node scripts/generate_combinatorial_model.mts coverage <t,...> <table...>
+//   vite-node scripts/generate_combinatorial_model.mts verify-coverage <t,...> <table...>
+//     → measures exact valid t-way tuple coverage from the same equivalence
+//       classes and constraints. The verify form requires 100% coverage.
+//
 // Every contract key gets a small set of named equivalence classes (boolean →
 // on/off, enums → each value, numbers → default + boundary, arrays → default +
 // empty/alternate). The class LABELS are plain [a-z0-9_] tokens so both the
@@ -436,6 +441,123 @@ async function decodePictOutput(tsvPath: string, outPath: string): Promise<void>
   console.log(`decoded ${configs.length} configs → ${outPath}`);
 }
 
+type EncodedRow = Record<string, string>;
+
+async function readEncodedTable(tablePath: string): Promise<EncodedRow[]> {
+  const text = await readFile(tablePath, "utf-8");
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) throw new Error(`${tablePath}: expected a header and at least one row`);
+  const delimiter = lines[0].includes("\t") ? "\t" : ",";
+  const header = lines[0].split(delimiter);
+  const expected = new Set<string>(BROWSER_PROCESSING_OPTION_KEYS);
+  if (header.length !== expected.size || header.some((key) => !expected.has(key))) {
+    throw new Error(`${tablePath}: columns do not exactly match the processing-option contract`);
+  }
+  return lines.slice(1).map((line, rowIndex) => {
+    const cells = line.split(delimiter);
+    if (cells.length !== header.length) {
+      throw new Error(`${tablePath}:${rowIndex + 2}: ${cells.length} cells, want ${header.length}`);
+    }
+    return Object.fromEntries(
+      header.map((key, column) => {
+        const value = cells[column];
+        if (!classesFor(key).some((candidate) => candidate.label === value)) {
+          throw new Error(`${tablePath}:${rowIndex + 2}: invalid ${key} class ${JSON.stringify(value)}`);
+        }
+        return [key, value];
+      }),
+    );
+  });
+}
+
+/** Keep this predicate synchronized with pictModel()/actsModel(). */
+function isLegalPartial(assignment: EncodedRow): boolean {
+  const handling = assignment.timezoneHandling;
+  const selected = assignment.selectedTimezone;
+  if (handling === undefined || selected === undefined) return true;
+  if (handling === "selected_filter" || handling === "selected_convert") {
+    return selected !== "none";
+  }
+  if (handling === "primary_filter" || handling === "primary_convert") {
+    return selected === "none";
+  }
+  throw new Error(`Unknown timezoneHandling class ${JSON.stringify(handling)}`);
+}
+
+function indexCombinations(size: number, strength: number): number[][] {
+  const result: number[][] = [];
+  const visit = (start: number, selected: number[]) => {
+    if (selected.length === strength) {
+      result.push([...selected]);
+      return;
+    }
+    for (let index = start; index <= size - (strength - selected.length); index += 1) {
+      selected.push(index);
+      visit(index + 1, selected);
+      selected.pop();
+    }
+  };
+  visit(0, []);
+  return result;
+}
+
+function tupleKey(keys: string[], assignment: EncodedRow): string {
+  return keys.map((key) => `${key}=${assignment[key]}`).join("\u001f");
+}
+
+function exactCoverage(rows: EncodedRow[], strength: number): { covered: number; total: number } {
+  const contractKeys = [...BROWSER_PROCESSING_OPTION_KEYS];
+  if (!Number.isInteger(strength) || strength < 1 || strength > contractKeys.length) {
+    throw new Error(`Invalid coverage strength ${strength}`);
+  }
+  let covered = 0;
+  let total = 0;
+  for (const indices of indexCombinations(contractKeys.length, strength)) {
+    const keys = indices.map((index) => contractKeys[index]);
+    const observed = new Set(rows.map((row) => tupleKey(keys, row)));
+    const assignment: EncodedRow = {};
+    const visitValues = (depth: number) => {
+      if (depth === keys.length) {
+        if (isLegalPartial(assignment)) {
+          total += 1;
+          if (observed.has(tupleKey(keys, assignment))) covered += 1;
+        }
+        return;
+      }
+      const key = keys[depth];
+      for (const candidate of classesFor(key)) {
+        assignment[key] = candidate.label;
+        visitValues(depth + 1);
+      }
+      delete assignment[key];
+    };
+    visitValues(0);
+  }
+  return { covered, total };
+}
+
+async function reportCoverage(
+  strengthsText: string,
+  tablePaths: string[],
+  requireComplete: boolean,
+): Promise<void> {
+  if (tablePaths.length === 0) throw new Error("coverage requires at least one input table");
+  const strengths = strengthsText.split(",").map((value) => Number(value));
+  const rows = (await Promise.all(tablePaths.map(readEncodedTable))).flat();
+  let incomplete = false;
+  for (const strength of strengths) {
+    const { covered, total } = exactCoverage(rows, strength);
+    const percent = (100 * covered) / total;
+    console.log(
+      `t=${strength} exact valid-tuple coverage: ${percent.toFixed(1)}% (${covered}/${total}) across ${rows.length} rows`,
+    );
+    incomplete ||= covered !== total;
+  }
+  if (requireComplete && incomplete) {
+    throw new Error("checked-in covering arrays do not provide complete requested coverage");
+  }
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -446,6 +568,14 @@ async function main(): Promise<void> {
       throw new Error("usage: generate_combinatorial_model.mts decode <pict-rows.tsv> <out.json>");
     }
     await decodePictOutput(tsvPath, outPath);
+    return;
+  }
+  if (command === "coverage" || command === "verify-coverage") {
+    const [strengths, ...tablePaths] = rest;
+    if (!strengths) {
+      throw new Error(`usage: generate_combinatorial_model.mts ${command} <t,...> <table...>`);
+    }
+    await reportCoverage(strengths, tablePaths, command === "verify-coverage");
     return;
   }
   if (command) throw new Error(`unknown command "${command}"`);

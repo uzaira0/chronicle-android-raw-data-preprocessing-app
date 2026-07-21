@@ -62,6 +62,41 @@ impl Condition {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn conditions_cover_boolean_array_composition_and_negation() {
+        let options = serde_json::json!({"on": true, "off": false, "values": [1]});
+        let on = Condition::OptionTrue {
+            option_key: "on".into(),
+        };
+        let missing = Condition::OptionTrue {
+            option_key: "missing".into(),
+        };
+        let values = Condition::ArrayNonempty {
+            option_key: "values".into(),
+        };
+        assert!(Condition::Always.evaluate(&options));
+        assert!(on.evaluate(&options));
+        assert!(!missing.evaluate(&options));
+        assert!(values.evaluate(&options));
+        assert!(Condition::All {
+            terms: vec![on.clone(), values.clone()]
+        }
+        .evaluate(&options));
+        assert!(Condition::Any {
+            terms: vec![missing.clone(), values]
+        }
+        .evaluate(&options));
+        assert!(Condition::Not {
+            term: Box::new(missing)
+        }
+        .evaluate(&options));
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KnobBinding {
     pub option_key: String,
@@ -85,12 +120,16 @@ pub struct PlanNode {
     pub implementation_status: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlanStep {
     pub step_id: String,
     pub unit_id: String,
+    pub label: String,
+    pub description: String,
     pub capability_id: String,
     pub input_steps: Vec<String>,
+    pub applicability: Condition,
+    pub can_bypass: bool,
     pub binding_set_id: String,
 }
 

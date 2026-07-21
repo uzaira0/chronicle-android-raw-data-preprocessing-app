@@ -38,9 +38,9 @@ export type MatcherInput = {
     applyThresholdToFallback: boolean;
     longDurationThresholdNs: bigint;
     /**
-     * Intra-app teardown grace, in nanoseconds. 0 = off (the shared WASM matcher
-     * ignores it and runs unchanged). When > 0 the pipeline routes to the JS
-     * proximity matcher instead, so the WASM path never sees a non-zero value.
+     * Intra-app teardown grace, in nanoseconds. 0 selects the optimized sparse
+     * Rust path; a positive value selects the reference-compatible Rust grace
+     * path in the same WASM module.
      */
     proximityNs: bigint;
   };
@@ -104,6 +104,116 @@ export type BrowserSupportFiles = {
 
 export type BrowserProcessingRuntime = {
   datetimeOfPreprocessing?: string;
+  /** Select the computational authority. Production defaults to Rust/WASM. */
+  executionAuthority?: "rust";
+  /**
+   * Migration-only comparison against the bounded Rust v2 pipeline. `observe`
+   * records an eligibility/parity report without changing the TypeScript
+   * result. `require-parity` fails the run when the current Rust subset cannot
+   * execute or produces different base CSV bytes/counts.
+   */
+  rustShadowMode?: "off" | "observe" | "require-parity";
+  /** Persist verified Rust artifacts and alternating roots in OPFS. */
+  persistRustWorkspace?: boolean;
+};
+
+export type RustStageView = {
+  protocol_version: "0.1";
+  view_id: "chronicle.stage.v1";
+  family: "incremental-dataflow";
+  schema_id: "urn:chronicle:view:stage:v1";
+  revision: number;
+  root_digest: string;
+  payload: {
+    stage: string | null;
+    node_states: Array<{
+      node_id: string;
+      label: string;
+      section: "preprocess" | "clean" | "analyze" | "output";
+      input_nodes: string[];
+      can_bypass: boolean;
+      materialization_state:
+        | "open"
+        | "ready"
+        | "satisfied"
+        | "blocked"
+        | "invalid"
+        | "not_applicable";
+      execution_status: NodeStatus | null;
+      reason_ids: string[];
+    }>;
+    step_states: Array<{
+      step_id: string;
+      unit_id: string;
+      label: string;
+      description: string;
+      input_steps: string[];
+      can_bypass: boolean;
+      execution_status: NodeStatus | null;
+    }>;
+  };
+};
+
+export type RustShadowArtifactComparison = {
+  kind:
+    | "app"
+    | "screen"
+    | "credited-app"
+    | "day-coverage"
+    | "compliance"
+    | "aggregate-daily"
+    | "aggregate-weekly"
+    | "aggregate-top-apps"
+    | "aggregate-category-budget"
+    | "aggregate-co-usage"
+    | "app-parquet"
+    | "screen-parquet"
+    | "app-spss"
+    | "screen-spss";
+  typescriptSha256: string;
+  rustSha256: string;
+  typescriptBytes: number;
+  rustBytes: number;
+  matches: boolean;
+  comparison?: "exact-bytes" | "decoded-values";
+};
+
+export type RustShadowReport = {
+  protocolVersion: "chronicle-rust-shadow/v1";
+  implementation: "chronicle_preprocessing_runtime_wasm/execute_bounded_v2_shadow";
+  scope: "selected-runtime-csv-artifacts";
+  status: "ineligible" | "matched" | "diverged" | "failed";
+  reasons: string[];
+  artifacts: RustShadowArtifactComparison[];
+  workspaceRootDigest?: string;
+  planDigest?: string;
+  productContractDigest?: string;
+  openObligationCount?: number;
+  journalDigest?: string;
+  reviewSummaryMatches?: boolean;
+  persistedWorkspace?: {
+    generation: number;
+    workspaceRootDigest: string;
+  };
+  counts?: {
+    typescript: { original: number; processed: number; app: number; screen: number };
+    rust: { original: number; processed: number; app: number; screen: number };
+    matches: boolean;
+  };
+};
+
+export type RustRuntimeReceipt = {
+  protocolVersion: "chronicle-preprocessing-runtime/v1";
+  workspaceId: string;
+  workspaceRootDigest: string;
+  previousWorkspaceRootDigest: string | null;
+  planDigest: string;
+  profileDigest: string;
+  profileLockDigest: string;
+  productContractDigest: string;
+  journalDigest: string;
+  openObligationCount: number;
+  persistedGeneration?: number;
 };
 
 
@@ -223,6 +333,10 @@ export type ProcessedFileResult = {
    * worker entry points, not by direct `processRawCsvContent` calls.
    */
   inputSha256?: string;
+  /** Bounded migration evidence. Never used as production result authority. */
+  rustShadowReport?: RustShadowReport;
+  /** Rust/WASM authority and content-addressed workspace receipt. */
+  rustRuntimeReceipt?: RustRuntimeReceipt;
   /**
    * Interactive timeline payload for the in-app View tab (#18). Present only
    * when `enableInteractiveTimeline` is on (it carries per-session geometry, so
@@ -268,4 +382,6 @@ export type ProcessedFileResult = {
    * field existed.
    */
   executionLedger?: ExecutionLedger;
+  /** Product-typed Rust projection used by the Graph tab; never inferred by UI code. */
+  rustStageView?: RustStageView;
 };

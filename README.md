@@ -2,6 +2,12 @@
 
 An application for preprocessing and plotting Chronicle Android raw data.
 
+The browser application is also the first complete consumer of the generalized
+semantic-federation scaffold. See
+[the production proof](docs/semantic-federation/production-proof.md) for the
+Rust/WASM authority boundary, local-first artifact model, exact semantic locks,
+and the reusable repository integration contract.
+
 Not affiliated with GetMethodic/Chronicle, please visit them here: https://getmethodic.com/
 
 Credits:

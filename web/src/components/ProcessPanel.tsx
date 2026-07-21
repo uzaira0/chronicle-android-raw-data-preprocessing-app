@@ -15,6 +15,7 @@ type Props = {
   uploadedFiles: File[];
   inspections: RawFileInspection[];
   displayMasker: DemoDisplayMasker;
+  isInspecting: boolean;
   isRunning: boolean;
   onProcess: () => void;
   onCancel: () => void;
@@ -38,6 +39,7 @@ export function ProcessPanel({
   uploadedFiles,
   inspections,
   displayMasker,
+  isInspecting,
   isRunning,
   onProcess,
   onCancel,
@@ -95,9 +97,13 @@ export function ProcessPanel({
             className="btn btn--primary btn--lg"
             data-testid="process-files-button"
             onClick={onProcess}
-            disabled={isRunning || !!retryingFile || !uploadedFiles.length}
+            disabled={isRunning || isInspecting || !!retryingFile || !uploadedFiles.length}
           >
-            {isRunning ? "Processing..." : "Process files"}
+            {isRunning
+              ? "Processing..."
+              : isInspecting
+                ? "Inspecting files..."
+                : "Process files"}
           </button>
         </div>
       </div>

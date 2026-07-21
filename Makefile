@@ -6,8 +6,8 @@
 # the single engine). Their final evidence is frozen in
 # docs/validation/CORPUS_SOAK.md and docs/perf/BASELINE.md; the removal
 # commit message names the last ref that still carries them. The browser remains
-# the product surface while this branch migrates computational authority from
-# TypeScript into product-owned Rust/WASM.
+# the product surface; product-owned Rust/WASM is now the selected computation,
+# scheduling, evidence, artifact, and semantic-view authority.
 #
 # Quick start:
 #   make ci      # rust tests + every security scanner
@@ -15,26 +15,31 @@
 #   make help    # list every target
 
 MATCHER := rust/chronicle_app_usage_matcher/Cargo.toml
+CHRONO_KERNEL := rust/chronicle_chrono_kernel_wasm/Cargo.toml
 SEMANTIC_RUNTIME := rust/chronicle_preprocessing_semantic_adapter/Cargo.toml
+PRODUCT_RUNTIME := rust/chronicle_preprocessing_runtime_wasm/Cargo.toml
+SEMANTIC_INDEX := rust/chronicle_semantic_index_wasm/Cargo.toml
 SEM_PROF_BIN ?= semprof
 
 .PHONY: help ci all security web \
         rust \
-        semgrep ast-grep cargo-audit trivy gitleaks \
-        typecheck web-test contract semantic-federation combinatorial gate-truth mutation \
-        coverage knip profile e2e deploy-artifact
+        semgrep ast-grep cargo-audit cargo-deny trivy gitleaks \
+        typecheck web-test contract semantic-federation combinatorial gate-truth \
+        mutation mutation-web mutation-rust coverage coverage-rust coverage-all \
+        knip profile e2e deploy-artifact
 
 help:
 	@echo 'Local CI (GitHub Actions carries CD only):'
 	@echo ''
 	@echo '  make ci        rust tests + all security scanners'
 	@echo '  make all       ci + web checks + e2e smoke + deploy artifact'
-	@echo '  make security  semgrep ast-grep cargo-audit trivy gitleaks'
+	@echo '  make security  semgrep ast-grep cargo-audit cargo-deny trivy gitleaks'
 	@echo '  make web       typecheck + unit tests + contract check'
 	@echo ''
-	@echo '  Individual:  rust semgrep ast-grep cargo-audit trivy gitleaks'
+	@echo '  Individual:  rust semgrep ast-grep cargo-audit cargo-deny trivy gitleaks'
 	@echo '               typecheck web-test contract e2e gate-truth mutation'
-	@echo '               coverage knip profile combinatorial deploy-artifact'
+	@echo '               mutation-web mutation-rust coverage coverage-rust coverage-all'
+	@echo '               knip profile combinatorial deploy-artifact'
 
 # ---------- aggregates ----------
 ci: rust security
@@ -58,7 +63,7 @@ all:
 	$(MAKE) --no-print-directory deploy-artifact
 	@echo "✓ make all: ci + web + e2e + deploy-artifact all completed"
 
-security: semgrep ast-grep cargo-audit trivy gitleaks
+security: semgrep ast-grep cargo-audit cargo-deny trivy gitleaks
 
 web: typecheck web-test contract semantic-federation
 
@@ -68,8 +73,18 @@ web: typecheck web-test contract semantic-federation
 # feature-free so no libpython is required on PATH.
 rust:
 	cargo test --manifest-path $(MATCHER) --no-default-features
+	cargo test --manifest-path $(CHRONO_KERNEL)
+	rustup run stable cargo check --manifest-path $(CHRONO_KERNEL) --target wasm32-unknown-unknown
 	cargo test --manifest-path $(SEMANTIC_RUNTIME)
 	rustup run stable cargo check --manifest-path $(SEMANTIC_RUNTIME) --target wasm32-unknown-unknown --features wasm
+	cargo test --manifest-path $(PRODUCT_RUNTIME)
+	rustup run stable cargo check --manifest-path $(PRODUCT_RUNTIME) --target wasm32-unknown-unknown
+	cargo test --manifest-path $(SEMANTIC_INDEX)
+	rustup run stable cargo check --manifest-path $(SEMANTIC_INDEX) --target wasm32-unknown-unknown
+	cargo clippy --manifest-path $(CHRONO_KERNEL) --all-targets -- -D warnings
+	cargo clippy --manifest-path $(SEMANTIC_RUNTIME) --all-targets -- -D warnings
+	cargo clippy --manifest-path $(PRODUCT_RUNTIME) --all-targets -- -D warnings
+	cargo clippy --manifest-path $(SEMANTIC_INDEX) --all-targets -- -D warnings
 
 # ---------- security scanners ----------
 semgrep:
@@ -84,6 +99,14 @@ ast-grep:
 cargo-audit:
 	cd rust/chronicle_app_usage_matcher && cargo audit
 	cd rust/chronicle_preprocessing_semantic_adapter && cargo audit
+	cd rust/chronicle_preprocessing_runtime_wasm && cargo audit
+	cd rust/chronicle_semantic_index_wasm && cargo audit
+
+# Policy complements cargo-audit: exact source allowlists, license closure,
+# and the one documented unmaintained transitive exception are checked for
+# every Rust crate that carries semantic or computational authority.
+cargo-deny:
+	$(MAKE) -C .semantic-federation quality-rust-supply-chain
 
 trivy:
 	trivy fs .
@@ -107,7 +130,8 @@ semantic-federation:
 # Combinatorial coverage: regenerates the PICT/ACTS models from the contract
 # SSOT, generates t=2/t=3 covering arrays (executed by
 # coveringArrayValidation.test.ts), and measures test-suite coverage with
-# NIST CCM. Needs the PICT binary + headless CCM build (see script header).
+# an exact built-in verifier. PICT regenerates arrays and NIST CCM cross-checks
+# the measurement when available; neither is a workstation-specific prerequisite.
 combinatorial:
 	scripts/run_combinatorial_coverage.sh
 
@@ -116,11 +140,18 @@ combinatorial:
 gate-truth:
 	scripts/run_gate_truth_checks.sh
 
-# Mutation-score the validation suite (StrykerJS): mutants that survive mark
-# assertions the engine/step/stage/provenance tests do not actually pin.
-# Widened scope runs ~10 min — local-only (make mutation), run before raising break.
-mutation:
+# Mutation-score both the TypeScript oracle/UI boundary and the production Rust
+# authority. This is intentionally local-only and slow; run before release.
+mutation: mutation-web mutation-rust
+
+mutation-web:
 	cd web && ENGINE_PBT_RUNS=10 ./node_modules/.bin/stryker run
+
+# Every scored viable mutant must be caught. The adapter's cfg(wasm)-only
+# transport facades are excluded because native cargo-mutants cannot execute
+# them; their delegates are unit-tested and compiled exports are exercised E2E.
+mutation-rust:
+	$(MAKE) -C .semantic-federation quality-rust-mutation
 
 # Per-step performance table straight from the ExecutionLedger (the ledger is
 # the profiler). Point it at one or more raw Chronicle CSVs.
@@ -130,6 +161,14 @@ profile:
 # Vitest v8 line/branch coverage with ratcheted floors (vitest.config.ts).
 coverage:
 	cd web && npm run test:coverage
+
+# Rust stable does not yet expose stable branch instrumentation. Region coverage
+# is gated alongside line/function coverage, and mutation-rust supplies the
+# stronger behavioral oracle for decisions, scheduling, storage, and exports.
+coverage-rust:
+	$(MAKE) -C .semantic-federation quality-rust-coverage
+
+coverage-all: coverage coverage-rust
 
 # Dead-export sweep (report-only; not a gate until the report is clean).
 knip:

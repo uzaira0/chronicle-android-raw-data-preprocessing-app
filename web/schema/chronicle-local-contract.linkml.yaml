@@ -29,6 +29,7 @@ enums:
       aggregate:
       parquet:
       spss:
+      lineage:
   AggregateShape:
     description: Layout for the daily/weekly aggregate summaries (#12 long ⇄ wide).
     permissible_values:

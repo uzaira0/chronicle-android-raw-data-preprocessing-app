@@ -61,5 +61,8 @@ mod tests {
         let second = store.put("text/plain", b"same".to_vec(), vec![]).unwrap();
         assert_eq!(first.digest, second.digest);
         assert_eq!(store.get(&first.digest).unwrap(), b"same");
+        assert!(store.contains(&first.digest));
+        assert!(!store.contains("sha256:missing"));
+        assert!(store.get("sha256:missing").is_err());
     }
 }

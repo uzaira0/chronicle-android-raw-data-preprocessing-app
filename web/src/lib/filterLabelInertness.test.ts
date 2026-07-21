@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { processRawCsvContent } from "@/lib/browserPipeline";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
-import type { MatcherOutput, SplitterInput, SplitterOutput } from "@/lib/types";
+import { matchAppUsageWithProximity } from "@/lib/proximityMatcher";
+import type {
+  MatcherInput,
+  MatcherOutput,
+  SplitterInput,
+  SplitterOutput,
+} from "@/lib/types";
 
 /**
  * App filtering must MARK, not alter: labeling an app as filtered blanks that
@@ -52,13 +58,20 @@ const UNMATCHED_JUNK_ONLY_CLOSE = [
   row("Junk", "Activity Resumed", "com.junk.app", "2026-03-07 10:02:00"),
 ].join("\n");
 
-const FILTER_CSV = ["app_package_name,known_application_labels", "com.junk.app,Junk"].join("\n");
+const FILTER_CSV = [
+  "app_package_name,known_application_labels",
+  "com.junk.app,Junk",
+].join("\n");
 
 type OutputRow = { pkg: string; type: string; duration: string };
 
-async function appOutputRows(csv: string, useFilter: boolean): Promise<OutputRow[]> {
-  const matcher = (): Promise<MatcherOutput> =>
-    Promise.reject(new Error("mock matcher should be bypassed (proximity default > 0)"));
+const referenceMatcher = (input: MatcherInput): Promise<MatcherOutput> =>
+  Promise.resolve(matchAppUsageWithProximity(input));
+
+async function appOutputRows(
+  csv: string,
+  useFilter: boolean,
+): Promise<OutputRow[]> {
   const result = await processRawCsvContent(
     "Raw P01.csv",
     csv,
@@ -71,9 +84,14 @@ async function appOutputRows(csv: string, useFilter: boolean): Promise<OutputRow
       minimumUsageDuration: 0,
     },
     useFilter
-      ? { filterFile: { name: "filter.csv", bytes: new TextEncoder().encode(FILTER_CSV).buffer } }
+      ? {
+          filterFile: {
+            name: "filter.csv",
+            bytes: new TextEncoder().encode(FILTER_CSV).buffer,
+          },
+        }
       : {},
-    matcher,
+    referenceMatcher,
   );
   const blob = result.outputs.find((output) => output.kind === "app")?.blob;
   const text = blob ? await blob.text() : "";
@@ -93,7 +111,9 @@ async function appOutputRows(csv: string, useFilter: boolean): Promise<OutputRow
 }
 
 function validEpisodes(rows: OutputRow[]): OutputRow[] {
-  return rows.filter((r) => r.pkg === "com.valid.chat" && r.type === "App Usage");
+  return rows.filter(
+    (r) => r.pkg === "com.valid.chat" && r.type === "App Usage",
+  );
 }
 
 describe("filter labels mark filtered apps without altering valid apps' episodes", () => {
@@ -151,24 +171,35 @@ describe("filtered background apps are constructed and marked, never blanked", (
   // foreground inside what would be Spotify's extended session.
   const BACKGROUND_OVERLAP = [
     HEADER,
-    row("Audio", "Activity Resumed", "com.spotify.music", "2026-03-07 10:00:00"),
+    row(
+      "Audio",
+      "Activity Resumed",
+      "com.spotify.music",
+      "2026-03-07 10:00:00",
+    ),
     row("Audio", "Activity Paused", "com.spotify.music", "2026-03-07 10:01:00"),
     row("Chat", "Activity Resumed", "com.valid.chat", "2026-03-07 10:02:00"),
     row("Chat", "Activity Paused", "com.valid.chat", "2026-03-07 10:06:00"),
-    row("Audio", "Activity Stopped", "com.spotify.music", "2026-03-07 10:10:00"),
+    row(
+      "Audio",
+      "Activity Stopped",
+      "com.spotify.music",
+      "2026-03-07 10:10:00",
+    ),
   ].join("\n");
 
   const BACKGROUND_FILTER_CSV = [
     "app_package_name,known_application_labels",
     "com.spotify.music,Audio",
   ].join("\n");
-  const BACKGROUND_CSV = ["package_name,label_or_note", "com.spotify.music,Audio"].join("\n");
+  const BACKGROUND_CSV = [
+    "package_name,label_or_note",
+    "com.spotify.music,Audio",
+  ].join("\n");
 
   async function backgroundRunResult(
     useFilter: boolean,
   ): Promise<Awaited<ReturnType<typeof processRawCsvContent>>> {
-    const matcher = (): Promise<MatcherOutput> =>
-      Promise.reject(new Error("mock matcher should be bypassed (proximity default > 0)"));
     // Pass-through splitter (one primary sub-interval per session). Identical
     // for both runs, so any on/off difference comes from the pipeline itself.
     const splitter = (input: SplitterInput): Promise<SplitterOutput> =>
@@ -206,7 +237,7 @@ describe("filtered background apps are constructed and marked, never blanked", (
             }
           : {}),
       },
-      matcher,
+      referenceMatcher,
       undefined,
       undefined,
       splitter,
@@ -238,7 +269,9 @@ describe("filtered background apps are constructed and marked, never blanked", (
     const off = await backgroundRun(false);
 
     // Unfiltered: background semantics extend the session to Activity Stopped.
-    const offSpotify = off.filter((r) => r.pkg === "com.spotify.music" && r.type === "App Usage");
+    const offSpotify = off.filter(
+      (r) => r.pkg === "com.spotify.music" && r.type === "App Usage",
+    );
     expect(offSpotify).toHaveLength(1);
     expect(offSpotify[0].duration).toBe("600.0");
 
@@ -246,12 +279,16 @@ describe("filtered background apps are constructed and marked, never blanked", (
     // app's own stop) but marked as the deferred category — never counted as
     // App Usage, never blanked.
     const onSpotify = on.filter(
-      (r) => r.pkg === "com.spotify.music" && r.type === "Filtered App Background Usage",
+      (r) =>
+        r.pkg === "com.spotify.music" &&
+        r.type === "Filtered App Background Usage",
     );
     expect(onSpotify).toHaveLength(1);
     expect(onSpotify[0].duration).toBe("600.0");
     expect(
-      on.filter((r) => r.pkg === "com.spotify.music").every((r) => r.type !== "App Usage"),
+      on
+        .filter((r) => r.pkg === "com.spotify.music")
+        .every((r) => r.type !== "App Usage"),
     ).toBe(true);
 
     // The valid app is untouched by the choice, as the inertness suite pins.
@@ -262,7 +299,9 @@ describe("filtered background apps are constructed and marked, never blanked", (
     const contradictory = await backgroundRunResult(true);
     expect(contradictory.configNotices ?? []).toHaveLength(1);
     expect(contradictory.configNotices![0]).toContain("com.spotify.music");
-    expect(contradictory.configNotices![0]).toContain("Filtered App Background Usage");
+    expect(contradictory.configNotices![0]).toContain(
+      "Filtered App Background Usage",
+    );
     expect(contradictory.configNotices![0]).toContain("Both are honored");
 
     // No contradiction active (filter off) -> no notice.
@@ -279,10 +318,25 @@ describe("filtered background apps are constructed and marked, never blanked", (
     const INTERRUPT = [
       HEADER,
       row("Chat", "Activity Resumed", "com.valid.chat", "2026-03-07 10:00:00"),
-      row("Audio", "Activity Resumed", "com.spotify.music", "2026-03-07 10:02:00"),
-      row("Audio", "Activity Paused", "com.spotify.music", "2026-03-07 10:03:00"),
+      row(
+        "Audio",
+        "Activity Resumed",
+        "com.spotify.music",
+        "2026-03-07 10:02:00",
+      ),
+      row(
+        "Audio",
+        "Activity Paused",
+        "com.spotify.music",
+        "2026-03-07 10:03:00",
+      ),
       row("Chat", "Activity Paused", "com.valid.chat", "2026-03-07 10:06:00"),
-      row("Audio", "Activity Stopped", "com.spotify.music", "2026-03-07 10:10:00"),
+      row(
+        "Audio",
+        "Activity Stopped",
+        "com.spotify.music",
+        "2026-03-07 10:10:00",
+      ),
     ].join("\n");
 
     const run = async (useFilter: boolean): Promise<OutputRow[]> => {
@@ -312,8 +366,7 @@ describe("filtered background apps are constructed and marked, never blanked", (
               }
             : {}),
         },
-        (): Promise<MatcherOutput> =>
-          Promise.reject(new Error("mock matcher should be bypassed (proximity default > 0)")),
+        referenceMatcher,
         undefined,
         undefined,
         (input: SplitterInput): Promise<SplitterOutput> =>

@@ -267,7 +267,8 @@
       "plot",
       "aggregate",
       "parquet",
-      "spss"
+      "spss",
+      "lineage"
     ],
     "AggregateShape": [
       "wide",

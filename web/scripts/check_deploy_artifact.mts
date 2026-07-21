@@ -41,6 +41,7 @@ function getArtifactDir(mode: string): string {
 type BundleBudget = {
   totalBytes: number;
   categories: Record<string, number>;
+  filePrefixes?: Record<string, number>;
 };
 
 async function* walkFiles(dir: string): AsyncGenerator<string> {
@@ -63,8 +64,10 @@ async function checkBundleBudget(artifactDir: string): Promise<Record<string, nu
 
   let total = 0;
   const byExtension: Record<string, number> = {};
+  const files: Array<{ name: string; bytes: number }> = [];
   for await (const filePath of walkFiles(artifactDir)) {
     const bytes = (await stat(filePath)).size;
+    files.push({ name: path.basename(filePath), bytes });
     total += bytes;
     const extension = path.extname(filePath) || "(none)";
     byExtension[extension] = (byExtension[extension] ?? 0) + bytes;
@@ -78,6 +81,18 @@ async function checkBundleBudget(artifactDir: string): Promise<Record<string, nu
     const actual = byExtension[extension] ?? 0;
     if (actual > limit) {
       failures.push(`${extension} ${actual.toLocaleString()} B exceeds budget ${limit.toLocaleString()} B`);
+    }
+  }
+  for (const [prefix, limit] of Object.entries(budget.filePrefixes ?? {})) {
+    const matches = files.filter(({ name }) => name.startsWith(prefix));
+    if (matches.length !== 1) {
+      failures.push(`${prefix} matched ${matches.length} files; expected exactly one`);
+      continue;
+    }
+    if (matches[0].bytes > limit) {
+      failures.push(
+        `${matches[0].name} ${matches[0].bytes.toLocaleString()} B exceeds budget ${limit.toLocaleString()} B`,
+      );
     }
   }
   if (failures.length > 0) {
@@ -98,6 +113,35 @@ async function main(): Promise<void> {
   }
 
   const indexHtml = await readFile(path.join(artifactDir, "index.html"), "utf-8");
+  const manifestText = await readFile(
+    path.join(artifactDir, ".vite/manifest.json"),
+    "utf-8",
+  );
+  if (manifestText.includes("browserPipeline")) {
+    throw new Error(
+      `${path.basename(artifactDir)} includes the archived TypeScript computation in its manifest`,
+    );
+  }
+  for await (const filePath of walkFiles(artifactDir)) {
+    if (path.basename(filePath).includes("browserPipeline")) {
+      throw new Error(
+        `${path.basename(artifactDir)} includes a legacy TypeScript computation chunk: ${path.basename(filePath)}`,
+      );
+    }
+    if (path.extname(filePath) === ".js") {
+      const javascript = await readFile(filePath, "utf-8");
+      for (const forbidden of [
+        "processRawCsvContent",
+        'executionAuthority:"typescript"',
+      ]) {
+        if (javascript.includes(forbidden)) {
+          throw new Error(
+            `${path.basename(artifactDir)} production JavaScript contains forbidden computational authority: ${forbidden}`,
+          );
+        }
+      }
+    }
+  }
   const metaCspMatch = indexHtml.match(
     /<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]+)"/,
   );

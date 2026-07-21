@@ -10,8 +10,12 @@ contract keys to named equivalence classes (booleans → true/false, enums → e
 value, numbers → default + boundary, arrays → default + empty/alternate) and
 fails loudly when the contract grows a key it does not know.
 
-Regenerate + remeasure with `make combinatorial` (repo root). Tool paths and
-build instructions are in `scripts/run_combinatorial_coverage.sh`.
+Regenerate + remeasure with `make combinatorial` (repo root). The command has a
+portable, exact valid-tuple coverage verifier and uses the checked-in arrays
+when PICT is unavailable. If `pict` is on `PATH` (or `PICT_BIN` is set), it also
+regenerates them. NIST CCM is an optional independent differential measurement,
+not a workstation-specific prerequisite. Tool build instructions are in
+`scripts/run_combinatorial_coverage.sh`.
 
 ## Files
 
@@ -43,7 +47,8 @@ documented fail-loud wipe error is tolerated).
 
 Notes:
 - CCM's stock `ccmcl.jar` cannot run headless (Swing `JFrame` in a static
-  initializer); `/home/opt/nist-ccm` carries a recompiled build with null-frame
-  guards (source patch in `ctt-src/`, wrapper `ccm`).
+  initializer). The repository therefore does not require a private patched
+  build: its exact verifier is the gate, while a `ccm` on `PATH` or `CCM_CMD`
+  enables a differential measurement.
 - CCM at t=4 with constraints is slow (choco solver per combination); measure
   t≤3 routinely, t=4 only when needed (`TWAY=2,3,4`).

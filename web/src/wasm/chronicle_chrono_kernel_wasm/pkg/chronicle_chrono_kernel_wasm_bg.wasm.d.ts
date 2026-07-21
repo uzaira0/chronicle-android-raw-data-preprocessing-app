@@ -4,6 +4,7 @@ export const memory: WebAssembly.Memory;
 export const __wbg_pipelinev2handle_free: (a: number, b: number) => void;
 export const dedupe_event_rows: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
 export const derive_screen_usage_sessions: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number) => void;
+export const discover_timezones_v2: (a: number, b: number, c: number) => void;
 export const format_timestamps: (a: number, b: number, c: number, d: number, e: number) => void;
 export const parse_raw_csv: (a: number, b: number, c: number) => void;
 export const pipelinev2handle_app_bytes: (a: number, b: number) => void;

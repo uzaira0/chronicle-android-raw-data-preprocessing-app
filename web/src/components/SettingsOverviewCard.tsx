@@ -2,7 +2,7 @@ import type { Dispatch, ReactElement, SetStateAction } from "react";
 
 import { SettingsField } from "@/components/SettingsField";
 import { ToggleField } from "@/components/ToggleField";
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { isOptionDefault } from "@/lib/optionDefaults";
 import type { BrowserProcessingOptions } from "@/lib/types";

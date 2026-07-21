@@ -200,6 +200,34 @@ export function derive_screen_usage_sessions(event_timestamp_ns, interaction_typ
 }
 
 /**
+ * Discover normalized IANA timezones through the Rust ingest boundary. Empty
+ * timezone cells use the product's UTC default; rows without an event
+ * timestamp are ignored exactly as they are by preprocessing.
+ * @param {Uint8Array} csv_bytes
+ * @returns {string[]}
+ */
+export function discover_timezones_v2(csv_bytes) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(csv_bytes, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.discover_timezones_v2(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        if (r3) {
+            throw takeObject(r2);
+        }
+        var v2 = getArrayJsValueFromWasm0(r0, r1).slice();
+        wasm.__wbindgen_export3(r0, r1 * 4, 4);
+        return v2;
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
  * @param {BigInt64Array} ts_ns
  * @param {string} tz_name
  * @returns {any}
@@ -515,6 +543,16 @@ function dropObject(idx) {
     if (idx < 1028) return;
     heap[idx] = heap_next;
     heap_next = idx;
+}
+
+function getArrayJsValueFromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    const mem = getDataViewMemory0();
+    const result = [];
+    for (let i = ptr; i < ptr + 4 * len; i += 4) {
+        result.push(takeObject(mem.getUint32(i, true)));
+    }
+    return result;
 }
 
 function getArrayU32FromWasm0(ptr, len) {

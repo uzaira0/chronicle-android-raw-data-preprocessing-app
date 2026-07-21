@@ -1,4 +1,4 @@
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 export type OptionKey = keyof BrowserProcessingOptions;

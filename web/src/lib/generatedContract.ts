@@ -15,6 +15,7 @@ export const OUTPUT_KIND_VALUES = [
   "aggregate",
   "parquet",
   "spss",
+  "lineage",
 ] as const;
 
 export const AGGREGATE_SHAPE_VALUES = [

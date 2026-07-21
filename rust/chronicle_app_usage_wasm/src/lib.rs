@@ -1,6 +1,6 @@
 use _rust_app_usage_matcher::{
-    match_app_usage_update_indices_core, split_overlapping_sessions, LayeredSession, MatchOptions,
-    UsageLayer,
+    match_app_usage_update_indices_with_proximity_core, split_overlapping_sessions,
+    LayeredSession, MatchOptions, UsageLayer,
 };
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
@@ -38,12 +38,75 @@ pub fn match_app_usage_update_indices(
     apply_threshold_to_fallback: bool,
     long_duration_threshold_ns: i64,
 ) -> Result<JsValue, JsValue> {
+    match_app_usage_update_indices_impl(
+        app_codes,
+        timestamp_ns,
+        resumed,
+        same_stop,
+        other_stop,
+        stopped,
+        background,
+        allow_stop_event_reuse,
+        use_activity_stopped_as_fallback,
+        apply_threshold_to_fallback,
+        long_duration_threshold_ns,
+        0,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen(js_name = matchAppUsageUpdateIndicesV2)]
+pub fn match_app_usage_update_indices_v2(
+    app_codes: Vec<i32>,
+    timestamp_ns: Vec<i64>,
+    resumed: Vec<u8>,
+    same_stop: Vec<u8>,
+    other_stop: Vec<u8>,
+    stopped: Vec<u8>,
+    background: Vec<u8>,
+    allow_stop_event_reuse: bool,
+    use_activity_stopped_as_fallback: bool,
+    apply_threshold_to_fallback: bool,
+    long_duration_threshold_ns: i64,
+    proximity_ns: i64,
+) -> Result<JsValue, JsValue> {
+    match_app_usage_update_indices_impl(
+        app_codes,
+        timestamp_ns,
+        resumed,
+        same_stop,
+        other_stop,
+        stopped,
+        background,
+        allow_stop_event_reuse,
+        use_activity_stopped_as_fallback,
+        apply_threshold_to_fallback,
+        long_duration_threshold_ns,
+        proximity_ns,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn match_app_usage_update_indices_impl(
+    app_codes: Vec<i32>,
+    timestamp_ns: Vec<i64>,
+    resumed: Vec<u8>,
+    same_stop: Vec<u8>,
+    other_stop: Vec<u8>,
+    stopped: Vec<u8>,
+    background: Vec<u8>,
+    allow_stop_event_reuse: bool,
+    use_activity_stopped_as_fallback: bool,
+    apply_threshold_to_fallback: bool,
+    long_duration_threshold_ns: i64,
+    proximity_ns: i64,
+) -> Result<JsValue, JsValue> {
     let resumed = bytes_to_bools(resumed);
     let same_stop = bytes_to_bools(same_stop);
     let other_stop = bytes_to_bools(other_stop);
     let stopped = bytes_to_bools(stopped);
     let background = bytes_to_bools(background);
-    let response = match_app_usage_update_indices_core(
+    let response = match_app_usage_update_indices_with_proximity_core(
         &app_codes,
         &timestamp_ns,
         &resumed,
@@ -57,6 +120,7 @@ pub fn match_app_usage_update_indices(
             apply_threshold_to_fallback,
             long_duration_threshold_ns,
         },
+        proximity_ns,
     )
     .map(|output| MatchUpdateIndicesResponse {
         start_indices: output.start_indices,

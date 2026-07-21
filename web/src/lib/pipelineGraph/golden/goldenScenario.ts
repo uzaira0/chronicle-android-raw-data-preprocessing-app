@@ -2,12 +2,17 @@ import {
   clearPipelineEngines,
   DEFAULT_BROWSER_OPTIONS,
   processRawCsvContent,
+  type MatcherRunner,
+  type SplitterRunner,
 } from "@/lib/browserPipeline";
+import * as matcherKernel from "@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js";
 import type {
   BrowserProcessingOptions,
   BrowserProcessingRuntime,
   BrowserSupportFile,
   BrowserSupportFiles,
+  MatcherInput,
+  MatcherOutput,
   ProcessedFileResult,
 } from "@/lib/types";
 
@@ -23,14 +28,9 @@ import type {
  * diff, which is the point.
  *
  * Determinism by construction:
- *  - `proximityIntervalSeconds` stays at its default (2s), so the REAL in-process
- *    JS proximity matcher runs — no WASM, no injected mock. The `runMatcher` /
- *    `runSplitter` stubs THROW, so if any covered config were to route to the
- *    WASM matcher or the concurrent-usage splitter the run would fail loudly
- *    rather than pass on mocked output. (The throw guards the WASM *fallback*; it
- *    does not by itself assert the matcher was invoked — every current scenario
- *    feeds `Activity Resumed` rows so it is, and the byte-lock below is the actual
- *    regression guard.)
+ *  - The real Rust/WASM v2 matcher executes for every scenario. The TypeScript
+ *    reference pipeline remains only a behavioral comparison harness; it does
+ *    not regain a production matcher implementation.
  *  - `datetimeOfPreprocessing` is pinned, so stamped output columns are fixed.
  *  - Plotting/heatmaps (the only canvas-touching steps) are off; they are
  *    visualization, not algorithm output.
@@ -233,13 +233,23 @@ export const GOLDEN_SCENARIOS: GoldenScenario[] = [
   },
 ];
 
-/** A matcher that MUST NOT be called — proves the real proximity path is used. */
-const throwingMatcher = (): Promise<never> =>
-  Promise.reject(
-    new Error(
-      "golden: runMatcher was called, but proximityIntervalSeconds>0 must route " +
-        "through the real in-process JS proximity matcher instead.",
-    ),
+/** Execute the same Rust/WASM v2 matcher kernel used by the production runtime. */
+export const goldenRustMatcher = (input: MatcherInput): Promise<MatcherOutput> =>
+  Promise.resolve(
+    matcherKernel.matchAppUsageUpdateIndicesV2(
+      input.appCodes,
+      input.timestampNs,
+      input.resumed,
+      input.sameStop,
+      input.otherStop,
+      input.stopped,
+      input.background,
+      input.options.allowStopEventReuse,
+      input.options.useActivityStoppedAsFallback,
+      input.options.applyThresholdToFallback,
+      input.options.longDurationThresholdNs,
+      input.options.proximityNs,
+    ) as MatcherOutput,
   );
 
 /** A splitter that MUST NOT be called — proves no concurrent split is taken. */
@@ -257,6 +267,8 @@ const throwingSplitter = (): Promise<never> =>
  */
 export async function runGoldenScenario(
   scenario: GoldenScenario,
+  matcher: MatcherRunner = goldenRustMatcher,
+  splitter: SplitterRunner = throwingSplitter,
 ): Promise<ProcessedFileResult> {
   clearPipelineEngines();
   return processRawCsvContent(
@@ -264,10 +276,10 @@ export async function runGoldenScenario(
     scenario.inputCsv,
     scenario.options,
     scenario.supportFiles,
-    throwingMatcher,
+    matcher,
     GOLDEN_RUNTIME,
     undefined,
-    throwingSplitter,
+    splitter,
   );
 }
 

@@ -14,9 +14,6 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import { buildChronicleGraph } from "@/lib/pipelineGraph/graphDef";
-import { buildStepGraph } from "@/lib/pipelineGraph/stepGraph";
-import { ALL_UNIT_WIRINGS } from "@/lib/pipelineGraph/steps";
 import {
   affectedBy,
   builtFrom,
@@ -38,9 +35,9 @@ import {
 import { SentenceBar } from "@/components/GraphPanel/SentenceBar";
 
 /**
- * Interactive pipeline graph. The declared dependency graph is the single
- * source of truth (web/src/lib/pipelineGraph/graphDef.ts); this panel renders
- * it with dagre positions and answers path questions visually:
+ * Interactive pipeline graph. Rust projects the product-owned topology and
+ * run state; this panel maps that typed view to dagre positions and answers
+ * path questions visually:
  *   click        → everything downstream of the clicked step lights up
  *   second click → if one step is built from the other, the connecting path
  *                  pulses (a chain); otherwise their shared upstream pulses
@@ -196,6 +193,7 @@ const NODE_TYPES = { pipeline: PipelineNode };
 
 type Props = {
   results: ProcessedFileResult[];
+  planStageView: ProcessedFileResult["rustStageView"] | null;
   displayMasker: DemoDisplayMasker;
   options: BrowserProcessingOptions;
 };
@@ -207,7 +205,7 @@ type Props = {
  */
 type GraphScale = "units" | "steps";
 
-export function GraphPanel({ results, displayMasker, options }: Props): ReactElement {
+export function GraphPanel({ results, planStageView, displayMasker }: Props): ReactElement {
   const [selected, setSelected] = useState<string | null>(null);
   const [second, setSecond] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -218,25 +216,80 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
   const instanceRef = useRef<ReactFlowInstance<PipelineFlowNode, Edge> | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
-  const unitDef = useMemo<GraphDef<unknown>>(() => buildChronicleGraph() as GraphDef<unknown>, []);
-  // The flat step DAG, derived from the same wiring objects the runner
-  // executes (cannot drift from what actually runs).
-  const stepGraph = useMemo(() => buildStepGraph(unitDef, ALL_UNIT_WIRINGS), [unitDef]);
-  const def = scale === "steps" ? stepGraph.def : unitDef;
-  const stepToUnit = stepGraph.stepToUnit;
+  const reportedResults = results.filter((result) => result.rustStageView);
+  const activeResult =
+    reportedResults.find((result) => result.inputFileName === reportFileName) ??
+    reportedResults[reportedResults.length - 1] ??
+    null;
+  const stageView = activeResult?.rustStageView ?? planStageView;
+
+  // Rust owns both topology and run state. These are family-specific view
+  // records projected into the small graph shape used only for interaction.
+  const unitDef = useMemo<GraphDef<unknown>>(
+    () =>
+      ({
+        nodes:
+          stageView?.payload.node_states.map((node) => ({
+            id: node.node_id,
+            label: node.label,
+            section: node.section,
+            inputs: node.input_nodes,
+            // Path analysis accepts option bindings when present; Rust has
+            // already evaluated applicability for this projection, so the UI
+            // deliberately receives no option-to-node semantic bindings.
+            knobs: [],
+          })) ?? [],
+      }) as unknown as GraphDef<unknown>,
+    [stageView],
+  );
+  const stepDef = useMemo<GraphDef<unknown>>(() => {
+    const sectionByUnit = new Map(
+      stageView?.payload.node_states.map((node) => [node.node_id, node.section]) ?? [],
+    );
+    return {
+      nodes:
+        stageView?.payload.step_states.map((step) => ({
+          id: step.step_id,
+          label: step.label,
+          description: step.description,
+          section: sectionByUnit.get(step.unit_id) ?? "preprocess",
+          inputs: step.input_steps,
+          knobs: [],
+        })) ?? [],
+    } as unknown as GraphDef<unknown>;
+  }, [stageView]);
+  const def = scale === "steps" ? stepDef : unitDef;
+  const stepToUnit = useMemo(
+    () =>
+      new Map(
+        stageView?.payload.step_states.map((step) => [step.step_id, step.unit_id]) ?? [],
+      ),
+    [stageView],
+  );
   const unitLabelById = useMemo(
     () => new Map(unitDef.nodes.map((node) => [node.id, node.label])),
     [unitDef],
   );
 
-  // Steps the CURRENT settings turn off entirely — evaluated live from the
-  // declared bypassedWhen predicates, no run needed.
+  const statusById = useMemo(() => {
+    const statuses = new Map<string, NodeStatus>();
+    for (const node of stageView?.payload.node_states ?? []) {
+      if (node.execution_status) statuses.set(node.node_id, node.execution_status);
+      else if (node.materialization_state === "not_applicable") {
+        statuses.set(node.node_id, "bypassed");
+      }
+    }
+    for (const step of stageView?.payload.step_states ?? []) {
+      if (step.execution_status) statuses.set(step.step_id, step.execution_status);
+    }
+    return statuses;
+  }, [stageView]);
+
+  // Applicability is evaluated by Rust from the product contract. The UI only
+  // decides whether to hide or reveal the already-projected bypassed nodes.
   const offNodes = useMemo(() => {
-    const bag = options as unknown as Record<string, unknown>;
-    return new Set(
-      def.nodes.filter((node) => node.bypassedWhen?.(bag) === true).map((node) => node.id),
-    );
-  }, [def, options]);
+    return new Set(def.nodes.filter((node) => statusById.get(node.id) === "bypassed").map((node) => node.id));
+  }, [def, statusById]);
 
   // Off steps are HIDDEN by default (the graph shows the pipeline your
   // settings actually run); the toggle reveals them dashed. Hiding splices
@@ -263,6 +316,9 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
   const layout = useMemo(() => layoutGraph(visibleDef, direction), [visibleDef, direction]);
 
   const bounds = useMemo(() => {
+    if (layout.nodes.length === 0) {
+      return { x: 0, y: 0, width: 1, height: 1 };
+    }
     const minX = Math.min(...layout.nodes.map((node) => node.x));
     const minY = Math.min(...layout.nodes.map((node) => node.y));
     const maxX = Math.max(...layout.nodes.map((node) => node.x + NODE_WIDTH));
@@ -312,13 +368,6 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
     () => new Map(def.nodes.map((node) => [node.id, node.description ?? null])),
     [def],
   );
-
-  const reportedResults = results.filter((result) => result.graphReport);
-  const activeResult =
-    reportedResults.find((result) => result.inputFileName === reportFileName) ??
-    reportedResults[reportedResults.length - 1] ??
-    null;
-  const statuses = activeResult?.graphReport?.statuses ?? null;
 
   // Ledger metrics keyed by node id. Unit ids and step ids share one
   // collision-free namespace (checked at build time), so one map serves
@@ -472,9 +521,7 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
       data: {
         label: node.label,
         section: node.section,
-        // Run statuses are recorded per UNIT (the engine's memoization
-        // boundary) — a step displays its unit's status.
-        status: statuses ? (statuses[stepToUnit.get(node.id) ?? node.id] ?? null) : null,
+        status: statusById.get(node.id) ?? null,
         isJoin: joins.has(node.id),
         isOff: offNodes.has(node.id),
         description: descriptionById.get(node.id) ?? null,
@@ -553,7 +600,7 @@ export function GraphPanel({ results, displayMasker, options }: Props): ReactEle
             {offNodes.size > 0
               ? ` ${offNodes.size} step${offNodes.size === 1 ? " is" : "s are"} turned off by your current settings${showOff ? " (shown dashed)" : " and hidden"}.`
               : ""}
-            {statuses
+            {activeResult
               ? " Badges show what the last run actually recomputed versus reused."
               : " Process a file to see per-step run status here."}
           </p>

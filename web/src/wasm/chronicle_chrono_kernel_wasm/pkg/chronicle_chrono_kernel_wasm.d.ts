@@ -32,6 +32,13 @@ export function dedupe_event_rows(ts_ns: BigInt64Array, interaction_type: string
 
 export function derive_screen_usage_sessions(event_timestamp_ns: BigInt64Array, interaction_type: string[], app_package_name: string[], timezone: string[], apps_forcing_keys: string[], apps_forcing_values: string[], auto_lock_timeout_seconds: number, auto_lock_tolerance_seconds: number, manual_lock_max_tail_seconds: number, keyguard_near_stop_seconds: number): any;
 
+/**
+ * Discover normalized IANA timezones through the Rust ingest boundary. Empty
+ * timezone cells use the product's UTC default; rows without an event
+ * timestamp are ignored exactly as they are by preprocessing.
+ */
+export function discover_timezones_v2(csv_bytes: Uint8Array): string[];
+
 export function format_timestamps(ts_ns: BigInt64Array, tz_name: string): any;
 
 export function parse_raw_csv(bytes: Uint8Array): any;
@@ -84,6 +91,7 @@ export interface InitOutput {
     readonly __wbg_pipelinev2handle_free: (a: number, b: number) => void;
     readonly dedupe_event_rows: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly derive_screen_usage_sessions: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number) => void;
+    readonly discover_timezones_v2: (a: number, b: number, c: number) => void;
     readonly format_timestamps: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly parse_raw_csv: (a: number, b: number, c: number) => void;
     readonly pipelinev2handle_app_bytes: (a: number, b: number) => void;

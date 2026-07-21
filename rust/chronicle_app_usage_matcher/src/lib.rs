@@ -181,8 +181,7 @@ pub fn split_overlapping_sessions(
     // window, so they produced no row above. Emit a single primary row for each
     // so the session is preserved (matching the non-concurrent path, which keeps
     // a 0-duration row) rather than being silently dropped.
-    let present: std::collections::HashSet<usize> =
-        out.iter().map(|r| r.session_index).collect();
+    let present: std::collections::HashSet<usize> = out.iter().map(|r| r.session_index).collect();
     for i in 0..starts.len() {
         if !present.contains(&i) {
             out.push(LayeredSession {
@@ -219,7 +218,9 @@ fn validate_lengths(
         || stopped.len() != len
         || background.len() != len
     {
-        return Err(MatcherError::new("all input arrays must have the same length"));
+        return Err(MatcherError::new(
+            "all input arrays must have the same length",
+        ));
     }
     Ok(len)
 }
@@ -839,6 +840,167 @@ pub fn match_app_usage_update_indices_core(
     })
 }
 
+/// Reference-compatible matcher with the intra-app teardown grace used by the
+/// browser product. A zero proximity delegates to the optimized sparse
+/// matcher. A positive proximity keeps a re-resumed session open when an
+/// Activity-Stopped fallback lands inside the grace window, matching the
+/// product's former TypeScript implementation exactly.
+#[allow(clippy::too_many_arguments)]
+pub fn match_app_usage_update_indices_with_proximity_core(
+    app_codes: &[i32],
+    timestamp_ns: &[i64],
+    resumed: &[bool],
+    same_stop: &[bool],
+    other_stop: &[bool],
+    stopped: &[bool],
+    background: &[bool],
+    options: MatchOptions,
+    proximity_ns: i64,
+) -> MatcherResult<MatchUpdateIndices> {
+    let len = validate_lengths(
+        app_codes,
+        timestamp_ns,
+        resumed,
+        same_stop,
+        other_stop,
+        stopped,
+        background,
+    )?;
+    if proximity_ns < 0 {
+        return Err(MatcherError::new("proximity_ns must be non-negative"));
+    }
+    if proximity_ns == 0 {
+        return match_app_usage_update_indices_core(
+            app_codes,
+            timestamp_ns,
+            resumed,
+            same_stop,
+            other_stop,
+            stopped,
+            background,
+            options,
+        );
+    }
+
+    let max_app_code = app_codes.iter().copied().max().unwrap_or(0);
+    if app_codes.iter().any(|&code| code < 0) {
+        return Err(MatcherError::new(
+            "app code arrays must contain only non-negative values",
+        ));
+    }
+    let app_slots = max_app_code as usize + 1;
+    let mut last_event_ns = vec![None; app_slots];
+    let mut last_was_same_stop = vec![false; app_slots];
+    let mut is_reresume = vec![false; len];
+    let mut open_start_indices = Vec::new();
+    let mut start_indices = Vec::new();
+    let mut stop_start_indices = Vec::new();
+    let mut stop_event_indices = Vec::new();
+    let mut missing_indices = Vec::new();
+
+    for index in 0..len {
+        let current_app = app_codes[index];
+        let is_normal_stop = same_stop[index] || other_stop[index];
+        let is_fallback_stop = stopped[index] && options.use_activity_stopped_as_fallback;
+
+        if options.allow_stop_event_reuse && (is_normal_stop || is_fallback_stop) {
+            close_reused_starts(
+                index,
+                app_codes,
+                timestamp_ns,
+                same_stop,
+                other_stop,
+                stopped,
+                background,
+                options,
+                &mut open_start_indices,
+                |start_index| {
+                    stop_start_indices.push(start_index);
+                    stop_event_indices.push(index);
+                },
+            );
+        } else if is_normal_stop || is_fallback_stop {
+            let mut matched_position = None;
+            for (position, &start_index) in open_start_indices.iter().enumerate().rev() {
+                let start_app = app_codes[start_index];
+                let same_app_compatible = same_stop[index] && start_app == current_app;
+                let other_app_compatible =
+                    other_stop[index] && start_app != current_app && !background[start_index];
+                let fallback_compatible =
+                    !is_normal_stop && is_fallback_stop && start_app == current_app;
+                if !(same_app_compatible || other_app_compatible || fallback_compatible) {
+                    continue;
+                }
+                let enforce_threshold = !fallback_compatible || options.apply_threshold_to_fallback;
+                if !is_valid_duration(
+                    timestamp_ns[start_index],
+                    timestamp_ns[index],
+                    enforce_threshold,
+                    options.long_duration_threshold_ns,
+                ) {
+                    continue;
+                }
+                if fallback_compatible
+                    && is_reresume[start_index]
+                    && i128::from(timestamp_ns[index]) - i128::from(timestamp_ns[start_index])
+                        < i128::from(proximity_ns)
+                {
+                    // Intra-app teardown artifact: leave this start open for
+                    // the next genuine stop event.
+                    break;
+                }
+                matched_position = Some(position);
+                break;
+            }
+            if let Some(position) = matched_position {
+                let start_index = open_start_indices.remove(position);
+                stop_start_indices.push(start_index);
+                stop_event_indices.push(index);
+            }
+        }
+
+        if resumed[index] {
+            let slot = current_app as usize;
+            is_reresume[index] = last_event_ns[slot].is_some_and(|last| {
+                last_was_same_stop[slot]
+                    && i128::from(timestamp_ns[index]) - i128::from(last) < i128::from(proximity_ns)
+            });
+            start_indices.push(index);
+            open_start_indices.push(index);
+        }
+
+        let slot = current_app as usize;
+        last_event_ns[slot] = Some(timestamp_ns[index]);
+        last_was_same_stop[slot] = same_stop[index];
+    }
+
+    if len > 0 {
+        let last_index = len - 1;
+        for start_index in open_start_indices {
+            if last_index > start_index
+                && is_valid_duration(
+                    timestamp_ns[start_index],
+                    timestamp_ns[last_index],
+                    true,
+                    options.long_duration_threshold_ns,
+                )
+            {
+                stop_start_indices.push(start_index);
+                stop_event_indices.push(last_index);
+            } else {
+                missing_indices.push(start_index);
+            }
+        }
+    }
+
+    Ok(MatchUpdateIndices {
+        start_indices,
+        stop_start_indices,
+        stop_event_indices,
+        missing_indices,
+    })
+}
+
 #[cfg(feature = "python")]
 fn to_py_error(error: MatcherError) -> PyErr {
     PyValueError::new_err(error.to_string())
@@ -1016,8 +1178,8 @@ fn split_overlapping_sessions_py(
     starts: PyReadonlyArray1<'_, i64>,
     stops: PyReadonlyArray1<'_, i64>,
 ) -> PyResult<(Vec<usize>, Vec<i64>, Vec<i64>, Vec<bool>)> {
-    let rows = split_overlapping_sessions(starts.as_slice()?, stops.as_slice()?)
-        .map_err(to_py_error)?;
+    let rows =
+        split_overlapping_sessions(starts.as_slice()?, stops.as_slice()?).map_err(to_py_error)?;
     let mut session_index = Vec::with_capacity(rows.len());
     let mut start_ns = Vec::with_capacity(rows.len());
     let mut stop_ns = Vec::with_capacity(rows.len());
@@ -1129,6 +1291,76 @@ mod tests {
             vec![false; len],
             vec![false; len],
         )
+    }
+
+    #[test]
+    fn proximity_ignores_intra_app_teardown_after_reresume() {
+        let app_codes = [1, 1, 1, 1, 1];
+        let timestamps = [0, 100, 150, 200, 1_000];
+        let resumed = [true, false, true, false, false];
+        let same_stop = [false, true, false, false, true];
+        let other_stop = [false; 5];
+        let stopped = [false, false, false, true, false];
+        let background = [false; 5];
+        let options = MatchOptions {
+            allow_stop_event_reuse: false,
+            use_activity_stopped_as_fallback: true,
+            apply_threshold_to_fallback: true,
+            long_duration_threshold_ns: 10_000,
+        };
+
+        let output = match_app_usage_update_indices_with_proximity_core(
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
+            options,
+            200,
+        )
+        .unwrap();
+        assert_eq!(output.start_indices, vec![0, 2]);
+        assert_eq!(output.stop_start_indices, vec![0, 2]);
+        assert_eq!(output.stop_event_indices, vec![1, 4]);
+        assert!(output.missing_indices.is_empty());
+
+        let without_proximity = match_app_usage_update_indices_with_proximity_core(
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
+            options,
+            0,
+        )
+        .unwrap();
+        assert_eq!(without_proximity.stop_event_indices, vec![1, 3]);
+    }
+
+    #[test]
+    fn negative_proximity_fails_closed() {
+        let error = match_app_usage_update_indices_with_proximity_core(
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            MatchOptions {
+                allow_stop_event_reuse: false,
+                use_activity_stopped_as_fallback: true,
+                apply_threshold_to_fallback: true,
+                long_duration_threshold_ns: 1,
+            },
+            -1,
+        )
+        .unwrap_err();
+        assert_eq!(error.to_string(), "proximity_ns must be non-negative");
     }
 
     #[test]
@@ -1414,7 +1646,14 @@ mod tests {
         options: MatchOptions,
     ) -> MatchOutput {
         match_app_usage_core(
-            app_codes, timestamp_ns, resumed, same_stop, other_stop, stopped, background, options,
+            app_codes,
+            timestamp_ns,
+            resumed,
+            same_stop,
+            other_stop,
+            stopped,
+            background,
+            options,
         )
         .expect("core matcher should succeed")
     }
@@ -1430,7 +1669,14 @@ mod tests {
         options: MatchOptions,
     ) -> MatchUpdateIndices {
         match_app_usage_update_indices_core(
-            app_codes, timestamp_ns, resumed, same_stop, other_stop, stopped, background, options,
+            app_codes,
+            timestamp_ns,
+            resumed,
+            same_stop,
+            other_stop,
+            stopped,
+            background,
+            options,
         )
         .expect("sparse matcher should succeed")
     }
@@ -1461,7 +1707,13 @@ mod tests {
         let options = background_options();
 
         let output = run_bg(
-            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
             options,
         );
         // S survived N's other-stop (stop=300, not 100); N runs to file end (300).
@@ -1471,7 +1723,13 @@ mod tests {
 
         // Sparse path agrees with dense.
         let sparse = run_update_indices_bg(
-            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
             options,
         );
         assert_eq!(
@@ -1493,14 +1751,26 @@ mod tests {
         let options = background_options();
 
         let output = run_bg(
-            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
             options,
         );
         assert_eq!(output.start_ns, vec![0, 100, -1]);
         assert_eq!(output.stop_ns, vec![100, 300, -1]);
 
         let sparse = run_update_indices_bg(
-            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
             options,
         );
         assert_eq!(
@@ -1527,7 +1797,13 @@ mod tests {
         };
 
         let output = run_bg(
-            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
             options,
         );
         // index 2 (app 2) other-stop closes B (code 3) but not S (code 1, background).
@@ -1536,7 +1812,13 @@ mod tests {
         assert_eq!(output.stop_ns, vec![100, 100, -1]);
 
         let sparse = run_update_indices_bg(
-            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
             options,
         );
         assert_eq!(
@@ -1666,15 +1948,15 @@ mod tests {
 
         // Explicit edges (in addition to the random corpus above).
         let edges: &[(Vec<i64>, Vec<i64>)] = &[
-            (vec![], vec![]),                       // empty
-            (vec![5], vec![5]),                     // single zero-width
-            (vec![0], vec![10]),                    // single
-            (vec![0, 0], vec![10, 10]),             // coincident identical
-            (vec![0, 0, 0], vec![10, 10, 10]),      // triple coincident
-            (vec![0, 40], vec![100, 60]),           // fully nested
-            (vec![0, 10], vec![10, 20]),            // adjacent-touching (stop == next start)
-            (vec![0, 5, 10], vec![5, 5, 15]),       // zero-width nested in a run
-            (vec![10, 0, 5], vec![20, 30, 5]),      // unsorted input with zero-width
+            (vec![], vec![]),                  // empty
+            (vec![5], vec![5]),                // single zero-width
+            (vec![0], vec![10]),               // single
+            (vec![0, 0], vec![10, 10]),        // coincident identical
+            (vec![0, 0, 0], vec![10, 10, 10]), // triple coincident
+            (vec![0, 40], vec![100, 60]),      // fully nested
+            (vec![0, 10], vec![10, 20]),       // adjacent-touching (stop == next start)
+            (vec![0, 5, 10], vec![5, 5, 15]),  // zero-width nested in a run
+            (vec![10, 0, 5], vec![20, 30, 5]), // unsorted input with zero-width
         ];
         for (starts, stops) in edges {
             assert_eq!(
@@ -1691,8 +1973,18 @@ mod tests {
         assert_eq!(
             out,
             vec![
-                LayeredSession { session_index: 0, start_ns: 0, stop_ns: 50, layer: UsageLayer::Primary },
-                LayeredSession { session_index: 1, start_ns: 100, stop_ns: 150, layer: UsageLayer::Primary },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 0,
+                    stop_ns: 50,
+                    layer: UsageLayer::Primary
+                },
+                LayeredSession {
+                    session_index: 1,
+                    start_ns: 100,
+                    stop_ns: 150,
+                    layer: UsageLayer::Primary
+                },
             ]
         );
     }
@@ -1704,10 +1996,30 @@ mod tests {
         assert_eq!(
             out,
             vec![
-                LayeredSession { session_index: 0, start_ns: 0, stop_ns: 40, layer: UsageLayer::Primary },
-                LayeredSession { session_index: 0, start_ns: 40, stop_ns: 60, layer: UsageLayer::Secondary },
-                LayeredSession { session_index: 0, start_ns: 60, stop_ns: 100, layer: UsageLayer::Primary },
-                LayeredSession { session_index: 1, start_ns: 40, stop_ns: 60, layer: UsageLayer::Primary },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 0,
+                    stop_ns: 40,
+                    layer: UsageLayer::Primary
+                },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 40,
+                    stop_ns: 60,
+                    layer: UsageLayer::Secondary
+                },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 60,
+                    stop_ns: 100,
+                    layer: UsageLayer::Primary
+                },
+                LayeredSession {
+                    session_index: 1,
+                    start_ns: 40,
+                    stop_ns: 60,
+                    layer: UsageLayer::Primary
+                },
             ]
         );
     }
@@ -1719,9 +2031,24 @@ mod tests {
         assert_eq!(
             out,
             vec![
-                LayeredSession { session_index: 0, start_ns: 0, stop_ns: 40, layer: UsageLayer::Primary },
-                LayeredSession { session_index: 0, start_ns: 40, stop_ns: 60, layer: UsageLayer::Secondary },
-                LayeredSession { session_index: 1, start_ns: 40, stop_ns: 100, layer: UsageLayer::Primary },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 0,
+                    stop_ns: 40,
+                    layer: UsageLayer::Primary
+                },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 40,
+                    stop_ns: 60,
+                    layer: UsageLayer::Secondary
+                },
+                LayeredSession {
+                    session_index: 1,
+                    start_ns: 40,
+                    stop_ns: 100,
+                    layer: UsageLayer::Primary
+                },
             ]
         );
     }
@@ -1733,8 +2060,18 @@ mod tests {
         assert_eq!(
             out,
             vec![
-                LayeredSession { session_index: 0, start_ns: 0, stop_ns: 100, layer: UsageLayer::Secondary },
-                LayeredSession { session_index: 1, start_ns: 0, stop_ns: 100, layer: UsageLayer::Primary },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 0,
+                    stop_ns: 100,
+                    layer: UsageLayer::Secondary
+                },
+                LayeredSession {
+                    session_index: 1,
+                    start_ns: 0,
+                    stop_ns: 100,
+                    layer: UsageLayer::Primary
+                },
             ]
         );
     }
@@ -1781,9 +2118,24 @@ mod tests {
         assert_eq!(
             out,
             vec![
-                LayeredSession { session_index: 0, start_ns: 0, stop_ns: 100, layer: UsageLayer::Secondary },
-                LayeredSession { session_index: 1, start_ns: 0, stop_ns: 100, layer: UsageLayer::Secondary },
-                LayeredSession { session_index: 2, start_ns: 0, stop_ns: 100, layer: UsageLayer::Primary },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 0,
+                    stop_ns: 100,
+                    layer: UsageLayer::Secondary
+                },
+                LayeredSession {
+                    session_index: 1,
+                    start_ns: 0,
+                    stop_ns: 100,
+                    layer: UsageLayer::Secondary
+                },
+                LayeredSession {
+                    session_index: 2,
+                    start_ns: 0,
+                    stop_ns: 100,
+                    layer: UsageLayer::Primary
+                },
             ]
         );
     }

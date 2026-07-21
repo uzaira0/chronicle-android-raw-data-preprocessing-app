@@ -1,0 +1,6 @@
+# Product-owned crates that carry semantic/computational authority.
+# The adapter's cfg(wasm)-only facade is target-incompatible with native
+# cargo-mutants; its delegate is unit-tested and its export is browser-tested.
+../rust/chronicle_preprocessing_semantic_adapter/Cargo.toml|wasm::
+../rust/chronicle_preprocessing_runtime_wasm/Cargo.toml
+../rust/chronicle_semantic_index_wasm/Cargo.toml

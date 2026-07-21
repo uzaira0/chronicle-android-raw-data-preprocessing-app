@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Freeze the preprocessing app's executable graph and product-owned plan.
+"""Freeze the preprocessing app's Rust/WASM authority and product-owned plan.
 
-The generated YAML remains a structural input only. This generator also
-verifies every projected node/step against its current source and emits an
-explicit logical-to-physical capability binding set. The existing fused Rust
-pipeline is recorded as the parity-clean shadow implementation it actually is;
-the TypeScript browser selector is not misreported as Rust.
+The generated YAML remains a structural source projection, never an executable
+body. This generator verifies every logical unit and step, binds the complete
+contract to the selected Rust runtime, and records TypeScript only where it is
+a non-authoritative browser host, interaction, visualization, or export-view
+adapter.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ TYPESCRIPT_GRAPH = ROOT / "web/src/lib/pipelineGraph"
 FEDERATION = ROOT / ".semantic-federation"
 RESOURCE_ROOT = FEDERATION / "semantic/resources"
 PLAN_OUTPUT = RESOURCE_ROOT / "chronicle.plan.json"
+RUNTIME_AUTHORITY_OUTPUT = RESOURCE_ROOT / "runtime-authority.json"
 BINDINGS_OUTPUT = FEDERATION / "semantic/capability-bindings.json"
 INVENTORY_OUTPUT = ROOT / "docs/semantic-federation/behavior-inventory.json"
 
@@ -53,7 +54,7 @@ UNIT_MODULES = {
     "outputs": "outputs.ts",
 }
 
-PARTIAL_RUST_NODES = {
+V2_PHYSICAL_STAGE_NODES = {
     "parse_events",
     "normalize_timezones",
     "dedup_and_order",
@@ -66,11 +67,149 @@ PARTIAL_RUST_NODES = {
     "outputs",
 }
 
+RUNTIME_CAPABILITY_PREFIX = (
+    "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime"
+)
+
+
+def runtime_capability(identifier: str) -> str:
+    return f"{RUNTIME_CAPABILITY_PREFIX}/{identifier}/v1"
+
+
+def rust_surface(surface_id: str, category: str, path: str, entrypoint: str) -> dict:
+    return {
+        "surface_id": surface_id,
+        "capability_id": runtime_capability(surface_id.replace("_", "-")),
+        "category": category,
+        "current": {
+            "language": "rust",
+            "path": path,
+            "entrypoint": entrypoint,
+            "status": "active-production-authority",
+        },
+        "target": {
+            "language": "rust",
+            "path": path,
+            "entrypoint": entrypoint,
+            "status": "active",
+        },
+        "requires_active_authority": True,
+    }
+
+
+RUNTIME_SURFACES = [
+    rust_surface(
+        "fused_physical_pipeline",
+        "product-computation",
+        "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs",
+        "run_pipeline_v2_with_supports",
+    ),
+    rust_surface(
+        "semantic_graph_scheduler",
+        "semantic-computation",
+        "rust/chronicle_preprocessing_semantic_adapter/src/scheduler.rs",
+        "pub fn run",
+    ),
+    rust_surface(
+        "role_materialization",
+        "semantic-computation",
+        "rust/chronicle_preprocessing_semantic_adapter/src/materialize.rs",
+        "evaluate_materialization",
+    ),
+    rust_surface(
+        "execution_evidence",
+        "evidence-authority",
+        "rust/chronicle_preprocessing_semantic_adapter/src/journal.rs",
+        "pub fn append",
+    ),
+    rust_surface(
+        "request_validation",
+        "semantic-validation",
+        "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
+        "fn validate",
+    ),
+    rust_surface(
+        "support_file_parsing",
+        "semantic-validation",
+        "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
+        "fn resolve",
+    ),
+    rust_surface(
+        "proximity_matcher_branch",
+        "product-computation",
+        "rust/chronicle_app_usage_matcher/src/lib.rs",
+        "match_app_usage_update_indices_with_proximity_core",
+    ),
+    rust_surface(
+        "aggregate_exports",
+        "artifact-computation",
+        "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_aggregates.rs",
+        "build_aggregate_outputs",
+    ),
+    rust_surface(
+        "parquet_encoding",
+        "artifact-computation",
+        "rust/chronicle_preprocessing_runtime_wasm/src/binary_exports.rs",
+        "parquet_from_csv",
+    ),
+    rust_surface(
+        "spss_encoding",
+        "artifact-computation",
+        "rust/chronicle_preprocessing_runtime_wasm/src/binary_exports.rs",
+        "sav_from_csv",
+    ),
+    rust_surface(
+        "review_metrics",
+        "semantic-computation",
+        "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs",
+        "build_review_summary",
+    ),
+    rust_surface(
+        "row_lineage",
+        "evidence-authority",
+        "rust/chronicle_preprocessing_runtime_wasm/src/binary_exports.rs",
+        "row_lineage_arrow",
+    ),
+    rust_surface(
+        "typed_views",
+        "semantic-projection",
+        "rust/chronicle_preprocessing_semantic_adapter/src/views.rs",
+        "stage_view",
+    ),
+    rust_surface(
+        "artifact_closure",
+        "storage-authority",
+        "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
+        "build_artifact_closure",
+    ),
+    rust_surface(
+        "semantic_index",
+        "semantic-projection",
+        "rust/chronicle_semantic_index_wasm/src/lib.rs",
+        "rebuild_semantic_index",
+    ),
+    rust_surface(
+        "registered_query",
+        "semantic-projection",
+        "rust/chronicle_semantic_index_wasm/src/lib.rs",
+        "query_registered",
+    ),
+]
+
 TRUE = {"kind": "always"}
 
 
 def option_true(option_key: str) -> dict:
     return {"kind": "option-true", "option_key": option_key}
+
+
+def all_conditions(*terms: dict) -> dict:
+    effective = [term for term in terms if term != TRUE]
+    if not effective:
+        return TRUE
+    if len(effective) == 1:
+        return effective[0]
+    return {"kind": "all", "terms": effective}
 
 
 APPLICABILITY = {
@@ -143,6 +282,28 @@ APPLICABILITY = {
     "outputs": TRUE,
 }
 
+STEP_LOCAL_APPLICABILITY = {
+    "exact_dedupe": option_true("deduplicate_exact_rows"),
+    "nudge_duplicate_timestamps": option_true(
+        "correct_duplicate_event_timestamps"
+    ),
+    "split_concurrent": {
+        "kind": "any",
+        "terms": [
+            option_true("model_concurrent_usage"),
+            option_true("use_background_apps_file"),
+        ],
+    },
+    "blank_junk_timing": option_true("use_filter_file"),
+    "drop_selected_types": {
+        "kind": "array-nonempty",
+        "option_key": "interaction_types_to_remove",
+    },
+    "drop_zero_duration": option_true("filter_zero_duration_sessions"),
+    "inject_placeholders": option_true("add_no_activity_placeholder_days"),
+    "build_coverage_table": option_true("enable_day_coverage"),
+}
+
 SUPPORT_ROLES = {
     "filter_file": {"required_when": option_true("use_filter_file")},
     "apps_forcing_screen_open_file": {
@@ -184,7 +345,16 @@ def closure_digest(paths: list[Path]) -> str:
     payload = hashlib.sha256()
     files: list[Path] = []
     for path in paths:
-        files.extend(sorted(path.rglob("*")) if path.is_dir() else [path])
+        if path.is_dir():
+            files.extend(
+                item
+                for item in sorted(path.rglob("*"))
+                if not {"target", ".git", "__pycache__"}.intersection(
+                    item.relative_to(path).parts
+                )
+            )
+        else:
+            files.append(path)
     for path in sorted({item for item in files if item.is_file()}):
         payload.update(str(path.relative_to(ROOT)).encode("utf-8"))
         payload.update(b"\0")
@@ -257,11 +427,7 @@ def build_plan(projection: dict) -> dict:
                 "can_bypass": node["has_bypass"],
                 "early_cutoff": node["has_early_cutoff"],
                 "determinism": "semantic",
-                "implementation_status": (
-                    "rust-v2-parity-shadow-and-typescript-active"
-                    if node_id in PARTIAL_RUST_NODES
-                    else "typescript-active-rust-unbound"
-                ),
+                "implementation_status": "rust-wasm-active-logical-authority",
             }
         )
 
@@ -277,6 +443,10 @@ def build_plan(projection: dict) -> dict:
                 "description": step["step_description"],
                 "capability_id": capability("step", step_id),
                 "input_steps": step.get("step_inputs", []),
+                "applicability": all_conditions(
+                    APPLICABILITY[step["unit_id"]],
+                    STEP_LOCAL_APPLICABILITY.get(step_id, TRUE),
+                ),
                 "can_bypass": step["has_bypass"],
                 "legacy_executable_source": str(source.relative_to(ROOT)),
                 "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1",
@@ -289,10 +459,13 @@ def build_plan(projection: dict) -> dict:
         "revision": "0.1.0",
         "family": "incremental-dataflow",
         "implementation_state": {
-            "browser_selector": "typescript-worker-calls-processRawCsvContent",
-            "active_rust_kernel": "chronicle-app-usage-wasm-matcher",
-            "available_fused_rust_pipeline": "process_full_pipeline_v2-parity-clean-shadow-not-worker-selected",
-            "target": "existing-fused-rust-pipeline-through-product-semantic-adapter",
+            "browser_selector": "typescript-worker-calls-rust-execute-workspace",
+            "active_logical_authority": "rust-composed-runtime",
+            "physical_execution": "fused-rust-pipeline-v2",
+            "logical_execution_evidence": "rust-scheduler-15-units-55-step-projection",
+            "workspace_authority": "rust-root-and-closure-contract-with-opfs-browser-io-adapter",
+            "semantic_index": "derived-rust-oxigraph-registered-queries-only",
+            "typescript_boundary": "interaction-visualization-and-browser-io-only",
             "generated_yaml_is_executable_authority": False,
         },
         "relations": ["feeds", "gates", "tunes"],
@@ -338,100 +511,157 @@ def build_plan(projection: dict) -> dict:
     }
 
 
-def build_bindings(plan: dict) -> dict:
-    node_capabilities = {
-        node["node_id"]: node["capability_id"] for node in plan["nodes"]
-    }
-    step_capabilities = {
-        step["step_id"]: step["capability_id"] for step in plan["steps"]
-    }
-    rust_v2_capabilities = [
-        node_capabilities[node_id] for node_id in sorted(PARTIAL_RUST_NODES)
-    ] + [
-        step["capability_id"]
-        for step in plan["steps"]
-        if step["unit_id"] in PARTIAL_RUST_NODES
+def build_runtime_authority(plan: dict) -> dict:
+    logical_capabilities = [node["capability_id"] for node in plan["nodes"]] + [
+        step["capability_id"] for step in plan["steps"]
     ]
-    typescript_capabilities = list(node_capabilities.values()) + [
-        step_capabilities[step_id]
-        for step_id in step_capabilities
-        if step_id != "run_matcher"
+    return {
+        "protocol_version": "0.1",
+        "contract_id": (
+            "urn:uzaira0:semantic-federation:chronicle-preprocessing:runtime-authority/v1"
+        ),
+        "revision": "0.1.0",
+        "target_state": {
+            "semantic_computation": "rust-wasm",
+            "evidence_and_storage": "rust-wasm",
+            "typescript": "interaction-visualization-and-thin-browser-host-adapters-only",
+        },
+        "logical_plan_capability_ids": logical_capabilities,
+        "surfaces": RUNTIME_SURFACES,
+        "typescript_host_allowances": [
+            {
+                "path": "web/src/lib/chronicleMatcher.ts",
+                "purpose": "Web Worker lifecycle, request correlation, transferables, and pool fault handling",
+                "may_define_product_semantics": False,
+            },
+            {
+                "path": "web/src/workers/chronicle-worker.ts",
+                "purpose": "Thin Comlink and browser-API adapter for the active Rust runtime",
+                "may_define_product_semantics": False,
+            },
+            {
+                "path": "web/src/lib/opfsArtifactStore.ts",
+                "purpose": "OPFS byte I/O, alternating root slots, and browser capability probing around Rust-defined digests and roots",
+                "may_define_product_semantics": False,
+            },
+            {
+                "path": "web/src/lib/fileInspection.ts",
+                "purpose": "Non-authoritative upload readiness preview; execution re-parses and validates in Rust",
+                "may_define_product_semantics": False,
+            },
+            {
+                "path": "web/src/lib/processingReport.ts",
+                "purpose": "Download-facing projection of Rust-owned execution evidence and browser environment metadata",
+                "may_define_product_semantics": False,
+            },
+            {
+                "path": "web/src/lib/zip.ts",
+                "purpose": "Browser download container formatting only",
+                "may_define_product_semantics": False,
+            },
+        ],
+        "typescript_visualization_allowances": [
+            "web/src/lib/plotGenerator.ts",
+            "web/src/lib/plotScene.ts",
+            "web/src/lib/timelineViewer.ts",
+            "web/src/lib/reviewCompareScene.ts",
+            "web/src/components",
+            "web/src/App.tsx",
+        ],
+        "cutover_gate": {
+            "enforced": True,
+            "rule": (
+                "Every required runtime surface and every logical plan capability has exactly "
+                "one active Rust authority; TypeScript retains no semantic, transformation, "
+                "scheduler, evidence, cache-key, or storage authority."
+            ),
+        },
+    }
+
+
+def build_bindings(plan: dict, runtime_authority: dict) -> dict:
+    logical_capabilities = [node["capability_id"] for node in plan["nodes"]] + [
+        step["capability_id"] for step in plan["steps"]
+    ]
+    runtime_capabilities = [
+        surface["capability_id"] for surface in runtime_authority["surfaces"]
+    ]
+    complete_authority = logical_capabilities + runtime_capabilities
+    runtime_sources = [
+        ROOT / "rust/chronicle_preprocessing_runtime_wasm",
+        ROOT / "rust/chronicle_preprocessing_semantic_adapter",
+        ROOT / "rust/chronicle_chrono_kernel_wasm",
+        ROOT / "rust/chronicle_app_usage_matcher",
+        ROOT / "rust/chronicle_semantic_index_wasm",
     ]
     return {
         "protocol_version": "0.1",
         "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1",
         "product_profile_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
-        "product_contract_digest": rendered_digest(plan),
+        "product_contract_digest": rendered_digest(
+            {"plan": plan, "runtime_authority": runtime_authority}
+        ),
         "bindings": [
             {
-                "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-full-pipeline-v2",
-                "capability_ids": rust_v2_capabilities,
+                "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-product-runtime",
+                "capability_ids": complete_authority,
                 "implementation": {
-                    "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-full-pipeline-v2",
+                    "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-product-runtime",
                     "language": "rust",
                     "target": "wasm32-unknown-unknown",
-                    "source": "rust/chronicle_chrono_kernel_wasm",
-                    "entrypoint": "process_full_pipeline_v2",
-                    "build_digest": closure_digest(
-                        [
-                            ROOT / "rust/chronicle_chrono_kernel_wasm",
-                            ROOT / "rust/chronicle_app_usage_matcher",
-                        ]
-                    ),
+                    "source": "rust/chronicle_preprocessing_runtime_wasm",
+                    "entrypoint": "execute_workspace",
+                    "build_digest": closure_digest(runtime_sources),
                 },
                 "relationship": "fused",
-                "status": "shadow",
-                "authority": False,
+                "status": "active",
+                "authority": True,
                 "evidence_projection": {
-                    "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/rust-v2-logical-projection/v1",
-                    "loss": "declared-lossy",
-                    "notes": "The fused call is parity-clean for its covered behavior but does not yet emit every logical step event.",
+                    "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/rust-runtime/v1",
+                    "loss": "lossless",
+                    "notes": "The physical kernel is fused, while the Rust scheduler emits complete logical-unit status, bindings, reasons, obligations, artifact closure, and step projection.",
                 },
-                "notes": "98-fixture byte-parity implementation; present in the product but not selected by the production browser worker.",
+                "notes": "Production worker authority for parsing, validation, computation, scheduling, evidence, artifact encoding, typed views, and semantic indexing.",
             },
             {
-                "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-matcher-wasm",
-                "capability_ids": [step_capabilities["run_matcher"]],
+                "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-native-parity-runtime",
+                "capability_ids": complete_authority,
                 "implementation": {
-                    "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-matcher-wasm",
+                    "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-native-parity-runtime",
                     "language": "rust",
-                    "target": "wasm32-unknown-unknown",
-                    "source": "rust/chronicle_app_usage_wasm",
-                    "entrypoint": "match_app_usage_update_indices",
-                    "build_digest": closure_digest(
-                        [
-                            ROOT / "rust/chronicle_app_usage_wasm",
-                            ROOT / "rust/chronicle_app_usage_matcher",
-                        ]
-                    ),
+                    "target": "native-test",
+                    "source": "rust/chronicle_preprocessing_runtime_wasm",
+                    "entrypoint": "execute_workspace_native",
+                    "build_digest": closure_digest(runtime_sources),
                 },
                 "relationship": "one-to-one",
                 "status": "active",
-                "authority": True,
+                "authority": False,
                 "evidence_projection": {
-                    "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/matcher/v1",
+                    "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/native-wasm-parity/v1",
                     "loss": "lossless",
+                    "notes": "Non-authoritative native target executes the same Rust runtime for deterministic parity and fault tests.",
                 },
             },
             {
-                "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/typescript-browser-graph",
-                "capability_ids": typescript_capabilities,
+                "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/typescript-reference-harness",
+                "capability_ids": logical_capabilities,
                 "implementation": {
-                    "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/typescript-browser-graph",
+                    "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/typescript-reference-harness",
                     "language": "typescript",
-                    "target": "browser-web-worker",
-                    "source": "web/src/lib/pipelineGraph",
-                    "entrypoint": "browserPipeline.processRawCsvContent",
+                    "target": "test-only",
+                    "source": "web/src/lib/browserPipeline.ts",
+                    "entrypoint": "processRawCsvContent",
                     "build_digest": closure_digest([TYPESCRIPT_PIPELINE, TYPESCRIPT_GRAPH]),
                 },
-                "relationship": "fused",
-                "status": "active",
-                "authority": True,
+                "relationship": "one-to-one",
+                "status": "retired",
+                "authority": False,
                 "evidence_projection": {
-                    "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/execution-ledger/v1",
+                    "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/migration-reference/v1",
                     "loss": "lossless",
+                    "notes": "Retained only for regression and migration-history tests; excluded from production imports and bundles.",
                 },
-                "notes": "Current browser selection and advanced-node authority; retained until the existing Rust pipeline and remaining product nodes are wired and parity-proven.",
             },
         ],
     }
@@ -465,7 +695,12 @@ def build_inventory(projection: dict, plan: dict) -> dict:
             "rust_migration_base": {
                 "path": str(PIPELINE_V2.relative_to(ROOT)),
                 "digest": digest(PIPELINE_V2),
-                "coverage": "parity-clean-fused-shadow-not-worker-selected",
+                "coverage": "active-fused-physical-kernel-behind-complete-logical-rust-runtime",
+            },
+            "rust_product_runtime": {
+                "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
+                "digest": digest(ROOT / "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs"),
+                "coverage": "production-worker-authority",
             },
         },
         "coverage": {
@@ -475,7 +710,14 @@ def build_inventory(projection: dict, plan: dict) -> dict:
         },
         "node_ids": node_ids,
         "step_ids": step_ids,
-        "rust_gap_nodes": [node for node in node_ids if node not in PARTIAL_RUST_NODES],
+        "fused_rust_physical_stage_nodes": [
+            node for node in node_ids if node in V2_PHYSICAL_STAGE_NODES
+        ],
+        "rust_unimplemented_nodes": [],
+        "rust_complete_logical_authority_nodes": node_ids,
+        "rust_complete_logical_authority_steps": step_ids,
+        "typescript_production_authority_capabilities": [],
+        "runtime_authority_surface_count": len(RUNTIME_SURFACES),
         "resolved_baseline_findings": [
             {
                 "gate": "trivy-bun-lock",
@@ -527,14 +769,16 @@ def main() -> int:
     args = parser.parse_args()
     projection = load_and_verify()
     plan = build_plan(projection)
-    bindings = build_bindings(plan)
+    runtime_authority = build_runtime_authority(plan)
+    bindings = build_bindings(plan, runtime_authority)
     inventory = build_inventory(projection, plan)
     write_or_check(PLAN_OUTPUT, plan, args.check)
+    write_or_check(RUNTIME_AUTHORITY_OUTPUT, runtime_authority, args.check)
     write_or_check(BINDINGS_OUTPUT, bindings, args.check)
     write_or_check(INVENTORY_OUTPUT, inventory, args.check)
     sync_existing_ontology_resources(args.check)
     mode = "checked" if args.check else "generated"
-    print(f"semantic_behavior_inventory={mode} nodes=15 steps=55 active_bindings=70")
+    print(f"semantic_behavior_inventory={mode} nodes=15 steps=55 logical_authorities=70")
     return 0
 
 

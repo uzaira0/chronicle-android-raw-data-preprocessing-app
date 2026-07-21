@@ -1,7 +1,8 @@
 SEM_PROF_BIN ?= semprof
 SEMANTIC_REGISTRY ?= vendor/semantic-profile-registry
 
-.PHONY: semantic check architecture chronicle closure
+.PHONY: semantic check architecture chronicle closure production-readiness \
+	quality-rust-coverage quality-rust-mutation quality-rust-supply-chain
 
 semantic:
 	$(SEM_PROF_BIN) generate --source semantic/profile-source.json --output semantic/semantic-profile.json
@@ -22,3 +23,14 @@ closure: semantic
 
 check: semantic architecture chronicle closure
 	python3 scripts/check-semantic.py
+
+quality-rust-coverage:
+	scripts/check-rust-quality.sh coverage
+
+quality-rust-mutation:
+	CHRONICLE_SEMANTIC_ROOT=$(CURDIR)/semantic CHRONICLE_REPOSITORY_ROOT=$(abspath ..) scripts/check-rust-quality.sh mutation
+
+quality-rust-supply-chain:
+	scripts/check-rust-quality.sh supply-chain
+
+production-readiness: check quality-rust-supply-chain quality-rust-coverage quality-rust-mutation

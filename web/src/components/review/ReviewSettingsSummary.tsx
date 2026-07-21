@@ -26,6 +26,7 @@ const KIND_LABEL: Record<OutputKind, string> = {
   aggregate: "Aggregate",
   parquet: "Parquet",
   spss: "SPSS (.sav)",
+  lineage: "Arrow row lineage",
 };
 
 /** "This is what you ran": the options changed from default plus the output

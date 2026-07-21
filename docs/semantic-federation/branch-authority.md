@@ -7,9 +7,10 @@
   currently imports its Python engine.
 
 The isolated branch is stacked on desktop-removal. The generated YAML is a
-structural projection, not an executable body. The production browser path and
-the parity-clean fused Rust v2 path are recorded separately in the product's
-capability-binding set.
+structural projection, not an executable body. The production browser worker
+selects the composed Rust/WASM runtime; its fused physical pipeline, complete
+logical scheduler/evidence projection, and non-authoritative native parity
+target are recorded separately in the product capability-binding set.
 
 Production Pages, `main`, research-pipeline, GitOps, homelab provisioning, and
 runner infrastructure are outside this branch's authority.

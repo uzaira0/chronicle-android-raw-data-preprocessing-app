@@ -8,10 +8,14 @@ import {
   useState,
   type ReactElement,
 } from "react";
-import { PREPROCESSOR_VERSION, resolveDefaultSupportFiles } from "@/lib/browserPipeline";
+import {
+  PREPROCESSOR_VERSION,
+  resolveDefaultSupportFiles,
+} from "@/lib/processingUiContract";
 import {
   WorkerPool,
   discoverTimezones,
+  getPlanStageView,
   processRawCsv,
   processRawCsvBytesViaPool,
   warmMatcher,
@@ -21,6 +25,10 @@ import { ensureNotificationPermission, sendNotification } from "@/lib/notificati
 import { clearLastRun, loadLastRun, saveLastRun } from "@/lib/lastRunStore";
 import { computeSafeConcurrency, readDeviceMemory } from "@/lib/concurrency";
 import { clearCachedRun as clearCachedRunData } from "@/lib/localDataReset";
+import {
+  probeOpfsCapability,
+  type OpfsCapability,
+} from "@/lib/opfsArtifactStore";
 import {
   estimateStoragePressure,
   formatBytes,
@@ -70,6 +78,7 @@ import { ScreenDetectionCard } from "@/components/ScreenDetectionCard";
 import { InteractionSemanticsCard } from "@/components/InteractionSemanticsCard";
 import { PerformanceCard } from "@/components/PerformanceCard";
 import { ResultPanel } from "@/components/ResultPanel";
+import { WorkspaceBackupControls } from "@/components/WorkspaceBackupControls";
 import { ViewPanel } from "@/components/ViewPanel";
 import type { FileProgress } from "@/components/ProgressList";
 import { Toast } from "@/components/Toast";
@@ -92,7 +101,13 @@ async function readSupportFile(file: File): Promise<BrowserSupportFile> {
 }
 
 function getInjectedRuntime(): BrowserProcessingRuntime | undefined {
-  return typeof window !== "undefined" ? window.__CHRONICLE_TEST_RUNTIME__ : undefined;
+  if (typeof window === "undefined") return undefined;
+  return (
+    window.__CHRONICLE_TEST_RUNTIME__ ?? {
+      executionAuthority: "rust",
+      persistRustWorkspace: true,
+    }
+  );
 }
 
 const STEP_WEIGHTS: Record<ProgressStepKind, number> = {
@@ -184,6 +199,11 @@ export default function App(): ReactElement {
   const [processExpanded, setProcessExpanded] = useState(true);
   const [hideDemoMetadata, setHideDemoMetadata] = useState(() => readDemoDisplayEnabled());
   const [storagePressure, setStoragePressure] = useState<StoragePressure | null>(null);
+  const [workspaceCapability, setWorkspaceCapability] =
+    useState<OpfsCapability | null>(null);
+  const [planStageView, setPlanStageView] = useState<
+    ProcessedFileResult["rustStageView"] | null
+  >(null);
   const [storagePressureDismissed, setStoragePressureDismissed] = useState(false);
   const [retryingFile, setRetryingFile] = useState<string | null>(null);
   const [updateReady, setUpdateReady] = useState(false);
@@ -242,7 +262,9 @@ export default function App(): ReactElement {
   // Ask once for persistent storage so projects + the cached run aren't evicted
   // under disk pressure (best-effort; ignored where unsupported/denied).
   useEffect(() => {
-    void requestPersistentStorage();
+    void requestPersistentStorage().finally(() => {
+      void probeOpfsCapability().then(setWorkspaceCapability);
+    });
   }, []);
 
   // Warm the matcher worker on boot: faster first run, and a still-live worker
@@ -333,6 +355,25 @@ export default function App(): ReactElement {
     localStorage.setItem(WORKFLOW_STORAGE_KEY, activeWorkflow);
   }, [activeWorkflow]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void getPlanStageView(options)
+      .then((view) => {
+        if (!cancelled) setPlanStageView(view);
+      })
+      .catch((viewError: unknown) => {
+        if (cancelled) return;
+        setError(
+          viewError instanceof Error
+            ? `Rust plan view unavailable: ${viewError.message}`
+            : "Rust plan view unavailable.",
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [options]);
+
   const onFilesChange = (files: File[], input: { clearCachedRun?: boolean } = {}) => {
     const { clearCachedRun = true } = input;
     setUploadedFiles(files);
@@ -360,6 +401,13 @@ export default function App(): ReactElement {
           new Set(inspections.flatMap((inspection) => inspection.timezones)),
         ).sort((left, right) => left.localeCompare(right));
         setDiscoveredTimezones(timezones);
+        setOptions((current) =>
+          current.timezoneHandling.startsWith("selected-") &&
+          !current.selectedTimezone?.trim() &&
+          timezones.length
+            ? { ...current, selectedTimezone: timezones[0] }
+            : current,
+        );
       })
       .catch((inspectionError: unknown) => {
         setToast({
@@ -439,6 +487,44 @@ export default function App(): ReactElement {
     buildSupportFilesForOptions(options);
 
   /**
+   * Resolve the only input-dependent processing default through the Rust
+   * worker. File inspection improves the interaction, but execution never
+   * trusts that asynchronous UI helper to have completed or to be semantic
+   * authority. A selected-timezone policy therefore either receives an
+   * explicit timezone or deterministically selects the first discovered IANA
+   * value; an input with no discoverable timezone still fails closed.
+   */
+  const resolveRunOptions = async (
+    requested: BrowserProcessingOptions,
+    files: File[],
+  ): Promise<BrowserProcessingOptions> => {
+    const selectedTimezone = requested.selectedTimezone?.trim();
+    if (!requested.timezoneHandling.startsWith("selected-") || selectedTimezone) {
+      return selectedTimezone === requested.selectedTimezone
+        ? requested
+        : { ...requested, selectedTimezone };
+    }
+
+    const discovered = new Set<string>();
+    for (const file of files) {
+      const timezones = await discoverTimezones(await file.text(), getInjectedRuntime());
+      timezones.forEach((timezone) => {
+        const normalized = timezone.trim();
+        if (normalized) discovered.add(normalized);
+      });
+    }
+    const ordered = Array.from(discovered).sort((left, right) => left.localeCompare(right));
+    const resolved = ordered[0];
+    if (!resolved) {
+      throw new Error(
+        "The selected timezone policy requires a timezone, but Rust could not discover one in the selected raw files. Choose a timezone in Settings or use a primary-timezone policy.",
+      );
+    }
+    setDiscoveredTimezones(ordered);
+    return { ...requested, selectedTimezone: resolved };
+  };
+
+  /**
    * Re-process a single already-uploaded file under a different config (the
    * View tab's "Arm B"), reusing the same support-file resolution as a normal
    * run. Returns the fresh result (with its own reviewSummary + timeline); the
@@ -510,6 +596,27 @@ export default function App(): ReactElement {
       return;
     }
     processingRef.current = true;
+    let runOptions: BrowserProcessingOptions;
+    try {
+      runOptions = await resolveRunOptions(options, uploadedFiles);
+      if (runOptions !== options) setOptions(runOptions);
+    } catch (resolutionError) {
+      const message =
+        resolutionError instanceof Error ? resolutionError.message : String(resolutionError);
+      setError(message);
+      setToast({ message, isError: true });
+      setActiveWorkflow("process");
+      processingRef.current = false;
+      return;
+    }
+    const capability = await probeOpfsCapability();
+    setWorkspaceCapability(capability);
+    if (capability.status === "unavailable") {
+      setError(`Durable local workspace unavailable. ${capability.reason}`);
+      setActiveWorkflow("process");
+      processingRef.current = false;
+      return;
+    }
     setActiveWorkflow("process");
     setProcessExpanded(true);
     setIsRunning(true);
@@ -531,14 +638,14 @@ export default function App(): ReactElement {
     // the per-file Retry control stays visible (a clean run collapses to declutter).
     let keepDetailsOpen = false;
     try {
-      const userSupportFiles = await buildSupportFiles();
+      const userSupportFiles = await buildSupportFilesForOptions(runOptions);
       const nextResults: Array<ProcessedFileResult | undefined> = Array.from({ length: uploadedFiles.length }, () => undefined);
       const totalInputBytes = uploadedFiles.reduce((sum, file) => sum + file.size, 0);
-      const concurrency = options.parallelProcessing
+      const concurrency = runOptions.parallelProcessing
         ? computeSafeConcurrency({
             fileCount: uploadedFiles.length,
             totalInputBytes,
-            userCap: options.parallelMaxWorkers,
+            userCap: runOptions.parallelMaxWorkers,
             hardwareConcurrency: typeof navigator !== "undefined" ? navigator.hardwareConcurrency : undefined,
             deviceMemory: readDeviceMemory(),
           })
@@ -546,7 +653,7 @@ export default function App(): ReactElement {
       // Resolve bundled-default support files once on the main thread so
       // every worker uses identical bytes (no per-worker fetches), and so
       // the user's uploads win over defaults.
-      const supportFiles = await resolveDefaultSupportFiles(options, userSupportFiles);
+      const supportFiles = await resolveDefaultSupportFiles(runOptions, userSupportFiles);
       pool = concurrency > 1 ? new WorkerPool(concurrency) : null;
       poolRef.current = pool;
       let cursor = 0;
@@ -569,7 +676,7 @@ export default function App(): ReactElement {
                 pool,
                 file.name,
                 bytes,
-                options,
+                runOptions,
                 supportFiles,
                 getInjectedRuntime(),
                 handleProgressEvent,
@@ -579,7 +686,7 @@ export default function App(): ReactElement {
               result = await processRawCsv(
                 file.name,
                 text,
-                options,
+                runOptions,
                 supportFiles,
                 getInjectedRuntime(),
                 handleProgressEvent,
@@ -607,7 +714,7 @@ export default function App(): ReactElement {
       keepDetailsOpen = failures.length > 0;
       setResults(successful);
       if (successful.length) {
-        setResultsOptions(options);
+        setResultsOptions(runOptions);
       }
       const nextTimezones = Array.from(
         new Set(successful.flatMap((result) => result.availableTimezones)),
@@ -618,7 +725,7 @@ export default function App(): ReactElement {
       if (successful.length) {
         setDiscoveredTimezones(nextTimezones);
         void saveLastRun({
-          options,
+          options: runOptions,
           results: successful,
           discoveredTimezones: nextTimezones,
         })
@@ -719,6 +826,13 @@ export default function App(): ReactElement {
         [fileName]: { fileName, status: "running", stepKind: "parse", percent: 0 },
       }));
       try {
+        const capability = await probeOpfsCapability();
+        setWorkspaceCapability(capability);
+        if (capability.status === "unavailable") {
+          throw new Error(
+            `Durable local workspace unavailable. ${capability.reason}`,
+          );
+        }
         const userSupportFiles = await buildSupportFiles();
         const supportFiles = await resolveDefaultSupportFiles(options, userSupportFiles);
         const text = await file.text();
@@ -857,6 +971,16 @@ export default function App(): ReactElement {
             >
               Reload
             </button>
+          </div>
+        ) : null}
+
+        {workspaceCapability?.status === "unavailable" ? (
+          <div className="storage-pressure" role="alert" data-testid="workspace-unavailable">
+            <span className="storage-pressure__text">
+              <strong>Durable local processing is unavailable.</strong>{" "}
+              {workspaceCapability.reason} Processing is disabled because this app will not
+              silently run without a recoverable, verified workspace.
+            </span>
           </div>
         ) : null}
 
@@ -1056,6 +1180,7 @@ export default function App(): ReactElement {
               setOptions={setOptions}
               uploadedFiles={uploadedFiles}
               inspections={fileInspections}
+              isInspecting={isInspectingFiles}
               isRunning={isRunning}
               displayMasker={demoDisplay}
               onProcess={() => {
@@ -1072,6 +1197,7 @@ export default function App(): ReactElement {
               onExpandedChange={setProcessExpanded}
             />
 
+            <WorkspaceBackupControls results={results} />
             <div aria-live="polite">
               <ResultPanel
                 results={results}
@@ -1112,7 +1238,12 @@ export default function App(): ReactElement {
           >
             {activeWorkflow === "graph" ? (
               <Suspense fallback={<p className="empty-state">Loading the pipeline graph…</p>}>
-                <GraphPanel results={results} displayMasker={demoDisplay} options={options} />
+                <GraphPanel
+                  results={results}
+                  planStageView={planStageView}
+                  displayMasker={demoDisplay}
+                  options={options}
+                />
               </Suspense>
             ) : null}
           </div>

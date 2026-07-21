@@ -7,45 +7,73 @@
 #   2. generate t=2 / t=3 covering arrays with Microsoft PICT;
 #   3. decode them into full option objects (executed by
 #      web/src/lib/pipelineGraph/coveringArrayValidation.test.ts);
-#   4. measure before/after coverage with NIST CCM.
+#   4. verify exact t=2 / t=3 coverage with the in-repository checker;
+#   5. optionally cross-check the measurement with NIST CCM.
 #
-# Tool locations (override via env):
-#   PICT_BIN — Microsoft PICT binary; build: git clone
+# Optional tool locations (override via env):
+#   PICT_BIN — Microsoft PICT binary; when absent, checked-in arrays are
+#              verified instead of regenerated. Build: git clone
 #              https://github.com/microsoft/pict && cmake -S pict -B pict/build
 #              -DCMAKE_BUILD_TYPE=Release && cmake --build pict/build
-#   CCM_CMD  — NIST CCMCL wrapper; headless-patched build lives in
-#              /home/opt/nist-ccm (see its ccm script + ctt-src patch).
+#   CCM_CMD  — optional NIST CCMCL wrapper for an independent measurement.
+#
+# The exact built-in verifier is authoritative. The gate does not depend on an
+# undistributable workstation path; external tools are differential checks or
+# regeneration aids.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WEB="$REPO_ROOT/web"
 OUT="$WEB/combinatorial"
-PICT_BIN="${PICT_BIN:-/home/opt/pict/build/cli/pict}"
-CCM_CMD="${CCM_CMD:-/home/opt/nist-ccm/ccm}"
+if [ -n "${PICT_BIN:-}" ]; then
+  [ -x "$PICT_BIN" ] || { echo "PICT_BIN is not executable: $PICT_BIN"; exit 1; }
+  PICT_TOOL="$PICT_BIN"
+else
+  PICT_TOOL="$(command -v pict || true)"
+fi
+if [ -n "${CCM_CMD:-}" ]; then
+  [ -x "$CCM_CMD" ] || { echo "CCM_CMD is not executable: $CCM_CMD"; exit 1; }
+  CCM_TOOL="$CCM_CMD"
+else
+  CCM_TOOL="$(command -v ccm || true)"
+fi
 
-[ -x "$PICT_BIN" ] || { echo "PICT not found at $PICT_BIN (set PICT_BIN; see header)"; exit 1; }
-[ -x "$CCM_CMD" ] || { echo "CCM not found at $CCM_CMD (set CCM_CMD; see header)"; exit 1; }
-
-echo "── 1/4 regenerate models + executed-test projection"
+echo "── 1/5 regenerate models + executed-test projection"
 (cd "$WEB" && ./node_modules/.bin/vite-node scripts/generate_combinatorial_model.mts)
 
-echo "── 2/4 PICT covering arrays"
-"$PICT_BIN" "$OUT/model.pict" /o:2 > "$OUT/covering_t2.tsv"
-"$PICT_BIN" "$OUT/model.pict" /o:3 > "$OUT/covering_t3.tsv"
+echo "── 2/5 PICT covering arrays"
+if [ -n "$PICT_TOOL" ]; then
+  "$PICT_TOOL" "$OUT/model.pict" /o:2 > "$OUT/covering_t2.tsv"
+  "$PICT_TOOL" "$OUT/model.pict" /o:3 > "$OUT/covering_t3.tsv"
+else
+  echo "  PICT is not installed; verifying the checked-in arrays without regenerating them"
+  [ -s "$OUT/covering_t2.tsv" ] && [ -s "$OUT/covering_t3.tsv" ] \
+    || { echo "checked-in covering arrays are missing; install PICT or set PICT_BIN"; exit 1; }
+fi
 echo "  t=2: $(($(wc -l < "$OUT/covering_t2.tsv") - 1)) configs, t=3: $(($(wc -l < "$OUT/covering_t3.tsv") - 1)) configs"
 
-echo "── 3/4 decode arrays for the vitest execution suite"
+echo "── 3/5 decode arrays for the vitest execution suite"
 (cd "$WEB" \
   && ./node_modules/.bin/vite-node scripts/generate_combinatorial_model.mts decode combinatorial/covering_t2.tsv combinatorial/covering_array_t2.json \
   && ./node_modules/.bin/vite-node scripts/generate_combinatorial_model.mts decode combinatorial/covering_t3.tsv combinatorial/covering_array_t3.json)
 
-echo "── 4/4 NIST CCM coverage (t=2; t≥3 is slow — run with TWAY=2,3 to include)"
-TWAY="${TWAY:-2}"
+echo "── 4/5 exact valid-tuple coverage (portable built-in verifier)"
 { cat "$OUT/existing_tests.csv"
   tail -n +2 "$OUT/covering_t2.tsv" | tr '\t' ','
   tail -n +2 "$OUT/covering_t3.tsv" | tr '\t' ','
 } > "$OUT/with_covering_arrays.csv"
 echo "  existing tests only:"
-"$CCM_CMD" -I "$OUT/existing_tests.csv" -A "$OUT/model.acts.txt" -P -T "$TWAY" -p 2>&1 | grep "Total .*coverage" | sed 's/^/    /'
+(cd "$WEB" && ./node_modules/.bin/vite-node scripts/generate_combinatorial_model.mts coverage 2,3 "$OUT/existing_tests.csv")
 echo "  existing + covering arrays:"
-"$CCM_CMD" -I "$OUT/with_covering_arrays.csv" -A "$OUT/model.acts.txt" -P -T "$TWAY" -p 2>&1 | grep "Total .*coverage" | sed 's/^/    /'
+(cd "$WEB" && ./node_modules/.bin/vite-node scripts/generate_combinatorial_model.mts verify-coverage 2,3 "$OUT/with_covering_arrays.csv")
+
+echo "── 5/5 optional NIST CCM differential measurement"
+if [ -n "$CCM_TOOL" ]; then
+  TWAY="${TWAY:-2}"
+  echo "  existing tests only:"
+  "$CCM_TOOL" -I "$OUT/existing_tests.csv" -A "$OUT/model.acts.txt" -P -T "$TWAY" -p 2>&1 | grep "Total .*coverage" | sed 's/^/    /'
+  echo "  existing + covering arrays:"
+  "$CCM_TOOL" -I "$OUT/with_covering_arrays.csv" -A "$OUT/model.acts.txt" -P -T "$TWAY" -p 2>&1 | grep "Total .*coverage" | sed 's/^/    /'
+else
+  echo "  CCM is not installed; portable exact verification above is authoritative"
+fi

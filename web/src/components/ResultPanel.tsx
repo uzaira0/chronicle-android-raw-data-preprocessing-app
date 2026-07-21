@@ -9,7 +9,7 @@ import type {
   ProcessedOutputFileResult,
   TimezoneAction,
 } from "@/lib/types";
-import { PREPROCESSOR_VERSION } from "@/lib/browserPipeline";
+import { PREPROCESSOR_VERSION } from "@/lib/processingUiContract";
 import {
   buildParameterSetRecord,
   buildProcessingReport,
@@ -70,6 +70,7 @@ function zipName(kind: "all" | OutputKind): string {
     : kind === "aggregate" ? "aggregate-summaries"
     : kind === "parquet" ? "parquet-files"
     : kind === "spss" ? "spss-files"
+    : kind === "lineage" ? "row-lineage"
     : "plots";
   return `chronicle-${suffix}.zip`;
 }
@@ -113,7 +114,8 @@ function buildPerFileWarnings(
       output.kind !== "plot" &&
       output.kind !== "aggregate" &&
       output.kind !== "parquet" &&
-      output.kind !== "spss"
+      output.kind !== "spss" &&
+      output.kind !== "lineage"
     ) {
       warnings.push(`${displayMasker.fileName(output.outputFileName)} contains zero data rows.`);
     }
@@ -218,6 +220,7 @@ export function ResultPanel({
   const aggregateOutputs = useMemo(() => collectOutputs(results, "aggregate"), [results]);
   const parquetOutputs = useMemo(() => collectOutputs(results, "parquet"), [results]);
   const spssOutputs = useMemo(() => collectOutputs(results, "spss"), [results]);
+  const lineageOutputs = useMemo(() => collectOutputs(results, "lineage"), [results]);
   // Provenance identifies the run that produced `results`, so it must stay stable
   // when the user edits options after a run — otherwise two downloads of the same
   // run carry different runId/generatedAt. Key it on `results` only.
@@ -365,6 +368,18 @@ export function ResultPanel({
               }}
             >
               SPSS ZIP ({spssOutputs.length})
+            </button>
+          )}
+          {lineageOutputs.length > 0 && (
+            <button
+              type="button"
+              className="btn btn--secondary"
+              data-testid="download-lineage-zip"
+              onClick={() => {
+                void downloadZip("lineage", lineageOutputs, reportInput);
+              }}
+            >
+              Lineage ZIP ({lineageOutputs.length})
             </button>
           )}
           <button
@@ -553,6 +568,7 @@ const OUTPUT_KIND_LABEL: Record<string, string> = {
   aggregate: "Aggregate CSV",
   parquet: "Parquet",
   spss: "SPSS .sav",
+  lineage: "Arrow lineage",
 };
 
 /** Human label for one output, distinguishing the HTML timeline viewer from plots. */

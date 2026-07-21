@@ -501,7 +501,13 @@ describe("targeted formatter and parser branches", () => {
       tinyCsv,
       { ...DEFAULT_BROWSER_OPTIONS, useAppCodebook: false, minimumUsageDuration: 0 },
       {},
-      matcher,
+      () =>
+        Promise.resolve({
+          startIndices: [1, 3],
+          stopStartIndices: [1, 3],
+          stopEventIndices: [2, 4],
+          missingIndices: [],
+        }),
     );
     const appCsv = await result.outputs.find((output) => output.kind === "app")!.blob.text();
     // [1e-5, 1e-4): decimal expansion, exactly as polars writes it.

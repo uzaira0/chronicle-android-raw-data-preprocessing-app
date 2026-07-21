@@ -36,7 +36,7 @@ pub fn evaluate_materialization(
     let mut obligations = Vec::new();
     let mut reasons = Vec::new();
 
-    let shared_specs: Vec<_> = plan
+    let requirements: BTreeMap<_, _> = plan
         .root_roles
         .iter()
         .map(|role| {
@@ -45,6 +45,21 @@ pub fn evaluate_materialization(
                     .required_when
                     .as_ref()
                     .is_some_and(|condition| condition.evaluate(options));
+            (
+                role.role_id.clone(),
+                if required {
+                    Requirement::Required
+                } else {
+                    Requirement::Optional
+                },
+            )
+        })
+        .collect();
+    let shared_specs: Vec<_> = plan
+        .root_roles
+        .iter()
+        .map(|role| {
+            let required = matches!(requirements[&role.role_id], Requirement::Required);
             RoleSpec {
                 role_id: role.role_id.clone(),
                 cardinality: SharedCardinality {
@@ -76,21 +91,10 @@ pub fn evaluate_materialization(
         })
         .collect();
     let shared_report = materialize_roles(&shared_specs, &shared_assignments, |role_id| {
-        let role = plan
-            .root_roles
-            .iter()
-            .find(|role| role.role_id == role_id)
-            .expect("shared specs originate from the product plan");
-        if role.required
-            || role
-                .required_when
-                .as_ref()
-                .is_some_and(|condition| condition.evaluate(options))
-        {
-            Requirement::Required
-        } else {
-            Requirement::Optional
-        }
+        requirements
+            .get(role_id)
+            .copied()
+            .expect("shared specs originate from the product plan")
     })
     .expect("product plan and assignment identities were validated before evaluation");
 
@@ -295,6 +299,73 @@ mod tests {
         assert_eq!(
             result.node_states["device_state_timeline"],
             MaterializationState::NotApplicable
+        );
+    }
+
+    #[test]
+    fn role_identity_root_holes_and_pending_edges_are_distinct() {
+        assert_eq!(identifier(&["a", "b"]), identifier(&["a", "b"]));
+        assert_ne!(identifier(&["a", "b"]), identifier(&["ab"]));
+
+        let plan = embedded_plan();
+        let missing = evaluate_materialization(
+            &plan,
+            &BTreeMap::new(),
+            &serde_json::json!({"process_app_usage": true, "process_screen_usage": false}),
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+        );
+        assert_eq!(
+            missing.node_states["parse_events"],
+            MaterializationState::Open
+        );
+        assert_eq!(
+            missing.node_states["normalize_timezones"],
+            MaterializationState::Blocked
+        );
+
+        let assignments = BTreeMap::from([
+            ("raw_chronicle_csv".into(), assignment("raw_chronicle_csv")),
+            (
+                "processing_options".into(),
+                assignment("processing_options"),
+            ),
+        ]);
+        let ready_then_blocked = evaluate_materialization(
+            &plan,
+            &assignments,
+            &serde_json::json!({"process_app_usage": true, "process_screen_usage": false}),
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+        );
+        assert_eq!(
+            ready_then_blocked.role_states["filter_file"],
+            MaterializationState::NotApplicable
+        );
+        assert!(!ready_then_blocked
+            .obligations
+            .iter()
+            .any(|obligation| obligation.role_id == "filter_file"));
+        assert_eq!(
+            ready_then_blocked.node_states["parse_events"],
+            MaterializationState::Ready
+        );
+        assert_eq!(
+            ready_then_blocked.node_states["normalize_timezones"],
+            MaterializationState::Blocked
+        );
+
+        let satisfied: BTreeSet<_> = plan.nodes.iter().map(|node| node.node_id.clone()).collect();
+        let complete = evaluate_materialization(
+            &plan,
+            &assignments,
+            &serde_json::json!({"process_app_usage": true, "process_screen_usage": false}),
+            &satisfied,
+            &BTreeSet::new(),
+        );
+        assert_eq!(
+            complete.node_states["outputs"],
+            MaterializationState::Satisfied
         );
     }
 }

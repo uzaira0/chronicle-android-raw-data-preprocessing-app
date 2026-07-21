@@ -1,16 +1,18 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { ledgerViolations } from "@/lib/pipelineGraph/executionRecords";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
 import type { ProcessedFileResult } from "@/lib/types";
 import {
   GOLDEN_SCENARIOS,
+  goldenRustMatcher,
   runGoldenScenario,
   serializeGoldenOutputs,
   type GoldenScenario,
 } from "@/lib/pipelineGraph/golden/goldenScenario";
+import * as matcherKernel from "@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js";
 
 /**
  * Byte-for-byte reproduction lock for the covered pipeline configs.
@@ -28,6 +30,16 @@ import {
 
 const EXPECTED_DIR = join(dirname(fileURLToPath(import.meta.url)), "expected");
 const UPDATE = process.env.UPDATE_GOLDEN === "1";
+
+beforeAll(() => {
+  const wasmBytes = readFileSync(
+    new URL(
+      "../../../wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm_bg.wasm",
+      import.meta.url,
+    ),
+  );
+  matcherKernel.initSync({ module: wasmBytes });
+});
 
 async function produceAll(): Promise<Map<string, string>> {
   const all = new Map<string, string>();
@@ -82,10 +94,9 @@ describe("pipeline golden reproduction", () => {
     expect([...second.entries()]).toEqual([...first.entries()]);
   });
 
-  // The golden harness feeds `throwingMatcher` / `throwingSplitter` so that any
-  // covered config accidentally routing to the WASM matcher or concurrent-usage
-  // splitter fails loudly instead of passing on mocked output. Exercise both
-  // guards directly with configs that DO route to them.
+  // The golden harness always routes episode matching through Rust/WASM and
+  // keeps the concurrent splitter disabled. Exercise both injected boundaries
+  // directly so a future accidental bypass cannot pass silently.
   const GUARD_HEADER =
     "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone";
   const GUARD_CSV = [
@@ -96,13 +107,11 @@ describe("pipeline golden reproduction", () => {
     "Study,P01,Target Child,System,Screen Non-Interactive,android,2026-03-07 10:09:30,America/Chicago",
   ].join("\n");
 
-  it("throwingMatcher fires when a config routes to the WASM matcher", async () => {
+  it("delegates episode matching to the injected Rust boundary", async () => {
     const scenario: GoldenScenario = {
       name: "guard: wasm matcher",
       inputFileName: "Guard.csv",
       inputCsv: GUARD_CSV,
-      // proximityIntervalSeconds=0 disables the in-process proximity matcher, so
-      // runEpisodeMatcher delegates to runMatcher (the throwing stub).
       options: {
         ...DEFAULT_BROWSER_OPTIONS,
         timezoneHandling: "selected-filter",
@@ -114,7 +123,11 @@ describe("pipeline golden reproduction", () => {
       },
       supportFiles: {},
     };
-    await expect(runGoldenScenario(scenario)).rejects.toThrow(/runMatcher was called/);
+    const throwingMatcher = (): Promise<never> =>
+      Promise.reject(new Error("golden: injected matcher was called"));
+    await expect(runGoldenScenario(scenario, throwingMatcher)).rejects.toThrow(
+      /injected matcher was called/,
+    );
   });
 
   it("throwingSplitter fires when a config models concurrent usage", async () => {
@@ -135,7 +148,11 @@ describe("pipeline golden reproduction", () => {
       },
       supportFiles: {},
     };
-    await expect(runGoldenScenario(scenario)).rejects.toThrow(/runSplitter was called/);
+    const throwingSplitter = (): Promise<never> =>
+      Promise.reject(new Error("golden: runSplitter was called"));
+    await expect(
+      runGoldenScenario(scenario, goldenRustMatcher, throwingSplitter),
+    ).rejects.toThrow(/runSplitter was called/);
   });
 
   it("serializeGoldenOutputs rejects two outputs that claim the same filename", async () => {

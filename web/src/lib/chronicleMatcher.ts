@@ -5,6 +5,7 @@ import type {
   BrowserSupportFiles,
   ProcessedFileResult,
   ProgressEvent,
+  RustStageView,
 } from "@/lib/types";
 import type { ChronicleWorkerApi } from "@/workers/chronicle-worker";
 
@@ -197,8 +198,20 @@ export async function getMatcherVersion(): Promise<string> {
   return onSharedWorker((api) => api.matcherVersion());
 }
 
+export async function exportVerifiedWorkspaceClosure(
+  workspaceId: string,
+): Promise<Uint8Array> {
+  return onSharedWorker((api) => api.exportWorkspaceClosure(workspaceId));
+}
+
+export async function importVerifiedWorkspaceClosure(
+  archive: Uint8Array,
+): Promise<{ workspaceId: string; slot: { generation: number; workspaceRootDigest: string } }> {
+  return onSharedWorker((api) => api.importWorkspaceClosureArchive(archive));
+}
+
 /**
- * Eagerly spawn + initialise the shared matcher worker on boot. Two payoffs:
+ * Eagerly spawn + initialise the authoritative Rust runtime worker on boot. Two payoffs:
  * the first real run is faster (WASM is already warm), and a single-file run
  * after the network later drops reuses this still-live worker instead of trying
  * to fetch the worker chunk offline. Best-effort; swallows errors.
@@ -211,11 +224,21 @@ export async function warmMatcher(): Promise<void> {
   }
 }
 
+export async function getPlanStageView(
+  options: BrowserProcessingOptions,
+): Promise<RustStageView> {
+  return onSharedWorker((api) => api.planStageView(options));
+}
+
 export async function discoverTimezones(
   csvText: string,
   runtime?: BrowserProcessingRuntime,
 ): Promise<string[]> {
-  return onSharedWorker((api) => api.discoverTimezones(csvText, runtime));
+  // Preserve the injected-runtime parameter for the public browser API and
+  // existing deterministic test callers. Timezone discovery itself is now
+  // entirely owned by the Rust worker and needs no browser-runtime input.
+  void runtime;
+  return onSharedWorker((api) => api.discoverTimezones(csvText));
 }
 
 export async function processRawCsv(

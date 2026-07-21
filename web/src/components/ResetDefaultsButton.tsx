@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 
 import { createPortal } from "react-dom";
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 type Props = {

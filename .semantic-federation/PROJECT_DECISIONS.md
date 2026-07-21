@@ -12,14 +12,27 @@
   digest-locked product resources; they remain descriptive/conformance
   artifacts, not the executable plan.
 - `chronicle.plan.json` identifies all 15 units and 55 steps. The separate
-  `capability-bindings.json` truthfully records the active Rust matcher, the
-  active browser graph/orchestration path, and the parity-clean fused Rust v2
-  implementation that exists but is not yet selected by the browser worker.
+  `capability-bindings.json` records the selected composed Rust/WASM runtime as
+  the sole computational authority. The fused physical kernel remains visible
+  beneath complete Rust logical scheduling and evidence rather than being
+  mistaken for the logical graph itself.
 - `semprof-materialize` owns product-neutral role fulfillment and open
   obligations; the preprocessing adapter owns DAG propagation and typed
   product views.
 - Oxigraph is the rebuildable RDF/query baseline; Grafeo 0.5.42 is rejected
-  because its RDF feature does not compile for browser WASM.
-- No new scheduler substrate is selected. The existing preprocessing DAG and
-  fused Rust pipeline remain the product execution authorities until an
-  evidence-backed cutover changes the binding set.
+  because its RDF feature does not compile for browser WASM. Oxigraph is pinned
+  to upstream revision `d14ac0b5c4fa67b15d03af945d8669e3497c25a9`
+  until a crates.io release includes its `quick-xml 0.41` security update.
+- The product-owned Rust scheduler is selected; no generic federation-wide
+  scheduler or execution IR is introduced. TypeScript is limited to browser
+  I/O, interaction, visualization, and derived download formatting.
+- OPFS stores the verified content-addressed closure through a thin browser I/O
+  adapter. Rust owns artifact bytes, digests, root/closure semantics, evidence,
+  typed views, and registered-query index sources.
+- `quality/rust-authority-manifests.txt` names the three product-owned Rust
+  authorities. The only mutation exclusion is the adapter's `cfg(wasm)` facade;
+  the native delegate, WASM build, and browser export path remain mandatory.
+- `quality/deny.toml` denies unknown registries and Git sources, allowlists the
+  two immutable Git dependencies, audits the complete license closure, and
+  grants only the documented `RUSTSEC-2024-0436` exception for `paste` through
+  `parquet 59.1.0` until an upstream replacement exists.

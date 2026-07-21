@@ -10,7 +10,7 @@ import {
   readPersistedPresets,
   type SettingsPreset,
 } from "@/lib/settingsPersistence";
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import { BROWSER_OPTION_TOOLTIPS } from "@/lib/generatedContract";
 import { downloadBlob } from "@/lib/download";
 import type { BrowserProcessingOptions } from "@/lib/types";

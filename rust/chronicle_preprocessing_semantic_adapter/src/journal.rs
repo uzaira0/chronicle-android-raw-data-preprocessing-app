@@ -121,6 +121,14 @@ impl EvidenceJournal {
             .map_err(|error| RuntimeError::Serialization(error.to_string()))?;
         Ok(bytes)
     }
+
+    pub fn from_cbor(bytes: &[u8]) -> Result<Self, RuntimeError> {
+        let events = ciborium::from_reader(bytes)
+            .map_err(|error| RuntimeError::Serialization(error.to_string()))?;
+        let journal = Self { events };
+        journal.verify()?;
+        Ok(journal)
+    }
 }
 
 #[cfg(test)]
@@ -153,7 +161,9 @@ mod tests {
             })
             .unwrap();
         journal.verify().unwrap();
-        assert!(!journal.to_cbor().unwrap().is_empty());
+        let bytes = journal.to_cbor().unwrap();
+        assert!(!bytes.is_empty());
+        assert_eq!(EvidenceJournal::from_cbor(&bytes).unwrap(), journal);
     }
 
     #[test]
@@ -172,5 +182,31 @@ mod tests {
             .unwrap();
         journal.events[0].subject_id = "tampered".into();
         assert!(journal.verify().is_err());
+    }
+
+    #[test]
+    fn broken_chain_and_malformed_cbor_fail_closed() {
+        let mut journal = EvidenceJournal::default();
+        for revision in 1..=2 {
+            journal
+                .append(Transition {
+                    event_kind: "state",
+                    subject_id: "node",
+                    from_state: None,
+                    to_state: MaterializationState::Ready,
+                    reason_id: "reason",
+                    source_id: "source",
+                    revision,
+                })
+                .unwrap();
+        }
+        assert_eq!(journal.events().len(), 2);
+        journal.events[1].previous_digest = None;
+        assert!(journal
+            .verify()
+            .unwrap_err()
+            .to_string()
+            .contains("chain broken"));
+        assert!(EvidenceJournal::from_cbor(b"not-cbor").is_err());
     }
 }

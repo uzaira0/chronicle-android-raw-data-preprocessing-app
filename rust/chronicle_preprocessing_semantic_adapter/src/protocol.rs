@@ -108,5 +108,17 @@ mod tests {
             command: WorkerCommand::VerifyWorkspace,
         };
         assert_eq!(request.validate(), Err("unsupported protocol version"));
+        let request = WorkerRequest {
+            protocol_version: WORKER_PROTOCOL_VERSION.into(),
+            request_id: "   ".into(),
+            workspace_root_digest: None,
+            command: WorkerCommand::VerifyWorkspace,
+        };
+        assert_eq!(request.validate(), Err("request id is required"));
+        let request = WorkerRequest {
+            request_id: "req-1".into(),
+            ..request
+        };
+        assert_eq!(request.validate(), Ok(()));
     }
 }

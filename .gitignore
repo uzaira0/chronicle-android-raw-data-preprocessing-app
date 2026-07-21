@@ -258,8 +258,15 @@ web/schema/tests/.artifacts/
 # Vitest v8 coverage output (bun run test:coverage)
 web/coverage/
 
+# TypeScript incremental metadata is machine-local generated state.
+web/*.tsbuildinfo
+
 # mutmut 3 sandbox (make mutation-python copies the tree here)
 mutants/
 
 # StrykerJS mutation reports (make mutation)
 web/reports/
+
+# cargo-mutants reports are local quality evidence, not source artifacts.
+rust/**/mutants.out/
+rust/**/mutants.out.old/

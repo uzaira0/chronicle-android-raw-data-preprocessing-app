@@ -43,4 +43,14 @@ mod tests {
             .collect();
         assert_eq!(capabilities.len(), 70);
     }
+
+    #[test]
+    fn compiled_capabilities_resolve_exactly_and_unknown_ids_fail_closed() {
+        let node = &NODE_BINDINGS[0];
+        assert_eq!(node_binding(node.capability_id), Some(node));
+        let step = &STEP_BINDINGS[0];
+        assert_eq!(step_binding(step.capability_id), Some(step));
+        assert_eq!(node_binding("urn:unknown:node"), None);
+        assert_eq!(step_binding("urn:unknown:step"), None);
+    }
 }

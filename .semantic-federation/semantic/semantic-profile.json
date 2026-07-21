@@ -74,7 +74,7 @@
       "path": "capability-bindings.json",
       "media_type": "application/json",
       "role": "binding-source",
-      "digest": "sha256:fe4d6e67ed29b1c946301f19040c4e104ebee2e75ed6f47fef74d7cff70249e2"
+      "digest": "sha256:756c888c303b40d1978e9aaf875d3daa0129d6f06fdc5b3211e20ed349f10e28"
     },
     {
       "path": "families/incremental-dataflow/contract.json",
@@ -86,7 +86,13 @@
       "path": "resources/chronicle.plan.json",
       "media_type": "application/json",
       "role": "binding-source",
-      "digest": "sha256:3809776317888ecb0314ca4808c23f3afa4df0ab1291fb4d99e9a3e19c558a5c"
+      "digest": "sha256:69bc89477def743e78855ebfb5f5bdf696953cbf784ed12e5a487737e1115710"
+    },
+    {
+      "path": "resources/runtime-authority.json",
+      "media_type": "application/json",
+      "role": "binding-source",
+      "digest": "sha256:85257bacf700db0ec9b0cd683d5e788b6c8c13b224064743ad9f68eaafce24bb"
     },
     {
       "path": "resources/chronicle-research-ontology.linkml.yaml",

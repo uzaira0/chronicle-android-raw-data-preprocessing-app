@@ -540,6 +540,7 @@ components:
             - aggregate
             - parquet
             - spss
+            - lineage
         outputFileName:
           type: string
         csv:

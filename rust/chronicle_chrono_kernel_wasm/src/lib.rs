@@ -17,12 +17,12 @@ use serde::Serialize;
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
-mod pipeline_v2;
+pub mod pipeline_v2;
 pub use pipeline_v2::process_full_pipeline_v2;
 
 fn ser_with_bigint<T: Serialize>(value: &T) -> Result<JsValue, JsValue> {
-    let serializer = serde_wasm_bindgen::Serializer::new()
-        .serialize_large_number_types_as_bigints(true);
+    let serializer =
+        serde_wasm_bindgen::Serializer::new().serialize_large_number_types_as_bigints(true);
     value
         .serialize(&serializer)
         .map_err(|e| JsValue::from_str(&format!("ser: {e}")))
@@ -196,10 +196,7 @@ pub(crate) fn parse_chronicle_timestamp_ns(text: &str) -> Option<i64> {
     if let Some(stripped) = text.strip_suffix('Z') {
         text = format!("{stripped}+00:00");
     }
-    let has_offset = text
-        .rfind(|c: char| c == '+' || c == '-')
-        .filter(|&i| i >= 19)
-        .is_some();
+    let has_offset = text.rfind(['+', '-']).filter(|&i| i >= 19).is_some();
     let parsed: Option<DateTime<chrono::FixedOffset>> = if has_offset {
         DateTime::parse_from_str(&text, "%Y-%m-%d %H:%M:%S%:z")
             .or_else(|_| DateTime::parse_from_str(&text, "%Y-%m-%d %H:%M:%S%.f%:z"))
@@ -251,8 +248,7 @@ pub fn process_pipeline_e2e(csv_bytes: &[u8], tz_name: &str) -> Result<Vec<u8>, 
         .parse()
         .map_err(|e| JsValue::from_str(&format!("invalid timezone {tz_name:?}: {e}")))?;
 
-    let cols = parse_internal(csv_bytes)
-        .map_err(|e| JsValue::from_str(&format!("parse: {e}")))?;
+    let cols = parse_internal(csv_bytes).map_err(|e| JsValue::from_str(&format!("parse: {e}")))?;
     let n = cols.event_timestamp_ns.len();
 
     // 1. Stable sort indices by timestamp_ns.
@@ -276,9 +272,7 @@ pub fn process_pipeline_e2e(csv_bytes: &[u8], tz_name: &str) -> Result<Vec<u8>, 
 
     // 3. Format + write.
     let mut out: Vec<u8> = Vec::with_capacity(kept.len() * 96);
-    out.extend_from_slice(
-        b"event_timestamp,app_package_name,interaction_type,date,hour,day\n",
-    );
+    out.extend_from_slice(b"event_timestamp,app_package_name,interaction_type,date,hour,day\n");
 
     use std::fmt::Write as _;
     let mut scratch = String::with_capacity(64);
@@ -348,10 +342,10 @@ fn parse_internal(bytes: &[u8]) -> Result<ParsedColumns, String> {
         input = &input[n_in..];
         match result {
             ReadFieldResult::InputEmpty => {
-                if !input.is_empty() {
-                    continue;
-                }
-                break;
+                // csv-core requires empty-input calls to continue until End;
+                // that flushes the final record when the file has no trailing
+                // newline. Breaking here silently dropped that record.
+                continue;
             }
             ReadFieldResult::OutputFull => {
                 field_buf.resize(field_buf.len() * 2, 0);
@@ -388,10 +382,7 @@ fn parse_internal(bytes: &[u8]) -> Result<ParsedColumns, String> {
         input = &input[n_in..];
         match result {
             ReadFieldResult::InputEmpty => {
-                if !input.is_empty() {
-                    continue;
-                }
-                break;
+                continue;
             }
             ReadFieldResult::OutputFull => {
                 field_buf.resize(field_buf.len() * 2, 0);
@@ -549,10 +540,7 @@ fn build_screen_session(
 
     let (end_reason, confidence, lock_screen_only) = if stop_ts_ns.is_none() {
         ("missing_stop".to_string(), 1.0, 0u8)
-    } else if state.lock_screen_seen
-        && !state.unlocked_seen
-        && state.foreground_pkg.is_none()
-    {
+    } else if state.lock_screen_seen && !state.unlocked_seen && state.foreground_pkg.is_none() {
         ("lock_screen_only".to_string(), 0.95, 1u8)
     } else if let Some(tail) = tail_gap_seconds {
         if !apps_forcing_label.is_empty() && tail > auto_lock_timeout_secs {
@@ -562,18 +550,18 @@ fn build_screen_session(
         } else if (tail - auto_lock_timeout_secs).abs() <= auto_lock_tolerance_secs {
             ("probable_auto_lock".to_string(), 0.9, 0u8)
         } else if state.lock_screen_seen
-            && keyguard_shown_ts.iter().any(|&kg_ts| {
-                ((kg_ts - stop_ts) as f64 / 1e9).abs() <= keyguard_near_stop_secs
-            })
+            && keyguard_shown_ts
+                .iter()
+                .any(|&kg_ts| ((kg_ts - stop_ts) as f64 / 1e9).abs() <= keyguard_near_stop_secs)
         {
             ("probable_manual_lock".to_string(), 0.7, 0u8)
         } else {
             ("extended_idle_or_unknown".to_string(), 0.5, 0u8)
         }
     } else if state.lock_screen_seen
-        && keyguard_shown_ts.iter().any(|&kg_ts| {
-            ((kg_ts - stop_ts) as f64 / 1e9).abs() <= keyguard_near_stop_secs
-        })
+        && keyguard_shown_ts
+            .iter()
+            .any(|&kg_ts| ((kg_ts - stop_ts) as f64 / 1e9).abs() <= keyguard_near_stop_secs)
     {
         ("probable_manual_lock".to_string(), 0.7, 0u8)
     } else {
@@ -612,10 +600,7 @@ pub fn derive_screen_usage_sessions(
     keyguard_near_stop_seconds: i32,
 ) -> Result<JsValue, JsValue> {
     let n = event_timestamp_ns.len();
-    if interaction_type.len() != n
-        || app_package_name.len() != n
-        || timezone.len() != n
-    {
+    if interaction_type.len() != n || app_package_name.len() != n || timezone.len() != n {
         return Err(JsValue::from_str(
             "derive_screen_usage_sessions: column lengths must match",
         ));
@@ -628,7 +613,10 @@ pub fn derive_screen_usage_sessions(
     let meaningful_set: AHashSet<&str> = MEANINGFUL_ACTIVITY_EVENTS.iter().copied().collect();
 
     let mut apps_forcing: HashMap<String, String> = HashMap::with_capacity(apps_forcing_keys.len());
-    for (k, v) in apps_forcing_keys.into_iter().zip(apps_forcing_values.into_iter()) {
+    for (k, v) in apps_forcing_keys
+        .into_iter()
+        .zip(apps_forcing_values.into_iter())
+    {
         apps_forcing.insert(k, v);
     }
 
@@ -758,6 +746,7 @@ const APP_USAGE: &str = "App Usage";
 const FILTERED_APP_USAGE: &str = "Filtered App Usage";
 const END_OF_USAGE_MISSING: &str = "End of Usage Missing";
 
+#[allow(clippy::too_many_arguments)]
 #[wasm_bindgen]
 pub fn process_full_pipeline_e2e(
     csv_bytes: &[u8],
@@ -775,8 +764,7 @@ pub fn process_full_pipeline_e2e(
         .map_err(|e| JsValue::from_str(&format!("invalid timezone {tz_name:?}: {e}")))?;
 
     // 1. parse
-    let cols = parse_internal(csv_bytes)
-        .map_err(|e| JsValue::from_str(&format!("parse: {e}")))?;
+    let cols = parse_internal(csv_bytes).map_err(|e| JsValue::from_str(&format!("parse: {e}")))?;
     let n = cols.event_timestamp_ns.len();
 
     // 2. stable sort indices by ts_ns
@@ -904,8 +892,8 @@ pub fn process_full_pipeline_e2e(
         }
         // Drop Resumed rows that didn't form a session and aren't missing
         let mut effective_interaction = interaction.to_string();
-        let mut row_start_ns: i64 = start_ns[i];
-        let mut row_stop_ns: i64 = stop_ns[i];
+        let row_start_ns: i64 = start_ns[i];
+        let row_stop_ns: i64 = stop_ns[i];
         let mut duration_seconds: Option<f64> = None;
         let pkg = working_pkg[i].as_str();
         let is_filtered_pkg = filter_set.contains(pkg);
@@ -914,13 +902,9 @@ pub fn process_full_pipeline_e2e(
             ACTIVITY_RESUMED | FILTERED_RESUMED => {
                 if is_missing[i] {
                     effective_interaction = END_OF_USAGE_MISSING.to_string();
-                    row_start_ns = -1;
-                    row_stop_ns = -1;
                 } else if row_start_ns >= 0 && row_stop_ns >= 0 {
                     if is_filtered_pkg {
                         effective_interaction = FILTERED_APP_USAGE.to_string();
-                        row_start_ns = -1;
-                        row_stop_ns = -1;
                     } else {
                         effective_interaction = APP_USAGE.to_string();
                         let dur = (row_stop_ns - row_start_ns) as f64 / 1_000_000_000.0;
@@ -1020,7 +1004,9 @@ pub fn write_simple_csv(
         || hours.len() != n
         || days.len() != n
     {
-        return Err(JsValue::from_str("write_simple_csv: column lengths mismatch"));
+        return Err(JsValue::from_str(
+            "write_simple_csv: column lengths mismatch",
+        ));
     }
 
     let mut out = Vec::with_capacity(n * 64);

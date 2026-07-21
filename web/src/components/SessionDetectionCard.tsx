@@ -5,7 +5,7 @@ import { SectionCard } from "@/components/SectionCard";
 import { SettingsField } from "@/components/SettingsField";
 import { ToggleField } from "@/components/ToggleField";
 import { ThresholdsInput } from "@/components/ThresholdsInput";
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
 import { rangeError } from "@/lib/validation";
