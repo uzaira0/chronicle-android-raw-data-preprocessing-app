@@ -1,0 +1,335 @@
+id: https://w3id.org/chronicle-usage-ontology/core
+name: chronicle-usage-ontology-core
+title: Chronicle Android Usage Measurement — Research Ontology (core module)
+description: >-
+  Core entity model for the Android UsageStatsManager event-log -> usage-measurement
+  research ontology. Implements the D4 five-way split from
+  docs/pipeline-graph/13-research-ontology-design.md (occurrence / record / optional
+  logging-observation / assertion / execution / interval) so provenance can always
+  distinguish what was OBSERVED from what was RECONSTRUCTED, and so absence and
+  unresolved attribution can never silently drop from denominators.
+
+  Backbone (D2, upper-neutral): SOSA/SSN + OWL-Time + PROV-O + P-Plan. BFO-vs-DOLCE is
+  deliberately deferred and, when needed, bridged via SSSOM — this module asserts only
+  the free, standards-grounded mappings. This is the FOUNDATION module: SHACL axioms,
+  BCIO/Shaleha close-mappings, DQV quality, and generator wiring are later build-order
+  steps (doc 13 §"Prioritized build order").
+license: MIT
+default_range: string
+
+# External-framework alignment (doc 13 D3). Only VERIFIED anchors are asserted:
+#  - BCIO "participant engagement with behaviour change intervention" (BCIO_013000,
+#    verified via EBI OLS) is referenced by skos:relatedMatch on the `engagement`
+#    layer — NOT closeMatch: BCIO engagement is intervention-scoped, chronicle
+#    engagement is device/app usage, so the relation is associative, not interchange.
+#  - The Shaleha et al. 2026 screen-use measurement framework is a conceptual
+#    framework, NOT an ontology with class IRIs, so it is referenced via see_also to
+#    its DOI (below), never skos-mapped to a nonexistent class.
+see_also:
+  - https://doi.org/10.1177/21522715261417288
+comments:
+  - >-
+    Screen-use measurement framework alignment (Shaleha, Roque, Andrews, Calfee & Lee 2026,
+    doi:10.1177/21522715261417288): this ontology's measures sit on the framework's
+    OBJECTIVE-LOG / passive-sensing modality axis. Referenced, not class-mapped, because the
+    framework has no stable class IRIs.
+
+prefixes:
+  linkml: https://w3id.org/linkml/
+  chron: https://w3id.org/chronicle-usage-ontology/core/
+  sosa: http://www.w3.org/ns/sosa/
+  ssn: http://www.w3.org/ns/ssn/
+  time: http://www.w3.org/2006/time#
+  prov: http://www.w3.org/ns/prov#
+  pplan: http://purl.org/net/p-plan#
+  skos: http://www.w3.org/2004/02/skos/core#
+  dqv: http://www.w3.org/ns/dqv#
+  qudt: http://qudt.org/schema/qudt/
+  unit: http://qudt.org/vocab/unit/
+  dcterms: http://purl.org/dc/terms/
+  BCIO: http://humanbehaviourchange.org/ontology/BCIO_
+default_prefix: chron
+
+imports:
+  - linkml:types
+
+# ============================================================
+# ENUMS  (controlled vocabularies)
+# ============================================================
+enums:
+
+  EventTypeCode:
+    description: >-
+      Canonical Android lifecycle / device-state event vocabulary. Modeled as a SKOS
+      concept scheme. The FULL both-spellings scheme (human labels PLUS
+      "Unknown importance: N" importance codes 26/27/28/29 ...) is generated from the
+      engine constants; the values below are the canonical semantic anchors every
+      spelling maps to.
+    permissible_values:
+      activity_resumed: {description: App moved to foreground (Move to Foreground / UI:1).}
+      activity_paused: {description: App moved to background (Move to Background / UI:2).}
+      activity_stopped: {description: Activity stopped (UI:23) — proximity/fallback close.}
+      screen_interactive: {description: Screen turned interactive (UI:15).}
+      screen_non_interactive: {description: Screen turned non-interactive (UI:16).}
+      keyguard_shown: {description: Keyguard shown / device locked (UI:17).}
+      keyguard_hidden: {description: Keyguard hidden / device unlocked (UI:18).}
+      device_shutdown: {description: Device shutdown boundary (UI:26 / importance 26).}
+      device_startup: {description: Device startup boundary (UI:27 / importance 27).}
+
+  AttributionStatus:
+    description: >-
+      Attribution status of an App-Usage assertion — the compliance denominator
+      contract. Chronicle uses a CLOSED attribution vocabulary: "Target Child",
+      "Other", or "None"/blank (survey answers arrive as "Other (From Survey)").
+      Mirrors classifyAttribution() in web/src/lib/stages/attributePerson.ts
+      (the runtime SSOT). NEVER a null person and NEVER an "unknown person" class.
+    permissible_values:
+      target: {description: 'Attributed to the enrolled target child (label "Target Child").'}
+      known_non_target: {description: 'Attributed to a known person other than the target child (label "Other"). Counts as known/attributed.'}
+      unresolved: {description: 'Usage occurred but the person is unresolved (label "None"/blank). Counts toward the compliance denominator; never dropped.'}
+
+  EndpointStatus:
+    description: >-
+      Observation-endpoint qualification for a derived interval. Under RDF open-world
+      semantics a missing endpoint is UNKNOWN, not observed-absent — so absence is
+      always an explicit status, never a null result.
+    permissible_values:
+      observed: {description: Endpoint directly observed in the event stream.}
+      unobserved: {description: Endpoint not observed and not bounded by later evidence.}
+      right_censored: {description: Observation ended while usage was believed still open.}
+      interval_censored: {description: Endpoint known only to lie within bounds set by later evidence (e.g. a fallback close).}
+
+  MeasurementLayer:
+    description: The measurement-model layer a class/assertion belongs to (doc 13; chronicle-ontology.md).
+    permissible_values:
+      construct: {}
+      validity: {}
+      presence: {}
+      engagement:
+        description: >-
+          Device/app usage-engagement measurement (screen-on, app-in-foreground). RELATED to,
+          but deliberately NOT equated with, BCIO "participant engagement with behaviour change
+          intervention" (BCIO:013000): BCIO engagement is intervention-scoped whereas a
+          chronicle app is generally not a behaviour-change intervention — hence relatedMatch,
+          not closeMatch (doc 13 D3).
+        related_mappings:
+          - BCIO:013000
+      person: {}
+      attribution: {}
+
+  ReconstructionStrategyId:
+    description: >-
+      Canonical IRI-bearing identifiers for the named episode-reconstruction algorithms.
+      Forward-pairing is a DISTINCT algorithm, not a knob setting (doc 08). The runtime
+      enum carries the canonical procedure IRI; concrete strategies are versioned
+      individuals of ReconstructionStrategy.
+    permissible_values:
+      parry_toth_forward_pairing: {description: Parry & Toth start-only bracket-first forward pairing.}
+      fused_matcher: {description: This engine's fused open/close matcher (production).}
+      eyes_complement: {description: EYES complement-based device-state segmentation (ACTIVE = not(SHUTDOWN or IDLE or GAP or GLANCE)).}
+
+  CoverageCause:
+    description: Best-supported cause of a coverage gap. A gap is an OBSERVABILITY condition — never asserted as physical inactivity.
+    permissible_values:
+      shutdown_boundary: {description: Gap opens with a clean shutdown-class event.}
+      unclean_power_loss: {description: Gap ends with a startup-class event but no clean shutdown (battery death / forced off).}
+      collector_reporting_gap: {description: Device on but the collector did not report.}
+      unknown: {description: Cause not determinable from events.}
+
+# ============================================================
+# CLASSES
+# ============================================================
+classes:
+
+  # ---- Raw event: THREE entities, not one (D4) ----
+  PlatformEventOccurrence:
+    description: >-
+      The real-world Android lifecycle/system occurrence (an app resuming, the screen
+      turning off, a shutdown). This is the thing that happened in the world — NOT the
+      logged record and NOT an observation. Deliberately untyped as sosa:Observation.
+    slots: [occurrence_instant, event_code]
+
+  UsageEventRecord:
+    description: The logged information artifact for one Android usage event. A prov:Entity, not an observation.
+    broad_mappings: [prov:Entity]
+    slots:
+      - event_timestamp_ns
+      - event_code
+      - app_package_name
+      - app_class_name
+      - participant_id
+      - device_id
+      - timezone
+      - records_occurrence
+
+  LoggingObservation:
+    description: >-
+      OPTIONAL. The OS logger's act of observing a device property, modeled only if that
+      abstraction is genuinely needed. Do NOT type UsageEventRecord as this.
+    broad_mappings: [sosa:Observation]
+    slots: [observed_property, result_record]
+
+  # ---- Time (OWL-Time) ----
+  UsageInterval:
+    description: A phenomenon-time interval a usage assertion denotes. A time:ProperInterval.
+    broad_mappings: [time:ProperInterval]
+    slots: [start_instant, end_instant, duration_seconds, start_status, end_status]
+
+  # ---- Derived assertions: assertion != interval != execution (D4) ----
+  UsageEpisodeAssertion:
+    description: A claim that one app was in continuous use over an interval. A derived prov:Entity (what the pipeline asserts, not a ground truth).
+    broad_mappings: [prov:Entity]
+    slots: [denotes_interval, app_package_name, participant_id, reconstructed_by, attribution, measurement_layer]
+
+  UsageSessionAssertion:
+    description: A claim of continuous device use between unlock and lock. Derived prov:Entity.
+    broad_mappings: [prov:Entity]
+    slots: [denotes_interval, participant_id, reconstructed_by, measurement_layer]
+
+  GlanceAssertion:
+    description: A claim that the screen activated then deactivated without an unlock. Derived prov:Entity.
+    broad_mappings: [prov:Entity]
+    slots: [denotes_interval, participant_id, reconstructed_by, measurement_layer]
+
+  EffectiveUsageMeasure:
+    description: >-
+      The effective-usage duration (episode interval intersected with active coverage,
+      per a named policy). Cites the ParameterSet and execution that produced it. NOT
+      asserted as physical truth — carries the coverage policy that produced it.
+    broad_mappings: [prov:Entity]
+    slots: [participant_id, date, effective_minutes, denotes_interval, produced_by, cites_parameter_set, coverage_policy]
+
+  # ---- Absence / observability (D4) ----
+  CoverageAssessment:
+    description: >-
+      A coverage/observability judgement over a stream window: expected vs actual data
+      availability, its threshold, bounding events, and best-supported cause. A gap MAY
+      CONCEAL usage — this asserts only how the measurement policy treats the interval,
+      never that the device was inactive.
+    slots: [assesses_interval, participant_id, device_id, expected_available, actually_available, availability_threshold, coverage_cause, policy_treatment]
+
+  # ---- Person attribution (D4) — mandatory status + optional person ----
+  AttributionAssertion:
+    description: >-
+      Attribution of usage to a person. Exactly one status is required; an actual person
+      is attached only when known. The participant-device-day denominator must satisfy
+      duration conservation: target + known_non_target + unresolved = eligible.
+    broad_mappings: [prov:Entity]
+    slots: [attribution_status, attributed_person, on_shared_device]
+
+  # ---- Pipeline structure (P-Plan) — ParameterSet is config, NOT a Plan (D4/D7) ----
+  PipelinePlan:
+    description: The prospective processing workflow. A p-plan:Plan / prov:Plan.
+    broad_mappings: [pplan:Plan]
+    tree_root: true
+    slots: [plan_id, steps]
+
+  StepDefinition:
+    description: >-
+      One processing step in the plan (a graph node) at ANY scale — a
+      p-plan:Step. Steps compose recursively via part_of_step: a coarse step
+      (an execution/memoization unit) and the fine-grained transformations
+      inside it are the SAME kind of thing, because the step boundary is an
+      arbitrary scale choice, not an ontological distinction. Follows the
+      ProcessingStep shape (id/verb/engine/consumes/produces/depends_on).
+    broad_mappings: [pplan:Step]
+    slots: [step_id, verb, engine, consumes, produces, depends_on, is_fatal, part_of_step]
+
+  NodeExecution:
+    description: A retrospective execution of a StepDefinition. A prov:Activity.
+    broad_mappings: [prov:Activity]
+    slots: [executes_step, used_parameter_set, started_at, ended_at]
+
+  ReconstructionExecution:
+    description: The execution that produced a usage assertion. A prov:Activity.
+    broad_mappings: [prov:Activity]
+    slots: [follows_strategy, used_parameter_set]
+
+  ReconstructionStrategy:
+    description: A named, versioned episode-reconstruction algorithm (semantic category + canonical IRI). Subclass only where formal restrictions genuinely differ.
+    broad_mappings: [sosa:Procedure]
+    slots: [strategy_id, strategy_kind, strategy_version, canonical_iri]
+
+  ParameterSet:
+    description: >-
+      A content-addressed configuration entity — a set of ParameterBindings over the
+      plan's variables. NOT a Plan: the plan is the workflow; this binds its variables.
+    broad_mappings: [prov:Entity]
+    slots: [parameter_set_sha256, bindings]
+
+  ParameterBinding:
+    description: One knob = value binding within a ParameterSet.
+    slots: [knob_key, knob_value]
+
+# ============================================================
+# SLOTS
+# ============================================================
+slots:
+  occurrence_instant: {description: When the occurrence happened., range: string, slot_uri: time:inXSDDateTimeStamp}
+  event_code: {description: Canonical event type., range: EventTypeCode}
+  event_timestamp_ns: {description: Event timestamp in nanoseconds since epoch., range: integer}
+  app_package_name: {description: Android package name., range: string}
+  app_class_name: {description: Android activity class name., range: string}
+  participant_id: {description: "Participant/device identifier (string, always).", range: string, required: true}
+  device_id: {description: Device identifier., range: string}
+  timezone: {description: Original recording timezone (preserved)., range: string}
+  records_occurrence: {description: The real-world occurrence this record logs., range: PlatformEventOccurrence}
+  observed_property: {description: The device property the logger observed., range: string}
+  result_record: {description: The event record produced by the logging observation., range: UsageEventRecord}
+
+  start_instant: {description: Interval start instant., range: string}
+  end_instant: {description: Interval end instant., range: string}
+  duration_seconds: {description: Interval duration in seconds., range: float, slot_uri: qudt:hasQuantityValue}
+  start_status: {description: Endpoint status of the start., range: EndpointStatus}
+  end_status: {description: Endpoint status of the end., range: EndpointStatus}
+
+  denotes_interval: {description: The phenomenon-time interval this assertion denotes., range: UsageInterval}
+  reconstructed_by: {description: The execution that produced this assertion., range: ReconstructionExecution}
+  attribution: {description: Person attribution for this episode., range: AttributionAssertion}
+  measurement_layer: {description: Measurement-model layer., range: MeasurementLayer}
+  date: {description: Study/local date the measure is assigned to., range: date}
+  effective_minutes: {description: Effective usage minutes., range: float}
+  produced_by: {description: The node execution that produced this measure., range: NodeExecution}
+  cites_parameter_set: {description: The ParameterSet under which this measure was produced., range: ParameterSet}
+  coverage_policy: {description: Named policy for how coverage gaps were treated., range: string}
+
+  assesses_interval: {description: The stream window assessed., range: UsageInterval}
+  expected_available: {description: Whether data was expected to be available (needs a heartbeat/expectation to assert NoData)., range: boolean}
+  actually_available: {description: Whether any data was actually present., range: boolean}
+  availability_threshold: {description: Coverage threshold applied., range: float}
+  coverage_cause: {description: Best-supported cause., range: CoverageCause}
+  policy_treatment: {description: How the measurement policy treats this interval (e.g. pass / na / exclude)., range: string}
+
+  attribution_status: {description: Required attribution status., range: AttributionStatus, required: true}
+  attributed_person: {description: "The actual person, attached only when known.", range: string}
+  on_shared_device: {description: Whether the device is shared., range: boolean}
+
+  plan_id: {description: Plan identifier., range: string, identifier: true}
+  steps: {description: Steps of the plan., range: StepDefinition, multivalued: true, inlined_as_list: true}
+  step_id: {description: Step identifier (= graph node id)., range: string, identifier: true}
+  verb: {description: Action the step performs., range: string}
+  engine: {description: Named algorithm/engine the step realizes., range: string}
+  consumes: {description: Channels/inputs the step reads., range: string, multivalued: true}
+  produces: {description: Channels/outputs the step produces., range: string, multivalued: true}
+  depends_on: {description: Steps that must precede this one., range: string, multivalued: true}
+  is_fatal: {description: Whether a failure fails the whole workflow., range: boolean}
+  part_of_step:
+    description: >-
+      The coarser-scale step this step is a proper part of (recursive
+      composition — no separate "substep" class; scale is arbitrary).
+      Referenced by step_id, not inlined.
+    range: StepDefinition
+    slot_uri: dcterms:isPartOf
+  executes_step: {description: The StepDefinition this execution runs., range: StepDefinition}
+  used_parameter_set: {description: The ParameterSet the execution used., range: ParameterSet}
+  started_at: {description: Execution start., range: string}
+  ended_at: {description: Execution end., range: string}
+  follows_strategy: {description: The reconstruction strategy followed., range: ReconstructionStrategy}
+  strategy_id: {description: Strategy identifier (unique key)., range: string, identifier: true}
+  strategy_kind: {description: Canonical strategy category (IRI-bearing enum value)., range: ReconstructionStrategyId}
+  strategy_version: {description: Strategy version., range: string}
+  canonical_iri: {description: Canonical IRI carried by the runtime enum., range: uriorcurie}
+  parameter_set_sha256: {description: Content-addressed hash of the canonical parameter set., range: string}
+  bindings: {description: Knob=value bindings., range: ParameterBinding, multivalued: true, inlined_as_list: true}
+  knob_key: {description: Option/knob key., range: string}
+  knob_value: {description: Bound value (canonical JSON string)., range: string}

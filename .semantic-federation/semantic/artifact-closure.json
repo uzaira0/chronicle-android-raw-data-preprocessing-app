@@ -1,0 +1,79 @@
+{
+  "protocol_version": "0.1",
+  "root_digest": "sha256:5d86be023a59af17f0338a143f81a546067ea817d643e4ac4b40bd64a079ec6d",
+  "artifacts": [
+    {
+      "artifact_id": "conformance-report.json",
+      "digest": "sha256:e55598015b0a1c9c5b333e23317690fcede7d18a229db0e9965eb030a92387c7",
+      "media_type": "application/json",
+      "size": 630
+    },
+    {
+      "artifact_id": "families/incremental-dataflow/contract.json",
+      "digest": "sha256:fd253ca6afd1dfb731439b1028e5cb4ffbfb514b904587ec421ea7404f5e9adb",
+      "media_type": "application/json",
+      "size": 312
+    },
+    {
+      "artifact_id": "profile-source.json",
+      "digest": "sha256:f4e899e0090cd9b75060a1c56517e42184b08f2653a7a5b8b79507b88d9cfef4",
+      "media_type": "application/json",
+      "size": 2649
+    },
+    {
+      "artifact_id": "resources/chronicle-research-ontology.linkml.yaml",
+      "digest": "sha256:f5e5c728f53b936e064db2dc1bd37946b3933d123e11f485899cf402baea848e",
+      "media_type": "application/yaml",
+      "size": 18967
+    },
+    {
+      "artifact_id": "resources/chronicle-research-ontology.merged.shacl.ttl",
+      "digest": "sha256:ef9d439724e060549e9b8b598fae1bcd76b72364a1de769a1889d3605bf47a6a",
+      "media_type": "text/turtle",
+      "size": 31355
+    },
+    {
+      "artifact_id": "resources/chronicle-views.schema.json",
+      "digest": "sha256:76fbe955934a3c05460bff327209698c8d7fa06901d536a42855a17cafd97b48",
+      "media_type": "application/json",
+      "size": 6046
+    },
+    {
+      "artifact_id": "resources/chronicle.plan.json",
+      "digest": "sha256:da84f0d9e8e139fccf3d5a2c7b42e4a658759fac7ed20f7bc89dce0e69ad7025",
+      "media_type": "application/json",
+      "size": 54998
+    },
+    {
+      "artifact_id": "resources/existing-ontology-sources.json",
+      "digest": "sha256:958105819a799b162247380130e256dbba82795236dee7f322e620a323c034ff",
+      "media_type": "application/json",
+      "size": 1070
+    },
+    {
+      "artifact_id": "resources/identity-contract.json",
+      "digest": "sha256:bf359f5437ff66501b0bf6aa704531068799ab58a9195c1f76c9e4f6ad5b0b74",
+      "media_type": "application/json",
+      "size": 240
+    },
+    {
+      "artifact_id": "resources/registered-queries.json",
+      "digest": "sha256:82115e12fb2d57a0913b7c03250637ff02195ef7b6de1ae24f3b09b1efdc244b",
+      "media_type": "application/json",
+      "size": 1945
+    },
+    {
+      "artifact_id": "semantic-profile.json",
+      "digest": "sha256:c248cd6cbe8fe7b111add20bcc092dccd256a5a5fd559634e4a36b3768338744",
+      "media_type": "application/json",
+      "size": 4008
+    },
+    {
+      "artifact_id": "semantic-profile.lock",
+      "digest": "sha256:a7feaf5878794b5d50595e0647f115f28e24fec5306415f8938bfc9fa1c1e6c4",
+      "media_type": "application/octet-stream",
+      "size": 2621
+    }
+  ],
+  "closure_digest": "sha256:f0eaa7265bdb6ce29f0f4431cb83af49f762885a68f6ead59bc480818a1288ad"
+}

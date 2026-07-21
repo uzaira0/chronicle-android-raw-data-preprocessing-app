@@ -5,7 +5,9 @@
 # metamorphic/corpus-soak harnesses were REMOVED (fully deprecated — web is
 # the single engine). Their final evidence is frozen in
 # docs/validation/CORPUS_SOAK.md and docs/perf/BASELINE.md; the removal
-# commit message names the last ref that still carries them.
+# commit message names the last ref that still carries them. The browser remains
+# the product surface while this branch migrates computational authority from
+# TypeScript into product-owned Rust/WASM.
 #
 # Quick start:
 #   make ci      # rust tests + every security scanner
@@ -13,11 +15,12 @@
 #   make help    # list every target
 
 MATCHER := rust/chronicle_app_usage_matcher/Cargo.toml
+SEM_PROF_BIN ?= semprof
 
 .PHONY: help ci all security web \
         rust \
         semgrep ast-grep cargo-audit trivy gitleaks \
-        typecheck web-test contract combinatorial gate-truth mutation \
+        typecheck web-test contract semantic-federation combinatorial gate-truth mutation \
         coverage knip profile e2e deploy-artifact
 
 help:
@@ -56,7 +59,7 @@ all:
 
 security: semgrep ast-grep cargo-audit trivy gitleaks
 
-web: typecheck web-test contract
+web: typecheck web-test contract semantic-federation
 
 # ---------- Rust tests ----------
 # The matcher core is a library dependency of the web WASM crates
@@ -93,6 +96,9 @@ web-test:
 
 contract:
 	cd web && npm run check:contract
+
+semantic-federation:
+	$(MAKE) -C .semantic-federation check SEM_PROF_BIN=$(SEM_PROF_BIN)
 
 # Combinatorial coverage: regenerates the PICT/ACTS models from the contract
 # SSOT, generates t=2/t=3 covering arrays (executed by

@@ -1,0 +1,1421 @@
+{
+  "protocol_version": "0.1",
+  "plan_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:plan/raw-data/v1",
+  "revision": "0.1.0",
+  "family": "incremental-dataflow",
+  "authority": {
+    "current_shadow": "typescript-executable-wiring",
+    "target": "compiled-rust-capability-registry",
+    "generated_yaml_is_executable_authority": false
+  },
+  "relations": [
+    "feeds",
+    "gates",
+    "tunes"
+  ],
+  "materialization_states": [
+    "open",
+    "ready",
+    "satisfied",
+    "blocked",
+    "invalid",
+    "not_applicable"
+  ],
+  "execution_states": [
+    "cached",
+    "recomputed",
+    "error",
+    "skipped",
+    "bypassed"
+  ],
+  "root_roles": [
+    {
+      "role_id": "raw_chronicle_csv",
+      "cardinality": {
+        "minimum": 1,
+        "maximum": 1
+      },
+      "media_types": [
+        "text/csv"
+      ],
+      "required": true
+    },
+    {
+      "role_id": "processing_options",
+      "cardinality": {
+        "minimum": 1,
+        "maximum": 1
+      },
+      "media_types": [
+        "application/json"
+      ],
+      "required": true
+    },
+    {
+      "role_id": "filter_file",
+      "cardinality": {
+        "minimum": 0,
+        "maximum": 1
+      },
+      "media_types": [
+        "text/csv",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ],
+      "required_when": {
+        "option_true": "use_filter_file"
+      }
+    },
+    {
+      "role_id": "apps_forcing_screen_open_file",
+      "cardinality": {
+        "minimum": 0,
+        "maximum": 1
+      },
+      "media_types": [
+        "text/csv",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ],
+      "required_when": {
+        "option_true": "use_apps_forcing_screen_open_file"
+      }
+    },
+    {
+      "role_id": "background_apps_file",
+      "cardinality": {
+        "minimum": 0,
+        "maximum": 1
+      },
+      "media_types": [
+        "text/csv",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ],
+      "required_when": {
+        "option_true": "use_background_apps_file"
+      }
+    },
+    {
+      "role_id": "app_codebook_file",
+      "cardinality": {
+        "minimum": 0,
+        "maximum": 1
+      },
+      "media_types": [
+        "text/csv",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ],
+      "required_when": {
+        "option_true": "use_app_codebook"
+      }
+    },
+    {
+      "role_id": "study_dates_file",
+      "cardinality": {
+        "minimum": 0,
+        "maximum": 1
+      },
+      "media_types": [
+        "text/csv",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ],
+      "required_when_any": [
+        {
+          "option_true": "enable_study_window_filter"
+        },
+        {
+          "option_true": "add_no_activity_placeholder_days"
+        },
+        {
+          "option_true": "enable_day_coverage"
+        }
+      ]
+    },
+    {
+      "role_id": "device_sharing_file",
+      "cardinality": {
+        "minimum": 0,
+        "maximum": 1
+      },
+      "media_types": [
+        "text/csv",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ],
+      "required_when_any": [
+        {
+          "option_true": "enable_person_attribution"
+        },
+        {
+          "option_true": "enable_compliance_scoring"
+        }
+      ]
+    },
+    {
+      "role_id": "survey_attribution_file",
+      "cardinality": {
+        "minimum": 0,
+        "maximum": 1
+      },
+      "media_types": [
+        "text/csv",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ],
+      "required": false,
+      "qualification": "optional-evidence"
+    },
+    {
+      "role_id": "enrolled_devices_file",
+      "cardinality": {
+        "minimum": 0,
+        "maximum": 1
+      },
+      "media_types": [
+        "text/csv",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ],
+      "required": false,
+      "qualification": "reserved-support"
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "parse_events",
+      "label": "Event parsing",
+      "section": "preprocess",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/parse_events/v1",
+      "input_nodes": [],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/parse_events",
+      "knobs": [
+        {
+          "option_key": "interaction_type_remap",
+          "edge": "tunes"
+        }
+      ],
+      "support_roles": [],
+      "can_bypass": false,
+      "early_cutoff": true,
+      "determinism": "semantic",
+      "migration_status": "partial-rust-shadow"
+    },
+    {
+      "node_id": "normalize_timezones",
+      "label": "Timezone normalization",
+      "section": "preprocess",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/normalize_timezones/v1",
+      "input_nodes": [
+        "parse_events"
+      ],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/normalize_timezones",
+      "knobs": [
+        {
+          "option_key": "selected_timezone",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "timezone_handling",
+          "edge": "tunes"
+        }
+      ],
+      "support_roles": [],
+      "can_bypass": false,
+      "early_cutoff": true,
+      "determinism": "semantic",
+      "migration_status": "partial-rust-shadow"
+    },
+    {
+      "node_id": "dedup_and_order",
+      "label": "Event dedup & ordering",
+      "section": "preprocess",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/dedup_and_order/v1",
+      "input_nodes": [
+        "normalize_timezones"
+      ],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/dedup_and_order",
+      "knobs": [
+        {
+          "option_key": "deduplicate_exact_rows",
+          "edge": "gates"
+        },
+        {
+          "option_key": "correct_duplicate_event_timestamps",
+          "edge": "gates"
+        },
+        {
+          "option_key": "same_app_interaction_types_to_stop_usage_at",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "other_interaction_types_to_stop_usage_at",
+          "edge": "tunes"
+        }
+      ],
+      "support_roles": [],
+      "can_bypass": false,
+      "early_cutoff": true,
+      "determinism": "semantic",
+      "migration_status": "partial-rust-shadow"
+    },
+    {
+      "node_id": "app_policy",
+      "label": "App policy — tag filtered packages",
+      "section": "clean",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/app_policy/v1",
+      "input_nodes": [
+        "dedup_and_order"
+      ],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/app_policy",
+      "knobs": [
+        {
+          "option_key": "use_filter_file",
+          "edge": "gates"
+        }
+      ],
+      "support_roles": [
+        "filter_file"
+      ],
+      "can_bypass": true,
+      "early_cutoff": true,
+      "determinism": "semantic",
+      "migration_status": "partial-rust-shadow"
+    },
+    {
+      "node_id": "device_state_timeline",
+      "label": "Device-state timeline (screen sessions)",
+      "section": "preprocess",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/device_state_timeline/v1",
+      "input_nodes": [
+        "app_policy"
+      ],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/device_state_timeline",
+      "knobs": [
+        {
+          "option_key": "process_screen_usage",
+          "edge": "gates"
+        },
+        {
+          "option_key": "use_apps_forcing_screen_open_file",
+          "edge": "gates"
+        },
+        {
+          "option_key": "screen_usage_auto_lock_timeout_seconds",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "screen_usage_auto_lock_tolerance_seconds",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "screen_usage_manual_lock_max_tail_gap_seconds",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "screen_usage_keyguard_near_stop_seconds",
+          "edge": "tunes"
+        }
+      ],
+      "support_roles": [
+        "apps_forcing_screen_open_file"
+      ],
+      "can_bypass": true,
+      "early_cutoff": false,
+      "determinism": "semantic",
+      "migration_status": "partial-rust-shadow"
+    },
+    {
+      "node_id": "reconstruct_episodes",
+      "label": "Usage-episode reconstruction",
+      "section": "preprocess",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/reconstruct_episodes/v1",
+      "input_nodes": [
+        "app_policy"
+      ],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/reconstruct_episodes",
+      "knobs": [
+        {
+          "option_key": "process_app_usage",
+          "edge": "gates"
+        },
+        {
+          "option_key": "use_filter_file",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "use_background_apps_file",
+          "edge": "gates"
+        },
+        {
+          "option_key": "allow_stop_event_reuse",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "use_activity_stopped_as_fallback",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "apply_threshold_to_fallback",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "long_duration_threshold_hours",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "minimum_usage_duration",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "proximity_interval_seconds",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "model_concurrent_usage",
+          "edge": "gates"
+        },
+        {
+          "option_key": "apply_minimum_usage_duration_to_concurrent_subintervals",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "same_app_interaction_types_to_stop_usage_at",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "other_interaction_types_to_stop_usage_at",
+          "edge": "tunes"
+        }
+      ],
+      "support_roles": [
+        "background_apps_file"
+      ],
+      "can_bypass": true,
+      "early_cutoff": false,
+      "determinism": "semantic",
+      "migration_status": "partial-rust-shadow"
+    },
+    {
+      "node_id": "categorize_apps",
+      "label": "App categorization",
+      "section": "preprocess",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/categorize_apps/v1",
+      "input_nodes": [
+        "reconstruct_episodes"
+      ],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/categorize_apps",
+      "knobs": [
+        {
+          "option_key": "process_app_usage",
+          "edge": "gates"
+        },
+        {
+          "option_key": "use_app_codebook",
+          "edge": "gates"
+        },
+        {
+          "option_key": "include_category_column",
+          "edge": "tunes"
+        }
+      ],
+      "support_roles": [
+        "app_codebook_file"
+      ],
+      "can_bypass": true,
+      "early_cutoff": false,
+      "determinism": "semantic",
+      "migration_status": "partial-rust-shadow"
+    },
+    {
+      "node_id": "episode_annotations",
+      "label": "Episode annotation (engagement & flags)",
+      "section": "preprocess",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/episode_annotations/v1",
+      "input_nodes": [
+        "categorize_apps"
+      ],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/episode_annotations",
+      "knobs": [
+        {
+          "option_key": "process_app_usage",
+          "edge": "gates"
+        },
+        {
+          "option_key": "long_usage_duration_thresholds",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "long_data_time_gap_thresholds",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "custom_app_engagement_duration",
+          "edge": "tunes"
+        }
+      ],
+      "support_roles": [],
+      "can_bypass": true,
+      "early_cutoff": false,
+      "determinism": "semantic",
+      "migration_status": "partial-rust-shadow"
+    },
+    {
+      "node_id": "interval_cleaning",
+      "label": "Interval cleaning (blank & drop)",
+      "section": "clean",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/interval_cleaning/v1",
+      "input_nodes": [
+        "episode_annotations"
+      ],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/interval_cleaning",
+      "knobs": [
+        {
+          "option_key": "process_app_usage",
+          "edge": "gates"
+        },
+        {
+          "option_key": "use_filter_file",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "interaction_types_to_remove",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "long_data_time_gap_thresholds",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "filter_zero_duration_sessions",
+          "edge": "gates"
+        }
+      ],
+      "support_roles": [],
+      "can_bypass": true,
+      "early_cutoff": false,
+      "determinism": "semantic",
+      "migration_status": "partial-rust-shadow"
+    },
+    {
+      "node_id": "effective_usage",
+      "label": "Effective usage (screen-gated credit)",
+      "section": "clean",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/effective_usage/v1",
+      "input_nodes": [
+        "interval_cleaning",
+        "app_policy"
+      ],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/effective_usage",
+      "knobs": [
+        {
+          "option_key": "process_app_usage",
+          "edge": "gates"
+        },
+        {
+          "option_key": "enable_screen_gated_crediting",
+          "edge": "gates"
+        },
+        {
+          "option_key": "credited_session_cap_minutes",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "device_liveness_gap_tolerance_minutes",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "auto_lock_bridge_seconds",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "no_witness_min_day_apps",
+          "edge": "tunes"
+        }
+      ],
+      "support_roles": [],
+      "can_bypass": true,
+      "early_cutoff": false,
+      "determinism": "semantic",
+      "migration_status": "typescript-only"
+    },
+    {
+      "node_id": "observation_window",
+      "label": "Observation-window filtering",
+      "section": "analyze",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/observation_window/v1",
+      "input_nodes": [
+        "interval_cleaning"
+      ],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/observation_window",
+      "knobs": [
+        {
+          "option_key": "process_app_usage",
+          "edge": "gates"
+        },
+        {
+          "option_key": "enable_study_window_filter",
+          "edge": "gates"
+        }
+      ],
+      "support_roles": [
+        "study_dates_file"
+      ],
+      "can_bypass": true,
+      "early_cutoff": false,
+      "determinism": "semantic",
+      "migration_status": "typescript-only"
+    },
+    {
+      "node_id": "attribute_person",
+      "label": "Person attribution (shared devices)",
+      "section": "analyze",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/attribute_person/v1",
+      "input_nodes": [
+        "observation_window"
+      ],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/attribute_person",
+      "knobs": [
+        {
+          "option_key": "process_app_usage",
+          "edge": "gates"
+        },
+        {
+          "option_key": "enable_person_attribution",
+          "edge": "gates"
+        }
+      ],
+      "support_roles": [
+        "device_sharing_file",
+        "survey_attribution_file"
+      ],
+      "can_bypass": true,
+      "early_cutoff": false,
+      "determinism": "semantic",
+      "migration_status": "typescript-only"
+    },
+    {
+      "node_id": "day_coverage",
+      "label": "Day coverage & placeholders",
+      "section": "analyze",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/day_coverage/v1",
+      "input_nodes": [
+        "attribute_person",
+        "app_policy"
+      ],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/day_coverage",
+      "knobs": [
+        {
+          "option_key": "process_app_usage",
+          "edge": "gates"
+        },
+        {
+          "option_key": "add_no_activity_placeholder_days",
+          "edge": "gates"
+        },
+        {
+          "option_key": "enable_day_coverage",
+          "edge": "gates"
+        }
+      ],
+      "support_roles": [
+        "study_dates_file"
+      ],
+      "can_bypass": true,
+      "early_cutoff": false,
+      "determinism": "semantic",
+      "migration_status": "typescript-only"
+    },
+    {
+      "node_id": "score_compliance",
+      "label": "Compliance scoring",
+      "section": "analyze",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/score_compliance/v1",
+      "input_nodes": [
+        "day_coverage",
+        "attribute_person"
+      ],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/score_compliance",
+      "knobs": [
+        {
+          "option_key": "process_app_usage",
+          "edge": "gates"
+        },
+        {
+          "option_key": "enable_compliance_scoring",
+          "edge": "gates"
+        },
+        {
+          "option_key": "compliance_threshold_percent",
+          "edge": "tunes"
+        }
+      ],
+      "support_roles": [
+        "device_sharing_file",
+        "enrolled_devices_file"
+      ],
+      "can_bypass": true,
+      "early_cutoff": false,
+      "determinism": "semantic",
+      "migration_status": "typescript-only"
+    },
+    {
+      "node_id": "outputs",
+      "label": "Outputs",
+      "section": "output",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/outputs/v1",
+      "input_nodes": [
+        "day_coverage",
+        "device_state_timeline",
+        "effective_usage",
+        "observation_window",
+        "attribute_person",
+        "score_compliance"
+      ],
+      "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/outputs",
+      "knobs": [],
+      "support_roles": [],
+      "can_bypass": false,
+      "early_cutoff": false,
+      "determinism": "semantic",
+      "migration_status": "partial-rust-shadow"
+    }
+  ],
+  "steps": [
+    {
+      "step_id": "parse_remap_config",
+      "unit_id": "parse_events",
+      "label": "Parse remap config",
+      "description": "Parse the interaction-type remap option into a lookup map.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/parse_remap_config/v1",
+      "input_steps": [],
+      "can_bypass": false,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "csv_parse",
+      "unit_id": "parse_events",
+      "label": "CSV parse",
+      "description": "Parse the raw Chronicle CSV text into header-keyed rows (throws on parse errors).",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/csv_parse/v1",
+      "input_steps": [],
+      "can_bypass": false,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "drop_empty_timestamp",
+      "unit_id": "parse_events",
+      "label": "Drop empty timestamps",
+      "description": "Drop raw rows with no event timestamp — unusable by every downstream step.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/drop_empty_timestamp/v1",
+      "input_steps": [
+        "csv_parse"
+      ],
+      "can_bypass": false,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "detect_device_model",
+      "unit_id": "parse_events",
+      "label": "Detect device model",
+      "description": "Classify the stream as Amazon Fire vs Android from package-name evidence.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/detect_device_model/v1",
+      "input_steps": [
+        "drop_empty_timestamp"
+      ],
+      "can_bypass": false,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "resolve_preproc_datetime",
+      "unit_id": "parse_events",
+      "label": "Resolve run datetime",
+      "description": "Resolve the datetime-of-preprocessing stamp (runtime-pinned for reproducibility).",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/resolve_preproc_datetime/v1",
+      "input_steps": [],
+      "can_bypass": false,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "build_canonical_rows",
+      "unit_id": "parse_events",
+      "label": "Build canonical rows",
+      "description": "Build typed canonical rows: normalize strings, remap interaction types, parse ns timestamps, stamp calendar columns.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_canonical_rows/v1",
+      "input_steps": [
+        "drop_empty_timestamp",
+        "resolve_preproc_datetime",
+        "detect_device_model",
+        "parse_remap_config"
+      ],
+      "can_bypass": false,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "stable_sort",
+      "unit_id": "parse_events",
+      "label": "Stable sort",
+      "description": "Sort rows by event timestamp, ties broken by original row index.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/stable_sort/v1",
+      "input_steps": [
+        "build_canonical_rows"
+      ],
+      "can_bypass": false,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "collect_timezones",
+      "unit_id": "parse_events",
+      "label": "Collect timezones",
+      "description": "Collect the distinct, sorted timezones present in the file (drives the timezone picker).",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/collect_timezones/v1",
+      "input_steps": [
+        "stable_sort"
+      ],
+      "can_bypass": false,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "compute_dominant_timezone",
+      "unit_id": "normalize_timezones",
+      "label": "Dominant timezone",
+      "description": "Find the most frequent timezone across the rows (the primary clock).",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/compute_dominant_timezone/v1",
+      "input_steps": [
+        "stable_sort"
+      ],
+      "can_bypass": false,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/normalizeTimezones.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "select_timezone_strategy",
+      "unit_id": "normalize_timezones",
+      "label": "Select strategy",
+      "description": "Pick the target timezone and (for filter strategies) the surviving rows, per the timezone-handling setting.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/select_timezone_strategy/v1",
+      "input_steps": [
+        "stable_sort",
+        "compute_dominant_timezone"
+      ],
+      "can_bypass": false,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/normalizeTimezones.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "restamp_rows",
+      "unit_id": "normalize_timezones",
+      "label": "Restamp rows",
+      "description": "Restamp every surviving row onto the target timezone and recompute its calendar columns.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/restamp_rows/v1",
+      "input_steps": [
+        "select_timezone_strategy"
+      ],
+      "can_bypass": false,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/normalizeTimezones.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "row_count_report",
+      "unit_id": "normalize_timezones",
+      "label": "Row-count report",
+      "description": "Before/after/removed row counts for the timezone step's report.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/row_count_report/v1",
+      "input_steps": [
+        "select_timezone_strategy",
+        "restamp_rows"
+      ],
+      "can_bypass": false,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/normalizeTimezones.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "exact_dedupe",
+      "unit_id": "dedup_and_order",
+      "label": "Exact dedupe",
+      "description": "Collapse exact-duplicate raw rows (same participant, timestamp, app, interaction type), keeping the first. Gated by deduplicateExactRows.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/exact_dedupe/v1",
+      "input_steps": [
+        "restamp_rows"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dedupAndOrder.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "count_dup_groups",
+      "unit_id": "dedup_and_order",
+      "label": "Count duplicate groups",
+      "description": "Count same-timestamp event groups before correction, for the run report.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/count_dup_groups/v1",
+      "input_steps": [
+        "exact_dedupe"
+      ],
+      "can_bypass": false,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dedupAndOrder.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "nudge_duplicate_timestamps",
+      "unit_id": "dedup_and_order",
+      "label": "Nudge duplicate timestamps",
+      "description": "Nudge same-timestamp events apart (resume-first priority order) so event ordering is deterministic. Gated by correctDuplicateEventTimestamps.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/nudge_duplicate_timestamps/v1",
+      "input_steps": [
+        "exact_dedupe"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dedupAndOrder.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "mark_data_time_gaps",
+      "unit_id": "dedup_and_order",
+      "label": "Mark data-time gaps",
+      "description": "Stamp each row with the gap (hours) since the previous event in the stream.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/mark_data_time_gaps/v1",
+      "input_steps": [
+        "nudge_duplicate_timestamps"
+      ],
+      "can_bypass": false,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dedupAndOrder.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "tag_filtered_packages",
+      "unit_id": "app_policy",
+      "label": "Tag filtered packages",
+      "description": "TAGGING ONLY: relabel filter-listed packages' raw events 'Filtered App *' so the list is visible downstream. Nothing is dropped or blanked here.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/tag_filtered_packages/v1",
+      "input_steps": [
+        "mark_data_time_gaps"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/appPolicy.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "collect_keyguard_timestamps",
+      "unit_id": "device_state_timeline",
+      "label": "Collect keyguard timestamps",
+      "description": "Sorted timestamps of every keyguard-shown event — the lock-screen evidence stream.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/collect_keyguard_timestamps/v1",
+      "input_steps": [
+        "tag_filtered_packages"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/deviceStateTimeline.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "walk_screen_state_machine",
+      "unit_id": "device_state_timeline",
+      "label": "Walk screen state machine",
+      "description": "CLOSED —screen-start→ OPEN —screen-stop→ CLOSED, accumulating keyguard/unlock/foreground evidence; emits one close per session.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/walk_screen_state_machine/v1",
+      "input_steps": [
+        "tag_filtered_packages"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/deviceStateTimeline.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "build_classified_sessions",
+      "unit_id": "device_state_timeline",
+      "label": "Build & classify sessions",
+      "description": "Materialize each close as a 'Screen Usage' row and classify its end reason (manual/auto lock, kept-awake, lock-screen-only, …) with a confidence.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_classified_sessions/v1",
+      "input_steps": [
+        "tag_filtered_packages",
+        "walk_screen_state_machine",
+        "collect_keyguard_timestamps"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/deviceStateTimeline.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "compute_junk_packages",
+      "unit_id": "reconstruct_episodes",
+      "label": "Compute junk packages",
+      "description": "The junk (filter-listed) package set: packages carrying any Filtered-* event. Empty when the filter file is off.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/compute_junk_packages/v1",
+      "input_steps": [
+        "tag_filtered_packages"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "junk_blind_fold",
+      "unit_id": "reconstruct_episodes",
+      "label": "Junk-blind fold",
+      "description": "Fold pre-relabeled junk events back to their Activity equivalents so the matcher sees every app identically (junk-BLIND matching).",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/junk_blind_fold/v1",
+      "input_steps": [
+        "tag_filtered_packages",
+        "compute_junk_packages"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "build_matcher_input",
+      "unit_id": "reconstruct_episodes",
+      "label": "Build matcher input",
+      "description": "Factorize app codes and build the resumed/stop/background masks the matcher consumes (throws when the file has no app events).",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_matcher_input/v1",
+      "input_steps": [
+        "junk_blind_fold"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "run_matcher",
+      "unit_id": "reconstruct_episodes",
+      "label": "Run matcher",
+      "description": "Pair resumes with stops (WASM matcher; JS matcher when the proximity glue is on).",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/run_matcher/v1",
+      "input_steps": [
+        "build_matcher_input"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "apply_matcher_output",
+      "unit_id": "reconstruct_episodes",
+      "label": "Apply matcher output",
+      "description": "Stamp episode start/stop timestamps from the matcher pairings; mark unmatched resumes 'End of Usage Missing'.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/apply_matcher_output/v1",
+      "input_steps": [
+        "junk_blind_fold",
+        "run_matcher",
+        "compute_junk_packages"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "relabel_usage_with_floor",
+      "unit_id": "reconstruct_episodes",
+      "label": "Relabel usage + floor",
+      "description": "Drop pauses/unmatched resumes, relabel matched resumes as usage episodes, and apply the minimum-duration floor.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/relabel_usage_with_floor/v1",
+      "input_steps": [
+        "apply_matcher_output"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "junk_downstream_mark",
+      "unit_id": "reconstruct_episodes",
+      "label": "Junk downstream mark",
+      "description": "The ONE lossy filter decision, after matching: relabel junk apps' own episodes 'Filtered App Usage' (background junk keeps real timing).",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/junk_downstream_mark/v1",
+      "input_steps": [
+        "relabel_usage_with_floor",
+        "compute_junk_packages"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "sort_episodes",
+      "unit_id": "reconstruct_episodes",
+      "label": "Sort episodes",
+      "description": "Re-sort rows by event timestamp after the relabels.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/sort_episodes/v1",
+      "input_steps": [
+        "junk_downstream_mark"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "split_concurrent",
+      "unit_id": "reconstruct_episodes",
+      "label": "Split concurrent sessions",
+      "description": "Phase 2 (concurrent modeling / background apps only): layer overlapping sessions into primary/secondary sub-intervals.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/split_concurrent/v1",
+      "input_steps": [
+        "sort_episodes"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "codebook_join",
+      "unit_id": "categorize_apps",
+      "label": "Codebook join",
+      "description": "Join each episode's package against the app codebook: null-fill output columns, copy matched records through the rename map, stamp Unknown sentinels.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/codebook_join/v1",
+      "input_steps": [
+        "split_concurrent"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/categorizeApps.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "derive_broad_category",
+      "unit_id": "categorize_apps",
+      "label": "Derive broad category",
+      "description": "Coalesce the per-source category columns onto the palette vocabulary (desktop order) for every row with a codebook record.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/derive_broad_category/v1",
+      "input_steps": [
+        "codebook_join"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/categorizeApps.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "collapse_genre",
+      "unit_id": "categorize_apps",
+      "label": "Collapse genre ids",
+      "description": "Reconcile per-source genre ids: agreement promotes the genre, disagreement yields null, none yields Unknown.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/collapse_genre/v1",
+      "input_steps": [
+        "derive_broad_category"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/categorizeApps.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "engagement_walk",
+      "unit_id": "episode_annotations",
+      "label": "Engagement walk",
+      "description": "Sequential walk over foreground episodes computing new-engagement (30 s / custom), app switches, and inter-episode gaps — any-app and valid-app variants.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/engagement_walk/v1",
+      "input_steps": [
+        "collapse_genre"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/episodeAnnotations.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "flag_and_retain",
+      "unit_id": "episode_annotations",
+      "label": "Flag & retain",
+      "description": "Stamp quality flags for long usage sessions and long data gaps — flag, never drop.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/flag_and_retain/v1",
+      "input_steps": [
+        "engagement_walk"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/episodeAnnotations.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "blank_junk_timing",
+      "unit_id": "interval_cleaning",
+      "label": "Blank junk timing",
+      "description": "The SOLE blanking site: null start/stop/duration on 'Filtered App Usage' rows, after the engagement walk has read their real timing.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/blank_junk_timing/v1",
+      "input_steps": [
+        "flag_and_retain"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/intervalCleaning.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "drop_selected_types",
+      "unit_id": "interval_cleaning",
+      "label": "Drop selected types",
+      "description": "Drop the event types selected for removal — kept when they witness a large data gap.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/drop_selected_types/v1",
+      "input_steps": [
+        "blank_junk_timing"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/intervalCleaning.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "drop_zero_duration",
+      "unit_id": "interval_cleaning",
+      "label": "Drop zero-duration",
+      "description": "Optionally drop zero-duration usage episodes (null-duration rows are kept). Gated by filterZeroDurationSessions.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/drop_zero_duration/v1",
+      "input_steps": [
+        "drop_selected_types"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/intervalCleaning.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "partition_credit_sessions",
+      "unit_id": "effective_usage",
+      "label": "Partition sessions",
+      "description": "Split the cleaned rows into credit-eligible App-Usage sessions (positive duration) vs pass-through rest.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/partition_credit_sessions/v1",
+      "input_steps": [
+        "drop_zero_duration"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "build_liveness_substrate",
+      "unit_id": "effective_usage",
+      "label": "Build liveness substrate",
+      "description": "Per participant: screen ON/OFF change points, boot timestamps, all event timestamps, and screen-capability — from the RAW event stream.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_liveness_substrate/v1",
+      "input_steps": [
+        "tag_filtered_packages"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "report_screen_incapable",
+      "unit_id": "effective_usage",
+      "label": "Report screen-incapable",
+      "description": "Participants whose stream carries no usable screen change points.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/report_screen_incapable/v1",
+      "input_steps": [
+        "partition_credit_sessions",
+        "build_liveness_substrate"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "count_day_apps",
+      "unit_id": "effective_usage",
+      "label": "Count day apps",
+      "description": "Distinct apps per (participant, date) — the no-witness fallback gate.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/count_day_apps/v1",
+      "input_steps": [
+        "partition_credit_sessions"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "credit_sessions",
+      "unit_id": "effective_usage",
+      "label": "Credit sessions",
+      "description": "Per session: cap the end, intersect device-alive with screen-creditable intervals (auto-lock bridging), apply the no-witness fallback.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/credit_sessions/v1",
+      "input_steps": [
+        "partition_credit_sessions",
+        "build_liveness_substrate",
+        "count_day_apps"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "emit_credited_rows",
+      "unit_id": "effective_usage",
+      "label": "Emit credited rows",
+      "description": "Rewrite each session into one clone row per credited interval, recomputing duration and calendar columns.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/emit_credited_rows/v1",
+      "input_steps": [
+        "credit_sessions"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "assemble_credit_result",
+      "unit_id": "effective_usage",
+      "label": "Assemble credit result",
+      "description": "Credited rows first, then the pass-through rest, plus the credit report.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/assemble_credit_result/v1",
+      "input_steps": [
+        "partition_credit_sessions",
+        "report_screen_incapable",
+        "emit_credited_rows"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "resolve_participant_windows",
+      "unit_id": "observation_window",
+      "label": "Resolve participant windows",
+      "description": "Resolve each participant to their study window (exact id, then numerical id) from the study-dates file.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/resolve_participant_windows/v1",
+      "input_steps": [
+        "drop_zero_duration"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/observationWindow.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "filter_rows_to_window",
+      "unit_id": "observation_window",
+      "label": "Filter rows to window",
+      "description": "Keep rows whose local date falls inside the participant's [start, end] window; participants without a window are kept whole and reported.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/filter_rows_to_window/v1",
+      "input_steps": [
+        "drop_zero_duration",
+        "resolve_participant_windows"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/observationWindow.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "resolve_sharing_status",
+      "unit_id": "attribute_person",
+      "label": "Resolve sharing status",
+      "description": "Resolve every participant to Shared / Non-Shared from the device-sharing file (throws on gaps — never defaults).",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/resolve_sharing_status/v1",
+      "input_steps": [
+        "filter_rows_to_window"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/attributePerson.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "build_survey_lookup",
+      "unit_id": "attribute_person",
+      "label": "Build survey lookup",
+      "description": "(participant, exact event timestamp) → user map from survey answers; later rows win.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_survey_lookup/v1",
+      "input_steps": [],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/attributePerson.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "attribute_rows",
+      "unit_id": "attribute_person",
+      "label": "Attribute rows",
+      "description": "Fill null usernames (kids-shell → Target Child), apply survey relabels, re-mark non-target App Usage on shared devices.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/attribute_rows/v1",
+      "input_steps": [
+        "filter_rows_to_window",
+        "resolve_sharing_status",
+        "build_survey_lookup"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/attributePerson.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "inject_placeholders",
+      "unit_id": "day_coverage",
+      "label": "Inject placeholders",
+      "description": "Inject one zero-duration 'No Activity' placeholder per participant-day that has raw events but no usage. Gated by addNoActivityPlaceholderDays.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/inject_placeholders/v1",
+      "input_steps": [
+        "attribute_rows",
+        "tag_filtered_packages"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dayCoverage.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "build_raw_date_index",
+      "unit_id": "day_coverage",
+      "label": "Build raw date index",
+      "description": "Per-participant set of raw event dates — the 'device was alive' evidence.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_raw_date_index/v1",
+      "input_steps": [
+        "tag_filtered_packages"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dayCoverage.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "build_coverage_table",
+      "unit_id": "day_coverage",
+      "label": "Build coverage table",
+      "description": "Classify every spine day usage / no_activity / no_data (hard invariant: a data day the spine misses is an error). Gated by enableDayCoverage.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_coverage_table/v1",
+      "input_steps": [
+        "inject_placeholders",
+        "build_raw_date_index"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dayCoverage.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "accumulate_attribution_minutes",
+      "unit_id": "score_compliance",
+      "label": "Accumulate attribution minutes",
+      "description": "Bucket known vs unknown attributed minutes per (participant, day) using the attribution SSOT.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/accumulate_attribution_minutes/v1",
+      "input_steps": [
+        "inject_placeholders"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/scoreCompliance.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "score_days",
+      "unit_id": "score_compliance",
+      "label": "Score days",
+      "description": "known/(known+unknown)×100 per shared-device day vs the threshold; Non-Shared days are 100; zero-usage days flagged.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/score_days/v1",
+      "input_steps": [
+        "accumulate_attribution_minutes",
+        "attribute_rows"
+      ],
+      "can_bypass": true,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/scoreCompliance.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    },
+    {
+      "step_id": "assemble_result",
+      "unit_id": "outputs",
+      "label": "Assemble result",
+      "description": "Assemble everything the run produced — app rows, screen sessions, credited usage, window/attribution/coverage/compliance reports — into the downloadable result set.",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/assemble_result/v1",
+      "input_steps": [
+        "inject_placeholders",
+        "build_coverage_table",
+        "build_classified_sessions",
+        "assemble_credit_result",
+        "filter_rows_to_window",
+        "filter_rows_to_window",
+        "attribute_rows",
+        "score_days"
+      ],
+      "can_bypass": false,
+      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/outputs.ts",
+      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+    }
+  ],
+  "reason_contract": {
+    "every_state_change_has_reason": true,
+    "reasons_reference_artifact_or_constraint": true,
+    "open_roles_materialize_as_obligations": true
+  }
+}

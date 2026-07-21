@@ -1,0 +1,18 @@
+{
+  "protocol_version": "0.1",
+  "profile_lock_digest": "sha256:8129ede057aa3e09e21244d0f08729f8ee758dbd9f4812f19ba47919f64e8cfb",
+  "subject_digest": "sha256:c248cd6cbe8fe7b111add20bcc092dccd256a5a5fd559634e4a36b3768338744",
+  "conforms": true,
+  "checks": [
+    {
+      "check_id": "urn:uzaira0:semantic-federation:check:lock-integrity",
+      "status": "pass"
+    },
+    {
+      "check_id": "urn:uzaira0:semantic-federation:check:subject-present",
+      "status": "pass",
+      "source": "semantic/semantic-profile.json"
+    }
+  ],
+  "report_digest": "sha256:73b21282f8549efa0708ef2abfb356da11510515af7347fac70e824a330d82ac"
+}
