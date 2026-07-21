@@ -60,27 +60,110 @@ PARTIAL_RUST_NODES = {
     "outputs",
 }
 
+TRUE = {"kind": "always"}
+
+
+def option_true(option_key: str) -> dict:
+    return {"kind": "option-true", "option_key": option_key}
+
+
+APPLICABILITY = {
+    "parse_events": TRUE,
+    "normalize_timezones": TRUE,
+    "dedup_and_order": TRUE,
+    "app_policy": option_true("use_filter_file"),
+    "device_state_timeline": option_true("process_screen_usage"),
+    "reconstruct_episodes": option_true("process_app_usage"),
+    "categorize_apps": {
+        "kind": "all",
+        "terms": [option_true("process_app_usage"), option_true("use_app_codebook")],
+    },
+    "episode_annotations": option_true("process_app_usage"),
+    "interval_cleaning": {
+        "kind": "all",
+        "terms": [
+            option_true("process_app_usage"),
+            {
+                "kind": "any",
+                "terms": [
+                    option_true("use_filter_file"),
+                    {"kind": "array-nonempty", "option_key": "interaction_types_to_remove"},
+                    option_true("filter_zero_duration_sessions"),
+                ],
+            },
+        ],
+    },
+    "effective_usage": {
+        "kind": "all",
+        "terms": [
+            option_true("process_app_usage"),
+            option_true("enable_screen_gated_crediting"),
+        ],
+    },
+    "observation_window": {
+        "kind": "all",
+        "terms": [
+            option_true("process_app_usage"),
+            option_true("enable_study_window_filter"),
+        ],
+    },
+    "attribute_person": {
+        "kind": "all",
+        "terms": [
+            option_true("process_app_usage"),
+            option_true("enable_person_attribution"),
+        ],
+    },
+    "day_coverage": {
+        "kind": "all",
+        "terms": [
+            option_true("process_app_usage"),
+            {
+                "kind": "any",
+                "terms": [
+                    option_true("add_no_activity_placeholder_days"),
+                    option_true("enable_day_coverage"),
+                ],
+            },
+        ],
+    },
+    "score_compliance": {
+        "kind": "all",
+        "terms": [
+            option_true("process_app_usage"),
+            option_true("enable_compliance_scoring"),
+        ],
+    },
+    "outputs": TRUE,
+}
+
 SUPPORT_ROLES = {
-    "filter_file": {"required_when": {"option_true": "use_filter_file"}},
+    "filter_file": {"required_when": option_true("use_filter_file")},
     "apps_forcing_screen_open_file": {
-        "required_when": {"option_true": "use_apps_forcing_screen_open_file"}
+        "required_when": option_true("use_apps_forcing_screen_open_file")
     },
     "background_apps_file": {
-        "required_when": {"option_true": "use_background_apps_file"}
+        "required_when": option_true("use_background_apps_file")
     },
-    "app_codebook_file": {"required_when": {"option_true": "use_app_codebook"}},
+    "app_codebook_file": {"required_when": option_true("use_app_codebook")},
     "study_dates_file": {
-        "required_when_any": [
-            {"option_true": "enable_study_window_filter"},
-            {"option_true": "add_no_activity_placeholder_days"},
-            {"option_true": "enable_day_coverage"},
-        ]
+        "required_when": {
+            "kind": "any",
+            "terms": [
+                option_true("enable_study_window_filter"),
+                option_true("add_no_activity_placeholder_days"),
+                option_true("enable_day_coverage"),
+            ],
+        }
     },
     "device_sharing_file": {
-        "required_when_any": [
-            {"option_true": "enable_person_attribution"},
-            {"option_true": "enable_compliance_scoring"},
-        ]
+        "required_when": {
+            "kind": "any",
+            "terms": [
+                option_true("enable_person_attribution"),
+                option_true("enable_compliance_scoring"),
+            ],
+        }
     },
     "survey_attribution_file": {"required": False, "qualification": "optional-evidence"},
     "enrolled_devices_file": {"required": False, "qualification": "reserved-support"},
@@ -147,6 +230,7 @@ def build_plan(projection: dict) -> dict:
                 "output_role": f"urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/{node_id}",
                 "knobs": node.get("node_knobs", []),
                 "support_roles": node.get("node_support_files", []),
+                "applicability": APPLICABILITY[node_id],
                 "can_bypass": node["has_bypass"],
                 "early_cutoff": node["has_early_cutoff"],
                 "determinism": "semantic",

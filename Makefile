@@ -15,6 +15,7 @@
 #   make help    # list every target
 
 MATCHER := rust/chronicle_app_usage_matcher/Cargo.toml
+SEMANTIC_RUNTIME := rust/chronicle_semantic_runtime/Cargo.toml
 SEM_PROF_BIN ?= semprof
 
 .PHONY: help ci all security web \
@@ -67,6 +68,8 @@ web: typecheck web-test contract semantic-federation
 # feature-free so no libpython is required on PATH.
 rust:
 	cargo test --manifest-path $(MATCHER) --no-default-features
+	cargo test --manifest-path $(SEMANTIC_RUNTIME)
+	rustup run stable cargo check --manifest-path $(SEMANTIC_RUNTIME) --target wasm32-unknown-unknown --features wasm
 
 # ---------- security scanners ----------
 semgrep:
@@ -80,6 +83,7 @@ ast-grep:
 
 cargo-audit:
 	cd rust/chronicle_app_usage_matcher && cargo audit
+	cd rust/chronicle_semantic_runtime && cargo audit
 
 trivy:
 	trivy fs .

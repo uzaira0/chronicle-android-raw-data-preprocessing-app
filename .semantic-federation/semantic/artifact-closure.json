@@ -1,10 +1,10 @@
 {
   "protocol_version": "0.1",
-  "root_digest": "sha256:5d86be023a59af17f0338a143f81a546067ea817d643e4ac4b40bd64a079ec6d",
+  "root_digest": "sha256:b2c5595677b9f155301534d2535d39e3a528cfd07422c61ea1df08b5bdbc7450",
   "artifacts": [
     {
       "artifact_id": "conformance-report.json",
-      "digest": "sha256:e55598015b0a1c9c5b333e23317690fcede7d18a229db0e9965eb030a92387c7",
+      "digest": "sha256:23741f20cc4f8d6791bfcba9dfd5c737ca5d39a20a8bfcd2b3a974996b22682e",
       "media_type": "application/json",
       "size": 630
     },
@@ -40,9 +40,9 @@
     },
     {
       "artifact_id": "resources/chronicle.plan.json",
-      "digest": "sha256:da84f0d9e8e139fccf3d5a2c7b42e4a658759fac7ed20f7bc89dce0e69ad7025",
+      "digest": "sha256:cde77841a991620e02f6df4231c224218ebcae3ff525101c541853850733a239",
       "media_type": "application/json",
-      "size": 54998
+      "size": 58808
     },
     {
       "artifact_id": "resources/existing-ontology-sources.json",
@@ -64,16 +64,16 @@
     },
     {
       "artifact_id": "semantic-profile.json",
-      "digest": "sha256:c248cd6cbe8fe7b111add20bcc092dccd256a5a5fd559634e4a36b3768338744",
+      "digest": "sha256:57973c5da45518c69b8ceb62120d541c0377b5289787e9a56bc26ebbfa917307",
       "media_type": "application/json",
       "size": 4008
     },
     {
       "artifact_id": "semantic-profile.lock",
-      "digest": "sha256:a7feaf5878794b5d50595e0647f115f28e24fec5306415f8938bfc9fa1c1e6c4",
+      "digest": "sha256:5e2ad23275a47839522f151efef7286c5551bc2ba45f006670c74765244d50c3",
       "media_type": "application/octet-stream",
       "size": 2621
     }
   ],
-  "closure_digest": "sha256:f0eaa7265bdb6ce29f0f4431cb83af49f762885a68f6ead59bc480818a1288ad"
+  "closure_digest": "sha256:0b1241b4fae2712d1553d69423c80027bce3ae14e1947828e1cb1e78e6cfc3af"
 }

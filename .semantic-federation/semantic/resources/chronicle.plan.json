@@ -62,7 +62,8 @@
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       ],
       "required_when": {
-        "option_true": "use_filter_file"
+        "kind": "option-true",
+        "option_key": "use_filter_file"
       }
     },
     {
@@ -76,7 +77,8 @@
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       ],
       "required_when": {
-        "option_true": "use_apps_forcing_screen_open_file"
+        "kind": "option-true",
+        "option_key": "use_apps_forcing_screen_open_file"
       }
     },
     {
@@ -90,7 +92,8 @@
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       ],
       "required_when": {
-        "option_true": "use_background_apps_file"
+        "kind": "option-true",
+        "option_key": "use_background_apps_file"
       }
     },
     {
@@ -104,7 +107,8 @@
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       ],
       "required_when": {
-        "option_true": "use_app_codebook"
+        "kind": "option-true",
+        "option_key": "use_app_codebook"
       }
     },
     {
@@ -117,17 +121,23 @@
         "text/csv",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       ],
-      "required_when_any": [
-        {
-          "option_true": "enable_study_window_filter"
-        },
-        {
-          "option_true": "add_no_activity_placeholder_days"
-        },
-        {
-          "option_true": "enable_day_coverage"
-        }
-      ]
+      "required_when": {
+        "kind": "any",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "enable_study_window_filter"
+          },
+          {
+            "kind": "option-true",
+            "option_key": "add_no_activity_placeholder_days"
+          },
+          {
+            "kind": "option-true",
+            "option_key": "enable_day_coverage"
+          }
+        ]
+      }
     },
     {
       "role_id": "device_sharing_file",
@@ -139,14 +149,19 @@
         "text/csv",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       ],
-      "required_when_any": [
-        {
-          "option_true": "enable_person_attribution"
-        },
-        {
-          "option_true": "enable_compliance_scoring"
-        }
-      ]
+      "required_when": {
+        "kind": "any",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "enable_person_attribution"
+          },
+          {
+            "kind": "option-true",
+            "option_key": "enable_compliance_scoring"
+          }
+        ]
+      }
     },
     {
       "role_id": "survey_attribution_file",
@@ -190,6 +205,9 @@
         }
       ],
       "support_roles": [],
+      "applicability": {
+        "kind": "always"
+      },
       "can_bypass": false,
       "early_cutoff": true,
       "determinism": "semantic",
@@ -215,6 +233,9 @@
         }
       ],
       "support_roles": [],
+      "applicability": {
+        "kind": "always"
+      },
       "can_bypass": false,
       "early_cutoff": true,
       "determinism": "semantic",
@@ -248,6 +269,9 @@
         }
       ],
       "support_roles": [],
+      "applicability": {
+        "kind": "always"
+      },
       "can_bypass": false,
       "early_cutoff": true,
       "determinism": "semantic",
@@ -271,6 +295,10 @@
       "support_roles": [
         "filter_file"
       ],
+      "applicability": {
+        "kind": "option-true",
+        "option_key": "use_filter_file"
+      },
       "can_bypass": true,
       "early_cutoff": true,
       "determinism": "semantic",
@@ -314,6 +342,10 @@
       "support_roles": [
         "apps_forcing_screen_open_file"
       ],
+      "applicability": {
+        "kind": "option-true",
+        "option_key": "process_screen_usage"
+      },
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
@@ -385,6 +417,10 @@
       "support_roles": [
         "background_apps_file"
       ],
+      "applicability": {
+        "kind": "option-true",
+        "option_key": "process_app_usage"
+      },
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
@@ -416,6 +452,19 @@
       "support_roles": [
         "app_codebook_file"
       ],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "option-true",
+            "option_key": "use_app_codebook"
+          }
+        ]
+      },
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
@@ -449,6 +498,10 @@
         }
       ],
       "support_roles": [],
+      "applicability": {
+        "kind": "option-true",
+        "option_key": "process_app_usage"
+      },
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
@@ -486,6 +539,32 @@
         }
       ],
       "support_roles": [],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "any",
+            "terms": [
+              {
+                "kind": "option-true",
+                "option_key": "use_filter_file"
+              },
+              {
+                "kind": "array-nonempty",
+                "option_key": "interaction_types_to_remove"
+              },
+              {
+                "kind": "option-true",
+                "option_key": "filter_zero_duration_sessions"
+              }
+            ]
+          }
+        ]
+      },
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
@@ -528,6 +607,19 @@
         }
       ],
       "support_roles": [],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "option-true",
+            "option_key": "enable_screen_gated_crediting"
+          }
+        ]
+      },
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
@@ -555,6 +647,19 @@
       "support_roles": [
         "study_dates_file"
       ],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "option-true",
+            "option_key": "enable_study_window_filter"
+          }
+        ]
+      },
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
@@ -583,6 +688,19 @@
         "device_sharing_file",
         "survey_attribution_file"
       ],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "option-true",
+            "option_key": "enable_person_attribution"
+          }
+        ]
+      },
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
@@ -615,6 +733,28 @@
       "support_roles": [
         "study_dates_file"
       ],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "any",
+            "terms": [
+              {
+                "kind": "option-true",
+                "option_key": "add_no_activity_placeholder_days"
+              },
+              {
+                "kind": "option-true",
+                "option_key": "enable_day_coverage"
+              }
+            ]
+          }
+        ]
+      },
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
@@ -648,6 +788,19 @@
         "device_sharing_file",
         "enrolled_devices_file"
       ],
+      "applicability": {
+        "kind": "all",
+        "terms": [
+          {
+            "kind": "option-true",
+            "option_key": "process_app_usage"
+          },
+          {
+            "kind": "option-true",
+            "option_key": "enable_compliance_scoring"
+          }
+        ]
+      },
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
@@ -669,6 +822,9 @@
       "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/outputs",
       "knobs": [],
       "support_roles": [],
+      "applicability": {
+        "kind": "always"
+      },
       "can_bypass": false,
       "early_cutoff": false,
       "determinism": "semantic",

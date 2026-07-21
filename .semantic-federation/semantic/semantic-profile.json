@@ -80,7 +80,7 @@
       "path": "resources/chronicle.plan.json",
       "media_type": "application/json",
       "role": "binding-source",
-      "digest": "sha256:da84f0d9e8e139fccf3d5a2c7b42e4a658759fac7ed20f7bc89dce0e69ad7025"
+      "digest": "sha256:cde77841a991620e02f6df4231c224218ebcae3ff525101c541853850733a239"
     },
     {
       "path": "resources/chronicle-research-ontology.linkml.yaml",

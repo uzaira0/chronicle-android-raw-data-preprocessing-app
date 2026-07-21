@@ -2,12 +2,12 @@
   "protocol_version": "0.1",
   "root_profile": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
   "root_version": "0.1.0",
-  "root_manifest_digest": "sha256:c248cd6cbe8fe7b111add20bcc092dccd256a5a5fd559634e4a36b3768338744",
+  "root_manifest_digest": "sha256:57973c5da45518c69b8ceb62120d541c0377b5289787e9a56bc26ebbfa917307",
   "entries": [
     {
       "profile_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
       "version": "0.1.0",
-      "manifest_digest": "sha256:c248cd6cbe8fe7b111add20bcc092dccd256a5a5fd559634e4a36b3768338744",
+      "manifest_digest": "sha256:57973c5da45518c69b8ceb62120d541c0377b5289787e9a56bc26ebbfa917307",
       "resources": [
         {
           "path": "resources/identity-contract.json",
@@ -23,7 +23,7 @@
         },
         {
           "path": "resources/chronicle.plan.json",
-          "digest": "sha256:da84f0d9e8e139fccf3d5a2c7b42e4a658759fac7ed20f7bc89dce0e69ad7025",
+          "digest": "sha256:cde77841a991620e02f6df4231c224218ebcae3ff525101c541853850733a239",
           "media_type": "application/json",
           "role": "binding-source"
         },
@@ -60,5 +60,5 @@
       ]
     }
   ],
-  "closure_digest": "sha256:8129ede057aa3e09e21244d0f08729f8ee758dbd9f4812f19ba47919f64e8cfb"
+  "closure_digest": "sha256:c2221a2d101b29ea31c131c40b07b9a630aa46e0aaebd17e9723d63a06b23f5c"
 }
