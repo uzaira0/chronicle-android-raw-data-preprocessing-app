@@ -82,7 +82,7 @@ pub struct PlanNode {
     pub can_bypass: bool,
     pub early_cutoff: bool,
     pub determinism: String,
-    pub migration_status: String,
+    pub implementation_status: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -91,7 +91,7 @@ pub struct PlanStep {
     pub unit_id: String,
     pub capability_id: String,
     pub input_steps: Vec<String>,
-    pub target_registry: String,
+    pub binding_set_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

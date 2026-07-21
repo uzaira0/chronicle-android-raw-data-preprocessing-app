@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 plan = json.loads((ROOT / "semantic/resources/chronicle.plan.json").read_text(encoding="utf-8"))
 queries = json.loads((ROOT / "semantic/resources/registered-queries.json").read_text(encoding="utf-8"))
 view_schema = json.loads((ROOT / "semantic/resources/chronicle-views.schema.json").read_text(encoding="utf-8"))
+bindings = json.loads((ROOT / "semantic/capability-bindings.json").read_text(encoding="utf-8"))
 
 nodes = plan["nodes"]
 steps = plan["steps"]
@@ -31,8 +32,31 @@ for step in steps:
     unknown = set(step["input_steps"]) - known_steps
     if unknown:
         raise SystemExit(f"{step['step_id']}: unknown input steps {sorted(unknown)}")
-    if step["target_registry"] != "rust/chronicle_semantic_runtime/src/capabilities.rs":
-        raise SystemExit(f"{step['step_id']}: capability target escaped product Rust registry")
+    if step["binding_set_id"] != bindings["binding_set_id"]:
+        raise SystemExit(f"{step['step_id']}: capability binding-set drift")
+
+active_authorities: dict[str, list[str]] = {capability: [] for capability in capabilities}
+for binding in bindings["bindings"]:
+    if binding["status"] == "active" and binding["authority"]:
+        for capability in binding["capability_ids"]:
+            if capability not in active_authorities:
+                raise SystemExit(f"binding references unknown capability: {capability}")
+            active_authorities[capability].append(binding["binding_id"])
+invalid_authority = {
+    capability: authorities
+    for capability, authorities in active_authorities.items()
+    if len(authorities) != 1
+}
+if invalid_authority:
+    raise SystemExit(f"each capability requires exactly one active authority: {invalid_authority}")
+
+rust_v2 = next(
+    binding
+    for binding in bindings["bindings"]
+    if binding["implementation"]["entrypoint"] == "process_full_pipeline_v2"
+)
+if rust_v2["status"] != "shadow" or rust_v2["authority"]:
+    raise SystemExit("Rust full pipeline must remain truthfully shadow until the worker selects it")
 
 support_roles = {role["role_id"] for role in plan["root_roles"]} - {
     "raw_chronicle_csv",
@@ -63,4 +87,4 @@ for forbidden in ('"items"', '"links"'):
     if f'"properties": {{{forbidden}:' in serialized_schema:
         raise SystemExit("generic items/links graph payload is forbidden")
 
-print("chronicle semantic contract valid: nodes=15 steps=55 roles=10 typed_views=6")
+print("preprocessing semantic contract valid: nodes=15 steps=55 active_authorities=70 typed_views=6")

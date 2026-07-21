@@ -3,6 +3,10 @@ use crate::model::{
 };
 use petgraph::algo::toposort;
 use petgraph::graphmap::DiGraphMap;
+use semprof_materialize::{
+    materialize_roles, Cardinality as SharedCardinality, FulfillmentState, Requirement,
+    RoleAssignment as SharedAssignment, RoleSpec,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -32,34 +36,93 @@ pub fn evaluate_materialization(
     let mut obligations = Vec::new();
     let mut reasons = Vec::new();
 
-    for role in &plan.root_roles {
-        let required = role.required
+    let shared_specs: Vec<_> = plan
+        .root_roles
+        .iter()
+        .map(|role| {
+            let required = role.required
+                || role
+                    .required_when
+                    .as_ref()
+                    .is_some_and(|condition| condition.evaluate(options));
+            RoleSpec {
+                role_id: role.role_id.clone(),
+                cardinality: SharedCardinality {
+                    minimum: if required {
+                        role.cardinality.minimum.max(1)
+                    } else {
+                        role.cardinality.minimum
+                    },
+                    maximum: role.cardinality.maximum,
+                },
+                accepted_media_types: role.media_types.clone(),
+            }
+        })
+        .collect();
+    let shared_assignments: Vec<_> = assignments
+        .values()
+        .map(|assignment| SharedAssignment {
+            assignment_id: assignment.assignment_id.clone(),
+            role_id: assignment.role_id.clone(),
+            artifact: semprof_core::ArtifactRef {
+                artifact_id: assignment.artifact.artifact_id.clone(),
+                digest: assignment.artifact.digest.clone(),
+                media_type: assignment.artifact.media_type.clone(),
+                size: assignment.artifact.size,
+                derived_from: assignment.artifact.derived_from.clone(),
+            },
+            qualifiers: assignment.qualifiers.clone(),
+            revision: assignment.revision,
+        })
+        .collect();
+    let shared_report = materialize_roles(&shared_specs, &shared_assignments, |role_id| {
+        let role = plan
+            .root_roles
+            .iter()
+            .find(|role| role.role_id == role_id)
+            .expect("shared specs originate from the product plan");
+        if role.required
             || role
                 .required_when
                 .as_ref()
-                .is_some_and(|condition| condition.evaluate(options));
-        let assigned = assignments.get(&role.role_id);
-        let state = match (required, assigned) {
-            (_, Some(_)) => MaterializationState::Satisfied,
-            (true, None) => MaterializationState::Open,
-            (false, None) => MaterializationState::NotApplicable,
+                .is_some_and(|condition| condition.evaluate(options))
+        {
+            Requirement::Required
+        } else {
+            Requirement::Optional
+        }
+    })
+    .expect("product plan and assignment identities were validated before evaluation");
+
+    for shared in shared_report.role_states {
+        let state = match shared.state {
+            FulfillmentState::Open => MaterializationState::Open,
+            FulfillmentState::Satisfied => MaterializationState::Satisfied,
+            FulfillmentState::Invalid => MaterializationState::Invalid,
+            FulfillmentState::NotApplicable => MaterializationState::NotApplicable,
         };
-        role_states.insert(role.role_id.clone(), state);
-        if state == MaterializationState::Open {
-            let reason_id = identifier(&["missing-role", &role.role_id]);
+        role_states.insert(shared.role_id.clone(), state);
+        if matches!(
+            state,
+            MaterializationState::Open | MaterializationState::Invalid
+        ) {
+            let reason_id = identifier(&["role-state", &shared.role_id, &format!("{state:?}")]);
             obligations.push(OpenObligation {
-                obligation_id: identifier(&["obligation", &role.role_id]),
-                role_id: role.role_id.clone(),
+                obligation_id: identifier(&["obligation", &shared.role_id]),
+                role_id: shared.role_id.clone(),
                 node_id: None,
                 state,
                 reason_id: reason_id.clone(),
             });
             reasons.push(StateReason {
                 reason_id,
-                subject_id: role.role_id.clone(),
+                subject_id: shared.role_id.clone(),
                 state,
                 source_id: plan.plan_id.clone(),
-                message: format!("required role {} has no valid assignment", role.role_id),
+                message: format!(
+                    "role {} is not fulfilled by a valid assignment",
+                    shared.role_id
+                ),
             });
         }
     }

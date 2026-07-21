@@ -15,8 +15,16 @@ fn main() {
     let plan: Value = serde_json::from_slice(&bytes).expect("parse Chronicle product plan");
     let nodes = plan["nodes"].as_array().expect("plan nodes array");
     let steps = plan["steps"].as_array().expect("plan steps array");
-    assert_eq!(nodes.len(), 15, "Chronicle registry requires all 15 nodes");
-    assert_eq!(steps.len(), 55, "Chronicle registry requires all 55 steps");
+    assert_eq!(
+        nodes.len(),
+        15,
+        "preprocessing adapter requires all 15 nodes"
+    );
+    assert_eq!(
+        steps.len(),
+        55,
+        "preprocessing adapter requires all 55 steps"
+    );
 
     validate_graph(nodes, steps);
 
@@ -81,7 +89,7 @@ fn validate_graph(nodes: &[Value], steps: &[Value]) {
     assert_eq!(
         visited,
         nodes.len(),
-        "Chronicle node graph contains a cycle"
+        "preprocessing-app node graph contains a cycle"
     );
 
     for step in steps {

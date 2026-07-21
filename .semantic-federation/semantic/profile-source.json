@@ -20,6 +20,7 @@
   "dependencies": [],
   "resources": [
     {"path":"resources/identity-contract.json","media_type":"application/json","role":"binding-source"},
+    {"path":"capability-bindings.json","media_type":"application/json","role":"binding-source"},
     {"path":"families/incremental-dataflow/contract.json","media_type":"application/json","role":"binding-source"},
     {"path":"resources/chronicle.plan.json","media_type":"application/json","role":"binding-source"},
     {"path":"resources/chronicle-research-ontology.linkml.yaml","media_type":"application/yaml","role":"ontology"},

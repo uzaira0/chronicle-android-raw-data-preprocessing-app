@@ -4,6 +4,8 @@ journal-envelope = {
   protocol-version: "0.1",
   sequence: uint,
   event-id: tstr,
+  previous-event-digest: digest / nil,
+  event-digest: digest,
   family: tstr,
   schema-id: tstr,
   plan-digest: digest,

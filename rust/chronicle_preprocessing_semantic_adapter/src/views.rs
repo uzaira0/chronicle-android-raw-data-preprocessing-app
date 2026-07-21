@@ -2,18 +2,9 @@ use crate::materialize::Materialization;
 use crate::model::{
     ArtifactRef, MaterializationState, NodeExecution, OpenObligation, RoleAssignment, StateReason,
 };
+pub use semprof_materialize::ViewEnvelope;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ViewEnvelope<T> {
-    pub view_id: String,
-    pub family: String,
-    pub schema_id: String,
-    pub revision: u64,
-    pub root_digest: String,
-    pub payload: T,
-}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StageNodeState {
@@ -71,6 +62,7 @@ pub fn stage_view(
         })
         .collect();
     ViewEnvelope {
+        protocol_version: "0.1".into(),
         view_id: "chronicle.stage.v1".into(),
         family: "incremental-dataflow".into(),
         schema_id: "urn:chronicle:view:stage:v1".into(),

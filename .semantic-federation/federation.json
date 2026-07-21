@@ -3,12 +3,12 @@
   "profile_registry": {
     "repository": "https://github.com/uzaira0/semantic-profile-registry",
     "version": "0.1.0",
-    "commit": "2d51e3987d0da848c46e388cd1e40f0642aacd98"
+    "commit": "6a97b1670dab705baaba92a9e29483ea4fcf0eca"
   },
   "toolchain": {
     "repository": "https://github.com/uzaira0/semantic-profile-toolchain",
     "version": "0.1.0",
-    "commit": "4aeaa964f2b5c46166e4d6963ab1501d10e92465"
+    "commit": "d46708a14c49143e783b3ec251850a13c5623533"
   },
   "computational_families": ["incremental_dataflow"],
   "runtime_targets": ["rust_native", "rust_wasm"],

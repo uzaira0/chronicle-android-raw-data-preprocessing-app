@@ -3,9 +3,11 @@
   "plan_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:plan/raw-data/v1",
   "revision": "0.1.0",
   "family": "incremental-dataflow",
-  "authority": {
-    "current_shadow": "typescript-executable-wiring",
-    "target": "compiled-rust-capability-registry",
+  "implementation_state": {
+    "browser_selector": "typescript-worker-calls-processRawCsvContent",
+    "active_rust_kernel": "chronicle-app-usage-wasm-matcher",
+    "available_fused_rust_pipeline": "process_full_pipeline_v2-parity-clean-shadow-not-worker-selected",
+    "target": "existing-fused-rust-pipeline-through-product-semantic-adapter",
     "generated_yaml_is_executable_authority": false
   },
   "relations": [
@@ -211,7 +213,7 @@
       "can_bypass": false,
       "early_cutoff": true,
       "determinism": "semantic",
-      "migration_status": "partial-rust-shadow"
+      "implementation_status": "rust-v2-parity-shadow-and-typescript-active"
     },
     {
       "node_id": "normalize_timezones",
@@ -239,7 +241,7 @@
       "can_bypass": false,
       "early_cutoff": true,
       "determinism": "semantic",
-      "migration_status": "partial-rust-shadow"
+      "implementation_status": "rust-v2-parity-shadow-and-typescript-active"
     },
     {
       "node_id": "dedup_and_order",
@@ -275,7 +277,7 @@
       "can_bypass": false,
       "early_cutoff": true,
       "determinism": "semantic",
-      "migration_status": "partial-rust-shadow"
+      "implementation_status": "rust-v2-parity-shadow-and-typescript-active"
     },
     {
       "node_id": "app_policy",
@@ -302,7 +304,7 @@
       "can_bypass": true,
       "early_cutoff": true,
       "determinism": "semantic",
-      "migration_status": "partial-rust-shadow"
+      "implementation_status": "rust-v2-parity-shadow-and-typescript-active"
     },
     {
       "node_id": "device_state_timeline",
@@ -349,7 +351,7 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "migration_status": "partial-rust-shadow"
+      "implementation_status": "rust-v2-parity-shadow-and-typescript-active"
     },
     {
       "node_id": "reconstruct_episodes",
@@ -424,7 +426,7 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "migration_status": "partial-rust-shadow"
+      "implementation_status": "rust-v2-parity-shadow-and-typescript-active"
     },
     {
       "node_id": "categorize_apps",
@@ -468,7 +470,7 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "migration_status": "partial-rust-shadow"
+      "implementation_status": "rust-v2-parity-shadow-and-typescript-active"
     },
     {
       "node_id": "episode_annotations",
@@ -505,7 +507,7 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "migration_status": "partial-rust-shadow"
+      "implementation_status": "rust-v2-parity-shadow-and-typescript-active"
     },
     {
       "node_id": "interval_cleaning",
@@ -568,7 +570,7 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "migration_status": "partial-rust-shadow"
+      "implementation_status": "rust-v2-parity-shadow-and-typescript-active"
     },
     {
       "node_id": "effective_usage",
@@ -623,7 +625,7 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "migration_status": "typescript-only"
+      "implementation_status": "typescript-active-rust-unbound"
     },
     {
       "node_id": "observation_window",
@@ -663,7 +665,7 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "migration_status": "typescript-only"
+      "implementation_status": "typescript-active-rust-unbound"
     },
     {
       "node_id": "attribute_person",
@@ -704,7 +706,7 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "migration_status": "typescript-only"
+      "implementation_status": "typescript-active-rust-unbound"
     },
     {
       "node_id": "day_coverage",
@@ -758,7 +760,7 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "migration_status": "typescript-only"
+      "implementation_status": "typescript-active-rust-unbound"
     },
     {
       "node_id": "score_compliance",
@@ -804,7 +806,7 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "migration_status": "typescript-only"
+      "implementation_status": "typescript-active-rust-unbound"
     },
     {
       "node_id": "outputs",
@@ -828,7 +830,7 @@
       "can_bypass": false,
       "early_cutoff": false,
       "determinism": "semantic",
-      "migration_status": "partial-rust-shadow"
+      "implementation_status": "rust-v2-parity-shadow-and-typescript-active"
     }
   ],
   "steps": [
@@ -841,7 +843,7 @@
       "input_steps": [],
       "can_bypass": false,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "csv_parse",
@@ -852,7 +854,7 @@
       "input_steps": [],
       "can_bypass": false,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "drop_empty_timestamp",
@@ -865,7 +867,7 @@
       ],
       "can_bypass": false,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "detect_device_model",
@@ -878,7 +880,7 @@
       ],
       "can_bypass": false,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "resolve_preproc_datetime",
@@ -889,7 +891,7 @@
       "input_steps": [],
       "can_bypass": false,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "build_canonical_rows",
@@ -905,7 +907,7 @@
       ],
       "can_bypass": false,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "stable_sort",
@@ -918,7 +920,7 @@
       ],
       "can_bypass": false,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "collect_timezones",
@@ -931,7 +933,7 @@
       ],
       "can_bypass": false,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "compute_dominant_timezone",
@@ -944,7 +946,7 @@
       ],
       "can_bypass": false,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/normalizeTimezones.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "select_timezone_strategy",
@@ -958,7 +960,7 @@
       ],
       "can_bypass": false,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/normalizeTimezones.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "restamp_rows",
@@ -971,7 +973,7 @@
       ],
       "can_bypass": false,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/normalizeTimezones.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "row_count_report",
@@ -985,7 +987,7 @@
       ],
       "can_bypass": false,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/normalizeTimezones.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "exact_dedupe",
@@ -998,7 +1000,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dedupAndOrder.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "count_dup_groups",
@@ -1011,7 +1013,7 @@
       ],
       "can_bypass": false,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dedupAndOrder.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "nudge_duplicate_timestamps",
@@ -1024,7 +1026,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dedupAndOrder.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "mark_data_time_gaps",
@@ -1037,7 +1039,7 @@
       ],
       "can_bypass": false,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dedupAndOrder.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "tag_filtered_packages",
@@ -1050,7 +1052,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/appPolicy.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "collect_keyguard_timestamps",
@@ -1063,7 +1065,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/deviceStateTimeline.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "walk_screen_state_machine",
@@ -1076,7 +1078,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/deviceStateTimeline.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "build_classified_sessions",
@@ -1091,7 +1093,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/deviceStateTimeline.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "compute_junk_packages",
@@ -1104,7 +1106,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "junk_blind_fold",
@@ -1118,7 +1120,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "build_matcher_input",
@@ -1131,7 +1133,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "run_matcher",
@@ -1144,7 +1146,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "apply_matcher_output",
@@ -1159,7 +1161,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "relabel_usage_with_floor",
@@ -1172,7 +1174,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "junk_downstream_mark",
@@ -1186,7 +1188,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "sort_episodes",
@@ -1199,7 +1201,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "split_concurrent",
@@ -1212,7 +1214,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "codebook_join",
@@ -1225,7 +1227,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/categorizeApps.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "derive_broad_category",
@@ -1238,7 +1240,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/categorizeApps.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "collapse_genre",
@@ -1251,7 +1253,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/categorizeApps.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "engagement_walk",
@@ -1264,7 +1266,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/episodeAnnotations.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "flag_and_retain",
@@ -1277,7 +1279,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/episodeAnnotations.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "blank_junk_timing",
@@ -1290,7 +1292,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/intervalCleaning.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "drop_selected_types",
@@ -1303,7 +1305,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/intervalCleaning.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "drop_zero_duration",
@@ -1316,7 +1318,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/intervalCleaning.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "partition_credit_sessions",
@@ -1329,7 +1331,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "build_liveness_substrate",
@@ -1342,7 +1344,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "report_screen_incapable",
@@ -1356,7 +1358,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "count_day_apps",
@@ -1369,7 +1371,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "credit_sessions",
@@ -1384,7 +1386,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "emit_credited_rows",
@@ -1397,7 +1399,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "assemble_credit_result",
@@ -1412,7 +1414,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "resolve_participant_windows",
@@ -1425,7 +1427,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/observationWindow.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "filter_rows_to_window",
@@ -1439,7 +1441,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/observationWindow.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "resolve_sharing_status",
@@ -1452,7 +1454,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/attributePerson.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "build_survey_lookup",
@@ -1463,7 +1465,7 @@
       "input_steps": [],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/attributePerson.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "attribute_rows",
@@ -1478,7 +1480,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/attributePerson.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "inject_placeholders",
@@ -1492,7 +1494,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dayCoverage.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "build_raw_date_index",
@@ -1505,7 +1507,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dayCoverage.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "build_coverage_table",
@@ -1519,7 +1521,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dayCoverage.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "accumulate_attribution_minutes",
@@ -1532,7 +1534,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/scoreCompliance.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "score_days",
@@ -1546,7 +1548,7 @@
       ],
       "can_bypass": true,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/scoreCompliance.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
       "step_id": "assemble_result",
@@ -1566,7 +1568,7 @@
       ],
       "can_bypass": false,
       "legacy_executable_source": "web/src/lib/pipelineGraph/steps/outputs.ts",
-      "target_registry": "rust/chronicle_semantic_runtime/src/capabilities.rs"
+      "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     }
   ],
   "reason_contract": {

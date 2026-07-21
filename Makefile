@@ -15,7 +15,7 @@
 #   make help    # list every target
 
 MATCHER := rust/chronicle_app_usage_matcher/Cargo.toml
-SEMANTIC_RUNTIME := rust/chronicle_semantic_runtime/Cargo.toml
+SEMANTIC_RUNTIME := rust/chronicle_preprocessing_semantic_adapter/Cargo.toml
 SEM_PROF_BIN ?= semprof
 
 .PHONY: help ci all security web \
@@ -83,7 +83,7 @@ ast-grep:
 
 cargo-audit:
 	cd rust/chronicle_app_usage_matcher && cargo audit
-	cd rust/chronicle_semantic_runtime && cargo audit
+	cd rust/chronicle_preprocessing_semantic_adapter && cargo audit
 
 trivy:
 	trivy fs .

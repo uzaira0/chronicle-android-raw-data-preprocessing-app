@@ -1,8 +1,10 @@
-//! Chronicle's product-owned semantic materialization and execution runtime.
+//! Semantic-federation adapter for the Chronicle raw-data preprocessing app.
 //!
-//! This crate consumes the shared release protocol but owns Chronicle's plan,
-//! roles, scheduling, evidence, storage, and typed projections. It is not a
-//! cross-product graph engine.
+//! The app's existing fused Rust/WASM pipeline remains the preprocessing
+//! implementation. This crate consumes shared release/materialization
+//! contracts and owns only the app-specific plan, DAG propagation, bindings,
+//! evidence projection, storage adapter, and typed views. It is not a
+//! cross-product graph engine and it does not reimplement preprocessing.
 
 pub mod capabilities;
 pub mod journal;
@@ -27,7 +29,7 @@ pub fn embedded_plan() -> ChroniclePlan {
         env!("OUT_DIR"),
         "/chronicle.plan.json"
     )))
-    .expect("build.rs validated embedded Chronicle plan")
+    .expect("build.rs validated embedded preprocessing-app plan")
 }
 
 #[cfg(feature = "wasm")]

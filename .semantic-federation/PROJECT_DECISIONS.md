@@ -8,13 +8,18 @@
 - Typed view sets: `stage, artifact, obligation, temporal_subject, explanation, assurance`
 - Shared semantic authority is limited to the immutable release protocol.
 - Family payloads remain product-owned and are never compiled into a universal IR.
-- Existing Chronicle LinkML and merged SHACL resources are vendored as
+- Existing preprocessing-app LinkML and merged SHACL resources are vendored as
   digest-locked product resources; they remain descriptive/conformance
   artifacts, not the executable plan.
-- `chronicle.plan.json` binds all 15 units and 55 steps to product Rust
-  capability IDs while the current TypeScript bodies remain an explicit
-  shadow oracle.
+- `chronicle.plan.json` identifies all 15 units and 55 steps. The separate
+  `capability-bindings.json` truthfully records the active Rust matcher, the
+  active browser graph/orchestration path, and the parity-clean fused Rust v2
+  implementation that exists but is not yet selected by the browser worker.
+- `semprof-materialize` owns product-neutral role fulfillment and open
+  obligations; the preprocessing adapter owns DAG propagation and typed
+  product views.
 - Oxigraph is the rebuildable RDF/query baseline; Grafeo 0.5.42 is rejected
   because its RDF feature does not compile for browser WASM.
-- Salsa 0.28.0 is a provisional Chronicle-only scheduler substrate pending the
-  complete product dirty-cone and resource-budget gate.
+- No new scheduler substrate is selected. The existing preprocessing DAG and
+  fused Rust pipeline remain the product execution authorities until an
+  evidence-backed cutover changes the binding set.

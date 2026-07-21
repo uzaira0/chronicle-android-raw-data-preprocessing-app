@@ -71,6 +71,12 @@
       "digest": "sha256:bf359f5437ff66501b0bf6aa704531068799ab58a9195c1f76c9e4f6ad5b0b74"
     },
     {
+      "path": "capability-bindings.json",
+      "media_type": "application/json",
+      "role": "binding-source",
+      "digest": "sha256:fe4d6e67ed29b1c946301f19040c4e104ebee2e75ed6f47fef74d7cff70249e2"
+    },
+    {
       "path": "families/incremental-dataflow/contract.json",
       "media_type": "application/json",
       "role": "binding-source",
@@ -80,7 +86,7 @@
       "path": "resources/chronicle.plan.json",
       "media_type": "application/json",
       "role": "binding-source",
-      "digest": "sha256:cde77841a991620e02f6df4231c224218ebcae3ff525101c541853850733a239"
+      "digest": "sha256:3809776317888ecb0314ca4808c23f3afa4df0ab1291fb4d99e9a3e19c558a5c"
     },
     {
       "path": "resources/chronicle-research-ontology.linkml.yaml",

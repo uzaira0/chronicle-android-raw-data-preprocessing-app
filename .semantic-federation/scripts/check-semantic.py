@@ -8,6 +8,7 @@ source = json.loads((ROOT / "semantic/profile-source.json").read_text(encoding="
 manifest = json.loads((ROOT / "semantic/semantic-profile.json").read_text(encoding="utf-8"))
 lock = json.loads((ROOT / "semantic/semantic-profile.lock").read_text(encoding="utf-8"))
 report = json.loads((ROOT / "semantic/conformance-report.json").read_text(encoding="utf-8"))
+bindings = json.loads((ROOT / "semantic/capability-bindings.json").read_text(encoding="utf-8"))
 toolchain_lock = json.loads((ROOT / "toolchain.lock.json").read_text(encoding="utf-8"))
 vendor_source = json.loads(
     (ROOT / "vendor/semantic-profile-registry/SOURCE.json").read_text(encoding="utf-8")
@@ -19,6 +20,8 @@ if not report.get("conforms"):
     raise SystemExit("semantic conformance report rejected the generated profile")
 if report.get("profile_lock_digest") != lock.get("closure_digest"):
     raise SystemExit("conformance report does not bind the active profile lock")
+if bindings.get("product_profile_id") != manifest.get("profile_id"):
+    raise SystemExit("capability bindings do not target the active product profile")
 
 for resource in manifest["resources"]:
     path = ROOT / "semantic" / resource["path"]

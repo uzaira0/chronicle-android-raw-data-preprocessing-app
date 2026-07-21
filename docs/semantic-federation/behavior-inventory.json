@@ -23,7 +23,7 @@
     "rust_migration_base": {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs",
       "digest": "sha256:21241308899e4701c70fe420dbf5c6b37c4ee8f5f975b54b285e818c207a885d",
-      "coverage": "partial-preprocessing-shadow"
+      "coverage": "parity-clean-fused-shadow-not-worker-selected"
     }
   },
   "coverage": {
@@ -37,9 +37,9 @@
       "recorded": 55,
       "percent": 100
     },
-    "migration_destinations": {
-      "expected": 55,
-      "recorded": 55,
+    "active_binding_coverage": {
+      "expected": 70,
+      "recorded": 70,
       "percent": 100
     }
   },
@@ -124,12 +124,11 @@
     "day_coverage",
     "score_compliance"
   ],
-  "known_baseline_blockers": [
+  "resolved_baseline_findings": [
     {
       "gate": "trivy-bun-lock",
       "finding": "brace-expansion 5.0.6 / CVE-2026-13149",
-      "fixed_version": "5.0.7",
-      "classification": "pre-existing dependency lock vulnerability"
+      "resolution": "bun.lock and package-lock.json now resolve affected branches to 5.0.7 or 1.1.16"
     }
   ]
 }
