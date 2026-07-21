@@ -52,7 +52,11 @@ expect_gate_fires() {
 # so an un-verified seed can silently become a no-op after a refactor.
 seed() {
   local file="$1" expr="$2" must_contain="$3"
-  sed -i "$expr" "$file"
+  if sed --version >/dev/null 2>&1; then
+    sed -i "$expr" "$file"
+  else
+    sed -i '' "$expr" "$file"
+  fi
   if ! grep -qF "$must_contain" "$file"; then
     echo "✗ seed no-op: '$expr' did not land in $file — the seed target is stale, fix this script"
     exit 1

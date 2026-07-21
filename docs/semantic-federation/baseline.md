@@ -1,11 +1,10 @@
 # Pre-migration baseline
 
 The isolated `origin/desktop-removal@5f8e645` baseline passed the native matcher
-tests (22/22), Semgrep, ast-grep, Cargo audit, and the clean `package-lock.json`
-Trivy scan. The aggregate `make all` gate stopped at the independently scanned
-`web/bun.lock`: `brace-expansion` 5.0.6 is affected by CVE-2026-13149 and must be
-updated to 5.0.7 or later before a green baseline can be claimed.
+tests (22/22), Semgrep, ast-grep, and Cargo audit. Its aggregate `make all` gate
+originally stopped at `web/bun.lock` because `brace-expansion` 5.0.6 was affected
+by CVE-2026-13149.
 
-This is a pre-existing lockfile finding, not a semantic-federation regression.
-No baseline result is represented as fully green until that dependency gate is
-re-run successfully.
+The implementation branch resolved the affected 5.x lock entry to 5.0.7 and
+the newly disclosed affected 1.x entries to 1.1.16; `js-yaml` was also resolved
+to 4.3.0. Aggregate-green status is recorded only after the full gate is rerun.
