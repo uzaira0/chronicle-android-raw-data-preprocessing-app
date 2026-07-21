@@ -10,6 +10,7 @@ import {
   probeOpfsCapability,
   readRuntimeObject,
   recoverRuntimeWorkspace,
+  recoverRuntimeWorkspaceRoots,
   runtimeClosureWorkspaceId,
   type PersistedRuntimeArtifact,
   type RuntimeClosureManifest,
@@ -159,7 +160,13 @@ describe("OPFS content-addressed runtime workspace", () => {
     expect((await recoverRuntimeWorkspace(rootHandle(root)))?.workspaceRootDigest).toBe(
       secondRoot.digest,
     );
-    expect(await garbageCollectRuntimeObjects(rootHandle(root), [second])).toBe(2);
+    expect(await recoverRuntimeWorkspaceRoots(rootHandle(root))).toHaveLength(2);
+    expect(
+      await garbageCollectRuntimeObjects(
+        rootHandle(root),
+        await recoverRuntimeWorkspaceRoots(rootHandle(root)),
+      ),
+    ).toBe(0);
     expect(await recoverRuntimeWorkspace(rootHandle(root))).toMatchObject({ generation: 2 });
   });
 
@@ -177,6 +184,10 @@ describe("OPFS content-addressed runtime workspace", () => {
       previousWorkspaceRootDigest: first.workspaceRootDigest,
       artifacts: [secondRoot],
     });
+    await garbageCollectRuntimeObjects(
+      rootHandle(root),
+      await recoverRuntimeWorkspaceRoots(rootHandle(root)),
+    );
     objectFile(root, secondRoot.digest).bytes = new TextEncoder().encode("corrupt");
     expect(await recoverRuntimeWorkspace(rootHandle(root))).toMatchObject({
       generation: 1,
@@ -268,7 +279,7 @@ describe("OPFS content-addressed runtime workspace", () => {
     ).rejects.toThrow(/artifact digest mismatch/);
   });
 
-  it("deduplicates an already verified object and rejects a corrupt root slot", async () => {
+  it("deduplicates an already verified object and fails closed when every root is corrupt", async () => {
     const root = new MemoryDirectoryHandle();
     const rootArtifact = await artifact("workspace-root-json", "stable-root");
     const first = await persistRuntimeWorkspace(rootHandle(root), {
@@ -291,7 +302,15 @@ describe("OPFS content-addressed runtime workspace", () => {
       JSON.stringify({ protocolVersion: "bad", generation: 1 }),
     );
     roots.files.get("root-b.json")!.bytes = new TextEncoder().encode("not-json");
-    await expect(recoverRuntimeWorkspace(rootHandle(root))).resolves.toBeUndefined();
+    await expect(recoverRuntimeWorkspace(rootHandle(root))).rejects.toThrow(
+      /no valid artifact closure can be recovered/,
+    );
+  });
+
+  it("distinguishes a new empty workspace from a corrupt existing workspace", async () => {
+    await expect(
+      recoverRuntimeWorkspace(rootHandle(new MemoryDirectoryHandle())),
+    ).resolves.toBeUndefined();
   });
 
   it("verifies that retained roots include their own root object", async () => {

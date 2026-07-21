@@ -22,12 +22,12 @@
     },
     "rust_migration_base": {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs",
-      "digest": "sha256:a2134e6c568013e635771dc40ed06d008382c7560adba0503bd6ba525bd2ff8e",
+      "digest": "sha256:751cf5b6f88a65f283ed1da1913414c3ffe7dfc5dd93ecd56ef98c7a2c5c5607",
       "coverage": "active-fused-physical-kernel-behind-complete-logical-rust-runtime"
     },
     "rust_product_runtime": {
       "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
-      "digest": "sha256:6944b03a913c34543b67c5da2b17c7ac71ecedf56ba9228ce4782d08b1b8c6db",
+      "digest": "sha256:d329b9e85caa056846087e4f08e93ea1f39c74482fbd017449a32a229c1cf67a",
       "coverage": "production-worker-authority"
     }
   },

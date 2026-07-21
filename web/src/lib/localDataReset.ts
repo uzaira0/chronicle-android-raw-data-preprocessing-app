@@ -10,6 +10,7 @@
 
 import { LAST_RUN_DB_NAME } from "@/lib/lastRunStore";
 import { PROJECTS_DB_NAME } from "@/lib/projectsStore";
+import { OPFS_WORKSPACES_DIRECTORY } from "@/lib/opfsArtifactStore";
 
 /** Every IndexedDB database this app owns. */
 export const CHRONICLE_IDB_NAMES = [LAST_RUN_DB_NAME, PROJECTS_DB_NAME] as const;
@@ -48,11 +49,22 @@ async function unregisterServiceWorkers(): Promise<void> {
   }
 }
 
+async function clearOpfsWorkspaces(): Promise<void> {
+  if (typeof navigator === "undefined" || !navigator.storage?.getDirectory) return;
+  try {
+    const root = await navigator.storage.getDirectory();
+    await root.removeEntry(OPFS_WORKSPACES_DIRECTORY, { recursive: true });
+  } catch {
+    // Missing/unavailable OPFS is already an empty state. Reset remains
+    // best-effort so one browser subsystem cannot block the recovery control.
+  }
+}
+
 /**
  * Clear all locally persisted app data: localStorage/sessionStorage, both
- * IndexedDB databases, the service-worker caches, and the service-worker
- * registration. Resolves once best-effort cleanup is done; callers typically
- * reload the page next.
+ * IndexedDB databases, OPFS workspaces, the service-worker caches, and the
+ * service-worker registration. Resolves once best-effort cleanup is done;
+ * callers typically reload the page next.
  */
 export async function resetLocalData(): Promise<void> {
   try {
@@ -66,6 +78,7 @@ export async function resetLocalData(): Promise<void> {
     /* ignore */
   }
   await Promise.allSettled(CHRONICLE_IDB_NAMES.map((name) => deleteDatabase(name)));
+  await clearOpfsWorkspaces();
   await clearCacheStorage();
   await unregisterServiceWorkers();
 }

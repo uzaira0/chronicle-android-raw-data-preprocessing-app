@@ -21,6 +21,11 @@
       "query_id": "reason-trace",
       "view_id": "chronicle.explanation.v1",
       "sparql": "SELECT ?transition ?subject ?from ?to ?reason ?source WHERE { GRAPH <urn:chronicle:derived:reasons> { ?transition <urn:chronicle:predicate:subject> ?subject ; <urn:chronicle:predicate:toState> ?to ; <urn:chronicle:predicate:reason> ?reason ; <urn:chronicle:predicate:source> ?source . OPTIONAL { ?transition <urn:chronicle:predicate:fromState> ?from } } } ORDER BY ?transition"
+    },
+    {
+      "query_id": "has-open-obligations",
+      "view_id": "chronicle.obligation.v1",
+      "sparql": "ASK WHERE { GRAPH <urn:chronicle:derived:obligations> { ?obligation <urn:chronicle:predicate:state> <urn:chronicle:state:open> . } }"
     }
   ]
 }

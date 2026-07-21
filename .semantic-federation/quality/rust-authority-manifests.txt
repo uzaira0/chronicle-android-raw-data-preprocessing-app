@@ -1,6 +1,10 @@
 # Product-owned crates that carry semantic/computational authority.
 # The adapter's cfg(wasm)-only facade is target-incompatible with native
 # cargo-mutants; its delegate is unit-tested and its export is browser-tested.
+# Optional fields after the exclusion regex ratchet line, region, and function
+# coverage for an established authority below the shared new-code defaults.
 ../rust/chronicle_preprocessing_semantic_adapter/Cargo.toml|wasm::
 ../rust/chronicle_preprocessing_runtime_wasm/Cargo.toml
 ../rust/chronicle_semantic_index_wasm/Cargo.toml
+../rust/chronicle_chrono_kernel_wasm/Cargo.toml||40|39|38
+../rust/chronicle_app_usage_matcher/Cargo.toml||85|84|86

@@ -26,12 +26,18 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::io::Cursor;
 use wasm_bindgen::prelude::*;
 
 pub const RUNTIME_PROTOCOL_VERSION: &str = "chronicle-preprocessing-runtime/v1";
 pub const EXECUTE_WORKSPACE_COMMAND: &str = "ExecuteWorkspace";
+const REQUIRED_VIEW_IDS: [&str; 4] = [
+    "chronicle.stage.v1",
+    "chronicle.artifact.v1",
+    "chronicle.obligation.v1",
+    "chronicle.explanation.v1",
+];
 /// Compatibility alias retained while stored clients migrate to the authority
 /// command. Runtime manifests always report `ExecuteWorkspace`.
 pub const BOUNDED_COMMAND: &str = EXECUTE_WORKSPACE_COMMAND;
@@ -220,6 +226,7 @@ struct RootCommit<'a> {
     options_digest: &'a str,
     assignment_digests: BTreeMap<&'a str, &'a str>,
     artifact_digests: Vec<&'a str>,
+    required_view_ids: [&'static str; 4],
     journal_digest: &'a str,
     artifact_closure_digest: &'a str,
 }
@@ -264,14 +271,42 @@ struct IncrementalRuntimeState {
     last_workspace_root: Option<String>,
 }
 
+const MAX_INCREMENTAL_RUNTIME_STATES: usize = 8;
+
+#[derive(Default)]
+struct IncrementalRuntimeStateCache {
+    states: BTreeMap<String, IncrementalRuntimeState>,
+    lru: VecDeque<String>,
+}
+
+impl IncrementalRuntimeStateCache {
+    fn state_for(&mut self, workspace_id: &str) -> &mut IncrementalRuntimeState {
+        self.lru.retain(|candidate| candidate != workspace_id);
+        if !self.states.contains_key(workspace_id)
+            && self.states.len() >= MAX_INCREMENTAL_RUNTIME_STATES
+        {
+            if let Some(evicted) = self.lru.pop_front() {
+                self.states.remove(&evicted);
+            }
+        }
+        self.lru.push_back(workspace_id.to_string());
+        self.states.entry(workspace_id.to_string()).or_default()
+    }
+
+    fn get_mut(&mut self, workspace_id: &str) -> Option<&mut IncrementalRuntimeState> {
+        self.states.get_mut(workspace_id)
+    }
+}
+
 thread_local! {
-    static INCREMENTAL_RUNTIME_STATES: RefCell<BTreeMap<String, IncrementalRuntimeState>> =
-        const { RefCell::new(BTreeMap::new()) };
+    static INCREMENTAL_RUNTIME_STATES: RefCell<IncrementalRuntimeStateCache> =
+        RefCell::new(IncrementalRuntimeStateCache::default());
 }
 
 #[cfg(test)]
 thread_local! {
     static FUSED_PHYSICAL_EXECUTION_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static PIPELINE_RESULT_DIGEST_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 struct FusedPhysicalExecutor<'a> {
@@ -279,6 +314,7 @@ struct FusedPhysicalExecutor<'a> {
     options: &'a PipelineV2Options,
     support: &'a ResolvedSupportFiles,
     result: Option<PipelineV2Result>,
+    result_digest: Option<String>,
     error: Option<String>,
 }
 
@@ -313,6 +349,17 @@ impl FusedPhysicalExecutor<'_> {
         }
         Ok(self.result.as_ref().expect("result initialized"))
     }
+
+    fn ensure_result_digest(&mut self) -> Result<&str, String> {
+        if self.result_digest.is_none() {
+            let digest = pipeline_result_digest(self.ensure_result()?);
+            self.result_digest = Some(digest);
+        }
+        Ok(self
+            .result_digest
+            .as_deref()
+            .expect("result digest initialized"))
+    }
 }
 
 impl CapabilityExecutor for FusedPhysicalExecutor<'_> {
@@ -321,7 +368,7 @@ impl CapabilityExecutor for FusedPhysicalExecutor<'_> {
         stage: PhysicalStage,
         inputs: &ExecutionInputs<'_>,
     ) -> Result<ProducedArtifact, String> {
-        let digest = pipeline_result_digest(self.ensure_result()?);
+        let digest = self.ensure_result_digest()?;
         let bytes = serde_jcs::to_vec(&serde_json::json!({
             "physicalExecution": "fused-rust-pipeline-v2",
             "logicalNode": inputs.node_id,
@@ -337,6 +384,8 @@ impl CapabilityExecutor for FusedPhysicalExecutor<'_> {
 }
 
 fn pipeline_result_digest(result: &PipelineV2Result) -> String {
+    #[cfg(test)]
+    PIPELINE_RESULT_DIGEST_COUNT.with(|count| count.set(count.get() + 1));
     let mut digest = Sha256::new();
     for bytes in [
         &result.app_csv_bytes,
@@ -577,11 +626,11 @@ fn execute_incremental_pipeline(
     options_value: &Value,
     options: &PipelineV2Options,
     support: &ResolvedSupportFiles,
-) -> Result<(PipelineV2Result, Vec<NodeExecution>), String> {
+) -> Result<(PipelineV2Result, Vec<NodeExecution>, Vec<RuntimeArtifact>), String> {
     let plan = embedded_plan();
     INCREMENTAL_RUNTIME_STATES.with(|states| {
         let mut states = states.borrow_mut();
-        let state = states.entry(request.workspace_id.clone()).or_default();
+        let state = states.state_for(&request.workspace_id);
         if request.workspace_root_digest != state.last_workspace_root {
             *state = IncrementalRuntimeState::default();
         }
@@ -617,6 +666,7 @@ fn execute_incremental_pipeline(
             options,
             support,
             result: None,
+            result_digest: None,
             error: None,
         };
         let executions = Scheduler::new(plan)
@@ -629,8 +679,33 @@ fn execute_incremental_pipeline(
             .result
             .or(previous_result)
             .ok_or_else(|| "incremental scheduler produced no physical result".to_string())?;
+        let node_artifacts = executions
+            .iter()
+            .filter_map(|execution| {
+                let output = execution.output.as_ref()?;
+                Some(
+                    state
+                        .workspace
+                        .store
+                        .get(&output.digest)
+                        .map(|bytes| RuntimeArtifact {
+                            metadata: RuntimeArtifactMetadata {
+                                artifact_id: output.artifact_id.clone(),
+                                kind: format!("node-output:{}", execution.node_id),
+                                media_type: output.media_type.clone(),
+                                digest: output.digest.clone(),
+                                size: output.size,
+                                derived_from: output.derived_from.clone(),
+                                row_count: None,
+                            },
+                            bytes: bytes.to_vec(),
+                        })
+                        .map_err(|error| error.to_string()),
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         state.last_result = Some(result.clone());
-        Ok((result, executions))
+        Ok((result, executions, node_artifacts))
     })
 }
 
@@ -760,7 +835,7 @@ pub fn execute_workspace_native(
     let pipeline_options = request.options.clone().into_pipeline_options();
     let mut ingress =
         materialize_ingress(csv_bytes, &options_bytes, &options_value, &resolved_support)?;
-    let (result, node_executions) = execute_incremental_pipeline(
+    let (result, node_executions, node_artifacts) = execute_incremental_pipeline(
         &request,
         csv_bytes,
         &options_bytes,
@@ -768,20 +843,41 @@ pub fn execute_workspace_native(
         &pipeline_options,
         &resolved_support,
     )?;
-    let mut artifacts = output_artifacts(&result, &ingress.input.digest);
+    let assignment_digests = ingress
+        .assignments
+        .values()
+        .map(|assignment| assignment.artifact.digest.clone())
+        .collect::<Vec<_>>();
+    let mut artifacts = output_artifacts(&result, &assignment_digests);
     append_binary_exports(
         &mut artifacts,
         &result,
         &request.options,
+        &assignment_digests,
         &ingress.input.digest,
     )?;
+    artifacts.extend(node_artifacts);
     append_semantic_bundle_artifacts(&mut artifacts);
     append_normalized_support_artifacts(&mut artifacts, &ingress.assignments, &resolved_support)?;
+    artifacts.push(runtime_artifact(
+        "ingress:raw_chronicle_csv",
+        "text/csv",
+        csv_bytes.to_vec(),
+        Vec::new(),
+    ));
+    for (role, file) in &resolved_support.files {
+        artifacts.push(runtime_artifact(
+            &format!("ingress:{role}"),
+            file.media_type,
+            file.original_bytes.clone(),
+            Vec::new(),
+        ));
+    }
     artifacts.push(runtime_artifact(
         "processing-options-json",
         "application/json",
         options_bytes.clone(),
-        vec![ingress.input.digest.clone()],
+        Vec::new(),
     ));
     let plan = embedded_plan();
     let satisfied_nodes: BTreeSet<_> = node_executions
@@ -842,10 +938,12 @@ pub fn execute_workspace_native(
         ingress
             .journal
             .append(Transition {
-                event_kind: if execution.status == ExecutionStatus::Bypassed {
-                    "node-bypassed"
-                } else {
-                    "node-executed"
+                event_kind: match execution.status {
+                    ExecutionStatus::Cached => "node-cached",
+                    ExecutionStatus::Recomputed => "node-recomputed",
+                    ExecutionStatus::Error => "node-error",
+                    ExecutionStatus::Skipped => "node-skipped",
+                    ExecutionStatus::Bypassed => "node-bypassed",
                 },
                 subject_id: &execution.node_id,
                 from_state,
@@ -908,6 +1006,7 @@ pub fn execute_workspace_native(
             .map(|(role, assignment)| (role.as_str(), assignment.artifact.digest.as_str()))
             .collect(),
         artifact_digests,
+        required_view_ids: REQUIRED_VIEW_IDS,
         journal_digest: &journal_digest,
         artifact_closure_digest: &artifact_closure_digest,
     };
@@ -1050,27 +1149,31 @@ fn build_execution_ledger(
                 .get(node.node_id.as_str())
                 .copied()
                 .unwrap_or(ExecutionStatus::Error);
-            let steps = plan
-                .steps
-                .iter()
-                .filter(|step| step.unit_id == node.node_id)
-                .map(|step| {
-                    serde_json::json!({
-                        "stepId": step.step_id,
-                        "unit": step.unit_id,
-                        "status": if status == ExecutionStatus::Bypassed || !step.applicability.evaluate(options) { "bypassed" } else { "ran" },
-                        "rowsIn": Value::Null,
-                        "rowsOut": Value::Null,
-                        "droppedRows": Value::Null,
-                        "expectations": [],
-                        "timing": {
-                            "startedAt": timestamp,
-                            "endedAt": timestamp,
-                            "durationMs": 0
-                        }
+            let steps = if matches!(status, ExecutionStatus::Recomputed | ExecutionStatus::Bypassed)
+            {
+                plan.steps
+                    .iter()
+                    .filter(|step| step.unit_id == node.node_id)
+                    .map(|step| {
+                        serde_json::json!({
+                            "stepId": step.step_id,
+                            "unit": step.unit_id,
+                            "status": if status == ExecutionStatus::Bypassed || !step.applicability.evaluate(options) { "bypassed" } else { "ran" },
+                            "rowsIn": Value::Null,
+                            "rowsOut": Value::Null,
+                            "droppedRows": Value::Null,
+                            "expectations": [],
+                            "timing": {
+                                "startedAt": timestamp,
+                                "endedAt": timestamp,
+                                "durationMs": 0
+                            }
+                        })
                     })
-                })
-                .collect::<Vec<_>>();
+                    .collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
             let status = match status {
                 ExecutionStatus::Cached => "cached",
                 ExecutionStatus::Recomputed => "recomputed",
@@ -1204,14 +1307,14 @@ fn assign(
     Ok(artifact)
 }
 
-fn output_artifacts(result: &PipelineV2Result, input_digest: &str) -> Vec<RuntimeArtifact> {
+fn output_artifacts(result: &PipelineV2Result, dependencies: &[String]) -> Vec<RuntimeArtifact> {
     let mut artifacts = Vec::new();
     if !result.app_csv_bytes.is_empty() {
         artifacts.push(runtime_artifact(
             "app-csv",
             "text/csv",
             result.app_csv_bytes.clone(),
-            vec![input_digest.into()],
+            dependencies.to_vec(),
         ));
     }
     if !result.screen_csv_bytes.is_empty() {
@@ -1219,7 +1322,7 @@ fn output_artifacts(result: &PipelineV2Result, input_digest: &str) -> Vec<Runtim
             "screen-csv",
             "text/csv",
             result.screen_csv_bytes.clone(),
-            vec![input_digest.into()],
+            dependencies.to_vec(),
         ));
     }
     if !result.day_coverage_csv_bytes.is_empty() {
@@ -1227,7 +1330,7 @@ fn output_artifacts(result: &PipelineV2Result, input_digest: &str) -> Vec<Runtim
             "day-coverage-csv",
             "text/csv",
             result.day_coverage_csv_bytes.clone(),
-            vec![input_digest.into()],
+            dependencies.to_vec(),
         ));
     }
     if !result.compliance_csv_bytes.is_empty() {
@@ -1235,7 +1338,7 @@ fn output_artifacts(result: &PipelineV2Result, input_digest: &str) -> Vec<Runtim
             "compliance-csv",
             "text/csv",
             result.compliance_csv_bytes.clone(),
-            vec![input_digest.into()],
+            dependencies.to_vec(),
         ));
     }
     if !result.credited_app_csv_bytes.is_empty() {
@@ -1243,7 +1346,7 @@ fn output_artifacts(result: &PipelineV2Result, input_digest: &str) -> Vec<Runtim
             "credited-app-csv",
             "text/csv",
             result.credited_app_csv_bytes.clone(),
-            vec![input_digest.into()],
+            dependencies.to_vec(),
         ));
     }
     for aggregate in &result.aggregate_csv_outputs {
@@ -1251,20 +1354,20 @@ fn output_artifacts(result: &PipelineV2Result, input_digest: &str) -> Vec<Runtim
             aggregate.kind,
             aggregate.bytes.clone(),
             aggregate.row_count,
-            input_digest,
+            dependencies,
         ));
     }
     artifacts.push(runtime_artifact(
         "review-summary-json",
         "application/json",
         result.review_summary_json_bytes.clone(),
-        vec![input_digest.into()],
+        dependencies.to_vec(),
     ));
     artifacts.push(runtime_artifact(
         "visualization-data-json",
         "application/json",
         result.visualization_data_json_bytes.clone(),
-        vec![input_digest.into()],
+        dependencies.to_vec(),
     ));
     artifacts
 }
@@ -1273,10 +1376,11 @@ fn append_binary_exports(
     artifacts: &mut Vec<RuntimeArtifact>,
     result: &PipelineV2Result,
     options: &PipelineV2OptionsJson,
+    dependencies: &[String],
     input_digest: &str,
 ) -> Result<(), String> {
     let mut append = |kind: &str, media_type: &str, bytes: Vec<u8>, row_count: u32| {
-        let mut artifact = runtime_artifact(kind, media_type, bytes, vec![input_digest.into()]);
+        let mut artifact = runtime_artifact(kind, media_type, bytes, dependencies.to_vec());
         artifact.metadata.row_count = Some(row_count);
         artifacts.push(artifact);
     };
@@ -1408,9 +1512,9 @@ fn runtime_aggregate_artifact(
     kind: &str,
     bytes: Vec<u8>,
     row_count: u32,
-    input_digest: &str,
+    dependencies: &[String],
 ) -> RuntimeArtifact {
-    let mut artifact = runtime_artifact(kind, "text/csv", bytes, vec![input_digest.into()]);
+    let mut artifact = runtime_artifact(kind, "text/csv", bytes, dependencies.to_vec());
     artifact.metadata.row_count = Some(row_count);
     artifact
 }
@@ -1439,10 +1543,16 @@ mod tests {
 
     fn reset_fused_execution_count() {
         FUSED_PHYSICAL_EXECUTION_COUNT.with(|count| count.set(0));
+        PIPELINE_RESULT_DIGEST_COUNT.with(|count| count.set(0));
+        INCREMENTAL_RUNTIME_STATES.with(|states| *states.borrow_mut() = Default::default());
     }
 
     fn fused_execution_count() -> usize {
         FUSED_PHYSICAL_EXECUTION_COUNT.with(std::cell::Cell::get)
+    }
+
+    fn result_digest_count() -> usize {
+        PIPELINE_RESULT_DIGEST_COUNT.with(std::cell::Cell::get)
     }
 
     fn request(csv: &[u8]) -> String {
@@ -1563,7 +1673,33 @@ mod tests {
         assert!(manifest.state_reasons.iter().any(|reason| {
             reason.subject_id == "outputs" && reason.state == MaterializationState::Satisfied
         }));
-        assert_eq!(handle.artifact_count(), 18); // outputs/evidence/Arrow lineage, four embedded semantic resources, semantic-index source, closure, root, and four views
+        let assignment_digests = manifest
+            .role_assignments
+            .iter()
+            .map(|assignment| assignment.artifact.digest.as_str())
+            .collect::<BTreeSet<_>>();
+        for artifact in manifest.artifacts.iter().filter(|artifact| {
+            matches!(
+                artifact.kind.as_str(),
+                "app-csv" | "review-summary-json" | "visualization-data-json"
+            )
+        }) {
+            assert_eq!(
+                artifact
+                    .derived_from
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<BTreeSet<_>>(),
+                assignment_digests,
+                "{} must bind every active input/support/config assignment",
+                artifact.kind,
+            );
+        }
+        assert_eq!(
+            handle.artifact_count() as usize,
+            manifest.artifacts.len(),
+            "the transport handle and manifest must expose the same complete closure",
+        );
         let mut kinds = BTreeSet::new();
         let mut ledger = None;
         let mut stage_view_value = None;
@@ -1605,6 +1741,14 @@ mod tests {
         assert!(kinds.contains("semantic-index-source-json"));
         assert!(kinds.contains("artifact-closure-json"));
         assert!(kinds.contains("row-lineage-arrow"));
+        assert!(kinds.contains("ingress:raw_chronicle_csv"));
+        assert_eq!(
+            kinds
+                .iter()
+                .filter(|kind| kind.starts_with("node-output:"))
+                .count(),
+            15
+        );
         let stage_view_value = stage_view_value.unwrap();
         assert_eq!(stage_view_value["revision"], 17);
         assert!(
@@ -1668,6 +1812,11 @@ mod tests {
         let first = execute_workspace_native(&first_request.to_string(), &csv, &support).unwrap();
         let first: RuntimeManifest = serde_json::from_str(&first.manifest_json).unwrap();
         assert_eq!(fused_execution_count(), 1);
+        assert_eq!(
+            result_digest_count(),
+            1,
+            "full result must be digested once"
+        );
         assert!(first.node_executions.iter().all(|execution| {
             execution.output.is_some()
                 && matches!(
@@ -1679,13 +1828,15 @@ mod tests {
         let mut warm_request = first_request.clone();
         warm_request["requestId"] = Value::String("warm-run".into());
         warm_request["workspaceRootDigest"] = Value::String(first.workspace_root_digest.clone());
-        let warm = execute_workspace_native(&warm_request.to_string(), &csv, &support).unwrap();
-        let warm: RuntimeManifest = serde_json::from_str(&warm.manifest_json).unwrap();
+        let mut warm_handle =
+            execute_workspace_native(&warm_request.to_string(), &csv, &support).unwrap();
+        let warm: RuntimeManifest = serde_json::from_str(&warm_handle.manifest_json).unwrap();
         assert_eq!(
             fused_execution_count(),
             1,
             "warm run must not call the kernel"
         );
+        assert_eq!(result_digest_count(), 1, "warm run must not redigest");
         assert!(warm.node_executions.iter().all(|execution| {
             execution.output.is_some()
                 && matches!(
@@ -1693,6 +1844,41 @@ mod tests {
                     ExecutionStatus::Cached | ExecutionStatus::Bypassed
                 )
         }));
+        let mut warm_ledger = None;
+        let mut warm_journal = None;
+        for index in 0..warm_handle.artifact_count() {
+            let metadata: RuntimeArtifactMetadata =
+                serde_json::from_str(&warm_handle.artifact_metadata_json(index).unwrap()).unwrap();
+            if metadata.kind == "execution-ledger-json" {
+                warm_ledger = Some(
+                    serde_json::from_slice::<Value>(
+                        &warm_handle.take_artifact_bytes(index).unwrap(),
+                    )
+                    .unwrap(),
+                );
+            } else if metadata.kind == "evidence-journal" {
+                warm_journal = Some(
+                    EvidenceJournal::from_cbor(&warm_handle.take_artifact_bytes(index).unwrap())
+                        .unwrap(),
+                );
+            }
+        }
+        let warm_ledger = warm_ledger.unwrap();
+        assert!(warm_ledger.as_array().unwrap().iter().all(|unit| {
+            unit["status"] == "bypassed" || unit["steps"].as_array().unwrap().is_empty()
+        }));
+        let warm_journal = warm_journal.unwrap();
+        assert_eq!(
+            warm_journal
+                .events()
+                .iter()
+                .filter(|event| event.event_kind == "node-cached")
+                .count(),
+            warm.node_executions
+                .iter()
+                .filter(|execution| execution.status == ExecutionStatus::Cached)
+                .count()
+        );
 
         let mut changed_request = warm_request;
         changed_request["requestId"] = Value::String("day-coverage-change".into());
@@ -1711,6 +1897,11 @@ mod tests {
                 .map(|execution| (&execution.node_id, execution.status, &execution.input_key))
                 .collect::<Vec<_>>()
         );
+        assert_eq!(
+            result_digest_count(),
+            2,
+            "each physical execution must digest its result exactly once",
+        );
         let recomputed: BTreeSet<_> = changed
             .node_executions
             .iter()
@@ -1727,6 +1918,25 @@ mod tests {
                 .status,
             ExecutionStatus::Cached
         );
+    }
+
+    #[test]
+    fn incremental_workspace_cache_is_bounded() {
+        reset_fused_execution_count();
+        let csv = csv();
+        for index in 0..(MAX_INCREMENTAL_RUNTIME_STATES + 3) {
+            let marker = char::from_digit((index % 10) as u32, 10).unwrap();
+            let request_value = request_for_workspace(&csv, marker);
+            execute_workspace_native(
+                &request_value.to_string(),
+                &csv,
+                &RuntimeSupportFiles::default(),
+            )
+            .unwrap();
+        }
+        INCREMENTAL_RUNTIME_STATES.with(|states| {
+            assert_eq!(states.borrow().states.len(), MAX_INCREMENTAL_RUNTIME_STATES);
+        });
     }
 
     #[test]
@@ -2084,6 +2294,7 @@ mod tests {
             options: &options,
             support: &support,
             result: None,
+            result_digest: None,
             error: Some("cached failure".into()),
         };
         assert_eq!(
@@ -2127,7 +2338,8 @@ mod tests {
             .iter()
             .all(|unit| unit["status"] == "error"));
 
-        let aggregate = runtime_aggregate_artifact("aggregate-test", b"x\n".to_vec(), 1, "input");
+        let aggregate =
+            runtime_aggregate_artifact("aggregate-test", b"x\n".to_vec(), 1, &["input".into()]);
         assert_eq!(aggregate.metadata.row_count, Some(1));
     }
 

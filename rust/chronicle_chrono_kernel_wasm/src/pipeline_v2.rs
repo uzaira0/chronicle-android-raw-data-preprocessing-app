@@ -1311,7 +1311,7 @@ pub fn discover_timezones_v2_native(csv_bytes: &[u8]) -> Result<Vec<String>, Str
             continue;
         }
         parse_chronicle_timestamp_ns(timestamp)
-            .ok_or_else(|| format!("invalid event_timestamp: {timestamp}"))?;
+            .ok_or_else(|| format!("Invalid event_timestamp: {timestamp}"))?;
         let timezone = record
             .get("timezone")
             .map(|value| value.trim())
@@ -1669,7 +1669,7 @@ fn parse_raw_rows(
     let mut rows: Vec<Row> = Vec::with_capacity(raw_rows.len());
     for (idx, raw) in raw_rows.into_iter().enumerate() {
         let event_ns = parse_chronicle_timestamp_ns(&raw.event_timestamp)
-            .ok_or_else(|| format!("invalid event_timestamp: {}", raw.event_timestamp))?;
+            .ok_or_else(|| format!("Invalid event_timestamp: {}", raw.event_timestamp))?;
         let tz_str = if raw.timezone.is_empty() {
             "UTC".to_string()
         } else {
@@ -3176,10 +3176,11 @@ enum ScreenCreditState {
     Off,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct ScreenChangePoint {
     timestamp_ns: i64,
     state: ScreenCreditState,
+    source_data_rows: Vec<u32>,
 }
 
 #[derive(Default)]
@@ -3187,6 +3188,7 @@ struct ScreenCreditSubstrate {
     points: HashMap<String, Vec<ScreenChangePoint>>,
     boots: HashMap<String, Vec<i64>>,
     all_timestamps: HashMap<String, Vec<i64>>,
+    source_events: HashMap<String, Vec<(i64, Vec<u32>)>>,
     capable: BTreeSet<String>,
 }
 
@@ -3222,7 +3224,7 @@ fn screen_witness_state(interaction_type: &str) -> Result<Option<ScreenCreditSta
 }
 
 fn build_screen_credit_substrate(raw_events: &[Row]) -> Result<ScreenCreditSubstrate, String> {
-    let mut by_participant: HashMap<String, Vec<(i64, String)>> = HashMap::new();
+    let mut by_participant: HashMap<String, Vec<(i64, String, Vec<u32>)>> = HashMap::new();
     for row in raw_events {
         by_participant
             .entry(if row.participant_id.is_empty() {
@@ -3231,29 +3233,36 @@ fn build_screen_credit_substrate(raw_events: &[Row]) -> Result<ScreenCreditSubst
                 row.participant_id.clone()
             })
             .or_default()
-            .push((row.event_timestamp_ns, row.interaction_type.clone()));
+            .push((
+                row.event_timestamp_ns,
+                row.interaction_type.clone(),
+                row.source_data_rows.clone(),
+            ));
     }
     let mut substrate = ScreenCreditSubstrate::default();
     for (participant_id, mut events) in by_participant {
         events.sort_by_key(|event| event.0);
         let mut points = Vec::new();
         let mut last = None;
-        for (timestamp_ns, interaction_type) in &events {
+        for (timestamp_ns, interaction_type, source_data_rows) in &events {
             let state = screen_witness_state(interaction_type)?;
             if let Some(state) = state {
                 if Some(state) != last {
                     points.push(ScreenChangePoint {
                         timestamp_ns: *timestamp_ns,
                         state,
+                        source_data_rows: source_data_rows.clone(),
                     });
                     last = Some(state);
                 }
             }
         }
-        if events.iter().any(|(_, kind)| kind == "Screen Interactive")
+        if events
+            .iter()
+            .any(|(_, kind, _)| kind == "Screen Interactive")
             && events
                 .iter()
-                .any(|(_, kind)| kind == "Screen Non-Interactive")
+                .any(|(_, kind, _)| kind == "Screen Non-Interactive")
         {
             substrate.capable.insert(participant_id.clone());
         }
@@ -3261,7 +3270,7 @@ fn build_screen_credit_substrate(raw_events: &[Row]) -> Result<ScreenCreditSubst
             participant_id.clone(),
             events
                 .iter()
-                .filter(|(_, kind)| kind == "Device Startup")
+                .filter(|(_, kind, _)| kind == "Device Startup")
                 .map(|event| event.0)
                 .collect(),
         );
@@ -3269,9 +3278,47 @@ fn build_screen_credit_substrate(raw_events: &[Row]) -> Result<ScreenCreditSubst
             participant_id.clone(),
             events.iter().map(|event| event.0).collect(),
         );
+        substrate.source_events.insert(
+            participant_id.clone(),
+            events
+                .iter()
+                .map(|event| (event.0, event.2.clone()))
+                .collect(),
+        );
         substrate.points.insert(participant_id, points);
     }
     Ok(substrate)
+}
+
+fn credit_lineage_contributors(
+    substrate: &ScreenCreditSubstrate,
+    participant_id: &str,
+    start: i64,
+    end: i64,
+    tolerance_ns: i64,
+) -> Vec<u32> {
+    let mut contributors = Vec::new();
+    if let Some(events) = substrate.source_events.get(participant_id) {
+        let lower_bound = start.saturating_sub(tolerance_ns);
+        let upper_bound = end.saturating_add(tolerance_ns);
+        let lower = events.partition_point(|event| event.0 < lower_bound);
+        let upper = events.partition_point(|event| event.0 <= upper_bound);
+        contributors.extend(
+            events[lower..upper]
+                .iter()
+                .flat_map(|event| event.1.iter().copied()),
+        );
+    }
+    if let Some(points) = substrate.points.get(participant_id) {
+        if let Some(point) = points
+            .iter()
+            .rev()
+            .find(|point| point.timestamp_ns <= start)
+        {
+            contributors.extend(point.source_data_rows.iter().copied());
+        }
+    }
+    contributors
 }
 
 fn bisect_left(values: &[i64], target: i64) -> usize {
@@ -3506,14 +3553,13 @@ fn apply_screen_gated_credit(
                 continue;
             }
             let mut credited_row = row.clone();
-            let contributors = raw_events
-                .iter()
-                .filter(|event| {
-                    event.participant_id == row.participant_id
-                        && event.event_timestamp_ns <= interval_end
-                })
-                .flat_map(|event| event.source_data_rows.iter().copied())
-                .collect::<Vec<_>>();
+            let contributors = credit_lineage_contributors(
+                &substrate,
+                &row.participant_id,
+                interval_start,
+                interval_end,
+                tolerance_ns,
+            );
             merge_source_data_rows(&mut credited_row.source_data_rows, contributors);
             let duration_seconds = (interval_end - interval_start) as f64 / 1_000_000_000.0;
             credited_row.start_timestamp_ns = Some(interval_start);
@@ -4732,5 +4778,39 @@ mod tests {
         let v: f64 = 5.0000000000000004e-8;
         let p = round_to_precision(v, 15);
         assert_eq!(p, 5e-8);
+    }
+
+    #[test]
+    fn screen_credit_lineage_is_windowed_and_keeps_the_prior_state_witness() {
+        let mut substrate = ScreenCreditSubstrate::default();
+        substrate.source_events.insert(
+            "P01".into(),
+            vec![
+                (0, vec![1]),
+                (100, vec![2]),
+                (140, vec![5]),
+                (155, vec![3]),
+                (500, vec![4]),
+            ],
+        );
+        substrate.points.insert(
+            "P01".into(),
+            vec![ScreenChangePoint {
+                timestamp_ns: 100,
+                state: ScreenCreditState::On,
+                source_data_rows: vec![2],
+            }],
+        );
+
+        let contributors = credit_lineage_contributors(&substrate, "P01", 150, 160, 10);
+        assert_eq!(contributors, vec![5, 3, 2]);
+        assert!(
+            !contributors.contains(&1),
+            "unrelated historical prefixes must not expand"
+        );
+        assert!(
+            !contributors.contains(&4),
+            "future events must not be attributed"
+        );
     }
 }

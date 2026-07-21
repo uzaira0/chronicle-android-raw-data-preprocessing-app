@@ -19,8 +19,12 @@ const EXECUTION_GRAPH: &str = "urn:chronicle:derived:actual-execution";
 const REASONS_GRAPH: &str = "urn:chronicle:derived:reasons";
 const RDF_TYPE: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
 const PROV_ACTIVITY: &str = "http://www.w3.org/ns/prov#Activity";
+const PROV_ENTITY: &str = "http://www.w3.org/ns/prov#Entity";
+const PROV_USED: &str = "http://www.w3.org/ns/prov#used";
 const PROV_STARTED: &str = "http://www.w3.org/ns/prov#startedAtTime";
 const PROV_ENDED: &str = "http://www.w3.org/ns/prov#endedAtTime";
+const PPLAN_CORRESPONDS_TO_STEP: &str = "http://purl.org/net/p-plan#correspondsToStep";
+const XSD_DATE_TIME: &str = "http://www.w3.org/2001/XMLSchema#dateTime";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -80,6 +84,14 @@ fn literal(value: &str) -> String {
     serde_json::to_string(value).expect("JSON strings are N-Triples literals")
 }
 
+fn date_time_literal(value: &str) -> String {
+    let normalized = value
+        .strip_suffix(" UTC")
+        .map(|without_zone| format!("{}Z", without_zone.replacen(' ', "T", 1)))
+        .unwrap_or_else(|| value.to_string());
+    format!("{}^^<{}>", literal(&normalized), XSD_DATE_TIME)
+}
+
 fn quad(subject: &str, predicate: &str, object: &str, graph: &str) -> String {
     format!("{subject} {predicate} {object} <{graph}> .")
 }
@@ -108,6 +120,12 @@ fn build_index(source: &IndexSource) -> Vec<u8> {
     for assignment in &source.role_assignments {
         let assignment_iri = resource_iri("assignment", &assignment.assignment_id);
         let artifact_iri = resource_iri("artifact", &assignment.artifact.artifact_id);
+        quads.push(quad(
+            &artifact_iri,
+            &iri(RDF_TYPE),
+            &iri(PROV_ENTITY),
+            ASSIGNMENTS_GRAPH,
+        ));
         quads.push(quad(
             &assignment_iri,
             &predicate("role"),
@@ -173,6 +191,20 @@ fn build_index(source: &IndexSource) -> Vec<u8> {
         ));
         quads.push(quad(
             &execution_iri,
+            &iri(PPLAN_CORRESPONDS_TO_STEP),
+            &urn("node", &execution.node_id),
+            EXECUTION_GRAPH,
+        ));
+        for assignment in &source.role_assignments {
+            quads.push(quad(
+                &execution_iri,
+                &iri(PROV_USED),
+                &resource_iri("artifact", &assignment.artifact.artifact_id),
+                EXECUTION_GRAPH,
+            ));
+        }
+        quads.push(quad(
+            &execution_iri,
             &predicate("status"),
             &urn("execution-status", &execution.status),
             EXECUTION_GRAPH,
@@ -180,13 +212,13 @@ fn build_index(source: &IndexSource) -> Vec<u8> {
         quads.push(quad(
             &execution_iri,
             &iri(PROV_STARTED),
-            &literal(&source.execution_timestamp),
+            &date_time_literal(&source.execution_timestamp),
             EXECUTION_GRAPH,
         ));
         quads.push(quad(
             &execution_iri,
             &iri(PROV_ENDED),
-            &literal(&source.execution_timestamp),
+            &date_time_literal(&source.execution_timestamp),
             EXECUTION_GRAPH,
         ));
         quads.push(quad(
@@ -232,15 +264,7 @@ fn build_index(source: &IndexSource) -> Vec<u8> {
     bytes
 }
 
-fn registered_query(query_id: &str) -> Option<&'static str> {
-    match query_id {
-        "open-obligations" => Some("SELECT ?obligation ?role ?node ?reason WHERE { GRAPH <urn:chronicle:derived:obligations> { ?obligation <urn:chronicle:predicate:role> ?role ; <urn:chronicle:predicate:node> ?node ; <urn:chronicle:predicate:state> <urn:chronicle:state:open> ; <urn:chronicle:predicate:reason> ?reason . } } ORDER BY ?node ?role"),
-        "actual-executions" => Some("SELECT ?execution ?node ?status ?started ?ended WHERE { GRAPH <urn:chronicle:derived:actual-execution> { ?execution a <http://www.w3.org/ns/prov#Activity> ; <urn:chronicle:predicate:node> ?node ; <urn:chronicle:predicate:status> ?status ; <http://www.w3.org/ns/prov#startedAtTime> ?started . OPTIONAL { ?execution <http://www.w3.org/ns/prov#endedAtTime> ?ended } } } ORDER BY ?started ?node"),
-        "role-assignments" => Some("SELECT ?assignment ?role ?artifact ?digest WHERE { GRAPH <urn:chronicle:derived:assignments> { ?assignment <urn:chronicle:predicate:role> ?role ; <urn:chronicle:predicate:artifact> ?artifact . ?artifact <urn:chronicle:predicate:digest> ?digest . } } ORDER BY ?role ?digest"),
-        "reason-trace" => Some("SELECT ?transition ?subject ?from ?to ?reason ?source WHERE { GRAPH <urn:chronicle:derived:reasons> { ?transition <urn:chronicle:predicate:subject> ?subject ; <urn:chronicle:predicate:toState> ?to ; <urn:chronicle:predicate:reason> ?reason ; <urn:chronicle:predicate:source> ?source . OPTIONAL { ?transition <urn:chronicle:predicate:fromState> ?from } } } ORDER BY ?transition"),
-        _ => None,
-    }
-}
+include!(concat!(env!("OUT_DIR"), "/registered_queries.rs"));
 
 fn query(index: &[u8], query_id: &str) -> Result<Value, String> {
     let query = registered_query(query_id)
@@ -351,6 +375,13 @@ mod tests {
 
     #[test]
     fn index_rebuild_is_deterministic_and_registered_queries_are_bounded() {
+        let registry: Value = serde_json::from_str(REGISTERED_QUERY_RESOURCE_JSON).unwrap();
+        for declared in registry["queries"].as_array().unwrap() {
+            assert_eq!(
+                registered_query(declared["query_id"].as_str().unwrap()),
+                declared["sparql"].as_str(),
+            );
+        }
         let source = complete_source();
         let parsed: IndexSource = serde_json::from_value(source).unwrap();
         let first = build_index(&parsed);
@@ -364,9 +395,18 @@ mod tests {
             let result = query(&first, query_id).unwrap();
             assert_eq!(result["rows"].as_array().unwrap().len(), expected_rows);
         }
+        assert_eq!(
+            query(&first, "has-open-obligations").unwrap()["boolean"],
+            true
+        );
         assert!(String::from_utf8(first.clone())
             .unwrap()
             .contains("assignment_with_spaces"));
+        let nquads = String::from_utf8(first.clone()).unwrap();
+        assert!(nquads.contains("http://purl.org/net/p-plan#correspondsToStep"));
+        assert!(nquads.contains("http://www.w3.org/ns/prov#used"));
+        assert!(nquads.contains("http://www.w3.org/2001/XMLSchema#dateTime"));
+        assert!(nquads.contains("2026-07-21T12:00:00Z"));
         assert!(query(&first, "DROP ALL")
             .unwrap_err()
             .contains("unregistered"));
@@ -400,6 +440,15 @@ mod tests {
                 .unwrap_err(),
             "semantic index source ledger is invalid"
         );
+        let mut already_normalized_time = complete_source();
+        already_normalized_time["executionTimestamp"] =
+            Value::String("2026-07-21T12:00:00Z".into());
+        let normalized_index =
+            rebuild_semantic_index_native(&serde_json::to_vec(&already_normalized_time).unwrap())
+                .unwrap();
+        assert!(String::from_utf8(normalized_index)
+            .unwrap()
+            .contains("2026-07-21T12:00:00Z"));
         assert!(query_registered_native(&native, "arbitrary-query").is_err());
     }
 

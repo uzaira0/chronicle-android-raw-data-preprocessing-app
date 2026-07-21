@@ -1,16 +1,16 @@
 {
   "protocol_version": "0.1",
-  "root_digest": "sha256:fef9baa29b2a109060fe3468b2f2e12d906248e23cb3e7c269eb6d58ccfc5ec9",
+  "root_digest": "sha256:a1dce164d0e5f666601a39dd2465babf100f0648f844e5bb1d2c74af6ae4aad7",
   "artifacts": [
     {
       "artifact_id": "capability-bindings.json",
-      "digest": "sha256:756c888c303b40d1978e9aaf875d3daa0129d6f06fdc5b3211e20ed349f10e28",
+      "digest": "sha256:e0f74b5e57925b33e93e9b0cc8b379e2c7d7ea9446ab772ae21ed033bdbd5485",
       "media_type": "application/json",
       "size": 29000
     },
     {
       "artifact_id": "conformance-report.json",
-      "digest": "sha256:ec66dbacd2f38eecb04e5d15aa93954e7e9e1f33afc20064000c2c18cbda33fe",
+      "digest": "sha256:731923e8243232cc235eb446f5c4b85299fc881e5d84921c267314c7a9082967",
       "media_type": "application/json",
       "size": 630
     },
@@ -64,9 +64,9 @@
     },
     {
       "artifact_id": "resources/registered-queries.json",
-      "digest": "sha256:82115e12fb2d57a0913b7c03250637ff02195ef7b6de1ae24f3b09b1efdc244b",
+      "digest": "sha256:47e1f05307c74a33ee3dcea14f72629fd8b2cbf5686f159dc5660cb1c40c8c36",
       "media_type": "application/json",
-      "size": 1945
+      "size": 2195
     },
     {
       "artifact_id": "resources/runtime-authority.json",
@@ -76,16 +76,16 @@
     },
     {
       "artifact_id": "semantic-profile.json",
-      "digest": "sha256:63b31a3a212792ce8a9eee4145054631b9495dff6e1f2ca222c9eb533d88bdd5",
+      "digest": "sha256:f5cac26da32b7417750b057b038193f1b221ac1fb8f348c8d4c92d8cfd70f7bb",
       "media_type": "application/json",
       "size": 4450
     },
     {
       "artifact_id": "semantic-profile.lock",
-      "digest": "sha256:39d08b6c8e4727509b759766e562ce1292b6d10c7884ea0324b97810adf11651",
+      "digest": "sha256:8849cebd96981c2dc4725ee789912e648b0cfd840f31c30ccc166c95ffec5629",
       "media_type": "application/octet-stream",
       "size": 3111
     }
   ],
-  "closure_digest": "sha256:c1be2661ed985d12ffd0ea43840cadd9999c9c1219a1bb3dedef2bb866265806"
+  "closure_digest": "sha256:28f9188404fbc9d51670c8d3368fd091835152f214208d19b33db8204fdf79a7"
 }

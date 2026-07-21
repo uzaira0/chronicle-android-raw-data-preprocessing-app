@@ -24,11 +24,10 @@ while IFS= read -r entry || [[ -n "$entry" ]]; do
   entry=${entry#"${entry%%[![:space:]]*}"}
   entry=${entry%"${entry##*[![:space:]]}"}
   [[ -z "$entry" ]] && continue
-  manifest=${entry%%|*}
-  exclude_re=""
-  if [[ "$entry" == *"|"* ]]; then
-    exclude_re=${entry#*|}
-  fi
+  IFS='|' read -r manifest exclude_re entry_lines entry_regions entry_functions <<< "$entry"
+  coverage_lines=${entry_lines:-$minimum_lines}
+  coverage_regions=${entry_regions:-$minimum_regions}
+  coverage_functions=${entry_functions:-$minimum_functions}
   if [[ ! -f "$manifest" ]]; then
     echo "Configured Rust authority manifest does not exist: $manifest" >&2
     exit 2
@@ -39,9 +38,9 @@ while IFS= read -r entry || [[ -n "$entry" ]]; do
       rustup run stable cargo llvm-cov \
         --manifest-path "$manifest" \
         --summary-only \
-        --fail-under-lines "$minimum_lines" \
-        --fail-under-regions "$minimum_regions" \
-        --fail-under-functions "$minimum_functions"
+        --fail-under-lines "$coverage_lines" \
+        --fail-under-regions "$coverage_regions" \
+        --fail-under-functions "$coverage_functions"
       ;;
     mutation)
       crate_dir=$(cd "$(dirname "$manifest")" && pwd -P)

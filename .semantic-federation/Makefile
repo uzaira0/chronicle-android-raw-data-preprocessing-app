@@ -2,7 +2,8 @@ SEM_PROF_BIN ?= semprof
 SEMANTIC_REGISTRY ?= vendor/semantic-profile-registry
 
 .PHONY: semantic check architecture chronicle closure production-readiness \
-	quality-rust-coverage quality-rust-mutation quality-rust-supply-chain
+	quality-rust-coverage quality-rust-mutation quality-rust-supply-chain \
+	quality-performance
 
 semantic:
 	$(SEM_PROF_BIN) generate --source semantic/profile-source.json --output semantic/semantic-profile.json
@@ -33,4 +34,7 @@ quality-rust-mutation:
 quality-rust-supply-chain:
 	scripts/check-rust-quality.sh supply-chain
 
-production-readiness: check quality-rust-supply-chain quality-rust-coverage quality-rust-mutation
+quality-performance:
+	scripts/check-performance.sh
+
+production-readiness: check quality-rust-supply-chain quality-rust-coverage quality-rust-mutation quality-performance

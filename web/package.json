@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/run-clean-env.mjs vite build",
+    "build": "npm run build:wasm && npm run typecheck && node scripts/run-clean-env.mjs vite build",
     "generate:contract": "node scripts/run-clean-env.mjs vite-node scripts/generate_contract_artifacts.mts",
     "preview": "node scripts/run-clean-env.mjs vite preview --host 127.0.0.1 --port 4173",
     "host:local": "npm run build && npm run preview",

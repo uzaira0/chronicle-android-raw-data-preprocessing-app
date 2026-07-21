@@ -27,13 +27,12 @@ import type {
   TimelineViewData,
 } from "@/lib/types";
 import type { ExecutionLedger } from "@/lib/pipelineGraph/executionRecords";
+import { PREPROCESSOR_VERSION } from "@/lib/processingUiContract";
 
 const CSV_MIME = "text/csv;charset=utf-8";
 const PARQUET_MIME = "application/vnd.apache.parquet";
 const SAV_MIME = "application/x-spss-sav";
 const ARROW_MIME = "application/vnd.apache.arrow.file";
-const PREPROCESSOR_VERSION = "1.0.0";
-
 type SerializedVisualizationRow = {
   participantId: string;
   date: string;

@@ -383,10 +383,19 @@ describe("bounded Rust v2 shadow boundary", () => {
       vi.unstubAllGlobals();
     }
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.resolve(new Response("unavailable", { status: 503 }))),
+    const filter = await readFile(
+      new URL(
+        "../assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv",
+        import.meta.url,
+      ),
     );
+    const retryFetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+      .mockResolvedValueOnce(
+        new Response(Uint8Array.from(filter), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", retryFetch);
     try {
       await expect(
         executeRustRuntime(
@@ -399,7 +408,20 @@ describe("bounded Rust v2 shadow boundary", () => {
             persistRustWorkspace: false,
           },
         ),
-      ).rejects.toThrow(/failed to load bundled support asset \(503\)/);
+      ).rejects.toThrow(/failed to load bundled asset \(503\)/);
+      await expect(
+        executeRustRuntime(
+          csv,
+          "Recovered support.csv",
+          { ...eligibleOptions, useFilterFile: true },
+          undefined,
+          {
+            datetimeOfPreprocessing: "2026-07-21 12:00:00 UTC",
+            persistRustWorkspace: false,
+          },
+        ),
+      ).resolves.toMatchObject({ manifest: { counts: { original: 2 } } });
+      expect(retryFetch).toHaveBeenCalledTimes(2);
     } finally {
       vi.unstubAllGlobals();
     }

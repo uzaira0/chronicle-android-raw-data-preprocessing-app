@@ -8,7 +8,7 @@
  */
 
 const STORE_DIRECTORY = "chronicle-preprocessing-runtime-v1";
-const WORKSPACES_DIRECTORY = "chronicle-preprocessing-workspaces-v1";
+export const OPFS_WORKSPACES_DIRECTORY = "chronicle-preprocessing-workspaces-v1";
 const OBJECTS_DIRECTORY = "objects";
 const ROOTS_DIRECTORY = "roots";
 const CLOSURE_MAGIC = new TextEncoder().encode("CHRONICLE-CLOSURE-V1\n");
@@ -183,32 +183,53 @@ async function parseSlot(bytes: Uint8Array): Promise<WorkspaceRootSlot> {
   return parsed;
 }
 
-async function recoverFromDirectories(
+function isNotFoundError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "NotFoundError";
+}
+
+async function recoverableSlotsFromDirectories(
   objects: FileSystemDirectoryHandle,
   roots: FileSystemDirectoryHandle,
-): Promise<WorkspaceRootSlot | undefined> {
+): Promise<WorkspaceRootSlot[]> {
   const candidates: WorkspaceRootSlot[] = [];
+  let rootSlotObserved = false;
   for (const name of ["root-a.json", "root-b.json"]) {
     try {
-      candidates.push(await parseSlot(await readFile(roots, name)));
-    } catch {
+      const bytes = await readFile(roots, name);
+      rootSlotObserved = true;
+      candidates.push(await parseSlot(bytes));
+    } catch (error) {
+      if (!isNotFoundError(error)) rootSlotObserved = true;
       // Alternating slots are intentionally independent: one torn/corrupt slot
       // must not prevent recovery from the other.
     }
   }
   candidates.sort((left, right) => right.generation - left.generation);
+  const recovered: WorkspaceRootSlot[] = [];
   for (const candidate of candidates) {
     try {
       await readVerifiedObject(objects, candidate.workspaceRootDigest);
       for (const digest of candidate.artifactDigests) {
         await readVerifiedObject(objects, digest);
       }
-      return candidate;
+      recovered.push(candidate);
     } catch {
       // A newer slot with an incomplete closure falls back to the prior slot.
     }
   }
-  return undefined;
+  if (rootSlotObserved && recovered.length === 0) {
+    throw new Error(
+      "OPFS workspace roots exist, but no valid artifact closure can be recovered",
+    );
+  }
+  return recovered;
+}
+
+async function recoverFromDirectories(
+  objects: FileSystemDirectoryHandle,
+  roots: FileSystemDirectoryHandle,
+): Promise<WorkspaceRootSlot | undefined> {
+  return (await recoverableSlotsFromDirectories(objects, roots))[0];
 }
 
 export async function openOpfsRoot(): Promise<FileSystemDirectoryHandle> {
@@ -222,7 +243,7 @@ export async function openOpfsWorkspace(
   workspaceId: string,
 ): Promise<FileSystemDirectoryHandle> {
   const root = await openOpfsRoot();
-  const workspaces = await root.getDirectoryHandle(WORKSPACES_DIRECTORY, {
+  const workspaces = await root.getDirectoryHandle(OPFS_WORKSPACES_DIRECTORY, {
     create: true,
   });
   return workspaces.getDirectoryHandle(digestHex(workspaceId), { create: true });
@@ -299,6 +320,14 @@ export async function recoverRuntimeWorkspace(
 ): Promise<WorkspaceRootSlot | undefined> {
   const { objects, roots } = await storeDirectories(root);
   return recoverFromDirectories(objects, roots);
+}
+
+/** All independently recoverable alternating roots, newest first. */
+export async function recoverRuntimeWorkspaceRoots(
+  root: FileSystemDirectoryHandle,
+): Promise<WorkspaceRootSlot[]> {
+  const { objects, roots } = await storeDirectories(root);
+  return recoverableSlotsFromDirectories(objects, roots);
 }
 
 export async function readRuntimeObject(
@@ -435,7 +464,7 @@ function parseRuntimeClosure(archive: Uint8Array): RuntimeClosureInspection {
     object(digest) {
       const entry = manifest.objects.find((object) => object.digest === digest);
       if (!entry) throw new Error(`runtime closure object is missing: ${digest}`);
-      return archive.slice(
+      return archive.subarray(
         payloadStart + entry.offset,
         payloadStart + entry.offset + entry.size,
       );

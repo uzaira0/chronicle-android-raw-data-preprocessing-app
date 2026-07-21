@@ -207,7 +207,17 @@ export async function exportVerifiedWorkspaceClosure(
 export async function importVerifiedWorkspaceClosure(
   archive: Uint8Array,
 ): Promise<{ workspaceId: string; slot: { generation: number; workspaceRootDigest: string } }> {
-  return onSharedWorker((api) => api.importWorkspaceClosureArchive(archive));
+  const owned =
+    archive.buffer instanceof ArrayBuffer &&
+    archive.byteOffset === 0 &&
+    archive.byteLength === archive.buffer.byteLength
+      ? archive
+      : Uint8Array.from(archive);
+  return onSharedWorker((api) =>
+    api.importWorkspaceClosureArchive(
+      Comlink.transfer(owned, [owned.buffer as ArrayBuffer]),
+    ),
+  );
 }
 
 /**
@@ -288,6 +298,28 @@ export async function processRawCsvViaPool(
     }
     return api.processRawCsv(inputFileName, csvText, options, supportFiles, runtime);
   });
+}
+
+/** Transfer a single raw-file buffer to the long-lived worker without first
+ * materializing a UTF-16 string on the main thread. */
+export async function processRawCsvBytes(
+  inputFileName: string,
+  csvBytes: ArrayBuffer,
+  options?: Partial<BrowserProcessingOptions>,
+  supportFiles?: BrowserSupportFiles,
+  runtime?: BrowserProcessingRuntime,
+  onProgress?: (event: ProgressEvent) => void,
+): Promise<ProcessedFileResult> {
+  return onSharedWorker((api) =>
+    api.processRawCsvBytes(
+      inputFileName,
+      Comlink.transfer(csvBytes, [csvBytes]),
+      options,
+      supportFiles,
+      runtime,
+      onProgress ? Comlink.proxy(onProgress) : undefined,
+    ),
+  );
 }
 
 /**

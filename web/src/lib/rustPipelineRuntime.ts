@@ -16,6 +16,8 @@ import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?ur
 import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
 import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
 import defaultBackgroundAppsUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv?url";
+import { fetchBundledAssetBytes } from "@/lib/bundledAssetLoader";
+import { canonicalJson } from "@/lib/processingReport";
 import {
   exportRuntimeClosure,
   garbageCollectRuntimeObjects,
@@ -24,6 +26,7 @@ import {
   persistRuntimeWorkspace,
   readRuntimeObject,
   recoverRuntimeWorkspace,
+  recoverRuntimeWorkspaceRoots,
   runtimeClosureWorkspaceId,
   type PersistedRuntimeArtifact,
   type RuntimeClosureInspection,
@@ -151,6 +154,7 @@ const defaultPersistenceAdapter: RustPersistenceAdapter = {
       slot.previousWorkspaceRootDigest,
       kernel,
       workspaceId,
+      slot.workspaceRootDigest,
     );
   },
   persist: persistRuntimeWorkspace,
@@ -163,6 +167,7 @@ async function verifyRootClosure(
   expectedPreviousRoot: string | null,
   kernel: KernelModule,
   expectedWorkspaceId: string,
+  expectedWorkspaceRootDigest: string,
 ): Promise<void> {
   const commit = JSON.parse(new TextDecoder().decode(rootBytes)) as {
     protocolVersion: string;
@@ -170,6 +175,10 @@ async function verifyRootClosure(
     workspaceId: string;
     previousWorkspaceRootDigest: string | null;
     artifactDigests: string[];
+    inputDigest: string;
+    optionsDigest: string;
+    assignmentDigests: Record<string, string>;
+    requiredViewIds: string[];
     journalDigest: string;
     artifactClosureDigest: string;
   };
@@ -178,13 +187,20 @@ async function verifyRootClosure(
     commit.command !== "ExecuteWorkspace" ||
     commit.workspaceId !== expectedWorkspaceId ||
     commit.previousWorkspaceRootDigest !== expectedPreviousRoot ||
+    !Array.isArray(commit.requiredViewIds) ||
     !commit.artifactDigests.includes(commit.journalDigest) ||
     !commit.artifactDigests.includes(commit.artifactClosureDigest)
   ) {
     throw new Error("recovered workspace root contract is invalid");
   }
   const retained = new Set(retainedDigests);
-  if (!commit.artifactDigests.every((digest) => retained.has(digest))) {
+  const assignmentDigests = Object.values(commit.assignmentDigests ?? {});
+  if (
+    !commit.artifactDigests.every((digest) => retained.has(digest)) ||
+    !assignmentDigests.every((digest) => retained.has(digest)) ||
+    !retained.has(commit.inputDigest) ||
+    !retained.has(commit.optionsDigest)
+  ) {
     throw new Error("recovered workspace closure is incomplete");
   }
   const journal = await object(commit.journalDigest);
@@ -207,6 +223,30 @@ async function verifyRootClosure(
   ) {
     throw new Error("recovered artifact closure is invalid");
   }
+  const foundViewIds = new Set<string>();
+  for (const digest of retained) {
+    if (commit.artifactDigests.includes(digest) || digest === expectedWorkspaceRootDigest) {
+      continue;
+    }
+    try {
+      const candidate = JSON.parse(new TextDecoder().decode(await object(digest))) as {
+        view_id?: string;
+        root_digest?: string;
+      };
+      if (
+        candidate.view_id &&
+        candidate.root_digest === expectedWorkspaceRootDigest
+      ) {
+        foundViewIds.add(candidate.view_id);
+      }
+    } catch {
+      // Non-view extras are allowed only when another root contract field
+      // binds them; they do not satisfy a required typed projection.
+    }
+  }
+  if (!commit.requiredViewIds.every((viewId) => foundViewIds.has(viewId))) {
+    throw new Error("recovered workspace is missing a required typed view");
+  }
 }
 
 async function verifyPortableClosure(
@@ -221,6 +261,7 @@ async function verifyPortableClosure(
     closure.manifest.previousWorkspaceRootDigest,
     kernel,
     workspaceId,
+    closure.manifest.workspaceRootDigest,
   );
 }
 
@@ -274,13 +315,15 @@ export async function importPersistedRustWorkspace(
   if (runtimeClosureWorkspaceId(archive) !== workspaceId) {
     throw new Error("runtime closure workspace identity does not match the import target");
   }
-  const [kernel, root] = await Promise.all([
-    loadKernel(),
-    openOpfsWorkspace(workspaceId),
-  ]);
-  return importRuntimeClosure(root, archive, (closure) =>
-    verifyPortableClosure(closure, kernel, workspaceId),
-  );
+  return withWorkspaceLock(workspaceId, async () => {
+    const [kernel, root] = await Promise.all([
+      loadKernel(),
+      openOpfsWorkspace(workspaceId),
+    ]);
+    return importRuntimeClosure(root, archive, (closure) =>
+      verifyPortableClosure(closure, kernel, workspaceId),
+    );
+  });
 }
 
 export async function importPersistedRustWorkspaceArchive(
@@ -296,9 +339,11 @@ export async function importPersistedRustWorkspaceArchive(
 export async function garbageCollectPersistedRustWorkspace(
   workspaceId: string,
 ): Promise<number> {
-  const root = await openOpfsWorkspace(workspaceId);
-  const slot = await recoverRuntimeWorkspace(root);
-  return garbageCollectRuntimeObjects(root, slot ? [slot] : []);
+  return withWorkspaceLock(workspaceId, async () => {
+    const root = await openOpfsWorkspace(workspaceId);
+    const slots = await recoverRuntimeWorkspaceRoots(root);
+    return garbageCollectRuntimeObjects(root, slots);
+  });
 }
 
 export async function readPersistedRustArtifact(
@@ -379,8 +424,6 @@ function fileBytes(file: BrowserSupportFile | undefined): Uint8Array {
   return file ? new Uint8Array(file.bytes) : new Uint8Array();
 }
 
-const bundledSupportBytes = new Map<string, Promise<Uint8Array>>();
-
 async function supportBytes(
   enabled: boolean,
   file: BrowserSupportFile | undefined,
@@ -388,19 +431,7 @@ async function supportBytes(
 ): Promise<Uint8Array> {
   if (!enabled) return new Uint8Array();
   if (file) return fileBytes(file);
-  let pending = bundledSupportBytes.get(bundledUrl);
-  if (!pending) {
-    pending = fetch(bundledUrl).then(async (response) => {
-      if (!response.ok) {
-        throw new Error(
-          `failed to load bundled support asset (${response.status}): ${bundledUrl}`,
-        );
-      }
-      return new Uint8Array(await response.arrayBuffer());
-    });
-    bundledSupportBytes.set(bundledUrl, pending);
-  }
-  return pending;
+  return new Uint8Array(await fetchBundledAssetBytes(bundledUrl));
 }
 
 function requiredUploadedBytes(
@@ -613,19 +644,6 @@ async function compareParquetArtifact(
     matches: canonicalJson(typescriptRows) === canonicalJson(rustRows),
     comparison: "decoded-values",
   };
-}
-
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map(canonicalJson).join(",")}]`;
-  }
-  if (value !== null && typeof value === "object") {
-    return `{${Object.entries(value)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value);
 }
 
 function firstJsonDifference(
@@ -870,6 +888,21 @@ async function executeRustRuntimeUnlocked(
             artifacts: persistedArtifacts,
           })
         : undefined;
+    if (
+      persistedWorkspace &&
+      recoveredRoot &&
+      opfsRoot &&
+      persistenceAdapter === defaultPersistenceAdapter
+    ) {
+      try {
+        await garbageCollectRuntimeObjects(opfsRoot, [
+          persistedWorkspace,
+          recoveredRoot,
+        ]);
+      } catch (error) {
+        console.warn("Committed Rust workspace but could not reclaim stale OPFS objects", error);
+      }
+    }
     return { workspaceId, manifest, artifacts, persistedWorkspace };
   } finally {
     handle?.free();
@@ -877,10 +910,32 @@ async function executeRustRuntimeUnlocked(
   }
 }
 
-async function workspaceIdForInput(inputFileName: string): Promise<string> {
+export async function runtimeWorkspaceId(
+  inputFileName: string,
+  csvBytes: Uint8Array,
+): Promise<string> {
+  const inputDigest = await sha256Hex(csvBytes);
   return `sha256:${await sha256Hex(
-    new TextEncoder().encode(`chronicle-preprocessing-workspace:${inputFileName}`),
+    new TextEncoder().encode(
+      `chronicle-preprocessing-workspace:${inputFileName}\n${inputDigest}`,
+    ),
   )}`;
+}
+
+async function withWorkspaceLock<T>(
+  workspaceId: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  if (typeof navigator === "undefined" || !navigator.locks?.request) {
+    throw new Error(
+      "Durable workspace mutation requires the browser Web Locks API",
+    );
+  }
+  return navigator.locks.request(
+    `chronicle-preprocessing:${workspaceId}`,
+    { mode: "exclusive" },
+    operation,
+  );
 }
 
 export async function executeRustRuntime(
@@ -890,7 +945,7 @@ export async function executeRustRuntime(
   supportFiles: BrowserSupportFiles | undefined,
   runtime: BrowserProcessingRuntime,
 ): Promise<RustRuntimeExecution> {
-  const workspaceId = await workspaceIdForInput(inputFileName);
+  const workspaceId = await runtimeWorkspaceId(inputFileName, csvBytes);
   const execute = () =>
     executeRustRuntimeUnlocked(
       workspaceId,
@@ -909,11 +964,7 @@ export async function executeRustRuntime(
     }
     return execute();
   }
-  return navigator.locks.request(
-    `chronicle-preprocessing:${workspaceId}`,
-    { mode: "exclusive" },
-    execute,
-  );
+  return withWorkspaceLock(workspaceId, execute);
 }
 
 export async function runRustV2Shadow(

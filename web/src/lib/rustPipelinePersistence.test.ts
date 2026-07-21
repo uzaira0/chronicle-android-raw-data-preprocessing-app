@@ -11,6 +11,7 @@ const opfs = vi.hoisted(() => ({
   persistRuntimeWorkspace: vi.fn(),
   readRuntimeObject: vi.fn(),
   recoverRuntimeWorkspace: vi.fn(),
+  recoverRuntimeWorkspaceRoots: vi.fn(),
   runtimeClosureWorkspaceId: vi.fn(),
 }));
 
@@ -28,6 +29,7 @@ import {
   importPersistedRustWorkspace,
   importPersistedRustWorkspaceArchive,
   readPersistedRustArtifact,
+  runtimeWorkspaceId,
   runRustV2Shadow,
   setRustRuntimeForTesting,
   verifyPersistedRustWorkspace,
@@ -40,15 +42,25 @@ const journalDigest = `sha256:${"3".repeat(64)}`;
 const closureDigest = `sha256:${"4".repeat(64)}`;
 const payloadDigest = `sha256:${"5".repeat(64)}`;
 const previousDigest = `sha256:${"6".repeat(64)}`;
+const viewDigests = ["a", "b", "c", "d"].map(
+  (marker) => `sha256:${marker.repeat(64)}`,
+);
 const root = {} as FileSystemDirectoryHandle;
 const archive = enc.encode("archive");
+const workspaceLockRequest = vi.fn();
 
 const slot: WorkspaceRootSlot = {
   protocolVersion: "chronicle-opfs-root/v1",
   generation: 3,
   workspaceRootDigest: rootDigest,
   previousWorkspaceRootDigest: previousDigest,
-  artifactDigests: [rootDigest, journalDigest, closureDigest, payloadDigest],
+  artifactDigests: [
+    rootDigest,
+    journalDigest,
+    closureDigest,
+    payloadDigest,
+    ...viewDigests,
+  ],
   checksum: `sha256:${"7".repeat(64)}`,
 };
 
@@ -57,7 +69,16 @@ const validCommit = {
   command: "ExecuteWorkspace",
   workspaceId,
   previousWorkspaceRootDigest: previousDigest,
+  inputDigest: payloadDigest,
+  optionsDigest: payloadDigest,
+  assignmentDigests: { raw_chronicle_csv: payloadDigest },
   artifactDigests: [journalDigest, closureDigest, payloadDigest],
+  requiredViewIds: [
+    "chronicle.stage.v1",
+    "chronicle.artifact.v1",
+    "chronicle.obligation.v1",
+    "chronicle.explanation.v1",
+  ],
   journalDigest,
   artifactClosureDigest: closureDigest,
 };
@@ -73,6 +94,15 @@ const bytesByDigest = new Map([
   [journalDigest, enc.encode("journal")],
   [closureDigest, enc.encode(JSON.stringify(validClosure))],
   [payloadDigest, enc.encode("payload")],
+  ...viewDigests.map((digest, index) => [
+    digest,
+    enc.encode(
+      JSON.stringify({
+        view_id: validCommit.requiredViewIds[index],
+        root_digest: rootDigest,
+      }),
+    ),
+  ] as const),
 ]);
 
 const kernel = {
@@ -102,9 +132,22 @@ const kernel = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  workspaceLockRequest.mockImplementation(
+    async (
+      _name: string,
+      _options: LockOptions,
+      operation: () => Promise<unknown>,
+    ) => operation(),
+  );
+  vi.stubGlobal("navigator", {
+    locks: {
+      request: workspaceLockRequest,
+    },
+  });
   setRustRuntimeForTesting(kernel);
   opfs.openOpfsWorkspace.mockResolvedValue(root);
   opfs.recoverRuntimeWorkspace.mockResolvedValue(slot);
+  opfs.recoverRuntimeWorkspaceRoots.mockResolvedValue([slot]);
   opfs.readRuntimeObject.mockImplementation(
     (_root: FileSystemDirectoryHandle, digest: string) =>
       Promise.resolve(bytesByDigest.get(digest) ?? enc.encode("missing")),
@@ -123,7 +166,13 @@ beforeEach(() => {
           workspaceId,
           workspaceRootDigest: rootDigest,
           previousWorkspaceRootDigest: previousDigest,
-          objects: [rootDigest, journalDigest, closureDigest, payloadDigest].map(
+          objects: [
+            rootDigest,
+            journalDigest,
+            closureDigest,
+            payloadDigest,
+            ...viewDigests,
+          ].map(
             (digest) => ({ digest, size: bytesByDigest.get(digest)!.byteLength, offset: 0 }),
           ),
         },
@@ -135,6 +184,16 @@ beforeEach(() => {
 });
 
 describe("persisted Rust workspace boundary", () => {
+  it("separates same-named inputs when their raw bytes differ", async () => {
+    const first = await runtimeWorkspaceId("Raw.csv", enc.encode("first"));
+    const second = await runtimeWorkspaceId("Raw.csv", enc.encode("second"));
+    const renamed = await runtimeWorkspaceId("Renamed.csv", enc.encode("first"));
+
+    expect(first).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(second).not.toBe(first);
+    expect(renamed).not.toBe(first);
+  });
+
   it("verifies, exports, reads, collects, and imports a complete closure", async () => {
     await expect(verifyPersistedRustWorkspace(workspaceId)).resolves.toBe(slot);
     expect(kernel.verify_evidence_journal_cbor).toHaveBeenCalledWith(
@@ -145,6 +204,11 @@ describe("persisted Rust workspace boundary", () => {
       readPersistedRustArtifact(workspaceId, "semantic-index-source-json"),
     ).resolves.toEqual(bytesByDigest.get(payloadDigest));
     await expect(garbageCollectPersistedRustWorkspace(workspaceId)).resolves.toBe(4);
+    expect(workspaceLockRequest).toHaveBeenCalledWith(
+      `chronicle-preprocessing:${workspaceId}`,
+      { mode: "exclusive" },
+      expect.any(Function),
+    );
     await expect(importPersistedRustWorkspace(workspaceId, archive)).resolves.toBe(slot);
     await expect(importPersistedRustWorkspaceArchive(archive)).resolves.toEqual({
       workspaceId,
@@ -154,6 +218,7 @@ describe("persisted Rust workspace boundary", () => {
 
   it("returns no recovered root and fails closed when an operation requires one", async () => {
     opfs.recoverRuntimeWorkspace.mockResolvedValue(undefined);
+    opfs.recoverRuntimeWorkspaceRoots.mockResolvedValue([]);
     await expect(verifyPersistedRustWorkspace(workspaceId)).resolves.toBeUndefined();
     await expect(exportPersistedRustWorkspace(workspaceId)).rejects.toThrow(
       /no persisted Rust workspace/,
@@ -199,6 +264,34 @@ describe("persisted Rust workspace boundary", () => {
     });
     await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
       /closure is incomplete/,
+    );
+  });
+
+  it("requires every assigned ingress artifact and typed view", async () => {
+    bytesByDigest.set(
+      rootDigest,
+      enc.encode(
+        JSON.stringify({
+          ...validCommit,
+          assignmentDigests: {
+            raw_chronicle_csv: `sha256:${"9".repeat(64)}`,
+          },
+        }),
+      ),
+    );
+    await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
+      /closure is incomplete/,
+    );
+    bytesByDigest.set(rootDigest, enc.encode(JSON.stringify(validCommit)));
+
+    opfs.recoverRuntimeWorkspace.mockResolvedValue({
+      ...slot,
+      artifactDigests: slot.artifactDigests.filter(
+        (digest) => digest !== viewDigests[0],
+      ),
+    });
+    await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
+      /missing a required typed view/,
     );
   });
 

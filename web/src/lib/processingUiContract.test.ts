@@ -89,7 +89,7 @@ describe("browser support-file boundary", () => {
     };
 
     await expect(contract.resolveDefaultSupportFiles(options)).rejects.toThrow(
-      /Failed to load bundled asset/,
+      /failed to load bundled asset \(503\)/,
     );
     const recovered = await contract.resolveDefaultSupportFiles(options);
     expect(recovered.backgroundAppsFile?.name).toMatch(/background_apps.*\.csv$/);

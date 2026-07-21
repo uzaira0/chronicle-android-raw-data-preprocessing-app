@@ -153,10 +153,12 @@ mutation-web:
 mutation-rust:
 	$(MAKE) -C .semantic-federation quality-rust-mutation
 
-# Per-step performance table straight from the ExecutionLedger (the ledger is
-# the profiler). Point it at one or more raw Chronicle CSVs.
+# Measure the deployed worker -> authoritative Rust/WASM -> OPFS -> rendered
+# result path. The deterministic evidence ledger intentionally carries no wall
+# clock authority, so profiling stays outside the artifact closure.
 profile:
-	cd web && bunx vite-node scripts/profile_steps.mts $(CSV)
+	@test -n "$(CSV)" || (echo "usage: make profile CSV=/path/to/raw.csv" >&2; exit 2)
+	cd web && npm run build && npm run benchmark:browser -- --raw "$(CSV)"
 
 # Vitest v8 line/branch coverage with ratcheted floors (vitest.config.ts).
 coverage:

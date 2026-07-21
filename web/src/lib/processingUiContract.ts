@@ -2,6 +2,7 @@ import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?ur
 import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
 import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
 import defaultBackgroundAppsUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv?url";
+import { fetchBundledAssetBytes } from "@/lib/bundledAssetLoader";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import type {
   BrowserProcessingOptions,
@@ -92,20 +93,6 @@ export const INTERACTION_TYPES_TO_REMOVE_OPTIONS = [
   "App Component Used",
 ];
 
-const defaultBytesCache = new Map<string, Promise<ArrayBuffer>>();
-
-async function fetchDefaultBytes(url: string): Promise<ArrayBuffer> {
-  const cached = defaultBytesCache.get(url);
-  if (cached) return cached;
-  const pending = fetch(url).then((response) => {
-    if (!response.ok) throw new Error(`Failed to load bundled asset: ${url}`);
-    return response.arrayBuffer();
-  });
-  pending.catch(() => defaultBytesCache.delete(url));
-  defaultBytesCache.set(url, pending);
-  return pending;
-}
-
 function fileNameFromUrl(url: string): string {
   return (url.split("/").pop() ?? "default.csv").split("?")[0] ?? "default.csv";
 }
@@ -127,7 +114,7 @@ export async function resolveDefaultSupportFiles(
     if (!enabled) return;
     result[key] =
       uploads?.[key] ??
-      ({ name: fileNameFromUrl(url), bytes: await fetchDefaultBytes(url) });
+      ({ name: fileNameFromUrl(url), bytes: await fetchBundledAssetBytes(url) });
   };
   await Promise.all([
     load("filterFile", options.useFilterFile, defaultAppsToFilterUrl),

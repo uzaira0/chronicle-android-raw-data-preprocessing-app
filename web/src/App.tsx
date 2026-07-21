@@ -16,7 +16,7 @@ import {
   WorkerPool,
   discoverTimezones,
   getPlanStageView,
-  processRawCsv,
+  processRawCsvBytes,
   processRawCsvBytesViaPool,
   warmMatcher,
 } from "@/lib/chronicleMatcher";
@@ -545,8 +545,14 @@ export default function App(): ReactElement {
       const armBOptions = sanitizeOptions({ ...options, ...overrides });
       const userSupportFiles = await buildSupportFilesForOptions(armBOptions);
       const supportFiles = await resolveDefaultSupportFiles(armBOptions, userSupportFiles);
-      const text = await file.text();
-      return processRawCsv(file.name, text, armBOptions, supportFiles, getInjectedRuntime());
+      const bytes = await file.arrayBuffer();
+      return processRawCsvBytes(
+        file.name,
+        bytes,
+        armBOptions,
+        supportFiles,
+        getInjectedRuntime(),
+      );
     },
     [
       uploadedFiles,
@@ -668,10 +674,10 @@ export default function App(): ReactElement {
           handleProgressEvent({ type: "file-start", fileName: file.name });
           try {
             let result: ProcessedFileResult;
+            // Transfer ownership even on the one-file path. Decoding with
+            // File.text() would create a second, UTF-16-sized main-thread copy.
+            const bytes = await file.arrayBuffer();
             if (pool) {
-              // Zero-copy: transfer ArrayBuffer ownership to the worker so
-              // the main thread releases the file content immediately.
-              const bytes = await file.arrayBuffer();
               result = await processRawCsvBytesViaPool(
                 pool,
                 file.name,
@@ -682,10 +688,9 @@ export default function App(): ReactElement {
                 handleProgressEvent,
               );
             } else {
-              const text = await file.text();
-              result = await processRawCsv(
+              result = await processRawCsvBytes(
                 file.name,
-                text,
+                bytes,
                 runOptions,
                 supportFiles,
                 getInjectedRuntime(),
@@ -835,10 +840,10 @@ export default function App(): ReactElement {
         }
         const userSupportFiles = await buildSupportFiles();
         const supportFiles = await resolveDefaultSupportFiles(options, userSupportFiles);
-        const text = await file.text();
-        const result = await processRawCsv(
+        const bytes = await file.arrayBuffer();
+        const result = await processRawCsvBytes(
           file.name,
-          text,
+          bytes,
           options,
           supportFiles,
           getInjectedRuntime(),

@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import {
@@ -50,6 +50,10 @@ beforeEach(async () => {
   await clearLastRun();
 });
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe("toLightweightResults", () => {
   it("drops heavy artifacts, keeps counts + reviewSummary, flags the result", () => {
     const [light] = toLightweightResults([result()]);
@@ -71,6 +75,44 @@ describe("toLightweightResults", () => {
 });
 
 describe("lastRunStore", () => {
+  it("sets a synchronous deletion fence and releases it after a successful save", async () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    });
+
+    const deletion = clearLastRun();
+    expect([...values.values()]).toEqual(["1"]);
+    await deletion;
+    await expect(loadLastRun()).resolves.toBeUndefined();
+
+    await saveLastRun({
+      options: DEFAULT_BROWSER_OPTIONS,
+      results: [result()],
+      discoveredTimezones: [],
+    });
+    expect(values.size).toBe(0);
+    await expect(loadLastRun()).resolves.toBeDefined();
+  });
+
+  it("keeps IndexedDB usable when localStorage fencing is unavailable", async () => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => { throw new Error("blocked"); },
+      setItem: () => { throw new Error("blocked"); },
+      removeItem: () => { throw new Error("blocked"); },
+    });
+
+    await clearLastRun();
+    await saveLastRun({
+      options: DEFAULT_BROWSER_OPTIONS,
+      results: [result()],
+      discoveredTimezones: [],
+    });
+    await expect(loadLastRun()).resolves.toBeDefined();
+  });
+
   it("persists only the lightweight shape (no blobs/timeline) but keeps counts", async () => {
     await saveLastRun({
       options: { ...DEFAULT_BROWSER_OPTIONS, studyName: "Study A" },
@@ -158,6 +200,19 @@ describe("lastRunStore under a failing IndexedDB", () => {
     };
   }
 
+  function failingOpenIndexedDB(error: unknown) {
+    return {
+      open: () => {
+        const request: {
+          error: unknown;
+          onerror?: () => void;
+        } = { error };
+        queueMicrotask(() => request.onerror?.());
+        return request;
+      },
+    };
+  }
+
   beforeEach(() => {
     vi.stubGlobal("indexedDB", failingIndexedDB());
     return () => vi.unstubAllGlobals();
@@ -172,4 +227,12 @@ describe("lastRunStore under a failing IndexedDB", () => {
   it("loadLastRun self-heals to undefined instead of throwing on every boot", async () => {
     await expect(loadLastRun()).resolves.toBeUndefined();
   });
+
+  it.each([new Error("open failed"), "open failed"])(
+    "normalizes an IndexedDB open failure and starts clean (%s)",
+    async (error) => {
+      vi.stubGlobal("indexedDB", failingOpenIndexedDB(error));
+      await expect(loadLastRun()).resolves.toBeUndefined();
+    },
+  );
 });

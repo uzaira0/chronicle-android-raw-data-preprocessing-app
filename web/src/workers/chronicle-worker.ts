@@ -38,14 +38,24 @@ const sessionDatetimes = new Map<
   string,
   { inputSha256: string; datetime: string }
 >();
+const MAX_SESSION_DATETIMES = 32;
 
 function resolveSessionDatetime(
   fileName: string,
   inputSha256: string,
 ): string {
   const existing = sessionDatetimes.get(fileName);
-  if (existing?.inputSha256 === inputSha256) return existing.datetime;
+  if (existing?.inputSha256 === inputSha256) {
+    sessionDatetimes.delete(fileName);
+    sessionDatetimes.set(fileName, existing);
+    return existing.datetime;
+  }
   const datetime = `${new Date().toISOString().slice(0, 19).replace("T", " ")} UTC`;
+  if (!sessionDatetimes.has(fileName) && sessionDatetimes.size >= MAX_SESSION_DATETIMES) {
+    const oldest = sessionDatetimes.keys().next().value;
+    if (oldest !== undefined) sessionDatetimes.delete(oldest);
+  }
+  sessionDatetimes.delete(fileName);
   sessionDatetimes.set(fileName, { inputSha256, datetime });
   return datetime;
 }
@@ -71,8 +81,9 @@ const api = {
   async verifyWorkspace(workspaceId: string) {
     return (await verifyPersistedRustWorkspace(workspaceId)) ?? null;
   },
-  exportWorkspaceClosure(workspaceId: string): Promise<Uint8Array> {
-    return exportPersistedRustWorkspace(workspaceId);
+  async exportWorkspaceClosure(workspaceId: string): Promise<Uint8Array> {
+    const archive = await exportPersistedRustWorkspace(workspaceId);
+    return Comlink.transfer(archive, [archive.buffer]);
   },
   importWorkspaceClosure(workspaceId: string, bytes: Uint8Array) {
     return importPersistedRustWorkspace(workspaceId, bytes);

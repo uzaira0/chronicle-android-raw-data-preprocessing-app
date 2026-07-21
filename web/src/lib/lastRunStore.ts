@@ -6,6 +6,24 @@ const STORE = "lastRun";
 const DB_VERSION = 1;
 const LAST_RUN_ID = "last";
 const SCHEMA_VERSION = 1;
+const LAST_RUN_DELETED_FENCE = "chronicle-last-run-deleted-v1";
+
+function setDeletedFence(deleted: boolean): void {
+  try {
+    if (deleted) localStorage.setItem(LAST_RUN_DELETED_FENCE, "1");
+    else localStorage.removeItem(LAST_RUN_DELETED_FENCE);
+  } catch {
+    // IndexedDB remains authoritative when storage is unavailable or full.
+  }
+}
+
+function hasDeletedFence(): boolean {
+  try {
+    return localStorage.getItem(LAST_RUN_DELETED_FENCE) === "1";
+  } catch {
+    return false;
+  }
+}
 
 export type LastRunRecord = {
   id: typeof LAST_RUN_ID;
@@ -88,6 +106,7 @@ export async function saveLastRun(input: {
   };
   try {
     await runStore("readwrite", (store) => store.put(record));
+    setDeletedFence(false);
   } catch (error) {
     // A failed put (quota exhaustion is the common case) must not leave a
     // half/over-sized record behind that wedges the next boot — drop it so the
@@ -98,6 +117,10 @@ export async function saveLastRun(input: {
 }
 
 export async function loadLastRun(): Promise<LastRunRecord | undefined> {
+  if (hasDeletedFence()) {
+    await runStore("readwrite", (store) => store.delete(LAST_RUN_ID)).catch(() => {});
+    return undefined;
+  }
   let record: LastRunRecord | undefined;
   try {
     record = await runStore<LastRunRecord | undefined>("readonly", (store) =>
@@ -122,5 +145,8 @@ export async function loadLastRun(): Promise<LastRunRecord | undefined> {
 }
 
 export async function clearLastRun(): Promise<void> {
+  // The synchronous fence closes the click-then-immediate-reload race while
+  // the IndexedDB deletion is still committing.
+  setDeletedFence(true);
   await runStore("readwrite", (store) => store.delete(LAST_RUN_ID));
 }

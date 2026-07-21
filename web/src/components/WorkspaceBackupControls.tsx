@@ -35,7 +35,7 @@ export function WorkspaceBackupControls({ results }: Props): ReactElement {
       const archive = await exportVerifiedWorkspaceClosure(workspaceId);
       downloadBlob(
         backupName(inputFileName),
-        new Blob([Uint8Array.from(archive)], {
+        new Blob([archive.buffer as ArrayBuffer], {
           type: "application/vnd.chronicle.workspace",
         }),
       );

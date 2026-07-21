@@ -100,7 +100,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_preprocessing_runtime_wasm",
         "entrypoint": "execute_workspace",
-        "build_digest": "sha256:9064340db80aa6bcf0d0ecbb289522d6ca87f18fa788bdb2ca20835dcfbe74b0"
+        "build_digest": "sha256:b1a928e1728f46be2e240a153f281e7537ad5d1d3267a3bc0513f3e964478fef"
       },
       "relationship": "fused",
       "status": "active",
@@ -208,7 +208,7 @@
         "target": "native-test",
         "source": "rust/chronicle_preprocessing_runtime_wasm",
         "entrypoint": "execute_workspace_native",
-        "build_digest": "sha256:9064340db80aa6bcf0d0ecbb289522d6ca87f18fa788bdb2ca20835dcfbe74b0"
+        "build_digest": "sha256:b1a928e1728f46be2e240a153f281e7537ad5d1d3267a3bc0513f3e964478fef"
       },
       "relationship": "one-to-one",
       "status": "active",
