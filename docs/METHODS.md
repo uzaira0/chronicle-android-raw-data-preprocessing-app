@@ -182,7 +182,13 @@ Each raw Chronicle upload flows through the processing DAG below. Stage nodes ar
 
 ## 4. Processing parameters
 
-The preprocessing contract exposes 54 options (`BrowserProcessingOptions`). Each is listed below with its type, default, and researcher-facing description, quoted from the contract.
+The browser contract exposes 54 fields (`BrowserProcessingOptions`). They are
+not 54 binary preprocessing switches: 46 are computational axes, `study_name`
+is an output-annotation axis, five are view/rendering axes, and two control
+multi-file execution strategy. Enum, numeric, list, and string domains retain
+their declared values or product-defined equivalence classes. Each field is
+listed below with its type, default, and researcher-facing description, quoted
+from the contract.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|

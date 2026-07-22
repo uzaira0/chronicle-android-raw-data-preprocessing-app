@@ -1,0 +1,611 @@
+{
+  "protocol_version": "chronicle-dependency-certificate/v1",
+  "certificate_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:dependency-certificate/v1",
+  "structural_contract": {
+    "plan_digest": "sha256:162cd4087b0287169a54ee55dc224300e4a6c7ba4009ff82f8828b348d562c45",
+    "configuration_axes": {
+      "computational": [
+        "add_no_activity_placeholder_days",
+        "aggregate_shape",
+        "allow_stop_event_reuse",
+        "apply_minimum_usage_duration_to_concurrent_subintervals",
+        "apply_threshold_to_fallback",
+        "auto_lock_bridge_seconds",
+        "compliance_threshold_percent",
+        "correct_duplicate_event_timestamps",
+        "credited_session_cap_minutes",
+        "custom_app_engagement_duration",
+        "deduplicate_exact_rows",
+        "device_liveness_gap_tolerance_minutes",
+        "enable_aggregates",
+        "enable_compliance_scoring",
+        "enable_day_coverage",
+        "enable_parquet_export",
+        "enable_person_attribution",
+        "enable_screen_gated_crediting",
+        "enable_spss_export",
+        "enable_study_window_filter",
+        "filter_zero_duration_sessions",
+        "include_category_column",
+        "interaction_type_remap",
+        "interaction_types_to_remove",
+        "long_data_time_gap_thresholds",
+        "long_duration_threshold_hours",
+        "long_usage_duration_thresholds",
+        "minimum_usage_duration",
+        "model_concurrent_usage",
+        "no_witness_min_day_apps",
+        "other_interaction_types_to_stop_usage_at",
+        "process_app_usage",
+        "process_screen_usage",
+        "proximity_interval_seconds",
+        "same_app_interaction_types_to_stop_usage_at",
+        "screen_usage_auto_lock_timeout_seconds",
+        "screen_usage_auto_lock_tolerance_seconds",
+        "screen_usage_keyguard_near_stop_seconds",
+        "screen_usage_manual_lock_max_tail_gap_seconds",
+        "selected_timezone",
+        "timezone_handling",
+        "use_activity_stopped_as_fallback",
+        "use_app_codebook",
+        "use_apps_forcing_screen_open_file",
+        "use_background_apps_file",
+        "use_filter_file"
+      ],
+      "annotation": [
+        "study_name"
+      ],
+      "view": [
+        "enable_activity_heatmap",
+        "enable_interactive_timeline",
+        "enable_plotting",
+        "export_plots_as_svg",
+        "include_filtered_app_usage_in_plots"
+      ],
+      "execution": [
+        "parallel_max_workers",
+        "parallel_processing"
+      ]
+    },
+    "cache_relevant_option_keys": [
+      "add_no_activity_placeholder_days",
+      "aggregate_shape",
+      "allow_stop_event_reuse",
+      "apply_minimum_usage_duration_to_concurrent_subintervals",
+      "apply_threshold_to_fallback",
+      "auto_lock_bridge_seconds",
+      "compliance_threshold_percent",
+      "correct_duplicate_event_timestamps",
+      "credited_session_cap_minutes",
+      "custom_app_engagement_duration",
+      "deduplicate_exact_rows",
+      "device_liveness_gap_tolerance_minutes",
+      "enable_aggregates",
+      "enable_compliance_scoring",
+      "enable_day_coverage",
+      "enable_parquet_export",
+      "enable_person_attribution",
+      "enable_screen_gated_crediting",
+      "enable_spss_export",
+      "enable_study_window_filter",
+      "filter_zero_duration_sessions",
+      "include_category_column",
+      "interaction_type_remap",
+      "interaction_types_to_remove",
+      "long_data_time_gap_thresholds",
+      "long_duration_threshold_hours",
+      "long_usage_duration_thresholds",
+      "minimum_usage_duration",
+      "model_concurrent_usage",
+      "no_witness_min_day_apps",
+      "other_interaction_types_to_stop_usage_at",
+      "process_app_usage",
+      "process_screen_usage",
+      "proximity_interval_seconds",
+      "same_app_interaction_types_to_stop_usage_at",
+      "screen_usage_auto_lock_timeout_seconds",
+      "screen_usage_auto_lock_tolerance_seconds",
+      "screen_usage_keyguard_near_stop_seconds",
+      "screen_usage_manual_lock_max_tail_gap_seconds",
+      "selected_timezone",
+      "study_name",
+      "timezone_handling",
+      "use_activity_stopped_as_fallback",
+      "use_app_codebook",
+      "use_apps_forcing_screen_open_file",
+      "use_background_apps_file",
+      "use_filter_file"
+    ],
+    "excluded_option_keys": [
+      "enable_activity_heatmap",
+      "enable_interactive_timeline",
+      "enable_plotting",
+      "export_plots_as_svg",
+      "include_filtered_app_usage_in_plots",
+      "parallel_max_workers",
+      "parallel_processing"
+    ],
+    "role_ids": [
+      "app_codebook_file",
+      "apps_forcing_screen_open_file",
+      "background_apps_file",
+      "device_sharing_file",
+      "enrolled_devices_file",
+      "filter_file",
+      "processing_options",
+      "raw_chronicle_csv",
+      "study_dates_file",
+      "survey_attribution_file"
+    ],
+    "binding_surface": {
+      "option_bindings": {
+        "add_no_activity_placeholder_days": [
+          {
+            "edge": "gates",
+            "node_id": "day_coverage"
+          }
+        ],
+        "aggregate_shape": [
+          {
+            "edge": "tunes",
+            "node_id": "outputs"
+          }
+        ],
+        "allow_stop_event_reuse": [
+          {
+            "edge": "tunes",
+            "node_id": "reconstruct_episodes"
+          }
+        ],
+        "apply_minimum_usage_duration_to_concurrent_subintervals": [
+          {
+            "edge": "tunes",
+            "node_id": "reconstruct_episodes"
+          }
+        ],
+        "apply_threshold_to_fallback": [
+          {
+            "edge": "tunes",
+            "node_id": "reconstruct_episodes"
+          }
+        ],
+        "auto_lock_bridge_seconds": [
+          {
+            "edge": "tunes",
+            "node_id": "effective_usage"
+          }
+        ],
+        "compliance_threshold_percent": [
+          {
+            "edge": "tunes",
+            "node_id": "score_compliance"
+          }
+        ],
+        "correct_duplicate_event_timestamps": [
+          {
+            "edge": "gates",
+            "node_id": "dedup_and_order"
+          }
+        ],
+        "credited_session_cap_minutes": [
+          {
+            "edge": "tunes",
+            "node_id": "effective_usage"
+          }
+        ],
+        "custom_app_engagement_duration": [
+          {
+            "edge": "tunes",
+            "node_id": "episode_annotations"
+          }
+        ],
+        "deduplicate_exact_rows": [
+          {
+            "edge": "gates",
+            "node_id": "dedup_and_order"
+          }
+        ],
+        "device_liveness_gap_tolerance_minutes": [
+          {
+            "edge": "tunes",
+            "node_id": "effective_usage"
+          }
+        ],
+        "enable_aggregates": [
+          {
+            "edge": "gates",
+            "node_id": "outputs"
+          }
+        ],
+        "enable_compliance_scoring": [
+          {
+            "edge": "gates",
+            "node_id": "score_compliance"
+          }
+        ],
+        "enable_day_coverage": [
+          {
+            "edge": "gates",
+            "node_id": "day_coverage"
+          }
+        ],
+        "enable_parquet_export": [
+          {
+            "edge": "gates",
+            "node_id": "outputs"
+          }
+        ],
+        "enable_person_attribution": [
+          {
+            "edge": "gates",
+            "node_id": "attribute_person"
+          }
+        ],
+        "enable_screen_gated_crediting": [
+          {
+            "edge": "gates",
+            "node_id": "effective_usage"
+          }
+        ],
+        "enable_spss_export": [
+          {
+            "edge": "gates",
+            "node_id": "outputs"
+          }
+        ],
+        "enable_study_window_filter": [
+          {
+            "edge": "gates",
+            "node_id": "observation_window"
+          }
+        ],
+        "filter_zero_duration_sessions": [
+          {
+            "edge": "gates",
+            "node_id": "interval_cleaning"
+          }
+        ],
+        "include_category_column": [
+          {
+            "edge": "tunes",
+            "node_id": "categorize_apps"
+          },
+          {
+            "edge": "gates",
+            "node_id": "outputs"
+          }
+        ],
+        "interaction_type_remap": [
+          {
+            "edge": "tunes",
+            "node_id": "parse_events"
+          }
+        ],
+        "interaction_types_to_remove": [
+          {
+            "edge": "tunes",
+            "node_id": "interval_cleaning"
+          }
+        ],
+        "long_data_time_gap_thresholds": [
+          {
+            "edge": "tunes",
+            "node_id": "episode_annotations"
+          },
+          {
+            "edge": "tunes",
+            "node_id": "interval_cleaning"
+          }
+        ],
+        "long_duration_threshold_hours": [
+          {
+            "edge": "tunes",
+            "node_id": "reconstruct_episodes"
+          }
+        ],
+        "long_usage_duration_thresholds": [
+          {
+            "edge": "tunes",
+            "node_id": "episode_annotations"
+          }
+        ],
+        "minimum_usage_duration": [
+          {
+            "edge": "tunes",
+            "node_id": "reconstruct_episodes"
+          }
+        ],
+        "model_concurrent_usage": [
+          {
+            "edge": "gates",
+            "node_id": "reconstruct_episodes"
+          }
+        ],
+        "no_witness_min_day_apps": [
+          {
+            "edge": "tunes",
+            "node_id": "effective_usage"
+          }
+        ],
+        "other_interaction_types_to_stop_usage_at": [
+          {
+            "edge": "tunes",
+            "node_id": "dedup_and_order"
+          },
+          {
+            "edge": "tunes",
+            "node_id": "reconstruct_episodes"
+          }
+        ],
+        "process_app_usage": [
+          {
+            "edge": "gates",
+            "node_id": "attribute_person"
+          },
+          {
+            "edge": "gates",
+            "node_id": "categorize_apps"
+          },
+          {
+            "edge": "gates",
+            "node_id": "day_coverage"
+          },
+          {
+            "edge": "gates",
+            "node_id": "effective_usage"
+          },
+          {
+            "edge": "gates",
+            "node_id": "episode_annotations"
+          },
+          {
+            "edge": "gates",
+            "node_id": "interval_cleaning"
+          },
+          {
+            "edge": "gates",
+            "node_id": "observation_window"
+          },
+          {
+            "edge": "gates",
+            "node_id": "reconstruct_episodes"
+          },
+          {
+            "edge": "gates",
+            "node_id": "score_compliance"
+          }
+        ],
+        "process_screen_usage": [
+          {
+            "edge": "gates",
+            "node_id": "device_state_timeline"
+          }
+        ],
+        "proximity_interval_seconds": [
+          {
+            "edge": "tunes",
+            "node_id": "reconstruct_episodes"
+          }
+        ],
+        "same_app_interaction_types_to_stop_usage_at": [
+          {
+            "edge": "tunes",
+            "node_id": "dedup_and_order"
+          },
+          {
+            "edge": "tunes",
+            "node_id": "reconstruct_episodes"
+          }
+        ],
+        "screen_usage_auto_lock_timeout_seconds": [
+          {
+            "edge": "tunes",
+            "node_id": "device_state_timeline"
+          }
+        ],
+        "screen_usage_auto_lock_tolerance_seconds": [
+          {
+            "edge": "tunes",
+            "node_id": "device_state_timeline"
+          }
+        ],
+        "screen_usage_keyguard_near_stop_seconds": [
+          {
+            "edge": "tunes",
+            "node_id": "device_state_timeline"
+          }
+        ],
+        "screen_usage_manual_lock_max_tail_gap_seconds": [
+          {
+            "edge": "tunes",
+            "node_id": "device_state_timeline"
+          }
+        ],
+        "selected_timezone": [
+          {
+            "edge": "tunes",
+            "node_id": "normalize_timezones"
+          }
+        ],
+        "study_name": [
+          {
+            "edge": "tunes",
+            "node_id": "outputs"
+          }
+        ],
+        "timezone_handling": [
+          {
+            "edge": "tunes",
+            "node_id": "normalize_timezones"
+          }
+        ],
+        "use_activity_stopped_as_fallback": [
+          {
+            "edge": "tunes",
+            "node_id": "reconstruct_episodes"
+          }
+        ],
+        "use_app_codebook": [
+          {
+            "edge": "gates",
+            "node_id": "categorize_apps"
+          }
+        ],
+        "use_apps_forcing_screen_open_file": [
+          {
+            "edge": "gates",
+            "node_id": "device_state_timeline"
+          }
+        ],
+        "use_background_apps_file": [
+          {
+            "edge": "gates",
+            "node_id": "reconstruct_episodes"
+          }
+        ],
+        "use_filter_file": [
+          {
+            "edge": "gates",
+            "node_id": "app_policy"
+          },
+          {
+            "edge": "tunes",
+            "node_id": "interval_cleaning"
+          }
+        ]
+      },
+      "role_bindings": {
+        "app_codebook_file": [
+          {
+            "kind": "support-input",
+            "node_id": "categorize_apps"
+          }
+        ],
+        "apps_forcing_screen_open_file": [
+          {
+            "kind": "support-input",
+            "node_id": "device_state_timeline"
+          }
+        ],
+        "background_apps_file": [
+          {
+            "kind": "support-input",
+            "node_id": "reconstruct_episodes"
+          }
+        ],
+        "device_sharing_file": [
+          {
+            "kind": "support-input",
+            "node_id": "attribute_person"
+          },
+          {
+            "kind": "support-input",
+            "node_id": "score_compliance"
+          }
+        ],
+        "enrolled_devices_file": [
+          {
+            "kind": "support-input",
+            "node_id": "score_compliance"
+          }
+        ],
+        "filter_file": [
+          {
+            "kind": "support-input",
+            "node_id": "app_policy"
+          }
+        ],
+        "processing_options": [
+          {
+            "kind": "configuration-source",
+            "node_id": "*"
+          }
+        ],
+        "raw_chronicle_csv": [
+          {
+            "kind": "raw-input",
+            "node_id": "parse_events"
+          }
+        ],
+        "study_dates_file": [
+          {
+            "kind": "support-input",
+            "node_id": "day_coverage"
+          },
+          {
+            "kind": "support-input",
+            "node_id": "observation_window"
+          }
+        ],
+        "survey_attribution_file": [
+          {
+            "kind": "support-input",
+            "node_id": "attribute_person"
+          }
+        ]
+      }
+    },
+    "binding_surface_digest": "sha256:44a16cac49e342cacdcbb02fec66a02452928aa5b8be79ddd247a5bd7a70bc77",
+    "unclassified_option_keys": [],
+    "unbound_role_ids": []
+  },
+  "evidence": {
+    "implementation_receipt": {
+      "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
+      "implementationDigest": "sha256:d6081f896e488d92bf202fcea98a92c3bc86e13f493f33aca29ced86333db997",
+      "planDigest": "sha256:162cd4087b0287169a54ee55dc224300e4a6c7ba4009ff82f8828b348d562c45",
+      "profileDigest": "sha256:b2899800f08de7ed93000422947cd8d0b3b5443150e6b47a019f8d038ceaaf93",
+      "profileLockDigest": "sha256:47240c9a44c328437384c8be9531e90f8d5e60696ed6a0db55f79bf313b78990",
+      "runtimeAuthorityDigest": "sha256:11142579a05120fce9a1fe8e0edfffdcae385b34a10080d878e8d82b73cc8627",
+      "productContractDigest": "sha256:5ac0241fc2c80af23f5a580ff25679db9ce3d2e3a5fae8043ed0826d865105f7"
+    },
+    "proof_ledgers": [
+      {
+        "path": "web/src/lib/pipelineGraph/golden/family-expected/configuration-influence-ledger.json",
+        "digest": "sha256:179c88eaca0c91241a17260be1aa53f3efe904577700b9f53b7b9dc365332a16",
+        "protocol_version": "chronicle-configuration-influence-ledger/v1",
+        "claim_boundary": "Exact logical-stage percolation and warm/cold minimality for the recorded implementation, equivalence classes, contexts, support bindings, and synthetic corpora. Absence of an observed effect remains bounded to this declared test scope. Logical recomputation is minimal; physical execution remains one fused full Rust pipeline run whenever any logical checkpoint requires recomputation."
+      },
+      {
+        "path": "web/src/lib/pipelineGraph/golden/family-expected/artifact-influence-ledger.json",
+        "digest": "sha256:eae0a353ab97abc0be80153778eec7c9fd376d15f089f11be8faf303e5a03d27",
+        "protocol_version": "chronicle-artifact-influence-ledger/v1",
+        "claim_boundary": "Exact raw/support artifact percolation for the recorded product plan, implementation, six deterministic synthetic corpora, and intervention catalog. Each intervention changes exactly one source artifact; every warm logical checkpoint and researcher-visible output is compared with an independent cold target. Absence of an effect is not generalized beyond the named mutation and corpus."
+      },
+      {
+        "path": "web/src/lib/pipelineGraph/golden/family-expected/raw-boundary-influence-ledger.json",
+        "digest": "sha256:3aa30ada2c0a4835896b7c02837b18beca47f1f1cac4b0459abae690827aade3",
+        "protocol_version": "chronicle-raw-boundary-influence-ledger/v1",
+        "claim_boundary": "Exact raw timestamp percolation for every named boundary intervention across all checked synthetic corpus profiles. Each mutation changes one raw event timestamp; warm execution is checked against an independent cold oracle. The evidence does not generalize beyond the listed boundary catalog, corpora, plan, and implementation receipt."
+      },
+      {
+        "path": "web/src/lib/pipelineGraph/golden/family-expected/interaction-influence-ledger.json",
+        "digest": "sha256:637a3cccd0fa841de2afd1d6a2d8671bd635a4bd9c3cd9b0f4bc63aaa7340c12",
+        "protocol_version": "chronicle-interaction-influence-ledger/v1",
+        "claim_boundary": "Exhaustive two-factor structural interaction and exact warm/cold percolation proof across every valid pair of non-baseline declared equivalence-class values for all 46 computational browser axes, on the deterministic configuration-influence-probes corpus. Invalid selected-timezone combinations are enumerated with their qualification reason. This does not claim numeric statistical additivity or exhaust interactions of arity three and above."
+      },
+      {
+        "path": "web/src/lib/pipelineGraph/golden/family-expected/mixed-artifact-configuration-ledger.json",
+        "digest": "sha256:cefe1aa03f232b1d827d77f3cbf18366374ed0f5402cb83ac721b4da9fe824ab",
+        "protocol_version": "chronicle-mixed-artifact-configuration-aggregate/v1",
+        "claim_boundary": "Aggregate of nine independently recycled exhaustive role/value shards. Each shard selects one empirically branch-activating intervention for its source role, crosses it with every valid alternate value of all 46 computational axes, executes both transition orders, and compares every final logical checkpoint, output artifact, and canonical output cell with an independent cold Rust/WASM target. Field/record interactions beyond the selected representative remain outside this claim."
+      },
+      {
+        "path": "web/src/lib/pipelineGraph/golden/family-expected/semantic-model-mutation-ledger.json",
+        "digest": "sha256:022242ad79e3802b598ec6c004edf5e937f00ae35a4a33c76670526e73927d13",
+        "protocol_version": "chronicle-semantic-model-mutation-ledger/v1",
+        "claim_boundary": "In-memory mutation of every declared DAG edge (removal and reversal), every recorded computational option binding, and every raw/support role binding. A mutant is killed by a structural cycle, a required cross-unit typed step port, or disagreement with a checked one-factor empirical percolation observation. Rust checkpoint-component and qualification-rule mutation witnesses are enforced separately by their unit tests."
+      }
+    ]
+  },
+  "narrowing_policy": {
+    "certified_surface": "declared-node-input-key",
+    "unknown_option": "full-logical-recompute",
+    "missing_option": "full-logical-recompute",
+    "unknown_role": "fail-closed",
+    "certificate_mismatch": "full-logical-recompute",
+    "stale_empirical_evidence": "release-blocking",
+    "code_or_contract_change": "full-logical-recompute"
+  },
+  "claim_boundary": "The certificate proves complete classification and binding of the current product option/role surface and binds the named empirical ledgers. Narrow cache reuse is permitted only for that exact structural surface. Empirical absence-of-effect claims remain bounded by each ledger's own claim boundary; unclassified or mismatched runtime state falls back to full logical recomputation."
+}

@@ -14,6 +14,7 @@ use std::collections::BTreeMap;
 use wasm_bindgen::prelude::*;
 
 const ASSIGNMENTS_GRAPH: &str = "urn:chronicle:derived:assignments";
+const QUALIFICATION_GRAPH: &str = "urn:chronicle:derived:qualification";
 const OBLIGATIONS_GRAPH: &str = "urn:chronicle:derived:obligations";
 const EXECUTION_GRAPH: &str = "urn:chronicle:derived:actual-execution";
 const REASONS_GRAPH: &str = "urn:chronicle:derived:reasons";
@@ -24,7 +25,9 @@ const PROV_USED: &str = "http://www.w3.org/ns/prov#used";
 const PROV_STARTED: &str = "http://www.w3.org/ns/prov#startedAtTime";
 const PROV_ENDED: &str = "http://www.w3.org/ns/prov#endedAtTime";
 const PPLAN_CORRESPONDS_TO_STEP: &str = "http://purl.org/net/p-plan#correspondsToStep";
+const XSD_BOOLEAN: &str = "http://www.w3.org/2001/XMLSchema#boolean";
 const XSD_DATE_TIME: &str = "http://www.w3.org/2001/XMLSchema#dateTime";
+const XSD_UNSIGNED_LONG: &str = "http://www.w3.org/2001/XMLSchema#unsignedLong";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -33,10 +36,24 @@ struct IndexSource {
     input_digest: String,
     execution_timestamp: String,
     role_assignments: Vec<RoleAssignment>,
+    qualification_traces: Vec<QualificationTrace>,
+    requirement_traces: Vec<RoleRequirementTrace>,
     open_obligations: Vec<OpenObligation>,
     state_reasons: Vec<StateReason>,
     node_executions: Vec<NodeExecution>,
+    #[serde(default)]
+    dependency_cache_decision: Option<DependencyCacheDecision>,
     execution_ledger: Value,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DependencyCacheDecision {
+    mode: String,
+    certificate_digest: Option<String>,
+    binding_surface_digest: Option<String>,
+    empirical_evidence_current: bool,
+    reasons: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -50,6 +67,42 @@ struct RoleAssignment {
 struct Artifact {
     artifact_id: String,
     digest: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct QualificationTrace {
+    trace_id: String,
+    candidate_id: String,
+    candidate_revision: u64,
+    artifact_digest: String,
+    qualifiers_digest: String,
+    asserted_role_ids: Vec<String>,
+    selected_role_id: Option<String>,
+    decision: String,
+    rule_evaluations: Vec<QualificationRuleEvaluation>,
+    reason_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct QualificationRuleEvaluation {
+    rule_id: String,
+    passed: bool,
+    expected: String,
+    observed: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RoleRequirementTrace {
+    trace_id: String,
+    role_id: String,
+    required: bool,
+    unconditional: bool,
+    condition_id: Option<String>,
+    condition_result: Option<bool>,
+    candidate_trace_ids: Vec<String>,
+    accepted_assignment_ids: Vec<String>,
+    state: String,
+    reason_id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -90,6 +143,14 @@ fn date_time_literal(value: &str) -> String {
         .map(|without_zone| format!("{}Z", without_zone.replacen(' ', "T", 1)))
         .unwrap_or_else(|| value.to_string());
     format!("{}^^<{}>", literal(&normalized), XSD_DATE_TIME)
+}
+
+fn boolean_literal(value: bool) -> String {
+    format!("\"{value}\"^^<{}>", XSD_BOOLEAN)
+}
+
+fn unsigned_long_literal(value: u64) -> String {
+    format!("\"{value}\"^^<{}>", XSD_UNSIGNED_LONG)
 }
 
 fn quad(subject: &str, predicate: &str, object: &str, graph: &str) -> String {
@@ -145,6 +206,162 @@ fn build_index(source: &IndexSource) -> Vec<u8> {
             ASSIGNMENTS_GRAPH,
         ));
     }
+    for trace in &source.qualification_traces {
+        let trace_iri = resource_iri("qualification-trace", &trace.trace_id);
+        quads.push(quad(
+            &trace_iri,
+            &predicate("candidate"),
+            &resource_iri("candidate", &trace.candidate_id),
+            QUALIFICATION_GRAPH,
+        ));
+        quads.push(quad(
+            &trace_iri,
+            &predicate("candidateRevision"),
+            &unsigned_long_literal(trace.candidate_revision),
+            QUALIFICATION_GRAPH,
+        ));
+        quads.push(quad(
+            &trace_iri,
+            &predicate("artifactDigest"),
+            &literal(&trace.artifact_digest),
+            QUALIFICATION_GRAPH,
+        ));
+        quads.push(quad(
+            &trace_iri,
+            &predicate("qualifiersDigest"),
+            &literal(&trace.qualifiers_digest),
+            QUALIFICATION_GRAPH,
+        ));
+        for role_id in &trace.asserted_role_ids {
+            quads.push(quad(
+                &trace_iri,
+                &predicate("assertedRole"),
+                &resource_iri("role", role_id),
+                QUALIFICATION_GRAPH,
+            ));
+        }
+        if let Some(role_id) = &trace.selected_role_id {
+            quads.push(quad(
+                &trace_iri,
+                &predicate("selectedRole"),
+                &resource_iri("role", role_id),
+                QUALIFICATION_GRAPH,
+            ));
+        }
+        quads.push(quad(
+            &trace_iri,
+            &predicate("decision"),
+            &urn("qualification-decision", &trace.decision),
+            QUALIFICATION_GRAPH,
+        ));
+        quads.push(quad(
+            &trace_iri,
+            &predicate("reason"),
+            &resource_iri("reason", &trace.reason_id),
+            QUALIFICATION_GRAPH,
+        ));
+        for (index, rule) in trace.rule_evaluations.iter().enumerate() {
+            let evaluation_iri = urn(
+                "qualification-evaluation",
+                &format!("{}:{index}:{}", trace.trace_id, rule.rule_id),
+            );
+            quads.push(quad(
+                &trace_iri,
+                &predicate("ruleEvaluation"),
+                &evaluation_iri,
+                QUALIFICATION_GRAPH,
+            ));
+            quads.push(quad(
+                &evaluation_iri,
+                &predicate("rule"),
+                &resource_iri("qualification-rule", &rule.rule_id),
+                QUALIFICATION_GRAPH,
+            ));
+            quads.push(quad(
+                &evaluation_iri,
+                &predicate("passed"),
+                &boolean_literal(rule.passed),
+                QUALIFICATION_GRAPH,
+            ));
+            quads.push(quad(
+                &evaluation_iri,
+                &predicate("expected"),
+                &literal(&rule.expected),
+                QUALIFICATION_GRAPH,
+            ));
+            quads.push(quad(
+                &evaluation_iri,
+                &predicate("observed"),
+                &literal(&rule.observed),
+                QUALIFICATION_GRAPH,
+            ));
+        }
+    }
+    for trace in &source.requirement_traces {
+        let trace_iri = resource_iri("requirement-trace", &trace.trace_id);
+        quads.push(quad(
+            &trace_iri,
+            &predicate("role"),
+            &resource_iri("role", &trace.role_id),
+            QUALIFICATION_GRAPH,
+        ));
+        quads.push(quad(
+            &trace_iri,
+            &predicate("required"),
+            &boolean_literal(trace.required),
+            QUALIFICATION_GRAPH,
+        ));
+        quads.push(quad(
+            &trace_iri,
+            &predicate("unconditional"),
+            &boolean_literal(trace.unconditional),
+            QUALIFICATION_GRAPH,
+        ));
+        if let Some(condition_id) = &trace.condition_id {
+            quads.push(quad(
+                &trace_iri,
+                &predicate("condition"),
+                &resource_iri("condition", condition_id),
+                QUALIFICATION_GRAPH,
+            ));
+        }
+        if let Some(condition_result) = trace.condition_result {
+            quads.push(quad(
+                &trace_iri,
+                &predicate("conditionResult"),
+                &boolean_literal(condition_result),
+                QUALIFICATION_GRAPH,
+            ));
+        }
+        for candidate_trace_id in &trace.candidate_trace_ids {
+            quads.push(quad(
+                &trace_iri,
+                &predicate("candidateTrace"),
+                &resource_iri("qualification-trace", candidate_trace_id),
+                QUALIFICATION_GRAPH,
+            ));
+        }
+        for assignment_id in &trace.accepted_assignment_ids {
+            quads.push(quad(
+                &trace_iri,
+                &predicate("acceptedAssignment"),
+                &resource_iri("assignment", assignment_id),
+                QUALIFICATION_GRAPH,
+            ));
+        }
+        quads.push(quad(
+            &trace_iri,
+            &predicate("state"),
+            &urn("state", &trace.state),
+            QUALIFICATION_GRAPH,
+        ));
+        quads.push(quad(
+            &trace_iri,
+            &predicate("reason"),
+            &resource_iri("reason", &trace.reason_id),
+            QUALIFICATION_GRAPH,
+        ));
+    }
     for obligation in &source.open_obligations {
         let obligation_iri = resource_iri("obligation", &obligation.obligation_id);
         quads.push(quad(
@@ -171,6 +388,45 @@ fn build_index(source: &IndexSource) -> Vec<u8> {
             &resource_iri("reason", &obligation.reason_id),
             OBLIGATIONS_GRAPH,
         ));
+    }
+    if let Some(decision) = &source.dependency_cache_decision {
+        let decision_iri = urn("dependency-cache-decision", &source.input_digest);
+        quads.push(quad(
+            &decision_iri,
+            &predicate("cacheMode"),
+            &urn("dependency-cache-mode", &decision.mode),
+            EXECUTION_GRAPH,
+        ));
+        quads.push(quad(
+            &decision_iri,
+            &predicate("empiricalEvidenceCurrent"),
+            &boolean_literal(decision.empirical_evidence_current),
+            EXECUTION_GRAPH,
+        ));
+        if let Some(digest) = &decision.certificate_digest {
+            quads.push(quad(
+                &decision_iri,
+                &predicate("dependencyCertificate"),
+                &resource_iri("dependency-certificate", digest),
+                EXECUTION_GRAPH,
+            ));
+        }
+        if let Some(digest) = &decision.binding_surface_digest {
+            quads.push(quad(
+                &decision_iri,
+                &predicate("bindingSurfaceDigest"),
+                &literal(digest),
+                EXECUTION_GRAPH,
+            ));
+        }
+        for reason in &decision.reasons {
+            quads.push(quad(
+                &decision_iri,
+                &predicate("reason"),
+                &urn("dependency-cache-reason", reason),
+                EXECUTION_GRAPH,
+            ));
+        }
     }
     for execution in &source.node_executions {
         let execution_iri = urn(
@@ -313,11 +569,22 @@ pub fn rebuild_semantic_index(source_json: &[u8]) -> Result<Vec<u8>, JsValue> {
 pub fn rebuild_semantic_index_native(source_json: &[u8]) -> Result<Vec<u8>, String> {
     let source: IndexSource = serde_json::from_slice(source_json)
         .map_err(|error| format!("invalid semantic index source: {error}"))?;
-    if source.protocol_version != "chronicle-semantic-index-source/v1" {
+    if source.protocol_version != "chronicle-semantic-index-source/v2" {
         return Err("unsupported semantic index source".into());
     }
     if !source.execution_ledger.is_array() {
         return Err("semantic index source ledger is invalid".into());
+    }
+    if let Some(decision) = &source.dependency_cache_decision {
+        if !matches!(
+            decision.mode.as_str(),
+            "certified_narrow" | "conservative_full"
+        ) || (decision.mode == "certified_narrow"
+            && (decision.certificate_digest.is_none()
+                || decision.binding_surface_digest.is_none()))
+        {
+            return Err("semantic index dependency cache decision is invalid".into());
+        }
     }
     let index = build_index(&source);
     let store = Store::new().map_err(|error| error.to_string())?;
@@ -344,13 +611,42 @@ mod tests {
 
     fn complete_source() -> Value {
         json!({
-            "protocolVersion": "chronicle-semantic-index-source/v1",
+            "protocolVersion": "chronicle-semantic-index-source/v2",
             "inputDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "executionTimestamp": "2026-07-21 12:00:00 UTC",
             "roleAssignments": [{
                 "assignment_id": "assignment with spaces",
                 "role_id": "raw role",
                 "artifact": { "artifact_id": "urn:artifact:1", "digest": "sha256:aaaa" }
+            }],
+            "qualificationTraces": [{
+                "trace_id": "urn:qualification-trace:1",
+                "candidate_id": "assignment with spaces",
+                "candidate_revision": 3,
+                "artifact_digest": "sha256:aaaa",
+                "qualifiers_digest": "sha256:bbbb",
+                "asserted_role_ids": ["raw role"],
+                "selected_role_id": "raw role",
+                "decision": "accepted",
+                "rule_evaluations": [{
+                    "rule_id": "chronicle.binding.media-type.v1",
+                    "passed": true,
+                    "expected": "text/csv",
+                    "observed": "text/csv"
+                }],
+                "reason_id": "urn:reason:qualified"
+            }],
+            "requirementTraces": [{
+                "trace_id": "urn:requirement-trace:1",
+                "role_id": "raw role",
+                "required": true,
+                "unconditional": true,
+                "condition_id": null,
+                "condition_result": null,
+                "candidate_trace_ids": ["urn:qualification-trace:1"],
+                "accepted_assignment_ids": ["assignment with spaces"],
+                "state": "satisfied",
+                "reason_id": "urn:reason:requirement-satisfied"
             }],
             "openObligations": [
                 {
@@ -369,6 +665,13 @@ mod tests {
             "nodeExecutions": [{
                 "node_id": "parse_events", "status": "recomputed", "reason_id": "urn:reason:1"
             }],
+            "dependencyCacheDecision": {
+                "mode": "certified_narrow",
+                "certificate_digest": "sha256:cccc",
+                "binding_surface_digest": "sha256:dddd",
+                "empirical_evidence_current": true,
+                "reasons": ["dependency_surface_structurally_certified"]
+            },
             "executionLedger": []
         })
     }
@@ -388,6 +691,8 @@ mod tests {
         assert_eq!(first, build_index(&parsed));
         for (query_id, expected_rows) in [
             ("role-assignments", 1),
+            ("qualification-traces", 1),
+            ("requirement-traces", 1),
             ("open-obligations", 2),
             ("actual-executions", 1),
             ("reason-trace", 1),
@@ -407,6 +712,10 @@ mod tests {
         assert!(nquads.contains("http://www.w3.org/ns/prov#used"));
         assert!(nquads.contains("http://www.w3.org/2001/XMLSchema#dateTime"));
         assert!(nquads.contains("2026-07-21T12:00:00Z"));
+        assert!(nquads.contains("chronicle.binding.media-type.v1"));
+        assert!(nquads.contains("qualifiersDigest"));
+        assert!(nquads.contains("certified_narrow"));
+        assert!(nquads.contains("empiricalEvidenceCurrent"));
         assert!(query(&first, "DROP ALL")
             .unwrap_err()
             .contains("unregistered"));
@@ -440,6 +749,13 @@ mod tests {
                 .unwrap_err(),
             "semantic index source ledger is invalid"
         );
+        let mut invalid_cache = complete_source();
+        invalid_cache["dependencyCacheDecision"]["mode"] = Value::String("unsafe".into());
+        assert_eq!(
+            rebuild_semantic_index_native(&serde_json::to_vec(&invalid_cache).unwrap())
+                .unwrap_err(),
+            "semantic index dependency cache decision is invalid"
+        );
         let mut already_normalized_time = complete_source();
         already_normalized_time["executionTimestamp"] =
             Value::String("2026-07-21T12:00:00Z".into());
@@ -456,9 +772,12 @@ mod tests {
     fn empty_source_produces_a_valid_empty_index() {
         let mut empty = complete_source();
         empty["roleAssignments"] = json!([]);
+        empty["qualificationTraces"] = json!([]);
+        empty["requirementTraces"] = json!([]);
         empty["openObligations"] = json!([]);
         empty["stateReasons"] = json!([]);
         empty["nodeExecutions"] = json!([]);
+        empty["dependencyCacheDecision"] = Value::Null;
         let parsed: IndexSource = serde_json::from_value(empty).unwrap();
         assert!(build_index(&parsed).is_empty());
     }

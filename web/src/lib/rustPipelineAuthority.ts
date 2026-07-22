@@ -503,6 +503,32 @@ export async function processRawCsvWithRustAuthority(
     ARROW_MIME,
     lineageMetadata?.rowCount ?? 0,
   );
+  const sourceCoordinateMetadata = manifest.artifacts.find(
+    (artifact) => artifact.kind === "source-coordinate-index-arrow",
+  );
+  addBinaryOutput(
+    outputs,
+    execution,
+    "lineage",
+    "source-coordinate-index-arrow",
+    inputFileName,
+    " Source Coordinate Index.arrow",
+    ARROW_MIME,
+    sourceCoordinateMetadata?.rowCount ?? 0,
+  );
+  const cellCorrespondenceMetadata = manifest.artifacts.find(
+    (artifact) => artifact.kind === "result-cell-correspondence-arrow",
+  );
+  addBinaryOutput(
+    outputs,
+    execution,
+    "lineage",
+    "result-cell-correspondence-arrow",
+    inputFileName,
+    " Result Cell Correspondence.arrow",
+    ARROW_MIME,
+    cellCorrespondenceMetadata?.rowCount ?? 0,
+  );
   const visualization = parseJsonArtifact<VisualizationData>(
     execution,
     "visualization-data-json",
@@ -576,6 +602,7 @@ export async function processRawCsvWithRustAuthority(
       workspaceId: execution.workspaceId,
       workspaceRootDigest: manifest.workspaceRootDigest,
       previousWorkspaceRootDigest: manifest.previousWorkspaceRootDigest,
+      implementationDigest: manifest.implementationDigest,
       planDigest: manifest.planDigest,
       profileDigest: manifest.profileDigest,
       profileLockDigest: manifest.profileLockDigest,

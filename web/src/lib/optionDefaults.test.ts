@@ -27,7 +27,25 @@ describe("isOptionDefault", () => {
 
   it("treats undefined/empty as default for optional fields", () => {
     expect(isOptionDefault("parallelMaxWorkers", undefined)).toBe(true);
+    expect(isOptionDefault("parallelMaxWorkers", "" as never)).toBe(true);
+    expect(isOptionDefault("parallelMaxWorkers", 0)).toBe(true);
     expect(isOptionDefault("parallelMaxWorkers", 4)).toBe(false);
+  });
+
+  it("fails closed when an option crosses its declared scalar/array shape", () => {
+    expect(
+      isOptionDefault(
+        "sameAppInteractionTypesToStopUsageAt",
+        undefined as never,
+      ),
+    ).toBe(false);
+    expect(
+      isOptionDefault(
+        "sameAppInteractionTypesToStopUsageAt",
+        7 as never,
+      ),
+    ).toBe(false);
+    expect(isOptionDefault("parallelMaxWorkers", [] as never)).toBe(true);
   });
 });
 

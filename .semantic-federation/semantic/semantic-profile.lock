@@ -2,12 +2,12 @@
   "protocol_version": "0.1",
   "root_profile": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
   "root_version": "0.1.0",
-  "root_manifest_digest": "sha256:f5cac26da32b7417750b057b038193f1b221ac1fb8f348c8d4c92d8cfd70f7bb",
+  "root_manifest_digest": "sha256:b2899800f08de7ed93000422947cd8d0b3b5443150e6b47a019f8d038ceaaf93",
   "entries": [
     {
       "profile_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
       "version": "0.1.0",
-      "manifest_digest": "sha256:f5cac26da32b7417750b057b038193f1b221ac1fb8f348c8d4c92d8cfd70f7bb",
+      "manifest_digest": "sha256:b2899800f08de7ed93000422947cd8d0b3b5443150e6b47a019f8d038ceaaf93",
       "resources": [
         {
           "path": "resources/identity-contract.json",
@@ -17,7 +17,7 @@
         },
         {
           "path": "capability-bindings.json",
-          "digest": "sha256:e0f74b5e57925b33e93e9b0cc8b379e2c7d7ea9446ab772ae21ed033bdbd5485",
+          "digest": "sha256:212a0e43086b1deebb23702cb9d705cef53319dc500565337b38779b15794fb1",
           "media_type": "application/json",
           "role": "binding-source"
         },
@@ -29,13 +29,13 @@
         },
         {
           "path": "resources/chronicle.plan.json",
-          "digest": "sha256:69bc89477def743e78855ebfb5f5bdf696953cbf784ed12e5a487737e1115710",
+          "digest": "sha256:162cd4087b0287169a54ee55dc224300e4a6c7ba4009ff82f8828b348d562c45",
           "media_type": "application/json",
           "role": "binding-source"
         },
         {
           "path": "resources/runtime-authority.json",
-          "digest": "sha256:85257bacf700db0ec9b0cd683d5e788b6c8c13b224064743ad9f68eaafce24bb",
+          "digest": "sha256:5dc8b00548744573c2a39644ff840697f2d7874d53ae8553de217e5ffec7bbcd",
           "media_type": "application/json",
           "role": "binding-source"
         },
@@ -53,7 +53,7 @@
         },
         {
           "path": "resources/registered-queries.json",
-          "digest": "sha256:47e1f05307c74a33ee3dcea14f72629fd8b2cbf5686f159dc5660cb1c40c8c36",
+          "digest": "sha256:6e694468cf9c4c7ae9f1bd1a2a3c0b2105d4a2e2bf43ac591901d914e0f12812",
           "media_type": "application/json",
           "role": "query"
         },
@@ -72,5 +72,5 @@
       ]
     }
   ],
-  "closure_digest": "sha256:d585bca60449a555e9bf997bef445c2a00aec2d58e0bc66ce5b87279066d2ec8"
+  "closure_digest": "sha256:773f29d4def329a27a619c257bf817b8995560c0733c68ef60025728e3148f0d"
 }

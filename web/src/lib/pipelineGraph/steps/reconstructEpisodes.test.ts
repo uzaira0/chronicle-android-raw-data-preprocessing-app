@@ -1,6 +1,6 @@
 /**
- * Mutation-killing tests for the reconstruct_episodes step wiring: the three
- * useFilterFile bypass gates, the two-clause split-concurrent gate (full truth
+ * Mutation-killing tests for the reconstruct_episodes step wiring: upstream-
+ * derived junk identity, the two-clause split-concurrent gate (full truth
  * table), and the "no valid app usage" guard inside build_matcher_input.
  */
 
@@ -43,22 +43,24 @@ const rowOf = (interactionType: string): CanonicalRow =>
     event_timestamp_ns: 0n,
   }) as unknown as CanonicalRow;
 
-describe("reconstruct_episodes useFilterFile gates", () => {
-  // Kills the `!` removal (BooleanLiteral) on each gate: real is the negation
-  // of useFilterFile, the mutant is useFilterFile itself.
-  it("gates compute_junk_packages on useFilterFile", () => {
-    expect(computeJunkPackages.bypassedWhen!({ useFilterFile: true })).toBe(false);
-    expect(computeJunkPackages.bypassedWhen!({ useFilterFile: false })).toBe(true);
+describe("reconstruct_episodes derives filter state from its upstream rows", () => {
+  it("does not create a redundant configuration dependency", () => {
+    expect(computeJunkPackages.bypassedWhen).toBeUndefined();
+    expect(junkBlindFold.bypassedWhen).toBeUndefined();
+    expect(junkDownstreamMark.bypassedWhen).toBeUndefined();
   });
 
-  it("gates junk_blind_fold on useFilterFile", () => {
-    expect(junkBlindFold.bypassedWhen!({ useFilterFile: true })).toBe(false);
-    expect(junkBlindFold.bypassedWhen!({ useFilterFile: false })).toBe(true);
-  });
-
-  it("gates junk_downstream_mark on useFilterFile", () => {
-    expect(junkDownstreamMark.bypassedWhen!({ useFilterFile: true })).toBe(false);
-    expect(junkDownstreamMark.bypassedWhen!({ useFilterFile: false })).toBe(true);
+  it("finds filtered packages from the typed input alone", () => {
+    const filtered = {
+      ...rowOf("Filtered App Usage"),
+      app_package_name: "com.example.filtered",
+    };
+    expect(
+      computeJunkPackages.run(
+        { rows: [filtered] },
+        { options: { useFilterFile: false } } as unknown as PipelineCtx,
+      ),
+    ).toEqual(new Set(["com.example.filtered"]));
   });
 });
 

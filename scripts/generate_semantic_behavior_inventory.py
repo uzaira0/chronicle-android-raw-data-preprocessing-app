@@ -21,6 +21,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 GRAPH_YAML = ROOT / "web/schema/chronicle-pipeline-graph.yaml"
+LOCAL_CONTRACT = ROOT / "web/schema/chronicle-local-contract.linkml.yaml"
 GRAPH_DEF = ROOT / "web/src/lib/pipelineGraph/graphDef.ts"
 PIPELINE_V2 = ROOT / "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs"
 MATCHER_WASM = ROOT / "rust/chronicle_app_usage_wasm"
@@ -32,6 +33,20 @@ PLAN_OUTPUT = RESOURCE_ROOT / "chronicle.plan.json"
 RUNTIME_AUTHORITY_OUTPUT = RESOURCE_ROOT / "runtime-authority.json"
 BINDINGS_OUTPUT = FEDERATION / "semantic/capability-bindings.json"
 INVENTORY_OUTPUT = ROOT / "docs/semantic-federation/behavior-inventory.json"
+DEPENDENCY_CERTIFICATE_OUTPUT = (
+    FEDERATION / "proofs/dependency-certificate.json"
+)
+PROOF_LEDGER_ROOT = (
+    ROOT / "web/src/lib/pipelineGraph/golden/family-expected"
+)
+DEPENDENCY_PROOF_LEDGERS = [
+    "configuration-influence-ledger.json",
+    "artifact-influence-ledger.json",
+    "raw-boundary-influence-ledger.json",
+    "interaction-influence-ledger.json",
+    "mixed-artifact-configuration-ledger.json",
+    "semantic-model-mutation-ledger.json",
+]
 
 BASE_REF = "5f8e64527edd33f90901cd553602063daadf0014"
 FEATURE_REF = "b857be0382777892d4fa8c8a3a48934b07e6ad0c"
@@ -111,10 +126,28 @@ RUNTIME_SURFACES = [
         "pub fn run",
     ),
     rust_surface(
+        "dependency_certificate",
+        "semantic-validation",
+        "rust/chronicle_preprocessing_semantic_adapter/src/scheduler.rs",
+        "dependency_cache_decision",
+    ),
+    rust_surface(
         "role_materialization",
         "semantic-computation",
         "rust/chronicle_preprocessing_semantic_adapter/src/materialize.rs",
         "evaluate_materialization",
+    ),
+    rust_surface(
+        "deterministic_role_qualification",
+        "semantic-validation",
+        "rust/chronicle_preprocessing_semantic_adapter/src/qualify.rs",
+        "qualify_candidates",
+    ),
+    rust_surface(
+        "typed_logical_checkpoints",
+        "evidence-authority",
+        "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs",
+        "logical_stage_checkpoint",
     ),
     rust_surface(
         "execution_evidence",
@@ -127,6 +160,12 @@ RUNTIME_SURFACES = [
         "semantic-validation",
         "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
         "fn validate",
+    ),
+    rust_surface(
+        "requirements_evaluation",
+        "semantic-validation",
+        "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
+        "evaluate_workspace_requirements_native",
     ),
     rust_surface(
         "support_file_parsing",
@@ -171,6 +210,24 @@ RUNTIME_SURFACES = [
         "row_lineage_arrow",
     ),
     rust_surface(
+        "source_coordinate_index",
+        "evidence-authority",
+        "rust/chronicle_preprocessing_runtime_wasm/src/binary_exports.rs",
+        "source_coordinate_index_arrow",
+    ),
+    rust_surface(
+        "result_cell_correspondence",
+        "evidence-authority",
+        "rust/chronicle_preprocessing_runtime_wasm/src/binary_exports.rs",
+        "result_cell_correspondence_arrow",
+    ),
+    rust_surface(
+        "bidirectional_correspondence",
+        "evidence-authority",
+        "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
+        "build_correspondence_index",
+    ),
+    rust_surface(
         "typed_views",
         "semantic-projection",
         "rust/chronicle_preprocessing_semantic_adapter/src/views.rs",
@@ -181,6 +238,12 @@ RUNTIME_SURFACES = [
         "storage-authority",
         "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
         "build_artifact_closure",
+    ),
+    rust_surface(
+        "configuration_family",
+        "semantic-computation",
+        "rust/chronicle_preprocessing_runtime_wasm/src/configuration_family.rs",
+        "compile_configuration_family",
     ),
     rust_surface(
         "semantic_index",
@@ -314,23 +377,16 @@ SUPPORT_ROLES = {
     },
     "app_codebook_file": {"required_when": option_true("use_app_codebook")},
     "study_dates_file": {
-        "required_when": {
-            "kind": "any",
-            "terms": [
-                option_true("enable_study_window_filter"),
-                option_true("add_no_activity_placeholder_days"),
-                option_true("enable_day_coverage"),
-            ],
-        }
+        # Day coverage uses a supplied study window when one exists, but its
+        # documented fallback is the participant's observed date range.
+        # Placeholder rows likewise derive their dates from observed events.
+        "required_when": option_true("enable_study_window_filter")
     },
     "device_sharing_file": {
-        "required_when": {
-            "kind": "any",
-            "terms": [
-                option_true("enable_person_attribution"),
-                option_true("enable_compliance_scoring"),
-            ],
-        }
+        # Compliance can run without this optional qualification and then
+        # deterministically treats every participant as non-shared. Person
+        # attribution is the only computation that cannot proceed without it.
+        "required_when": option_true("enable_person_attribution")
     },
     "survey_attribution_file": {"required": False, "qualification": "optional-evidence"},
     "enrolled_devices_file": {"required": False, "qualification": "reserved-support"},
@@ -342,6 +398,38 @@ def digest(path: Path) -> str:
 
 
 def closure_digest(paths: list[Path]) -> str:
+    # Implementation identity covers repository build inputs, never local tool
+    # output or proof fixtures. In particular cargo-mutants writes mutable
+    # reports beside each crate, while the TypeScript reference tree stores
+    # goldens and tests beside production modules. Including either makes a
+    # test/evidence update change the claimed executable build even though no
+    # production input changed.
+    transient_parts = {
+        ".git",
+        "__snapshots__",
+        "__pycache__",
+        "benches",
+        "examples",
+        "family-expected",
+        "golden",
+        "mutants.out",
+        "mutants.out.old",
+        "target",
+        "test-results",
+        "tests",
+    }
+    non_build_names = {"validationHarness.ts"}
+    non_build_markers = (".spec.", ".test.")
+
+    def is_build_input(root: Path, item: Path) -> bool:
+        relative = item.relative_to(root)
+        return (
+            not transient_parts.intersection(relative.parts)
+            and item.name != ".DS_Store"
+            and item.name not in non_build_names
+            and not any(marker in item.name for marker in non_build_markers)
+        )
+
     payload = hashlib.sha256()
     files: list[Path] = []
     for path in paths:
@@ -349,9 +437,7 @@ def closure_digest(paths: list[Path]) -> str:
             files.extend(
                 item
                 for item in sorted(path.rglob("*"))
-                if not {"target", ".git", "__pycache__"}.intersection(
-                    item.relative_to(path).parts
-                )
+                if is_build_input(path, item)
             )
         else:
             files.append(path)
@@ -365,6 +451,146 @@ def closure_digest(paths: list[Path]) -> str:
 def rendered_digest(value: dict) -> str:
     rendered = (json.dumps(value, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     return "sha256:" + hashlib.sha256(rendered).hexdigest()
+
+
+def canonical_digest(value: object) -> str:
+    rendered = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(rendered).hexdigest()
+
+
+def configuration_axes() -> dict[str, list[str]]:
+    contract = yaml.safe_load(LOCAL_CONTRACT.read_text(encoding="utf-8"))
+    option_slots = contract["classes"]["BrowserProcessingOptions"]["slots"]
+    axes = {"computational": [], "annotation": [], "view": [], "execution": []}
+    for option_key in option_slots:
+        slot = contract["slots"][option_key]
+        axis = slot.get("annotations", {}).get("configuration_axis", "computational")
+        if axis not in axes:
+            raise RuntimeError(
+                f"invalid configuration axis {axis!r} for {option_key}"
+            )
+        axes[axis].append(option_key)
+    return {axis: sorted(keys) for axis, keys in axes.items()}
+
+
+def dependency_binding_surface(plan: dict) -> dict:
+    option_bindings: dict[str, list[dict]] = {}
+    role_bindings: dict[str, list[dict]] = {
+        "raw_chronicle_csv": [{"kind": "raw-input", "node_id": "parse_events"}],
+        "processing_options": [
+            {"kind": "configuration-source", "node_id": "*"}
+        ],
+    }
+    for node in plan["nodes"]:
+        for knob in node["knobs"]:
+            option_bindings.setdefault(knob["option_key"], []).append(
+                {"edge": knob["edge"], "node_id": node["node_id"]}
+            )
+        for role_id in node["support_roles"]:
+            role_bindings.setdefault(role_id, []).append(
+                {"kind": "support-input", "node_id": node["node_id"]}
+            )
+    for bindings in option_bindings.values():
+        bindings.sort(key=lambda binding: (binding["node_id"], binding["edge"]))
+    for bindings in role_bindings.values():
+        bindings.sort(key=lambda binding: (binding["node_id"], binding["kind"]))
+    return {
+        "option_bindings": dict(sorted(option_bindings.items())),
+        "role_bindings": dict(sorted(role_bindings.items())),
+    }
+
+
+def build_dependency_certificate(plan: dict) -> dict:
+    axes = configuration_axes()
+    cache_relevant = sorted(axes["computational"] + axes["annotation"])
+    excluded = sorted(axes["view"] + axes["execution"])
+    plan_options = sorted(
+        {
+            knob["option_key"]
+            for node in plan["nodes"]
+            for knob in node["knobs"]
+        }
+    )
+    if cache_relevant != plan_options:
+        raise RuntimeError(
+            "cache-relevant LinkML options do not exactly match plan knob bindings: "
+            f"missing={sorted(set(cache_relevant) - set(plan_options))} "
+            f"unexpected={sorted(set(plan_options) - set(cache_relevant))}"
+        )
+
+    role_ids = sorted(role["role_id"] for role in plan["root_roles"])
+    surface = dependency_binding_surface(plan)
+    unbound_roles = sorted(set(role_ids) - set(surface["role_bindings"]))
+    if unbound_roles:
+        raise RuntimeError(f"unbound dependency roles: {unbound_roles}")
+
+    ledgers = []
+    receipts = []
+    for name in DEPENDENCY_PROOF_LEDGERS:
+        path = PROOF_LEDGER_ROOT / name
+        ledger = json.loads(path.read_text(encoding="utf-8"))
+        receipt = ledger.get("implementationReceipt")
+        if not isinstance(receipt, dict):
+            raise RuntimeError(f"proof ledger lacks implementation receipt: {path}")
+        receipts.append(receipt)
+        ledgers.append(
+            {
+                "path": str(path.relative_to(ROOT)),
+                "digest": digest(path),
+                "protocol_version": ledger.get("protocolVersion"),
+                "claim_boundary": ledger.get("claimBoundary"),
+            }
+        )
+    receipt_strings = {
+        json.dumps(receipt, sort_keys=True, separators=(",", ":"))
+        for receipt in receipts
+    }
+    if len(receipt_strings) != 1:
+        raise RuntimeError("dependency proof ledgers do not share one authority receipt")
+
+    return {
+        "protocol_version": "chronicle-dependency-certificate/v1",
+        "certificate_id": (
+            "urn:uzaira0:semantic-federation:chronicle-preprocessing:"
+            "dependency-certificate/v1"
+        ),
+        "structural_contract": {
+            "plan_digest": rendered_digest(plan),
+            "configuration_axes": axes,
+            "cache_relevant_option_keys": cache_relevant,
+            "excluded_option_keys": excluded,
+            "role_ids": role_ids,
+            "binding_surface": surface,
+            "binding_surface_digest": canonical_digest(surface),
+            "unclassified_option_keys": [],
+            "unbound_role_ids": [],
+        },
+        "evidence": {
+            "implementation_receipt": receipts[0],
+            "proof_ledgers": ledgers,
+        },
+        "narrowing_policy": {
+            "certified_surface": "declared-node-input-key",
+            "unknown_option": "full-logical-recompute",
+            "missing_option": "full-logical-recompute",
+            "unknown_role": "fail-closed",
+            "certificate_mismatch": "full-logical-recompute",
+            "stale_empirical_evidence": "release-blocking",
+            "code_or_contract_change": "full-logical-recompute",
+        },
+        "claim_boundary": (
+            "The certificate proves complete classification and binding of the current "
+            "product option/role surface and binds the named empirical ledgers. Narrow "
+            "cache reuse is permitted only for that exact structural surface. Empirical "
+            "absence-of-effect claims remain bounded by each ledger's own claim boundary; "
+            "unclassified or mismatched runtime state falls back to full logical recomputation."
+        ),
+    }
 
 
 def source_path_for_unit(unit_id: str) -> Path:
@@ -667,7 +893,7 @@ def build_bindings(plan: dict, runtime_authority: dict) -> dict:
     }
 
 
-def build_inventory(projection: dict, plan: dict) -> dict:
+def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) -> dict:
     node_ids = [node["node_id"] for node in projection["graph_nodes"]]
     step_ids = [step["step_id"] for step in projection["graph_steps"]]
     return {
@@ -702,11 +928,36 @@ def build_inventory(projection: dict, plan: dict) -> dict:
                 "digest": digest(ROOT / "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs"),
                 "coverage": "production-worker-authority",
             },
+            "configuration_family_compiler": {
+                "path": "rust/chronicle_preprocessing_runtime_wasm/src/configuration_family.rs",
+                "digest": digest(
+                    ROOT
+                    / "rust/chronicle_preprocessing_runtime_wasm/src/configuration_family.rs"
+                ),
+                "coverage": "product-local-variability-authority",
+            },
         },
         "coverage": {
             "nodes": {"expected": 15, "recorded": len(node_ids), "percent": 100},
             "steps": {"expected": 55, "recorded": len(step_ids), "percent": 100},
             "active_binding_coverage": {"expected": 70, "recorded": 70, "percent": 100},
+            "dependency_surface": {
+                "cache_relevant_options": len(
+                    dependency_certificate["structural_contract"][
+                        "cache_relevant_option_keys"
+                    ]
+                ),
+                "excluded_options": len(
+                    dependency_certificate["structural_contract"][
+                        "excluded_option_keys"
+                    ]
+                ),
+                "root_roles": len(
+                    dependency_certificate["structural_contract"]["role_ids"]
+                ),
+                "unclassified_options": 0,
+                "unbound_roles": 0,
+            },
         },
         "node_ids": node_ids,
         "step_ids": step_ids,
@@ -718,6 +969,11 @@ def build_inventory(projection: dict, plan: dict) -> dict:
         "rust_complete_logical_authority_steps": step_ids,
         "typescript_production_authority_capabilities": [],
         "runtime_authority_surface_count": len(RUNTIME_SURFACES),
+        "dependency_certificate": {
+            "path": str(DEPENDENCY_CERTIFICATE_OUTPUT.relative_to(ROOT)),
+            "digest": rendered_digest(dependency_certificate),
+            "fallback": "full-logical-recompute",
+        },
         "resolved_baseline_findings": [
             {
                 "gate": "trivy-bun-lock",
@@ -771,10 +1027,14 @@ def main() -> int:
     plan = build_plan(projection)
     runtime_authority = build_runtime_authority(plan)
     bindings = build_bindings(plan, runtime_authority)
-    inventory = build_inventory(projection, plan)
+    dependency_certificate = build_dependency_certificate(plan)
+    inventory = build_inventory(projection, plan, dependency_certificate)
     write_or_check(PLAN_OUTPUT, plan, args.check)
     write_or_check(RUNTIME_AUTHORITY_OUTPUT, runtime_authority, args.check)
     write_or_check(BINDINGS_OUTPUT, bindings, args.check)
+    write_or_check(
+        DEPENDENCY_CERTIFICATE_OUTPUT, dependency_certificate, args.check
+    )
     write_or_check(INVENTORY_OUTPUT, inventory, args.check)
     sync_existing_ontology_resources(args.check)
     mode = "checked" if args.check else "generated"

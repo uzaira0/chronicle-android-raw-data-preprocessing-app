@@ -10,17 +10,20 @@
 //   vite-node scripts/generate_combinatorial_model.mts decode <pict-rows.tsv> <out.json>
 //     → decodes a PICT output table back into full BrowserProcessingOptions objects
 //       (consumed by coveringArrayValidation.test.ts)
+//   vite-node scripts/generate_combinatorial_model.mts project <table> <out>
+//     → projects an older/full-contract table onto the computational axes
 //
 //   vite-node scripts/generate_combinatorial_model.mts coverage <t,...> <table...>
 //   vite-node scripts/generate_combinatorial_model.mts verify-coverage <t,...> <table...>
 //     → measures exact valid t-way tuple coverage from the same equivalence
 //       classes and constraints. The verify form requires 100% coverage.
 //
-// Every contract key gets a small set of named equivalence classes (boolean →
-// on/off, enums → each value, numbers → default + boundary, arrays → default +
-// empty/alternate). The class LABELS are plain [a-z0-9_] tokens so both the
-// PICT and the ACTS/CCM parsers accept them verbatim; this table is the single
-// label ↔ value mapping for all three artifacts. A key added to the LinkML
+// Every contract key gets a declared set of named equivalence classes for drift
+// checking (boolean → on/off, enums → each value, numbers → default + boundary,
+// arrays → default + empty/alternate). Only the contract-declared computational
+// axes enter the covering models. The class LABELS are plain [a-z0-9_] tokens
+// so both the PICT and the ACTS/CCM parsers accept them verbatim; this table is
+// the single label ↔ value mapping for all artifacts. A key added to the LinkML
 // contract without a class entry here fails loudly below.
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -30,161 +33,27 @@ import { fileURLToPath } from "node:url";
 
 import {
   BROWSER_PROCESSING_OPTION_KEYS,
+  COMPUTATIONAL_BROWSER_OPTION_KEYS,
   BOOLEAN_BROWSER_OPTION_KEYS,
   DEFAULT_BROWSER_OPTIONS,
-  TIMEZONE_HANDLING_VALUES,
-  AGGREGATE_SHAPE_VALUES,
 } from "../src/lib/generatedContract";
 import type { BrowserProcessingOptions } from "../src/lib/types";
 import { ALL_ON } from "../src/lib/pipelineGraph/validationHarness";
+import { configurationEquivalenceClasses } from "../src/testSupport/configurationEquivalenceClasses";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.resolve(HERE, "../combinatorial");
-
-// ── Equivalence classes ──────────────────────────────────────────────────────
-
-type EquivalenceClass = { label: string; value: unknown };
-
-function sanitizeLabel(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "_");
-}
-
-const BOOL_CLASSES: EquivalenceClass[] = [
-  { label: "true", value: true },
-  { label: "false", value: false },
-];
-
-const NON_BOOLEAN_CLASSES: Partial<Record<keyof BrowserProcessingOptions, EquivalenceClass[]>> = {
-  studyName: [
-    { label: "empty", value: "" },
-    { label: "named", value: "Deterministic Parity" },
-  ],
-  selectedTimezone: [
-    { label: "none", value: "" },
-    { label: "america_chicago", value: "America/Chicago" },
-    { label: "america_new_york", value: "America/New_York" },
-  ],
-  timezoneHandling: TIMEZONE_HANDLING_VALUES.map((value) => ({
-    label: sanitizeLabel(value),
-    value,
-  })),
-  aggregateShape: AGGREGATE_SHAPE_VALUES.map((value) => ({
-    label: sanitizeLabel(value),
-    value,
-  })),
-  longDurationThresholdHours: [
-    { label: "h12", value: 12 },
-    { label: "h1", value: 1 },
-  ],
-  minimumUsageDuration: [
-    { label: "s0", value: 0 },
-    { label: "s60", value: 60 },
-  ],
-  customAppEngagementDuration: [
-    { label: "s300", value: 300 },
-    { label: "s0", value: 0 },
-  ],
-  longUsageDurationThresholds: [
-    { label: "default", value: DEFAULT_BROWSER_OPTIONS.longUsageDurationThresholds },
-    { label: "empty", value: [] },
-  ],
-  longDataTimeGapThresholds: [
-    { label: "default", value: DEFAULT_BROWSER_OPTIONS.longDataTimeGapThresholds },
-    { label: "empty", value: [] },
-  ],
-  screenUsageAutoLockTimeoutSeconds: [
-    { label: "s120", value: 120 },
-    { label: "s0", value: 0 },
-  ],
-  screenUsageAutoLockToleranceSeconds: [
-    { label: "s30", value: 30 },
-    { label: "s0", value: 0 },
-  ],
-  screenUsageManualLockMaxTailGapSeconds: [
-    { label: "s30", value: 30 },
-    { label: "s0", value: 0 },
-  ],
-  screenUsageKeyguardNearStopSeconds: [
-    { label: "s2", value: 2 },
-    { label: "s0", value: 0 },
-  ],
-  parallelMaxWorkers: [
-    { label: "unset", value: undefined },
-    { label: "w2", value: 2 },
-  ],
-  sameAppInteractionTypesToStopUsageAt: [
-    { label: "default", value: DEFAULT_BROWSER_OPTIONS.sameAppInteractionTypesToStopUsageAt },
-    { label: "empty", value: [] },
-  ],
-  otherInteractionTypesToStopUsageAt: [
-    { label: "default", value: DEFAULT_BROWSER_OPTIONS.otherInteractionTypesToStopUsageAt },
-    { label: "empty", value: [] },
-  ],
-  interactionTypesToRemove: [
-    { label: "none", value: [] },
-    { label: "usage_stat", value: ["Usage Stat"] },
-  ],
-  interactionTypeRemap: [
-    { label: "none", value: [] },
-    // Remaps a type absent from the fixtures: exercises the remap code path
-    // without changing fixture semantics.
-    { label: "custom", value: ["Custom Foreground => Activity Resumed"] },
-  ],
-  proximityIntervalSeconds: [
-    { label: "s2", value: 2 },
-    { label: "s0", value: 0 },
-    { label: "s60", value: 60 },
-  ],
-  creditedSessionCapMinutes: [
-    { label: "m360", value: 360 },
-    { label: "m0", value: 0 },
-  ],
-  deviceLivenessGapToleranceMinutes: [
-    { label: "m120", value: 120 },
-    { label: "m0", value: 0 },
-  ],
-  autoLockBridgeSeconds: [
-    { label: "s120", value: 120 },
-    { label: "s0", value: 0 },
-  ],
-  noWitnessMinDayApps: [
-    { label: "n2", value: 2 },
-    { label: "n0", value: 0 },
-  ],
-  complianceThresholdPercent: [
-    { label: "p70", value: 70 },
-    { label: "p0", value: 0 },
-    { label: "p100", value: 100 },
-  ],
-};
+const MODEL_OPTION_KEYS = COMPUTATIONAL_BROWSER_OPTION_KEYS;
 
 const BOOLEAN_KEY_SET = new Set<string>(BOOLEAN_BROWSER_OPTION_KEYS);
 
-function classesFor(key: string): EquivalenceClass[] {
-  if (BOOLEAN_KEY_SET.has(key)) return BOOL_CLASSES;
-  const classes = NON_BOOLEAN_CLASSES[key as keyof BrowserProcessingOptions];
-  if (!classes) {
-    throw new Error(
-      `Contract key "${key}" has no equivalence classes — the LinkML contract grew; ` +
-        `add a class entry in generate_combinatorial_model.mts`,
-    );
-  }
-  return classes;
-}
-
-// Fail loudly on contract drift in either direction.
-for (const key of BROWSER_PROCESSING_OPTION_KEYS) classesFor(key);
-for (const key of Object.keys(NON_BOOLEAN_CLASSES)) {
-  if (!(BROWSER_PROCESSING_OPTION_KEYS as readonly string[]).includes(key)) {
-    throw new Error(`Class table entry "${key}" is not a contract key`);
-  }
-}
+const classesFor = (key: string) => configurationEquivalenceClasses(key);
 
 // ── Encoding: options object → class labels ─────────────────────────────────
 
 function encodeOptions(options: BrowserProcessingOptions): Record<string, string> {
   const row: Record<string, string> = {};
-  for (const key of BROWSER_PROCESSING_OPTION_KEYS) {
+  for (const key of MODEL_OPTION_KEYS) {
     const value = options[key];
     const match = classesFor(key).find(
       (cls) => JSON.stringify(cls.value ?? null) === JSON.stringify(value ?? null),
@@ -359,7 +228,7 @@ function pictModel(): string {
     "# GENERATED by web/scripts/generate_combinatorial_model.mts — do not edit.",
     "# Microsoft PICT model of the browser processing-option contract.",
   ];
-  for (const key of BROWSER_PROCESSING_OPTION_KEYS) {
+  for (const key of MODEL_OPTION_KEYS) {
     lines.push(`${key}: ${classesFor(key).map((cls) => cls.label).join(", ")}`);
   }
   lines.push("");
@@ -378,7 +247,7 @@ function actsModel(): string {
     "-- NIST ACTS model of the browser processing-option contract (for CCM).",
     "[Parameter]",
   ];
-  for (const key of BROWSER_PROCESSING_OPTION_KEYS) {
+  for (const key of MODEL_OPTION_KEYS) {
     const classes = classesFor(key);
     const isBoolean = BOOLEAN_KEY_SET.has(key);
     const type = isBoolean ? "boolean" : "enum";
@@ -396,10 +265,10 @@ function actsModel(): string {
 }
 
 function existingTestsCsv(): string {
-  const header = BROWSER_PROCESSING_OPTION_KEYS.join(",");
+  const header = MODEL_OPTION_KEYS.join(",");
   const rows = existingTestConfigs().map(({ options }) => {
     const encoded = encodeOptions(options);
-    return BROWSER_PROCESSING_OPTION_KEYS.map((key) => encoded[key]).join(",");
+    return MODEL_OPTION_KEYS.map((key) => encoded[key]).join(",");
   });
   return `${[header, ...rows].join("\n")}\n`;
 }
@@ -410,10 +279,9 @@ async function decodePictOutput(tsvPath: string, outPath: string): Promise<void>
   const text = await readFile(tsvPath, "utf-8");
   const lines = text.trim().split(/\r?\n/);
   const header = lines[0].split("\t");
-  for (const key of header) {
-    if (!(BROWSER_PROCESSING_OPTION_KEYS as readonly string[]).includes(key)) {
-      throw new Error(`PICT output column "${key}" is not a contract key`);
-    }
+  const expected = new Set<string>(MODEL_OPTION_KEYS);
+  if (header.length !== expected.size || header.some((key) => !expected.has(key))) {
+    throw new Error("PICT output columns do not exactly match the computational option model");
   }
   const configs = lines.slice(1).map((line, index) => {
     const cells = line.split("\t");
@@ -441,6 +309,86 @@ async function decodePictOutput(tsvPath: string, outPath: string): Promise<void>
   console.log(`decoded ${configs.length} configs → ${outPath}`);
 }
 
+function seededRandom(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = Math.imul(state ^ (state >>> 16), 2246822507);
+    state = Math.imul(state ^ (state >>> 13), 3266489909);
+    state = (state ^ (state >>> 16)) >>> 0;
+    return state / 0x1_0000_0000;
+  };
+}
+
+/**
+ * Produce replayable full-contract configurations beyond the fixed t=3
+ * covering array. Values still come exclusively from the contract's declared
+ * equivalence classes; the sample adds deterministic high-order interactions,
+ * not a second hand-maintained option model.
+ */
+async function sampleConfigurations(
+  seedText: string,
+  countText: string,
+  outPath: string,
+): Promise<void> {
+  const seed = Number(seedText);
+  const count = Number(countText);
+  if (!Number.isSafeInteger(seed) || seed < 0 || seed > 0xffff_ffff) {
+    throw new Error(`sample seed must be a uint32, got ${JSON.stringify(seedText)}`);
+  }
+  if (!Number.isSafeInteger(count) || count < 1 || count > 10_000) {
+    throw new Error(`sample count must be between 1 and 10000, got ${JSON.stringify(countText)}`);
+  }
+  const random = seededRandom(seed);
+  const seen = new Set<string>();
+  const configs: Array<{ id: string; options: Record<string, unknown> }> = [];
+  let attempts = 0;
+  while (configs.length < count) {
+    attempts += 1;
+    if (attempts > count * 100) {
+      throw new Error(`could not generate ${count} distinct legal configurations`);
+    }
+    const encoded: EncodedRow = {};
+    for (const key of MODEL_OPTION_KEYS) {
+      const classes = classesFor(key);
+      encoded[key] = classes[Math.floor(random() * classes.length)].label;
+    }
+    const handling = encoded.timezoneHandling;
+    if (handling === "primary_filter" || handling === "primary_convert") {
+      encoded.selectedTimezone = "none";
+    } else if (encoded.selectedTimezone === "none") {
+      const selected = classesFor("selectedTimezone").filter((entry) => entry.label !== "none");
+      encoded.selectedTimezone = selected[Math.floor(random() * selected.length)].label;
+    }
+    if (!isLegalPartial(encoded)) throw new Error("internal generator emitted an illegal row");
+    const identity = MODEL_OPTION_KEYS.map((key) => encoded[key]).join("\u001f");
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    const options: Record<string, unknown> = { ...DEFAULT_BROWSER_OPTIONS };
+    for (const key of MODEL_OPTION_KEYS) {
+      const match = classesFor(key).find((entry) => entry.label === encoded[key]);
+      if (!match) throw new Error(`missing decoded class for ${key}=${encoded[key]}`);
+      if (match.value === undefined) delete options[key];
+      else options[key] = match.value;
+    }
+    configs.push({ id: `seeded_${seed.toString(16).padStart(8, "0")}_${configs.length}`, options });
+  }
+  await writeFile(
+    outPath,
+    `${JSON.stringify(
+      {
+        generatedBy: "generate_combinatorial_model.mts sample",
+        seed,
+        equivalenceClassAuthority: "web/scripts/generate_combinatorial_model.mts",
+        configs,
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
+  console.log(`sampled ${configs.length} deterministic configs → ${outPath}`);
+}
+
 type EncodedRow = Record<string, string>;
 
 async function readEncodedTable(tablePath: string): Promise<EncodedRow[]> {
@@ -449,7 +397,7 @@ async function readEncodedTable(tablePath: string): Promise<EncodedRow[]> {
   if (lines.length < 2) throw new Error(`${tablePath}: expected a header and at least one row`);
   const delimiter = lines[0].includes("\t") ? "\t" : ",";
   const header = lines[0].split(delimiter);
-  const expected = new Set<string>(BROWSER_PROCESSING_OPTION_KEYS);
+  const expected = new Set<string>(MODEL_OPTION_KEYS);
   if (header.length !== expected.size || header.some((key) => !expected.has(key))) {
     throw new Error(`${tablePath}: columns do not exactly match the processing-option contract`);
   }
@@ -468,6 +416,35 @@ async function readEncodedTable(tablePath: string): Promise<EncodedRow[]> {
       }),
     );
   });
+}
+
+async function projectEncodedTable(tablePath: string, outPath: string): Promise<void> {
+  const text = await readFile(tablePath, "utf-8");
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) throw new Error(`${tablePath}: expected a header and at least one row`);
+  const delimiter = lines[0].includes("\t") ? "\t" : ",";
+  const sourceHeader = lines[0].split(delimiter);
+  const indices = MODEL_OPTION_KEYS.map((key) => {
+    const index = sourceHeader.indexOf(key);
+    if (index < 0) throw new Error(`${tablePath}: missing computational column ${key}`);
+    return index;
+  });
+  const rows = new Set<string>();
+  for (const [rowIndex, line] of lines.slice(1).entries()) {
+    const cells = line.split(delimiter);
+    if (cells.length !== sourceHeader.length) {
+      throw new Error(`${tablePath}:${rowIndex + 2}: ${cells.length} cells, want ${sourceHeader.length}`);
+    }
+    rows.add(indices.map((index) => cells[index]).join(delimiter));
+  }
+  await writeFile(
+    outPath,
+    `${MODEL_OPTION_KEYS.join(delimiter)}\n${Array.from(rows).join("\n")}\n`,
+    "utf-8",
+  );
+  console.log(
+    `projected ${lines.length - 1} rows to ${rows.size} unique computational rows → ${outPath}`,
+  );
 }
 
 /** Keep this predicate synchronized with pictModel()/actsModel(). */
@@ -506,7 +483,7 @@ function tupleKey(keys: string[], assignment: EncodedRow): string {
 }
 
 function exactCoverage(rows: EncodedRow[], strength: number): { covered: number; total: number } {
-  const contractKeys = [...BROWSER_PROCESSING_OPTION_KEYS];
+  const contractKeys = [...MODEL_OPTION_KEYS];
   if (!Number.isInteger(strength) || strength < 1 || strength > contractKeys.length) {
     throw new Error(`Invalid coverage strength ${strength}`);
   }
@@ -570,12 +547,30 @@ async function main(): Promise<void> {
     await decodePictOutput(tsvPath, outPath);
     return;
   }
+  if (command === "project") {
+    const [tablePath, outPath] = rest;
+    if (!tablePath || !outPath) {
+      throw new Error("usage: generate_combinatorial_model.mts project <table> <out>");
+    }
+    await projectEncodedTable(tablePath, outPath);
+    return;
+  }
   if (command === "coverage" || command === "verify-coverage") {
     const [strengths, ...tablePaths] = rest;
     if (!strengths) {
       throw new Error(`usage: generate_combinatorial_model.mts ${command} <t,...> <table...>`);
     }
     await reportCoverage(strengths, tablePaths, command === "verify-coverage");
+    return;
+  }
+  if (command === "sample") {
+    const [seed, count, outPath] = rest;
+    if (!seed || !count || !outPath) {
+      throw new Error(
+        "usage: generate_combinatorial_model.mts sample <uint32-seed> <count> <out.json>",
+      );
+    }
+    await sampleConfigurations(seed, count, outPath);
     return;
   }
   if (command) throw new Error(`unknown command "${command}"`);
@@ -592,10 +587,15 @@ async function main(): Promise<void> {
     console.log(`wrote ${target}`);
   }
   const testCount = existingTestConfigs().length;
-  console.log(`projected ${testCount} executed test configs over ${BROWSER_PROCESSING_OPTION_KEYS.length} contract keys`);
+  console.log(
+    `projected ${testCount} executed test configs over ${MODEL_OPTION_KEYS.length} computational keys ` +
+      `(${BROWSER_PROCESSING_OPTION_KEYS.length - MODEL_OPTION_KEYS.length} orthogonal keys factored out)`,
+  );
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+if (!process.env.VITEST) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

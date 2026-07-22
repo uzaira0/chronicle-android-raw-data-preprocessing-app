@@ -8,6 +8,7 @@ use ahash::AHashSet;
 use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Timelike};
 use chrono_tz::Tz;
 use csv_core::{ReadFieldResult, Reader as CsvReader};
+use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use wasm_bindgen::prelude::*;
 
@@ -19,6 +20,17 @@ use _rust_app_usage_matcher::{split_overlapping_sessions, UsageLayer};
 mod aggregates;
 
 const PREPROCESSOR_VERSION: &str = "1.0.0";
+
+/// Closed product contract for timezone handling. Keeping the exhaustive set
+/// beside the Rust implementation lets the configuration-family proof fail if
+/// a fifth policy is added without being observed, rather than silently
+/// treating an incomplete test matrix as exhaustive.
+pub const TIMEZONE_HANDLING_MODES: [&str; 4] = [
+    "selected-filter",
+    "selected-convert",
+    "primary-filter",
+    "primary-convert",
+];
 
 // ---- canonical interaction-type constants -------------------------------
 
@@ -188,6 +200,7 @@ pub struct PipelineV2Options {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UsageSessionMode {
+    NoUsage,
     AppUsage,
     ScreenUsage,
     AppAndScreenUsage,
@@ -880,6 +893,35 @@ pub struct PipelineV2Result {
     pub rows_before_timezone_handling: u32,
     pub rows_after_timezone_handling: u32,
     pub rows_removed_by_timezone: u32,
+    /// Exact retained raw-row membership after timezone filtering and before
+    /// any conversion or downstream transformation.
+    pub timezone_retained_source_rows_digest: String,
+    /// Exact normalized-event state after the timezone policy has resolved its
+    /// target and populated local calendar fields, before dedupe/order.
+    pub timezone_stage_digest: String,
+    /// Product-local semantic checkpoints at the fifteen logical DAG joints.
+    /// These are complete hashes of the state emitted by that specific stage,
+    /// not a copy of the final fused-pipeline digest. They let the incremental
+    /// scheduler stop a configuration perturbation as soon as the actual stage
+    /// value converges while retaining the fused Rust implementation.
+    pub logical_stage_digests: BTreeMap<String, String>,
+    /// Typed decomposition of every logical checkpoint. The terminal digest
+    /// above commits to these exact component digests.
+    pub logical_stage_checkpoints: BTreeMap<String, LogicalStageCheckpoint>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogicalStageCheckpoint {
+    pub protocol_version: String,
+    pub node_id: String,
+    pub row_membership_digest: String,
+    pub row_order_digest: String,
+    pub temporal_state_digest: String,
+    pub classification_digest: String,
+    pub payload_digest: String,
+    pub schema_digest: String,
+    pub terminal_digest: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
@@ -905,6 +947,388 @@ fn build_row_lineage(
             terminal_logical_node,
         })
         .collect()
+}
+
+fn digest_field(hasher: &mut Sha256, bytes: &[u8]) {
+    hasher.update((bytes.len() as u64).to_le_bytes());
+    hasher.update(bytes);
+}
+
+fn digest_optional_string(hasher: &mut Sha256, value: Option<&str>) {
+    match value {
+        Some(value) => {
+            hasher.update([1]);
+            digest_field(hasher, value.as_bytes());
+        }
+        None => hasher.update([0]),
+    }
+}
+
+fn digest_optional_i64(hasher: &mut Sha256, value: Option<i64>) {
+    match value {
+        Some(value) => {
+            hasher.update([1]);
+            hasher.update(value.to_le_bytes());
+        }
+        None => hasher.update([0]),
+    }
+}
+
+fn digest_optional_f64(hasher: &mut Sha256, value: Option<f64>) {
+    match value {
+        Some(value) => {
+            hasher.update([1]);
+            hasher.update(value.to_bits().to_le_bytes());
+        }
+        None => hasher.update([0]),
+    }
+}
+
+const LOGICAL_STAGE_CHECKPOINT_PROTOCOL: &str = "chronicle-logical-stage-checkpoint/v2";
+const LOGICAL_STAGE_ROW_SCHEMA: &str = concat!(
+    "association:source_data_rows,index;",
+    "membership:source_data_rows;",
+    "order:index,position;",
+    "temporal:event_timestamp_ns,timezone,data_time_gap_hours,date,day,weekday_mf,",
+    "weekday_mth,weekday_su_th,hour,quarter,start_timestamp_ns,stop_timestamp_ns,",
+    "duration_seconds,duration_minutes,screen_usage_last_activity_timestamp_ns,",
+    "screen_usage_tail_gap_seconds,valid_app_usage_time_gap_hours,",
+    "any_app_usage_time_gap_hours;",
+    "classification:study_id,participant_id,possible_device_model,username,",
+    "application_label,interaction_type,app_package_name,screen_usage_end_reason,",
+    "screen_usage_end_reason_confidence,screen_usage_stop_event_type,",
+    "screen_usage_foreground_app_package,screen_usage_apps_forcing_screen_open_label,",
+    "screen_usage_lock_screen_only,any_app_usage_flags,valid_app_new_engage_30s,",
+    "valid_app_new_engage_custom,valid_app_switched_app,any_app_new_engage_30s,",
+    "any_app_new_engage_custom,any_app_switched_app,genre_id_scraped,",
+    "broad_app_category,codebook_fields,usage_layer"
+);
+
+fn checkpoint_hasher(node_id: &str, component: &str) -> Sha256 {
+    let mut hasher = Sha256::new();
+    digest_field(&mut hasher, LOGICAL_STAGE_CHECKPOINT_PROTOCOL.as_bytes());
+    digest_field(&mut hasher, node_id.as_bytes());
+    digest_field(&mut hasher, component.as_bytes());
+    hasher
+}
+
+fn finish_digest(hasher: Sha256) -> String {
+    format!("sha256:{}", hex::encode(hasher.finalize()))
+}
+
+fn terminal_checkpoint_digest(node_id: &str, component_digests: [&str; 6]) -> String {
+    let mut terminal = checkpoint_hasher(node_id, "terminal");
+    for digest in component_digests {
+        digest_field(&mut terminal, digest.as_bytes());
+    }
+    finish_digest(terminal)
+}
+
+struct RowCheckpointParts {
+    identity: [u8; 32],
+    temporal: [u8; 32],
+    classification: [u8; 32],
+}
+
+#[deny(unused_variables)]
+fn row_checkpoint_parts(row: &Row) -> RowCheckpointParts {
+    // Every field is deliberately bound and hashed. Adding a Row field makes
+    // this exhaustive pattern fail; binding one without hashing it makes the
+    // deny(unused_variables) lint fail.
+    let Row {
+        source_data_rows,
+        study_id,
+        participant_id,
+        possible_device_model,
+        username,
+        application_label,
+        interaction_type,
+        app_package_name,
+        event_timestamp_ns,
+        timezone,
+        data_time_gap_hours,
+        date,
+        day,
+        weekday_mf,
+        weekday_mth,
+        weekday_su_th,
+        hour,
+        quarter,
+        start_timestamp_ns,
+        stop_timestamp_ns,
+        duration_seconds,
+        duration_minutes,
+        screen_usage_end_reason,
+        screen_usage_end_reason_confidence,
+        screen_usage_stop_event_type,
+        screen_usage_last_activity_timestamp_ns,
+        screen_usage_tail_gap_seconds,
+        screen_usage_foreground_app_package,
+        screen_usage_apps_forcing_screen_open_label,
+        screen_usage_lock_screen_only,
+        any_app_usage_flags,
+        valid_app_new_engage_30s,
+        valid_app_new_engage_custom,
+        valid_app_switched_app,
+        valid_app_usage_time_gap_hours,
+        any_app_new_engage_30s,
+        any_app_new_engage_custom,
+        any_app_switched_app,
+        any_app_usage_time_gap_hours,
+        genre_id_scraped,
+        broad_app_category,
+        codebook_fields,
+        index,
+        usage_layer,
+    } = row;
+
+    let mut identity = Sha256::new();
+    digest_field(&mut identity, b"chronicle-row-identity/v1");
+    identity.update((source_data_rows.len() as u64).to_le_bytes());
+    for source_row in source_data_rows {
+        identity.update(source_row.to_le_bytes());
+    }
+    identity.update((*index as u64).to_le_bytes());
+
+    let mut temporal = Sha256::new();
+    digest_field(&mut temporal, b"chronicle-row-temporal/v1");
+    temporal.update(event_timestamp_ns.to_le_bytes());
+    digest_field(&mut temporal, timezone.as_bytes());
+    temporal.update(data_time_gap_hours.to_bits().to_le_bytes());
+    digest_field(&mut temporal, date.as_bytes());
+    temporal.update([
+        *day,
+        *weekday_mf,
+        *weekday_mth,
+        *weekday_su_th,
+        *hour,
+        *quarter,
+    ]);
+    digest_optional_i64(&mut temporal, *start_timestamp_ns);
+    digest_optional_i64(&mut temporal, *stop_timestamp_ns);
+    digest_optional_f64(&mut temporal, *duration_seconds);
+    digest_optional_f64(&mut temporal, *duration_minutes);
+    digest_optional_i64(&mut temporal, *screen_usage_last_activity_timestamp_ns);
+    digest_optional_f64(&mut temporal, *screen_usage_tail_gap_seconds);
+    temporal.update(valid_app_usage_time_gap_hours.to_bits().to_le_bytes());
+    temporal.update(any_app_usage_time_gap_hours.to_bits().to_le_bytes());
+
+    let mut classification = Sha256::new();
+    digest_field(&mut classification, b"chronicle-row-classification/v1");
+    for value in [
+        study_id.as_str(),
+        participant_id.as_str(),
+        possible_device_model.as_str(),
+        username.as_str(),
+        application_label.as_str(),
+        interaction_type.as_str(),
+        app_package_name.as_str(),
+        any_app_usage_flags.as_str(),
+    ] {
+        digest_field(&mut classification, value.as_bytes());
+    }
+    digest_optional_string(&mut classification, screen_usage_end_reason.as_deref());
+    digest_optional_f64(&mut classification, *screen_usage_end_reason_confidence);
+    digest_optional_string(&mut classification, screen_usage_stop_event_type.as_deref());
+    digest_optional_string(
+        &mut classification,
+        screen_usage_foreground_app_package.as_deref(),
+    );
+    digest_optional_string(
+        &mut classification,
+        screen_usage_apps_forcing_screen_open_label.as_deref(),
+    );
+    match screen_usage_lock_screen_only {
+        Some(value) => classification.update([1, *value]),
+        None => classification.update([0, 0]),
+    }
+    for value in [
+        valid_app_new_engage_30s,
+        valid_app_new_engage_custom,
+        valid_app_switched_app,
+        any_app_new_engage_30s,
+        any_app_new_engage_custom,
+        any_app_switched_app,
+    ] {
+        classification.update(value.to_le_bytes());
+    }
+    digest_optional_string(&mut classification, genre_id_scraped.as_deref());
+    digest_optional_string(&mut classification, broad_app_category.as_deref());
+    classification.update((codebook_fields.len() as u64).to_le_bytes());
+    for value in codebook_fields {
+        digest_optional_string(&mut classification, value.as_deref());
+    }
+    digest_optional_string(&mut classification, usage_layer.as_deref());
+
+    RowCheckpointParts {
+        identity: identity.finalize().into(),
+        temporal: temporal.finalize().into(),
+        classification: classification.finalize().into(),
+    }
+}
+
+fn logical_stage_checkpoint(
+    node_id: &str,
+    row_groups: &[(&str, &[Row])],
+    payloads: &[(&str, &[u8])],
+) -> LogicalStageCheckpoint {
+    let mut membership = checkpoint_hasher(node_id, "row-membership");
+    let mut order = checkpoint_hasher(node_id, "row-order");
+    let mut temporal = checkpoint_hasher(node_id, "temporal-state");
+    let mut classification = checkpoint_hasher(node_id, "classification");
+    let mut payload = checkpoint_hasher(node_id, "payload");
+    let mut schema = checkpoint_hasher(node_id, "schema");
+    digest_field(&mut schema, LOGICAL_STAGE_ROW_SCHEMA.as_bytes());
+    for hasher in [
+        &mut membership,
+        &mut order,
+        &mut temporal,
+        &mut classification,
+    ] {
+        hasher.update((row_groups.len() as u64).to_le_bytes());
+    }
+    schema.update((row_groups.len() as u64).to_le_bytes());
+    for (label, rows) in row_groups {
+        for hasher in [
+            &mut membership,
+            &mut order,
+            &mut temporal,
+            &mut classification,
+        ] {
+            digest_field(hasher, label.as_bytes());
+            hasher.update((rows.len() as u64).to_le_bytes());
+        }
+        digest_field(&mut schema, label.as_bytes());
+        // Membership and row-associated semantic components are canonicalized
+        // by stable source identity. A temporal edit may change sequence order,
+        // but it must not falsely report a membership or classification edit.
+        let mut identity_order: Vec<&Row> = rows.iter().collect();
+        identity_order.sort_by(|left, right| {
+            left.source_data_rows
+                .cmp(&right.source_data_rows)
+                .then(left.index.cmp(&right.index))
+        });
+        for row in identity_order {
+            let parts = row_checkpoint_parts(row);
+            digest_field(&mut membership, &parts.identity);
+            digest_field(&mut temporal, &parts.identity);
+            digest_field(&mut temporal, &parts.temporal);
+            digest_field(&mut classification, &parts.identity);
+            digest_field(&mut classification, &parts.classification);
+        }
+        // Order remains deliberately sequence-sensitive and associates every
+        // position with the same stable row identity used above.
+        for (position, row) in rows.iter().enumerate() {
+            order.update((position as u64).to_le_bytes());
+            digest_field(&mut order, &row_checkpoint_parts(row).identity);
+        }
+    }
+    payload.update((payloads.len() as u64).to_le_bytes());
+    schema.update((payloads.len() as u64).to_le_bytes());
+    for (label, bytes) in payloads {
+        digest_field(&mut payload, label.as_bytes());
+        digest_field(&mut payload, bytes);
+        digest_field(&mut schema, label.as_bytes());
+    }
+    let row_membership_digest = finish_digest(membership);
+    let row_order_digest = finish_digest(order);
+    let temporal_state_digest = finish_digest(temporal);
+    let classification_digest = finish_digest(classification);
+    let payload_digest = finish_digest(payload);
+    let schema_digest = finish_digest(schema);
+    let terminal_digest = terminal_checkpoint_digest(
+        node_id,
+        [
+            &row_membership_digest,
+            &row_order_digest,
+            &temporal_state_digest,
+            &classification_digest,
+            &payload_digest,
+            &schema_digest,
+        ],
+    );
+    LogicalStageCheckpoint {
+        protocol_version: LOGICAL_STAGE_CHECKPOINT_PROTOCOL.into(),
+        node_id: node_id.into(),
+        row_membership_digest,
+        row_order_digest,
+        temporal_state_digest,
+        classification_digest,
+        payload_digest,
+        schema_digest,
+        terminal_digest,
+    }
+}
+
+fn logical_stage_rows_checkpoint(node_id: &str, rows: &[Row]) -> LogicalStageCheckpoint {
+    logical_stage_checkpoint(node_id, &[("rows", rows)], &[])
+}
+
+fn logical_stage_state_checkpoint(node_id: &str, state: &str) -> LogicalStageCheckpoint {
+    logical_stage_checkpoint(node_id, &[], &[("state", state.as_bytes())])
+}
+
+fn record_logical_stage_checkpoint(
+    digests: &mut BTreeMap<String, String>,
+    checkpoints: &mut BTreeMap<String, LogicalStageCheckpoint>,
+    checkpoint: LogicalStageCheckpoint,
+) {
+    digests.insert(
+        checkpoint.node_id.clone(),
+        checkpoint.terminal_digest.clone(),
+    );
+    checkpoints.insert(checkpoint.node_id.clone(), checkpoint);
+}
+
+fn timezone_retained_source_rows_digest(rows: &[Row]) -> String {
+    let source_rows = rows
+        .iter()
+        .flat_map(|row| row.source_data_rows.iter().copied())
+        .collect::<BTreeSet<_>>();
+    let mut hasher = Sha256::new();
+    hasher.update((source_rows.len() as u64).to_le_bytes());
+    for source_row in source_rows {
+        hasher.update(source_row.to_le_bytes());
+    }
+    format!("sha256:{}", hex::encode(hasher.finalize()))
+}
+
+/// Hash the product-local state at the timezone normalization joint. This is
+/// intentionally not a generic graph-node serialization: it records exactly
+/// the Chronicle fields whose identity is established at this stage.
+fn timezone_stage_digest(rows: &[Row]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update((rows.len() as u64).to_le_bytes());
+    for row in rows {
+        hasher.update((row.source_data_rows.len() as u64).to_le_bytes());
+        for source_row in &row.source_data_rows {
+            hasher.update(source_row.to_le_bytes());
+        }
+        for value in [
+            row.study_id.as_str(),
+            row.participant_id.as_str(),
+            row.possible_device_model.as_str(),
+            row.username.as_str(),
+            row.application_label.as_str(),
+            row.interaction_type.as_str(),
+            row.app_package_name.as_str(),
+            row.timezone.as_str(),
+            row.date.as_str(),
+        ] {
+            digest_field(&mut hasher, value.as_bytes());
+        }
+        hasher.update(row.event_timestamp_ns.to_le_bytes());
+        hasher.update([
+            row.day,
+            row.weekday_mf,
+            row.weekday_mth,
+            row.weekday_su_th,
+            row.hour,
+            row.quarter,
+        ]);
+        hasher.update((row.index as u64).to_le_bytes());
+    }
+    format!("sha256:{}", hex::encode(hasher.finalize()))
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -1469,6 +1893,7 @@ const fn default_no_witness_min_day_apps() -> u32 {
 impl PipelineV2OptionsJson {
     pub fn into_pipeline_options(self) -> PipelineV2Options {
         let mode = match self.usage_session_mode.as_str() {
+            "no_usage" => UsageSessionMode::NoUsage,
             "screen_usage" => UsageSessionMode::ScreenUsage,
             "app_and_screen_usage" => UsageSessionMode::AppAndScreenUsage,
             _ => UsageSessionMode::AppUsage,
@@ -4200,8 +4625,15 @@ pub fn run_pipeline_v2_with_supports(
     opts: &PipelineV2Options,
     support: PipelineV2SupportFiles<'_>,
 ) -> Result<PipelineV2Result, String> {
+    let mut logical_stage_digests = BTreeMap::new();
+    let mut logical_stage_checkpoints = BTreeMap::new();
     // 1. parse + sort + canonicalize
     let (mut rows, _tz) = parse_raw_rows(csv_bytes, opts)?;
+    record_logical_stage_checkpoint(
+        &mut logical_stage_digests,
+        &mut logical_stage_checkpoints,
+        logical_stage_rows_checkpoint("parse_events", &rows),
+    );
     let original_count = rows.len() as u32;
     let available_timezones: Vec<String> = rows
         .iter()
@@ -4237,6 +4669,12 @@ pub fn run_pipeline_v2_with_supports(
                 return Err("selected timezone is required for selected-filter".into());
             }
             rows.retain(|row| row.timezone == opts.timezone);
+            if rows.is_empty() {
+                return Err(format!(
+                    "selected timezone {} is not present in the input; filtering would remove all rows",
+                    opts.timezone
+                ));
+            }
             (opts.timezone.clone(), "filtered_to_selected")
         }
         "selected-convert" => {
@@ -4255,6 +4693,7 @@ pub fn run_pipeline_v2_with_supports(
     let rows_after_timezone_handling = rows.len() as u32;
     let rows_removed_by_timezone =
         rows_before_timezone_handling.saturating_sub(rows_after_timezone_handling);
+    let timezone_retained_source_rows_digest = timezone_retained_source_rows_digest(&rows);
     let mut effective_opts = opts.clone();
     effective_opts.timezone = target_timezone;
     let opts = &effective_opts;
@@ -4263,6 +4702,12 @@ pub fn run_pipeline_v2_with_supports(
         row.timezone = opts.timezone.clone();
         populate_time_columns(row, tz);
     }
+    let timezone_stage_digest = timezone_stage_digest(&rows);
+    record_logical_stage_checkpoint(
+        &mut logical_stage_digests,
+        &mut logical_stage_checkpoints,
+        logical_stage_rows_checkpoint("normalize_timezones", &rows),
+    );
 
     // 3. dedupe + (optional) unalign duplicate timestamps + mark gaps
     let rows_before_deduplication = rows.len();
@@ -4285,6 +4730,11 @@ pub fn run_pipeline_v2_with_supports(
         0
     };
     let mut rows = mark_data_time_gaps(dupe_corrected);
+    record_logical_stage_checkpoint(
+        &mut logical_stage_digests,
+        &mut logical_stage_checkpoints,
+        logical_stage_rows_checkpoint("dedup_and_order", &rows),
+    );
 
     // 4. filter labeling
     let filter_map = if opts.use_filter_file && !support.filter_csv.is_empty() {
@@ -4295,6 +4745,11 @@ pub fn run_pipeline_v2_with_supports(
     if opts.use_filter_file {
         rows = label_filtered_apps(rows, &filter_map);
     }
+    record_logical_stage_checkpoint(
+        &mut logical_stage_digests,
+        &mut logical_stage_checkpoints,
+        logical_stage_rows_checkpoint("app_policy", &rows),
+    );
     let apps_forcing_map =
         if opts.use_apps_forcing_screen_open && !support.apps_forcing_csv.is_empty() {
             parse_apps_forcing_csv(support.apps_forcing_csv)
@@ -4316,6 +4771,11 @@ pub fn run_pipeline_v2_with_supports(
     ) {
         screen_rows = derive_screen_usage_sessions_full(&rows, opts, &apps_forcing_map);
     }
+    record_logical_stage_checkpoint(
+        &mut logical_stage_digests,
+        &mut logical_stage_checkpoints,
+        logical_stage_rows_checkpoint("device_state_timeline", &screen_rows),
+    );
 
     // Product contract: processedRowCount is the canonical policy-row count
     // before session reconstruction, not the number of emitted app sessions.
@@ -4333,7 +4793,27 @@ pub fn run_pipeline_v2_with_supports(
     let app_row_count;
     let screen_row_count = screen_rows.len() as u32;
 
-    if matches!(opts.usage_session_mode, UsageSessionMode::ScreenUsage) {
+    if matches!(
+        opts.usage_session_mode,
+        UsageSessionMode::NoUsage | UsageSessionMode::ScreenUsage
+    ) {
+        for node_id in [
+            "reconstruct_episodes",
+            "categorize_apps",
+            "episode_annotations",
+            "interval_cleaning",
+            "effective_usage",
+            "observation_window",
+            "attribute_person",
+            "day_coverage",
+            "score_compliance",
+        ] {
+            record_logical_stage_checkpoint(
+                &mut logical_stage_digests,
+                &mut logical_stage_checkpoints,
+                logical_stage_state_checkpoint(node_id, "not_applicable"),
+            );
+        }
         app_row_count = 0;
         app_csv_bytes = Vec::new();
         day_coverage_csv_bytes = Vec::new();
@@ -4354,6 +4834,11 @@ pub fn run_pipeline_v2_with_supports(
         let mut shared_participants = BTreeSet::new();
         // 6. matcher (app usage)
         rows = run_app_usage_algorithm(rows, opts, &background_apps)?;
+        record_logical_stage_checkpoint(
+            &mut logical_stage_digests,
+            &mut logical_stage_checkpoints,
+            logical_stage_rows_checkpoint("reconstruct_episodes", &rows),
+        );
 
         // 7. codebook
         let codebook_map = if opts.use_app_codebook && !support.codebook_csv.is_empty() {
@@ -4366,8 +4851,18 @@ pub fn run_pipeline_v2_with_supports(
 
         // 8. enrich
         enrich_codebook(&mut rows, opts, &codebook_map);
+        record_logical_stage_checkpoint(
+            &mut logical_stage_digests,
+            &mut logical_stage_checkpoints,
+            logical_stage_rows_checkpoint("categorize_apps", &rows),
+        );
         add_app_usage_detail_columns(&mut rows, opts);
         mark_app_usage_flags(&mut rows, opts);
+        record_logical_stage_checkpoint(
+            &mut logical_stage_digests,
+            &mut logical_stage_checkpoints,
+            logical_stage_rows_checkpoint("episode_annotations", &rows),
+        );
         clear_filtered_usage_timing(&mut rows);
         rows = remove_selected_interaction_types(rows, opts);
         if opts.filter_zero_duration_sessions {
@@ -4376,12 +4871,27 @@ pub fn run_pipeline_v2_with_supports(
                     || row.duration_seconds.is_none_or(|duration| duration > 0.0)
             });
         }
+        record_logical_stage_checkpoint(
+            &mut logical_stage_digests,
+            &mut logical_stage_checkpoints,
+            logical_stage_rows_checkpoint("interval_cleaning", &rows),
+        );
         credited_app_csv_bytes = if opts.enable_screen_gated_crediting {
             let credited = apply_screen_gated_credit(&rows, &policy_rows, opts)?;
+            record_logical_stage_checkpoint(
+                &mut logical_stage_digests,
+                &mut logical_stage_checkpoints,
+                logical_stage_checkpoint("effective_usage", &[("credited_rows", &credited)], &[]),
+            );
             let bytes = write_app_csv(&credited, opts, include_aliases);
             credited_app_rows_for_lineage = credited;
             bytes
         } else {
+            record_logical_stage_checkpoint(
+                &mut logical_stage_digests,
+                &mut logical_stage_checkpoints,
+                logical_stage_state_checkpoint("effective_usage", "not_applicable"),
+            );
             Vec::new()
         };
         if opts.enable_study_window_filter {
@@ -4392,6 +4902,11 @@ pub fn run_pipeline_v2_with_supports(
             }
             rows = apply_study_window(rows, &study_windows);
         }
+        record_logical_stage_checkpoint(
+            &mut logical_stage_digests,
+            &mut logical_stage_checkpoints,
+            logical_stage_rows_checkpoint("observation_window", &rows),
+        );
         if opts.enable_person_attribution {
             if support.device_sharing_csv.is_empty() {
                 return Err(
@@ -4407,6 +4922,17 @@ pub fn run_pipeline_v2_with_supports(
             }
             rows = attribute_person(rows, &sharing, &survey)?;
         }
+        let shared_participants_checkpoint = serde_json::to_vec(&shared_participants)
+            .map_err(|error| format!("serialize shared-participant checkpoint: {error}"))?;
+        record_logical_stage_checkpoint(
+            &mut logical_stage_digests,
+            &mut logical_stage_checkpoints,
+            logical_stage_checkpoint(
+                "attribute_person",
+                &[("rows", &rows)],
+                &[("shared_participants", &shared_participants_checkpoint)],
+            ),
+        );
         if opts.add_no_activity_placeholder_days {
             rows = add_no_activity_placeholder_rows(rows, &policy_rows);
         }
@@ -4416,6 +4942,15 @@ pub fn run_pipeline_v2_with_supports(
         } else {
             Vec::new()
         };
+        record_logical_stage_checkpoint(
+            &mut logical_stage_digests,
+            &mut logical_stage_checkpoints,
+            logical_stage_checkpoint(
+                "day_coverage",
+                &[("rows", &rows)],
+                &[("day_coverage_csv", &day_coverage_csv_bytes)],
+            ),
+        );
         compliance_csv_bytes = if opts.enable_compliance_scoring {
             let enrolled_devices = parse_enrolled_devices(support.enrolled_devices_csv)?;
             build_compliance_csv(
@@ -4427,6 +4962,15 @@ pub fn run_pipeline_v2_with_supports(
         } else {
             Vec::new()
         };
+        record_logical_stage_checkpoint(
+            &mut logical_stage_digests,
+            &mut logical_stage_checkpoints,
+            logical_stage_checkpoint(
+                "score_compliance",
+                &[],
+                &[("compliance_csv", &compliance_csv_bytes)],
+            ),
+        );
 
         app_row_count = rows.len() as u32;
         app_rows_for_review = rows.clone();
@@ -4474,6 +5018,46 @@ pub fn run_pipeline_v2_with_supports(
         ));
     }
 
+    let row_lineage_bytes = serde_json::to_vec(&row_lineage)
+        .map_err(|error| format!("serialize row lineage checkpoint: {error}"))?;
+    let aggregate_checkpoint_bytes = serde_json::to_vec(
+        &aggregate_csv_outputs
+            .iter()
+            .map(|aggregate| {
+                serde_json::json!({
+                    "kind": aggregate.kind,
+                    "rowCount": aggregate.row_count,
+                    "digest": format!(
+                        "sha256:{}",
+                        hex::encode(Sha256::digest(&aggregate.bytes))
+                    ),
+                })
+            })
+            .collect::<Vec<_>>(),
+    )
+    .map_err(|error| format!("serialize aggregate checkpoint: {error}"))?;
+    record_logical_stage_checkpoint(
+        &mut logical_stage_digests,
+        &mut logical_stage_checkpoints,
+        logical_stage_checkpoint(
+            "outputs",
+            &[],
+            &[
+                ("app_csv", &app_csv_bytes),
+                ("screen_csv", &screen_csv_bytes),
+                ("day_coverage_csv", &day_coverage_csv_bytes),
+                ("compliance_csv", &compliance_csv_bytes),
+                ("credited_app_csv", &credited_app_csv_bytes),
+                ("review_summary_json", &review_summary_json_bytes),
+                ("visualization_data_json", &visualization_data_json_bytes),
+                ("aggregates", &aggregate_checkpoint_bytes),
+                ("row_lineage", &row_lineage_bytes),
+            ],
+        ),
+    );
+    debug_assert_eq!(logical_stage_digests.len(), 15);
+    debug_assert_eq!(logical_stage_checkpoints.len(), 15);
+
     Ok(PipelineV2Result {
         app_csv_bytes,
         screen_csv_bytes,
@@ -4496,6 +5080,10 @@ pub fn run_pipeline_v2_with_supports(
         rows_before_timezone_handling,
         rows_after_timezone_handling,
         rows_removed_by_timezone,
+        timezone_retained_source_rows_digest,
+        timezone_stage_digest,
+        logical_stage_digests,
+        logical_stage_checkpoints,
     })
 }
 
@@ -4602,6 +5190,232 @@ mod tests {
     }
 
     #[test]
+    fn logical_stage_checkpoints_cover_the_contract_and_are_deterministic() {
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+            "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:01:00,America/Chicago\n"
+        );
+        let first = run_pipeline_v2(csv.as_bytes(), &test_options(), &[], &[], &[])
+            .expect("first checkpoint run");
+        let second = run_pipeline_v2(csv.as_bytes(), &test_options(), &[], &[], &[])
+            .expect("second checkpoint run");
+        let expected = BTreeSet::from([
+            "app_policy",
+            "attribute_person",
+            "categorize_apps",
+            "day_coverage",
+            "dedup_and_order",
+            "device_state_timeline",
+            "effective_usage",
+            "episode_annotations",
+            "interval_cleaning",
+            "normalize_timezones",
+            "observation_window",
+            "outputs",
+            "parse_events",
+            "reconstruct_episodes",
+            "score_compliance",
+        ]);
+        assert_eq!(
+            first
+                .logical_stage_digests
+                .keys()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>(),
+            expected
+        );
+        assert_eq!(first.logical_stage_digests, second.logical_stage_digests);
+        assert_eq!(
+            first.logical_stage_checkpoints,
+            second.logical_stage_checkpoints
+        );
+        assert_eq!(
+            first
+                .logical_stage_checkpoints
+                .keys()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>(),
+            expected
+        );
+        for (node_id, checkpoint) in &first.logical_stage_checkpoints {
+            assert_eq!(
+                checkpoint.protocol_version,
+                "chronicle-logical-stage-checkpoint/v2"
+            );
+            assert_eq!(&checkpoint.node_id, node_id);
+            assert_eq!(
+                first.logical_stage_digests.get(node_id),
+                Some(&checkpoint.terminal_digest)
+            );
+            for digest in [
+                &checkpoint.row_membership_digest,
+                &checkpoint.row_order_digest,
+                &checkpoint.temporal_state_digest,
+                &checkpoint.classification_digest,
+                &checkpoint.payload_digest,
+                &checkpoint.schema_digest,
+                &checkpoint.terminal_digest,
+            ] {
+                assert!(
+                    digest.len() == 71
+                        && digest.starts_with("sha256:")
+                        && digest[7..].bytes().all(|byte| byte.is_ascii_hexdigit())
+                );
+            }
+        }
+        assert!(first.logical_stage_digests.values().all(|digest| {
+            digest.len() == 71
+                && digest.starts_with("sha256:")
+                && digest[7..].bytes().all(|byte| byte.is_ascii_hexdigit())
+        }));
+    }
+
+    #[test]
+    fn terminal_checkpoint_commitment_is_sensitive_to_every_typed_component() {
+        let base = [
+            "membership",
+            "order",
+            "temporal",
+            "classification",
+            "payload",
+            "schema",
+        ];
+        let baseline = terminal_checkpoint_digest("node", base);
+        for index in 0..base.len() {
+            let mut changed = base;
+            changed[index] = "mutated";
+            assert_ne!(
+                baseline,
+                terminal_checkpoint_digest("node", changed),
+                "component {index} was omitted from the terminal commitment"
+            );
+        }
+    }
+
+    #[test]
+    fn output_only_configuration_stops_at_the_output_checkpoint() {
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+            "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:01:00,America/Chicago\n"
+        );
+        let baseline = run_pipeline_v2(csv.as_bytes(), &test_options(), &[], &[], &[])
+            .expect("baseline checkpoint run");
+        let mut changed_options = test_options();
+        changed_options.study_name = "Different Study Label".into();
+        let changed = run_pipeline_v2(csv.as_bytes(), &changed_options, &[], &[], &[])
+            .expect("changed checkpoint run");
+        let changed_stages = baseline
+            .logical_stage_digests
+            .iter()
+            .filter_map(|(node, digest)| {
+                (changed.logical_stage_digests.get(node) != Some(digest)).then_some(node.as_str())
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(changed_stages, BTreeSet::from(["outputs"]));
+        let baseline_output = &baseline.logical_stage_checkpoints["outputs"];
+        let changed_output = &changed.logical_stage_checkpoints["outputs"];
+        assert_eq!(
+            baseline_output.row_membership_digest,
+            changed_output.row_membership_digest
+        );
+        assert_eq!(
+            baseline_output.row_order_digest,
+            changed_output.row_order_digest
+        );
+        assert_eq!(
+            baseline_output.temporal_state_digest,
+            changed_output.temporal_state_digest
+        );
+        assert_eq!(
+            baseline_output.classification_digest,
+            changed_output.classification_digest
+        );
+        assert_eq!(baseline_output.schema_digest, changed_output.schema_digest);
+        assert_ne!(
+            baseline_output.payload_digest,
+            changed_output.payload_digest
+        );
+    }
+
+    #[test]
+    fn timestamp_intervention_changes_temporal_shape_without_false_membership_or_classification() {
+        let baseline_csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+            "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:01:00,America/Chicago\n"
+        );
+        let changed_csv = baseline_csv.replacen("10:00:00", "10:00:01", 1);
+        let baseline = run_pipeline_v2(baseline_csv.as_bytes(), &test_options(), &[], &[], &[])
+            .expect("baseline typed checkpoint");
+        let changed = run_pipeline_v2(changed_csv.as_bytes(), &test_options(), &[], &[], &[])
+            .expect("changed typed checkpoint");
+        let baseline_parse = &baseline.logical_stage_checkpoints["parse_events"];
+        let changed_parse = &changed.logical_stage_checkpoints["parse_events"];
+        assert_eq!(
+            baseline_parse.row_membership_digest,
+            changed_parse.row_membership_digest
+        );
+        assert_eq!(
+            baseline_parse.row_order_digest,
+            changed_parse.row_order_digest
+        );
+        assert_eq!(
+            baseline_parse.classification_digest,
+            changed_parse.classification_digest
+        );
+        assert_eq!(baseline_parse.payload_digest, changed_parse.payload_digest);
+        assert_eq!(baseline_parse.schema_digest, changed_parse.schema_digest);
+        assert_ne!(
+            baseline_parse.temporal_state_digest,
+            changed_parse.temporal_state_digest
+        );
+        assert_ne!(
+            baseline_parse.terminal_digest,
+            changed_parse.terminal_digest
+        );
+    }
+
+    #[test]
+    fn timestamp_reordering_is_separated_from_membership_and_classification() {
+        let baseline_csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+            "Study,P01,Target Child,Mail,Activity Resumed,com.example.mail,2026-03-07 10:01:00,America/Chicago\n"
+        );
+        let changed_csv = baseline_csv.replacen("10:00:00", "10:02:00", 1);
+        let baseline = run_pipeline_v2(baseline_csv.as_bytes(), &test_options(), &[], &[], &[])
+            .expect("baseline ordered checkpoint");
+        let changed = run_pipeline_v2(changed_csv.as_bytes(), &test_options(), &[], &[], &[])
+            .expect("reordered checkpoint");
+        let baseline_parse = &baseline.logical_stage_checkpoints["parse_events"];
+        let changed_parse = &changed.logical_stage_checkpoints["parse_events"];
+        assert_eq!(
+            baseline_parse.row_membership_digest,
+            changed_parse.row_membership_digest
+        );
+        assert_eq!(
+            baseline_parse.classification_digest,
+            changed_parse.classification_digest
+        );
+        assert_eq!(baseline_parse.payload_digest, changed_parse.payload_digest);
+        assert_eq!(baseline_parse.schema_digest, changed_parse.schema_digest);
+        assert_ne!(
+            baseline_parse.row_order_digest,
+            changed_parse.row_order_digest
+        );
+        assert_ne!(
+            baseline_parse.temporal_state_digest,
+            changed_parse.temporal_state_digest
+        );
+        assert_ne!(
+            baseline_parse.terminal_digest,
+            changed_parse.terminal_digest
+        );
+    }
+
+    #[test]
     fn exact_dedupe_is_participant_scoped_and_can_be_disabled() {
         let csv = concat!(
             "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
@@ -4652,6 +5466,26 @@ mod tests {
         assert_eq!(result.original_row_count, 4);
         assert_eq!(result.processed_row_count, 2);
         assert_eq!(result.app_row_count, 1);
+    }
+
+    #[test]
+    fn selected_timezone_filter_rejects_an_absent_qualification_before_output_gates() {
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+            "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:01:00,America/Chicago\n"
+        );
+        let mut options = test_options();
+        options.timezone = "America/New_York".into();
+        options.timezone_handling = "selected-filter".into();
+        options.include_app_output = false;
+        options.include_screen_output = false;
+        let error = match run_pipeline_v2(csv.as_bytes(), &options, &[], &[], &[]) {
+            Ok(_) => panic!("absent selected timezone must fail before output gates"),
+            Err(error) => error,
+        };
+        assert!(error.contains("America/New_York"));
+        assert!(error.contains("remove all rows"));
     }
 
     #[test]

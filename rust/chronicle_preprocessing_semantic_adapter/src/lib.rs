@@ -11,17 +11,24 @@ pub mod journal;
 pub mod materialize;
 pub mod model;
 pub mod protocol;
+pub mod qualify;
 pub mod scheduler;
 pub mod storage;
 pub mod views;
 
 pub use capabilities::{
-    node_binding, step_binding, NodeBinding, PhysicalStage, StepBinding, EMBEDDED_PLAN_SHA256,
-    EMBEDDED_PRODUCT_CONTRACT_SHA256, EMBEDDED_PROFILE_LOCK_SHA256, EMBEDDED_PROFILE_SHA256,
-    EMBEDDED_RUNTIME_AUTHORITY_SHA256, NODE_BINDINGS, STEP_BINDINGS,
+    node_binding, step_binding, NodeBinding, PhysicalStage, StepBinding, CERTIFIED_OPTION_KEYS,
+    CERTIFIED_ROLE_IDS, EMBEDDED_DEPENDENCY_BINDING_SURFACE_SHA256,
+    EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256, EMBEDDED_PLAN_SHA256, EMBEDDED_PRODUCT_CONTRACT_SHA256,
+    EMBEDDED_PROFILE_LOCK_SHA256, EMBEDDED_PROFILE_SHA256, EMBEDDED_RUNTIME_AUTHORITY_SHA256,
+    NODE_BINDINGS, STEP_BINDINGS,
 };
 pub use materialize::{evaluate_materialization, Materialization};
 pub use model::*;
+pub use qualify::{
+    qualify_assignments, qualify_candidates, QualificationCandidate, QualificationDecision,
+    QualificationReport, QualificationRuleEvaluation, QualificationTrace, RoleRequirementTrace,
+};
 pub use scheduler::{CapabilityExecutor, ExecutionInputs, ProducedArtifact, Scheduler, Workspace};
 pub use storage::{ArtifactStore, MemoryCas};
 
@@ -49,6 +56,18 @@ pub fn embedded_profile_lock_bytes() -> &'static [u8] {
     include_bytes!(concat!(env!("OUT_DIR"), "/semantic-profile.lock"))
 }
 
+pub fn embedded_dependency_certificate() -> DependencyCertificate {
+    serde_json::from_str(include_str!(concat!(
+        env!("OUT_DIR"),
+        "/dependency-certificate.json"
+    )))
+    .expect("build.rs validated embedded dependency certificate")
+}
+
+pub fn embedded_dependency_certificate_bytes() -> &'static [u8] {
+    include_bytes!(concat!(env!("OUT_DIR"), "/dependency-certificate.json"))
+}
+
 #[cfg(test)]
 mod embedded_tests {
     use super::*;
@@ -70,6 +89,20 @@ mod embedded_tests {
             digest(embedded_profile_lock_bytes()),
             EMBEDDED_PROFILE_LOCK_SHA256
         );
+        assert_eq!(
+            digest(embedded_dependency_certificate_bytes()),
+            EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256
+        );
+        let certificate = embedded_dependency_certificate();
+        assert_eq!(
+            certificate.structural_contract.binding_surface_digest,
+            EMBEDDED_DEPENDENCY_BINDING_SURFACE_SHA256
+        );
+        assert_eq!(
+            certificate.structural_contract.cache_relevant_option_keys,
+            CERTIFIED_OPTION_KEYS
+        );
+        assert_eq!(certificate.structural_contract.role_ids, CERTIFIED_ROLE_IDS);
         assert_eq!(embedded_plan().nodes.len(), 15);
     }
 }

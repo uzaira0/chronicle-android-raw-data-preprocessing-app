@@ -93,6 +93,8 @@ export interface DayCoverageNodeOutput {
 }
 
 export interface PipelineOutputs {
+  /** Canonical post-policy events used by visualization/review projections. */
+  policyRows: CanonicalRow[];
   appRows: CanonicalRow[];
   screenRows: CanonicalRow[];
   credited: CreditResult | null;

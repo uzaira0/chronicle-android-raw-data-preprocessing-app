@@ -322,6 +322,8 @@ slots:
 
   study_name:
     required: true
+    annotations:
+      configuration_axis: annotation
     title: "Study name"
     description: >-
       Your label for this study. Written into the `study_name` column of every output row.
@@ -482,6 +484,8 @@ slots:
   enable_plotting:
     range: boolean
     required: true
+    annotations:
+      configuration_axis: view
     title: "Generate app-usage plots"
     description: >-
       After preprocessing, renders one horizontal-bar timeline chart per participant
@@ -490,6 +494,8 @@ slots:
   include_filtered_app_usage_in_plots:
     range: boolean
     required: true
+    annotations:
+      configuration_axis: view
     title: "Include filtered apps in plots"
     description: >-
       When on, bars for apps that were filtered (but retained in the output)
@@ -498,6 +504,8 @@ slots:
   enable_activity_heatmap:
     range: boolean
     required: true
+    annotations:
+      configuration_axis: view
     title: "Generate activity heatmaps"
     description: >-
       Alongside the timeline chart, render an hour-of-day × calendar-day heatmap
@@ -508,6 +516,8 @@ slots:
   export_plots_as_svg:
     range: boolean
     required: true
+    annotations:
+      configuration_axis: view
     title: "Also export plots as SVG (vector)"
     description: >-
       In addition to the PNG charts, write a scalable vector SVG of each plot
@@ -559,6 +569,8 @@ slots:
   enable_interactive_timeline:
     range: boolean
     required: true
+    annotations:
+      configuration_axis: view
     title: "Interactive timeline explorer"
     description: >-
       Show an in-browser zoomable/pannable timeline of every session (app and
@@ -805,6 +817,8 @@ slots:
   parallel_processing:
     range: boolean
     required: true
+    annotations:
+      configuration_axis: execution
     title: "Enable parallel file processing"
     description: >-
       When this is on, the app can process more than one uploaded raw file at the same time.
@@ -812,6 +826,8 @@ slots:
     default: true
   parallel_max_workers:
     range: integer
+    annotations:
+      configuration_axis: execution
     title: "Max parallel workers"
     description: >-
       The maximum number of files the app may process at the same time.

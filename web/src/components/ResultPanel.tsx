@@ -70,7 +70,7 @@ function zipName(kind: "all" | OutputKind): string {
     : kind === "aggregate" ? "aggregate-summaries"
     : kind === "parquet" ? "parquet-files"
     : kind === "spss" ? "spss-files"
-    : kind === "lineage" ? "row-lineage"
+    : kind === "lineage" ? "lineage-and-correspondence"
     : "plots";
   return `chronicle-${suffix}.zip`;
 }
@@ -379,7 +379,7 @@ export function ResultPanel({
                 void downloadZip("lineage", lineageOutputs, reportInput);
               }}
             >
-              Lineage ZIP ({lineageOutputs.length})
+              Lineage evidence ZIP ({lineageOutputs.length})
             </button>
           )}
           <button
@@ -568,7 +568,7 @@ const OUTPUT_KIND_LABEL: Record<string, string> = {
   aggregate: "Aggregate CSV",
   parquet: "Parquet",
   spss: "SPSS .sav",
-  lineage: "Arrow lineage",
+  lineage: "Arrow lineage / correspondence",
 };
 
 /** Human label for one output, distinguishing the HTML timeline viewer from plots. */

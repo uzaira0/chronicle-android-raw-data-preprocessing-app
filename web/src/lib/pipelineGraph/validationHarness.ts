@@ -321,6 +321,10 @@ export function altValue(key: string, value: unknown): unknown {
   if (typeof value === "boolean") return !value;
   if (typeof value === "number") return value + 1;
   switch (key) {
+    case "studyName":
+      return value === "" ? "Alternative Study" : "";
+    case "aggregateShape":
+      return value === "wide" ? "long" : "wide";
     case "selectedTimezone":
       return "America/New_York";
     case "timezoneHandling":

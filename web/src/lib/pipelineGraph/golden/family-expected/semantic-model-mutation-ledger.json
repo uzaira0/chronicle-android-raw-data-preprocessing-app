@@ -1,0 +1,1083 @@
+{
+  "protocolVersion": "chronicle-semantic-model-mutation-ledger/v1",
+  "claimBoundary": "In-memory mutation of every declared DAG edge (removal and reversal), every recorded computational option binding, and every raw/support role binding. A mutant is killed by a structural cycle, a required cross-unit typed step port, or disagreement with a checked one-factor empirical percolation observation. Rust checkpoint-component and qualification-rule mutation witnesses are enforced separately by their unit tests.",
+  "plan": {
+    "id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:plan/raw-data/v1",
+    "revision": "0.1.0"
+  },
+  "implementationReceipt": {
+    "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
+    "implementationDigest": "sha256:d6081f896e488d92bf202fcea98a92c3bc86e13f493f33aca29ced86333db997",
+    "planDigest": "sha256:162cd4087b0287169a54ee55dc224300e4a6c7ba4009ff82f8828b348d562c45",
+    "profileDigest": "sha256:b2899800f08de7ed93000422947cd8d0b3b5443150e6b47a019f8d038ceaaf93",
+    "profileLockDigest": "sha256:47240c9a44c328437384c8be9531e90f8d5e60696ed6a0db55f79bf313b78990",
+    "runtimeAuthorityDigest": "sha256:11142579a05120fce9a1fe8e0edfffdcae385b34a10080d878e8d82b73cc8627",
+    "productContractDigest": "sha256:5ac0241fc2c80af23f5a580ff25679db9ce3d2e3a5fae8043ed0826d865105f7"
+  },
+  "sourceLedgers": {
+    "configurationCaseSetDigest": "sha256:ae24d7ed06c9e962fa8fe7e33eba41a2c3b2d34d97bf7cf364b445708bed3d14",
+    "artifactCaseSetDigest": "sha256:325e675dd6a74f542820bafd0131e124f3b398489688a145912bbafdecf04284",
+    "rawBoundaryCaseSetDigest": "sha256:dfd450eeadfb2443ee938db57f1e1ea6333ccf331b333cb16e4ccde6f959de64"
+  },
+  "observationCount": 1734,
+  "counts": {
+    "total": 116,
+    "killed": 116,
+    "survived": 0,
+    "byClass": {
+      "remove-edge": 23,
+      "reverse-edge": 23,
+      "remove-option-binding": 59,
+      "remove-role-binding": 11
+    },
+    "structuralCycles": 7,
+    "structuralConditionBindings": 21,
+    "structuralStepBindings": 2
+  },
+  "mutants": [
+    {
+      "mutantId": "remove-edge:parse_events->normalize_timezones",
+      "mutantClass": "remove-edge",
+      "sourceId": "parse_events",
+      "targetId": "normalize_timezones",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:parse_events->normalize_timezones",
+      "mutantClass": "reverse-edge",
+      "sourceId": "parse_events",
+      "targetId": "normalize_timezones",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:normalize_timezones->dedup_and_order",
+      "mutantClass": "remove-edge",
+      "sourceId": "normalize_timezones",
+      "targetId": "dedup_and_order",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:normalize_timezones->dedup_and_order",
+      "mutantClass": "reverse-edge",
+      "sourceId": "normalize_timezones",
+      "targetId": "dedup_and_order",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:dedup_and_order->app_policy",
+      "mutantClass": "remove-edge",
+      "sourceId": "dedup_and_order",
+      "targetId": "app_policy",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:dedup_and_order->app_policy",
+      "mutantClass": "reverse-edge",
+      "sourceId": "dedup_and_order",
+      "targetId": "app_policy",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:app_policy->device_state_timeline",
+      "mutantClass": "remove-edge",
+      "sourceId": "app_policy",
+      "targetId": "device_state_timeline",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:app_policy->device_state_timeline",
+      "mutantClass": "reverse-edge",
+      "sourceId": "app_policy",
+      "targetId": "device_state_timeline",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:processScreenUsage:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:app_policy->reconstruct_episodes",
+      "mutantClass": "remove-edge",
+      "sourceId": "app_policy",
+      "targetId": "reconstruct_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:app_policy->reconstruct_episodes",
+      "mutantClass": "reverse-edge",
+      "sourceId": "app_policy",
+      "targetId": "reconstruct_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:processAppUsage:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:reconstruct_episodes->categorize_apps",
+      "mutantClass": "remove-edge",
+      "sourceId": "reconstruct_episodes",
+      "targetId": "categorize_apps",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:reconstruct_episodes->categorize_apps",
+      "mutantClass": "reverse-edge",
+      "sourceId": "reconstruct_episodes",
+      "targetId": "categorize_apps",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:categorize_apps->episode_annotations",
+      "mutantClass": "remove-edge",
+      "sourceId": "categorize_apps",
+      "targetId": "episode_annotations",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:categorize_apps->episode_annotations",
+      "mutantClass": "reverse-edge",
+      "sourceId": "categorize_apps",
+      "targetId": "episode_annotations",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:episode_annotations->interval_cleaning",
+      "mutantClass": "remove-edge",
+      "sourceId": "episode_annotations",
+      "targetId": "interval_cleaning",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:episode_annotations->interval_cleaning",
+      "mutantClass": "reverse-edge",
+      "sourceId": "episode_annotations",
+      "targetId": "interval_cleaning",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:interval_cleaning->effective_usage",
+      "mutantClass": "remove-edge",
+      "sourceId": "interval_cleaning",
+      "targetId": "effective_usage",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:interval_cleaning->effective_usage",
+      "mutantClass": "reverse-edge",
+      "sourceId": "interval_cleaning",
+      "targetId": "effective_usage",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:app_policy->effective_usage",
+      "mutantClass": "remove-edge",
+      "sourceId": "app_policy",
+      "targetId": "effective_usage",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:inactive:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:app_policy->effective_usage",
+      "mutantClass": "reverse-edge",
+      "sourceId": "app_policy",
+      "targetId": "effective_usage",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:interval_cleaning->observation_window",
+      "mutantClass": "remove-edge",
+      "sourceId": "interval_cleaning",
+      "targetId": "observation_window",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:interval_cleaning->observation_window",
+      "mutantClass": "reverse-edge",
+      "sourceId": "interval_cleaning",
+      "targetId": "observation_window",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:observation_window->attribute_person",
+      "mutantClass": "remove-edge",
+      "sourceId": "observation_window",
+      "targetId": "attribute_person",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:observation_window->attribute_person",
+      "mutantClass": "reverse-edge",
+      "sourceId": "observation_window",
+      "targetId": "attribute_person",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:attribute_person->day_coverage",
+      "mutantClass": "remove-edge",
+      "sourceId": "attribute_person",
+      "targetId": "day_coverage",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:attribute_person->day_coverage",
+      "mutantClass": "reverse-edge",
+      "sourceId": "attribute_person",
+      "targetId": "day_coverage",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:app_policy->day_coverage",
+      "mutantClass": "remove-edge",
+      "sourceId": "app_policy",
+      "targetId": "day_coverage",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:inactive:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:app_policy->day_coverage",
+      "mutantClass": "reverse-edge",
+      "sourceId": "app_policy",
+      "targetId": "day_coverage",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:day_coverage->score_compliance",
+      "mutantClass": "remove-edge",
+      "sourceId": "day_coverage",
+      "targetId": "score_compliance",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:addNoActivityPlaceholderDays:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:day_coverage->score_compliance",
+      "mutantClass": "reverse-edge",
+      "sourceId": "day_coverage",
+      "targetId": "score_compliance",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:addNoActivityPlaceholderDays:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:attribute_person->score_compliance",
+      "mutantClass": "remove-edge",
+      "sourceId": "attribute_person",
+      "targetId": "score_compliance",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enablePersonAttribution:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:attribute_person->score_compliance",
+      "mutantClass": "reverse-edge",
+      "sourceId": "attribute_person",
+      "targetId": "score_compliance",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:app_policy->outputs",
+      "mutantClass": "remove-edge",
+      "sourceId": "app_policy",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:inactive:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:app_policy->outputs",
+      "mutantClass": "reverse-edge",
+      "sourceId": "app_policy",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:attribute_person->outputs",
+      "mutantClass": "remove-edge",
+      "sourceId": "attribute_person",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "structural-step-binding",
+      "witnessId": "outputs:cross-unit-step-port:attribute_person"
+    },
+    {
+      "mutantId": "reverse-edge:attribute_person->outputs",
+      "mutantClass": "reverse-edge",
+      "sourceId": "attribute_person",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:day_coverage->outputs",
+      "mutantClass": "remove-edge",
+      "sourceId": "day_coverage",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:addNoActivityPlaceholderDays:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:day_coverage->outputs",
+      "mutantClass": "reverse-edge",
+      "sourceId": "day_coverage",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:device_state_timeline->outputs",
+      "mutantClass": "remove-edge",
+      "sourceId": "device_state_timeline",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:processScreenUsage:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:device_state_timeline->outputs",
+      "mutantClass": "reverse-edge",
+      "sourceId": "device_state_timeline",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:processAppUsage:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:effective_usage->outputs",
+      "mutantClass": "remove-edge",
+      "sourceId": "effective_usage",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableScreenGatedCrediting:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:effective_usage->outputs",
+      "mutantClass": "reverse-edge",
+      "sourceId": "effective_usage",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:processScreenUsage:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:observation_window->outputs",
+      "mutantClass": "remove-edge",
+      "sourceId": "observation_window",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "structural-step-binding",
+      "witnessId": "outputs:cross-unit-step-port:observation_window"
+    },
+    {
+      "mutantId": "reverse-edge:observation_window->outputs",
+      "mutantClass": "reverse-edge",
+      "sourceId": "observation_window",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:score_compliance->outputs",
+      "mutantClass": "remove-edge",
+      "sourceId": "score_compliance",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableComplianceScoring:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:score_compliance->outputs",
+      "mutantClass": "reverse-edge",
+      "sourceId": "score_compliance",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:processScreenUsage:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:processAppUsage->attribute_person",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "processAppUsage",
+      "targetId": "attribute_person",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "attribute_person:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:processAppUsage->categorize_apps",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "processAppUsage",
+      "targetId": "categorize_apps",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "categorize_apps:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:processAppUsage->day_coverage",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "processAppUsage",
+      "targetId": "day_coverage",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "day_coverage:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:processAppUsage->effective_usage",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "processAppUsage",
+      "targetId": "effective_usage",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "effective_usage:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:processAppUsage->episode_annotations",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "processAppUsage",
+      "targetId": "episode_annotations",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "episode_annotations:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:processAppUsage->interval_cleaning",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "processAppUsage",
+      "targetId": "interval_cleaning",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "interval_cleaning:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:processAppUsage->observation_window",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "processAppUsage",
+      "targetId": "observation_window",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "observation_window:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:processAppUsage->reconstruct_episodes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "processAppUsage",
+      "targetId": "reconstruct_episodes",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "reconstruct_episodes:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:processAppUsage->score_compliance",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "processAppUsage",
+      "targetId": "score_compliance",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "score_compliance:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:processScreenUsage->device_state_timeline",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "processScreenUsage",
+      "targetId": "device_state_timeline",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "device_state_timeline:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:allowStopEventReuse->reconstruct_episodes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "allowStopEventReuse",
+      "targetId": "reconstruct_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:useActivityStoppedAsFallback->reconstruct_episodes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useActivityStoppedAsFallback",
+      "targetId": "reconstruct_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useActivityStoppedAsFallback:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:applyThresholdToFallback->reconstruct_episodes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "applyThresholdToFallback",
+      "targetId": "reconstruct_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:applyThresholdToFallback:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:longDurationThresholdHours->reconstruct_episodes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "longDurationThresholdHours",
+      "targetId": "reconstruct_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:longDurationThresholdHours:active:h12:h1:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:correctDuplicateEventTimestamps->dedup_and_order",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "correctDuplicateEventTimestamps",
+      "targetId": "dedup_and_order",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:deduplicateExactRows->dedup_and_order",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "deduplicateExactRows",
+      "targetId": "dedup_and_order",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:deduplicateExactRows:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:selectedTimezone->normalize_timezones",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "selectedTimezone",
+      "targetId": "normalize_timezones",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:timezoneHandling->normalize_timezones",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "timezoneHandling",
+      "targetId": "normalize_timezones",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:timezoneHandling:active:selected_filter:selected_convert:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:useFilterFile->app_policy",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useFilterFile",
+      "targetId": "app_policy",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "app_policy:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:useFilterFile->interval_cleaning",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useFilterFile",
+      "targetId": "interval_cleaning",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "interval_cleaning:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:useAppsForcingScreenOpenFile->device_state_timeline",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useAppsForcingScreenOpenFile",
+      "targetId": "device_state_timeline",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useAppsForcingScreenOpenFile:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:useBackgroundAppsFile->reconstruct_episodes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useBackgroundAppsFile",
+      "targetId": "reconstruct_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useBackgroundAppsFile:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:useAppCodebook->categorize_apps",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useAppCodebook",
+      "targetId": "categorize_apps",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "categorize_apps:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:includeCategoryColumn->categorize_apps",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "includeCategoryColumn",
+      "targetId": "categorize_apps",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:includeCategoryColumn:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:includeCategoryColumn->outputs",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "includeCategoryColumn",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:includeCategoryColumn:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enableAggregates->outputs",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableAggregates",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableAggregates:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:aggregateShape->outputs",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "aggregateShape",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:aggregateShape:active:wide:long:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enableParquetExport->outputs",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableParquetExport",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableParquetExport:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enableSpssExport->outputs",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableSpssExport",
+      "targetId": "outputs",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableSpssExport:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:minimumUsageDuration->reconstruct_episodes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "minimumUsageDuration",
+      "targetId": "reconstruct_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:minimumUsageDuration:active:s0:s60:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:filterZeroDurationSessions->interval_cleaning",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "filterZeroDurationSessions",
+      "targetId": "interval_cleaning",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "interval_cleaning:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:customAppEngagementDuration->episode_annotations",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "customAppEngagementDuration",
+      "targetId": "episode_annotations",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:customAppEngagementDuration:active:s300:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:longUsageDurationThresholds->episode_annotations",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "longUsageDurationThresholds",
+      "targetId": "episode_annotations",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:longUsageDurationThresholds:active:default:empty:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:longDataTimeGapThresholds->episode_annotations",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "longDataTimeGapThresholds",
+      "targetId": "episode_annotations",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:longDataTimeGapThresholds:active:default:empty:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:longDataTimeGapThresholds->interval_cleaning",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "longDataTimeGapThresholds",
+      "targetId": "interval_cleaning",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:longDataTimeGapThresholds:inactive:default:empty:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenUsageAutoLockTimeoutSeconds->device_state_timeline",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenUsageAutoLockTimeoutSeconds",
+      "targetId": "device_state_timeline",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenUsageAutoLockTimeoutSeconds:active:s120:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenUsageAutoLockToleranceSeconds->device_state_timeline",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenUsageAutoLockToleranceSeconds",
+      "targetId": "device_state_timeline",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenUsageAutoLockToleranceSeconds:active:s30:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenUsageManualLockMaxTailGapSeconds->device_state_timeline",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenUsageManualLockMaxTailGapSeconds",
+      "targetId": "device_state_timeline",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenUsageManualLockMaxTailGapSeconds:active:s30:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenUsageKeyguardNearStopSeconds->device_state_timeline",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenUsageKeyguardNearStopSeconds",
+      "targetId": "device_state_timeline",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenUsageKeyguardNearStopSeconds:active:s2:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:sameAppInteractionTypesToStopUsageAt->dedup_and_order",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "sameAppInteractionTypesToStopUsageAt",
+      "targetId": "dedup_and_order",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:sameAppInteractionTypesToStopUsageAt:active:default:empty:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:sameAppInteractionTypesToStopUsageAt->reconstruct_episodes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "sameAppInteractionTypesToStopUsageAt",
+      "targetId": "reconstruct_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:sameAppInteractionTypesToStopUsageAt:active:default:empty:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:otherInteractionTypesToStopUsageAt->dedup_and_order",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "otherInteractionTypesToStopUsageAt",
+      "targetId": "dedup_and_order",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:otherInteractionTypesToStopUsageAt:active:default:empty:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:otherInteractionTypesToStopUsageAt->reconstruct_episodes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "otherInteractionTypesToStopUsageAt",
+      "targetId": "reconstruct_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:otherInteractionTypesToStopUsageAt:active:default:empty:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:modelConcurrentUsage->reconstruct_episodes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "modelConcurrentUsage",
+      "targetId": "reconstruct_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:modelConcurrentUsage:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:applyMinimumUsageDurationToConcurrentSubintervals->reconstruct_episodes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "applyMinimumUsageDurationToConcurrentSubintervals",
+      "targetId": "reconstruct_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:applyMinimumUsageDurationToConcurrentSubintervals:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:interactionTypesToRemove->interval_cleaning",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "interactionTypesToRemove",
+      "targetId": "interval_cleaning",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "interval_cleaning:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:interactionTypeRemap->parse_events",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "interactionTypeRemap",
+      "targetId": "parse_events",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:proximityIntervalSeconds->reconstruct_episodes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "proximityIntervalSeconds",
+      "targetId": "reconstruct_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:proximityIntervalSeconds:active:s2:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:addNoActivityPlaceholderDays->day_coverage",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "addNoActivityPlaceholderDays",
+      "targetId": "day_coverage",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "day_coverage:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:enableScreenGatedCrediting->effective_usage",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableScreenGatedCrediting",
+      "targetId": "effective_usage",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "effective_usage:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:creditedSessionCapMinutes->effective_usage",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "creditedSessionCapMinutes",
+      "targetId": "effective_usage",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:creditedSessionCapMinutes:active:m360:m0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:deviceLivenessGapToleranceMinutes->effective_usage",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "deviceLivenessGapToleranceMinutes",
+      "targetId": "effective_usage",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:deviceLivenessGapToleranceMinutes:active:m120:m0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:autoLockBridgeSeconds->effective_usage",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "autoLockBridgeSeconds",
+      "targetId": "effective_usage",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:autoLockBridgeSeconds:active:s120:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:noWitnessMinDayApps->effective_usage",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "noWitnessMinDayApps",
+      "targetId": "effective_usage",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:noWitnessMinDayApps:active:n2:n0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enableStudyWindowFilter->observation_window",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableStudyWindowFilter",
+      "targetId": "observation_window",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "observation_window:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:enablePersonAttribution->attribute_person",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enablePersonAttribution",
+      "targetId": "attribute_person",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "attribute_person:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:enableComplianceScoring->score_compliance",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableComplianceScoring",
+      "targetId": "score_compliance",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "score_compliance:applicability"
+    },
+    {
+      "mutantId": "remove-option-binding:complianceThresholdPercent->score_compliance",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "complianceThresholdPercent",
+      "targetId": "score_compliance",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:complianceThresholdPercent:active:p70:p0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enableDayCoverage->day_coverage",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableDayCoverage",
+      "targetId": "day_coverage",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "day_coverage:applicability"
+    },
+    {
+      "mutantId": "remove-role-binding:raw_chronicle_csv->parse_events",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "raw_chronicle_csv",
+      "targetId": "parse_events",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:raw-field:study_id"
+    },
+    {
+      "mutantId": "remove-role-binding:filter_file->app_policy",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "filter_file",
+      "targetId": "app_policy",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:filter-activate-used-package"
+    },
+    {
+      "mutantId": "remove-role-binding:apps_forcing_screen_open_file->device_state_timeline",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "apps_forcing_screen_open_file",
+      "targetId": "device_state_timeline",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:forcing-activate-screen-tail-package"
+    },
+    {
+      "mutantId": "remove-role-binding:background_apps_file->reconstruct_episodes",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "background_apps_file",
+      "targetId": "reconstruct_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:background-remove-used-package"
+    },
+    {
+      "mutantId": "remove-role-binding:app_codebook_file->categorize_apps",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "app_codebook_file",
+      "targetId": "categorize_apps",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:codebook-edit-category"
+    },
+    {
+      "mutantId": "remove-role-binding:study_dates_file->day_coverage",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "study_dates_file",
+      "targetId": "day_coverage",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support-representation:study_dates_file:crlf"
+    },
+    {
+      "mutantId": "remove-role-binding:study_dates_file->observation_window",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "study_dates_file",
+      "targetId": "observation_window",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:study-window-narrow"
+    },
+    {
+      "mutantId": "remove-role-binding:device_sharing_file->attribute_person",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "device_sharing_file",
+      "targetId": "attribute_person",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:sharing-shared-to-nonshared"
+    },
+    {
+      "mutantId": "remove-role-binding:device_sharing_file->score_compliance",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "device_sharing_file",
+      "targetId": "score_compliance",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support-representation:device_sharing_file:crlf"
+    },
+    {
+      "mutantId": "remove-role-binding:survey_attribution_file->attribute_person",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "survey_attribution_file",
+      "targetId": "attribute_person",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:survey-target-to-other"
+    },
+    {
+      "mutantId": "remove-role-binding:enrolled_devices_file->score_compliance",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "enrolled_devices_file",
+      "targetId": "score_compliance",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:enrollment-one-to-two-devices"
+    }
+  ]
+}

@@ -3,6 +3,7 @@ use crate::model::{
     ArtifactRef, ChroniclePlan, MaterializationState, NodeExecution, OpenObligation,
     RoleAssignment, StateReason,
 };
+use crate::qualify::{QualificationTrace, RoleRequirementTrace};
 pub use semprof_materialize::ViewEnvelope;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -51,6 +52,8 @@ pub struct ObligationPayload {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExplanationPayload {
     pub transitions: Vec<StateReason>,
+    pub qualification_traces: Vec<QualificationTrace>,
+    pub requirement_traces: Vec<RoleRequirementTrace>,
 }
 
 pub fn stage_view(
@@ -172,6 +175,8 @@ pub fn obligation_view(
 
 pub fn explanation_view(
     transitions: Vec<StateReason>,
+    qualification_traces: Vec<QualificationTrace>,
+    requirement_traces: Vec<RoleRequirementTrace>,
     revision: u64,
     root_digest: &str,
 ) -> ViewEnvelope<ExplanationPayload> {
@@ -182,7 +187,11 @@ pub fn explanation_view(
         schema_id: "urn:chronicle:view:explanation:v1".into(),
         revision,
         root_digest: root_digest.into(),
-        payload: ExplanationPayload { transitions },
+        payload: ExplanationPayload {
+            transitions,
+            qualification_traces,
+            requirement_traces,
+        },
     }
 }
 
@@ -202,6 +211,8 @@ mod tests {
             node_states: BTreeMap::from([("parse_events".into(), MaterializationState::Ready)]),
             obligations: vec![],
             reasons: vec![],
+            qualification_traces: vec![],
+            requirement_traces: vec![],
         };
         materialization.reasons.push(StateReason {
             reason_id: "reason:parse".into(),
@@ -316,7 +327,8 @@ mod tests {
         );
         let obligation_value = encode_view(&obligation_view(vec![obligation], 3, &digest));
         assert_eq!(obligation_value["view_id"], "chronicle.obligation.v1");
-        let explanation_value = encode_view(&explanation_view(vec![reason], 4, &digest));
+        let explanation_value =
+            encode_view(&explanation_view(vec![reason], vec![], vec![], 4, &digest));
         assert_eq!(explanation_value["view_id"], "chronicle.explanation.v1");
         assert_eq!(
             explanation_value["payload"]["transitions"][0]["message"],

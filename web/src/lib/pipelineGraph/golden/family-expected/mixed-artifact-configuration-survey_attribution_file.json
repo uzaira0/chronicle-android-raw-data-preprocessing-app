@@ -1,0 +1,948 @@
+{
+  "protocolVersion": "chronicle-mixed-artifact-configuration-ledger/v1",
+  "claimBoundary": "Exhaustive value-level pair coverage between every declared computational configuration alternate and one empirically branch-activating intervention for the selected raw/support source role. Its activation context is selected deterministically from the six existing synthetic corpora. Both transition orders must equal an independent cold Rust/WASM target at every logical checkpoint, output artifact, and canonical output cell. The nine independently recycled role shards form the aggregate role/value proof; one representative mutation does not exhaust every record- or field-level interaction.",
+  "plan": {
+    "id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:plan/raw-data/v1",
+    "revision": "0.1.0"
+  },
+  "implementationReceipt": {
+    "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
+    "implementationDigest": "sha256:d6081f896e488d92bf202fcea98a92c3bc86e13f493f33aca29ced86333db997",
+    "planDigest": "sha256:162cd4087b0287169a54ee55dc224300e4a6c7ba4009ff82f8828b348d562c45",
+    "profileDigest": "sha256:b2899800f08de7ed93000422947cd8d0b3b5443150e6b47a019f8d038ceaaf93",
+    "profileLockDigest": "sha256:47240c9a44c328437384c8be9531e90f8d5e60696ed6a0db55f79bf313b78990",
+    "runtimeAuthorityDigest": "sha256:11142579a05120fce9a1fe8e0edfffdcae385b34a10080d878e8d82b73cc8627",
+    "productContractDigest": "sha256:5ac0241fc2c80af23f5a580ff25679db9ce3d2e3a5fae8043ed0826d865105f7"
+  },
+  "roleRepresentatives": {
+    "survey_attribution_file": {
+      "corpusId": "catalog-random",
+      "seed": 12648430,
+      "rowCount": 186,
+      "injectedFeatures": [
+        "catalog-derived-apps",
+        "mixed-timezone-rows",
+        "remappable-interaction-types",
+        "removable-interaction-types",
+        "screen-and-keyguard-events"
+      ],
+      "interventionId": "support:survey-target-to-other",
+      "mutationClass": "record-edit",
+      "changedComponents": [
+        "survey_attribution_file.participant[P-SYN-00c0ffee].users[*]"
+      ]
+    }
+  },
+  "invalidVariants": [
+    {
+      "variantId": "selectedTimezone=none",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    }
+  ],
+  "coverage": {
+    "sourceRoles": 1,
+    "computationalAxes": 46,
+    "declaredAlternateValues": 51,
+    "validConfigurationVariants": 50,
+    "invalidConfigurationVariants": 1,
+    "validRoleValuePairs": 50,
+    "coldExecutions": 102,
+    "incrementalExecutions": 300,
+    "totalRustExecutions": 402,
+    "warmColdComparisons": 300,
+    "exactClusterComparisons": 100,
+    "nonAdditiveOrMaskedPairs": 18
+  },
+  "interactions": [
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×processAppUsage=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "processAppUsage",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "attribute_person.classificationDigest",
+          "day_coverage.classificationDigest",
+          "day_coverage.payloadDigest",
+          "outputs.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 4,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:4feb892638459f5bb31a8a5d9e0e6ca9fce1fa537365023a04c571ab3cdddf74"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 607,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:18aa01ebc25344f05d1ccf8df32bdc9781e1c2fd1b9a39f8941f32e515ed68fa"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×useActivityStoppedAsFallback=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "useActivityStoppedAsFallback",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 8,
+        "maskedCount": 4,
+        "introducedDigest": "sha256:7d8eb6553f3e4f4e7396553c43881ebdb5eaccb065acc3db0b6ea1358eba0903",
+        "maskedDigest": "sha256:4feb892638459f5bb31a8a5d9e0e6ca9fce1fa537365023a04c571ab3cdddf74"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 112,
+        "maskedCount": 162,
+        "introducedDigest": "sha256:462c742dc8d3fb446e0c6d85f0dbcce3d890fd72bb46687120d0d2d4fcb5dde9",
+        "maskedDigest": "sha256:5cc5cb080c6a2e1f3b3621ab82b6112f70c863ecd4860776d0592cbe35748604"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×longDurationThresholdHours=h1",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "longDurationThresholdHours",
+      "alternate": {
+        "label": "h1",
+        "value": 1
+      },
+      "configAfterDataNodes": [
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 8,
+        "maskedCount": 6,
+        "introducedDigest": "sha256:8a390694c5e6524bac7e21b5fbbdaa192c7ddfc569844d9d430f3e3c7fabda51",
+        "maskedDigest": "sha256:30d0607a2dfd594db103fae49651c40a868fbfde50560d90727ae96571c38a1d"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 26,
+        "maskedCount": 394,
+        "introducedDigest": "sha256:599a2fdc4bb24bdf0aa04646d80635d0546cc160b1cfa35f5c3c3b7d5ca665cb",
+        "maskedDigest": "sha256:492de1ec7414157a538bc4c97f99d3dea5c1c4f061e7248f6332c47a176deec6"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×correctDuplicateEventTimestamps=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "correctDuplicateEventTimestamps",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "app_policy",
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "dedup_and_order",
+        "device_state_timeline",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [
+          "day_coverage.rowMembershipDigest",
+          "day_coverage.rowOrderDigest",
+          "day_coverage.temporalStateDigest"
+        ],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 1592,
+        "maskedCount": 1000,
+        "introducedDigest": "sha256:f9ef08dd4f1a03344fde9fbbf74ceebb75d61c3ef11f0e19c0014854d47aabf3",
+        "maskedDigest": "sha256:4a569ec7d3b0c219b6d57bce28b2049bfcf32ff94c42e07748a410631acbed09"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 4500,
+        "maskedCount": 28,
+        "introducedDigest": "sha256:e40c981d2dcf544a3879eae177b15e4a4cf56d266826710cf5da5717e24c69bb",
+        "maskedDigest": "sha256:627067c0b2b6fe685731a7ba70badba417556c6b8ecaef4a56c184090eb51cf9"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×selectedTimezone=america_new_york",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "selectedTimezone",
+      "alternate": {
+        "label": "america_new_york",
+        "value": "America/New_York"
+      },
+      "configAfterDataNodes": [
+        "app_policy",
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "dedup_and_order",
+        "device_state_timeline",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "normalize_timezones",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 2,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:9b51c8c5129ebaac5586bbd8234b7c9fc311db331e4860afc184b7deb5840e4d"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 121,
+        "maskedCount": 121,
+        "introducedDigest": "sha256:e8e084706d7d0fe97750695133b26c24787a9ce693c83e343bae486924d814cc",
+        "maskedDigest": "sha256:ffc93fe7f27c0be7a6b06255119c84967be9ebe7e848428ac83091b9ecf08f5f"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×timezoneHandling=selected_filter",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "timezoneHandling",
+      "alternate": {
+        "label": "selected_filter",
+        "value": "selected-filter"
+      },
+      "configAfterDataNodes": [
+        "app_policy",
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "dedup_and_order",
+        "device_state_timeline",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "normalize_timezones",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 8,
+        "maskedCount": 6,
+        "introducedDigest": "sha256:f414830c31a817ba5b6d7a378454d3b23b817d4ccb6d4d87c412b2b5f4443c30",
+        "maskedDigest": "sha256:30d0607a2dfd594db103fae49651c40a868fbfde50560d90727ae96571c38a1d"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 50,
+        "maskedCount": 362,
+        "introducedDigest": "sha256:d2fda2ac7fa5bd32cdf5e552e07a134eade2d8d43313cc8a4d12a79f8a8151a2",
+        "maskedDigest": "sha256:38a76c2b887b3c84e4cc42af82700986e2b664f77d29b15e8f33d172690533ea"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×timezoneHandling=primary_filter",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "timezoneHandling",
+      "alternate": {
+        "label": "primary_filter",
+        "value": "primary-filter"
+      },
+      "configAfterDataNodes": [
+        "app_policy",
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "dedup_and_order",
+        "device_state_timeline",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "normalize_timezones",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 8,
+        "maskedCount": 6,
+        "introducedDigest": "sha256:f414830c31a817ba5b6d7a378454d3b23b817d4ccb6d4d87c412b2b5f4443c30",
+        "maskedDigest": "sha256:30d0607a2dfd594db103fae49651c40a868fbfde50560d90727ae96571c38a1d"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 50,
+        "maskedCount": 362,
+        "introducedDigest": "sha256:d2fda2ac7fa5bd32cdf5e552e07a134eade2d8d43313cc8a4d12a79f8a8151a2",
+        "maskedDigest": "sha256:38a76c2b887b3c84e4cc42af82700986e2b664f77d29b15e8f33d172690533ea"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×useFilterFile=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "useFilterFile",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "app_policy",
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "device_state_timeline",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [
+          "day_coverage.payloadDigest"
+        ],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "day_coverage.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 25,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:595dc0eb7df8cb6373d2297a6b0467434241a689d170f64555a8829f4be4ddb9",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 240,
+        "maskedCount": 155,
+        "introducedDigest": "sha256:ddcf511b8f2b8f7dbccc8ee5c83360ec3c44eb8205f0e3a8c8bfaa0dd93c4a5d",
+        "maskedDigest": "sha256:76fa11c4438981bcd2f126d53c81591dd6ced93355bd87b51e91fa02756c3b86"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×useBackgroundAppsFile=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "useBackgroundAppsFile",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 8,
+        "maskedCount": 6,
+        "introducedDigest": "sha256:8a390694c5e6524bac7e21b5fbbdaa192c7ddfc569844d9d430f3e3c7fabda51",
+        "maskedDigest": "sha256:30d0607a2dfd594db103fae49651c40a868fbfde50560d90727ae96571c38a1d"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 26,
+        "maskedCount": 388,
+        "introducedDigest": "sha256:599a2fdc4bb24bdf0aa04646d80635d0546cc160b1cfa35f5c3c3b7d5ca665cb",
+        "maskedDigest": "sha256:200a85cb88dd7f922ff38c11725277a08a8691fbe4d3ec4cd8beb8a4cb37a8e5"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×enableAggregates=true",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "enableAggregates",
+      "alternate": {
+        "label": "true",
+        "value": true
+      },
+      "configAfterDataNodes": [
+        "outputs"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 589,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:310be19e6b5ba23e88316478778bee89de4a5b3c08d6b488d2d751d0841228b6"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 637,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:68d37ef94aff93060dc7295b2204af4b0cb2213fb0304bd2e79b9deb3c139258",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×minimumUsageDuration=s0",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "minimumUsageDuration",
+      "alternate": {
+        "label": "s0",
+        "value": 0
+      },
+      "configAfterDataNodes": [
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [
+          "day_coverage.payloadDigest"
+        ],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "day_coverage.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 1,
+        "maskedCount": 4,
+        "introducedDigest": "sha256:689feb63e4ec1c6119017cf4d1a7cc37c40bcdf19fd56d7b1a0e8dcf85c71d1b",
+        "maskedDigest": "sha256:4feb892638459f5bb31a8a5d9e0e6ca9fce1fa537365023a04c571ab3cdddf74"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 1,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:689feb63e4ec1c6119017cf4d1a7cc37c40bcdf19fd56d7b1a0e8dcf85c71d1b"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×sameAppInteractionTypesToStopUsageAt=empty",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "sameAppInteractionTypesToStopUsageAt",
+      "alternate": {
+        "label": "empty",
+        "value": []
+      },
+      "configAfterDataNodes": [
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "dedup_and_order",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [
+          "day_coverage.payloadDigest"
+        ],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "day_coverage.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 13,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:abd415e996fb89dff21f3bd4a752ae66fef56bf3179e013e10c15b61f36eba38",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 104,
+        "maskedCount": 273,
+        "introducedDigest": "sha256:3a6e3af333391d67e41bcb6bd34d751701f6ca3d44869a3116b686d992011ec8",
+        "maskedDigest": "sha256:45267227fc616d9a831bf397f7e67b79c1313208a2aa62e7574e784e7e093b02"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×applyMinimumUsageDurationToConcurrentSubintervals=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "applyMinimumUsageDurationToConcurrentSubintervals",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [
+          "day_coverage.payloadDigest"
+        ],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "day_coverage.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 1,
+        "maskedCount": 4,
+        "introducedDigest": "sha256:689feb63e4ec1c6119017cf4d1a7cc37c40bcdf19fd56d7b1a0e8dcf85c71d1b",
+        "maskedDigest": "sha256:4feb892638459f5bb31a8a5d9e0e6ca9fce1fa537365023a04c571ab3cdddf74"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 1,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:689feb63e4ec1c6119017cf4d1a7cc37c40bcdf19fd56d7b1a0e8dcf85c71d1b"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×interactionTypesToRemove=none",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "interactionTypesToRemove",
+      "alternate": {
+        "label": "none",
+        "value": []
+      },
+      "configAfterDataNodes": [
+        "attribute_person",
+        "day_coverage",
+        "effective_usage",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 6,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:556ebd4859724c27d7635cc3b4ba0b3b8787fefa7e818dc2f9ff978084e78e38",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 130,
+        "maskedCount": 130,
+        "introducedDigest": "sha256:a1fd199e49a0686b67e556e506d866010f8598f49e6d63a59cd0760d4a2e05d8",
+        "maskedDigest": "sha256:a9c4b797da4118f6d96fac6f6a8d1bc4ee5072b8f47f3e057bc01f632483d983"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×interactionTypeRemap=custom",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "interactionTypeRemap",
+      "alternate": {
+        "label": "custom",
+        "value": [
+          "Custom Foreground => Activity Resumed"
+        ]
+      },
+      "configAfterDataNodes": [
+        "app_policy",
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "dedup_and_order",
+        "device_state_timeline",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "normalize_timezones",
+        "observation_window",
+        "outputs",
+        "parse_events",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [
+          "day_coverage.payloadDigest"
+        ],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "day_coverage.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 113,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:013c167683d9bac59809bd6e5dbc298bc8402dea5e9b37813890f9d6a6bb231e",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 64,
+        "maskedCount": 325,
+        "introducedDigest": "sha256:d24177a73a490eb7e830b148e3563c58f0696f01a8a7919d832134cd362b073a",
+        "maskedDigest": "sha256:3d1a611a9bf03a100fab53fe9afbd0d03a9df71df2ab7358fdaca6d973df7bcb"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×addNoActivityPlaceholderDays=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "addNoActivityPlaceholderDays",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 118,
+        "maskedCount": 118,
+        "introducedDigest": "sha256:211255399bbb259a9e8088c7f5506703b4696c29eebbf1b4f703958f2273482d",
+        "maskedDigest": "sha256:85c44fddb8095d6b5538ff123a610d6cee867c075f371974c5bea27b2ef3fd4c"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×enablePersonAttribution=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "enablePersonAttribution",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person"
+      ],
+      "configConditioning": {
+        "introduced": [
+          "day_coverage.payloadDigest"
+        ],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "attribute_person.classificationDigest",
+          "day_coverage.classificationDigest",
+          "day_coverage.payloadDigest",
+          "outputs.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 293,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e63e2de3ca8841c9a5db71d5dc4aedc64ad1fd5571f7d6c9d6cbf9095642ab59",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 607,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:18aa01ebc25344f05d1ccf8df32bdc9781e1c2fd1b9a39f8941f32e515ed68fa"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×enableDayCoverage=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "enableDayCoverage",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "day_coverage.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 1,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:689feb63e4ec1c6119017cf4d1a7cc37c40bcdf19fd56d7b1a0e8dcf85c71d1b"
+      }
+    }
+  ],
+  "caseSetDigest": "sha256:42981190b9b605f249622af111bb1bb23f746be7d3e70ee6e53018475758ed54"
+}

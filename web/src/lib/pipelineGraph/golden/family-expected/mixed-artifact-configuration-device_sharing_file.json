@@ -1,0 +1,793 @@
+{
+  "protocolVersion": "chronicle-mixed-artifact-configuration-ledger/v1",
+  "claimBoundary": "Exhaustive value-level pair coverage between every declared computational configuration alternate and one empirically branch-activating intervention for the selected raw/support source role. Its activation context is selected deterministically from the six existing synthetic corpora. Both transition orders must equal an independent cold Rust/WASM target at every logical checkpoint, output artifact, and canonical output cell. The nine independently recycled role shards form the aggregate role/value proof; one representative mutation does not exhaust every record- or field-level interaction.",
+  "plan": {
+    "id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:plan/raw-data/v1",
+    "revision": "0.1.0"
+  },
+  "implementationReceipt": {
+    "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
+    "implementationDigest": "sha256:d6081f896e488d92bf202fcea98a92c3bc86e13f493f33aca29ced86333db997",
+    "planDigest": "sha256:162cd4087b0287169a54ee55dc224300e4a6c7ba4009ff82f8828b348d562c45",
+    "profileDigest": "sha256:b2899800f08de7ed93000422947cd8d0b3b5443150e6b47a019f8d038ceaaf93",
+    "profileLockDigest": "sha256:47240c9a44c328437384c8be9531e90f8d5e60696ed6a0db55f79bf313b78990",
+    "runtimeAuthorityDigest": "sha256:11142579a05120fce9a1fe8e0edfffdcae385b34a10080d878e8d82b73cc8627",
+    "productContractDigest": "sha256:5ac0241fc2c80af23f5a580ff25679db9ce3d2e3a5fae8043ed0826d865105f7"
+  },
+  "roleRepresentatives": {
+    "device_sharing_file": {
+      "corpusId": "catalog-random",
+      "seed": 12648430,
+      "rowCount": 186,
+      "injectedFeatures": [
+        "catalog-derived-apps",
+        "mixed-timezone-rows",
+        "remappable-interaction-types",
+        "removable-interaction-types",
+        "screen-and-keyguard-events"
+      ],
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "mutationClass": "record-edit",
+      "changedComponents": [
+        "device_sharing_file.participant[P-SYN-00c0ffee].sharing_status"
+      ]
+    }
+  },
+  "invalidVariants": [
+    {
+      "variantId": "selectedTimezone=none",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    }
+  ],
+  "coverage": {
+    "sourceRoles": 1,
+    "computationalAxes": 46,
+    "declaredAlternateValues": 51,
+    "validConfigurationVariants": 50,
+    "invalidConfigurationVariants": 1,
+    "validRoleValuePairs": 50,
+    "coldExecutions": 102,
+    "incrementalExecutions": 300,
+    "totalRustExecutions": 402,
+    "warmColdComparisons": 300,
+    "exactClusterComparisons": 100,
+    "nonAdditiveOrMaskedPairs": 15
+  },
+  "interactions": [
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×processAppUsage=false",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "processAppUsage",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "attribute_person.classificationDigest",
+          "attribute_person.payloadDigest",
+          "day_coverage.classificationDigest",
+          "outputs.payloadDigest",
+          "score_compliance.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 316,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:040e26ef0d2558957fc5ae2a46d6060a57fbe2fd3c9aae52700945d0f92dcb7d"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×useActivityStoppedAsFallback=false",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "useActivityStoppedAsFallback",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 112,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:158f100a5a1e7d7242c7f293ea5318b513543c555c89ee5d4b99eadb93f3f0e9"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 52,
+        "maskedCount": 74,
+        "introducedDigest": "sha256:f9b71005aeecafca227b0e0da74e5f85b5ede735a8f680f9ac930f8821d37def",
+        "maskedDigest": "sha256:55c498e7ef9a838381f09e3bf97dc033ebfa4fb0abb927b2f61f3753756b6113"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×longDurationThresholdHours=h1",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "longDurationThresholdHours",
+      "alternate": {
+        "label": "h1",
+        "value": 1
+      },
+      "configAfterDataNodes": [
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 92,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:1fc95acdd3012358888694c785aa67445ac453a42ebbcc97046ac70063cf9db9"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 14,
+        "maskedCount": 194,
+        "introducedDigest": "sha256:0e9ed04f6b416af1ee1e7f282d1588ed62f52fd91349fafc14e3d8eb01cb0c93",
+        "maskedDigest": "sha256:67cda6e45debb667b6a121368b8834098a973abf8fa0bc74d30bdb1e3367f8c3"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×correctDuplicateEventTimestamps=false",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "correctDuplicateEventTimestamps",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "app_policy",
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "dedup_and_order",
+        "device_state_timeline",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 126,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:d5d21cadecca9a5979509333500ba7e89b67ba93a8ae27704a39d569b36835b5"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 68,
+        "maskedCount": 66,
+        "introducedDigest": "sha256:21832d5dfd1e5bc53514511010d5ecf6995c47d0ac9f73fa4ce792bd730bee60",
+        "maskedDigest": "sha256:36881c6f8000318488f5b38b2c578d153d9f7ad9454e146254c9d88a329cbc4d"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×selectedTimezone=america_new_york",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "selectedTimezone",
+      "alternate": {
+        "label": "america_new_york",
+        "value": "America/New_York"
+      },
+      "configAfterDataNodes": [
+        "app_policy",
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "dedup_and_order",
+        "device_state_timeline",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "normalize_timezones",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 116,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:2b7645a61c67b2004256752790b70b77c3ee7ef53cfbd4b0a59b706ca11c4d86"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 58,
+        "maskedCount": 59,
+        "introducedDigest": "sha256:524bfda15b2785de3897739eba58a03bd9483946a7030540ebe6748a4bfc2cc7",
+        "maskedDigest": "sha256:4f3b74997854d138749e74f8db1ad9f8da7f698aebe2b979d2cf5643f3e7f4fd"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×timezoneHandling=selected_filter",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "timezoneHandling",
+      "alternate": {
+        "label": "selected_filter",
+        "value": "selected-filter"
+      },
+      "configAfterDataNodes": [
+        "app_policy",
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "dedup_and_order",
+        "device_state_timeline",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "normalize_timezones",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 90,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:73490238914a83fe164d69f273cd52d0302ca999bad3c75be892d07191833bd0"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 22,
+        "maskedCount": 186,
+        "introducedDigest": "sha256:542002f269545ea7aac3e6718529be7a388b0c2395348163fcea55c0b1b2c18e",
+        "maskedDigest": "sha256:87946f389d2b89edeaa5622cd809b5bda7096c5e66a9011a0a4f8c9f4c96a65b"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×timezoneHandling=primary_filter",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "timezoneHandling",
+      "alternate": {
+        "label": "primary_filter",
+        "value": "primary-filter"
+      },
+      "configAfterDataNodes": [
+        "app_policy",
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "dedup_and_order",
+        "device_state_timeline",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "normalize_timezones",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 90,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:73490238914a83fe164d69f273cd52d0302ca999bad3c75be892d07191833bd0"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 22,
+        "maskedCount": 186,
+        "introducedDigest": "sha256:542002f269545ea7aac3e6718529be7a388b0c2395348163fcea55c0b1b2c18e",
+        "maskedDigest": "sha256:87946f389d2b89edeaa5622cd809b5bda7096c5e66a9011a0a4f8c9f4c96a65b"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×useFilterFile=false",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "useFilterFile",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "app_policy",
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "device_state_timeline",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 158,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:dab88c910d1938ec686a7f013644fdc3da5b092f34aa0e36739fcf1f3922df19"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 110,
+        "maskedCount": 80,
+        "introducedDigest": "sha256:692c63f16583a2350ecd1e9a0d9bc02bbbd37438b7afe58754b71df3fae7868e",
+        "maskedDigest": "sha256:0d31607347956662805dc2a39ed12c2dbe30978820cada9fbf008efe004c86eb"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×useBackgroundAppsFile=false",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "useBackgroundAppsFile",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 92,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:1fc95acdd3012358888694c785aa67445ac453a42ebbcc97046ac70063cf9db9"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 14,
+        "maskedCount": 194,
+        "introducedDigest": "sha256:0e9ed04f6b416af1ee1e7f282d1588ed62f52fd91349fafc14e3d8eb01cb0c93",
+        "maskedDigest": "sha256:67cda6e45debb667b6a121368b8834098a973abf8fa0bc74d30bdb1e3367f8c3"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×sameAppInteractionTypesToStopUsageAt=empty",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "sameAppInteractionTypesToStopUsageAt",
+      "alternate": {
+        "label": "empty",
+        "value": []
+      },
+      "configAfterDataNodes": [
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "dedup_and_order",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 122,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:7fdca85cc143a3ee2e15de7c48059b5b0ffe893a7c3c091c6e19b9b7086ecd43"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 48,
+        "maskedCount": 124,
+        "introducedDigest": "sha256:fbef6cdf0a2f1cadf772a6a511acfbf919cf1d067b701018e9959f4070e2ef4e",
+        "maskedDigest": "sha256:23586bf798001ad6223f622783125b2461a4865c54122af036af3d5e9e00ebae"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×interactionTypesToRemove=none",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "interactionTypesToRemove",
+      "alternate": {
+        "label": "none",
+        "value": []
+      },
+      "configAfterDataNodes": [
+        "attribute_person",
+        "day_coverage",
+        "effective_usage",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 124,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:ebea6b7a3005e68de62d0cc2d0ad001530f96c893ad6167c5348a5aef4949950"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 66,
+        "maskedCount": 66,
+        "introducedDigest": "sha256:e5d3a9bb82ba3c07f38383a6ed9b3e6dd61839335f3620e2dc3bd0f9789909b7",
+        "maskedDigest": "sha256:58492bed2cbe777202c884856e1eb5cac7311a538c97549e251b1928a5e242c1"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×interactionTypeRemap=custom",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "interactionTypeRemap",
+      "alternate": {
+        "label": "custom",
+        "value": [
+          "Custom Foreground => Activity Resumed"
+        ]
+      },
+      "configAfterDataNodes": [
+        "app_policy",
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "dedup_and_order",
+        "device_state_timeline",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "normalize_timezones",
+        "observation_window",
+        "outputs",
+        "parse_events",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 196,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:7b62372882fdef13ece075fe00c1410489800b896297cb5a5c598dc0749c52af"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 34,
+        "maskedCount": 164,
+        "introducedDigest": "sha256:45cedb17d47774735c9b03a89f85f27dbe8cca1e96d6647f482d2a65ae151a3d",
+        "maskedDigest": "sha256:5e637bc56010ea38d9b7f8fcc82eaa040eff85945ae6c9d9a2c96d74fe524cff"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×addNoActivityPlaceholderDays=false",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "addNoActivityPlaceholderDays",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 116,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:2b7645a61c67b2004256752790b70b77c3ee7ef53cfbd4b0a59b706ca11c4d86"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 58,
+        "maskedCount": 58,
+        "introducedDigest": "sha256:524bfda15b2785de3897739eba58a03bd9483946a7030540ebe6748a4bfc2cc7",
+        "maskedDigest": "sha256:2fd35dbf01bc88cbc5095fa7f3950c14053b3091a5477cf561d0eccb7ca7ff6d"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×enablePersonAttribution=false",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "enablePersonAttribution",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "attribute_person"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": [
+          "attribute_person.classificationDigest",
+          "attribute_person.payloadDigest",
+          "day_coverage.classificationDigest",
+          "outputs.payloadDigest",
+          "score_compliance.payloadDigest"
+        ]
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "attribute_person.classificationDigest",
+          "attribute_person.payloadDigest",
+          "day_coverage.classificationDigest",
+          "outputs.payloadDigest",
+          "score_compliance.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 316,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:040e26ef0d2558957fc5ae2a46d6060a57fbe2fd3c9aae52700945d0f92dcb7d"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 316,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:040e26ef0d2558957fc5ae2a46d6060a57fbe2fd3c9aae52700945d0f92dcb7d"
+      }
+    },
+    {
+      "caseId": "device_sharing_file:support:sharing-shared-to-nonshared×enableComplianceScoring=false",
+      "roleId": "device_sharing_file",
+      "interventionId": "support:sharing-shared-to-nonshared",
+      "optionKey": "enableComplianceScoring",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "outputs",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "attribute_person",
+        "day_coverage",
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "score_compliance.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 2,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:93d04854a38d7b1401255895d1b70b691cf8af98f810b6f0a6f2df1f48976eee"
+      }
+    }
+  ],
+  "caseSetDigest": "sha256:afaa5c219c2ed78ee47f7cca3881c81782f2210891a5e4873c2d18f118368fdb"
+}

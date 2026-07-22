@@ -404,7 +404,7 @@ export default function App(): ReactElement {
         setOptions((current) =>
           current.timezoneHandling.startsWith("selected-") &&
           !current.selectedTimezone?.trim() &&
-          timezones.length
+          timezones.length === 1
             ? { ...current, selectedTimezone: timezones[0] }
             : current,
         );
@@ -491,8 +491,9 @@ export default function App(): ReactElement {
    * worker. File inspection improves the interaction, but execution never
    * trusts that asynchronous UI helper to have completed or to be semantic
    * authority. A selected-timezone policy therefore either receives an
-   * explicit timezone or deterministically selects the first discovered IANA
-   * value; an input with no discoverable timezone still fails closed.
+   * explicit timezone or the sole discovered IANA value. Multiple candidates
+   * are a real binding hole: the UI must not infer which research protocol the
+   * user intended. An input with no discoverable timezone also fails closed.
    */
   const resolveRunOptions = async (
     requested: BrowserProcessingOptions,
@@ -514,14 +515,18 @@ export default function App(): ReactElement {
       });
     }
     const ordered = Array.from(discovered).sort((left, right) => left.localeCompare(right));
-    const resolved = ordered[0];
-    if (!resolved) {
+    if (ordered.length === 0) {
       throw new Error(
         "The selected timezone policy requires a timezone, but Rust could not discover one in the selected raw files. Choose a timezone in Settings or use a primary-timezone policy.",
       );
     }
     setDiscoveredTimezones(ordered);
-    return { ...requested, selectedTimezone: resolved };
+    if (ordered.length > 1) {
+      throw new Error(
+        `The selected timezone policy found multiple candidates (${ordered.join(", ")}). Choose one explicitly in Settings; Chronicle will not infer which research protocol you intended, or use a primary-timezone policy.`,
+      );
+    }
+    return { ...requested, selectedTimezone: ordered[0] };
   };
 
   /**
@@ -582,7 +587,7 @@ export default function App(): ReactElement {
     }
     const next = Array.from(discovered).sort((left, right) => left.localeCompare(right));
     setDiscoveredTimezones(next);
-    if (!options.selectedTimezone && next.length) {
+    if (!options.selectedTimezone && next.length === 1) {
       setOptions((current) => ({ ...current, selectedTimezone: next[0] }));
     }
   };

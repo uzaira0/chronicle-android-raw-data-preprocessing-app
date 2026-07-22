@@ -2,7 +2,7 @@
   "protocol_version": "0.1",
   "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1",
   "product_profile_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
-  "product_contract_digest": "sha256:a177f4236fb8f9764e8fc2091b28d099cab64b24e0db5f457b1b91f5dda4202b",
+  "product_contract_digest": "sha256:5ac0241fc2c80af23f5a580ff25679db9ce3d2e3a5fae8043ed0826d865105f7",
   "bindings": [
     {
       "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-product-runtime",
@@ -79,9 +79,13 @@
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/assemble_result/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/fused-physical-pipeline/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/semantic-graph-scheduler/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/dependency-certificate/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/role-materialization/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/deterministic-role-qualification/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/typed-logical-checkpoints/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/execution-evidence/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/request-validation/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/requirements-evaluation/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/support-file-parsing/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/proximity-matcher-branch/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/aggregate-exports/v1",
@@ -89,8 +93,12 @@
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/spss-encoding/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/review-metrics/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/row-lineage/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/source-coordinate-index/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/result-cell-correspondence/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/bidirectional-correspondence/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/typed-views/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/artifact-closure/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/configuration-family/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/semantic-index/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/registered-query/v1"
       ],
@@ -100,7 +108,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_preprocessing_runtime_wasm",
         "entrypoint": "execute_workspace",
-        "build_digest": "sha256:b1a928e1728f46be2e240a153f281e7537ad5d1d3267a3bc0513f3e964478fef"
+        "build_digest": "sha256:38848dc01360c70cfbac3165d87745bc96e47895a2737dc53ce388e75f176e10"
       },
       "relationship": "fused",
       "status": "active",
@@ -187,9 +195,13 @@
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/assemble_result/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/fused-physical-pipeline/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/semantic-graph-scheduler/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/dependency-certificate/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/role-materialization/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/deterministic-role-qualification/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/typed-logical-checkpoints/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/execution-evidence/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/request-validation/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/requirements-evaluation/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/support-file-parsing/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/proximity-matcher-branch/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/aggregate-exports/v1",
@@ -197,8 +209,12 @@
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/spss-encoding/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/review-metrics/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/row-lineage/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/source-coordinate-index/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/result-cell-correspondence/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/bidirectional-correspondence/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/typed-views/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/artifact-closure/v1",
+        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/configuration-family/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/semantic-index/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/registered-query/v1"
       ],
@@ -208,7 +224,7 @@
         "target": "native-test",
         "source": "rust/chronicle_preprocessing_runtime_wasm",
         "entrypoint": "execute_workspace_native",
-        "build_digest": "sha256:b1a928e1728f46be2e240a153f281e7537ad5d1d3267a3bc0513f3e964478fef"
+        "build_digest": "sha256:38848dc01360c70cfbac3165d87745bc96e47895a2737dc53ce388e75f176e10"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -299,7 +315,7 @@
         "target": "test-only",
         "source": "web/src/lib/browserPipeline.ts",
         "entrypoint": "processRawCsvContent",
-        "build_digest": "sha256:768c787b20f6ff7b41a265e95f4d9d52075dcbd8e39fadcb1a6c9ae518452515"
+        "build_digest": "sha256:00fd814fb9b93bb34ee90826217a5add68ba15e4b77875d152c5814bdfe9164e"
       },
       "relationship": "one-to-one",
       "status": "retired",

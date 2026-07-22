@@ -6,15 +6,10 @@
 #
 # Contract options NOT bound to any graph node (output/runtime-tier knobs consumed
 # outside the DAG):
-#   - study_name
 #   - enable_plotting
 #   - include_filtered_app_usage_in_plots
 #   - enable_activity_heatmap
 #   - export_plots_as_svg
-#   - enable_aggregates
-#   - aggregate_shape
-#   - enable_parquet_export
-#   - enable_spss_export
 #   - enable_interactive_timeline
 #   - parallel_processing
 #   - parallel_max_workers
@@ -98,8 +93,6 @@ graph_nodes:
     node_knobs:
       - option_key: process_app_usage
         edge: gates
-      - option_key: use_filter_file
-        edge: tunes
       - option_key: use_background_apps_file
         edge: gates
       - option_key: allow_stop_event_reuse
@@ -265,13 +258,26 @@ graph_nodes:
     node_label: Outputs
     section: output
     node_inputs:
+      - app_policy
+      - attribute_person
       - day_coverage
       - device_state_timeline
       - effective_usage
       - observation_window
-      - attribute_person
       - score_compliance
-    node_knobs: []
+    node_knobs:
+      - option_key: study_name
+        edge: tunes
+      - option_key: enable_aggregates
+        edge: gates
+      - option_key: aggregate_shape
+        edge: tunes
+      - option_key: include_category_column
+        edge: gates
+      - option_key: enable_parquet_export
+        edge: gates
+      - option_key: enable_spss_export
+        edge: gates
     has_bypass: false
     has_early_cutoff: false
 graph_steps:
@@ -434,8 +440,8 @@ graph_steps:
     has_bypass: true
   - step_id: compute_junk_packages
     step_label: Compute junk packages
-    step_description: "The junk (filter-listed) package set: packages carrying any
-      Filtered-* event. Empty when the filter file is off."
+    step_description: The junk (filter-listed) package set, derived entirely from
+      upstream rows carrying a Filtered-* event.
     unit_id: reconstruct_episodes
     step_inputs:
       - tag_filtered_packages
@@ -728,6 +734,7 @@ graph_steps:
       into the downloadable result set.
     unit_id: outputs
     step_inputs:
+      - tag_filtered_packages
       - inject_placeholders
       - build_coverage_table
       - build_classified_sessions

@@ -1,6 +1,7 @@
 use crate::model::{
     ChroniclePlan, MaterializationState, OpenObligation, RoleAssignment, StateReason,
 };
+use crate::qualify::{qualify_assignments, QualificationTrace, RoleRequirementTrace};
 use petgraph::algo::toposort;
 use petgraph::graphmap::DiGraphMap;
 use semprof_materialize::{
@@ -18,6 +19,8 @@ pub struct Materialization {
     pub node_states: BTreeMap<String, MaterializationState>,
     pub obligations: Vec<OpenObligation>,
     pub reasons: Vec<StateReason>,
+    pub qualification_traces: Vec<QualificationTrace>,
+    pub requirement_traces: Vec<RoleRequirementTrace>,
 }
 
 fn identifier(parts: &[&str]) -> String {
@@ -35,6 +38,13 @@ pub fn evaluate_materialization(
     let mut role_states = BTreeMap::new();
     let mut obligations = Vec::new();
     let mut reasons = Vec::new();
+
+    let qualification = qualify_assignments(plan, assignments, options);
+    let accepted_assignment_ids = qualification
+        .accepted_assignment_ids
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
 
     let requirements: BTreeMap<_, _> = plan
         .root_roles
@@ -76,6 +86,7 @@ pub fn evaluate_materialization(
         .collect();
     let shared_assignments: Vec<_> = assignments
         .values()
+        .filter(|assignment| accepted_assignment_ids.contains(assignment.assignment_id.as_str()))
         .map(|assignment| SharedAssignment {
             assignment_id: assignment.assignment_id.clone(),
             role_id: assignment.role_id.clone(),
@@ -99,12 +110,18 @@ pub fn evaluate_materialization(
     .expect("product plan and assignment identities were validated before evaluation");
 
     for shared in shared_report.role_states {
-        let state = match shared.state {
+        let shared_state = match shared.state {
             FulfillmentState::Open => MaterializationState::Open,
             FulfillmentState::Satisfied => MaterializationState::Satisfied,
             FulfillmentState::Invalid => MaterializationState::Invalid,
             FulfillmentState::NotApplicable => MaterializationState::NotApplicable,
         };
+        let state = qualification
+            .requirement_traces
+            .iter()
+            .find(|trace| trace.role_id == shared.role_id)
+            .map(|trace| trace.state)
+            .unwrap_or(shared_state);
         role_states.insert(shared.role_id.clone(), state);
         if matches!(
             state,
@@ -154,10 +171,20 @@ pub fn evaluate_materialization(
             .filter(|role| role_states.get(*role) == Some(&MaterializationState::Open))
             .cloned()
             .collect();
+        let invalid_support: Vec<_> = node
+            .support_roles
+            .iter()
+            .filter(|role| role_states.get(*role) == Some(&MaterializationState::Invalid))
+            .cloned()
+            .collect();
         let missing_root = node_id == "parse_events"
             && ["raw_chronicle_csv", "processing_options"]
                 .iter()
                 .any(|role| role_states.get(*role) == Some(&MaterializationState::Open));
+        let invalid_root = node_id == "parse_events"
+            && ["raw_chronicle_csv", "processing_options"]
+                .iter()
+                .any(|role| role_states.get(*role) == Some(&MaterializationState::Invalid));
         let upstream_invalid = node.input_nodes.iter().any(|input| {
             matches!(
                 node_states.get(input),
@@ -170,19 +197,20 @@ pub fn evaluate_materialization(
                 Some(MaterializationState::Satisfied | MaterializationState::NotApplicable)
             )
         });
-        let state = if invalid_nodes.contains(node_id) {
-            MaterializationState::Invalid
-        } else if !applicable && node.can_bypass {
-            MaterializationState::NotApplicable
-        } else if !missing_support.is_empty() || missing_root {
-            MaterializationState::Open
-        } else if upstream_invalid || upstream_pending {
-            MaterializationState::Blocked
-        } else if satisfied_nodes.contains(node_id) {
-            MaterializationState::Satisfied
-        } else {
-            MaterializationState::Ready
-        };
+        let state =
+            if invalid_nodes.contains(node_id) || !invalid_support.is_empty() || invalid_root {
+                MaterializationState::Invalid
+            } else if !applicable && node.can_bypass {
+                MaterializationState::NotApplicable
+            } else if !missing_support.is_empty() || missing_root {
+                MaterializationState::Open
+            } else if upstream_invalid || upstream_pending {
+                MaterializationState::Blocked
+            } else if satisfied_nodes.contains(node_id) {
+                MaterializationState::Satisfied
+            } else {
+                MaterializationState::Ready
+            };
         node_states.insert(node_id.to_string(), state);
         let reason_id = identifier(&["node-state", node_id, &format!("{state:?}")]);
         reasons.push(StateReason {
@@ -224,6 +252,8 @@ pub fn evaluate_materialization(
         node_states,
         obligations,
         reasons,
+        qualification_traces: qualification.traces,
+        requirement_traces: qualification.requirement_traces,
     }
 }
 
@@ -367,5 +397,41 @@ mod tests {
             complete.node_states["outputs"],
             MaterializationState::Satisfied
         );
+    }
+
+    #[test]
+    fn rejected_root_binding_invalidates_parse_and_blocks_its_cone() {
+        let mut raw = assignment("raw_chronicle_csv");
+        raw.artifact.media_type = "application/json".into();
+        let assignments = BTreeMap::from([
+            ("raw_chronicle_csv".into(), raw),
+            (
+                "processing_options".into(),
+                assignment("processing_options"),
+            ),
+        ]);
+        let result = evaluate_materialization(
+            &embedded_plan(),
+            &assignments,
+            &serde_json::json!({"process_app_usage": true, "process_screen_usage": true}),
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+        );
+        assert_eq!(
+            result.role_states["raw_chronicle_csv"],
+            MaterializationState::Invalid
+        );
+        assert_eq!(
+            result.node_states["parse_events"],
+            MaterializationState::Invalid
+        );
+        assert_eq!(
+            result.node_states["normalize_timezones"],
+            MaterializationState::Blocked
+        );
+        assert!(result
+            .qualification_traces
+            .iter()
+            .any(|trace| trace.decision == crate::QualificationDecision::Rejected));
     }
 }

@@ -422,6 +422,28 @@ test("discovers timezones and honors selected-filter output behavior", async ({ 
   assertNoExternalRequests(requestTracker);
 });
 
+test("does not silently bind a multi-timezone input to the first discovered candidate", async ({
+  page,
+}) => {
+  await setInputFile(
+    page,
+    "raw-file-input",
+    "Raw Mixed.csv",
+    MIXED_TIMEZONE_RAW_CSV,
+    "text/csv",
+  );
+  await page.getByTestId("discover-timezones-button").click();
+  await expect(page.getByTestId("selected-timezone-input")).toHaveValue("");
+
+  await page.getByRole("tab", { name: /Process/i }).click();
+  await page.getByTestId("process-files-button").click();
+  await expect(page.locator(".error-text")).toContainText(
+    /found multiple candidates.*Choose one explicitly/i,
+  );
+  await expect(page.getByTestId("result-panel")).toHaveCount(0);
+  assertNoExternalRequests(requestTracker);
+});
+
 test("converts mixed-timezone data into the selected timezone", async ({ page }) => {
   await setInputFile(
     page,

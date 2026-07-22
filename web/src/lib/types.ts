@@ -186,6 +186,7 @@ export type RustShadowReport = {
   reasons: string[];
   artifacts: RustShadowArtifactComparison[];
   workspaceRootDigest?: string;
+  implementationDigest?: string;
   planDigest?: string;
   productContractDigest?: string;
   openObligationCount?: number;
@@ -207,6 +208,7 @@ export type RustRuntimeReceipt = {
   workspaceId: string;
   workspaceRootDigest: string;
   previousWorkspaceRootDigest: string | null;
+  implementationDigest: string;
   planDigest: string;
   profileDigest: string;
   profileLockDigest: string;

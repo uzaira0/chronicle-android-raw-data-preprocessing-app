@@ -6,7 +6,34 @@ The browser application is also the first complete consumer of the generalized
 semantic-federation scaffold. See
 [the production proof](docs/semantic-federation/production-proof.md) for the
 Rust/WASM authority boundary, local-first artifact model, exact semantic locks,
-and the reusable repository integration contract.
+and the reusable repository integration contract. The executable variability
+proof now combines the closed
+[four-mode timezone configuration family](docs/semantic-federation/configuration-family.md)
+with a contract-derived Rust/WASM campaign over all 46 computational options,
+separate proofs for the eight annotation/view/execution axes, catalog-derived
+synthetic corpora, explicit binding/qualification holes, and
+incremental-versus-cold replay. A checked controlled-intervention ledger holds
+all other inputs constant across every ordered value transition, records the
+exact observed invalidation/state/output effects, compares all 15 logical-stage
+checkpoints with an independent cold Rust target, and requires a substantive
+witness for every computational axis. The model preserves enum, numeric, list,
+and string equivalence domains; it does not reduce non-boolean settings to
+flags. Logical propagation is exact for the recorded test scope; the optimized
+physical Rust implementation intentionally remains fused.
+
+The companion
+[artifact dependency tomography](docs/semantic-federation/artifact-dependency-tomography.md)
+holds configuration constant while changing every raw column, raw row shape,
+and support-artifact role one at a time across all six synthetic corpora. Its
+checked 192-case ledger compares all warm checkpoints and outputs with cold
+Rust targets, records context-dependent convergence, and separates
+computational equivalence from exact source/correspondence identity. A second
+162-case boundary ledger probes 21 adjacent timestamp gaps and six calendar/DST
+joints across those same corpora. Compressed digest-bound sidecars retain the
+864,557 exact canonical CSV/JSON cell addresses changed by those controlled
+interventions. A model-mutation gate also deletes or reverses every declared
+DAG edge and deletes every recorded option and input-role binding; all 116
+mutants must be killed by an attributed empirical or structural witness.
 
 Not affiliated with GetMethodic/Chronicle, please visit them here: https://getmethodic.com/
 

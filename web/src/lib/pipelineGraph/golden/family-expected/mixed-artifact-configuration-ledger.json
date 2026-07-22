@@ -1,0 +1,257 @@
+{
+  "protocolVersion": "chronicle-mixed-artifact-configuration-aggregate/v1",
+  "claimBoundary": "Aggregate of nine independently recycled exhaustive role/value shards. Each shard selects one empirically branch-activating intervention for its source role, crosses it with every valid alternate value of all 46 computational axes, executes both transition orders, and compares every final logical checkpoint, output artifact, and canonical output cell with an independent cold Rust/WASM target. Field/record interactions beyond the selected representative remain outside this claim.",
+  "implementationReceipt": {
+    "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
+    "implementationDigest": "sha256:d6081f896e488d92bf202fcea98a92c3bc86e13f493f33aca29ced86333db997",
+    "planDigest": "sha256:162cd4087b0287169a54ee55dc224300e4a6c7ba4009ff82f8828b348d562c45",
+    "profileDigest": "sha256:b2899800f08de7ed93000422947cd8d0b3b5443150e6b47a019f8d038ceaaf93",
+    "profileLockDigest": "sha256:47240c9a44c328437384c8be9531e90f8d5e60696ed6a0db55f79bf313b78990",
+    "runtimeAuthorityDigest": "sha256:11142579a05120fce9a1fe8e0edfffdcae385b34a10080d878e8d82b73cc8627",
+    "productContractDigest": "sha256:5ac0241fc2c80af23f5a580ff25679db9ce3d2e3a5fae8043ed0826d865105f7"
+  },
+  "coverage": {
+    "sourceRoles": 9,
+    "computationalAxes": 46,
+    "declaredAlternateValues": 51,
+    "validConfigurationVariants": 50,
+    "invalidConfigurationVariants": 1,
+    "validRoleValuePairs": 450,
+    "coldExecutions": 920,
+    "incrementalExecutions": 2700,
+    "totalRustExecutions": 3620,
+    "warmColdComparisons": 2700,
+    "exactClusterComparisons": 900,
+    "nonAdditiveOrMaskedPairs": 150
+  },
+  "roleShards": [
+    {
+      "roleId": "raw_chronicle_csv",
+      "path": "mixed-artifact-configuration-raw_chronicle_csv.json",
+      "contentDigest": "sha256:32e33cac4695c0f3adf2b350d3350e585687c2d21492897e67cfba2200348e4c",
+      "representative": {
+        "corpusId": "catalog-random",
+        "seed": 12648430,
+        "rowCount": 186,
+        "injectedFeatures": [
+          "catalog-derived-apps",
+          "mixed-timezone-rows",
+          "remappable-interaction-types",
+          "removable-interaction-types",
+          "screen-and-keyguard-events"
+        ],
+        "interventionId": "raw-field:study_id",
+        "mutationClass": "field-edit",
+        "changedComponents": [
+          "raw.row[application-event].study_id"
+        ]
+      },
+      "validRoleValuePairs": 50,
+      "nonAdditiveOrMaskedPairs": 19,
+      "caseSetDigest": "sha256:65e1ce1fe3b4e594e5f02603fbfb6c1448c61967ef4879d430145322830fafd2"
+    },
+    {
+      "roleId": "filter_file",
+      "path": "mixed-artifact-configuration-filter_file.json",
+      "contentDigest": "sha256:1071d19d0b5e1ee15e875510ac60a46b1c390710d41e13c969a8ae9fdf6e6145",
+      "representative": {
+        "corpusId": "catalog-random",
+        "seed": 12648430,
+        "rowCount": 186,
+        "injectedFeatures": [
+          "catalog-derived-apps",
+          "mixed-timezone-rows",
+          "remappable-interaction-types",
+          "removable-interaction-types",
+          "screen-and-keyguard-events"
+        ],
+        "interventionId": "support:filter-activate-used-package",
+        "mutationClass": "row-add",
+        "changedComponents": [
+          "filter_file.package[com.samsung.android.scpm]"
+        ]
+      },
+      "validRoleValuePairs": 50,
+      "nonAdditiveOrMaskedPairs": 21,
+      "caseSetDigest": "sha256:943938cc9e17456ebd58954fff3d324e74b192f5851bc1554c31b4060f57adb9"
+    },
+    {
+      "roleId": "apps_forcing_screen_open_file",
+      "path": "mixed-artifact-configuration-apps_forcing_screen_open_file.json",
+      "contentDigest": "sha256:0ea53cacf33fdc098fa1e67035a2c77668c92b4dd74e330fc10c5c475df3736c",
+      "representative": {
+        "corpusId": "support-intersections",
+        "seed": 1369957802,
+        "rowCount": 193,
+        "injectedFeatures": [
+          "catalog-derived-apps",
+          "exact-duplicate-rows",
+          "mixed-timezone-rows",
+          "overlapping-sessions",
+          "remappable-interaction-types",
+          "removable-interaction-types",
+          "screen-and-keyguard-events"
+        ],
+        "interventionId": "support:forcing-activate-screen-tail-package",
+        "mutationClass": "row-add",
+        "changedComponents": [
+          "apps_forcing_screen_open_file.package[com.sec.android.app.clockpackage]"
+        ]
+      },
+      "validRoleValuePairs": 50,
+      "nonAdditiveOrMaskedPairs": 4,
+      "caseSetDigest": "sha256:826d39143bdeffef7e08a6b0557896229e90798de3f9b12db66634e186065d86"
+    },
+    {
+      "roleId": "background_apps_file",
+      "path": "mixed-artifact-configuration-background_apps_file.json",
+      "contentDigest": "sha256:36e1d346cc7b9f08610b78ef3155a1ab16fd778ababbebebdd6f6f280e1daff0",
+      "representative": {
+        "corpusId": "catalog-random",
+        "seed": 12648430,
+        "rowCount": 186,
+        "injectedFeatures": [
+          "catalog-derived-apps",
+          "mixed-timezone-rows",
+          "remappable-interaction-types",
+          "removable-interaction-types",
+          "screen-and-keyguard-events"
+        ],
+        "interventionId": "support:background-remove-used-package",
+        "mutationClass": "record-remove",
+        "changedComponents": [
+          "background_apps_file.package[com.audible.application.kindle]"
+        ]
+      },
+      "validRoleValuePairs": 50,
+      "nonAdditiveOrMaskedPairs": 27,
+      "caseSetDigest": "sha256:fbea7ee60e54215a4623f97b0a0aa640cd9639ab6a907f2405b52eab531718d9"
+    },
+    {
+      "roleId": "app_codebook_file",
+      "path": "mixed-artifact-configuration-app_codebook_file.json",
+      "contentDigest": "sha256:632a09fa1861980924d2f46a4ec07f058308b4c73687bb67ff20abf516a0db97",
+      "representative": {
+        "corpusId": "catalog-random",
+        "seed": 12648430,
+        "rowCount": 186,
+        "injectedFeatures": [
+          "catalog-derived-apps",
+          "mixed-timezone-rows",
+          "remappable-interaction-types",
+          "removable-interaction-types",
+          "screen-and-keyguard-events"
+        ],
+        "interventionId": "support:codebook-edit-category",
+        "mutationClass": "record-edit",
+        "changedComponents": [
+          "app_codebook_file.package[android].bcm_play_store_genreId"
+        ]
+      },
+      "validRoleValuePairs": 50,
+      "nonAdditiveOrMaskedPairs": 20,
+      "caseSetDigest": "sha256:047d667715a80ac184b22421c239220ca8efdce041bd93a591655eef5d20928f"
+    },
+    {
+      "roleId": "study_dates_file",
+      "path": "mixed-artifact-configuration-study_dates_file.json",
+      "contentDigest": "sha256:cded2f750dc5917c1edaa097d456a5164cbd73b66e562f08fde43be011b80da0",
+      "representative": {
+        "corpusId": "catalog-random",
+        "seed": 12648430,
+        "rowCount": 186,
+        "injectedFeatures": [
+          "catalog-derived-apps",
+          "mixed-timezone-rows",
+          "remappable-interaction-types",
+          "removable-interaction-types",
+          "screen-and-keyguard-events"
+        ],
+        "interventionId": "support:study-window-narrow",
+        "mutationClass": "record-edit",
+        "changedComponents": [
+          "study_dates_file.participant[P-SYN-00c0ffee].start_date",
+          "study_dates_file.participant[P-SYN-00c0ffee].end_date"
+        ]
+      },
+      "validRoleValuePairs": 50,
+      "nonAdditiveOrMaskedPairs": 23,
+      "caseSetDigest": "sha256:e13799d475ff4d5b7d9e11823c1cd4b8db5854501b86a1dde706464cdec6741b"
+    },
+    {
+      "roleId": "device_sharing_file",
+      "path": "mixed-artifact-configuration-device_sharing_file.json",
+      "contentDigest": "sha256:e012e280e3668d1c71bc7fe954211921797e376cecc0ac5951e27001e0d7d750",
+      "representative": {
+        "corpusId": "catalog-random",
+        "seed": 12648430,
+        "rowCount": 186,
+        "injectedFeatures": [
+          "catalog-derived-apps",
+          "mixed-timezone-rows",
+          "remappable-interaction-types",
+          "removable-interaction-types",
+          "screen-and-keyguard-events"
+        ],
+        "interventionId": "support:sharing-shared-to-nonshared",
+        "mutationClass": "record-edit",
+        "changedComponents": [
+          "device_sharing_file.participant[P-SYN-00c0ffee].sharing_status"
+        ]
+      },
+      "validRoleValuePairs": 50,
+      "nonAdditiveOrMaskedPairs": 15,
+      "caseSetDigest": "sha256:afaa5c219c2ed78ee47f7cca3881c81782f2210891a5e4873c2d18f118368fdb"
+    },
+    {
+      "roleId": "survey_attribution_file",
+      "path": "mixed-artifact-configuration-survey_attribution_file.json",
+      "contentDigest": "sha256:69a4f0a351e6592ea7c1d3795dd76506a17832a12a28cffac4d7ae16325a7064",
+      "representative": {
+        "corpusId": "catalog-random",
+        "seed": 12648430,
+        "rowCount": 186,
+        "injectedFeatures": [
+          "catalog-derived-apps",
+          "mixed-timezone-rows",
+          "remappable-interaction-types",
+          "removable-interaction-types",
+          "screen-and-keyguard-events"
+        ],
+        "interventionId": "support:survey-target-to-other",
+        "mutationClass": "record-edit",
+        "changedComponents": [
+          "survey_attribution_file.participant[P-SYN-00c0ffee].users[*]"
+        ]
+      },
+      "validRoleValuePairs": 50,
+      "nonAdditiveOrMaskedPairs": 18,
+      "caseSetDigest": "sha256:42981190b9b605f249622af111bb1bb23f746be7d3e70ee6e53018475758ed54"
+    },
+    {
+      "roleId": "enrolled_devices_file",
+      "path": "mixed-artifact-configuration-enrolled_devices_file.json",
+      "contentDigest": "sha256:6857a4c965655fc71e678c64a1a86be38677e0f2f93ca86c4b640be0a8eada74",
+      "representative": {
+        "corpusId": "catalog-random",
+        "seed": 12648430,
+        "rowCount": 186,
+        "injectedFeatures": [
+          "catalog-derived-apps",
+          "mixed-timezone-rows",
+          "remappable-interaction-types",
+          "removable-interaction-types",
+          "screen-and-keyguard-events"
+        ],
+        "interventionId": "support:enrollment-one-to-two-devices",
+        "mutationClass": "record-edit",
+        "changedComponents": [
+          "enrolled_devices_file.participant[P-SYN-00c0ffee].device_count"
+        ]
+      },
+      "validRoleValuePairs": 50,
+      "nonAdditiveOrMaskedPairs": 3,
+      "caseSetDigest": "sha256:75a92d055863e92dad1d2014bc8ae65d9bcd75e7b2756128d567d6a4249b21c5"
+    }
+  ]
+}

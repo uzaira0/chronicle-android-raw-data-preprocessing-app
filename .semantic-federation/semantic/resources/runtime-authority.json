@@ -117,6 +117,24 @@
       "requires_active_authority": true
     },
     {
+      "surface_id": "dependency_certificate",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/dependency-certificate/v1",
+      "category": "semantic-validation",
+      "current": {
+        "language": "rust",
+        "path": "rust/chronicle_preprocessing_semantic_adapter/src/scheduler.rs",
+        "entrypoint": "dependency_cache_decision",
+        "status": "active-production-authority"
+      },
+      "target": {
+        "language": "rust",
+        "path": "rust/chronicle_preprocessing_semantic_adapter/src/scheduler.rs",
+        "entrypoint": "dependency_cache_decision",
+        "status": "active"
+      },
+      "requires_active_authority": true
+    },
+    {
       "surface_id": "role_materialization",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/role-materialization/v1",
       "category": "semantic-computation",
@@ -130,6 +148,42 @@
         "language": "rust",
         "path": "rust/chronicle_preprocessing_semantic_adapter/src/materialize.rs",
         "entrypoint": "evaluate_materialization",
+        "status": "active"
+      },
+      "requires_active_authority": true
+    },
+    {
+      "surface_id": "deterministic_role_qualification",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/deterministic-role-qualification/v1",
+      "category": "semantic-validation",
+      "current": {
+        "language": "rust",
+        "path": "rust/chronicle_preprocessing_semantic_adapter/src/qualify.rs",
+        "entrypoint": "qualify_candidates",
+        "status": "active-production-authority"
+      },
+      "target": {
+        "language": "rust",
+        "path": "rust/chronicle_preprocessing_semantic_adapter/src/qualify.rs",
+        "entrypoint": "qualify_candidates",
+        "status": "active"
+      },
+      "requires_active_authority": true
+    },
+    {
+      "surface_id": "typed_logical_checkpoints",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/typed-logical-checkpoints/v1",
+      "category": "evidence-authority",
+      "current": {
+        "language": "rust",
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs",
+        "entrypoint": "logical_stage_checkpoint",
+        "status": "active-production-authority"
+      },
+      "target": {
+        "language": "rust",
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs",
+        "entrypoint": "logical_stage_checkpoint",
         "status": "active"
       },
       "requires_active_authority": true
@@ -166,6 +220,24 @@
         "language": "rust",
         "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
         "entrypoint": "fn validate",
+        "status": "active"
+      },
+      "requires_active_authority": true
+    },
+    {
+      "surface_id": "requirements_evaluation",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/requirements-evaluation/v1",
+      "category": "semantic-validation",
+      "current": {
+        "language": "rust",
+        "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
+        "entrypoint": "evaluate_workspace_requirements_native",
+        "status": "active-production-authority"
+      },
+      "target": {
+        "language": "rust",
+        "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
+        "entrypoint": "evaluate_workspace_requirements_native",
         "status": "active"
       },
       "requires_active_authority": true
@@ -297,6 +369,60 @@
       "requires_active_authority": true
     },
     {
+      "surface_id": "source_coordinate_index",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/source-coordinate-index/v1",
+      "category": "evidence-authority",
+      "current": {
+        "language": "rust",
+        "path": "rust/chronicle_preprocessing_runtime_wasm/src/binary_exports.rs",
+        "entrypoint": "source_coordinate_index_arrow",
+        "status": "active-production-authority"
+      },
+      "target": {
+        "language": "rust",
+        "path": "rust/chronicle_preprocessing_runtime_wasm/src/binary_exports.rs",
+        "entrypoint": "source_coordinate_index_arrow",
+        "status": "active"
+      },
+      "requires_active_authority": true
+    },
+    {
+      "surface_id": "result_cell_correspondence",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/result-cell-correspondence/v1",
+      "category": "evidence-authority",
+      "current": {
+        "language": "rust",
+        "path": "rust/chronicle_preprocessing_runtime_wasm/src/binary_exports.rs",
+        "entrypoint": "result_cell_correspondence_arrow",
+        "status": "active-production-authority"
+      },
+      "target": {
+        "language": "rust",
+        "path": "rust/chronicle_preprocessing_runtime_wasm/src/binary_exports.rs",
+        "entrypoint": "result_cell_correspondence_arrow",
+        "status": "active"
+      },
+      "requires_active_authority": true
+    },
+    {
+      "surface_id": "bidirectional_correspondence",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/bidirectional-correspondence/v1",
+      "category": "evidence-authority",
+      "current": {
+        "language": "rust",
+        "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
+        "entrypoint": "build_correspondence_index",
+        "status": "active-production-authority"
+      },
+      "target": {
+        "language": "rust",
+        "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
+        "entrypoint": "build_correspondence_index",
+        "status": "active"
+      },
+      "requires_active_authority": true
+    },
+    {
       "surface_id": "typed_views",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/typed-views/v1",
       "category": "semantic-projection",
@@ -328,6 +454,24 @@
         "language": "rust",
         "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
         "entrypoint": "build_artifact_closure",
+        "status": "active"
+      },
+      "requires_active_authority": true
+    },
+    {
+      "surface_id": "configuration_family",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/configuration-family/v1",
+      "category": "semantic-computation",
+      "current": {
+        "language": "rust",
+        "path": "rust/chronicle_preprocessing_runtime_wasm/src/configuration_family.rs",
+        "entrypoint": "compile_configuration_family",
+        "status": "active-production-authority"
+      },
+      "target": {
+        "language": "rust",
+        "path": "rust/chronicle_preprocessing_runtime_wasm/src/configuration_family.rs",
+        "entrypoint": "compile_configuration_family",
         "status": "active"
       },
       "requires_active_authority": true

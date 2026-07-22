@@ -1,0 +1,641 @@
+{
+  "protocolVersion": "chronicle-interaction-influence-ledger/v1",
+  "claimBoundary": "Exhaustive two-factor structural interaction and exact warm/cold percolation proof across every valid pair of non-baseline declared equivalence-class values for all 46 computational browser axes, on the deterministic configuration-influence-probes corpus. Invalid selected-timezone combinations are enumerated with their qualification reason. This does not claim numeric statistical additivity or exhaust interactions of arity three and above.",
+  "plan": {
+    "id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:plan/raw-data/v1",
+    "revision": "0.1.0"
+  },
+  "implementationReceipt": {
+    "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
+    "implementationDigest": "sha256:d6081f896e488d92bf202fcea98a92c3bc86e13f493f33aca29ced86333db997",
+    "planDigest": "sha256:162cd4087b0287169a54ee55dc224300e4a6c7ba4009ff82f8828b348d562c45",
+    "profileDigest": "sha256:b2899800f08de7ed93000422947cd8d0b3b5443150e6b47a019f8d038ceaaf93",
+    "profileLockDigest": "sha256:47240c9a44c328437384c8be9531e90f8d5e60696ed6a0db55f79bf313b78990",
+    "runtimeAuthorityDigest": "sha256:11142579a05120fce9a1fe8e0edfffdcae385b34a10080d878e8d82b73cc8627",
+    "productContractDigest": "sha256:5ac0241fc2c80af23f5a580ff25679db9ce3d2e3a5fae8043ed0826d865105f7"
+  },
+  "fixture": {
+    "corpusId": "configuration-influence-probes",
+    "seed": 522091749,
+    "rowCount": 85,
+    "injectedFeatures": [
+      "catalog-derived-apps",
+      "influence-probe:compliance-thresholds",
+      "influence-probe:fallback-threshold",
+      "influence-probe:keyguard-near-stop",
+      "influence-probe:no-screen-witness-day",
+      "influence-probe:other-app-stop",
+      "influence-probe:stop-event-reuse",
+      "influence-probe:teardown-proximity",
+      "influence-probe:zero-duration-session",
+      "mixed-timezone-rows",
+      "remappable-interaction-types",
+      "removable-interaction-types",
+      "screen-and-keyguard-events"
+    ]
+  },
+  "coverage": {
+    "axes": 46,
+    "declaredAlternates": 51,
+    "validSingleContrasts": 50,
+    "invalidSingleContrasts": 1,
+    "enumeratedPairContrasts": 1269,
+    "validPairContrasts": 1222,
+    "invalidPairContrasts": 47,
+    "coldExecutions": 1273,
+    "incrementalExecutions": 2444,
+    "totalRustExecutions": 3717,
+    "warmColdComparisons": 1222,
+    "exactClusterComparisons": 1222,
+    "nonAdditivePairs": 3,
+    "qualificationEnabledPairs": 2
+  },
+  "invalidSingles": [
+    {
+      "valueId": "selectedTimezone=none",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    }
+  ],
+  "invalidPairs": [
+    {
+      "pairId": "processAppUsage=false+selectedTimezone=none",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "processScreenUsage=false+selectedTimezone=none",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "allowStopEventReuse=true+selectedTimezone=none",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "useActivityStoppedAsFallback=false+selectedTimezone=none",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "applyThresholdToFallback=false+selectedTimezone=none",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "longDurationThresholdHours=h1+selectedTimezone=none",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "correctDuplicateEventTimestamps=false+selectedTimezone=none",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "deduplicateExactRows=false+selectedTimezone=none",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+timezoneHandling=selected_filter",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+useFilterFile=false",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+useAppsForcingScreenOpenFile=false",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+useBackgroundAppsFile=false",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+useAppCodebook=false",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+includeCategoryColumn=false",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+enableAggregates=true",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+aggregateShape=long",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+enableParquetExport=true",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+enableSpssExport=true",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+minimumUsageDuration=s0",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+filterZeroDurationSessions=false",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+customAppEngagementDuration=s0",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+longUsageDurationThresholds=empty",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+longDataTimeGapThresholds=empty",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+screenUsageAutoLockTimeoutSeconds=s0",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+screenUsageAutoLockToleranceSeconds=s0",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+screenUsageManualLockMaxTailGapSeconds=s0",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+screenUsageKeyguardNearStopSeconds=s0",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+sameAppInteractionTypesToStopUsageAt=empty",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+otherInteractionTypesToStopUsageAt=empty",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+modelConcurrentUsage=false",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+applyMinimumUsageDurationToConcurrentSubintervals=false",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+interactionTypesToRemove=none",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+interactionTypeRemap=custom",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+proximityIntervalSeconds=s0",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+proximityIntervalSeconds=s60",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+addNoActivityPlaceholderDays=false",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+enableScreenGatedCrediting=false",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+creditedSessionCapMinutes=m0",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+deviceLivenessGapToleranceMinutes=m0",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+autoLockBridgeSeconds=s0",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+noWitnessMinDayApps=n0",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+enableStudyWindowFilter=false",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+enablePersonAttribution=false",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+enableComplianceScoring=false",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+complianceThresholdPercent=p0",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+complianceThresholdPercent=p100",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    },
+    {
+      "pairId": "selectedTimezone=none+enableDayCoverage=false",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    }
+  ],
+  "qualificationEnabledPairs": [
+    {
+      "pairId": "selectedTimezone=none+timezoneHandling=primary_filter",
+      "browserKeys": [
+        "selectedTimezone",
+        "timezoneHandling"
+      ],
+      "values": {
+        "selectedTimezone": {
+          "label": "none",
+          "value": ""
+        },
+        "timezoneHandling": {
+          "label": "primary_filter",
+          "value": "primary-filter"
+        }
+      },
+      "interactionClass": "qualification-enabled",
+      "changedRustKeys": [
+        "timezone",
+        "timezone_handling"
+      ],
+      "changedSemanticNodes": [
+        "app_policy",
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "dedup_and_order",
+        "device_state_timeline",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "normalize_timezones",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "observedInputNodes": [
+        "app_policy",
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "dedup_and_order",
+        "device_state_timeline",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "normalize_timezones",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "observedComponents": [
+        "app_policy.classificationDigest",
+        "app_policy.rowMembershipDigest",
+        "app_policy.rowOrderDigest",
+        "app_policy.temporalStateDigest",
+        "attribute_person.classificationDigest",
+        "attribute_person.rowMembershipDigest",
+        "attribute_person.rowOrderDigest",
+        "attribute_person.temporalStateDigest",
+        "categorize_apps.classificationDigest",
+        "categorize_apps.rowMembershipDigest",
+        "categorize_apps.rowOrderDigest",
+        "categorize_apps.temporalStateDigest",
+        "day_coverage.classificationDigest",
+        "day_coverage.rowMembershipDigest",
+        "day_coverage.rowOrderDigest",
+        "day_coverage.temporalStateDigest",
+        "dedup_and_order.classificationDigest",
+        "dedup_and_order.rowMembershipDigest",
+        "dedup_and_order.rowOrderDigest",
+        "dedup_and_order.temporalStateDigest",
+        "device_state_timeline.classificationDigest",
+        "device_state_timeline.rowMembershipDigest",
+        "device_state_timeline.rowOrderDigest",
+        "device_state_timeline.temporalStateDigest",
+        "effective_usage.classificationDigest",
+        "effective_usage.rowMembershipDigest",
+        "effective_usage.rowOrderDigest",
+        "effective_usage.temporalStateDigest",
+        "episode_annotations.classificationDigest",
+        "episode_annotations.rowMembershipDigest",
+        "episode_annotations.rowOrderDigest",
+        "episode_annotations.temporalStateDigest",
+        "interval_cleaning.classificationDigest",
+        "interval_cleaning.rowMembershipDigest",
+        "interval_cleaning.rowOrderDigest",
+        "interval_cleaning.temporalStateDigest",
+        "normalize_timezones.classificationDigest",
+        "normalize_timezones.rowMembershipDigest",
+        "normalize_timezones.rowOrderDigest",
+        "normalize_timezones.temporalStateDigest",
+        "observation_window.classificationDigest",
+        "observation_window.rowMembershipDigest",
+        "observation_window.rowOrderDigest",
+        "observation_window.temporalStateDigest",
+        "outputs.payloadDigest",
+        "reconstruct_episodes.classificationDigest",
+        "reconstruct_episodes.rowMembershipDigest",
+        "reconstruct_episodes.rowOrderDigest",
+        "reconstruct_episodes.temporalStateDigest",
+        "score_compliance.payloadDigest"
+      ],
+      "introducedComponents": [],
+      "maskedComponents": [],
+      "changedOutputArtifactKinds": [
+        "app-csv",
+        "compliance-csv",
+        "credited-app-csv",
+        "result-cell-correspondence-arrow",
+        "review-summary-json",
+        "row-lineage-arrow",
+        "source-coordinate-index-arrow",
+        "visualization-data-json"
+      ]
+    },
+    {
+      "pairId": "selectedTimezone=none+timezoneHandling=primary_convert",
+      "browserKeys": [
+        "selectedTimezone",
+        "timezoneHandling"
+      ],
+      "values": {
+        "selectedTimezone": {
+          "label": "none",
+          "value": ""
+        },
+        "timezoneHandling": {
+          "label": "primary_convert",
+          "value": "primary-convert"
+        }
+      },
+      "interactionClass": "qualification-enabled",
+      "changedRustKeys": [
+        "timezone",
+        "timezone_handling"
+      ],
+      "changedSemanticNodes": [],
+      "observedInputNodes": [
+        "normalize_timezones"
+      ],
+      "observedComponents": [],
+      "introducedComponents": [],
+      "maskedComponents": [],
+      "changedOutputArtifactKinds": [
+        "source-coordinate-index-arrow"
+      ]
+    }
+  ],
+  "nonAdditivePairs": [
+    {
+      "pairId": "selectedTimezone=america_new_york+timezoneHandling=selected_filter",
+      "browserKeys": [
+        "selectedTimezone",
+        "timezoneHandling"
+      ],
+      "values": {
+        "selectedTimezone": {
+          "label": "america_new_york",
+          "value": "America/New_York"
+        },
+        "timezoneHandling": {
+          "label": "selected_filter",
+          "value": "selected-filter"
+        }
+      },
+      "interactionClass": "comparable-isolated-effects",
+      "changedRustKeys": [
+        "timezone",
+        "timezone_handling"
+      ],
+      "changedSemanticNodes": [
+        "app_policy",
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "dedup_and_order",
+        "device_state_timeline",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "normalize_timezones",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "observedInputNodes": [
+        "app_policy",
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "dedup_and_order",
+        "device_state_timeline",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "normalize_timezones",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "observedComponents": [
+        "app_policy.classificationDigest",
+        "app_policy.rowMembershipDigest",
+        "app_policy.rowOrderDigest",
+        "app_policy.temporalStateDigest",
+        "attribute_person.classificationDigest",
+        "attribute_person.rowMembershipDigest",
+        "attribute_person.rowOrderDigest",
+        "attribute_person.temporalStateDigest",
+        "categorize_apps.classificationDigest",
+        "categorize_apps.rowMembershipDigest",
+        "categorize_apps.rowOrderDigest",
+        "categorize_apps.temporalStateDigest",
+        "day_coverage.classificationDigest",
+        "day_coverage.payloadDigest",
+        "day_coverage.rowMembershipDigest",
+        "day_coverage.rowOrderDigest",
+        "day_coverage.temporalStateDigest",
+        "dedup_and_order.classificationDigest",
+        "dedup_and_order.rowMembershipDigest",
+        "dedup_and_order.rowOrderDigest",
+        "dedup_and_order.temporalStateDigest",
+        "device_state_timeline.classificationDigest",
+        "device_state_timeline.rowMembershipDigest",
+        "device_state_timeline.rowOrderDigest",
+        "device_state_timeline.temporalStateDigest",
+        "effective_usage.classificationDigest",
+        "effective_usage.rowMembershipDigest",
+        "effective_usage.rowOrderDigest",
+        "effective_usage.temporalStateDigest",
+        "episode_annotations.classificationDigest",
+        "episode_annotations.rowMembershipDigest",
+        "episode_annotations.rowOrderDigest",
+        "episode_annotations.temporalStateDigest",
+        "interval_cleaning.classificationDigest",
+        "interval_cleaning.rowMembershipDigest",
+        "interval_cleaning.rowOrderDigest",
+        "interval_cleaning.temporalStateDigest",
+        "normalize_timezones.classificationDigest",
+        "normalize_timezones.rowMembershipDigest",
+        "normalize_timezones.rowOrderDigest",
+        "normalize_timezones.temporalStateDigest",
+        "observation_window.classificationDigest",
+        "observation_window.rowMembershipDigest",
+        "observation_window.rowOrderDigest",
+        "observation_window.temporalStateDigest",
+        "outputs.payloadDigest",
+        "reconstruct_episodes.classificationDigest",
+        "reconstruct_episodes.rowMembershipDigest",
+        "reconstruct_episodes.rowOrderDigest",
+        "reconstruct_episodes.temporalStateDigest",
+        "score_compliance.payloadDigest"
+      ],
+      "introducedComponents": [
+        "day_coverage.payloadDigest"
+      ],
+      "maskedComponents": [],
+      "changedOutputArtifactKinds": [
+        "app-csv",
+        "compliance-csv",
+        "credited-app-csv",
+        "day-coverage-csv",
+        "result-cell-correspondence-arrow",
+        "review-summary-json",
+        "row-lineage-arrow",
+        "screen-csv",
+        "source-coordinate-index-arrow",
+        "visualization-data-json"
+      ]
+    },
+    {
+      "pairId": "selectedTimezone=america_new_york+timezoneHandling=primary_convert",
+      "browserKeys": [
+        "selectedTimezone",
+        "timezoneHandling"
+      ],
+      "values": {
+        "selectedTimezone": {
+          "label": "america_new_york",
+          "value": "America/New_York"
+        },
+        "timezoneHandling": {
+          "label": "primary_convert",
+          "value": "primary-convert"
+        }
+      },
+      "interactionClass": "comparable-isolated-effects",
+      "changedRustKeys": [
+        "timezone",
+        "timezone_handling"
+      ],
+      "changedSemanticNodes": [],
+      "observedInputNodes": [
+        "normalize_timezones"
+      ],
+      "observedComponents": [],
+      "introducedComponents": [],
+      "maskedComponents": [
+        "app_policy.temporalStateDigest",
+        "attribute_person.temporalStateDigest",
+        "categorize_apps.temporalStateDigest",
+        "day_coverage.temporalStateDigest",
+        "dedup_and_order.temporalStateDigest",
+        "device_state_timeline.temporalStateDigest",
+        "effective_usage.temporalStateDigest",
+        "episode_annotations.temporalStateDigest",
+        "interval_cleaning.temporalStateDigest",
+        "normalize_timezones.temporalStateDigest",
+        "observation_window.temporalStateDigest",
+        "outputs.payloadDigest",
+        "reconstruct_episodes.temporalStateDigest"
+      ],
+      "changedOutputArtifactKinds": [
+        "source-coordinate-index-arrow"
+      ]
+    },
+    {
+      "pairId": "otherInteractionTypesToStopUsageAt=empty+modelConcurrentUsage=false",
+      "browserKeys": [
+        "otherInteractionTypesToStopUsageAt",
+        "modelConcurrentUsage"
+      ],
+      "values": {
+        "otherInteractionTypesToStopUsageAt": {
+          "label": "empty",
+          "value": []
+        },
+        "modelConcurrentUsage": {
+          "label": "false",
+          "value": false
+        }
+      },
+      "interactionClass": "comparable-isolated-effects",
+      "changedRustKeys": [
+        "model_concurrent_usage",
+        "other_stop_types"
+      ],
+      "changedSemanticNodes": [],
+      "observedInputNodes": [
+        "dedup_and_order",
+        "reconstruct_episodes"
+      ],
+      "observedComponents": [],
+      "introducedComponents": [],
+      "maskedComponents": [
+        "attribute_person.classificationDigest",
+        "attribute_person.rowMembershipDigest",
+        "attribute_person.rowOrderDigest",
+        "attribute_person.temporalStateDigest",
+        "categorize_apps.classificationDigest",
+        "categorize_apps.rowMembershipDigest",
+        "categorize_apps.rowOrderDigest",
+        "categorize_apps.temporalStateDigest",
+        "day_coverage.classificationDigest",
+        "day_coverage.rowMembershipDigest",
+        "day_coverage.rowOrderDigest",
+        "day_coverage.temporalStateDigest",
+        "effective_usage.classificationDigest",
+        "effective_usage.rowMembershipDigest",
+        "effective_usage.rowOrderDigest",
+        "effective_usage.temporalStateDigest",
+        "episode_annotations.classificationDigest",
+        "episode_annotations.rowMembershipDigest",
+        "episode_annotations.rowOrderDigest",
+        "episode_annotations.temporalStateDigest",
+        "interval_cleaning.classificationDigest",
+        "interval_cleaning.rowMembershipDigest",
+        "interval_cleaning.rowOrderDigest",
+        "interval_cleaning.temporalStateDigest",
+        "observation_window.classificationDigest",
+        "observation_window.rowMembershipDigest",
+        "observation_window.rowOrderDigest",
+        "observation_window.temporalStateDigest",
+        "outputs.payloadDigest",
+        "reconstruct_episodes.classificationDigest",
+        "reconstruct_episodes.rowMembershipDigest",
+        "reconstruct_episodes.rowOrderDigest",
+        "reconstruct_episodes.temporalStateDigest",
+        "score_compliance.payloadDigest"
+      ],
+      "changedOutputArtifactKinds": [
+        "source-coordinate-index-arrow"
+      ]
+    }
+  ],
+  "pairCaseDigest": "sha256:8ad9a34168509842d3bc23438379d1447fe3a4e9b29246d740ef6c3d4c0040fc"
+}

@@ -1,0 +1,197 @@
+{
+  "protocolVersion": "chronicle-mixed-artifact-configuration-ledger/v1",
+  "claimBoundary": "Exhaustive value-level pair coverage between every declared computational configuration alternate and one empirically branch-activating intervention for the selected raw/support source role. Its activation context is selected deterministically from the six existing synthetic corpora. Both transition orders must equal an independent cold Rust/WASM target at every logical checkpoint, output artifact, and canonical output cell. The nine independently recycled role shards form the aggregate role/value proof; one representative mutation does not exhaust every record- or field-level interaction.",
+  "plan": {
+    "id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:plan/raw-data/v1",
+    "revision": "0.1.0"
+  },
+  "implementationReceipt": {
+    "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
+    "implementationDigest": "sha256:d6081f896e488d92bf202fcea98a92c3bc86e13f493f33aca29ced86333db997",
+    "planDigest": "sha256:162cd4087b0287169a54ee55dc224300e4a6c7ba4009ff82f8828b348d562c45",
+    "profileDigest": "sha256:b2899800f08de7ed93000422947cd8d0b3b5443150e6b47a019f8d038ceaaf93",
+    "profileLockDigest": "sha256:47240c9a44c328437384c8be9531e90f8d5e60696ed6a0db55f79bf313b78990",
+    "runtimeAuthorityDigest": "sha256:11142579a05120fce9a1fe8e0edfffdcae385b34a10080d878e8d82b73cc8627",
+    "productContractDigest": "sha256:5ac0241fc2c80af23f5a580ff25679db9ce3d2e3a5fae8043ed0826d865105f7"
+  },
+  "roleRepresentatives": {
+    "enrolled_devices_file": {
+      "corpusId": "catalog-random",
+      "seed": 12648430,
+      "rowCount": 186,
+      "injectedFeatures": [
+        "catalog-derived-apps",
+        "mixed-timezone-rows",
+        "remappable-interaction-types",
+        "removable-interaction-types",
+        "screen-and-keyguard-events"
+      ],
+      "interventionId": "support:enrollment-one-to-two-devices",
+      "mutationClass": "record-edit",
+      "changedComponents": [
+        "enrolled_devices_file.participant[P-SYN-00c0ffee].device_count"
+      ]
+    }
+  },
+  "invalidVariants": [
+    {
+      "variantId": "selectedTimezone=none",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    }
+  ],
+  "coverage": {
+    "sourceRoles": 1,
+    "computationalAxes": 46,
+    "declaredAlternateValues": 51,
+    "validConfigurationVariants": 50,
+    "invalidConfigurationVariants": 1,
+    "validRoleValuePairs": 50,
+    "coldExecutions": 102,
+    "incrementalExecutions": 300,
+    "totalRustExecutions": 402,
+    "warmColdComparisons": 300,
+    "exactClusterComparisons": 100,
+    "nonAdditiveOrMaskedPairs": 3
+  },
+  "interactions": [
+    {
+      "caseId": "enrolled_devices_file:support:enrollment-one-to-two-devices×processAppUsage=false",
+      "roleId": "enrolled_devices_file",
+      "interventionId": "support:enrollment-one-to-two-devices",
+      "optionKey": "processAppUsage",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "outputs.payloadDigest",
+          "score_compliance.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 2,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:9edca5baf68ab6335af364763fd82f0dce6dd9508b8f731a8be4abaeb23c1ad3"
+      }
+    },
+    {
+      "caseId": "enrolled_devices_file:support:enrollment-one-to-two-devices×selectedTimezone=america_new_york",
+      "roleId": "enrolled_devices_file",
+      "interventionId": "support:enrollment-one-to-two-devices",
+      "optionKey": "selectedTimezone",
+      "alternate": {
+        "label": "america_new_york",
+        "value": "America/New_York"
+      },
+      "configAfterDataNodes": [
+        "app_policy",
+        "attribute_person",
+        "categorize_apps",
+        "day_coverage",
+        "dedup_and_order",
+        "device_state_timeline",
+        "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "normalize_timezones",
+        "observation_window",
+        "outputs",
+        "reconstruct_episodes",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "outputs",
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 1,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:f30628b67f27d9e6b25de7808a4ea66fb9ee69bf3e2ddd74125d4f9254d612d5"
+      }
+    },
+    {
+      "caseId": "enrolled_devices_file:support:enrollment-one-to-two-devices×enableComplianceScoring=false",
+      "roleId": "enrolled_devices_file",
+      "interventionId": "support:enrollment-one-to-two-devices",
+      "optionKey": "enableComplianceScoring",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataNodes": [
+        "outputs",
+        "score_compliance"
+      ],
+      "dataAfterConfigNodes": [
+        "score_compliance"
+      ],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "outputs.payloadDigest",
+          "score_compliance.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 2,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:9edca5baf68ab6335af364763fd82f0dce6dd9508b8f731a8be4abaeb23c1ad3"
+      }
+    }
+  ],
+  "caseSetDigest": "sha256:75a92d055863e92dad1d2014bc8ae65d9bcd75e7b2756128d567d6a4249b21c5"
+}

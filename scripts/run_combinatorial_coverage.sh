@@ -7,8 +7,10 @@
 #   2. generate t=2 / t=3 covering arrays with Microsoft PICT;
 #   3. decode them into full option objects (executed by
 #      web/src/lib/pipelineGraph/coveringArrayValidation.test.ts);
-#   4. verify exact t=2 / t=3 coverage with the in-repository checker;
-#   5. optionally cross-check the measurement with NIST CCM.
+#   4. generate a replayable high-order sample from those same domains;
+#   5. verify exact t=2 / t=3 coverage with the in-repository checker;
+#   6. execute the arrays and seeded synthetic corpora through Rust/WASM;
+#   7. optionally cross-check the measurement with NIST CCM.
 #
 # Optional tool locations (override via env):
 #   PICT_BIN — Microsoft PICT binary; when absent, checked-in arrays are
@@ -38,10 +40,10 @@ else
   CCM_TOOL="$(command -v ccm || true)"
 fi
 
-echo "── 1/5 regenerate models + executed-test projection"
+echo "── 1/7 regenerate models + executed-test projection"
 (cd "$WEB" && ./node_modules/.bin/vite-node scripts/generate_combinatorial_model.mts)
 
-echo "── 2/5 PICT covering arrays"
+echo "── 2/7 PICT covering arrays"
 if [ -n "$PICT_TOOL" ]; then
   "$PICT_TOOL" "$OUT/model.pict" /o:2 > "$OUT/covering_t2.tsv"
   "$PICT_TOOL" "$OUT/model.pict" /o:3 > "$OUT/covering_t3.tsv"
@@ -52,12 +54,17 @@ else
 fi
 echo "  t=2: $(($(wc -l < "$OUT/covering_t2.tsv") - 1)) configs, t=3: $(($(wc -l < "$OUT/covering_t3.tsv") - 1)) configs"
 
-echo "── 3/5 decode arrays for the vitest execution suite"
+echo "── 3/7 decode arrays for the vitest execution suite"
 (cd "$WEB" \
   && ./node_modules/.bin/vite-node scripts/generate_combinatorial_model.mts decode combinatorial/covering_t2.tsv combinatorial/covering_array_t2.json \
   && ./node_modules/.bin/vite-node scripts/generate_combinatorial_model.mts decode combinatorial/covering_t3.tsv combinatorial/covering_array_t3.json)
 
-echo "── 4/5 exact valid-tuple coverage (portable built-in verifier)"
+echo "── 4/7 deterministic high-order sample"
+(cd "$WEB" \
+  && ./node_modules/.bin/vite-node scripts/generate_combinatorial_model.mts sample \
+    12648430 128 combinatorial/seeded_high_order_00c0ffee.json)
+
+echo "── 5/7 exact valid-tuple coverage (portable built-in verifier)"
 { cat "$OUT/existing_tests.csv"
   tail -n +2 "$OUT/covering_t2.tsv" | tr '\t' ','
   tail -n +2 "$OUT/covering_t3.tsv" | tr '\t' ','
@@ -67,7 +74,20 @@ echo "  existing tests only:"
 echo "  existing + covering arrays:"
 (cd "$WEB" && ./node_modules/.bin/vite-node scripts/generate_combinatorial_model.mts verify-coverage 2,3 "$OUT/with_covering_arrays.csv")
 
-echo "── 5/5 optional NIST CCM differential measurement"
+echo "── 6/7 Rust/WASM synthetic configuration campaign"
+(cd "$WEB" && npm run test:configuration-space)
+(cd "$WEB" && npm run test:artifact-influence)
+(cd "$WEB" && npm run test:raw-boundary-influence)
+(cd "$WEB" && npm run test:interaction-influence)
+(cd "$WEB" && npm run test:mixed-influence)
+(cd "$WEB" && npm run test:semantic-mutations)
+
+# Covering-array reports, goldens, and synthetic proof fixtures are evidence,
+# not executable build inputs. Running the campaign must leave the checked
+# implementation identity and capability bindings at the same fixed point.
+python3 "$REPO_ROOT/scripts/generate_semantic_behavior_inventory.py" --check
+
+echo "── 7/7 optional NIST CCM differential measurement"
 if [ -n "$CCM_TOOL" ]; then
   TWAY="${TWAY:-2}"
   echo "  existing tests only:"

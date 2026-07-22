@@ -1,0 +1,1859 @@
+{
+  "protocolVersion": "chronicle-configuration-family-corpus/v1",
+  "fixtureAuthority": {
+    "source": "web/src/lib/pipelineGraph/golden/goldenScenario.ts#GOLDEN_SCENARIOS",
+    "implementationDigest": "sha256:d6081f896e488d92bf202fcea98a92c3bc86e13f493f33aca29ced86333db997"
+  },
+  "reports": [
+    {
+      "axis": {
+        "axisId": "timezone-handling",
+        "cardinality": 4,
+        "optionKeys": [
+          "selected_timezone",
+          "timezone_handling"
+        ],
+        "variants": [
+          "selected-filter",
+          "selected-convert",
+          "primary-filter",
+          "primary-convert"
+        ]
+      },
+      "completeness": {
+        "duplicateVariants": [],
+        "exhaustive": true,
+        "expectedVariantCount": 4,
+        "fullRustExecutionCount": 4,
+        "missingVariants": [],
+        "observedVariantCount": 4,
+        "oracle": "chronicle_chrono_kernel_wasm::run_pipeline_v2_with_supports",
+        "proofScope": "finite timezone policy axis for one fixed fixture, selected timezone, support set, and all other options",
+        "unexpectedVariants": []
+      },
+      "familyId": "chronicle-preprocessing/timezone-handling/v1",
+      "fixtureId": "SingleUser.csv",
+      "influence": {
+        "changedOptionKeys": [
+          "selected_timezone",
+          "timezone_handling"
+        ],
+        "conservativeCone": [
+          "app_policy",
+          "attribute_person",
+          "categorize_apps",
+          "day_coverage",
+          "dedup_and_order",
+          "device_state_timeline",
+          "effective_usage",
+          "episode_annotations",
+          "interval_cleaning",
+          "normalize_timezones",
+          "observation_window",
+          "outputs",
+          "reconstruct_episodes",
+          "score_compliance"
+        ],
+        "derivation": "product plan knob bindings plus transitive DAG reachability",
+        "seedNodes": [
+          "normalize_timezones"
+        ]
+      },
+      "inputDigest": "sha256:a8adcfe3266ed6c11d3abea93a33dc43fde3569431e4aecbf2b58579d03d416b",
+      "nodeWidthEnvelopes": [
+        {
+          "evidence": "node is outside the plan-derived timezone influence cone",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "parse_events",
+          "status": "exact-unaffected"
+        },
+        {
+          "evidence": "normalized-events partition from four cold Rust executions",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "normalize_timezones",
+          "status": "exact-observed"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "dedup_and_order",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "app_policy",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "device_state_timeline",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "reconstruct_episodes",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "categorize_apps",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "episode_annotations",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "interval_cleaning",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "effective_usage",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "observation_window",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "attribute_person",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "day_coverage",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "score_compliance",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "published-outputs partition from four cold Rust executions",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "outputs",
+          "status": "exact-observed"
+        }
+      ],
+      "partitions": [
+        {
+          "classes": [
+            {
+              "classId": "sha256:f1821d3422b8fafb55f24a8342d92f5bca3957056f23ac003c9cd42e813ffd52",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-convert/v1",
+              "variants": [
+                "primary-convert"
+              ]
+            },
+            {
+              "classId": "sha256:9fc238642d178651af7e625c9034ff97018be3fb623b51fedc47c88c097b58f7",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-filter/v1",
+              "variants": [
+                "primary-filter"
+              ]
+            },
+            {
+              "classId": "sha256:23645ea898d5096a09106710f17166b8f1bf20d2c872c7b9289b206df4b85510",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-convert/v1",
+              "variants": [
+                "selected-convert"
+              ]
+            },
+            {
+              "classId": "sha256:d1d818be0724d391bbffb6ac4974ba36a8f14140e0a8ec22202e389b730be380",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-filter/v1",
+              "variants": [
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "declared-method",
+          "semantics": "researcher-visible policy identity; never collapsed by equal outputs",
+          "width": 4
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:d633ed0b5151ab6b137de7cfa8992e3b0522ab124f7566468b59e8ea49d8360a",
+              "signature": "America/Chicago",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "effective-target",
+          "semantics": "timezone selected after resolving selected-versus-primary qualification",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:0ad96274ebedc6244a747b1a3ff766a84a65b4e3118a801107c295a2ffcdb586",
+              "signature": "sha256:1389ce2e158af9efa5abefe21e15bc5164802ddc2a4aa28ed70a1999cd8abe35",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "retained-source-rows",
+          "semantics": "exact raw-row membership retained by the timezone policy",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:45cc08389380d91793e211df64c32a74163d368f61004cd7e1496a25db3ae175",
+              "signature": "sha256:91ee8478d12cebdea852819414d9b0a217d46d97bdf1c607b948923b0dda00d0",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "normalized-events",
+          "semantics": "exact Chronicle event state immediately after timezone normalization",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:e8c95118bf9cb626cdb729d286a27026390d130dad4e04002a9ae3279e72dcb5",
+              "signature": "sha256:4550756919f239a5cf80316435cab5d2817706f229b639ab420e3fc275fd95f8",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "published-outputs",
+          "semantics": "byte identity of every scientific CSV/JSON output from a cold full Rust run",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:2d027a337b20244e38722190584888d2580d8160267e219c1eaaed03e977dae0",
+              "signature": "sha256:2a2c1b3132f4ac0b56397ae0ceca10f7ef2a1df4ed9042b69ba8125ebf36f953",
+              "variants": [
+                "primary-filter"
+              ]
+            },
+            {
+              "classId": "sha256:d9b16a1d9303da17b940c18e76c75bcca49bae2de39e3a8fa73801c7fb8a88f1",
+              "signature": "sha256:ca2eb6fdcc4264e8baf4ea19121432c9b7828056afa20d715878cbe6207cf6f8",
+              "variants": [
+                "selected-filter"
+              ]
+            },
+            {
+              "classId": "sha256:3240dd3ea87129f493d3ea13ca1d29b3ec4a92a5eb05466cee6e538794cc55f6",
+              "signature": "sha256:f961e74c33c1229792ee039bce303daae26a650d4d621af8cc901935cd0aae5b",
+              "variants": [
+                "selected-convert"
+              ]
+            },
+            {
+              "classId": "sha256:b04f71b8935af0b29ee416c066ed15f502727bdde7a68455b483c5c4d8e474a3",
+              "signature": "sha256:fd798a8ab89a5e45d2243859babe42771f22031630c2f1a69a596092cfe129fd",
+              "variants": [
+                "primary-convert"
+              ]
+            }
+          ],
+          "perspectiveId": "provenance-identity",
+          "semantics": "outputs plus row lineage and resolved timezone policy evidence",
+          "width": 4
+        }
+      ],
+      "protocolVersion": "chronicle-configuration-family/v1",
+      "variants": [
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "primary-convert"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-convert/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:91ee8478d12cebdea852819414d9b0a217d46d97bdf1c607b948923b0dda00d0",
+          "provenanceDigest": "sha256:fd798a8ab89a5e45d2243859babe42771f22031630c2f1a69a596092cfe129fd",
+          "publishedOutputsDigest": "sha256:4550756919f239a5cf80316435cab5d2817706f229b639ab420e3fc275fd95f8",
+          "retainedSourceRowsDigest": "sha256:1389ce2e158af9efa5abefe21e15bc5164802ddc2a4aa28ed70a1999cd8abe35",
+          "rowsAfter": 8,
+          "rowsBefore": 8,
+          "rowsRemoved": 0,
+          "variantId": "primary-convert"
+        },
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "primary-filter"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-filter/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:91ee8478d12cebdea852819414d9b0a217d46d97bdf1c607b948923b0dda00d0",
+          "provenanceDigest": "sha256:2a2c1b3132f4ac0b56397ae0ceca10f7ef2a1df4ed9042b69ba8125ebf36f953",
+          "publishedOutputsDigest": "sha256:4550756919f239a5cf80316435cab5d2817706f229b639ab420e3fc275fd95f8",
+          "retainedSourceRowsDigest": "sha256:1389ce2e158af9efa5abefe21e15bc5164802ddc2a4aa28ed70a1999cd8abe35",
+          "rowsAfter": 8,
+          "rowsBefore": 8,
+          "rowsRemoved": 0,
+          "variantId": "primary-filter"
+        },
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "selected-convert"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-convert/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:91ee8478d12cebdea852819414d9b0a217d46d97bdf1c607b948923b0dda00d0",
+          "provenanceDigest": "sha256:f961e74c33c1229792ee039bce303daae26a650d4d621af8cc901935cd0aae5b",
+          "publishedOutputsDigest": "sha256:4550756919f239a5cf80316435cab5d2817706f229b639ab420e3fc275fd95f8",
+          "retainedSourceRowsDigest": "sha256:1389ce2e158af9efa5abefe21e15bc5164802ddc2a4aa28ed70a1999cd8abe35",
+          "rowsAfter": 8,
+          "rowsBefore": 8,
+          "rowsRemoved": 0,
+          "variantId": "selected-convert"
+        },
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "selected-filter"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-filter/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:91ee8478d12cebdea852819414d9b0a217d46d97bdf1c607b948923b0dda00d0",
+          "provenanceDigest": "sha256:ca2eb6fdcc4264e8baf4ea19121432c9b7828056afa20d715878cbe6207cf6f8",
+          "publishedOutputsDigest": "sha256:4550756919f239a5cf80316435cab5d2817706f229b639ab420e3fc275fd95f8",
+          "retainedSourceRowsDigest": "sha256:1389ce2e158af9efa5abefe21e15bc5164802ddc2a4aa28ed70a1999cd8abe35",
+          "rowsAfter": 8,
+          "rowsBefore": 8,
+          "rowsRemoved": 0,
+          "variantId": "selected-filter"
+        }
+      ]
+    },
+    {
+      "axis": {
+        "axisId": "timezone-handling",
+        "cardinality": 4,
+        "optionKeys": [
+          "selected_timezone",
+          "timezone_handling"
+        ],
+        "variants": [
+          "selected-filter",
+          "selected-convert",
+          "primary-filter",
+          "primary-convert"
+        ]
+      },
+      "completeness": {
+        "duplicateVariants": [],
+        "exhaustive": true,
+        "expectedVariantCount": 4,
+        "fullRustExecutionCount": 4,
+        "missingVariants": [],
+        "observedVariantCount": 4,
+        "oracle": "chronicle_chrono_kernel_wasm::run_pipeline_v2_with_supports",
+        "proofScope": "finite timezone policy axis for one fixed fixture, selected timezone, support set, and all other options",
+        "unexpectedVariants": []
+      },
+      "familyId": "chronicle-preprocessing/timezone-handling/v1",
+      "fixtureId": "SharedDevice.csv",
+      "influence": {
+        "changedOptionKeys": [
+          "selected_timezone",
+          "timezone_handling"
+        ],
+        "conservativeCone": [
+          "app_policy",
+          "attribute_person",
+          "categorize_apps",
+          "day_coverage",
+          "dedup_and_order",
+          "device_state_timeline",
+          "effective_usage",
+          "episode_annotations",
+          "interval_cleaning",
+          "normalize_timezones",
+          "observation_window",
+          "outputs",
+          "reconstruct_episodes",
+          "score_compliance"
+        ],
+        "derivation": "product plan knob bindings plus transitive DAG reachability",
+        "seedNodes": [
+          "normalize_timezones"
+        ]
+      },
+      "inputDigest": "sha256:15cbefa7b2b038e1e8d1494f527c87bd9d5de9ff6a2de0b81736b7908cec9633",
+      "nodeWidthEnvelopes": [
+        {
+          "evidence": "node is outside the plan-derived timezone influence cone",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "parse_events",
+          "status": "exact-unaffected"
+        },
+        {
+          "evidence": "normalized-events partition from four cold Rust executions",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "normalize_timezones",
+          "status": "exact-observed"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "dedup_and_order",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "app_policy",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "device_state_timeline",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "reconstruct_episodes",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "categorize_apps",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "episode_annotations",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "interval_cleaning",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "effective_usage",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "observation_window",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "attribute_person",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "day_coverage",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "score_compliance",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "published-outputs partition from four cold Rust executions",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "outputs",
+          "status": "exact-observed"
+        }
+      ],
+      "partitions": [
+        {
+          "classes": [
+            {
+              "classId": "sha256:f1821d3422b8fafb55f24a8342d92f5bca3957056f23ac003c9cd42e813ffd52",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-convert/v1",
+              "variants": [
+                "primary-convert"
+              ]
+            },
+            {
+              "classId": "sha256:9fc238642d178651af7e625c9034ff97018be3fb623b51fedc47c88c097b58f7",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-filter/v1",
+              "variants": [
+                "primary-filter"
+              ]
+            },
+            {
+              "classId": "sha256:23645ea898d5096a09106710f17166b8f1bf20d2c872c7b9289b206df4b85510",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-convert/v1",
+              "variants": [
+                "selected-convert"
+              ]
+            },
+            {
+              "classId": "sha256:d1d818be0724d391bbffb6ac4974ba36a8f14140e0a8ec22202e389b730be380",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-filter/v1",
+              "variants": [
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "declared-method",
+          "semantics": "researcher-visible policy identity; never collapsed by equal outputs",
+          "width": 4
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:d633ed0b5151ab6b137de7cfa8992e3b0522ab124f7566468b59e8ea49d8360a",
+              "signature": "America/Chicago",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "effective-target",
+          "semantics": "timezone selected after resolving selected-versus-primary qualification",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:c29b26e2b3bd997df77b2e1cf8f08dd9faaf780b29f253f82171dedc197c36ef",
+              "signature": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "retained-source-rows",
+          "semantics": "exact raw-row membership retained by the timezone policy",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:e11dbfa8aef427f40fd4765f52a06cffcc718c57fa0ea9a78cfab71ebf4c9a56",
+              "signature": "sha256:8ceca13041464ef6435b605af5928c1bf59a3f46dc85a1c297d18f91c1d86f6d",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "normalized-events",
+          "semantics": "exact Chronicle event state immediately after timezone normalization",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:9298c5d194b41d75fb8830b9aa6515114884322cffc67908de1e20b280db1d51",
+              "signature": "sha256:d6aa068bb2a7e2125af4a821de932d89b2e12ac074b1e9143258955efb555fcf",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "published-outputs",
+          "semantics": "byte identity of every scientific CSV/JSON output from a cold full Rust run",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:21720be63d8df2cf2695e323e1b3ec82f34e19b93f566e121f82ec736d78574f",
+              "signature": "sha256:48e660a26995d92fe65bdd4976faa4ca681f6fe3e802d5afa74b64e48502ebcf",
+              "variants": [
+                "selected-convert"
+              ]
+            },
+            {
+              "classId": "sha256:0b9c5a755cfc98950f8b83da09664ff3451ef68c7ef7f6a3f0a0577bc86adbcc",
+              "signature": "sha256:dec027bafcee4512a1c712f38c088ee9044dbb40f95ac3e541713f5fbe2a5513",
+              "variants": [
+                "selected-filter"
+              ]
+            },
+            {
+              "classId": "sha256:d829b90ee5974aa87649a64ca434b6f8cd7d468e964211b647e6d3856340cee3",
+              "signature": "sha256:e4827d6811b1ec2f40c565e8aa1915ae2aeee01fec25c804b66e978b4a4b3c5f",
+              "variants": [
+                "primary-filter"
+              ]
+            },
+            {
+              "classId": "sha256:eafd93bd1fedc4700dc99779752d62d11ffc93babc34624215492360901c6565",
+              "signature": "sha256:e4bbda804301e9f66f1e6bb4f5229327fb903d70a5b7122f56ec88c82643d427",
+              "variants": [
+                "primary-convert"
+              ]
+            }
+          ],
+          "perspectiveId": "provenance-identity",
+          "semantics": "outputs plus row lineage and resolved timezone policy evidence",
+          "width": 4
+        }
+      ],
+      "protocolVersion": "chronicle-configuration-family/v1",
+      "variants": [
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "primary-convert"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-convert/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:8ceca13041464ef6435b605af5928c1bf59a3f46dc85a1c297d18f91c1d86f6d",
+          "provenanceDigest": "sha256:e4bbda804301e9f66f1e6bb4f5229327fb903d70a5b7122f56ec88c82643d427",
+          "publishedOutputsDigest": "sha256:d6aa068bb2a7e2125af4a821de932d89b2e12ac074b1e9143258955efb555fcf",
+          "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
+          "rowsAfter": 6,
+          "rowsBefore": 6,
+          "rowsRemoved": 0,
+          "variantId": "primary-convert"
+        },
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "primary-filter"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-filter/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:8ceca13041464ef6435b605af5928c1bf59a3f46dc85a1c297d18f91c1d86f6d",
+          "provenanceDigest": "sha256:e4827d6811b1ec2f40c565e8aa1915ae2aeee01fec25c804b66e978b4a4b3c5f",
+          "publishedOutputsDigest": "sha256:d6aa068bb2a7e2125af4a821de932d89b2e12ac074b1e9143258955efb555fcf",
+          "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
+          "rowsAfter": 6,
+          "rowsBefore": 6,
+          "rowsRemoved": 0,
+          "variantId": "primary-filter"
+        },
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "selected-convert"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-convert/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:8ceca13041464ef6435b605af5928c1bf59a3f46dc85a1c297d18f91c1d86f6d",
+          "provenanceDigest": "sha256:48e660a26995d92fe65bdd4976faa4ca681f6fe3e802d5afa74b64e48502ebcf",
+          "publishedOutputsDigest": "sha256:d6aa068bb2a7e2125af4a821de932d89b2e12ac074b1e9143258955efb555fcf",
+          "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
+          "rowsAfter": 6,
+          "rowsBefore": 6,
+          "rowsRemoved": 0,
+          "variantId": "selected-convert"
+        },
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "selected-filter"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-filter/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:8ceca13041464ef6435b605af5928c1bf59a3f46dc85a1c297d18f91c1d86f6d",
+          "provenanceDigest": "sha256:dec027bafcee4512a1c712f38c088ee9044dbb40f95ac3e541713f5fbe2a5513",
+          "publishedOutputsDigest": "sha256:d6aa068bb2a7e2125af4a821de932d89b2e12ac074b1e9143258955efb555fcf",
+          "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
+          "rowsAfter": 6,
+          "rowsBefore": 6,
+          "rowsRemoved": 0,
+          "variantId": "selected-filter"
+        }
+      ]
+    },
+    {
+      "axis": {
+        "axisId": "timezone-handling",
+        "cardinality": 4,
+        "optionKeys": [
+          "selected_timezone",
+          "timezone_handling"
+        ],
+        "variants": [
+          "selected-filter",
+          "selected-convert",
+          "primary-filter",
+          "primary-convert"
+        ]
+      },
+      "completeness": {
+        "duplicateVariants": [],
+        "exhaustive": true,
+        "expectedVariantCount": 4,
+        "fullRustExecutionCount": 4,
+        "missingVariants": [],
+        "observedVariantCount": 4,
+        "oracle": "chronicle_chrono_kernel_wasm::run_pipeline_v2_with_supports",
+        "proofScope": "finite timezone policy axis for one fixed fixture, selected timezone, support set, and all other options",
+        "unexpectedVariants": []
+      },
+      "familyId": "chronicle-preprocessing/timezone-handling/v1",
+      "fixtureId": "FilterFile.csv",
+      "influence": {
+        "changedOptionKeys": [
+          "selected_timezone",
+          "timezone_handling"
+        ],
+        "conservativeCone": [
+          "app_policy",
+          "attribute_person",
+          "categorize_apps",
+          "day_coverage",
+          "dedup_and_order",
+          "device_state_timeline",
+          "effective_usage",
+          "episode_annotations",
+          "interval_cleaning",
+          "normalize_timezones",
+          "observation_window",
+          "outputs",
+          "reconstruct_episodes",
+          "score_compliance"
+        ],
+        "derivation": "product plan knob bindings plus transitive DAG reachability",
+        "seedNodes": [
+          "normalize_timezones"
+        ]
+      },
+      "inputDigest": "sha256:eb84072b6f08e3727dd1882b6cea13a9707ab880bb80ba2f2b3ba1b7e8cc54a2",
+      "nodeWidthEnvelopes": [
+        {
+          "evidence": "node is outside the plan-derived timezone influence cone",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "parse_events",
+          "status": "exact-unaffected"
+        },
+        {
+          "evidence": "normalized-events partition from four cold Rust executions",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "normalize_timezones",
+          "status": "exact-observed"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "dedup_and_order",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "app_policy",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "device_state_timeline",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "reconstruct_episodes",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "categorize_apps",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "episode_annotations",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "interval_cleaning",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "effective_usage",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "observation_window",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "attribute_person",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "day_coverage",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "score_compliance",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "published-outputs partition from four cold Rust executions",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "outputs",
+          "status": "exact-observed"
+        }
+      ],
+      "partitions": [
+        {
+          "classes": [
+            {
+              "classId": "sha256:f1821d3422b8fafb55f24a8342d92f5bca3957056f23ac003c9cd42e813ffd52",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-convert/v1",
+              "variants": [
+                "primary-convert"
+              ]
+            },
+            {
+              "classId": "sha256:9fc238642d178651af7e625c9034ff97018be3fb623b51fedc47c88c097b58f7",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-filter/v1",
+              "variants": [
+                "primary-filter"
+              ]
+            },
+            {
+              "classId": "sha256:23645ea898d5096a09106710f17166b8f1bf20d2c872c7b9289b206df4b85510",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-convert/v1",
+              "variants": [
+                "selected-convert"
+              ]
+            },
+            {
+              "classId": "sha256:d1d818be0724d391bbffb6ac4974ba36a8f14140e0a8ec22202e389b730be380",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-filter/v1",
+              "variants": [
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "declared-method",
+          "semantics": "researcher-visible policy identity; never collapsed by equal outputs",
+          "width": 4
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:d633ed0b5151ab6b137de7cfa8992e3b0522ab124f7566468b59e8ea49d8360a",
+              "signature": "America/Chicago",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "effective-target",
+          "semantics": "timezone selected after resolving selected-versus-primary qualification",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:c29b26e2b3bd997df77b2e1cf8f08dd9faaf780b29f253f82171dedc197c36ef",
+              "signature": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "retained-source-rows",
+          "semantics": "exact raw-row membership retained by the timezone policy",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:83e69145504f15073a090d3bc55e4dabd5e9624304a8aa4fd24a9b1c6b87c2b8",
+              "signature": "sha256:60aa61d593ccaca129f4559f5dc601feb49f465d741f9d75e176f6ce1201d096",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "normalized-events",
+          "semantics": "exact Chronicle event state immediately after timezone normalization",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:fa0ce75a8d278824ef471c35703b8bfe0857be3031860994f212c23c81e9e105",
+              "signature": "sha256:36474104eb566048a8c0683ee95a8be678ab0ed71706c6ca02698b24d7ad9308",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "published-outputs",
+          "semantics": "byte identity of every scientific CSV/JSON output from a cold full Rust run",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:b5e2c94b8e6b23d7cf9459ed2e17a13d062626d88f76a8400e26822fdbb4e8c7",
+              "signature": "sha256:0d3020712b85d01452e53138d7fdaa897af255ec86ffc0419b00ba730d20021d",
+              "variants": [
+                "selected-convert"
+              ]
+            },
+            {
+              "classId": "sha256:97a471aafd808c6497fae931b25a9de09eb6724703a8151bef7178d6423a1fd1",
+              "signature": "sha256:0fb577d2cc9216eb8d6f9d09180a1539cf44409f1ac0a73d7cf538ae93026ea9",
+              "variants": [
+                "primary-convert"
+              ]
+            },
+            {
+              "classId": "sha256:2ce170062166f036d6e63bd45d819480a0f8cb2ff904580ef3f71342066994f2",
+              "signature": "sha256:7f45fedf861859bb3ac31e24794a325e247c54dba1348d63d8e06846c695040a",
+              "variants": [
+                "selected-filter"
+              ]
+            },
+            {
+              "classId": "sha256:491e04e8e84030111cd4837804af642b92bc4bfff423a6af34be83fc6eb036de",
+              "signature": "sha256:bb17b89047bb0adc5e9e3860eec7a4e01b1364c705c57191ba248fb7815e7625",
+              "variants": [
+                "primary-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "provenance-identity",
+          "semantics": "outputs plus row lineage and resolved timezone policy evidence",
+          "width": 4
+        }
+      ],
+      "protocolVersion": "chronicle-configuration-family/v1",
+      "variants": [
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "primary-convert"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-convert/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:60aa61d593ccaca129f4559f5dc601feb49f465d741f9d75e176f6ce1201d096",
+          "provenanceDigest": "sha256:0fb577d2cc9216eb8d6f9d09180a1539cf44409f1ac0a73d7cf538ae93026ea9",
+          "publishedOutputsDigest": "sha256:36474104eb566048a8c0683ee95a8be678ab0ed71706c6ca02698b24d7ad9308",
+          "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
+          "rowsAfter": 6,
+          "rowsBefore": 6,
+          "rowsRemoved": 0,
+          "variantId": "primary-convert"
+        },
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "primary-filter"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-filter/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:60aa61d593ccaca129f4559f5dc601feb49f465d741f9d75e176f6ce1201d096",
+          "provenanceDigest": "sha256:bb17b89047bb0adc5e9e3860eec7a4e01b1364c705c57191ba248fb7815e7625",
+          "publishedOutputsDigest": "sha256:36474104eb566048a8c0683ee95a8be678ab0ed71706c6ca02698b24d7ad9308",
+          "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
+          "rowsAfter": 6,
+          "rowsBefore": 6,
+          "rowsRemoved": 0,
+          "variantId": "primary-filter"
+        },
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "selected-convert"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-convert/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:60aa61d593ccaca129f4559f5dc601feb49f465d741f9d75e176f6ce1201d096",
+          "provenanceDigest": "sha256:0d3020712b85d01452e53138d7fdaa897af255ec86ffc0419b00ba730d20021d",
+          "publishedOutputsDigest": "sha256:36474104eb566048a8c0683ee95a8be678ab0ed71706c6ca02698b24d7ad9308",
+          "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
+          "rowsAfter": 6,
+          "rowsBefore": 6,
+          "rowsRemoved": 0,
+          "variantId": "selected-convert"
+        },
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "selected-filter"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-filter/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:60aa61d593ccaca129f4559f5dc601feb49f465d741f9d75e176f6ce1201d096",
+          "provenanceDigest": "sha256:7f45fedf861859bb3ac31e24794a325e247c54dba1348d63d8e06846c695040a",
+          "publishedOutputsDigest": "sha256:36474104eb566048a8c0683ee95a8be678ab0ed71706c6ca02698b24d7ad9308",
+          "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
+          "rowsAfter": 6,
+          "rowsBefore": 6,
+          "rowsRemoved": 0,
+          "variantId": "selected-filter"
+        }
+      ]
+    },
+    {
+      "axis": {
+        "axisId": "timezone-handling",
+        "cardinality": 4,
+        "optionKeys": [
+          "selected_timezone",
+          "timezone_handling"
+        ],
+        "variants": [
+          "selected-filter",
+          "selected-convert",
+          "primary-filter",
+          "primary-convert"
+        ]
+      },
+      "completeness": {
+        "duplicateVariants": [],
+        "exhaustive": true,
+        "expectedVariantCount": 4,
+        "fullRustExecutionCount": 4,
+        "missingVariants": [],
+        "observedVariantCount": 4,
+        "oracle": "chronicle_chrono_kernel_wasm::run_pipeline_v2_with_supports",
+        "proofScope": "finite timezone policy axis for one fixed fixture, selected timezone, support set, and all other options",
+        "unexpectedVariants": []
+      },
+      "familyId": "chronicle-preprocessing/timezone-handling/v1",
+      "fixtureId": "Aggregates.csv",
+      "influence": {
+        "changedOptionKeys": [
+          "selected_timezone",
+          "timezone_handling"
+        ],
+        "conservativeCone": [
+          "app_policy",
+          "attribute_person",
+          "categorize_apps",
+          "day_coverage",
+          "dedup_and_order",
+          "device_state_timeline",
+          "effective_usage",
+          "episode_annotations",
+          "interval_cleaning",
+          "normalize_timezones",
+          "observation_window",
+          "outputs",
+          "reconstruct_episodes",
+          "score_compliance"
+        ],
+        "derivation": "product plan knob bindings plus transitive DAG reachability",
+        "seedNodes": [
+          "normalize_timezones"
+        ]
+      },
+      "inputDigest": "sha256:4e7908cb8cc114dcdf2741522a565777cdedb9557a761dfdf283c283259d1ac9",
+      "nodeWidthEnvelopes": [
+        {
+          "evidence": "node is outside the plan-derived timezone influence cone",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "parse_events",
+          "status": "exact-unaffected"
+        },
+        {
+          "evidence": "normalized-events partition from four cold Rust executions",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "normalize_timezones",
+          "status": "exact-observed"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "dedup_and_order",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "app_policy",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "device_state_timeline",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "reconstruct_episodes",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "categorize_apps",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "episode_annotations",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "interval_cleaning",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "effective_usage",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "observation_window",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "attribute_person",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "day_coverage",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "score_compliance",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "published-outputs partition from four cold Rust executions",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "outputs",
+          "status": "exact-observed"
+        }
+      ],
+      "partitions": [
+        {
+          "classes": [
+            {
+              "classId": "sha256:f1821d3422b8fafb55f24a8342d92f5bca3957056f23ac003c9cd42e813ffd52",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-convert/v1",
+              "variants": [
+                "primary-convert"
+              ]
+            },
+            {
+              "classId": "sha256:9fc238642d178651af7e625c9034ff97018be3fb623b51fedc47c88c097b58f7",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-filter/v1",
+              "variants": [
+                "primary-filter"
+              ]
+            },
+            {
+              "classId": "sha256:23645ea898d5096a09106710f17166b8f1bf20d2c872c7b9289b206df4b85510",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-convert/v1",
+              "variants": [
+                "selected-convert"
+              ]
+            },
+            {
+              "classId": "sha256:d1d818be0724d391bbffb6ac4974ba36a8f14140e0a8ec22202e389b730be380",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-filter/v1",
+              "variants": [
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "declared-method",
+          "semantics": "researcher-visible policy identity; never collapsed by equal outputs",
+          "width": 4
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:d633ed0b5151ab6b137de7cfa8992e3b0522ab124f7566468b59e8ea49d8360a",
+              "signature": "America/Chicago",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "effective-target",
+          "semantics": "timezone selected after resolving selected-versus-primary qualification",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:e752528414a6862c2c92f1afb438f3279efba97d769b1935077039964ad75f1c",
+              "signature": "sha256:5fc979e0bb744ba2a70ed4f19e017bfe2f98a73db730912511c85ddefa1152a5",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "retained-source-rows",
+          "semantics": "exact raw-row membership retained by the timezone policy",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:24fcdee1a21ef867f604ca97214c115d2df79f7eca3baac49133b574a425f0ba",
+              "signature": "sha256:b235a13f7ad7274a276b02fd1d65b0173c66ab8e8e20605039c1a3eb8d7e44f1",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "normalized-events",
+          "semantics": "exact Chronicle event state immediately after timezone normalization",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:3ee21e1bb33cd46816086975e2bbcdeb40347b3bdac11246c2eeb21c396840ba",
+              "signature": "sha256:6b20e57fd90bff453b6b4a24df84ad34d0412c222e15d68f38298dd783e46cfe",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "published-outputs",
+          "semantics": "byte identity of every scientific CSV/JSON output from a cold full Rust run",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:9df5fb951fea9abc7855c086d5da28a359d6e57d172c0506847ae2e5c314ba57",
+              "signature": "sha256:27ca914cf682a84eb4192ae4bb003f50849b4a170cf660f717612ee07afc926e",
+              "variants": [
+                "primary-convert"
+              ]
+            },
+            {
+              "classId": "sha256:b07bc75bc67fc55b45e72e1db856b0292df27abcdf722db630f052e9ca97c73e",
+              "signature": "sha256:5edfc30b5ec76effa999b78da8cfe4be616b7b6d1e1f9a0f97013844aeb0c3d1",
+              "variants": [
+                "selected-convert"
+              ]
+            },
+            {
+              "classId": "sha256:487466063b40371e67380502f4ff1ffb2d69c566d81156c0421571631ae9a00b",
+              "signature": "sha256:ad66966e1cd866c8879eed5af3e7417ae6e2e62a8005ed8b3027313001027da5",
+              "variants": [
+                "primary-filter"
+              ]
+            },
+            {
+              "classId": "sha256:b4b3aa12e9de795e6f2516c873db5d65096e85b55f49f40cd7e244594f294b1e",
+              "signature": "sha256:ebc24c97f262079e93d3a796dfeaee5336b4cea5efeaa42139d185a723e9d8ca",
+              "variants": [
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "provenance-identity",
+          "semantics": "outputs plus row lineage and resolved timezone policy evidence",
+          "width": 4
+        }
+      ],
+      "protocolVersion": "chronicle-configuration-family/v1",
+      "variants": [
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "primary-convert"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-convert/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:b235a13f7ad7274a276b02fd1d65b0173c66ab8e8e20605039c1a3eb8d7e44f1",
+          "provenanceDigest": "sha256:27ca914cf682a84eb4192ae4bb003f50849b4a170cf660f717612ee07afc926e",
+          "publishedOutputsDigest": "sha256:6b20e57fd90bff453b6b4a24df84ad34d0412c222e15d68f38298dd783e46cfe",
+          "retainedSourceRowsDigest": "sha256:5fc979e0bb744ba2a70ed4f19e017bfe2f98a73db730912511c85ddefa1152a5",
+          "rowsAfter": 10,
+          "rowsBefore": 10,
+          "rowsRemoved": 0,
+          "variantId": "primary-convert"
+        },
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "primary-filter"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-filter/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:b235a13f7ad7274a276b02fd1d65b0173c66ab8e8e20605039c1a3eb8d7e44f1",
+          "provenanceDigest": "sha256:ad66966e1cd866c8879eed5af3e7417ae6e2e62a8005ed8b3027313001027da5",
+          "publishedOutputsDigest": "sha256:6b20e57fd90bff453b6b4a24df84ad34d0412c222e15d68f38298dd783e46cfe",
+          "retainedSourceRowsDigest": "sha256:5fc979e0bb744ba2a70ed4f19e017bfe2f98a73db730912511c85ddefa1152a5",
+          "rowsAfter": 10,
+          "rowsBefore": 10,
+          "rowsRemoved": 0,
+          "variantId": "primary-filter"
+        },
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "selected-convert"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-convert/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:b235a13f7ad7274a276b02fd1d65b0173c66ab8e8e20605039c1a3eb8d7e44f1",
+          "provenanceDigest": "sha256:5edfc30b5ec76effa999b78da8cfe4be616b7b6d1e1f9a0f97013844aeb0c3d1",
+          "publishedOutputsDigest": "sha256:6b20e57fd90bff453b6b4a24df84ad34d0412c222e15d68f38298dd783e46cfe",
+          "retainedSourceRowsDigest": "sha256:5fc979e0bb744ba2a70ed4f19e017bfe2f98a73db730912511c85ddefa1152a5",
+          "rowsAfter": 10,
+          "rowsBefore": 10,
+          "rowsRemoved": 0,
+          "variantId": "selected-convert"
+        },
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "selected-filter"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-filter/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:b235a13f7ad7274a276b02fd1d65b0173c66ab8e8e20605039c1a3eb8d7e44f1",
+          "provenanceDigest": "sha256:ebc24c97f262079e93d3a796dfeaee5336b4cea5efeaa42139d185a723e9d8ca",
+          "publishedOutputsDigest": "sha256:6b20e57fd90bff453b6b4a24df84ad34d0412c222e15d68f38298dd783e46cfe",
+          "retainedSourceRowsDigest": "sha256:5fc979e0bb744ba2a70ed4f19e017bfe2f98a73db730912511c85ddefa1152a5",
+          "rowsAfter": 10,
+          "rowsBefore": 10,
+          "rowsRemoved": 0,
+          "variantId": "selected-filter"
+        }
+      ]
+    },
+    {
+      "axis": {
+        "axisId": "timezone-handling",
+        "cardinality": 4,
+        "optionKeys": [
+          "selected_timezone",
+          "timezone_handling"
+        ],
+        "variants": [
+          "selected-filter",
+          "selected-convert",
+          "primary-filter",
+          "primary-convert"
+        ]
+      },
+      "completeness": {
+        "duplicateVariants": [],
+        "exhaustive": true,
+        "expectedVariantCount": 4,
+        "fullRustExecutionCount": 4,
+        "missingVariants": [],
+        "observedVariantCount": 4,
+        "oracle": "chronicle_chrono_kernel_wasm::run_pipeline_v2_with_supports",
+        "proofScope": "finite timezone policy axis for one fixed fixture, selected timezone, support set, and all other options",
+        "unexpectedVariants": []
+      },
+      "familyId": "chronicle-preprocessing/timezone-handling/v1",
+      "fixtureId": "Crediting.csv",
+      "influence": {
+        "changedOptionKeys": [
+          "selected_timezone",
+          "timezone_handling"
+        ],
+        "conservativeCone": [
+          "app_policy",
+          "attribute_person",
+          "categorize_apps",
+          "day_coverage",
+          "dedup_and_order",
+          "device_state_timeline",
+          "effective_usage",
+          "episode_annotations",
+          "interval_cleaning",
+          "normalize_timezones",
+          "observation_window",
+          "outputs",
+          "reconstruct_episodes",
+          "score_compliance"
+        ],
+        "derivation": "product plan knob bindings plus transitive DAG reachability",
+        "seedNodes": [
+          "normalize_timezones"
+        ]
+      },
+      "inputDigest": "sha256:320395c638791bdd24b406ecb257baee42c667c7929263f19511a706afeffdd6",
+      "nodeWidthEnvelopes": [
+        {
+          "evidence": "node is outside the plan-derived timezone influence cone",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "parse_events",
+          "status": "exact-unaffected"
+        },
+        {
+          "evidence": "normalized-events partition from four cold Rust executions",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "normalize_timezones",
+          "status": "exact-observed"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "dedup_and_order",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "app_policy",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "device_state_timeline",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "reconstruct_episodes",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "categorize_apps",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "episode_annotations",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "interval_cleaning",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "effective_usage",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "observation_window",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "attribute_person",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "day_coverage",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "identical normalized input and no downstream timezone-option binding",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "score_compliance",
+          "status": "exact-inferred"
+        },
+        {
+          "evidence": "published-outputs partition from four cold Rust executions",
+          "maximumWidth": 1,
+          "minimumWidth": 1,
+          "nodeId": "outputs",
+          "status": "exact-observed"
+        }
+      ],
+      "partitions": [
+        {
+          "classes": [
+            {
+              "classId": "sha256:f1821d3422b8fafb55f24a8342d92f5bca3957056f23ac003c9cd42e813ffd52",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-convert/v1",
+              "variants": [
+                "primary-convert"
+              ]
+            },
+            {
+              "classId": "sha256:9fc238642d178651af7e625c9034ff97018be3fb623b51fedc47c88c097b58f7",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-filter/v1",
+              "variants": [
+                "primary-filter"
+              ]
+            },
+            {
+              "classId": "sha256:23645ea898d5096a09106710f17166b8f1bf20d2c872c7b9289b206df4b85510",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-convert/v1",
+              "variants": [
+                "selected-convert"
+              ]
+            },
+            {
+              "classId": "sha256:d1d818be0724d391bbffb6ac4974ba36a8f14140e0a8ec22202e389b730be380",
+              "signature": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-filter/v1",
+              "variants": [
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "declared-method",
+          "semantics": "researcher-visible policy identity; never collapsed by equal outputs",
+          "width": 4
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:d633ed0b5151ab6b137de7cfa8992e3b0522ab124f7566468b59e8ea49d8360a",
+              "signature": "America/Chicago",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "effective-target",
+          "semantics": "timezone selected after resolving selected-versus-primary qualification",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:c29b26e2b3bd997df77b2e1cf8f08dd9faaf780b29f253f82171dedc197c36ef",
+              "signature": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "retained-source-rows",
+          "semantics": "exact raw-row membership retained by the timezone policy",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:94f39ef029d20438189743df84c45549f3100756e5094b5571582e1271255780",
+              "signature": "sha256:30e9e747b43dccd60a92fce1cd17b943275a0ac452183845b5ff1204791243cb",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "normalized-events",
+          "semantics": "exact Chronicle event state immediately after timezone normalization",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:2f529fd6c4eff3679f962b1069f3e0b7d59e5e09a4d16b10e703493e05ec680e",
+              "signature": "sha256:f76344605d1355270ed9f45b963b7402a2275834f07f4f3ff716027f6df6db49",
+              "variants": [
+                "primary-convert",
+                "primary-filter",
+                "selected-convert",
+                "selected-filter"
+              ]
+            }
+          ],
+          "perspectiveId": "published-outputs",
+          "semantics": "byte identity of every scientific CSV/JSON output from a cold full Rust run",
+          "width": 1
+        },
+        {
+          "classes": [
+            {
+              "classId": "sha256:17b05328804efea62671c489185a7e04db9de58ce15e3c586544ad1207127382",
+              "signature": "sha256:207e4561fbc859f1bb21af5ae4e1de0c847b833b021dfe0d2f3159e8e26be6cf",
+              "variants": [
+                "selected-filter"
+              ]
+            },
+            {
+              "classId": "sha256:074e67df4ed8c8e51674a4a0afd818e67fe2fcd77169d7541a83b59ae56ba374",
+              "signature": "sha256:338b9f5fed948915b599447141d2fdf5b3f130f1b82ec69a0d84c373529f0bf0",
+              "variants": [
+                "selected-convert"
+              ]
+            },
+            {
+              "classId": "sha256:ea698ca2230ee6e167a2bfde47214f291341530ff182a386a076023ba740e601",
+              "signature": "sha256:819270baa87173ca7a08ddc023d6d42de599851b69c16c14a588bdeb6099aabd",
+              "variants": [
+                "primary-filter"
+              ]
+            },
+            {
+              "classId": "sha256:fe2805f69c3cfec88f65d03397eaec5ff5ffe90d3c42326038c7833dee5262bb",
+              "signature": "sha256:cc0cecc5c6cbb8bacc22a8a51dd06565e3c577e1bc19936ffa8b1e7b66c6fe73",
+              "variants": [
+                "primary-convert"
+              ]
+            }
+          ],
+          "perspectiveId": "provenance-identity",
+          "semantics": "outputs plus row lineage and resolved timezone policy evidence",
+          "width": 4
+        }
+      ],
+      "protocolVersion": "chronicle-configuration-family/v1",
+      "variants": [
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "primary-convert"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-convert/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:30e9e747b43dccd60a92fce1cd17b943275a0ac452183845b5ff1204791243cb",
+          "provenanceDigest": "sha256:cc0cecc5c6cbb8bacc22a8a51dd06565e3c577e1bc19936ffa8b1e7b66c6fe73",
+          "publishedOutputsDigest": "sha256:f76344605d1355270ed9f45b963b7402a2275834f07f4f3ff716027f6df6db49",
+          "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
+          "rowsAfter": 6,
+          "rowsBefore": 6,
+          "rowsRemoved": 0,
+          "variantId": "primary-convert"
+        },
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "primary-filter"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-filter/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:30e9e747b43dccd60a92fce1cd17b943275a0ac452183845b5ff1204791243cb",
+          "provenanceDigest": "sha256:819270baa87173ca7a08ddc023d6d42de599851b69c16c14a588bdeb6099aabd",
+          "publishedOutputsDigest": "sha256:f76344605d1355270ed9f45b963b7402a2275834f07f4f3ff716027f6df6db49",
+          "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
+          "rowsAfter": 6,
+          "rowsBefore": 6,
+          "rowsRemoved": 0,
+          "variantId": "primary-filter"
+        },
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "selected-convert"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-convert/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:30e9e747b43dccd60a92fce1cd17b943275a0ac452183845b5ff1204791243cb",
+          "provenanceDigest": "sha256:338b9f5fed948915b599447141d2fdf5b3f130f1b82ec69a0d84c373529f0bf0",
+          "publishedOutputsDigest": "sha256:f76344605d1355270ed9f45b963b7402a2275834f07f4f3ff716027f6df6db49",
+          "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
+          "rowsAfter": 6,
+          "rowsBefore": 6,
+          "rowsRemoved": 0,
+          "variantId": "selected-convert"
+        },
+        {
+          "assignments": {
+            "selected_timezone": "America/Chicago",
+            "timezone_handling": "selected-filter"
+          },
+          "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-filter/v1",
+          "effectiveTarget": "America/Chicago",
+          "normalizedEventsDigest": "sha256:30e9e747b43dccd60a92fce1cd17b943275a0ac452183845b5ff1204791243cb",
+          "provenanceDigest": "sha256:207e4561fbc859f1bb21af5ae4e1de0c847b833b021dfe0d2f3159e8e26be6cf",
+          "publishedOutputsDigest": "sha256:f76344605d1355270ed9f45b963b7402a2275834f07f4f3ff716027f6df6db49",
+          "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
+          "rowsAfter": 6,
+          "rowsBefore": 6,
+          "rowsRemoved": 0,
+          "variantId": "selected-filter"
+        }
+      ]
+    }
+  ]
+}

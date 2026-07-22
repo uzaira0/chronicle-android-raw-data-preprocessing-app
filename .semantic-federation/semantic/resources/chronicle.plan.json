@@ -127,21 +127,8 @@
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       ],
       "required_when": {
-        "kind": "any",
-        "terms": [
-          {
-            "kind": "option-true",
-            "option_key": "enable_study_window_filter"
-          },
-          {
-            "kind": "option-true",
-            "option_key": "add_no_activity_placeholder_days"
-          },
-          {
-            "kind": "option-true",
-            "option_key": "enable_day_coverage"
-          }
-        ]
+        "kind": "option-true",
+        "option_key": "enable_study_window_filter"
       }
     },
     {
@@ -155,17 +142,8 @@
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       ],
       "required_when": {
-        "kind": "any",
-        "terms": [
-          {
-            "kind": "option-true",
-            "option_key": "enable_person_attribution"
-          },
-          {
-            "kind": "option-true",
-            "option_key": "enable_compliance_scoring"
-          }
-        ]
+        "kind": "option-true",
+        "option_key": "enable_person_attribution"
       }
     },
     {
@@ -369,10 +347,6 @@
         {
           "option_key": "process_app_usage",
           "edge": "gates"
-        },
-        {
-          "option_key": "use_filter_file",
-          "edge": "tunes"
         },
         {
           "option_key": "use_background_apps_file",
@@ -817,15 +791,41 @@
       "section": "output",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/outputs/v1",
       "input_nodes": [
+        "app_policy",
+        "attribute_person",
         "day_coverage",
         "device_state_timeline",
         "effective_usage",
         "observation_window",
-        "attribute_person",
         "score_compliance"
       ],
       "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/outputs",
-      "knobs": [],
+      "knobs": [
+        {
+          "option_key": "study_name",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "enable_aggregates",
+          "edge": "gates"
+        },
+        {
+          "option_key": "aggregate_shape",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "include_category_column",
+          "edge": "gates"
+        },
+        {
+          "option_key": "enable_parquet_export",
+          "edge": "gates"
+        },
+        {
+          "option_key": "enable_spss_export",
+          "edge": "gates"
+        }
+      ],
       "support_roles": [],
       "applicability": {
         "kind": "always"
@@ -1168,7 +1168,7 @@
       "step_id": "compute_junk_packages",
       "unit_id": "reconstruct_episodes",
       "label": "Compute junk packages",
-      "description": "The junk (filter-listed) package set: packages carrying any Filtered-* event. Empty when the filter file is off.",
+      "description": "The junk (filter-listed) package set, derived entirely from upstream rows carrying a Filtered-* event.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/compute_junk_packages/v1",
       "input_steps": [
         "tag_filtered_packages"
@@ -2098,6 +2098,7 @@
       "description": "Assemble everything the run produced — app rows, screen sessions, credited usage, window/attribution/coverage/compliance reports — into the downloadable result set.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/assemble_result/v1",
       "input_steps": [
+        "tag_filtered_packages",
         "inject_placeholders",
         "build_coverage_table",
         "build_classified_sessions",

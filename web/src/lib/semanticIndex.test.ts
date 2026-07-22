@@ -87,6 +87,25 @@ describe("derived semantic index WASM boundary", () => {
     );
     expect(assignments.rows?.length).toBeGreaterThanOrEqual(2);
 
+    const qualifications = await queryRegisteredSemanticIndex(
+      first,
+      "qualification-traces",
+    );
+    expect(qualifications.rows?.length).toBeGreaterThanOrEqual(2);
+    expect(
+      qualifications.rows?.every((row) => row["?decision"]?.includes("accepted")),
+      JSON.stringify(qualifications.rows, null, 2),
+    ).toBe(true);
+
+    const requirements = await queryRegisteredSemanticIndex(
+      first,
+      "requirement-traces",
+    );
+    expect(requirements.rows).toHaveLength(10);
+    expect(requirements.rows?.some((row) => row["?state"]?.includes("satisfied"))).toBe(
+      true,
+    );
+
     await expect(
       queryRegisteredSemanticIndex(first, "DROP ALL"),
     ).rejects.toThrow(/unregistered production query/i);

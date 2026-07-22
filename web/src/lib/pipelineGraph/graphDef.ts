@@ -229,7 +229,6 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         inputs: ["app_policy"],
         knobs: [
           { optionKey: "processAppUsage", edge: "gates" },
-          { optionKey: "useFilterFile", edge: "tunes" },
           { optionKey: "useBackgroundAppsFile", edge: "gates" },
           { optionKey: "allowStopEventReuse", edge: "tunes" },
           { optionKey: "useActivityStoppedAsFallback", edge: "tunes" },
@@ -473,14 +472,30 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           "into the downloadable result set.",
         section: "output",
         inputs: [
+          // Visualization output includes the canonical post-policy event
+          // substrate even when every app/screen analysis branch is disabled.
+          // Stage-local cold/warm intervention proved that routing only
+          // through optional analysis branches can hide this dependency.
+          "app_policy",
+          "attribute_person",
           "day_coverage",
           "device_state_timeline",
           "effective_usage",
           "observation_window",
-          "attribute_person",
           "score_compliance",
         ],
-        knobs: [],
+        knobs: [
+          // These values are consumed by the Rust output assembly even though
+          // the legacy TypeScript host also performs presentation/export work
+          // after the logical graph. They must participate in the product plan
+          // or an incremental Rust run can reuse stale stamped/aggregate bytes.
+          { optionKey: "studyName", edge: "tunes" },
+          { optionKey: "enableAggregates", edge: "gates" },
+          { optionKey: "aggregateShape", edge: "tunes" },
+          { optionKey: "includeCategoryColumn", edge: "gates" },
+          { optionKey: "enableParquetExport", edge: "gates" },
+          { optionKey: "enableSpssExport", edge: "gates" },
+        ],
         run: (ctx, inputs): Promise<PipelineOutputs> => runUnit(outputsWiring, ctx, inputs),
       },
     ],
@@ -489,19 +504,14 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
 
 /**
  * Option keys that intentionally have NO node binding: they configure
- * presentation, export encoders, or runtime scheduling — none of which
+ * presentation or runtime scheduling — none of which
  * change the session rows the graph computes.
  */
 export const UNBOUND_OPTION_KEYS: ReadonlySet<string> = new Set([
-  "studyName", // stamped into CSV records at output-assembly time
   "enablePlotting",
   "includeFilteredAppUsageInPlots",
   "enableActivityHeatmap",
   "exportPlotsAsSvg",
-  "enableAggregates",
-  "aggregateShape",
-  "enableParquetExport",
-  "enableSpssExport",
   "enableInteractiveTimeline",
   "plotOnlyTargetChildData",
   "parallelProcessing",

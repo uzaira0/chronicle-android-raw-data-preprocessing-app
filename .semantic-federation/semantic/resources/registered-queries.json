@@ -1,5 +1,5 @@
 {
-  "query_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:queries/0.1",
+  "query_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:queries/0.2",
   "arbitrary_production_sparql": false,
   "queries": [
     {
@@ -16,6 +16,16 @@
       "query_id": "role-assignments",
       "view_id": "chronicle.artifact.v1",
       "sparql": "SELECT ?assignment ?role ?artifact ?digest WHERE { GRAPH <urn:chronicle:derived:assignments> { ?assignment <urn:chronicle:predicate:role> ?role ; <urn:chronicle:predicate:artifact> ?artifact . ?artifact <urn:chronicle:predicate:digest> ?digest . } } ORDER BY ?role ?digest"
+    },
+    {
+      "query_id": "qualification-traces",
+      "view_id": "chronicle.explanation.v1",
+      "sparql": "SELECT ?trace ?candidate ?revision ?assertedRole ?selectedRole ?decision ?reason WHERE { GRAPH <urn:chronicle:derived:qualification> { ?trace <urn:chronicle:predicate:candidate> ?candidate ; <urn:chronicle:predicate:candidateRevision> ?revision ; <urn:chronicle:predicate:assertedRole> ?assertedRole ; <urn:chronicle:predicate:decision> ?decision ; <urn:chronicle:predicate:reason> ?reason . OPTIONAL { ?trace <urn:chronicle:predicate:selectedRole> ?selectedRole } } } ORDER BY ?candidate ?assertedRole"
+    },
+    {
+      "query_id": "requirement-traces",
+      "view_id": "chronicle.obligation.v1",
+      "sparql": "SELECT ?trace ?role ?required ?condition ?conditionResult ?state ?reason WHERE { GRAPH <urn:chronicle:derived:qualification> { ?trace <urn:chronicle:predicate:role> ?role ; <urn:chronicle:predicate:required> ?required ; <urn:chronicle:predicate:state> ?state ; <urn:chronicle:predicate:reason> ?reason . OPTIONAL { ?trace <urn:chronicle:predicate:condition> ?condition } OPTIONAL { ?trace <urn:chronicle:predicate:conditionResult> ?conditionResult } } } ORDER BY ?role"
     },
     {
       "query_id": "reason-trace",

@@ -80,6 +80,72 @@ export const BROWSER_PROCESSING_OPTION_KEYS = [
   "enableDayCoverage",
 ] as const;
 
+// Product-local configuration axes. Only computational keys participate in
+// the semantic configuration lattice; the other axes are verified separately
+// for annotation-only, view-only, or execution-strategy invariance.
+export const COMPUTATIONAL_BROWSER_OPTION_KEYS = [
+  "processAppUsage",
+  "processScreenUsage",
+  "allowStopEventReuse",
+  "useActivityStoppedAsFallback",
+  "applyThresholdToFallback",
+  "longDurationThresholdHours",
+  "correctDuplicateEventTimestamps",
+  "deduplicateExactRows",
+  "selectedTimezone",
+  "timezoneHandling",
+  "useFilterFile",
+  "useAppsForcingScreenOpenFile",
+  "useBackgroundAppsFile",
+  "useAppCodebook",
+  "includeCategoryColumn",
+  "enableAggregates",
+  "aggregateShape",
+  "enableParquetExport",
+  "enableSpssExport",
+  "minimumUsageDuration",
+  "filterZeroDurationSessions",
+  "customAppEngagementDuration",
+  "longUsageDurationThresholds",
+  "longDataTimeGapThresholds",
+  "screenUsageAutoLockTimeoutSeconds",
+  "screenUsageAutoLockToleranceSeconds",
+  "screenUsageManualLockMaxTailGapSeconds",
+  "screenUsageKeyguardNearStopSeconds",
+  "sameAppInteractionTypesToStopUsageAt",
+  "otherInteractionTypesToStopUsageAt",
+  "modelConcurrentUsage",
+  "applyMinimumUsageDurationToConcurrentSubintervals",
+  "interactionTypesToRemove",
+  "interactionTypeRemap",
+  "proximityIntervalSeconds",
+  "addNoActivityPlaceholderDays",
+  "enableScreenGatedCrediting",
+  "creditedSessionCapMinutes",
+  "deviceLivenessGapToleranceMinutes",
+  "autoLockBridgeSeconds",
+  "noWitnessMinDayApps",
+  "enableStudyWindowFilter",
+  "enablePersonAttribution",
+  "enableComplianceScoring",
+  "complianceThresholdPercent",
+  "enableDayCoverage",
+] as const;
+export const ANNOTATION_BROWSER_OPTION_KEYS = [
+  "studyName",
+] as const;
+export const VIEW_BROWSER_OPTION_KEYS = [
+  "enablePlotting",
+  "includeFilteredAppUsageInPlots",
+  "enableActivityHeatmap",
+  "exportPlotsAsSvg",
+  "enableInteractiveTimeline",
+] as const;
+export const EXECUTION_BROWSER_OPTION_KEYS = [
+  "parallelProcessing",
+  "parallelMaxWorkers",
+] as const;
+
 export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = [
   "studyName",
   "processAppUsage",

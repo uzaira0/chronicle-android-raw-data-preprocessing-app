@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { stringify as stringifyYaml, parse as parseYaml } from "yaml";
 
 type LinkMlSlot = {
+  annotations?: Record<string, unknown>;
   description?: string;
   title?: string;
   example?: string;
@@ -14,6 +15,8 @@ type LinkMlSlot = {
   range?: string;
   required?: boolean;
 };
+
+type ConfigurationAxis = "computational" | "annotation" | "view" | "execution";
 
 type LinkMlClass = {
   slots?: string[];
@@ -144,6 +147,37 @@ function buildTsOptionKeysByCategory(
   for (const slotName of assertClassSlots(document, className)) {
     const category = categorizeSlot(document, slotName);
     if (category !== null) result[category].push(snakeToCamel(slotName));
+  }
+  return result;
+}
+
+function configurationAxis(slot: LinkMlSlot, slotName: string): ConfigurationAxis {
+  const value = slot.annotations?.configuration_axis ?? "computational";
+  if (
+    value !== "computational" &&
+    value !== "annotation" &&
+    value !== "view" &&
+    value !== "execution"
+  ) {
+    throw new Error(`Invalid configuration_axis annotation for ${slotName}: ${String(value)}`);
+  }
+  return value;
+}
+
+function buildTsOptionKeysByAxis(
+  document: LinkMlDocument,
+  className: string,
+): Record<ConfigurationAxis, string[]> {
+  const result: Record<ConfigurationAxis, string[]> = {
+    computational: [],
+    annotation: [],
+    view: [],
+    execution: [],
+  };
+  for (const slotName of assertClassSlots(document, className)) {
+    const slot = document.slots[slotName];
+    if (!slot) throw new Error(`Missing slot definition for ${slotName}`);
+    result[configurationAxis(slot, slotName)].push(snakeToCamel(slotName));
   }
   return result;
 }
@@ -422,6 +456,7 @@ function buildGeneratedTypeScript(document: LinkMlDocument): string {
   const aggregateShapeValues = getEnumValues(document, "AggregateShape");
   const optionsInterface = buildTsInterface(document, "BrowserProcessingOptions");
   const keysByCategory = buildTsOptionKeysByCategory(document, "BrowserProcessingOptions");
+  const keysByAxis = buildTsOptionKeysByAxis(document, "BrowserProcessingOptions");
   const defaultOptions = buildDefaultBrowserOptions(document, "BrowserProcessingOptions");
   const optionTooltips = buildBrowserOptionTooltips(document, "BrowserProcessingOptions");
 
@@ -435,6 +470,14 @@ export const OUTPUT_KIND_VALUES = ${toConstArray(outputKindValues)};
 export const AGGREGATE_SHAPE_VALUES = ${toConstArray(aggregateShapeValues)};
 
 export const BROWSER_PROCESSING_OPTION_KEYS = ${toConstArray(browserOptionSlots)};
+
+// Product-local configuration axes. Only computational keys participate in
+// the semantic configuration lattice; the other axes are verified separately
+// for annotation-only, view-only, or execution-strategy invariance.
+export const COMPUTATIONAL_BROWSER_OPTION_KEYS = ${toConstArray(keysByAxis.computational)};
+export const ANNOTATION_BROWSER_OPTION_KEYS = ${toConstArray(keysByAxis.annotation)};
+export const VIEW_BROWSER_OPTION_KEYS = ${toConstArray(keysByAxis.view)};
+export const EXECUTION_BROWSER_OPTION_KEYS = ${toConstArray(keysByAxis.execution)};
 
 export const BROWSER_REQUIRED_PROCESSING_OPTION_KEYS = ${toConstArray(browserRequiredOptionSlots)};
 

@@ -1,10 +1,12 @@
 import { access, readFile, readdir, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const webDir = path.resolve(scriptDir, "..");
+const repositoryRoot = path.resolve(webDir, "..");
 const artifactMode = process.argv[2] ?? "cloudflare";
 
 const sharedRequiredFiles = ["index.html", "manifest.webmanifest", "sw.js", ".vite/manifest.json"];
@@ -43,6 +45,169 @@ type BundleBudget = {
   categories: Record<string, number>;
   filePrefixes?: Record<string, number>;
 };
+
+type DependencyCertificate = {
+  protocol_version: string;
+  structural_contract: { plan_digest: string };
+  evidence: {
+    implementation_receipt: {
+      implementation?: string;
+      implementationDigest: string;
+      planDigest: string;
+      profileDigest: string;
+      profileLockDigest: string;
+      runtimeAuthorityDigest: string;
+      productContractDigest: string;
+    };
+    proof_ledgers: Array<{
+      path: string;
+      digest: string;
+      protocol_version: string;
+      claim_boundary: string;
+    }>;
+  };
+};
+
+const requiredProofLedgers = [
+  "web/src/lib/pipelineGraph/golden/family-expected/configuration-influence-ledger.json",
+  "web/src/lib/pipelineGraph/golden/family-expected/artifact-influence-ledger.json",
+  "web/src/lib/pipelineGraph/golden/family-expected/raw-boundary-influence-ledger.json",
+  "web/src/lib/pipelineGraph/golden/family-expected/interaction-influence-ledger.json",
+  "web/src/lib/pipelineGraph/golden/family-expected/mixed-artifact-configuration-ledger.json",
+  "web/src/lib/pipelineGraph/golden/family-expected/semantic-model-mutation-ledger.json",
+] as const;
+
+function sha256(bytes: Uint8Array): string {
+  return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+}
+
+async function verifyDependencyEvidenceCurrent(): Promise<string> {
+  const certificate = JSON.parse(
+    await readFile(
+      path.join(
+        repositoryRoot,
+        ".semantic-federation/proofs/dependency-certificate.json",
+      ),
+      "utf8",
+    ),
+  ) as DependencyCertificate;
+  if (certificate.protocol_version !== "chronicle-dependency-certificate/v1") {
+    throw new Error(
+      `unsupported dependency certificate protocol: ${certificate.protocol_version}`,
+    );
+  }
+  const receipt = certificate.evidence.implementation_receipt;
+  const ledgerPaths = certificate.evidence.proof_ledgers
+    .map((ledger) => ledger.path)
+    .sort();
+  const expectedLedgerPaths = [...requiredProofLedgers].sort();
+  if (JSON.stringify(ledgerPaths) !== JSON.stringify(expectedLedgerPaths)) {
+    throw new Error(
+      `dependency proof ledger closure mismatch: expected=${expectedLedgerPaths.join(",")} actual=${ledgerPaths.join(",")}`,
+    );
+  }
+  for (const ledger of certificate.evidence.proof_ledgers) {
+    const ledgerPath = path.resolve(repositoryRoot, ledger.path);
+    if (!ledgerPath.startsWith(`${repositoryRoot}${path.sep}`)) {
+      throw new Error(`dependency proof ledger escapes repository root: ${ledger.path}`);
+    }
+    const ledgerBytes = await readFile(ledgerPath);
+    const actualDigest = sha256(ledgerBytes);
+    if (actualDigest !== ledger.digest) {
+      throw new Error(
+        `dependency proof ledger digest mismatch for ${ledger.path}: certificate=${ledger.digest} current=${actualDigest}`,
+      );
+    }
+    const actualLedger = JSON.parse(ledgerBytes.toString("utf8")) as {
+      protocolVersion?: string;
+      claimBoundary?: string;
+      implementationReceipt?: typeof receipt;
+    };
+    if (actualLedger.protocolVersion !== ledger.protocol_version) {
+      throw new Error(`dependency proof ledger protocol mismatch: ${ledger.path}`);
+    }
+    if (actualLedger.claimBoundary !== ledger.claim_boundary) {
+      throw new Error(`dependency proof ledger claim boundary mismatch: ${ledger.path}`);
+    }
+    if (
+      JSON.stringify(actualLedger.implementationReceipt) !== JSON.stringify(receipt)
+    ) {
+      throw new Error(`dependency proof ledger authority receipt mismatch: ${ledger.path}`);
+    }
+  }
+  const kernelPath = path.join(
+    webDir,
+    "src/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js",
+  );
+  const kernel = (await import(pathToFileURL(kernelPath).href)) as {
+    initSync(input: { module: Uint8Array }): unknown;
+    implementation_build_digest(): string;
+  };
+  kernel.initSync({
+    module: await readFile(
+      path.join(
+        webDir,
+        "src/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm",
+      ),
+    ),
+  });
+  const bindings = JSON.parse(
+    await readFile(
+      path.join(
+        repositoryRoot,
+        ".semantic-federation/semantic/capability-bindings.json",
+      ),
+      "utf8",
+    ),
+  ) as { product_contract_digest: string };
+  const actual = {
+    implementationDigest: kernel.implementation_build_digest(),
+    planDigest: sha256(
+      await readFile(
+        path.join(
+          repositoryRoot,
+          ".semantic-federation/semantic/resources/chronicle.plan.json",
+        ),
+      ),
+    ),
+    profileDigest: sha256(
+      await readFile(
+        path.join(
+          repositoryRoot,
+          ".semantic-federation/semantic/semantic-profile.json",
+        ),
+      ),
+    ),
+    profileLockDigest: sha256(
+      await readFile(
+        path.join(
+          repositoryRoot,
+          ".semantic-federation/semantic/semantic-profile.lock",
+        ),
+      ),
+    ),
+    runtimeAuthorityDigest: sha256(
+      await readFile(
+        path.join(
+          repositoryRoot,
+          ".semantic-federation/semantic/resources/runtime-authority.json",
+        ),
+      ),
+    ),
+    productContractDigest: bindings.product_contract_digest,
+  };
+  if (certificate.structural_contract.plan_digest !== actual.planDigest) {
+    throw new Error("dependency certificate structural plan digest is stale");
+  }
+  for (const [field, value] of Object.entries(actual)) {
+    if (receipt[field as keyof typeof receipt] !== value) {
+      throw new Error(
+        `dependency proof evidence is stale for ${field}: certificate=${receipt[field as keyof typeof receipt]} current=${value}; rerun the combinatorial proof and regenerate the certificate`,
+      );
+    }
+  }
+  return actual.implementationDigest;
+}
 
 async function* walkFiles(dir: string): AsyncGenerator<string> {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -182,6 +347,8 @@ async function main(): Promise<void> {
   }
 
   const bundleSizes = await checkBundleBudget(artifactDir);
+  const dependencyImplementationDigest =
+    await verifyDependencyEvidenceCurrent();
 
   console.log(
     JSON.stringify(
@@ -191,6 +358,7 @@ async function main(): Promise<void> {
         artifactDir,
         verifiedFiles: requiredFiles,
         bundleSizes,
+        dependencyImplementationDigest,
       },
       null,
       2,

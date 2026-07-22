@@ -25,11 +25,9 @@ export const computeJunkPackages = step({
   id: "compute_junk_packages",
   label: "Compute junk packages",
   description:
-    "The junk (filter-listed) package set: packages carrying any Filtered-* event. Empty when the filter file is off.",
+    "The junk (filter-listed) package set, derived entirely from upstream rows carrying a Filtered-* event.",
   inputs: { rows: appPolicyWiring.ports.rows },
-  run: ({ rows }, ctx) =>
-    ctx.options.useFilterFile ? computeFilteredPackagesFromRows(rows) : new Set<string>(),
-  bypassedWhen: (options) => !viewOptions(options).useFilterFile,
+  run: ({ rows }) => computeFilteredPackagesFromRows(rows),
 });
 
 export const junkBlindFold = step({
@@ -39,7 +37,6 @@ export const junkBlindFold = step({
     "Fold pre-relabeled junk events back to their Activity equivalents so the matcher sees every app identically (junk-BLIND matching).",
   inputs: { rows: appPolicyWiring.ports.rows, junk: computeJunkPackages },
   run: ({ rows, junk }) => (junk.size ? normalizePrefilteredEventTypes(rows, junk) : rows),
-  bypassedWhen: (options) => !viewOptions(options).useFilterFile,
 });
 
 export const buildMatcherInputStep = step({
@@ -104,7 +101,6 @@ export const junkDownstreamMark = step({
   inputs: { rows: relabelUsageWithFloor, junk: computeJunkPackages },
   run: ({ rows, junk }, ctx) =>
     markJunkAppsDownstream(rows, USAGE, STOPPED, junk, ctx.support.backgroundAppsSet),
-  bypassedWhen: (options) => !viewOptions(options).useFilterFile,
 });
 
 export const sortEvents = step({

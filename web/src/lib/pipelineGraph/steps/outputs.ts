@@ -3,6 +3,7 @@ import { dayCoverageWiring } from "@/lib/pipelineGraph/steps/dayCoverage";
 import { deviceStateTimelineWiring } from "@/lib/pipelineGraph/steps/deviceStateTimeline";
 import { effectiveUsageWiring } from "@/lib/pipelineGraph/steps/effectiveUsage";
 import { observationWindowWiring } from "@/lib/pipelineGraph/steps/observationWindow";
+import { appPolicyWiring } from "@/lib/pipelineGraph/steps/appPolicy";
 import { scoreComplianceWiring } from "@/lib/pipelineGraph/steps/scoreCompliance";
 import { port, stepsOf, wireUnitWhole } from "@/lib/pipelineGraph/stepTypes";
 import type { PipelineOutputs } from "@/lib/pipelineGraph/unitContracts";
@@ -15,6 +16,7 @@ export const assembleResult = step({
   description:
     "Assemble everything the run produced — app rows, screen sessions, credited usage, window/attribution/coverage/compliance reports — into the downloadable result set.",
   inputs: {
+    policyRows: appPolicyWiring.ports.rows,
     appRows: dayCoverageWiring.ports.rows,
     coverage: dayCoverageWiring.ports.coverage,
     screenRows: deviceStateTimelineWiring.wholePort,
@@ -25,6 +27,7 @@ export const assembleResult = step({
     compliance: scoreComplianceWiring.wholePort,
   },
   run: ({
+    policyRows,
     appRows,
     coverage,
     screenRows,
@@ -34,6 +37,7 @@ export const assembleResult = step({
     attribution,
     compliance,
   }): PipelineOutputs => ({
+    policyRows,
     appRows,
     screenRows,
     credited,

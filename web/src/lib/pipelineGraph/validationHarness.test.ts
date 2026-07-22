@@ -86,6 +86,13 @@ describe("altValue", () => {
     expect(altValue("someCount", 3)).toBe(4);
   });
 
+  it("changes both product-owned output identity domains in either direction", () => {
+    expect(altValue("studyName", "")).toBe("Alternative Study");
+    expect(altValue("studyName", "Existing Study")).toBe("");
+    expect(altValue("aggregateShape", "wide")).toBe("long");
+    expect(altValue("aggregateShape", "long")).toBe("wide");
+  });
+
   it("throws for an option key with no alternate-value case", () => {
     expect(() => altValue("no_such_option", "x")).toThrow(
       /no alternate value for option "no_such_option"/,

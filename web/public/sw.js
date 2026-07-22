@@ -3,6 +3,16 @@ const MANIFEST_URL = "./.vite/manifest.json";
 const SHELL_URLS = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg", "./sw.js"];
 const APP_SHELL_FALLBACK = new URL("./index.html", self.location.href).toString();
 
+async function matchSameOriginCache(request) {
+  // Static preview hosts commonly add `Vary: Origin`. Precache requests made
+  // from install have no Origin header, whereas module and stylesheet requests
+  // do, so the Cache API's default Vary comparison rejects an otherwise exact
+  // same-origin URL match while offline. Origin was already checked by the
+  // fetch handler and hashed assets are URL-addressed, so this dimension is not
+  // semantically relevant to the local shell cache.
+  return caches.match(request, { ignoreVary: true });
+}
+
 function toAbsoluteScopeUrl(path) {
   return new URL(path, self.location.href).toString();
 }
@@ -124,8 +134,8 @@ self.addEventListener("fetch", (event) => {
           return networkResponse;
         } catch {
           return (
-            (await caches.match(event.request)) ??
-            (await caches.match(APP_SHELL_FALLBACK)) ??
+            (await matchSameOriginCache(event.request)) ??
+            (await matchSameOriginCache(APP_SHELL_FALLBACK)) ??
             Response.error()
           );
         }
@@ -136,7 +146,7 @@ self.addEventListener("fetch", (event) => {
 
   event.respondWith(
     (async () => {
-      const cachedResponse = await caches.match(event.request);
+      const cachedResponse = await matchSameOriginCache(event.request);
       if (cachedResponse) {
         return cachedResponse;
       }

@@ -13,6 +13,71 @@ pub struct ChroniclePlan {
     pub steps: Vec<PlanStep>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DependencyCertificate {
+    pub protocol_version: String,
+    pub certificate_id: String,
+    pub structural_contract: DependencyStructuralContract,
+    pub evidence: DependencyEvidence,
+    pub narrowing_policy: BTreeMap<String, String>,
+    pub claim_boundary: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DependencyStructuralContract {
+    pub plan_digest: String,
+    pub configuration_axes: BTreeMap<String, Vec<String>>,
+    pub cache_relevant_option_keys: Vec<String>,
+    pub excluded_option_keys: Vec<String>,
+    pub role_ids: Vec<String>,
+    pub binding_surface: Value,
+    pub binding_surface_digest: String,
+    pub unclassified_option_keys: Vec<String>,
+    pub unbound_role_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DependencyEvidence {
+    pub implementation_receipt: DependencyImplementationReceipt,
+    pub proof_ledgers: Vec<DependencyProofLedger>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DependencyImplementationReceipt {
+    pub implementation: String,
+    pub implementation_digest: String,
+    pub plan_digest: String,
+    pub profile_digest: String,
+    pub profile_lock_digest: String,
+    pub runtime_authority_digest: String,
+    pub product_contract_digest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DependencyProofLedger {
+    pub path: String,
+    pub digest: String,
+    pub protocol_version: String,
+    pub claim_boundary: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DependencyCacheMode {
+    CertifiedNarrow,
+    ConservativeFull,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DependencyCacheDecision {
+    pub mode: DependencyCacheMode,
+    pub certificate_digest: Option<String>,
+    pub binding_surface_digest: Option<String>,
+    pub empirical_evidence_current: bool,
+    pub reasons: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Cardinality {
     pub minimum: usize,

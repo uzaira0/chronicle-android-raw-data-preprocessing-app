@@ -42,6 +42,7 @@ const journalDigest = `sha256:${"3".repeat(64)}`;
 const closureDigest = `sha256:${"4".repeat(64)}`;
 const payloadDigest = `sha256:${"5".repeat(64)}`;
 const previousDigest = `sha256:${"6".repeat(64)}`;
+const dependencyCertificateDigest = `sha256:${"8".repeat(64)}`;
 const viewDigests = ["a", "b", "c", "d"].map(
   (marker) => `sha256:${marker.repeat(64)}`,
 );
@@ -59,6 +60,7 @@ const slot: WorkspaceRootSlot = {
     journalDigest,
     closureDigest,
     payloadDigest,
+    dependencyCertificateDigest,
     ...viewDigests,
   ],
   checksum: `sha256:${"7".repeat(64)}`,
@@ -72,7 +74,12 @@ const validCommit = {
   inputDigest: payloadDigest,
   optionsDigest: payloadDigest,
   assignmentDigests: { raw_chronicle_csv: payloadDigest },
-  artifactDigests: [journalDigest, closureDigest, payloadDigest],
+  artifactDigests: [
+    journalDigest,
+    closureDigest,
+    payloadDigest,
+    dependencyCertificateDigest,
+  ],
   requiredViewIds: [
     "chronicle.stage.v1",
     "chronicle.artifact.v1",
@@ -81,12 +88,21 @@ const validCommit = {
   ],
   journalDigest,
   artifactClosureDigest: closureDigest,
+  dependencyCertificateDigest,
+  dependencyCacheMode: "certified_narrow",
 };
 const validClosure = {
   protocolVersion: "chronicle-artifact-closure/v1",
   workspaceId,
   journalDigest,
-  artifacts: [{ kind: "semantic-index-source-json", digest: payloadDigest }],
+  dependencyCertificateDigest,
+  artifacts: [
+    { kind: "semantic-index-source-json", digest: payloadDigest },
+    {
+      kind: "dependency-certificate-json",
+      digest: dependencyCertificateDigest,
+    },
+  ],
 };
 
 const bytesByDigest = new Map([
@@ -94,6 +110,7 @@ const bytesByDigest = new Map([
   [journalDigest, enc.encode("journal")],
   [closureDigest, enc.encode(JSON.stringify(validClosure))],
   [payloadDigest, enc.encode("payload")],
+  [dependencyCertificateDigest, enc.encode("dependency certificate")],
   ...viewDigests.map((digest, index) => [
     digest,
     enc.encode(
@@ -108,6 +125,7 @@ const bytesByDigest = new Map([
 const kernel = {
   default: () => Promise.resolve(),
   runtime_version: vi.fn(() => "test-runtime"),
+  implementation_build_digest: vi.fn(() => `sha256:${"0".repeat(64)}`),
   plan_stage_view_json: vi.fn(() =>
     JSON.stringify({
       protocol_version: "0.1",
@@ -171,6 +189,7 @@ beforeEach(() => {
             journalDigest,
             closureDigest,
             payloadDigest,
+            dependencyCertificateDigest,
             ...viewDigests,
           ].map(
             (digest) => ({ digest, size: bytesByDigest.get(digest)!.byteLength, offset: 0 }),
@@ -299,7 +318,17 @@ describe("persisted Rust workspace boundary", () => {
     [{ ...validClosure, protocolVersion: "bad" }, /artifact closure is invalid/],
     [{ ...validClosure, workspaceId: `sha256:${"8".repeat(64)}` }, /artifact closure is invalid/],
     [{ ...validClosure, journalDigest: payloadDigest }, /artifact closure is invalid/],
-    [{ ...validClosure, artifacts: [{ kind: "x", digest: `sha256:${"8".repeat(64)}` }] }, /artifact closure is invalid/],
+    [
+      { ...validClosure, dependencyCertificateDigest: payloadDigest },
+      /artifact closure is invalid/,
+    ],
+    [
+      {
+        ...validClosure,
+        artifacts: [{ kind: "x", digest: `sha256:${"0".repeat(64)}` }],
+      },
+      /artifact closure is invalid/,
+    ],
   ])("rejects invalid semantic artifact closure metadata", async (closure, pattern) => {
     bytesByDigest.set(closureDigest, enc.encode(JSON.stringify(closure)));
     await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(pattern);
