@@ -45,7 +45,8 @@ npm run typecheck      # THREE tsc --noEmit passes (root + tsconfig.node.json fo
 npm run test           # vitest unit tests
 npm run test:e2e:smoke # playwright @smoke tests
 npm run check:contract # regenerate + validate the generated contract (see below)
-npm run build:wasm     # rebuild chronicle_app_usage_wasm via wasm-pack
+npm run build:wasm     # rebuild the WASM packages used by the app and tests
+npm run build:benchmark-wasm # also rebuild the standalone low-level benchmark kernel
 ```
 
 Most npm scripts wrap the real command in `node scripts/run-clean-env.mjs` to strip a polluted env.

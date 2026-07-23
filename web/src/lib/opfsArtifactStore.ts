@@ -20,6 +20,7 @@ export type PersistedRuntimeArtifact = {
   digest: string;
   size: number;
   bytes: Uint8Array;
+  digestVerified?: true;
 };
 
 export type WorkspaceRootSlot = {
@@ -66,8 +67,11 @@ function digestHex(digest: string): string {
 }
 
 async function sha256(bytes: Uint8Array): Promise<string> {
-  const owned = Uint8Array.from(bytes);
-  const digest = await crypto.subtle.digest("SHA-256", owned.buffer);
+  const owned =
+    bytes.buffer instanceof ArrayBuffer
+      ? (bytes as Uint8Array<ArrayBuffer>)
+      : new Uint8Array(bytes);
+  const digest = await crypto.subtle.digest("SHA-256", owned);
   return `sha256:${Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("")}`;
@@ -85,7 +89,11 @@ async function writeFile(
   const handle = await directory.getFileHandle(name, { create: true });
   const writable = await handle.createWritable();
   try {
-    await writable.write(Uint8Array.from(bytes));
+    const owned =
+      bytes.buffer instanceof ArrayBuffer
+        ? (bytes as Uint8Array<ArrayBuffer>)
+        : new Uint8Array(bytes);
+    await writable.write(owned);
   } finally {
     await writable.close();
   }
@@ -129,9 +137,11 @@ async function putObject(
   if (artifact.bytes.byteLength !== artifact.size) {
     throw new Error(`artifact size mismatch for ${artifact.kind}`);
   }
-  const actual = await sha256(artifact.bytes);
-  if (actual !== artifact.digest) {
-    throw new Error(`artifact digest mismatch for ${artifact.kind}`);
+  if (!artifact.digestVerified) {
+    const actual = await sha256(artifact.bytes);
+    if (actual !== artifact.digest) {
+      throw new Error(`artifact digest mismatch for ${artifact.kind}`);
+    }
   }
   const { directory, name } = await objectDirectory(objects, artifact.digest, true);
   try {
@@ -187,10 +197,9 @@ function isNotFoundError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "NotFoundError";
 }
 
-async function recoverableSlotsFromDirectories(
-  objects: FileSystemDirectoryHandle,
+async function rootSlotCandidates(
   roots: FileSystemDirectoryHandle,
-): Promise<WorkspaceRootSlot[]> {
+): Promise<{ candidates: WorkspaceRootSlot[]; rootSlotObserved: boolean }> {
   const candidates: WorkspaceRootSlot[] = [];
   let rootSlotObserved = false;
   for (const name of ["root-a.json", "root-b.json"]) {
@@ -205,13 +214,43 @@ async function recoverableSlotsFromDirectories(
     }
   }
   candidates.sort((left, right) => right.generation - left.generation);
+  return { candidates, rootSlotObserved };
+}
+
+function cachedObjectVerifier(
+  objects: FileSystemDirectoryHandle,
+): (digest: string) => Promise<void> {
+  const checks = new Map<string, Promise<void>>();
+  return (digest) => {
+    let check = checks.get(digest);
+    if (!check) {
+      check = readVerifiedObject(objects, digest).then(() => undefined);
+      checks.set(digest, check);
+    }
+    return check;
+  };
+}
+
+async function verifySlotObjects(
+  candidate: WorkspaceRootSlot,
+  verifyObject: (digest: string) => Promise<void>,
+): Promise<void> {
+  await verifyObject(candidate.workspaceRootDigest);
+  for (const digest of candidate.artifactDigests) {
+    await verifyObject(digest);
+  }
+}
+
+async function recoverableSlotsFromDirectories(
+  objects: FileSystemDirectoryHandle,
+  roots: FileSystemDirectoryHandle,
+): Promise<WorkspaceRootSlot[]> {
+  const { candidates, rootSlotObserved } = await rootSlotCandidates(roots);
   const recovered: WorkspaceRootSlot[] = [];
+  const verifyObject = cachedObjectVerifier(objects);
   for (const candidate of candidates) {
     try {
-      await readVerifiedObject(objects, candidate.workspaceRootDigest);
-      for (const digest of candidate.artifactDigests) {
-        await readVerifiedObject(objects, digest);
-      }
+      await verifySlotObjects(candidate, verifyObject);
       recovered.push(candidate);
     } catch {
       // A newer slot with an incomplete closure falls back to the prior slot.
@@ -229,7 +268,22 @@ async function recoverFromDirectories(
   objects: FileSystemDirectoryHandle,
   roots: FileSystemDirectoryHandle,
 ): Promise<WorkspaceRootSlot | undefined> {
-  return (await recoverableSlotsFromDirectories(objects, roots))[0];
+  const { candidates, rootSlotObserved } = await rootSlotCandidates(roots);
+  const verifyObject = cachedObjectVerifier(objects);
+  for (const candidate of candidates) {
+    try {
+      await verifySlotObjects(candidate, verifyObject);
+      return candidate;
+    } catch {
+      // A newer incomplete slot falls back to the older independent slot.
+    }
+  }
+  if (rootSlotObserved) {
+    throw new Error(
+      "OPFS workspace roots exist, but no valid artifact closure can be recovered",
+    );
+  }
+  return undefined;
 }
 
 export async function openOpfsRoot(): Promise<FileSystemDirectoryHandle> {
@@ -279,6 +333,7 @@ export async function persistRuntimeWorkspace(
     workspaceRootDigest: string;
     previousWorkspaceRootDigest: string | null;
     artifacts: PersistedRuntimeArtifact[];
+    recoveredSlot?: WorkspaceRootSlot;
   },
 ): Promise<WorkspaceRootSlot> {
   digestHex(input.workspaceRootDigest);
@@ -296,8 +351,31 @@ export async function persistRuntimeWorkspace(
   if (!byDigest.has(input.workspaceRootDigest)) {
     throw new Error("runtime artifact set is missing the workspace-root object");
   }
-  for (const artifact of byDigest.values()) await putObject(objects, artifact);
-  const previous = await recoverFromDirectories(objects, roots);
+  // Objects are immutable and independently addressed; only the alternating
+  // root commit is order-sensitive. Two writers overlap OPFS latency without
+  // multiplying the large artifact buffers as an unbounded Promise.all would.
+  const objectsToWrite = [...byDigest.values()].sort(
+    (left, right) => right.size - left.size,
+  );
+  let writeIndex = 0;
+  const writeNext = async (): Promise<void> => {
+    for (;;) {
+      const artifact = objectsToWrite[writeIndex];
+      writeIndex += 1;
+      if (!artifact) return;
+      await putObject(objects, artifact);
+    }
+  };
+  await Promise.all([writeNext(), writeNext()]);
+  const previous = input.recoveredSlot
+    ? await parseSlot(encodeJson(input.recoveredSlot))
+    : await recoverFromDirectories(objects, roots);
+  if (
+    (previous?.workspaceRootDigest ?? null) !==
+    input.previousWorkspaceRootDigest
+  ) {
+    throw new Error("recovered OPFS root does not match the runtime's previous root");
+  }
   const unsigned: UnsignedWorkspaceRootSlot = {
     protocolVersion: "chronicle-opfs-root/v1",
     generation: (previous?.generation ?? 0) + 1,
@@ -496,6 +574,7 @@ export async function importRuntimeClosure(
       digest: object.digest,
       size: object.size,
       bytes,
+      digestVerified: true,
     });
   }
   await verify(closure);

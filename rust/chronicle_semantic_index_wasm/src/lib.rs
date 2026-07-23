@@ -4,10 +4,10 @@
 //! authority. This crate deterministically projects a bounded semantic source
 //! into N-Quads and evaluates only product-registered SPARQL queries.
 
-use oxigraph::io::RdfFormat;
 use oxigraph::model::NamedNode;
 use oxigraph::sparql::{QueryResults, SparqlEvaluator};
 use oxigraph::store::Store;
+use oxttl::NQuadsParser;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
@@ -41,6 +41,9 @@ struct IndexSource {
     open_obligations: Vec<OpenObligation>,
     state_reasons: Vec<StateReason>,
     node_executions: Vec<NodeExecution>,
+    step_executions: Vec<StepExecution>,
+    pipeline_step_digests: BTreeMap<String, String>,
+    pipeline_step_checkpoints: BTreeMap<String, PipelineStepCheckpoint>,
     #[serde(default)]
     dependency_cache_decision: Option<DependencyCacheDecision>,
     execution_ledger: Value,
@@ -129,6 +132,30 @@ struct NodeExecution {
     reason_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct StepExecution {
+    step_id: String,
+    unit_id: String,
+    status: String,
+    input_key: String,
+    output_digest: String,
+    reason_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PipelineStepCheckpoint {
+    protocol_version: String,
+    node_id: String,
+    row_membership_digest: String,
+    row_order_digest: String,
+    temporal_state_digest: String,
+    classification_digest: String,
+    payload_digest: String,
+    schema_digest: String,
+    terminal_digest: String,
+}
+
 fn iri(value: &str) -> String {
     format!("<{value}>")
 }
@@ -159,6 +186,18 @@ fn quad(subject: &str, predicate: &str, object: &str, graph: &str) -> String {
 
 fn predicate(name: &str) -> String {
     iri(&format!("urn:chronicle:predicate:{name}"))
+}
+
+fn is_sha256(value: &str) -> bool {
+    value.len() == 71
+        && value.starts_with("sha256:")
+        && value[7..].bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn is_blake3(value: &str) -> bool {
+    value.len() == 71
+        && value.starts_with("blake3:")
+        && value[7..].bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 fn urn(kind: &str, value: &str) -> String {
@@ -484,6 +523,66 @@ fn build_index(source: &IndexSource) -> Vec<u8> {
             EXECUTION_GRAPH,
         ));
     }
+    for execution in &source.step_executions {
+        let execution_iri = urn(
+            "step-execution",
+            &format!("{}:{}", source.input_digest, execution.step_id),
+        );
+        quads.push(quad(
+            &execution_iri,
+            &iri(RDF_TYPE),
+            &iri(PROV_ACTIVITY),
+            EXECUTION_GRAPH,
+        ));
+        quads.push(quad(
+            &execution_iri,
+            &iri(PPLAN_CORRESPONDS_TO_STEP),
+            &urn("step", &execution.step_id),
+            EXECUTION_GRAPH,
+        ));
+        quads.push(quad(
+            &execution_iri,
+            &predicate("unit"),
+            &urn("node", &execution.unit_id),
+            EXECUTION_GRAPH,
+        ));
+        quads.push(quad(
+            &execution_iri,
+            &predicate("status"),
+            &urn("execution-status", &execution.status),
+            EXECUTION_GRAPH,
+        ));
+        quads.push(quad(
+            &execution_iri,
+            &predicate("inputKey"),
+            &literal(&execution.input_key),
+            EXECUTION_GRAPH,
+        ));
+        quads.push(quad(
+            &execution_iri,
+            &predicate("outputDigest"),
+            &literal(&execution.output_digest),
+            EXECUTION_GRAPH,
+        ));
+        quads.push(quad(
+            &execution_iri,
+            &iri(PROV_STARTED),
+            &date_time_literal(&source.execution_timestamp),
+            EXECUTION_GRAPH,
+        ));
+        quads.push(quad(
+            &execution_iri,
+            &iri(PROV_ENDED),
+            &date_time_literal(&source.execution_timestamp),
+            EXECUTION_GRAPH,
+        ));
+        quads.push(quad(
+            &execution_iri,
+            &predicate("reason"),
+            &resource_iri("reason", &execution.reason_id),
+            EXECUTION_GRAPH,
+        ));
+    }
     for reason in &source.state_reasons {
         let transition = urn("transition", &reason.reason_id);
         quads.push(quad(
@@ -522,13 +621,22 @@ fn build_index(source: &IndexSource) -> Vec<u8> {
 
 include!(concat!(env!("OUT_DIR"), "/registered_queries.rs"));
 
+fn store_from_nquads(index: &[u8]) -> Result<Store, String> {
+    let store = Store::new().map_err(|error| error.to_string())?;
+    let quads = NQuadsParser::new()
+        .for_slice(index)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("parse derived N-Quads: {error}"))?;
+    store
+        .extend(quads)
+        .map_err(|error| format!("index derived N-Quads: {error}"))?;
+    Ok(store)
+}
+
 fn query(index: &[u8], query_id: &str) -> Result<Value, String> {
     let query = registered_query(query_id)
         .ok_or_else(|| format!("unregistered production query: {query_id}"))?;
-    let store = Store::new().map_err(|error| error.to_string())?;
-    store
-        .load_from_slice(RdfFormat::NQuads, index)
-        .map_err(|error| format!("load derived N-Quads: {error}"))?;
+    let store = store_from_nquads(index)?;
     let results = SparqlEvaluator::new()
         .parse_query(query)
         .map_err(|error| format!("parse registered query: {error}"))?
@@ -575,22 +683,74 @@ pub fn rebuild_semantic_index_native(source_json: &[u8]) -> Result<Vec<u8>, Stri
     if !source.execution_ledger.is_array() {
         return Err("semantic index source ledger is invalid".into());
     }
+    if source.step_executions.len() != 55
+        || source.pipeline_step_digests.len() != 55
+        || source.pipeline_step_checkpoints.len() != 55
+    {
+        return Err("semantic index source must contain exactly 55 Rust steps".into());
+    }
+    let mut execution_ids = std::collections::BTreeSet::new();
+    for execution in &source.step_executions {
+        if !execution_ids.insert(execution.step_id.as_str())
+            || !matches!(
+                execution.status.as_str(),
+                "cached" | "recomputed" | "error" | "skipped" | "bypassed"
+            )
+            || !is_sha256(&execution.input_key)
+            || !is_sha256(&execution.output_digest)
+            || !is_sha256(&execution.reason_id)
+            || source.pipeline_step_digests.get(&execution.step_id)
+                != Some(&execution.output_digest)
+        {
+            return Err("semantic index step execution is invalid".into());
+        }
+    }
+    if execution_ids
+        != source
+            .pipeline_step_digests
+            .keys()
+            .map(String::as_str)
+            .collect()
+    {
+        return Err("semantic index step execution and digest domains disagree".into());
+    }
+    for (step_id, checkpoint) in &source.pipeline_step_checkpoints {
+        let component_digests = [
+            &checkpoint.row_membership_digest,
+            &checkpoint.row_order_digest,
+            &checkpoint.temporal_state_digest,
+            &checkpoint.classification_digest,
+            &checkpoint.payload_digest,
+            &checkpoint.schema_digest,
+        ];
+        if checkpoint.protocol_version != "chronicle-logical-stage-checkpoint/v3"
+            || checkpoint.node_id != *step_id
+            || source.pipeline_step_digests.get(step_id) != Some(&checkpoint.terminal_digest)
+            || component_digests
+                .into_iter()
+                .any(|digest| !is_blake3(digest))
+        {
+            return Err(format!(
+                "semantic index step checkpoint is invalid for {step_id}: protocol={} node={} terminal={} expected={:?}",
+                checkpoint.protocol_version,
+                checkpoint.node_id,
+                checkpoint.terminal_digest,
+                source.pipeline_step_digests.get(step_id),
+            ));
+        }
+    }
     if let Some(decision) = &source.dependency_cache_decision {
         if !matches!(
             decision.mode.as_str(),
             "certified_narrow" | "conservative_full"
         ) || (decision.mode == "certified_narrow"
-            && (decision.certificate_digest.is_none()
-                || decision.binding_surface_digest.is_none()))
+            && (decision.certificate_digest.is_none() || decision.binding_surface_digest.is_none()))
         {
             return Err("semantic index dependency cache decision is invalid".into());
         }
     }
     let index = build_index(&source);
-    let store = Store::new().map_err(|error| error.to_string())?;
-    store
-        .load_from_slice(RdfFormat::NQuads, &index)
-        .map_err(|error| format!("validate derived N-Quads: {error}"))?;
+    store_from_nquads(&index)?;
     Ok(index)
 }
 
@@ -610,6 +770,43 @@ mod tests {
     use super::*;
 
     fn complete_source() -> Value {
+        let digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let component_digest =
+            "blake3:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        let step_executions = (0..55)
+            .map(|index| {
+                json!({
+                    "step_id": format!("step-{index:02}"),
+                    "unit_id": "parse_events",
+                    "status": "recomputed",
+                    "input_key": digest,
+                    "output_digest": digest,
+                    "reason_id": digest,
+                })
+            })
+            .collect::<Vec<_>>();
+        let pipeline_step_digests = (0..55)
+            .map(|index| (format!("step-{index:02}"), digest))
+            .collect::<BTreeMap<_, _>>();
+        let pipeline_step_checkpoints = (0..55)
+            .map(|index| {
+                let step_id = format!("step-{index:02}");
+                (
+                    step_id.clone(),
+                    json!({
+                        "protocolVersion": "chronicle-logical-stage-checkpoint/v3",
+                        "nodeId": step_id,
+                        "rowMembershipDigest": component_digest,
+                        "rowOrderDigest": component_digest,
+                        "temporalStateDigest": component_digest,
+                        "classificationDigest": component_digest,
+                        "payloadDigest": component_digest,
+                        "schemaDigest": component_digest,
+                        "terminalDigest": digest,
+                    }),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
         json!({
             "protocolVersion": "chronicle-semantic-index-source/v2",
             "inputDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -665,6 +862,9 @@ mod tests {
             "nodeExecutions": [{
                 "node_id": "parse_events", "status": "recomputed", "reason_id": "urn:reason:1"
             }],
+            "stepExecutions": step_executions,
+            "pipelineStepDigests": pipeline_step_digests,
+            "pipelineStepCheckpoints": pipeline_step_checkpoints,
             "dependencyCacheDecision": {
                 "mode": "certified_narrow",
                 "certificate_digest": "sha256:cccc",
@@ -721,7 +921,7 @@ mod tests {
             .contains("unregistered"));
         assert!(query(b"not n-quads", "role-assignments")
             .unwrap_err()
-            .contains("load derived N-Quads"));
+            .contains("parse derived N-Quads"));
     }
 
     #[test]
@@ -769,16 +969,116 @@ mod tests {
     }
 
     #[test]
-    fn empty_source_produces_a_valid_empty_index() {
-        let mut empty = complete_source();
-        empty["roleAssignments"] = json!([]);
-        empty["qualificationTraces"] = json!([]);
-        empty["requirementTraces"] = json!([]);
-        empty["openObligations"] = json!([]);
-        empty["stateReasons"] = json!([]);
-        empty["nodeExecutions"] = json!([]);
-        empty["dependencyCacheDecision"] = Value::Null;
-        let parsed: IndexSource = serde_json::from_value(empty).unwrap();
-        assert!(build_index(&parsed).is_empty());
+    fn missing_step_execution_surface_fails_closed() {
+        for field in [
+            "stepExecutions",
+            "pipelineStepDigests",
+            "pipelineStepCheckpoints",
+        ] {
+            let mut incomplete = complete_source();
+            incomplete[field] = if field == "stepExecutions" {
+                json!([])
+            } else {
+                json!({})
+            };
+            assert_eq!(
+                rebuild_semantic_index_native(&serde_json::to_vec(&incomplete).unwrap())
+                    .unwrap_err(),
+                "semantic index source must contain exactly 55 Rust steps",
+                "missing {field} must fail independently",
+            );
+        }
+    }
+
+    #[test]
+    fn digest_and_nquads_boundaries_are_exact() {
+        let sha = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let blake = "blake3:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        assert!(is_sha256(sha));
+        assert!(!is_sha256(&sha[1..]));
+        assert!(!is_sha256(&format!("blake3:{}", "a".repeat(64))));
+        assert!(!is_sha256(&format!("sha256:{}g", "a".repeat(63))));
+        assert!(is_blake3(blake));
+        assert!(!is_blake3(&blake[1..]));
+        assert!(!is_blake3(&format!("sha256:{}", "b".repeat(64))));
+        assert!(!is_blake3(&format!("blake3:{}g", "b".repeat(63))));
+
+        let parsed: IndexSource = serde_json::from_value(complete_source()).unwrap();
+        let index = build_index(&parsed);
+        assert!(!index.is_empty());
+        assert_eq!(index.last(), Some(&b'\n'));
+    }
+
+    #[test]
+    fn each_step_execution_constraint_fails_independently() {
+        let expected = "semantic index step execution is invalid";
+        let cases = [
+            ("status", "unknown"),
+            ("input_key", "sha256:short"),
+            (
+                "output_digest",
+                "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            ),
+            ("reason_id", "sha256:short"),
+        ];
+        for (field, value) in cases {
+            let mut source = complete_source();
+            source["stepExecutions"][0][field] = Value::String(value.into());
+            assert_eq!(
+                rebuild_semantic_index_native(&serde_json::to_vec(&source).unwrap()).unwrap_err(),
+                expected,
+                "invalid {field} must fail independently",
+            );
+        }
+
+        let mut duplicate = complete_source();
+        duplicate["stepExecutions"][1]["step_id"] = Value::String("step-00".into());
+        assert_eq!(
+            rebuild_semantic_index_native(&serde_json::to_vec(&duplicate).unwrap()).unwrap_err(),
+            expected,
+        );
+    }
+
+    #[test]
+    fn each_step_checkpoint_and_cache_constraint_fails_independently() {
+        let checkpoint_error = "semantic index step checkpoint is invalid for step-00";
+        for (field, value) in [
+            ("protocolVersion", "future"),
+            ("nodeId", "other-step"),
+            (
+                "terminalDigest",
+                "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            ),
+            ("rowMembershipDigest", "blake3:short"),
+        ] {
+            let mut source = complete_source();
+            source["pipelineStepCheckpoints"]["step-00"][field] = Value::String(value.into());
+            assert!(
+                rebuild_semantic_index_native(&serde_json::to_vec(&source).unwrap())
+                    .unwrap_err()
+                    .starts_with(checkpoint_error),
+                "invalid {field} must fail independently",
+            );
+        }
+
+        let mut conservative = complete_source();
+        conservative["dependencyCacheDecision"] = json!({
+            "mode": "conservative_full",
+            "certificate_digest": null,
+            "binding_surface_digest": null,
+            "empirical_evidence_current": false,
+            "reasons": ["certificate_mismatch"]
+        });
+        assert!(rebuild_semantic_index_native(&serde_json::to_vec(&conservative).unwrap()).is_ok());
+
+        for missing in ["certificate_digest", "binding_surface_digest"] {
+            let mut invalid = complete_source();
+            invalid["dependencyCacheDecision"][missing] = Value::Null;
+            assert_eq!(
+                rebuild_semantic_index_native(&serde_json::to_vec(&invalid).unwrap()).unwrap_err(),
+                "semantic index dependency cache decision is invalid",
+                "certified narrowing requires {missing}",
+            );
+        }
     }
 }

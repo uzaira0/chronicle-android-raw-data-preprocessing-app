@@ -555,8 +555,8 @@
       "section": "clean",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/effective_usage/v1",
       "input_nodes": [
-        "interval_cleaning",
-        "app_policy"
+        "app_policy",
+        "interval_cleaning"
       ],
       "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/effective_usage",
       "knobs": [
@@ -691,8 +691,8 @@
       "section": "analyze",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/day_coverage/v1",
       "input_nodes": [
-        "attribute_person",
-        "app_policy"
+        "app_policy",
+        "attribute_person"
       ],
       "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/day_coverage",
       "knobs": [
@@ -745,8 +745,8 @@
       "section": "analyze",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/score_compliance/v1",
       "input_nodes": [
-        "day_coverage",
-        "attribute_person"
+        "attribute_person",
+        "day_coverage"
       ],
       "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/score_compliance",
       "knobs": [
@@ -2103,7 +2103,6 @@
         "build_coverage_table",
         "build_classified_sessions",
         "assemble_credit_result",
-        "filter_rows_to_window",
         "filter_rows_to_window",
         "attribute_rows",
         "score_days"

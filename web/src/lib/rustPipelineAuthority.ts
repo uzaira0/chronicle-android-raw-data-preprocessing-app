@@ -1,4 +1,3 @@
-import Papa from "papaparse";
 import {
   buildAppTimelineViews,
   buildScreenTimelineViews,
@@ -80,31 +79,18 @@ function requiredArtifact(
   return bytes;
 }
 
+function artifactBlobPart(bytes: Uint8Array): BlobPart {
+  // wasm-bindgen returns an owned Uint8Array backed by ArrayBuffer. Passing
+  // that view directly lets Blob perform its required immutable snapshot;
+  // Uint8Array.from(bytes) made an additional full-size JavaScript copy first.
+  return bytes as Uint8Array<ArrayBuffer>;
+}
+
 function parseJsonArtifact<T>(
   execution: RustRuntimeExecution,
   kind: string,
 ): T {
   return JSON.parse(new TextDecoder().decode(requiredArtifact(execution, kind))) as T;
-}
-
-function previewRows(bytes: Uint8Array): string[][] {
-  const parsed = Papa.parse<string[]>(new TextDecoder().decode(bytes), {
-    skipEmptyLines: true,
-  });
-  if (parsed.errors.length > 0) {
-    throw new Error(`Rust CSV preview parse failed: ${parsed.errors[0].message}`);
-  }
-  return parsed.data.slice(0, 51);
-}
-
-function csvRowCount(bytes: Uint8Array): number {
-  const parsed = Papa.parse<string[]>(new TextDecoder().decode(bytes), {
-    skipEmptyLines: true,
-  });
-  if (parsed.errors.length > 0) {
-    throw new Error(`Rust CSV row-count parse failed: ${parsed.errors[0].message}`);
-  }
-  return Math.max(0, parsed.data.length - 1);
 }
 
 function addCsvOutput(
@@ -117,12 +103,19 @@ function addCsvOutput(
   rowCount?: number,
 ): void {
   const bytes = requiredArtifact(execution, artifactKind);
+  const metadata = execution.manifest.artifacts.find(
+    (artifact) => artifact.kind === artifactKind,
+  );
+  const exactRowCount = rowCount ?? metadata?.rowCount;
+  if (exactRowCount === undefined || !metadata?.previewRows) {
+    throw new Error(`Rust runtime omitted CSV display metadata: ${artifactKind}`);
+  }
   outputs.push({
     kind,
     outputFileName: deriveOutputFileName(inputFileName, suffix),
-    blob: new Blob([Uint8Array.from(bytes)], { type: CSV_MIME }),
-    rowCount: rowCount ?? csvRowCount(bytes),
-    previewRows: previewRows(bytes),
+    blob: new Blob([artifactBlobPart(bytes)], { type: CSV_MIME }),
+    rowCount: exactRowCount,
+    previewRows: metadata.previewRows,
   });
 }
 
@@ -140,7 +133,7 @@ function addBinaryOutput(
   outputs.push({
     kind,
     outputFileName: deriveOutputFileName(inputFileName, suffix),
-    blob: new Blob([Uint8Array.from(bytes)], { type: mediaType }),
+    blob: new Blob([artifactBlobPart(bytes)], { type: mediaType }),
     rowCount,
     previewRows: [],
   });
@@ -341,6 +334,7 @@ export async function processRawCsvWithRustAuthority(
   supportFiles: BrowserSupportFiles | undefined,
   runtime: BrowserProcessingRuntime,
   onProgress?: (event: ProgressEvent) => void,
+  verifiedInputSha256?: string,
 ): Promise<ProcessedFileResult> {
   const emit = (stepKind: ProgressStepKind, percent: number) => {
     onProgress?.({
@@ -357,6 +351,7 @@ export async function processRawCsvWithRustAuthority(
     options,
     supportFiles,
     { ...runtime, persistRustWorkspace: runtime.persistRustWorkspace ?? true },
+    verifiedInputSha256,
   );
   const { manifest } = execution;
   const outputs: ProcessedOutputFileResult[] = [];

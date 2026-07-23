@@ -2,7 +2,7 @@
   "protocol_version": "0.1",
   "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1",
   "product_profile_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
-  "product_contract_digest": "sha256:5ac0241fc2c80af23f5a580ff25679db9ce3d2e3a5fae8043ed0826d865105f7",
+  "product_contract_digest": "sha256:00c1f57a6e487e1136f2a431a786cbf4bbb5f109da31f97993ed0dd6d0a1a8ba",
   "bindings": [
     {
       "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-product-runtime",
@@ -108,7 +108,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_preprocessing_runtime_wasm",
         "entrypoint": "execute_workspace",
-        "build_digest": "sha256:38848dc01360c70cfbac3165d87745bc96e47895a2737dc53ce388e75f176e10"
+        "build_digest": "sha256:6d2686a698d2edd8d4372c9cf067ff0a3405fe3abe3f0a965f56bb803338e1e6"
       },
       "relationship": "fused",
       "status": "active",
@@ -224,7 +224,7 @@
         "target": "native-test",
         "source": "rust/chronicle_preprocessing_runtime_wasm",
         "entrypoint": "execute_workspace_native",
-        "build_digest": "sha256:38848dc01360c70cfbac3165d87745bc96e47895a2737dc53ce388e75f176e10"
+        "build_digest": "sha256:6d2686a698d2edd8d4372c9cf067ff0a3405fe3abe3f0a965f56bb803338e1e6"
       },
       "relationship": "one-to-one",
       "status": "active",

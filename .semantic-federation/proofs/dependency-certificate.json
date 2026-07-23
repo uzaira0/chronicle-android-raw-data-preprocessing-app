@@ -2,7 +2,7 @@
   "protocol_version": "chronicle-dependency-certificate/v1",
   "certificate_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:dependency-certificate/v1",
   "structural_contract": {
-    "plan_digest": "sha256:162cd4087b0287169a54ee55dc224300e4a6c7ba4009ff82f8828b348d562c45",
+    "plan_digest": "sha256:3b1db580ca483d5f7f198a82fcc8166e9ad180eaea587db1ae950a5fa06649a6",
     "configuration_axes": {
       "computational": [
         "add_no_activity_placeholder_days",
@@ -552,47 +552,47 @@
   "evidence": {
     "implementation_receipt": {
       "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-      "implementationDigest": "sha256:d6081f896e488d92bf202fcea98a92c3bc86e13f493f33aca29ced86333db997",
-      "planDigest": "sha256:162cd4087b0287169a54ee55dc224300e4a6c7ba4009ff82f8828b348d562c45",
-      "profileDigest": "sha256:b2899800f08de7ed93000422947cd8d0b3b5443150e6b47a019f8d038ceaaf93",
-      "profileLockDigest": "sha256:47240c9a44c328437384c8be9531e90f8d5e60696ed6a0db55f79bf313b78990",
+      "implementationDigest": "sha256:6d2686a698d2edd8d4372c9cf067ff0a3405fe3abe3f0a965f56bb803338e1e6",
+      "planDigest": "sha256:3b1db580ca483d5f7f198a82fcc8166e9ad180eaea587db1ae950a5fa06649a6",
+      "profileDigest": "sha256:ad3a1e58f4a69a2f81c412391f5736bf1c2f73216a5cd9742bc319bb07b01435",
+      "profileLockDigest": "sha256:aa51a18ee2104560bf6f239de05f7dfccec3aec6f4940123e305519c3bb81521",
       "runtimeAuthorityDigest": "sha256:11142579a05120fce9a1fe8e0edfffdcae385b34a10080d878e8d82b73cc8627",
-      "productContractDigest": "sha256:5ac0241fc2c80af23f5a580ff25679db9ce3d2e3a5fae8043ed0826d865105f7"
+      "productContractDigest": "sha256:00c1f57a6e487e1136f2a431a786cbf4bbb5f109da31f97993ed0dd6d0a1a8ba"
     },
     "proof_ledgers": [
       {
         "path": "web/src/lib/pipelineGraph/golden/family-expected/configuration-influence-ledger.json",
-        "digest": "sha256:179c88eaca0c91241a17260be1aa53f3efe904577700b9f53b7b9dc365332a16",
+        "digest": "sha256:70b70135de061c149e4aba7319659371da6e15eaa05051d41361d3eb5114a921",
         "protocol_version": "chronicle-configuration-influence-ledger/v1",
-        "claim_boundary": "Exact logical-stage percolation and warm/cold minimality for the recorded implementation, equivalence classes, contexts, support bindings, and synthetic corpora. Absence of an observed effect remains bounded to this declared test scope. Logical recomputation is minimal; physical execution remains one fused full Rust pipeline run whenever any logical checkpoint requires recomputation."
+        "claim_boundary": "Exact 55-step and 15-display-group percolation plus warm/cold equality for the recorded Rust/WASM implementation, equivalence classes, contexts, support bindings, and synthetic corpora. Absence of an observed effect remains bounded to this declared test scope. Step recomputation is minimal; physical execution remains one fused Rust pipeline run whenever any required checkpoint changes."
       },
       {
         "path": "web/src/lib/pipelineGraph/golden/family-expected/artifact-influence-ledger.json",
-        "digest": "sha256:eae0a353ab97abc0be80153778eec7c9fd376d15f089f11be8faf303e5a03d27",
+        "digest": "sha256:f2c95a7dfda5a7f93940ba892096b2581f56d9521fc19d225ebd1e4fa6090374",
         "protocol_version": "chronicle-artifact-influence-ledger/v1",
-        "claim_boundary": "Exact raw/support artifact percolation for the recorded product plan, implementation, six deterministic synthetic corpora, and intervention catalog. Each intervention changes exactly one source artifact; every warm logical checkpoint and researcher-visible output is compared with an independent cold target. Absence of an effect is not generalized beyond the named mutation and corpus."
+        "claim_boundary": "Exact raw/support artifact percolation for the recorded product plan, implementation, six deterministic synthetic corpora, and intervention catalog. Each intervention changes exactly one source artifact; every warm 55-step checkpoint, 15 display-group checkpoint, and researcher-visible output is compared with an independent cold Rust/WASM target. Absence of an effect is not generalized beyond the named mutation and corpus."
       },
       {
         "path": "web/src/lib/pipelineGraph/golden/family-expected/raw-boundary-influence-ledger.json",
-        "digest": "sha256:3aa30ada2c0a4835896b7c02837b18beca47f1f1cac4b0459abae690827aade3",
+        "digest": "sha256:ae6e919ce49182c1b61e819931ed890fa4ec8775c6d3ceae19b6f49647aa5752",
         "protocol_version": "chronicle-raw-boundary-influence-ledger/v1",
         "claim_boundary": "Exact raw timestamp percolation for every named boundary intervention across all checked synthetic corpus profiles. Each mutation changes one raw event timestamp; warm execution is checked against an independent cold oracle. The evidence does not generalize beyond the listed boundary catalog, corpora, plan, and implementation receipt."
       },
       {
         "path": "web/src/lib/pipelineGraph/golden/family-expected/interaction-influence-ledger.json",
-        "digest": "sha256:637a3cccd0fa841de2afd1d6a2d8671bd635a4bd9c3cd9b0f4bc63aaa7340c12",
+        "digest": "sha256:c8d44f5c30ca864e119ebc4f60f9a83f85ae2942d2c143583cf86cf73032d678",
         "protocol_version": "chronicle-interaction-influence-ledger/v1",
-        "claim_boundary": "Exhaustive two-factor structural interaction and exact warm/cold percolation proof across every valid pair of non-baseline declared equivalence-class values for all 46 computational browser axes, on the deterministic configuration-influence-probes corpus. Invalid selected-timezone combinations are enumerated with their qualification reason. This does not claim numeric statistical additivity or exhaust interactions of arity three and above."
+        "claim_boundary": "Exhaustive two-factor structural interaction and exact 55-step plus 15-display-group warm/cold percolation proof across every valid pair of non-baseline declared equivalence-class values for all 46 computational browser axes, on the deterministic configuration-influence-probes corpus. Invalid selected-timezone combinations are enumerated with their qualification reason. This does not claim numeric statistical additivity or exhaust interactions of arity three and above. Step recomputation is minimal; physical execution remains one fused Rust pipeline run whenever any required checkpoint changes."
       },
       {
         "path": "web/src/lib/pipelineGraph/golden/family-expected/mixed-artifact-configuration-ledger.json",
-        "digest": "sha256:cefe1aa03f232b1d827d77f3cbf18366374ed0f5402cb83ac721b4da9fe824ab",
+        "digest": "sha256:2f4a1e3b49b632c29753828815b35558e7ffbf420ff5b88efd2cf40234f925a0",
         "protocol_version": "chronicle-mixed-artifact-configuration-aggregate/v1",
         "claim_boundary": "Aggregate of nine independently recycled exhaustive role/value shards. Each shard selects one empirically branch-activating intervention for its source role, crosses it with every valid alternate value of all 46 computational axes, executes both transition orders, and compares every final logical checkpoint, output artifact, and canonical output cell with an independent cold Rust/WASM target. Field/record interactions beyond the selected representative remain outside this claim."
       },
       {
         "path": "web/src/lib/pipelineGraph/golden/family-expected/semantic-model-mutation-ledger.json",
-        "digest": "sha256:022242ad79e3802b598ec6c004edf5e937f00ae35a4a33c76670526e73927d13",
+        "digest": "sha256:8dab67a57c3310f2e64e06d8341177ca9c0b83640f4e371f36d881870c717bc3",
         "protocol_version": "chronicle-semantic-model-mutation-ledger/v1",
         "claim_boundary": "In-memory mutation of every declared DAG edge (removal and reversal), every recorded computational option binding, and every raw/support role binding. A mutant is killed by a structural cycle, a required cross-unit typed step port, or disagreement with a checked one-factor empirical percolation observation. Rust checkpoint-component and qualification-rule mutation witnesses are enforced separately by their unit tests."
       }

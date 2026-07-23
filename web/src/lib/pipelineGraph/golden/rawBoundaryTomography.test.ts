@@ -51,10 +51,12 @@ const PLAN_FILE = fileURLToPath(
 );
 const UPDATE = process.env.UPDATE_RAW_BOUNDARY_INFLUENCE === "1";
 const FILTER = process.env.RAW_BOUNDARY_INTERVENTION;
+const SHARD_COUNT = Number(process.env.RAW_BOUNDARY_SHARD_COUNT ?? "1");
+const SHARD_INDEX = Number(process.env.RAW_BOUNDARY_SHARD_INDEX ?? "0");
 const encoder = new TextEncoder();
 
 type TypedCheckpoint = {
-  protocolVersion: "chronicle-logical-stage-checkpoint/v2";
+  protocolVersion: "chronicle-logical-stage-checkpoint/v3";
   nodeId: string;
   rowMembershipDigest: string;
   rowOrderDigest: string;
@@ -89,6 +91,8 @@ type RuntimeManifest = {
   processingSummary: {
     logicalStageDigests: Record<string, string>;
     logicalStageCheckpoints: Record<string, TypedCheckpoint>;
+    pipelineStepDigests: Record<string, string>;
+    pipelineStepCheckpoints: Record<string, TypedCheckpoint>;
     [key: string]: unknown;
   };
   nodeExecutions: Array<{
@@ -96,6 +100,13 @@ type RuntimeManifest = {
     input_key: string;
     status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
     output: { digest: string } | null;
+  }>;
+  stepExecutions: Array<{
+    step_id: string;
+    unit_id: string;
+    input_key: string;
+    output_digest: string;
+    status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
   }>;
   artifacts: Array<{ kind: string; digest: string }>;
 };
@@ -114,6 +125,17 @@ type ProductPlan = {
   revision: string;
   root_roles: Array<{ role_id: string }>;
   nodes: PlanNode[];
+};
+
+type RustStepContract = {
+  protocolVersion: "chronicle-preprocessing-step-contract/v1";
+  steps: Array<{
+    id: string;
+    group: string;
+    inputs: string[];
+    requestFields: string[];
+    sourceRoles: string[];
+  }>;
 };
 
 const plan = JSON.parse(readFileSync(PLAN_FILE, "utf8")) as ProductPlan;
@@ -240,9 +262,39 @@ function checkpointComponentChanges(
   );
 }
 
+function stepCheckpointComponentChanges(
+  source: RuntimeManifest,
+  target: RuntimeManifest,
+): Record<string, string[]> {
+  return Object.fromEntries(
+    Object.keys(source.processingSummary.pipelineStepCheckpoints)
+      .sort()
+      .map((stepId) => [
+        stepId,
+        changedFields(
+          source.processingSummary.pipelineStepCheckpoints[stepId] as unknown as Record<
+            string,
+            unknown
+          >,
+          target.processingSummary.pipelineStepCheckpoints[stepId] as unknown as Record<
+            string,
+            unknown
+          >,
+        ).filter((field) => field !== "terminalDigest"),
+      ] as const)
+      .filter(([, fields]) => fields.length > 0),
+  );
+}
+
 function nodeInputKeys(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
     manifest.nodeExecutions.map(({ node_id, input_key }) => [node_id, input_key]),
+  );
+}
+
+function stepInputKeys(manifest: RuntimeManifest): Record<string, string> {
+  return Object.fromEntries(
+    manifest.stepExecutions.map(({ step_id, input_key }) => [step_id, input_key]),
   );
 }
 
@@ -300,6 +352,20 @@ function predictedRawCluster(changedSemanticNodes: ReadonlySet<string>): string[
   return [...result].sort();
 }
 
+function predictedRawStepCluster(
+  stepContract: RustStepContract,
+  changedSemanticSteps: ReadonlySet<string>,
+): string[] {
+  return stepContract.steps
+    .filter(
+      (step) =>
+        step.sourceRoles.includes("raw_chronicle_csv") ||
+        step.inputs.some((input) => changedSemanticSteps.has(input)),
+    )
+    .map(({ id }) => id)
+    .sort();
+}
+
 function authorityReceipt(manifest: RuntimeManifest): Record<string, string> {
   return {
     implementation: manifest.implementation,
@@ -334,30 +400,68 @@ function assertCompleteSuccessfulManifest(
     `${caseId}: unsatisfied role requirement`,
   ).toBe(true);
   expect(manifest.nodeExecutions, `${caseId}: logical execution coverage`).toHaveLength(15);
+  expect(manifest.stepExecutions, `${caseId}: Rust step execution coverage`).toHaveLength(55);
   expect(
     manifest.nodeExecutions.every(
       ({ status }) => status !== "error" && status !== "skipped",
     ),
     `${caseId}: failed logical execution`,
   ).toBe(true);
+  expect(
+    manifest.stepExecutions.every(
+      ({ status }) => status !== "error" && status !== "skipped",
+    ),
+    `${caseId}: failed Rust step execution`,
+  ).toBe(true);
   expect(Object.keys(manifest.processingSummary.logicalStageCheckpoints).sort()).toEqual(
     [...order].sort(),
+  );
+  expect(Object.keys(manifest.processingSummary.pipelineStepCheckpoints)).toHaveLength(55);
+  expect(Object.keys(manifest.processingSummary.pipelineStepDigests).sort()).toEqual(
+    Object.keys(manifest.processingSummary.pipelineStepCheckpoints).sort(),
+  );
+  expect(manifest.stepExecutions.map(({ step_id }) => step_id).sort()).toEqual(
+    Object.keys(manifest.processingSummary.pipelineStepCheckpoints).sort(),
   );
   for (const [nodeId, checkpoint] of Object.entries(
     manifest.processingSummary.logicalStageCheckpoints,
   )) {
-    expect(checkpoint.protocolVersion).toBe("chronicle-logical-stage-checkpoint/v2");
+    expect(checkpoint.protocolVersion).toBe("chronicle-logical-stage-checkpoint/v3");
     expect(checkpoint.nodeId).toBe(nodeId);
     expect(checkpoint.terminalDigest).toBe(
       manifest.processingSummary.logicalStageDigests[nodeId],
+    );
+  }
+  for (const [stepId, checkpoint] of Object.entries(
+    manifest.processingSummary.pipelineStepCheckpoints,
+  )) {
+    expect(checkpoint.protocolVersion).toBe("chronicle-logical-stage-checkpoint/v3");
+    expect(checkpoint.nodeId).toBe(stepId);
+    expect(checkpoint.terminalDigest).toBe(
+      manifest.processingSummary.pipelineStepDigests[stepId],
     );
   }
 }
 
 describe("raw timestamp boundary tomography", () => {
   it("proves exact warm/cold percolation at threshold, calendar, and DST joints", async () => {
+    if (
+      !Number.isSafeInteger(SHARD_COUNT) ||
+      SHARD_COUNT < 1 ||
+      SHARD_COUNT > SYNTHETIC_CORPUS_PROFILES.length ||
+      !Number.isSafeInteger(SHARD_INDEX) ||
+      SHARD_INDEX < 0 ||
+      SHARD_INDEX >= SHARD_COUNT
+    ) {
+      throw new Error(`invalid raw-boundary shard ${SHARD_INDEX}/${SHARD_COUNT}`);
+    }
     expect(interventions.length, "raw boundary filter matched nothing").toBeGreaterThan(0);
     expect(plan.nodes.map(({ node_id }) => node_id).sort()).toEqual([...order].sort());
+    const stepContract = JSON.parse(runtime.pipeline_step_contract_json()) as RustStepContract;
+    expect(stepContract.protocolVersion).toBe(
+      "chronicle-preprocessing-step-contract/v1",
+    );
+    expect(stepContract.steps).toHaveLength(55);
 
     const reports: Array<Record<string, unknown>> = [];
     const caseIdentities: string[] = [];
@@ -369,7 +473,8 @@ describe("raw timestamp boundary tomography", () => {
     }> = [];
     let authority: Record<string, string> | undefined;
 
-    for (const profile of SYNTHETIC_CORPUS_PROFILES) {
+    for (const [profileIndex, profile] of SYNTHETIC_CORPUS_PROFILES.entries()) {
+      if (profileIndex % SHARD_COUNT !== SHARD_INDEX) continue;
       const corpus = generateSyntheticChronicleCorpus(profile, catalog);
       const sourceState = buildArtifactFixtureState({
         corpus,
@@ -448,6 +553,10 @@ describe("raw timestamp boundary tomography", () => {
         expect(nodeOutputDigests(warmTarget), `${caseId}: checkpoint cold oracle`).toEqual(
           nodeOutputDigests(coldTarget),
         );
+        expect(
+          warmTarget.processingSummary.pipelineStepDigests,
+          `${caseId}: every warm Rust step checkpoint needs a cold target`,
+        ).toEqual(coldTarget.processingSummary.pipelineStepDigests);
 
         const sourceQualification: Record<string, string> = Object.fromEntries(
           coldSource.qualificationTraces
@@ -485,6 +594,18 @@ describe("raw timestamp boundary tomography", () => {
         expect(Object.keys(componentChanges).sort(), `${caseId}: component/terminal drift`).toEqual(
           changedSemanticNodes,
         );
+        const changedSemanticSteps = changedFields(
+          coldSource.processingSummary.pipelineStepDigests,
+          coldTarget.processingSummary.pipelineStepDigests,
+        );
+        const stepComponentChanges = stepCheckpointComponentChanges(
+          coldSource,
+          coldTarget,
+        );
+        expect(
+          Object.keys(stepComponentChanges).sort(),
+          `${caseId}: step component/terminal drift`,
+        ).toEqual(changedSemanticSteps);
 
         const sourceParse = coldSource.processingSummary.logicalStageCheckpoints.parse_events;
         const targetParse = coldTarget.processingSummary.logicalStageCheckpoints.parse_events;
@@ -514,6 +635,18 @@ describe("raw timestamp boundary tomography", () => {
           observedInputKeyNodes,
           `${caseId}: declared and empirical raw percolation disagree`,
         ).toEqual(predictedInputKeyNodes);
+        const observedInputKeySteps = changedFields(
+          stepInputKeys(warmSource),
+          stepInputKeys(warmTarget),
+        );
+        const predictedInputKeySteps = predictedRawStepCluster(
+          stepContract,
+          new Set(changedSemanticSteps),
+        );
+        expect(
+          observedInputKeySteps,
+          `${caseId}: declared and empirical 55-step raw percolation disagree`,
+        ).toEqual(predictedInputKeySteps);
         expect(
           warmTarget.nodeExecutions.find(({ node_id }) => node_id === "parse_events")?.status,
           `${caseId}: raw binder falsely cached`,
@@ -534,8 +667,12 @@ describe("raw timestamp boundary tomography", () => {
           changedComponents: intervention.changedComponents,
           changedSemanticNodes,
           checkpointComponentChanges: componentChanges,
+          changedPipelineSteps: changedSemanticSteps,
+          stepCheckpointComponentChanges: stepComponentChanges,
           predictedInputKeyNodes,
           observedInputKeyNodes,
+          predictedInputKeySteps,
+          observedInputKeySteps,
           changedOutputArtifactKinds: changedFields(
             outputArtifactDigests(coldSource),
             outputArtifactDigests(coldTarget),
@@ -575,7 +712,7 @@ describe("raw timestamp boundary tomography", () => {
 
     const evidence = {
       protocolVersion: "chronicle-raw-boundary-influence-ledger/v1",
-      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v2",
+      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v3",
       claimBoundary:
         "Exact raw timestamp percolation for every named boundary intervention across all checked synthetic corpus profiles. Each mutation changes one raw event timestamp; warm execution is checked against an independent cold oracle. The evidence does not generalize beyond the listed boundary catalog, corpora, plan, and implementation receipt.",
       plan: { id: plan.plan_id, revision: plan.revision },
@@ -608,6 +745,8 @@ describe("raw timestamp boundary tomography", () => {
         exactWarmColdComparisons: reports.length,
         exactClusterComparisons: reports.length,
         typedComponentComparisons: reports.length,
+        pipelineStepCheckpointComparisons: reports.length * 55,
+        exactStepClusterComparisons: reports.length,
         exactQualificationCorrespondenceComparisons: reports.length,
         exactOutputCellComparisons: reports.length * 2,
       },
@@ -615,6 +754,15 @@ describe("raw timestamp boundary tomography", () => {
       caseSetDigest: await sha256Uri(caseIdentities.sort().join("\n")),
     };
     const serialized = `${JSON.stringify(evidence, null, 2)}\n`;
+    const shardOutput = process.env.RAW_BOUNDARY_SHARD_OUTPUT;
+    if (shardOutput) {
+      writeFileSync(
+        shardOutput,
+        `${JSON.stringify({ evidence, cellEvidenceCases, caseIdentities }, null, 2)}\n`,
+        "utf8",
+      );
+      return;
+    }
     if (UPDATE) {
       mkdirSync(dirname(EXPECTED_FILE), { recursive: true });
       writeFileSync(CELL_EVIDENCE_FILE, cellEvidenceCompressed);

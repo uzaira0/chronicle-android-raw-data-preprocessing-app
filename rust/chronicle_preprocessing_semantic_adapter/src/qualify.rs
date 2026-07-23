@@ -200,18 +200,20 @@ pub fn qualify_candidates(
             .map(|role| role.cardinality.maximum)
             .unwrap_or(0);
         let cardinality_valid = known_role && observed_count <= maximum;
-        let decision =
-            if !unique_id || !exactly_one_role || !known_role || !media_valid || !digest_valid {
-                if asserted.len() > 1 {
-                    QualificationDecision::Ambiguous
-                } else {
-                    QualificationDecision::Rejected
-                }
-            } else if !cardinality_valid {
+        // A candidate without exactly one role cannot have a known selected
+        // role, so `known_role` is the one decision predicate. Keeping both
+        // here would be redundant and would obscure which rule rejects it.
+        let decision = if !unique_id || !known_role || !media_valid || !digest_valid {
+            if asserted.len() > 1 {
                 QualificationDecision::Ambiguous
             } else {
-                QualificationDecision::Accepted
-            };
+                QualificationDecision::Rejected
+            }
+        } else if !cardinality_valid {
+            QualificationDecision::Ambiguous
+        } else {
+            QualificationDecision::Accepted
+        };
         let selected_role_id = matches!(decision, QualificationDecision::Accepted)
             .then(|| selected.clone())
             .flatten();
@@ -603,6 +605,54 @@ mod tests {
             .collect::<BTreeSet<_>>();
         assert!(failed.contains("chronicle.binding.media-type.v1"));
         assert!(failed.contains("chronicle.binding.sha256.v1"));
+    }
+
+    #[test]
+    fn digest_shape_and_each_independent_candidate_rule_fail_closed() {
+        assert!(is_sha256(&format!("sha256:{}", "a".repeat(64))));
+        assert!(!is_sha256(&format!("sha256:{}", "a".repeat(63))));
+        assert!(!is_sha256(&format!("sha256:{}g", "a".repeat(63))));
+        assert_ne!(stable_id(&["a", "b"]), stable_id(&["ab"]));
+        assert_eq!(stable_id(&["a", "b"]), stable_id(&["a", "b"]));
+
+        let plan = embedded_plan();
+        let mut wrong_media = candidate("wrong-media", &["filter_file"], "application/json");
+        let mut wrong_digest = candidate("wrong-digest", &["filter_file"], "text/csv");
+        wrong_digest.artifact.digest = format!("sha256:{}g", "a".repeat(63));
+
+        for invalid in [&wrong_media, &wrong_digest] {
+            let report = qualify_candidates(
+                &plan,
+                &[
+                    candidate("valid", &["filter_file"], "text/csv"),
+                    invalid.clone(),
+                ],
+                &serde_json::json!({"use_filter_file": true}),
+            );
+            let trace = report
+                .traces
+                .iter()
+                .find(|trace| trace.candidate_id == invalid.candidate_id)
+                .expect("invalid candidate trace");
+            assert_eq!(trace.decision, QualificationDecision::Rejected);
+            assert_eq!(
+                report
+                    .traces
+                    .iter()
+                    .find(|trace| trace.candidate_id == "valid")
+                    .expect("valid candidate trace")
+                    .decision,
+                QualificationDecision::Accepted
+            );
+        }
+
+        // Keep this mutable so the two malformed cases above cannot
+        // accidentally share the same artifact identity in future fixtures.
+        wrong_media.artifact.digest = artifact("wrong-media-2", "application/json").digest;
+        assert_eq!(
+            qualify_candidates(&plan, &[wrong_media], &serde_json::json!({})).traces[0].decision,
+            QualificationDecision::Rejected
+        );
     }
 
     #[test]

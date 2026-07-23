@@ -14,7 +14,7 @@ import {
 } from "@/lib/processingUiContract";
 import {
   WorkerPool,
-  discoverTimezones,
+  discoverTimezonesBytes,
   getPlanStageView,
   processRawCsvBytes,
   processRawCsvBytesViaPool,
@@ -508,7 +508,10 @@ export default function App(): ReactElement {
 
     const discovered = new Set<string>();
     for (const file of files) {
-      const timezones = await discoverTimezones(await file.text(), getInjectedRuntime());
+      const timezones = await discoverTimezonesBytes(
+        await file.arrayBuffer(),
+        getInjectedRuntime(),
+      );
       timezones.forEach((timezone) => {
         const normalized = timezone.trim();
         if (normalized) discovered.add(normalized);
@@ -581,8 +584,10 @@ export default function App(): ReactElement {
     setError(null);
     const discovered = new Set<string>();
     for (const file of uploadedFiles) {
-      const text = await file.text();
-      const timezones = await discoverTimezones(text, getInjectedRuntime());
+      const timezones = await discoverTimezonesBytes(
+        await file.arrayBuffer(),
+        getInjectedRuntime(),
+      );
       timezones.forEach((timezone) => discovered.add(timezone));
     }
     const next = Array.from(discovered).sort((left, right) => left.localeCompare(right));
@@ -656,6 +661,7 @@ export default function App(): ReactElement {
         ? computeSafeConcurrency({
             fileCount: uploadedFiles.length,
             totalInputBytes,
+            fileSizes: uploadedFiles.map((file) => file.size),
             userCap: runOptions.parallelMaxWorkers,
             hardwareConcurrency: typeof navigator !== "undefined" ? navigator.hardwareConcurrency : undefined,
             deviceMemory: readDeviceMemory(),
@@ -667,14 +673,21 @@ export default function App(): ReactElement {
       const supportFiles = await resolveDefaultSupportFiles(runOptions, userSupportFiles);
       pool = concurrency > 1 ? new WorkerPool(concurrency) : null;
       poolRef.current = pool;
+      // Longest-processing-time first keeps one large export from becoming a
+      // serial tail after every small file has completed. Results still occupy
+      // their original indexes, so display/download order remains unchanged.
+      const schedule = uploadedFiles
+        .map((file, index) => ({ index, size: file.size }))
+        .sort((left, right) => right.size - left.size || left.index - right.index)
+        .map(({ index }) => index);
       let cursor = 0;
       const failures: string[] = [];
       const runner = async () => {
         for (;;) {
           if (cancelRequestedRef.current) return;
-          const index = cursor;
+          const index = schedule[cursor];
           cursor += 1;
-          if (index >= uploadedFiles.length) return;
+          if (index === undefined) return;
           const file = uploadedFiles[index];
           handleProgressEvent({ type: "file-start", fileName: file.name });
           try {

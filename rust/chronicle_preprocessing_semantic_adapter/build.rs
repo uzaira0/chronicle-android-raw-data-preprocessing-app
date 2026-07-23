@@ -8,6 +8,7 @@ use std::path::PathBuf;
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("manifest dir"));
     println!("cargo:rerun-if-env-changed=CHRONICLE_SEMANTIC_ROOT");
+    println!("cargo:rerun-if-env-changed=CHRONICLE_DEPENDENCY_CERTIFICATE");
     let semantic_root = env::var_os("CHRONICLE_SEMANTIC_ROOT")
         .map(PathBuf::from)
         .unwrap_or_else(|| manifest_dir.join("../../.semantic-federation/semantic"));

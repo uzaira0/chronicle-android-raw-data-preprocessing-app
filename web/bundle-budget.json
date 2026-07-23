@@ -1,13 +1,13 @@
 {
-  "_comment": "Deploy-artifact size budgets (bytes), enforced by check_deploy_artifact.mts. Baseline re-measured 2026-07-21 after the intentional Rust authority cutover, Arrow lineage, and lazy Oxigraph semantic index: total 8,549,977; wasm 5,657,633; JS ~765k; CSS 82,392. Runtime and semantic-index WASM remain separate, prefix-budgeted chunks. Budgets retain roughly 10-12% headroom; raising one requires a named cause and a new measurement.",
-  "totalBytes": 9400000,
+  "_comment": "Deploy-artifact size budgets (bytes), enforced by check_deploy_artifact.mts. Baseline re-measured 2026-07-23 after the complete Rust authority, exact streaming Arrow source/result correspondence, crash-safe evidence, and optional Parquet/SPSS/XLSX exports: runtime WASM 4,762,609; semantic-index WASM 2,099,237. Runtime and semantic-index WASM remain separate lazy chunks. Budgets retain roughly 9% headroom; raising one requires a named cause and a new measurement.",
+  "totalBytes": 10650000,
   "categories": {
     ".js": 900000,
-    ".wasm": 6300000,
+    ".wasm": 7460000,
     ".css": 100000
   },
   "filePrefixes": {
-    "chronicle_preprocessing_runtime_wasm_bg-": 3950000,
+    "chronicle_preprocessing_runtime_wasm_bg-": 5150000,
     "chronicle_semantic_index_wasm_bg-": 2350000,
     "chronicle-worker-": 110000
   }

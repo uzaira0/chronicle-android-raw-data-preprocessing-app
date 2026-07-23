@@ -88,7 +88,7 @@ corpora per intervention so context-dependent support edges remain explicit.
 
 ## Typed checkpoint shape
 
-`chronicle-logical-stage-checkpoint/v2` replaces an opaque stage comparison
+`chronicle-logical-stage-checkpoint/v3` replaces an opaque stage comparison
 with six product-owned components:
 
 | Component | Chronicle meaning |
@@ -100,7 +100,10 @@ with six product-owned components:
 | `payloadDigest` | Non-row products such as compliance/output bytes or bypass state |
 | `schemaDigest` | Exact product checkpoint field partition and group/payload labels |
 
-The terminal stage digest is a commitment over those six digests. Every raw,
+The six high-frequency component digests use `blake3:` so native and browser
+WASM builds can use the algorithm's SIMD implementation. The terminal stage
+digest remains `sha256:` and commits to the exact six labeled components;
+exported artifacts and content-addressed storage also remain SHA-256. Every raw,
 support, and configuration transition proves both directions: a changed
 terminal has at least one changed component, and no component changes behind
 an unchanged terminal. For example, a timestamp edit changes the temporal

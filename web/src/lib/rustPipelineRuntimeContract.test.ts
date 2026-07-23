@@ -96,7 +96,10 @@ const INVALID_CASES: Array<
   [
     "false narrow-cache structural claim",
     (candidate) => {
-      record(candidate.dependencyCacheDecision).binding_surface_digest = null;
+      const decision = record(candidate.dependencyCacheDecision);
+      decision.mode = "certified_narrow";
+      decision.certificate_digest = candidate.dependencyCertificateDigest;
+      decision.binding_surface_digest = null;
     },
     /certified_narrow requires certificate and binding-surface identity/,
   ],
@@ -216,6 +219,29 @@ const INVALID_CASES: Array<
     /checkpoint identity or terminal digest/,
   ],
   [
+    "checkpoint component uses the wrong digest family",
+    (candidate) => {
+      const checkpoints = record(
+        record(candidate.processingSummary).logicalStageCheckpoints,
+      );
+      const nodeId = Object.keys(checkpoints)[0];
+      record(checkpoints[nodeId]).payloadDigest = `sha256:${"a".repeat(64)}`;
+    },
+    /payloadDigest.*lowercase blake3 digest/,
+  ],
+  [
+    "checkpoint protocol is unsupported",
+    (candidate) => {
+      const checkpoints = record(
+        record(candidate.processingSummary).logicalStageCheckpoints,
+      );
+      const nodeId = Object.keys(checkpoints)[0];
+      record(checkpoints[nodeId]).protocolVersion =
+        "chronicle-logical-stage-checkpoint/v99";
+    },
+    /protocolVersion.*unsupported checkpoint protocol/,
+  ],
+  [
     "checkpoint stage identity substitution",
     (candidate) => {
       const checkpoints = record(
@@ -233,7 +259,7 @@ const INVALID_CASES: Array<
       summary.logicalStageDigests = {};
       summary.logicalStageCheckpoints = {};
     },
-    /stage digest and checkpoint domains must be identical and non-empty/,
+    /digest and checkpoint domains must contain the same 15 identities/,
   ],
   [
     "stage digest and checkpoint domain mismatch",
@@ -242,7 +268,7 @@ const INVALID_CASES: Array<
       const checkpoints = record(summary.logicalStageCheckpoints);
       delete checkpoints[Object.keys(checkpoints)[0]];
     },
-    /stage digest and checkpoint domains must be identical and non-empty/,
+    /digest and checkpoint domains must contain the same 15 identities/,
   ],
   [
     "artifact metadata has a negative row count",
@@ -250,6 +276,34 @@ const INVALID_CASES: Array<
       firstRecord(candidate, "artifacts").rowCount = -1;
     },
     /artifacts\[0\]\.rowCount.*non-negative safe integer/,
+  ],
+  [
+    "artifact preview contains a non-string cell",
+    (candidate) => {
+      firstRecord(candidate, "artifacts").previewRows = [["valid", 7]];
+    },
+    /previewRows\[0\]\[1\].*expected a string/,
+  ],
+  [
+    "step execution has an unknown status",
+    (candidate) => {
+      firstRecord(candidate, "stepExecutions").status = "silently_stale";
+    },
+    /stepExecutions\[0\]\.status.*unknown execution status/,
+  ],
+  [
+    "step execution domain is incomplete",
+    (candidate) => {
+      array(candidate.stepExecutions).pop();
+    },
+    /expected exactly 55 unique Rust step executions/,
+  ],
+  [
+    "step execution output disagrees with its Rust checkpoint",
+    (candidate) => {
+      firstRecord(candidate, "stepExecutions").output_digest = `sha256:${"a".repeat(64)}`;
+    },
+    /step execution output does not match its Rust checkpoint/,
   ],
   [
     "duplicate artifact identity",
@@ -351,11 +405,12 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
     ).not.toThrow();
   });
 
-  it("keeps structural narrowing distinct from stale empirical release evidence", () => {
+  it("forces conservative recomputation when empirical release evidence is stale", () => {
     const stale = cloneManifest();
+    stale.dependencyCacheDecision.mode = "conservative_full";
     stale.dependencyCacheDecision.empirical_evidence_current = false;
     expect(decodeRuntimeManifest(stale).dependencyCacheDecision).toMatchObject({
-      mode: "certified_narrow",
+      mode: "conservative_full",
       empirical_evidence_current: false,
     });
   });
@@ -400,6 +455,43 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
     candidate.nodeExecutions[0].output = null;
 
     expect(decodeRuntimeManifest(candidate).nodeExecutions[0].output).toBeNull();
+  });
+
+  it("rejects an ineligible selected-timezone request before entering WASM", async () => {
+    await expect(
+      executeRustRuntime(
+        new TextEncoder().encode("header\n"),
+        "missing-timezone.csv",
+        {
+          ...DEFAULT_BROWSER_OPTIONS,
+          timezoneHandling: "selected-filter",
+          selectedTimezone: "",
+        },
+        undefined,
+        {
+          datetimeOfPreprocessing: "2026-07-22 00:00:00 UTC",
+          persistRustWorkspace: false,
+        },
+      ),
+    ).rejects.toThrow(/Rust runtime is ineligible.*selectedTimezone/);
+  });
+
+  it("rejects durable mutation when Web Locks are unavailable", async () => {
+    await expect(
+      executeRustRuntime(
+        new TextEncoder().encode("header\n"),
+        "no-web-locks.csv",
+        {
+          ...DEFAULT_BROWSER_OPTIONS,
+          timezoneHandling: "primary-convert",
+        },
+        undefined,
+        {
+          datetimeOfPreprocessing: "2026-07-22 00:00:00 UTC",
+          persistRustWorkspace: true,
+        },
+      ),
+    ).rejects.toThrow(/Durable processing requires the browser Web Locks API/);
   });
 
   it("bounds the exact source-coordinate sidecar on a 600-event fixture", async () => {

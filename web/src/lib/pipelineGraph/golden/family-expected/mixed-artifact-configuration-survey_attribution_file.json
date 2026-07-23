@@ -7,12 +7,12 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:d6081f896e488d92bf202fcea98a92c3bc86e13f493f33aca29ced86333db997",
-    "planDigest": "sha256:162cd4087b0287169a54ee55dc224300e4a6c7ba4009ff82f8828b348d562c45",
-    "profileDigest": "sha256:b2899800f08de7ed93000422947cd8d0b3b5443150e6b47a019f8d038ceaaf93",
-    "profileLockDigest": "sha256:47240c9a44c328437384c8be9531e90f8d5e60696ed6a0db55f79bf313b78990",
+    "implementationDigest": "sha256:6d2686a698d2edd8d4372c9cf067ff0a3405fe3abe3f0a965f56bb803338e1e6",
+    "planDigest": "sha256:3b1db580ca483d5f7f198a82fcc8166e9ad180eaea587db1ae950a5fa06649a6",
+    "profileDigest": "sha256:ad3a1e58f4a69a2f81c412391f5736bf1c2f73216a5cd9742bc319bb07b01435",
+    "profileLockDigest": "sha256:aa51a18ee2104560bf6f239de05f7dfccec3aec6f4940123e305519c3bb81521",
     "runtimeAuthorityDigest": "sha256:11142579a05120fce9a1fe8e0edfffdcae385b34a10080d878e8d82b73cc8627",
-    "productContractDigest": "sha256:5ac0241fc2c80af23f5a580ff25679db9ce3d2e3a5fae8043ed0826d865105f7"
+    "productContractDigest": "sha256:00c1f57a6e487e1136f2a431a786cbf4bbb5f109da31f97993ed0dd6d0a1a8ba"
   },
   "roleRepresentatives": {
     "survey_attribution_file": {

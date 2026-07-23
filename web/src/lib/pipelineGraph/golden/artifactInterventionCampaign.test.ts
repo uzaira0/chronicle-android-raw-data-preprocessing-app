@@ -51,6 +51,8 @@ const PLAN_FILE = fileURLToPath(
 );
 const UPDATE = process.env.UPDATE_ARTIFACT_INFLUENCE === "1";
 const FILTER = process.env.ARTIFACT_INTERVENTION;
+const SHARD_COUNT = Number(process.env.ARTIFACT_SHARD_COUNT ?? "1");
+const SHARD_INDEX = Number(process.env.ARTIFACT_SHARD_INDEX ?? "0");
 const encoder = new TextEncoder();
 
 type PlanNode = {
@@ -99,7 +101,7 @@ type RuntimeManifest = {
     logicalStageCheckpoints: Record<
       string,
       {
-        protocolVersion: "chronicle-logical-stage-checkpoint/v2";
+        protocolVersion: "chronicle-logical-stage-checkpoint/v3";
         nodeId: string;
         rowMembershipDigest: string;
         rowOrderDigest: string;
@@ -110,6 +112,8 @@ type RuntimeManifest = {
         terminalDigest: string;
       }
     >;
+    pipelineStepDigests: Record<string, string>;
+    pipelineStepCheckpoints: Record<string, Record<string, unknown>>;
     publishedOutputsDigest: string;
     provenanceDigest: string;
     [key: string]: unknown;
@@ -120,11 +124,29 @@ type RuntimeManifest = {
     output: { digest: string } | null;
     status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
   }>;
+  stepExecutions: Array<{
+    step_id: string;
+    unit_id: string;
+    input_key: string;
+    output_digest: string;
+    status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
+  }>;
   artifacts: Array<{ kind: string; digest: string; size: number }>;
 };
 
 type ObservedRuntimeManifest = RuntimeManifest & {
   outputCells: Record<string, string>;
+};
+
+type RustStepContract = {
+  protocolVersion: "chronicle-preprocessing-step-contract/v1";
+  steps: Array<{
+    id: string;
+    group: string;
+    inputs: string[];
+    requestFields: string[];
+    sourceRoles: string[];
+  }>;
 };
 
 const plan = JSON.parse(readFileSync(PLAN_FILE, "utf8")) as ProductPlan;
@@ -135,6 +157,7 @@ const catalog = buildSyntheticCatalog({
   backgroundCsv,
   forcingScreenOpenCsv: forcingCsv,
 });
+let stepContract: RustStepContract;
 
 beforeAll(() => {
   const wasmBytes = readFileSync(
@@ -144,6 +167,11 @@ beforeAll(() => {
     ),
   );
   runtime.initSync({ module: wasmBytes });
+  stepContract = JSON.parse(runtime.pipeline_step_contract_json()) as RustStepContract;
+  expect(stepContract.protocolVersion).toBe(
+    "chronicle-preprocessing-step-contract/v1",
+  );
+  expect(stepContract.steps).toHaveLength(55);
 });
 
 async function sha256Uri(value: Uint8Array | string): Promise<string> {
@@ -224,6 +252,12 @@ function nodeInputKeys(manifest: RuntimeManifest): Record<string, string> {
   );
 }
 
+function stepInputKeys(manifest: RuntimeManifest): Record<string, string> {
+  return Object.fromEntries(
+    manifest.stepExecutions.map(({ step_id, input_key }) => [step_id, input_key]),
+  );
+}
+
 function nodeOutputDigests(manifest: RuntimeManifest): Record<string, string | null> {
   return Object.fromEntries(
     manifest.nodeExecutions.map((execution) => [
@@ -294,6 +328,20 @@ function predictedPercolationCluster(
   return [...result].sort();
 }
 
+function predictedStepPercolationCluster(
+  roleId: InterventionRoleId,
+  changedSemanticSteps: ReadonlySet<string>,
+): string[] {
+  return stepContract.steps
+    .filter(
+      (step) =>
+        step.sourceRoles.includes(roleId) ||
+        step.inputs.some((input) => changedSemanticSteps.has(input)),
+    )
+    .map(({ id }) => id)
+    .sort();
+}
+
 const OUTPUT_ARTIFACT_KINDS = new Set([
   "app-csv",
   "screen-csv",
@@ -354,6 +402,24 @@ function changedCheckpointComponents(
   );
 }
 
+function changedStepCheckpointComponents(
+  source: RuntimeManifest,
+  target: RuntimeManifest,
+): Record<string, string[]> {
+  return Object.fromEntries(
+    Object.keys(source.processingSummary.pipelineStepCheckpoints)
+      .sort()
+      .map((stepId) => [
+        stepId,
+        changedFields(
+          source.processingSummary.pipelineStepCheckpoints[stepId],
+          target.processingSummary.pipelineStepCheckpoints[stepId],
+        ).filter((field) => field !== "terminalDigest"),
+      ] as const)
+      .filter(([, components]) => components.length > 0),
+  );
+}
+
 function authorityReceipt(manifest: RuntimeManifest): Record<string, string> {
   return {
     implementation: manifest.implementation,
@@ -368,6 +434,15 @@ function authorityReceipt(manifest: RuntimeManifest): Record<string, string> {
 
 describe("artifact dependency tomography", () => {
   it("derives an exact warm/cold percolation ledger for raw and support artifacts", async () => {
+    if (
+      !Number.isSafeInteger(SHARD_COUNT) ||
+      SHARD_COUNT < 1 ||
+      !Number.isSafeInteger(SHARD_INDEX) ||
+      SHARD_INDEX < 0 ||
+      SHARD_INDEX >= SHARD_COUNT
+    ) {
+      throw new Error(`invalid artifact shard ${SHARD_INDEX}/${SHARD_COUNT}`);
+    }
     expect([...plan.nodes.map(({ node_id }) => node_id)].sort()).toEqual([...order].sort());
     expect(
       SUPPORT_ROLE_IDS.filter(
@@ -395,7 +470,8 @@ describe("artifact dependency tomography", () => {
       { active: Set<string>; converged: Set<string> }
     >();
 
-    for (const profile of SYNTHETIC_CORPUS_PROFILES) {
+    for (const [profileIndex, profile] of SYNTHETIC_CORPUS_PROFILES.entries()) {
+      if (profileIndex % SHARD_COUNT !== SHARD_INDEX) continue;
       const corpus = generateSyntheticChronicleCorpus(profile, catalog);
       const sourceState = buildArtifactFixtureState({
         corpus,
@@ -487,6 +563,16 @@ describe("artifact dependency tomography", () => {
           `${caseId}: supplied fixture left a role unsatisfied`,
         ).toBe(true);
         expect(manifest.nodeExecutions, `${caseId}: logical stages`).toHaveLength(15);
+        expect(manifest.stepExecutions, `${caseId}: Rust pipeline steps`).toHaveLength(55);
+        expect(manifest.stepExecutions.map(({ step_id }) => step_id).sort()).toEqual(
+          stepContract.steps.map(({ id }) => id).sort(),
+        );
+        expect(
+          manifest.stepExecutions.every(
+            ({ status }) => status !== "error" && status !== "skipped",
+          ),
+          `${caseId}: failed Rust pipeline step`,
+        ).toBe(true);
         expect(
           Object.keys(manifest.processingSummary.logicalStageCheckpoints).sort(),
           `${caseId}: typed checkpoint coverage`,
@@ -495,11 +581,26 @@ describe("artifact dependency tomography", () => {
           manifest.processingSummary.logicalStageCheckpoints,
         )) {
           expect(checkpoint.protocolVersion).toBe(
-            "chronicle-logical-stage-checkpoint/v2",
+            "chronicle-logical-stage-checkpoint/v3",
           );
           expect(checkpoint.nodeId).toBe(nodeId);
           expect(checkpoint.terminalDigest).toBe(
             manifest.processingSummary.logicalStageDigests[nodeId],
+          );
+        }
+        expect(
+          Object.keys(manifest.processingSummary.pipelineStepCheckpoints).sort(),
+          `${caseId}: 55-step checkpoint coverage`,
+        ).toEqual(stepContract.steps.map(({ id }) => id).sort());
+        for (const [stepId, checkpoint] of Object.entries(
+          manifest.processingSummary.pipelineStepCheckpoints,
+        )) {
+          expect(checkpoint.protocolVersion).toBe(
+            "chronicle-logical-stage-checkpoint/v3",
+          );
+          expect(checkpoint.nodeId).toBe(stepId);
+          expect(checkpoint.terminalDigest).toBe(
+            manifest.processingSummary.pipelineStepDigests[stepId],
           );
         }
         expect(
@@ -529,6 +630,10 @@ describe("artifact dependency tomography", () => {
         nodeOutputDigests(warmTarget),
         `${caseId}: every warm logical checkpoint needs a cold target`,
       ).toEqual(nodeOutputDigests(coldTarget));
+      expect(
+        warmTarget.processingSummary.pipelineStepDigests,
+        `${caseId}: every warm Rust step checkpoint needs a cold target`,
+      ).toEqual(coldTarget.processingSummary.pipelineStepDigests);
       const changedQualificationRoles = changedFields(
         qualificationByRole(coldSource),
         qualificationByRole(coldTarget),
@@ -558,6 +663,18 @@ describe("artifact dependency tomography", () => {
         Object.keys(checkpointComponentChanges).sort(),
         `${caseId}: typed components and terminal commitments disagree`,
       ).toEqual(changedSemanticNodes);
+      const changedSemanticSteps = changedFields(
+        coldSource.processingSummary.pipelineStepDigests,
+        coldTarget.processingSummary.pipelineStepDigests,
+      );
+      const stepCheckpointComponentChanges = changedStepCheckpointComponents(
+        coldSource,
+        coldTarget,
+      );
+      expect(
+        Object.keys(stepCheckpointComponentChanges).sort(),
+        `${caseId}: step components and terminal commitments disagree`,
+      ).toEqual(changedSemanticSteps);
       if (intervention.expectedSemanticEffect === "required") {
         requiredInterventionIds.add(intervention.id);
         const contexts = activationContexts.get(intervention.id) ?? {
@@ -596,6 +713,18 @@ describe("artifact dependency tomography", () => {
         observedInputKeyNodes,
         `${caseId}: declared and empirical percolation must agree exactly`,
       ).toEqual(predictedInputKeyNodes);
+      const observedInputKeySteps = changedFields(
+        stepInputKeys(warmSource),
+        stepInputKeys(warmTarget),
+      );
+      const predictedInputKeySteps = predictedStepPercolationCluster(
+        intervention.roleId,
+        new Set(changedSemanticSteps),
+      );
+      expect(
+        observedInputKeySteps,
+        `${caseId}: declared and empirical 55-step percolation must agree exactly`,
+      ).toEqual(predictedInputKeySteps);
 
       const directBinders = plan.nodes
         .filter(
@@ -643,8 +772,12 @@ describe("artifact dependency tomography", () => {
         changedRequirementRoles,
         changedSemanticNodes,
         checkpointComponentChanges,
+        changedSemanticSteps,
+        stepCheckpointComponentChanges,
         predictedInputKeyNodes,
         observedInputKeyNodes,
+        predictedInputKeySteps,
+        observedInputKeySteps,
         changedOutputArtifactKinds,
         changedOutputCellCount: changedOutputCellAddresses.length,
         changedOutputCellAddressDigest: await sha256Uri(
@@ -670,10 +803,12 @@ describe("artifact dependency tomography", () => {
     const missingRequiredWitnesses = [...requiredInterventionIds].filter(
       (interventionId) => !semanticWitnessesByIntervention.has(interventionId),
     );
-    expect(
-      missingRequiredWitnesses,
-      "every substantive intervention needs at least one branch-activating corpus witness",
-    ).toEqual([]);
+    if (SHARD_COUNT === 1) {
+      expect(
+        missingRequiredWitnesses,
+        "every substantive intervention needs at least one branch-activating corpus witness",
+      ).toEqual([]);
+    }
 
     const cellEvidenceSerialized = `${JSON.stringify(
       {
@@ -693,9 +828,9 @@ describe("artifact dependency tomography", () => {
 
     const evidence = {
       protocolVersion: "chronicle-artifact-influence-ledger/v1",
-      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v2",
+      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v3",
       claimBoundary:
-        "Exact raw/support artifact percolation for the recorded product plan, implementation, six deterministic synthetic corpora, and intervention catalog. Each intervention changes exactly one source artifact; every warm logical checkpoint and researcher-visible output is compared with an independent cold target. Absence of an effect is not generalized beyond the named mutation and corpus.",
+        "Exact raw/support artifact percolation for the recorded product plan, implementation, six deterministic synthetic corpora, and intervention catalog. Each intervention changes exactly one source artifact; every warm 55-step checkpoint, 15 display-group checkpoint, and researcher-visible output is compared with an independent cold Rust/WASM target. Absence of an effect is not generalized beyond the named mutation and corpus.",
       plan: { id: plan.plan_id, revision: plan.revision },
       implementationReceipt: receipt,
       cellEvidence: {
@@ -749,6 +884,7 @@ describe("artifact dependency tomography", () => {
         contextualConvergences,
         exactEquivalences,
         logicalCheckpointComparisons: reports.length,
+        pipelineStepCheckpointComparisons: reports.length * 55,
         typedCheckpointDecompositionComparisons: reports.length,
         exactClusterComparisons: reports.length,
         exactQualificationCorrespondenceComparisons: reports.length,
@@ -759,6 +895,15 @@ describe("artifact dependency tomography", () => {
       caseSetDigest: await sha256Uri(caseIdentities.sort().join("\n")),
     };
     const serialized = `${JSON.stringify(evidence, null, 2)}\n`;
+    const shardOutput = process.env.ARTIFACT_SHARD_OUTPUT;
+    if (shardOutput) {
+      writeFileSync(
+        shardOutput,
+        `${JSON.stringify({ evidence, cellEvidenceCases, caseIdentities }, null, 2)}\n`,
+        "utf8",
+      );
+      return;
+    }
     if (UPDATE) {
       mkdirSync(dirname(EXPECTED_FILE), { recursive: true });
       writeFileSync(CELL_EVIDENCE_FILE, cellEvidenceCompressed);

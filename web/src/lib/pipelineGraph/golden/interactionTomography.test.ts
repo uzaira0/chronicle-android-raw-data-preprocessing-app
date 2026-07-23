@@ -35,10 +35,27 @@ const PLAN_FILE = fileURLToPath(
   ),
 );
 const UPDATE = process.env.UPDATE_INTERACTION_INFLUENCE === "1";
+const SHARD_COUNT = Number(process.env.INTERACTION_SHARD_COUNT ?? "1");
+const SHARD_INDEX = Number(process.env.INTERACTION_SHARD_INDEX ?? "0");
+const SHARD_OUTPUT = process.env.INTERACTION_SHARD_OUTPUT;
+if (
+  !Number.isInteger(SHARD_COUNT) ||
+  SHARD_COUNT < 1 ||
+  !Number.isInteger(SHARD_INDEX) ||
+  SHARD_INDEX < 0 ||
+  SHARD_INDEX >= SHARD_COUNT
+) {
+  throw new Error(
+    "INTERACTION_SHARD_COUNT must be positive and INTERACTION_SHARD_INDEX must select one shard",
+  );
+}
+if (SHARD_COUNT > 1 && !SHARD_OUTPUT) {
+  throw new Error("INTERACTION_SHARD_OUTPUT is required for a sharded campaign");
+}
 const encoder = new TextEncoder();
 
 type TypedCheckpoint = {
-  protocolVersion: "chronicle-logical-stage-checkpoint/v2";
+  protocolVersion: "chronicle-logical-stage-checkpoint/v3";
   nodeId: string;
   rowMembershipDigest: string;
   rowOrderDigest: string;
@@ -62,6 +79,8 @@ type RuntimeManifest = {
   processingSummary: {
     logicalStageDigests: Record<string, string>;
     logicalStageCheckpoints: Record<string, TypedCheckpoint>;
+    pipelineStepDigests: Record<string, string>;
+    pipelineStepCheckpoints: Record<string, TypedCheckpoint>;
     publishedOutputsDigest: string;
     provenanceDigest: string;
   };
@@ -71,7 +90,25 @@ type RuntimeManifest = {
     output: { digest: string } | null;
     status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
   }>;
+  stepExecutions: Array<{
+    step_id: string;
+    unit_id: string;
+    input_key: string;
+    output_digest: string;
+    status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
+  }>;
   artifacts: Array<{ kind: string; digest: string; size: number }>;
+};
+
+type RustStepContract = {
+  protocolVersion: "chronicle-preprocessing-step-contract/v1";
+  steps: Array<{
+    id: string;
+    group: string;
+    inputs: string[];
+    requestFields: string[];
+    sourceRoles: string[];
+  }>;
 };
 
 const plan = JSON.parse(readFileSync(PLAN_FILE, "utf8")) as {
@@ -223,6 +260,78 @@ function nodeOutputDigests(manifest: RuntimeManifest): Record<string, string | n
   );
 }
 
+function stepInputKeys(manifest: RuntimeManifest): Record<string, string> {
+  return Object.fromEntries(
+    manifest.stepExecutions.map(({ step_id, input_key }) => [step_id, input_key]),
+  );
+}
+
+function stepOutputDigests(manifest: RuntimeManifest): Record<string, string> {
+  return Object.fromEntries(
+    manifest.stepExecutions.map(({ step_id, output_digest }) => [step_id, output_digest]),
+  );
+}
+
+function stepCheckpointComponentChanges(
+  source: RuntimeManifest,
+  target: RuntimeManifest,
+): Record<string, string[]> {
+  return Object.fromEntries(
+    Object.keys(source.processingSummary.pipelineStepCheckpoints)
+      .sort()
+      .map((stepId) => [
+        stepId,
+        changedFields(
+          source.processingSummary.pipelineStepCheckpoints[stepId] as unknown as Record<
+            string,
+            unknown
+          >,
+          target.processingSummary.pipelineStepCheckpoints[stepId] as unknown as Record<
+            string,
+            unknown
+          >,
+        ).filter((component) => component !== "terminalDigest"),
+      ] as const)
+      .filter(([, components]) => components.length > 0),
+  );
+}
+
+function assertCompleteStepManifest(
+  manifest: RuntimeManifest,
+  stepIds: string[],
+  caseId: string,
+): void {
+  expect(manifest.stepExecutions, `${caseId}: Rust step execution coverage`).toHaveLength(
+    55,
+  );
+  expect(manifest.stepExecutions.map(({ step_id }) => step_id).sort()).toEqual(stepIds);
+  expect(Object.keys(manifest.processingSummary.pipelineStepDigests).sort()).toEqual(
+    stepIds,
+  );
+  expect(Object.keys(manifest.processingSummary.pipelineStepCheckpoints).sort()).toEqual(
+    stepIds,
+  );
+  expect(
+    manifest.stepExecutions.every(
+      ({ step_id, output_digest, status }) =>
+        status !== "error" &&
+        status !== "skipped" &&
+        output_digest === manifest.processingSummary.pipelineStepDigests[step_id],
+    ),
+    `${caseId}: failed or inconsistent Rust step execution`,
+  ).toBe(true);
+  expect(
+    Object.entries(manifest.processingSummary.pipelineStepCheckpoints).every(
+      ([stepId, checkpoint]) =>
+        checkpoint.protocolVersion === "chronicle-logical-stage-checkpoint/v3" &&
+        checkpoint.nodeId === stepId &&
+        checkpoint.terminalDigest ===
+          manifest.processingSummary.pipelineStepDigests[stepId],
+    ),
+    `${caseId}: invalid Rust step checkpoint`,
+  ).toBe(true);
+}
+
 const OUTPUT_KINDS = new Set([
   "app-csv",
   "screen-csv",
@@ -283,9 +392,18 @@ describe("two-factor interaction tomography", () => {
   it("exhausts all computational-axis pairs and proves every warm two-factor cone", async () => {
     const keys = [...COMPUTATIONAL_BROWSER_OPTION_KEYS];
     expect(keys).toHaveLength(46);
+    const stepContract = JSON.parse(
+      runtime.pipeline_step_contract_json(),
+    ) as RustStepContract;
+    expect(stepContract.protocolVersion).toBe(
+      "chronicle-preprocessing-step-contract/v1",
+    );
+    expect(stepContract.steps).toHaveLength(55);
+    const stepIds = stepContract.steps.map(({ id }) => id).sort();
     const base = ALL_ON;
     const alternates = new Map(keys.map((key) => [key, alternatesFor(key)]));
     const coldBase = await execute(base, "cold-base", "cold-base", null);
+    assertCompleteStepManifest(coldBase, stepIds, "cold-base");
     const coldSingles = new Map<string, RuntimeManifest>();
     const invalidSingles: Array<Record<string, unknown>> = [];
     for (const key of keys) {
@@ -303,6 +421,7 @@ describe("two-factor interaction tomography", () => {
           id,
           await execute(options, `cold-single-${id}`, "run", null),
         );
+        assertCompleteStepManifest(coldSingles.get(id)!, stepIds, id);
       }
     }
 
@@ -310,7 +429,9 @@ describe("two-factor interaction tomography", () => {
     const qualificationEnabledPairs: Array<Record<string, unknown>> = [];
     const invalidPairs: Array<Record<string, unknown>> = [];
     const pairCases: string[] = [];
+    const pairOrder: Array<{ ordinal: number; pairId: string }> = [];
     let pairCount = 0;
+    let pairContrastOrdinal = 0;
     let exactClusterComparisons = 0;
     let warmColdComparisons = 0;
     const implementationReceipt = receipt(coldBase);
@@ -324,6 +445,10 @@ describe("two-factor interaction tomography", () => {
         const leftId = valueId(leftKey, leftValue);
         const rightId = valueId(rightKey, rightValue);
         const pairId = `${leftId}+${rightId}`;
+        const ordinal = pairContrastOrdinal;
+        pairContrastOrdinal += 1;
+        if (ordinal % SHARD_COUNT !== SHARD_INDEX) continue;
+        pairOrder.push({ ordinal, pairId });
         let pairOptions = withValue(base, leftKey, leftValue.value);
         pairOptions = withValue(pairOptions, rightKey, rightValue.value);
         if (!validConfiguration(pairOptions)) {
@@ -348,6 +473,7 @@ describe("two-factor interaction tomography", () => {
           expect(receipt(manifest), `${pairId}: authority drift`).toEqual(
             implementationReceipt,
           );
+          assertCompleteStepManifest(manifest, stepIds, pairId);
         }
         expect(
           warmPair.processingSummary,
@@ -355,6 +481,13 @@ describe("two-factor interaction tomography", () => {
         ).toEqual(coldPair.processingSummary);
         expect(nodeOutputDigests(warmPair), `${pairId}: stale logical output`).toEqual(
           nodeOutputDigests(coldPair),
+        );
+        expect(
+          warmPair.processingSummary.pipelineStepDigests,
+          `${pairId}: stale Rust step checkpoint`,
+        ).toEqual(coldPair.processingSummary.pipelineStepDigests);
+        expect(stepOutputDigests(warmPair), `${pairId}: stale Rust step output`).toEqual(
+          stepOutputDigests(coldPair),
         );
         expect(outputArtifacts(warmPair), `${pairId}: warm/cold artifact mismatch`).toEqual(
           outputArtifacts(coldPair),
@@ -369,6 +502,10 @@ describe("two-factor interaction tomography", () => {
           coldBase.processingSummary.logicalStageDigests,
           coldPair.processingSummary.logicalStageDigests,
         );
+        const changedPipelineSteps = changedFields(
+          coldBase.processingSummary.pipelineStepDigests,
+          coldPair.processingSummary.pipelineStepDigests,
+        );
         const observedInputNodes = changedFields(
           nodeInputKeys(warmBase),
           nodeInputKeys(warmPair),
@@ -380,9 +517,33 @@ describe("two-factor interaction tomography", () => {
         expect(observedInputNodes, `${pairId}: two-factor percolation mismatch`).toEqual(
           predicted,
         );
+        const observedInputSteps = changedFields(
+          stepInputKeys(warmBase),
+          stepInputKeys(warmPair),
+        );
+        const predictedInputSteps = stepContract.steps
+          .filter(
+            (step) =>
+              step.requestFields.some((field) => changedRustKeys.includes(field)) ||
+              step.inputs.some((input) => changedPipelineSteps.includes(input)),
+          )
+          .map(({ id }) => id)
+          .sort();
+        expect(
+          observedInputSteps,
+          `${pairId}: two-factor 55-step percolation mismatch`,
+        ).toEqual(predictedInputSteps);
         exactClusterComparisons += 1;
 
         const observedComponents = checkpointComponentSet(coldBase, coldPair);
+        const observedStepComponents = stepCheckpointComponentChanges(
+          coldBase,
+          coldPair,
+        );
+        expect(
+          Object.keys(observedStepComponents).sort(),
+          `${pairId}: Rust step component/terminal drift`,
+        ).toEqual(changedPipelineSteps);
         const leftSingle = coldSingles.get(leftId);
         const rightSingle = coldSingles.get(rightId);
         const isolatedEffectsAvailable = leftSingle !== undefined && rightSingle !== undefined;
@@ -417,8 +578,12 @@ describe("two-factor interaction tomography", () => {
             : "qualification-enabled",
           changedRustKeys,
           changedSemanticNodes,
+          changedPipelineSteps,
           observedInputNodes,
+          observedInputSteps,
+          predictedInputSteps,
           observedComponents,
+          observedStepComponents,
           introducedComponents,
           maskedComponents,
           changedOutputArtifactKinds: changedFields(
@@ -451,11 +616,16 @@ describe("two-factor interaction tomography", () => {
           ),
       0,
     );
-    expect(enumeratedPairContrasts).toBe(expectedPairContrasts);
+    expect(pairContrastOrdinal).toBe(expectedPairContrasts);
+    const expectedShardPairContrasts = Math.max(
+      0,
+      Math.ceil((expectedPairContrasts - SHARD_INDEX) / SHARD_COUNT),
+    );
+    expect(enumeratedPairContrasts).toBe(expectedShardPairContrasts);
     const evidence = {
       protocolVersion: "chronicle-interaction-influence-ledger/v1",
       claimBoundary:
-        "Exhaustive two-factor structural interaction and exact warm/cold percolation proof across every valid pair of non-baseline declared equivalence-class values for all 46 computational browser axes, on the deterministic configuration-influence-probes corpus. Invalid selected-timezone combinations are enumerated with their qualification reason. This does not claim numeric statistical additivity or exhaust interactions of arity three and above.",
+        "Exhaustive two-factor structural interaction and exact 55-step plus 15-display-group warm/cold percolation proof across every valid pair of non-baseline declared equivalence-class values for all 46 computational browser axes, on the deterministic configuration-influence-probes corpus. Invalid selected-timezone combinations are enumerated with their qualification reason. This does not claim numeric statistical additivity or exhaust interactions of arity three and above. Step recomputation is minimal; physical execution remains one fused Rust pipeline run whenever any required checkpoint changes.",
       plan: { id: plan.plan_id, revision: plan.revision },
       implementationReceipt,
       fixture: {
@@ -479,7 +649,11 @@ describe("two-factor interaction tomography", () => {
         incrementalExecutions: pairCount * 2,
         totalRustExecutions: 1 + coldSingles.size + pairCount * 3,
         warmColdComparisons,
+        warmColdStepCheckpointComparisons: warmColdComparisons * 55,
         exactClusterComparisons,
+        exactStepClusterComparisons: exactClusterComparisons,
+        logicalStageCount: order.length,
+        pipelineStepCount: stepContract.steps.length,
         nonAdditivePairs: nonAdditivePairs.length,
         qualificationEnabledPairs: qualificationEnabledPairs.length,
       },
@@ -489,6 +663,15 @@ describe("two-factor interaction tomography", () => {
       nonAdditivePairs,
       pairCaseDigest: await sha256Uri(pairCases.sort().join("\n")),
     };
+    if (SHARD_OUTPUT) {
+      mkdirSync(dirname(SHARD_OUTPUT), { recursive: true });
+      writeFileSync(
+        SHARD_OUTPUT,
+        `${JSON.stringify({ evidence, pairCases, pairOrder }, null, 2)}\n`,
+        "utf8",
+      );
+      return;
+    }
     const serialized = `${JSON.stringify(evidence, null, 2)}\n`;
     if (UPDATE) {
       mkdirSync(dirname(EXPECTED_FILE), { recursive: true });

@@ -13,7 +13,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 
 import yaml
@@ -434,11 +436,16 @@ def closure_digest(paths: list[Path]) -> str:
     files: list[Path] = []
     for path in paths:
         if path.is_dir():
-            files.extend(
-                item
-                for item in sorted(path.rglob("*"))
-                if is_build_input(path, item)
-            )
+            for current, directories, names in os.walk(path):
+                directories[:] = sorted(
+                    name
+                    for name in directories
+                    if name not in transient_parts and name != ".DS_Store"
+                )
+                for name in sorted(names):
+                    item = Path(current) / name
+                    if is_build_input(path, item):
+                        files.append(item)
         else:
             files.append(path)
     for path in sorted({item for item in files if item.is_file()}):
@@ -446,6 +453,40 @@ def closure_digest(paths: list[Path]) -> str:
         payload.update(b"\0")
         payload.update(hashlib.sha256(path.read_bytes()).digest())
     return "sha256:" + payload.hexdigest()
+
+
+def rust_runtime_implementation_digest() -> str:
+    """Read the production-source digest from the runtime's sole authority.
+
+    The runtime build script parses Rust with ``syn`` and removes ``cfg(test)``
+    items before hashing. Calling its tiny example keeps profile bindings and
+    the compiled runtime on the same algorithm instead of reimplementing Rust
+    parsing in this Python generator.
+    """
+    result = subprocess.run(
+        [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
+            str(ROOT / "rust/chronicle_preprocessing_runtime_wasm/Cargo.toml"),
+            "--example",
+            "implementation_digest",
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "CHRONICLE_REPOSITORY_ROOT": str(ROOT),
+            "CHRONICLE_SEMANTIC_ROOT": str(FEDERATION / "semantic"),
+        },
+    )
+    value = result.stdout.strip()
+    if not value.startswith("sha256:") or len(value) != 71:
+        raise RuntimeError(f"runtime returned an invalid implementation digest: {value!r}")
+    return value
 
 
 def rendered_digest(value: dict) -> str:
@@ -627,7 +668,7 @@ def load_and_verify() -> dict:
         "mark_data_time_gaps",
         "derive_screen_usage_sessions_full",
         "run_app_usage_algorithm",
-        "enrich_codebook",
+        "join_codebook",
         "run_pipeline_v2",
     ):
         if f"fn {function}" not in rust_source and f"pub fn {function}" not in rust_source:
@@ -813,13 +854,7 @@ def build_bindings(plan: dict, runtime_authority: dict) -> dict:
         surface["capability_id"] for surface in runtime_authority["surfaces"]
     ]
     complete_authority = logical_capabilities + runtime_capabilities
-    runtime_sources = [
-        ROOT / "rust/chronicle_preprocessing_runtime_wasm",
-        ROOT / "rust/chronicle_preprocessing_semantic_adapter",
-        ROOT / "rust/chronicle_chrono_kernel_wasm",
-        ROOT / "rust/chronicle_app_usage_matcher",
-        ROOT / "rust/chronicle_semantic_index_wasm",
-    ]
+    runtime_implementation_digest = rust_runtime_implementation_digest()
     return {
         "protocol_version": "0.1",
         "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1",
@@ -837,7 +872,7 @@ def build_bindings(plan: dict, runtime_authority: dict) -> dict:
                     "target": "wasm32-unknown-unknown",
                     "source": "rust/chronicle_preprocessing_runtime_wasm",
                     "entrypoint": "execute_workspace",
-                    "build_digest": closure_digest(runtime_sources),
+                    "build_digest": runtime_implementation_digest,
                 },
                 "relationship": "fused",
                 "status": "active",
@@ -858,7 +893,7 @@ def build_bindings(plan: dict, runtime_authority: dict) -> dict:
                     "target": "native-test",
                     "source": "rust/chronicle_preprocessing_runtime_wasm",
                     "entrypoint": "execute_workspace_native",
-                    "build_digest": closure_digest(runtime_sources),
+                    "build_digest": runtime_implementation_digest,
                 },
                 "relationship": "one-to-one",
                 "status": "active",

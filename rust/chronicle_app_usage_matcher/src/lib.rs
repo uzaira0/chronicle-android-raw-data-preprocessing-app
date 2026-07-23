@@ -88,102 +88,128 @@ pub fn split_overlapping_sessions(
         }
     }
 
-    // Boundary timestamps: every distinct start and stop, sorted.
+    // Sweep start/stop events while tracking only layer transitions. The old
+    // implementation emitted one temporary row for every open session at
+    // every boundary and then coalesced adjacent equal-layer rows. That made
+    // a highly overlapping input consume O(open sessions x boundaries)
+    // temporary memory even when the final answer contained only a few layer
+    // changes per session.
+    //
+    // A session's layer can change only when it starts, stops, becomes the
+    // newest open session, or stops being the newest open session. Recording
+    // those transitions directly produces the same maximal intervals without
+    // constructing the redundant per-boundary rows.
     let n = starts.len();
-    let mut boundaries: Vec<i64> = Vec::with_capacity(n * 2);
-    boundaries.extend_from_slice(starts);
-    boundaries.extend_from_slice(stops);
-    boundaries.sort_unstable();
-    boundaries.dedup();
-
-    // Sweep-line over sub-intervals [t0, t1) between consecutive distinct
-    // boundaries. Because t1 is the next boundary after t0 and every start/stop is
-    // a boundary, the sessions open throughout [t0, t1) are exactly
-    //   { i : starts[i] <= t0 AND stops[i] > t0 }   (stops[i] >= t1 <=> stops[i] > t0)
-    // — a set that depends only on t0. We maintain it incrementally as t0 advances
-    // (add at a session's start, drop at its stop) instead of rescanning all N
-    // sessions per window, turning the old O(N^2) boundary scan into O(N log N).
-    // Output is byte-identical: same per-window open set, same primary (greatest
-    // start, then greatest index), same downstream coalesce/zero-width handling.
     let mut by_start: Vec<usize> = (0..n).collect();
     by_start.sort_unstable_by_key(|&i| (starts[i], i));
     let mut by_stop: Vec<usize> = (0..n).collect();
     by_stop.sort_unstable_by_key(|&i| (stops[i], i));
 
     let mut open: std::collections::BTreeSet<(i64, usize)> = std::collections::BTreeSet::new();
-    let mut ps = 0usize; // next session to open, by ascending start
-    let mut pe = 0usize; // next session to close, by ascending stop
-    let mut raw: Vec<LayeredSession> = Vec::new();
+    let mut active_segments: Vec<Option<(i64, UsageLayer)>> = vec![None; n];
+    let mut ps = 0usize;
+    let mut pe = 0usize;
+    let mut out: Vec<LayeredSession> = Vec::with_capacity(n.saturating_mul(2));
 
-    for w in 0..boundaries.len().saturating_sub(1) {
-        let t0 = boundaries[w];
-        let t1 = boundaries[w + 1];
-        // Drop sessions that have stopped by t0 (stops[i] <= t0 => not open past t0).
-        while pe < n && stops[by_stop[pe]] <= t0 {
+    let transition = |session_index: usize,
+                      next_layer: UsageLayer,
+                      timestamp: i64,
+                      active_segments: &mut [Option<(i64, UsageLayer)>],
+                      out: &mut Vec<LayeredSession>| {
+        let Some((segment_start, previous_layer)) = active_segments[session_index] else {
+            return;
+        };
+        if previous_layer == next_layer {
+            return;
+        }
+        if timestamp > segment_start {
+            out.push(LayeredSession {
+                session_index,
+                start_ns: segment_start,
+                stop_ns: timestamp,
+                layer: previous_layer,
+            });
+        }
+        active_segments[session_index] = Some((timestamp, next_layer));
+    };
+
+    while ps < n || pe < n {
+        let next_start = (ps < n).then(|| starts[by_start[ps]]);
+        let next_stop = (pe < n).then(|| stops[by_stop[pe]]);
+        let timestamp = match (next_start, next_stop) {
+            (Some(start), Some(stop)) => start.min(stop),
+            (Some(start), None) => start,
+            (None, Some(stop)) => stop,
+            (None, None) => break,
+        };
+        let previous_primary = open.iter().next_back().map(|&(_, index)| index);
+
+        // A stop at T is not open on [T, next boundary), so close/remove stops
+        // before selecting the primary for the interval beginning at T.
+        while pe < n && stops[by_stop[pe]] <= timestamp {
             let i = by_stop[pe];
+            if let Some((segment_start, layer)) = active_segments[i].take() {
+                if timestamp > segment_start {
+                    out.push(LayeredSession {
+                        session_index: i,
+                        start_ns: segment_start,
+                        stop_ns: timestamp,
+                        layer,
+                    });
+                }
+            }
             open.remove(&(starts[i], i));
             pe += 1;
         }
-        // Add sessions started by t0 that still run past t0. Zero-width sessions
-        // (stops == starts == t0) fail `stops > t0`, so they are never added — they
-        // produced no window row in the reference and are preserved separately below.
-        while ps < n && starts[by_start[ps]] <= t0 {
+
+        let mut started_now = Vec::new();
+        while ps < n && starts[by_start[ps]] <= timestamp {
             let i = by_start[ps];
-            if stops[i] > t0 {
+            if stops[i] > timestamp {
                 open.insert((starts[i], i));
+                started_now.push(i);
             }
             ps += 1;
         }
-        if open.is_empty() {
-            continue;
+
+        let current_primary = open.iter().next_back().map(|&(_, index)| index);
+        if previous_primary != current_primary {
+            if let Some(index) = previous_primary.filter(|index| active_segments[*index].is_some())
+            {
+                transition(
+                    index,
+                    UsageLayer::Secondary,
+                    timestamp,
+                    &mut active_segments,
+                    &mut out,
+                );
+            }
+            if let Some(index) = current_primary.filter(|index| active_segments[*index].is_some()) {
+                transition(
+                    index,
+                    UsageLayer::Primary,
+                    timestamp,
+                    &mut active_segments,
+                    &mut out,
+                );
+            }
         }
-        // Primary = greatest start_ns, tie broken by greatest index = the BTreeSet max.
-        let primary = open
-            .iter()
-            .next_back()
-            .map(|&(_, i)| i)
-            .expect("open is non-empty");
-        for &(_, i) in &open {
-            raw.push(LayeredSession {
-                session_index: i,
-                start_ns: t0,
-                stop_ns: t1,
-                layer: if i == primary {
+        for index in started_now {
+            active_segments[index] = Some((
+                timestamp,
+                if Some(index) == current_primary {
                     UsageLayer::Primary
                 } else {
                     UsageLayer::Secondary
                 },
-            });
+            ));
         }
-    }
-
-    // Stable order by (session_index, start_ns), then coalesce adjacency.
-    raw.sort_by(|a, b| {
-        a.session_index
-            .cmp(&b.session_index)
-            .then(a.start_ns.cmp(&b.start_ns))
-    });
-    let mut out: Vec<LayeredSession> = Vec::with_capacity(raw.len());
-    for row in raw {
-        if let Some(last) = out.last_mut() {
-            if last.session_index == row.session_index
-                && last.layer == row.layer
-                && last.stop_ns == row.start_ns
-            {
-                last.stop_ns = row.stop_ns;
-                continue;
-            }
-        }
-        out.push(row);
     }
 
     // Zero-width sessions (start == stop) are covered by no positive sub-interval
-    // window, so they produced no row above. Emit a single primary row for each
-    // so the session is preserved (matching the non-concurrent path, which keeps
-    // a 0-duration row) rather than being silently dropped.
-    let present: std::collections::HashSet<usize> = out.iter().map(|r| r.session_index).collect();
+    // window. Emit one primary row so the session remains observable.
     for i in 0..starts.len() {
-        if !present.contains(&i) {
+        if starts[i] == stops[i] {
             out.push(LayeredSession {
                 session_index: i,
                 start_ns: starts[i],
@@ -1965,6 +1991,20 @@ mod tests {
                 "edge mismatch starts={starts:?} stops={stops:?}",
             );
         }
+
+        // Dense overlap is the case that previously created a much larger
+        // temporary per-boundary table than the coalesced result. Keep a
+        // moderately large exact comparison here so that the memory-saving
+        // transition sweep cannot change interval or tie-breaking semantics.
+        let starts = (0..512).map(i64::from).collect::<Vec<_>>();
+        let stops = (0..512)
+            .map(|index| 1_024_i64 - i64::from(index % 17))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            split_overlapping_sessions(&starts, &stops).expect("ok"),
+            reference_split(&starts, &stops),
+            "dense-overlap transition sweep must match the reference",
+        );
     }
 
     #[test]

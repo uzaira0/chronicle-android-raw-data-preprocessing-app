@@ -3,17 +3,18 @@
 // the PipelineGraph / PipelineNode / PipelineKnobBinding classes declared in
 // web/schema/chronicle-local-contract.linkml.yaml.
 //
-// graphDef.ts remains the authoring surface (node bodies are TypeScript); this
-// projection makes everything STRUCTURAL — ids, sections, feeds edges, knob
-// bindings, support-file reads, bypass/output-hash declarations — a
-// schema-governed artifact that CI diffs. Validation here is the bijection
-// gate (docs/dag-validate-ontologize-productize-research.md O1 + V7):
+// Rust owns the 55-step graph structure. The retired TypeScript step wiring is
+// loaded only as a migration oracle: labels, descriptions and every edge must
+// still agree while the remaining per-step metadata moves to Rust. Validation
+// here is the bijection gate (docs/dag-validate-ontologize-productize-research.md
+// O1 + V7):
 //   * every knob option_key is a BrowserProcessingOptions slot;
 //   * every support file is a BrowserSupportFiles slot;
 //   * inputs reference declared nodes and the graph topo-sorts (DAG);
 //   * --check fails on ANY drift between graphDef.ts and the YAML.
 
 import { readFile, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -30,6 +31,54 @@ import { BROWSER_PROCESSING_OPTION_KEYS } from "../src/lib/generatedContract";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = path.resolve(HERE, "../schema/chronicle-local-contract.linkml.yaml");
 const OUTPUT_PATH = path.resolve(HERE, "../schema/chronicle-pipeline-graph.yaml");
+const RUST_MANIFEST_PATH = path.resolve(
+  HERE,
+  "../../rust/chronicle_chrono_kernel_wasm/Cargo.toml",
+);
+
+type RustPipelineGroup = {
+  id: string;
+  label: string;
+  section: string;
+};
+
+type RustPipelineStep = {
+  id: string;
+  group: string;
+  inputs: string[];
+};
+
+type RustPipelineContract = {
+  protocolVersion: "chronicle-preprocessing-step-contract/v1";
+  groups: RustPipelineGroup[];
+  steps: RustPipelineStep[];
+};
+
+function loadRustPipelineContract(): RustPipelineContract {
+  const output = execFileSync(
+    "cargo",
+    [
+      "run",
+      "--quiet",
+      "--manifest-path",
+      RUST_MANIFEST_PATH,
+      "--bin",
+      "export_pipeline_step_contract",
+    ],
+    { encoding: "utf-8" },
+  );
+  const contract = JSON.parse(output) as RustPipelineContract;
+  if (contract.protocolVersion !== "chronicle-preprocessing-step-contract/v1") {
+    throw new Error(`Unsupported Rust step contract: ${contract.protocolVersion}`);
+  }
+  if (contract.groups.length !== 15 || contract.steps.length !== 55) {
+    throw new Error(
+      `Rust step contract must contain 15 display groups and 55 steps; found ` +
+        `${contract.groups.length}/${contract.steps.length}`,
+    );
+  }
+  return contract;
+}
 
 function camelToSnake(value: string): string {
   return value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
@@ -64,17 +113,87 @@ async function buildProjection(): Promise<string> {
   const knobEdges = enumValues(schema, "PipelineKnobEdge");
 
   const def = buildChronicleGraph();
+  const rustContract = loadRustPipelineContract();
   // DAG + reference validation (throws on cycles / unknown inputs).
   topoSort(def as GraphDef<unknown>);
-  const ids = new Set(def.nodes.map((node) => node.id));
+  const ids = new Set(rustContract.groups.map((group) => group.id));
+  const legacyIds = new Set(def.nodes.map((node) => node.id));
   if (ids.size !== def.nodes.length) throw new Error("Duplicate node ids in graphDef");
+  if (
+    ids.size !== legacyIds.size ||
+    [...ids].some((id) => !legacyIds.has(id))
+  ) {
+    throw new Error("Rust group ids disagree with the retired TypeScript graph");
+  }
+
+  const rustStepsById = new Map(rustContract.steps.map((step) => [step.id, step]));
+  const legacySteps = ALL_UNIT_WIRINGS.flatMap((wiring) => wiring.steps);
+  const legacyStepsById = new Map(legacySteps.map((step) => [step.id, step]));
+  if (
+    rustStepsById.size !== legacyStepsById.size ||
+    [...rustStepsById].some(([id]) => !legacyStepsById.has(id))
+  ) {
+    throw new Error("Rust step ids disagree with the retired TypeScript step wiring");
+  }
+
+  for (const step of rustContract.steps) {
+    const legacy = legacyStepsById.get(step.id);
+    if (!legacy) throw new Error(`Missing retired TypeScript step ${step.id}`);
+    // Multiple named ports can come from the same producing step. The Rust
+    // graph records the dependency once because execution and invalidation do
+    // not gain a second edge from a second field projection.
+    const legacyInputs = [...new Set(stepInputIds(legacy))];
+    if (
+      step.group !== legacy.unit ||
+      step.inputs.length !== legacyInputs.length ||
+      step.inputs.some((input, index) => input !== legacyInputs[index])
+    ) {
+      throw new Error(
+        `Rust step ${step.id} disagrees with the retired TypeScript wiring: ` +
+          `${step.group}[${step.inputs.join(",")}] != ` +
+          `${legacy.unit}[${legacyInputs.join(",")}]`,
+      );
+    }
+  }
+
+  const groupInputs = new Map<string, string[]>();
+  for (const group of rustContract.groups) groupInputs.set(group.id, []);
+  for (const step of rustContract.steps) {
+    const inputs = groupInputs.get(step.group)!;
+    for (const inputId of step.inputs) {
+      const input = rustStepsById.get(inputId);
+      if (!input) throw new Error(`${step.id}: unknown Rust input ${inputId}`);
+      if (input.group !== step.group && !inputs.includes(input.group)) {
+        inputs.push(input.group);
+      }
+    }
+  }
+  for (const inputs of groupInputs.values()) inputs.sort();
 
   const boundOptionKeys = new Set<string>();
-  const nodes = def.nodes.map((node) => {
+  const nodes = rustContract.groups.map((group) => {
+    const node = def.nodes.find((candidate) => candidate.id === group.id);
+    if (!node) throw new Error(`Missing retired TypeScript group ${group.id}`);
+    const inputs = groupInputs.get(group.id)!;
     for (const input of node.inputs) {
       if (!ids.has(input)) throw new Error(`${node.id}: unknown input "${input}"`);
     }
-    if (!sections.has(node.section)) throw new Error(`${node.id}: unknown section "${node.section}"`);
+    const legacyInputs = [...node.inputs].sort();
+    if (
+      inputs.length !== legacyInputs.length ||
+      inputs.some((input, index) => input !== legacyInputs[index])
+    ) {
+      throw new Error(
+        `Rust-derived group inputs disagree for ${group.id}: ` +
+          `[${inputs.join(",")}] != [${legacyInputs.join(",")}]`,
+      );
+    }
+    if (!sections.has(group.section)) {
+      throw new Error(`${group.id}: unknown section "${group.section}"`);
+    }
+    if (group.label !== node.label || group.section !== node.section) {
+      throw new Error(`Rust display group metadata disagrees for ${group.id}`);
+    }
     const knobs = node.knobs.map((knob) => {
       const slot = camelToSnake(knob.optionKey);
       if (!optionSlots.has(slot)) {
@@ -92,10 +211,10 @@ async function buildProjection(): Promise<string> {
       return slot;
     });
     return {
-      node_id: node.id,
-      node_label: node.label,
-      section: node.section,
-      node_inputs: node.inputs,
+      node_id: group.id,
+      node_label: group.label,
+      section: group.section,
+      node_inputs: inputs,
       node_knobs: knobs,
       ...(supportFiles.length > 0 ? { node_support_files: supportFiles } : {}),
       has_bypass: node.bypassedWhen !== undefined,
@@ -125,28 +244,29 @@ async function buildProjection(): Promise<string> {
   // executes (buildStepGraph re-validates unit↔wiring bijection, port
   // discipline, unit-edge witnessing and acyclicity — throws on violation).
   const stepGraph = buildStepGraph(def as GraphDef<unknown>, ALL_UNIT_WIRINGS);
-  const graphSteps = ALL_UNIT_WIRINGS.flatMap((wiring) =>
-    wiring.steps.map((step) => ({
+  const graphSteps = rustContract.steps.map((step) => {
+    const legacy = legacyStepsById.get(step.id)!;
+    return {
       step_id: step.id,
-      step_label: step.label,
-      step_description: step.description,
-      unit_id: step.unit,
-      ...(stepInputIds(step).length > 0 ? { step_inputs: stepInputIds(step) } : {}),
+      step_label: legacy.label,
+      step_description: legacy.description,
+      unit_id: step.group,
+      ...(step.inputs.length > 0 ? { step_inputs: step.inputs } : {}),
       has_bypass:
-        step.bypassedWhen !== undefined ||
-        def.nodes.find((node) => node.id === step.unit)?.bypassedWhen !== undefined,
-    })),
-  );
+        legacy.bypassedWhen !== undefined ||
+        def.nodes.find((node) => node.id === step.group)?.bypassedWhen !== undefined,
+    };
+  });
   if (graphSteps.length !== stepGraph.def.nodes.length) {
     throw new Error("step projection count mismatch with derived step graph");
   }
 
   const header = [
     "# GENERATED by web/scripts/generate_pipeline_graph_artifacts.mts — do not edit by hand.",
-    "# Declarative projection of web/src/lib/pipelineGraph/graphDef.ts, conforming to the",
-    "# PipelineGraph class in chronicle-local-contract.linkml.yaml. Node bodies stay in",
-    "# TypeScript; regenerate after any structural graph change (npm run check:contract",
-    "# fails on drift).",
+    "# Declarative projection of the Rust-owned 55-step contract in",
+    "# rust/chronicle_chrono_kernel_wasm/src/step_contract.rs, conforming to the",
+    "# PipelineGraph class in chronicle-local-contract.linkml.yaml. The retired",
+    "# TypeScript graph is checked only as a migration oracle.",
     "#",
     "# Contract options NOT bound to any graph node (output/runtime-tier knobs consumed",
     "# outside the DAG):",
@@ -163,7 +283,7 @@ async function main(): Promise<void> {
     const existing = await readFile(OUTPUT_PATH, "utf-8").catch(() => null);
     if (existing !== projection) {
       console.error(
-        `DRIFT: ${path.relative(process.cwd(), OUTPUT_PATH)} does not match graphDef.ts — ` +
+        `DRIFT: ${path.relative(process.cwd(), OUTPUT_PATH)} does not match the Rust step contract — ` +
           "regenerate with: vite-node scripts/generate_pipeline_graph_artifacts.mts",
       );
       process.exit(1);

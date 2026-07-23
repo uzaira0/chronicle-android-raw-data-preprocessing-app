@@ -20,8 +20,10 @@ import {
 class MemoryFileHandle {
   readonly kind = "file" as const;
   bytes = new Uint8Array();
+  reads = 0;
 
   getFile(): Promise<File> {
+    this.reads += 1;
     return Promise.resolve(new File([this.bytes], "object"));
   }
 
@@ -195,6 +197,37 @@ describe("OPFS content-addressed runtime workspace", () => {
     });
   });
 
+  it("stops after verifying the newest valid root", async () => {
+    const root = new MemoryDirectoryHandle();
+    const firstRoot = await artifact("workspace-root-json", "root-one");
+    const firstPayload = await artifact("app-csv", "first-payload");
+    const first = await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: firstRoot.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [firstRoot, firstPayload],
+    });
+    const secondRoot = await artifact("workspace-root-json", "root-two");
+    const secondPayload = await artifact("app-csv", "second-payload");
+    await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: secondRoot.digest,
+      previousWorkspaceRootDigest: first.workspaceRootDigest,
+      recoveredSlot: first,
+      artifacts: [secondRoot, secondPayload],
+    });
+    objectFile(root, firstRoot.digest).reads = 0;
+    objectFile(root, firstPayload.digest).reads = 0;
+    objectFile(root, secondRoot.digest).reads = 0;
+    objectFile(root, secondPayload.digest).reads = 0;
+
+    await expect(recoverRuntimeWorkspace(rootHandle(root))).resolves.toMatchObject({
+      generation: 2,
+    });
+    expect(objectFile(root, firstRoot.digest).reads).toBe(0);
+    expect(objectFile(root, firstPayload.digest).reads).toBe(0);
+    expect(objectFile(root, secondRoot.digest).reads).toBeGreaterThan(0);
+    expect(objectFile(root, secondPayload.digest).reads).toBeGreaterThan(0);
+  });
+
   it("exports and imports a self-verifying portable artifact closure", async () => {
     const source = new MemoryDirectoryHandle();
     const workspaceId = `sha256:${"7".repeat(64)}`;
@@ -277,6 +310,13 @@ describe("OPFS content-addressed runtime workspace", () => {
         artifacts: [wrongDigest],
       }),
     ).rejects.toThrow(/artifact digest mismatch/);
+    await expect(
+      persistRuntimeWorkspace(rootHandle(new MemoryDirectoryHandle()), {
+        workspaceRootDigest: wrongDigest.digest,
+        previousWorkspaceRootDigest: null,
+        artifacts: [{ ...wrongDigest, digestVerified: true }],
+      }),
+    ).rejects.toThrow(/OPFS verification failed/);
   });
 
   it("deduplicates an already verified object and fails closed when every root is corrupt", async () => {
@@ -305,6 +345,37 @@ describe("OPFS content-addressed runtime workspace", () => {
     await expect(recoverRuntimeWorkspace(rootHandle(root))).rejects.toThrow(
       /no valid artifact closure can be recovered/,
     );
+    await expect(recoverRuntimeWorkspaceRoots(rootHandle(root))).rejects.toThrow(
+      /no valid artifact closure can be recovered/,
+    );
+  });
+
+  it("accepts shared-memory views without retaining them and repairs same-size corruption", async () => {
+    const root = new MemoryDirectoryHandle();
+    const source = new TextEncoder().encode("shared-root");
+    const sharedBytes = new Uint8Array(new SharedArrayBuffer(source.byteLength));
+    sharedBytes.set(source);
+    const sharedArtifact: PersistedRuntimeArtifact = {
+      kind: "workspace-root-json",
+      digest: await digest(source),
+      size: sharedBytes.byteLength,
+      bytes: sharedBytes,
+    };
+    const first = await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: sharedArtifact.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [sharedArtifact],
+    });
+    expect(await readRuntimeObject(rootHandle(root), sharedArtifact.digest)).toEqual(source);
+
+    objectFile(root, sharedArtifact.digest).bytes = new TextEncoder().encode("broken-root");
+    const secondRoot = await artifact("workspace-root-json", "second-root");
+    await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: secondRoot.digest,
+      previousWorkspaceRootDigest: first.workspaceRootDigest,
+      artifacts: [secondRoot, sharedArtifact],
+    });
+    expect(await readRuntimeObject(rootHandle(root), sharedArtifact.digest)).toEqual(source);
   });
 
   it("distinguishes a new empty workspace from a corrupt existing workspace", async () => {

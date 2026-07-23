@@ -46,7 +46,10 @@ while IFS= read -r entry || [[ -n "$entry" ]]; do
       crate_dir=$(cd "$(dirname "$manifest")" && pwd -P)
       args=(mutants -d "$crate_dir" --jobs "${RUST_MUTATION_JOBS:-8}" --timeout "${RUST_MUTATION_TIMEOUT:-90}")
       if [[ -n "$exclude_re" ]]; then
-        args+=(-E "$exclude_re")
+        IFS=',' read -r -a exclude_patterns <<< "$exclude_re"
+        for pattern in "${exclude_patterns[@]}"; do
+          args+=(-E "$pattern")
+        done
       fi
       cargo "${args[@]}"
       ;;

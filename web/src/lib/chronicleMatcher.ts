@@ -8,6 +8,7 @@ import type {
   RustStageView,
 } from "@/lib/types";
 import type { ChronicleWorkerApi } from "@/workers/chronicle-worker";
+import type { RawFileInspection } from "@/lib/fileInspection";
 
 export type WorkerSpawn = () => {
   api: Comlink.Remote<ChronicleWorkerApi>;
@@ -249,6 +250,30 @@ export async function discoverTimezones(
   // entirely owned by the Rust worker and needs no browser-runtime input.
   void runtime;
   return onSharedWorker((api) => api.discoverTimezones(csvText));
+}
+
+export async function discoverTimezonesBytes(
+  csvBytes: ArrayBuffer,
+  runtime?: BrowserProcessingRuntime,
+): Promise<string[]> {
+  void runtime;
+  return onSharedWorker((api) =>
+    api.discoverTimezonesBytes(Comlink.transfer(csvBytes, [csvBytes])),
+  );
+}
+
+export async function inspectRawCsvBytes(
+  fileName: string,
+  sizeBytes: number,
+  csvBytes: ArrayBuffer,
+): Promise<RawFileInspection> {
+  return onSharedWorker((api) =>
+    api.inspectRawCsvBytes(
+      fileName,
+      sizeBytes,
+      Comlink.transfer(csvBytes, [csvBytes]),
+    ),
+  );
 }
 
 export async function processRawCsv(

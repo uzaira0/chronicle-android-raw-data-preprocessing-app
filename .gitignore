@@ -209,6 +209,8 @@ preprocessors/survey_data_preprocessor.py
 *benchmark*
 !scripts/benchmark_browser_pathological_fixture.py
 !web/scripts/benchmark_browser_processing.mjs
+!web/scripts/benchmark_runtime_wasm.mts
+!web/scripts/generate_benchmark_fixture.mts
  Chronicle Android Automatically Preprocessed Data/
 
 # Local archives

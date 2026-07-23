@@ -60,6 +60,18 @@ type Configuration = {
   options: BrowserProcessingOptions;
 };
 
+type TypedCheckpoint = {
+  protocolVersion: "chronicle-logical-stage-checkpoint/v3";
+  nodeId: string;
+  rowMembershipDigest: string;
+  rowOrderDigest: string;
+  temporalStateDigest: string;
+  classificationDigest: string;
+  payloadDigest: string;
+  schemaDigest: string;
+  terminalDigest: string;
+};
+
 type RuntimeManifest = {
   protocolVersion: string;
   implementation: string;
@@ -83,20 +95,9 @@ type RuntimeManifest = {
     timezoneRetainedSourceRowsDigest: string;
     timezoneStageDigest: string;
     logicalStageDigests: Record<string, string>;
-    logicalStageCheckpoints: Record<
-      string,
-      {
-        protocolVersion: "chronicle-logical-stage-checkpoint/v2";
-        nodeId: string;
-        rowMembershipDigest: string;
-        rowOrderDigest: string;
-        temporalStateDigest: string;
-        classificationDigest: string;
-        payloadDigest: string;
-        schemaDigest: string;
-        terminalDigest: string;
-      }
-    >;
+    logicalStageCheckpoints: Record<string, TypedCheckpoint>;
+    pipelineStepDigests: Record<string, string>;
+    pipelineStepCheckpoints: Record<string, TypedCheckpoint>;
     publishedOutputsDigest: string;
     provenanceDigest: string;
     duplicateTimestampsCorrected: number;
@@ -108,7 +109,25 @@ type RuntimeManifest = {
     output: { digest: string } | null;
     status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
   }>;
+  stepExecutions: Array<{
+    step_id: string;
+    unit_id: string;
+    input_key: string;
+    output_digest: string;
+    status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
+  }>;
   artifacts: Array<{ kind: string; digest: string; size: number }>;
+};
+
+type RustStepContract = {
+  protocolVersion: "chronicle-preprocessing-step-contract/v1";
+  steps: Array<{
+    id: string;
+    group: string;
+    inputs: string[];
+    requestFields: string[];
+    sourceRoles: string[];
+  }>;
 };
 
 type RunResult = {
@@ -343,7 +362,13 @@ function computationalOutcome(manifest: RuntimeManifest) {
                 ([nodeId]) => nodeId !== "outputs",
               ),
             )
-          : value,
+          : key === "pipelineStepDigests" || key === "pipelineStepCheckpoints"
+            ? Object.fromEntries(
+                Object.entries(value as Record<string, unknown>).filter(
+                  ([stepId]) => stepId !== "assemble_result",
+                ),
+              )
+            : value,
       ]),
   );
   return { counts: manifest.counts, processingSummary };
@@ -364,6 +389,30 @@ function changedCheckpointComponents(
             unknown
           >,
           target.processingSummary.logicalStageCheckpoints[nodeId] as unknown as Record<
+            string,
+            unknown
+          >,
+        ).filter((field) => field !== "terminalDigest"),
+      ] as const)
+      .filter(([, components]) => components.length > 0),
+  );
+}
+
+function changedStepCheckpointComponents(
+  source: RuntimeManifest,
+  target: RuntimeManifest,
+): Record<string, string[]> {
+  return Object.fromEntries(
+    Object.keys(source.processingSummary.pipelineStepCheckpoints)
+      .sort()
+      .map((stepId) => [
+        stepId,
+        changedFields(
+          source.processingSummary.pipelineStepCheckpoints[stepId] as unknown as Record<
+            string,
+            unknown
+          >,
+          target.processingSummary.pipelineStepCheckpoints[stepId] as unknown as Record<
             string,
             unknown
           >,
@@ -575,6 +624,12 @@ function nodeInputKeys(manifest: RuntimeManifest): Record<string, string> {
 function nodeStatuses(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
     manifest.nodeExecutions.map((node) => [node.node_id, node.status]),
+  );
+}
+
+function stepInputKeys(manifest: RuntimeManifest): Record<string, string> {
+  return Object.fromEntries(
+    manifest.stepExecutions.map((step) => [step.step_id, step.input_key]),
   );
 }
 
@@ -1003,9 +1058,26 @@ describe("Rust/WASM configuration-space campaign", () => {
     const influenceKeyFilter = process.env.INFLUENCE_KEY;
     const influenceContextFilter = process.env.INFLUENCE_CONTEXT;
     const influenceCorpusFilter = process.env.INFLUENCE_CORPUS;
+    const shardCount = Number(process.env.INFLUENCE_SHARD_COUNT ?? "1");
+    const shardIndex = Number(process.env.INFLUENCE_SHARD_INDEX ?? "0");
+    if (
+      !Number.isSafeInteger(shardCount) ||
+      shardCount < 1 ||
+      !Number.isSafeInteger(shardIndex) ||
+      shardIndex < 0 ||
+      shardIndex >= shardCount
+    ) {
+      throw new Error(`invalid influence shard ${shardIndex}/${shardCount}`);
+    }
     const perturbationKeys = COMPUTATIONAL_BROWSER_OPTION_KEYS.filter(
-      (key) => !influenceKeyFilter || key === influenceKeyFilter,
+      (key, index) =>
+        (!influenceKeyFilter || key === influenceKeyFilter) && index % shardCount === shardIndex,
     );
+    const stepContract = JSON.parse(runtime.pipeline_step_contract_json()) as RustStepContract;
+    expect(stepContract.protocolVersion).toBe(
+      "chronicle-preprocessing-step-contract/v1",
+    );
+    expect(stepContract.steps).toHaveLength(55);
     const missingBinders = COMPUTATIONAL_BROWSER_OPTION_KEYS.filter(
       (key) => !def.nodes.some((node) => node.knobs.some((knob) => knob.optionKey === key)),
     );
@@ -1023,6 +1095,7 @@ describe("Rust/WASM configuration-space campaign", () => {
     const axesWithSubstantiveObservedEffects = new Set<string>();
     const staleLogicalCheckpointCases: Array<Record<string, unknown>> = [];
     const percolationClusterMismatchCases: Array<Record<string, unknown>> = [];
+    const stepPercolationClusterMismatchCases: Array<Record<string, unknown>> = [];
     let receipt: ReturnType<typeof authorityReceipt> | undefined;
     let coldExecutions = 0;
     let orderedTransitions = 0;
@@ -1038,6 +1111,7 @@ describe("Rust/WASM configuration-space campaign", () => {
       const declaredCone = [...descendantsOf(new Set(binders))].sort();
       const observedInputKeyNodes = new Set<string>();
       const observedSemanticOutputNodes = new Set<string>();
+      const observedChangedPipelineSteps = new Set<string>();
       const observedArtifactKinds = new Set<string>();
       const observedRoleStateKeys = new Set<string>();
       const observedNodeStateKeys = new Set<string>();
@@ -1198,6 +1272,10 @@ describe("Rust/WASM configuration-space campaign", () => {
                 source.run.manifest.processingSummary.logicalStageDigests,
                 target.run.manifest.processingSummary.logicalStageDigests,
               );
+              const changedPipelineSteps = changedFields(
+                source.run.manifest.processingSummary.pipelineStepDigests,
+                target.run.manifest.processingSummary.pipelineStepDigests,
+              );
               const checkpointComponentChanges = changedCheckpointComponents(
                 source.run.manifest,
                 target.run.manifest,
@@ -1206,6 +1284,14 @@ describe("Rust/WASM configuration-space campaign", () => {
                 Object.keys(checkpointComponentChanges).sort(),
                 `${workspace}: typed checkpoint components do not commit to the terminal graph`,
               ).toEqual(changedSemanticOutputNodes);
+              const stepCheckpointComponentChanges = changedStepCheckpointComponents(
+                source.run.manifest,
+                target.run.manifest,
+              );
+              expect(
+                Object.keys(stepCheckpointComponentChanges).sort(),
+                `${workspace}: typed step checkpoint components do not commit to the 55-step graph`,
+              ).toEqual(changedPipelineSteps);
               const changedCountFields = changedFields(
                 initial.manifest.counts,
                 target.run.manifest.counts,
@@ -1258,11 +1344,43 @@ describe("Rust/WASM configuration-space campaign", () => {
                   changedSemanticOutputNodes,
                 });
               }
+              const changedRustRequestFields = changedFields(
+                buildRustV2Options(source.config.options, GOLDEN_RUNTIME),
+                buildRustV2Options(target.config.options, GOLDEN_RUNTIME),
+              );
+              const changedStepInputKeys = changedFields(
+                stepInputKeys(initial.manifest),
+                stepInputKeys(warm.manifest),
+              );
+              const changedStepOutputs = new Set(changedPipelineSteps);
+              const predictedStepInputKeys = stepContract.steps
+                .filter(
+                  (step) =>
+                    step.requestFields.some((field) => changedRustRequestFields.includes(field)) ||
+                    step.inputs.some((input) => changedStepOutputs.has(input)),
+                )
+                .map((step) => step.id)
+                .sort();
+              if (
+                JSON.stringify(changedStepInputKeys) !== JSON.stringify(predictedStepInputKeys)
+              ) {
+                stepPercolationClusterMismatchCases.push({
+                  workspace,
+                  optionKey: key,
+                  contextId: context.id,
+                  corpusId: corpus.id,
+                  changedRustRequestFields,
+                  observed: changedStepInputKeys,
+                  predicted: predictedStepInputKeys,
+                  changedStepOutputs: changedPipelineSteps,
+                });
+              }
 
               changedInputKeyNodes.forEach((node) => observedInputKeyNodes.add(node));
               changedSemanticOutputNodes.forEach((node) =>
                 observedSemanticOutputNodes.add(node),
               );
+              changedPipelineSteps.forEach((step) => observedChangedPipelineSteps.add(step));
               changedArtifactKinds.forEach((kind) => observedArtifactKinds.add(kind));
               changedRoleStates.forEach((role) => observedRoleStateKeys.add(role));
               changedNodeStates.forEach((node) => observedNodeStateKeys.add(node));
@@ -1283,8 +1401,11 @@ describe("Rust/WASM configuration-space campaign", () => {
               const observation = {
                 corpusId: corpus.id,
                 changedInputKeyNodes,
+                changedStepInputKeys,
                 changedSemanticOutputNodes,
+                changedPipelineSteps,
                 checkpointComponentChanges,
+                stepCheckpointComponentChanges,
                 changedArtifactKinds,
                 changedCountFields,
                 changedProcessingSummaryFields,
@@ -1325,6 +1446,7 @@ describe("Rust/WASM configuration-space campaign", () => {
         declaredCone,
         observedInputKeyNodes: [...observedInputKeyNodes].sort(),
         observedSemanticOutputNodes: [...observedSemanticOutputNodes].sort(),
+        observedChangedPipelineSteps: [...observedChangedPipelineSteps].sort(),
         observedArtifactKinds: [...observedArtifactKinds].sort(),
         observedRoleStateKeys: [...observedRoleStateKeys].sort(),
         observedNodeStateKeys: [...observedNodeStateKeys].sort(),
@@ -1335,15 +1457,24 @@ describe("Rust/WASM configuration-space campaign", () => {
     const axesWithoutSubstantiveObservedEffects = COMPUTATIONAL_BROWSER_OPTION_KEYS.filter(
       (key) => !axesWithSubstantiveObservedEffects.has(key),
     );
-    if (!influenceKeyFilter && !influenceContextFilter && !influenceCorpusFilter) {
-      expect(
-        staleLogicalCheckpointCases,
-        "every warm logical-stage checkpoint must equal an independent cold target",
-      ).toEqual([]);
-      expect(
-        percolationClusterMismatchCases,
-        "observed recomputation must equal the deterministic semantic percolation cluster",
-      ).toEqual([]);
+    expect(
+      staleLogicalCheckpointCases,
+      "every warm logical-stage checkpoint must equal an independent cold target",
+    ).toEqual([]);
+    expect(
+      percolationClusterMismatchCases,
+      "observed recomputation must equal the deterministic semantic percolation cluster",
+    ).toEqual([]);
+    expect(
+      stepPercolationClusterMismatchCases,
+      "all 55 Rust step input keys must change exactly when a direct request field or changed upstream checkpoint requires it",
+    ).toEqual([]);
+    if (
+      !influenceKeyFilter &&
+      !influenceContextFilter &&
+      !influenceCorpusFilter &&
+      shardCount === 1
+    ) {
       expect(
         axesWithoutSubstantiveObservedEffects,
         "every computational axis needs at least one branch-activating empirical witness",
@@ -1351,9 +1482,9 @@ describe("Rust/WASM configuration-space campaign", () => {
     }
     const evidence = {
       protocolVersion: "chronicle-configuration-influence-ledger/v1",
-      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v1",
+      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v3",
       claimBoundary:
-        "Exact logical-stage percolation and warm/cold minimality for the recorded implementation, equivalence classes, contexts, support bindings, and synthetic corpora. Absence of an observed effect remains bounded to this declared test scope. Logical recomputation is minimal; physical execution remains one fused full Rust pipeline run whenever any logical checkpoint requires recomputation.",
+        "Exact 55-step and 15-display-group percolation plus warm/cold equality for the recorded Rust/WASM implementation, equivalence classes, contexts, support bindings, and synthetic corpora. Absence of an observed effect remains bounded to this declared test scope. Step recomputation is minimal; physical execution remains one fused Rust pipeline run whenever any required checkpoint changes.",
       contractAuthority: "web/schema/chronicle-local-contract.linkml.yaml",
       planAuthority: ".semantic-federation/semantic/resources/chronicle.plan.json",
       equivalenceClassAuthority: "web/scripts/generate_combinatorial_model.mts",
@@ -1379,19 +1510,32 @@ describe("Rust/WASM configuration-space campaign", () => {
       },
       exactPercolationProof: {
         logicalStageCount: order.length,
+        pipelineStepCount: 55,
         warmColdCheckpointComparisons: orderedTransitions,
+        warmColdStepCheckpointComparisons: orderedTransitions * 55,
         exactClusterComparisons: orderedTransitions,
         staleCheckpointCases: staleLogicalCheckpointCases.length,
         clusterMismatchCases: percolationClusterMismatchCases.length,
+        stepClusterMismatchCases: stepPercolationClusterMismatchCases.length,
       },
       physicalExecutionBoundary:
-        "The product scheduler caches and invalidates 15 logical checkpoints exactly, but FusedPhysicalExecutor computes all physical Rust stages once per cache-miss run. Partial physical-stage execution is not claimed.",
+        "The product scheduler records and invalidates all 55 Rust step checkpoints exactly. FusedPhysicalExecutor still computes the physical Rust pipeline once per cache-miss run; partial physical-stage execution is not claimed.",
       axesWithSubstantiveObservedEffects: [...axesWithSubstantiveObservedEffects].sort(),
       axesWithoutSubstantiveObservedEffects,
+      computationalOptionOrder: COMPUTATIONAL_BROWSER_OPTION_KEYS,
       optionInfluence: reports,
       caseSetDigest: await sha256Uri(caseIdentities.sort().join("\n")),
     };
     const serialized = `${JSON.stringify(evidence, null, 2)}\n`;
+    const shardOutput = process.env.INFLUENCE_SHARD_OUTPUT;
+    if (shardOutput) {
+      writeFileSync(
+        shardOutput,
+        `${JSON.stringify({ evidence, caseIdentities }, null, 2)}\n`,
+        "utf8",
+      );
+      return;
+    }
     if (UPDATE) {
       mkdirSync(dirname(INFLUENCE_EXPECTED_FILE), { recursive: true });
       writeFileSync(INFLUENCE_EXPECTED_FILE, serialized, "utf8");

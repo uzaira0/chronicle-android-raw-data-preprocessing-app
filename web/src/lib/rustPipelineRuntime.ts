@@ -12,6 +12,7 @@ import type {
   RustShadowArtifactComparison,
   RustShadowReport,
 } from "@/lib/types";
+import type { RawFileInspection } from "@/lib/fileInspection";
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
 import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?url";
 import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
@@ -51,9 +52,12 @@ type KernelModule = {
   default(): Promise<unknown>;
   runtime_version(): string;
   implementation_build_digest(): string;
+  build_environment_digest(): string;
+  pipeline_step_contract_json(): string;
   plan_stage_view_json(optionsJson: string): string;
   RuntimeSupportFiles: new () => RuntimeSupportFilesHandle;
   discover_timezones_v2(csvBytes: Uint8Array): string[];
+  inspect_raw_file_v1(csvBytes: Uint8Array, fileName: string, sizeBytes: number): string;
   execute_workspace(
     requestJson: string,
     csvBytes: Uint8Array,
@@ -75,6 +79,19 @@ type RuntimeArtifactMetadata = {
   size: number;
   derivedFrom: string[];
   rowCount?: number;
+  previewRows?: string[][];
+};
+
+type RuntimeCheckpoint = {
+  protocolVersion: string;
+  nodeId: string;
+  rowMembershipDigest: string;
+  rowOrderDigest: string;
+  temporalStateDigest: string;
+  classificationDigest: string;
+  payloadDigest: string;
+  schemaDigest: string;
+  terminalDigest: string;
 };
 
 type RuntimeMaterializationState =
@@ -151,6 +168,7 @@ export type RuntimeManifest = {
   workspaceId: string;
   planDigest: string;
   implementationDigest: string;
+  buildEnvironmentDigest: string;
   profileDigest: string;
   profileLockDigest: string;
   runtimeAuthorityDigest: string;
@@ -185,6 +203,14 @@ export type RuntimeManifest = {
     output: RuntimeManifest["input"] | null;
     reason_id: string;
   }>;
+  stepExecutions: Array<{
+    step_id: string;
+    unit_id: string;
+    status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
+    input_key: string;
+    output_digest: string;
+    reason_id: string;
+  }>;
   processingSummary: {
     availableTimezones: string[];
     timezone: string;
@@ -200,20 +226,9 @@ export type RuntimeManifest = {
     timezoneRetainedSourceRowsDigest: string;
     timezoneStageDigest: string;
     logicalStageDigests: Record<string, string>;
-    logicalStageCheckpoints: Record<
-      string,
-      {
-        protocolVersion: string;
-        nodeId: string;
-        rowMembershipDigest: string;
-        rowOrderDigest: string;
-        temporalStateDigest: string;
-        classificationDigest: string;
-        payloadDigest: string;
-        schemaDigest: string;
-        terminalDigest: string;
-      }
-    >;
+    logicalStageCheckpoints: Record<string, RuntimeCheckpoint>;
+    pipelineStepDigests: Record<string, string>;
+    pipelineStepCheckpoints: Record<string, RuntimeCheckpoint>;
     publishedOutputsDigest: string;
     provenanceDigest: string;
     duplicateTimestampsCorrected: number;
@@ -224,6 +239,7 @@ export type RuntimeManifest = {
 type JsonObject = Record<string, unknown>;
 
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
+const BLAKE3_PATTERN = /^blake3:[0-9a-f]{64}$/;
 const EXECUTION_STATUSES = new Set([
   "cached",
   "recomputed",
@@ -298,8 +314,101 @@ function digestAt(value: unknown, path: string): string {
   return digest;
 }
 
+function checkpointComponentDigestAt(value: unknown, path: string): string {
+  const digest = stringAt(value, path);
+  if (!BLAKE3_PATTERN.test(digest)) {
+    contractError(path, "expected a lowercase blake3 digest");
+  }
+  return digest;
+}
+
 function nullableDigestAt(value: unknown, path: string): string | null {
   return value === null ? null : digestAt(value, path);
+}
+
+function checkpointDomainAt(
+  digestsValue: unknown,
+  checkpointsValue: unknown,
+  path: string,
+  expectedCount: number,
+): {
+  digests: Record<string, string>;
+  checkpoints: Record<string, RuntimeCheckpoint>;
+} {
+  const digests = Object.fromEntries(
+    Object.entries(objectAt(digestsValue, `${path}Digests`)).map(([id, digest]) => [
+      id,
+      digestAt(digest, `${path}Digests.${id}`),
+    ]),
+  );
+  const checkpoints = Object.fromEntries(
+    Object.entries(objectAt(checkpointsValue, `${path}Checkpoints`)).map(([id, value]) => {
+      const checkpointPath = `${path}Checkpoints.${id}`;
+      const checkpoint = objectAt(value, checkpointPath);
+      const decoded: RuntimeCheckpoint = {
+        protocolVersion: stringAt(
+          checkpoint.protocolVersion,
+          `${checkpointPath}.protocolVersion`,
+        ),
+        nodeId: stringAt(checkpoint.nodeId, `${checkpointPath}.nodeId`),
+        rowMembershipDigest: checkpointComponentDigestAt(
+          checkpoint.rowMembershipDigest,
+          `${checkpointPath}.rowMembershipDigest`,
+        ),
+        rowOrderDigest: checkpointComponentDigestAt(
+          checkpoint.rowOrderDigest,
+          `${checkpointPath}.rowOrderDigest`,
+        ),
+        temporalStateDigest: checkpointComponentDigestAt(
+          checkpoint.temporalStateDigest,
+          `${checkpointPath}.temporalStateDigest`,
+        ),
+        classificationDigest: checkpointComponentDigestAt(
+          checkpoint.classificationDigest,
+          `${checkpointPath}.classificationDigest`,
+        ),
+        payloadDigest: checkpointComponentDigestAt(
+          checkpoint.payloadDigest,
+          `${checkpointPath}.payloadDigest`,
+        ),
+        schemaDigest: checkpointComponentDigestAt(
+          checkpoint.schemaDigest,
+          `${checkpointPath}.schemaDigest`,
+        ),
+        terminalDigest: digestAt(
+          checkpoint.terminalDigest,
+          `${checkpointPath}.terminalDigest`,
+        ),
+      };
+      if (
+        decoded.protocolVersion !== "chronicle-logical-stage-checkpoint/v3"
+      ) {
+        contractError(
+          `${checkpointPath}.protocolVersion`,
+          "unsupported checkpoint protocol",
+        );
+      }
+      if (decoded.nodeId !== id || decoded.terminalDigest !== digests[id]) {
+        contractError(
+          checkpointPath,
+          "checkpoint identity or terminal digest does not match its domain",
+        );
+      }
+      return [id, decoded];
+    }),
+  );
+  const digestIds = Object.keys(digests).sort();
+  const checkpointIds = Object.keys(checkpoints).sort();
+  if (
+    digestIds.length !== expectedCount ||
+    JSON.stringify(digestIds) !== JSON.stringify(checkpointIds)
+  ) {
+    contractError(
+      `${path}Checkpoints`,
+      `digest and checkpoint domains must contain the same ${expectedCount} identities`,
+    );
+  }
+  return { digests, checkpoints };
 }
 
 function stringArrayAt(value: unknown, path: string): string[] {
@@ -333,6 +442,7 @@ function artifactRefAt(value: unknown, path: string): RuntimeManifest["input"] {
 function artifactMetadataAt(value: unknown, path: string): RuntimeArtifactMetadata {
   const artifact = objectAt(value, path);
   const rowCount = artifact.rowCount;
+  const previewRows = artifact.previewRows;
   return {
     artifactId: stringAt(artifact.artifactId, `${path}.artifactId`),
     kind: stringAt(artifact.kind, `${path}.kind`),
@@ -343,6 +453,21 @@ function artifactMetadataAt(value: unknown, path: string): RuntimeArtifactMetada
     ...(rowCount === undefined
       ? {}
       : { rowCount: integerAt(rowCount, `${path}.rowCount`) }),
+    ...(previewRows === undefined
+      ? {}
+      : {
+          previewRows: arrayAt(previewRows, `${path}.previewRows`).map((row, index) =>
+            arrayAt(row, `${path}.previewRows[${index}]`).map((cell, cellIndex) => {
+              if (typeof cell !== "string") {
+                contractError(
+                  `${path}.previewRows[${index}][${cellIndex}]`,
+                  "expected a string",
+                );
+              }
+              return cell;
+            }),
+          ),
+        }),
   };
 }
 
@@ -551,6 +676,34 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
       reason_id: stringAt(execution.reason_id, `${path}.reason_id`),
     };
   });
+  const stepExecutions = arrayAt(
+    manifest.stepExecutions,
+    "manifest.stepExecutions",
+  ).map((value, index) => {
+    const path = `manifest.stepExecutions[${index}]`;
+    const execution = objectAt(value, path);
+    const status = stringAt(execution.status, `${path}.status`);
+    if (!EXECUTION_STATUSES.has(status)) {
+      contractError(`${path}.status`, "unknown execution status");
+    }
+    return {
+      step_id: stringAt(execution.step_id, `${path}.step_id`),
+      unit_id: stringAt(execution.unit_id, `${path}.unit_id`),
+      status: status as RuntimeManifest["stepExecutions"][number]["status"],
+      input_key: digestAt(execution.input_key, `${path}.input_key`),
+      output_digest: digestAt(execution.output_digest, `${path}.output_digest`),
+      reason_id: digestAt(execution.reason_id, `${path}.reason_id`),
+    };
+  });
+  if (
+    stepExecutions.length !== 55 ||
+    new Set(stepExecutions.map((execution) => execution.step_id)).size !== 55
+  ) {
+    contractError(
+      "manifest.stepExecutions",
+      "expected exactly 55 unique Rust step executions",
+    );
+  }
 
   const countsSource = objectAt(manifest.counts, "manifest.counts");
   const counts = {
@@ -573,61 +726,25 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
       "unknown timezone action",
     );
   }
-  const logicalStageDigests = Object.fromEntries(
-    Object.entries(
-      objectAt(
-        summary.logicalStageDigests,
-        "manifest.processingSummary.logicalStageDigests",
-      ),
-    ).map(([nodeId, digest]) => [
-      nodeId,
-      digestAt(digest, `manifest.processingSummary.logicalStageDigests.${nodeId}`),
-    ]),
+  const logicalStages = checkpointDomainAt(
+    summary.logicalStageDigests,
+    summary.logicalStageCheckpoints,
+    "manifest.processingSummary.logicalStage",
+    15,
   );
-  const logicalStageCheckpoints = Object.fromEntries(
-    Object.entries(
-      objectAt(
-        summary.logicalStageCheckpoints,
-        "manifest.processingSummary.logicalStageCheckpoints",
-      ),
-    ).map(([nodeId, value]) => {
-      const path = `manifest.processingSummary.logicalStageCheckpoints.${nodeId}`;
-      const checkpoint = objectAt(value, path);
-      const decoded = {
-        protocolVersion: stringAt(checkpoint.protocolVersion, `${path}.protocolVersion`),
-        nodeId: stringAt(checkpoint.nodeId, `${path}.nodeId`),
-        rowMembershipDigest: digestAt(
-          checkpoint.rowMembershipDigest,
-          `${path}.rowMembershipDigest`,
-        ),
-        rowOrderDigest: digestAt(checkpoint.rowOrderDigest, `${path}.rowOrderDigest`),
-        temporalStateDigest: digestAt(
-          checkpoint.temporalStateDigest,
-          `${path}.temporalStateDigest`,
-        ),
-        classificationDigest: digestAt(
-          checkpoint.classificationDigest,
-          `${path}.classificationDigest`,
-        ),
-        payloadDigest: digestAt(checkpoint.payloadDigest, `${path}.payloadDigest`),
-        schemaDigest: digestAt(checkpoint.schemaDigest, `${path}.schemaDigest`),
-        terminalDigest: digestAt(checkpoint.terminalDigest, `${path}.terminalDigest`),
-      };
-      if (decoded.nodeId !== nodeId || decoded.terminalDigest !== logicalStageDigests[nodeId]) {
-        contractError(path, "checkpoint identity or terminal digest does not match its stage");
-      }
-      return [nodeId, decoded];
-    }),
+  const pipelineSteps = checkpointDomainAt(
+    summary.pipelineStepDigests,
+    summary.pipelineStepCheckpoints,
+    "manifest.processingSummary.pipelineStep",
+    55,
   );
-  if (
-    Object.keys(logicalStageDigests).length === 0 ||
-    Object.keys(logicalStageDigests).length !==
-      Object.keys(logicalStageCheckpoints).length
-  ) {
-    contractError(
-      "manifest.processingSummary.logicalStageCheckpoints",
-      "stage digest and checkpoint domains must be identical and non-empty",
-    );
+  for (const execution of stepExecutions) {
+    if (pipelineSteps.digests[execution.step_id] !== execution.output_digest) {
+      contractError(
+        `manifest.stepExecutions.${execution.step_id}`,
+        "step execution output does not match its Rust checkpoint",
+      );
+    }
   }
   const rowsBeforeTimezoneHandling = integerAt(
     summary.rowsBeforeTimezoneHandling,
@@ -695,6 +812,10 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
       manifest.implementationDigest,
       "manifest.implementationDigest",
     ),
+    buildEnvironmentDigest: digestAt(
+      manifest.buildEnvironmentDigest,
+      "manifest.buildEnvironmentDigest",
+    ),
     profileDigest: digestAt(manifest.profileDigest, "manifest.profileDigest"),
     profileLockDigest: digestAt(
       manifest.profileLockDigest,
@@ -742,6 +863,7 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
     ),
     roleAssignments,
     nodeExecutions,
+    stepExecutions,
     processingSummary: {
       availableTimezones: stringArrayAt(
         summary.availableTimezones,
@@ -760,8 +882,10 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
         summary.timezoneStageDigest,
         "manifest.processingSummary.timezoneStageDigest",
       ),
-      logicalStageDigests,
-      logicalStageCheckpoints,
+      logicalStageDigests: logicalStages.digests,
+      logicalStageCheckpoints: logicalStages.checkpoints,
+      pipelineStepDigests: pipelineSteps.digests,
+      pipelineStepCheckpoints: pipelineSteps.checkpoints,
       publishedOutputsDigest: digestAt(
         summary.publishedOutputsDigest,
         "manifest.processingSummary.publishedOutputsDigest",
@@ -842,6 +966,7 @@ export type RustPersistenceAdapter = {
       workspaceRootDigest: string;
       previousWorkspaceRootDigest: string | null;
       artifacts: PersistedRuntimeArtifact[];
+      recoveredSlot?: WorkspaceRootSlot;
     },
   ): Promise<WorkspaceRootSlot>;
 };
@@ -989,6 +1114,26 @@ export async function discoverRustTimezones(
 ): Promise<string[]> {
   const kernel = await loadKernel();
   return kernel.discover_timezones_v2(csvBytes);
+}
+
+export async function inspectRustRawFile(
+  csvBytes: Uint8Array,
+  fileName: string,
+  sizeBytes: number,
+): Promise<RawFileInspection> {
+  const kernel = await loadKernel();
+  const parsed: unknown = JSON.parse(kernel.inspect_raw_file_v1(csvBytes, fileName, sizeBytes));
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    (parsed as { fileName?: unknown }).fileName !== fileName ||
+    !Array.isArray((parsed as { warnings?: unknown }).warnings) ||
+    !Array.isArray((parsed as { columns?: unknown }).columns) ||
+    !Array.isArray((parsed as { timezones?: unknown }).timezones)
+  ) {
+    throw new Error("Rust raw-file inspection returned an invalid result.");
+  }
+  return parsed as RawFileInspection;
 }
 
 export async function verifyPersistedRustWorkspace(
@@ -1268,8 +1413,11 @@ export function buildRustV2Options(
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const owned = Uint8Array.from(bytes);
-  const digest = await crypto.subtle.digest("SHA-256", owned.buffer);
+  const owned =
+    bytes.buffer instanceof ArrayBuffer
+      ? (bytes as Uint8Array<ArrayBuffer>)
+      : new Uint8Array(bytes);
+  const digest = await crypto.subtle.digest("SHA-256", owned);
   return Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("");
@@ -1338,8 +1486,14 @@ async function compareParquetArtifact(
     parquetReadObjects({
       file: {
         byteLength: bytes.byteLength,
-        slice: (start: number, end?: number) =>
-          Uint8Array.from(bytes).buffer.slice(start, end),
+        slice: (start: number, end?: number) => {
+          const buffer = bytes.buffer;
+          const absoluteStart = bytes.byteOffset + start;
+          const absoluteEnd = bytes.byteOffset + (end ?? bytes.byteLength);
+          return buffer instanceof ArrayBuffer
+            ? buffer.slice(absoluteStart, absoluteEnd)
+            : new Uint8Array(bytes.subarray(start, end)).buffer;
+        },
       },
     });
   const [typescriptRows, rustRows, typescriptSha256, rustSha256] =
@@ -1410,6 +1564,7 @@ async function executeRustRuntimeUnlocked(
   options: BrowserProcessingOptions,
   supportFiles: BrowserSupportFiles | undefined,
   runtime: BrowserProcessingRuntime,
+  inputSha256: string,
 ): Promise<RustRuntimeExecution> {
   const reasons = rustV2IneligibilityReasons(options);
   if (reasons.length > 0) {
@@ -1419,7 +1574,6 @@ async function executeRustRuntimeUnlocked(
   let runtimeSupportFiles: RuntimeSupportFilesHandle | null = null;
   try {
     const kernel = await loadKernel();
-    const inputSha256 = await sha256Hex(csvBytes);
     const [filterBytes, forcingBytes, backgroundBytes, codebookBytes] =
       await Promise.all([
         supportBytes(
@@ -1564,6 +1718,9 @@ async function executeRustRuntimeUnlocked(
     if (manifest.implementationDigest !== kernel.implementation_build_digest()) {
       throw new Error("runtime manifest implementation identity mismatch");
     }
+    if (manifest.buildEnvironmentDigest !== kernel.build_environment_digest()) {
+      throw new Error("runtime manifest build-environment identity mismatch");
+    }
     if (
       manifest.input.digest !== `sha256:${inputSha256}` ||
       manifest.input.size !== csvBytes.byteLength
@@ -1579,6 +1736,10 @@ async function executeRustRuntimeUnlocked(
     const artifacts = new Map<string, Uint8Array>();
     const persistedArtifacts: PersistedRuntimeArtifact[] = [];
     const handleMetadata = new Map<string, RuntimeArtifactMetadata>();
+    const extractedArtifacts: Array<{
+      metadata: RuntimeArtifactMetadata;
+      bytes: Uint8Array;
+    }> = [];
     for (let index = 0; index < handle.artifact_count; index += 1) {
       let metadataValue: unknown;
       try {
@@ -1593,20 +1754,41 @@ async function executeRustRuntimeUnlocked(
         `artifactMetadata[${index}]`,
       );
       const bytes = handle.take_artifact_bytes(index);
-      if (
-        metadata.size !== bytes.byteLength ||
-        metadata.digest !== `sha256:${await sha256Hex(bytes)}`
-      ) {
+      if (metadata.size !== bytes.byteLength) {
         throw new Error(
           `runtime artifact integrity mismatch: ${metadata.kind}`,
         );
       }
-      if (artifacts.has(metadata.kind)) {
+      if (handleMetadata.has(metadata.kind)) {
         throw new Error(`duplicate runtime artifact kind: ${metadata.kind}`);
       }
-      artifacts.set(metadata.kind, bytes);
       handleMetadata.set(metadata.kind, metadata);
-      persistedArtifacts.push({ ...metadata, bytes });
+      extractedArtifacts.push({ metadata, bytes });
+    }
+    // WebCrypto hashing can use the browser's native worker pool. Extract all
+    // owned WASM buffers first, then verify them concurrently instead of
+    // serializing every large digest behind an `await` in the handle loop.
+    const verificationQueue = [...extractedArtifacts].sort(
+      (left, right) => right.bytes.byteLength - left.bytes.byteLength,
+    );
+    let verificationIndex = 0;
+    const verifyNext = async (): Promise<void> => {
+      for (;;) {
+        const entry = verificationQueue[verificationIndex];
+        verificationIndex += 1;
+        if (!entry) return;
+        const { metadata, bytes } = entry;
+        if (metadata.digest !== `sha256:${await sha256Hex(bytes)}`) {
+          throw new Error(
+            `runtime artifact integrity mismatch: ${metadata.kind}`,
+          );
+        }
+      }
+    };
+    await Promise.all([verifyNext(), verifyNext()]);
+    for (const { metadata, bytes } of extractedArtifacts) {
+      artifacts.set(metadata.kind, bytes);
+      persistedArtifacts.push({ ...metadata, bytes, digestVerified: true });
     }
     verifyRuntimeArtifactCatalog(manifest, [...handleMetadata.values()]);
     for (const assignment of manifest.roleAssignments) {
@@ -1618,11 +1800,10 @@ async function executeRustRuntimeUnlocked(
         );
       }
       if (
-        assignment.artifact.size !== bytes.byteLength ||
-        assignment.artifact.digest !== `sha256:${await sha256Hex(bytes)}`
+        assignment.artifact.size !== bytes.byteLength
       ) {
         throw new Error(
-          `runtime ingress assignment integrity mismatch: ${assignment.role_id}`,
+          `runtime ingress assignment size mismatch: ${assignment.role_id}`,
         );
       }
       persistedArtifacts.push({
@@ -1630,6 +1811,7 @@ async function executeRustRuntimeUnlocked(
         digest: assignment.artifact.digest,
         size: assignment.artifact.size,
         bytes,
+        digestVerified: true,
       });
     }
     const persistedWorkspace =
@@ -1639,6 +1821,7 @@ async function executeRustRuntimeUnlocked(
             previousWorkspaceRootDigest:
               manifest.previousWorkspaceRootDigest,
             artifacts: persistedArtifacts,
+            recoveredSlot: recoveredRoot,
           })
         : undefined;
     if (
@@ -1658,16 +1841,31 @@ async function executeRustRuntimeUnlocked(
     }
     return { workspaceId, manifest, artifacts, persistedWorkspace };
   } finally {
-    handle?.free();
-    runtimeSupportFiles?.free();
+    // A trapped WASM call can leave wasm-bindgen's internal borrow flag set.
+    // Cleanup must not replace the primary execution error with a secondary
+    // "attempted to take ownership while borrowed" exception.
+    try {
+      handle?.free();
+    } catch (error) {
+      console.warn("Could not release trapped Rust runtime handle", error);
+    }
+    try {
+      runtimeSupportFiles?.free();
+    } catch (error) {
+      console.warn("Could not release trapped Rust support handle", error);
+    }
   }
 }
 
 export async function runtimeWorkspaceId(
   inputFileName: string,
   csvBytes: Uint8Array,
+  verifiedInputSha256?: string,
 ): Promise<string> {
-  const inputDigest = await sha256Hex(csvBytes);
+  const inputDigest = verifiedInputSha256 ?? (await sha256Hex(csvBytes));
+  if (!/^[0-9a-f]{64}$/.test(inputDigest)) {
+    throw new Error("verified input digest must be 64 lowercase hexadecimal characters");
+  }
   return `sha256:${await sha256Hex(
     new TextEncoder().encode(
       `chronicle-preprocessing-workspace:${inputFileName}\n${inputDigest}`,
@@ -1697,8 +1895,14 @@ export async function executeRustRuntime(
   options: BrowserProcessingOptions,
   supportFiles: BrowserSupportFiles | undefined,
   runtime: BrowserProcessingRuntime,
+  verifiedInputSha256?: string,
 ): Promise<RustRuntimeExecution> {
-  const workspaceId = await runtimeWorkspaceId(inputFileName, csvBytes);
+  const inputSha256 = verifiedInputSha256 ?? (await sha256Hex(csvBytes));
+  const workspaceId = await runtimeWorkspaceId(
+    inputFileName,
+    csvBytes,
+    inputSha256,
+  );
   const execute = () =>
     executeRustRuntimeUnlocked(
       workspaceId,
@@ -1707,6 +1911,7 @@ export async function executeRustRuntime(
       options,
       supportFiles,
       runtime,
+      inputSha256,
     );
   if (!runtime.persistRustWorkspace) return execute();
   if (typeof navigator === "undefined" || !navigator.locks?.request) {

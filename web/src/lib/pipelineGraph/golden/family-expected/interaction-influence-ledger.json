@@ -1,18 +1,18 @@
 {
   "protocolVersion": "chronicle-interaction-influence-ledger/v1",
-  "claimBoundary": "Exhaustive two-factor structural interaction and exact warm/cold percolation proof across every valid pair of non-baseline declared equivalence-class values for all 46 computational browser axes, on the deterministic configuration-influence-probes corpus. Invalid selected-timezone combinations are enumerated with their qualification reason. This does not claim numeric statistical additivity or exhaust interactions of arity three and above.",
+  "claimBoundary": "Exhaustive two-factor structural interaction and exact 55-step plus 15-display-group warm/cold percolation proof across every valid pair of non-baseline declared equivalence-class values for all 46 computational browser axes, on the deterministic configuration-influence-probes corpus. Invalid selected-timezone combinations are enumerated with their qualification reason. This does not claim numeric statistical additivity or exhaust interactions of arity three and above. Step recomputation is minimal; physical execution remains one fused Rust pipeline run whenever any required checkpoint changes.",
   "plan": {
     "id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:plan/raw-data/v1",
     "revision": "0.1.0"
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:d6081f896e488d92bf202fcea98a92c3bc86e13f493f33aca29ced86333db997",
-    "planDigest": "sha256:162cd4087b0287169a54ee55dc224300e4a6c7ba4009ff82f8828b348d562c45",
-    "profileDigest": "sha256:b2899800f08de7ed93000422947cd8d0b3b5443150e6b47a019f8d038ceaaf93",
-    "profileLockDigest": "sha256:47240c9a44c328437384c8be9531e90f8d5e60696ed6a0db55f79bf313b78990",
+    "implementationDigest": "sha256:6d2686a698d2edd8d4372c9cf067ff0a3405fe3abe3f0a965f56bb803338e1e6",
+    "planDigest": "sha256:3b1db580ca483d5f7f198a82fcc8166e9ad180eaea587db1ae950a5fa06649a6",
+    "profileDigest": "sha256:ad3a1e58f4a69a2f81c412391f5736bf1c2f73216a5cd9742bc319bb07b01435",
+    "profileLockDigest": "sha256:aa51a18ee2104560bf6f239de05f7dfccec3aec6f4940123e305519c3bb81521",
     "runtimeAuthorityDigest": "sha256:11142579a05120fce9a1fe8e0edfffdcae385b34a10080d878e8d82b73cc8627",
-    "productContractDigest": "sha256:5ac0241fc2c80af23f5a580ff25679db9ce3d2e3a5fae8043ed0826d865105f7"
+    "productContractDigest": "sha256:00c1f57a6e487e1136f2a431a786cbf4bbb5f109da31f97993ed0dd6d0a1a8ba"
   },
   "fixture": {
     "corpusId": "configuration-influence-probes",
@@ -46,7 +46,11 @@
     "incrementalExecutions": 2444,
     "totalRustExecutions": 3717,
     "warmColdComparisons": 1222,
+    "warmColdStepCheckpointComparisons": 67210,
     "exactClusterComparisons": 1222,
+    "exactStepClusterComparisons": 1222,
+    "logicalStageCount": 15,
+    "pipelineStepCount": 55,
     "nonAdditivePairs": 3,
     "qualificationEnabledPairs": 2
   },
@@ -284,6 +288,46 @@
         "reconstruct_episodes",
         "score_compliance"
       ],
+      "changedPipelineSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "codebook_join",
+        "collapse_genre",
+        "compute_junk_packages",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
+      ],
       "observedInputNodes": [
         "app_policy",
         "attribute_person",
@@ -299,6 +343,102 @@
         "outputs",
         "reconstruct_episodes",
         "score_compliance"
+      ],
+      "observedInputSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_canonical_rows",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
+      ],
+      "predictedInputSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_canonical_rows",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
       ],
       "observedComponents": [
         "app_policy.classificationDigest",
@@ -325,10 +465,7 @@
         "device_state_timeline.rowMembershipDigest",
         "device_state_timeline.rowOrderDigest",
         "device_state_timeline.temporalStateDigest",
-        "effective_usage.classificationDigest",
-        "effective_usage.rowMembershipDigest",
-        "effective_usage.rowOrderDigest",
-        "effective_usage.temporalStateDigest",
+        "effective_usage.payloadDigest",
         "episode_annotations.classificationDigest",
         "episode_annotations.rowMembershipDigest",
         "episode_annotations.rowOrderDigest",
@@ -352,6 +489,196 @@
         "reconstruct_episodes.temporalStateDigest",
         "score_compliance.payloadDigest"
       ],
+      "observedStepComponents": {
+        "accumulate_attribution_minutes": [
+          "payloadDigest"
+        ],
+        "apply_matcher_output": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "assemble_credit_result": [
+          "payloadDigest"
+        ],
+        "assemble_result": [
+          "payloadDigest"
+        ],
+        "attribute_rows": [
+          "classificationDigest",
+          "payloadDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "blank_junk_timing": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "build_classified_sessions": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "build_liveness_substrate": [
+          "payloadDigest"
+        ],
+        "build_matcher_input": [
+          "payloadDigest"
+        ],
+        "codebook_join": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "collapse_genre": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "compute_junk_packages": [
+          "payloadDigest"
+        ],
+        "count_day_apps": [
+          "payloadDigest"
+        ],
+        "credit_sessions": [
+          "payloadDigest"
+        ],
+        "derive_broad_category": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "drop_selected_types": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "drop_zero_duration": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "emit_credited_rows": [
+          "payloadDigest"
+        ],
+        "engagement_walk": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "exact_dedupe": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "filter_rows_to_window": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "flag_and_retain": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "inject_placeholders": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "junk_blind_fold": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "junk_downstream_mark": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "mark_data_time_gaps": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "nudge_duplicate_timestamps": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "partition_credit_sessions": [
+          "payloadDigest"
+        ],
+        "relabel_usage_with_floor": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "restamp_rows": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "row_count_report": [
+          "payloadDigest"
+        ],
+        "run_matcher": [
+          "payloadDigest"
+        ],
+        "score_days": [
+          "payloadDigest"
+        ],
+        "select_timezone_strategy": [
+          "classificationDigest",
+          "payloadDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "sort_episodes": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "split_concurrent": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "tag_filtered_packages": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "walk_screen_state_machine": [
+          "payloadDigest"
+        ]
+      },
       "introducedComponents": [],
       "maskedComponents": [],
       "changedOutputArtifactKinds": [
@@ -387,10 +714,30 @@
         "timezone_handling"
       ],
       "changedSemanticNodes": [],
+      "changedPipelineSteps": [
+        "select_timezone_strategy"
+      ],
       "observedInputNodes": [
         "normalize_timezones"
       ],
+      "observedInputSteps": [
+        "build_canonical_rows",
+        "restamp_rows",
+        "row_count_report",
+        "select_timezone_strategy"
+      ],
+      "predictedInputSteps": [
+        "build_canonical_rows",
+        "restamp_rows",
+        "row_count_report",
+        "select_timezone_strategy"
+      ],
       "observedComponents": [],
+      "observedStepComponents": {
+        "select_timezone_strategy": [
+          "payloadDigest"
+        ]
+      },
       "introducedComponents": [],
       "maskedComponents": [],
       "changedOutputArtifactKinds": [
@@ -436,6 +783,51 @@
         "reconstruct_episodes",
         "score_compliance"
       ],
+      "changedPipelineSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
+      ],
       "observedInputNodes": [
         "app_policy",
         "attribute_person",
@@ -451,6 +843,102 @@
         "outputs",
         "reconstruct_episodes",
         "score_compliance"
+      ],
+      "observedInputSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_canonical_rows",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
+      ],
+      "predictedInputSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_canonical_rows",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
       ],
       "observedComponents": [
         "app_policy.classificationDigest",
@@ -478,10 +966,7 @@
         "device_state_timeline.rowMembershipDigest",
         "device_state_timeline.rowOrderDigest",
         "device_state_timeline.temporalStateDigest",
-        "effective_usage.classificationDigest",
-        "effective_usage.rowMembershipDigest",
-        "effective_usage.rowOrderDigest",
-        "effective_usage.temporalStateDigest",
+        "effective_usage.payloadDigest",
         "episode_annotations.classificationDigest",
         "episode_annotations.rowMembershipDigest",
         "episode_annotations.rowOrderDigest",
@@ -505,6 +990,211 @@
         "reconstruct_episodes.temporalStateDigest",
         "score_compliance.payloadDigest"
       ],
+      "observedStepComponents": {
+        "accumulate_attribution_minutes": [
+          "payloadDigest"
+        ],
+        "apply_matcher_output": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "assemble_credit_result": [
+          "payloadDigest"
+        ],
+        "assemble_result": [
+          "payloadDigest"
+        ],
+        "attribute_rows": [
+          "classificationDigest",
+          "payloadDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "blank_junk_timing": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "build_classified_sessions": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "build_coverage_table": [
+          "payloadDigest"
+        ],
+        "build_liveness_substrate": [
+          "payloadDigest"
+        ],
+        "build_matcher_input": [
+          "payloadDigest"
+        ],
+        "build_raw_date_index": [
+          "payloadDigest"
+        ],
+        "codebook_join": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "collapse_genre": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "collect_keyguard_timestamps": [
+          "payloadDigest"
+        ],
+        "compute_junk_packages": [
+          "payloadDigest"
+        ],
+        "count_day_apps": [
+          "payloadDigest"
+        ],
+        "count_dup_groups": [
+          "payloadDigest"
+        ],
+        "credit_sessions": [
+          "payloadDigest"
+        ],
+        "derive_broad_category": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "drop_selected_types": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "drop_zero_duration": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "emit_credited_rows": [
+          "payloadDigest"
+        ],
+        "engagement_walk": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "exact_dedupe": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "filter_rows_to_window": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "flag_and_retain": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "inject_placeholders": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "junk_blind_fold": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "junk_downstream_mark": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "mark_data_time_gaps": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "nudge_duplicate_timestamps": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "partition_credit_sessions": [
+          "payloadDigest"
+        ],
+        "relabel_usage_with_floor": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "report_screen_incapable": [
+          "payloadDigest"
+        ],
+        "restamp_rows": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "row_count_report": [
+          "payloadDigest"
+        ],
+        "run_matcher": [
+          "payloadDigest"
+        ],
+        "score_days": [
+          "payloadDigest"
+        ],
+        "select_timezone_strategy": [
+          "classificationDigest",
+          "payloadDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "sort_episodes": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "split_concurrent": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "tag_filtered_packages": [
+          "classificationDigest",
+          "rowMembershipDigest",
+          "rowOrderDigest",
+          "temporalStateDigest"
+        ],
+        "walk_screen_state_machine": [
+          "payloadDigest"
+        ]
+      },
       "introducedComponents": [
         "day_coverage.payloadDigest"
       ],
@@ -544,10 +1234,30 @@
         "timezone_handling"
       ],
       "changedSemanticNodes": [],
+      "changedPipelineSteps": [
+        "select_timezone_strategy"
+      ],
       "observedInputNodes": [
         "normalize_timezones"
       ],
+      "observedInputSteps": [
+        "build_canonical_rows",
+        "restamp_rows",
+        "row_count_report",
+        "select_timezone_strategy"
+      ],
+      "predictedInputSteps": [
+        "build_canonical_rows",
+        "restamp_rows",
+        "row_count_report",
+        "select_timezone_strategy"
+      ],
       "observedComponents": [],
+      "observedStepComponents": {
+        "select_timezone_strategy": [
+          "payloadDigest"
+        ]
+      },
       "introducedComponents": [],
       "maskedComponents": [
         "app_policy.temporalStateDigest",
@@ -556,7 +1266,7 @@
         "day_coverage.temporalStateDigest",
         "dedup_and_order.temporalStateDigest",
         "device_state_timeline.temporalStateDigest",
-        "effective_usage.temporalStateDigest",
+        "effective_usage.payloadDigest",
         "episode_annotations.temporalStateDigest",
         "interval_cleaning.temporalStateDigest",
         "normalize_timezones.temporalStateDigest",
@@ -590,11 +1300,23 @@
         "other_stop_types"
       ],
       "changedSemanticNodes": [],
+      "changedPipelineSteps": [],
       "observedInputNodes": [
         "dedup_and_order",
         "reconstruct_episodes"
       ],
+      "observedInputSteps": [
+        "assemble_result",
+        "build_matcher_input",
+        "split_concurrent"
+      ],
+      "predictedInputSteps": [
+        "assemble_result",
+        "build_matcher_input",
+        "split_concurrent"
+      ],
       "observedComponents": [],
+      "observedStepComponents": {},
       "introducedComponents": [],
       "maskedComponents": [
         "attribute_person.classificationDigest",
@@ -609,10 +1331,7 @@
         "day_coverage.rowMembershipDigest",
         "day_coverage.rowOrderDigest",
         "day_coverage.temporalStateDigest",
-        "effective_usage.classificationDigest",
-        "effective_usage.rowMembershipDigest",
-        "effective_usage.rowOrderDigest",
-        "effective_usage.temporalStateDigest",
+        "effective_usage.payloadDigest",
         "episode_annotations.classificationDigest",
         "episode_annotations.rowMembershipDigest",
         "episode_annotations.rowOrderDigest",
@@ -637,5 +1356,5 @@
       ]
     }
   ],
-  "pairCaseDigest": "sha256:8ad9a34168509842d3bc23438379d1447fe3a4e9b29246d740ef6c3d4c0040fc"
+  "pairCaseDigest": "sha256:bf988f5fa64c93d105e80eda7598921bf2dd850210367226b08671b99572104e"
 }

@@ -25,7 +25,7 @@ describe("deviceMemoryBudgetScale", () => {
 describe("computeSafeConcurrency", () => {
   const base = {
     fileCount: 8,
-    totalInputBytes: 8 * 20 * MB, // 20 MB avg → memory-bound, not core-bound
+    totalInputBytes: 8 * MB,
     userCap: undefined,
     hardwareConcurrency: 16,
   };
@@ -34,8 +34,15 @@ describe("computeSafeConcurrency", () => {
     expect(computeSafeConcurrency({ ...base, fileCount: 1 })).toBe(1);
   });
 
-  it("honours a user-pinned cap regardless of memory", () => {
-    expect(computeSafeConcurrency({ ...base, userCap: 3, deviceMemory: 1 })).toBe(3);
+  it("treats a user-pinned cap as an upper bound without bypassing memory", () => {
+    expect(computeSafeConcurrency({ ...base, userCap: 3, deviceMemory: 8 })).toBe(3);
+    expect(computeSafeConcurrency({ ...base, userCap: 32, deviceMemory: 1 })).toBe(1);
+  });
+
+  it("never lets a user cap bypass the core limit", () => {
+    expect(
+      computeSafeConcurrency({ ...base, userCap: 32, hardwareConcurrency: 4, deviceMemory: 8 }),
+    ).toBe(2);
   });
 
   it("a low-deviceMemory machine gets fewer workers than a high-memory one", () => {
@@ -61,6 +68,32 @@ describe("computeSafeConcurrency", () => {
         deviceMemory: 8,
       }),
     ).toBeLessThanOrEqual(2);
+  });
+
+  it("uses safe defaults when CPU and aggregate-size telemetry are absent", () => {
+    expect(
+      computeSafeConcurrency({
+        fileCount: 4,
+        totalInputBytes: 0,
+        userCap: undefined,
+        hardwareConcurrency: undefined,
+        deviceMemory: 8,
+      }),
+    ).toBe(1);
+  });
+
+  it("uses the actual largest files instead of an unsafe batch average", () => {
+    const fileSizes = [4 * MB, 1024, 1024, 1024, 1024, 1024, 1024, 1024];
+    expect(
+      computeSafeConcurrency({
+        fileCount: fileSizes.length,
+        totalInputBytes: fileSizes.reduce((sum, size) => sum + size, 0),
+        fileSizes,
+        userCap: undefined,
+        hardwareConcurrency: 16,
+        deviceMemory: 8,
+      }),
+    ).toBe(1);
   });
 });
 

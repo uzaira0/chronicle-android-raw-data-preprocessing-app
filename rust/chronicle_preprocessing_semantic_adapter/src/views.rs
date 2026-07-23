@@ -7,6 +7,7 @@ use crate::qualify::{QualificationTrace, RoleRequirementTrace};
 pub use semprof_materialize::ViewEnvelope;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StageNodeState {
@@ -56,35 +57,42 @@ pub struct ExplanationPayload {
     pub requirement_traces: Vec<RoleRequirementTrace>,
 }
 
-pub fn stage_view(
-    plan: &ChroniclePlan,
-    materialization: &Materialization,
-    executions: &[NodeExecution],
-    options: &Value,
-    stage: Option<&str>,
-    revision: u64,
-    root_digest: &str,
-) -> ViewEnvelope<StagePayload> {
-    let node_states = plan
+pub struct StageViewInput<'a> {
+    pub plan: &'a ChroniclePlan,
+    pub materialization: &'a Materialization,
+    pub executions: &'a [NodeExecution],
+    pub step_statuses: &'a BTreeMap<String, crate::model::ExecutionStatus>,
+    pub options: &'a Value,
+    pub stage: Option<&'a str>,
+    pub revision: u64,
+    pub root_digest: &'a str,
+}
+
+pub fn stage_view(input: StageViewInput<'_>) -> ViewEnvelope<StagePayload> {
+    let node_states = input
+        .plan
         .nodes
         .iter()
-        .filter(|node| stage.is_none_or(|stage| node.section == stage))
+        .filter(|node| input.stage.is_none_or(|stage| node.section == stage))
         .map(|node| StageNodeState {
             node_id: node.node_id.clone(),
             label: node.label.clone(),
             section: node.section.clone(),
             input_nodes: node.input_nodes.clone(),
             can_bypass: node.can_bypass,
-            materialization_state: materialization
+            materialization_state: input
+                .materialization
                 .node_states
                 .get(&node.node_id)
                 .copied()
                 .unwrap_or(MaterializationState::Open),
-            execution_status: executions
+            execution_status: input
+                .executions
                 .iter()
                 .find(|execution| execution.node_id == node.node_id)
                 .map(|execution| execution.status),
-            reason_ids: materialization
+            reason_ids: input
+                .materialization
                 .reasons
                 .iter()
                 .filter(|reason| reason.subject_id == node.node_id)
@@ -92,34 +100,31 @@ pub fn stage_view(
                 .collect(),
         })
         .collect();
-    let step_states = plan
+    let step_states = input
+        .plan
         .steps
         .iter()
         .filter(|step| {
-            stage.is_none_or(|stage| {
-                plan.nodes
+            input.stage.is_none_or(|stage| {
+                input
+                    .plan
+                    .nodes
                     .iter()
                     .find(|node| node.node_id == step.unit_id)
                     .is_some_and(|node| node.section == stage)
             })
         })
-        .map(|step| {
-            let unit_execution = executions
-                .iter()
-                .find(|execution| execution.node_id == step.unit_id);
-            StageStepState {
-                step_id: step.step_id.clone(),
-                unit_id: step.unit_id.clone(),
-                label: step.label.clone(),
-                description: step.description.clone(),
-                input_steps: step.input_steps.clone(),
-                can_bypass: step.can_bypass,
-                execution_status: if !step.applicability.evaluate(options) {
-                    Some(crate::model::ExecutionStatus::Bypassed)
-                } else {
-                    unit_execution.map(|execution| execution.status)
-                },
-            }
+        .map(|step| StageStepState {
+            step_id: step.step_id.clone(),
+            unit_id: step.unit_id.clone(),
+            label: step.label.clone(),
+            description: step.description.clone(),
+            input_steps: step.input_steps.clone(),
+            can_bypass: step.can_bypass,
+            execution_status: input.step_statuses.get(&step.step_id).copied().or_else(|| {
+                (!step.applicability.evaluate(input.options))
+                    .then_some(crate::model::ExecutionStatus::Bypassed)
+            }),
         })
         .collect();
     ViewEnvelope {
@@ -127,10 +132,10 @@ pub fn stage_view(
         view_id: "chronicle.stage.v1".into(),
         family: "incremental-dataflow".into(),
         schema_id: "urn:chronicle:view:stage:v1".into(),
-        revision,
-        root_digest: root_digest.into(),
+        revision: input.revision,
+        root_digest: input.root_digest.into(),
         payload: StagePayload {
-            stage: stage.map(str::to_string),
+            stage: input.stage.map(str::to_string),
             node_states,
             step_states,
         },
@@ -230,15 +235,29 @@ mod tests {
             output: None,
             reason_id: "reason:execution".into(),
         }];
-        let view = stage_view(
-            &plan,
-            &materialization,
-            &executions,
-            &serde_json::json!({}),
-            Some("preprocess"),
-            1,
-            &format!("sha256:{:0>64}", 1),
-        );
+        let step_statuses = plan
+            .steps
+            .iter()
+            .filter(|step| step.unit_id == "parse_events")
+            .map(|step| {
+                (
+                    step.step_id.clone(),
+                    crate::model::ExecutionStatus::Recomputed,
+                )
+            })
+            .collect();
+        let options = serde_json::json!({});
+        let root_digest = format!("sha256:{:0>64}", 1);
+        let view = stage_view(StageViewInput {
+            plan: &plan,
+            materialization: &materialization,
+            executions: &executions,
+            step_statuses: &step_statuses,
+            options: &options,
+            stage: Some("preprocess"),
+            revision: 1,
+            root_digest: &root_digest,
+        });
         assert!(view
             .payload
             .node_states
@@ -281,6 +300,61 @@ mod tests {
         assert!(payload.get("node_states").is_some());
         assert!(payload.get("items").is_none());
         assert!(payload.get("links").is_none());
+    }
+
+    #[test]
+    fn absent_step_status_only_means_bypassed_when_the_step_is_inapplicable() {
+        let plan = crate::embedded_plan();
+        let materialization = Materialization {
+            role_states: BTreeMap::new(),
+            node_states: BTreeMap::new(),
+            obligations: vec![],
+            reasons: vec![],
+            qualification_traces: vec![],
+            requirement_traces: vec![],
+        };
+        let options = serde_json::json!({
+            "process_app_usage": true,
+            "process_screen_usage": false
+        });
+        let view = stage_view(StageViewInput {
+            plan: &plan,
+            materialization: &materialization,
+            executions: &[],
+            step_statuses: &BTreeMap::new(),
+            options: &options,
+            stage: None,
+            revision: 0,
+            root_digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        });
+        let applicable = plan
+            .steps
+            .iter()
+            .find(|step| step.applicability.evaluate(&options))
+            .expect("applicable step");
+        let inapplicable = plan
+            .steps
+            .iter()
+            .find(|step| !step.applicability.evaluate(&options))
+            .expect("inapplicable step");
+        assert_eq!(
+            view.payload
+                .step_states
+                .iter()
+                .find(|step| step.step_id == applicable.step_id)
+                .expect("applicable view step")
+                .execution_status,
+            None
+        );
+        assert_eq!(
+            view.payload
+                .step_states
+                .iter()
+                .find(|step| step.step_id == inapplicable.step_id)
+                .expect("inapplicable view step")
+                .execution_status,
+            Some(crate::model::ExecutionStatus::Bypassed)
+        );
     }
 
     #[test]

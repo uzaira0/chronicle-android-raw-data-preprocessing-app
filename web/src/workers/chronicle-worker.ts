@@ -10,7 +10,9 @@ import {
   verifyPersistedRustWorkspace,
   getRustRuntimeVersion,
   getRustPlanStageView,
+  inspectRustRawFile,
 } from "@/lib/rustPipelineRuntime";
+import type { RawFileInspection } from "@/lib/fileInspection";
 import { processRawCsvWithRustAuthority } from "@/lib/rustPipelineAuthority";
 import {
   queryRegisteredSemanticIndex,
@@ -39,6 +41,38 @@ const sessionDatetimes = new Map<
   { inputSha256: string; datetime: string }
 >();
 const MAX_SESSION_DATETIMES = 32;
+const MAX_SEMANTIC_INDEXES = 8;
+const semanticIndexes = new Map<string, Uint8Array>();
+
+function invalidateSemanticIndex(workspaceId: string): void {
+  semanticIndexes.delete(workspaceId);
+}
+
+function cacheSemanticIndex(workspaceId: string, index: Uint8Array): Uint8Array {
+  semanticIndexes.delete(workspaceId);
+  semanticIndexes.set(workspaceId, index);
+  while (semanticIndexes.size > MAX_SEMANTIC_INDEXES) {
+    const oldest = semanticIndexes.keys().next().value;
+    if (oldest === undefined) break;
+    semanticIndexes.delete(oldest);
+  }
+  return index;
+}
+
+async function getSemanticIndex(workspaceId: string): Promise<Uint8Array> {
+  const cached = semanticIndexes.get(workspaceId);
+  if (cached) {
+    semanticIndexes.delete(workspaceId);
+    semanticIndexes.set(workspaceId, cached);
+    return cached;
+  }
+  return cacheSemanticIndex(
+    workspaceId,
+    await rebuildSemanticIndex(
+      await readPersistedRustArtifact(workspaceId, "semantic-index-source-json"),
+    ),
+  );
+}
 
 function resolveSessionDatetime(
   fileName: string,
@@ -85,35 +119,49 @@ const api = {
     const archive = await exportPersistedRustWorkspace(workspaceId);
     return Comlink.transfer(archive, [archive.buffer]);
   },
-  importWorkspaceClosure(workspaceId: string, bytes: Uint8Array) {
-    return importPersistedRustWorkspace(workspaceId, bytes);
+  async importWorkspaceClosure(workspaceId: string, bytes: Uint8Array) {
+    const result = await importPersistedRustWorkspace(workspaceId, bytes);
+    invalidateSemanticIndex(workspaceId);
+    return result;
   },
-  importWorkspaceClosureArchive(bytes: Uint8Array) {
-    return importPersistedRustWorkspaceArchive(bytes);
+  async importWorkspaceClosureArchive(bytes: Uint8Array) {
+    const result = await importPersistedRustWorkspaceArchive(bytes);
+    invalidateSemanticIndex(result.workspaceId);
+    return result;
   },
   async garbageCollectWorkspace(
     workspaceId: string,
   ): Promise<{ removedObjects: number }> {
-    return {
-      removedObjects: await garbageCollectPersistedRustWorkspace(workspaceId),
-    };
+    const removedObjects = await garbageCollectPersistedRustWorkspace(workspaceId);
+    invalidateSemanticIndex(workspaceId);
+    return { removedObjects };
   },
   async rebuildIndex(workspaceId: string): Promise<Uint8Array> {
-    return rebuildSemanticIndex(
-      await readPersistedRustArtifact(workspaceId, "semantic-index-source-json"),
+    return cacheSemanticIndex(
+      workspaceId,
+      await rebuildSemanticIndex(
+        await readPersistedRustArtifact(workspaceId, "semantic-index-source-json"),
+      ),
     );
   },
   async queryRegistered(workspaceId: string, queryId: string) {
-    const index = await rebuildSemanticIndex(
-      await readPersistedRustArtifact(workspaceId, "semantic-index-source-json"),
-    );
-    return queryRegisteredSemanticIndex(index, queryId);
+    return queryRegisteredSemanticIndex(await getSemanticIndex(workspaceId), queryId);
   },
   async matcherVersion(): Promise<string> {
     return getRustRuntimeVersion();
   },
   discoverTimezones(csvText: string): Promise<string[]> {
     return discoverRustTimezones(new TextEncoder().encode(csvText));
+  },
+  discoverTimezonesBytes(csvBytes: ArrayBuffer): Promise<string[]> {
+    return discoverRustTimezones(new Uint8Array(csvBytes));
+  },
+  inspectRawCsvBytes(
+    fileName: string,
+    sizeBytes: number,
+    csvBytes: ArrayBuffer,
+  ): Promise<RawFileInspection> {
+    return inspectRustRawFile(new Uint8Array(csvBytes), fileName, sizeBytes);
   },
   async processRawCsv(
     inputFileName: string,
@@ -126,13 +174,17 @@ const api = {
     const bytes = new TextEncoder().encode(csvText);
     const inputSha256 = await computeSha256Hex(bytes);
     const resolvedRuntime = effectiveRuntime(runtime, inputFileName, inputSha256);
-    return processRawCsvWithRustAuthority(
+    const result = await processRawCsvWithRustAuthority(
       inputFileName,
       bytes,
       options,
       supportFiles,
       resolvedRuntime,
+      undefined,
+      inputSha256,
     );
+    if (result.rustRuntimeReceipt) invalidateSemanticIndex(result.rustRuntimeReceipt.workspaceId);
+    return result;
   },
   async processRawCsvWithProgress(
     inputFileName: string,
@@ -155,14 +207,17 @@ const api = {
           }
         }
       : undefined;
-    return processRawCsvWithRustAuthority(
+    const result = await processRawCsvWithRustAuthority(
       inputFileName,
       bytes,
       options,
       supportFiles,
       resolvedRuntime,
       forward,
+      inputSha256,
     );
+    if (result.rustRuntimeReceipt) invalidateSemanticIndex(result.rustRuntimeReceipt.workspaceId);
+    return result;
   },
   /**
    * Zero-copy variant: caller transfers ownership of the raw CSV bytes.
@@ -198,8 +253,10 @@ const api = {
       supportFiles,
       resolvedRuntime,
       forward,
+      inputSha256,
     );
     result.inputSha256 = inputSha256;
+    if (result.rustRuntimeReceipt) invalidateSemanticIndex(result.rustRuntimeReceipt.workspaceId);
     return result;
   },
 };

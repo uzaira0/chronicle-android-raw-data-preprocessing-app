@@ -15,11 +15,36 @@ bindings = json.loads((ROOT / "semantic/capability-bindings.json").read_text())
 runtime_authority = json.loads(
     (ROOT / "semantic/resources/runtime-authority.json").read_text()
 )
+dependency_certificate = json.loads(
+    (ROOT / "proofs/dependency-certificate.json").read_text()
+)
 
 
 def rendered_digest(value: dict) -> str:
     rendered = (json.dumps(value, indent=2, ensure_ascii=False) + "\n").encode()
     return "sha256:" + hashlib.sha256(rendered).hexdigest()
+
+
+def file_digest(path: Path) -> str:
+    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+implementation_receipt = dependency_certificate["evidence"]["implementation_receipt"]
+for proof in dependency_certificate["evidence"]["proof_ledgers"]:
+    proof_path = (REPOSITORY_ROOT / proof["path"]).resolve()
+    try:
+        proof_path.relative_to(REPOSITORY_ROOT.resolve())
+    except ValueError as error:
+        raise SystemExit(f"dependency proof escapes repository: {proof['path']}") from error
+    if not proof_path.is_file():
+        raise SystemExit(f"dependency proof is missing: {proof['path']}")
+    if file_digest(proof_path) != proof["digest"]:
+        raise SystemExit(f"dependency proof digest is stale: {proof['path']}")
+    ledger = json.loads(proof_path.read_text())
+    if ledger.get("protocolVersion") != proof["protocol_version"]:
+        raise SystemExit(f"dependency proof protocol drift: {proof['path']}")
+    if ledger.get("implementationReceipt") != implementation_receipt:
+        raise SystemExit(f"dependency proof implementation drift: {proof['path']}")
 
 
 expected_contract_digest = rendered_digest(

@@ -402,7 +402,7 @@ impl Scheduler {
             reasons.insert(0, "dependency_surface_structurally_certified".into());
         }
         Ok(DependencyCacheDecision {
-            mode: if structural_failure {
+            mode: if structural_failure || !self.empirical_evidence_current {
                 DependencyCacheMode::ConservativeFull
             } else {
                 DependencyCacheMode::CertifiedNarrow
@@ -429,7 +429,7 @@ impl Scheduler {
                     .map(|entry| (input.as_str(), &entry.output))
             })
             .collect();
-        let support = node
+        let support: BTreeMap<&str, &ArtifactRef> = node
             .support_roles
             .iter()
             .filter_map(|role| {
@@ -953,7 +953,7 @@ mod tests {
     }
 
     #[test]
-    fn structurally_certified_but_stale_empirical_evidence_is_release_blocking() {
+    fn structurally_certified_but_stale_empirical_evidence_forces_full_context() {
         let plan = embedded_plan();
         let mut workspace = Workspace::<MemoryCas> {
             options: complete_options(&plan, serde_json::json!({})),
@@ -969,7 +969,7 @@ mod tests {
         )
         .dependency_cache_decision(&workspace)
         .unwrap();
-        assert_eq!(decision.mode, DependencyCacheMode::CertifiedNarrow);
+        assert_eq!(decision.mode, DependencyCacheMode::ConservativeFull);
         assert!(!decision.empirical_evidence_current);
         assert!(decision
             .reasons
@@ -1037,5 +1037,49 @@ mod tests {
                 .status,
             ExecutionStatus::Recomputed
         );
+    }
+
+    #[test]
+    fn certified_reason_raw_boundary_and_context_identity_are_exact() {
+        let plan = embedded_plan();
+        let scheduler = certified_scheduler(plan.clone());
+        let mut workspace = Workspace::<MemoryCas> {
+            options: complete_options(&plan, serde_json::json!({})),
+            ..Default::default()
+        };
+        assign_required(&mut workspace, &plan);
+
+        let decision = scheduler.dependency_cache_decision(&workspace).unwrap();
+        assert_eq!(decision.mode, DependencyCacheMode::CertifiedNarrow);
+        assert_eq!(
+            decision.reasons.first().map(String::as_str),
+            Some("dependency_surface_structurally_certified")
+        );
+
+        let parse = plan
+            .nodes
+            .iter()
+            .find(|node| node.node_id == "parse_events")
+            .expect("parse node");
+        let downstream = plan
+            .nodes
+            .iter()
+            .find(|node| node.node_id != "parse_events")
+            .expect("downstream node");
+        assert!(scheduler.execution_inputs(&workspace, parse).raw.is_some());
+        assert!(scheduler
+            .execution_inputs(&workspace, downstream)
+            .raw
+            .is_none());
+
+        let before = full_context_digest(&workspace).unwrap();
+        workspace.options["timezone_handling"] = Value::String("utc".into());
+        let after = full_context_digest(&workspace).unwrap();
+        assert_ne!(before, after);
+        assert!(before.starts_with("sha256:"));
+        assert_eq!(before.len(), 71);
+
+        assert_eq!(stable_id(&["a", "b"]), stable_id(&["a", "b"]));
+        assert_ne!(stable_id(&["a", "b"]), stable_id(&["ab"]));
     }
 }

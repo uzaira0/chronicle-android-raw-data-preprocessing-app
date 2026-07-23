@@ -46,18 +46,16 @@ pub fn evaluate_materialization(
         .map(String::as_str)
         .collect::<BTreeSet<_>>();
 
-    let requirements: BTreeMap<_, _> = plan
-        .root_roles
+    // Qualification is the single authority for whether a role is currently
+    // required. Reuse that result here instead of evaluating the same
+    // condition a second time and risking the two paths drifting apart.
+    let requirements: BTreeMap<_, _> = qualification
+        .requirement_traces
         .iter()
-        .map(|role| {
-            let required = role.required
-                || role
-                    .required_when
-                    .as_ref()
-                    .is_some_and(|condition| condition.evaluate(options));
+        .map(|trace| {
             (
-                role.role_id.clone(),
-                if required {
+                trace.role_id.clone(),
+                if trace.required {
                     Requirement::Required
                 } else {
                     Requirement::Optional
@@ -433,5 +431,58 @@ mod tests {
             .qualification_traces
             .iter()
             .any(|trace| trace.decision == crate::QualificationDecision::Rejected));
+    }
+
+    #[test]
+    fn explicit_node_failure_and_invalid_support_each_invalidate_on_their_own() {
+        let plan = embedded_plan();
+        let base_assignments = BTreeMap::from([
+            ("raw_chronicle_csv".into(), assignment("raw_chronicle_csv")),
+            (
+                "processing_options".into(),
+                assignment("processing_options"),
+            ),
+        ]);
+        let options = serde_json::json!({
+            "process_app_usage": true,
+            "process_screen_usage": false,
+            "use_filter_file": false
+        });
+
+        let explicit_failure = evaluate_materialization(
+            &plan,
+            &base_assignments,
+            &options,
+            &BTreeSet::new(),
+            &BTreeSet::from(["parse_events".into()]),
+        );
+        assert_eq!(
+            explicit_failure.node_states["parse_events"],
+            MaterializationState::Invalid
+        );
+
+        let mut invalid_support = assignment("filter_file");
+        invalid_support.artifact.media_type = "application/json".into();
+        let mut assignments = base_assignments;
+        assignments.insert("filter_file".into(), invalid_support);
+        let invalid_support_result = evaluate_materialization(
+            &plan,
+            &assignments,
+            &serde_json::json!({
+                "process_app_usage": true,
+                "process_screen_usage": false,
+                "use_filter_file": true
+            }),
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+        );
+        assert_eq!(
+            invalid_support_result.role_states["filter_file"],
+            MaterializationState::Invalid
+        );
+        assert_eq!(
+            invalid_support_result.node_states["app_policy"],
+            MaterializationState::Invalid
+        );
     }
 }

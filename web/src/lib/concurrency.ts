@@ -1,23 +1,28 @@
 /**
  * Compute a memory-safe parallel worker count.
  *
- * Each in-flight worker holds, at peak, roughly a 5–10× expansion of its file's
- * input bytes (parsed `CanonicalRow[]`, intermediate matcher buffers,
- * codebook-enriched rows, and a Blob being assembled). Hardcoding 8 workers
- * regardless of input size is what crashes the tab on a 540 MB batch — the sum
- * of in-flight expansions exceeds Chrome's renderer ceiling.
+ * The production Rust runtime retains exact row checkpoints and builds the
+ * source-coordinate, result-cell, lineage, visualization, and researcher
+ * outputs before returning. A measured 11.53 MB / 60,624-row input peaked at
+ * 0.95 GB (default) and 1.45 GB (artifact-heavy options): 83–126× the input.
+ * Use the conservative measured ceiling until browser-process RSS telemetry
+ * supports a more precise option-sensitive model.
  *
  * Strategy:
- *   - If the user pinned `parallelMaxWorkers`, respect it.
- *   - Otherwise budget for in-flight worker state and divide by an 8×
- *     amplification of the average file size.
+ *   - A user `parallelMaxWorkers` value is an upper bound, never permission to
+ *     bypass the memory/core limits.
+ *   - Otherwise budget for in-flight worker state using the largest files that
+ *     can actually be active together. An average is unsafe for a skewed batch:
+ *     one 500 MB export plus many tiny files can look cheap while still
+ *     exhausting the renderer.
  *   - Scale that budget down on low-`deviceMemory` machines, since the renderer
  *     ceiling there is far lower — this is the real memory governor (the
  *     reference's "pinned-URL cap" has no analogue here; concurrency is what
  *     bounds peak RAM during a batch).
  *   - Clamp to [1, hardwareConcurrency/2] and never exceed file count.
  */
-const PEAK_AMPLIFICATION = 8;
+const PEAK_AMPLIFICATION = 128;
+const WORKER_BASELINE_BYTES = 48 * 1024 * 1024;
 const IN_FLIGHT_BUDGET_BYTES = 600 * 1024 * 1024;
 /** `navigator.deviceMemory` is reported in GiB; treat 8 as the full-budget baseline. */
 const BASELINE_DEVICE_MEMORY_GB = 8;
@@ -35,22 +40,34 @@ export function deviceMemoryBudgetScale(deviceMemory: number | undefined): numbe
 export function computeSafeConcurrency(input: {
   fileCount: number;
   totalInputBytes: number;
+  fileSizes?: readonly number[];
   userCap: number | undefined;
   hardwareConcurrency: number | undefined;
   deviceMemory?: number | undefined;
 }): number {
-  const { fileCount, totalInputBytes, userCap, hardwareConcurrency, deviceMemory } = input;
+  const { fileCount, totalInputBytes, fileSizes, userCap, hardwareConcurrency, deviceMemory } = input;
   if (fileCount <= 1) return 1;
-  if (userCap && userCap > 0) {
-    return Math.max(1, Math.min(fileCount, Math.floor(userCap)));
-  }
   const cores = Math.max(1, Math.floor((hardwareConcurrency ?? 2) / 2));
-  const avgBytes = totalInputBytes > 0 ? totalInputBytes / fileCount : 1024;
   const budget = IN_FLIGHT_BUDGET_BYTES * deviceMemoryBudgetScale(deviceMemory);
-  const memoryCap = Math.max(
-    1,
-    Math.floor(budget / Math.max(1, avgBytes * PEAK_AMPLIFICATION)),
-  );
+  const normalizedSizes = fileSizes?.length === fileCount
+    ? [...fileSizes].map((size) => Math.max(1, size)).sort((left, right) => right - left)
+    : Array.from(
+        { length: fileCount },
+        () => Math.max(1, totalInputBytes > 0 ? totalInputBytes / fileCount : 1024),
+      );
+  const requestedLimit = userCap && userCap > 0 ? Math.floor(userCap) : fileCount;
+  const candidateLimit = Math.min(fileCount, cores, Math.max(1, requestedLimit));
+  let inFlightBytes = 0;
+  let memoryCap = 1;
+  for (let index = 0; index < candidateLimit; index += 1) {
+    inFlightBytes +=
+      WORKER_BASELINE_BYTES + normalizedSizes[index] * PEAK_AMPLIFICATION;
+    if (inFlightBytes <= budget) {
+      memoryCap = index + 1;
+    } else {
+      break;
+    }
+  }
   return Math.max(1, Math.min(fileCount, cores, memoryCap));
 }
 

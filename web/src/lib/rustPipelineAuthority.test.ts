@@ -55,6 +55,29 @@ const csv = (body = "name,value\nexample,1\n") => enc.encode(body);
 
 function manifest(artifacts: RuntimeManifest["artifacts"]): RuntimeManifest {
   const stageDigest = `sha256:${"b".repeat(64)}`;
+  const stepIds = Array.from({ length: 55 }, (_, index) => ({
+    stepId: `test-step-${index + 1}`,
+    unitId: "test-unit",
+  }));
+  const pipelineStepDigests = Object.fromEntries(
+    stepIds.map(({ stepId }) => [stepId, stageDigest]),
+  );
+  const pipelineStepCheckpoints = Object.fromEntries(
+    stepIds.map(({ stepId }) => [
+      stepId,
+      {
+        protocolVersion: "chronicle-logical-stage-checkpoint/v3" as const,
+        nodeId: stepId,
+        rowMembershipDigest: `blake3:${"1".repeat(64)}`,
+        rowOrderDigest: `blake3:${"2".repeat(64)}`,
+        temporalStateDigest: `blake3:${"3".repeat(64)}`,
+        classificationDigest: `blake3:${"4".repeat(64)}`,
+        payloadDigest: `blake3:${"5".repeat(64)}`,
+        schemaDigest: `blake3:${"6".repeat(64)}`,
+        terminalDigest: stageDigest,
+      },
+    ]),
+  );
   return {
     protocolVersion: "chronicle-preprocessing-runtime/v1",
     requestId: "execute-test",
@@ -73,6 +96,7 @@ function manifest(artifacts: RuntimeManifest["artifacts"]): RuntimeManifest {
     workspaceRootDigest: `sha256:${"2".repeat(64)}`,
     workspaceId: `sha256:${"3".repeat(64)}`,
     implementationDigest: `sha256:${"0".repeat(64)}`,
+    buildEnvironmentDigest: `sha256:${"f".repeat(64)}`,
     planDigest: `sha256:${"4".repeat(64)}`,
     profileDigest: `sha256:${"5".repeat(64)}`,
     profileLockDigest: `sha256:${"6".repeat(64)}`,
@@ -120,6 +144,14 @@ function manifest(artifacts: RuntimeManifest["artifacts"]): RuntimeManifest {
         reason_id: "same-input",
       },
     ],
+    stepExecutions: stepIds.map(({ stepId, unitId }) => ({
+      step_id: stepId,
+      unit_id: unitId,
+      status: "recomputed",
+      input_key: `sha256:${"1".repeat(64)}`,
+      output_digest: stageDigest,
+      reason_id: `sha256:${"2".repeat(64)}`,
+    })),
     processingSummary: {
       availableTimezones: ["America/Chicago"],
       timezone: "America/Chicago",
@@ -132,17 +164,19 @@ function manifest(artifacts: RuntimeManifest["artifacts"]): RuntimeManifest {
       logicalStageDigests: { parse_events: stageDigest },
       logicalStageCheckpoints: {
         parse_events: {
-          protocolVersion: "chronicle-logical-checkpoint/v1",
+          protocolVersion: "chronicle-logical-stage-checkpoint/v3",
           nodeId: "parse_events",
-          rowMembershipDigest: `sha256:${"1".repeat(64)}`,
-          rowOrderDigest: `sha256:${"2".repeat(64)}`,
-          temporalStateDigest: `sha256:${"3".repeat(64)}`,
-          classificationDigest: `sha256:${"4".repeat(64)}`,
-          payloadDigest: `sha256:${"5".repeat(64)}`,
-          schemaDigest: `sha256:${"6".repeat(64)}`,
+          rowMembershipDigest: `blake3:${"1".repeat(64)}`,
+          rowOrderDigest: `blake3:${"2".repeat(64)}`,
+          temporalStateDigest: `blake3:${"3".repeat(64)}`,
+          classificationDigest: `blake3:${"4".repeat(64)}`,
+          payloadDigest: `blake3:${"5".repeat(64)}`,
+          schemaDigest: `blake3:${"6".repeat(64)}`,
           terminalDigest: stageDigest,
         },
       },
+      pipelineStepDigests,
+      pipelineStepCheckpoints,
       publishedOutputsDigest: `sha256:${"c".repeat(64)}`,
       provenanceDigest: `sha256:${"d".repeat(64)}`,
       duplicateTimestampsCorrected: 2,
@@ -235,12 +269,15 @@ function fullExecution(): RustRuntimeExecution {
     size: bytes.byteLength,
     derivedFrom: [],
     rowCount:
-      kind.includes("aggregate") ||
+      kind.endsWith("-csv") ||
       kind === "row-lineage-arrow" ||
       kind === "source-coordinate-index-arrow" ||
       kind === "result-cell-correspondence-arrow"
         ? 7
         : undefined,
+    previewRows: kind.endsWith("-csv")
+      ? [["name", "value"], ["example", "1"]]
+      : undefined,
   }));
   return {
     workspaceId: `sha256:${"3".repeat(64)}`,
@@ -371,6 +408,7 @@ describe("Rust authority browser projection", () => {
       options,
       undefined,
       expect.objectContaining({ persistRustWorkspace: true }),
+      undefined,
     );
     expect(result.outputs.map(({ outputFileName }) => outputFileName)).toEqual(
       expect.arrayContaining([
@@ -412,7 +450,7 @@ describe("Rust authority browser projection", () => {
     ]);
   });
 
-  it("fails loudly when Rust omits an artifact or emits malformed CSV", async () => {
+  it("fails loudly when Rust omits an artifact or its CSV display metadata", async () => {
     const missing = fullExecution();
     missing.artifacts.delete("app-csv");
     mocks.executeRustRuntime.mockResolvedValueOnce(missing);
@@ -426,9 +464,13 @@ describe("Rust authority browser projection", () => {
       ),
     ).rejects.toThrow(/omitted required artifact: app-csv/);
 
-    const malformed = fullExecution();
-    malformed.artifacts.set("app-csv", enc.encode('header\n"unterminated'));
-    mocks.executeRustRuntime.mockResolvedValueOnce(malformed);
+    const missingMetadata = fullExecution();
+    missingMetadata.manifest.artifacts = missingMetadata.manifest.artifacts.map(
+      (artifact) => artifact.kind === "app-csv"
+        ? { ...artifact, previewRows: undefined }
+        : artifact,
+    );
+    mocks.executeRustRuntime.mockResolvedValueOnce(missingMetadata);
     await expect(
       processRawCsvWithRustAuthority(
         "Raw.csv",
@@ -437,19 +479,15 @@ describe("Rust authority browser projection", () => {
         {},
         { persistRustWorkspace: false },
       ),
-    ).rejects.toThrow(/CSV preview parse failed/);
+    ).rejects.toThrow(/omitted CSV display metadata: app-csv/);
   });
 
-  it("derives aggregate row counts when metadata omits them and rejects malformed rows", async () => {
+  it("requires Rust to provide exact aggregate row counts", async () => {
     const execution = fullExecution();
     execution.manifest.artifacts = execution.manifest.artifacts.map((artifact) =>
       artifact.kind === "aggregate-daily-summary-csv"
         ? { ...artifact, rowCount: undefined }
         : artifact,
-    );
-    execution.artifacts.set(
-      "aggregate-daily-summary-csv",
-      enc.encode('header\n"unterminated'),
     );
     mocks.executeRustRuntime.mockResolvedValueOnce(execution);
     await expect(
@@ -466,7 +504,7 @@ describe("Rust authority browser projection", () => {
         {},
         { persistRustWorkspace: false },
       ),
-    ).rejects.toThrow(/CSV row-count parse failed/);
+    ).rejects.toThrow(/omitted CSV display metadata: aggregate-daily-summary-csv/);
   });
 
   it("does not project disabled app/screen or binary families", async () => {

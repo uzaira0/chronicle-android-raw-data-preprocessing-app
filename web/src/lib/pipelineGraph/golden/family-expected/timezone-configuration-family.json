@@ -2,7 +2,7 @@
   "protocolVersion": "chronicle-configuration-family-corpus/v1",
   "fixtureAuthority": {
     "source": "web/src/lib/pipelineGraph/golden/goldenScenario.ts#GOLDEN_SCENARIOS",
-    "implementationDigest": "sha256:d6081f896e488d92bf202fcea98a92c3bc86e13f493f33aca29ced86333db997"
+    "implementationDigest": "sha256:6d2686a698d2edd8d4372c9cf067ff0a3405fe3abe3f0a965f56bb803338e1e6"
   },
   "reports": [
     {
@@ -257,8 +257,8 @@
         {
           "classes": [
             {
-              "classId": "sha256:e8c95118bf9cb626cdb729d286a27026390d130dad4e04002a9ae3279e72dcb5",
-              "signature": "sha256:4550756919f239a5cf80316435cab5d2817706f229b639ab420e3fc275fd95f8",
+              "classId": "sha256:10afe61d5f77877a2d892ea8714e2095bc2fce563397233d65931441c36e4ee6",
+              "signature": "sha256:3f396a19737763e3a276c29d07a3f7576f972d400eeeb35072edb63e734c3a0d",
               "variants": [
                 "primary-convert",
                 "primary-filter",
@@ -274,31 +274,31 @@
         {
           "classes": [
             {
-              "classId": "sha256:2d027a337b20244e38722190584888d2580d8160267e219c1eaaed03e977dae0",
-              "signature": "sha256:2a2c1b3132f4ac0b56397ae0ceca10f7ef2a1df4ed9042b69ba8125ebf36f953",
-              "variants": [
-                "primary-filter"
-              ]
-            },
-            {
-              "classId": "sha256:d9b16a1d9303da17b940c18e76c75bcca49bae2de39e3a8fa73801c7fb8a88f1",
-              "signature": "sha256:ca2eb6fdcc4264e8baf4ea19121432c9b7828056afa20d715878cbe6207cf6f8",
-              "variants": [
-                "selected-filter"
-              ]
-            },
-            {
-              "classId": "sha256:3240dd3ea87129f493d3ea13ca1d29b3ec4a92a5eb05466cee6e538794cc55f6",
-              "signature": "sha256:f961e74c33c1229792ee039bce303daae26a650d4d621af8cc901935cd0aae5b",
+              "classId": "sha256:0626a0c4481d1d8d12283e81f16328dfc001297ee08ca5f9c218fd34edf942a6",
+              "signature": "sha256:2c2fb091b2694a7191386bc79c47ab2ea7c84589461158d812f79f0cc7a4dc8b",
               "variants": [
                 "selected-convert"
               ]
             },
             {
-              "classId": "sha256:b04f71b8935af0b29ee416c066ed15f502727bdde7a68455b483c5c4d8e474a3",
-              "signature": "sha256:fd798a8ab89a5e45d2243859babe42771f22031630c2f1a69a596092cfe129fd",
+              "classId": "sha256:9370cae3188897b37646ebff0876ee76d892eea64857890c6f78806ed102ec75",
+              "signature": "sha256:7b0a08bc49a204ecbc31a8402423f12d9d22dfd4430d800138613cfd72a8992d",
               "variants": [
                 "primary-convert"
+              ]
+            },
+            {
+              "classId": "sha256:2562647887f89fa4501b0499643d40a5e8ec8dede77a664da1fa34de9a7ca1d2",
+              "signature": "sha256:ae0184aa4d3c7394b421a62db439a1b33b2aca487114b0d8889669791e11d43d",
+              "variants": [
+                "primary-filter"
+              ]
+            },
+            {
+              "classId": "sha256:9eae47a2e52086a6fef9e293209552d634d829aaf2f349c0fb8d2c05e6dd5118",
+              "signature": "sha256:c6571424d65118fc85de51779f4873d05d81d708d6e5199089025d6098ccc85d",
+              "variants": [
+                "selected-filter"
               ]
             }
           ],
@@ -317,8 +317,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-convert/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:91ee8478d12cebdea852819414d9b0a217d46d97bdf1c607b948923b0dda00d0",
-          "provenanceDigest": "sha256:fd798a8ab89a5e45d2243859babe42771f22031630c2f1a69a596092cfe129fd",
-          "publishedOutputsDigest": "sha256:4550756919f239a5cf80316435cab5d2817706f229b639ab420e3fc275fd95f8",
+          "provenanceDigest": "sha256:7b0a08bc49a204ecbc31a8402423f12d9d22dfd4430d800138613cfd72a8992d",
+          "publishedOutputsDigest": "sha256:3f396a19737763e3a276c29d07a3f7576f972d400eeeb35072edb63e734c3a0d",
           "retainedSourceRowsDigest": "sha256:1389ce2e158af9efa5abefe21e15bc5164802ddc2a4aa28ed70a1999cd8abe35",
           "rowsAfter": 8,
           "rowsBefore": 8,
@@ -333,8 +333,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-filter/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:91ee8478d12cebdea852819414d9b0a217d46d97bdf1c607b948923b0dda00d0",
-          "provenanceDigest": "sha256:2a2c1b3132f4ac0b56397ae0ceca10f7ef2a1df4ed9042b69ba8125ebf36f953",
-          "publishedOutputsDigest": "sha256:4550756919f239a5cf80316435cab5d2817706f229b639ab420e3fc275fd95f8",
+          "provenanceDigest": "sha256:ae0184aa4d3c7394b421a62db439a1b33b2aca487114b0d8889669791e11d43d",
+          "publishedOutputsDigest": "sha256:3f396a19737763e3a276c29d07a3f7576f972d400eeeb35072edb63e734c3a0d",
           "retainedSourceRowsDigest": "sha256:1389ce2e158af9efa5abefe21e15bc5164802ddc2a4aa28ed70a1999cd8abe35",
           "rowsAfter": 8,
           "rowsBefore": 8,
@@ -349,8 +349,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-convert/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:91ee8478d12cebdea852819414d9b0a217d46d97bdf1c607b948923b0dda00d0",
-          "provenanceDigest": "sha256:f961e74c33c1229792ee039bce303daae26a650d4d621af8cc901935cd0aae5b",
-          "publishedOutputsDigest": "sha256:4550756919f239a5cf80316435cab5d2817706f229b639ab420e3fc275fd95f8",
+          "provenanceDigest": "sha256:2c2fb091b2694a7191386bc79c47ab2ea7c84589461158d812f79f0cc7a4dc8b",
+          "publishedOutputsDigest": "sha256:3f396a19737763e3a276c29d07a3f7576f972d400eeeb35072edb63e734c3a0d",
           "retainedSourceRowsDigest": "sha256:1389ce2e158af9efa5abefe21e15bc5164802ddc2a4aa28ed70a1999cd8abe35",
           "rowsAfter": 8,
           "rowsBefore": 8,
@@ -365,8 +365,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-filter/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:91ee8478d12cebdea852819414d9b0a217d46d97bdf1c607b948923b0dda00d0",
-          "provenanceDigest": "sha256:ca2eb6fdcc4264e8baf4ea19121432c9b7828056afa20d715878cbe6207cf6f8",
-          "publishedOutputsDigest": "sha256:4550756919f239a5cf80316435cab5d2817706f229b639ab420e3fc275fd95f8",
+          "provenanceDigest": "sha256:c6571424d65118fc85de51779f4873d05d81d708d6e5199089025d6098ccc85d",
+          "publishedOutputsDigest": "sha256:3f396a19737763e3a276c29d07a3f7576f972d400eeeb35072edb63e734c3a0d",
           "retainedSourceRowsDigest": "sha256:1389ce2e158af9efa5abefe21e15bc5164802ddc2a4aa28ed70a1999cd8abe35",
           "rowsAfter": 8,
           "rowsBefore": 8,
@@ -627,8 +627,8 @@
         {
           "classes": [
             {
-              "classId": "sha256:9298c5d194b41d75fb8830b9aa6515114884322cffc67908de1e20b280db1d51",
-              "signature": "sha256:d6aa068bb2a7e2125af4a821de932d89b2e12ac074b1e9143258955efb555fcf",
+              "classId": "sha256:8e2c0c6b8e3b6aa7e698ed9b0501b87c215e79aa35d6feee4fb5f1683afac840",
+              "signature": "sha256:1476fcf48c7192fe41a526d49b9caab2e6aef15400795c05b9c33a2e75418fd8",
               "variants": [
                 "primary-convert",
                 "primary-filter",
@@ -644,31 +644,31 @@
         {
           "classes": [
             {
-              "classId": "sha256:21720be63d8df2cf2695e323e1b3ec82f34e19b93f566e121f82ec736d78574f",
-              "signature": "sha256:48e660a26995d92fe65bdd4976faa4ca681f6fe3e802d5afa74b64e48502ebcf",
-              "variants": [
-                "selected-convert"
-              ]
-            },
-            {
-              "classId": "sha256:0b9c5a755cfc98950f8b83da09664ff3451ef68c7ef7f6a3f0a0577bc86adbcc",
-              "signature": "sha256:dec027bafcee4512a1c712f38c088ee9044dbb40f95ac3e541713f5fbe2a5513",
+              "classId": "sha256:f74f20a1657cd032f0abf45cd8e3753c6f8854640545f9ddd9bb23bbe1cbba23",
+              "signature": "sha256:0ddb411732b6ffed93078100e2694e55be067f3a8ed3bd5a6291376977ee6905",
               "variants": [
                 "selected-filter"
               ]
             },
             {
-              "classId": "sha256:d829b90ee5974aa87649a64ca434b6f8cd7d468e964211b647e6d3856340cee3",
-              "signature": "sha256:e4827d6811b1ec2f40c565e8aa1915ae2aeee01fec25c804b66e978b4a4b3c5f",
+              "classId": "sha256:fcd91c853dd5fab8329cdc1a87174e7ac2c8918fe819c1b2a0c314629d20973f",
+              "signature": "sha256:27a0fdce844bfb16795f3223bfda31cf49ec926f5b84dc4b8e79d50e10f79b26",
               "variants": [
-                "primary-filter"
+                "selected-convert"
               ]
             },
             {
-              "classId": "sha256:eafd93bd1fedc4700dc99779752d62d11ffc93babc34624215492360901c6565",
-              "signature": "sha256:e4bbda804301e9f66f1e6bb4f5229327fb903d70a5b7122f56ec88c82643d427",
+              "classId": "sha256:eb3b9d2322d50e69d5152ffc86198d81bfca65d3c1c189bebd32f4aede36f168",
+              "signature": "sha256:3447c9435ba4da4829f56ea74fc0c043c7ca58f95a44cee537edd1d7f55edeaa",
               "variants": [
                 "primary-convert"
+              ]
+            },
+            {
+              "classId": "sha256:6759e1600a72b9e0e752f5d3aa162f4590b5dfecd8a0e3616b1bf8e96c42cf10",
+              "signature": "sha256:7e7f9c59376f93286181aeb58039455b9c0a55a5327b620b9093ecd743835799",
+              "variants": [
+                "primary-filter"
               ]
             }
           ],
@@ -687,8 +687,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-convert/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:8ceca13041464ef6435b605af5928c1bf59a3f46dc85a1c297d18f91c1d86f6d",
-          "provenanceDigest": "sha256:e4bbda804301e9f66f1e6bb4f5229327fb903d70a5b7122f56ec88c82643d427",
-          "publishedOutputsDigest": "sha256:d6aa068bb2a7e2125af4a821de932d89b2e12ac074b1e9143258955efb555fcf",
+          "provenanceDigest": "sha256:3447c9435ba4da4829f56ea74fc0c043c7ca58f95a44cee537edd1d7f55edeaa",
+          "publishedOutputsDigest": "sha256:1476fcf48c7192fe41a526d49b9caab2e6aef15400795c05b9c33a2e75418fd8",
           "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
           "rowsAfter": 6,
           "rowsBefore": 6,
@@ -703,8 +703,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-filter/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:8ceca13041464ef6435b605af5928c1bf59a3f46dc85a1c297d18f91c1d86f6d",
-          "provenanceDigest": "sha256:e4827d6811b1ec2f40c565e8aa1915ae2aeee01fec25c804b66e978b4a4b3c5f",
-          "publishedOutputsDigest": "sha256:d6aa068bb2a7e2125af4a821de932d89b2e12ac074b1e9143258955efb555fcf",
+          "provenanceDigest": "sha256:7e7f9c59376f93286181aeb58039455b9c0a55a5327b620b9093ecd743835799",
+          "publishedOutputsDigest": "sha256:1476fcf48c7192fe41a526d49b9caab2e6aef15400795c05b9c33a2e75418fd8",
           "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
           "rowsAfter": 6,
           "rowsBefore": 6,
@@ -719,8 +719,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-convert/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:8ceca13041464ef6435b605af5928c1bf59a3f46dc85a1c297d18f91c1d86f6d",
-          "provenanceDigest": "sha256:48e660a26995d92fe65bdd4976faa4ca681f6fe3e802d5afa74b64e48502ebcf",
-          "publishedOutputsDigest": "sha256:d6aa068bb2a7e2125af4a821de932d89b2e12ac074b1e9143258955efb555fcf",
+          "provenanceDigest": "sha256:27a0fdce844bfb16795f3223bfda31cf49ec926f5b84dc4b8e79d50e10f79b26",
+          "publishedOutputsDigest": "sha256:1476fcf48c7192fe41a526d49b9caab2e6aef15400795c05b9c33a2e75418fd8",
           "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
           "rowsAfter": 6,
           "rowsBefore": 6,
@@ -735,8 +735,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-filter/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:8ceca13041464ef6435b605af5928c1bf59a3f46dc85a1c297d18f91c1d86f6d",
-          "provenanceDigest": "sha256:dec027bafcee4512a1c712f38c088ee9044dbb40f95ac3e541713f5fbe2a5513",
-          "publishedOutputsDigest": "sha256:d6aa068bb2a7e2125af4a821de932d89b2e12ac074b1e9143258955efb555fcf",
+          "provenanceDigest": "sha256:0ddb411732b6ffed93078100e2694e55be067f3a8ed3bd5a6291376977ee6905",
+          "publishedOutputsDigest": "sha256:1476fcf48c7192fe41a526d49b9caab2e6aef15400795c05b9c33a2e75418fd8",
           "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
           "rowsAfter": 6,
           "rowsBefore": 6,
@@ -997,8 +997,8 @@
         {
           "classes": [
             {
-              "classId": "sha256:fa0ce75a8d278824ef471c35703b8bfe0857be3031860994f212c23c81e9e105",
-              "signature": "sha256:36474104eb566048a8c0683ee95a8be678ab0ed71706c6ca02698b24d7ad9308",
+              "classId": "sha256:e18af8304f66ed084edc035987a3a2a267d5f02d3f514ba4923b874f052bfd73",
+              "signature": "sha256:88ee063235437fe591e953aae5ae3b67e1b778ec705ea0ecc33470e2939dec1c",
               "variants": [
                 "primary-convert",
                 "primary-filter",
@@ -1014,31 +1014,31 @@
         {
           "classes": [
             {
-              "classId": "sha256:b5e2c94b8e6b23d7cf9459ed2e17a13d062626d88f76a8400e26822fdbb4e8c7",
-              "signature": "sha256:0d3020712b85d01452e53138d7fdaa897af255ec86ffc0419b00ba730d20021d",
+              "classId": "sha256:5b72db33dbd311a3b2fb182dcc7909fc1246f973839f202f7b27955fab38d1f8",
+              "signature": "sha256:17818ac9f5b015bf6ed15000a64e1f9af9d24e6447fa385194ca3761aaaf78d6",
               "variants": [
-                "selected-convert"
+                "primary-filter"
               ]
             },
             {
-              "classId": "sha256:97a471aafd808c6497fae931b25a9de09eb6724703a8151bef7178d6423a1fd1",
-              "signature": "sha256:0fb577d2cc9216eb8d6f9d09180a1539cf44409f1ac0a73d7cf538ae93026ea9",
+              "classId": "sha256:e3c52c05332e423ea5ffea58b00712ff3ab248298f4cb10bbdbbb1dfd7c3b943",
+              "signature": "sha256:55367ffd39538a76eb5dab8699e45f0e6016b52efce57b122aec771078179839",
               "variants": [
                 "primary-convert"
               ]
             },
             {
-              "classId": "sha256:2ce170062166f036d6e63bd45d819480a0f8cb2ff904580ef3f71342066994f2",
-              "signature": "sha256:7f45fedf861859bb3ac31e24794a325e247c54dba1348d63d8e06846c695040a",
+              "classId": "sha256:ecf39cb71d9e23634094da17e67a19f83b04c4d82c5f0eb68a391fc4bd09cbc6",
+              "signature": "sha256:a446b76ce8127bd274ddba9ac38a332247a2fcfac576423cd92d0a582658b65c",
               "variants": [
                 "selected-filter"
               ]
             },
             {
-              "classId": "sha256:491e04e8e84030111cd4837804af642b92bc4bfff423a6af34be83fc6eb036de",
-              "signature": "sha256:bb17b89047bb0adc5e9e3860eec7a4e01b1364c705c57191ba248fb7815e7625",
+              "classId": "sha256:22eba58bbc434224feef58da7eef7cda2fa1017c481611ee5f7e0b22ed824971",
+              "signature": "sha256:c6a02b00e99f81773b1d0abfb52931ad5f3a253295ea041e041f9fd2c0518fdb",
               "variants": [
-                "primary-filter"
+                "selected-convert"
               ]
             }
           ],
@@ -1057,8 +1057,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-convert/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:60aa61d593ccaca129f4559f5dc601feb49f465d741f9d75e176f6ce1201d096",
-          "provenanceDigest": "sha256:0fb577d2cc9216eb8d6f9d09180a1539cf44409f1ac0a73d7cf538ae93026ea9",
-          "publishedOutputsDigest": "sha256:36474104eb566048a8c0683ee95a8be678ab0ed71706c6ca02698b24d7ad9308",
+          "provenanceDigest": "sha256:55367ffd39538a76eb5dab8699e45f0e6016b52efce57b122aec771078179839",
+          "publishedOutputsDigest": "sha256:88ee063235437fe591e953aae5ae3b67e1b778ec705ea0ecc33470e2939dec1c",
           "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
           "rowsAfter": 6,
           "rowsBefore": 6,
@@ -1073,8 +1073,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-filter/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:60aa61d593ccaca129f4559f5dc601feb49f465d741f9d75e176f6ce1201d096",
-          "provenanceDigest": "sha256:bb17b89047bb0adc5e9e3860eec7a4e01b1364c705c57191ba248fb7815e7625",
-          "publishedOutputsDigest": "sha256:36474104eb566048a8c0683ee95a8be678ab0ed71706c6ca02698b24d7ad9308",
+          "provenanceDigest": "sha256:17818ac9f5b015bf6ed15000a64e1f9af9d24e6447fa385194ca3761aaaf78d6",
+          "publishedOutputsDigest": "sha256:88ee063235437fe591e953aae5ae3b67e1b778ec705ea0ecc33470e2939dec1c",
           "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
           "rowsAfter": 6,
           "rowsBefore": 6,
@@ -1089,8 +1089,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-convert/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:60aa61d593ccaca129f4559f5dc601feb49f465d741f9d75e176f6ce1201d096",
-          "provenanceDigest": "sha256:0d3020712b85d01452e53138d7fdaa897af255ec86ffc0419b00ba730d20021d",
-          "publishedOutputsDigest": "sha256:36474104eb566048a8c0683ee95a8be678ab0ed71706c6ca02698b24d7ad9308",
+          "provenanceDigest": "sha256:c6a02b00e99f81773b1d0abfb52931ad5f3a253295ea041e041f9fd2c0518fdb",
+          "publishedOutputsDigest": "sha256:88ee063235437fe591e953aae5ae3b67e1b778ec705ea0ecc33470e2939dec1c",
           "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
           "rowsAfter": 6,
           "rowsBefore": 6,
@@ -1105,8 +1105,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-filter/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:60aa61d593ccaca129f4559f5dc601feb49f465d741f9d75e176f6ce1201d096",
-          "provenanceDigest": "sha256:7f45fedf861859bb3ac31e24794a325e247c54dba1348d63d8e06846c695040a",
-          "publishedOutputsDigest": "sha256:36474104eb566048a8c0683ee95a8be678ab0ed71706c6ca02698b24d7ad9308",
+          "provenanceDigest": "sha256:a446b76ce8127bd274ddba9ac38a332247a2fcfac576423cd92d0a582658b65c",
+          "publishedOutputsDigest": "sha256:88ee063235437fe591e953aae5ae3b67e1b778ec705ea0ecc33470e2939dec1c",
           "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
           "rowsAfter": 6,
           "rowsBefore": 6,
@@ -1367,8 +1367,8 @@
         {
           "classes": [
             {
-              "classId": "sha256:3ee21e1bb33cd46816086975e2bbcdeb40347b3bdac11246c2eeb21c396840ba",
-              "signature": "sha256:6b20e57fd90bff453b6b4a24df84ad34d0412c222e15d68f38298dd783e46cfe",
+              "classId": "sha256:b74256ccd53cd80a26c079bbeafc3da808e7bfa2740fb64e3cfc0628d80bd734",
+              "signature": "sha256:a164ddd8282ed2e80f449da9cd850d6e96eaf5f5181442f4ebe62aac39a3a2e0",
               "variants": [
                 "primary-convert",
                 "primary-filter",
@@ -1384,29 +1384,29 @@
         {
           "classes": [
             {
-              "classId": "sha256:9df5fb951fea9abc7855c086d5da28a359d6e57d172c0506847ae2e5c314ba57",
-              "signature": "sha256:27ca914cf682a84eb4192ae4bb003f50849b4a170cf660f717612ee07afc926e",
+              "classId": "sha256:1b74515cbdf4e6a806dac5ebbb73b14fa8e618b4739c11f2f80b1f01fdc21c99",
+              "signature": "sha256:5168a7136c2b80d7edea6609f9176ffb24a30c151369ff150c92d23ab637ea95",
               "variants": [
                 "primary-convert"
               ]
             },
             {
-              "classId": "sha256:b07bc75bc67fc55b45e72e1db856b0292df27abcdf722db630f052e9ca97c73e",
-              "signature": "sha256:5edfc30b5ec76effa999b78da8cfe4be616b7b6d1e1f9a0f97013844aeb0c3d1",
+              "classId": "sha256:96b8500a3752aaef8d5ed975333b4b258c557787c9723a78b22f99149ffc3a44",
+              "signature": "sha256:96aa38296a82b9258be854ce3a1eee834dbaeb79b6f3936bead270ddc98a3472",
               "variants": [
                 "selected-convert"
               ]
             },
             {
-              "classId": "sha256:487466063b40371e67380502f4ff1ffb2d69c566d81156c0421571631ae9a00b",
-              "signature": "sha256:ad66966e1cd866c8879eed5af3e7417ae6e2e62a8005ed8b3027313001027da5",
+              "classId": "sha256:5c55754f345071cd9a6e8aa92720068099236f0dd71f35ddfa7f4b3d41ac4c8f",
+              "signature": "sha256:e5eafd62450e5756dc2939055b778ab4c66177125bb57034830d879af6534684",
               "variants": [
                 "primary-filter"
               ]
             },
             {
-              "classId": "sha256:b4b3aa12e9de795e6f2516c873db5d65096e85b55f49f40cd7e244594f294b1e",
-              "signature": "sha256:ebc24c97f262079e93d3a796dfeaee5336b4cea5efeaa42139d185a723e9d8ca",
+              "classId": "sha256:6dead2626ab517dbf5e739e05d8d4cc7cbf705147dce78e649ac2eba5cb9ad1f",
+              "signature": "sha256:f3a32c24ee2196bf2681977580509e5063210c5085a7f4888a8560d0ad1555af",
               "variants": [
                 "selected-filter"
               ]
@@ -1427,8 +1427,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-convert/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:b235a13f7ad7274a276b02fd1d65b0173c66ab8e8e20605039c1a3eb8d7e44f1",
-          "provenanceDigest": "sha256:27ca914cf682a84eb4192ae4bb003f50849b4a170cf660f717612ee07afc926e",
-          "publishedOutputsDigest": "sha256:6b20e57fd90bff453b6b4a24df84ad34d0412c222e15d68f38298dd783e46cfe",
+          "provenanceDigest": "sha256:5168a7136c2b80d7edea6609f9176ffb24a30c151369ff150c92d23ab637ea95",
+          "publishedOutputsDigest": "sha256:a164ddd8282ed2e80f449da9cd850d6e96eaf5f5181442f4ebe62aac39a3a2e0",
           "retainedSourceRowsDigest": "sha256:5fc979e0bb744ba2a70ed4f19e017bfe2f98a73db730912511c85ddefa1152a5",
           "rowsAfter": 10,
           "rowsBefore": 10,
@@ -1443,8 +1443,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-filter/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:b235a13f7ad7274a276b02fd1d65b0173c66ab8e8e20605039c1a3eb8d7e44f1",
-          "provenanceDigest": "sha256:ad66966e1cd866c8879eed5af3e7417ae6e2e62a8005ed8b3027313001027da5",
-          "publishedOutputsDigest": "sha256:6b20e57fd90bff453b6b4a24df84ad34d0412c222e15d68f38298dd783e46cfe",
+          "provenanceDigest": "sha256:e5eafd62450e5756dc2939055b778ab4c66177125bb57034830d879af6534684",
+          "publishedOutputsDigest": "sha256:a164ddd8282ed2e80f449da9cd850d6e96eaf5f5181442f4ebe62aac39a3a2e0",
           "retainedSourceRowsDigest": "sha256:5fc979e0bb744ba2a70ed4f19e017bfe2f98a73db730912511c85ddefa1152a5",
           "rowsAfter": 10,
           "rowsBefore": 10,
@@ -1459,8 +1459,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-convert/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:b235a13f7ad7274a276b02fd1d65b0173c66ab8e8e20605039c1a3eb8d7e44f1",
-          "provenanceDigest": "sha256:5edfc30b5ec76effa999b78da8cfe4be616b7b6d1e1f9a0f97013844aeb0c3d1",
-          "publishedOutputsDigest": "sha256:6b20e57fd90bff453b6b4a24df84ad34d0412c222e15d68f38298dd783e46cfe",
+          "provenanceDigest": "sha256:96aa38296a82b9258be854ce3a1eee834dbaeb79b6f3936bead270ddc98a3472",
+          "publishedOutputsDigest": "sha256:a164ddd8282ed2e80f449da9cd850d6e96eaf5f5181442f4ebe62aac39a3a2e0",
           "retainedSourceRowsDigest": "sha256:5fc979e0bb744ba2a70ed4f19e017bfe2f98a73db730912511c85ddefa1152a5",
           "rowsAfter": 10,
           "rowsBefore": 10,
@@ -1475,8 +1475,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-filter/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:b235a13f7ad7274a276b02fd1d65b0173c66ab8e8e20605039c1a3eb8d7e44f1",
-          "provenanceDigest": "sha256:ebc24c97f262079e93d3a796dfeaee5336b4cea5efeaa42139d185a723e9d8ca",
-          "publishedOutputsDigest": "sha256:6b20e57fd90bff453b6b4a24df84ad34d0412c222e15d68f38298dd783e46cfe",
+          "provenanceDigest": "sha256:f3a32c24ee2196bf2681977580509e5063210c5085a7f4888a8560d0ad1555af",
+          "publishedOutputsDigest": "sha256:a164ddd8282ed2e80f449da9cd850d6e96eaf5f5181442f4ebe62aac39a3a2e0",
           "retainedSourceRowsDigest": "sha256:5fc979e0bb744ba2a70ed4f19e017bfe2f98a73db730912511c85ddefa1152a5",
           "rowsAfter": 10,
           "rowsBefore": 10,
@@ -1737,8 +1737,8 @@
         {
           "classes": [
             {
-              "classId": "sha256:2f529fd6c4eff3679f962b1069f3e0b7d59e5e09a4d16b10e703493e05ec680e",
-              "signature": "sha256:f76344605d1355270ed9f45b963b7402a2275834f07f4f3ff716027f6df6db49",
+              "classId": "sha256:210d6c6e109661a488d7270f32e07c651e18b869f689ba6341ce54c664278b5f",
+              "signature": "sha256:2e8bf0d8c0fc6438ef81d132dd62a362dbc233fc2f8e08c0f2f1e8999a5b9cda",
               "variants": [
                 "primary-convert",
                 "primary-filter",
@@ -1754,31 +1754,31 @@
         {
           "classes": [
             {
-              "classId": "sha256:17b05328804efea62671c489185a7e04db9de58ce15e3c586544ad1207127382",
-              "signature": "sha256:207e4561fbc859f1bb21af5ae4e1de0c847b833b021dfe0d2f3159e8e26be6cf",
-              "variants": [
-                "selected-filter"
-              ]
-            },
-            {
-              "classId": "sha256:074e67df4ed8c8e51674a4a0afd818e67fe2fcd77169d7541a83b59ae56ba374",
-              "signature": "sha256:338b9f5fed948915b599447141d2fdf5b3f130f1b82ec69a0d84c373529f0bf0",
+              "classId": "sha256:e7f2114733749095a9cf52ac4366f48b20da790e855c41d6f6005df8d27a167f",
+              "signature": "sha256:357a0f501f8e41a99cc8014668b96764106d5782e46808b0a2bbe482e2a7e5f1",
               "variants": [
                 "selected-convert"
               ]
             },
             {
-              "classId": "sha256:ea698ca2230ee6e167a2bfde47214f291341530ff182a386a076023ba740e601",
-              "signature": "sha256:819270baa87173ca7a08ddc023d6d42de599851b69c16c14a588bdeb6099aabd",
+              "classId": "sha256:bc3f83da795e93fed9828b1d1ad23a4e2b048c620224703474f53255e6d5bdb7",
+              "signature": "sha256:73364a3e6025a868e9023a54d1dbab763ce928f7c89f06b5bfe119065737e1c8",
               "variants": [
-                "primary-filter"
+                "selected-filter"
               ]
             },
             {
-              "classId": "sha256:fe2805f69c3cfec88f65d03397eaec5ff5ffe90d3c42326038c7833dee5262bb",
-              "signature": "sha256:cc0cecc5c6cbb8bacc22a8a51dd06565e3c577e1bc19936ffa8b1e7b66c6fe73",
+              "classId": "sha256:57150cd0273cae12c1a769a6b584cdcf2cfb899f0e460d70fb69a1f70504cca4",
+              "signature": "sha256:955953fb394427722b87922b55da470e086a53d69288a16497669b6deabfb263",
               "variants": [
                 "primary-convert"
+              ]
+            },
+            {
+              "classId": "sha256:95ecfab180e4491524ca3518e21e58a8a7c286b218c2f04e64965f22f35a9d7b",
+              "signature": "sha256:e98097d7d69545c03bf87c109cbbeff1d3a27e41c0a90dfac101a7625d083c4f",
+              "variants": [
+                "primary-filter"
               ]
             }
           ],
@@ -1797,8 +1797,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-convert/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:30e9e747b43dccd60a92fce1cd17b943275a0ac452183845b5ff1204791243cb",
-          "provenanceDigest": "sha256:cc0cecc5c6cbb8bacc22a8a51dd06565e3c577e1bc19936ffa8b1e7b66c6fe73",
-          "publishedOutputsDigest": "sha256:f76344605d1355270ed9f45b963b7402a2275834f07f4f3ff716027f6df6db49",
+          "provenanceDigest": "sha256:955953fb394427722b87922b55da470e086a53d69288a16497669b6deabfb263",
+          "publishedOutputsDigest": "sha256:2e8bf0d8c0fc6438ef81d132dd62a362dbc233fc2f8e08c0f2f1e8999a5b9cda",
           "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
           "rowsAfter": 6,
           "rowsBefore": 6,
@@ -1813,8 +1813,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/primary-filter/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:30e9e747b43dccd60a92fce1cd17b943275a0ac452183845b5ff1204791243cb",
-          "provenanceDigest": "sha256:819270baa87173ca7a08ddc023d6d42de599851b69c16c14a588bdeb6099aabd",
-          "publishedOutputsDigest": "sha256:f76344605d1355270ed9f45b963b7402a2275834f07f4f3ff716027f6df6db49",
+          "provenanceDigest": "sha256:e98097d7d69545c03bf87c109cbbeff1d3a27e41c0a90dfac101a7625d083c4f",
+          "publishedOutputsDigest": "sha256:2e8bf0d8c0fc6438ef81d132dd62a362dbc233fc2f8e08c0f2f1e8999a5b9cda",
           "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
           "rowsAfter": 6,
           "rowsBefore": 6,
@@ -1829,8 +1829,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-convert/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:30e9e747b43dccd60a92fce1cd17b943275a0ac452183845b5ff1204791243cb",
-          "provenanceDigest": "sha256:338b9f5fed948915b599447141d2fdf5b3f130f1b82ec69a0d84c373529f0bf0",
-          "publishedOutputsDigest": "sha256:f76344605d1355270ed9f45b963b7402a2275834f07f4f3ff716027f6df6db49",
+          "provenanceDigest": "sha256:357a0f501f8e41a99cc8014668b96764106d5782e46808b0a2bbe482e2a7e5f1",
+          "publishedOutputsDigest": "sha256:2e8bf0d8c0fc6438ef81d132dd62a362dbc233fc2f8e08c0f2f1e8999a5b9cda",
           "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
           "rowsAfter": 6,
           "rowsBefore": 6,
@@ -1845,8 +1845,8 @@
           "declaredMethodId": "urn:uzaira0:chronicle-preprocessing:timezone-policy/selected-filter/v1",
           "effectiveTarget": "America/Chicago",
           "normalizedEventsDigest": "sha256:30e9e747b43dccd60a92fce1cd17b943275a0ac452183845b5ff1204791243cb",
-          "provenanceDigest": "sha256:207e4561fbc859f1bb21af5ae4e1de0c847b833b021dfe0d2f3159e8e26be6cf",
-          "publishedOutputsDigest": "sha256:f76344605d1355270ed9f45b963b7402a2275834f07f4f3ff716027f6df6db49",
+          "provenanceDigest": "sha256:73364a3e6025a868e9023a54d1dbab763ce928f7c89f06b5bfe119065737e1c8",
+          "publishedOutputsDigest": "sha256:2e8bf0d8c0fc6438ef81d132dd62a362dbc233fc2f8e08c0f2f1e8999a5b9cda",
           "retainedSourceRowsDigest": "sha256:f485dd4a7013eb2b6701ccde3b278017487aaed548831b7f8667ff72bdb5ede8",
           "rowsAfter": 6,
           "rowsBefore": 6,

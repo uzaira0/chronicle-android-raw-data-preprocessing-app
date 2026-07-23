@@ -126,6 +126,14 @@ const kernel = {
   default: () => Promise.resolve(),
   runtime_version: vi.fn(() => "test-runtime"),
   implementation_build_digest: vi.fn(() => `sha256:${"0".repeat(64)}`),
+  build_environment_digest: vi.fn(() => `sha256:${"f".repeat(64)}`),
+  pipeline_step_contract_json: vi.fn(() =>
+    JSON.stringify({
+      protocolVersion: "chronicle-preprocessing-step-contract/v1",
+      groups: [],
+      steps: [],
+    }),
+  ),
   plan_stage_view_json: vi.fn(() =>
     JSON.stringify({
       protocol_version: "0.1",
@@ -143,6 +151,8 @@ const kernel = {
     free() {}
   },
   discover_timezones_v2: () => ["UTC"],
+  inspect_raw_file_v1: () =>
+    JSON.stringify({ fileName: "raw.csv", warnings: [], columns: [], timezones: [] }),
   execute_workspace: vi.fn(),
   execute_bounded_v2_shadow: vi.fn(),
   verify_evidence_journal_cbor: vi.fn(() => 1),
@@ -205,12 +215,21 @@ beforeEach(() => {
 describe("persisted Rust workspace boundary", () => {
   it("separates same-named inputs when their raw bytes differ", async () => {
     const first = await runtimeWorkspaceId("Raw.csv", enc.encode("first"));
+    const preverified = await runtimeWorkspaceId(
+      "Raw.csv",
+      enc.encode("first"),
+      "a7937b64b8caa58f03721bb6bacf5c78cb235febe0e70b1b84cd99541461a08e",
+    );
     const second = await runtimeWorkspaceId("Raw.csv", enc.encode("second"));
     const renamed = await runtimeWorkspaceId("Renamed.csv", enc.encode("first"));
 
     expect(first).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(preverified).toBe(first);
     expect(second).not.toBe(first);
     expect(renamed).not.toBe(first);
+    await expect(
+      runtimeWorkspaceId("Raw.csv", enc.encode("first"), "not-a-digest"),
+    ).rejects.toThrow("64 lowercase hexadecimal");
   });
 
   it("verifies, exports, reads, collects, and imports a complete closure", async () => {

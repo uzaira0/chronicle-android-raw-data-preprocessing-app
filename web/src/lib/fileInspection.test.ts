@@ -1,7 +1,29 @@
-import { describe, expect, it } from "vitest";
+import { readFile } from "node:fs/promises";
+import { beforeAll, describe, expect, it } from "vitest";
 
-import { effectiveWarnings, inspectRawFile, inspectRawFiles } from "@/lib/fileInspection";
+import {
+  effectiveWarnings,
+  inspectRawFile,
+  inspectRawFiles,
+  setRawFileInspectorForTesting,
+} from "@/lib/fileInspection";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
+import { inspectRustRawFile, setRustRuntimeForTesting } from "@/lib/rustPipelineRuntime";
+import * as runtimeWasm from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
+
+beforeAll(async () => {
+  const runtimeBytes = await readFile(
+    new URL(
+      "../wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm",
+      import.meta.url,
+    ),
+  );
+  runtimeWasm.initSync({ module: runtimeBytes });
+  setRustRuntimeForTesting(runtimeWasm);
+  setRawFileInspectorForTesting((fileName, sizeBytes, csvBytes) =>
+    inspectRustRawFile(new Uint8Array(csvBytes), fileName, sizeBytes),
+  );
+});
 
 function fileFromText(name: string, text: string): File {
   return new File([text], name, { type: "text/csv" });

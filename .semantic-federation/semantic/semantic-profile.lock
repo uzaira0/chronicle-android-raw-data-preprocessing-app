@@ -2,12 +2,12 @@
   "protocol_version": "0.1",
   "root_profile": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
   "root_version": "0.1.0",
-  "root_manifest_digest": "sha256:b2899800f08de7ed93000422947cd8d0b3b5443150e6b47a019f8d038ceaaf93",
+  "root_manifest_digest": "sha256:ad3a1e58f4a69a2f81c412391f5736bf1c2f73216a5cd9742bc319bb07b01435",
   "entries": [
     {
       "profile_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
       "version": "0.1.0",
-      "manifest_digest": "sha256:b2899800f08de7ed93000422947cd8d0b3b5443150e6b47a019f8d038ceaaf93",
+      "manifest_digest": "sha256:ad3a1e58f4a69a2f81c412391f5736bf1c2f73216a5cd9742bc319bb07b01435",
       "resources": [
         {
           "path": "resources/identity-contract.json",
@@ -17,7 +17,7 @@
         },
         {
           "path": "capability-bindings.json",
-          "digest": "sha256:212a0e43086b1deebb23702cb9d705cef53319dc500565337b38779b15794fb1",
+          "digest": "sha256:7ce7fbedcf9aeb00a5e6f6387f87b393dd30b5d37f33cad5d408973ac48d8b44",
           "media_type": "application/json",
           "role": "binding-source"
         },
@@ -29,13 +29,13 @@
         },
         {
           "path": "resources/chronicle.plan.json",
-          "digest": "sha256:162cd4087b0287169a54ee55dc224300e4a6c7ba4009ff82f8828b348d562c45",
+          "digest": "sha256:3b1db580ca483d5f7f198a82fcc8166e9ad180eaea587db1ae950a5fa06649a6",
           "media_type": "application/json",
           "role": "binding-source"
         },
         {
           "path": "resources/runtime-authority.json",
-          "digest": "sha256:5dc8b00548744573c2a39644ff840697f2d7874d53ae8553de217e5ffec7bbcd",
+          "digest": "sha256:11142579a05120fce9a1fe8e0edfffdcae385b34a10080d878e8d82b73cc8627",
           "media_type": "application/json",
           "role": "binding-source"
         },
@@ -72,5 +72,5 @@
       ]
     }
   ],
-  "closure_digest": "sha256:773f29d4def329a27a619c257bf817b8995560c0733c68ef60025728e3148f0d"
+  "closure_digest": "sha256:38fc87efdcb2c242eeaa14fcf291c2d435d22d99660bfc56553b8966a7c71a1e"
 }

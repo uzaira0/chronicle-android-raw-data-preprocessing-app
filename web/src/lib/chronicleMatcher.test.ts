@@ -2,11 +2,14 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 import type * as Comlink from "comlink";
 import {
   discoverTimezones,
+  discoverTimezonesBytes,
   exportVerifiedWorkspaceClosure,
   getMatcherVersion,
   getPlanStageView,
   importVerifiedWorkspaceClosure,
+  inspectRawCsvBytes,
   processRawCsv,
+  processRawCsvBytes,
   processRawCsvBytesViaPool,
   processRawCsvIsolated,
   processRawCsvViaPool,
@@ -352,6 +355,27 @@ describe("shared worker fault handling (fake Worker global)", () => {
     const view = getPlanStageView({} as Parameters<typeof getPlanStageView>[0]);
     lastWorker().fire("error", { message: "view failed" });
     await expect(view).rejects.toThrow("view failed");
+  });
+
+  it("routes byte-native discovery, inspection, and processing through the shared worker", async () => {
+    const discovery = discoverTimezonesBytes(new Uint8Array([1]).buffer);
+    lastWorker().fire("error", { message: "byte discovery failed" });
+    await expect(discovery).rejects.toThrow("byte discovery failed");
+
+    const inspection = inspectRawCsvBytes(
+      "raw.csv",
+      2,
+      new Uint8Array([1, 2]).buffer,
+    );
+    lastWorker().fire("error", { message: "byte inspection failed" });
+    await expect(inspection).rejects.toThrow("byte inspection failed");
+
+    const processing = processRawCsvBytes(
+      "raw.csv",
+      new Uint8Array([1, 2, 3]).buffer,
+    );
+    lastWorker().fire("error", { message: "byte processing failed" });
+    await expect(processing).rejects.toThrow("byte processing failed");
   });
 
   it("processRawCsvIsolated tears its private one-shot pool down on fault", async () => {

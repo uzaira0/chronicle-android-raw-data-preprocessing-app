@@ -25,6 +25,7 @@ console_error_panic_hook = "0.1"
 # RUSTSEC-2026-0194/0195. Pin the upstream post-fix commit until the next
 # crates.io release; the immutable revision already uses quick-xml 0.41.
 oxigraph = { git = "https://github.com/oxigraph/oxigraph.git", rev = "d14ac0b5c4fa67b15d03af945d8669e3497c25a9", default-features = false, features = ["js"] }
+oxttl = { git = "https://github.com/oxigraph/oxigraph.git", rev = "d14ac0b5c4fa67b15d03af945d8669e3497c25a9", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 wasm-bindgen = "0.2"

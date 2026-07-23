@@ -102,6 +102,10 @@ fn main() {
         "rust/chronicle_app_usage_matcher/Cargo.toml",
         "rust/chronicle_app_usage_matcher/Cargo.lock",
         "rust/chronicle_app_usage_matcher/src",
+        "rust/chronicle_semantic_index_wasm/Cargo.toml",
+        "rust/chronicle_semantic_index_wasm/Cargo.lock",
+        "rust/chronicle_semantic_index_wasm/build.rs",
+        "rust/chronicle_semantic_index_wasm/src",
         "web/scripts/build_wasm.mjs",
     ] {
         let relative = Path::new(relative);
@@ -112,14 +116,26 @@ fn main() {
     files.sort();
     files.dedup();
 
-    let mut hasher = Sha256::new();
-    digest_field(&mut hasher, b"chronicle-implementation-build/v1");
+    let mut implementation_hasher = Sha256::new();
+    digest_field(
+        &mut implementation_hasher,
+        b"chronicle-implementation-source/v2",
+    );
     for relative in files {
         let path = repository_root.join(&relative);
         println!("cargo:rerun-if-changed={}", path.display());
-        digest_field(&mut hasher, relative.to_string_lossy().as_bytes());
-        digest_field(&mut hasher, &production_source(&path));
+        digest_field(
+            &mut implementation_hasher,
+            relative.to_string_lossy().as_bytes(),
+        );
+        digest_field(&mut implementation_hasher, &production_source(&path));
     }
+    let implementation_digest = format!("sha256:{}", hex::encode(implementation_hasher.finalize()));
+    println!("cargo:rustc-env=CHRONICLE_IMPLEMENTATION_BUILD_DIGEST={implementation_digest}");
+
+    let mut environment_hasher = Sha256::new();
+    digest_field(&mut environment_hasher, b"chronicle-build-environment/v1");
+    digest_field(&mut environment_hasher, implementation_digest.as_bytes());
     for key in [
         "TARGET",
         "PROFILE",
@@ -130,9 +146,9 @@ fn main() {
         "RUSTFLAGS",
     ] {
         println!("cargo:rerun-if-env-changed={key}");
-        digest_field(&mut hasher, key.as_bytes());
+        digest_field(&mut environment_hasher, key.as_bytes());
         digest_field(
-            &mut hasher,
+            &mut environment_hasher,
             std::env::var(key).unwrap_or_default().as_bytes(),
         );
     }
@@ -142,7 +158,7 @@ fn main() {
         .output()
         .expect("run rustc -vV for implementation identity");
     assert!(rustc_version.status.success(), "rustc -vV failed");
-    digest_field(&mut hasher, &rustc_version.stdout);
-    let digest = format!("sha256:{}", hex::encode(hasher.finalize()));
-    println!("cargo:rustc-env=CHRONICLE_IMPLEMENTATION_BUILD_DIGEST={digest}");
+    digest_field(&mut environment_hasher, &rustc_version.stdout);
+    let environment_digest = format!("sha256:{}", hex::encode(environment_hasher.finalize()));
+    println!("cargo:rustc-env=CHRONICLE_BUILD_ENVIRONMENT_DIGEST={environment_digest}");
 }

@@ -29,9 +29,17 @@
 - OPFS stores the verified content-addressed closure through a thin browser I/O
   adapter. Rust owns artifact bytes, digests, root/closure semantics, evidence,
   typed views, and registered-query index sources.
-- `quality/rust-authority-manifests.txt` names the three product-owned Rust
-  authorities. The only mutation exclusion is the adapter's `cfg(wasm)` facade;
-  the native delegate, WASM build, and browser export path remain mandatory.
+- `quality/rust-authority-manifests.txt` names every product-owned Rust
+  authority. Its exclusions are limited to the adapter's target-incompatible
+  `cfg(wasm)` facade and two exactly matched equivalent runtime mutants whose
+  cache/assignment invariants are independently tested. Four exact
+  loop-counter mutants detected only by nontermination are excluded so a
+  timeout cannot make the release gate permanently red; their terminating
+  decrement forms remain scored and caught. The contract-export CLI is covered
+  by drift/gate-truth checks, and the matcher's optional Python-only facade is
+  excluded from browser-product mutation scoring while its Rust core remains
+  included. The native delegate, WASM build, and browser export path remain
+  mandatory.
 - `quality/deny.toml` denies unknown registries and Git sources, allowlists the
   two immutable Git dependencies, audits the complete license closure, and
   grants only the documented `RUSTSEC-2024-0436` exception for `paste` through

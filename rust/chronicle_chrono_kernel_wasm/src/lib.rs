@@ -18,6 +18,7 @@ use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
 pub mod pipeline_v2;
+pub mod step_contract;
 pub use pipeline_v2::process_full_pipeline_v2;
 
 fn ser_with_bigint<T: Serialize>(value: &T) -> Result<JsValue, JsValue> {
@@ -129,7 +130,7 @@ pub struct ParsedColumns {
 
 /// Maps raw Chronicle Android interaction codes → canonical Chronicle types.
 /// Mirrors `ALL_INTERACTION_TYPES_MAP` in browserPipeline.ts.
-pub(crate) fn normalize_interaction_type(s: &str) -> &str {
+pub fn normalize_interaction_type(s: &str) -> &str {
     match s {
         "Instance of Usage for an App" => "App Usage",
         "Screen Usage" => "Screen Usage",
@@ -172,6 +173,58 @@ pub(crate) fn normalize_interaction_type(s: &str) -> &str {
     }
 }
 
+/// True when the raw value is either a supported Android event spelling or
+/// one of the canonical values produced by [`normalize_interaction_type`].
+/// Keeping this beside the authoritative mapping prevents browser inspection
+/// from drifting from preprocessing behavior.
+pub fn is_recognized_interaction_type(s: &str) -> bool {
+    normalize_interaction_type(s) != s
+        || matches!(
+            s,
+            "App Usage"
+                | "Screen Usage"
+                | "Filtered App Resumed"
+                | "Filtered App Paused"
+                | "Filtered App Usage"
+                | "End of Usage Missing"
+                | "Activity Resumed"
+                | "Activity Paused"
+                | "End of Day"
+                | "Continue Previous Day"
+                | "Configuration Change"
+                | "System Interaction"
+                | "User Interaction"
+                | "Shortcut Invocation"
+                | "Chooser Action"
+                | "Notification Seen"
+                | "Standby Bucket Changed"
+                | "Notification Interruption"
+                | "Slice Pinned Priv"
+                | "Slice Pinned App"
+                | "Screen Interactive"
+                | "Screen Non-Interactive"
+                | "Keyguard Shown"
+                | "Keyguard Hidden"
+                | "Foreground Service Start"
+                | "Foreground Service Stop"
+                | "Continuing Foreground Service"
+                | "Rollover Foreground Service"
+                | "Activity Stopped"
+                | "Activity Destroyed"
+                | "Flush to Disk"
+                | "Device Shutdown"
+                | "Device Startup"
+                | "User Unlocked"
+                | "User Stopped"
+                | "Locus ID Set"
+                | "App Component Used"
+        )
+}
+
+pub fn is_valid_chronicle_timezone(s: &str) -> bool {
+    s.parse::<Tz>().is_ok()
+}
+
 pub(crate) const REQUIRED_COLUMNS: &[&str] = &[
     "event_timestamp",
     "timezone",
@@ -183,7 +236,7 @@ pub(crate) const REQUIRED_COLUMNS: &[&str] = &[
     "username",
 ];
 
-pub(crate) fn parse_chronicle_timestamp_ns(text: &str) -> Option<i64> {
+pub fn parse_chronicle_timestamp_ns(text: &str) -> Option<i64> {
     if text.is_empty() {
         return None;
     }
@@ -1093,4 +1146,29 @@ pub fn dedupe_event_rows(
     }
     serde_wasm_bindgen::to_value(&DedupeResult { keep_indices: keep })
         .map_err(|e| JsValue::from_str(&format!("ser: {e}")))
+}
+
+#[cfg(test)]
+mod timestamp_tests {
+    use super::*;
+
+    #[test]
+    fn format_one_returns_every_exact_local_calendar_component() {
+        let timestamp = chrono::Utc
+            .with_ymd_and_hms(2024, 7, 4, 17, 34, 56)
+            .single()
+            .unwrap()
+            .timestamp_nanos_opt()
+            .unwrap();
+        assert_eq!(
+            format_one(timestamp, chrono_tz::America::Chicago),
+            (
+                "2024-07-04 12:34:56-05:00".into(),
+                "2024-07-04".into(),
+                12,
+                5,
+                3,
+            )
+        );
+    }
 }

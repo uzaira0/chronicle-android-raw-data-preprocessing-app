@@ -1,6 +1,7 @@
+import { readFile } from "node:fs/promises";
 import fc from "fast-check";
 import Papa from "papaparse";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import {
   clearPipelineEngines,
@@ -8,7 +9,9 @@ import {
   discoverTimezonesFromRawCsv,
   processRawCsvContent,
 } from "@/lib/browserPipeline";
-import { inspectRawFile } from "@/lib/fileInspection";
+import { inspectRawFile, setRawFileInspectorForTesting } from "@/lib/fileInspection";
+import { inspectRustRawFile, setRustRuntimeForTesting } from "@/lib/rustPipelineRuntime";
+import * as runtimeWasm from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
 import type {
   BrowserProcessingOptions,
   MatcherInput,
@@ -16,6 +19,20 @@ import type {
   SplitterInput,
   SplitterOutput,
 } from "@/lib/types";
+
+beforeAll(async () => {
+  const runtimeBytes = await readFile(
+    new URL(
+      "../wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm",
+      import.meta.url,
+    ),
+  );
+  runtimeWasm.initSync({ module: runtimeBytes });
+  setRustRuntimeForTesting(runtimeWasm);
+  setRawFileInspectorForTesting((fileName, sizeBytes, csvBytes) =>
+    inspectRustRawFile(new Uint8Array(csvBytes), fileName, sizeBytes),
+  );
+});
 
 /**
  * Fuzzes the raw-CSV input boundary of the browser pipeline

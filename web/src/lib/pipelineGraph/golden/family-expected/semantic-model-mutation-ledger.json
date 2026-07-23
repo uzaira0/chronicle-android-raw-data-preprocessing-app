@@ -7,17 +7,17 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:d6081f896e488d92bf202fcea98a92c3bc86e13f493f33aca29ced86333db997",
-    "planDigest": "sha256:162cd4087b0287169a54ee55dc224300e4a6c7ba4009ff82f8828b348d562c45",
-    "profileDigest": "sha256:b2899800f08de7ed93000422947cd8d0b3b5443150e6b47a019f8d038ceaaf93",
-    "profileLockDigest": "sha256:47240c9a44c328437384c8be9531e90f8d5e60696ed6a0db55f79bf313b78990",
+    "implementationDigest": "sha256:6d2686a698d2edd8d4372c9cf067ff0a3405fe3abe3f0a965f56bb803338e1e6",
+    "planDigest": "sha256:3b1db580ca483d5f7f198a82fcc8166e9ad180eaea587db1ae950a5fa06649a6",
+    "profileDigest": "sha256:ad3a1e58f4a69a2f81c412391f5736bf1c2f73216a5cd9742bc319bb07b01435",
+    "profileLockDigest": "sha256:aa51a18ee2104560bf6f239de05f7dfccec3aec6f4940123e305519c3bb81521",
     "runtimeAuthorityDigest": "sha256:11142579a05120fce9a1fe8e0edfffdcae385b34a10080d878e8d82b73cc8627",
-    "productContractDigest": "sha256:5ac0241fc2c80af23f5a580ff25679db9ce3d2e3a5fae8043ed0826d865105f7"
+    "productContractDigest": "sha256:00c1f57a6e487e1136f2a431a786cbf4bbb5f109da31f97993ed0dd6d0a1a8ba"
   },
   "sourceLedgers": {
-    "configurationCaseSetDigest": "sha256:ae24d7ed06c9e962fa8fe7e33eba41a2c3b2d34d97bf7cf364b445708bed3d14",
-    "artifactCaseSetDigest": "sha256:325e675dd6a74f542820bafd0131e124f3b398489688a145912bbafdecf04284",
-    "rawBoundaryCaseSetDigest": "sha256:dfd450eeadfb2443ee938db57f1e1ea6333ccf331b333cb16e4ccde6f959de64"
+    "configurationCaseSetDigest": "sha256:839446e86a94f1adaa1a2b4a4ac907289c0527a3829985101ea5c55fbe2d3fbb",
+    "artifactCaseSetDigest": "sha256:cbbfb585a220b1e498ec5563638a1f6cb1c1a686b48840130cba16abe67f3e41",
+    "rawBoundaryCaseSetDigest": "sha256:f8caad78b33828f984eefda7ec9fb90cdbecd1f979e94597635738bd83c69bc1"
   },
   "observationCount": 1734,
   "counts": {
@@ -180,24 +180,6 @@
       "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
     },
     {
-      "mutantId": "remove-edge:interval_cleaning->effective_usage",
-      "mutantClass": "remove-edge",
-      "sourceId": "interval_cleaning",
-      "targetId": "effective_usage",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
-    },
-    {
-      "mutantId": "reverse-edge:interval_cleaning->effective_usage",
-      "mutantClass": "reverse-edge",
-      "sourceId": "interval_cleaning",
-      "targetId": "effective_usage",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
-    },
-    {
       "mutantId": "remove-edge:app_policy->effective_usage",
       "mutantClass": "remove-edge",
       "sourceId": "app_policy",
@@ -214,6 +196,24 @@
       "killed": true,
       "killKind": "structural-cycle",
       "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:interval_cleaning->effective_usage",
+      "mutantClass": "remove-edge",
+      "sourceId": "interval_cleaning",
+      "targetId": "effective_usage",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:interval_cleaning->effective_usage",
+      "mutantClass": "reverse-edge",
+      "sourceId": "interval_cleaning",
+      "targetId": "effective_usage",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
     },
     {
       "mutantId": "remove-edge:interval_cleaning->observation_window",
@@ -252,6 +252,24 @@
       "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
     },
     {
+      "mutantId": "remove-edge:app_policy->day_coverage",
+      "mutantClass": "remove-edge",
+      "sourceId": "app_policy",
+      "targetId": "day_coverage",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:inactive:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:app_policy->day_coverage",
+      "mutantClass": "reverse-edge",
+      "sourceId": "app_policy",
+      "targetId": "day_coverage",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
       "mutantId": "remove-edge:attribute_person->day_coverage",
       "mutantClass": "remove-edge",
       "sourceId": "attribute_person",
@@ -270,19 +288,19 @@
       "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
     },
     {
-      "mutantId": "remove-edge:app_policy->day_coverage",
+      "mutantId": "remove-edge:attribute_person->score_compliance",
       "mutantClass": "remove-edge",
-      "sourceId": "app_policy",
-      "targetId": "day_coverage",
+      "sourceId": "attribute_person",
+      "targetId": "score_compliance",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:correctDuplicateEventTimestamps:inactive:true:false:catalog-random"
+      "witnessId": "configuration:enablePersonAttribution:active:true:false:catalog-random"
     },
     {
-      "mutantId": "reverse-edge:app_policy->day_coverage",
+      "mutantId": "reverse-edge:attribute_person->score_compliance",
       "mutantClass": "reverse-edge",
-      "sourceId": "app_policy",
-      "targetId": "day_coverage",
+      "sourceId": "attribute_person",
+      "targetId": "score_compliance",
       "killed": true,
       "killKind": "structural-cycle",
       "witnessId": "plan-toposort"
@@ -304,24 +322,6 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:addNoActivityPlaceholderDays:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-edge:attribute_person->score_compliance",
-      "mutantClass": "remove-edge",
-      "sourceId": "attribute_person",
-      "targetId": "score_compliance",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:enablePersonAttribution:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "reverse-edge:attribute_person->score_compliance",
-      "mutantClass": "reverse-edge",
-      "sourceId": "attribute_person",
-      "targetId": "score_compliance",
-      "killed": true,
-      "killKind": "structural-cycle",
-      "witnessId": "plan-toposort"
     },
     {
       "mutantId": "remove-edge:app_policy->outputs",

@@ -17,17 +17,17 @@
     },
     "structural_projection": {
       "path": "web/schema/chronicle-pipeline-graph.yaml",
-      "digest": "sha256:89c761e3382c5aec33ce78885c482b89f10e8c3820eac5902d4d712ad6663433",
+      "digest": "sha256:35a59cbee149a80610cfa8490e6fa887376d49a59b4323700afeeae91e368504",
       "executable": false
     },
     "rust_migration_base": {
       "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs",
-      "digest": "sha256:f37fe81a7d411afc78c10a0129401cc07317060bee42a1ec256fdb4e67465870",
+      "digest": "sha256:379030d4f731f7924980e2cc7ccd41dc634a7246fee516dafebedf8bfc6fdfc0",
       "coverage": "active-fused-physical-kernel-behind-complete-logical-rust-runtime"
     },
     "rust_product_runtime": {
       "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
-      "digest": "sha256:b009fc13638ab2fef2c98e43f1914bf0dbbe3296eadb06838676e9b19532e7a6",
+      "digest": "sha256:89181866e6155fe6394faee418efb77dcf20fe56fe9a92b9925b99db509143d1",
       "coverage": "production-worker-authority"
     },
     "configuration_family_compiler": {
@@ -225,7 +225,7 @@
   "runtime_authority_surface_count": 24,
   "dependency_certificate": {
     "path": ".semantic-federation/proofs/dependency-certificate.json",
-    "digest": "sha256:61c65cacf988f6397745de4f956fdd7a9f2576119ffa7ad14ac566916202f806",
+    "digest": "sha256:b6f40349282a961d76ac53cede74f93865a1ddebae269700da3d5f91eb24f0f0",
     "fallback": "full-logical-recompute"
   },
   "resolved_baseline_findings": [

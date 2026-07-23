@@ -1,16 +1,16 @@
 {
   "protocol_version": "0.1",
-  "root_digest": "sha256:c8186cbf65a27206b796369484b24eba6182aa781b739df08db2fa214dba1824",
+  "root_digest": "sha256:b7de861bbbd47d47e75685c18c22e6ebd043170a901340dbc07e439d515e505e",
   "artifacts": [
     {
       "artifact_id": "capability-bindings.json",
-      "digest": "sha256:212a0e43086b1deebb23702cb9d705cef53319dc500565337b38779b15794fb1",
+      "digest": "sha256:7ce7fbedcf9aeb00a5e6f6387f87b393dd30b5d37f33cad5d408973ac48d8b44",
       "media_type": "application/json",
-      "size": 30612
+      "size": 30838
     },
     {
       "artifact_id": "conformance-report.json",
-      "digest": "sha256:cb6cede6f316dd6c083796035ed3711989fad6f8b17f2ea01c19d18fe6ff0e94",
+      "digest": "sha256:9d97cbc60b1b2fe50ecdda35b7a238dc7db21fad669907d5263f70f00181f67d",
       "media_type": "application/json",
       "size": 630
     },
@@ -46,9 +46,9 @@
     },
     {
       "artifact_id": "resources/chronicle.plan.json",
-      "digest": "sha256:162cd4087b0287169a54ee55dc224300e4a6c7ba4009ff82f8828b348d562c45",
+      "digest": "sha256:3b1db580ca483d5f7f198a82fcc8166e9ad180eaea587db1ae950a5fa06649a6",
       "media_type": "application/json",
-      "size": 73899
+      "size": 73866
     },
     {
       "artifact_id": "resources/existing-ontology-sources.json",
@@ -70,22 +70,22 @@
     },
     {
       "artifact_id": "resources/runtime-authority.json",
-      "digest": "sha256:5dc8b00548744573c2a39644ff840697f2d7874d53ae8553de217e5ffec7bbcd",
+      "digest": "sha256:11142579a05120fce9a1fe8e0edfffdcae385b34a10080d878e8d82b73cc8627",
       "media_type": "application/json",
-      "size": 25262
+      "size": 25992
     },
     {
       "artifact_id": "semantic-profile.json",
-      "digest": "sha256:b2899800f08de7ed93000422947cd8d0b3b5443150e6b47a019f8d038ceaaf93",
+      "digest": "sha256:ad3a1e58f4a69a2f81c412391f5736bf1c2f73216a5cd9742bc319bb07b01435",
       "media_type": "application/json",
       "size": 4450
     },
     {
       "artifact_id": "semantic-profile.lock",
-      "digest": "sha256:47240c9a44c328437384c8be9531e90f8d5e60696ed6a0db55f79bf313b78990",
+      "digest": "sha256:aa51a18ee2104560bf6f239de05f7dfccec3aec6f4940123e305519c3bb81521",
       "media_type": "application/octet-stream",
       "size": 3111
     }
   ],
-  "closure_digest": "sha256:5ce4b4ea99de2c90d69042f71ac7368d6bb8a9bc7363318c41ca6aeb68146d96"
+  "closure_digest": "sha256:c8c23a22bf49d991183cd61173ea3e1ffbb34f438e4f8fc68aefac3e1806eff3"
 }
