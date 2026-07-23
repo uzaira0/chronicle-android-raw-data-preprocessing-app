@@ -481,7 +481,7 @@ named command or file proving it.
 | Correct README and production claims | done | Product semantic check and local four-part review passed 2026-07-23. |
 | Correct shared Salsa decision history | done | Toolchain decision updated; dependency probe and `make check` passed. |
 | Create reproducible warm-mutation benchmark | pending | Commit a script/report for cold, unchanged, raw, early, middle, output, and binding cases. |
-| Add Salsa Chronicle feature and dependency smoke | pending | Native and WASM build checks. |
+| Add Salsa Chronicle feature and dependency smoke | active | Implement the bounded real-product trial; native and WASM build checks are mandatory. |
 | Implement representative query path | pending | Actual execution-event parity tests. |
 | Decide Salsa versus bounded memo table | pending | Product trial report against all mandatory conditions. |
 | Track every computational input separately | pending | Read-set and forbidden-whole-options checks. |
@@ -509,8 +509,8 @@ named command or file proving it.
 
 | Component | Must add | Must run | Health check | Boundary check | Advanced proof | Status |
 |---|---|---|---|---|---|---|
-| Documentation/current-state check | Count/state/forbidden-claim cases and a seeded false claim | semantic federation check | checker prints 55 declared / 0 independent / fused | Generated current state must match source symbols | check must fail on a seeded contradiction | active |
-| Salsa product trial | early/middle/output/binding query tests | native and WASM Cargo checks | minimal real Chronicle query call in both targets | no default Rayon/thread/network requirement | event log, backdating, persistence corruption, size/memory benchmark | pending |
+| Documentation/current-state check | Count/state/forbidden-claim cases and a seeded false claim | semantic federation check | checker prints 55 declared / 0 independent / fused | Generated current state must match source symbols | check must fail on a seeded contradiction | done |
+| Salsa product trial | early/middle/output/binding query tests | native and WASM Cargo checks | minimal real Chronicle query call in both targets | no default Rayon/thread/network requirement | event log, backdating, persistence corruption, size/memory benchmark | active |
 | Tracked inputs | every option/source/qualification accessor | Rust unit and contract tests | construct database from one complete fixture | unknown and untracked reads fail | property and mutation tests over access sets | pending |
 | 55 query registry | missing/duplicate/cycle/type cases | registry and build drift checks | resolve and call every applicable query | exactly 55 callable bindings | semantic-model mutation of every edge and binding | pending |
 | Step extraction | nearest behavior tests per group | existing Rust/golden suites | cold run on smallest fixture | malformed/empty/boundary inputs | fused parity, fuzz, property, mutation | pending |
