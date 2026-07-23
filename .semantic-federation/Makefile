@@ -18,6 +18,8 @@ architecture:
 chronicle:
 	../scripts/generate_semantic_behavior_inventory.py --check
 	python3 scripts/check-chronicle.py
+	python3 scripts/check-execution-claims.py --self-test
+	python3 scripts/check-execution-claims.py
 
 closure: semantic
 	$(SEM_PROF_BIN) closure --root semantic --output semantic/artifact-closure.json

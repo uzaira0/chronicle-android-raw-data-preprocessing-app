@@ -56,9 +56,11 @@ if bindings["product_contract_digest"] != expected_contract_digest:
 nodes = plan["nodes"]
 steps = plan["steps"]
 if len(nodes) != 15 or len(steps) != 55:
-    raise SystemExit("preprocessing plan must bind the complete 15-node/55-step behavior")
+    raise SystemExit("preprocessing plan must declare 15 groups and 55 steps")
 if plan["implementation_state"]["active_logical_authority"] != "rust-composed-runtime":
     raise SystemExit("plan does not select the composed Rust runtime")
+if plan["implementation_state"]["physical_execution"] != "fused-rust-pipeline-v2":
+    raise SystemExit("current plan must disclose the fused physical executor")
 if plan["implementation_state"]["generated_yaml_is_executable_authority"]:
     raise SystemExit("structural YAML cannot be executable authority")
 if any(node["implementation_status"] != "rust-wasm-active-logical-authority" for node in nodes):
@@ -203,6 +205,8 @@ if '"properties": {"items":' in serialized_schema or '"properties": {"links":' i
 
 print(
     "preprocessing semantic contract valid: "
-    f"nodes=15 steps=55 rust_authorities={len(required)} "
-    f"runtime_surfaces={len(runtime_capabilities)} typed_views=6"
+    f"groups=15 declared_steps=55 fused_executors=1 "
+    f"independently_cached_steps=0 rust_authorities={len(required)} "
+    f"runtime_surfaces={len(runtime_capabilities)} typed_views=6 "
+    "physical_incrementality=release-blocked"
 )

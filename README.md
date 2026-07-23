@@ -2,12 +2,22 @@
 
 An application for preprocessing and plotting Chronicle Android raw data.
 
-The browser application is also the first complete consumer of the generalized
-semantic-federation scaffold. See
-[the production proof](docs/semantic-federation/production-proof.md) for the
-Rust/WASM authority boundary, local-first artifact model, exact semantic locks,
-and the reusable repository integration contract. The executable variability
-proof now combines the closed
+The browser application is the first full implementation target for the
+generalized semantic-federation scaffold. It is not yet the completed physical
+incremental-execution example: browser computation is Rust/WASM, but any
+physical cache miss still runs the complete fused pipeline once. The current
+55 step statuses are calculated from the declared graph after that run; the 55
+transformations are not yet independently callable and cached.
+
+See the
+[55-step incremental Rust plan](docs/semantic-federation/55-step-incremental-rust-plan.md)
+for the current/target distinction, exact implementation backlog, and release
+checks. The separate
+[production proof](docs/semantic-federation/production-proof.md) records what
+the existing semantic, storage, provenance, and browser boundaries already
+prove.
+
+The executable variability proof combines the closed
 [four-mode timezone configuration family](docs/semantic-federation/configuration-family.md)
 with a contract-derived Rust/WASM campaign over all 46 computational options,
 separate proofs for the eight annotation/view/execution axes, catalog-derived
@@ -15,11 +25,12 @@ synthetic corpora, explicit binding/qualification holes, and
 incremental-versus-cold replay. A checked controlled-intervention ledger holds
 all other inputs constant across every ordered value transition, records the
 exact observed invalidation/state/output effects, compares all 15 logical-stage
-checkpoints with an independent cold Rust target, and requires a substantive
-witness for every computational axis. The model preserves enum, numeric, list,
+checkpoints with an independent cold Rust target, and requires a concrete
+activating case for every computational axis. The model preserves enum, numeric, list,
 and string equivalence domains; it does not reduce non-boolean settings to
-flags. Logical propagation is exact for the recorded test scope; the optimized
-physical Rust implementation intentionally remains fused.
+flags. Declared logical propagation is exact for the recorded test scope. It is
+test evidence for the planned physical executor, not proof that the current
+fused executor skipped the labeled steps.
 
 The companion
 [artifact dependency tomography](docs/semantic-federation/artifact-dependency-tomography.md)
@@ -33,7 +44,7 @@ joints across those same corpora. Compressed digest-bound sidecars retain the
 864,557 exact canonical CSV/JSON cell addresses changed by those controlled
 interventions. A model-mutation gate also deletes or reverses every declared
 DAG edge and deletes every recorded option and input-role binding; all 116
-mutants must be killed by an attributed empirical or structural witness.
+mutants must be killed by an attributed empirical or structural test case.
 
 Not affiliated with GetMethodic/Chronicle, please visit them here: https://getmethodic.com/
 

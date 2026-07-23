@@ -1,11 +1,19 @@
-# Generalized semantic federation: production proof
+# Generalized semantic federation: current proof and remaining runtime work
 
-This repository is the first complete consumer of the generalized semantic
-federation. The reusable architecture is not Chronicle-specific: independent
-products select an immutable semantic-profile release protocol, declare their
-own computational family, and bind product-owned capabilities to native
-implementations. The Chronicle raw-data preprocessing app supplies the first
-full product plan and runtime proof.
+This repository is the first full implementation target for the generalized
+semantic federation. It already proves the shared profile, qualification,
+storage, provenance, browser, and product-ownership boundaries described below.
+It does **not** yet prove minimal physical recomputation across all 55 Rust
+transformations.
+
+The current browser product runs the complete preprocessing algorithm in
+Rust/WASM. After any physical cache miss it calls the fused pipeline once, then
+calculates 55 logical input keys and statuses from the completed result. The
+authoritative plan for replacing that projection with 55 real cached Rust
+computations is the
+[55-step incremental Rust plan](55-step-incremental-rust-plan.md). Until those
+checks pass, this document must not be read as a completed physical incremental
+execution claim.
 
 ## Reusable authority layers
 
@@ -30,9 +38,9 @@ flowchart LR
     I["Immutable input and support artifacts"]
     A["Rust role assignments"]
     O["Open obligations and node states"]
-    K["Content-keyed dirty cone"]
-    P["Fused Rust physical pipeline"]
-    E["Logical evidence for 15 nodes and 55 steps"]
+    K["Declared dirty set and cache decision"]
+    P["One fused Rust physical pipeline run on any miss"]
+    E["Post-run logical evidence for 15 groups and 55 steps"]
     C["Verified artifact closure and OPFS root"]
     V["Typed stage, artifact, obligation and explanation views"]
     U["TypeScript rendering and interaction"]
@@ -43,16 +51,18 @@ flowchart LR
 The product plan declares exact roles, cardinalities, media types, options,
 applicability, bypass conditions, logical dependencies, and capability IDs.
 Ingestion hashes immutable candidates. Rust assigns valid candidates to roles;
-missing required roles remain explicit obligations. The scheduler derives each
-node input key only from its upstream artifacts, relevant support roles, raw
-input, and declared knobs. An input-key change recomputes the affected cone;
-an identical key is cached, and unchanged output content cuts off downstream
-work. The fused physical pipeline may execute once while Rust still emits
-complete logical-node and logical-step evidence. Each logical node publishes a
-deterministic product-local semantic checkpoint. Propagation continues only
-through a direct configuration binder or an upstream checkpoint that actually
-changed, and a cold full-Rust execution independently verifies every warm
-checkpoint.
+missing required roles remain explicit obligations. The current scheduler
+derives 15 group input keys from upstream checkpoint artifacts, support roles,
+raw input, and declared options. On any group miss,
+`FusedPhysicalExecutor::ensure_result()` computes the complete pipeline. The 55
+step input keys and statuses are then built from that completed result.
+
+This is useful dependency and stale-result test evidence, but it is not a
+physical dirty-cone executor. The target implementation makes each of the 55
+steps a callable tracked computation, records actual execution events, caches
+real intermediate results, and stops downstream execution when a recomputed
+value is unchanged. The fused path remains the independent cold oracle during
+that migration.
 
 ## Chronicle raw-data preprocessing authority
 
@@ -100,17 +110,26 @@ oracle and cannot be selected as production authority.
   decision, reason, requirement condition, and requirement state; every
   rule-level expected/observed evaluation is retained in the derived graph.
 
-The incremental memoization cache is worker-memory state. A live worker can
-reuse exact node results and compute a precise dirty cone. After a reload or
-worker crash, the persisted artifact/root chain is recovered and verified, but
-the computation is honestly rerun rather than claiming that memoized Rust
-objects survived. The new root links to the recovered prior root.
+The current memoization state lives in worker memory. A completely unchanged
+request can reuse the prior fused result. After a reload or worker crash, the
+stored artifacts and root records are recovered and verified, but computation
+is rerun. For changed requests, current node/step statuses describe the declared
+dependency effect while physical execution still runs the fused pipeline.
+
+The target runtime persists only a verified, version-bound query cache. A
+missing, corrupt, incompatible, or partial cache is discarded and rebuilt from
+the authoritative source files, options, contract, implementation identity, and
+stored result objects.
 
 ## Dependency decisions
 
-- The product-owned bounded Rust scheduler is selected over a federation-wide
-  engine. It exposes exact invalidation and reason events without introducing a
-  universal execution IR.
+- The scheduler remains product-owned; there is no federation-wide engine. The
+  existing custom 15-group scheduler is provisional. The previously approved
+  Salsa trial must run against representative and then complete Chronicle
+  native/WASM queries. Salsa is selected only if actual-read invalidation,
+  early cutoff, event reporting, persistence safety, memory, and bundle checks
+  pass. Otherwise Chronicle implements a bounded product memo table against the
+  same tests.
 - Oxigraph is the derived RDF/SPARQL engine. It is pinned to upstream revision
   `d14ac0b5c4fa67b15d03af945d8669e3497c25a9` because crates.io `0.5.9`
   transitively pins vulnerable `quick-xml 0.37`; the pinned revision uses

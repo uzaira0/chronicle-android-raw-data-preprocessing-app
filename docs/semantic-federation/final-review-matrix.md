@@ -1,10 +1,14 @@
-# Production-readiness sweep and test matrix
+# Current verification sweep and production-readiness matrix
 
-This report records the post-implementation sweep of the Chronicle raw-data
-preprocessing app as the first complete consumer of the generalized semantic
-federation scaffold. It distinguishes verified behavior from remaining release
-obligations; a high aggregate coverage percentage is not treated as a substitute
-for boundary, failure, architecture, security, or performance evidence.
+This report records what the Chronicle raw-data preprocessing app currently
+proves as the first full implementation target for the generalized semantic
+federation scaffold. It is not a completed physical-incrementality claim. The
+current Rust/WASM executor runs the whole fused pipeline on any physical miss
+and calculates the 55 logical step statuses afterward. The
+[55-step incremental Rust plan](55-step-incremental-rust-plan.md) is the active
+release plan. A high aggregate coverage percentage is not a substitute for
+boundary, failure, architecture, security, performance, or actual-execution
+evidence.
 
 ## Fixed during the sweep
 
@@ -113,7 +117,8 @@ for boundary, failure, architecture, security, or performance evidence.
 | Profile and lock protocol | deterministic fixtures | schema and digest tests | tamper, cycle, license, missing resource | offline exact closure | scaffold smoke | secret/license checks | resolve budget | no product ontology in protocol | Verified by federation gates |
 | Rust product contract | 15-node plan fixture | binding and graph tests | unknown/duplicate/cyclic bindings | generated-registry drift | native/WASM contract load | profiles cannot inject code | compile/build budget | Chronicle-owned semantics | Verified |
 | Rust preprocessing runtime | golden raw CSVs | Rust suites | malformed request/artifact states | native/WASM parity and shadow suites | full browser processing | bounded inputs and fail-closed digests | browser baseline, cached digest | property/mutation rails | Verified; coverage debt below |
-| Incremental materializer | warm/cold replay | node/role/status tests | changed support/config/input cones | persisted prior-root execution | graph/status/explanation views | immutable assignment evidence | exact-cone checks | deterministic replay | Verified for current fixtures |
+| Incremental materializer | warm/cold replay | node/role/status tests | changed support/config/input cones | persisted prior-root execution | graph/status/explanation views | immutable assignment evidence | declared-cone checks | deterministic replay | Role/qualification behavior verified; physical execution still fused |
+| Physical 55-step executor | fused Rust oracle | one callable/query test per step | missing/duplicate/untracked input and under/over-invalidation | real intermediate and terminal cache | actual execution events in graph/status/explanation views | cache cannot bypass input/contract verification | cold/no-change/upstream/middle/downstream/binding budgets | random mutation sequences, early cutoff, native/WASM parity | Release blocker; planned |
 | OPFS durability | alternating-root fixtures | store tests | corruption, missing objects, both roots bad | closure export/import and verification | reload/recovery browser flows | digest/path/size/object limits | GC retains two roots | crash/fault-injection matrix | Verified in Chromium |
 | Worker protocol | real transferred CSV | dispatcher tests | malformed/unsupported commands | Comlink plus Rust/WASM | Playwright workflow | UI cannot write evidence | transfer and cache bounds | TypeScript renderer boundary | Verified |
 | Typed semantic views | root-bound fixtures | registered-query tests | missing/wrong-root view rejected | Rust index plus UI projection | graph and result panels | no arbitrary production SPARQL | query benchmarks sampled | view is derived, not authority | Verified; cache opportunity remains |
@@ -210,11 +215,15 @@ for boundary, failure, architecture, security, or performance evidence.
     and existing `run_pipeline_v2*` wrapper mutants before the expensive
     1,258-mutant campaign was stopped. The earlier seven-wrapper-only inventory
     was incomplete; a full core-kernel mutation burn-down remains release debt.
-10. Logical invalidation is exact at all 15 product checkpoints for the recorded
-    one-factor scope, but the physical Rust implementation remains fused: any
-    logical cache miss computes the full physical pipeline once. Splitting the
-    kernel into restartable physical stages is optional performance work, not a
-    prerequisite for stale-result safety at the current measured runtime.
+10. **Release blocker:** logical dependency predictions are exact at the 15
+    checkpoints for the recorded cases, but the physical Rust implementation
+    remains fused. Any miss computes the full pipeline and the 55 step statuses
+    are calculated afterward. Production readiness for the requested model
+    requires 55 callable tracked Rust computations, real cached intermediate
+    and terminal results, actual execution events, exact warm/cold parity, and
+    tests that catch both skipped-required work and unnecessary work. This is
+    correctness work as well as performance work because post-run labels cannot
+    prove that the physical cache obeyed the dependency model.
 
 Database migration, server-concurrency load, mobile-device, container, and
 cluster tests are not applicable: this proof is a local-first browser/WASM app

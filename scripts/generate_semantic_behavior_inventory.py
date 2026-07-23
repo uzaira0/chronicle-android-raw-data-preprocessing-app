@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Freeze the preprocessing app's Rust/WASM authority and product-owned plan.
+"""Freeze the preprocessing app's current Rust/WASM authority and product plan.
 
 The generated YAML remains a structural source projection, never an executable
-body. This generator verifies every logical unit and step, binds the complete
-contract to the selected Rust runtime, and records TypeScript only where it is
-a non-authoritative browser host, interaction, visualization, or export-view
-adapter.
+body. This generator verifies every reporting group and declared step, records
+the current fused implementation honestly, and keeps the target 55-query
+executor distinct from the post-run logical evidence projection.
 """
 
 from __future__ import annotations
@@ -69,19 +68,6 @@ UNIT_MODULES = {
     "day_coverage": "dayCoverage.ts",
     "score_compliance": "scoreCompliance.ts",
     "outputs": "outputs.ts",
-}
-
-V2_PHYSICAL_STAGE_NODES = {
-    "parse_events",
-    "normalize_timezones",
-    "dedup_and_order",
-    "app_policy",
-    "device_state_timeline",
-    "reconstruct_episodes",
-    "categorize_apps",
-    "episode_annotations",
-    "interval_cleaning",
-    "outputs",
 }
 
 RUNTIME_CAPABILITY_PREFIX = (
@@ -936,7 +922,7 @@ def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) 
         "branch_authority": {
             "feature_behavior": FEATURE_REF,
             "implementation_base": BASE_REF,
-            "isolated_worktree_branch": "codex/semantic-federation-rust-wasm",
+            "isolated_worktree_branch": "codex/chronicle-55-step-authority",
         },
         "sources": {
             "unit_graph": {
@@ -975,7 +961,19 @@ def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) 
         "coverage": {
             "nodes": {"expected": 15, "recorded": len(node_ids), "percent": 100},
             "steps": {"expected": 55, "recorded": len(step_ids), "percent": 100},
-            "active_binding_coverage": {"expected": 70, "recorded": 70, "percent": 100},
+            "declared_capability_identity_coverage": {
+                "expected": 70,
+                "recorded": 70,
+                "percent": 100,
+                "claim": "identity-and-entrypoint-coverage-not-callable-step-coverage",
+            },
+            "physical_execution": {
+                "fused_executor_count": 1,
+                "independently_callable_steps": 0,
+                "independently_cached_steps": 0,
+                "actual_step_execution_events": 0,
+                "target_steps": 55,
+            },
             "dependency_surface": {
                 "cache_relevant_options": len(
                     dependency_certificate["structural_contract"][
@@ -996,12 +994,15 @@ def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) 
         },
         "node_ids": node_ids,
         "step_ids": step_ids,
-        "fused_rust_physical_stage_nodes": [
-            node for node in node_ids if node in V2_PHYSICAL_STAGE_NODES
-        ],
-        "rust_unimplemented_nodes": [],
-        "rust_complete_logical_authority_nodes": node_ids,
-        "rust_complete_logical_authority_steps": step_ids,
+        "rust_fused_checkpoint_projection_groups": node_ids,
+        "rust_declared_step_ids": step_ids,
+        "rust_independently_callable_step_ids": [],
+        "rust_independently_cached_step_ids": [],
+        "rust_post_run_status_projection": {
+            "covers": "rust_declared_step_ids",
+            "count": len(step_ids),
+        },
+        "physical_incremental_execution_status": "release-blocked",
         "typescript_production_authority_capabilities": [],
         "runtime_authority_surface_count": len(RUNTIME_SURFACES),
         "dependency_certificate": {
@@ -1073,7 +1074,10 @@ def main() -> int:
     write_or_check(INVENTORY_OUTPUT, inventory, args.check)
     sync_existing_ontology_resources(args.check)
     mode = "checked" if args.check else "generated"
-    print(f"semantic_behavior_inventory={mode} nodes=15 steps=55 logical_authorities=70")
+    print(
+        f"semantic_behavior_inventory={mode} groups=15 declared_steps=55 "
+        "fused_executors=1 independently_cached_steps=0"
+    )
     return 0
 
 

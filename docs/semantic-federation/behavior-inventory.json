@@ -3,7 +3,7 @@
   "branch_authority": {
     "feature_behavior": "b857be0382777892d4fa8c8a3a48934b07e6ad0c",
     "implementation_base": "5f8e64527edd33f90901cd553602063daadf0014",
-    "isolated_worktree_branch": "codex/semantic-federation-rust-wasm"
+    "isolated_worktree_branch": "codex/chronicle-55-step-authority"
   },
   "sources": {
     "unit_graph": {
@@ -47,10 +47,18 @@
       "recorded": 55,
       "percent": 100
     },
-    "active_binding_coverage": {
+    "declared_capability_identity_coverage": {
       "expected": 70,
       "recorded": 70,
-      "percent": 100
+      "percent": 100,
+      "claim": "identity-and-entrypoint-coverage-not-callable-step-coverage"
+    },
+    "physical_execution": {
+      "fused_executor_count": 1,
+      "independently_callable_steps": 0,
+      "independently_cached_steps": 0,
+      "actual_step_execution_events": 0,
+      "target_steps": 55
     },
     "dependency_surface": {
       "cache_relevant_options": 47,
@@ -134,20 +142,7 @@
     "score_days",
     "assemble_result"
   ],
-  "fused_rust_physical_stage_nodes": [
-    "parse_events",
-    "normalize_timezones",
-    "dedup_and_order",
-    "app_policy",
-    "device_state_timeline",
-    "reconstruct_episodes",
-    "categorize_apps",
-    "episode_annotations",
-    "interval_cleaning",
-    "outputs"
-  ],
-  "rust_unimplemented_nodes": [],
-  "rust_complete_logical_authority_nodes": [
+  "rust_fused_checkpoint_projection_groups": [
     "parse_events",
     "normalize_timezones",
     "dedup_and_order",
@@ -164,7 +159,7 @@
     "score_compliance",
     "outputs"
   ],
-  "rust_complete_logical_authority_steps": [
+  "rust_declared_step_ids": [
     "parse_remap_config",
     "csv_parse",
     "drop_empty_timestamp",
@@ -221,6 +216,13 @@
     "score_days",
     "assemble_result"
   ],
+  "rust_independently_callable_step_ids": [],
+  "rust_independently_cached_step_ids": [],
+  "rust_post_run_status_projection": {
+    "covers": "rust_declared_step_ids",
+    "count": 55
+  },
+  "physical_incremental_execution_status": "release-blocked",
   "typescript_production_authority_capabilities": [],
   "runtime_authority_surface_count": 24,
   "dependency_certificate": {

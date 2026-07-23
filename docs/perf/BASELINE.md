@@ -66,6 +66,29 @@ All five Hyperfine measurements landed within 29 milliseconds. The median is
 the tracked comparison value. This is a machine-specific regression baseline,
 not a portable latency promise.
 
+## Current warm-execution limitation
+
+A targeted 2026-07-23 diagnostic on the same 60,624-row fixture measured the
+current worker-local warm path. These values are diagnostic single-run/range
+measurements, not release budgets; the active plan requires a committed,
+repeatable benchmark before comparing the replacement runtime.
+
+| Request after an initial cold run | Observed wall time | What physically happened |
+|---|---:|---|
+| Identical request | about 3.87 s | Reused the fused result, but rebuilt/hashed substantial output and evidence data. |
+| Raw timestamp changed | about 8.77 s | Ran the complete fused pipeline. |
+| Early timezone option changed | about 8.75 s | Ran the complete fused pipeline. |
+| Middle `modelConcurrentUsage` option changed | about 8.25 s | Ran the complete fused pipeline. |
+| Output-only `studyName` changed | about 8.71 s | Ran the complete fused pipeline. |
+
+The important result is not the small timing differences: every changed case
+still performs the full physical computation. The runtime's 55 `cached` and
+`recomputed` labels are created after the fused result exists, so they cannot be
+used as performance evidence. The
+[55-step incremental Rust plan](../semantic-federation/55-step-incremental-rust-plan.md)
+requires actual query execution events and separate cold, unchanged, upstream,
+middle, downstream, and qualification/binding measurements.
+
 The production hot path was also captured with symbol-preserving WASM/V8 CPU
 profiles and a native Samply flamegraph. The final named WASM profile attributes
 23.3% of samples to BLAKE3 SIMD compression and 14.3% to SHA-256 compression;
@@ -92,6 +115,8 @@ these figures are evidence for this machine and commit, not portable promises.
 
 ## Known profiling gaps
 
+- A committed warm-mutation benchmark with actual 55-query execution events;
+  the current diagnostic above must be replaced by that report.
 - Repeated large-fixture peak RSS in Chromium rather than the Node WASM host.
 - Cross-browser OPFS and performance measurements outside Chromium.
 - Cold-versus-warm semantic-index query profiling after adding an index cache.

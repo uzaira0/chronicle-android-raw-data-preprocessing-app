@@ -11,11 +11,12 @@
 - Existing preprocessing-app LinkML and merged SHACL resources are vendored as
   digest-locked product resources; they remain descriptive/conformance
   artifacts, not the executable plan.
-- `chronicle.plan.json` identifies all 15 units and 55 steps. The separate
-  `capability-bindings.json` records the selected composed Rust/WASM runtime as
-  the sole computational authority. The fused physical kernel remains visible
-  beneath complete Rust logical scheduling and evidence rather than being
-  mistaken for the logical graph itself.
+- `chronicle.plan.json` identifies all 55 transformations and groups them into
+  15 reporting units. The separate `capability-bindings.json` currently binds
+  those identities to one fused Rust/WASM entry point. This is a complete Rust
+  computation path and logical evidence projection, but it is not yet 55-step
+  physical incremental execution: a cache miss still calls the full pipeline,
+  and step statuses are calculated after that result exists.
 - `semprof-materialize` owns product-neutral role fulfillment and open
   obligations; the preprocessing adapter owns DAG propagation and typed
   product views.
@@ -23,9 +24,25 @@
   because its RDF feature does not compile for browser WASM. Oxigraph is pinned
   to upstream revision `d14ac0b5c4fa67b15d03af945d8669e3497c25a9`
   until a crates.io release includes its `quick-xml 0.41` security update.
-- The product-owned Rust scheduler is selected; no generic federation-wide
-  scheduler or execution IR is introduced. TypeScript is limited to browser
-  I/O, interaction, visualization, and derived download formatting.
+- The final scheduler remains product-owned; no generic federation-wide
+  scheduler or execution IR is introduced. The existing custom 15-node
+  fingerprint scheduler is provisional, not the selected final implementation.
+  Chronicle must run the previously approved Salsa product trial against real
+  native/WASM steps. If Salsa passes the product gates, it owns actual-read
+  tracking, memoization, early cutoff, and execution events. If it fails, a
+  bounded Chronicle memo table must satisfy the same tests. TypeScript is
+  limited to browser I/O, interaction, visualization, and derived download
+  formatting.
+- The fused `run_pipeline_v2_with_supports()` path is the cold correctness
+  oracle and temporary rollback during migration. Production readiness requires
+  55 callable Rust queries with real cached intermediate and terminal results
+  plus actual execution events. Mapping 55 step IDs to 15 `PhysicalStage`
+  values or one `execute_workspace` entry point does not satisfy that
+  requirement.
+- The declared step graph supports review, visualization, and mutation tests.
+  Runtime invalidation comes from tracked reads. A build/test check compares the
+  observed read graph with the declaration and fails on either missing or
+  unnecessarily broad dependencies.
 - OPFS stores the verified content-addressed closure through a thin browser I/O
   adapter. Rust owns artifact bytes, digests, root/closure semantics, evidence,
   typed views, and registered-query index sources.
@@ -44,3 +61,6 @@
   two immutable Git dependencies, audits the complete license closure, and
   grants only the documented `RUSTSEC-2024-0436` exception for `paste` through
   `parquet 59.1.0` until an upstream replacement exists.
+
+The authoritative implementation backlog and acceptance checks are in
+`docs/semantic-federation/55-step-incremental-rust-plan.md`.
