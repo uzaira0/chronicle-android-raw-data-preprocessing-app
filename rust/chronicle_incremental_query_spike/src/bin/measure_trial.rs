@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-const DEFAULT_OPTIONS: &str = include_str!("../../fixtures/benchmark-options.json");
+const DEFAULT_OPTIONS: &str = include_str!("../../fixtures/trial-options.json");
 const FILTER_BYTES: &[u8] = b"app_package_name,known_application_labels\ncom.example.app0,App 00\n";
 
 #[derive(Debug)]
