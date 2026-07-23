@@ -115,8 +115,10 @@ these figures are evidence for this machine and commit, not portable promises.
 
 ## Known profiling gaps
 
-- A committed warm-mutation benchmark with actual 55-query execution events;
-  the current diagnostic above must be replaced by that report.
+- The committed [Salsa product trial](SALSA_PRODUCT_TRIAL.md) now measures real
+  execution events for six representative queries. It must be rerun after all
+  55 transformations are callable; the present middle/raw/support cases still
+  enter one fused query.
 - Repeated large-fixture peak RSS in Chromium rather than the Node WASM host.
 - Cross-browser OPFS and performance measurements outside Chromium.
 - Cold-versus-warm semantic-index query profiling after adding an index cache.

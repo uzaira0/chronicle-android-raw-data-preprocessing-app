@@ -125,11 +125,14 @@ stored result objects.
 
 - The scheduler remains product-owned; there is no federation-wide engine. The
   existing custom 15-group scheduler is provisional. The previously approved
-  Salsa trial must run against representative and then complete Chronicle
-  native/WASM queries. Salsa is selected only if actual-read invalidation,
-  early cutoff, event reporting, persistence safety, memory, and bundle checks
-  pass. Otherwise Chronicle implements a bounded product memo table against the
-  same tests.
+  Salsa trial now passes representative native/headless-browser WASM,
+  actual-read, execution-event, early-cutoff, qualification-hole, and verified
+  snapshot tests. The measured results are in
+  [the product-trial report](../perf/SALSA_PRODUCT_TRIAL.md). Salsa is selected
+  only after the same checks cover all 55 Chronicle queries and actual-read
+  invalidation, early cutoff, event reporting, persistence safety, memory, and
+  bundle checks pass. Otherwise Chronicle implements a bounded product memo
+  table against the same tests.
 - Oxigraph is the derived RDF/SPARQL engine. It is pinned to upstream revision
   `d14ac0b5c4fa67b15d03af945d8669e3497c25a9` because crates.io `0.5.9`
   transitively pins vulnerable `quick-xml 0.37`; the pinned revision uses
