@@ -9,7 +9,7 @@ import type {
   BrowserSupportFiles,
 } from "@/lib/types";
 
-export const PREPROCESSOR_VERSION = "1.0.0";
+export { PREPROCESSOR_VERSION } from "@/lib/generatedInteractionTypes";
 export { DEFAULT_BROWSER_OPTIONS };
 
 export const TIMEZONE_HANDLING_OPTIONS = [

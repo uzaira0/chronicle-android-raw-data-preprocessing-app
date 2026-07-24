@@ -1847,13 +1847,13 @@ mod tracked {
         fn record_query_body(&self, step: &'static str);
     }
 
-    #[salsa::input(persist, singleton)]
+    #[salsa::input(singleton)]
     struct EarlyRawInput {
         #[returns(clone)]
         bytes: Arc<Vec<u8>>,
     }
 
-    #[salsa::input(persist, singleton)]
+    #[salsa::input(singleton)]
     struct EarlyConfigInput {
         #[returns(clone)]
         interaction_type_remap: Arc<Vec<String>>,
@@ -1873,7 +1873,7 @@ mod tracked {
         other_stop_types: Arc<Vec<String>>,
     }
 
-    #[salsa::input(persist, singleton)]
+    #[salsa::input(singleton)]
     struct UsageConfigInput {
         #[returns(copy)]
         usage_session_mode: UsageSessionMode,
@@ -1905,7 +1905,7 @@ mod tracked {
         filter_zero_duration_sessions: bool,
     }
 
-    #[salsa::input(persist, singleton)]
+    #[salsa::input(singleton)]
     struct UsageSupportInput {
         #[returns(copy)]
         use_filter_file: bool,
@@ -1933,7 +1933,7 @@ mod tracked {
         apps_forcing_csv: Arc<Vec<u8>>,
     }
 
-    #[salsa::input(persist, singleton)]
+    #[salsa::input(singleton)]
     struct LateConfigInput {
         #[returns(copy)]
         enable_screen_gated_crediting: bool,
@@ -1959,7 +1959,7 @@ mod tracked {
         compliance_threshold_percent: f64,
     }
 
-    #[salsa::input(persist, singleton)]
+    #[salsa::input(singleton)]
     struct LateSupportInput {
         #[returns(clone)]
         study_dates_csv: Arc<Vec<u8>>,
@@ -1971,7 +1971,7 @@ mod tracked {
         enrolled_devices_csv: Arc<Vec<u8>>,
     }
 
-    #[salsa::input(persist, singleton)]
+    #[salsa::input(singleton)]
     struct OutputConfigInput {
         #[returns(clone)]
         study_name: String,
@@ -1987,7 +1987,7 @@ mod tracked {
         aggregate_shape: String,
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn parse_remap_config(
         db: &dyn EarlyStepDb,
         config: EarlyConfigInput,
@@ -1999,7 +1999,7 @@ mod tracked {
         )
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn csv_parse(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2008,7 +2008,7 @@ mod tracked {
         value_step("csv_parse", super::csv_parse(&raw.bytes(db)))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn drop_empty_timestamp(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2021,7 +2021,7 @@ mod tracked {
         )
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn detect_device_model(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2034,7 +2034,7 @@ mod tracked {
         )
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn resolve_preproc_datetime(
         db: &dyn EarlyStepDb,
         config: EarlyConfigInput,
@@ -2046,7 +2046,7 @@ mod tracked {
         )
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn build_canonical_rows(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2065,7 +2065,7 @@ mod tracked {
         Ok(rows_step("build_canonical_rows", rows))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn stable_sort(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2080,7 +2080,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn collect_timezones(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2091,7 +2091,7 @@ mod tracked {
         value_step("collect_timezones", super::collect_timezones(&rows.value))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn compute_dominant_timezone(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2105,7 +2105,7 @@ mod tracked {
         )
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn select_timezone_strategy(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2125,7 +2125,7 @@ mod tracked {
         )
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn restamp_rows(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2138,7 +2138,7 @@ mod tracked {
         Ok(rows_step("restamp_rows", rows))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn row_count_report(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2151,7 +2151,7 @@ mod tracked {
         value_step("row_count_report", super::row_count_report(before, after))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn exact_dedupe(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2166,7 +2166,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn count_dup_groups(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2177,7 +2177,7 @@ mod tracked {
         value_step("count_dup_groups", count_duplicate_groups(&rows.value))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn nudge_duplicate_timestamps(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2197,7 +2197,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn mark_data_time_gaps(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2224,7 +2224,7 @@ mod tracked {
         }
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn tag_filtered_packages(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2247,7 +2247,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn collect_keyguard_timestamps(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2263,7 +2263,7 @@ mod tracked {
         )
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn walk_screen_state_machine(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2279,7 +2279,7 @@ mod tracked {
         )
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn build_classified_sessions(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2316,7 +2316,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn compute_junk_packages(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2332,7 +2332,7 @@ mod tracked {
         )
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn junk_blind_fold(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2349,7 +2349,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn build_matcher_input(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2369,7 +2369,7 @@ mod tracked {
         value_step("build_matcher_input", input)
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn run_matcher(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2392,7 +2392,7 @@ mod tracked {
         )
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn apply_matcher_output(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2411,7 +2411,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn relabel_usage_with_floor(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2433,7 +2433,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn junk_downstream_mark(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2455,7 +2455,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn sort_episodes(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2472,7 +2472,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn split_concurrent(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2497,7 +2497,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn codebook_join(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2520,7 +2520,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn derive_broad_category(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2537,7 +2537,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn collapse_genre(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2554,7 +2554,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn engagement_walk(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2574,7 +2574,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn flag_and_retain(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2595,7 +2595,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn blank_junk_timing(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2612,7 +2612,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn drop_selected_types(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2633,7 +2633,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn drop_zero_duration(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2653,7 +2653,7 @@ mod tracked {
         ))
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn partition_credit_sessions(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2677,7 +2677,7 @@ mod tracked {
         })
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn build_liveness_substrate(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2693,7 +2693,7 @@ mod tracked {
         )
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn report_screen_incapable(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2710,7 +2710,7 @@ mod tracked {
         )
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn count_day_apps(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2740,7 +2740,7 @@ mod tracked {
         tolerance_minutes: f64,
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn credit_sessions(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2782,7 +2782,7 @@ mod tracked {
         emission: CreditEmission,
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn emit_credited_rows(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2812,7 +2812,7 @@ mod tracked {
         )
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn assemble_credit_result(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2838,7 +2838,7 @@ mod tracked {
         value_payload_step("assemble_credit_result", result, &payload)
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn resolve_participant_windows(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2855,7 +2855,7 @@ mod tracked {
         )
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn filter_rows_to_window(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2892,7 +2892,7 @@ mod tracked {
         })
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn resolve_sharing_status(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2927,7 +2927,7 @@ mod tracked {
         }
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn build_survey_lookup(
         db: &dyn EarlyStepDb,
         late: LateConfigInput,
@@ -2956,7 +2956,7 @@ mod tracked {
         value_payload_step("build_survey_lookup", survey, &payload)
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn attribute_rows(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -2983,7 +2983,7 @@ mod tracked {
         })
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn inject_placeholders(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -3010,7 +3010,7 @@ mod tracked {
         })
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn build_raw_date_index(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -3026,7 +3026,7 @@ mod tracked {
         )
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn build_coverage_table(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -3051,7 +3051,7 @@ mod tracked {
         })
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn accumulate_attribution_minutes(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -3085,7 +3085,7 @@ mod tracked {
         value_payload_step("accumulate_attribution_minutes", value, &payload)
     }
 
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn score_days(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -3370,30 +3370,6 @@ mod tracked {
     }
 
     impl TrackedInputs {
-        fn restored(db: &EarlyDatabase) -> Result<Self, String> {
-            Ok(Self {
-                raw: EarlyRawInput::try_get(db)
-                    .ok_or_else(|| "restored Salsa cache is missing EarlyRawInput".to_string())?,
-                early: EarlyConfigInput::try_get(db).ok_or_else(|| {
-                    "restored Salsa cache is missing EarlyConfigInput".to_string()
-                })?,
-                usage: UsageConfigInput::try_get(db).ok_or_else(|| {
-                    "restored Salsa cache is missing UsageConfigInput".to_string()
-                })?,
-                usage_support: UsageSupportInput::try_get(db).ok_or_else(|| {
-                    "restored Salsa cache is missing UsageSupportInput".to_string()
-                })?,
-                late: LateConfigInput::try_get(db)
-                    .ok_or_else(|| "restored Salsa cache is missing LateConfigInput".to_string())?,
-                late_support: LateSupportInput::try_get(db).ok_or_else(|| {
-                    "restored Salsa cache is missing LateSupportInput".to_string()
-                })?,
-                output: OutputConfigInput::try_get(db).ok_or_else(|| {
-                    "restored Salsa cache is missing OutputConfigInput".to_string()
-                })?,
-            })
-        }
-
         fn new(
             db: &EarlyDatabase,
             csv_bytes: &[u8],
@@ -3853,424 +3829,13 @@ mod tracked {
         pub executed_steps: Vec<String>,
     }
 
-    #[derive(Clone)]
-    struct CachedDatabasePayload {
-        engine_revision: u64,
-        bytes: Arc<Vec<u8>>,
-        digest: String,
-        uncompressed_size: u64,
-    }
-
     #[derive(Default)]
     pub(super) struct TrackedEngine {
         db: EarlyDatabase,
         inputs: Option<TrackedInputs>,
-        revision: u64,
-        cached_database_payload: Option<CachedDatabasePayload>,
-    }
-
-    const CACHE_PROTOCOL: &str = "chronicle-salsa-query-cache/v4";
-    const CACHE_CODEC: &str = "messagepack-rmp-serde-1.3.1+lz4-frame-0.13.1";
-    const CACHE_SALSA_VERSION: &str = "0.28.1";
-    pub(super) const MAX_CACHE_BYTES: usize = 128 * 1024 * 1024;
-    const MAX_DECOMPRESSED_CACHE_BYTES: u64 = 384 * 1024 * 1024;
-    // The measured 60,624-row fixture expanded its 6.7 MiB CSV to an 868 MiB
-    // Salsa snapshot and restored more slowly than a cold calculation. Keep
-    // restart caching for smaller workspaces where it is useful; larger inputs
-    // run cold instead of paying a known memory/time penalty. The stream limits
-    // below remain the final safety check if a small input expands unusually.
-    const MAX_CACHE_INGRESS_BYTES: usize = 3 * 1024 * 1024;
-
-    #[derive(serde::Serialize, serde::Deserialize)]
-    struct CacheEnvelope {
-        protocol_version: String,
-        codec: String,
-        salsa_version: String,
-        engine_revision: u64,
-        identity: String,
-        identity_sha256: String,
-        database_payload_sha256: String,
-        database_payload_size: u64,
-        database_uncompressed_size: u64,
-        database_payload: Vec<u8>,
-    }
-
-    #[derive(serde::Serialize)]
-    struct CacheEnvelopeRef<'a> {
-        protocol_version: &'static str,
-        codec: &'static str,
-        salsa_version: &'static str,
-        engine_revision: u64,
-        identity: &'a str,
-        identity_sha256: String,
-        database_payload_sha256: &'a str,
-        database_payload_size: u64,
-        database_uncompressed_size: u64,
-        database_payload: &'a [u8],
-    }
-
-    struct CountingWriter<W> {
-        inner: W,
-        bytes_written: u64,
-        max_bytes: u64,
-        label: &'static str,
-    }
-
-    impl<W> CountingWriter<W> {
-        fn new(inner: W, max_bytes: u64, label: &'static str) -> Self {
-            Self {
-                inner,
-                bytes_written: 0,
-                max_bytes,
-                label,
-            }
-        }
-
-        fn into_parts(self) -> (W, u64) {
-            (self.inner, self.bytes_written)
-        }
-    }
-
-    impl<W: std::io::Write> std::io::Write for CountingWriter<W> {
-        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            let attempted = self
-                .bytes_written
-                .checked_add(bytes.len() as u64)
-                .ok_or_else(|| std::io::Error::other("query-cache byte count overflow"))?;
-            if attempted > self.max_bytes {
-                return Err(std::io::Error::other(format!(
-                    "{} exceeds the {} byte limit",
-                    self.label, self.max_bytes
-                )));
-            }
-            let written = self.inner.write(bytes)?;
-            self.bytes_written = self
-                .bytes_written
-                .checked_add(written as u64)
-                .ok_or_else(|| std::io::Error::other("query-cache byte count overflow"))?;
-            Ok(written)
-        }
-
-        fn flush(&mut self) -> std::io::Result<()> {
-            self.inner.flush()
-        }
-    }
-
-    struct LimitedVecWriter {
-        bytes: Vec<u8>,
-        max_bytes: usize,
-    }
-
-    impl LimitedVecWriter {
-        fn new(max_bytes: usize) -> Self {
-            Self {
-                bytes: Vec::new(),
-                max_bytes,
-            }
-        }
-
-        fn into_inner(self) -> Vec<u8> {
-            self.bytes
-        }
-    }
-
-    impl std::io::Write for LimitedVecWriter {
-        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            let attempted = self
-                .bytes
-                .len()
-                .checked_add(bytes.len())
-                .ok_or_else(|| std::io::Error::other("query-cache byte count overflow"))?;
-            if attempted > self.max_bytes {
-                return Err(std::io::Error::other(format!(
-                    "compressed query cache exceeds the {} byte limit",
-                    self.max_bytes
-                )));
-            }
-            self.bytes.extend_from_slice(bytes);
-            Ok(bytes.len())
-        }
-
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
-    }
-
-    struct CountingReader<R> {
-        inner: R,
-        bytes_read: u64,
-        max_bytes: u64,
-    }
-
-    impl<R> CountingReader<R> {
-        fn new(inner: R, max_bytes: u64) -> Self {
-            Self {
-                inner,
-                bytes_read: 0,
-                max_bytes,
-            }
-        }
-    }
-
-    impl<R: std::io::Read> std::io::Read for CountingReader<R> {
-        fn read(&mut self, bytes: &mut [u8]) -> std::io::Result<usize> {
-            let remaining_with_probe = self
-                .max_bytes
-                .saturating_add(1)
-                .saturating_sub(self.bytes_read);
-            if remaining_with_probe == 0 {
-                return Err(std::io::Error::other(
-                    "query-cache decompressed size exceeds limit",
-                ));
-            }
-            let allowed = usize::try_from(remaining_with_probe)
-                .unwrap_or(usize::MAX)
-                .min(bytes.len());
-            let read = self.inner.read(&mut bytes[..allowed])?;
-            self.bytes_read = self
-                .bytes_read
-                .checked_add(read as u64)
-                .ok_or_else(|| std::io::Error::other("query-cache byte count overflow"))?;
-            if self.bytes_read > self.max_bytes {
-                return Err(std::io::Error::other(
-                    "query-cache decompressed size exceeds limit",
-                ));
-            }
-            Ok(read)
-        }
-    }
-
-    fn cache_sha256(bytes: &[u8]) -> String {
-        format!("sha256:{}", hex::encode(Sha256::digest(bytes)))
-    }
-
-    fn encode_messagepack<T: serde::Serialize>(value: &T, label: &str) -> Result<Vec<u8>, String> {
-        use rmp_serde::config::BytesMode;
-        let mut bytes = LimitedVecWriter::new(MAX_CACHE_BYTES);
-        value
-            .serialize(
-                &mut rmp_serde::Serializer::new(&mut bytes)
-                    .with_struct_map()
-                    .with_bytes(BytesMode::ForceAll),
-            )
-            .map_err(|error| format!("encode {label} as MessagePack: {error}"))?;
-        Ok(bytes.into_inner())
-    }
-
-    fn encode_database(database: &impl serde::Serialize) -> Result<(Vec<u8>, u64), String> {
-        use rmp_serde::config::BytesMode;
-        let encoder = lz4_flex::frame::FrameEncoder::new(LimitedVecWriter::new(MAX_CACHE_BYTES));
-        let mut writer = CountingWriter::new(
-            encoder,
-            MAX_DECOMPRESSED_CACHE_BYTES,
-            "decompressed query cache",
-        );
-        database
-            .serialize(
-                &mut rmp_serde::Serializer::new(&mut writer)
-                    .with_struct_map()
-                    .with_bytes(BytesMode::ForceAll),
-            )
-            .map_err(|error| format!("encode Salsa database as MessagePack: {error}"))?;
-        let (encoder, uncompressed_size) = writer.into_parts();
-        encoder
-            .finish()
-            .map(|bytes| (bytes.into_inner(), uncompressed_size))
-            .map_err(|error| format!("finish Salsa database LZ4 frame: {error}"))
-    }
-
-    fn decode_messagepack<T: serde::de::DeserializeOwned>(
-        bytes: &[u8],
-        label: &str,
-    ) -> Result<T, String> {
-        if bytes.len() > MAX_CACHE_BYTES {
-            return Err(format!(
-                "{label} exceeds the {} byte cache limit",
-                MAX_CACHE_BYTES
-            ));
-        }
-        rmp_serde::from_slice(bytes)
-            .map_err(|error| format!("decode {label} from MessagePack: {error}"))
     }
 
     impl TrackedEngine {
-        pub fn export_cache(&mut self, identity: &str) -> Result<Vec<u8>, String> {
-            if identity.is_empty() {
-                return Err("query-cache identity must not be empty".to_string());
-            }
-            if identity.len() > 64 * 1024 {
-                return Err("query-cache identity exceeds 64 KiB".to_string());
-            }
-            let inputs = self.inputs.ok_or_else(|| {
-                "query cache is unavailable before the first execution".to_string()
-            })?;
-            let ingress_bytes = [
-                inputs.raw.bytes(&self.db).len(),
-                inputs.usage_support.filter_csv(&self.db).len(),
-                inputs.usage_support.background_apps_csv(&self.db).len(),
-                inputs.usage_support.codebook_csv(&self.db).len(),
-                inputs.usage_support.apps_forcing_csv(&self.db).len(),
-                inputs.late_support.study_dates_csv(&self.db).len(),
-                inputs.late_support.device_sharing_csv(&self.db).len(),
-                inputs.late_support.survey_attribution_csv(&self.db).len(),
-                inputs.late_support.enrolled_devices_csv(&self.db).len(),
-            ]
-            .into_iter()
-            .try_fold(0_usize, |total, size| total.checked_add(size))
-            .ok_or_else(|| "query-cache ingress byte count overflow".to_string())?;
-            if ingress_bytes > MAX_CACHE_INGRESS_BYTES {
-                return Err(format!(
-                    "query cache skipped because {} ingress bytes exceed the measured-safe {} byte limit",
-                    ingress_bytes, MAX_CACHE_INGRESS_BYTES
-                ));
-            }
-            let payload = match &self.cached_database_payload {
-                Some(payload) if payload.engine_revision == self.revision => payload.clone(),
-                _ => {
-                    let (bytes, uncompressed_size) = with_row_serialize_context(|| {
-                        encode_database(&<dyn salsa::Database>::as_serialize(&mut self.db))
-                    })?;
-                    let payload = CachedDatabasePayload {
-                        engine_revision: self.revision,
-                        digest: cache_sha256(&bytes),
-                        bytes: Arc::new(bytes),
-                        uncompressed_size,
-                    };
-                    self.cached_database_payload = Some(payload.clone());
-                    payload
-                }
-            };
-            let envelope = CacheEnvelopeRef {
-                protocol_version: CACHE_PROTOCOL,
-                codec: CACHE_CODEC,
-                salsa_version: CACHE_SALSA_VERSION,
-                engine_revision: self.revision,
-                identity,
-                identity_sha256: cache_sha256(identity.as_bytes()),
-                database_payload_sha256: &payload.digest,
-                database_payload_size: payload.bytes.len() as u64,
-                database_uncompressed_size: payload.uncompressed_size,
-                database_payload: payload.bytes.as_slice(),
-            };
-            let bytes = encode_messagepack(&envelope, "query-cache envelope")?;
-            if bytes.len() > MAX_CACHE_BYTES {
-                return Err(format!(
-                    "query-cache envelope exceeds the {} byte cache limit: actual={}",
-                    MAX_CACHE_BYTES,
-                    bytes.len(),
-                ));
-            }
-            Ok(bytes)
-        }
-
-        pub fn restore_cache(
-            &mut self,
-            bytes: &[u8],
-            expected_identity: &str,
-        ) -> Result<(), String> {
-            let envelope: CacheEnvelope = decode_messagepack(bytes, "query-cache envelope")?;
-            if envelope.protocol_version != CACHE_PROTOCOL {
-                return Err(format!(
-                    "unsupported query-cache protocol: {}",
-                    envelope.protocol_version
-                ));
-            }
-            if envelope.codec != CACHE_CODEC {
-                return Err(format!("unsupported query-cache codec: {}", envelope.codec));
-            }
-            if envelope.salsa_version != CACHE_SALSA_VERSION {
-                return Err(format!(
-                    "query-cache Salsa version mismatch: expected={} actual={}",
-                    CACHE_SALSA_VERSION, envelope.salsa_version
-                ));
-            }
-            if envelope.engine_revision == 0 {
-                return Err("query-cache engine revision must be positive".to_string());
-            }
-            if envelope.identity != expected_identity {
-                return Err(format!(
-                    "query-cache identity mismatch: expected={} actual={}",
-                    expected_identity, envelope.identity
-                ));
-            }
-            if cache_sha256(envelope.identity.as_bytes()) != envelope.identity_sha256 {
-                return Err("query-cache identity digest mismatch".to_string());
-            }
-            let verify_payload = |label: &str,
-                                  payload: &[u8],
-                                  declared_size: u64,
-                                  declared_digest: &str|
-             -> Result<(), String> {
-                if payload.len() as u64 != declared_size {
-                    return Err(format!(
-                        "query-cache {label} size mismatch: declared={declared_size} actual={}",
-                        payload.len()
-                    ));
-                }
-                let actual_digest = cache_sha256(payload);
-                if actual_digest != declared_digest {
-                    return Err(format!(
-                        "query-cache {label} digest mismatch: declared={declared_digest} actual={actual_digest}"
-                    ));
-                }
-                Ok(())
-            };
-            verify_payload(
-                "database payload",
-                &envelope.database_payload,
-                envelope.database_payload_size,
-                &envelope.database_payload_sha256,
-            )?;
-            if envelope.database_uncompressed_size > MAX_DECOMPRESSED_CACHE_BYTES {
-                return Err(format!(
-                    "query-cache declared uncompressed size exceeds the {} byte limit: actual={}",
-                    MAX_DECOMPRESSED_CACHE_BYTES, envelope.database_uncompressed_size
-                ));
-            }
-            let mut restored = EarlyDatabase::default();
-            let decoder = lz4_flex::frame::FrameDecoder::new(envelope.database_payload.as_slice());
-            let reader = CountingReader::new(decoder, MAX_DECOMPRESSED_CACHE_BYTES);
-            let mut deserializer = rmp_serde::Deserializer::new(reader);
-            with_row_deserialize_context(|| {
-                <dyn salsa::Database>::deserialize(&mut restored, &mut deserializer)
-            })
-            .map_err(|error| format!("restore Salsa database: {error}"))?;
-            let mut reader = deserializer.into_inner();
-            let mut trailing = [0_u8; 1];
-            use std::io::Read as _;
-            if reader
-                .read(&mut trailing)
-                .map_err(|error| format!("finish reading Salsa database: {error}"))?
-                != 0
-            {
-                return Err("query-cache database contains trailing data".to_string());
-            }
-            if reader.bytes_read != envelope.database_uncompressed_size {
-                return Err(format!(
-                    "query-cache uncompressed size mismatch: declared={} actual={}",
-                    envelope.database_uncompressed_size, reader.bytes_read
-                ));
-            }
-
-            // Recover the seven product inputs from Salsa itself. Each input
-            // is a persisted singleton, so a schema mismatch or incomplete
-            // cache fails before the restored database becomes live.
-            let inputs = TrackedInputs::restored(&restored)?;
-            let _ = inputs.raw.bytes(&restored);
-            restored.take_query_bodies();
-            restored.take_will_execute();
-            self.db = restored;
-            self.inputs = Some(inputs);
-            self.revision = envelope.engine_revision;
-            self.cached_database_payload = Some(CachedDatabasePayload {
-                engine_revision: envelope.engine_revision,
-                digest: envelope.database_payload_sha256,
-                bytes: Arc::new(envelope.database_payload),
-                uncompressed_size: envelope.database_uncompressed_size,
-            });
-            Ok(())
-        }
-
         pub fn execute(
             &mut self,
             csv_bytes: &[u8],
@@ -4314,13 +3879,6 @@ mod tracked {
                 .into_iter()
                 .map(str::to_string)
                 .collect::<Vec<_>>();
-            if !executed_steps.is_empty() {
-                self.revision = self
-                    .revision
-                    .checked_add(1)
-                    .ok_or_else(|| "tracked-engine revision overflow".to_string())?;
-                self.cached_database_payload = None;
-            }
             Ok(TrackedExecution {
                 result,
                 executed_steps,
@@ -4340,7 +3898,7 @@ mod tracked {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[salsa::tracked(returns(clone), persist)]
+    #[salsa::tracked(returns(clone))]
     fn assemble_result(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -5454,99 +5012,6 @@ mod tracked {
             assert_eq!(changed.executed_steps, ["assemble_result"]);
         }
 
-        #[test]
-        fn persisted_engine_reuses_all_55_queries_and_fails_closed() {
-            let options = late_pipeline_options();
-            let study_dates =
-                b"participant_id,start_date,end_date\nP01,2026-03-07,2026-03-07\n".to_vec();
-            let device_sharing = b"participant_id,sharing_status\nP01,Non-Shared\n".to_vec();
-            let enrolled_devices = b"participant_id,device_count\nP01,1\n".to_vec();
-            let support = PipelineV2SupportFiles {
-                study_dates_csv: &study_dates,
-                device_sharing_csv: &device_sharing,
-                enrolled_devices_csv: &enrolled_devices,
-                ..PipelineV2SupportFiles::default()
-            };
-            let identity = "implementation+build+verified-workspace-root:test";
-
-            let mut original = TrackedEngine::default();
-            let cold = original.execute(&csv(), &options, support).unwrap();
-            assert_eq!(cold.executed_steps.len(), 55);
-            let snapshot = original.export_cache(identity).unwrap();
-            assert!(!snapshot.is_empty());
-            let first_payload = original.cached_database_payload.clone().unwrap();
-            let second_snapshot = original
-                .export_cache("implementation+build+verified-workspace-root:test-2")
-                .unwrap();
-            let second_payload = original.cached_database_payload.clone().unwrap();
-            assert!(Arc::ptr_eq(&first_payload.bytes, &second_payload.bytes));
-            let first_envelope: CacheEnvelope =
-                decode_messagepack(&snapshot, "first test query-cache envelope").unwrap();
-            let second_envelope: CacheEnvelope =
-                decode_messagepack(&second_snapshot, "second test query-cache envelope").unwrap();
-            assert_eq!(
-                first_envelope.database_payload_sha256,
-                second_envelope.database_payload_sha256
-            );
-            assert_eq!(
-                first_envelope.database_payload,
-                second_envelope.database_payload
-            );
-
-            let mut restored = TrackedEngine::default();
-            restored.restore_cache(&snapshot, identity).unwrap();
-            let warm = restored.execute(&csv(), &options, support).unwrap();
-            assert!(
-                warm.executed_steps.is_empty(),
-                "restored warm execution reran {:?}",
-                warm.executed_steps
-            );
-            assert_result_parity(
-                &warm.result,
-                &cold.result,
-                UsageSessionMode::AppAndScreenUsage,
-            );
-
-            let mut output_only = options.clone();
-            output_only.study_name = "Restored output change".into();
-            let changed = restored.execute(&csv(), &output_only, support).unwrap();
-            assert_eq!(changed.executed_steps, ["assemble_result"]);
-            assert!(restored.cached_database_payload.is_none());
-            let oracle = run_pipeline_v2_with_supports(&csv(), &output_only, support).unwrap();
-            assert_result_parity(
-                &changed.result,
-                &oracle,
-                UsageSessionMode::AppAndScreenUsage,
-            );
-
-            let mut wrong_identity = TrackedEngine::default();
-            assert!(wrong_identity
-                .restore_cache(&snapshot, "different-workspace-root")
-                .unwrap_err()
-                .contains("identity mismatch"));
-
-            let mut corrupt = snapshot.clone();
-            let last = corrupt.len() - 1;
-            corrupt[last] ^= 1;
-            let mut corrupt_target = TrackedEngine::default();
-            assert!(corrupt_target.restore_cache(&corrupt, identity).is_err());
-
-            let mut truncated_target = TrackedEngine::default();
-            assert!(truncated_target
-                .restore_cache(&snapshot[..snapshot.len() - 1], identity)
-                .is_err());
-
-            let mut oversized: CacheEnvelope =
-                decode_messagepack(&snapshot, "test query-cache envelope").unwrap();
-            oversized.database_uncompressed_size = MAX_DECOMPRESSED_CACHE_BYTES + 1;
-            let oversized = encode_messagepack(&oversized, "test oversized envelope").unwrap();
-            let mut oversized_target = TrackedEngine::default();
-            assert!(oversized_target
-                .restore_cache(&oversized, identity)
-                .unwrap_err()
-                .contains("declared uncompressed size exceeds"));
-        }
-
         fn assert_checkpoint_parity(
             kind: &str,
             actual: &BTreeMap<String, LogicalStageCheckpoint>,
@@ -5761,8 +5226,6 @@ pub struct IncrementalPipelineV2Execution {
 
 #[cfg(feature = "incremental-v2")]
 impl IncrementalPipelineV2Engine {
-    pub const MAX_PERSISTED_CACHE_BYTES: usize = tracked::MAX_CACHE_BYTES;
-
     pub fn execute(
         &mut self,
         csv_bytes: &[u8],
@@ -5774,13 +5237,5 @@ impl IncrementalPipelineV2Engine {
             result: execution.result,
             executed_steps: execution.executed_steps,
         })
-    }
-
-    pub fn export_cache(&mut self, identity: &str) -> Result<Vec<u8>, String> {
-        self.inner.export_cache(identity)
-    }
-
-    pub fn restore_cache(&mut self, bytes: &[u8], expected_identity: &str) -> Result<(), String> {
-        self.inner.restore_cache(bytes, expected_identity)
     }
 }

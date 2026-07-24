@@ -9,17 +9,9 @@ const env = {
 };
 
 const crates = [
-  ["chronicle_app_usage_wasm", "chronicle_app_usage_wasm"],
   ["chronicle_preprocessing_runtime_wasm", "chronicle_preprocessing_runtime_wasm"],
   ["chronicle_semantic_index_wasm", "chronicle_semantic_index_wasm"],
 ];
-if (process.argv.includes("--include-benchmark-kernel")) {
-  // The production runtime already compiles and embeds this kernel. Its
-  // standalone WASM package exists only for the low-level benchmark scripts;
-  // rebuilding it during every app/test build duplicated the slowest wasm-opt
-  // pass without changing the application bundle.
-  crates.splice(1, 0, ["chronicle_chrono_kernel_wasm", "chronicle_chrono_kernel_wasm"]);
-}
 
 for (const [crate, output] of crates) {
   process.stdout.write(`building ${crate} for browser WASM\n`);

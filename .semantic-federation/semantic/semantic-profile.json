@@ -74,7 +74,7 @@
       "path": "capability-bindings.json",
       "media_type": "application/json",
       "role": "binding-source",
-      "digest": "sha256:7ce7fbedcf9aeb00a5e6f6387f87b393dd30b5d37f33cad5d408973ac48d8b44"
+      "digest": "sha256:3ebbe3ff7ad8a9b6fea73eb5a6dab936238ee2df109f111ecdd900641610b7f0"
     },
     {
       "path": "families/incremental-dataflow/contract.json",
@@ -86,19 +86,19 @@
       "path": "resources/chronicle.plan.json",
       "media_type": "application/json",
       "role": "binding-source",
-      "digest": "sha256:3b1db580ca483d5f7f198a82fcc8166e9ad180eaea587db1ae950a5fa06649a6"
+      "digest": "sha256:6de88ad84552191fb4cea4acda553006cddc096f20c24e2138954f1d4d48231c"
     },
     {
       "path": "resources/runtime-authority.json",
       "media_type": "application/json",
       "role": "binding-source",
-      "digest": "sha256:11142579a05120fce9a1fe8e0edfffdcae385b34a10080d878e8d82b73cc8627"
+      "digest": "sha256:bb2e2d109a81098514ba9a86344da6edc033cd305e6d6c4832c9dfd1ce81b2f9"
     },
     {
       "path": "resources/chronicle-research-ontology.linkml.yaml",
       "media_type": "application/yaml",
       "role": "ontology",
-      "digest": "sha256:f5e5c728f53b936e064db2dc1bd37946b3933d123e11f485899cf402baea848e"
+      "digest": "sha256:7aa38387d6306edd43630eb81c5f847961ecf2454efbb9f3d2cb358219dc54db"
     },
     {
       "path": "resources/chronicle-research-ontology.merged.shacl.ttl",

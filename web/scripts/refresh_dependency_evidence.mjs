@@ -10,6 +10,16 @@ const runtimeCrate = path.join(
   repositoryRoot,
   "rust/chronicle_preprocessing_runtime_wasm",
 );
+const semanticRoot = path.join(repositoryRoot, ".semantic-federation");
+const localSemprof = path.join(
+  homedir(),
+  "semantic-profile-toolchain",
+  "target",
+  "debug",
+  "semprof",
+);
+const semprofBin = process.env.SEM_PROF_BIN ||
+  (existsSync(localSemprof) ? localSemprof : "semprof");
 const temporaryPackage = mkdtempSync(
   path.join(tmpdir(), "chronicle-dependency-campaign-wasm-"),
 );
@@ -22,6 +32,8 @@ const generatedPaths = [
   ".semantic-federation/proofs/dependency-certificate.json",
   ".semantic-federation/semantic/capability-bindings.json",
   ".semantic-federation/semantic/resources",
+  ".semantic-federation/semantic/semantic-profile.json",
+  ".semantic-federation/semantic/semantic-profile.lock",
   "docs/semantic-federation/behavior-inventory.json",
 ];
 const toolchainEnv = {
@@ -88,6 +100,51 @@ function restoreSnapshots() {
 }
 
 try {
+  await run(
+    "regenerate product contracts",
+    path.join(repositoryRoot, "scripts/generate_semantic_behavior_inventory.py"),
+    ["--contracts-only"],
+    { cwd: repositoryRoot },
+  );
+  await run(
+    "regenerate semantic profile",
+    semprofBin,
+    [
+      "generate",
+      "--source",
+      "semantic/profile-source.json",
+      "--output",
+      "semantic/semantic-profile.json",
+    ],
+    { cwd: semanticRoot },
+  );
+  await run(
+    "resolve semantic profile",
+    semprofBin,
+    [
+      "resolve",
+      "--manifest",
+      "semantic/semantic-profile.json",
+      "--registry",
+      "vendor/semantic-profile-registry",
+      "--output",
+      "semantic/semantic-profile.lock",
+    ],
+    { cwd: semanticRoot },
+  );
+  await run(
+    "verify semantic profile",
+    semprofBin,
+    ["verify", "--lock", "semantic/semantic-profile.lock"],
+    { cwd: semanticRoot },
+  );
+  await run(
+    "verify capability bindings",
+    semprofBin,
+    ["verify-bindings", "--bindings", "semantic/capability-bindings.json"],
+    { cwd: semanticRoot },
+  );
+
   await run("build isolated campaign runtime", "wasm-pack", [
     "build",
     runtimeCrate,

@@ -1,5 +1,9 @@
 # Web App Architecture Map (as of 2026-07-14)
 
+> **Historical snapshot, superseded.** The TypeScript processing engine and
+> matcher-only WASM paths described here were deleted. Current processing is the
+> single 55-step Rust/Salsa runtime; the graph is a Rust-derived UI view.
+
 How `web/` executes today. This is the substrate the pipeline-graph work modifies.
 
 ## Shape

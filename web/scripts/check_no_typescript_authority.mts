@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const webDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const repoDir = path.resolve(webDir, "..");
 const sourceDir = path.join(webDir, "src");
 
 const forbiddenPaths = [
@@ -27,6 +28,18 @@ const forbiddenSymbols = [
   "execute_bounded_v2_shadow",
   "buildProcessingReport",
   "buildProvenanceJsonLd",
+  "ALL_INTERACTION_TYPES_MAP",
+  "parseInteractionRemap",
+];
+
+const forbiddenRepoPaths = [
+  "rust/chronicle_app_usage_wasm",
+  "rust/chronicle_incremental_query_spike",
+  "rust/chronicle_polars_kernels_wasm",
+  "rust/vendor/salsa-0.28.1",
+  "web/src/wasm/chronicle_app_usage_wasm",
+  "web/src/wasm/chronicle_chrono_kernel_wasm",
+  "web/src/wasm/chronicle_polars_kernels_wasm",
 ];
 
 async function exists(target: string): Promise<boolean> {
@@ -61,6 +74,11 @@ const violations: string[] = [];
 for (const relative of forbiddenPaths) {
   if (await exists(path.join(webDir, relative))) {
     violations.push(`${relative}: deleted TypeScript preprocessing path exists`);
+  }
+}
+for (const relative of forbiddenRepoPaths) {
+  if (await exists(path.join(repoDir, relative))) {
+    violations.push(`${relative}: retired duplicate implementation exists`);
   }
 }
 

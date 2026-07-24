@@ -1,5 +1,10 @@
 # Rust Port — Wave 2: Full-Output Pipeline (`process_full_pipeline_v2`)
 
+> **Historical port evidence, not a live API guide.** The exported
+> `process_full_pipeline_v2` facade and all earlier partial engines were deleted.
+> The fused function remains private test-oracle code; production executes the
+> 55-step Rust/Salsa runtime through `chronicle_preprocessing_runtime_wasm`.
+
 Author: Claude (continuation of `rust-port-design-memo.md`)
 Date: 2026-04-27
 

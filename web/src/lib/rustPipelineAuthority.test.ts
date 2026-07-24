@@ -80,6 +80,7 @@ function manifest(artifacts: RuntimeManifest["artifacts"]): RuntimeManifest {
   );
   return {
     protocolVersion: "chronicle-preprocessing-runtime/v1",
+    preprocessorVersion: "1.0.0",
     requestId: "execute-test",
     command: "ExecuteWorkspace",
     implementation: "test-runtime/0.1.0",

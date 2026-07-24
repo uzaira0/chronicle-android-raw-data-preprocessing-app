@@ -6,11 +6,12 @@ import {
   garbageCollectPersistedRustWorkspace,
   importPersistedRustWorkspace,
   importPersistedRustWorkspaceArchive,
-  readPersistedRustArtifact,
   verifyPersistedRustWorkspace,
   getRustRuntimeVersion,
   getRustPlanStageView,
   inspectRustRawFile,
+  readPersistedRustWorkspaceHead,
+  readVerifiedSemanticIndexSnapshot,
 } from "@/lib/rustPipelineRuntime";
 import type { RawFileInspection } from "@/lib/fileInspection";
 import { processRawCsvWithRustAuthority } from "@/lib/rustPipelineAuthority";
@@ -42,35 +43,50 @@ const sessionDatetimes = new Map<
 >();
 const MAX_SESSION_DATETIMES = 32;
 const MAX_SEMANTIC_INDEXES = 8;
-const semanticIndexes = new Map<string, Uint8Array>();
+type SemanticIndexCacheEntry = {
+  workspaceRootDigest: string;
+  index: Uint8Array;
+};
+const semanticIndexes = new Map<string, SemanticIndexCacheEntry>();
 
 function invalidateSemanticIndex(workspaceId: string): void {
   semanticIndexes.delete(workspaceId);
 }
 
-function cacheSemanticIndex(workspaceId: string, index: Uint8Array): Uint8Array {
+function cacheSemanticIndex(
+  workspaceId: string,
+  entry: SemanticIndexCacheEntry,
+): SemanticIndexCacheEntry {
   semanticIndexes.delete(workspaceId);
-  semanticIndexes.set(workspaceId, index);
+  semanticIndexes.set(workspaceId, entry);
   while (semanticIndexes.size > MAX_SEMANTIC_INDEXES) {
     const oldest = semanticIndexes.keys().next().value;
     if (oldest === undefined) break;
     semanticIndexes.delete(oldest);
   }
-  return index;
+  return entry;
 }
 
-async function getSemanticIndex(workspaceId: string): Promise<Uint8Array> {
+async function getSemanticIndex(
+  workspaceId: string,
+): Promise<SemanticIndexCacheEntry> {
   const cached = semanticIndexes.get(workspaceId);
-  if (cached) {
+  if (
+    cached &&
+    cached.workspaceRootDigest ===
+      (await readPersistedRustWorkspaceHead(workspaceId))
+  ) {
     semanticIndexes.delete(workspaceId);
     semanticIndexes.set(workspaceId, cached);
     return cached;
   }
+  const snapshot = await readVerifiedSemanticIndexSnapshot(workspaceId);
   return cacheSemanticIndex(
     workspaceId,
-    await rebuildSemanticIndex(
-      await readPersistedRustArtifact(workspaceId, "semantic-index-source-json"),
-    ),
+    {
+      workspaceRootDigest: snapshot.workspaceRootDigest,
+      index: await rebuildSemanticIndex(snapshot.source),
+    },
   );
 }
 
@@ -137,15 +153,19 @@ const api = {
     return { removedObjects };
   },
   async rebuildIndex(workspaceId: string): Promise<Uint8Array> {
-    return cacheSemanticIndex(
-      workspaceId,
-      await rebuildSemanticIndex(
-        await readPersistedRustArtifact(workspaceId, "semantic-index-source-json"),
-      ),
-    );
+    const snapshot = await readVerifiedSemanticIndexSnapshot(workspaceId);
+    const entry = cacheSemanticIndex(workspaceId, {
+      workspaceRootDigest: snapshot.workspaceRootDigest,
+      index: await rebuildSemanticIndex(snapshot.source),
+    });
+    return entry.index;
   },
   async queryRegistered(workspaceId: string, queryId: string) {
-    return queryRegisteredSemanticIndex(await getSemanticIndex(workspaceId), queryId);
+    const entry = await getSemanticIndex(workspaceId);
+    return {
+      ...(await queryRegisteredSemanticIndex(entry.index, queryId)),
+      workspaceRootDigest: entry.workspaceRootDigest,
+    };
   },
   async runtimeVersion(): Promise<string> {
     return getRustRuntimeVersion();

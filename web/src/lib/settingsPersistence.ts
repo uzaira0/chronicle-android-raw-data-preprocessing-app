@@ -8,7 +8,6 @@ import {
 } from "@/lib/generatedContract";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import type { BrowserProcessingOptions } from "@/lib/types";
-import { CANONICAL_INTERACTION_TYPES, parseInteractionRemap } from "@/lib/interactionTypes";
 import { safeUuid } from "@/lib/uuid";
 
 const STORAGE_KEY = "chronicle.processingOptions.v1";
@@ -56,26 +55,6 @@ function stringArray(value: unknown, fallback: string[]): string[] {
   return value.filter((entry): entry is string => typeof entry === "string");
 }
 
-const CANONICAL_INTERACTION_TYPE_SET = new Set<string>(CANONICAL_INTERACTION_TYPES);
-
-/**
- * Drop a restored `interactionTypeRemap` entry only when it forms an *active*
- * mapping (one `parseInteractionRemap` inserts) whose target is NOT a canonical
- * interaction type — exactly the set the editor's <select> offers. This blocks a
- * share-link / preset / project entry like "VENDOR => BogusType" the editor could
- * never produce, which otherwise maps events to an inert type AND suppresses the
- * pre-flight "unrecognized interaction type" warning (false reassurance). Inert
- * in-progress rows (no delimiter, or an empty side) are kept so the editor's
- * mid-edit round-trip stays intact. Reusing the real parser keeps this in lockstep
- * with how the pipeline interprets the same entries.
- */
-function isValidRemapEntry(entry: string): boolean {
-  for (const target of parseInteractionRemap([entry]).values()) {
-    if (!CANONICAL_INTERACTION_TYPE_SET.has(target)) return false;
-  }
-  return true;
-}
-
 function optionalPositiveInteger(value: unknown): number | undefined {
   if (value === undefined || value === null || value === "") return undefined;
   const number = Number(value);
@@ -111,10 +90,6 @@ export function sanitizeOptions(value: unknown): BrowserProcessingOptions {
   }
   // parallelMaxWorkers has unique semantics (optional, positive-only) so stays explicit.
   next.parallelMaxWorkers = optionalPositiveInteger(src.parallelMaxWorkers);
-
-  // Reject restored remap entries whose target isn't a canonical interaction type
-  // (the editor's <select> can't produce these; a hand-crafted config could).
-  next.interactionTypeRemap = next.interactionTypeRemap.filter(isValidRemapEntry);
 
   return next;
 }

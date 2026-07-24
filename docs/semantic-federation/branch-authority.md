@@ -14,10 +14,11 @@ selects the composed Rust/WASM runtime. The branch now contains 55 real
 Salsa-tracked Rust computations and a stateful engine with complete four-mode
 parity against the fused Rust oracle. The production runtime consumes actual
 Salsa execution events and derives the existing 15-group display state from
-them. Compatible query-cache export/restore and optional OPFS cache roots are
-implemented, but their complete real-WASM reload/crash/size proof, regenerated
-dependency evidence, broad campaigns, saved-view proof, and production gates
-remain active. The exact live status and acceptance checks are in
+them. The profiled Salsa snapshot path was slower than cold recalculation and
+has been deleted along with its browser cache pointers, serializer, patched
+Salsa fork, and trial crate. OPFS retains verified inputs and complete result
+history; a replacement worker recalculates from those inputs. The exact live
+status and acceptance checks are in
 `55-step-incremental-rust-plan.md`; no other document is an independent plan.
 
 Production Pages, `main`, research-pipeline, GitOps, homelab provisioning, and

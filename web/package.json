@@ -36,8 +36,8 @@
     "benchmark:browser": "node scripts/benchmark_browser_processing.mjs",
     "benchmark:runtime-wasm": "node scripts/run-clean-env.mjs vite-node scripts/benchmark_runtime_wasm.mts",
     "generate:benchmark-fixture": "node scripts/run-clean-env.mjs vite-node scripts/generate_benchmark_fixture.mts",
-    "build:wasm": "node scripts/build_wasm.mjs",
-    "build:benchmark-wasm": "node scripts/build_wasm.mjs --include-benchmark-kernel",
+    "build:wasm": "node scripts/build_wasm.mjs && node scripts/check_wasm_exports.mjs",
+    "check:wasm-exports": "node scripts/check_wasm_exports.mjs",
     "generate:pipeline-graph": "node scripts/run-clean-env.mjs vite-node scripts/generate_pipeline_graph_artifacts.mts",
     "generate:output-codebook": "node scripts/run-clean-env.mjs vite-node scripts/generate_output_codebook_artifacts.mts"
   },

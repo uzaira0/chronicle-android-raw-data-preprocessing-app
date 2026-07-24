@@ -46,7 +46,6 @@ npm run test           # vitest unit tests
 npm run test:e2e:smoke # playwright @smoke tests
 npm run check:contract # regenerate + validate the generated contract (see below)
 npm run build:wasm     # rebuild the WASM packages used by the app and tests
-npm run build:benchmark-wasm # also rebuild the standalone low-level benchmark kernel
 ```
 
 Most npm scripts wrap the real command in `node scripts/run-clean-env.mjs` to strip a polluted env.
@@ -55,8 +54,9 @@ Most npm scripts wrap the real command in `node scripts/run-clean-env.mjs` to st
 
 ### Rust (`rust/`)
 - `chronicle_app_usage_matcher` — **the single source of truth for session matching**. Core functions (`match_app_usage_core`, `split_overlapping_sessions` — an O(N log N) sweep-line) are binding-agnostic. A `python` feature (default on) gates PyO3 + numpy; the web crates depend on it with `default-features = false`, and `make rust` tests it feature-free.
-- `chronicle_app_usage_wasm` — wasm-bindgen wrapper around the matcher (path dep, `default-features = false` to exclude PyO3). Used by the web worker.
-- `chronicle_chrono_kernel_wasm` — chrono-tz timestamp/CSV kernels for the web.
+- `chronicle_chrono_kernel_wasm` — the 55-step processing library used by the
+  production runtime. It uses `chronicle_app_usage_matcher` directly and has
+  no standalone browser entry point.
 - `chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs` — the physical
   preprocessing engine: exactly 55 Salsa `0.28.1` tracked Rust computations.
   Their actual reads control invalidation; Salsa execution events are the only
@@ -64,10 +64,12 @@ Most npm scripts wrap the real command in `node scripts/run-clean-env.mjs` to st
   `run_pipeline_v2_with_supports()` path is an independent cold oracle and
   temporary rollback, not the warm execution path.
 - `chronicle_preprocessing_runtime_wasm` — product contract, qualification,
-  execution, evidence, typed views, and the root-bound query-cache API. Its
-  saved Salsa snapshot is optional acceleration only; authoritative source,
-  result, journal, and workspace-root objects remain in the verified closure.
-- Prebuilt WASM packages are committed under `web/src/wasm/*/pkg/` so the web build needs only Node (no Rust toolchain). They are **force-tracked** (`.gitignore` excludes `pkg/`); after `npm run build:wasm` you must `git add -f` the regenerated pkg.
+  execution, evidence, typed views, and verified artifact closure. Salsa state
+  is an in-worker cache only; a replacement worker recalculates from verified
+  OPFS inputs because snapshot restore was measured slower than a cold run.
+- Generated WASM packages under `web/src/wasm/*/pkg/` are ignored build
+  outputs. `npm run build` rebuilds them from the reviewed Rust sources and
+  therefore requires the Rust WASM toolchain.
 
 ### Web (`web/src/`)
 - `App.tsx` + `components/WorkflowNav.tsx` — tab UI: **settings → files → process → view**.
@@ -75,9 +77,8 @@ Most npm scripts wrap the real command in `node scripts/run-clean-env.mjs` to st
   Comlink worker boundary. Rust/WASM owns parsing, qualification, all 55
   transformations, incremental execution, evidence, and result artifacts.
 - `lib/opfsArtifactStore.ts` — thin browser persistence for Rust-owned
-  content-addressed objects, alternating authoritative workspace roots, and
-  separate optional alternating query-cache roots. Cache recovery occurs only
-  after workspace verification and always falls back cold on failure.
+  content-addressed objects, complete root history, and alternating
+  authoritative workspace roots. It does not persist opaque scheduler state.
 - `lib/rustWorkerClient.ts` — browser-facing worker lifecycle, transferables,
   pooling, and fault handling. It contains no preprocessing implementation.
 - `components/GraphPanel/viewGraph.ts` — UI-only path/highlight operations over

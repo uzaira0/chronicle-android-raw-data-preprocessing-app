@@ -30,7 +30,6 @@ PIPELINE_INCREMENTAL = (
 )
 STEP_CONTRACT = ROOT / "rust/chronicle_chrono_kernel_wasm/src/step_contract.rs"
 KERNEL_MANIFEST = ROOT / "rust/chronicle_chrono_kernel_wasm/Cargo.toml"
-MATCHER_WASM = ROOT / "rust/chronicle_app_usage_wasm"
 FEDERATION = ROOT / ".semantic-federation"
 RESOURCE_ROOT = FEDERATION / "semantic/resources"
 PLAN_OUTPUT = RESOURCE_ROOT / "chronicle.plan.json"
@@ -213,13 +212,7 @@ RUNTIME_SURFACES = [
         "artifact_closure",
         "storage-authority",
         "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
-        "build_artifact_closure",
-    ),
-    rust_surface(
-        "configuration_family",
-        "semantic-computation",
-        "rust/chronicle_preprocessing_runtime_wasm/src/configuration_family.rs",
-        "compile_configuration_family",
+        "execute_workspace_native",
     ),
     rust_surface(
         "semantic_index",
@@ -851,21 +844,13 @@ def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) 
                 "digest": digest(ROOT / "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs"),
                 "coverage": "production-worker-authority",
             },
-            "configuration_family_compiler": {
-                "path": "rust/chronicle_preprocessing_runtime_wasm/src/configuration_family.rs",
-                "digest": digest(
-                    ROOT
-                    / "rust/chronicle_preprocessing_runtime_wasm/src/configuration_family.rs"
-                ),
-                "coverage": "product-local-variability-authority",
-            },
         },
         "coverage": {
             "nodes": {"expected": 15, "recorded": len(node_ids), "percent": 100},
             "steps": {"expected": 55, "recorded": len(step_ids), "percent": 100},
             "declared_capability_identity_coverage": {
-                "expected": 70,
-                "recorded": 70,
+                "expected": 69,
+                "recorded": 69,
                 "percent": 100,
                 "claim": "identity-and-exact-rust-query-entrypoint-coverage",
             },

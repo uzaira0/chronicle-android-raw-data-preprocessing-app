@@ -6,18 +6,15 @@
 //! content-addressed artifacts, role assignments, obligations, and evidence.
 
 mod binary_exports;
-mod configuration_family;
-
-pub use configuration_family::{
-    compile_configuration_family, ConfigurationFamilyReport, ConfigurationVariantObservation,
-    CONFIGURATION_FAMILY_PROTOCOL_VERSION,
-};
 
 use calamine::{Reader, Xlsx};
 use chronicle_chrono_kernel_wasm::pipeline_v2::{
-    run_pipeline_v2_with_supports, IncrementalPipelineV2Engine, LogicalStageCheckpoint,
+    discover_timezones_v2_native, IncrementalPipelineV2Engine, LogicalStageCheckpoint,
     PipelineV2Options, PipelineV2OptionsJson, PipelineV2Result, PipelineV2SupportFiles,
-    TIMEZONE_HANDLING_MODES,
+};
+#[cfg(test)]
+use chronicle_chrono_kernel_wasm::pipeline_v2::{
+    run_pipeline_v2_with_supports, TIMEZONE_HANDLING_MODES,
 };
 use chronicle_chrono_kernel_wasm::step_contract::{
     step_request_fields, step_source_role_bindings, PipelineSourceRolePredicate, PIPELINE_STEPS,
@@ -49,16 +46,28 @@ pub const RUNTIME_PROTOCOL_VERSION: &str = "chronicle-preprocessing-runtime/v1";
 pub const EXECUTE_WORKSPACE_COMMAND: &str = "ExecuteWorkspace";
 pub const IMPLEMENTATION_BUILD_DIGEST: &str = env!("CHRONICLE_IMPLEMENTATION_BUILD_DIGEST");
 pub const BUILD_ENVIRONMENT_DIGEST: &str = env!("CHRONICLE_BUILD_ENVIRONMENT_DIGEST");
-const REQUIRED_VIEW_IDS: [&str; 4] = [
-    "chronicle.stage.v1",
-    "chronicle.artifact.v1",
-    "chronicle.obligation.v1",
-    "chronicle.explanation.v1",
+const REQUIRED_VIEWS: [(&str, &str, &str); 4] = [
+    (
+        "stage-view-json",
+        "chronicle.stage.v1",
+        "urn:chronicle:view:stage:v1",
+    ),
+    (
+        "artifact-view-json",
+        "chronicle.artifact.v1",
+        "urn:chronicle:view:artifact:v1",
+    ),
+    (
+        "obligation-view-json",
+        "chronicle.obligation.v1",
+        "urn:chronicle:view:obligation:v1",
+    ),
+    (
+        "explanation-view-json",
+        "chronicle.explanation.v1",
+        "urn:chronicle:view:explanation:v1",
+    ),
 ];
-/// Compatibility alias retained while stored clients migrate to the authority
-/// command. Runtime manifests always report `ExecuteWorkspace`.
-pub const BOUNDED_COMMAND: &str = EXECUTE_WORKSPACE_COMMAND;
-const LEGACY_BOUNDED_COMMAND: &str = "ExecuteBoundedV2Shadow";
 const SUPPORT_ROLES: &[&str] = &[
     "filter_file",
     "apps_forcing_screen_open_file",
@@ -83,10 +92,11 @@ pub fn implementation_build_digest() -> String {
     IMPLEMENTATION_BUILD_DIGEST.into()
 }
 
+/// Discover normalized IANA timezones through the same Rust boundary used by
+/// production preprocessing.
 #[wasm_bindgen]
-pub fn query_cache_max_bytes() -> u32 {
-    u32::try_from(IncrementalPipelineV2Engine::MAX_PERSISTED_CACHE_BYTES)
-        .expect("query-cache byte limit must fit u32")
+pub fn discover_timezones_v2(csv_bytes: &[u8]) -> Result<Vec<String>, JsValue> {
+    discover_timezones_v2_native(csv_bytes).map_err(|error| JsValue::from_str(&error))
 }
 
 const ADVISORY_RAW_COLUMNS: [&str; 7] = [
@@ -365,6 +375,22 @@ pub fn build_environment_digest() -> String {
 }
 
 #[wasm_bindgen]
+pub fn runtime_identity_json() -> String {
+    serde_jcs::to_string(&serde_json::json!({
+        "protocolVersion": RUNTIME_PROTOCOL_VERSION,
+        "implementationDigest": IMPLEMENTATION_BUILD_DIGEST,
+        "buildEnvironmentDigest": BUILD_ENVIRONMENT_DIGEST,
+        "productContractDigest": EMBEDDED_PRODUCT_CONTRACT_SHA256,
+        "planDigest": EMBEDDED_PLAN_SHA256,
+        "profileDigest": EMBEDDED_PROFILE_SHA256,
+        "profileLockDigest": EMBEDDED_PROFILE_LOCK_SHA256,
+        "runtimeAuthorityDigest": EMBEDDED_RUNTIME_AUTHORITY_SHA256,
+        "dependencyCertificateDigest": EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256,
+    }))
+    .expect("runtime identity is serializable")
+}
+
+#[wasm_bindgen]
 pub fn pipeline_step_contract_json() -> String {
     serde_json::to_string(&chronicle_chrono_kernel_wasm::step_contract::pipeline_step_contract())
         .expect("Rust pipeline step contract is serializable")
@@ -436,7 +462,7 @@ impl RuntimeRequest {
                 self.protocol_version
             ));
         }
-        if self.command != EXECUTE_WORKSPACE_COMMAND && self.command != LEGACY_BOUNDED_COMMAND {
+        if self.command != EXECUTE_WORKSPACE_COMMAND {
             return Err(format!("unsupported command: {}", self.command));
         }
         if self.request_id.trim().is_empty() {
@@ -519,6 +545,7 @@ pub struct RuntimeProcessingSummary {
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeManifest {
     pub protocol_version: String,
+    pub preprocessor_version: String,
     pub request_id: String,
     pub command: String,
     pub implementation: String,
@@ -583,9 +610,41 @@ struct RootCommit<'a> {
     options_digest: &'a str,
     assignment_digests: BTreeMap<&'a str, &'a str>,
     artifact_digests: Vec<&'a str>,
-    required_view_ids: [&'static str; 4],
+    execution_state_digest: &'a str,
+    required_views: &'a [RequiredViewBinding],
     journal_digest: &'a str,
     artifact_closure_digest: &'a str,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RequiredViewBinding {
+    artifact_kind: &'static str,
+    view_id: &'static str,
+    schema_id: &'static str,
+    artifact_digest: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExecutionStateCommit<'a> {
+    protocol_version: &'static str,
+    implementation_digest: &'static str,
+    build_environment_digest: &'static str,
+    product_contract_digest: &'static str,
+    plan_digest: &'static str,
+    profile_digest: &'static str,
+    profile_lock_digest: &'static str,
+    runtime_authority_digest: &'static str,
+    dependency_certificate_digest: &'static str,
+    dependency_cache_mode: chronicle_preprocessing_semantic_adapter::DependencyCacheMode,
+    workspace_id: &'a str,
+    previous_workspace_root_digest: &'a Option<String>,
+    input_digest: &'a str,
+    options_digest: &'a str,
+    assignment_digests: BTreeMap<&'a str, &'a str>,
+    computational_artifact_digests: Vec<&'a str>,
+    journal_digest: &'a str,
 }
 
 #[derive(Debug, Serialize)]
@@ -602,6 +661,11 @@ struct ArtifactClosure<'a> {
     runtime_authority_digest: &'static str,
     product_contract_digest: &'static str,
     dependency_certificate_digest: &'static str,
+    dependency_cache_mode: chronicle_preprocessing_semantic_adapter::DependencyCacheMode,
+    previous_workspace_root_digest: &'a Option<String>,
+    options_digest: &'a str,
+    assignment_digests: BTreeMap<&'a str, &'a str>,
+    execution_state_digest: &'a str,
     journal_digest: &'a str,
     artifacts: Vec<&'a RuntimeArtifactMetadata>,
 }
@@ -635,13 +699,16 @@ struct CorrespondenceIndex {
     edges: Vec<CorrespondenceEdge>,
 }
 
+#[derive(Clone)]
 struct RuntimeArtifact {
     metadata: RuntimeArtifactMetadata,
     bytes: RuntimeArtifactBytes,
 }
 
+#[derive(Clone)]
 enum RuntimeArtifactBytes {
     Owned(Vec<u8>),
+    Shared(Arc<[u8]>),
     PipelineOutput {
         result: Arc<PipelineV2Result>,
         kind: String,
@@ -683,13 +750,22 @@ pub struct RuntimeHandle {
 #[derive(Default)]
 struct IncrementalRuntimeState {
     incremental_engine: IncrementalPipelineV2Engine,
-    step_cache: BTreeMap<String, RuntimeStepCacheEntry>,
-    stage_projection_cache: BTreeMap<String, String>,
+    previous_step_observations: BTreeMap<String, PreviousStepObservation>,
+    previous_stage_inputs: BTreeMap<String, String>,
+    stable_artifact_bundle: Option<StableArtifactBundle>,
     last_workspace_root: Option<String>,
 }
 
+#[derive(Clone)]
+struct StableArtifactBundle {
+    key: String,
+    result_digests: PipelineResultDigests,
+    binary_artifacts: Vec<RuntimeArtifact>,
+    source_coordinate_artifact: RuntimeArtifact,
+}
+
 #[derive(Debug, Clone)]
-struct RuntimeStepCacheEntry {
+struct PreviousStepObservation {
     input_key: String,
     output_digest: String,
     applicable: bool,
@@ -724,19 +800,68 @@ impl IncrementalRuntimeStateCache {
     fn get_mut(&mut self, workspace_id: &str) -> Option<&mut IncrementalRuntimeState> {
         self.states.get_mut(workspace_id)
     }
+}
 
-    fn insert(&mut self, workspace_id: &str, state: IncrementalRuntimeState) {
-        self.lru.retain(|candidate| candidate != workspace_id);
-        if !self.states.contains_key(workspace_id)
-            && self.states.len() >= MAX_INCREMENTAL_RUNTIME_STATES
-        {
-            if let Some(evicted) = self.lru.pop_front() {
-                self.states.remove(&evicted);
-            }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StableArtifactKey<'a> {
+    implementation_digest: &'static str,
+    build_environment_digest: &'static str,
+    workspace_id: &'a str,
+    input_digest: &'a str,
+    options_digest: &'a str,
+    assignment_digests: BTreeMap<&'a str, &'a str>,
+    assemble_result_digest: &'a str,
+    dependency_cache_mode: DependencyCacheMode,
+}
+
+fn stable_artifact_key(
+    workspace_id: &str,
+    input_digest: &str,
+    options_digest: &str,
+    assignments: &BTreeMap<String, RoleAssignment>,
+    result: &PipelineV2Result,
+    dependency_cache_mode: DependencyCacheMode,
+) -> Result<String, String> {
+    let assemble_result_digest = result
+        .pipeline_step_digests
+        .get("assemble_result")
+        .ok_or_else(|| "tracked result omitted assemble_result checkpoint".to_string())?;
+    Ok(sha256(
+        &serde_jcs::to_vec(&StableArtifactKey {
+            implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
+            build_environment_digest: BUILD_ENVIRONMENT_DIGEST,
+            workspace_id,
+            input_digest,
+            options_digest,
+            assignment_digests: assignments
+                .iter()
+                .map(|(role, assignment)| (role.as_str(), assignment.artifact.digest.as_str()))
+                .collect(),
+            assemble_result_digest,
+            dependency_cache_mode,
+        })
+        .map_err(|error| format!("canonicalize stable artifact key: {error}"))?,
+    ))
+}
+
+fn cached_stable_artifact_bundle(workspace_id: &str, key: &str) -> Option<StableArtifactBundle> {
+    INCREMENTAL_RUNTIME_STATES.with(|states| {
+        states
+            .borrow_mut()
+            .get_mut(workspace_id)
+            .and_then(|state| state.stable_artifact_bundle.as_ref())
+            .filter(|bundle| bundle.key == key)
+            .cloned()
+    })
+}
+
+fn store_stable_artifact_bundle(workspace_id: &str, bundle: StableArtifactBundle) {
+    INCREMENTAL_RUNTIME_STATES.with(|states| {
+        if let Some(state) = states.borrow_mut().get_mut(workspace_id) {
+            state.stable_artifact_bundle = Some(bundle);
         }
-        self.states.insert(workspace_id.to_string(), state);
-        self.lru.push_back(workspace_id.to_string());
-    }
+    });
 }
 
 thread_local! {
@@ -747,6 +872,7 @@ thread_local! {
 #[cfg(test)]
 thread_local! {
     static TRACKED_PHYSICAL_EXECUTION_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static STABLE_ARTIFACT_GENERATION_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 fn compute_pipeline_result_digest(
@@ -793,6 +919,7 @@ fn compute_pipeline_result_digest(
 /// Digest only researcher-visible computational outputs. Configuration choice
 /// and lineage remain separately observable in `compute_pipeline_result_digest`, so
 /// equal bytes can collapse without erasing how those bytes were obtained.
+#[derive(Clone)]
 struct PipelineResultDigests {
     published_outputs_digest: String,
     provenance_digest: String,
@@ -1097,7 +1224,7 @@ fn build_runtime_step_executions(
     assignments: &BTreeMap<String, RoleAssignment>,
     result: &PipelineV2Result,
     executed_steps: &[String],
-    cache: &mut BTreeMap<String, RuntimeStepCacheEntry>,
+    previous_observations: &mut BTreeMap<String, PreviousStepObservation>,
 ) -> Result<Vec<RuntimeStepExecution>, String> {
     let plan_steps = plan
         .steps
@@ -1135,7 +1262,7 @@ fn build_runtime_step_executions(
     }
     let mut executions = Vec::with_capacity(PIPELINE_STEPS.len());
     let mut binding_gaps = Vec::new();
-    let mut next_cache = BTreeMap::new();
+    let mut next_observations = BTreeMap::new();
     for definition in PIPELINE_STEPS {
         let plan_step = plan_steps[definition.id];
         let output_digest = result
@@ -1213,7 +1340,7 @@ fn build_runtime_step_executions(
             })
             .map_err(|error| format!("canonicalize {} input key: {error}", definition.id))?,
         );
-        let previous = cache.get(definition.id);
+        let previous = previous_observations.get(definition.id);
         if previous.is_some_and(|entry| {
             entry.input_key == input_key && entry.output_digest != output_digest
         }) {
@@ -1250,9 +1377,9 @@ fn build_runtime_step_executions(
             output_digest: output_digest.clone(),
             reason_id,
         });
-        next_cache.insert(
+        next_observations.insert(
             definition.id.to_string(),
-            RuntimeStepCacheEntry {
+            PreviousStepObservation {
                 input_key,
                 output_digest,
                 applicable,
@@ -1266,7 +1393,7 @@ fn build_runtime_step_executions(
             binding_gaps.join(",")
         ));
     }
-    *cache = next_cache;
+    *previous_observations = next_observations;
     Ok(executions)
 }
 
@@ -1286,7 +1413,7 @@ fn project_product_stages(
     result: &PipelineV2Result,
     step_executions: &[RuntimeStepExecution],
     deactivated_groups: &BTreeSet<&str>,
-    projection_cache: &mut BTreeMap<String, String>,
+    previous_stage_inputs: &mut BTreeMap<String, String>,
 ) -> Result<(Vec<NodeExecution>, Vec<RuntimeArtifact>), String> {
     let mut executions = Vec::with_capacity(plan.nodes.len());
     let mut artifacts = Vec::with_capacity(plan.nodes.len());
@@ -1384,7 +1511,7 @@ fn project_product_stages(
             })
             .map_err(|error| format!("canonicalize {} product-stage key: {error}", node.node_id))?,
         );
-        let projection_changed = projection_cache
+        let projection_changed = previous_stage_inputs
             .get(&node.node_id)
             .is_none_or(|previous| previous != &input_key);
         let status = if members
@@ -1424,7 +1551,7 @@ fn project_product_stages(
             output: Some(output),
             reason_id: stable_id(&[reason, &node.node_id, &artifact.metadata.digest]),
         });
-        projection_cache.insert(node.node_id.clone(), input_key);
+        previous_stage_inputs.insert(node.node_id.clone(), input_key);
         artifacts.push(artifact);
     }
     Ok((executions, artifacts))
@@ -1459,8 +1586,9 @@ fn execute_incremental_pipeline(
         .map_err(|error| error.to_string())?;
         if cache_decision.mode == DependencyCacheMode::ConservativeFull {
             state.incremental_engine = IncrementalPipelineV2Engine::default();
-            state.step_cache.clear();
-            state.stage_projection_cache.clear();
+            state.previous_step_observations.clear();
+            state.previous_stage_inputs.clear();
+            state.stable_artifact_bundle = None;
         }
 
         let tracked_execution = state.incremental_engine.execute(
@@ -1482,7 +1610,7 @@ fn execute_incremental_pipeline(
         if !executed_steps.is_empty() {
             TRACKED_PHYSICAL_EXECUTION_COUNT.with(|count| count.set(count.get() + 1));
         }
-        let previous_step_cache = state.step_cache.clone();
+        let previous_step_observations = state.previous_step_observations.clone();
         let exact_options = serde_json::to_value(&request.options)
             .map_err(|error| format!("serialize exact Rust options for step scheduler: {error}"))?;
         let step_executions = build_runtime_step_executions(
@@ -1492,13 +1620,13 @@ fn execute_incremental_pipeline(
             ingress_assignments,
             &tracked_execution.result,
             &executed_steps,
-            &mut state.step_cache,
+            &mut state.previous_step_observations,
         )?;
         let deactivated_groups = step_executions
             .iter()
             .filter(|execution| {
                 execution.status == ExecutionStatus::Bypassed
-                    && previous_step_cache
+                    && previous_step_observations
                         .get(&execution.step_id)
                         .is_some_and(|entry| entry.applicable)
             })
@@ -1511,7 +1639,7 @@ fn execute_incremental_pipeline(
             &result,
             &step_executions,
             &deactivated_groups,
-            &mut state.stage_projection_cache,
+            &mut state.previous_stage_inputs,
         )?;
         Ok(IncrementalPipelineExecution {
             result,
@@ -1554,265 +1682,6 @@ fn record_incremental_workspace_root(workspace_id: &str, workspace_root_digest: 
             state.last_workspace_root = Some(workspace_root_digest.to_string());
         }
     });
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct QueryCacheIdentity<'a> {
-    protocol_version: &'static str,
-    implementation_digest: &'static str,
-    build_environment_digest: &'static str,
-    plan_digest: &'static str,
-    profile_digest: &'static str,
-    profile_lock_digest: &'static str,
-    runtime_authority_digest: &'static str,
-    product_contract_digest: &'static str,
-    dependency_certificate_digest: &'static str,
-    workspace_id: &'a str,
-    base_workspace_root_digest: &'a str,
-}
-
-fn query_cache_identity(
-    workspace_id: &str,
-    base_workspace_root_digest: &str,
-) -> Result<String, String> {
-    validate_digest(base_workspace_root_digest)
-        .map_err(|message| format!("query-cache base workspace root {message}"))?;
-    if workspace_id.is_empty() {
-        return Err("query-cache workspace ID must not be empty".to_string());
-    }
-    let bytes = serde_jcs::to_vec(&QueryCacheIdentity {
-        protocol_version: "chronicle-query-cache-identity/v1",
-        implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
-        build_environment_digest: BUILD_ENVIRONMENT_DIGEST,
-        plan_digest: EMBEDDED_PLAN_SHA256,
-        profile_digest: EMBEDDED_PROFILE_SHA256,
-        profile_lock_digest: EMBEDDED_PROFILE_LOCK_SHA256,
-        runtime_authority_digest: EMBEDDED_RUNTIME_AUTHORITY_SHA256,
-        product_contract_digest: EMBEDDED_PRODUCT_CONTRACT_SHA256,
-        dependency_certificate_digest: EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256,
-        workspace_id,
-        base_workspace_root_digest,
-    })
-    .map_err(|error| format!("canonicalize query-cache identity: {error}"))?;
-    String::from_utf8(bytes).map_err(|error| format!("query-cache identity is not UTF-8: {error}"))
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PersistedSemanticExecution {
-    protocol_version: String,
-    node_executions: Vec<NodeExecution>,
-    step_executions: Vec<RuntimeStepExecution>,
-    dependency_cache_decision: DependencyCacheDecision,
-    execution_ledger: Vec<PersistedExecutionUnit>,
-}
-
-#[derive(Deserialize)]
-struct PersistedExecutionUnit {
-    steps: Vec<PersistedExecutionStep>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PersistedExecutionStep {
-    step_id: String,
-    applicable: bool,
-}
-
-fn restored_runtime_caches(
-    semantic_index_source: &[u8],
-) -> Result<
-    (
-        BTreeMap<String, RuntimeStepCacheEntry>,
-        BTreeMap<String, String>,
-    ),
-    String,
-> {
-    let source: PersistedSemanticExecution = serde_json::from_slice(semantic_index_source)
-        .map_err(|error| format!("parse persisted semantic execution state: {error}"))?;
-    if source.protocol_version != "chronicle-semantic-index-source/v2" {
-        return Err(format!(
-            "unsupported persisted semantic execution protocol: {}",
-            source.protocol_version
-        ));
-    }
-    if source.dependency_cache_decision.mode != DependencyCacheMode::CertifiedNarrow
-        || !source.dependency_cache_decision.empirical_evidence_current
-    {
-        return Err(
-            "persisted semantic execution did not use current certified-narrow dependencies"
-                .to_string(),
-        );
-    }
-    if source
-        .dependency_cache_decision
-        .certificate_digest
-        .as_deref()
-        != Some(EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256)
-    {
-        return Err("persisted semantic execution certificate digest mismatch".to_string());
-    }
-
-    let applicability = source
-        .execution_ledger
-        .into_iter()
-        .flat_map(|unit| unit.steps)
-        .map(|step| (step.step_id, step.applicable))
-        .collect::<BTreeMap<_, _>>();
-    let contract_ids = PIPELINE_STEPS
-        .iter()
-        .map(|step| step.id)
-        .collect::<BTreeSet<_>>();
-    let persisted_ids = source
-        .step_executions
-        .iter()
-        .map(|step| step.step_id.as_str())
-        .collect::<BTreeSet<_>>();
-    let applicability_ids = applicability
-        .keys()
-        .map(String::as_str)
-        .collect::<BTreeSet<_>>();
-    if persisted_ids != contract_ids || applicability_ids != contract_ids {
-        return Err(format!(
-            "persisted semantic execution does not cover the exact 55-step contract: executions={} applicability={} expected={}",
-            persisted_ids.len(),
-            applicability_ids.len(),
-            contract_ids.len()
-        ));
-    }
-    let step_cache = source
-        .step_executions
-        .into_iter()
-        .map(|step| {
-            let applicable = applicability[&step.step_id];
-            (
-                step.step_id,
-                RuntimeStepCacheEntry {
-                    input_key: step.input_key,
-                    output_digest: step.output_digest,
-                    applicable,
-                },
-            )
-        })
-        .collect();
-
-    let plan = embedded_plan();
-    let expected_nodes = plan
-        .nodes
-        .iter()
-        .map(|node| node.node_id.as_str())
-        .collect::<BTreeSet<_>>();
-    let persisted_nodes = source
-        .node_executions
-        .iter()
-        .map(|node| node.node_id.as_str())
-        .collect::<BTreeSet<_>>();
-    if persisted_nodes != expected_nodes {
-        return Err(format!(
-            "persisted semantic execution does not cover the exact product-stage projection: actual={} expected={}",
-            persisted_nodes.len(),
-            expected_nodes.len()
-        ));
-    }
-    let stage_projection_cache = source
-        .node_executions
-        .into_iter()
-        .map(|node| (node.node_id, node.input_key))
-        .collect();
-    Ok((step_cache, stage_projection_cache))
-}
-
-pub fn export_workspace_query_cache_native(
-    workspace_id: &str,
-    committed_root_digest: &str,
-) -> Result<Vec<u8>, String> {
-    let identity = query_cache_identity(workspace_id, committed_root_digest)?;
-    INCREMENTAL_RUNTIME_STATES.with(|states| {
-        let mut states = states.borrow_mut();
-        let state = states
-            .get_mut(workspace_id)
-            .ok_or_else(|| "query cache is unavailable for this workspace".to_string())?;
-        if state.last_workspace_root.as_deref() != Some(committed_root_digest) {
-            return Err(format!(
-                "query-cache root mismatch: runtime={:?} committed={committed_root_digest}",
-                state.last_workspace_root
-            ));
-        }
-        state.incremental_engine.export_cache(&identity)
-    })
-}
-
-pub fn workspace_query_state_matches_root_native(
-    workspace_id: &str,
-    committed_root_digest: &str,
-) -> bool {
-    INCREMENTAL_RUNTIME_STATES.with(|states| {
-        states
-            .borrow_mut()
-            .get_mut(workspace_id)
-            .and_then(|state| state.last_workspace_root.as_deref())
-            == Some(committed_root_digest)
-    })
-}
-
-pub fn restore_workspace_query_cache_native(
-    workspace_id: &str,
-    committed_root_digest: &str,
-    cache_bytes: &[u8],
-    semantic_index_source: &[u8],
-) -> Result<(), String> {
-    let certificate = embedded_dependency_certificate();
-    if !dependency_evidence_current(&certificate) {
-        return Err("current runtime dependency evidence is stale".to_string());
-    }
-    if workspace_query_state_matches_root_native(workspace_id, committed_root_digest) {
-        return Ok(());
-    }
-    let identity = query_cache_identity(workspace_id, committed_root_digest)?;
-    let (step_cache, stage_projection_cache) = restored_runtime_caches(semantic_index_source)?;
-    let mut incremental_engine = IncrementalPipelineV2Engine::default();
-    incremental_engine.restore_cache(cache_bytes, &identity)?;
-    let state = IncrementalRuntimeState {
-        incremental_engine,
-        step_cache,
-        stage_projection_cache,
-        last_workspace_root: Some(committed_root_digest.to_string()),
-    };
-    INCREMENTAL_RUNTIME_STATES.with(|states| {
-        states.borrow_mut().insert(workspace_id, state);
-    });
-    Ok(())
-}
-
-#[wasm_bindgen]
-pub fn workspace_query_state_matches_root(workspace_id: &str, committed_root_digest: &str) -> bool {
-    workspace_query_state_matches_root_native(workspace_id, committed_root_digest)
-}
-
-#[wasm_bindgen]
-pub fn export_workspace_query_cache(
-    workspace_id: &str,
-    committed_root_digest: &str,
-) -> Result<Vec<u8>, JsValue> {
-    export_workspace_query_cache_native(workspace_id, committed_root_digest)
-        .map_err(|error| JsValue::from_str(&error))
-}
-
-#[wasm_bindgen]
-pub fn restore_workspace_query_cache(
-    workspace_id: &str,
-    committed_root_digest: &str,
-    cache_bytes: &[u8],
-    semantic_index_source: &[u8],
-) -> Result<(), JsValue> {
-    restore_workspace_query_cache_native(
-        workspace_id,
-        committed_root_digest,
-        cache_bytes,
-        semantic_index_source,
-    )
-    .map_err(|error| JsValue::from_str(&error))
 }
 
 fn write_csv_cell(output: &mut Vec<u8>, value: &str) {
@@ -1882,6 +1751,7 @@ impl RuntimeHandle {
             std::mem::replace(&mut artifact.bytes, RuntimeArtifactBytes::Owned(Vec::new()));
         match payload {
             RuntimeArtifactBytes::Owned(bytes) => Ok(bytes),
+            RuntimeArtifactBytes::Shared(bytes) => Ok(bytes.as_ref().to_vec()),
             RuntimeArtifactBytes::PipelineOutput { result, kind } => {
                 pipeline_output_bytes(&result, &kind)
                     .map(<[u8]>::to_vec)
@@ -1973,113 +1843,6 @@ fn reject_open_binding_holes(
     ))
 }
 
-/// Exhaust the Chronicle timezone-policy family against one fixed fixture.
-/// Each observation is a cold, complete Rust execution; the resulting report
-/// exposes method, qualification, row-selection, normalized-state, output, and
-/// provenance partitions without giving TypeScript semantic authority.
-#[wasm_bindgen]
-pub fn analyze_timezone_configuration_family(
-    request_json: &str,
-    csv_bytes: &[u8],
-    support_files: &RuntimeSupportFiles,
-) -> Result<String, JsValue> {
-    analyze_timezone_configuration_family_native(request_json, csv_bytes, support_files)
-        .map_err(|error| JsValue::from_str(&error))
-}
-
-pub fn analyze_timezone_configuration_family_native(
-    request_json: &str,
-    csv_bytes: &[u8],
-    support_files: &RuntimeSupportFiles,
-) -> Result<String, String> {
-    let request: RuntimeRequest =
-        serde_json::from_str(request_json).map_err(|error| format!("invalid request: {error}"))?;
-    request.validate(csv_bytes)?;
-    let resolved_support = support_files.resolve()?;
-    let mut observations = Vec::with_capacity(TIMEZONE_HANDLING_MODES.len());
-    for mode in TIMEZONE_HANDLING_MODES {
-        let mut options = request.options.clone().into_pipeline_options();
-        options.timezone_handling = mode.into();
-        let result = run_pipeline_v2_with_supports(
-            csv_bytes,
-            &options,
-            PipelineV2SupportFiles {
-                filter_csv: resolved_support
-                    .files
-                    .get("filter_file")
-                    .map(|file| file.pipeline_csv.as_slice())
-                    .unwrap_or_default(),
-                apps_forcing_csv: resolved_support
-                    .files
-                    .get("apps_forcing_screen_open_file")
-                    .map(|file| file.pipeline_csv.as_slice())
-                    .unwrap_or_default(),
-                background_apps_csv: resolved_support
-                    .files
-                    .get("background_apps_file")
-                    .map(|file| file.pipeline_csv.as_slice())
-                    .unwrap_or_default(),
-                codebook_csv: resolved_support
-                    .files
-                    .get("app_codebook_file")
-                    .map(|file| file.pipeline_csv.as_slice())
-                    .unwrap_or_default(),
-                study_dates_csv: resolved_support
-                    .files
-                    .get("study_dates_file")
-                    .map(|file| file.pipeline_csv.as_slice())
-                    .unwrap_or_default(),
-                device_sharing_csv: resolved_support
-                    .files
-                    .get("device_sharing_file")
-                    .map(|file| file.pipeline_csv.as_slice())
-                    .unwrap_or_default(),
-                survey_attribution_csv: resolved_support
-                    .files
-                    .get("survey_attribution_file")
-                    .map(|file| file.pipeline_csv.as_slice())
-                    .unwrap_or_default(),
-                enrolled_devices_csv: resolved_support
-                    .files
-                    .get("enrolled_devices_file")
-                    .map(|file| file.pipeline_csv.as_slice())
-                    .unwrap_or_default(),
-            },
-        )
-        .map_err(|error| format!("timezone variant {mode} failed: {error}"))?;
-        let result_digests = pipeline_result_digests(&result);
-        observations.push(ConfigurationVariantObservation {
-            variant_id: mode.into(),
-            assignments: BTreeMap::from([
-                ("selected_timezone".into(), options.timezone.clone()),
-                ("timezone_handling".into(), mode.into()),
-            ]),
-            declared_method_id: format!(
-                "urn:uzaira0:chronicle-preprocessing:timezone-policy/{mode}/v1"
-            ),
-            effective_target: result.timezone.clone(),
-            retained_source_rows_digest: result.timezone_retained_source_rows_digest.clone(),
-            normalized_events_digest: result.timezone_stage_digest.clone(),
-            published_outputs_digest: result_digests.published_outputs_digest,
-            provenance_digest: result_digests.provenance_digest,
-            rows_before: result.rows_before_timezone_handling,
-            rows_after: result.rows_after_timezone_handling,
-            rows_removed: result.rows_removed_by_timezone,
-        });
-    }
-    let report = compile_configuration_family(
-        &embedded_plan(),
-        &request.input_file_name,
-        &sha256(csv_bytes),
-        &TIMEZONE_HANDLING_MODES,
-        observations,
-    )?;
-    let bytes = serde_jcs::to_vec(&report)
-        .map_err(|error| format!("canonicalize configuration-family report: {error}"))?;
-    String::from_utf8(bytes)
-        .map_err(|error| format!("configuration-family report was not UTF-8: {error}"))
-}
-
 #[wasm_bindgen]
 pub fn verify_evidence_journal_cbor(bytes: &[u8]) -> Result<u32, JsValue> {
     EvidenceJournal::from_cbor(bytes)
@@ -2130,16 +1893,78 @@ pub fn execute_workspace_native(
         .values()
         .map(|assignment| assignment.artifact.digest.clone())
         .collect::<Vec<_>>();
-    let result_digests = pipeline_result_digests(&result);
-    let mut binary_artifacts = Vec::new();
-    append_binary_exports(
-        &mut binary_artifacts,
-        &result,
-        &request.options,
-        &assignment_digests,
+    let stable_key = stable_artifact_key(
+        &request.workspace_id,
         &ingress.input.digest,
-        &result_digests.output_digests,
+        &options_digest,
+        &ingress.assignments,
+        &result,
+        dependency_cache_decision.mode,
     )?;
+    let cached_bundle = (dependency_cache_decision.mode == DependencyCacheMode::CertifiedNarrow)
+        .then(|| cached_stable_artifact_bundle(&request.workspace_id, &stable_key))
+        .flatten();
+    let (result_digests, mut binary_artifacts, source_coordinate_artifact) =
+        if let Some(bundle) = cached_bundle {
+            for artifact in bundle
+                .binary_artifacts
+                .iter()
+                .chain(std::iter::once(&bundle.source_coordinate_artifact))
+            {
+                let RuntimeArtifactBytes::Shared(bytes) = &artifact.bytes else {
+                    return Err("stable artifact cache contained mutable bytes".into());
+                };
+                if artifact.metadata.size != bytes.len() as u64 {
+                    return Err("stable artifact cache metadata drift".into());
+                }
+            }
+            (
+                bundle.result_digests,
+                bundle.binary_artifacts,
+                bundle.source_coordinate_artifact,
+            )
+        } else {
+            #[cfg(test)]
+            STABLE_ARTIFACT_GENERATION_COUNT.with(|count| count.set(count.get() + 1));
+            let result_digests = pipeline_result_digests(&result);
+            let mut binary_artifacts = Vec::new();
+            append_binary_exports(
+                &mut binary_artifacts,
+                &result,
+                &request.options,
+                &assignment_digests,
+                &ingress.input.digest,
+                &result_digests.output_digests,
+            )?;
+            let mut source_coordinate_artifacts = Vec::new();
+            append_source_coordinate_index(
+                &mut source_coordinate_artifacts,
+                csv_bytes,
+                &options_bytes,
+                &ingress.assignments,
+                &resolved_support,
+            )?;
+            if source_coordinate_artifacts.len() != 1 {
+                return Err("source-coordinate generator emitted an invalid artifact count".into());
+            }
+            share_owned_artifacts(&mut binary_artifacts);
+            share_owned_artifacts(&mut source_coordinate_artifacts);
+            let source_coordinate_artifact = source_coordinate_artifacts
+                .pop()
+                .expect("source-coordinate artifact count checked");
+            if dependency_cache_decision.mode == DependencyCacheMode::CertifiedNarrow {
+                store_stable_artifact_bundle(
+                    &request.workspace_id,
+                    StableArtifactBundle {
+                        key: stable_key,
+                        result_digests: result_digests.clone(),
+                        binary_artifacts: binary_artifacts.clone(),
+                        source_coordinate_artifact: source_coordinate_artifact.clone(),
+                    },
+                );
+            }
+            (result_digests, binary_artifacts, source_coordinate_artifact)
+        };
     // Binary indexes borrow the canonical output bytes above. Once they are
     // complete, transfer those Vec allocations into the runtime artifacts
     // instead of cloning every large CSV/JSON output.
@@ -2158,13 +1983,7 @@ pub fn execute_workspace_native(
         options_bytes.clone(),
         Vec::new(),
     ));
-    append_source_coordinate_index(
-        &mut artifacts,
-        csv_bytes,
-        &options_bytes,
-        &ingress.assignments,
-        &resolved_support,
-    )?;
+    artifacts.push(source_coordinate_artifact);
     let plan = embedded_plan();
     let satisfied_nodes: BTreeSet<_> = node_executions
         .iter()
@@ -2294,28 +2113,19 @@ pub fn execute_workspace_native(
         journal_bytes,
         vec![ingress.input.digest.clone(), options_digest.clone()],
     ));
-    let closure_bytes = build_artifact_closure(
-        &artifacts,
-        &request.workspace_id,
-        &ingress.input.digest,
-        &journal_digest,
-    )?;
-    let closure_artifact = runtime_artifact(
-        "artifact-closure-json",
-        "application/json",
-        closure_bytes,
-        vec![ingress.input.digest.clone(), journal_digest.clone()],
-    );
-    let artifact_closure_digest = closure_artifact.metadata.digest.clone();
-    artifacts.push(closure_artifact);
-
-    let artifact_digests: Vec<_> = artifacts
+    let assignment_digests = ingress
+        .assignments
+        .iter()
+        .map(|(role, assignment)| (role.as_str(), assignment.artifact.digest.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    let computational_artifact_digests = artifacts
         .iter()
         .map(|artifact| artifact.metadata.digest.as_str())
-        .collect();
-    let root_commit = RootCommit {
-        protocol_version: RUNTIME_PROTOCOL_VERSION,
-        command: EXECUTE_WORKSPACE_COMMAND,
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let execution_state_bytes = serde_jcs::to_vec(&ExecutionStateCommit {
+        protocol_version: "chronicle-execution-state/v1",
         implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
         build_environment_digest: BUILD_ENVIRONMENT_DIGEST,
         product_contract_digest: EMBEDDED_PRODUCT_CONTRACT_SHA256,
@@ -2329,26 +2139,24 @@ pub fn execute_workspace_native(
         previous_workspace_root_digest: &request.workspace_root_digest,
         input_digest: &ingress.input.digest,
         options_digest: &options_digest,
-        assignment_digests: ingress
-            .assignments
-            .iter()
-            .map(|(role, assignment)| (role.as_str(), assignment.artifact.digest.as_str()))
-            .collect(),
-        artifact_digests,
-        required_view_ids: REQUIRED_VIEW_IDS,
+        assignment_digests: assignment_digests.clone(),
+        computational_artifact_digests,
         journal_digest: &journal_digest,
-        artifact_closure_digest: &artifact_closure_digest,
-    };
-    let root_bytes = serde_jcs::to_vec(&root_commit)
-        .map_err(|error| format!("canonicalize root commit: {error}"))?;
-    let workspace_root_digest = sha256(&root_bytes);
-    record_incremental_workspace_root(&request.workspace_id, &workspace_root_digest);
-    artifacts.push(runtime_artifact(
-        "workspace-root-json",
+    })
+    .map_err(|error| format!("canonicalize execution state: {error}"))?;
+    let execution_state_artifact = runtime_artifact(
+        "execution-state-json",
         "application/json",
-        root_bytes,
-        vec![ingress.input.digest.clone(), journal_digest.clone()],
-    ));
+        execution_state_bytes,
+        vec![
+            ingress.input.digest.clone(),
+            options_digest.clone(),
+            journal_digest.clone(),
+        ],
+    );
+    let execution_state_digest = execution_state_artifact.metadata.digest.clone();
+    artifacts.push(execution_state_artifact);
+
     let revision = ingress.assignments.len() as u64
         + node_executions.len() as u64
         + step_executions.len() as u64;
@@ -2380,7 +2188,7 @@ pub fn execute_workspace_native(
                     options: &options_value,
                     stage: None,
                     revision,
-                    root_digest: &workspace_root_digest,
+                    root_digest: &execution_state_digest,
                 },
             )),
         ),
@@ -2390,7 +2198,7 @@ pub fn execute_workspace_native(
                 artifact_refs,
                 assignments.clone(),
                 revision,
-                &workspace_root_digest,
+                &execution_state_digest,
             )),
         ),
         (
@@ -2398,7 +2206,7 @@ pub fn execute_workspace_native(
             encode_view(&obligation_view(
                 materialization.obligations.clone(),
                 revision,
-                &workspace_root_digest,
+                &execution_state_digest,
             )),
         ),
         (
@@ -2408,24 +2216,117 @@ pub fn execute_workspace_native(
                 materialization.qualification_traces.clone(),
                 materialization.requirement_traces.clone(),
                 revision,
-                &workspace_root_digest,
+                &execution_state_digest,
             )),
         ),
     ];
-    for (kind, view) in views {
-        let bytes = serde_json::to_vec(&view)
-            .map_err(|error| format!("serialize typed view {kind}: {error}"))?;
-        artifacts.push(runtime_artifact(
+    let mut required_views = Vec::with_capacity(REQUIRED_VIEWS.len());
+    for ((expected_kind, expected_view_id, expected_schema_id), (kind, view)) in
+        REQUIRED_VIEWS.into_iter().zip(views)
+    {
+        if kind != expected_kind
+            || view.get("view_id").and_then(Value::as_str) != Some(expected_view_id)
+            || view.get("schema_id").and_then(Value::as_str) != Some(expected_schema_id)
+            || view.get("root_digest").and_then(Value::as_str)
+                != Some(execution_state_digest.as_str())
+        {
+            return Err(format!("typed view contract drift: {kind}"));
+        }
+        let bytes = serde_jcs::to_vec(&view)
+            .map_err(|error| format!("canonicalize typed view {kind}: {error}"))?;
+        let artifact = runtime_artifact(
             kind,
             "application/json",
             bytes,
-            vec![workspace_root_digest.clone()],
-        ));
+            vec![execution_state_digest.clone()],
+        );
+        required_views.push(RequiredViewBinding {
+            artifact_kind: expected_kind,
+            view_id: expected_view_id,
+            schema_id: expected_schema_id,
+            artifact_digest: artifact.metadata.digest.clone(),
+        });
+        artifacts.push(artifact);
     }
+
+    let closure_bytes = serde_jcs::to_vec(&ArtifactClosure {
+        protocol_version: "chronicle-artifact-closure/v1",
+        workspace_id: &request.workspace_id,
+        input_digest: &ingress.input.digest,
+        implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
+        build_environment_digest: BUILD_ENVIRONMENT_DIGEST,
+        plan_digest: EMBEDDED_PLAN_SHA256,
+        profile_digest: EMBEDDED_PROFILE_SHA256,
+        profile_lock_digest: EMBEDDED_PROFILE_LOCK_SHA256,
+        runtime_authority_digest: EMBEDDED_RUNTIME_AUTHORITY_SHA256,
+        product_contract_digest: EMBEDDED_PRODUCT_CONTRACT_SHA256,
+        dependency_certificate_digest: EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256,
+        dependency_cache_mode: dependency_cache_decision.mode,
+        previous_workspace_root_digest: &request.workspace_root_digest,
+        options_digest: &options_digest,
+        assignment_digests: assignment_digests.clone(),
+        execution_state_digest: &execution_state_digest,
+        journal_digest: &journal_digest,
+        artifacts: artifacts
+            .iter()
+            .map(|artifact| &artifact.metadata)
+            .collect(),
+    })
+    .map_err(|error| format!("canonicalize artifact closure: {error}"))?;
+    let closure_artifact = runtime_artifact(
+        "artifact-closure-json",
+        "application/json",
+        closure_bytes,
+        vec![execution_state_digest.clone(), journal_digest.clone()],
+    );
+    let artifact_closure_digest = closure_artifact.metadata.digest.clone();
+    artifacts.push(closure_artifact);
+
+    let artifact_digests = artifacts
+        .iter()
+        .map(|artifact| artifact.metadata.digest.as_str())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let root_commit = RootCommit {
+        protocol_version: RUNTIME_PROTOCOL_VERSION,
+        command: EXECUTE_WORKSPACE_COMMAND,
+        implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
+        build_environment_digest: BUILD_ENVIRONMENT_DIGEST,
+        product_contract_digest: EMBEDDED_PRODUCT_CONTRACT_SHA256,
+        plan_digest: EMBEDDED_PLAN_SHA256,
+        profile_digest: EMBEDDED_PROFILE_SHA256,
+        profile_lock_digest: EMBEDDED_PROFILE_LOCK_SHA256,
+        runtime_authority_digest: EMBEDDED_RUNTIME_AUTHORITY_SHA256,
+        dependency_certificate_digest: EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256,
+        dependency_cache_mode: dependency_cache_decision.mode,
+        workspace_id: &request.workspace_id,
+        previous_workspace_root_digest: &request.workspace_root_digest,
+        input_digest: &ingress.input.digest,
+        options_digest: &options_digest,
+        assignment_digests,
+        artifact_digests,
+        execution_state_digest: &execution_state_digest,
+        required_views: &required_views,
+        journal_digest: &journal_digest,
+        artifact_closure_digest: &artifact_closure_digest,
+    };
+    let root_bytes = serde_jcs::to_vec(&root_commit)
+        .map_err(|error| format!("canonicalize root commit: {error}"))?;
+    let workspace_root_digest = sha256(&root_bytes);
+    record_incremental_workspace_root(&request.workspace_id, &workspace_root_digest);
+    artifacts.push(runtime_artifact(
+        "workspace-root-json",
+        "application/json",
+        root_bytes,
+        vec![artifact_closure_digest.clone()],
+    ));
     let result_published_outputs_digest = result_digests.published_outputs_digest;
     let result_provenance_digest = result_digests.provenance_digest;
     let manifest = RuntimeManifest {
         protocol_version: RUNTIME_PROTOCOL_VERSION.into(),
+        preprocessor_version: chronicle_chrono_kernel_wasm::pipeline_v2::PREPROCESSOR_VERSION
+            .into(),
         request_id: request.request_id,
         command: EXECUTE_WORKSPACE_COMMAND.into(),
         implementation: "chronicle_preprocessing_runtime_wasm/0.1.0".into(),
@@ -3096,7 +2997,7 @@ fn assign(
     validate_digest(&digest)
         .map_err(|message| format!("artifact digest for role {role_id} {message}"))?;
     let artifact = ArtifactRef {
-        artifact_id: format!("urn:chronicle:artifact:{}", &digest[7..]),
+        artifact_id: semantic_artifact_id(role_id, &digest),
         digest,
         media_type: media_type.to_string(),
         size: bytes.len() as u64,
@@ -3230,7 +3131,7 @@ fn shared_pipeline_artifact(
     let size = bytes.len() as u64;
     RuntimeArtifact {
         metadata: RuntimeArtifactMetadata {
-            artifact_id: format!("urn:chronicle:artifact:{}", &digest[7..]),
+            artifact_id: semantic_artifact_id(kind, &digest),
             kind: kind.into(),
             media_type: media_type.into(),
             digest,
@@ -3540,33 +3441,6 @@ fn append_semantic_bundle_artifacts(artifacts: &mut Vec<RuntimeArtifact>) {
     }
 }
 
-fn build_artifact_closure(
-    artifacts: &[RuntimeArtifact],
-    workspace_id: &str,
-    input_digest: &str,
-    journal_digest: &str,
-) -> Result<Vec<u8>, String> {
-    serde_jcs::to_vec(&ArtifactClosure {
-        protocol_version: "chronicle-artifact-closure/v1",
-        workspace_id,
-        input_digest,
-        implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
-        build_environment_digest: BUILD_ENVIRONMENT_DIGEST,
-        plan_digest: EMBEDDED_PLAN_SHA256,
-        profile_digest: EMBEDDED_PROFILE_SHA256,
-        profile_lock_digest: EMBEDDED_PROFILE_LOCK_SHA256,
-        runtime_authority_digest: EMBEDDED_RUNTIME_AUTHORITY_SHA256,
-        product_contract_digest: EMBEDDED_PRODUCT_CONTRACT_SHA256,
-        dependency_certificate_digest: EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256,
-        journal_digest,
-        artifacts: artifacts
-            .iter()
-            .map(|artifact| &artifact.metadata)
-            .collect(),
-    })
-    .map_err(|error| format!("canonicalize artifact closure: {error}"))
-}
-
 fn runtime_artifact(
     kind: &str,
     media_type: &str,
@@ -3587,7 +3461,7 @@ fn runtime_artifact_with_digest(
     debug_assert_eq!(digest, sha256(&bytes), "precomputed artifact digest drift");
     RuntimeArtifact {
         metadata: RuntimeArtifactMetadata {
-            artifact_id: format!("urn:chronicle:artifact:{}", &digest[7..]),
+            artifact_id: semantic_artifact_id(kind, &digest),
             kind: kind.into(),
             media_type: media_type.into(),
             digest,
@@ -3597,6 +3471,21 @@ fn runtime_artifact_with_digest(
             preview_rows: None,
         },
         bytes: RuntimeArtifactBytes::Owned(bytes),
+    }
+}
+
+fn semantic_artifact_id(kind_or_role: &str, digest: &str) -> String {
+    format!("urn:chronicle:artifact:{kind_or_role}:{}", &digest[7..])
+}
+
+fn share_owned_artifacts(artifacts: &mut [RuntimeArtifact]) {
+    for artifact in artifacts {
+        let payload =
+            std::mem::replace(&mut artifact.bytes, RuntimeArtifactBytes::Owned(Vec::new()));
+        artifact.bytes = match payload {
+            RuntimeArtifactBytes::Owned(bytes) => RuntimeArtifactBytes::Shared(Arc::from(bytes)),
+            other => other,
+        };
     }
 }
 
@@ -3628,6 +3517,7 @@ fn runtime_aggregate_artifact_with_digest(
             .flexible(true)
             .from_reader(match &artifact.bytes {
                 RuntimeArtifactBytes::Owned(bytes) => bytes.as_slice(),
+                RuntimeArtifactBytes::Shared(bytes) => bytes.as_ref(),
                 RuntimeArtifactBytes::PipelineOutput { .. } => {
                     unreachable!("owned aggregate constructor produced shared bytes")
                 }
@@ -4058,6 +3948,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
 
     fn reset_tracked_execution_count() {
         TRACKED_PHYSICAL_EXECUTION_COUNT.with(|count| count.set(0));
+        STABLE_ARTIFACT_GENERATION_COUNT.with(|count| count.set(0));
         INCREMENTAL_RUNTIME_STATES.with(|states| *states.borrow_mut() = Default::default());
     }
 
@@ -4065,11 +3956,15 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         TRACKED_PHYSICAL_EXECUTION_COUNT.with(std::cell::Cell::get)
     }
 
+    fn stable_artifact_generation_count() -> usize {
+        STABLE_ARTIFACT_GENERATION_COUNT.with(std::cell::Cell::get)
+    }
+
     fn request(csv: &[u8]) -> String {
         serde_json::json!({
             "protocolVersion": RUNTIME_PROTOCOL_VERSION,
             "requestId": "req-1",
-            "command": BOUNDED_COMMAND,
+            "command": EXECUTE_WORKSPACE_COMMAND,
             "workspaceRootDigest": null,
             "workspaceId": format!("sha256:{}", "a".repeat(64)),
             "inputFileName": "Raw P01.csv",
@@ -4152,9 +4047,8 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         .to_vec()
     }
 
-    /// Existing mixed-timezone synthetic fixture used by the runtime's
-    /// selected-filter contract test. Keeping one shared definition prevents
-    /// the configuration-family proof from drifting into a friendlier toy.
+    /// Existing mixed-timezone synthetic fixture shared by the runtime's
+    /// transition and selected-filter tests so they cannot drift apart.
     fn mixed_timezone_csv() -> Vec<u8> {
         concat!(
             "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
@@ -4654,6 +4548,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         let first = execute_workspace_native(&first_request.to_string(), &csv, &support).unwrap();
         let first: RuntimeManifest = serde_json::from_str(&first.manifest_json).unwrap();
         assert_eq!(tracked_execution_count(), 1);
+        assert_eq!(stable_artifact_generation_count(), 1);
         assert!(first.node_executions.iter().all(|execution| {
             execution.output.is_some()
                 && matches!(
@@ -4672,6 +4567,11 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             tracked_execution_count(),
             1,
             "warm run must not call the kernel"
+        );
+        assert_eq!(
+            stable_artifact_generation_count(),
+            1,
+            "warm run must reuse immutable terminal artifacts"
         );
         assert!(warm.node_executions.iter().all(|execution| {
             execution.output.is_some()
@@ -4754,6 +4654,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                 .map(|execution| (&execution.node_id, execution.status, &execution.input_key))
                 .collect::<Vec<_>>()
         );
+        assert_eq!(stable_artifact_generation_count(), 2);
         let recomputed: BTreeSet<_> = changed
             .node_executions
             .iter()
@@ -4779,114 +4680,6 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                 .status,
             ExecutionStatus::Cached
         );
-    }
-
-    #[test]
-    fn worker_restart_restores_real_query_cache_and_report_caches() {
-        reset_tracked_execution_count();
-        let csv = csv();
-        let support = RuntimeSupportFiles::default();
-        let first_request = request_for_workspace(&csv, 'f');
-        let mut first_handle =
-            execute_workspace_native(&first_request.to_string(), &csv, &support).unwrap();
-        let first: RuntimeManifest = serde_json::from_str(&first_handle.manifest_json).unwrap();
-        assert_eq!(tracked_execution_count(), 1);
-
-        let semantic_index_source = (0..first_handle.artifact_count())
-            .find_map(|index| {
-                let metadata: RuntimeArtifactMetadata =
-                    serde_json::from_str(&first_handle.artifact_metadata_json(index).unwrap())
-                        .unwrap();
-                (metadata.kind == "semantic-index-source-json")
-                    .then(|| first_handle.take_artifact_bytes(index).unwrap())
-            })
-            .expect("semantic index source artifact");
-        let cache =
-            export_workspace_query_cache_native(&first.workspace_id, &first.workspace_root_digest)
-                .unwrap();
-        assert!(!cache.is_empty());
-
-        assert!(workspace_query_state_matches_root_native(
-            &first.workspace_id,
-            &first.workspace_root_digest
-        ));
-        // A duplicate restore in the same worker must be a no-op. The browser
-        // checks this before reading the potentially large OPFS cache object.
-        restore_workspace_query_cache_native(
-            &first.workspace_id,
-            &first.workspace_root_digest,
-            &cache,
-            &semantic_index_source,
-        )
-        .unwrap();
-        assert!(workspace_query_state_matches_root_native(
-            &first.workspace_id,
-            &first.workspace_root_digest
-        ));
-
-        let eviction_request = request_for_workspace(&csv, 'e');
-        execute_workspace_native(&eviction_request.to_string(), &csv, &support).unwrap();
-        assert!(!workspace_query_state_matches_root_native(
-            &first.workspace_id,
-            &first.workspace_root_digest
-        ));
-
-        reset_tracked_execution_count();
-        restore_workspace_query_cache_native(
-            &first.workspace_id,
-            &first.workspace_root_digest,
-            &cache,
-            &semantic_index_source,
-        )
-        .unwrap();
-        let mut warm_request = first_request.clone();
-        warm_request["requestId"] = Value::String("after-worker-restart".into());
-        warm_request["workspaceRootDigest"] = Value::String(first.workspace_root_digest.clone());
-        let warm_handle =
-            execute_workspace_native(&warm_request.to_string(), &csv, &support).unwrap();
-        let warm: RuntimeManifest = serde_json::from_str(&warm_handle.manifest_json).unwrap();
-        assert_eq!(
-            tracked_execution_count(),
-            0,
-            "restored request must execute zero Salsa query bodies"
-        );
-        assert!(warm.step_executions.iter().all(|execution| matches!(
-            execution.status,
-            ExecutionStatus::Cached | ExecutionStatus::Bypassed
-        )));
-        assert!(warm.node_executions.iter().all(|execution| matches!(
-            execution.status,
-            ExecutionStatus::Cached | ExecutionStatus::Bypassed
-        )));
-        assert_eq!(
-            warm.processing_summary.pipeline_step_digests,
-            first.processing_summary.pipeline_step_digests
-        );
-        assert_eq!(
-            warm.processing_summary.published_outputs_digest,
-            first.processing_summary.published_outputs_digest
-        );
-
-        reset_tracked_execution_count();
-        assert!(restore_workspace_query_cache_native(
-            &first.workspace_id,
-            &format!("sha256:{}", "e".repeat(64)),
-            &cache,
-            &semantic_index_source,
-        )
-        .unwrap_err()
-        .contains("identity mismatch"));
-
-        let mut corrupt = cache.clone();
-        let last = corrupt.len() - 1;
-        corrupt[last] ^= 1;
-        assert!(restore_workspace_query_cache_native(
-            &first.workspace_id,
-            &first.workspace_root_digest,
-            &corrupt,
-            &semantic_index_source,
-        )
-        .is_err());
     }
 
     #[test]
@@ -5146,73 +4939,13 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
     }
 
     #[test]
-    fn mixed_timezone_family_exhaustively_widens_at_the_expected_joints() {
-        let csv = mixed_timezone_csv();
-        let first = analyze_timezone_configuration_family_native(
-            &request(&csv),
-            &csv,
-            &RuntimeSupportFiles::default(),
-        )
-        .unwrap();
-        let second = analyze_timezone_configuration_family_native(
-            &request(&csv),
-            &csv,
-            &RuntimeSupportFiles::default(),
-        )
-        .unwrap();
-        assert_eq!(second, first, "family report must be byte-deterministic");
-        let report: ConfigurationFamilyReport = serde_json::from_str(&first).unwrap();
-        let widths = report
-            .partitions
-            .iter()
-            .map(|partition| (partition.perspective_id.as_str(), partition.width))
-            .collect::<BTreeMap<_, _>>();
-        assert_eq!(report.axis.variants, TIMEZONE_HANDLING_MODES);
-        assert!(report.completeness.exhaustive);
-        assert_eq!(report.completeness.full_rust_execution_count, 4);
-        assert_eq!(widths["declared-method"], 4);
-        assert_eq!(widths["effective-target"], 2);
-        assert_eq!(widths["retained-source-rows"], 3);
-        assert_eq!(widths["normalized-events"], 4);
-        assert_eq!(widths["published-outputs"], 4);
-        assert_eq!(widths["provenance-identity"], 4);
-        assert_eq!(report.influence.seed_nodes, ["normalize_timezones"]);
-        assert!(!report
-            .influence
-            .conservative_cone
-            .contains(&"parse_events".into()));
-        assert!(report
-            .influence
-            .conservative_cone
-            .contains(&"outputs".into()));
-        assert!(report
-            .node_width_envelopes
-            .iter()
-            .any(|envelope| envelope.status == "bounded-unresolved"));
-    }
-
-    #[test]
     fn every_ordered_timezone_transition_matches_a_cold_full_rust_oracle() {
         let csv = mixed_timezone_csv();
-        let report: ConfigurationFamilyReport = serde_json::from_str(
-            &analyze_timezone_configuration_family_native(
-                &request(&csv),
-                &csv,
-                &RuntimeSupportFiles::default(),
-            )
-            .unwrap(),
-        )
-        .unwrap();
-        let expected = report
-            .variants
-            .iter()
-            .map(|variant| (variant.variant_id.as_str(), variant))
-            .collect::<BTreeMap<_, _>>();
-        let cone = report
-            .influence
-            .conservative_cone
-            .iter()
-            .map(String::as_str)
+        let expected_touched = embedded_plan()
+            .nodes
+            .into_iter()
+            .map(|node| node.node_id)
+            .filter(|node_id| node_id != "parse_events")
             .collect::<BTreeSet<_>>();
 
         for (from_index, from) in TIMEZONE_HANDLING_MODES.iter().enumerate() {
@@ -5247,10 +4980,19 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                 .unwrap();
                 let manifest: RuntimeManifest =
                     serde_json::from_str(&changed_handle.manifest_json).unwrap();
-                let oracle = expected[to];
+                let mut oracle_request: RuntimeRequest =
+                    serde_json::from_str(&request(&csv)).unwrap();
+                oracle_request.options.timezone_handling = (*to).into();
+                let oracle_result = run_pipeline_v2_with_supports(
+                    &csv,
+                    &oracle_request.options.into_pipeline_options(),
+                    PipelineV2SupportFiles::default(),
+                )
+                .unwrap();
+                let oracle = pipeline_result_digests(&oracle_result);
                 assert_eq!(
                     manifest.processing_summary.timezone_stage_digest,
-                    oracle.normalized_events_digest,
+                    oracle_result.timezone_stage_digest,
                     "{from} -> {to}: normalized state diverged from cold oracle"
                 );
                 assert_eq!(
@@ -5272,17 +5014,13 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                             ExecutionStatus::Recomputed | ExecutionStatus::Bypassed
                         )
                     })
-                    .map(|execution| execution.node_id.as_str())
+                    .map(|execution| execution.node_id.clone())
                     .collect::<BTreeSet<_>>();
                 assert!(
-                    touched.is_subset(&cone),
-                    "{from} -> {to}: recomputed outside declared cone: {:?}",
-                    touched.difference(&cone).collect::<Vec<_>>()
-                );
-                assert!(
-                    cone.is_subset(&touched),
-                    "{from} -> {to}: under-invalidated nodes: {:?}",
-                    cone.difference(&touched).collect::<Vec<_>>()
+                    touched == expected_touched,
+                    "{from} -> {to}: exact changed-node set differs: missing={:?} extra={:?}",
+                    expected_touched.difference(&touched).collect::<Vec<_>>(),
+                    touched.difference(&expected_touched).collect::<Vec<_>>()
                 );
                 assert_eq!(
                     manifest
@@ -5488,6 +5226,58 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         assert!(String::from_utf8(normalized)
             .unwrap()
             .contains("app_package_name"));
+    }
+
+    #[test]
+    fn identical_support_bytes_keep_distinct_role_identity_and_shared_content_identity() {
+        let workbook = include_bytes!(concat!(
+            env!("CHRONICLE_REPOSITORY_ROOT"),
+            "/apps_to_filter_files/Chronicle_Android_raw_data_preprocessor_apps_to_filter.xlsx"
+        ));
+        let mut support = RuntimeSupportFiles::default();
+        support
+            .put_native("filter_file", "filter.xlsx", workbook)
+            .unwrap();
+        support
+            .put_native("background_apps_file", "background.xlsx", workbook)
+            .unwrap();
+        let csv = csv();
+        let mut request_value: Value = serde_json::from_str(&request(&csv)).unwrap();
+        request_value["options"]["use_filter_file"] = Value::Bool(true);
+        request_value["options"]["use_background_apps_file"] = Value::Bool(true);
+        let handle = execute_workspace_native(&request_value.to_string(), &csv, &support).unwrap();
+        let manifest: RuntimeManifest = serde_json::from_str(&handle.manifest_json).unwrap();
+        let filter = manifest
+            .role_assignments
+            .iter()
+            .find(|assignment| assignment.role_id == "filter_file")
+            .unwrap();
+        let background = manifest
+            .role_assignments
+            .iter()
+            .find(|assignment| assignment.role_id == "background_apps_file")
+            .unwrap();
+        assert_eq!(filter.artifact.digest, background.artifact.digest);
+        assert_ne!(filter.artifact.artifact_id, background.artifact.artifact_id);
+
+        let normalized = manifest
+            .artifacts
+            .iter()
+            .filter(|artifact| artifact.kind.starts_with("normalized-support:"))
+            .collect::<Vec<_>>();
+        let normalized_filter = normalized
+            .iter()
+            .find(|artifact| artifact.kind == "normalized-support:filter_file")
+            .unwrap();
+        let normalized_background = normalized
+            .iter()
+            .find(|artifact| artifact.kind == "normalized-support:background_apps_file")
+            .unwrap();
+        assert_eq!(normalized_filter.digest, normalized_background.digest);
+        assert_ne!(
+            normalized_filter.artifact_id,
+            normalized_background.artifact_id
+        );
     }
 
     #[test]
@@ -5732,12 +5522,6 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         assert_eq!(requirements["ready"], true);
         let primary = execute_workspace(&request_value.to_string(), &csv, &support).unwrap();
         assert!(primary.manifest_json().contains(EXECUTE_WORKSPACE_COMMAND));
-        let family =
-            analyze_timezone_configuration_family(&request_value.to_string(), &csv, &support)
-                .unwrap();
-        assert!(family.contains(CONFIGURATION_FAMILY_PROTOCOL_VERSION));
-        assert!(family.contains("selected-filter"));
-
         let mut journal = EvidenceJournal::default();
         journal
             .append(Transition {

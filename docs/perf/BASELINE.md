@@ -119,8 +119,9 @@ these figures are evidence for this machine and commit, not portable promises.
 - The committed [Salsa product trial](SALSA_PRODUCT_TRIAL.md) preserves the
   original six-query selection benchmark. All 55 transformations are now
   callable; the replacement measurement must cover cold, unchanged, upstream,
-  middle, downstream, qualification/binding, cache export, cache restore,
-  snapshot bytes, peak memory, and actual execution events.
+  middle, downstream, qualification/binding, peak memory, and actual execution
+  events. Snapshot export/restore was measured and removed because it was slower
+  and much larger than cold recalculation.
 - Repeated large-fixture peak RSS in Chromium rather than the Node WASM host.
 - Cross-browser OPFS and performance measurements outside Chromium.
 - Cold-versus-warm semantic-index query profiling after adding an index cache.

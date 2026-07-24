@@ -1,5 +1,10 @@
 # Feature Inventory — engine vs consuming pipeline vs web app
 
+> **Historical inventory, retained for behavior discovery only.** Its Python
+> and TypeScript ownership/path statements are obsolete. Current processing
+> authority is the 55-step Rust/Salsa runtime and this repository no longer
+> carries a second engine.
+
 Where each processing feature lives today. "Engine" = this repo's Python/Rust core.
 "Pipeline" = the consuming research data pipeline (Dagster/dbt monorepo) that subprocess-invokes
 this engine and bolts study logic on top. "Web" = `web/` in this repo (browser pipeline in TS).

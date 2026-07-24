@@ -1,5 +1,9 @@
 # Real-Corpus Soak — Dual-Engine Byte Parity on the Full Study Corpus
 
+> **Frozen migration evidence.** The compared legacy engines were deleted after
+> this result. This document records the cutover evidence; it is not a current
+> instruction to restore or maintain either engine.
+
 **Verdict (2026-07-20): 120/120 processable participants byte-identical
 across the browser and desktop engines. Zero mismatched cells.**
 

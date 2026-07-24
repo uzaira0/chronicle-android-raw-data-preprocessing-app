@@ -1,5 +1,4 @@
 import { inspectRawCsvBytes } from "@/lib/rustWorkerClient";
-import { parseInteractionRemap } from "@/lib/interactionTypes";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 export type RawFileInspection = {
@@ -38,13 +37,10 @@ export function effectiveWarnings(
       `${inspection.duplicateTimestampCount.toLocaleString()} event timestamps appear more than once.`,
     );
   }
-  // Interaction types the built-in map doesn't recognize, minus any the user
-  // has remapped to a canonical name (#4). Computed here (not in inspectRawFile)
-  // because whether a type is "unrecognized" depends on the remap option.
-  const remapped = parseInteractionRemap(options.interactionTypeRemap);
-  const stillUnrecognized = inspection.unrecognizedInteractionTypes.filter(
-    (type) => !remapped.has(type),
-  );
+  // Rust owns interaction-type interpretation. This preflight warning reports
+  // the file inspection result verbatim; TypeScript must not decide whether a
+  // user mapping changes the pipeline's meaning.
+  const stillUnrecognized = inspection.unrecognizedInteractionTypes;
   if (stillUnrecognized.length) {
     const sample = stillUnrecognized.slice(0, 5).join(", ");
     const more = stillUnrecognized.length > 5 ? ", …" : "";

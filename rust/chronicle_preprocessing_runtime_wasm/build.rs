@@ -92,7 +92,6 @@ fn main() {
         "rust/chronicle_preprocessing_runtime_wasm/src",
         "rust/chronicle_preprocessing_semantic_adapter/src",
         "rust/chronicle_chrono_kernel_wasm/src",
-        "rust/vendor/salsa-0.28.1/src",
         "rust/chronicle_app_usage_matcher/src",
         "rust/chronicle_semantic_index_wasm/src",
     ] {
@@ -116,8 +115,6 @@ fn main() {
         "rust/chronicle_chrono_kernel_wasm/Cargo.toml",
         "rust/chronicle_chrono_kernel_wasm/Cargo.lock",
         "rust/chronicle_chrono_kernel_wasm/src",
-        "rust/vendor/salsa-0.28.1/Cargo.toml",
-        "rust/vendor/salsa-0.28.1/src",
         "rust/chronicle_app_usage_matcher/Cargo.toml",
         "rust/chronicle_app_usage_matcher/Cargo.lock",
         "rust/chronicle_app_usage_matcher/src",

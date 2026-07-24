@@ -1,5 +1,9 @@
 # Cleaning & Analysis Semantics — the algorithms to port
 
+> **Historical behavior specification.** The port is complete and the old
+> Python/TypeScript targets are gone. Preserve the concrete cases below as test
+> evidence, but implement and verify them only in the Rust/Salsa authority.
+
 Faithful description of the consuming pipeline's post-engine logic, for the client-side
 TypeScript port. Port targets must be parity-tested against golden outputs generated from
 the Python originals.

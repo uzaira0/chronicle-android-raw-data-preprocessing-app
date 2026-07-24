@@ -81,8 +81,8 @@ enums:
       Attribution status of an App-Usage assertion — the compliance denominator
       contract. Chronicle uses a CLOSED attribution vocabulary: "Target Child",
       "Other", or "None"/blank (survey answers arrive as "Other (From Survey)").
-      Mirrors classifyAttribution() in web/src/lib/stages/attributePerson.ts
-      (the runtime SSOT). NEVER a null person and NEVER an "unknown person" class.
+      Mirrors Rust attribution in pipeline_v2_incremental.rs (the runtime
+      source of truth). NEVER a null person and NEVER an "unknown person" class.
     permissible_values:
       target: {description: 'Attributed to the enrolled target child (label "Target Child").'}
       known_non_target: {description: 'Attributed to a known person other than the target child (label "Other"). Counts as known/attributed.'}

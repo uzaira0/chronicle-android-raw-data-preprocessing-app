@@ -35,16 +35,16 @@
 - The incremental-engine decision is closed. Salsa is the sole selected
   physical engine. `incremental-rs` and `comemo` are prior art only; `depends`
   is a proof-of-concept and not a production candidate; `incremental-query`
-  requires unstable Rust and is not selected. The directory
-  `rust/chronicle_incremental_query_spike` is the historical Salsa trial, not
-  an adoption of that similarly named library. A bounded product-owned memo
-  table is allowed only if a mandatory Salsa acceptance check fails, and it
-  must satisfy the identical 55-query correctness and durability tests.
+  requires unstable Rust and is not selected. The completed Salsa trial crate
+  was deleted after the production choice was made. A bounded product-owned
+  memo table is allowed only if a mandatory Salsa acceptance check fails, and
+  it must satisfy the identical 55-query correctness and durability tests.
 - The fused `run_pipeline_v2_with_supports()` path is the cold correctness
   oracle and temporary rollback during migration. The 55 callable Rust queries
-  and in-worker typed intermediate reuse now exist. Production readiness still
-  requires runtime/view event truth, persisted compatible cache recovery,
-  current empirical evidence, full quality gates, and preview verification.
+  and in-worker typed intermediate reuse now exist. Persisted Salsa state was
+  rejected by measurement and deleted; worker replacement recalculates from
+  verified OPFS inputs. Production readiness still requires current empirical
+  evidence, full quality gates, and preview verification.
   Mapping 55 step IDs to 15 reporting values or one `execute_workspace` entry
   point never satisfies that requirement.
 - The declared step graph supports review, visualization, and mutation tests.

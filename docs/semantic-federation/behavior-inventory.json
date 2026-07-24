@@ -6,18 +6,12 @@
     "isolated_worktree_branch": "codex/chronicle-55-step-authority"
   },
   "sources": {
-    "unit_graph": {
-      "path": "web/src/lib/pipelineGraph/graphDef.ts",
-      "digest": "sha256:252eeddf7a4e13d23a3da982b3128651a4d8ce25cc9900b4b8d70e3f92b20934",
-      "executable": true,
-      "production_authority": false,
-      "purpose": "test-only-migration-reference"
-    },
-    "step_wirings": {
-      "directory": "web/src/lib/pipelineGraph/steps",
-      "executable": true,
-      "production_authority": false,
-      "purpose": "test-only-migration-reference"
+    "rust_step_contract": {
+      "path": "rust/chronicle_chrono_kernel_wasm/src/step_contract.rs",
+      "digest": "sha256:4c4a3306d2e6d07cc61c1c4a7deec704c44c7766350572caf7f1be1f8cf33e45",
+      "executable": false,
+      "production_authority": true,
+      "purpose": "declares the exact 55 Rust query ids and edges"
     },
     "structural_projection": {
       "path": "web/schema/chronicle-pipeline-graph.yaml",
@@ -31,18 +25,13 @@
         "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "rust/chronicle_chrono_kernel_wasm/src/step_contract.rs"
       ],
-      "digest": "sha256:2b4a52beca64347714890a8fd0546826f8945a40f6a30a46aee1a83ef836da87",
+      "digest": "sha256:7f3f52820ebcc5b7d58a446efe16ed2a5e6d37aa7f7463ca3a536222aeecf060",
       "coverage": "active-55-query-salsa-kernel-plus-fused-cold-test-oracle"
     },
     "rust_product_runtime": {
       "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
-      "digest": "sha256:34fcbc2888124952e11671f1b277cc1a3c1e8373e57ee22b51abf9929aa32239",
+      "digest": "sha256:00d880421a466c9acca189374bda81a38afc4fce9c92358b4574ae562d61e509",
       "coverage": "production-worker-authority"
-    },
-    "configuration_family_compiler": {
-      "path": "rust/chronicle_preprocessing_runtime_wasm/src/configuration_family.rs",
-      "digest": "sha256:4db06ba5eaeccf96563de74c0e79482f7478b622a041effdc86597862e2d789f",
-      "coverage": "product-local-variability-authority"
     }
   },
   "coverage": {
@@ -57,8 +46,8 @@
       "percent": 100
     },
     "declared_capability_identity_coverage": {
-      "expected": 70,
-      "recorded": 70,
+      "expected": 69,
+      "recorded": 69,
       "percent": 100,
       "claim": "identity-and-exact-rust-query-entrypoint-coverage"
     },
@@ -347,10 +336,10 @@
   },
   "physical_incremental_execution_status": "runtime-cutover-active-release-blocked",
   "typescript_production_authority_capabilities": [],
-  "runtime_authority_surface_count": 24,
+  "runtime_authority_surface_count": 23,
   "dependency_certificate": {
     "path": ".semantic-federation/proofs/dependency-certificate.json",
-    "digest": "sha256:92e8cb00af184201e83e6de6413859db3219f40aed072d562c6d5a8c4c092749",
+    "digest": "sha256:cc34e8923d06419e15df02fe08b6c01d587e8bafe725c89a220f3c484c813249",
     "fallback": "full-logical-recompute"
   },
   "resolved_baseline_findings": [

@@ -18,14 +18,11 @@ MATCHER := rust/chronicle_app_usage_matcher/Cargo.toml
 CHRONO_KERNEL := rust/chronicle_chrono_kernel_wasm/Cargo.toml
 SEMANTIC_RUNTIME := rust/chronicle_preprocessing_semantic_adapter/Cargo.toml
 PRODUCT_RUNTIME := rust/chronicle_preprocessing_runtime_wasm/Cargo.toml
-SALSA_SPIKE := rust/chronicle_incremental_query_spike/Cargo.toml
 SEMANTIC_INDEX := rust/chronicle_semantic_index_wasm/Cargo.toml
 SEM_PROF_BIN ?= semprof
-SALSA_BENCH_RAW ?= .tmp-benchmark/chronicle-synthetic-60000.csv
 
 .PHONY: help ci all security web \
         rust \
-        salsa-browser-test salsa-benchmark \
         semgrep ast-grep cargo-audit cargo-deny trivy gitleaks \
         typecheck web-test contract semantic-federation combinatorial gate-truth \
         mutation mutation-web mutation-rust coverage coverage-rust coverage-all \
@@ -42,8 +39,7 @@ help:
 	@echo '  Individual:  rust semgrep ast-grep cargo-audit cargo-deny trivy gitleaks'
 	@echo '               typecheck web-test contract e2e gate-truth mutation'
 	@echo '               mutation-web mutation-rust coverage coverage-rust coverage-all'
-	@echo '               knip profile combinatorial deploy-artifact salsa-browser-test'
-	@echo '               salsa-benchmark dependency-evidence'
+	@echo '               knip profile combinatorial deploy-artifact dependency-evidence'
 
 # ---------- aggregates ----------
 ci: rust security
@@ -72,9 +68,8 @@ security: semgrep ast-grep cargo-audit cargo-deny trivy gitleaks
 web: typecheck web-test contract semantic-federation
 
 # ---------- Rust tests ----------
-# The matcher core is a library dependency of the web WASM crates
-# (chronicle_app_usage_wasm, chronicle_chrono_kernel_wasm); its tests run
-# feature-free so no libpython is required on PATH.
+# The matcher core is a library dependency of the production Rust/WASM runtime;
+# its tests run feature-free so no libpython is required on PATH.
 rust:
 	cargo test --locked --manifest-path $(MATCHER) --no-default-features
 	cargo test --locked --manifest-path $(CHRONO_KERNEL) --features incremental-v2
@@ -83,30 +78,12 @@ rust:
 	rustup run stable cargo check --locked --manifest-path $(SEMANTIC_RUNTIME) --target wasm32-unknown-unknown --features wasm
 	cargo test --locked --manifest-path $(PRODUCT_RUNTIME)
 	rustup run stable cargo check --locked --manifest-path $(PRODUCT_RUNTIME) --target wasm32-unknown-unknown
-	cargo test --locked --manifest-path $(SALSA_SPIKE)
-	rustup run stable cargo check --locked --manifest-path $(SALSA_SPIKE) --target wasm32-unknown-unknown
 	cargo test --locked --manifest-path $(SEMANTIC_INDEX)
 	rustup run stable cargo check --locked --manifest-path $(SEMANTIC_INDEX) --target wasm32-unknown-unknown
 	cargo clippy --locked --manifest-path $(CHRONO_KERNEL) --all-targets --features incremental-v2 -- -D warnings
 	cargo clippy --locked --manifest-path $(SEMANTIC_RUNTIME) --all-targets -- -D warnings
 	cargo clippy --locked --manifest-path $(PRODUCT_RUNTIME) --all-targets -- -D warnings
-	cargo clippy --locked --manifest-path $(SALSA_SPIKE) --all-targets -- -D warnings
 	cargo clippy --locked --manifest-path $(SEMANTIC_INDEX) --all-targets -- -D warnings
-
-# A browser driver must match the installed browser major version. Set both
-# paths explicitly so wasm-pack cannot silently substitute an incompatible
-# cached driver.
-salsa-browser-test:
-	@test -n "$(CHROMEDRIVER)" || (echo 'set CHROMEDRIVER to a ChromeDriver matching installed Chrome' >&2; exit 2)
-	@test -n "$(WASM_BINDGEN_TEST_RUNNER)" || (echo 'set WASM_BINDGEN_TEST_RUNNER to wasm-bindgen-test-runner' >&2; exit 2)
-	CHROMEDRIVER="$(CHROMEDRIVER)" \
-	CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER="$(WASM_BINDGEN_TEST_RUNNER)" \
-	WASM_BINDGEN_TEST_ONLY_WEB=1 \
-	rustup run stable cargo test --manifest-path $(SALSA_SPIKE) --target wasm32-unknown-unknown -- --nocapture
-
-salsa-benchmark:
-	@test -f "$(SALSA_BENCH_RAW)" || (echo 'missing benchmark fixture: $(SALSA_BENCH_RAW)' >&2; exit 2)
-	cargo run --release --manifest-path $(SALSA_SPIKE) --bin measure_trial -- --raw "$(SALSA_BENCH_RAW)"
 
 # ---------- security scanners ----------
 semgrep:
@@ -122,7 +99,6 @@ cargo-audit:
 	cd rust/chronicle_app_usage_matcher && cargo audit
 	cd rust/chronicle_preprocessing_semantic_adapter && cargo audit
 	cd rust/chronicle_preprocessing_runtime_wasm && cargo audit
-	cd rust/chronicle_incremental_query_spike && cargo audit
 	cd rust/chronicle_semantic_index_wasm && cargo audit
 
 # Policy complements cargo-audit: exact source allowlists, license closure,

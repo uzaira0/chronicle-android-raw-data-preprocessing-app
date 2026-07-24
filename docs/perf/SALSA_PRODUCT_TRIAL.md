@@ -2,15 +2,17 @@
 
 Captured: 2026-07-23.
 
-This file preserves the original bounded dependency trial. The decision is no
-longer open: Salsa `0.28.1` is selected and all 55 transformations are now real
-tracked computations in the production kernel. The current implementation,
+This file preserves the results of the deleted bounded dependency trial. The
+decision is no longer open: upstream Salsa `0.28.1` is selected and all 55
+transformations are real tracked computations in the production kernel. The
+trial crate, local Salsa patch, and snapshot code were removed after profiling
+showed snapshot restore was slower and much larger than cold recalculation. The current implementation,
 remaining acceptance checks, and complete comparison with `incremental-rs`,
 `depends`, `comemo`, `incremental-query`, and the bounded fallback are in the
 [authoritative 55-step plan](../semantic-federation/55-step-incremental-rust-plan.md#existing-software-decision).
 
-The trial directory is named `rust/chronicle_incremental_query_spike`, but it
-tests **Salsa**. It does not use or endorse the separate project named
+The former trial directory was named `rust/chronicle_incremental_query_spike`,
+but it tested **Salsa**. It did not use or endorse the separate project named
 `incremental-query`.
 
 ## What the trial actually calls
@@ -30,8 +32,9 @@ study name, and filter-file presence/name/bytes. Each query reads only the
 fields it uses. Salsa's `WillExecute` events are checked against a query-body
 log, so a cached label cannot be confused with physical execution.
 
-Salsa is pinned to `0.28.1`, has default features disabled, and uses only its
-macro and persistence features. Ingredients are registered explicitly instead
+The trial pinned Salsa to `0.28.1`, disabled default features, and used its
+macro and persistence features. Production uses upstream Salsa with only the
+macro feature. Ingredients are registered explicitly instead
 of adding Salsa's inventory feature. The browser build uses no Rayon, WASM
 threads, or network access.
 

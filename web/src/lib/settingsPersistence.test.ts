@@ -69,14 +69,17 @@ describe("sanitizeOptions", () => {
     ).toMatchObject({ processAppUsage: true });
   });
 
-  it("filters remap entries whose target is not a canonical interaction type", () => {
+  it("preserves remap entries for validation by the Rust authority", () => {
     const next = sanitizeOptions({
       interactionTypeRemap: [
         "Notification Interruption=>Activity Paused",
         "Whatever=>Not A Real Type",
       ],
     });
-    expect(next.interactionTypeRemap).toEqual(["Notification Interruption=>Activity Paused"]);
+    expect(next.interactionTypeRemap).toEqual([
+      "Notification Interruption=>Activity Paused",
+      "Whatever=>Not A Real Type",
+    ]);
   });
 
   it("returns pure defaults for a non-record input", () => {

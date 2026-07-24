@@ -110,30 +110,21 @@ oracle and cannot be selected as production authority.
   decision, reason, requirement condition, and requirement state; every
   rule-level expected/observed evaluation is retained in the derived graph.
 
-The Salsa database stays warm in the worker and can now be exported as a
-versioned MessagePack snapshot. The browser stores that snapshot as an optional
-content-addressed object behind alternating cache-root records. Restore is
-attempted only after the authoritative workspace root and its semantic-index
-source have been verified, and only when the exact implementation, contracts,
-profiles, workspace, and committed base-root identity match. Runtime reporting
-caches are reconstructed from the verified semantic-index source rather than
-trusted from a second snapshot.
-
-This saved query state is acceleration only. Source files, options, contracts,
-committed workspace roots, immutable result objects, and append-only evidence
-remain authoritative. A missing, corrupt, incompatible, partial, oversized, or
-stale query cache is discarded and rebuilt by running cold. Cache restore or
-save failure cannot hide a required computation or invalidate an otherwise
-successful authoritative workspace commit. The real-WASM reload, crash,
-retention, size, and memory matrix remains a release gate.
+The Salsa database stays warm only inside the current worker. A measured
+60,624-row snapshot expanded to roughly 868 MiB, took about 4.1 seconds to
+write and 6.0 seconds to restore, while a fresh Rust calculation took about
+2.3 seconds. The snapshot serializer, browser cache pointers, patched Salsa
+fork, and trial crate were therefore deleted. After reload or worker
+replacement, Chronicle verifies the OPFS source/configuration history and
+recalculates from it. No opaque query cache can hide a required computation.
 
 ## Dependency decisions
 
 - The scheduler remains product-owned; there is no federation-wide engine. The
   existing custom 15-group scheduler has no physical execution authority. The previously approved
   Salsa trial now passes representative native/headless-browser WASM,
-  actual-read, execution-event, early-cutoff, qualification-hole, and verified
-  snapshot tests. The measured results are in
+  actual-read, execution-event, early-cutoff, and qualification-hole tests.
+  The measured trial—including the reason its snapshot path was removed—is in
   [the product-trial report](../perf/SALSA_PRODUCT_TRIAL.md). Salsa `0.28.1` is selected
   and all 55 real step queries now pass native complete-result parity, exact
   unchanged reuse, output-only invalidation, Clippy, and browser-WASM compile
@@ -180,21 +171,10 @@ The Chronicle overlay is therefore an executable reference implementation of
 the generalized model, not a template whose internal DAG should be copied to
 other products.
 
-## Variability-aware configuration proof
+## Configuration-change proof
 
-The first closed configuration family is the four-mode timezone contract. Rust
-executes every mode, partitions method, qualification, retained-row,
-normalized-event, published-output and provenance identity separately, and
-derives the conservative influence cone from the product plan. The five
-existing golden scenarios prove the simple case collapses to one computational
-state without erasing four method choices. The existing mixed-timezone fixture
-proves the family widens, and all 12 ordered policy transitions must match cold
-full-Rust results. See
-[the configuration-family proof](configuration-family.md) and its checked
-machine-readable corpus report.
-
-The whole contract is additionally exercised by a deterministic configuration-
-space campaign. The contract explicitly partitions 46 computational axes, one
+The real Rust runtime is exercised by a deterministic configuration-space
+campaign. The contract explicitly partitions 46 computational axes, one
 annotation axis, five view axes, and two execution-strategy axes. The 46-axis
 model covers all 97 declared values, 4,593 valid pairs, and 141,499 valid
 triples; it also runs a 128-case fixed-seed high-order sample, five
@@ -408,7 +388,7 @@ The production Rust quality rails currently enforce at least 95% line, 94%
 region, and 70% function coverage on each new semantic authority crate. The
 measured proof is stronger: semantic adapter 97.98% lines/97.46% regions,
 product runtime 96.94%/95.88%, semantic index 97.06%/96.15%, and the new
-configuration-family compiler 98.54%/99.43%. The semantic-layer mutation runs
+product runtime 98.54%/99.43%. The semantic-layer mutation runs
 have zero survivors and zero timeouts: adapter 76 killed/25 compiler-rejected,
 product runtime 194 killed/21 compiler-rejected, and semantic index 31 killed.
 The adapter's target-incompatible `cfg(wasm)` facade exclusion is declared in

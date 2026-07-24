@@ -1,5 +1,11 @@
 # Rust Port Design Memo — Chronicle Browser Pipeline
 
+> **Historical decision evidence, not current instructions.** This memo
+> measured the old engines and justified the Rust port. Its recommendation to
+> keep a TypeScript fallback was later rejected after the complete Rust/Salsa
+> runtime passed the required checks. The fallback, matcher-only wrapper,
+> Polars prototype, and benchmark-only implementations are deleted.
+
 Author: Claude (handoff to future implementer)
 Date: 2026-04-27
 

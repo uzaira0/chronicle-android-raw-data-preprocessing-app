@@ -20,7 +20,7 @@ REQUIRED_DOCUMENT_TEXT = {
     REPOSITORY_ROOT / "README.md": [
         "55-step incremental Rust plan",
         "all 55 preprocessing transformations now exist",
-        "optional query-cache persistence path now exists",
+        "Persisted Salsa snapshots were removed",
     ],
     REPOSITORY_ROOT / ".semantic-federation/PROJECT_DECISIONS.md": [
         "Salsa `0.28.1`",

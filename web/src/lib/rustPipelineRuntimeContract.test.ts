@@ -3,7 +3,6 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import {
-  buildRustV2Options,
   decodeRuntimeManifest,
   executeRustRuntime,
   setRustRuntimeForTesting,
@@ -406,101 +405,6 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
     ).not.toThrow();
   });
 
-  it("restores all 55 real query results after the WASM workspace state is evicted", async () => {
-    const raw = new TextEncoder().encode(
-      [
-        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
-        "Study,P01,Target Child,Example,Unknown importance: 1,example.app,2026-03-07 10:00:00,America/Chicago",
-        "Study,P01,Target Child,Example,Unknown importance: 2,example.app,2026-03-07 10:01:00,America/Chicago",
-      ].join("\n"),
-    );
-    const options = {
-      ...DEFAULT_BROWSER_OPTIONS,
-      studyName: "Real WASM Query Cache Proof",
-      selectedTimezone: "America/Chicago",
-      timezoneHandling: "selected-convert" as const,
-      useFilterFile: false,
-      useAppsForcingScreenOpenFile: false,
-      useBackgroundAppsFile: false,
-      useAppCodebook: false,
-      processScreenUsage: false,
-      enablePlotting: false,
-    };
-    const runtime = {
-      datetimeOfPreprocessing: "2026-07-22 00:00:00 UTC",
-      persistRustWorkspace: false,
-    };
-    const first = await executeRustRuntime(
-      raw,
-      "real-wasm-query-cache.csv",
-      options,
-      undefined,
-      runtime,
-    );
-    const cache = runtimeWasm.export_workspace_query_cache(
-      first.workspaceId,
-      first.manifest.workspaceRootDigest,
-    );
-    const semanticIndexSource = first.artifacts.get(
-      "semantic-index-source-json",
-    );
-    expect(cache.byteLength).toBeGreaterThan(0);
-    expect(semanticIndexSource).toBeDefined();
-
-    // The runtime retains one workspace. A different filename has a different
-    // workspace identity and therefore evicts the first in-memory database.
-    await executeRustRuntime(
-      raw,
-      "evict-real-wasm-query-cache.csv",
-      options,
-      undefined,
-      runtime,
-    );
-    runtimeWasm.restore_workspace_query_cache(
-      first.workspaceId,
-      first.manifest.workspaceRootDigest,
-      cache,
-      semanticIndexSource!,
-    );
-
-    const supports = new runtimeWasm.RuntimeSupportFiles();
-    let handle: runtimeWasm.RuntimeHandle | undefined;
-    try {
-      handle = runtimeWasm.execute_workspace(
-        JSON.stringify({
-          protocolVersion: "chronicle-preprocessing-runtime/v1",
-          requestId: "real-wasm-query-cache-replay",
-          command: "ExecuteWorkspace",
-          workspaceRootDigest: first.manifest.workspaceRootDigest,
-          workspaceId: first.workspaceId,
-          inputFileName: "real-wasm-query-cache.csv",
-          inputSha256: first.manifest.input.digest,
-          options: buildRustV2Options(options, runtime),
-        }),
-        raw,
-        supports,
-      );
-      const restored = decodeRuntimeManifest(JSON.parse(handle.manifest_json()));
-      expect(restored.stepExecutions).toHaveLength(55);
-      expect(
-        restored.stepExecutions.filter(
-          ({ status }) => status === "recomputed" || status === "error",
-        ),
-      ).toEqual([]);
-      expect(
-        restored.nodeExecutions.filter(
-          ({ status }) => status === "recomputed" || status === "error",
-        ),
-      ).toEqual([]);
-      expect(restored.processingSummary.publishedOutputsDigest).toBe(
-        first.manifest.processingSummary.publishedOutputsDigest,
-      );
-    } finally {
-      handle?.free();
-      supports.free();
-    }
-  });
-
   it("keeps all 55 query results warm when OPFS persistence is disabled", async () => {
     const raw = new TextEncoder().encode(
       [
@@ -547,6 +451,30 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
         ({ status }) => status === "recomputed" || status === "error",
       ),
     ).toEqual([]);
+    const runSpecificArtifacts = new Set([
+      "execution-ledger-json",
+      "semantic-index-source-json",
+      "correspondence-index-json",
+      "evidence-journal",
+      "execution-state-json",
+      "stage-view-json",
+      "artifact-view-json",
+      "obligation-view-json",
+      "explanation-view-json",
+      "artifact-closure-json",
+      "workspace-root-json",
+    ]);
+    const stableKinds = [...first.artifacts.keys()]
+      .filter((kind) => !runSpecificArtifacts.has(kind))
+      .sort();
+    expect(
+      [...second.artifacts.keys()]
+        .filter((kind) => !runSpecificArtifacts.has(kind))
+        .sort(),
+    ).toEqual(stableKinds);
+    for (const kind of stableKinds) {
+      expect(second.artifacts.get(kind), kind).toEqual(first.artifacts.get(kind));
+    }
   });
 
   it("forces conservative recomputation when empirical release evidence is stale", () => {

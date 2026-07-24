@@ -4,10 +4,10 @@ Status: active. Salsa `0.28.1` is selected and implemented as the physical
 incremental engine. All 55 declared transformations exist as real tracked Rust
 computations and pass cold-oracle parity in all four usage modes. The stateful
 engine proves that an unchanged call executes no step body and an output-only
-`study_name` change executes only `assemble_result`. A version- and root-bound
-Salsa snapshot, optional OPFS cache roots, and browser restore/save wiring now
-exist, but the complete reload, crash, campaign, profiling, and preview proofs
-are still in progress. The production-ready claim has not been made.
+`study_name` change executes only `assemble_result`. Persisted Salsa snapshots
+were deleted after the real fixture proved restore was slower and much larger
+than cold recalculation. OPFS keeps the verified inputs and complete result
+history; Salsa keeps only the current worker's disposable warm state.
 
 This file is the single implementation goal, plan, and durable work log for
 that change. Do not create another plan or runtime model for the same work. The
@@ -56,7 +56,7 @@ Therefore the current state is:
 | Do all four usage modes match the complete Rust oracle? | Yes in the kernel parity test. |
 | Can one output-only change skip all unrelated physical work? | Yes in the stateful engine test: only `assemble_result` runs. |
 | Does an unchanged second call execute a step body? | No in the stateful engine test. |
-| Does that warm cache survive reload or worker replacement? | The implementation exists: a verified Salsa snapshot is stored as an optional content-addressed OPFS cache and restored only after the authoritative workspace root is verified. The final real-WASM reload/crash/performance proof is still pending. |
+| Does that warm cache survive reload or worker replacement? | Deliberately no. The verified OPFS inputs survive, and a new worker recalculates. Snapshot restore was measured slower than a cold run and was removed. |
 | Do runtime `cached`/`recomputed` step labels use actual query execution? | Yes. Exact step labels use Salsa events and the 15 product groups are derived from those step IDs. The empirical receipts are still stale. |
 | Is the tracked runtime production-ready? | No. Runtime, durability, empirical campaigns, performance, and full browser gates remain. |
 
@@ -118,7 +118,7 @@ flowchart LR
     Q["Qualification and role binding queries"]
     S["55 Rust tracked computations"]
     T["Terminal export and view queries"]
-    O["OPFS objects and saved query cache"]
+    O["OPFS verified inputs, outputs, history, and views"]
     U["TypeScript rendering and interaction"]
 
     D --> Q
@@ -163,7 +163,7 @@ acceptance conditions below fails in the real product workload.
 | `incremental-rs` / crate `incremental` `0.2.8` | Prior art only | Its equality and early-cutoff model is useful, but no verified browser-WASM/product fit was found and it does not provide Chronicle's complete query, qualification, provenance, or recovery runtime. |
 | `depends` | Not a production candidate | Its own project describes it as a proof of concept. It is not a safe replacement for the product runtime. |
 | `comemo` | Prior art only | Its actual-call tracking informed the design, but it is not the complete product query/runtime layer required here. |
-| `incremental-query` | Not a production candidate | It requires unstable Rust and its query-cache serialization is not a supported production interface. The local directory `rust/chronicle_incremental_query_spike` is the historical Salsa trial crate; its name does **not** mean this project adopted the `incremental-query` library. |
+| `incremental-query` | Not a production candidate | It requires unstable Rust and its query-cache serialization is not a supported production interface. The former local trial crate tested Salsa and was removed after the production choice was complete. |
 | Bounded product-owned memo table | Contingency only | It may replace Salsa only if a named mandatory acceptance check below fails. It must keep the same 55-query contract, event truth, parity, invalidation, durability, and performance tests. |
 
 This decision uses the existing research rather than repeating it. The product
@@ -185,7 +185,7 @@ Salsa remains accepted only while the real preprocessing app proves:
   binding changes;
 - early cutoff when a recomputed value is unchanged;
 - no hidden thread, `Send`, network, or persistence requirement in the browser;
-- cache snapshot rejection after implementation, contract, or schema changes;
+- deterministic cold recalculation after worker replacement;
 - no unexplained result, state, lineage, or invalidation difference from the
   fused Rust oracle;
 - acceptable memory and WASM size on the large existing fixture.
@@ -313,9 +313,8 @@ The goal is complete only when all of these are true:
 11. Terminal CSV, Parquet, SPSS, aggregates, lineage, correspondence,
     provenance, index input, and typed views are separate queries and are not
     regenerated when unchanged.
-12. A saved query cache survives browser reload where supported. A corrupt,
-    incompatible, partial, or stale cache is discarded safely and the cold
-    result remains correct.
+12. Browser reload and worker replacement recover the verified OPFS inputs and
+    complete history, then produce the same bytes through a fresh Rust run.
 13. Native Rust and browser WASM produce identical result bytes, hashes, query
     states, execution events, qualification outcomes, and invalidation sets.
 14. TypeScript contains no preprocessing, scheduling, cache-key, qualification,
@@ -379,24 +378,13 @@ remaining CPU work that can run independently.
 Proof: document check, behavior-inventory drift check, semantic contract check,
 and clean generated diff.
 
-### Phase 1 — real Salsa product trial
+### Phase 1 — real Salsa product trial (complete)
 
-- Add Salsa in a sibling Chronicle trial crate with default features disabled,
-  so an unselected dependency cannot change the production runtime identity.
-- Model one raw input, individual configuration accessors, one support file,
-  one qualification result, and a representative early/middle/output path.
-- Return typed values or content-addressed handles using existing Chronicle
-  types; do not add a generic federation value type.
-- Record actual query events and compare them with the current expected sets.
-- Build and run natively and in browser WASM.
-- Test optional persistence using the existing alternating-root OPFS commit
-  path; reject incompatible snapshots.
-- Measure code size, memory, cold time, and warm time.
-- Accept Salsa or record the exact failed condition and implement the bounded
-  product memo table against the same tests.
-
-Proof: `cargo test`, native/WASM checks, browser execution test, event log,
-parity report, persistence fault test, and benchmark report.
+The isolated trial proved native/browser-WASM builds, actual reads, execution
+events, early cutoff, qualification behavior, and result parity. It also proved
+that persisted Salsa snapshots were a bad fit for this product: the real
+fixture restored more slowly than a cold calculation and used far more space.
+Salsa was adopted directly; the trial crate and snapshot code were deleted.
 
 ### Phase 2 — tracked product inputs and qualification
 
@@ -436,16 +424,12 @@ coverage, and no duplicated algorithm implementation.
   direct value would cause large copies.
 - Make exports, aggregates, lineage, source/result correspondence, semantic
   index input, provenance, and each typed view independent terminal queries.
-- Persist compatible query state using the existing OPFS root commit only after
-  a successful persistence trial.
-- Bind saved state to implementation, build environment, product contract,
-  profile lock, and serialization version.
-- On any mismatch or corruption, discard the cache and run cold.
-- Add retention and garbage-collection rules for query-cache objects without
-  changing the authoritative source/result object rules.
+- Keep the Salsa database and stable terminal artifacts only in the current
+  worker. Do not persist opaque query state.
+- After worker replacement, verify the OPFS inputs and history and run cold.
 
-Proof: no-change event log, reload reuse, crash at every commit point, corrupt
-snapshot recovery, garbage collection, and output equality.
+Proof: no-change event log, worker-replacement cold equality, crash at every
+OPFS commit point, garbage collection, and output equality.
 
 ### Phase 5 — connect execution facts to provenance and views (runtime events complete; saved-view proof pending)
 
@@ -463,25 +447,24 @@ snapshot recovery, garbage collection, and output equality.
 Proof: explanation tests, actual-event/view parity, lineage joins, registered
 query tests, and UI E2E for upstream/middle/downstream/binding changes.
 
-### Phase 6 — cutover and cleanup (physical cutover complete; compatibility cleanup pending)
+### Phase 6 — cutover and cleanup (complete)
 
 - Shadow the query runtime against the fused oracle over all existing test
   campaigns.
 - Classify and fix every difference; do not approve unexplained differences.
 - Keep the browser worker on the query runtime and block release until all
   acceptance checks pass.
-- Keep one release-bounded cold-oracle fallback, then remove it after the
-  acceptance period.
-- Remove the custom 15-node compatibility scheduler after its artifact/view
-  behavior is replaced by direct tracked-result projections.
-- Remove the remaining compatibility step cache after persisted query-result
-  recovery exists.
-- Replace capability bindings that map 55 step IDs to 15 enum values with the
-  generated callable query registry.
+- Keep the sequential full-recompute path native-only as a test oracle. It is
+  not exported by the production WASM and is not a runtime fallback.
+- Keep the 15 product stages only as views derived from the 55 query events;
+  they do not schedule work.
+- Keep prior step inputs and outputs only to detect an output change with no
+  changed declared input; they do not cache or schedule computation.
+- Bind all 55 step IDs to their exact Rust query entry points.
 - Move the dependency report to build/test evidence; it must not decide runtime
   reuse after actual-read tracking exists.
-- Delete stale docs and correct historical claims without rewriting Git
-  history.
+- Mark superseded design documents as historical and keep current docs aligned
+  with the one production runtime.
 
 Proof: legacy modules unavailable in the production build, exact authority
 searches, all gates green, preview-only deploy, rollback rehearsal, and final
@@ -520,7 +503,7 @@ named command or file proving it.
 | Create reproducible representative warm-mutation benchmark | done | `measure_trial` and `docs/perf/SALSA_PRODUCT_TRIAL.md` cover cold, unchanged, raw, middle, output, and binding cases on the 60,624-row fixture. |
 | Add Salsa Chronicle trial and dependency smoke | done | Pinned `0.28.1`; native test/clippy, `wasm32` check, headless-Chrome test, audit, and deny policy pass. |
 | Implement representative query path | done | Six real product queries have body/`WillExecute` parity and controlled-change tests. |
-| Select Salsa versus bounded memo table for implementation | done | Representative product trial passed native/headless-browser WASM, actual-read, event, early-cutoff, qualification, snapshot, audit, memory, and size checks; full 55-query acceptance remains a cutover gate. |
+| Select Salsa versus bounded memo table for implementation | done | Representative product trial passed native/headless-browser WASM, actual-read, event, early-cutoff, qualification, audit, memory, and size checks. Snapshot profiling justified deleting persistence. |
 | Track every computational input separately | active | The engine updates individual Salsa input fields only on value change; declared-versus-observed read checks and forbidden-whole-options tests remain. |
 | Track qualification and assignments | pending | Connect the existing runtime role decisions to tracked inputs and prove a same-file/config-change case. |
 | Extract steps 1–16 | done | `sixteen_tracked_steps_match_the_sequential_oracle_and_reuse_exactly`; 16/16 checkpoint digests match, unchanged execution runs zero bodies, controlled settings prove early cutoff, native tests/Clippy and `wasm32` check pass. |
@@ -530,7 +513,7 @@ named command or file proving it.
 | Generate 55 callable bindings | active | Source scan proves 55 unique `#[salsa::tracked]` functions in contract order; generated capability bindings still need regeneration after runtime evidence is current. |
 | Cache typed intermediates without large copies | active | The Salsa database reuses typed `Arc` results in one worker; allocation, retained-result, and large-fixture memory profiles remain. |
 | Split terminal outputs and derived views into queries | active | `assemble_result` is a tracked terminal query and output-only reuse is proven; independently reusable artifact/view queries remain. |
-| Persist compatible query state | active | Kernel MessagePack snapshot, exact identity/digest checks, singleton-input recovery, optional OPFS cache roots, and browser restore/save wiring exist. Complete the real-WASM reload, crash/corruption, size, memory, and cold-fallback matrix. |
+| Handle worker replacement | done | Opaque query snapshots and cache roots were deleted. Verified OPFS inputs/history survive; a replacement worker deliberately runs cold. |
 | Replace inferred statuses with real events | active | Runtime step status consumes `IncrementalPipelineV2Execution.executed_steps`; dependency evidence still needs regeneration after the final source change. |
 | Run all existing empirical campaigns on physical events | pending | Updated ledgers with cold parity and actual event sets. |
 | Enforce TypeScript boundary | done | `check_no_typescript_authority.mts`, its seeded-failure gate, typecheck, and production bundle search reject a second engine. |
@@ -547,7 +530,7 @@ named command or file proving it.
 | Component | Must add | Must run | Health check | Boundary check | Advanced proof | Status |
 |---|---|---|---|---|---|---|
 | Documentation/current-state check | Count/state/forbidden-claim cases and a seeded false claim | semantic federation check | checker derives 55 declared / 55 feature-gated tracked / runtime cutover active / fused cold oracle | Generated current state must match tracked Rust query symbols | check must fail on a seeded contradiction | active; source count is verified, generated refresh follows current empirical evidence regeneration |
-| Salsa product trial | early/middle/output/binding query tests | native and WASM Cargo checks | real Chronicle calls in native and headless Chrome | no default Rayon/thread/network requirement | event log, early cutoff, persistence corruption, size/memory benchmark | active; representative browser trial and complete 55-query native/WASM compile checks pass; persisted production cache remains |
+| Salsa product trial | early/middle/output/binding query tests | native and WASM Cargo checks | real Chronicle calls in native and headless Chrome | no default Rayon/thread/network requirement | event log, early cutoff, size/memory benchmark | done; upstream Salsa selected, trial and failed snapshot approach removed |
 | Tracked inputs | every option/source/qualification accessor | Rust unit and contract tests | construct database from one complete fixture | unknown and untracked reads fail | property and mutation tests over access sets | pending |
 | 55 query registry | missing/duplicate/cycle/type cases | registry and build drift checks | resolve and call every applicable query | exactly 55 callable bindings | semantic-model mutation of every edge and binding | active; 55 unique functions verified, generated binding and negative drift cases remain |
 | Step extraction | nearest behavior tests per group | existing Rust/golden suites | cold run on smallest fixture | malformed/empty/boundary inputs | fused parity, fuzz, property, mutation | active; complete four-mode checkpoint/output parity passes, broad fuzz/mutation remains |
@@ -695,11 +678,10 @@ and independently cached Rust queries and all acceptance checks above pass.
   `row_count_report` reads the pre-selection and selected rows rather than the
   restamped rows. It also added both stop-type lists to the timestamp-nudging
   read set after a focused fixture proved that the existing code reads both.
-- Efficiency: Salsa persistence was removed from the production kernel feature
-  because Chronicle's existing content-addressed OPFS store owns persistence;
-  the separate trial still tests Salsa snapshot compatibility. Controlled
-  changes now prove early cutoff after an irrelevant remap and a no-op dedupe
-  toggle.
+- Efficiency: Salsa snapshot persistence, its patched fork, browser cache
+  pointers, and the completed trial crate were deleted after measurement showed
+  restore was slower and much larger than cold recalculation. Controlled changes
+  prove early cutoff after an irrelevant remap and a no-op dedupe toggle.
 - Silent failure: runtime build tracking now watches Rust source directories as
   well as the previously known files, so adding or deleting a module cannot
   leave the implementation digest stale. The generated inventory now derives

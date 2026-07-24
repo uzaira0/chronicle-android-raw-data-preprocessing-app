@@ -448,31 +448,13 @@
       "current": {
         "language": "rust",
         "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
-        "entrypoint": "build_artifact_closure",
+        "entrypoint": "execute_workspace_native",
         "status": "active-production-authority"
       },
       "target": {
         "language": "rust",
         "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
-        "entrypoint": "build_artifact_closure",
-        "status": "active"
-      },
-      "requires_active_authority": true
-    },
-    {
-      "surface_id": "configuration_family",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/configuration-family/v1",
-      "category": "semantic-computation",
-      "current": {
-        "language": "rust",
-        "path": "rust/chronicle_preprocessing_runtime_wasm/src/configuration_family.rs",
-        "entrypoint": "compile_configuration_family",
-        "status": "active-production-authority"
-      },
-      "target": {
-        "language": "rust",
-        "path": "rust/chronicle_preprocessing_runtime_wasm/src/configuration_family.rs",
-        "entrypoint": "compile_configuration_family",
+        "entrypoint": "execute_workspace_native",
         "status": "active"
       },
       "requires_active_authority": true
@@ -516,7 +498,7 @@
   ],
   "typescript_host_allowances": [
     {
-      "path": "web/src/lib/chronicleMatcher.ts",
+      "path": "web/src/lib/rustWorkerClient.ts",
       "purpose": "Web Worker lifecycle, request correlation, transferables, and pool fault handling",
       "may_define_product_semantics": false
     },
@@ -533,11 +515,6 @@
     {
       "path": "web/src/lib/fileInspection.ts",
       "purpose": "Non-authoritative upload readiness preview; execution re-parses and validates in Rust",
-      "may_define_product_semantics": false
-    },
-    {
-      "path": "web/src/lib/processingReport.ts",
-      "purpose": "Download-facing projection of Rust-owned execution evidence and browser environment metadata",
       "may_define_product_semantics": false
     },
     {

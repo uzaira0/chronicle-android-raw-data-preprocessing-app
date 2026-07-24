@@ -161,13 +161,12 @@ native = next(
 )
 if native["status"] != "active" or native["authority"]:
     raise SystemExit("native parity runtime must be active but non-authoritative")
-legacy = next(
-    binding
+if any(
+    binding["implementation"]["language"] != "rust"
+    or binding["implementation"]["entrypoint"] == "processRawCsvContent"
     for binding in bindings["bindings"]
-    if binding["implementation"]["entrypoint"] == "processRawCsvContent"
-)
-if legacy["status"] != "retired" or legacy["authority"]:
-    raise SystemExit("TypeScript reference pipeline must remain retired/test-only")
+):
+    raise SystemExit("a deleted TypeScript preprocessing binding has returned")
 
 if not runtime_authority["cutover_gate"]["enforced"]:
     raise SystemExit("Rust cutover architecture gate is not enforced")

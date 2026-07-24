@@ -225,7 +225,7 @@ describe("fileInspection", () => {
       "Custom Vendor Event",
       "Unknown importance: 99",
     ]);
-    // The warning is now produced in effectiveWarnings (it depends on the remap option).
+    // The warning is produced in effectiveWarnings from the Rust inspection result.
     const warnings = effectiveWarnings(inspection, DEFAULT_BROWSER_OPTIONS).join(" ");
     expect(warnings).toContain("unrecognized interaction type");
     // Must point only at options that actually exist; uses the UI label "mappings".
@@ -235,7 +235,7 @@ describe("fileInspection", () => {
     expect(warnings).not.toMatch(/remapping/i);
   });
 
-  it("excludes remapped interaction types from the unrecognized warning (#4)", async () => {
+  it("does not reinterpret Rust interaction warnings in TypeScript", async () => {
     const inspection = await inspectRawFile(
       fileFromText(
         "Raw P09 remap.csv",
@@ -248,16 +248,16 @@ describe("fileInspection", () => {
       ),
     );
 
-    // Map only one of the two unrecognized types: the other still warns.
+    // A remap may change execution in Rust, but the browser must not suppress
+    // Rust's preflight result using a second TypeScript parser.
     const oneMapped = effectiveWarnings(inspection, {
       ...DEFAULT_BROWSER_OPTIONS,
       interactionTypeRemap: ["Custom Vendor Event => Activity Resumed"],
     }).join(" ");
     expect(oneMapped).toContain("unrecognized interaction type");
     expect(oneMapped).toContain("Unknown importance: 99");
-    expect(oneMapped).not.toContain("Custom Vendor Event");
+    expect(oneMapped).toContain("Custom Vendor Event");
 
-    // Map both: the unrecognized warning disappears entirely.
     const allMapped = effectiveWarnings(inspection, {
       ...DEFAULT_BROWSER_OPTIONS,
       interactionTypeRemap: [
@@ -265,7 +265,9 @@ describe("fileInspection", () => {
         "Unknown importance: 99 => Activity Stopped",
       ],
     }).join(" ");
-    expect(allMapped).not.toContain("unrecognized interaction type");
+    expect(allMapped).toContain("unrecognized interaction type");
+    expect(allMapped).toContain("Custom Vendor Event");
+    expect(allMapped).toContain("Unknown importance: 99");
   });
 
   it("warns about duplicate timestamps only when the correction option is off", async () => {

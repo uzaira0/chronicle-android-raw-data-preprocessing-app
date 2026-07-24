@@ -1,8 +1,5 @@
-//! Full pipeline v2 — port of `processRawCsvContent` (browserPipeline.ts).
-//!
-//! Goal: byte-identical output to `buildAppOutputBundle` /
-//! `buildScreenOutputBundle` for the supported option matrix, in a single
-//! WASM boundary call.
+//! Chronicle preprocessing computations shared by the production 55-step
+//! Salsa engine and an independent cold-run test oracle.
 
 use ahash::AHashSet;
 use blake3::Hasher as CheckpointHasher;
@@ -13,7 +10,6 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, OnceLock};
-use wasm_bindgen::prelude::*;
 
 use crate::{parse_chronicle_timestamp_ns, weekday_chronicle, write_csv_field};
 
@@ -26,12 +22,11 @@ mod incremental;
 #[cfg(feature = "incremental-v2")]
 pub use incremental::{IncrementalPipelineV2Engine, IncrementalPipelineV2Execution};
 
-const PREPROCESSOR_VERSION: &str = "1.0.0";
+pub const PREPROCESSOR_VERSION: &str = "1.0.0";
 
-/// Closed product contract for timezone handling. Keeping the exhaustive set
-/// beside the Rust implementation lets the configuration-family proof fail if
-/// a fifth policy is added without being observed, rather than silently
-/// treating an incomplete test matrix as exhaustive.
+/// Closed product contract for timezone handling. Tests enumerate every
+/// ordered transition so a fifth policy cannot be added without explicit
+/// invalidation and output checks.
 pub const TIMEZONE_HANDLING_MODES: [&str; 4] = [
     "selected-filter",
     "selected-convert",
@@ -599,38 +594,6 @@ impl serde::Serialize for SharedString {
     where
         S: serde::Serializer,
     {
-        #[cfg(feature = "incremental-v2")]
-        {
-            enum Decision {
-                Definition(u64),
-                Reference(u64),
-            }
-            let decision = ROW_SERIALIZE_CONTEXT.with(|context| {
-                let mut context = context.borrow_mut();
-                let context = context.as_mut()?;
-                let address = Arc::as_ptr(&self.0) as usize;
-                if let Some(id) = context.string_ids_by_address.get(&address) {
-                    return Some(Decision::Reference(*id));
-                }
-                let id = context.next_string_id;
-                context.next_string_id = context
-                    .next_string_id
-                    .checked_add(1)
-                    .expect("shared-string ID overflow");
-                context.string_ids_by_address.insert(address, id);
-                Some(Decision::Definition(id))
-            });
-            if let Some(decision) = decision {
-                return match decision {
-                    Decision::Definition(id) => {
-                        serde::Serialize::serialize(&(0_u8, id, Some(self.as_str())), serializer)
-                    }
-                    Decision::Reference(id) => {
-                        serde::Serialize::serialize(&(1_u8, id, Option::<&str>::None), serializer)
-                    }
-                };
-            }
-        }
         serializer.serialize_str(self.as_str())
     }
 }
@@ -640,43 +603,6 @@ impl<'de> serde::Deserialize<'de> for SharedString {
     where
         D: serde::Deserializer<'de>,
     {
-        #[cfg(feature = "incremental-v2")]
-        if ROW_DESERIALIZE_CONTEXT.with(|context| context.borrow().is_some()) {
-            use serde::de::Error as _;
-            let (kind, id, value) = <(u8, u64, Option<String>)>::deserialize(deserializer)?;
-            return match (kind, value) {
-                (0, Some(value)) => ROW_DESERIALIZE_CONTEXT.with(|context| {
-                    let mut context = context.borrow_mut();
-                    let context = context
-                        .as_mut()
-                        .expect("checked active shared-string context");
-                    if context.strings_by_id.contains_key(&id) {
-                        return Err(D::Error::custom(format!(
-                            "duplicate persisted shared-string definition {id}"
-                        )));
-                    }
-                    let value = Arc::new(value);
-                    context.strings_by_id.insert(id, Arc::clone(&value));
-                    Ok(Self(value))
-                }),
-                (1, None) => ROW_DESERIALIZE_CONTEXT.with(|context| {
-                    context
-                        .borrow()
-                        .as_ref()
-                        .and_then(|context| context.strings_by_id.get(&id))
-                        .cloned()
-                        .map(Self)
-                        .ok_or_else(|| {
-                            D::Error::custom(format!(
-                                "unknown persisted shared-string reference {id}"
-                            ))
-                        })
-                }),
-                (kind, _) => Err(D::Error::custom(format!(
-                    "invalid persisted shared-string record kind {kind} for ID {id}"
-                ))),
-            };
-        }
         String::deserialize(deserializer).map(Self::from)
     }
 }
@@ -777,61 +703,6 @@ struct RowData {
     usage_layer: Option<SharedString>,
 }
 
-#[cfg(feature = "incremental-v2")]
-#[derive(Default)]
-struct RowSerializeContext {
-    row_ids_by_address: HashMap<usize, u64>,
-    string_ids_by_address: HashMap<usize, u64>,
-    source_rows_ids_by_address: HashMap<usize, u64>,
-    lineage_ids_by_address: HashMap<usize, u64>,
-    codebook_ids_by_address: HashMap<usize, u64>,
-    next_row_id: u64,
-    next_string_id: u64,
-    next_source_rows_id: u64,
-    next_lineage_id: u64,
-    next_codebook_id: u64,
-}
-
-#[cfg(feature = "incremental-v2")]
-#[derive(Default)]
-struct RowDeserializeContext {
-    rows_by_id: HashMap<u64, Arc<RowInner>>,
-    strings_by_id: HashMap<u64, Arc<String>>,
-    source_rows_by_id: HashMap<u64, Arc<Vec<SourceDataRowRange>>>,
-    lineage_by_id: HashMap<u64, Arc<Vec<LineageSearchEvidence>>>,
-    codebook_by_id: HashMap<u64, Arc<Vec<Option<String>>>>,
-}
-
-#[cfg(feature = "incremental-v2")]
-thread_local! {
-    static ROW_SERIALIZE_CONTEXT: std::cell::RefCell<Option<RowSerializeContext>> = const { std::cell::RefCell::new(None) };
-    static ROW_DESERIALIZE_CONTEXT: std::cell::RefCell<Option<RowDeserializeContext>> = const { std::cell::RefCell::new(None) };
-}
-
-#[cfg(feature = "incremental-v2")]
-enum SharedArcDecision {
-    Definition(u64),
-    Reference(u64),
-}
-
-#[cfg(feature = "incremental-v2")]
-fn shared_arc_decision(
-    address: usize,
-    ids_by_address: &mut HashMap<usize, u64>,
-    next_id: &mut u64,
-    label: &str,
-) -> SharedArcDecision {
-    if let Some(id) = ids_by_address.get(&address) {
-        return SharedArcDecision::Reference(*id);
-    }
-    let id = *next_id;
-    *next_id = next_id
-        .checked_add(1)
-        .unwrap_or_else(|| panic!("{label} ID overflow"));
-    ids_by_address.insert(address, id);
-    SharedArcDecision::Definition(id)
-}
-
 fn serialize_lineage_searches<S>(
     value: &Arc<Vec<LineageSearchEvidence>>,
     serializer: S,
@@ -839,32 +710,6 @@ fn serialize_lineage_searches<S>(
 where
     S: serde::Serializer,
 {
-    #[cfg(feature = "incremental-v2")]
-    if let Some(decision) = ROW_SERIALIZE_CONTEXT.with(|context| {
-        let mut context = context.borrow_mut();
-        let context = context.as_mut()?;
-        let RowSerializeContext {
-            lineage_ids_by_address,
-            next_lineage_id,
-            ..
-        } = context;
-        Some(shared_arc_decision(
-            Arc::as_ptr(value) as usize,
-            lineage_ids_by_address,
-            next_lineage_id,
-            "lineage-search vector",
-        ))
-    }) {
-        return match decision {
-            SharedArcDecision::Definition(id) => {
-                serde::Serialize::serialize(&(0_u8, id, Some(value.as_ref())), serializer)
-            }
-            SharedArcDecision::Reference(id) => serde::Serialize::serialize(
-                &(1_u8, id, Option::<&Vec<LineageSearchEvidence>>::None),
-                serializer,
-            ),
-        };
-    }
     serde::Serialize::serialize(value, serializer)
 }
 
@@ -874,41 +719,6 @@ fn deserialize_lineage_searches<'de, D>(
 where
     D: serde::Deserializer<'de>,
 {
-    #[cfg(feature = "incremental-v2")]
-    if ROW_DESERIALIZE_CONTEXT.with(|context| context.borrow().is_some()) {
-        use serde::de::Error as _;
-        let (kind, id, value) =
-            <(u8, u64, Option<Vec<LineageSearchEvidence>>) as serde::Deserialize>::deserialize(
-                deserializer,
-            )?;
-        return match (kind, value) {
-            (0, Some(value)) => ROW_DESERIALIZE_CONTEXT.with(|context| {
-                let mut context = context.borrow_mut();
-                let context = context.as_mut().expect("checked active lineage context");
-                if context.lineage_by_id.contains_key(&id) {
-                    return Err(D::Error::custom(format!(
-                        "duplicate persisted lineage-search vector {id}"
-                    )));
-                }
-                let value = Arc::new(value);
-                context.lineage_by_id.insert(id, Arc::clone(&value));
-                Ok(value)
-            }),
-            (1, None) => ROW_DESERIALIZE_CONTEXT.with(|context| {
-                context
-                    .borrow()
-                    .as_ref()
-                    .and_then(|context| context.lineage_by_id.get(&id))
-                    .cloned()
-                    .ok_or_else(|| {
-                        D::Error::custom(format!("unknown persisted lineage-search vector {id}"))
-                    })
-            }),
-            (kind, _) => Err(D::Error::custom(format!(
-                "invalid persisted lineage-search vector kind {kind} for ID {id}"
-            ))),
-        };
-    }
     <Vec<LineageSearchEvidence> as serde::Deserialize>::deserialize(deserializer).map(Arc::new)
 }
 
@@ -919,32 +729,6 @@ fn serialize_codebook_fields<S>(
 where
     S: serde::Serializer,
 {
-    #[cfg(feature = "incremental-v2")]
-    if let Some(decision) = ROW_SERIALIZE_CONTEXT.with(|context| {
-        let mut context = context.borrow_mut();
-        let context = context.as_mut()?;
-        let RowSerializeContext {
-            codebook_ids_by_address,
-            next_codebook_id,
-            ..
-        } = context;
-        Some(shared_arc_decision(
-            Arc::as_ptr(value) as usize,
-            codebook_ids_by_address,
-            next_codebook_id,
-            "codebook vector",
-        ))
-    }) {
-        return match decision {
-            SharedArcDecision::Definition(id) => {
-                serde::Serialize::serialize(&(0_u8, id, Some(value.as_ref())), serializer)
-            }
-            SharedArcDecision::Reference(id) => serde::Serialize::serialize(
-                &(1_u8, id, Option::<&Vec<Option<String>>>::None),
-                serializer,
-            ),
-        };
-    }
     serde::Serialize::serialize(value, serializer)
 }
 
@@ -954,41 +738,6 @@ fn deserialize_codebook_fields<'de, D>(
 where
     D: serde::Deserializer<'de>,
 {
-    #[cfg(feature = "incremental-v2")]
-    if ROW_DESERIALIZE_CONTEXT.with(|context| context.borrow().is_some()) {
-        use serde::de::Error as _;
-        let (kind, id, value) =
-            <(u8, u64, Option<Vec<Option<String>>>) as serde::Deserialize>::deserialize(
-                deserializer,
-            )?;
-        return match (kind, value) {
-            (0, Some(value)) => ROW_DESERIALIZE_CONTEXT.with(|context| {
-                let mut context = context.borrow_mut();
-                let context = context.as_mut().expect("checked active codebook context");
-                if context.codebook_by_id.contains_key(&id) {
-                    return Err(D::Error::custom(format!(
-                        "duplicate persisted codebook vector {id}"
-                    )));
-                }
-                let value = Arc::new(value);
-                context.codebook_by_id.insert(id, Arc::clone(&value));
-                Ok(value)
-            }),
-            (1, None) => ROW_DESERIALIZE_CONTEXT.with(|context| {
-                context
-                    .borrow()
-                    .as_ref()
-                    .and_then(|context| context.codebook_by_id.get(&id))
-                    .cloned()
-                    .ok_or_else(|| {
-                        D::Error::custom(format!("unknown persisted codebook vector {id}"))
-                    })
-            }),
-            (kind, _) => Err(D::Error::custom(format!(
-                "invalid persisted codebook vector kind {kind} for ID {id}"
-            ))),
-        };
-    }
     <Vec<Option<String>> as serde::Deserialize>::deserialize(deserializer).map(Arc::new)
 }
 
@@ -997,36 +746,6 @@ impl serde::Serialize for Row {
     where
         S: serde::Serializer,
     {
-        #[cfg(feature = "incremental-v2")]
-        {
-            enum Decision {
-                Definition(u64),
-                Reference(u64),
-            }
-            let decision = ROW_SERIALIZE_CONTEXT.with(|context| {
-                let mut context = context.borrow_mut();
-                let context = context.as_mut()?;
-                let address = Arc::as_ptr(&self.0) as usize;
-                if let Some(id) = context.row_ids_by_address.get(&address) {
-                    return Some(Decision::Reference(*id));
-                }
-                let id = context.next_row_id;
-                context.next_row_id = context.next_row_id.checked_add(1).expect("row ID overflow");
-                context.row_ids_by_address.insert(address, id);
-                Some(Decision::Definition(id))
-            });
-            if let Some(decision) = decision {
-                return match decision {
-                    Decision::Definition(id) => {
-                        serde::Serialize::serialize(&(0_u8, id, Some(&self.0.data)), serializer)
-                    }
-                    Decision::Reference(id) => serde::Serialize::serialize(
-                        &(1_u8, id, Option::<&RowData>::None),
-                        serializer,
-                    ),
-                };
-            }
-        }
         self.0.data.serialize(serializer)
     }
 }
@@ -1036,83 +755,8 @@ impl<'de> serde::Deserialize<'de> for Row {
     where
         D: serde::Deserializer<'de>,
     {
-        #[cfg(feature = "incremental-v2")]
-        if ROW_DESERIALIZE_CONTEXT.with(|context| context.borrow().is_some()) {
-            use serde::de::Error as _;
-            let (kind, id, data) = <(u8, u64, Option<RowData>)>::deserialize(deserializer)?;
-            return match (kind, data) {
-                (0, Some(data)) => ROW_DESERIALIZE_CONTEXT.with(|context| {
-                    let mut context = context.borrow_mut();
-                    let context = context.as_mut().expect("checked active row context");
-                    if context.rows_by_id.contains_key(&id) {
-                        return Err(D::Error::custom(format!(
-                            "duplicate persisted row definition {id}"
-                        )));
-                    }
-                    let row = Arc::new(RowInner::new(data));
-                    context.rows_by_id.insert(id, Arc::clone(&row));
-                    Ok(Self(row))
-                }),
-                (1, None) => ROW_DESERIALIZE_CONTEXT.with(|context| {
-                    context
-                        .borrow()
-                        .as_ref()
-                        .and_then(|context| context.rows_by_id.get(&id))
-                        .cloned()
-                        .map(Self)
-                        .ok_or_else(|| {
-                            D::Error::custom(format!("unknown persisted row reference {id}"))
-                        })
-                }),
-                (kind, _) => Err(D::Error::custom(format!(
-                    "invalid persisted row record kind {kind} for ID {id}"
-                ))),
-            };
-        }
         RowData::deserialize(deserializer).map(|data| Self(Arc::new(RowInner::new(data))))
     }
-}
-
-#[cfg(feature = "incremental-v2")]
-struct RowPersistenceContextGuard {
-    serialize: bool,
-}
-
-#[cfg(feature = "incremental-v2")]
-impl Drop for RowPersistenceContextGuard {
-    fn drop(&mut self) {
-        if self.serialize {
-            ROW_SERIALIZE_CONTEXT.with(|context| *context.borrow_mut() = None);
-        } else {
-            ROW_DESERIALIZE_CONTEXT.with(|context| *context.borrow_mut() = None);
-        }
-    }
-}
-
-#[cfg(feature = "incremental-v2")]
-fn with_row_serialize_context<T>(operation: impl FnOnce() -> T) -> T {
-    ROW_SERIALIZE_CONTEXT.with(|context| {
-        assert!(
-            context.borrow().is_none(),
-            "nested row serialization context"
-        );
-        *context.borrow_mut() = Some(RowSerializeContext::default());
-    });
-    let _guard = RowPersistenceContextGuard { serialize: true };
-    operation()
-}
-
-#[cfg(feature = "incremental-v2")]
-fn with_row_deserialize_context<T>(operation: impl FnOnce() -> T) -> T {
-    ROW_DESERIALIZE_CONTEXT.with(|context| {
-        assert!(
-            context.borrow().is_none(),
-            "nested row deserialization context"
-        );
-        *context.borrow_mut() = Some(RowDeserializeContext::default());
-    });
-    let _guard = RowPersistenceContextGuard { serialize: false };
-    operation()
 }
 
 impl Row {
@@ -1172,32 +816,6 @@ impl serde::Serialize for SourceDataRows {
     where
         S: serde::Serializer,
     {
-        #[cfg(feature = "incremental-v2")]
-        if let Some(decision) = ROW_SERIALIZE_CONTEXT.with(|context| {
-            let mut context = context.borrow_mut();
-            let context = context.as_mut()?;
-            let RowSerializeContext {
-                source_rows_ids_by_address,
-                next_source_rows_id,
-                ..
-            } = context;
-            Some(shared_arc_decision(
-                Arc::as_ptr(&self.0) as usize,
-                source_rows_ids_by_address,
-                next_source_rows_id,
-                "source-row vector",
-            ))
-        }) {
-            return match decision {
-                SharedArcDecision::Definition(id) => {
-                    serde::Serialize::serialize(&(0_u8, id, Some(self.0.as_ref())), serializer)
-                }
-                SharedArcDecision::Reference(id) => serde::Serialize::serialize(
-                    &(1_u8, id, Option::<&Vec<SourceDataRowRange>>::None),
-                    serializer,
-                ),
-            };
-        }
         serde::Serialize::serialize(&self.0, serializer)
     }
 }
@@ -1207,42 +825,6 @@ impl<'de> serde::Deserialize<'de> for SourceDataRows {
     where
         D: serde::Deserializer<'de>,
     {
-        #[cfg(feature = "incremental-v2")]
-        if ROW_DESERIALIZE_CONTEXT.with(|context| context.borrow().is_some()) {
-            use serde::de::Error as _;
-            let (kind, id, value) =
-                <(u8, u64, Option<Vec<SourceDataRowRange>>) as serde::Deserialize>::deserialize(
-                    deserializer,
-                )?;
-            return match (kind, value) {
-                (0, Some(value)) => ROW_DESERIALIZE_CONTEXT.with(|context| {
-                    let mut context = context.borrow_mut();
-                    let context = context.as_mut().expect("checked active source-row context");
-                    if context.source_rows_by_id.contains_key(&id) {
-                        return Err(D::Error::custom(format!(
-                            "duplicate persisted source-row vector {id}"
-                        )));
-                    }
-                    let value = Arc::new(value);
-                    context.source_rows_by_id.insert(id, Arc::clone(&value));
-                    Ok(Self(value))
-                }),
-                (1, None) => ROW_DESERIALIZE_CONTEXT.with(|context| {
-                    context
-                        .borrow()
-                        .as_ref()
-                        .and_then(|context| context.source_rows_by_id.get(&id))
-                        .cloned()
-                        .map(Self)
-                        .ok_or_else(|| {
-                            D::Error::custom(format!("unknown persisted source-row vector {id}"))
-                        })
-                }),
-                (kind, _) => Err(D::Error::custom(format!(
-                    "invalid persisted source-row vector kind {kind} for ID {id}"
-                ))),
-            };
-        }
         <Vec<SourceDataRowRange> as serde::Deserialize>::deserialize(deserializer)
             .map(|value| Self(Arc::new(value)))
     }
@@ -2942,69 +2524,9 @@ pub struct PipelineV2SupportFiles<'a> {
     pub enrolled_devices_csv: &'a [u8],
 }
 
-/// Boundary-friendly handle to a completed pipeline run. Holds the produced
-/// CSV bytes inside Rust linear memory; JS pulls them out via `app_bytes` /
-/// `screen_bytes`, each of which is a single `Uint8Array` copy at the
-/// boundary. This avoids the JS-Array-length cap that `serde-wasm-bindgen`
-/// hits when round-tripping >100 MB Vec<u8> as a regular array.
-#[wasm_bindgen]
-pub struct PipelineV2Handle {
-    app_csv: Vec<u8>,
-    screen_csv: Vec<u8>,
-    original_row_count: u32,
-    processed_row_count: u32,
-    app_row_count: u32,
-    screen_row_count: u32,
-    duplicate_timestamps_corrected: u32,
-}
-
-#[wasm_bindgen]
-impl PipelineV2Handle {
-    /// Returns a copy of the app CSV bytes as a Uint8Array. The internal
-    /// buffer is *not* released; call `take_app_bytes` if you want move
-    /// semantics (frees Rust memory).
-    pub fn app_bytes(&self) -> Vec<u8> {
-        self.app_csv.clone()
-    }
-    pub fn screen_bytes(&self) -> Vec<u8> {
-        self.screen_csv.clone()
-    }
-    pub fn take_app_bytes(&mut self) -> Vec<u8> {
-        std::mem::take(&mut self.app_csv)
-    }
-    pub fn take_screen_bytes(&mut self) -> Vec<u8> {
-        std::mem::take(&mut self.screen_csv)
-    }
-    #[wasm_bindgen(getter)]
-    pub fn original_row_count(&self) -> u32 {
-        self.original_row_count
-    }
-    #[wasm_bindgen(getter)]
-    pub fn processed_row_count(&self) -> u32 {
-        self.processed_row_count
-    }
-    #[wasm_bindgen(getter)]
-    pub fn app_row_count(&self) -> u32 {
-        self.app_row_count
-    }
-    #[wasm_bindgen(getter)]
-    pub fn screen_row_count(&self) -> u32 {
-        self.screen_row_count
-    }
-    #[wasm_bindgen(getter)]
-    pub fn duplicate_timestamps_corrected(&self) -> u32 {
-        self.duplicate_timestamps_corrected
-    }
-}
-
 /// Discover normalized IANA timezones through the Rust ingest boundary. Empty
 /// timezone cells use the product's UTC default; rows without an event
 /// timestamp are ignored exactly as they are by preprocessing.
-#[wasm_bindgen]
-pub fn discover_timezones_v2(csv_bytes: &[u8]) -> Result<Vec<String>, JsValue> {
-    discover_timezones_v2_native(csv_bytes).map_err(|error| JsValue::from_str(&error))
-}
-
 pub fn discover_timezones_v2_native(csv_bytes: &[u8]) -> Result<Vec<String>, String> {
     let mut timezones = BTreeSet::new();
     for record in parse_csv_to_records(csv_bytes) {
@@ -3028,37 +2550,6 @@ pub fn discover_timezones_v2_native(csv_bytes: &[u8]) -> Result<Vec<String>, Str
         timezones.insert(timezone.to_string());
     }
     Ok(timezones.into_iter().collect())
-}
-
-#[allow(clippy::too_many_arguments)]
-#[wasm_bindgen]
-pub fn process_full_pipeline_v2(
-    csv_bytes: &[u8],
-    options_json: &str,
-    filter_csv_bytes: &[u8],
-    apps_forcing_csv_bytes: &[u8],
-    codebook_csv_bytes: &[u8],
-) -> Result<PipelineV2Handle, JsValue> {
-    let options: PipelineV2OptionsJson = serde_json::from_str(options_json)
-        .map_err(|e| JsValue::from_str(&format!("invalid options json: {e}")))?;
-    let options = options.into_pipeline_options();
-    let result = run_pipeline_v2(
-        csv_bytes,
-        &options,
-        filter_csv_bytes,
-        apps_forcing_csv_bytes,
-        codebook_csv_bytes,
-    )
-    .map_err(|e| JsValue::from_str(&e))?;
-    Ok(PipelineV2Handle {
-        app_csv: result.app_csv_bytes,
-        screen_csv: result.screen_csv_bytes,
-        original_row_count: result.original_row_count,
-        processed_row_count: result.processed_row_count,
-        app_row_count: result.app_row_count,
-        screen_row_count: result.screen_row_count,
-        duplicate_timestamps_corrected: result.duplicate_timestamps_corrected,
-    })
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

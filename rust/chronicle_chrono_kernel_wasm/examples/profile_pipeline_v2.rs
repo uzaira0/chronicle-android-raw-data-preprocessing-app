@@ -7,7 +7,6 @@ use chronicle_chrono_kernel_wasm::pipeline_v2::{
 use chrono::{TimeZone, Utc};
 use sha2::{Digest, Sha256};
 use std::hint::black_box;
-use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
@@ -23,7 +22,6 @@ struct Args {
     iterations: usize,
     mode: Mode,
     case: Option<String>,
-    cache_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,7 +31,7 @@ enum Mode {
 }
 
 fn usage() -> &'static str {
-    "usage: profile_pipeline_v2 [--rows N] [--iterations N] [--mode sequential|incremental] [--case NAME] [--cache-file PATH]"
+    "usage: profile_pipeline_v2 [--rows N] [--iterations N] [--mode sequential|incremental] [--case NAME]"
 }
 
 fn positive_usize(flag: &str, value: Option<String>) -> Result<usize, String> {
@@ -52,7 +50,6 @@ fn parse_args() -> Result<Args, String> {
     let mut iterations = 1;
     let mut mode = Mode::Sequential;
     let mut case = None;
-    let mut cache_file = None;
     let mut args = std::env::args().skip(1);
     while let Some(flag) = args.next() {
         match flag.as_str() {
@@ -75,12 +72,6 @@ fn parse_args() -> Result<Args, String> {
                         .ok_or_else(|| "--case requires a value".to_string())?,
                 );
             }
-            "--cache-file" => {
-                cache_file = Some(PathBuf::from(
-                    args.next()
-                        .ok_or_else(|| "--cache-file requires a path".to_string())?,
-                ));
-            }
             "--help" | "-h" => {
                 println!("{}", usage());
                 std::process::exit(0);
@@ -93,7 +84,6 @@ fn parse_args() -> Result<Args, String> {
         iterations,
         mode,
         case,
-        cache_file,
     })
 }
 
@@ -347,62 +337,7 @@ fn profile_incremental(
     codebook_csv: &[u8],
     baseline_options: &PipelineV2Options,
     selected_case: Option<&str>,
-    cache_file: Option<&Path>,
 ) -> Result<(), String> {
-    let cache_identity = "profile-pipeline-v2/cache/v1";
-    if matches!(
-        selected_case,
-        Some("cache_restore" | "cache_restore_benchmark")
-    ) {
-        let path = cache_file.ok_or_else(|| {
-            "cache_restore and cache_restore_benchmark require --cache-file".to_string()
-        })?;
-        let cache = std::fs::read(path)
-            .map_err(|error| format!("read query cache {}: {error}", path.display()))?;
-        let restore_started = Instant::now();
-        let mut restored = IncrementalPipelineV2Engine::default();
-        restored.restore_cache(&cache, cache_identity)?;
-        let restore_elapsed = restore_started.elapsed();
-        report_memory("restore_only_after_restore");
-        let execute_started = Instant::now();
-        let execution =
-            restored.execute(raw_csv, baseline_options, support(codebook_csv, FILTER_CSV))?;
-        let execute_elapsed = execute_started.elapsed();
-        let actual_digest = result_digest(&execution.result);
-        if selected_case == Some("cache_restore_benchmark") {
-            println!(
-                "case=cache_restore_benchmark cache_bytes={} restore_ns={} restore_ms={:.3} execute_ns={} execute_ms={:.3} executed_count={} result_digest={actual_digest}",
-                cache.len(),
-                restore_elapsed.as_nanos(),
-                restore_elapsed.as_secs_f64() * 1_000.0,
-                execute_elapsed.as_nanos(),
-                execute_elapsed.as_secs_f64() * 1_000.0,
-                execution.executed_steps.len(),
-            );
-            return Ok(());
-        }
-        let oracle = run_pipeline_v2_with_supports(
-            raw_csv,
-            baseline_options,
-            support(codebook_csv, FILTER_CSV),
-        )?;
-        if actual_digest != result_digest(&oracle) || !execution.executed_steps.is_empty() {
-            return Err(
-                "restore-only query cache did not reproduce zero-body oracle parity".into(),
-            );
-        }
-        println!(
-            "case=cache_restore cache_bytes={} restore_ns={} restore_ms={:.3} execute_ns={} execute_ms={:.3} executed_count={} result_digest={actual_digest}",
-            cache.len(),
-            restore_elapsed.as_nanos(),
-            restore_elapsed.as_secs_f64() * 1_000.0,
-            execute_elapsed.as_nanos(),
-            execute_elapsed.as_secs_f64() * 1_000.0,
-            execution.executed_steps.len(),
-        );
-        return Ok(());
-    }
-
     let cold_started = Instant::now();
     let mut cold_engine = IncrementalPipelineV2Engine::default();
     let cold = cold_engine.execute(raw_csv, baseline_options, support(codebook_csv, FILTER_CSV))?;
@@ -537,68 +472,6 @@ fn profile_incremental(
         )?;
     }
 
-    if selected_case.is_some()
-        && selected_case != Some("cache_snapshot")
-        && selected_case != Some("cache_export")
-    {
-        return Ok(());
-    }
-
-    let export_started = Instant::now();
-    let cache = cold_engine.export_cache(cache_identity)?;
-    let export_elapsed = export_started.elapsed();
-    #[derive(serde::Deserialize)]
-    struct CacheSizeProbe {
-        database_uncompressed_size: u64,
-    }
-    let cache_size_probe: CacheSizeProbe = rmp_serde::from_slice(&cache)
-        .map_err(|error| format!("inspect cache-size metadata: {error}"))?;
-    if selected_case == Some("cache_export") {
-        let path = cache_file.ok_or_else(|| "cache_export requires --cache-file".to_string())?;
-        std::fs::write(path, &cache)
-            .map_err(|error| format!("write query cache {}: {error}", path.display()))?;
-        println!(
-            "case=cache_export cache_bytes={} cache_uncompressed_bytes={} export_ns={} export_ms={:.3} path={}",
-            cache.len(),
-            cache_size_probe.database_uncompressed_size,
-            export_elapsed.as_nanos(),
-            export_elapsed.as_secs_f64() * 1_000.0,
-            path.display(),
-        );
-        return Ok(());
-    }
-    report_memory("after_export");
-    // A production restore occurs in a fresh worker. Releasing the source
-    // database here prevents this benchmark from measuring two complete Salsa
-    // databases at once, which is not the browser reload path.
-    drop(cold_engine);
-    report_memory("after_source_drop");
-    let restore_started = Instant::now();
-    let mut restored = IncrementalPipelineV2Engine::default();
-    restored.restore_cache(&cache, cache_identity)?;
-    let restore_elapsed = restore_started.elapsed();
-    report_memory("after_restore");
-    let restored_started = Instant::now();
-    let restored_execution =
-        restored.execute(raw_csv, baseline_options, support(codebook_csv, FILTER_CSV))?;
-    let restored_elapsed = restored_started.elapsed();
-    if !restored_execution.executed_steps.is_empty()
-        || result_digest(&restored_execution.result) != cold_digest
-    {
-        return Err("restored query cache did not reproduce zero-body reuse".into());
-    }
-    println!(
-        "case=cache_snapshot cache_bytes={} cache_uncompressed_bytes={} export_ns={} export_ms={:.3} restore_ns={} restore_ms={:.3} restored_execute_ns={} restored_execute_ms={:.3} restored_executed_count={}",
-        cache.len(),
-        cache_size_probe.database_uncompressed_size,
-        export_elapsed.as_nanos(),
-        export_elapsed.as_secs_f64() * 1_000.0,
-        restore_elapsed.as_nanos(),
-        restore_elapsed.as_secs_f64() * 1_000.0,
-        restored_elapsed.as_nanos(),
-        restored_elapsed.as_secs_f64() * 1_000.0,
-        restored_execution.executed_steps.len(),
-    );
     Ok(())
 }
 
@@ -616,7 +489,6 @@ fn main() -> Result<(), String> {
                 &codebook_csv,
                 &options,
                 args.case.as_deref(),
-                args.cache_file.as_deref(),
             );
         }
         #[cfg(not(feature = "incremental-v2"))]

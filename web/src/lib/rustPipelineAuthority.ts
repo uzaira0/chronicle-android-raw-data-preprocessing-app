@@ -26,7 +26,6 @@ import type {
   TimelineViewData,
 } from "@/lib/types";
 import type { RustExecutionLedger } from "@/lib/rustExecutionRecords";
-import { PREPROCESSOR_VERSION } from "@/lib/processingUiContract";
 
 const CSV_MIME = "text/csv;charset=utf-8";
 const PARQUET_MIME = "application/vnd.apache.parquet";
@@ -178,6 +177,7 @@ async function addRenderedViews(
   inputFileName: string,
   options: BrowserProcessingOptions,
   timezone: string,
+  preprocessorVersion: string,
   visualization: VisualizationData,
 ): Promise<TimelineViewData> {
   const appRows = visualization.appRows.map(hydrateVisualizationRow);
@@ -199,7 +199,7 @@ async function addRenderedViews(
         appPlotRows,
         timezone,
         options,
-        PREPROCESSOR_VERSION,
+        preprocessorVersion,
         eventTimestamps,
         false,
       )
@@ -209,7 +209,7 @@ async function addRenderedViews(
         appPlotRows,
         timezone,
         options,
-        PREPROCESSOR_VERSION,
+        preprocessorVersion,
         eventTimestamps,
         true,
       )
@@ -221,7 +221,7 @@ async function addRenderedViews(
     ? buildScreenTimelineViews(
         screenPlotRows,
         timezone,
-        PREPROCESSOR_VERSION,
+        preprocessorVersion,
         eventTimestamps,
       )
     : [];
@@ -249,7 +249,7 @@ async function addRenderedViews(
         appPlotRows,
         timezone,
         options,
-        PREPROCESSOR_VERSION,
+        preprocessorVersion,
         eventTimestamps,
       ),
       (participantId) => ` ${participantId} App Usage Plot.png`,
@@ -260,7 +260,7 @@ async function addRenderedViews(
           appPlotRows,
           timezone,
           options,
-          PREPROCESSOR_VERSION,
+          preprocessorVersion,
           eventTimestamps,
         ),
         (participantId) => ` ${participantId} App Usage Plot.svg`,
@@ -272,7 +272,7 @@ async function addRenderedViews(
           appPlotRows,
           timezone,
           options,
-          PREPROCESSOR_VERSION,
+          preprocessorVersion,
         ),
         (participantId) => ` ${participantId} App Usage Heatmap.png`,
       );
@@ -282,7 +282,7 @@ async function addRenderedViews(
             appPlotRows,
             timezone,
             options,
-            PREPROCESSOR_VERSION,
+            preprocessorVersion,
           ),
           (participantId) => ` ${participantId} App Usage Heatmap.svg`,
         );
@@ -294,7 +294,7 @@ async function addRenderedViews(
       await generateAllScreenPlots(
         screenPlotRows,
         timezone,
-        PREPROCESSOR_VERSION,
+        preprocessorVersion,
         eventTimestamps,
       ),
       (participantId) => ` ${participantId} Screen Usage Plot.png`,
@@ -304,7 +304,7 @@ async function addRenderedViews(
         await generateAllScreenPlotSvgs(
           screenPlotRows,
           timezone,
-          PREPROCESSOR_VERSION,
+          preprocessorVersion,
           eventTimestamps,
         ),
         (participantId) => ` ${participantId} Screen Usage Plot.svg`,
@@ -573,6 +573,7 @@ export async function processRawCsvWithRustAuthority(
     inputFileName,
     options,
     manifest.processingSummary.timezone,
+    manifest.preprocessorVersion,
     visualization,
   );
   const reviewSummary = parseJsonArtifact<ReviewSummary>(

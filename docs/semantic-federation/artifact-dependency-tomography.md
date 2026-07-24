@@ -256,4 +256,4 @@ cell correspondence, not yet a complete runtime backward explanation for every
 unchanged cell. Exhaustive boundary discovery beyond the declared catalog also
 remains an expansion rather than implied coverage. Interaction tomography and
 semantic-model mutation testing are separate checked gates documented with the
-configuration family.
+configuration-space campaign.

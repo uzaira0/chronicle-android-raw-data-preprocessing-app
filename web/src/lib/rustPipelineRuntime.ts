@@ -16,22 +16,18 @@ import defaultBackgroundAppsUrl from "@/assets/defaults/Chronicle_Android_raw_da
 import { fetchBundledAssetBytes } from "@/lib/bundledAssetLoader";
 import { canonicalJson } from "@/lib/canonicalJson";
 import {
+  collectRuntimeHistoryDigests,
   exportRuntimeClosure,
   garbageCollectRuntimeObjects,
   importRuntimeClosure,
-  MAX_RUNTIME_QUERY_CACHE_BYTES,
   openOpfsWorkspace,
-  persistRuntimeQueryCache,
   persistRuntimeWorkspace,
   readRuntimeObject,
-  recoverRuntimeQueryCache,
-  recoverRuntimeQueryCacheSlots,
   recoverRuntimeWorkspace,
   recoverRuntimeWorkspaceRoots,
   runtimeClosureWorkspaceId,
   type PersistedRuntimeArtifact,
   type RuntimeClosureInspection,
-  type WorkspaceQueryCacheSlot,
   type WorkspaceRootSlot,
 } from "@/lib/opfsArtifactStore";
 
@@ -54,7 +50,7 @@ type KernelModule = {
   runtime_version(): string;
   implementation_build_digest(): string;
   build_environment_digest(): string;
-  query_cache_max_bytes(): number;
+  runtime_identity_json(): string;
   pipeline_step_contract_json(): string;
   plan_stage_view_json(optionsJson: string): string;
   RuntimeSupportFiles: new () => RuntimeSupportFilesHandle;
@@ -65,20 +61,6 @@ type KernelModule = {
     csvBytes: Uint8Array,
     supportFiles: RuntimeSupportFilesHandle,
   ): KernelHandle;
-  export_workspace_query_cache?(
-    workspaceId: string,
-    committedRootDigest: string,
-  ): Uint8Array;
-  restore_workspace_query_cache?(
-    workspaceId: string,
-    committedRootDigest: string,
-    cacheBytes: Uint8Array,
-    semanticIndexSource: Uint8Array,
-  ): void;
-  workspace_query_state_matches_root?(
-    workspaceId: string,
-    committedRootDigest: string,
-  ): boolean;
   verify_evidence_journal_cbor(bytes: Uint8Array): number;
 };
 
@@ -162,6 +144,7 @@ type RuntimeStateReason = {
 
 export type RuntimeManifest = {
   protocolVersion: "chronicle-preprocessing-runtime/v1";
+  preprocessorVersion: string;
   requestId: string;
   command: "ExecuteWorkspace";
   implementation: string;
@@ -807,6 +790,10 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
 
   return {
     protocolVersion: "chronicle-preprocessing-runtime/v1",
+    preprocessorVersion: stringAt(
+      manifest.preprocessorVersion,
+      "manifest.preprocessorVersion",
+    ),
     requestId: stringAt(manifest.requestId, "manifest.requestId"),
     command: "ExecuteWorkspace",
     implementation: stringAt(manifest.implementation, "manifest.implementation"),
@@ -988,19 +975,6 @@ export type RustPersistenceAdapter = {
       recoveredSlot?: WorkspaceRootSlot;
     },
   ): Promise<WorkspaceRootSlot>;
-  recoverQueryCache?(
-    root: FileSystemDirectoryHandle,
-    baseWorkspaceRootDigest: string,
-  ): Promise<{ slot: WorkspaceQueryCacheSlot; bytes: Uint8Array } | undefined>;
-  persistQueryCache?(
-    root: FileSystemDirectoryHandle,
-    input: { baseWorkspaceRootDigest: string; bytes: Uint8Array },
-  ): Promise<WorkspaceQueryCacheSlot>;
-  readArtifact?(
-    root: FileSystemDirectoryHandle,
-    slot: WorkspaceRootSlot,
-    kind: string,
-  ): Promise<Uint8Array>;
 };
 
 async function readArtifactFromWorkspaceSlot(
@@ -1028,10 +1002,14 @@ const defaultPersistenceAdapter: RustPersistenceAdapter = {
   recover: recoverRuntimeWorkspace,
   async verify(root, slot, kernel, workspaceId) {
     const rootBytes = await readRuntimeObject(root, slot.workspaceRootDigest);
+    const historyDigests = await collectRuntimeHistoryDigests(
+      root,
+      slot.workspaceRootDigest,
+    );
     await verifyRootClosure(
       rootBytes,
       (digest) => readRuntimeObject(root, digest),
-      slot.artifactDigests,
+      historyDigests,
       slot.previousWorkspaceRootDigest,
       kernel,
       workspaceId,
@@ -1039,9 +1017,6 @@ const defaultPersistenceAdapter: RustPersistenceAdapter = {
     );
   },
   persist: persistRuntimeWorkspace,
-  recoverQueryCache: recoverRuntimeQueryCache,
-  persistQueryCache: persistRuntimeQueryCache,
-  readArtifact: readArtifactFromWorkspaceSlot,
 };
 
 async function verifyRootClosure(
@@ -1052,92 +1027,304 @@ async function verifyRootClosure(
   kernel: KernelModule,
   expectedWorkspaceId: string,
   expectedWorkspaceRootDigest: string,
+  verifyHistory = true,
 ): Promise<void> {
-  const commit = JSON.parse(new TextDecoder().decode(rootBytes)) as {
+  const currentIdentity = objectAt(
+    JSON.parse(kernel.runtime_identity_json()),
+    "runtimeIdentity",
+  );
+  const identityFields = [
+    "implementationDigest",
+    "buildEnvironmentDigest",
+    "productContractDigest",
+    "planDigest",
+    "profileDigest",
+    "profileLockDigest",
+    "runtimeAuthorityDigest",
+    "dependencyCertificateDigest",
+  ] as const;
+  if (currentIdentity.protocolVersion !== "chronicle-preprocessing-runtime/v1") {
+    throw new Error("loaded runtime identity protocol is invalid");
+  }
+  for (const field of identityFields) digestAt(currentIdentity[field], `runtimeIdentity.${field}`);
+  const requiredViews = new Map([
+    [
+      "chronicle.stage.v1",
+      { artifactKind: "stage-view-json", schemaId: "urn:chronicle:view:stage:v1" },
+    ],
+    [
+      "chronicle.artifact.v1",
+      { artifactKind: "artifact-view-json", schemaId: "urn:chronicle:view:artifact:v1" },
+    ],
+    [
+      "chronicle.obligation.v1",
+      { artifactKind: "obligation-view-json", schemaId: "urn:chronicle:view:obligation:v1" },
+    ],
+    [
+      "chronicle.explanation.v1",
+      { artifactKind: "explanation-view-json", schemaId: "urn:chronicle:view:explanation:v1" },
+    ],
+  ]);
+  const retained = new Set(retainedDigests.map((digest) => digestAt(digest, "retainedDigest")));
+  if (retained.size !== retainedDigests.length || !retained.has(expectedWorkspaceRootDigest)) {
+    throw new Error("recovered workspace retained-object table is invalid");
+  }
+  const bytesByDigest = new Map<string, Uint8Array>([
+    [expectedWorkspaceRootDigest, rootBytes],
+  ]);
+  const readObject = async (digest: string): Promise<Uint8Array> => {
+    digestAt(digest, "objectDigest");
+    const cached = bytesByDigest.get(digest);
+    if (cached) return cached;
+    const bytes = await object(digest);
+    bytesByDigest.set(digest, bytes);
+    return bytes;
+  };
+  type Root = {
     protocolVersion: string;
     command: string;
+    implementationDigest: string;
+    buildEnvironmentDigest: string;
+    productContractDigest: string;
+    planDigest: string;
+    profileDigest: string;
+    profileLockDigest: string;
+    runtimeAuthorityDigest: string;
+    dependencyCertificateDigest: string;
+    dependencyCacheMode: "certified_narrow" | "conservative_full";
     workspaceId: string;
     previousWorkspaceRootDigest: string | null;
-    artifactDigests: string[];
     inputDigest: string;
     optionsDigest: string;
     assignmentDigests: Record<string, string>;
-    requiredViewIds: string[];
+    artifactDigests: string[];
+    executionStateDigest: string;
+    requiredViews: Array<{
+      artifactKind: string;
+      viewId: string;
+      schemaId: string;
+      artifactDigest: string;
+    }>;
     journalDigest: string;
     artifactClosureDigest: string;
-    dependencyCertificateDigest: string;
-    dependencyCacheMode: "certified_narrow" | "conservative_full";
   };
-  if (
-    commit.protocolVersion !== "chronicle-preprocessing-runtime/v1" ||
-    commit.command !== "ExecuteWorkspace" ||
-    commit.workspaceId !== expectedWorkspaceId ||
-    commit.previousWorkspaceRootDigest !== expectedPreviousRoot ||
-    !Array.isArray(commit.requiredViewIds) ||
-    !["certified_narrow", "conservative_full"].includes(
-      commit.dependencyCacheMode,
-    ) ||
-    !commit.artifactDigests.includes(commit.dependencyCertificateDigest) ||
-    !commit.artifactDigests.includes(commit.journalDigest) ||
-    !commit.artifactDigests.includes(commit.artifactClosureDigest)
-  ) {
-    throw new Error("recovered workspace root contract is invalid");
-  }
-  const retained = new Set(retainedDigests);
-  const assignmentDigests = Object.values(commit.assignmentDigests ?? {});
-  if (
-    !commit.artifactDigests.every((digest) => retained.has(digest)) ||
-    !assignmentDigests.every((digest) => retained.has(digest)) ||
-    !retained.has(commit.inputDigest) ||
-    !retained.has(commit.optionsDigest)
-  ) {
-    throw new Error("recovered workspace closure is incomplete");
-  }
-  const journal = await object(commit.journalDigest);
-  kernel.verify_evidence_journal_cbor(journal);
-  const closure = JSON.parse(
-    new TextDecoder().decode(await object(commit.artifactClosureDigest)),
-  ) as {
-    protocolVersion: string;
-    workspaceId: string;
-    journalDigest: string;
-    dependencyCertificateDigest: string;
-    artifacts: Array<{ digest: string }>;
-  };
-  if (
-    closure.protocolVersion !== "chronicle-artifact-closure/v1" ||
-    closure.workspaceId !== expectedWorkspaceId ||
-    closure.journalDigest !== commit.journalDigest ||
-    closure.dependencyCertificateDigest !== commit.dependencyCertificateDigest ||
-    !closure.artifacts.every(({ digest }) =>
-      commit.artifactDigests.includes(digest),
-    )
-  ) {
-    throw new Error("recovered artifact closure is invalid");
-  }
-  const foundViewIds = new Set<string>();
-  for (const digest of retained) {
-    if (commit.artifactDigests.includes(digest) || digest === expectedWorkspaceRootDigest) {
-      continue;
+  const decodeRoot = (bytes: Uint8Array): Root => {
+    const root = JSON.parse(new TextDecoder().decode(bytes)) as Root;
+    if (
+      root.protocolVersion !== "chronicle-preprocessing-runtime/v1" ||
+      root.command !== "ExecuteWorkspace" ||
+      !["certified_narrow", "conservative_full"].includes(root.dependencyCacheMode) ||
+      !Array.isArray(root.artifactDigests) ||
+      new Set(root.artifactDigests).size !== root.artifactDigests.length ||
+      !Array.isArray(root.requiredViews) ||
+      root.requiredViews.length !== requiredViews.size ||
+      !root.assignmentDigests ||
+      typeof root.assignmentDigests !== "object" ||
+      Array.isArray(root.assignmentDigests)
+    ) {
+      throw new Error("recovered workspace root contract is invalid");
     }
-    try {
-      const candidate = JSON.parse(new TextDecoder().decode(await object(digest))) as {
-        view_id?: string;
-        root_digest?: string;
-      };
+    for (const digest of [
+      root.implementationDigest,
+      root.buildEnvironmentDigest,
+      root.productContractDigest,
+      root.planDigest,
+      root.profileDigest,
+      root.profileLockDigest,
+      root.runtimeAuthorityDigest,
+      root.dependencyCertificateDigest,
+      root.workspaceId,
+      root.inputDigest,
+      root.optionsDigest,
+      root.executionStateDigest,
+      root.journalDigest,
+      root.artifactClosureDigest,
+      ...root.artifactDigests,
+      ...Object.values(root.assignmentDigests),
+    ]) digestAt(digest, "root digest");
+    if (root.previousWorkspaceRootDigest !== null) {
+      digestAt(root.previousWorkspaceRootDigest, "root.previousWorkspaceRootDigest");
+    }
+    return root;
+  };
+
+  const allowed = new Set<string>();
+  const seenRoots = new Set<string>();
+  let rootDigest: string | null = expectedWorkspaceRootDigest;
+  let head = true;
+  while (rootDigest !== null) {
+    if (seenRoots.has(rootDigest) || seenRoots.size >= 10_000) {
+      throw new Error("recovered workspace history is cyclic or too large");
+    }
+    seenRoots.add(rootDigest);
+    const commit = decodeRoot(await readObject(rootDigest));
+    if (
+      head &&
+      identityFields.some((field) => commit[field] !== currentIdentity[field])
+    ) {
+      throw new Error("recovered workspace head was produced by a different runtime identity");
+    }
+    if (
+      commit.workspaceId !== expectedWorkspaceId ||
+      (head && commit.previousWorkspaceRootDigest !== expectedPreviousRoot)
+    ) {
+      throw new Error("recovered workspace root identity is invalid");
+    }
+    head = false;
+    const assignmentDigests = Object.values(commit.assignmentDigests);
+    for (const digest of [
+      rootDigest,
+      commit.inputDigest,
+      commit.optionsDigest,
+      ...assignmentDigests,
+      ...commit.artifactDigests,
+    ]) allowed.add(digest);
+    if (
+      !commit.artifactDigests.includes(commit.dependencyCertificateDigest) ||
+      !commit.artifactDigests.includes(commit.executionStateDigest) ||
+      !commit.artifactDigests.includes(commit.journalDigest) ||
+      !commit.artifactDigests.includes(commit.artifactClosureDigest)
+    ) {
+      throw new Error("recovered workspace root omits a required artifact");
+    }
+
+    const bindings = new Map<string, Root["requiredViews"][number]>();
+    for (const binding of commit.requiredViews) {
+      const expected = requiredViews.get(binding.viewId);
+      digestAt(binding.artifactDigest, "root.requiredViews.artifactDigest");
       if (
-        candidate.view_id &&
-        candidate.root_digest === expectedWorkspaceRootDigest
+        !expected ||
+        bindings.has(binding.viewId) ||
+        binding.artifactKind !== expected.artifactKind ||
+        binding.schemaId !== expected.schemaId ||
+        !commit.artifactDigests.includes(binding.artifactDigest)
       ) {
-        foundViewIds.add(candidate.view_id);
+        throw new Error("recovered workspace view binding is invalid");
       }
-    } catch {
-      // Non-view extras are allowed only when another root contract field
-      // binds them; they do not satisfy a required typed projection.
+      bindings.set(binding.viewId, binding);
     }
+    if ([...requiredViews.keys()].some((viewId) => !bindings.has(viewId))) {
+      throw new Error("recovered workspace is missing a required typed view");
+    }
+
+    const state = JSON.parse(
+      new TextDecoder().decode(await readObject(commit.executionStateDigest)),
+    ) as Record<string, unknown>;
+    const stateArtifacts = arrayAt(
+      state.computationalArtifactDigests,
+      "executionState.computationalArtifactDigests",
+    ).map((digest, index) => digestAt(digest, `executionState.artifacts[${index}]`));
+    const expectedStateArtifacts = commit.artifactDigests.filter(
+      (digest) =>
+        digest !== commit.executionStateDigest &&
+        digest !== commit.artifactClosureDigest &&
+        ![...bindings.values()].some((binding) => binding.artifactDigest === digest),
+    );
+    if (
+      state.protocolVersion !== "chronicle-execution-state/v1" ||
+      state.workspaceId !== commit.workspaceId ||
+      state.previousWorkspaceRootDigest !== commit.previousWorkspaceRootDigest ||
+      state.inputDigest !== commit.inputDigest ||
+      state.optionsDigest !== commit.optionsDigest ||
+      canonicalJson(state.assignmentDigests) !== canonicalJson(commit.assignmentDigests) ||
+      state.journalDigest !== commit.journalDigest ||
+      state.dependencyCacheMode !== commit.dependencyCacheMode ||
+      canonicalJson([...stateArtifacts].sort()) !==
+        canonicalJson([...expectedStateArtifacts].sort())
+    ) {
+      throw new Error("recovered execution state is invalid");
+    }
+    for (const field of [
+      "implementationDigest",
+      "buildEnvironmentDigest",
+      "productContractDigest",
+      "planDigest",
+      "profileDigest",
+      "profileLockDigest",
+      "runtimeAuthorityDigest",
+      "dependencyCertificateDigest",
+    ] as const) {
+      if (state[field] !== commit[field]) {
+        throw new Error(`recovered execution state identity mismatch: ${field}`);
+      }
+    }
+
+    kernel.verify_evidence_journal_cbor(await readObject(commit.journalDigest));
+    const closure = JSON.parse(
+      new TextDecoder().decode(await readObject(commit.artifactClosureDigest)),
+    ) as Record<string, unknown>;
+    const closureArtifacts = arrayAt(closure.artifacts, "closure.artifacts").map(
+      (value, index) => artifactMetadataAt(value, `closure.artifacts[${index}]`),
+    );
+    const closureKinds = closureArtifacts.map(({ kind }) => kind);
+    const closureDigests = closureArtifacts.map(({ digest }) => digest);
+    const uniqueClosureDigests = [...new Set(closureDigests)].sort();
+    if (
+      closure.protocolVersion !== "chronicle-artifact-closure/v1" ||
+      new Set(closureKinds).size !== closureKinds.length ||
+      canonicalJson(uniqueClosureDigests) !==
+        canonicalJson(
+          commit.artifactDigests
+            .filter((digest) => digest !== commit.artifactClosureDigest)
+            .sort(),
+        )
+    ) {
+      throw new Error("recovered artifact closure set is invalid");
+    }
+    for (const field of [
+      "workspaceId",
+      "inputDigest",
+      "implementationDigest",
+      "buildEnvironmentDigest",
+      "planDigest",
+      "profileDigest",
+      "profileLockDigest",
+      "runtimeAuthorityDigest",
+      "productContractDigest",
+      "dependencyCertificateDigest",
+      "dependencyCacheMode",
+      "previousWorkspaceRootDigest",
+      "optionsDigest",
+      "assignmentDigests",
+      "executionStateDigest",
+      "journalDigest",
+    ] as const) {
+      if (canonicalJson(closure[field]) !== canonicalJson(commit[field])) {
+        throw new Error(`recovered artifact closure identity mismatch: ${field}`);
+      }
+    }
+    for (const metadata of closureArtifacts) {
+      if ((await readObject(metadata.digest)).byteLength !== metadata.size) {
+        throw new Error(`recovered artifact size mismatch: ${metadata.kind}`);
+      }
+    }
+    for (const binding of bindings.values()) {
+      const metadata = closureArtifacts.find(
+        (artifact) => artifact.kind === binding.artifactKind,
+      );
+      const view = JSON.parse(
+        new TextDecoder().decode(await readObject(binding.artifactDigest)),
+      ) as Record<string, unknown>;
+      if (
+        metadata?.digest !== binding.artifactDigest ||
+        view.protocol_version !== "0.1" ||
+        view.view_id !== binding.viewId ||
+        view.family !== "incremental-dataflow" ||
+        view.schema_id !== binding.schemaId ||
+        view.root_digest !== commit.executionStateDigest ||
+        !Number.isSafeInteger(view.revision) ||
+        !("payload" in view)
+      ) {
+        throw new Error(`recovered typed view is invalid: ${binding.viewId}`);
+      }
+    }
+    rootDigest = verifyHistory ? commit.previousWorkspaceRootDigest : null;
   }
-  if (!commit.requiredViewIds.every((viewId) => foundViewIds.has(viewId))) {
-    throw new Error("recovered workspace is missing a required typed view");
+  if (
+    allowed.size !== retained.size ||
+    [...allowed].some((digest) => !retained.has(digest))
+  ) {
+    throw new Error("recovered workspace closure has missing or unbound objects");
   }
 }
 
@@ -1254,12 +1441,7 @@ export async function garbageCollectPersistedRustWorkspace(
   return withWorkspaceLock(workspaceId, async () => {
     const root = await openOpfsWorkspace(workspaceId);
     const slots = await recoverRuntimeWorkspaceRoots(root);
-    const caches = await recoverRuntimeQueryCacheSlots(root);
-    return garbageCollectRuntimeObjects(
-      root,
-      slots,
-      caches,
-    );
+    return garbageCollectRuntimeObjects(root, slots);
   });
 }
 
@@ -1287,6 +1469,46 @@ export async function readPersistedRustArtifact(
   const artifact = closure.artifacts.find((candidate) => candidate.kind === kind);
   if (!artifact) throw new Error(`persisted Rust artifact is missing: ${kind}`);
   return readRuntimeObject(root, artifact.digest);
+}
+
+export async function readVerifiedSemanticIndexSnapshot(
+  workspaceId: string,
+): Promise<{ workspaceRootDigest: string; source: Uint8Array }> {
+  return withWorkspaceLock(workspaceId, async () => {
+    const [kernel, root] = await Promise.all([
+      loadKernel(),
+      openOpfsWorkspace(workspaceId),
+    ]);
+    const slot = await recoverRuntimeWorkspace(root);
+    if (!slot) throw new Error("no persisted Rust workspace exists");
+    await defaultPersistenceAdapter.verify?.(root, slot, kernel, workspaceId);
+    return {
+      workspaceRootDigest: slot.workspaceRootDigest,
+      source: await readArtifactFromWorkspaceSlot(
+        root,
+        slot,
+        "semantic-index-source-json",
+      ),
+    };
+  }, "shared");
+}
+
+/**
+ * Read only the newest independently recoverable root. A semantic index that
+ * was already fully verified for this exact digest can use this cheap check
+ * instead of re-reading and hashing the complete append-only history.
+ */
+export async function readPersistedRustWorkspaceHead(
+  workspaceId: string,
+): Promise<string | null> {
+  return withWorkspaceLock(
+    workspaceId,
+    async () => {
+      const root = await openOpfsWorkspace(workspaceId);
+      return (await recoverRuntimeWorkspace(root))?.workspaceRootDigest ?? null;
+    },
+    "shared",
+  );
 }
 
 /** Test-only dependency seam for deterministic OPFS fault/recovery tests. */
@@ -1501,9 +1723,6 @@ async function executeRustRuntimeUnlocked(
   let runtimeSupportFiles: RuntimeSupportFilesHandle | null = null;
   try {
     const kernel = await loadKernel();
-    if (kernel.query_cache_max_bytes() !== MAX_RUNTIME_QUERY_CACHE_BYTES) {
-      throw new Error("Rust and OPFS query-cache byte limits disagree");
-    }
     const [filterBytes, forcingBytes, backgroundBytes, codebookBytes] =
       await Promise.all([
         supportBytes(
@@ -1613,42 +1832,6 @@ async function executeRustRuntimeUnlocked(
           kernel,
           workspaceId,
         );
-        if (
-          persistenceAdapter.recoverQueryCache &&
-          persistenceAdapter.readArtifact &&
-          kernel.restore_workspace_query_cache &&
-          !kernel.workspace_query_state_matches_root?.(
-            workspaceId,
-            recoveredRoot.workspaceRootDigest,
-          )
-        ) {
-          try {
-            const recoveredQueryCache =
-              await persistenceAdapter.recoverQueryCache(
-                opfsRoot,
-                recoveredRoot.workspaceRootDigest,
-              );
-            if (recoveredQueryCache) {
-              const semanticIndexSource =
-                await persistenceAdapter.readArtifact(
-                  opfsRoot,
-                  recoveredRoot,
-                  "semantic-index-source-json",
-                );
-              kernel.restore_workspace_query_cache(
-                workspaceId,
-                recoveredRoot.workspaceRootDigest,
-                recoveredQueryCache.bytes,
-                semanticIndexSource,
-              );
-            }
-          } catch (error) {
-            console.warn(
-              "Verified Rust workspace, but its optional query cache could not be restored; running cold",
-              error,
-            );
-          }
-        }
       }
     }
     const previousWorkspaceRootDigest =
@@ -1788,6 +1971,27 @@ async function executeRustRuntimeUnlocked(
         digestVerified: true,
       });
     }
+    const persistedByDigest = new Map(
+      persistedArtifacts.map((artifact) => [artifact.digest, artifact.bytes]),
+    );
+    const rootBytes = persistedByDigest.get(manifest.workspaceRootDigest);
+    if (!rootBytes) {
+      throw new Error("runtime artifact set is missing its workspace root");
+    }
+    await verifyRootClosure(
+      rootBytes,
+      (digest) => {
+        const bytes = persistedByDigest.get(digest);
+        if (!bytes) throw new Error(`runtime artifact set is missing ${digest}`);
+        return bytes;
+      },
+      [...persistedByDigest.keys()],
+      manifest.previousWorkspaceRootDigest,
+      kernel,
+      workspaceId,
+      manifest.workspaceRootDigest,
+      false,
+    );
     const persistedWorkspace =
       runtime.persistRustWorkspace && opfsRoot
         ? await persistenceAdapter.persist(opfsRoot, {
@@ -1800,44 +2004,15 @@ async function executeRustRuntimeUnlocked(
         : undefined;
     if (
       persistedWorkspace &&
-      opfsRoot &&
-      manifest.dependencyCacheDecision.mode === "certified_narrow" &&
-      manifest.dependencyCacheDecision.empirical_evidence_current &&
-      persistenceAdapter.persistQueryCache &&
-      kernel.export_workspace_query_cache
-    ) {
-      try {
-        const cacheBytes = kernel.export_workspace_query_cache(
-          workspaceId,
-          persistedWorkspace.workspaceRootDigest,
-        );
-        await persistenceAdapter.persistQueryCache(
-          opfsRoot,
-          {
-            baseWorkspaceRootDigest: persistedWorkspace.workspaceRootDigest,
-            bytes: cacheBytes,
-          },
-        );
-      } catch (error) {
-        console.warn(
-          "Committed Rust workspace, but its optional query cache could not be saved",
-          error,
-        );
-      }
-    }
-    if (
-      persistedWorkspace &&
       recoveredRoot &&
       opfsRoot &&
       persistenceAdapter === defaultPersistenceAdapter
     ) {
       try {
-        const retainedQueryCaches = await recoverRuntimeQueryCacheSlots(opfsRoot);
-        await garbageCollectRuntimeObjects(
-          opfsRoot,
-          [persistedWorkspace, recoveredRoot],
-          retainedQueryCaches,
-        );
+        await garbageCollectRuntimeObjects(opfsRoot, [
+          persistedWorkspace,
+          recoveredRoot,
+        ]);
       } catch (error) {
         console.warn("Committed Rust workspace but could not reclaim stale OPFS objects", error);
       }
@@ -1887,6 +2062,7 @@ export async function runtimeWorkspaceId(
 async function withWorkspaceLock<T>(
   workspaceId: string,
   operation: () => Promise<T>,
+  mode: "exclusive" | "shared" = "exclusive",
 ): Promise<T> {
   if (typeof navigator === "undefined" || !navigator.locks?.request) {
     throw new Error(
@@ -1895,7 +2071,7 @@ async function withWorkspaceLock<T>(
   }
   return navigator.locks.request(
     `chronicle-preprocessing:${workspaceId}`,
-    { mode: "exclusive" },
+    { mode },
     operation,
   );
 }

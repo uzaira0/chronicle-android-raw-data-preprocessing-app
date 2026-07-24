@@ -244,6 +244,8 @@ web/dist/
 web/.vite/
 web/.tmp/
 web/.github-pages-dist/
+web/src/wasm/*/pkg/
+.cargo-target-shared/
 .superpowers/
 !web/src/lib/
 !web/src/lib/**

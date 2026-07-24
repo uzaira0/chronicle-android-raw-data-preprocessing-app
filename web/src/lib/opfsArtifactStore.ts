@@ -14,7 +14,9 @@ const ROOTS_DIRECTORY = "roots";
 const CLOSURE_MAGIC = new TextEncoder().encode("CHRONICLE-CLOSURE-V1\n");
 const MAX_CLOSURE_MANIFEST_BYTES = 16 * 1024 * 1024;
 const MAX_CLOSURE_OBJECTS = 100_000;
-export const MAX_RUNTIME_QUERY_CACHE_BYTES = 128 * 1024 * 1024;
+const MAX_HISTORY_ROOTS = 10_000;
+const MAX_ROOT_SLOT_ARTIFACTS = 1_024;
+const MAX_ROOT_SLOT_BYTES = 128 * 1024;
 
 export type PersistedRuntimeArtifact = {
   kind: string;
@@ -33,15 +35,6 @@ export type WorkspaceRootSlot = {
   checksum: string;
 };
 
-export type WorkspaceQueryCacheSlot = {
-  protocolVersion: "chronicle-query-cache-root/v1";
-  generation: number;
-  baseWorkspaceRootDigest: string;
-  cacheObjectDigest: string;
-  size: number;
-  checksum: string;
-};
-
 type IterableDirectoryHandle = FileSystemDirectoryHandle & {
   entries(): AsyncIterableIterator<[
     string,
@@ -50,11 +43,6 @@ type IterableDirectoryHandle = FileSystemDirectoryHandle & {
 };
 
 type UnsignedWorkspaceRootSlot = Omit<WorkspaceRootSlot, "checksum">;
-type UnsignedWorkspaceQueryCacheSlot = Omit<
-  WorkspaceQueryCacheSlot,
-  "checksum"
->;
-
 export type RuntimeClosureManifest = {
   protocolVersion: "chronicle-runtime-closure/v1";
   workspaceId: string;
@@ -203,46 +191,41 @@ async function parseSlot(bytes: Uint8Array): Promise<WorkspaceRootSlot> {
     parsed.protocolVersion !== "chronicle-opfs-root/v1" ||
     !Number.isSafeInteger(parsed.generation) ||
     parsed.generation < 1 ||
+    !Array.isArray(parsed.artifactDigests) ||
+    parsed.artifactDigests.length > MAX_ROOT_SLOT_ARTIFACTS ||
+    new Set(parsed.artifactDigests).size !== parsed.artifactDigests.length ||
     checksum !== (await sha256(encodeJson(unsigned)))
   ) {
     throw new Error("invalid OPFS root slot");
   }
   digestHex(parsed.workspaceRootDigest);
-  for (const digest of parsed.artifactDigests) digestHex(digest);
-  return parsed;
-}
-
-async function signedCacheSlot(
-  unsigned: UnsignedWorkspaceQueryCacheSlot,
-): Promise<WorkspaceQueryCacheSlot> {
-  return { ...unsigned, checksum: await sha256(encodeJson(unsigned)) };
-}
-
-async function parseCacheSlot(
-  bytes: Uint8Array,
-): Promise<WorkspaceQueryCacheSlot> {
-  const parsed = JSON.parse(
-    new TextDecoder().decode(bytes),
-  ) as WorkspaceQueryCacheSlot;
-  const { checksum, ...unsigned } = parsed;
-  if (
-    parsed.protocolVersion !== "chronicle-query-cache-root/v1" ||
-    !Number.isSafeInteger(parsed.generation) ||
-    parsed.generation < 1 ||
-    !Number.isSafeInteger(parsed.size) ||
-    parsed.size < 1 ||
-    parsed.size > MAX_RUNTIME_QUERY_CACHE_BYTES ||
-    checksum !== (await sha256(encodeJson(unsigned)))
-  ) {
-    throw new Error("invalid OPFS query-cache slot");
+  if (parsed.previousWorkspaceRootDigest !== null) {
+    digestHex(parsed.previousWorkspaceRootDigest);
   }
-  digestHex(parsed.baseWorkspaceRootDigest);
-  digestHex(parsed.cacheObjectDigest);
+  for (const digest of parsed.artifactDigests) digestHex(digest);
   return parsed;
 }
 
 function isNotFoundError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "NotFoundError";
+}
+
+function isRecoverableRootSlotError(error: unknown): boolean {
+  return (
+    isNotFoundError(error) ||
+    error instanceof SyntaxError ||
+    (error instanceof Error &&
+      (error.message === "invalid OPFS root slot" ||
+        error.message.startsWith("invalid SHA-256 digest:") ||
+        error.message.startsWith("file exceeds the ")))
+  );
+}
+
+function isRecoverableClosureObjectError(error: unknown): boolean {
+  return (
+    isNotFoundError(error) ||
+    (error instanceof Error && error.message.startsWith("corrupt OPFS object:"))
+  );
 }
 
 async function rootSlotCandidates(
@@ -252,11 +235,12 @@ async function rootSlotCandidates(
   let rootSlotObserved = false;
   for (const name of ["root-a.json", "root-b.json"]) {
     try {
-      const bytes = await readFile(roots, name);
+      const bytes = await readFile(roots, name, MAX_ROOT_SLOT_BYTES);
       rootSlotObserved = true;
       candidates.push(await parseSlot(bytes));
     } catch (error) {
       if (!isNotFoundError(error)) rootSlotObserved = true;
+      if (!isRecoverableRootSlotError(error)) throw error;
       // Alternating slots are intentionally independent: one torn/corrupt slot
       // must not prevent recovery from the other.
     }
@@ -300,7 +284,8 @@ async function recoverableSlotsFromDirectories(
     try {
       await verifySlotObjects(candidate, verifyObject);
       recovered.push(candidate);
-    } catch {
+    } catch (error) {
+      if (!isRecoverableClosureObjectError(error)) throw error;
       // A newer slot with an incomplete closure falls back to the prior slot.
     }
   }
@@ -322,7 +307,8 @@ async function recoverFromDirectories(
     try {
       await verifySlotObjects(candidate, verifyObject);
       return candidate;
-    } catch {
+    } catch (error) {
+      if (!isRecoverableClosureObjectError(error)) throw error;
       // A newer incomplete slot falls back to the older independent slot.
     }
   }
@@ -382,6 +368,8 @@ export async function persistRuntimeWorkspace(
     previousWorkspaceRootDigest: string | null;
     artifacts: PersistedRuntimeArtifact[];
     recoveredSlot?: WorkspaceRootSlot;
+    verifiedDetachedHistory?: boolean;
+    slotArtifactDigests?: string[];
   },
 ): Promise<WorkspaceRootSlot> {
   digestHex(input.workspaceRootDigest);
@@ -399,6 +387,41 @@ export async function persistRuntimeWorkspace(
   if (!byDigest.has(input.workspaceRootDigest)) {
     throw new Error("runtime artifact set is missing the workspace-root object");
   }
+  const previous = input.recoveredSlot
+    ? await parseSlot(encodeJson(input.recoveredSlot))
+    : await recoverFromDirectories(objects, roots);
+  const incomingHistoryContains = async (targetDigest: string): Promise<boolean> => {
+    const seen = new Set<string>();
+    let rootDigest: string | null = input.workspaceRootDigest;
+    while (rootDigest !== null) {
+      if (rootDigest === targetDigest) return true;
+      if (seen.has(rootDigest) || seen.size >= MAX_HISTORY_ROOTS) {
+        throw new Error("incoming workspace history is cyclic or too large");
+      }
+      seen.add(rootDigest);
+      const artifact = byDigest.get(rootDigest);
+      const bytes: Uint8Array = artifact
+        ? artifact.bytes
+        : await readVerifiedObject(objects, rootDigest);
+      if ((await sha256(bytes)) !== rootDigest) {
+        throw new Error(`incoming workspace root digest mismatch: ${rootDigest}`);
+      }
+      rootDigest = decodeHistoryRoot(bytes).previousWorkspaceRootDigest;
+    }
+    return false;
+  };
+  const previousIsAncestor =
+    previous !== undefined &&
+    input.previousWorkspaceRootDigest !== previous.workspaceRootDigest
+      ? await incomingHistoryContains(previous.workspaceRootDigest)
+      : false;
+  if (
+    (previous?.workspaceRootDigest ?? null) !== input.previousWorkspaceRootDigest &&
+    !(input.verifiedDetachedHistory && previous === undefined) &&
+    !previousIsAncestor
+  ) {
+    throw new Error("recovered OPFS root does not match the runtime's previous root");
+  }
   // Objects are immutable and independently addressed; only the alternating
   // root commit is order-sensitive. Two writers overlap OPFS latency without
   // multiplying the large artifact buffers as an unbounded Promise.all would.
@@ -415,22 +438,47 @@ export async function persistRuntimeWorkspace(
     }
   };
   await Promise.all([writeNext(), writeNext()]);
-  const previous = input.recoveredSlot
-    ? await parseSlot(encodeJson(input.recoveredSlot))
-    : await recoverFromDirectories(objects, roots);
+  // The object writes above are not a workspace commit. Check the complete
+  // projected history before advancing either root slot so a hard limit can
+  // never make the newly committed head unreadable.
+  if (previous) {
+    const history = await collectCommittedHistoryFromObjects(
+      objects,
+      previous.workspaceRootDigest,
+    );
+    if (history.rootDigests.length >= MAX_HISTORY_ROOTS) {
+      throw new Error(
+        `workspace history has reached ${MAX_HISTORY_ROOTS} roots; export and start a new workspace before committing`,
+      );
+    }
+    const projectedObjects = new Set(history.digests);
+    for (const digest of byDigest.keys()) projectedObjects.add(digest);
+    if (projectedObjects.size > MAX_CLOSURE_OBJECTS) {
+      throw new Error(
+        `workspace history would exceed ${MAX_CLOSURE_OBJECTS} objects; export and start a new workspace before committing`,
+      );
+    }
+  } else if (byDigest.size > MAX_CLOSURE_OBJECTS) {
+    throw new Error(`runtime artifact set exceeds ${MAX_CLOSURE_OBJECTS} objects`);
+  }
+  const slotArtifactDigests = input.slotArtifactDigests ?? [...byDigest.keys()];
   if (
-    (previous?.workspaceRootDigest ?? null) !==
-    input.previousWorkspaceRootDigest
+    slotArtifactDigests.length > MAX_ROOT_SLOT_ARTIFACTS ||
+    new Set(slotArtifactDigests).size !== slotArtifactDigests.length ||
+    slotArtifactDigests.some((digest) => !byDigest.has(digest))
   ) {
-    throw new Error("recovered OPFS root does not match the runtime's previous root");
+    throw new Error("runtime root slot artifact set is invalid");
   }
   const unsigned: UnsignedWorkspaceRootSlot = {
     protocolVersion: "chronicle-opfs-root/v1",
     generation: (previous?.generation ?? 0) + 1,
     workspaceRootDigest: input.workspaceRootDigest,
     previousWorkspaceRootDigest: input.previousWorkspaceRootDigest,
-    artifactDigests: [...byDigest.keys()].sort(),
+    artifactDigests: [...slotArtifactDigests].sort(),
   };
+  if (encodeJson(unsigned).byteLength > MAX_ROOT_SLOT_BYTES) {
+    throw new Error("runtime root slot is too large");
+  }
   const slot = await signedSlot(unsigned);
   const slotName = slot.generation % 2 === 1 ? "root-a.json" : "root-b.json";
   await writeFile(roots, slotName, encodeJson(slot));
@@ -456,119 +504,109 @@ export async function recoverRuntimeWorkspaceRoots(
   return recoverableSlotsFromDirectories(objects, roots);
 }
 
-async function queryCacheSlotCandidates(
-  roots: FileSystemDirectoryHandle,
-): Promise<WorkspaceQueryCacheSlot[]> {
-  const candidates: WorkspaceQueryCacheSlot[] = [];
-  for (const name of ["cache-a.json", "cache-b.json"]) {
-    try {
-      candidates.push(await parseCacheSlot(await readFile(roots, name)));
-    } catch {
-      // Query caches are optional. A missing, torn, or corrupt cache pointer
-      // never changes authoritative workspace recovery.
-    }
-  }
-  candidates.sort((left, right) => right.generation - left.generation);
-  return candidates;
-}
-
-export async function persistRuntimeQueryCache(
-  root: FileSystemDirectoryHandle,
-  input: {
-    baseWorkspaceRootDigest: string;
-    bytes: Uint8Array;
-  },
-): Promise<WorkspaceQueryCacheSlot> {
-  digestHex(input.baseWorkspaceRootDigest);
-  if (input.bytes.byteLength < 1) {
-    throw new Error("query cache is empty");
-  }
-  if (input.bytes.byteLength > MAX_RUNTIME_QUERY_CACHE_BYTES) {
-    throw new Error(
-      `query cache exceeds the ${MAX_RUNTIME_QUERY_CACHE_BYTES} byte limit`,
-    );
-  }
-  const { objects, roots } = await storeDirectories(root);
-  const cacheObjectDigest = await sha256(input.bytes);
-  await putObject(objects, {
-    kind: "salsa-query-cache",
-    digest: cacheObjectDigest,
-    size: input.bytes.byteLength,
-    bytes: input.bytes,
-    digestVerified: true,
-  });
-  const candidates = await queryCacheSlotCandidates(roots);
-  const unsigned: UnsignedWorkspaceQueryCacheSlot = {
-    protocolVersion: "chronicle-query-cache-root/v1",
-    generation: (candidates[0]?.generation ?? 0) + 1,
-    baseWorkspaceRootDigest: input.baseWorkspaceRootDigest,
-    cacheObjectDigest,
-    size: input.bytes.byteLength,
-  };
-  const slot = await signedCacheSlot(unsigned);
-  const slotName = slot.generation % 2 === 1 ? "cache-a.json" : "cache-b.json";
-  await writeFile(roots, slotName, encodeJson(slot));
-  const verified = await parseCacheSlot(await readFile(roots, slotName));
-  if (
-    verified.baseWorkspaceRootDigest !== input.baseWorkspaceRootDigest ||
-    verified.cacheObjectDigest !== cacheObjectDigest
-  ) {
-    throw new Error("OPFS query-cache commit verification failed");
-  }
-  return verified;
-}
-
-export async function recoverRuntimeQueryCache(
-  root: FileSystemDirectoryHandle,
-  baseWorkspaceRootDigest: string,
-): Promise<
-  { slot: WorkspaceQueryCacheSlot; bytes: Uint8Array } | undefined
-> {
-  digestHex(baseWorkspaceRootDigest);
-  const { objects, roots } = await storeDirectories(root);
-  for (const slot of await queryCacheSlotCandidates(roots)) {
-    if (slot.baseWorkspaceRootDigest !== baseWorkspaceRootDigest) continue;
-    try {
-      const { directory, name } = await objectDirectory(
-        objects,
-        slot.cacheObjectDigest,
-        false,
-      );
-      const bytes = await readFile(
-        directory,
-        name,
-        MAX_RUNTIME_QUERY_CACHE_BYTES,
-      );
-      if ((await sha256(bytes)) !== slot.cacheObjectDigest) continue;
-      if (bytes.byteLength !== slot.size) continue;
-      return { slot, bytes };
-    } catch {
-      // Try the other alternating pointer, then run cold if none is valid.
-    }
-  }
-  return undefined;
-}
-
-/** Signed A/B cache pointers for retention; object integrity is checked on use. */
-export async function recoverRuntimeQueryCacheSlots(
-  root: FileSystemDirectoryHandle,
-  baseWorkspaceRootDigest?: string,
-): Promise<WorkspaceQueryCacheSlot[]> {
-  if (baseWorkspaceRootDigest) digestHex(baseWorkspaceRootDigest);
-  const { roots } = await storeDirectories(root);
-  return (await queryCacheSlotCandidates(roots)).filter(
-    (slot) =>
-      baseWorkspaceRootDigest === undefined ||
-      slot.baseWorkspaceRootDigest === baseWorkspaceRootDigest,
-  );
-}
-
 export async function readRuntimeObject(
   root: FileSystemDirectoryHandle,
   digest: string,
 ): Promise<Uint8Array> {
   const { objects } = await storeDirectories(root);
   return readVerifiedObject(objects, digest);
+}
+
+type HistoryRootCommit = {
+  workspaceId: string;
+  previousWorkspaceRootDigest: string | null;
+  artifactDigests: string[];
+  inputDigest?: string;
+  optionsDigest?: string;
+  assignmentDigests?: Record<string, string>;
+};
+
+function decodeHistoryRoot(bytes: Uint8Array): HistoryRootCommit {
+  const parsed = JSON.parse(new TextDecoder().decode(bytes)) as HistoryRootCommit;
+  parsed.previousWorkspaceRootDigest ??= null;
+  parsed.artifactDigests ??= [];
+  if (
+    typeof parsed.workspaceId !== "string" ||
+    (parsed.previousWorkspaceRootDigest !== null &&
+      typeof parsed.previousWorkspaceRootDigest !== "string") ||
+    !Array.isArray(parsed.artifactDigests) ||
+    parsed.artifactDigests.length > MAX_ROOT_SLOT_ARTIFACTS ||
+    new Set(parsed.artifactDigests).size !== parsed.artifactDigests.length ||
+    (parsed.inputDigest !== undefined && typeof parsed.inputDigest !== "string") ||
+    (parsed.optionsDigest !== undefined && typeof parsed.optionsDigest !== "string") ||
+    (parsed.assignmentDigests !== undefined &&
+      (typeof parsed.assignmentDigests !== "object" ||
+        Array.isArray(parsed.assignmentDigests)))
+  ) {
+    throw new Error("invalid committed workspace root");
+  }
+  digestHex(parsed.workspaceId);
+  if (parsed.previousWorkspaceRootDigest !== null) {
+    digestHex(parsed.previousWorkspaceRootDigest);
+  }
+  if (parsed.inputDigest) digestHex(parsed.inputDigest);
+  if (parsed.optionsDigest) digestHex(parsed.optionsDigest);
+  for (const digest of parsed.artifactDigests) digestHex(digest);
+  for (const digest of Object.values(parsed.assignmentDigests ?? {})) digestHex(digest);
+  return parsed;
+}
+
+function directRootDigests(
+  rootDigest: string,
+  commit: HistoryRootCommit,
+): Set<string> {
+  return new Set([
+    rootDigest,
+    ...(commit.inputDigest ? [commit.inputDigest] : []),
+    ...(commit.optionsDigest ? [commit.optionsDigest] : []),
+    ...Object.values(commit.assignmentDigests ?? {}),
+    ...commit.artifactDigests,
+  ]);
+}
+
+async function collectCommittedHistoryFromObjects(
+  objects: FileSystemDirectoryHandle,
+  headRootDigest: string,
+): Promise<{ workspaceId: string; digests: string[]; rootDigests: string[] }> {
+  digestHex(headRootDigest);
+  const digests = new Set<string>();
+  const rootDigests: string[] = [];
+  const seenRoots = new Set<string>();
+  let workspaceId: string | undefined;
+  let rootDigest: string | null = headRootDigest;
+  while (rootDigest !== null) {
+    if (seenRoots.has(rootDigest)) {
+      throw new Error(`workspace history contains a root cycle at ${rootDigest}`);
+    }
+    if (seenRoots.size >= MAX_HISTORY_ROOTS) {
+      throw new Error(`workspace history exceeds ${MAX_HISTORY_ROOTS} roots`);
+    }
+    seenRoots.add(rootDigest);
+    rootDigests.push(rootDigest);
+    const commit = decodeHistoryRoot(await readVerifiedObject(objects, rootDigest));
+    workspaceId ??= commit.workspaceId;
+    if (commit.workspaceId !== workspaceId) {
+      throw new Error("workspace history crosses workspace identities");
+    }
+    for (const digest of directRootDigests(rootDigest, commit)) {
+      digests.add(digest);
+      if (digests.size > MAX_CLOSURE_OBJECTS) {
+        throw new Error(`workspace history exceeds ${MAX_CLOSURE_OBJECTS} objects`);
+      }
+    }
+    rootDigest = commit.previousWorkspaceRootDigest;
+  }
+  if (!workspaceId) throw new Error("workspace history is empty");
+  for (const digest of digests) await readVerifiedObject(objects, digest);
+  return { workspaceId, digests: [...digests].sort(), rootDigests };
+}
+
+export async function collectRuntimeHistoryDigests(
+  root: FileSystemDirectoryHandle,
+  headRootDigest: string,
+): Promise<string[]> {
+  const { objects } = await storeDirectories(root);
+  return (await collectCommittedHistoryFromObjects(objects, headRootDigest)).digests;
 }
 
 export async function verifyRuntimeWorkspace(
@@ -580,8 +618,21 @@ export async function verifyRuntimeWorkspace(
   if (!slot.artifactDigests.includes(slot.workspaceRootDigest)) {
     throw new Error("workspace slot does not retain its root object");
   }
-  for (const digest of slot.artifactDigests) {
-    await readVerifiedObject(objects, digest);
+  const history = await collectCommittedHistoryFromObjects(
+    objects,
+    slot.workspaceRootDigest,
+  );
+  const head = decodeHistoryRoot(
+    await readVerifiedObject(objects, slot.workspaceRootDigest),
+  );
+  if (
+    history.workspaceId !== head.workspaceId ||
+    head.previousWorkspaceRootDigest !== slot.previousWorkspaceRootDigest ||
+    [...directRootDigests(slot.workspaceRootDigest, head)].some(
+      (digest) => !slot.artifactDigests.includes(digest),
+    )
+  ) {
+    throw new Error("workspace slot does not match its committed head root");
   }
 }
 
@@ -599,7 +650,10 @@ export async function exportRuntimeClosure(
     throw new Error("workspace root is missing its workspace identity");
   }
   digestHex(rootCommit.workspaceId);
-  const sorted = [...new Set(slot.artifactDigests)].sort();
+  const sorted = await collectRuntimeHistoryDigests(
+    root,
+    slot.workspaceRootDigest,
+  );
   const payloads: Uint8Array[] = [];
   let offset = 0;
   const objects = [];
@@ -670,7 +724,11 @@ function parseRuntimeClosure(archive: Uint8Array): RuntimeClosureInspection {
   }
   digestHex(manifest.workspaceId);
   digestHex(manifest.workspaceRootDigest);
+  if (manifest.previousWorkspaceRootDigest !== null) {
+    digestHex(manifest.previousWorkspaceRootDigest);
+  }
   const seen = new Set<string>();
+  const entriesByDigest = new Map<string, RuntimeClosureManifest["objects"][number]>();
   let expectedOffset = 0;
   for (const object of manifest.objects) {
     digestHex(object.digest);
@@ -684,6 +742,7 @@ function parseRuntimeClosure(archive: Uint8Array): RuntimeClosureInspection {
       throw new Error("invalid runtime closure object table");
     }
     seen.add(object.digest);
+    entriesByDigest.set(object.digest, object);
     expectedOffset += object.size;
   }
   if (
@@ -695,7 +754,7 @@ function parseRuntimeClosure(archive: Uint8Array): RuntimeClosureInspection {
   return {
     manifest,
     object(digest) {
-      const entry = manifest.objects.find((object) => object.digest === digest);
+      const entry = entriesByDigest.get(digest);
       if (!entry) throw new Error(`runtime closure object is missing: ${digest}`);
       return archive.subarray(
         payloadStart + entry.offset,
@@ -733,27 +792,62 @@ export async function importRuntimeClosure(
     });
   }
   await verify(closure);
+  const current = await recoverRuntimeWorkspace(root);
+  if (current?.workspaceRootDigest === closure.manifest.workspaceRootDigest) {
+    await verifyRuntimeWorkspace(root, current);
+    return current;
+  }
+  const seenRoots = new Set<string>();
+  let importedRoot: string | null = closure.manifest.workspaceRootDigest;
+  while (importedRoot !== null) {
+    if (seenRoots.has(importedRoot) || seenRoots.size >= MAX_HISTORY_ROOTS) {
+      throw new Error("runtime closure history is cyclic or too large");
+    }
+    seenRoots.add(importedRoot);
+    const commit = decodeHistoryRoot(closure.object(importedRoot));
+    if (commit.workspaceId !== closure.manifest.workspaceId) {
+      throw new Error("runtime closure history crosses workspace identities");
+    }
+    importedRoot = commit.previousWorkspaceRootDigest;
+  }
+  if (current && !seenRoots.has(current.workspaceRootDigest)) {
+    throw new Error("runtime closure diverges from the existing workspace history");
+  }
+  const headCommit = decodeHistoryRoot(
+    closure.object(closure.manifest.workspaceRootDigest),
+  );
+  if (
+    headCommit.workspaceId !== closure.manifest.workspaceId ||
+    headCommit.previousWorkspaceRootDigest !==
+      closure.manifest.previousWorkspaceRootDigest
+  ) {
+    throw new Error("runtime closure head does not match its outer manifest");
+  }
   return persistRuntimeWorkspace(root, {
     workspaceRootDigest: closure.manifest.workspaceRootDigest,
     previousWorkspaceRootDigest:
       closure.manifest.previousWorkspaceRootDigest,
     artifacts,
+    recoveredSlot: current,
+    verifiedDetachedHistory: current === undefined,
+    slotArtifactDigests: [
+      ...directRootDigests(closure.manifest.workspaceRootDigest, headCommit),
+    ],
   });
 }
 
 export async function garbageCollectRuntimeObjects(
   root: FileSystemDirectoryHandle,
   retainedRoots: readonly WorkspaceRootSlot[],
-  retainedQueryCaches: readonly WorkspaceQueryCacheSlot[] = [],
 ): Promise<number> {
   const { objects } = await storeDirectories(root);
   const retained = new Set<string>();
   for (const slot of retainedRoots) {
-    retained.add(digestHex(slot.workspaceRootDigest));
-    for (const digest of slot.artifactDigests) retained.add(digestHex(digest));
-  }
-  for (const slot of retainedQueryCaches) {
-    retained.add(digestHex(slot.cacheObjectDigest));
+    const history = await collectCommittedHistoryFromObjects(
+      objects,
+      slot.workspaceRootDigest,
+    );
+    for (const digest of history.digests) retained.add(digestHex(digest));
   }
   let removed = 0;
   for await (const [prefix, handle] of (

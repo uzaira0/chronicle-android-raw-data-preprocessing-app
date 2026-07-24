@@ -4,15 +4,13 @@ import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import type { WorkspaceRootSlot } from "@/lib/opfsArtifactStore";
 
 const opfs = vi.hoisted(() => ({
+  collectRuntimeHistoryDigests: vi.fn(),
   exportRuntimeClosure: vi.fn(),
   garbageCollectRuntimeObjects: vi.fn(),
   importRuntimeClosure: vi.fn(),
   openOpfsWorkspace: vi.fn(),
-  persistRuntimeQueryCache: vi.fn(),
   persistRuntimeWorkspace: vi.fn(),
   readRuntimeObject: vi.fn(),
-  recoverRuntimeQueryCache: vi.fn(),
-  recoverRuntimeQueryCacheSlots: vi.fn(),
   recoverRuntimeWorkspace: vi.fn(),
   recoverRuntimeWorkspaceRoots: vi.fn(),
   runtimeClosureWorkspaceId: vi.fn(),
@@ -32,6 +30,7 @@ import {
   importPersistedRustWorkspace,
   importPersistedRustWorkspaceArchive,
   readPersistedRustArtifact,
+  readPersistedRustWorkspaceHead,
   runtimeWorkspaceId,
   setRustRuntimeForTesting,
   verifyPersistedRustWorkspace,
@@ -45,6 +44,14 @@ const closureDigest = `sha256:${"4".repeat(64)}`;
 const payloadDigest = `sha256:${"5".repeat(64)}`;
 const previousDigest = `sha256:${"6".repeat(64)}`;
 const dependencyCertificateDigest = `sha256:${"8".repeat(64)}`;
+const executionStateDigest = `sha256:${"9".repeat(64)}`;
+const implementationDigest = `sha256:${"0".repeat(64)}`;
+const buildEnvironmentDigest = `sha256:${"f".repeat(64)}`;
+const productContractDigest = `sha256:${"e".repeat(64)}`;
+const planDigest = `sha256:${"d".repeat(64)}`;
+const profileDigest = `sha256:${"c".repeat(64)}`;
+const profileLockDigest = `sha256:${"b".repeat(64)}`;
+const runtimeAuthorityDigest = `sha256:${"a".repeat(64)}`;
 const viewDigests = ["a", "b", "c", "d"].map(
   (marker) => `sha256:${marker.repeat(64)}`,
 );
@@ -54,15 +61,16 @@ const workspaceLockRequest = vi.fn();
 
 const slot: WorkspaceRootSlot = {
   protocolVersion: "chronicle-opfs-root/v1",
-  generation: 3,
+  generation: 1,
   workspaceRootDigest: rootDigest,
-  previousWorkspaceRootDigest: previousDigest,
+  previousWorkspaceRootDigest: null,
   artifactDigests: [
     rootDigest,
     journalDigest,
     closureDigest,
     payloadDigest,
     dependencyCertificateDigest,
+    executionStateDigest,
     ...viewDigests,
   ],
   checksum: `sha256:${"7".repeat(64)}`,
@@ -71,8 +79,15 @@ const slot: WorkspaceRootSlot = {
 const validCommit = {
   protocolVersion: "chronicle-preprocessing-runtime/v1",
   command: "ExecuteWorkspace",
+  implementationDigest,
+  buildEnvironmentDigest,
+  productContractDigest,
+  planDigest,
+  profileDigest,
+  profileLockDigest,
+  runtimeAuthorityDigest,
   workspaceId,
-  previousWorkspaceRootDigest: previousDigest,
+  previousWorkspaceRootDigest: null,
   inputDigest: payloadDigest,
   optionsDigest: payloadDigest,
   assignmentDigests: { raw_chronicle_csv: payloadDigest },
@@ -81,47 +96,109 @@ const validCommit = {
     closureDigest,
     payloadDigest,
     dependencyCertificateDigest,
+    executionStateDigest,
+    ...viewDigests,
   ],
-  requiredViewIds: [
-    "chronicle.stage.v1",
-    "chronicle.artifact.v1",
-    "chronicle.obligation.v1",
-    "chronicle.explanation.v1",
-  ],
+  executionStateDigest,
+  requiredViews: [
+    ["stage-view-json", "chronicle.stage.v1", "urn:chronicle:view:stage:v1"],
+    ["artifact-view-json", "chronicle.artifact.v1", "urn:chronicle:view:artifact:v1"],
+    ["obligation-view-json", "chronicle.obligation.v1", "urn:chronicle:view:obligation:v1"],
+    ["explanation-view-json", "chronicle.explanation.v1", "urn:chronicle:view:explanation:v1"],
+  ].map(([artifactKind, viewId, schemaId], index) => ({
+    artifactKind,
+    viewId,
+    schemaId,
+    artifactDigest: viewDigests[index],
+  })),
   journalDigest,
   artifactClosureDigest: closureDigest,
   dependencyCertificateDigest,
   dependencyCacheMode: "certified_narrow",
 };
+const viewValues = validCommit.requiredViews.map((binding) => ({
+  protocol_version: "0.1",
+  view_id: binding.viewId,
+  family: "incremental-dataflow",
+  schema_id: binding.schemaId,
+  revision: 1,
+  root_digest: executionStateDigest,
+  payload: {},
+}));
+const executionState = {
+  protocolVersion: "chronicle-execution-state/v1",
+  implementationDigest,
+  buildEnvironmentDigest,
+  productContractDigest,
+  planDigest,
+  profileDigest,
+  profileLockDigest,
+  runtimeAuthorityDigest,
+  dependencyCertificateDigest,
+  dependencyCacheMode: "certified_narrow",
+  workspaceId,
+  previousWorkspaceRootDigest: null,
+  inputDigest: payloadDigest,
+  optionsDigest: payloadDigest,
+  assignmentDigests: { raw_chronicle_csv: payloadDigest },
+  computationalArtifactDigests: [
+    journalDigest,
+    payloadDigest,
+    dependencyCertificateDigest,
+  ],
+  journalDigest,
+};
+const artifactBytes = new Map<string, Uint8Array>([
+  [journalDigest, enc.encode("journal")],
+  [payloadDigest, enc.encode("payload")],
+  [dependencyCertificateDigest, enc.encode("dependency certificate")],
+  [executionStateDigest, enc.encode(JSON.stringify(executionState))],
+  ...viewDigests.map((digest, index) => [
+    digest,
+    enc.encode(JSON.stringify(viewValues[index])),
+  ] as const),
+]);
+const metadata = (kind: string, digest: string) => ({
+  artifactId: `urn:test:${kind}`,
+  kind,
+  mediaType: kind.endsWith("json") ? "application/json" : "application/octet-stream",
+  digest,
+  size: artifactBytes.get(digest)!.byteLength,
+  derivedFrom: [],
+});
 const validClosure = {
   protocolVersion: "chronicle-artifact-closure/v1",
   workspaceId,
+  inputDigest: payloadDigest,
+  implementationDigest,
+  buildEnvironmentDigest,
+  planDigest,
+  profileDigest,
+  profileLockDigest,
+  runtimeAuthorityDigest,
+  productContractDigest,
   journalDigest,
   dependencyCertificateDigest,
+  dependencyCacheMode: "certified_narrow",
+  previousWorkspaceRootDigest: null,
+  optionsDigest: payloadDigest,
+  assignmentDigests: { raw_chronicle_csv: payloadDigest },
+  executionStateDigest,
   artifacts: [
-    { kind: "semantic-index-source-json", digest: payloadDigest },
-    {
-      kind: "dependency-certificate-json",
-      digest: dependencyCertificateDigest,
-    },
+    metadata("evidence-journal", journalDigest),
+    metadata("semantic-index-source-json", payloadDigest),
+    metadata("dependency-certificate-json", dependencyCertificateDigest),
+    metadata("execution-state-json", executionStateDigest),
+    ...validCommit.requiredViews.map((binding) =>
+      metadata(binding.artifactKind, binding.artifactDigest),
+    ),
   ],
 };
 
 const bytesByDigest = new Map([
   [rootDigest, enc.encode(JSON.stringify(validCommit))],
-  [journalDigest, enc.encode("journal")],
   [closureDigest, enc.encode(JSON.stringify(validClosure))],
-  [payloadDigest, enc.encode("payload")],
-  [dependencyCertificateDigest, enc.encode("dependency certificate")],
-  ...viewDigests.map((digest, index) => [
-    digest,
-    enc.encode(
-      JSON.stringify({
-        view_id: validCommit.requiredViewIds[index],
-        root_digest: rootDigest,
-      }),
-    ),
-  ] as const),
+  ...artifactBytes,
 ]);
 
 const kernel = {
@@ -129,7 +206,19 @@ const kernel = {
   runtime_version: vi.fn(() => "test-runtime"),
   implementation_build_digest: vi.fn(() => `sha256:${"0".repeat(64)}`),
   build_environment_digest: vi.fn(() => `sha256:${"f".repeat(64)}`),
-  query_cache_max_bytes: vi.fn(() => 128 * 1024 * 1024),
+  runtime_identity_json: vi.fn(() =>
+    JSON.stringify({
+      protocolVersion: "chronicle-preprocessing-runtime/v1",
+      implementationDigest,
+      buildEnvironmentDigest,
+      productContractDigest,
+      planDigest,
+      profileDigest,
+      profileLockDigest,
+      runtimeAuthorityDigest,
+      dependencyCertificateDigest,
+    }),
+  ),
   pipeline_step_contract_json: vi.fn(() =>
     JSON.stringify({
       protocolVersion: "chronicle-preprocessing-step-contract/v3",
@@ -157,8 +246,6 @@ const kernel = {
   inspect_raw_file_v1: () =>
     JSON.stringify({ fileName: "raw.csv", warnings: [], columns: [], timezones: [] }),
   execute_workspace: vi.fn(),
-  export_workspace_query_cache: vi.fn(() => enc.encode("query-cache")),
-  restore_workspace_query_cache: vi.fn(),
   verify_evidence_journal_cbor: vi.fn(() => 1),
 };
 
@@ -180,8 +267,7 @@ beforeEach(() => {
   opfs.openOpfsWorkspace.mockResolvedValue(root);
   opfs.recoverRuntimeWorkspace.mockResolvedValue(slot);
   opfs.recoverRuntimeWorkspaceRoots.mockResolvedValue([slot]);
-  opfs.recoverRuntimeQueryCache.mockResolvedValue(undefined);
-  opfs.recoverRuntimeQueryCacheSlots.mockResolvedValue([]);
+  opfs.collectRuntimeHistoryDigests.mockResolvedValue(slot.artifactDigests);
   opfs.readRuntimeObject.mockImplementation(
     (_root: FileSystemDirectoryHandle, digest: string) =>
       Promise.resolve(bytesByDigest.get(digest) ?? enc.encode("missing")),
@@ -199,13 +285,14 @@ beforeEach(() => {
         manifest: {
           workspaceId,
           workspaceRootDigest: rootDigest,
-          previousWorkspaceRootDigest: previousDigest,
+          previousWorkspaceRootDigest: null,
           objects: [
             rootDigest,
             journalDigest,
             closureDigest,
             payloadDigest,
             dependencyCertificateDigest,
+            executionStateDigest,
             ...viewDigests,
           ].map(
             (digest) => ({ digest, size: bytesByDigest.get(digest)!.byteLength, offset: 0 }),
@@ -239,6 +326,7 @@ describe("persisted Rust workspace boundary", () => {
   });
 
   it("verifies, exports, reads, collects, and imports a complete closure", async () => {
+    await expect(readPersistedRustWorkspaceHead(workspaceId)).resolves.toBe(rootDigest);
     await expect(verifyPersistedRustWorkspace(workspaceId)).resolves.toBe(slot);
     expect(kernel.verify_evidence_journal_cbor).toHaveBeenCalledWith(
       bytesByDigest.get(journalDigest),
@@ -260,6 +348,25 @@ describe("persisted Rust workspace boundary", () => {
     });
   });
 
+  it("rejects a persisted head from a different loaded Rust identity", async () => {
+    kernel.runtime_identity_json.mockReturnValueOnce(
+      JSON.stringify({
+        protocolVersion: "chronicle-preprocessing-runtime/v1",
+        implementationDigest: `sha256:${"7".repeat(64)}`,
+        buildEnvironmentDigest,
+        productContractDigest,
+        planDigest,
+        profileDigest,
+        profileLockDigest,
+        runtimeAuthorityDigest,
+        dependencyCertificateDigest,
+      }),
+    );
+    await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
+      /different runtime identity/,
+    );
+  });
+
   it("returns no recovered root and fails closed when an operation requires one", async () => {
     opfs.recoverRuntimeWorkspace.mockResolvedValue(undefined);
     opfs.recoverRuntimeWorkspaceRoots.mockResolvedValue([]);
@@ -271,7 +378,7 @@ describe("persisted Rust workspace boundary", () => {
       /no persisted Rust workspace/,
     );
     await expect(garbageCollectPersistedRustWorkspace(workspaceId)).resolves.toBe(4);
-    expect(opfs.garbageCollectRuntimeObjects).toHaveBeenLastCalledWith(root, [], []);
+    expect(opfs.garbageCollectRuntimeObjects).toHaveBeenLastCalledWith(root, []);
   });
 
   it("rejects import identity drift and absent artifact assignments", async () => {
@@ -283,7 +390,7 @@ describe("persisted Rust workspace boundary", () => {
     const missing = { ...validClosure, artifacts: [] };
     bytesByDigest.set(closureDigest, enc.encode(JSON.stringify(missing)));
     await expect(readPersistedRustArtifact(workspaceId, "missing")).rejects.toThrow(
-      /artifact is missing/,
+      /contract violation|artifact closure set is invalid/,
     );
     bytesByDigest.set(closureDigest, enc.encode(JSON.stringify(validClosure)));
   });
@@ -291,10 +398,20 @@ describe("persisted Rust workspace boundary", () => {
   it.each([
     [{ ...validCommit, protocolVersion: "bad" }, /root contract is invalid/],
     [{ ...validCommit, command: "Other" }, /root contract is invalid/],
-    [{ ...validCommit, workspaceId: `sha256:${"8".repeat(64)}` }, /root contract is invalid/],
-    [{ ...validCommit, previousWorkspaceRootDigest: null }, /root contract is invalid/],
-    [{ ...validCommit, artifactDigests: [closureDigest, payloadDigest] }, /root contract is invalid/],
-    [{ ...validCommit, artifactDigests: [journalDigest, payloadDigest] }, /root contract is invalid/],
+    [{ ...validCommit, workspaceId: `sha256:${"8".repeat(64)}` }, /root identity is invalid/],
+    [{ ...validCommit, previousWorkspaceRootDigest: previousDigest }, /root identity is invalid/],
+    [{ ...validCommit, artifactDigests: [closureDigest, payloadDigest] }, /omits a required artifact/],
+    [{ ...validCommit, artifactDigests: [journalDigest, payloadDigest] }, /omits a required artifact/],
+    [{ ...validCommit, requiredViews: [] }, /root contract is invalid/],
+    [
+      {
+        ...validCommit,
+        requiredViews: validCommit.requiredViews.map((binding, index) =>
+          index === 0 ? { ...binding, schemaId: "urn:wrong" } : binding,
+        ),
+      },
+      /view binding is invalid/,
+    ],
   ])("rejects an invalid recovered root contract", async (commit, pattern) => {
     bytesByDigest.set(rootDigest, enc.encode(JSON.stringify(commit)));
     await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(pattern);
@@ -302,12 +419,14 @@ describe("persisted Rust workspace boundary", () => {
   });
 
   it("rejects an incomplete retained closure", async () => {
-    opfs.recoverRuntimeWorkspace.mockResolvedValue({
+    const incomplete = {
       ...slot,
       artifactDigests: [rootDigest, journalDigest, closureDigest],
-    });
+    };
+    opfs.recoverRuntimeWorkspace.mockResolvedValue(incomplete);
+    opfs.collectRuntimeHistoryDigests.mockResolvedValue(incomplete.artifactDigests);
     await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
-      /closure is incomplete/,
+      /missing or unbound objects/,
     );
   });
 
@@ -324,40 +443,67 @@ describe("persisted Rust workspace boundary", () => {
       ),
     );
     await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
-      /closure is incomplete/,
+      /execution state is invalid/,
     );
     bytesByDigest.set(rootDigest, enc.encode(JSON.stringify(validCommit)));
 
-    opfs.recoverRuntimeWorkspace.mockResolvedValue({
+    const missingView = {
       ...slot,
       artifactDigests: slot.artifactDigests.filter(
         (digest) => digest !== viewDigests[0],
       ),
-    });
+    };
+    opfs.recoverRuntimeWorkspace.mockResolvedValue(missingView);
+    opfs.collectRuntimeHistoryDigests.mockResolvedValue(missingView.artifactDigests);
     await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
-      /missing a required typed view/,
+      /missing or unbound objects/,
     );
   });
 
   it.each([
-    [{ ...validClosure, protocolVersion: "bad" }, /artifact closure is invalid/],
-    [{ ...validClosure, workspaceId: `sha256:${"8".repeat(64)}` }, /artifact closure is invalid/],
-    [{ ...validClosure, journalDigest: payloadDigest }, /artifact closure is invalid/],
+    [{ ...validClosure, protocolVersion: "bad" }, /artifact closure identity mismatch|artifact closure set/],
+    [{ ...validClosure, workspaceId: `sha256:${"8".repeat(64)}` }, /artifact closure identity mismatch/],
+    [{ ...validClosure, journalDigest: payloadDigest }, /artifact closure identity mismatch/],
     [
       { ...validClosure, dependencyCertificateDigest: payloadDigest },
-      /artifact closure is invalid/,
+      /artifact closure identity mismatch/,
     ],
     [
       {
         ...validClosure,
         artifacts: [{ kind: "x", digest: `sha256:${"0".repeat(64)}` }],
       },
-      /artifact closure is invalid/,
+      /contract violation|artifact closure set is invalid/,
     ],
   ])("rejects invalid semantic artifact closure metadata", async (closure, pattern) => {
     bytesByDigest.set(closureDigest, enc.encode(JSON.stringify(closure)));
     await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(pattern);
     bytesByDigest.set(closureDigest, enc.encode(JSON.stringify(validClosure)));
+  });
+
+  it("rejects fake typed views and unbound retained objects", async () => {
+    const original = bytesByDigest.get(viewDigests[0])!;
+    bytesByDigest.set(
+      viewDigests[0],
+      enc.encode(
+        JSON.stringify({
+          view_id: "chronicle.stage.v1",
+          root_digest: executionStateDigest,
+        }),
+      ),
+    );
+    await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
+      /artifact size mismatch|typed view is invalid/,
+    );
+    bytesByDigest.set(viewDigests[0], original);
+
+    opfs.collectRuntimeHistoryDigests.mockResolvedValue([
+      ...slot.artifactDigests,
+      previousDigest,
+    ]);
+    await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
+      /missing or unbound objects/,
+    );
   });
 
   it("exposes runtime identity and a Rust-evaluated pre-run view", async () => {

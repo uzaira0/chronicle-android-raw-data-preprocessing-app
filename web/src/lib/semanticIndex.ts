@@ -29,6 +29,7 @@ async function loadModule(): Promise<SemanticIndexModule> {
 
 export type RegisteredSemanticQueryResult = {
   queryId: string;
+  workspaceRootDigest?: string;
   variables?: string[];
   rows?: Array<Record<string, string>>;
   boolean?: boolean;

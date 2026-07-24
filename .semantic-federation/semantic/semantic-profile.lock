@@ -2,12 +2,12 @@
   "protocol_version": "0.1",
   "root_profile": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
   "root_version": "0.1.0",
-  "root_manifest_digest": "sha256:ad3a1e58f4a69a2f81c412391f5736bf1c2f73216a5cd9742bc319bb07b01435",
+  "root_manifest_digest": "sha256:e0a9b158df2bd2161d96905d67276aea0243cb239ef3dc4c5014932a48da9be0",
   "entries": [
     {
       "profile_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
       "version": "0.1.0",
-      "manifest_digest": "sha256:ad3a1e58f4a69a2f81c412391f5736bf1c2f73216a5cd9742bc319bb07b01435",
+      "manifest_digest": "sha256:e0a9b158df2bd2161d96905d67276aea0243cb239ef3dc4c5014932a48da9be0",
       "resources": [
         {
           "path": "resources/identity-contract.json",
@@ -17,7 +17,7 @@
         },
         {
           "path": "capability-bindings.json",
-          "digest": "sha256:7ce7fbedcf9aeb00a5e6f6387f87b393dd30b5d37f33cad5d408973ac48d8b44",
+          "digest": "sha256:3ebbe3ff7ad8a9b6fea73eb5a6dab936238ee2df109f111ecdd900641610b7f0",
           "media_type": "application/json",
           "role": "binding-source"
         },
@@ -29,19 +29,19 @@
         },
         {
           "path": "resources/chronicle.plan.json",
-          "digest": "sha256:3b1db580ca483d5f7f198a82fcc8166e9ad180eaea587db1ae950a5fa06649a6",
+          "digest": "sha256:6de88ad84552191fb4cea4acda553006cddc096f20c24e2138954f1d4d48231c",
           "media_type": "application/json",
           "role": "binding-source"
         },
         {
           "path": "resources/runtime-authority.json",
-          "digest": "sha256:11142579a05120fce9a1fe8e0edfffdcae385b34a10080d878e8d82b73cc8627",
+          "digest": "sha256:bb2e2d109a81098514ba9a86344da6edc033cd305e6d6c4832c9dfd1ce81b2f9",
           "media_type": "application/json",
           "role": "binding-source"
         },
         {
           "path": "resources/chronicle-research-ontology.linkml.yaml",
-          "digest": "sha256:f5e5c728f53b936e064db2dc1bd37946b3933d123e11f485899cf402baea848e",
+          "digest": "sha256:7aa38387d6306edd43630eb81c5f847961ecf2454efbb9f3d2cb358219dc54db",
           "media_type": "application/yaml",
           "role": "ontology"
         },
@@ -72,5 +72,5 @@
       ]
     }
   ],
-  "closure_digest": "sha256:38fc87efdcb2c242eeaa14fcf291c2d435d22d99660bfc56553b8966a7c71a1e"
+  "closure_digest": "sha256:cb874e68f36e5ec04681ad966d3711b77608b427e9751e6b61f8d78eb75644a2"
 }

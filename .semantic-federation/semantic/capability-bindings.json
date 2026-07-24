@@ -2,7 +2,7 @@
   "protocol_version": "0.1",
   "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1",
   "product_profile_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
-  "product_contract_digest": "sha256:8909a12a03d890c3528ec7148472b9852d8981007babb628b8fbccc5fa45410d",
+  "product_contract_digest": "sha256:ab8abd56da309c22855b64a8772c48e2204eb87246643e2fff612f4d84e0155a",
   "bindings": [
     {
       "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-product-runtime",
@@ -43,7 +43,6 @@
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/bidirectional-correspondence/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/typed-views/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/artifact-closure/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/configuration-family/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/semantic-index/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/registered-query/v1"
       ],
@@ -53,7 +52,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_preprocessing_runtime_wasm",
         "entrypoint": "execute_workspace",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "projection",
       "status": "active",
@@ -76,7 +75,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "parse_remap_config",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -99,7 +98,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "csv_parse",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -122,7 +121,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "drop_empty_timestamp",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -145,7 +144,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "detect_device_model",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -168,7 +167,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "resolve_preproc_datetime",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -191,7 +190,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "build_canonical_rows",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -214,7 +213,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "stable_sort",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -237,7 +236,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "collect_timezones",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -260,7 +259,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "compute_dominant_timezone",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -283,7 +282,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "select_timezone_strategy",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -306,7 +305,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "restamp_rows",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -329,7 +328,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "row_count_report",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -352,7 +351,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "exact_dedupe",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -375,7 +374,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "count_dup_groups",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -398,7 +397,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "nudge_duplicate_timestamps",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -421,7 +420,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "mark_data_time_gaps",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -444,7 +443,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "tag_filtered_packages",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -467,7 +466,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "collect_keyguard_timestamps",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -490,7 +489,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "walk_screen_state_machine",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -513,7 +512,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "build_classified_sessions",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -536,7 +535,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "compute_junk_packages",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -559,7 +558,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "junk_blind_fold",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -582,7 +581,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "build_matcher_input",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -605,7 +604,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "run_matcher",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -628,7 +627,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "apply_matcher_output",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -651,7 +650,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "relabel_usage_with_floor",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -674,7 +673,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "junk_downstream_mark",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -697,7 +696,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "sort_episodes",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -720,7 +719,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "split_concurrent",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -743,7 +742,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "codebook_join",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -766,7 +765,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "derive_broad_category",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -789,7 +788,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "collapse_genre",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -812,7 +811,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "engagement_walk",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -835,7 +834,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "flag_and_retain",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -858,7 +857,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "blank_junk_timing",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -881,7 +880,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "drop_selected_types",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -904,7 +903,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "drop_zero_duration",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -927,7 +926,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "partition_credit_sessions",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -950,7 +949,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "build_liveness_substrate",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -973,7 +972,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "report_screen_incapable",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -996,7 +995,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "count_day_apps",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1019,7 +1018,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "credit_sessions",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1042,7 +1041,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "emit_credited_rows",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1065,7 +1064,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "assemble_credit_result",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1088,7 +1087,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "resolve_participant_windows",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1111,7 +1110,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "filter_rows_to_window",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1134,7 +1133,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "resolve_sharing_status",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1157,7 +1156,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "build_survey_lookup",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1180,7 +1179,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "attribute_rows",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1203,7 +1202,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "inject_placeholders",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1226,7 +1225,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "build_raw_date_index",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1249,7 +1248,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "build_coverage_table",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1272,7 +1271,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "accumulate_attribution_minutes",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1295,7 +1294,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "score_days",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1318,7 +1317,7 @@
         "target": "wasm32-unknown-unknown",
         "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "entrypoint": "assemble_result",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1424,7 +1423,6 @@
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/bidirectional-correspondence/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/typed-views/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/artifact-closure/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/configuration-family/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/semantic-index/v1",
         "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/registered-query/v1"
       ],
@@ -1434,7 +1432,7 @@
         "target": "native-test",
         "source": "rust/chronicle_preprocessing_runtime_wasm",
         "entrypoint": "execute_workspace_native",
-        "build_digest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b"
+        "build_digest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f"
       },
       "relationship": "one-to-one",
       "status": "active",
@@ -1443,97 +1441,6 @@
         "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/native-wasm-parity/v1",
         "loss": "lossless",
         "notes": "Non-authoritative native target executes the same Rust runtime for deterministic parity and fault tests."
-      }
-    },
-    {
-      "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/typescript-reference-harness",
-      "capability_ids": [
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/parse_events/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/normalize_timezones/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/dedup_and_order/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/app_policy/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/device_state_timeline/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/reconstruct_episodes/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/categorize_apps/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/episode_annotations/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/interval_cleaning/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/effective_usage/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/observation_window/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/attribute_person/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/day_coverage/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/score_compliance/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/outputs/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/parse_remap_config/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/csv_parse/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/drop_empty_timestamp/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/detect_device_model/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/resolve_preproc_datetime/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_canonical_rows/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/stable_sort/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/collect_timezones/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/compute_dominant_timezone/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/select_timezone_strategy/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/restamp_rows/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/row_count_report/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/exact_dedupe/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/count_dup_groups/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/nudge_duplicate_timestamps/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/mark_data_time_gaps/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/tag_filtered_packages/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/collect_keyguard_timestamps/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/walk_screen_state_machine/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_classified_sessions/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/compute_junk_packages/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/junk_blind_fold/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_matcher_input/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/run_matcher/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/apply_matcher_output/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/relabel_usage_with_floor/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/junk_downstream_mark/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/sort_episodes/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/split_concurrent/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/codebook_join/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/derive_broad_category/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/collapse_genre/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/engagement_walk/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/flag_and_retain/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/blank_junk_timing/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/drop_selected_types/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/drop_zero_duration/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/partition_credit_sessions/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_liveness_substrate/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/report_screen_incapable/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/count_day_apps/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/credit_sessions/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/emit_credited_rows/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/assemble_credit_result/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/resolve_participant_windows/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/filter_rows_to_window/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/resolve_sharing_status/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_survey_lookup/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/attribute_rows/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/inject_placeholders/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_raw_date_index/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_coverage_table/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/accumulate_attribution_minutes/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/score_days/v1",
-        "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/assemble_result/v1"
-      ],
-      "implementation": {
-        "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/typescript-reference-harness",
-        "language": "typescript",
-        "target": "test-only",
-        "source": "web/src/lib/browserPipeline.ts",
-        "entrypoint": "processRawCsvContent",
-        "build_digest": "sha256:4d25de88afed453904e1f83f9da58941b825d9d1b4c7dc72f43414872bc5aa91"
-      },
-      "relationship": "one-to-one",
-      "status": "retired",
-      "authority": false,
-      "evidence_projection": {
-        "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/migration-reference/v1",
-        "loss": "lossless",
-        "notes": "Retained only for regression and migration-history tests; excluded from production imports and bundles."
       }
     }
   ]

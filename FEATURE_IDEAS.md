@@ -1,5 +1,10 @@
 # Feature Ideas & Implementation Plan
 
+> **Historical backlog.** Keep the concrete behavior examples, but do not use
+> its old Python/TypeScript path references or multi-engine parity instructions
+> as current architecture. Processing now has one Rust/Salsa authority; current
+> status and paths are in `CLAUDE.md`, `README.md`, and the 55-step Rust plan.
+
 Curated backlog for the Chronicle Android Raw Data Preprocessor, selected
 2026-06-04. Tags: **[infra]** = builds on existing infrastructure (low-friction);
 **[net-new]** = new subsystem. Each feature notes its **surface impact** —

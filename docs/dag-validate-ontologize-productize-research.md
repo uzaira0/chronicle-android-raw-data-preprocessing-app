@@ -1,5 +1,9 @@
 # Validate / Ontologize / Productize the Pipeline DAG — Discovery Report
 
+> **Historical discovery report.** It preserves useful test cases and prior-art
+> findings, but references the now-deleted TypeScript graph engine. Apply those
+> findings to the current 55-step Rust/Salsa runtime, not to the old paths.
+
 Date: 2026-07-17. Method: weight dump (grep-weights) → exclusion-list-disciplined web
 discovery (2 passes) → local prior-art mining of `/home/opt/{knowledge-base,
 research-standards, sleep-scoring-web(+ggir-ontology-extraction worktree),

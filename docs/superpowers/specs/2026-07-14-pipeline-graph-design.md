@@ -1,5 +1,9 @@
 # Pipeline Graph + Feature Wiring — Design Spec
 
+> **Superseded design record.** The TypeScript scheduler proposed below was
+> implemented, evaluated, and then deleted. The current design uses 55 real
+> Salsa-tracked Rust computations; Rust projects their status into the graph UI.
+
 Date: 2026-07-14. Status: APPROVED design, pending implementation plan.
 Knowledge base: `docs/pipeline-graph/` (docs 01-12). This spec is normative; the KB docs
 carry the full derivations, audits, and prior-art extractions it references.

@@ -70,6 +70,8 @@ pub struct PipelineStepDefinition {
 #[serde(rename_all = "camelCase")]
 pub struct PipelineStepContract {
     pub protocol_version: &'static str,
+    pub preprocessor_version: &'static str,
+    pub canonical_interaction_types: &'static [&'static str],
     pub unbound_option_keys: &'static [&'static str],
     pub root_roles: Vec<PipelineRootRoleDefinition>,
     pub groups: Vec<PipelineGroupContractEntry>,
@@ -1246,6 +1248,8 @@ pub fn step_source_role_bindings(step_id: &str) -> Vec<PipelineSourceRoleBinding
 pub fn pipeline_step_contract() -> PipelineStepContract {
     PipelineStepContract {
         protocol_version: "chronicle-preprocessing-step-contract/v3",
+        preprocessor_version: crate::pipeline_v2::PREPROCESSOR_VERSION,
+        canonical_interaction_types: crate::CANONICAL_INTERACTION_TYPES,
         unbound_option_keys: &[
             "enable_plotting",
             "include_filtered_app_usage_in_plots",

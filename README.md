@@ -9,13 +9,12 @@ computations that match the complete Rust oracle in every usage mode. The
 stateful kernel skips every step on an unchanged call and runs only
 `assemble_result` for an output-only study-name change.
 
-This is not yet a production-readiness claim. The runtime now computes through
-the 55 tracked queries and reports their actual execution events, while the old
-15-group scheduler remains only as a compatibility artifact/view builder.
-Generated dependency evidence must be rebuilt against the tracked
-implementation. A root-bound optional query-cache persistence path now exists,
-but its full real-WASM reload/crash/size proof and the empirical, browser,
-mutation, security, and performance gates remain.
+The runtime computes through the 55 tracked queries and reports their actual
+execution events. The 15 groups are display summaries, not another scheduler.
+Persisted Salsa snapshots were removed after profiling showed that restoring
+one was slower and much larger than recalculating from the verified inputs.
+OPFS keeps the source, configuration, results, history, evidence, and views;
+the in-worker Salsa database is only a fast disposable cache.
 
 See the
 [55-step incremental Rust plan](docs/semantic-federation/55-step-incremental-rust-plan.md)
@@ -25,9 +24,8 @@ checks. The separate
 the existing semantic, storage, provenance, and browser boundaries already
 prove.
 
-The executable variability proof combines the closed
-[four-mode timezone configuration family](docs/semantic-federation/configuration-family.md)
-with a contract-derived Rust/WASM campaign over all 46 computational options,
+The executable variability proof uses a contract-derived Rust/WASM campaign
+over all 46 computational options,
 separate proofs for the eight annotation/view/execution axes, catalog-derived
 synthetic corpora, explicit binding/qualification holes, and
 incremental-versus-cold replay. The existing checked controlled-intervention ledger holds

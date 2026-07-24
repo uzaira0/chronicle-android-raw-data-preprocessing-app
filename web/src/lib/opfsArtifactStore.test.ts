@@ -6,17 +6,15 @@ import {
   importRuntimeClosure,
   openOpfsRoot,
   openOpfsWorkspace,
-  persistRuntimeQueryCache,
   persistRuntimeWorkspace,
   probeOpfsCapability,
   readRuntimeObject,
-  recoverRuntimeQueryCache,
-  recoverRuntimeQueryCacheSlots,
   recoverRuntimeWorkspace,
   recoverRuntimeWorkspaceRoots,
   runtimeClosureWorkspaceId,
   type PersistedRuntimeArtifact,
   type RuntimeClosureManifest,
+  type WorkspaceRootSlot,
   verifyRuntimeWorkspace,
 } from "@/lib/opfsArtifactStore";
 
@@ -24,9 +22,15 @@ class MemoryFileHandle {
   readonly kind = "file" as const;
   bytes = new Uint8Array();
   reads = 0;
+  nextReadError: Error | undefined;
 
   getFile(): Promise<File> {
     this.reads += 1;
+    if (this.nextReadError) {
+      const error = this.nextReadError;
+      this.nextReadError = undefined;
+      return Promise.reject(error);
+    }
     return Promise.resolve(new File([this.bytes], "object"));
   }
 
@@ -122,6 +126,15 @@ async function artifact(
   kind: string,
   value: string,
 ): Promise<PersistedRuntimeArtifact> {
+  if (kind === "workspace-root-json" && !value.trimStart().startsWith("{")) {
+    const testLabel = value;
+    value = JSON.stringify({
+      workspaceId: `sha256:${"1".repeat(64)}`,
+      previousWorkspaceRootDigest: null,
+      artifactDigests: [],
+      testLabel,
+    });
+  }
   const bytes = new TextEncoder().encode(value);
   return { kind, digest: await digest(bytes), size: bytes.byteLength, bytes };
 }
@@ -140,113 +153,17 @@ function objectFile(root: MemoryDirectoryHandle, objectDigest: string): MemoryFi
 }
 
 describe("OPFS content-addressed runtime workspace", () => {
-  it("commits optional query caches without making them workspace authority", async () => {
-    const root = new MemoryDirectoryHandle();
-    const firstRoot = await artifact("workspace-root-json", "root-one");
-    const workspaceSlot = await persistRuntimeWorkspace(rootHandle(root), {
-      workspaceRootDigest: firstRoot.digest,
-      previousWorkspaceRootDigest: null,
-      artifacts: [firstRoot],
-    });
-    const firstCacheBytes = new TextEncoder().encode("salsa-cache-one");
-    const firstCache = await persistRuntimeQueryCache(rootHandle(root), {
-      baseWorkspaceRootDigest: workspaceSlot.workspaceRootDigest,
-      bytes: firstCacheBytes,
-    });
-    expect(firstCache.generation).toBe(1);
-    await expect(
-      recoverRuntimeQueryCache(rootHandle(root), workspaceSlot.workspaceRootDigest),
-    ).resolves.toMatchObject({ slot: { generation: 1 }, bytes: firstCacheBytes });
-
-    expect(
-      await garbageCollectRuntimeObjects(
-        rootHandle(root),
-        [workspaceSlot],
-        [firstCache],
-      ),
-    ).toBe(0);
-    expect(await readRuntimeObject(rootHandle(root), firstCache.cacheObjectDigest)).toEqual(
-      firstCacheBytes,
-    );
-
-    const unrelatedRoot = `sha256:${"d".repeat(64)}`;
-    await expect(
-      recoverRuntimeQueryCache(rootHandle(root), unrelatedRoot),
-    ).resolves.toBeUndefined();
-    expect((await recoverRuntimeWorkspace(rootHandle(root)))?.workspaceRootDigest).toBe(
-      workspaceSlot.workspaceRootDigest,
-    );
-  });
-
-  it("drops corrupt or torn optional query caches while preserving the workspace", async () => {
-    const root = new MemoryDirectoryHandle();
-    const rootArtifact = await artifact("workspace-root-json", "stable-root");
-    const workspaceSlot = await persistRuntimeWorkspace(rootHandle(root), {
-      workspaceRootDigest: rootArtifact.digest,
-      previousWorkspaceRootDigest: null,
-      artifacts: [rootArtifact],
-    });
-    const cache = await persistRuntimeQueryCache(rootHandle(root), {
-      baseWorkspaceRootDigest: workspaceSlot.workspaceRootDigest,
-      bytes: new TextEncoder().encode("cache"),
-    });
-    objectFile(root, cache.cacheObjectDigest).bytes = new TextEncoder().encode("bad!!");
-    await expect(
-      recoverRuntimeQueryCache(rootHandle(root), workspaceSlot.workspaceRootDigest),
-    ).resolves.toBeUndefined();
-    await expect(recoverRuntimeWorkspace(rootHandle(root))).resolves.toMatchObject({
-      workspaceRootDigest: workspaceSlot.workspaceRootDigest,
-    });
-
-    const roots = root.directories
-      .get("chronicle-preprocessing-runtime-v1")!
-      .directories.get("roots")!;
-    roots.files.get("cache-a.json")!.bytes = new TextEncoder().encode("torn");
-    await expect(
-      recoverRuntimeQueryCache(rootHandle(root), workspaceSlot.workspaceRootDigest),
-    ).resolves.toBeUndefined();
-    await expect(recoverRuntimeWorkspace(rootHandle(root))).resolves.toMatchObject({
-      workspaceRootDigest: workspaceSlot.workspaceRootDigest,
-    });
-  });
-
-  it("retains both cache generations so corruption falls back to the prior cache", async () => {
-    const root = new MemoryDirectoryHandle();
-    const rootArtifact = await artifact("workspace-root-json", "stable-root");
-    const workspaceSlot = await persistRuntimeWorkspace(rootHandle(root), {
-      workspaceRootDigest: rootArtifact.digest,
-      previousWorkspaceRootDigest: null,
-      artifacts: [rootArtifact],
-    });
-    const firstBytes = new TextEncoder().encode("cache-generation-one");
-    const secondBytes = new TextEncoder().encode("cache-generation-two");
-    const first = await persistRuntimeQueryCache(rootHandle(root), {
-      baseWorkspaceRootDigest: workspaceSlot.workspaceRootDigest,
-      bytes: firstBytes,
-    });
-    const second = await persistRuntimeQueryCache(rootHandle(root), {
-      baseWorkspaceRootDigest: workspaceSlot.workspaceRootDigest,
-      bytes: secondBytes,
-    });
-    const retained = await recoverRuntimeQueryCacheSlots(rootHandle(root));
-    expect(retained.map(({ generation }) => generation)).toEqual([2, 1]);
-    expect(
-      await garbageCollectRuntimeObjects(rootHandle(root), [workspaceSlot], retained),
-    ).toBe(0);
-
-    objectFile(root, second.cacheObjectDigest).bytes = new TextEncoder().encode("corrupt");
-    await expect(
-      recoverRuntimeQueryCache(rootHandle(root), workspaceSlot.workspaceRootDigest),
-    ).resolves.toMatchObject({
-      slot: { generation: first.generation },
-      bytes: firstBytes,
-    });
-  });
-
   it("commits alternating roots, deduplicates objects, recovers, reads, and collects", async () => {
     const root = new MemoryDirectoryHandle();
-    const firstRoot = await artifact("workspace-root-json", "root-one");
     const firstPayload = await artifact("app-csv", "first");
+    const firstRoot = await artifact(
+      "workspace-root-json",
+      JSON.stringify({
+        workspaceId: `sha256:${"1".repeat(64)}`,
+        previousWorkspaceRootDigest: null,
+        artifactDigests: [firstPayload.digest],
+      }),
+    );
     const first = await persistRuntimeWorkspace(rootHandle(root), {
       workspaceRootDigest: firstRoot.digest,
       previousWorkspaceRootDigest: null,
@@ -257,8 +174,15 @@ describe("OPFS content-addressed runtime workspace", () => {
       firstPayload.bytes,
     );
 
-    const secondRoot = await artifact("workspace-root-json", "root-two");
     const secondPayload = await artifact("app-csv", "second");
+    const secondRoot = await artifact(
+      "workspace-root-json",
+      JSON.stringify({
+        workspaceId: `sha256:${"1".repeat(64)}`,
+        previousWorkspaceRootDigest: firstRoot.digest,
+        artifactDigests: [secondPayload.digest],
+      }),
+    );
     const second = await persistRuntimeWorkspace(rootHandle(root), {
       workspaceRootDigest: secondRoot.digest,
       previousWorkspaceRootDigest: first.workspaceRootDigest,
@@ -303,6 +227,31 @@ describe("OPFS content-addressed runtime workspace", () => {
     });
   });
 
+  it("does not hide a transient newest-root read failure by rolling back", async () => {
+    const root = new MemoryDirectoryHandle();
+    const firstRoot = await artifact("workspace-root-json", "root-one");
+    const first = await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: firstRoot.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [firstRoot],
+    });
+    const secondRoot = await artifact("workspace-root-json", "root-two");
+    await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: secondRoot.digest,
+      previousWorkspaceRootDigest: first.workspaceRootDigest,
+      recoveredSlot: first,
+      artifacts: [secondRoot],
+    });
+    objectFile(root, secondRoot.digest).nextReadError = new DOMException(
+      "temporary device failure",
+      "NotReadableError",
+    );
+
+    await expect(recoverRuntimeWorkspace(rootHandle(root))).rejects.toThrow(
+      /temporary device failure/,
+    );
+  });
+
   it("stops after verifying the newest valid root", async () => {
     const root = new MemoryDirectoryHandle();
     const firstRoot = await artifact("workspace-root-json", "root-one");
@@ -337,11 +286,15 @@ describe("OPFS content-addressed runtime workspace", () => {
   it("exports and imports a self-verifying portable artifact closure", async () => {
     const source = new MemoryDirectoryHandle();
     const workspaceId = `sha256:${"7".repeat(64)}`;
+    const payload = await artifact("app-csv", "payload");
     const rootArtifact = await artifact(
       "workspace-root-json",
-      JSON.stringify({ workspaceId }),
+      JSON.stringify({
+        workspaceId,
+        previousWorkspaceRootDigest: null,
+        artifactDigests: [payload.digest],
+      }),
     );
-    const payload = await artifact("app-csv", "payload");
     const slot = await persistRuntimeWorkspace(rootHandle(source), {
       workspaceRootDigest: rootArtifact.digest,
       previousWorkspaceRootDigest: null,
@@ -375,6 +328,127 @@ describe("OPFS content-addressed runtime workspace", () => {
         Promise.resolve(),
       ),
     ).rejects.toThrow(/digest mismatch/);
+  });
+
+  it("retains, exports, and imports the complete three-run history", async () => {
+    const workspaceId = `sha256:${"6".repeat(64)}`;
+    const source = new MemoryDirectoryHandle();
+    let previous: WorkspaceRootSlot | undefined;
+    const roots: PersistedRuntimeArtifact[] = [];
+    const payloads: PersistedRuntimeArtifact[] = [];
+    for (const label of ["first", "second", "third"]) {
+      const payload = await artifact("app-csv", label);
+      const rootArtifact = await artifact(
+        "workspace-root-json",
+        JSON.stringify({
+          workspaceId,
+          previousWorkspaceRootDigest: previous?.workspaceRootDigest ?? null,
+          artifactDigests: [payload.digest],
+        }),
+      );
+      previous = await persistRuntimeWorkspace(rootHandle(source), {
+        workspaceRootDigest: rootArtifact.digest,
+        previousWorkspaceRootDigest: previous?.workspaceRootDigest ?? null,
+        recoveredSlot: previous,
+        artifacts: [rootArtifact, payload],
+      });
+      roots.push(rootArtifact);
+      payloads.push(payload);
+    }
+    const heads = await recoverRuntimeWorkspaceRoots(rootHandle(source));
+    expect(heads.map(({ generation }) => generation)).toEqual([3, 2]);
+    await expect(
+      garbageCollectRuntimeObjects(rootHandle(source), heads),
+    ).resolves.toBe(0);
+    for (const value of [...roots, ...payloads]) {
+      await expect(readRuntimeObject(rootHandle(source), value.digest)).resolves.toEqual(
+        value.bytes,
+      );
+    }
+
+    const archive = await exportRuntimeClosure(rootHandle(source), previous!);
+    const destination = new MemoryDirectoryHandle();
+    const imported = await importRuntimeClosure(
+      rootHandle(destination),
+      archive,
+      () => Promise.resolve(),
+    );
+    expect(imported.previousWorkspaceRootDigest).toBe(roots[1].digest);
+    await expect(verifyRuntimeWorkspace(rootHandle(destination), imported)).resolves.toBeUndefined();
+    for (const value of [...roots, ...payloads]) {
+      await expect(
+        readRuntimeObject(rootHandle(destination), value.digest),
+      ).resolves.toEqual(value.bytes);
+    }
+    await expect(
+      importRuntimeClosure(rootHandle(destination), archive, () => Promise.resolve()),
+    ).resolves.toEqual(imported);
+
+    const divergent = new MemoryDirectoryHandle();
+    const divergentRoot = await artifact(
+      "workspace-root-json",
+      JSON.stringify({
+        workspaceId,
+        previousWorkspaceRootDigest: null,
+        artifactDigests: [],
+        branch: "divergent",
+      }),
+    );
+    await persistRuntimeWorkspace(rootHandle(divergent), {
+      workspaceRootDigest: divergentRoot.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [divergentRoot],
+    });
+    await expect(
+      importRuntimeClosure(rootHandle(divergent), archive, () => Promise.resolve()),
+    ).rejects.toThrow(/diverges/);
+  });
+
+  it("fast-forwards an existing workspace across more than one imported commit", async () => {
+    const workspaceId = `sha256:${"4".repeat(64)}`;
+    const source = new MemoryDirectoryHandle();
+    let sourceSlot: WorkspaceRootSlot | undefined;
+    const roots: PersistedRuntimeArtifact[] = [];
+    const payloads: PersistedRuntimeArtifact[] = [];
+    for (const label of ["first", "second", "third"]) {
+      const payload = await artifact("app-csv", label);
+      const rootArtifact = await artifact(
+        "workspace-root-json",
+        JSON.stringify({
+          workspaceId,
+          previousWorkspaceRootDigest: sourceSlot?.workspaceRootDigest ?? null,
+          artifactDigests: [payload.digest],
+        }),
+      );
+      sourceSlot = await persistRuntimeWorkspace(rootHandle(source), {
+        workspaceRootDigest: rootArtifact.digest,
+        previousWorkspaceRootDigest: sourceSlot?.workspaceRootDigest ?? null,
+        recoveredSlot: sourceSlot,
+        artifacts: [rootArtifact, payload],
+      });
+      roots.push(rootArtifact);
+      payloads.push(payload);
+    }
+    const archive = await exportRuntimeClosure(rootHandle(source), sourceSlot!);
+
+    const destination = new MemoryDirectoryHandle();
+    const localFirst = await persistRuntimeWorkspace(rootHandle(destination), {
+      workspaceRootDigest: roots[0].digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [roots[0], payloads[0]],
+    });
+    expect(localFirst.workspaceRootDigest).toBe(roots[0].digest);
+
+    const imported = await importRuntimeClosure(
+      rootHandle(destination),
+      archive,
+      () => Promise.resolve(),
+    );
+    expect(imported.workspaceRootDigest).toBe(roots[2].digest);
+    expect(imported.previousWorkspaceRootDigest).toBe(roots[1].digest);
+    await expect(
+      verifyRuntimeWorkspace(rootHandle(destination), imported),
+    ).resolves.toBeUndefined();
   });
 
   it("fails closed for malformed artifacts, metadata conflicts, and a missing root object", async () => {
@@ -458,7 +532,13 @@ describe("OPFS content-addressed runtime workspace", () => {
 
   it("accepts shared-memory views without retaining them and repairs same-size corruption", async () => {
     const root = new MemoryDirectoryHandle();
-    const source = new TextEncoder().encode("shared-root");
+    const source = new TextEncoder().encode(
+      JSON.stringify({
+        workspaceId: `sha256:${"1".repeat(64)}`,
+        previousWorkspaceRootDigest: null,
+        artifactDigests: [],
+      }),
+    );
     const sharedBytes = new Uint8Array(new SharedArrayBuffer(source.byteLength));
     sharedBytes.set(source);
     const sharedArtifact: PersistedRuntimeArtifact = {
@@ -479,6 +559,7 @@ describe("OPFS content-addressed runtime workspace", () => {
     await persistRuntimeWorkspace(rootHandle(root), {
       workspaceRootDigest: secondRoot.digest,
       previousWorkspaceRootDigest: first.workspaceRootDigest,
+      recoveredSlot: first,
       artifacts: [secondRoot, sharedArtifact],
     });
     expect(await readRuntimeObject(rootHandle(root), sharedArtifact.digest)).toEqual(source);
@@ -659,7 +740,7 @@ describe("OPFS content-addressed runtime workspace", () => {
       artifacts: [rootArtifact],
     });
     await expect(exportRuntimeClosure(rootHandle(root), slot)).rejects.toThrow(
-      /workspace identity/,
+      /workspace identity|invalid committed workspace root/,
     );
   });
 });

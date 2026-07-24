@@ -25,7 +25,11 @@ export type RustStepTiming = {
 export type RustStepExecutionRecord = {
   stepId: string;
   unit: string;
-  status: "ran" | "bypassed";
+  status: RustExecutionStatus;
+  inputKey: string | null;
+  outputDigest: string | null;
+  reasonId: string | null;
+  applicable: boolean;
   rowsIn: number | null;
   rowsOut: number | null;
   droppedRows: number | null;
