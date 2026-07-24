@@ -11,9 +11,9 @@ and the existing large empirical campaigns.
 
 The current branch contains 55 Salsa-tracked Rust computations and a stateful
 engine that produces complete `PipelineV2Result` values. Runtime computation
-and step reporting consume actual executed-step IDs. The old 15-group scheduler
-now builds compatibility artifacts and product views only; it does not decide
-which tracked computation executes. The generated empirical evidence is still
+and step reporting consume actual executed-step IDs. There is no second
+TypeScript scheduler: Rust groups the 55 step events into 15 readable UI
+sections after execution. The generated empirical evidence is still
 stale and must be rebuilt. The authoritative live status and remaining checks are in the
 [55-step incremental Rust plan](55-step-incremental-rust-plan.md). Until those
 checks pass, this document must not be read as a completed production claim.

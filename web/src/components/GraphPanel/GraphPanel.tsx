@@ -22,8 +22,12 @@ import {
   sentenceFor,
   sharedUpstream,
   spliceOut,
-} from "@/lib/pipelineGraph/analysis";
-import type { GraphDef, NodeStatus, Section } from "@/lib/pipelineGraph/graphTypes";
+} from "@/components/GraphPanel/viewGraph";
+import type {
+  NodeStatus,
+  Section,
+  ViewGraph,
+} from "@/components/GraphPanel/viewGraph";
 import type { BrowserProcessingOptions, ProcessedFileResult } from "@/lib/types";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
 import {
@@ -225,7 +229,7 @@ export function GraphPanel({ results, planStageView, displayMasker }: Props): Re
 
   // Rust owns both topology and run state. These are family-specific view
   // records projected into the small graph shape used only for interaction.
-  const unitDef = useMemo<GraphDef<unknown>>(
+  const unitDef = useMemo<ViewGraph>(
     () =>
       ({
         nodes:
@@ -234,15 +238,11 @@ export function GraphPanel({ results, planStageView, displayMasker }: Props): Re
             label: node.label,
             section: node.section,
             inputs: node.input_nodes,
-            // Path analysis accepts option bindings when present; Rust has
-            // already evaluated applicability for this projection, so the UI
-            // deliberately receives no option-to-node semantic bindings.
-            knobs: [],
           })) ?? [],
-      }) as unknown as GraphDef<unknown>,
+      }),
     [stageView],
   );
-  const stepDef = useMemo<GraphDef<unknown>>(() => {
+  const stepDef = useMemo<ViewGraph>(() => {
     const sectionByUnit = new Map(
       stageView?.payload.node_states.map((node) => [node.node_id, node.section]) ?? [],
     );
@@ -254,9 +254,8 @@ export function GraphPanel({ results, planStageView, displayMasker }: Props): Re
           description: step.description,
           section: sectionByUnit.get(step.unit_id) ?? "preprocess",
           inputs: step.input_steps,
-          knobs: [],
         })) ?? [],
-    } as unknown as GraphDef<unknown>;
+    };
   }, [stageView]);
   const def = scale === "steps" ? stepDef : unitDef;
   const stepToUnit = useMemo(

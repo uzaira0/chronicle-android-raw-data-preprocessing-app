@@ -257,6 +257,7 @@ dependencies = [
  "chronicle_app_usage_matcher",
  "chrono",
  "chrono-tz",
+ "csv",
  "csv-core",
  "hex",
  "lz4_flex",

@@ -217,6 +217,84 @@ pub enum UsageSessionMode {
 
 // ---- support file loaders ----------------------------------------------
 
+/// Validate a support file against the exact schema used by the Rust
+/// pipeline before it can satisfy a role. This closes the former gap where a
+/// correctly named CSV with unrelated columns qualified and then behaved like
+/// an empty lookup.
+pub fn validate_support_csv(role: &str, bytes: &[u8]) -> Result<(), String> {
+    let mut reader = csv::ReaderBuilder::new()
+        .has_headers(true)
+        .flexible(true)
+        .from_reader(bytes);
+    let headers = reader
+        .headers()
+        .map_err(|error| format!("{role}: unreadable CSV header: {error}"))?
+        .iter()
+        .map(|header| header.trim().trim_start_matches('\u{feff}').to_string())
+        .collect::<BTreeSet<_>>();
+    let row_count = reader.records().try_fold(0usize, |count, record| {
+        record
+            .map(|record| count + usize::from(record.iter().any(|cell| !cell.trim().is_empty())))
+            .map_err(|error| format!("{role}: malformed CSV record: {error}"))
+    })?;
+    let require = |names: &[&str]| -> Result<(), String> {
+        let missing = names
+            .iter()
+            .filter(|name| !headers.contains(**name))
+            .copied()
+            .collect::<Vec<_>>();
+        if missing.is_empty() {
+            Ok(())
+        } else {
+            Err(format!(
+                "{role}: missing required column(s) {}; found {}",
+                missing.join(", "),
+                headers.iter().cloned().collect::<Vec<_>>().join(", ")
+            ))
+        }
+    };
+    let require_one = |names: &[&str]| -> Result<(), String> {
+        if names.iter().any(|name| headers.contains(*name)) {
+            Ok(())
+        } else {
+            Err(format!(
+                "{role}: requires one of columns {}; found {}",
+                names.join(", "),
+                headers.iter().cloned().collect::<Vec<_>>().join(", ")
+            ))
+        }
+    };
+    match role {
+        "filter_file" => require_one(&["app_package_name", "package_name"]),
+        "apps_forcing_screen_open_file" | "background_apps_file" => {
+            require_one(&["package_name", "app_package_name"])
+        }
+        "app_codebook_file" => require(&["app_package_name"]),
+        "study_dates_file" => {
+            require(&["participant_id", "start_date", "end_date"])?;
+            let windows = parse_study_windows(bytes)?;
+            if row_count == 0 || windows.is_empty() {
+                Err("study_dates_file: no participant study windows found".into())
+            } else {
+                Ok(())
+            }
+        }
+        "device_sharing_file" => {
+            require(&["participant_id", "sharing_status"])?;
+            parse_device_sharing(bytes).map(|_| ())
+        }
+        "survey_attribution_file" => {
+            require(&["participant_id", "event_timestamp", "users"])?;
+            parse_survey_lookup(bytes).map(|_| ())
+        }
+        "enrolled_devices_file" => {
+            require(&["participant_id", "device_count"])?;
+            parse_enrolled_devices(bytes).map(|_| ())
+        }
+        _ => Err(format!("unsupported support role: {role}")),
+    }
+}
+
 /// Build (filter_set, filter_label_map) from raw filter-CSV bytes.
 /// Mirrors `buildFilterMap` semantics — packageName -> Set<labels>.
 /// If labels set is non-empty, only rows with matching application_label match.
@@ -5083,8 +5161,12 @@ fn derive_screen_usage_sessions_full(
 
 // ---- output writer ------------------------------------------------------
 
-fn build_app_columns(opts: &PipelineV2Options, include_codebook_aliases: bool) -> Vec<String> {
-    let include_codebook = opts.use_app_codebook;
+pub fn declared_app_output_columns(
+    include_codebook: bool,
+    include_codebook_aliases: bool,
+    usage_layer_active: bool,
+    custom_app_engagement_duration: f64,
+) -> Vec<String> {
     let mut cols: Vec<String> = Vec::with_capacity(64);
     cols.push("study_id".into());
     cols.push("study_name".into());
@@ -5123,30 +5205,39 @@ fn build_app_columns(opts: &PipelineV2Options, include_codebook_aliases: bool) -
     cols.push("valid_app_new_engage_30s".into());
     cols.push(format!(
         "valid_app_new_engage_custom_{}s",
-        format_custom_dur(opts.custom_app_engagement_duration)
+        format_custom_dur(custom_app_engagement_duration)
     ));
     cols.push("valid_app_switched_app".into());
     cols.push("valid_app_usage_time_gap_hours".into());
     cols.push("any_app_new_engage_30s".into());
     cols.push(format!(
         "any_app_new_engage_custom_{}s",
-        format_custom_dur(opts.custom_app_engagement_duration)
+        format_custom_dur(custom_app_engagement_duration)
     ));
     cols.push("any_app_switched_app".into());
     cols.push("any_app_usage_time_gap_hours".into());
     cols.push("preprocessor_version".into());
     cols.push("datetime_of_preprocessing".into());
-    if opts.model_concurrent_usage || opts.use_background_apps_file {
+    if usage_layer_active {
         cols.push("usage_layer".into());
     }
     cols
+}
+
+fn build_app_columns(opts: &PipelineV2Options, include_codebook_aliases: bool) -> Vec<String> {
+    declared_app_output_columns(
+        opts.use_app_codebook,
+        include_codebook_aliases,
+        opts.model_concurrent_usage || opts.use_background_apps_file,
+        opts.custom_app_engagement_duration,
+    )
 }
 
 fn format_custom_dur(d: f64) -> String {
     js_number_to_string(d)
 }
 
-fn build_screen_columns() -> Vec<String> {
+pub fn declared_screen_output_columns() -> Vec<String> {
     vec![
         "study_id",
         "study_name",
@@ -5184,6 +5275,10 @@ fn build_screen_columns() -> Vec<String> {
     .into_iter()
     .map(String::from)
     .collect()
+}
+
+fn build_screen_columns() -> Vec<String> {
+    declared_screen_output_columns()
 }
 
 fn append_csv_field(out: &mut Vec<u8>, value: &str) {
@@ -6219,6 +6314,44 @@ pub fn run_pipeline_v2_with_supports(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn support_role_validation_uses_real_headers_and_value_parsers() {
+        assert!(validate_support_csv(
+            "filter_file",
+            b"app_package_name,known_application_labels\ncom.example,Example\n",
+        )
+        .is_ok());
+        assert!(
+            validate_support_csv("filter_file", b"unrelated,value\ncom.example,Example\n",)
+                .unwrap_err()
+                .contains("requires one of columns")
+        );
+        assert!(validate_support_csv(
+            "filter_file",
+            b"App_Package_Name,known_application_labels\ncom.example,Example\n",
+        )
+        .unwrap_err()
+        .contains("requires one of columns"));
+        assert!(validate_support_csv(
+            "filter_file",
+            b"app_package_name,known_application_labels\ncom.example,\xff\n",
+        )
+        .unwrap_err()
+        .contains("malformed CSV record"));
+        assert!(validate_support_csv(
+            "device_sharing_file",
+            b"participant_id,sharing_status\nP01,Maybe\n",
+        )
+        .unwrap_err()
+        .contains("unknown sharing_status"));
+        assert!(validate_support_csv(
+            "study_dates_file",
+            b"participant_id,start_date,end_date\nP01,2026-03-08,2026-03-07\n",
+        )
+        .unwrap_err()
+        .contains("before it starts"));
+    }
 
     #[test]
     fn cached_row_layout_is_bounded() {

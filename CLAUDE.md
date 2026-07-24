@@ -13,7 +13,7 @@ The Python desktop engine (PyQt6 GUI + Polars pipeline), its pytest suite, and t
 
 ## Behavioral reference after the desktop removal
 
-The web golden scenarios (`web/src/lib/pipelineGraph/golden/`) are now the **sole behavioral reference** — they byte-lock the CSVs the desktop engine and the soak validated. Consequences:
+The Rust/WASM cold-oracle and dependency campaigns are now the **sole executable behavioral reference**. Their checked evidence remains under `web/src/lib/pipelineGraph/golden/family-expected/`; the directory name is historical and contains data, not a TypeScript graph engine. Consequences:
 - A new flag/option must default such that, **with the flag off, golden output is byte-identical** to before. Add capability as opt-in. Goldens are re-recorded only deliberately (`UPDATE_GOLDEN=1`), never to make a red run green.
 - Green self-validation has shipped real logic bugs before. For logic-dense changes, get an independent review (spawn a code-reviewer subagent / use an independent oracle) before merging.
 
@@ -78,17 +78,19 @@ Most npm scripts wrap the real command in `node scripts/run-clean-env.mjs` to st
   content-addressed objects, alternating authoritative workspace roots, and
   separate optional alternating query-cache roots. Cache recovery occurs only
   after workspace verification and always falls back cold on failure.
-- `lib/browserPipeline.ts` and `lib/pipelineGraph/steps/` — legacy/test behavior
-  references and shared UI-facing types. Production computation must not call
-  their TypeScript transformation or scheduler bodies.
-- `lib/chronicleMatcher.ts` — the browser-facing worker pool; the matcher itself
-  remains Rust authority inside the composed runtime.
+- `lib/rustWorkerClient.ts` — browser-facing worker lifecycle, transferables,
+  pooling, and fault handling. It contains no preprocessing implementation.
+- `components/GraphPanel/viewGraph.ts` — UI-only path/highlight operations over
+  the Rust-projected stage view. It never schedules or computes pipeline data.
 - `lib/plotGenerator.ts` + `lib/plotScene.ts` — a resolution-independent **Scene** model feeds both PNG (canvas) and SVG exports *and* the interactive surfaces, so they cannot drift. Plot types: app timeline, screen timeline, activity heatmap.
 - `components/TimelineViewPanel.tsx` — the current **"view" tab**: an interactive zoomable waterfall timeline built from the Scene model. `buildAppTimelineViews()` / `buildScreenTimelineViews()` in `plotGenerator.ts` are the switch points that feed both the View tab and the exported interactive HTML (`lib/timelineViewer.ts`).
 - Persistence: IndexedDB projects (`lib/projectsStore.ts`, file bundling opt-in), localStorage settings/presets (`lib/settingsPersistence.ts`). Service worker (`public/sw.js`) caches for offline use.
 
 ### The contract (web defaults & option keys)
 `web/schema/chronicle-local-contract.linkml.yaml` (LinkML) is the source of truth for web option keys, defaults, and tooltips. `npm run check:contract` regenerates and validates `web/src/lib/generatedContract.ts` (`BROWSER_PROCESSING_OPTION_KEYS`, `DEFAULT_BROWSER_OPTIONS`, `BROWSER_OPTION_TOOLTIPS`). **Edit the LinkML schema, not the generated file**, then regenerate.
+
+`npm run check:authority-boundary` fails if the deleted TypeScript engine,
+graph scheduler, shadow path, or provenance builder is reintroduced.
 
 ## Usage-window semantics (research-pipeline consumer)
 

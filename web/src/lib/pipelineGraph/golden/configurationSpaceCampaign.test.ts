@@ -13,7 +13,6 @@ import {
   EXECUTION_BROWSER_OPTION_KEYS,
   VIEW_BROWSER_OPTION_KEYS,
 } from "@/lib/generatedContract";
-import { GOLDEN_RUNTIME } from "@/lib/pipelineGraph/golden/goldenScenario";
 
 const RUNTIME_ARTIFACT_REQUEST_FIELDS = new Set([
   "enable_parquet_export",
@@ -21,10 +20,10 @@ const RUNTIME_ARTIFACT_REQUEST_FIELDS = new Set([
 ]);
 import {
   ALL_ON,
-  def,
+  GOLDEN_RUNTIME,
   descendantsOf,
   order,
-} from "@/lib/pipelineGraph/validationHarness";
+} from "@/testSupport/rustCampaignGraph";
 import { buildRustV2Options } from "@/lib/rustPipelineRuntime";
 import type { BrowserProcessingOptions } from "@/lib/types";
 import {

@@ -1,7 +1,6 @@
 import dagre from "@dagrejs/dagre";
 
-import { spliceOut } from "@/lib/pipelineGraph/analysis";
-import type { GraphDef, Section } from "@/lib/pipelineGraph/graphTypes";
+import { spliceOut, type Section, type ViewGraph } from "@/components/GraphPanel/viewGraph";
 
 /**
  * Pure layout over the declared pipeline graph. The WHOLE graph is laid out by
@@ -58,7 +57,7 @@ export interface GraphLayout {
   edges: LayoutEdge[];
 }
 
-export function layoutGraph(def: GraphDef<unknown>, direction: LayoutDirection): GraphLayout {
+export function layoutGraph(def: ViewGraph, direction: LayoutDirection): GraphLayout {
   const cleanIds = new Set(
     def.nodes.filter((node) => node.section === "clean").map((node) => node.id),
   );

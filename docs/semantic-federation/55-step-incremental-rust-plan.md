@@ -37,10 +37,10 @@ Six different things exist today and must not be confused:
 4. `IncrementalPipelineV2Engine` retains one Salsa database across calls and
    updates individual source, support-file, and option inputs only when their
    values change.
-5. The runtime has begun calling that stateful engine and now receives the
-   exact step bodies that executed, but the old 15-group scheduler, names,
-   generated bindings, and dependency receipts have not all been regenerated
-   or removed yet.
+5. The runtime calls that stateful engine and receives the exact step bodies
+   that executed. The deleted TypeScript engine no longer supplies scheduling,
+   transformations, status, provenance, or output artifacts; the 15 groups are
+   Rust-produced display summaries only.
 6. `run_pipeline_v2_with_supports()` remains the independent complete Rust
    oracle while the tracked path is verified. It is not the intended warm
    execution authority.
@@ -531,10 +531,10 @@ named command or file proving it.
 | Cache typed intermediates without large copies | active | The Salsa database reuses typed `Arc` results in one worker; allocation, retained-result, and large-fixture memory profiles remain. |
 | Split terminal outputs and derived views into queries | active | `assemble_result` is a tracked terminal query and output-only reuse is proven; independently reusable artifact/view queries remain. |
 | Persist compatible query state | active | Kernel MessagePack snapshot, exact identity/digest checks, singleton-input recovery, optional OPFS cache roots, and browser restore/save wiring exist. Complete the real-WASM reload, crash/corruption, size, memory, and cold-fallback matrix. |
-| Replace inferred statuses with real events | active | Runtime step status consumes `IncrementalPipelineV2Execution.executed_steps`; old 15-group reporting and stale dependency receipts still need removal/regeneration. |
+| Replace inferred statuses with real events | active | Runtime step status consumes `IncrementalPipelineV2Execution.executed_steps`; dependency evidence still needs regeneration after the final source change. |
 | Run all existing empirical campaigns on physical events | pending | Updated ledgers with cold parity and actual event sets. |
-| Enforce TypeScript boundary | pending | Architecture checks and production bundle search. |
-| Remove superseded scheduler/status code | pending | Dead-code/dependency checks after cutover. |
+| Enforce TypeScript boundary | done | `check_no_typescript_authority.mts`, its seeded-failure gate, typecheck, and production bundle search reject a second engine. |
+| Remove superseded scheduler/status code | done | TypeScript pipeline, graph engine, 55-step mirror, shadow runner, duplicate reports/exporters, obsolete benchmarks, and their static-analysis rules are deleted. |
 | Meet coverage and mutation requirements | pending | Rust coverage and mutation reports. |
 | Meet performance requirements | pending | Hyperfine/flamegraph/browser profile report. |
 | Complete browser durability decision | pending | Cross-browser tests or explicit supported-browser restriction. |
@@ -555,7 +555,7 @@ named command or file proving it.
 | Query persistence | save/reload/version/corruption cases | OPFS integration and browser E2E | reload one workspace offline | partial writes, wrong digest/build/schema | crash injection at every commit point | pending |
 | Provenance and explanations | real event/reason mapping | journal, index, registered-query tests | request stage and explanation views | no inferred cached/recomputed status | replay and root equality | pending |
 | Terminal results/views | independent output and view query tests | native/WASM and browser tests | render complete result offline | no unchanged artifact regeneration | exact bytes, lineage/correspondence parity | pending |
-| TypeScript boundary | forbidden import/symbol cases | typecheck, static checks, production build | worker starts and processes through Rust | no TS computation or semantic authority | make legacy modules unavailable in E2E | pending |
+| TypeScript boundary | forbidden import/symbol cases | typecheck, authority check, production build | worker starts and processes through Rust | no TS computation or semantic authority | seeded attempt to restore a retired symbol must fail | active; source/type checks pass, final E2E/build pending |
 | Performance | committed benchmark cases and thresholds | Hyperfine, browser profile, native flamegraph | benchmark fixture hash and output hash | fail on false cached claim | repeated distributions, memory, bundle size | pending |
 | Security/supply chain | malformed cache/profile/artifact cases | cargo audit/deny, Semgrep, ast-grep, Trivy, gitleaks | offline execution | profiles cannot inject code; cache cannot bypass verification | fuzz parsers and import paths | pending |
 | Release/rollback | query-runtime and cold-oracle switches | complete `make all` plus new gates | preview loads offline | no production/main/research-pipeline changes | rollback rehearsal and preview hash | pending |
@@ -570,7 +570,7 @@ systems are explicitly outside this goal.
 | Question | Evidence | Decision |
 |---|---|---|
 | Should the shared semantic toolchain execute product graphs? | Registry/toolchain/template boundaries and prior cross-repo review | No. Chronicle owns its queries. |
-| Is the old 15-node scheduler sufficient? | Runtime scheduler and `build_runtime_step_executions()` source | No. The Salsa database now owns intermediate reuse; the old scheduler remains only as unfinished reporting/provenance integration and must not decide physical execution. |
+| Is a second 15-node scheduler needed? | Rust Salsa events and the deleted TypeScript graph engine | No. Salsa owns execution and reuse; the 15 Rust-produced groups exist only to make the 55-step run readable in the UI. |
 | Is the existing 55-step contract useful? | Rust step IDs, topology, config/source bindings, and empirical tests | Yes. Keep it and bind it to real queries. |
 | Should the declared graph or observed reads control invalidation? | Stale-result risk and existing TypeScript Proxy read-tracing precedent | Observed tracked reads control execution; the declared graph is checked against them. |
 | Why try Salsa? | Shared native/WASM probe, actual-read tracking, events, memoization, early cutoff, current persistence feature | It is the first bounded product trial, not a global standard. |

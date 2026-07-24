@@ -24,7 +24,6 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 GRAPH_YAML = ROOT / "web/schema/chronicle-pipeline-graph.yaml"
 LOCAL_CONTRACT = ROOT / "web/schema/chronicle-local-contract.linkml.yaml"
-GRAPH_DEF = ROOT / "web/src/lib/pipelineGraph/graphDef.ts"
 PIPELINE_V2 = ROOT / "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs"
 PIPELINE_INCREMENTAL = (
     ROOT / "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs"
@@ -32,8 +31,6 @@ PIPELINE_INCREMENTAL = (
 STEP_CONTRACT = ROOT / "rust/chronicle_chrono_kernel_wasm/src/step_contract.rs"
 KERNEL_MANIFEST = ROOT / "rust/chronicle_chrono_kernel_wasm/Cargo.toml"
 MATCHER_WASM = ROOT / "rust/chronicle_app_usage_wasm"
-TYPESCRIPT_PIPELINE = ROOT / "web/src/lib/browserPipeline.ts"
-TYPESCRIPT_GRAPH = ROOT / "web/src/lib/pipelineGraph"
 FEDERATION = ROOT / ".semantic-federation"
 RESOURCE_ROOT = FEDERATION / "semantic/resources"
 PLAN_OUTPUT = RESOURCE_ROOT / "chronicle.plan.json"
@@ -57,24 +54,6 @@ DEPENDENCY_PROOF_LEDGERS = [
 
 BASE_REF = "5f8e64527edd33f90901cd553602063daadf0014"
 FEATURE_REF = "b857be0382777892d4fa8c8a3a48934b07e6ad0c"
-
-UNIT_MODULES = {
-    "parse_events": "parseEvents.ts",
-    "normalize_timezones": "normalizeTimezones.ts",
-    "dedup_and_order": "dedupAndOrder.ts",
-    "app_policy": "appPolicy.ts",
-    "device_state_timeline": "deviceStateTimeline.ts",
-    "reconstruct_episodes": "reconstructEpisodes.ts",
-    "categorize_apps": "categorizeApps.ts",
-    "episode_annotations": "episodeAnnotations.ts",
-    "interval_cleaning": "intervalCleaning.ts",
-    "effective_usage": "effectiveUsage.ts",
-    "observation_window": "observationWindow.ts",
-    "attribute_person": "attributePerson.ts",
-    "day_coverage": "dayCoverage.ts",
-    "score_compliance": "scoreCompliance.ts",
-    "outputs": "outputs.ts",
-}
 
 RUNTIME_CAPABILITY_PREFIX = (
     "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime"
@@ -499,10 +478,6 @@ def build_dependency_certificate(plan: dict) -> dict:
     }
 
 
-def source_path_for_unit(unit_id: str) -> Path:
-    return ROOT / "web/src/lib/pipelineGraph/steps" / UNIT_MODULES[unit_id]
-
-
 def independently_callable_rust_steps(step_ids: list[str]) -> list[str]:
     source = PIPELINE_INCREMENTAL.read_text(encoding="utf-8")
     tracked_functions = set(
@@ -704,7 +679,7 @@ def build_runtime_authority(plan: dict) -> dict:
         "surfaces": RUNTIME_SURFACES,
         "typescript_host_allowances": [
             {
-                "path": "web/src/lib/chronicleMatcher.ts",
+                "path": "web/src/lib/rustWorkerClient.ts",
                 "purpose": "Web Worker lifecycle, request correlation, transferables, and pool fault handling",
                 "may_define_product_semantics": False,
             },
@@ -721,11 +696,6 @@ def build_runtime_authority(plan: dict) -> dict:
             {
                 "path": "web/src/lib/fileInspection.ts",
                 "purpose": "Non-authoritative upload readiness preview; execution re-parses and validates in Rust",
-                "may_define_product_semantics": False,
-            },
-            {
-                "path": "web/src/lib/processingReport.ts",
-                "purpose": "Download-facing projection of Rust-owned execution evidence and browser environment metadata",
                 "may_define_product_semantics": False,
             },
             {
@@ -837,26 +807,6 @@ def build_bindings(plan: dict, runtime_authority: dict) -> dict:
                     "notes": "Non-authoritative native target executes the same Rust runtime for deterministic parity and fault tests.",
                 },
             },
-            {
-                "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/typescript-reference-harness",
-                "capability_ids": logical_capabilities,
-                "implementation": {
-                    "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/typescript-reference-harness",
-                    "language": "typescript",
-                    "target": "test-only",
-                    "source": "web/src/lib/browserPipeline.ts",
-                    "entrypoint": "processRawCsvContent",
-                    "build_digest": closure_digest([TYPESCRIPT_PIPELINE, TYPESCRIPT_GRAPH]),
-                },
-                "relationship": "one-to-one",
-                "status": "retired",
-                "authority": False,
-                "evidence_projection": {
-                    "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/migration-reference/v1",
-                    "loss": "lossless",
-                    "notes": "Retained only for regression and migration-history tests; excluded from production imports and bundles.",
-                },
-            },
         ],
     }
 
@@ -873,18 +823,12 @@ def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) 
             "isolated_worktree_branch": "codex/chronicle-55-step-authority",
         },
         "sources": {
-            "unit_graph": {
-                "path": str(GRAPH_DEF.relative_to(ROOT)),
-                "digest": digest(GRAPH_DEF),
-                "executable": True,
-                "production_authority": False,
-                "purpose": "test-only-migration-reference",
-            },
-            "step_wirings": {
-                "directory": "web/src/lib/pipelineGraph/steps",
-                "executable": True,
-                "production_authority": False,
-                "purpose": "test-only-migration-reference",
+            "rust_step_contract": {
+                "path": str(STEP_CONTRACT.relative_to(ROOT)),
+                "digest": digest(STEP_CONTRACT),
+                "executable": False,
+                "production_authority": True,
+                "purpose": "declares the exact 55 Rust query ids and edges",
             },
             "structural_projection": {
                 "path": str(GRAPH_YAML.relative_to(ROOT)),

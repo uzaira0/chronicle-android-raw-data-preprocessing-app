@@ -7,7 +7,7 @@ import {
   inspectRawFiles,
   setRawFileInspectorForTesting,
 } from "@/lib/fileInspection";
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import { inspectRustRawFile, setRustRuntimeForTesting } from "@/lib/rustPipelineRuntime";
 import * as runtimeWasm from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
 

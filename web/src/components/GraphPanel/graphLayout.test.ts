@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { buildChronicleGraph } from "@/lib/pipelineGraph/graphDef";
-import type { GraphDef } from "@/lib/pipelineGraph/graphTypes";
+import productPlan from "../../../../.semantic-federation/semantic/resources/chronicle.plan.json";
+import type { ViewGraph } from "@/components/GraphPanel/viewGraph";
 import { layoutGraph, NODE_HEIGHT, NODE_WIDTH } from "@/components/GraphPanel/graphLayout";
 
 describe("graph layout (single dagre pass, real edges only)", () => {
-  const def = buildChronicleGraph() as GraphDef<unknown>;
+  const def: ViewGraph = {
+    nodes: productPlan.nodes.map((node) => ({
+      id: node.node_id,
+      label: node.label,
+      section: node.section as ViewGraph["nodes"][number]["section"],
+      inputs: node.input_nodes,
+    })),
+  };
   const cleanIds = new Set(
     def.nodes.filter((node) => node.section === "clean").map((node) => node.id),
   );

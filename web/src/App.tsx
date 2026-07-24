@@ -18,8 +18,8 @@ import {
   getPlanStageView,
   processRawCsvBytes,
   processRawCsvBytesViaPool,
-  warmMatcher,
-} from "@/lib/chronicleMatcher";
+  warmRuntime,
+} from "@/lib/rustWorkerClient";
 import { BUILD_DATE, BUILD_SHA } from "@/lib/buildInfo";
 import { ensureNotificationPermission, sendNotification } from "@/lib/notification";
 import { clearLastRun, loadLastRun, saveLastRun } from "@/lib/lastRunStore";
@@ -270,7 +270,7 @@ export default function App(): ReactElement {
   // Warm the matcher worker on boot: faster first run, and a still-live worker
   // if the network drops before the user processes.
   useEffect(() => {
-    void warmMatcher();
+    void warmRuntime();
   }, []);
 
   // Surface a "new version available" banner when the service worker updates.

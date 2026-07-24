@@ -58,6 +58,7 @@ function run(label, command, args, options = {}) {
 }
 
 /** Wait for every child before reporting failure so no writer outlives rollback. */
+/** @param {Promise<unknown>[]} jobs */
 async function runAll(jobs) {
   const results = await Promise.allSettled(jobs);
   const failures = results

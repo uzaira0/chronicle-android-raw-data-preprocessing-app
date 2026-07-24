@@ -1,16 +1,12 @@
 /**
  * Browser transport and persistence boundary for the authoritative Rust/WASM
- * preprocessing runtime. The legacy parity helper at the end of this module is
- * retained only as migration-test evidence; production calls executeRustRuntime.
+ * preprocessing runtime.
  */
 import type {
   BrowserProcessingOptions,
   BrowserProcessingRuntime,
   BrowserSupportFile,
   BrowserSupportFiles,
-  ProcessedFileResult,
-  RustShadowArtifactComparison,
-  RustShadowReport,
 } from "@/lib/types";
 import type { RawFileInspection } from "@/lib/fileInspection";
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
@@ -18,7 +14,7 @@ import defaultAppsToFilterUrl from "@/assets/defaults/Chronicle_Android_raw_data
 import defaultAppsForcingScreenOpenUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?url";
 import defaultBackgroundAppsUrl from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv?url";
 import { fetchBundledAssetBytes } from "@/lib/bundledAssetLoader";
-import { canonicalJson } from "@/lib/processingReport";
+import { canonicalJson } from "@/lib/canonicalJson";
 import {
   exportRuntimeClosure,
   garbageCollectRuntimeObjects,
@@ -83,11 +79,6 @@ type KernelModule = {
     workspaceId: string,
     committedRootDigest: string,
   ): boolean;
-  execute_bounded_v2_shadow(
-    requestJson: string,
-    csvBytes: Uint8Array,
-    supportFiles: RuntimeSupportFilesHandle,
-  ): KernelHandle;
   verify_evidence_journal_cbor(bytes: Uint8Array): number;
 };
 
@@ -962,6 +953,7 @@ export function verifyRuntimeArtifactCatalog(
 
 export type RustRuntimeExecution = {
   workspaceId: string;
+  manifestJson: string;
   manifest: RuntimeManifest;
   artifacts: Map<string, Uint8Array>;
   persistedWorkspace?: WorkspaceRootSlot;
@@ -1386,7 +1378,7 @@ function putSupport(
  * Every unsupported option is loud; adding support requires changing this
  * list and proving it with parity fixtures.
  */
-export function rustV2IneligibilityReasons(
+export function rustRuntimeIneligibilityReasons(
   options: BrowserProcessingOptions,
 ): string[] {
   const reasons: string[] = [];
@@ -1492,140 +1484,6 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
   ).join("");
 }
 
-async function compareArtifact(
-  kind: RustShadowArtifactComparison["kind"],
-  tsResult: ProcessedFileResult,
-  rustBytes: Uint8Array,
-): Promise<RustShadowArtifactComparison> {
-  const outputSuffix = {
-    "credited-app": " Credited App Usage.csv",
-    "day-coverage": " Day Coverage.csv",
-    compliance: " Compliance Report.csv",
-    "aggregate-daily": " Daily Summary.csv",
-    "aggregate-weekly": " Weekly Summary.csv",
-    "aggregate-top-apps": " Top Apps.csv",
-    "aggregate-category-budget": " Category Time Budget.csv",
-    "aggregate-co-usage": " App Co-Usage.csv",
-    "app-spss": " Automatically Preprocessed.sav",
-    "screen-spss": " Screen Usage Automatically Preprocessed.sav",
-  } as const;
-  const tsOutput = tsResult.outputs.find((output) => {
-    if (kind === "app" || kind === "screen") return output.kind === kind;
-    if (kind === "app-parquet" || kind === "screen-parquet") return false;
-    return output.outputFileName.endsWith(outputSuffix[kind]);
-  });
-  const tsBytes = tsOutput
-    ? new Uint8Array(await tsOutput.blob.arrayBuffer())
-    : new Uint8Array();
-  const [typescriptSha256, rustSha256] = await Promise.all([
-    sha256Hex(tsBytes),
-    sha256Hex(rustBytes),
-  ]);
-  return {
-    kind,
-    typescriptSha256,
-    rustSha256,
-    typescriptBytes: tsBytes.byteLength,
-    rustBytes: rustBytes.byteLength,
-    matches:
-      typescriptSha256 === rustSha256 &&
-      tsBytes.byteLength === rustBytes.byteLength,
-    comparison: "exact-bytes",
-  };
-}
-
-async function compareParquetArtifact(
-  kind: "app-parquet" | "screen-parquet",
-  tsResult: ProcessedFileResult,
-  rustBytes: Uint8Array,
-): Promise<RustShadowArtifactComparison> {
-  const suffix =
-    kind === "app-parquet"
-      ? " Automatically Preprocessed.parquet"
-      : " Screen Usage Automatically Preprocessed.parquet";
-  const tsOutput = tsResult.outputs.find(
-    (output) =>
-      output.kind === "parquet" && output.outputFileName.endsWith(suffix),
-  );
-  const tsBytes = tsOutput
-    ? new Uint8Array(await tsOutput.blob.arrayBuffer())
-    : new Uint8Array();
-  const { parquetReadObjects } = await import("hyparquet");
-  const read = (bytes: Uint8Array) =>
-    parquetReadObjects({
-      file: {
-        byteLength: bytes.byteLength,
-        slice: (start: number, end?: number) => {
-          const buffer = bytes.buffer;
-          const absoluteStart = bytes.byteOffset + start;
-          const absoluteEnd = bytes.byteOffset + (end ?? bytes.byteLength);
-          return buffer instanceof ArrayBuffer
-            ? buffer.slice(absoluteStart, absoluteEnd)
-            : new Uint8Array(bytes.subarray(start, end)).buffer;
-        },
-      },
-    });
-  const [typescriptRows, rustRows, typescriptSha256, rustSha256] =
-    await Promise.all([
-      read(tsBytes),
-      read(rustBytes),
-      sha256Hex(tsBytes),
-      sha256Hex(rustBytes),
-    ]);
-  return {
-    kind,
-    typescriptSha256,
-    rustSha256,
-    typescriptBytes: tsBytes.byteLength,
-    rustBytes: rustBytes.byteLength,
-    matches: canonicalJson(typescriptRows) === canonicalJson(rustRows),
-    comparison: "decoded-values",
-  };
-}
-
-function firstJsonDifference(
-  left: unknown,
-  right: unknown,
-  path = "$",
-): string | undefined {
-  if (Object.is(left, right)) return undefined;
-  if (Array.isArray(left) && Array.isArray(right)) {
-    if (left.length !== right.length) {
-      return `${path}.length: Rust=${left.length} TypeScript=${right.length}`;
-    }
-    for (let index = 0; index < left.length; index += 1) {
-      const difference = firstJsonDifference(
-        left[index],
-        right[index],
-        `${path}[${index}]`,
-      );
-      if (difference) return difference;
-    }
-    return undefined;
-  }
-  if (
-    left !== null &&
-    right !== null &&
-    typeof left === "object" &&
-    typeof right === "object"
-  ) {
-    const keys = new Set([
-      ...Object.keys(left),
-      ...Object.keys(right),
-    ]);
-    for (const key of [...keys].sort()) {
-      const difference = firstJsonDifference(
-        (left as Record<string, unknown>)[key],
-        (right as Record<string, unknown>)[key],
-        `${path}.${key}`,
-      );
-      if (difference) return difference;
-    }
-    return undefined;
-  }
-  return `${path}: Rust=${JSON.stringify(left)} TypeScript=${JSON.stringify(right)}`;
-}
-
 async function executeRustRuntimeUnlocked(
   workspaceId: string,
   csvBytes: Uint8Array,
@@ -1635,7 +1493,7 @@ async function executeRustRuntimeUnlocked(
   runtime: BrowserProcessingRuntime,
   inputSha256: string,
 ): Promise<RustRuntimeExecution> {
-  const reasons = rustV2IneligibilityReasons(options);
+  const reasons = rustRuntimeIneligibilityReasons(options);
   if (reasons.length > 0) {
     throw new Error(`Rust runtime is ineligible: ${reasons.join("; ")}`);
   }
@@ -1815,8 +1673,10 @@ async function executeRustRuntimeUnlocked(
       runtimeSupportFiles,
     );
     let manifestValue: unknown;
+    let manifestJson: string;
     try {
-      manifestValue = JSON.parse(handle.manifest_json());
+      manifestJson = handle.manifest_json();
+      manifestValue = JSON.parse(manifestJson);
     } catch (error) {
       throw new Error(
         `runtime manifest is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
@@ -1990,7 +1850,7 @@ async function executeRustRuntimeUnlocked(
         workspaceRootDigest: manifest.workspaceRootDigest,
       };
     }
-    return { workspaceId, manifest, artifacts, persistedWorkspace };
+    return { workspaceId, manifestJson, manifest, artifacts, persistedWorkspace };
   } finally {
     // A trapped WASM call can leave wasm-bindgen's internal borrow flag set.
     // Cleanup must not replace the primary execution error with a secondary
@@ -2074,237 +1934,4 @@ export async function executeRustRuntime(
     return execute();
   }
   return withWorkspaceLock(workspaceId, execute);
-}
-
-export async function runRustV2Shadow(
-  csvBytes: Uint8Array,
-  options: BrowserProcessingOptions,
-  supportFiles: BrowserSupportFiles | undefined,
-  runtime: BrowserProcessingRuntime,
-  typescriptResult: ProcessedFileResult,
-): Promise<RustShadowReport> {
-  const reasons = rustV2IneligibilityReasons(options);
-  if (reasons.length > 0) {
-    return {
-      protocolVersion: "chronicle-rust-shadow/v1",
-      implementation:
-        "chronicle_preprocessing_runtime_wasm/execute_bounded_v2_shadow",
-      scope: "selected-runtime-csv-artifacts",
-      status: "ineligible",
-      reasons,
-      artifacts: [],
-    };
-  }
-
-  try {
-    const execution = await executeRustRuntime(
-      csvBytes,
-      typescriptResult.inputFileName,
-      options,
-      supportFiles,
-      runtime,
-    );
-    const { manifest, artifacts: runtimeArtifacts, persistedWorkspace } =
-      execution;
-    const rustCounts = manifest.counts;
-    const tsCounts = {
-      original: typescriptResult.originalRowCount,
-      processed: typescriptResult.processedRowCount,
-      app: typescriptResult.appRowCount,
-      screen: typescriptResult.screenRowCount,
-    };
-    const artifacts = await Promise.all([
-      ...(options.processAppUsage
-        ? [
-            compareArtifact(
-              "app" as const,
-              typescriptResult,
-              runtimeArtifacts.get("app-csv") ?? new Uint8Array(),
-            ),
-          ]
-        : []),
-      ...(options.processScreenUsage
-        ? [
-            compareArtifact(
-              "screen" as const,
-              typescriptResult,
-              runtimeArtifacts.get("screen-csv") ?? new Uint8Array(),
-            ),
-          ]
-        : []),
-      ...(options.enableDayCoverage
-        ? [
-            compareArtifact(
-              "day-coverage" as const,
-              typescriptResult,
-              runtimeArtifacts.get("day-coverage-csv") ?? new Uint8Array(),
-            ),
-          ]
-        : []),
-      ...(options.enableScreenGatedCrediting
-        ? [
-            compareArtifact(
-              "credited-app" as const,
-              typescriptResult,
-              runtimeArtifacts.get("credited-app-csv") ?? new Uint8Array(),
-            ),
-          ]
-        : []),
-      ...(options.enableComplianceScoring
-        ? [
-            compareArtifact(
-              "compliance" as const,
-              typescriptResult,
-              runtimeArtifacts.get("compliance-csv") ?? new Uint8Array(),
-            ),
-          ]
-        : []),
-      ...(options.enableAggregates
-        ? [
-            compareArtifact(
-              "aggregate-daily" as const,
-              typescriptResult,
-              runtimeArtifacts.get("aggregate-daily-summary-csv") ??
-                new Uint8Array(),
-            ),
-            compareArtifact(
-              "aggregate-weekly" as const,
-              typescriptResult,
-              runtimeArtifacts.get("aggregate-weekly-summary-csv") ??
-                new Uint8Array(),
-            ),
-            compareArtifact(
-              "aggregate-top-apps" as const,
-              typescriptResult,
-              runtimeArtifacts.get("aggregate-top-apps-csv") ??
-                new Uint8Array(),
-            ),
-            ...(options.useAppCodebook
-              ? [
-                  compareArtifact(
-                    "aggregate-category-budget" as const,
-                    typescriptResult,
-                    runtimeArtifacts.get(
-                      "aggregate-category-time-budget-csv",
-                    ) ?? new Uint8Array(),
-                  ),
-                ]
-              : []),
-            ...(options.modelConcurrentUsage || options.useBackgroundAppsFile
-              ? [
-                  compareArtifact(
-                    "aggregate-co-usage" as const,
-                    typescriptResult,
-                    runtimeArtifacts.get("aggregate-app-co-usage-csv") ??
-                      new Uint8Array(),
-                  ),
-                ]
-              : []),
-          ]
-        : []),
-      ...(options.enableParquetExport
-        ? [
-            ...(options.processAppUsage
-              ? [
-                  compareParquetArtifact(
-                    "app-parquet",
-                    typescriptResult,
-                    runtimeArtifacts.get("app-parquet") ?? new Uint8Array(),
-                  ),
-                ]
-              : []),
-            ...(options.processScreenUsage
-              ? [
-                  compareParquetArtifact(
-                    "screen-parquet",
-                    typescriptResult,
-                    runtimeArtifacts.get("screen-parquet") ?? new Uint8Array(),
-                  ),
-                ]
-              : []),
-          ]
-        : []),
-      ...(options.enableSpssExport
-        ? [
-            ...(options.processAppUsage
-              ? [
-                  compareArtifact(
-                    "app-spss",
-                    typescriptResult,
-                    runtimeArtifacts.get("app-spss") ?? new Uint8Array(),
-                  ),
-                ]
-              : []),
-            ...(options.processScreenUsage
-              ? [
-                  compareArtifact(
-                    "screen-spss",
-                    typescriptResult,
-                    runtimeArtifacts.get("screen-spss") ?? new Uint8Array(),
-                  ),
-                ]
-              : []),
-          ]
-        : []),
-    ]);
-    const rustReviewSummary = JSON.parse(
-      new TextDecoder().decode(
-        runtimeArtifacts.get("review-summary-json") ?? new Uint8Array(),
-      ),
-    ) as unknown;
-    const reviewSummaryMatches =
-      canonicalJson(rustReviewSummary) ===
-      canonicalJson(typescriptResult.reviewSummary ?? { participants: [] });
-    const reviewSummaryDifference = reviewSummaryMatches
-      ? undefined
-      : firstJsonDifference(
-          rustReviewSummary,
-          typescriptResult.reviewSummary ?? { participants: [] },
-        );
-    const countsMatch = JSON.stringify(tsCounts) === JSON.stringify(rustCounts);
-    const matched =
-      countsMatch &&
-      reviewSummaryMatches &&
-      artifacts.every((artifact) => artifact.matches);
-    return {
-      protocolVersion: "chronicle-rust-shadow/v1",
-      implementation:
-        "chronicle_preprocessing_runtime_wasm/execute_bounded_v2_shadow",
-      scope: "selected-runtime-csv-artifacts",
-      status: matched ? "matched" : "diverged",
-      reasons: matched
-        ? []
-        : [
-            "selected Rust CSV artifacts, review summary, or authoritative counts differ",
-            ...(reviewSummaryDifference ? [reviewSummaryDifference] : []),
-          ],
-      artifacts,
-      workspaceRootDigest: manifest.workspaceRootDigest,
-      implementationDigest: manifest.implementationDigest,
-      planDigest: manifest.planDigest,
-      productContractDigest: manifest.productContractDigest,
-      openObligationCount: manifest.openObligations.length,
-      journalDigest: manifest.journalDigest,
-      reviewSummaryMatches,
-      ...(persistedWorkspace
-        ? {
-            persistedWorkspace: {
-              generation: persistedWorkspace.generation,
-              workspaceRootDigest: persistedWorkspace.workspaceRootDigest,
-            },
-          }
-        : {}),
-      counts: { typescript: tsCounts, rust: rustCounts, matches: countsMatch },
-    };
-  } catch (error) {
-    return {
-      protocolVersion: "chronicle-rust-shadow/v1",
-      implementation:
-        "chronicle_preprocessing_runtime_wasm/execute_bounded_v2_shadow",
-      scope: "selected-runtime-csv-artifacts",
-      status: "failed",
-      reasons: [error instanceof Error ? error.message : String(error)],
-      artifacts: [],
-    };
-  }
 }

@@ -3,7 +3,7 @@ import { useRef, useState, type ReactElement } from "react";
 import {
   exportVerifiedWorkspaceClosure,
   importVerifiedWorkspaceClosure,
-} from "@/lib/chronicleMatcher";
+} from "@/lib/rustWorkerClient";
 import { downloadBlob } from "@/lib/download";
 import type { ProcessedFileResult } from "@/lib/types";
 

@@ -25,7 +25,7 @@ import type {
   RustStageView,
   TimelineViewData,
 } from "@/lib/types";
-import type { ExecutionLedger } from "@/lib/pipelineGraph/executionRecords";
+import type { RustExecutionLedger } from "@/lib/rustExecutionRecords";
 import { PREPROCESSOR_VERSION } from "@/lib/processingUiContract";
 
 const CSV_MIME = "text/csv;charset=utf-8";
@@ -135,6 +135,22 @@ function addBinaryOutput(
     outputFileName: deriveOutputFileName(inputFileName, suffix),
     blob: new Blob([artifactBlobPart(bytes)], { type: mediaType }),
     rowCount,
+    previewRows: [],
+  });
+}
+
+function addEvidenceOutput(
+  outputs: ProcessedOutputFileResult[],
+  inputFileName: string,
+  suffix: string,
+  mediaType: string,
+  bytes: Uint8Array,
+): void {
+  outputs.push({
+    kind: "lineage",
+    outputFileName: deriveOutputFileName(inputFileName, suffix),
+    blob: new Blob([artifactBlobPart(bytes)], { type: mediaType }),
+    rowCount: 0,
     previewRows: [],
   });
 }
@@ -524,6 +540,30 @@ export async function processRawCsvWithRustAuthority(
     ARROW_MIME,
     cellCorrespondenceMetadata?.rowCount ?? 0,
   );
+  for (const [kind, suffix, mediaType] of [
+    ["evidence-journal", " Evidence Journal.cbor", "application/cbor"],
+    ["artifact-closure-json", " Artifact Closure.json", "application/json"],
+    ["dependency-certificate-json", " Dependency Certificate.json", "application/json"],
+    ["correspondence-index-json", " Correspondence Index.json", "application/json"],
+    ["execution-ledger-json", " Execution Ledger.json", "application/json"],
+    ["stage-view-json", " Stage View.json", "application/json"],
+    ["semantic-index-source-json", " Semantic Index Source.json", "application/json"],
+  ] as const) {
+    addEvidenceOutput(
+      outputs,
+      inputFileName,
+      suffix,
+      mediaType,
+      requiredArtifact(execution, kind),
+    );
+  }
+  addEvidenceOutput(
+    outputs,
+    inputFileName,
+    " Runtime Manifest.json",
+    "application/json",
+    new TextEncoder().encode(execution.manifestJson),
+  );
   const visualization = parseJsonArtifact<VisualizationData>(
     execution,
     "visualization-data-json",
@@ -539,7 +579,7 @@ export async function processRawCsvWithRustAuthority(
     execution,
     "review-summary-json",
   );
-  const executionLedger = parseJsonArtifact<ExecutionLedger>(
+  const executionLedger = parseJsonArtifact<RustExecutionLedger>(
     execution,
     "execution-ledger-json",
   );
@@ -564,9 +604,6 @@ export async function processRawCsvWithRustAuthority(
       percent: 1,
     });
   }
-  const statuses = Object.fromEntries(
-    manifest.nodeExecutions.map((node) => [node.node_id, node.status]),
-  );
   return {
     inputFileName,
     inputSha256: manifest.input.digest.replace(/^sha256:/, ""),
@@ -591,7 +628,6 @@ export async function processRawCsvWithRustAuthority(
     reviewSummary,
     executionLedger,
     rustStageView,
-    graphReport: { statuses, errors: {} },
     rustRuntimeReceipt: {
       protocolVersion: "chronicle-preprocessing-runtime/v1",
       workspaceId: execution.workspaceId,

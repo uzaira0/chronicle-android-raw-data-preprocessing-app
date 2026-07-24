@@ -8,8 +8,7 @@ import forcingCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocesso
 import backgroundCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv?raw";
 import codebookCsv from "@/assets/defaults/unified_app_codebook.csv?raw";
 import { COMPUTATIONAL_BROWSER_OPTION_KEYS } from "@/lib/generatedContract";
-import { GOLDEN_RUNTIME } from "@/lib/pipelineGraph/golden/goldenScenario";
-import { ALL_ON } from "@/lib/pipelineGraph/validationHarness";
+import { ALL_ON, GOLDEN_RUNTIME } from "@/testSupport/rustCampaignGraph";
 import { buildRustV2Options } from "@/lib/rustPipelineRuntime";
 import type { BrowserProcessingOptions } from "@/lib/types";
 import {

@@ -973,6 +973,7 @@ struct ResolvedSupportFile {
     original_bytes: Vec<u8>,
     pipeline_csv: Vec<u8>,
     normalized_from_xlsx: bool,
+    content_validation_error: Option<String>,
 }
 
 #[derive(Default)]
@@ -1048,6 +1049,12 @@ impl RuntimeSupportFiles {
                     file.name
                 ));
             };
+            let content_validation_error =
+                chronicle_chrono_kernel_wasm::pipeline_v2::validate_support_csv(
+                    role,
+                    &pipeline_csv,
+                )
+                .err();
             resolved.files.insert(
                 role.clone(),
                 ResolvedSupportFile {
@@ -1055,6 +1062,7 @@ impl RuntimeSupportFiles {
                     original_bytes: file.bytes.clone(),
                     pipeline_csv,
                     normalized_from_xlsx,
+                    content_validation_error,
                 },
             );
         }
@@ -2073,28 +2081,10 @@ pub fn analyze_timezone_configuration_family_native(
 }
 
 #[wasm_bindgen]
-pub fn execute_bounded_v2_shadow(
-    request_json: &str,
-    csv_bytes: &[u8],
-    support_files: &RuntimeSupportFiles,
-) -> Result<RuntimeHandle, JsValue> {
-    execute_workspace_native(request_json, csv_bytes, support_files)
-        .map_err(|error| JsValue::from_str(&error))
-}
-
-#[wasm_bindgen]
 pub fn verify_evidence_journal_cbor(bytes: &[u8]) -> Result<u32, JsValue> {
     EvidenceJournal::from_cbor(bytes)
         .map(|journal| journal.events().len() as u32)
         .map_err(|error| JsValue::from_str(&error.to_string()))
-}
-
-pub fn execute_bounded_v2_shadow_native(
-    request_json: &str,
-    csv_bytes: &[u8],
-    support_files: &RuntimeSupportFiles,
-) -> Result<RuntimeHandle, String> {
-    execute_workspace_native(request_json, csv_bytes, support_files)
 }
 
 pub fn execute_workspace_native(
@@ -2589,6 +2579,7 @@ fn materialize_ingress(
         "text/csv",
         csv_bytes,
         Some(verified_input_digest),
+        BTreeMap::new(),
     )?;
     assign(
         &mut assignments,
@@ -2596,14 +2587,31 @@ fn materialize_ingress(
         "application/json",
         options_bytes,
         None,
+        BTreeMap::new(),
     )?;
     for (role, file) in &support_files.files {
+        let mut qualifiers = BTreeMap::from([(
+            "content_validation".into(),
+            if file.content_validation_error.is_none() {
+                "passed".into()
+            } else {
+                "failed".into()
+            },
+        )]);
+        qualifiers.insert(
+            "content_validation_rule".into(),
+            format!("chronicle.support-schema.{role}.v1"),
+        );
+        if let Some(error) = &file.content_validation_error {
+            qualifiers.insert("content_validation_error".into(), error.clone());
+        }
         assign(
             &mut assignments,
             role,
             file.media_type,
             &file.original_bytes,
             None,
+            qualifiers,
         )?;
     }
     let materialization = evaluate_materialization(
@@ -3080,6 +3088,7 @@ fn assign(
     media_type: &str,
     bytes: &[u8],
     verified_digest: Option<&str>,
+    qualifiers: BTreeMap<String, String>,
 ) -> Result<ArtifactRef, String> {
     let digest = verified_digest
         .map(str::to_owned)
@@ -3092,7 +3101,7 @@ fn assign(
         media_type: media_type.to_string(),
         size: bytes.len() as u64,
         derived_from: Vec::new(),
-        qualifiers: BTreeMap::new(),
+        qualifiers: qualifiers.clone(),
     };
     let revision = assignments.len() as u64 + 1;
     assignments.insert(
@@ -3101,7 +3110,7 @@ fn assign(
             assignment_id: stable_id(&["assignment", role_id, &artifact.digest]),
             role_id: role_id.into(),
             artifact: artifact.clone(),
-            qualifiers: BTreeMap::new(),
+            qualifiers,
             revision,
         },
     );
@@ -4217,7 +4226,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
     fn one_call_runtime_returns_verified_artifacts_materialization_and_root() {
         let csv = csv();
         let mut handle =
-            execute_bounded_v2_shadow_native(&request(&csv), &csv, &RuntimeSupportFiles::default())
+            execute_workspace_native(&request(&csv), &csv, &RuntimeSupportFiles::default())
                 .unwrap();
         let manifest: RuntimeManifest = serde_json::from_str(&handle.manifest_json).unwrap();
         assert_eq!(manifest.request_id, "req-1");
@@ -5124,7 +5133,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         let csv = mixed_timezone_csv();
         let mut request_value: Value = serde_json::from_str(&request(&csv)).unwrap();
         request_value["options"]["timezone_handling"] = Value::String("selected-filter".into());
-        let handle = execute_bounded_v2_shadow_native(
+        let handle = execute_workspace_native(
             &request_value.to_string(),
             &csv,
             &RuntimeSupportFiles::default(),
@@ -5292,12 +5301,11 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
     #[test]
     fn transport_request_identity_does_not_change_semantic_workspace_root() {
         let csv = csv();
-        let first =
-            execute_bounded_v2_shadow_native(&request(&csv), &csv, &RuntimeSupportFiles::default())
-                .unwrap();
+        let first = execute_workspace_native(&request(&csv), &csv, &RuntimeSupportFiles::default())
+            .unwrap();
         let mut second_request: Value = serde_json::from_str(&request(&csv)).unwrap();
         second_request["requestId"] = Value::String("req-2".into());
-        let second = execute_bounded_v2_shadow_native(
+        let second = execute_workspace_native(
             &second_request.to_string(),
             &csv,
             &RuntimeSupportFiles::default(),
@@ -5313,24 +5321,18 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         let csv = csv();
         let mut value: Value = serde_json::from_str(&request(&csv)).unwrap();
         value["inputSha256"] = Value::String(format!("sha256:{:0>64}", 0));
-        let error = execute_bounded_v2_shadow_native(
-            &value.to_string(),
-            &csv,
-            &RuntimeSupportFiles::default(),
-        )
-        .err()
-        .expect("tampered digest must fail");
+        let error =
+            execute_workspace_native(&value.to_string(), &csv, &RuntimeSupportFiles::default())
+                .err()
+                .expect("tampered digest must fail");
         assert!(error.contains("input digest mismatch"));
 
         let mut value: Value = serde_json::from_str(&request(&csv)).unwrap();
         value["surprise"] = Value::Bool(true);
-        let error = execute_bounded_v2_shadow_native(
-            &value.to_string(),
-            &csv,
-            &RuntimeSupportFiles::default(),
-        )
-        .err()
-        .expect("unknown field must fail");
+        let error =
+            execute_workspace_native(&value.to_string(), &csv, &RuntimeSupportFiles::default())
+                .err()
+                .expect("unknown field must fail");
         assert!(error.contains("unknown field"));
     }
 
@@ -5387,6 +5389,36 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             .expect("missing required role must block execution");
         assert!(error.contains("unresolved binding holes"));
         assert!(error.contains("filter_file"));
+
+        let mut wrong_schema = RuntimeSupportFiles::default();
+        wrong_schema
+            .put_native(
+                "filter_file",
+                "filter.csv",
+                b"participant_id,value\nP01,unrelated\n",
+            )
+            .unwrap();
+        let invalid =
+            evaluate_workspace_requirements_native(&request, &csv, &wrong_schema).unwrap();
+        let invalid: Value = serde_json::from_str(&invalid).unwrap();
+        assert_eq!(invalid["ready"], false);
+        assert_eq!(invalid["roleStates"]["filter_file"], "invalid");
+        assert_eq!(invalid["nodeStates"]["app_policy"], "invalid");
+        let rejected = invalid["qualificationTraces"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|trace| trace["asserted_role_ids"][0] == "filter_file")
+            .unwrap();
+        assert_eq!(rejected["decision"], "rejected");
+        assert!(rejected["rule_evaluations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|rule| {
+                rule["rule_id"] == "chronicle.binding.content-validation.v1"
+                    && rule["passed"] == false
+            }));
 
         let mut support = RuntimeSupportFiles::default();
         support
@@ -5547,6 +5579,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                 original_bytes: b"original".to_vec(),
                 pipeline_csv: b"normalized".to_vec(),
                 normalized_from_xlsx: false,
+                content_validation_error: None,
             },
         );
         assert_eq!(resolved.get("filter_file"), b"normalized");
@@ -5642,6 +5675,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                     original_bytes: vec![1],
                     pipeline_csv: b"header\n".to_vec(),
                     normalized_from_xlsx: true,
+                    content_validation_error: None,
                 },
             )]),
         };
@@ -5703,11 +5737,6 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                 .unwrap();
         assert!(family.contains(CONFIGURATION_FAMILY_PROTOCOL_VERSION));
         assert!(family.contains("selected-filter"));
-
-        let legacy_request = request_for_workspace(&csv, '8');
-        let legacy =
-            execute_bounded_v2_shadow(&legacy_request.to_string(), &csv, &support).unwrap();
-        assert!(legacy.manifest_json().contains(EXECUTE_WORKSPACE_COMMAND));
 
         let mut journal = EvidenceJournal::default();
         journal

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import { anyOptionModified, isOptionDefault, resetOption } from "@/lib/optionDefaults";
 
 describe("isOptionDefault", () => {

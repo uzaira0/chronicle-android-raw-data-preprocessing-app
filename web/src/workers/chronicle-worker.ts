@@ -147,7 +147,7 @@ const api = {
   async queryRegistered(workspaceId: string, queryId: string) {
     return queryRegisteredSemanticIndex(await getSemanticIndex(workspaceId), queryId);
   },
-  async matcherVersion(): Promise<string> {
+  async runtimeVersion(): Promise<string> {
     return getRustRuntimeVersion();
   },
   discoverTimezones(csvText: string): Promise<string[]> {

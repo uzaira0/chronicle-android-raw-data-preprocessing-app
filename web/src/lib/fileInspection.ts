@@ -1,4 +1,4 @@
-import { inspectRawCsvBytes } from "@/lib/chronicleMatcher";
+import { inspectRawCsvBytes } from "@/lib/rustWorkerClient";
 import { parseInteractionRemap } from "@/lib/interactionTypes";
 import type { BrowserProcessingOptions } from "@/lib/types";
 

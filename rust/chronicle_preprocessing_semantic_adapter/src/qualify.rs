@@ -146,6 +146,10 @@ pub fn qualify_candidates(
         };
         if !role.media_types.contains(&candidate.artifact.media_type)
             || !is_sha256(&candidate.artifact.digest)
+            || candidate
+                .qualifiers
+                .get("content_validation")
+                .is_some_and(|value| value != "passed")
         {
             continue;
         }
@@ -189,6 +193,12 @@ pub fn qualify_candidates(
         let media_valid =
             known_role && accepted_media_types.contains(&candidate.artifact.media_type);
         let digest_valid = is_sha256(&candidate.artifact.digest);
+        let content_validation = candidate
+            .qualifiers
+            .get("content_validation")
+            .map(String::as_str)
+            .unwrap_or("not-required");
+        let content_valid = matches!(content_validation, "passed" | "not-required");
         let observed_count = selected
             .as_ref()
             .and_then(|role_id| base_valid_counts.get(role_id))
@@ -203,17 +213,18 @@ pub fn qualify_candidates(
         // A candidate without exactly one role cannot have a known selected
         // role, so `known_role` is the one decision predicate. Keeping both
         // here would be redundant and would obscure which rule rejects it.
-        let decision = if !unique_id || !known_role || !media_valid || !digest_valid {
-            if asserted.len() > 1 {
+        let decision =
+            if !unique_id || !known_role || !media_valid || !digest_valid || !content_valid {
+                if asserted.len() > 1 {
+                    QualificationDecision::Ambiguous
+                } else {
+                    QualificationDecision::Rejected
+                }
+            } else if !cardinality_valid {
                 QualificationDecision::Ambiguous
             } else {
-                QualificationDecision::Rejected
-            }
-        } else if !cardinality_valid {
-            QualificationDecision::Ambiguous
-        } else {
-            QualificationDecision::Accepted
-        };
+                QualificationDecision::Accepted
+            };
         let selected_role_id = matches!(decision, QualificationDecision::Accepted)
             .then(|| selected.clone())
             .flatten();
@@ -247,6 +258,12 @@ pub fn qualify_candidates(
                 digest_valid,
                 "sha256:<64 hexadecimal characters>".into(),
                 candidate.artifact.digest.clone(),
+            ),
+            rule(
+                "chronicle.binding.content-validation.v1",
+                content_valid,
+                "passed or not-required".into(),
+                content_validation.into(),
             ),
             rule(
                 "chronicle.binding.cardinality.v1",
@@ -441,6 +458,37 @@ mod tests {
             .rule_evaluations
             .iter()
             .all(|rule| rule.passed));
+    }
+
+    #[test]
+    fn failed_product_content_validation_rejects_an_otherwise_valid_candidate() {
+        let mut invalid = candidate("filter", &["filter_file"], "text/csv");
+        invalid
+            .qualifiers
+            .insert("content_validation".into(), "failed".into());
+        invalid.qualifiers.insert(
+            "content_validation_error".into(),
+            "missing app_package_name".into(),
+        );
+        let report = qualify_candidates(
+            &embedded_plan(),
+            &[invalid],
+            &serde_json::json!({"use_filter_file": true}),
+        );
+        assert_eq!(report.traces[0].decision, QualificationDecision::Rejected);
+        assert!(report.accepted_assignment_ids.is_empty());
+        assert_eq!(
+            report
+                .requirement_traces
+                .iter()
+                .find(|trace| trace.role_id == "filter_file")
+                .unwrap()
+                .state,
+            MaterializationState::Invalid
+        );
+        assert!(report.traces[0].rule_evaluations.iter().any(|rule| {
+            rule.rule_id == "chronicle.binding.content-validation.v1" && !rule.passed
+        }));
     }
 
     #[test]

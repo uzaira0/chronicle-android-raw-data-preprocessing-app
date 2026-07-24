@@ -30,6 +30,7 @@ serde-wasm-bindgen = "0.6"
 chrono = { version = "0.4", default-features = false, features = ["alloc", "wasmbind"] }
 chrono-tz = { version = "0.10", default-features = false }
 csv-core = "0.1"
+csv = "1.3"
 ahash = { version = "0.8", default-features = false, features = ["std"] }
 blake3 = { version = "1.8.5", features = ["wasm32_simd"] }
 chronicle_app_usage_matcher = { path = "../chronicle_app_usage_matcher", default-features = false }

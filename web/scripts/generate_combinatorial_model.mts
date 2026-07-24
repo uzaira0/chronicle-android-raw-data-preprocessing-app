@@ -38,7 +38,7 @@ import {
   DEFAULT_BROWSER_OPTIONS,
 } from "../src/lib/generatedContract";
 import type { BrowserProcessingOptions } from "../src/lib/types";
-import { ALL_ON } from "../src/lib/pipelineGraph/validationHarness";
+import { ALL_ON } from "../src/testSupport/rustCampaignGraph";
 import { configurationEquivalenceClasses } from "../src/testSupport/configurationEquivalenceClasses";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));

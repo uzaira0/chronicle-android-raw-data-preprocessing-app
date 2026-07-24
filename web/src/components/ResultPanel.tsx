@@ -9,16 +9,7 @@ import type {
   ProcessedOutputFileResult,
   TimezoneAction,
 } from "@/lib/types";
-import { PREPROCESSOR_VERSION } from "@/lib/processingUiContract";
-import {
-  buildParameterSetRecord,
-  buildProcessingReport,
-  buildProvenanceJsonLd,
-  readReportEnvironment,
-} from "@/lib/processingReport";
-import type { ProcessingReportInput } from "@/lib/processingReport";
 import { downloadBlob } from "@/lib/download";
-import { safeUuid } from "@/lib/uuid";
 import type { FileProgress } from "@/components/ProgressList";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
 
@@ -157,26 +148,13 @@ function buildBatchWarnings(input: {
 async function downloadZip(
   kind: "all" | OutputKind,
   outputs: BatchOutput[],
-  reportInput: ProcessingReportInput,
 ): Promise<void> {
-  // The ParameterSet hash is async (WebCrypto), so both provenance sidecars
-  // are assembled here rather than in a memo.
-  const parameterSet = await buildParameterSetRecord(reportInput.options);
-  const provenanceInput = { ...reportInput, parameterSetSha256: parameterSet.sha256 };
-  const zip = await createZipBlob([
-    ...outputs.map(({ output }) => ({
+  const zip = await createZipBlob(
+    outputs.map(({ output }) => ({
       fileName: output.outputFileName,
       blob: output.blob,
     })),
-    {
-      fileName: "chronicle-processing-report.json",
-      blob: new Blob([buildProcessingReport(provenanceInput)], { type: "application/json" }),
-    },
-    {
-      fileName: "chronicle-provenance.jsonld",
-      blob: new Blob([buildProvenanceJsonLd(provenanceInput)], { type: "application/ld+json" }),
-    },
-  ]);
+  );
   downloadBlob(zipName(kind), zip);
 }
 
@@ -221,24 +199,6 @@ export function ResultPanel({
   const parquetOutputs = useMemo(() => collectOutputs(results, "parquet"), [results]);
   const spssOutputs = useMemo(() => collectOutputs(results, "spss"), [results]);
   const lineageOutputs = useMemo(() => collectOutputs(results, "lineage"), [results]);
-  // Provenance identifies the run that produced `results`, so it must stay stable
-  // when the user edits options after a run — otherwise two downloads of the same
-  // run carry different runId/generatedAt. Key it on `results` only.
-  const provenance = useMemo(
-    () => ({ runId: safeUuid(), generatedAt: new Date().toISOString() }),
-    [results],
-  );
-  const reportInput = useMemo<ProcessingReportInput>(
-    () => ({
-      results,
-      options,
-      preprocessorVersion: PREPROCESSOR_VERSION,
-      generatedAt: provenance.generatedAt,
-      runId: provenance.runId,
-      environment: readReportEnvironment(),
-    }),
-    [results, options, provenance],
-  );
   const batchWarnings = useMemo(
     () => buildBatchWarnings({ results, error, expectedFileCount, progressRows, displayMasker }),
     [results, error, expectedFileCount, progressRows, displayMasker],
@@ -280,7 +240,7 @@ export function ResultPanel({
             className="btn btn--primary"
             data-testid="download-all-zip"
             onClick={() => {
-              void downloadZip("all", allOutputs, reportInput);
+              void downloadZip("all", allOutputs);
             }}
             disabled={!allOutputs.length}
           >
@@ -291,7 +251,7 @@ export function ResultPanel({
             className="btn btn--secondary"
             data-testid="download-app-csv"
             onClick={() => {
-              void downloadZip("app", appOutputs, reportInput);
+              void downloadZip("app", appOutputs);
             }}
             disabled={!appOutputs.length}
           >
@@ -302,7 +262,7 @@ export function ResultPanel({
             className="btn btn--secondary"
             data-testid="download-screen-csv"
             onClick={() => {
-              void downloadZip("screen", screenOutputs, reportInput);
+              void downloadZip("screen", screenOutputs);
             }}
             disabled={!screenOutputs.length}
           >
@@ -314,7 +274,7 @@ export function ResultPanel({
               className="btn btn--secondary"
               data-testid="download-plots-zip"
               onClick={() => {
-                void downloadZip("plot", plotOutputs, reportInput);
+                void downloadZip("plot", plotOutputs);
               }}
             >
               Plots ZIP ({plotOutputs.length})
@@ -340,7 +300,7 @@ export function ResultPanel({
               className="btn btn--secondary"
               data-testid="download-aggregates-zip"
               onClick={() => {
-                void downloadZip("aggregate", aggregateOutputs, reportInput);
+                void downloadZip("aggregate", aggregateOutputs);
               }}
             >
               Aggregates ZIP ({aggregateOutputs.length})
@@ -352,7 +312,7 @@ export function ResultPanel({
               className="btn btn--secondary"
               data-testid="download-parquet-zip"
               onClick={() => {
-                void downloadZip("parquet", parquetOutputs, reportInput);
+                void downloadZip("parquet", parquetOutputs);
               }}
             >
               Parquet ZIP ({parquetOutputs.length})
@@ -364,7 +324,7 @@ export function ResultPanel({
               className="btn btn--secondary"
               data-testid="download-spss-zip"
               onClick={() => {
-                void downloadZip("spss", spssOutputs, reportInput);
+                void downloadZip("spss", spssOutputs);
               }}
             >
               SPSS ZIP ({spssOutputs.length})
@@ -376,27 +336,12 @@ export function ResultPanel({
               className="btn btn--secondary"
               data-testid="download-lineage-zip"
               onClick={() => {
-                void downloadZip("lineage", lineageOutputs, reportInput);
+                void downloadZip("lineage", lineageOutputs);
               }}
             >
               Lineage evidence ZIP ({lineageOutputs.length})
             </button>
           )}
-          <button
-            type="button"
-            className="btn btn--ghost"
-            onClick={() => {
-              // Same content as the zipped report, including the ParameterSet hash.
-              void (async () => {
-                const parameterSet = await buildParameterSetRecord(reportInput.options);
-                await navigator.clipboard?.writeText(
-                  buildProcessingReport({ ...reportInput, parameterSetSha256: parameterSet.sha256 }),
-                );
-              })();
-            }}
-          >
-            Copy report
-          </button>
           {onDelete ? (
             <button
               type="button"

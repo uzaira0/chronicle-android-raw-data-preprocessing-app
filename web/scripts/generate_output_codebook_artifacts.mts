@@ -4,26 +4,26 @@
 //   vite-node scripts/generate_output_codebook_artifacts.mts           # write
 //   vite-node scripts/generate_output_codebook_artifacts.mts --check   # drift gate
 //
-// The emit-order SSOT is buildAppOutputColumns / buildScreenOutputColumns in
-// browserPipeline.ts (evaluated over every option combination that changes the
-// column set). web/schema/chronicle-output-columns.yaml is the hand-authored
+// The emit-order SSOT is exported directly by the Rust pipeline.
+// web/schema/chronicle-output-columns.yaml is the hand-authored
 // semantics layer. This script enforces the bijection between the two and
 // renders docs/researcher-output-codebook.md from the catalog.
 
 import { readFile, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { parse as parseYaml } from "yaml";
 
-import { buildAppOutputColumns, buildScreenOutputColumns } from "../src/lib/browserPipeline";
-import { DEFAULT_BROWSER_OPTIONS } from "../src/lib/generatedContract";
-import type { BrowserProcessingOptions } from "../src/lib/types";
-
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CATALOG_PATH = path.resolve(HERE, "../schema/chronicle-output-columns.yaml");
 const CODEBOOK_PATH = path.resolve(HERE, "../../docs/researcher-output-codebook.md");
+const RUST_MANIFEST_PATH = path.resolve(
+  HERE,
+  "../../rust/chronicle_chrono_kernel_wasm/Cargo.toml",
+);
 
 type CatalogEntry = {
   column_name: string;
@@ -39,31 +39,37 @@ type CatalogEntry = {
 /** Replace the option-stamped header suffix with its catalog placeholder. */
 function normalizeColumnName(column: string): string {
   return column.replace(
-    new RegExp(`_custom_${DEFAULT_BROWSER_OPTIONS.customAppEngagementDuration}s$`),
+    /_custom_[0-9.eE+-]+s$/,
     "_custom_{custom_app_engagement_duration}s",
   );
 }
 
-/** Every column the app CSV can emit, across the option combos that change the set. */
-function emittedAppColumns(): Set<string> {
-  const columns = new Set<string>();
-  for (const useAppCodebook of [false, true]) {
-    for (const includeCategoryColumn of [false, true]) {
-      for (const usageLayerActive of [false, true]) {
-        const options: BrowserProcessingOptions = {
-          ...DEFAULT_BROWSER_OPTIONS,
-          useAppCodebook,
-          includeCategoryColumn,
-        };
-        for (const includeCodebookAliases of [false, true]) {
-          for (const column of buildAppOutputColumns(options, includeCodebookAliases, usageLayerActive)) {
-            columns.add(normalizeColumnName(column));
-          }
-        }
-      }
-    }
+function rustOutputColumns(): { app: Set<string>; screen: Set<string> } {
+  const output = execFileSync(
+    "cargo",
+    [
+      "run",
+      "--quiet",
+      "--locked",
+      "--manifest-path",
+      RUST_MANIFEST_PATH,
+      "--bin",
+      "export_output_column_contract",
+    ],
+    { encoding: "utf-8" },
+  );
+  const contract = JSON.parse(output) as {
+    protocolVersion: string;
+    app: string[];
+    screen: string[];
+  };
+  if (contract.protocolVersion !== "chronicle-output-column-contract/v1") {
+    throw new Error(`Unsupported Rust output-column contract: ${contract.protocolVersion}`);
   }
-  return columns;
+  return {
+    app: new Set(contract.app.map(normalizeColumnName)),
+    screen: new Set(contract.screen),
+  };
 }
 
 async function loadCatalog(): Promise<CatalogEntry[]> {
@@ -73,9 +79,10 @@ async function loadCatalog(): Promise<CatalogEntry[]> {
 }
 
 function checkBijection(catalog: CatalogEntry[]): void {
+  const rustColumns = rustOutputColumns();
   const expected = new Map<string, Set<string>>([
-    ["app", emittedAppColumns()],
-    ["screen", new Set(buildScreenOutputColumns())],
+    ["app", rustColumns.app],
+    ["screen", rustColumns.screen],
   ]);
   const catalogByOutput = new Map<string, Set<string>>([
     ["app", new Set()],

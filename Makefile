@@ -150,11 +150,10 @@ contract:
 semantic-federation:
 	$(MAKE) -C .semantic-federation check SEM_PROF_BIN=$(SEM_PROF_BIN)
 
-# Combinatorial coverage: regenerates the PICT/ACTS models from the contract
-# SSOT, generates t=2/t=3 covering arrays (executed by
-# coveringArrayValidation.test.ts), and measures test-suite coverage with
-# an exact built-in verifier. PICT regenerates arrays and NIST CCM cross-checks
-# the measurement when available; neither is a workstation-specific prerequisite.
+# Combinatorial coverage: regenerates the PICT/ACTS models from the Rust-backed
+# contract, executes the generated t=2/t=3 arrays through Rust/WASM, and checks
+# their coverage with the built-in verifier. PICT and NIST CCM are optional
+# independent generation/measurement checks.
 combinatorial:
 	scripts/run_combinatorial_coverage.sh
 
@@ -168,8 +167,8 @@ gate-truth:
 dependency-evidence:
 	cd web && npm run refresh:dependency-evidence
 
-# Mutation-score both the TypeScript oracle/UI boundary and the production Rust
-# authority. This is intentionally local-only and slow; run before release.
+# Mutation-score browser-owned transport/storage/view code and the Rust
+# preprocessing authority. This is intentionally local-only and slow.
 mutation: mutation-web mutation-rust
 
 mutation-web:

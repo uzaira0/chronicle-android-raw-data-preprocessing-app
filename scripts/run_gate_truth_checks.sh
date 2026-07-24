@@ -23,15 +23,15 @@ BACKUP_DIR="$(mktemp -d)"
 cp "$WEB/schema/chronicle-pipeline-graph.yaml" "$BACKUP_DIR/"
 cp "$WEB/schema/chronicle-output-columns.yaml" "$BACKUP_DIR/"
 cp "$WEB/src/lib/generatedContract.ts" "$BACKUP_DIR/"
-cp "$WEB/src/lib/pipelineGraph/steps/parseEvents.ts" "$BACKUP_DIR/"
 cp "$WEB/schema/contract-baseline.json" "$BACKUP_DIR/"
+cp "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/src/step_contract.rs" "$BACKUP_DIR/"
 
 restore() {
   cp "$BACKUP_DIR/chronicle-pipeline-graph.yaml" "$WEB/schema/chronicle-pipeline-graph.yaml"
   cp "$BACKUP_DIR/chronicle-output-columns.yaml" "$WEB/schema/chronicle-output-columns.yaml"
   cp "$BACKUP_DIR/generatedContract.ts" "$WEB/src/lib/generatedContract.ts"
-  cp "$BACKUP_DIR/parseEvents.ts" "$WEB/src/lib/pipelineGraph/steps/parseEvents.ts"
   cp "$BACKUP_DIR/contract-baseline.json" "$WEB/schema/contract-baseline.json"
+  cp "$BACKUP_DIR/step_contract.rs" "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/src/step_contract.rs"
   rm -rf "$BACKUP_DIR"
 }
 trap restore EXIT
@@ -95,19 +95,22 @@ expect_gate_fires "contract artifact drift gate" \
   "$VITE_NODE" scripts/generate_contract_artifacts.mts --check
 cp "$BACKUP_DIR/generatedContract.ts" "$WEB/src/lib/generatedContract.ts"
 
-# 4. Step-dataflow AST gate: a run body destructuring an input the step never
-#    declared is exactly the drift channel the checker exists to close.
-seed "$WEB/src/lib/pipelineGraph/steps/parseEvents.ts" \
-  's/run: ({ rows }) => sortByEventThenIndex(rows),/run: ({ rows, seededExtra }) => sortByEventThenIndex(rows),/' \
-  'seededExtra'
-expect_gate_fires "step-dataflow gate (undeclared input destructured)" \
-  "$VITE_NODE" scripts/check_step_dataflow.mts
-cp "$BACKUP_DIR/parseEvents.ts" "$WEB/src/lib/pipelineGraph/steps/parseEvents.ts"
+# 4. Rust graph/dataflow gate: declare a dependency that the tracked Salsa
+#    query does not actually read. The source-level query-call audit must fire.
+seed "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/src/step_contract.rs" \
+  '/id: "csv_parse"/,/inputs: &\[\],/s/inputs: &\[\],/inputs: \&["parse_remap_config"],/' \
+  'inputs: &["parse_remap_config"]'
+expect_gate_fires "Rust step-dataflow gate (declared edge not read)" \
+  cargo test --quiet --locked \
+    --manifest-path "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/Cargo.toml" \
+    --features incremental-v2 \
+    step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls
+cp "$BACKUP_DIR/step_contract.rs" "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/src/step_contract.rs"
 
 # 5. Step-scale pipeline-graph projection drift (the node-scale label is case 1;
-#    this seeds the STEP projection, which is a separate emission path).
+#    this seeds a Rust-derived STEP edge, which is a separate emission path).
 seed "$WEB/schema/chronicle-pipeline-graph.yaml" \
-  's/step_label: CSV parse/step_label: SEEDED DEFECT/' 'SEEDED DEFECT'
+  '/step_id: drop_empty_timestamp/,/has_bypass:/s/- csv_parse/- SEEDED_DEFECT/' 'SEEDED_DEFECT'
 expect_gate_fires "pipeline-graph drift gate (step projection)" \
   "$VITE_NODE" scripts/generate_pipeline_graph_artifacts.mts --check
 cp "$BACKUP_DIR/chronicle-pipeline-graph.yaml" "$WEB/schema/chronicle-pipeline-graph.yaml"
@@ -120,6 +123,16 @@ seed "$WEB/schema/contract-baseline.json" \
 expect_gate_fires "contract-compat gate (removed option without version bump)" \
   "$VITE_NODE" scripts/check_contract_compat.mts
 cp "$BACKUP_DIR/contract-baseline.json" "$WEB/schema/contract-baseline.json"
+
+# 7. Authority boundary: even an otherwise harmless production declaration
+#    using a retired engine symbol must fail the no-TypeScript-engine gate.
+printf '\nexport const runRustV2Shadow = false;\n' >> "$WEB/src/lib/generatedContract.ts"
+grep -qF 'runRustV2Shadow' "$WEB/src/lib/generatedContract.ts" || {
+  echo "✗ seed no-op: authority-boundary symbol append failed"; exit 1;
+}
+expect_gate_fires "TypeScript authority boundary" \
+  "$VITE_NODE" scripts/check_no_typescript_authority.mts
+cp "$BACKUP_DIR/generatedContract.ts" "$WEB/src/lib/generatedContract.ts"
 
 if [ "$fails" -gt 0 ]; then
   echo "gate-truth: $fails gate(s) failed to fire"

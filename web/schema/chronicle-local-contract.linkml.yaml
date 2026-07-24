@@ -164,9 +164,8 @@ classes:
   OutputColumn:
     description: >-
       Semantics of one column of the delivered App Usage / Screen Usage CSVs.
-      Hand-authored layer over the emit-order SSOT (buildAppOutputColumns /
-      buildScreenOutputColumns in browserPipeline.ts); the bijection between
-      this catalog and the code is enforced by
+      Hand-authored layer over the output columns emitted by the Rust pipeline;
+      the bijection between this catalog and the code is enforced by
       web/scripts/generate_output_codebook_artifacts.mts, which also renders
       docs/researcher-output-codebook.md from it.
     slots:
@@ -191,10 +190,10 @@ classes:
 
   PipelineNode:
     description: >-
-      One step of the browser pipeline graph. Declarative projection of
-      web/src/lib/pipelineGraph/graphDef.ts, regenerated (or drift-checked) by
-      web/scripts/generate_pipeline_graph_artifacts.mts; node bodies stay in
-      TypeScript, everything structural lives here.
+      One display group in the Rust preprocessing graph. It is projected from
+      rust/chronicle_chrono_kernel_wasm/src/step_contract.rs by
+      web/scripts/generate_pipeline_graph_artifacts.mts. The group does not
+      schedule execution; the 55 Rust queries do.
     slots:
       - node_id
       - node_label
@@ -207,12 +206,10 @@ classes:
 
   PipelineStep:
     description: >-
-      One transformation of the flat step DAG — the DAG of record, projected
-      from the executable step wirings in web/src/lib/pipelineGraph/steps/
-      (the same objects the step runner executes, so the projection cannot
-      drift from what runs). unit_id is only the engine's memoization
-      boundary: the step/unit split is an arbitrary scale choice, not an
-      ontological distinction.
+      One transformation of the flat 55-step DAG, projected from the Rust step
+      contract and checked against the direct calls made by each Salsa query.
+      unit_id groups steps for display only and never controls memoization or
+      execution.
     slots:
       - step_id
       - step_label

@@ -1,7 +1,9 @@
 export type { BrowserProcessingOptions, BrowserTimezoneHandling, OutputKind } from "@/lib/generatedContract";
 import type { OutputKind, RAW_CHRONICLE_COLUMNS } from "@/lib/generatedContract";
-import type { ExecutionLedger } from "@/lib/pipelineGraph/executionRecords";
-import type { NodeStatus } from "@/lib/pipelineGraph/graphTypes";
+import type {
+  RustExecutionLedger,
+  RustExecutionStatus,
+} from "@/lib/rustExecutionRecords";
 import type { Scene, SceneRegion } from "@/lib/plotScene";
 
 /** One participant's interactive day-grid timeline: the render scene plus the
@@ -104,15 +106,8 @@ export type BrowserSupportFiles = {
 
 export type BrowserProcessingRuntime = {
   datetimeOfPreprocessing?: string;
-  /** Select the computational authority. Production defaults to Rust/WASM. */
+  /** The only supported computational authority. */
   executionAuthority?: "rust";
-  /**
-   * Migration-only comparison against the bounded Rust v2 pipeline. `observe`
-   * records an eligibility/parity report without changing the TypeScript
-   * result. `require-parity` fails the run when the current Rust subset cannot
-   * execute or produces different base CSV bytes/counts.
-   */
-  rustShadowMode?: "off" | "observe" | "require-parity";
   /** Persist verified Rust artifacts and alternating roots in OPFS. */
   persistRustWorkspace?: boolean;
 };
@@ -139,7 +134,7 @@ export type RustStageView = {
         | "blocked"
         | "invalid"
         | "not_applicable";
-      execution_status: NodeStatus | null;
+      execution_status: RustExecutionStatus | null;
       reason_ids: string[];
     }>;
     step_states: Array<{
@@ -149,57 +144,8 @@ export type RustStageView = {
       description: string;
       input_steps: string[];
       can_bypass: boolean;
-      execution_status: NodeStatus | null;
+      execution_status: RustExecutionStatus | null;
     }>;
-  };
-};
-
-export type RustShadowArtifactComparison = {
-  kind:
-    | "app"
-    | "screen"
-    | "credited-app"
-    | "day-coverage"
-    | "compliance"
-    | "aggregate-daily"
-    | "aggregate-weekly"
-    | "aggregate-top-apps"
-    | "aggregate-category-budget"
-    | "aggregate-co-usage"
-    | "app-parquet"
-    | "screen-parquet"
-    | "app-spss"
-    | "screen-spss";
-  typescriptSha256: string;
-  rustSha256: string;
-  typescriptBytes: number;
-  rustBytes: number;
-  matches: boolean;
-  comparison?: "exact-bytes" | "decoded-values";
-};
-
-export type RustShadowReport = {
-  protocolVersion: "chronicle-rust-shadow/v1";
-  implementation: "chronicle_preprocessing_runtime_wasm/execute_bounded_v2_shadow";
-  scope: "selected-runtime-csv-artifacts";
-  status: "ineligible" | "matched" | "diverged" | "failed";
-  reasons: string[];
-  artifacts: RustShadowArtifactComparison[];
-  workspaceRootDigest?: string;
-  implementationDigest?: string;
-  planDigest?: string;
-  productContractDigest?: string;
-  openObligationCount?: number;
-  journalDigest?: string;
-  reviewSummaryMatches?: boolean;
-  persistedWorkspace?: {
-    generation: number;
-    workspaceRootDigest: string;
-  };
-  counts?: {
-    typescript: { original: number; processed: number; app: number; screen: number };
-    rust: { original: number; processed: number; app: number; screen: number };
-    matches: boolean;
   };
 };
 
@@ -332,11 +278,9 @@ export type ProcessedFileResult = {
    * SHA-256 (hex) of the raw input file, computed in the worker where the
    * bytes live (the parallel path transfers them off the main thread). Used
    * for the run-manifest provenance sidecar. Optional: only populated by the
-   * worker entry points, not by direct `processRawCsvContent` calls.
+   * worker entry points, never by a main-thread preprocessing implementation.
    */
   inputSha256?: string;
-  /** Bounded migration evidence. Never used as production result authority. */
-  rustShadowReport?: RustShadowReport;
   /** Rust/WASM authority and content-addressed workspace receipt. */
   rustRuntimeReceipt?: RustRuntimeReceipt;
   /**
@@ -372,10 +316,6 @@ export type ProcessedFileResult = {
    * this result (Graph tab badges). Optional: absent on results persisted
    * before this field existed.
    */
-  graphReport?: {
-    statuses: Record<string, NodeStatus>;
-    errors: Record<string, string>;
-  };
   /**
    * Per-unit/per-step execution ledger for the run that produced this
    * result (timing, row counts, loss accounting, expectation results) —
@@ -383,7 +323,7 @@ export type ProcessedFileResult = {
    * PROV-O sidecar. Optional: absent on results persisted before this
    * field existed.
    */
-  executionLedger?: ExecutionLedger;
+  executionLedger?: RustExecutionLedger;
   /** Product-typed Rust projection used by the Graph tab; never inferred by UI code. */
   rustStageView?: RustStageView;
 };

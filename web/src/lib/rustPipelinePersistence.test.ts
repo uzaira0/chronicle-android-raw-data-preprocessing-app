@@ -33,7 +33,6 @@ import {
   importPersistedRustWorkspaceArchive,
   readPersistedRustArtifact,
   runtimeWorkspaceId,
-  runRustV2Shadow,
   setRustRuntimeForTesting,
   verifyPersistedRustWorkspace,
 } from "@/lib/rustPipelineRuntime";
@@ -160,7 +159,6 @@ const kernel = {
   execute_workspace: vi.fn(),
   export_workspace_query_cache: vi.fn(() => enc.encode("query-cache")),
   restore_workspace_query_cache: vi.fn(),
-  execute_bounded_v2_shadow: vi.fn(),
   verify_evidence_journal_cbor: vi.fn(() => 1),
 };
 
@@ -396,41 +394,4 @@ describe("persisted Rust workspace boundary", () => {
     ).rejects.toThrow(/Web Locks API/);
   });
 
-  it("reports ineligible and failed comparison modes without claiming parity", async () => {
-    const result = {
-      inputFileName: "Raw.csv",
-      outputs: [],
-      originalRowCount: 0,
-      processedRowCount: 0,
-      availableTimezones: [],
-      timezone: "UTC",
-      appRowCount: 0,
-      screenRowCount: 0,
-      timezoneAction: "none" as const,
-      rowsBeforeTimezoneHandling: 0,
-      rowsAfterTimezoneHandling: 0,
-      rowsRemovedByTimezone: 0,
-      duplicateTimestampsCorrected: 0,
-      exactDuplicateRowsRemoved: 0,
-    };
-    await expect(
-      runRustV2Shadow(
-        enc.encode("raw"),
-        DEFAULT_BROWSER_OPTIONS,
-        {},
-        { persistRustWorkspace: false },
-        result,
-      ),
-    ).resolves.toMatchObject({ status: "ineligible" });
-    vi.stubGlobal("navigator", {});
-    await expect(
-      runRustV2Shadow(
-        enc.encode("raw"),
-        { ...DEFAULT_BROWSER_OPTIONS, selectedTimezone: "UTC" },
-        {},
-        { persistRustWorkspace: true },
-        result,
-      ),
-    ).resolves.toMatchObject({ status: "failed", reasons: [expect.stringMatching(/Web Locks/)] });
-  });
 });

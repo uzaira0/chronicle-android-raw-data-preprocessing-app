@@ -249,6 +249,11 @@ function fullExecution(): RustRuntimeExecution {
   );
   artifacts.set("review-summary-json", json({ participants: [] }));
   artifacts.set("execution-ledger-json", json([]));
+  artifacts.set("evidence-journal", enc.encode("journal"));
+  artifacts.set("artifact-closure-json", json({ artifacts: [] }));
+  artifacts.set("dependency-certificate-json", json({ status: "verified" }));
+  artifacts.set("correspondence-index-json", json({ correspondences: [] }));
+  artifacts.set("semantic-index-source-json", json({ records: [] }));
   artifacts.set(
     "stage-view-json",
     json({
@@ -282,6 +287,7 @@ function fullExecution(): RustRuntimeExecution {
   return {
     workspaceId: `sha256:${"3".repeat(64)}`,
     manifest: manifest(metadata),
+    manifestJson: JSON.stringify(manifest(metadata)),
     artifacts,
     persistedWorkspace: {
       protocolVersion: "chronicle-opfs-root/v1",
@@ -428,10 +434,6 @@ describe("Rust authority browser projection", () => {
       ]),
     );
     expect(result.timelineView?.app).toEqual([{ participantId: "included" }]);
-    expect(result.graphReport).toEqual({
-      statuses: { parse_events: "recomputed", outputs: "cached" },
-      errors: {},
-    });
     expect(result.rustRuntimeReceipt).toMatchObject({
       workspaceId: `sha256:${"3".repeat(64)}`,
       openObligationCount: 1,
@@ -528,8 +530,8 @@ describe("Rust authority browser projection", () => {
       {},
       { persistRustWorkspace: false },
     );
-    expect(result.outputs).toHaveLength(3);
-    expect(result.outputs).toEqual([
+    expect(result.outputs).toHaveLength(11);
+    expect(result.outputs).toEqual(expect.arrayContaining([
       expect.objectContaining({
         kind: "lineage",
         outputFileName: "Raw Row Lineage.arrow",
@@ -542,7 +544,15 @@ describe("Rust authority browser projection", () => {
         kind: "lineage",
         outputFileName: "Raw Result Cell Correspondence.arrow",
       }),
-    ]);
+      expect.objectContaining({ outputFileName: "Raw Evidence Journal.cbor" }),
+      expect.objectContaining({ outputFileName: "Raw Artifact Closure.json" }),
+      expect.objectContaining({ outputFileName: "Raw Dependency Certificate.json" }),
+      expect.objectContaining({ outputFileName: "Raw Correspondence Index.json" }),
+      expect.objectContaining({ outputFileName: "Raw Execution Ledger.json" }),
+      expect.objectContaining({ outputFileName: "Raw Stage View.json" }),
+      expect.objectContaining({ outputFileName: "Raw Semantic Index Source.json" }),
+      expect.objectContaining({ outputFileName: "Raw Runtime Manifest.json" }),
+    ]));
     expect(result.timelineView).toMatchObject({ app: [], screen: [] });
   });
 });

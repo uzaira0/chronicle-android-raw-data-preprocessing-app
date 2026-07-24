@@ -10,7 +10,7 @@
 //   * every knob option_key is a BrowserProcessingOptions slot;
 //   * every support file is a BrowserSupportFiles slot;
 //   * inputs reference declared nodes and the graph topo-sorts (DAG);
-//   * --check fails on ANY drift between graphDef.ts and the YAML.
+//   * --check fails on structural drift between the Rust contract and the YAML.
 
 import { readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
@@ -184,7 +184,7 @@ async function buildProjection(): Promise<string> {
   });
 
   // Complement bijection: the contract keys with no node binding must be
-  // exactly the ones graphDef declares as intentionally unbound.
+  // exactly the ones the Rust contract declares as intentionally unbound.
   const unbound = [...optionSlots].filter((key) => !boundOptionKeys.has(key)).sort();
   const declaredUnbound = [...rustContract.unboundOptionKeys].sort();
   if (
@@ -197,8 +197,8 @@ async function buildProjection(): Promise<string> {
     );
   }
 
-  // Flat step DAG is derived only from the Rust contract. Retired TypeScript
-  // objects supply labels, descriptions, and bypass display metadata.
+  // Flat step DAG is derived only from the Rust contract. Existing generated
+  // rows retain their UI-only labels and descriptions.
   const graphSteps = rustContract.steps.map((step) => {
     const display = displayStepsById.get(step.id)!;
     return {

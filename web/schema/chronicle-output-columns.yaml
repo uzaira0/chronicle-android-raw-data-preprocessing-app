@@ -3,7 +3,7 @@
 #
 # HAND-AUTHORED semantics layer (descriptions, units, alignments). The column
 # NAMES are bijection-checked against the emit-order SSOT
-# (buildAppOutputColumns / buildScreenOutputColumns in browserPipeline.ts) by
+# (declared_app_output_columns / declared_screen_output_columns in Rust) by
 # web/scripts/generate_output_codebook_artifacts.mts, which also renders
 # docs/researcher-output-codebook.md. Adding/removing a column in code without
 # updating this catalog fails check:contract.

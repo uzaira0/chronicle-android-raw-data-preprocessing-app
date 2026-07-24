@@ -27,6 +27,7 @@
  */
 
 import { readFile, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -47,13 +48,14 @@ import {
   STRING_BROWSER_OPTION_KEYS,
   TIMEZONE_HANDLING_VALUES,
 } from "../src/lib/generatedContract";
-import { buildChronicleGraph } from "../src/lib/pipelineGraph/graphDef";
-import { ALL_UNIT_WIRINGS } from "../src/lib/pipelineGraph/steps";
-
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const webDir = path.resolve(scriptDir, "..");
 const baselinePath = path.join(webDir, "schema", "contract-baseline.json");
 const outputColumnsPath = path.join(webDir, "schema", "chronicle-output-columns.yaml");
+const rustManifestPath = path.resolve(
+  webDir,
+  "../rust/chronicle_chrono_kernel_wasm/Cargo.toml",
+);
 
 type OptionRecord = { type: string; default: unknown };
 
@@ -88,11 +90,32 @@ async function buildCurrentSnapshot(contractVersion: number): Promise<Snapshot> 
     };
   }
 
-  const graph = buildChronicleGraph();
-  const nodeIds = graph.nodes.map((node) => node.id).sort((a, b) => a.localeCompare(b));
-  const stepIds = ALL_UNIT_WIRINGS.flatMap((wiring) => wiring.steps.map((step) => step.id)).sort(
-    (a, b) => a.localeCompare(b),
-  );
+  const rustContract = JSON.parse(
+    execFileSync(
+      "cargo",
+      [
+        "run",
+        "--quiet",
+        "--locked",
+        "--manifest-path",
+        rustManifestPath,
+        "--features",
+        "incremental-v2",
+        "--bin",
+        "export_pipeline_step_contract",
+      ],
+      { encoding: "utf-8" },
+    ),
+  ) as {
+    protocolVersion: string;
+    groups: Array<{ id: string }>;
+    steps: Array<{ id: string }>;
+  };
+  if (rustContract.protocolVersion !== "chronicle-preprocessing-step-contract/v3") {
+    throw new Error(`unsupported Rust pipeline contract: ${rustContract.protocolVersion}`);
+  }
+  const nodeIds = rustContract.groups.map((node) => node.id).sort((a, b) => a.localeCompare(b));
+  const stepIds = rustContract.steps.map((step) => step.id).sort((a, b) => a.localeCompare(b));
 
   const catalog = parseYaml(await readFile(outputColumnsPath, "utf-8")) as {
     output_columns: Array<{ column_name: string; column_outputs: string[] }>;

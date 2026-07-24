@@ -7,8 +7,7 @@ import backgroundCsv from "@/assets/defaults/Chronicle_Android_raw_data_preproce
 import filterCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv?raw";
 import forcingCsv from "@/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv?raw";
 import codebookCsv from "@/assets/defaults/unified_app_codebook.csv?raw";
-import { GOLDEN_RUNTIME } from "@/lib/pipelineGraph/golden/goldenScenario";
-import { ALL_ON, order } from "@/lib/pipelineGraph/validationHarness";
+import { ALL_ON, GOLDEN_RUNTIME, order } from "@/testSupport/rustCampaignGraph";
 import { buildRustV2Options } from "@/lib/rustPipelineRuntime";
 import {
   buildArtifactFixtureState,
