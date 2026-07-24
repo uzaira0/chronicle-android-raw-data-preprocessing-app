@@ -15,11 +15,12 @@ pub use configuration_family::{
 
 use calamine::{Reader, Xlsx};
 use chronicle_chrono_kernel_wasm::pipeline_v2::{
-    run_pipeline_v2_with_supports, LogicalStageCheckpoint, PipelineV2Options,
-    PipelineV2OptionsJson, PipelineV2Result, PipelineV2SupportFiles, TIMEZONE_HANDLING_MODES,
+    run_pipeline_v2_with_supports, IncrementalPipelineV2Engine, LogicalStageCheckpoint,
+    PipelineV2Options, PipelineV2OptionsJson, PipelineV2Result, PipelineV2SupportFiles,
+    TIMEZONE_HANDLING_MODES,
 };
 use chronicle_chrono_kernel_wasm::step_contract::{
-    step_request_fields, step_source_roles, PIPELINE_STEPS,
+    step_request_fields, step_source_role_bindings, PipelineSourceRolePredicate, PIPELINE_STEPS,
 };
 use chronicle_chrono_kernel_wasm::{
     is_recognized_interaction_type, is_valid_chronicle_timezone, parse_chronicle_timestamp_ns,
@@ -27,12 +28,11 @@ use chronicle_chrono_kernel_wasm::{
 use chronicle_preprocessing_semantic_adapter::{
     embedded_dependency_certificate, embedded_dependency_certificate_bytes, embedded_plan,
     embedded_plan_bytes, embedded_profile_bytes, embedded_profile_lock_bytes,
-    embedded_runtime_authority_bytes, evaluate_materialization,
+    embedded_runtime_authority_bytes, evaluate_dependency_cache_decision, evaluate_materialization,
     journal::{EvidenceJournal, Transition},
     views::{artifact_view, encode_view, explanation_view, obligation_view, stage_view},
-    ArtifactRef, ArtifactStore, CapabilityExecutor, DependencyCacheDecision, ExecutionInputs,
-    ExecutionStatus, MaterializationState, MemoryCas, NodeExecution, PhysicalStage,
-    ProducedArtifact, RoleAssignment, Scheduler, Workspace, CERTIFIED_OPTION_KEYS,
+    ArtifactRef, DependencyCacheDecision, DependencyCacheMode, ExecutionStatus,
+    MaterializationState, NodeExecution, RoleAssignment, CERTIFIED_OPTION_KEYS,
     EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256, EMBEDDED_PLAN_SHA256, EMBEDDED_PRODUCT_CONTRACT_SHA256,
     EMBEDDED_PROFILE_LOCK_SHA256, EMBEDDED_PROFILE_SHA256, EMBEDDED_RUNTIME_AUTHORITY_SHA256,
 };
@@ -81,6 +81,12 @@ pub fn runtime_version() -> String {
 #[wasm_bindgen]
 pub fn implementation_build_digest() -> String {
     IMPLEMENTATION_BUILD_DIGEST.into()
+}
+
+#[wasm_bindgen]
+pub fn query_cache_max_bytes() -> u32 {
+    u32::try_from(IncrementalPipelineV2Engine::MAX_PERSISTED_CACHE_BYTES)
+        .expect("query-cache byte limit must fit u32")
 }
 
 const ADVISORY_RAW_COLUMNS: [&str; 7] = [
@@ -638,7 +644,7 @@ enum RuntimeArtifactBytes {
     Owned(Vec<u8>),
     PipelineOutput {
         result: Arc<PipelineV2Result>,
-        kind: &'static str,
+        kind: String,
     },
 }
 
@@ -676,9 +682,9 @@ pub struct RuntimeHandle {
 
 #[derive(Default)]
 struct IncrementalRuntimeState {
-    workspace: Workspace<MemoryCas>,
-    last_result: Option<Arc<PipelineV2Result>>,
+    incremental_engine: IncrementalPipelineV2Engine,
     step_cache: BTreeMap<String, RuntimeStepCacheEntry>,
+    stage_projection_cache: BTreeMap<String, String>,
     last_workspace_root: Option<String>,
 }
 
@@ -686,6 +692,7 @@ struct IncrementalRuntimeState {
 struct RuntimeStepCacheEntry {
     input_key: String,
     output_digest: String,
+    applicable: bool,
 }
 
 // A WASM worker processes one workspace at a time. Retaining eight complete
@@ -717,6 +724,19 @@ impl IncrementalRuntimeStateCache {
     fn get_mut(&mut self, workspace_id: &str) -> Option<&mut IncrementalRuntimeState> {
         self.states.get_mut(workspace_id)
     }
+
+    fn insert(&mut self, workspace_id: &str, state: IncrementalRuntimeState) {
+        self.lru.retain(|candidate| candidate != workspace_id);
+        if !self.states.contains_key(workspace_id)
+            && self.states.len() >= MAX_INCREMENTAL_RUNTIME_STATES
+        {
+            if let Some(evicted) = self.lru.pop_front() {
+                self.states.remove(&evicted);
+            }
+        }
+        self.states.insert(workspace_id.to_string(), state);
+        self.lru.push_back(workspace_id.to_string());
+    }
 }
 
 thread_local! {
@@ -726,107 +746,7 @@ thread_local! {
 
 #[cfg(test)]
 thread_local! {
-    static FUSED_PHYSICAL_EXECUTION_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-
-struct FusedPhysicalExecutor<'a> {
-    csv_bytes: &'a [u8],
-    options: &'a PipelineV2Options,
-    semantic_options: &'a Value,
-    support: &'a ResolvedSupportFiles,
-    result: Option<PipelineV2Result>,
-    error: Option<String>,
-}
-
-impl FusedPhysicalExecutor<'_> {
-    fn ensure_result(&mut self) -> Result<&PipelineV2Result, String> {
-        if let Some(error) = &self.error {
-            return Err(error.clone());
-        }
-        if self.result.is_none() {
-            #[cfg(test)]
-            FUSED_PHYSICAL_EXECUTION_COUNT.with(|count| count.set(count.get() + 1));
-            match run_pipeline_v2_with_supports(
-                self.csv_bytes,
-                self.options,
-                PipelineV2SupportFiles {
-                    filter_csv: self.support.get("filter_file"),
-                    apps_forcing_csv: self.support.get("apps_forcing_screen_open_file"),
-                    background_apps_csv: self.support.get("background_apps_file"),
-                    codebook_csv: self.support.get("app_codebook_file"),
-                    study_dates_csv: self.support.get("study_dates_file"),
-                    device_sharing_csv: self.support.get("device_sharing_file"),
-                    survey_attribution_csv: self.support.get("survey_attribution_file"),
-                    enrolled_devices_csv: self.support.get("enrolled_devices_file"),
-                },
-            ) {
-                Ok(result) => self.result = Some(result),
-                Err(error) => {
-                    self.error = Some(error.clone());
-                    return Err(error);
-                }
-            }
-        }
-        Ok(self.result.as_ref().expect("result initialized"))
-    }
-
-    fn stage_digest(&mut self, node_id: &str) -> Result<String, String> {
-        let result = self.ensure_result()?;
-        let checkpoint = result
-            .logical_stage_digests
-            .get(node_id)
-            .ok_or_else(|| format!("fused pipeline omitted logical checkpoint {node_id}"))?;
-        if node_id != "outputs" {
-            return Ok(checkpoint.clone());
-        }
-        // Parquet and SPSS are assembled by the runtime after the fused CSV
-        // kernel returns. Bind their exact terminal configuration into the
-        // output checkpoint so the logical output value reflects the complete
-        // researcher-visible artifact family rather than CSVs alone.
-        let output_extensions = serde_jcs::to_vec(&serde_json::json!({
-            "checkpoint": checkpoint,
-            "enableParquetExport": self.semantic_options["enable_parquet_export"],
-            "enableSpssExport": self.semantic_options["enable_spss_export"],
-        }))
-        .map_err(|error| error.to_string())?;
-        Ok(format!(
-            "sha256:{}",
-            hex::encode(Sha256::digest(output_extensions))
-        ))
-    }
-}
-
-impl CapabilityExecutor for FusedPhysicalExecutor<'_> {
-    fn execute(
-        &mut self,
-        stage: PhysicalStage,
-        inputs: &ExecutionInputs<'_>,
-    ) -> Result<ProducedArtifact, String> {
-        let digest = self.stage_digest(inputs.node_id)?;
-        let typed_checkpoint = self
-            .ensure_result()?
-            .logical_stage_checkpoints
-            .get(inputs.node_id)
-            .ok_or_else(|| {
-                format!(
-                    "fused pipeline omitted typed logical checkpoint {}",
-                    inputs.node_id
-                )
-            })?;
-        let bytes = serde_jcs::to_vec(&serde_json::json!({
-            "checkpointProtocol": "chronicle-logical-stage-checkpoint/v3",
-            "physicalExecution": "fused-rust-pipeline-v2",
-            "logicalNode": inputs.node_id,
-            "physicalStage": stage,
-            "semanticOutputDigest": digest,
-            "typedCheckpoint": typed_checkpoint,
-        }))
-        .map_err(|error| error.to_string())?;
-        Ok(ProducedArtifact {
-            media_type: "application/vnd.chronicle.node-fingerprint+json".into(),
-            bytes,
-        })
-    }
+    static TRACKED_PHYSICAL_EXECUTION_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 fn compute_pipeline_result_digest(
@@ -927,7 +847,7 @@ fn pipeline_result_digests(result: &PipelineV2Result) -> PipelineResultDigests {
             .into_iter()
             .chain(result.aggregate_csv_outputs.iter().map(|aggregate| {
                 (
-                    aggregate.kind,
+                    aggregate.kind.as_str(),
                     aggregate.bytes.as_slice(),
                     aggregate.row_count,
                 )
@@ -1151,33 +1071,12 @@ impl ResolvedSupportFiles {
     }
 }
 
-fn assign_incremental_artifact(
-    workspace: &mut Workspace<MemoryCas>,
-    plan: &chronicle_preprocessing_semantic_adapter::ChroniclePlan,
-    role: &str,
-    media_type: &str,
-    bytes: &[u8],
-    verified_digest: Option<&str>,
-) -> Result<(), String> {
-    let artifact = match verified_digest {
-        Some(digest) => {
-            workspace
-                .store
-                .put_verified_sha256(media_type, digest, bytes.to_vec(), Vec::new())
-        }
-        None => workspace.store.put(media_type, bytes.to_vec(), Vec::new()),
-    }
-    .map_err(|error| error.to_string())?;
-    workspace
-        .assign(plan, role, artifact)
-        .map_err(|error| error.to_string())
-}
-
 #[derive(Serialize)]
 struct RuntimeStepKeyMaterial {
     implementation_digest: &'static str,
     build_environment_digest: &'static str,
     contract_digest: &'static str,
+    applicable: bool,
     upstream: BTreeMap<String, String>,
     request_fields: BTreeMap<String, Value>,
     source_roles: BTreeMap<String, Option<String>>,
@@ -1189,8 +1088,9 @@ fn build_runtime_step_executions(
     exact_options: &Value,
     assignments: &BTreeMap<String, RoleAssignment>,
     result: &PipelineV2Result,
+    executed_steps: &[String],
     cache: &mut BTreeMap<String, RuntimeStepCacheEntry>,
-) -> Result<(Vec<RuntimeStepExecution>, Vec<String>), String> {
+) -> Result<Vec<RuntimeStepExecution>, String> {
     let plan_steps = plan
         .steps
         .iter()
@@ -1212,6 +1112,19 @@ fn build_runtime_step_executions(
     let exact_object = exact_options
         .as_object()
         .ok_or_else(|| "exact Rust options must serialize as an object".to_string())?;
+    let executed_steps = executed_steps
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let unknown_executions = executed_steps
+        .difference(&contract_ids)
+        .copied()
+        .collect::<Vec<_>>();
+    if !unknown_executions.is_empty() {
+        return Err(format!(
+            "incremental engine reported unknown executed steps: {unknown_executions:?}"
+        ));
+    }
     let mut executions = Vec::with_capacity(PIPELINE_STEPS.len());
     let mut binding_gaps = Vec::new();
     let mut next_cache = BTreeMap::new();
@@ -1249,29 +1162,49 @@ fn build_runtime_step_executions(
                     })
             })
             .collect::<Result<BTreeMap<_, _>, _>>()?;
-        let source_roles = step_source_roles(definition.id)
-            .iter()
-            .map(|role| {
-                (
-                    (*role).to_string(),
-                    assignments
-                        .get(*role)
-                        .map(|assignment| assignment.artifact.digest.clone()),
-                )
+        let source_roles = step_source_role_bindings(definition.id)
+            .into_iter()
+            .filter_map(|binding| {
+                let active = binding.when_all.iter().all(|predicate| match predicate {
+                    PipelineSourceRolePredicate::BooleanEquals {
+                        request_field,
+                        value,
+                    } => exact_object
+                        .get(*request_field)
+                        .and_then(Value::as_bool)
+                        .is_some_and(|actual| actual == *value),
+                    PipelineSourceRolePredicate::StringOneOf {
+                        request_field,
+                        values,
+                    } => exact_object
+                        .get(*request_field)
+                        .and_then(Value::as_str)
+                        .is_some_and(|actual| values.contains(&actual)),
+                });
+                active.then(|| {
+                    let role = binding.role;
+                    (
+                        role.to_string(),
+                        assignments
+                            .get(role)
+                            .map(|assignment| assignment.artifact.digest.clone()),
+                    )
+                })
             })
             .collect();
+        let applicable = plan_step.applicability.evaluate(semantic_options);
         let input_key = sha256(
             &serde_jcs::to_vec(&RuntimeStepKeyMaterial {
                 implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
                 build_environment_digest: BUILD_ENVIRONMENT_DIGEST,
                 contract_digest: EMBEDDED_PRODUCT_CONTRACT_SHA256,
+                applicable,
                 upstream,
                 request_fields,
                 source_roles,
             })
             .map_err(|error| format!("canonicalize {} input key: {error}", definition.id))?,
         );
-        let applicable = plan_step.applicability.evaluate(semantic_options);
         let previous = cache.get(definition.id);
         if previous.is_some_and(|entry| {
             entry.input_key == input_key && entry.output_digest != output_digest
@@ -1280,12 +1213,10 @@ fn build_runtime_step_executions(
         }
         let status = if !applicable && plan_step.can_bypass {
             ExecutionStatus::Bypassed
-        } else if previous.is_some_and(|entry| {
-            entry.input_key == input_key && entry.output_digest == output_digest
-        }) {
-            ExecutionStatus::Cached
-        } else {
+        } else if executed_steps.contains(definition.id) {
             ExecutionStatus::Recomputed
+        } else {
+            ExecutionStatus::Cached
         };
         let reason_id = sha256(
             format!(
@@ -1316,29 +1247,185 @@ fn build_runtime_step_executions(
             RuntimeStepCacheEntry {
                 input_key,
                 output_digest,
+                applicable,
             },
         );
     }
 
     if !binding_gaps.is_empty() {
-        for execution in &mut executions {
-            if execution.status != ExecutionStatus::Bypassed {
-                execution.status = ExecutionStatus::Recomputed;
-                execution.reason_id = sha256(
-                    format!("binding-gap-full-recompute\u{1f}{}", execution.step_id).as_bytes(),
-                );
-            }
-        }
+        return Err(format!(
+            "tracked step output changed without a changed bound input: {}",
+            binding_gaps.join(",")
+        ));
     }
     *cache = next_cache;
-    Ok((executions, binding_gaps))
+    Ok(executions)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProductStageInputKey<'a> {
+    implementation_digest: &'static str,
+    contract_digest: &'static str,
+    node_id: &'a str,
+    semantic_output_digest: &'a str,
+    step_inputs: BTreeMap<&'a str, (&'a str, &'a str)>,
+}
+
+fn project_product_stages(
+    plan: &chronicle_preprocessing_semantic_adapter::ChroniclePlan,
+    semantic_options: &Value,
+    result: &PipelineV2Result,
+    step_executions: &[RuntimeStepExecution],
+    deactivated_groups: &BTreeSet<&str>,
+    projection_cache: &mut BTreeMap<String, String>,
+) -> Result<(Vec<NodeExecution>, Vec<RuntimeArtifact>), String> {
+    let mut executions = Vec::with_capacity(plan.nodes.len());
+    let mut artifacts = Vec::with_capacity(plan.nodes.len());
+    for node in &plan.nodes {
+        let members = step_executions
+            .iter()
+            .filter(|execution| execution.unit_id == node.node_id)
+            .collect::<Vec<_>>();
+        if members.is_empty() {
+            return Err(format!(
+                "product stage {} contains no tracked Rust queries",
+                node.node_id
+            ));
+        }
+        let checkpoint = result
+            .logical_stage_checkpoints
+            .get(&node.node_id)
+            .ok_or_else(|| {
+                format!(
+                    "tracked pipeline omitted typed product-stage checkpoint {}",
+                    node.node_id
+                )
+            })?;
+        let semantic_output_digest = if node.node_id == "outputs" {
+            sha256(
+                &serde_jcs::to_vec(&serde_json::json!({
+                    "checkpoint": result.logical_stage_digests.get(&node.node_id),
+                    "enableParquetExport": semantic_options["enable_parquet_export"],
+                    "enableSpssExport": semantic_options["enable_spss_export"],
+                }))
+                .map_err(|error| format!("canonicalize output-stage extensions: {error}"))?,
+            )
+        } else {
+            result
+                .logical_stage_digests
+                .get(&node.node_id)
+                .cloned()
+                .ok_or_else(|| {
+                    format!(
+                        "tracked pipeline omitted product-stage digest {}",
+                        node.node_id
+                    )
+                })?
+        };
+        let bytes = serde_jcs::to_vec(&serde_json::json!({
+            "checkpointProtocol": "chronicle-logical-stage-checkpoint/v3",
+            "physicalExecution": "salsa-tracked-rust-pipeline-v2",
+            "projection": "product-stage-from-actual-step-events",
+            "logicalNode": node.node_id,
+            "semanticOutputDigest": semantic_output_digest,
+            "typedCheckpoint": checkpoint,
+        }))
+        .map_err(|error| {
+            format!(
+                "canonicalize {} product-stage projection: {error}",
+                node.node_id
+            )
+        })?;
+        let derived_from = members
+            .iter()
+            .map(|execution| execution.output_digest.clone())
+            .collect::<Vec<_>>();
+        let artifact = runtime_artifact(
+            &format!("node-output:{}", node.node_id),
+            "application/vnd.chronicle.node-fingerprint+json",
+            bytes,
+            derived_from,
+        );
+        let output = ArtifactRef {
+            artifact_id: artifact.metadata.artifact_id.clone(),
+            digest: artifact.metadata.digest.clone(),
+            media_type: artifact.metadata.media_type.clone(),
+            size: artifact.metadata.size,
+            derived_from: artifact.metadata.derived_from.clone(),
+            qualifiers: BTreeMap::new(),
+        };
+        let input_key = sha256(
+            &serde_jcs::to_vec(&ProductStageInputKey {
+                implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
+                contract_digest: EMBEDDED_PRODUCT_CONTRACT_SHA256,
+                node_id: &node.node_id,
+                semantic_output_digest: &semantic_output_digest,
+                step_inputs: members
+                    .iter()
+                    .map(|execution| {
+                        (
+                            execution.step_id.as_str(),
+                            (
+                                execution.input_key.as_str(),
+                                execution.output_digest.as_str(),
+                            ),
+                        )
+                    })
+                    .collect(),
+            })
+            .map_err(|error| format!("canonicalize {} product-stage key: {error}", node.node_id))?,
+        );
+        let projection_changed = projection_cache
+            .get(&node.node_id)
+            .is_none_or(|previous| previous != &input_key);
+        let status = if members
+            .iter()
+            .any(|execution| execution.status == ExecutionStatus::Error)
+        {
+            ExecutionStatus::Error
+        } else if !node.applicability.evaluate(semantic_options) && node.can_bypass {
+            ExecutionStatus::Bypassed
+        } else if members
+            .iter()
+            .any(|execution| execution.status == ExecutionStatus::Skipped)
+        {
+            ExecutionStatus::Skipped
+        } else if projection_changed
+            || deactivated_groups.contains(node.node_id.as_str())
+            || members
+                .iter()
+                .any(|execution| execution.status == ExecutionStatus::Recomputed)
+        {
+            ExecutionStatus::Recomputed
+        } else {
+            ExecutionStatus::Cached
+        };
+        let reason = match status {
+            ExecutionStatus::Cached => "all-active-queries-reused",
+            ExecutionStatus::Recomputed => "product-stage-projection-changed",
+            ExecutionStatus::Bypassed => "product-stage-not-applicable",
+            ExecutionStatus::Skipped => "query-skipped",
+            ExecutionStatus::Error => "query-error",
+        };
+        executions.push(NodeExecution {
+            node_id: node.node_id.clone(),
+            capability_id: node.capability_id.clone(),
+            status,
+            input_key: input_key.clone(),
+            output: Some(output),
+            reason_id: stable_id(&[reason, &node.node_id, &artifact.metadata.digest]),
+        });
+        projection_cache.insert(node.node_id.clone(), input_key);
+        artifacts.push(artifact);
+    }
+    Ok((executions, artifacts))
 }
 
 fn execute_incremental_pipeline(
     request: &RuntimeRequest,
     ingress_assignments: &BTreeMap<String, RoleAssignment>,
     csv_bytes: &[u8],
-    options_bytes: &[u8],
     options_value: &Value,
     options: &PipelineV2Options,
     support: &ResolvedSupportFiles,
@@ -1350,116 +1437,74 @@ fn execute_incremental_pipeline(
         if request.workspace_root_digest != state.last_workspace_root {
             *state = IncrementalRuntimeState::default();
         }
-        state.workspace.implementation_digest = IMPLEMENTATION_BUILD_DIGEST.into();
-        state.workspace.contract_digest = EMBEDDED_PRODUCT_CONTRACT_SHA256.into();
-        state.workspace.assignments.clear();
-        state.workspace.options = options_value.clone();
-        assign_incremental_artifact(
-            &mut state.workspace,
-            &plan,
-            "raw_chronicle_csv",
-            "text/csv",
-            csv_bytes,
-            ingress_assignments
-                .get("raw_chronicle_csv")
-                .map(|assignment| assignment.artifact.digest.as_str()),
-        )?;
-        assign_incremental_artifact(
-            &mut state.workspace,
-            &plan,
-            "processing_options",
-            "application/json",
-            options_bytes,
-            ingress_assignments
-                .get("processing_options")
-                .map(|assignment| assignment.artifact.digest.as_str()),
-        )?;
-        for (role, file) in &support.files {
-            assign_incremental_artifact(
-                &mut state.workspace,
-                &plan,
-                role,
-                file.media_type,
-                &file.original_bytes,
-                ingress_assignments
-                    .get(role)
-                    .map(|assignment| assignment.artifact.digest.as_str()),
-            )?;
-        }
-
-        let previous_result = state.last_result.clone();
-        let mut executor = FusedPhysicalExecutor {
-            csv_bytes,
-            options,
-            semantic_options: options_value,
-            support,
-            result: None,
-            error: None,
-        };
         let certificate = embedded_dependency_certificate();
         let empirical_evidence_current = dependency_evidence_current(&certificate);
-        let (executions, mut cache_decision) = Scheduler::new_certified(
-            plan.clone(),
-            certificate,
-            EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256,
-            EMBEDDED_PLAN_SHA256,
+        let cache_decision = evaluate_dependency_cache_decision(
+            &plan,
+            Some(&certificate),
+            Some(EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256),
+            Some(EMBEDDED_PLAN_SHA256),
             empirical_evidence_current,
+            options_value,
+            ingress_assignments,
         )
-        .run_with_decision(&mut state.workspace, &mut executor)
         .map_err(|error| error.to_string())?;
-        if let Some(error) = executor.error {
-            return Err(error);
+        if cache_decision.mode == DependencyCacheMode::ConservativeFull {
+            state.incremental_engine = IncrementalPipelineV2Engine::default();
+            state.step_cache.clear();
+            state.stage_projection_cache.clear();
         }
-        let result = executor
-            .result
-            .map(Arc::new)
-            .or(previous_result)
-            .ok_or_else(|| "incremental scheduler produced no physical result".to_string())?;
+
+        let tracked_execution = state.incremental_engine.execute(
+            csv_bytes,
+            options,
+            PipelineV2SupportFiles {
+                filter_csv: support.get("filter_file"),
+                apps_forcing_csv: support.get("apps_forcing_screen_open_file"),
+                background_apps_csv: support.get("background_apps_file"),
+                codebook_csv: support.get("app_codebook_file"),
+                study_dates_csv: support.get("study_dates_file"),
+                device_sharing_csv: support.get("device_sharing_file"),
+                survey_attribution_csv: support.get("survey_attribution_file"),
+                enrolled_devices_csv: support.get("enrolled_devices_file"),
+            },
+        )?;
+        let executed_steps = tracked_execution.executed_steps;
+        #[cfg(test)]
+        if !executed_steps.is_empty() {
+            TRACKED_PHYSICAL_EXECUTION_COUNT.with(|count| count.set(count.get() + 1));
+        }
+        let previous_step_cache = state.step_cache.clone();
         let exact_options = serde_json::to_value(&request.options)
             .map_err(|error| format!("serialize exact Rust options for step scheduler: {error}"))?;
-        let (step_executions, binding_gaps) = build_runtime_step_executions(
+        let step_executions = build_runtime_step_executions(
             &plan,
             options_value,
             &exact_options,
-            &state.workspace.assignments,
-            &result,
+            ingress_assignments,
+            &tracked_execution.result,
+            &executed_steps,
             &mut state.step_cache,
         )?;
-        if !binding_gaps.is_empty() {
-            cache_decision.mode =
-                chronicle_preprocessing_semantic_adapter::DependencyCacheMode::ConservativeFull;
-            cache_decision.reasons.push(format!(
-                "step_dependency_binding_gap:{}",
-                binding_gaps.join(",")
-            ));
-        }
-        let node_artifacts = executions
+        let deactivated_groups = step_executions
             .iter()
-            .filter_map(|execution| {
-                let output = execution.output.as_ref()?;
-                Some(
-                    state
-                        .workspace
-                        .store
-                        .get(&output.digest)
-                        .map(|bytes| RuntimeArtifact {
-                            metadata: RuntimeArtifactMetadata {
-                                artifact_id: output.artifact_id.clone(),
-                                kind: format!("node-output:{}", execution.node_id),
-                                media_type: output.media_type.clone(),
-                                digest: output.digest.clone(),
-                                size: output.size,
-                                derived_from: output.derived_from.clone(),
-                                row_count: None,
-                                preview_rows: None,
-                            },
-                            bytes: RuntimeArtifactBytes::Owned(bytes.to_vec()),
-                        })
-                        .map_err(|error| error.to_string()),
-                )
+            .filter(|execution| {
+                execution.status == ExecutionStatus::Bypassed
+                    && previous_step_cache
+                        .get(&execution.step_id)
+                        .is_some_and(|entry| entry.applicable)
             })
-            .collect::<Result<Vec<_>, _>>()?;
-        state.last_result = Some(Arc::clone(&result));
+            .map(|execution| execution.unit_id.as_str())
+            .collect::<BTreeSet<_>>();
+        let result = tracked_execution.result;
+        let (executions, node_artifacts) = project_product_stages(
+            &plan,
+            options_value,
+            &result,
+            &step_executions,
+            &deactivated_groups,
+            &mut state.stage_projection_cache,
+        )?;
         Ok(IncrementalPipelineExecution {
             result,
             node_executions: executions,
@@ -1473,14 +1518,26 @@ fn execute_incremental_pipeline(
 fn dependency_evidence_current(
     certificate: &chronicle_preprocessing_semantic_adapter::DependencyCertificate,
 ) -> bool {
-    let receipt = &certificate.evidence.implementation_receipt;
-    receipt.implementation == "chronicle_preprocessing_runtime_wasm/0.1.0"
-        && receipt.implementation_digest == IMPLEMENTATION_BUILD_DIGEST
-        && receipt.plan_digest == EMBEDDED_PLAN_SHA256
-        && receipt.profile_digest == EMBEDDED_PROFILE_SHA256
-        && receipt.profile_lock_digest == EMBEDDED_PROFILE_LOCK_SHA256
-        && receipt.runtime_authority_digest == EMBEDDED_RUNTIME_AUTHORITY_SHA256
-        && receipt.product_contract_digest == EMBEDDED_PRODUCT_CONTRACT_SHA256
+    #[cfg(feature = "dependency-campaign-bootstrap")]
+    {
+        // This build exists only so a changed implementation can regenerate
+        // the evidence that production requires. Its package is temporary and
+        // its distinct build-environment digest makes the mode observable.
+        let _ = certificate;
+        return true;
+    }
+
+    #[cfg(not(feature = "dependency-campaign-bootstrap"))]
+    {
+        let receipt = &certificate.evidence.implementation_receipt;
+        receipt.implementation == "chronicle_preprocessing_runtime_wasm/0.1.0"
+            && receipt.implementation_digest == IMPLEMENTATION_BUILD_DIGEST
+            && receipt.plan_digest == EMBEDDED_PLAN_SHA256
+            && receipt.profile_digest == EMBEDDED_PROFILE_SHA256
+            && receipt.profile_lock_digest == EMBEDDED_PROFILE_LOCK_SHA256
+            && receipt.runtime_authority_digest == EMBEDDED_RUNTIME_AUTHORITY_SHA256
+            && receipt.product_contract_digest == EMBEDDED_PRODUCT_CONTRACT_SHA256
+    }
 }
 
 fn record_incremental_workspace_root(workspace_id: &str, workspace_root_digest: &str) {
@@ -1489,6 +1546,265 @@ fn record_incremental_workspace_root(workspace_id: &str, workspace_root_digest: 
             state.last_workspace_root = Some(workspace_root_digest.to_string());
         }
     });
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct QueryCacheIdentity<'a> {
+    protocol_version: &'static str,
+    implementation_digest: &'static str,
+    build_environment_digest: &'static str,
+    plan_digest: &'static str,
+    profile_digest: &'static str,
+    profile_lock_digest: &'static str,
+    runtime_authority_digest: &'static str,
+    product_contract_digest: &'static str,
+    dependency_certificate_digest: &'static str,
+    workspace_id: &'a str,
+    base_workspace_root_digest: &'a str,
+}
+
+fn query_cache_identity(
+    workspace_id: &str,
+    base_workspace_root_digest: &str,
+) -> Result<String, String> {
+    validate_digest(base_workspace_root_digest)
+        .map_err(|message| format!("query-cache base workspace root {message}"))?;
+    if workspace_id.is_empty() {
+        return Err("query-cache workspace ID must not be empty".to_string());
+    }
+    let bytes = serde_jcs::to_vec(&QueryCacheIdentity {
+        protocol_version: "chronicle-query-cache-identity/v1",
+        implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
+        build_environment_digest: BUILD_ENVIRONMENT_DIGEST,
+        plan_digest: EMBEDDED_PLAN_SHA256,
+        profile_digest: EMBEDDED_PROFILE_SHA256,
+        profile_lock_digest: EMBEDDED_PROFILE_LOCK_SHA256,
+        runtime_authority_digest: EMBEDDED_RUNTIME_AUTHORITY_SHA256,
+        product_contract_digest: EMBEDDED_PRODUCT_CONTRACT_SHA256,
+        dependency_certificate_digest: EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256,
+        workspace_id,
+        base_workspace_root_digest,
+    })
+    .map_err(|error| format!("canonicalize query-cache identity: {error}"))?;
+    String::from_utf8(bytes).map_err(|error| format!("query-cache identity is not UTF-8: {error}"))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PersistedSemanticExecution {
+    protocol_version: String,
+    node_executions: Vec<NodeExecution>,
+    step_executions: Vec<RuntimeStepExecution>,
+    dependency_cache_decision: DependencyCacheDecision,
+    execution_ledger: Vec<PersistedExecutionUnit>,
+}
+
+#[derive(Deserialize)]
+struct PersistedExecutionUnit {
+    steps: Vec<PersistedExecutionStep>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PersistedExecutionStep {
+    step_id: String,
+    applicable: bool,
+}
+
+fn restored_runtime_caches(
+    semantic_index_source: &[u8],
+) -> Result<
+    (
+        BTreeMap<String, RuntimeStepCacheEntry>,
+        BTreeMap<String, String>,
+    ),
+    String,
+> {
+    let source: PersistedSemanticExecution = serde_json::from_slice(semantic_index_source)
+        .map_err(|error| format!("parse persisted semantic execution state: {error}"))?;
+    if source.protocol_version != "chronicle-semantic-index-source/v2" {
+        return Err(format!(
+            "unsupported persisted semantic execution protocol: {}",
+            source.protocol_version
+        ));
+    }
+    if source.dependency_cache_decision.mode != DependencyCacheMode::CertifiedNarrow
+        || !source.dependency_cache_decision.empirical_evidence_current
+    {
+        return Err(
+            "persisted semantic execution did not use current certified-narrow dependencies"
+                .to_string(),
+        );
+    }
+    if source
+        .dependency_cache_decision
+        .certificate_digest
+        .as_deref()
+        != Some(EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256)
+    {
+        return Err("persisted semantic execution certificate digest mismatch".to_string());
+    }
+
+    let applicability = source
+        .execution_ledger
+        .into_iter()
+        .flat_map(|unit| unit.steps)
+        .map(|step| (step.step_id, step.applicable))
+        .collect::<BTreeMap<_, _>>();
+    let contract_ids = PIPELINE_STEPS
+        .iter()
+        .map(|step| step.id)
+        .collect::<BTreeSet<_>>();
+    let persisted_ids = source
+        .step_executions
+        .iter()
+        .map(|step| step.step_id.as_str())
+        .collect::<BTreeSet<_>>();
+    let applicability_ids = applicability
+        .keys()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    if persisted_ids != contract_ids || applicability_ids != contract_ids {
+        return Err(format!(
+            "persisted semantic execution does not cover the exact 55-step contract: executions={} applicability={} expected={}",
+            persisted_ids.len(),
+            applicability_ids.len(),
+            contract_ids.len()
+        ));
+    }
+    let step_cache = source
+        .step_executions
+        .into_iter()
+        .map(|step| {
+            let applicable = applicability[&step.step_id];
+            (
+                step.step_id,
+                RuntimeStepCacheEntry {
+                    input_key: step.input_key,
+                    output_digest: step.output_digest,
+                    applicable,
+                },
+            )
+        })
+        .collect();
+
+    let plan = embedded_plan();
+    let expected_nodes = plan
+        .nodes
+        .iter()
+        .map(|node| node.node_id.as_str())
+        .collect::<BTreeSet<_>>();
+    let persisted_nodes = source
+        .node_executions
+        .iter()
+        .map(|node| node.node_id.as_str())
+        .collect::<BTreeSet<_>>();
+    if persisted_nodes != expected_nodes {
+        return Err(format!(
+            "persisted semantic execution does not cover the exact product-stage projection: actual={} expected={}",
+            persisted_nodes.len(),
+            expected_nodes.len()
+        ));
+    }
+    let stage_projection_cache = source
+        .node_executions
+        .into_iter()
+        .map(|node| (node.node_id, node.input_key))
+        .collect();
+    Ok((step_cache, stage_projection_cache))
+}
+
+pub fn export_workspace_query_cache_native(
+    workspace_id: &str,
+    committed_root_digest: &str,
+) -> Result<Vec<u8>, String> {
+    let identity = query_cache_identity(workspace_id, committed_root_digest)?;
+    INCREMENTAL_RUNTIME_STATES.with(|states| {
+        let mut states = states.borrow_mut();
+        let state = states
+            .get_mut(workspace_id)
+            .ok_or_else(|| "query cache is unavailable for this workspace".to_string())?;
+        if state.last_workspace_root.as_deref() != Some(committed_root_digest) {
+            return Err(format!(
+                "query-cache root mismatch: runtime={:?} committed={committed_root_digest}",
+                state.last_workspace_root
+            ));
+        }
+        state.incremental_engine.export_cache(&identity)
+    })
+}
+
+pub fn workspace_query_state_matches_root_native(
+    workspace_id: &str,
+    committed_root_digest: &str,
+) -> bool {
+    INCREMENTAL_RUNTIME_STATES.with(|states| {
+        states
+            .borrow_mut()
+            .get_mut(workspace_id)
+            .and_then(|state| state.last_workspace_root.as_deref())
+            == Some(committed_root_digest)
+    })
+}
+
+pub fn restore_workspace_query_cache_native(
+    workspace_id: &str,
+    committed_root_digest: &str,
+    cache_bytes: &[u8],
+    semantic_index_source: &[u8],
+) -> Result<(), String> {
+    let certificate = embedded_dependency_certificate();
+    if !dependency_evidence_current(&certificate) {
+        return Err("current runtime dependency evidence is stale".to_string());
+    }
+    if workspace_query_state_matches_root_native(workspace_id, committed_root_digest) {
+        return Ok(());
+    }
+    let identity = query_cache_identity(workspace_id, committed_root_digest)?;
+    let (step_cache, stage_projection_cache) = restored_runtime_caches(semantic_index_source)?;
+    let mut incremental_engine = IncrementalPipelineV2Engine::default();
+    incremental_engine.restore_cache(cache_bytes, &identity)?;
+    let state = IncrementalRuntimeState {
+        incremental_engine,
+        step_cache,
+        stage_projection_cache,
+        last_workspace_root: Some(committed_root_digest.to_string()),
+    };
+    INCREMENTAL_RUNTIME_STATES.with(|states| {
+        states.borrow_mut().insert(workspace_id, state);
+    });
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub fn workspace_query_state_matches_root(workspace_id: &str, committed_root_digest: &str) -> bool {
+    workspace_query_state_matches_root_native(workspace_id, committed_root_digest)
+}
+
+#[wasm_bindgen]
+pub fn export_workspace_query_cache(
+    workspace_id: &str,
+    committed_root_digest: &str,
+) -> Result<Vec<u8>, JsValue> {
+    export_workspace_query_cache_native(workspace_id, committed_root_digest)
+        .map_err(|error| JsValue::from_str(&error))
+}
+
+#[wasm_bindgen]
+pub fn restore_workspace_query_cache(
+    workspace_id: &str,
+    committed_root_digest: &str,
+    cache_bytes: &[u8],
+    semantic_index_source: &[u8],
+) -> Result<(), JsValue> {
+    restore_workspace_query_cache_native(
+        workspace_id,
+        committed_root_digest,
+        cache_bytes,
+        semantic_index_source,
+    )
+    .map_err(|error| JsValue::from_str(&error))
 }
 
 fn write_csv_cell(output: &mut Vec<u8>, value: &str) {
@@ -1559,7 +1875,7 @@ impl RuntimeHandle {
         match payload {
             RuntimeArtifactBytes::Owned(bytes) => Ok(bytes),
             RuntimeArtifactBytes::PipelineOutput { result, kind } => {
-                pipeline_output_bytes(&result, kind)
+                pipeline_output_bytes(&result, &kind)
                     .map(<[u8]>::to_vec)
                     .ok_or_else(|| JsValue::from_str("cached pipeline output kind is missing"))
             }
@@ -1815,7 +2131,6 @@ pub fn execute_workspace_native(
         &request,
         &ingress.assignments,
         csv_bytes,
-        &options_bytes,
         &options_value,
         &pipeline_options,
         &resolved_support,
@@ -2853,10 +3168,10 @@ fn output_artifacts(
     for aggregate in &result.aggregate_csv_outputs {
         artifacts.push(shared_pipeline_aggregate_artifact(
             Arc::clone(&result),
-            aggregate.kind,
+            &aggregate.kind,
             aggregate.row_count,
             dependencies,
-            digest_for(aggregate.kind),
+            digest_for(&aggregate.kind),
         ));
     }
     artifacts.push(shared_pipeline_artifact(
@@ -2895,7 +3210,7 @@ fn pipeline_output_bytes<'a>(result: &'a PipelineV2Result, kind: &str) -> Option
 
 fn shared_pipeline_artifact(
     result: Arc<PipelineV2Result>,
-    kind: &'static str,
+    kind: &str,
     media_type: &str,
     derived_from: Vec<String>,
     digest: String,
@@ -2915,13 +3230,16 @@ fn shared_pipeline_artifact(
             row_count: None,
             preview_rows: None,
         },
-        bytes: RuntimeArtifactBytes::PipelineOutput { result, kind },
+        bytes: RuntimeArtifactBytes::PipelineOutput {
+            result,
+            kind: kind.to_string(),
+        },
     }
 }
 
 fn shared_pipeline_aggregate_artifact(
     result: Arc<PipelineV2Result>,
-    kind: &'static str,
+    kind: &str,
     row_count: u32,
     dependencies: &[String],
     digest: String,
@@ -3003,7 +3321,7 @@ fn canonical_cell_outputs(result: &PipelineV2Result) -> Vec<binary_exports::Cano
     }
     outputs.extend(result.aggregate_csv_outputs.iter().map(|aggregate| {
         binary_exports::CanonicalOutput {
-            kind: aggregate.kind,
+            kind: aggregate.kind.as_str(),
             media_type: "text/csv",
             bytes: &aggregate.bytes,
             terminal_logical_node: "outputs",
@@ -3536,7 +3854,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         let contract: Value = serde_json::from_str(&pipeline_step_contract_json()).unwrap();
         assert_eq!(
             contract["protocolVersion"],
-            "chronicle-preprocessing-step-contract/v1"
+            "chronicle-preprocessing-step-contract/v3"
         );
         assert_eq!(contract["steps"].as_array().unwrap().len(), 55);
     }
@@ -3570,7 +3888,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
     }
 
     #[test]
-    fn published_output_count_and_binding_gap_fallback_are_exact() {
+    fn published_output_count_is_exact_and_binding_gaps_fail_closed() {
         let csv = csv();
         let (_request, result, semantic_options, exact_options) =
             direct_pipeline_result(&csv, true);
@@ -3618,12 +3936,17 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         expected.update(
             ((fixed_outputs.len() + result.aggregate_csv_outputs.len()) as u64).to_le_bytes(),
         );
-        for (kind, bytes, row_count) in fixed_outputs.into_iter().chain(
-            result
-                .aggregate_csv_outputs
-                .iter()
-                .map(|output| (output.kind, output.bytes.as_slice(), output.row_count)),
-        ) {
+        for (kind, bytes, row_count) in
+            fixed_outputs
+                .into_iter()
+                .chain(result.aggregate_csv_outputs.iter().map(|output| {
+                    (
+                        output.kind.as_str(),
+                        output.bytes.as_slice(),
+                        output.row_count,
+                    )
+                }))
+        {
             let digest = sha256(bytes);
             for field in [kind.as_bytes(), digest.as_bytes()] {
                 expected.update((field.len() as u64).to_le_bytes());
@@ -3639,16 +3962,19 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
 
         let plan = embedded_plan();
         let mut cache = BTreeMap::new();
-        let (cold, gaps) = build_runtime_step_executions(
+        let cold = build_runtime_step_executions(
             &plan,
             &semantic_options,
             &exact_options,
             &BTreeMap::new(),
             &result,
+            &PIPELINE_STEPS
+                .iter()
+                .map(|step| step.id.to_string())
+                .collect::<Vec<_>>(),
             &mut cache,
         )
         .unwrap();
-        assert!(gaps.is_empty());
         assert!(cold
             .iter()
             .any(|execution| execution.status == ExecutionStatus::Bypassed));
@@ -3659,23 +3985,21 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             .step_id
             .clone();
         cache.get_mut(&applicable).unwrap().output_digest = format!("sha256:{}", "f".repeat(64));
-        let (fallback, gaps) = build_runtime_step_executions(
+        let error = build_runtime_step_executions(
             &plan,
             &semantic_options,
             &exact_options,
             &BTreeMap::new(),
             &result,
+            &PIPELINE_STEPS
+                .iter()
+                .map(|step| step.id.to_string())
+                .collect::<Vec<_>>(),
             &mut cache,
         )
-        .unwrap();
-        assert_eq!(gaps, [applicable]);
-        assert!(fallback.iter().all(|execution| matches!(
-            execution.status,
-            ExecutionStatus::Recomputed | ExecutionStatus::Bypassed
-        )));
-        assert!(fallback
-            .iter()
-            .any(|execution| execution.status == ExecutionStatus::Bypassed));
+        .unwrap_err();
+        assert!(error.contains("tracked step output changed without a changed bound input"));
+        assert!(error.contains(&applicable));
     }
 
     #[test]
@@ -3723,13 +4047,13 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         }
     }
 
-    fn reset_fused_execution_count() {
-        FUSED_PHYSICAL_EXECUTION_COUNT.with(|count| count.set(0));
+    fn reset_tracked_execution_count() {
+        TRACKED_PHYSICAL_EXECUTION_COUNT.with(|count| count.set(0));
         INCREMENTAL_RUNTIME_STATES.with(|states| *states.borrow_mut() = Default::default());
     }
 
-    fn fused_execution_count() -> usize {
-        FUSED_PHYSICAL_EXECUTION_COUNT.with(std::cell::Cell::get)
+    fn tracked_execution_count() -> usize {
+        TRACKED_PHYSICAL_EXECUTION_COUNT.with(std::cell::Cell::get)
     }
 
     fn request(csv: &[u8]) -> String {
@@ -4306,8 +4630,8 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
     }
 
     #[test]
-    fn warm_workspace_reuses_the_fused_result_and_option_change_recomputes_exact_cone() {
-        reset_fused_execution_count();
+    fn warm_workspace_reuses_tracked_results_and_option_change_recomputes_exact_cone() {
+        reset_tracked_execution_count();
         let csv = csv();
         let mut support = RuntimeSupportFiles::default();
         support
@@ -4320,7 +4644,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         let first_request = request_for_workspace(&csv, 'c');
         let first = execute_workspace_native(&first_request.to_string(), &csv, &support).unwrap();
         let first: RuntimeManifest = serde_json::from_str(&first.manifest_json).unwrap();
-        assert_eq!(fused_execution_count(), 1);
+        assert_eq!(tracked_execution_count(), 1);
         assert!(first.node_executions.iter().all(|execution| {
             execution.output.is_some()
                 && matches!(
@@ -4336,7 +4660,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             execute_workspace_native(&warm_request.to_string(), &csv, &support).unwrap();
         let warm: RuntimeManifest = serde_json::from_str(&warm_handle.manifest_json).unwrap();
         assert_eq!(
-            fused_execution_count(),
+            tracked_execution_count(),
             1,
             "warm run must not call the kernel"
         );
@@ -4412,7 +4736,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             execute_workspace_native(&changed_request.to_string(), &csv, &support).unwrap();
         let changed: RuntimeManifest = serde_json::from_str(&changed.manifest_json).unwrap();
         assert_eq!(
-            fused_execution_count(),
+            tracked_execution_count(),
             2,
             "changed executions: {:?}",
             changed
@@ -4449,8 +4773,116 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
     }
 
     #[test]
+    fn worker_restart_restores_real_query_cache_and_report_caches() {
+        reset_tracked_execution_count();
+        let csv = csv();
+        let support = RuntimeSupportFiles::default();
+        let first_request = request_for_workspace(&csv, 'f');
+        let mut first_handle =
+            execute_workspace_native(&first_request.to_string(), &csv, &support).unwrap();
+        let first: RuntimeManifest = serde_json::from_str(&first_handle.manifest_json).unwrap();
+        assert_eq!(tracked_execution_count(), 1);
+
+        let semantic_index_source = (0..first_handle.artifact_count())
+            .find_map(|index| {
+                let metadata: RuntimeArtifactMetadata =
+                    serde_json::from_str(&first_handle.artifact_metadata_json(index).unwrap())
+                        .unwrap();
+                (metadata.kind == "semantic-index-source-json")
+                    .then(|| first_handle.take_artifact_bytes(index).unwrap())
+            })
+            .expect("semantic index source artifact");
+        let cache =
+            export_workspace_query_cache_native(&first.workspace_id, &first.workspace_root_digest)
+                .unwrap();
+        assert!(!cache.is_empty());
+
+        assert!(workspace_query_state_matches_root_native(
+            &first.workspace_id,
+            &first.workspace_root_digest
+        ));
+        // A duplicate restore in the same worker must be a no-op. The browser
+        // checks this before reading the potentially large OPFS cache object.
+        restore_workspace_query_cache_native(
+            &first.workspace_id,
+            &first.workspace_root_digest,
+            &cache,
+            &semantic_index_source,
+        )
+        .unwrap();
+        assert!(workspace_query_state_matches_root_native(
+            &first.workspace_id,
+            &first.workspace_root_digest
+        ));
+
+        let eviction_request = request_for_workspace(&csv, 'e');
+        execute_workspace_native(&eviction_request.to_string(), &csv, &support).unwrap();
+        assert!(!workspace_query_state_matches_root_native(
+            &first.workspace_id,
+            &first.workspace_root_digest
+        ));
+
+        reset_tracked_execution_count();
+        restore_workspace_query_cache_native(
+            &first.workspace_id,
+            &first.workspace_root_digest,
+            &cache,
+            &semantic_index_source,
+        )
+        .unwrap();
+        let mut warm_request = first_request.clone();
+        warm_request["requestId"] = Value::String("after-worker-restart".into());
+        warm_request["workspaceRootDigest"] = Value::String(first.workspace_root_digest.clone());
+        let warm_handle =
+            execute_workspace_native(&warm_request.to_string(), &csv, &support).unwrap();
+        let warm: RuntimeManifest = serde_json::from_str(&warm_handle.manifest_json).unwrap();
+        assert_eq!(
+            tracked_execution_count(),
+            0,
+            "restored request must execute zero Salsa query bodies"
+        );
+        assert!(warm.step_executions.iter().all(|execution| matches!(
+            execution.status,
+            ExecutionStatus::Cached | ExecutionStatus::Bypassed
+        )));
+        assert!(warm.node_executions.iter().all(|execution| matches!(
+            execution.status,
+            ExecutionStatus::Cached | ExecutionStatus::Bypassed
+        )));
+        assert_eq!(
+            warm.processing_summary.pipeline_step_digests,
+            first.processing_summary.pipeline_step_digests
+        );
+        assert_eq!(
+            warm.processing_summary.published_outputs_digest,
+            first.processing_summary.published_outputs_digest
+        );
+
+        reset_tracked_execution_count();
+        assert!(restore_workspace_query_cache_native(
+            &first.workspace_id,
+            &format!("sha256:{}", "e".repeat(64)),
+            &cache,
+            &semantic_index_source,
+        )
+        .unwrap_err()
+        .contains("identity mismatch"));
+
+        let mut corrupt = cache.clone();
+        let last = corrupt.len() - 1;
+        corrupt[last] ^= 1;
+        assert!(restore_workspace_query_cache_native(
+            &first.workspace_id,
+            &first.workspace_root_digest,
+            &corrupt,
+            &semantic_index_source,
+        )
+        .is_err());
+    }
+
+    #[test]
     fn exact_option_bindings_drive_step_invalidation_and_match_a_cold_rust_run() {
-        reset_fused_execution_count();
+        reset_tracked_execution_count();
         let csv = csv();
         let initial_request = request_for_workspace(&csv, 'e');
         let initial =
@@ -4510,7 +4942,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
 
     #[test]
     fn preprocessing_timestamp_is_an_exact_bound_input_not_an_untracked_label() {
-        reset_fused_execution_count();
+        reset_tracked_execution_count();
         let csv = csv();
         let initial_request = request_for_workspace(&csv, '7');
         let initial =
@@ -4543,7 +4975,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
 
     #[test]
     fn node_output_artifacts_publish_their_exact_logical_stage_checkpoint() {
-        reset_fused_execution_count();
+        reset_tracked_execution_count();
         let csv = csv();
         let request = request_for_workspace(&csv, 'a');
         let mut handle =
@@ -4588,7 +5020,10 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                 fingerprint["typedCheckpoint"]["nodeId"],
                 fingerprint["logicalNode"]
             );
-            assert_eq!(fingerprint["physicalExecution"], "fused-rust-pipeline-v2");
+            assert_eq!(
+                fingerprint["physicalExecution"],
+                "salsa-tracked-rust-pipeline-v2"
+            );
             published.insert(
                 fingerprint["logicalNode"].as_str().unwrap().to_string(),
                 fingerprint["semanticOutputDigest"]
@@ -4612,7 +5047,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
 
     #[test]
     fn incremental_workspace_cache_is_bounded() {
-        reset_fused_execution_count();
+        reset_tracked_execution_count();
         let csv = csv();
         for index in 0..(MAX_INCREMENTAL_RUNTIME_STATES + 3) {
             let marker = char::from_digit((index % 10) as u32, 10).unwrap();
@@ -4631,7 +5066,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
 
     #[test]
     fn mismatched_previous_root_resets_incremental_state() {
-        reset_fused_execution_count();
+        reset_tracked_execution_count();
         let csv = csv();
         let request_value = request_for_workspace(&csv, 'd');
         execute_workspace_native(
@@ -4646,7 +5081,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             execute_workspace_native(&mismatch.to_string(), &csv, &RuntimeSupportFiles::default())
                 .unwrap();
         let manifest: RuntimeManifest = serde_json::from_str(&result.manifest_json).unwrap();
-        assert_eq!(fused_execution_count(), 2);
+        assert_eq!(tracked_execution_count(), 2);
         assert!(manifest
             .node_executions
             .iter()
@@ -4654,7 +5089,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
     }
 
     #[test]
-    fn execution_ledger_applies_step_local_bypasses_in_rust() {
+    fn execution_ledger_records_an_enabled_or_no_op_query_as_executed() {
         let csv = csv();
         let mut request_value = request_for_workspace(&csv, 'f');
         request_value["options"]["deduplicate_exact_rows"] = Value::Bool(false);
@@ -4681,7 +5116,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             .flat_map(|unit| unit["steps"].as_array().unwrap())
             .find(|step| step["stepId"] == "exact_dedupe")
             .unwrap();
-        assert_eq!(exact_dedupe["status"], "bypassed");
+        assert_eq!(exact_dedupe["status"], "recomputed");
     }
 
     #[test]
@@ -4776,7 +5211,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                 if from == to {
                     continue;
                 }
-                reset_fused_execution_count();
+                reset_tracked_execution_count();
                 let marker = char::from_digit(((from_index * 4 + to_index) % 10) as u32, 10)
                     .expect("decimal marker");
                 let mut initial = request_for_workspace(&csv, marker);
@@ -5198,28 +5633,6 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
 
     #[test]
     fn internal_error_and_recovery_helpers_are_observable() {
-        let options_value: Value = serde_json::from_str(&request(&csv())).unwrap();
-        let options: PipelineV2OptionsJson =
-            serde_json::from_value(options_value["options"].clone()).unwrap();
-        let semantic_options = semantic_options_value(&options).unwrap();
-        let options = options.into_pipeline_options();
-        let support = ResolvedSupportFiles::default();
-        let mut executor = FusedPhysicalExecutor {
-            csv_bytes: &[],
-            options: &options,
-            semantic_options: &semantic_options,
-            support: &support,
-            result: None,
-            error: Some("cached failure".into()),
-        };
-        assert_eq!(
-            executor
-                .ensure_result()
-                .err()
-                .expect("cached failure must be returned"),
-            "cached failure"
-        );
-
         let mut artifacts = Vec::new();
         let files = ResolvedSupportFiles {
             files: BTreeMap::from([(
@@ -5339,7 +5752,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             projected.as_object().unwrap().len(),
             CERTIFIED_OPTION_KEYS.len()
         );
-        assert_eq!(CERTIFIED_OPTION_KEYS.len(), 47);
+        assert_eq!(CERTIFIED_OPTION_KEYS.len(), 48);
         assert!(CERTIFIED_OPTION_KEYS
             .iter()
             .all(|key| projected.get(*key).is_some()));

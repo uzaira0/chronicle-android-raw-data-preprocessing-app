@@ -2,17 +2,17 @@
 # Declarative projection of the Rust-owned 55-step contract in
 # rust/chronicle_chrono_kernel_wasm/src/step_contract.rs, conforming to the
 # PipelineGraph class in chronicle-local-contract.linkml.yaml. The retired
-# TypeScript graph is checked only as a migration oracle.
+# Step labels/descriptions are display-only text retained in this file.
 #
 # Contract options NOT bound to any graph node (output/runtime-tier knobs consumed
 # outside the DAG):
-#   - enable_plotting
-#   - include_filtered_app_usage_in_plots
 #   - enable_activity_heatmap
-#   - export_plots_as_svg
 #   - enable_interactive_timeline
-#   - parallel_processing
+#   - enable_plotting
+#   - export_plots_as_svg
+#   - include_filtered_app_usage_in_plots
 #   - parallel_max_workers
+#   - parallel_processing
 graph_nodes:
   - node_id: parse_events
     node_label: Event parsing
@@ -20,6 +20,10 @@ graph_nodes:
     node_inputs: []
     node_knobs:
       - option_key: interaction_type_remap
+        edge: tunes
+      - option_key: selected_timezone
+        edge: tunes
+      - option_key: datetime_of_preprocessing
         edge: tunes
     has_bypass: false
     has_early_cutoff: true
@@ -129,8 +133,6 @@ graph_nodes:
         edge: gates
       - option_key: use_app_codebook
         edge: gates
-      - option_key: include_category_column
-        edge: tunes
     node_support_files:
       - app_codebook_file
     has_bypass: true
@@ -260,10 +262,17 @@ graph_nodes:
     node_inputs:
       - app_policy
       - attribute_person
+      - categorize_apps
       - day_coverage
+      - dedup_and_order
       - device_state_timeline
       - effective_usage
+      - episode_annotations
+      - interval_cleaning
+      - normalize_timezones
       - observation_window
+      - parse_events
+      - reconstruct_episodes
       - score_compliance
     node_knobs:
       - option_key: study_name
@@ -319,7 +328,6 @@ graph_steps:
     unit_id: parse_events
     step_inputs:
       - drop_empty_timestamp
-      - resolve_preproc_datetime
       - detect_device_model
       - parse_remap_config
     has_bypass: false
@@ -367,8 +375,8 @@ graph_steps:
     step_description: Before/after/removed row counts for the timezone step's report.
     unit_id: normalize_timezones
     step_inputs:
+      - stable_sort
       - select_timezone_strategy
-      - restamp_rows
     has_bypass: false
   - step_id: exact_dedupe
     step_label: Exact dedupe
@@ -378,7 +386,7 @@ graph_steps:
     unit_id: dedup_and_order
     step_inputs:
       - restamp_rows
-    has_bypass: true
+    has_bypass: false
   - step_id: count_dup_groups
     step_label: Count duplicate groups
     step_description: Count same-timestamp event groups before correction, for the run report.
@@ -394,7 +402,7 @@ graph_steps:
     unit_id: dedup_and_order
     step_inputs:
       - exact_dedupe
-    has_bypass: true
+    has_bypass: false
   - step_id: mark_data_time_gaps
     step_label: Mark data-time gaps
     step_description: Stamp each row with the gap (hours) since the previous event in the stream.
@@ -410,7 +418,7 @@ graph_steps:
     unit_id: app_policy
     step_inputs:
       - mark_data_time_gaps
-    has_bypass: true
+    has_bypass: false
   - step_id: collect_keyguard_timestamps
     step_label: Collect keyguard timestamps
     step_description: Sorted timestamps of every keyguard-shown event — the
@@ -454,7 +462,6 @@ graph_steps:
     unit_id: reconstruct_episodes
     step_inputs:
       - tag_filtered_packages
-      - compute_junk_packages
     has_bypass: true
   - step_id: build_matcher_input
     step_label: Build matcher input
@@ -489,6 +496,7 @@ graph_steps:
     unit_id: reconstruct_episodes
     step_inputs:
       - apply_matcher_output
+      - compute_junk_packages
     has_bypass: true
   - step_id: junk_downstream_mark
     step_label: Junk downstream mark
@@ -514,6 +522,7 @@ graph_steps:
     unit_id: reconstruct_episodes
     step_inputs:
       - sort_episodes
+      - compute_junk_packages
     has_bypass: true
   - step_id: codebook_join
     step_label: Codebook join
@@ -630,6 +639,8 @@ graph_steps:
       recomputing duration and calendar columns.
     unit_id: effective_usage
     step_inputs:
+      - partition_credit_sessions
+      - build_liveness_substrate
       - credit_sessions
     has_bypass: true
   - step_id: assemble_credit_result
@@ -734,12 +745,58 @@ graph_steps:
       into the downloadable result set.
     unit_id: outputs
     step_inputs:
+      - parse_remap_config
+      - csv_parse
+      - drop_empty_timestamp
+      - detect_device_model
+      - resolve_preproc_datetime
+      - build_canonical_rows
+      - stable_sort
+      - collect_timezones
+      - compute_dominant_timezone
+      - select_timezone_strategy
+      - restamp_rows
+      - row_count_report
+      - exact_dedupe
+      - count_dup_groups
+      - nudge_duplicate_timestamps
+      - mark_data_time_gaps
       - tag_filtered_packages
-      - inject_placeholders
-      - build_coverage_table
+      - collect_keyguard_timestamps
+      - walk_screen_state_machine
       - build_classified_sessions
+      - compute_junk_packages
+      - junk_blind_fold
+      - build_matcher_input
+      - run_matcher
+      - apply_matcher_output
+      - relabel_usage_with_floor
+      - junk_downstream_mark
+      - sort_episodes
+      - split_concurrent
+      - codebook_join
+      - derive_broad_category
+      - collapse_genre
+      - engagement_walk
+      - flag_and_retain
+      - blank_junk_timing
+      - drop_selected_types
+      - drop_zero_duration
+      - partition_credit_sessions
+      - build_liveness_substrate
+      - report_screen_incapable
+      - count_day_apps
+      - credit_sessions
+      - emit_credited_rows
       - assemble_credit_result
+      - resolve_participant_windows
       - filter_rows_to_window
+      - resolve_sharing_status
+      - build_survey_lookup
       - attribute_rows
+      - inject_placeholders
+      - build_raw_date_index
+      - build_coverage_table
+      - accumulate_attribution_minutes
       - score_days
     has_bypass: false

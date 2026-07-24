@@ -1,19 +1,17 @@
 //! Semantic-federation adapter for the Chronicle raw-data preprocessing app.
 //!
-//! The app's existing fused Rust/WASM pipeline remains the preprocessing
-//! implementation. This crate consumes shared release/materialization
-//! contracts and owns only the app-specific plan, DAG propagation, bindings,
-//! evidence projection, storage adapter, and typed views. It is not a
-//! cross-product graph engine and it does not reimplement preprocessing.
+//! The app's 55 tracked Rust/WASM computations are the only preprocessing
+//! implementation. This crate contains the product contract, deterministic
+//! qualification/materialization rules, evidence records, and typed views. It
+//! does not contain a second scheduler or preprocessing engine.
 
 pub mod capabilities;
+pub mod dependency_cache;
 pub mod journal;
 pub mod materialize;
 pub mod model;
 pub mod protocol;
 pub mod qualify;
-pub mod scheduler;
-pub mod storage;
 pub mod views;
 
 pub use capabilities::{
@@ -23,14 +21,13 @@ pub use capabilities::{
     EMBEDDED_PROFILE_LOCK_SHA256, EMBEDDED_PROFILE_SHA256, EMBEDDED_RUNTIME_AUTHORITY_SHA256,
     NODE_BINDINGS, STEP_BINDINGS,
 };
+pub use dependency_cache::evaluate_dependency_cache_decision;
 pub use materialize::{evaluate_materialization, Materialization};
 pub use model::*;
 pub use qualify::{
     qualify_assignments, qualify_candidates, QualificationCandidate, QualificationDecision,
     QualificationReport, QualificationRuleEvaluation, QualificationTrace, RoleRequirementTrace,
 };
-pub use scheduler::{CapabilityExecutor, ExecutionInputs, ProducedArtifact, Scheduler, Workspace};
-pub use storage::{ArtifactStore, MemoryCas};
 
 pub fn embedded_plan() -> ChroniclePlan {
     serde_json::from_str(include_str!(concat!(

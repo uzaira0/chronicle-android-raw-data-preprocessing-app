@@ -8,7 +8,7 @@ import backgroundCsv from "@/assets/defaults/Chronicle_Android_raw_data_preproce
 import codebookCsv from "@/assets/defaults/unified_app_codebook.csv?raw";
 import { COMPUTATIONAL_BROWSER_OPTION_KEYS } from "@/lib/generatedContract";
 import { GOLDEN_RUNTIME } from "@/lib/pipelineGraph/golden/goldenScenario";
-import { ALL_ON, byId, order } from "@/lib/pipelineGraph/validationHarness";
+import { ALL_ON, order } from "@/lib/pipelineGraph/validationHarness";
 import { buildRustV2Options } from "@/lib/rustPipelineRuntime";
 import type { BrowserProcessingOptions } from "@/lib/types";
 import {
@@ -16,6 +16,7 @@ import {
   SUPPORT_ROLE_IDS,
 } from "@/testSupport/artifactInterventions";
 import { configurationEquivalenceClasses } from "@/testSupport/configurationEquivalenceClasses";
+import { dependencyCampaignRuntimeBytes } from "@/testSupport/dependencyCampaignRuntime";
 import {
   buildSyntheticCatalog,
   generateSyntheticChronicleCorpus,
@@ -50,7 +51,9 @@ if (
   );
 }
 if (SHARD_COUNT > 1 && !SHARD_OUTPUT) {
-  throw new Error("INTERACTION_SHARD_OUTPUT is required for a sharded campaign");
+  throw new Error(
+    "INTERACTION_SHARD_OUTPUT is required for a sharded campaign",
+  );
 }
 const encoder = new TextEncoder();
 
@@ -101,7 +104,7 @@ type RuntimeManifest = {
 };
 
 type RustStepContract = {
-  protocolVersion: "chronicle-preprocessing-step-contract/v1";
+  protocolVersion: "chronicle-preprocessing-step-contract/v3";
   steps: Array<{
     id: string;
     group: string;
@@ -122,7 +125,9 @@ const catalog = buildSyntheticCatalog({
   forcingScreenOpenCsv: forcingCsv,
 });
 const corpus = generateSyntheticChronicleCorpus(
-  SYNTHETIC_CORPUS_PROFILES.find(({ id }) => id === "configuration-influence-probes")!,
+  SYNTHETIC_CORPUS_PROFILES.find(
+    ({ id }) => id === "configuration-influence-probes",
+  )!,
   catalog,
 );
 const fixture = buildArtifactFixtureState({
@@ -134,17 +139,12 @@ const fixture = buildArtifactFixtureState({
 });
 
 beforeAll(() => {
-  const wasmBytes = readFileSync(
-    new URL(
-      "../../../wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm",
-      import.meta.url,
-    ),
-  );
-  runtime.initSync({ module: wasmBytes });
+  runtime.initSync({ module: dependencyCampaignRuntimeBytes() });
 });
 
 async function sha256Uri(value: Uint8Array | string): Promise<string> {
-  const bytes = typeof value === "string" ? encoder.encode(value) : Uint8Array.from(value);
+  const bytes =
+    typeof value === "string" ? encoder.encode(value) : Uint8Array.from(value);
   const digest = await crypto.subtle.digest("SHA-256", bytes.buffer);
   return `sha256:${Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
@@ -234,41 +234,48 @@ function checkpointComponentSet(
     .sort()
     .flatMap((nodeId) =>
       changedFields(
-        source.processingSummary.logicalStageCheckpoints[nodeId] as unknown as Record<
-          string,
-          unknown
-        >,
-        target.processingSummary.logicalStageCheckpoints[nodeId] as unknown as Record<
-          string,
-          unknown
-        >,
+        source.processingSummary.logicalStageCheckpoints[
+          nodeId
+        ] as unknown as Record<string, unknown>,
+        target.processingSummary.logicalStageCheckpoints[
+          nodeId
+        ] as unknown as Record<string, unknown>,
       )
         .filter((component) => component !== "terminalDigest")
         .map((component) => `${nodeId}.${component}`),
     );
 }
 
-function nodeInputKeys(manifest: RuntimeManifest): Record<string, string> {
+function nodeOutputDigests(
+  manifest: RuntimeManifest,
+): Record<string, string | null> {
   return Object.fromEntries(
-    manifest.nodeExecutions.map(({ node_id, input_key }) => [node_id, input_key]),
+    manifest.nodeExecutions.map(({ node_id, output }) => [
+      node_id,
+      output?.digest ?? null,
+    ]),
   );
 }
 
-function nodeOutputDigests(manifest: RuntimeManifest): Record<string, string | null> {
+function stepStatuses(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
-    manifest.nodeExecutions.map(({ node_id, output }) => [node_id, output?.digest ?? null]),
+    manifest.stepExecutions.map(({ step_id, status }) => [step_id, status]),
   );
 }
 
-function stepInputKeys(manifest: RuntimeManifest): Record<string, string> {
-  return Object.fromEntries(
-    manifest.stepExecutions.map(({ step_id, input_key }) => [step_id, input_key]),
-  );
+function executedStepIds(manifest: RuntimeManifest): string[] {
+  return manifest.stepExecutions
+    .filter(({ status }) => status === "recomputed")
+    .map(({ step_id }) => step_id)
+    .sort();
 }
 
 function stepOutputDigests(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
-    manifest.stepExecutions.map(({ step_id, output_digest }) => [step_id, output_digest]),
+    manifest.stepExecutions.map(({ step_id, output_digest }) => [
+      step_id,
+      output_digest,
+    ]),
   );
 }
 
@@ -279,19 +286,20 @@ function stepCheckpointComponentChanges(
   return Object.fromEntries(
     Object.keys(source.processingSummary.pipelineStepCheckpoints)
       .sort()
-      .map((stepId) => [
-        stepId,
-        changedFields(
-          source.processingSummary.pipelineStepCheckpoints[stepId] as unknown as Record<
-            string,
-            unknown
-          >,
-          target.processingSummary.pipelineStepCheckpoints[stepId] as unknown as Record<
-            string,
-            unknown
-          >,
-        ).filter((component) => component !== "terminalDigest"),
-      ] as const)
+      .map(
+        (stepId) =>
+          [
+            stepId,
+            changedFields(
+              source.processingSummary.pipelineStepCheckpoints[
+                stepId
+              ] as unknown as Record<string, unknown>,
+              target.processingSummary.pipelineStepCheckpoints[
+                stepId
+              ] as unknown as Record<string, unknown>,
+            ).filter((component) => component !== "terminalDigest"),
+          ] as const,
+      )
       .filter(([, components]) => components.length > 0),
   );
 }
@@ -301,29 +309,34 @@ function assertCompleteStepManifest(
   stepIds: string[],
   caseId: string,
 ): void {
-  expect(manifest.stepExecutions, `${caseId}: Rust step execution coverage`).toHaveLength(
-    55,
-  );
-  expect(manifest.stepExecutions.map(({ step_id }) => step_id).sort()).toEqual(stepIds);
-  expect(Object.keys(manifest.processingSummary.pipelineStepDigests).sort()).toEqual(
+  expect(
+    manifest.stepExecutions,
+    `${caseId}: Rust step execution coverage`,
+  ).toHaveLength(55);
+  expect(manifest.stepExecutions.map(({ step_id }) => step_id).sort()).toEqual(
     stepIds,
   );
-  expect(Object.keys(manifest.processingSummary.pipelineStepCheckpoints).sort()).toEqual(
-    stepIds,
-  );
+  expect(
+    Object.keys(manifest.processingSummary.pipelineStepDigests).sort(),
+  ).toEqual(stepIds);
+  expect(
+    Object.keys(manifest.processingSummary.pipelineStepCheckpoints).sort(),
+  ).toEqual(stepIds);
   expect(
     manifest.stepExecutions.every(
       ({ step_id, output_digest, status }) =>
         status !== "error" &&
         status !== "skipped" &&
-        output_digest === manifest.processingSummary.pipelineStepDigests[step_id],
+        output_digest ===
+          manifest.processingSummary.pipelineStepDigests[step_id],
     ),
     `${caseId}: failed or inconsistent Rust step execution`,
   ).toBe(true);
   expect(
     Object.entries(manifest.processingSummary.pipelineStepCheckpoints).every(
       ([stepId, checkpoint]) =>
-        checkpoint.protocolVersion === "chronicle-logical-stage-checkpoint/v3" &&
+        checkpoint.protocolVersion ===
+          "chronicle-logical-stage-checkpoint/v3" &&
         checkpoint.nodeId === stepId &&
         checkpoint.terminalDigest ===
           manifest.processingSummary.pipelineStepDigests[stepId],
@@ -352,28 +365,12 @@ const OUTPUT_KINDS = new Set([
 function outputArtifacts(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
     manifest.artifacts
-      .filter(({ kind }) => OUTPUT_KINDS.has(kind) || kind.startsWith("aggregate-"))
+      .filter(
+        ({ kind }) => OUTPUT_KINDS.has(kind) || kind.startsWith("aggregate-"),
+      )
       .sort((left, right) => left.kind.localeCompare(right.kind))
       .map(({ kind, digest }) => [kind, digest]),
   );
-}
-
-function predictedInputNodes(
-  changedBrowserKeys: ReadonlySet<string>,
-  changedSemanticNodes: ReadonlySet<string>,
-): string[] {
-  const touched = new Set<string>();
-  for (const nodeId of order) {
-    const node = byId.get(nodeId)!;
-    const directlyBound = node.knobs.some(({ optionKey }) =>
-      changedBrowserKeys.has(optionKey),
-    );
-    const reachedByChangedState = node.inputs.some((input) =>
-      changedSemanticNodes.has(input),
-    );
-    if (directlyBound || reachedByChangedState) touched.add(nodeId);
-  }
-  return [...touched].sort();
 }
 
 function receipt(manifest: RuntimeManifest): Record<string, string> {
@@ -396,7 +393,7 @@ describe("two-factor interaction tomography", () => {
       runtime.pipeline_step_contract_json(),
     ) as RustStepContract;
     expect(stepContract.protocolVersion).toBe(
-      "chronicle-preprocessing-step-contract/v1",
+      "chronicle-preprocessing-step-contract/v3",
     );
     expect(stepContract.steps).toHaveLength(55);
     const stepIds = stepContract.steps.map(({ id }) => id).sort();
@@ -413,7 +410,8 @@ describe("two-factor interaction tomography", () => {
         if (!validConfiguration(options)) {
           invalidSingles.push({
             valueId: id,
-            reason: "selected timezone is required by a selected-* timezone policy",
+            reason:
+              "selected timezone is required by a selected-* timezone policy",
           });
           continue;
         }
@@ -437,166 +435,208 @@ describe("two-factor interaction tomography", () => {
     const implementationReceipt = receipt(coldBase);
 
     for (let leftIndex = 0; leftIndex < keys.length; leftIndex += 1) {
-      for (let rightIndex = leftIndex + 1; rightIndex < keys.length; rightIndex += 1) {
+      for (
+        let rightIndex = leftIndex + 1;
+        rightIndex < keys.length;
+        rightIndex += 1
+      ) {
         const leftKey = keys[leftIndex];
         const rightKey = keys[rightIndex];
         for (const leftValue of alternates.get(leftKey)!) {
           for (const rightValue of alternates.get(rightKey)!) {
-        const leftId = valueId(leftKey, leftValue);
-        const rightId = valueId(rightKey, rightValue);
-        const pairId = `${leftId}+${rightId}`;
-        const ordinal = pairContrastOrdinal;
-        pairContrastOrdinal += 1;
-        if (ordinal % SHARD_COUNT !== SHARD_INDEX) continue;
-        pairOrder.push({ ordinal, pairId });
-        let pairOptions = withValue(base, leftKey, leftValue.value);
-        pairOptions = withValue(pairOptions, rightKey, rightValue.value);
-        if (!validConfiguration(pairOptions)) {
-          invalidPairs.push({
-            pairId,
-            reason: "selected timezone is required by a selected-* timezone policy",
-          });
-          continue;
-        }
-        const coldPair = await execute(pairOptions, `cold-pair-${pairId}`, "run", null);
-        const warmBase = await execute(base, `warm-${pairId}`, "base", null);
-        const warmPair = await execute(
-          pairOptions,
-          `warm-${pairId}`,
-          "target",
-          warmBase.workspaceRootDigest,
-        );
-        pairCount += 1;
+            const leftId = valueId(leftKey, leftValue);
+            const rightId = valueId(rightKey, rightValue);
+            const pairId = `${leftId}+${rightId}`;
+            const ordinal = pairContrastOrdinal;
+            pairContrastOrdinal += 1;
+            if (ordinal % SHARD_COUNT !== SHARD_INDEX) continue;
+            pairOrder.push({ ordinal, pairId });
+            let pairOptions = withValue(base, leftKey, leftValue.value);
+            pairOptions = withValue(pairOptions, rightKey, rightValue.value);
+            if (!validConfiguration(pairOptions)) {
+              invalidPairs.push({
+                pairId,
+                reason:
+                  "selected timezone is required by a selected-* timezone policy",
+              });
+              continue;
+            }
+            const coldPair = await execute(
+              pairOptions,
+              `cold-pair-${pairId}`,
+              "run",
+              null,
+            );
+            const warmBase = await execute(
+              base,
+              `warm-${pairId}`,
+              "base",
+              null,
+            );
+            const warmPair = await execute(
+              pairOptions,
+              `warm-${pairId}`,
+              "target",
+              warmBase.workspaceRootDigest,
+            );
+            pairCount += 1;
 
-        for (const manifest of [coldPair, warmBase, warmPair]) {
-          expect(manifest.openObligations, `${pairId}: binding holes`).toEqual([]);
-          expect(receipt(manifest), `${pairId}: authority drift`).toEqual(
-            implementationReceipt,
-          );
-          assertCompleteStepManifest(manifest, stepIds, pairId);
-        }
-        expect(
-          warmPair.processingSummary,
-          `${pairId}: warm/cold semantic mismatch`,
-        ).toEqual(coldPair.processingSummary);
-        expect(nodeOutputDigests(warmPair), `${pairId}: stale logical output`).toEqual(
-          nodeOutputDigests(coldPair),
-        );
-        expect(
-          warmPair.processingSummary.pipelineStepDigests,
-          `${pairId}: stale Rust step checkpoint`,
-        ).toEqual(coldPair.processingSummary.pipelineStepDigests);
-        expect(stepOutputDigests(warmPair), `${pairId}: stale Rust step output`).toEqual(
-          stepOutputDigests(coldPair),
-        );
-        expect(outputArtifacts(warmPair), `${pairId}: warm/cold artifact mismatch`).toEqual(
-          outputArtifacts(coldPair),
-        );
-        warmColdComparisons += 1;
+            for (const manifest of [coldPair, warmBase, warmPair]) {
+              expect(
+                manifest.openObligations,
+                `${pairId}: binding holes`,
+              ).toEqual([]);
+              expect(receipt(manifest), `${pairId}: authority drift`).toEqual(
+                implementationReceipt,
+              );
+              assertCompleteStepManifest(manifest, stepIds, pairId);
+            }
+            expect(
+              warmPair.processingSummary,
+              `${pairId}: warm/cold semantic mismatch`,
+            ).toEqual(coldPair.processingSummary);
+            expect(
+              nodeOutputDigests(warmPair),
+              `${pairId}: stale logical output`,
+            ).toEqual(nodeOutputDigests(coldPair));
+            expect(
+              warmPair.processingSummary.pipelineStepDigests,
+              `${pairId}: stale Rust step checkpoint`,
+            ).toEqual(coldPair.processingSummary.pipelineStepDigests);
+            expect(
+              stepOutputDigests(warmPair),
+              `${pairId}: stale Rust step output`,
+            ).toEqual(stepOutputDigests(coldPair));
+            expect(
+              outputArtifacts(warmPair),
+              `${pairId}: warm/cold artifact mismatch`,
+            ).toEqual(outputArtifacts(coldPair));
+            warmColdComparisons += 1;
 
-        const changedRustKeys = changedFields(
-          buildRustV2Options(base, GOLDEN_RUNTIME),
-          buildRustV2Options(pairOptions, GOLDEN_RUNTIME),
-        );
-        const changedSemanticNodes = changedFields(
-          coldBase.processingSummary.logicalStageDigests,
-          coldPair.processingSummary.logicalStageDigests,
-        );
-        const changedPipelineSteps = changedFields(
-          coldBase.processingSummary.pipelineStepDigests,
-          coldPair.processingSummary.pipelineStepDigests,
-        );
-        const observedInputNodes = changedFields(
-          nodeInputKeys(warmBase),
-          nodeInputKeys(warmPair),
-        );
-        const predicted = predictedInputNodes(
-          new Set([leftKey, rightKey]),
-          new Set(changedSemanticNodes),
-        );
-        expect(observedInputNodes, `${pairId}: two-factor percolation mismatch`).toEqual(
-          predicted,
-        );
-        const observedInputSteps = changedFields(
-          stepInputKeys(warmBase),
-          stepInputKeys(warmPair),
-        );
-        const predictedInputSteps = stepContract.steps
-          .filter(
-            (step) =>
-              step.requestFields.some((field) => changedRustKeys.includes(field)) ||
-              step.inputs.some((input) => changedPipelineSteps.includes(input)),
-          )
-          .map(({ id }) => id)
-          .sort();
-        expect(
-          observedInputSteps,
-          `${pairId}: two-factor 55-step percolation mismatch`,
-        ).toEqual(predictedInputSteps);
-        exactClusterComparisons += 1;
+            const changedRustKeys = changedFields(
+              buildRustV2Options(base, GOLDEN_RUNTIME),
+              buildRustV2Options(pairOptions, GOLDEN_RUNTIME),
+            );
+            const changedSemanticNodes = changedFields(
+              coldBase.processingSummary.logicalStageDigests,
+              coldPair.processingSummary.logicalStageDigests,
+            );
+            const changedPipelineSteps = changedFields(
+              coldBase.processingSummary.pipelineStepDigests,
+              coldPair.processingSummary.pipelineStepDigests,
+            );
+            const sourceStepStatuses = stepStatuses(coldBase);
+            const targetStepStatuses = stepStatuses(coldPair);
+            const predictedExecutedSteps = stepContract.steps
+              .filter((step) => {
+                const sourceApplicable =
+                  sourceStepStatuses[step.id] !== "bypassed";
+                const targetApplicable =
+                  targetStepStatuses[step.id] !== "bypassed";
+                return (
+                  targetApplicable &&
+                  (!sourceApplicable ||
+                    step.requestFields.some((field) =>
+                      changedRustKeys.includes(field),
+                    ) ||
+                    step.inputs.some((input) =>
+                      changedPipelineSteps.includes(input),
+                    ))
+                );
+              })
+              .map(({ id }) => id)
+              .sort();
+            const actualExecutedSteps = executedStepIds(warmPair);
+            expect(
+              actualExecutedSteps,
+              `${pairId}: predicted inputs and actual Salsa query bodies disagree`,
+            ).toEqual(predictedExecutedSteps);
+            const deactivatedSteps = stepContract.steps
+              .filter(
+                ({ id }) =>
+                  sourceStepStatuses[id] !== "bypassed" &&
+                  targetStepStatuses[id] === "bypassed",
+              )
+              .map(({ id }) => id)
+              .sort();
+            const warmStatuses = stepStatuses(warmPair);
+            for (const stepId of deactivatedSteps) {
+              expect(
+                warmStatuses[stepId],
+                `${pairId}: deactivated query must not execute`,
+              ).toBe("bypassed");
+            }
+            exactClusterComparisons += 1;
 
-        const observedComponents = checkpointComponentSet(coldBase, coldPair);
-        const observedStepComponents = stepCheckpointComponentChanges(
-          coldBase,
-          coldPair,
-        );
-        expect(
-          Object.keys(observedStepComponents).sort(),
-          `${pairId}: Rust step component/terminal drift`,
-        ).toEqual(changedPipelineSteps);
-        const leftSingle = coldSingles.get(leftId);
-        const rightSingle = coldSingles.get(rightId);
-        const isolatedEffectsAvailable = leftSingle !== undefined && rightSingle !== undefined;
-        const leftComponents = leftSingle
-          ? checkpointComponentSet(coldBase, leftSingle)
-          : [];
-        const rightComponents = rightSingle
-          ? checkpointComponentSet(coldBase, rightSingle)
-          : [];
-        const additiveComponents = isolatedEffectsAvailable
-          ? [...new Set([...leftComponents, ...rightComponents])].sort()
-          : [];
-        const introducedComponents = isolatedEffectsAvailable
-          ? observedComponents.filter(
-              (component) => !additiveComponents.includes(component),
-            )
-          : [];
-        const maskedComponents = isolatedEffectsAvailable
-          ? additiveComponents.filter(
-              (component) => !observedComponents.includes(component),
-            )
-          : [];
-        const pairObservation = {
-          pairId,
-          browserKeys: [leftKey, rightKey],
-          values: {
-            [leftKey]: leftValue,
-            [rightKey]: rightValue,
-          },
-          interactionClass: isolatedEffectsAvailable
-            ? "comparable-isolated-effects"
-            : "qualification-enabled",
-          changedRustKeys,
-          changedSemanticNodes,
-          changedPipelineSteps,
-          observedInputNodes,
-          observedInputSteps,
-          predictedInputSteps,
-          observedComponents,
-          observedStepComponents,
-          introducedComponents,
-          maskedComponents,
-          changedOutputArtifactKinds: changedFields(
-            outputArtifacts(coldBase),
-            outputArtifacts(coldPair),
-          ),
-        };
-        if (!isolatedEffectsAvailable) {
-          qualificationEnabledPairs.push(pairObservation);
-        } else if (introducedComponents.length > 0 || maskedComponents.length > 0) {
-          nonAdditivePairs.push(pairObservation);
-        }
-        pairCases.push(JSON.stringify(pairObservation));
+            const observedComponents = checkpointComponentSet(
+              coldBase,
+              coldPair,
+            );
+            const observedStepComponents = stepCheckpointComponentChanges(
+              coldBase,
+              coldPair,
+            );
+            expect(
+              Object.keys(observedStepComponents).sort(),
+              `${pairId}: Rust step component/terminal drift`,
+            ).toEqual(changedPipelineSteps);
+            const leftSingle = coldSingles.get(leftId);
+            const rightSingle = coldSingles.get(rightId);
+            const isolatedEffectsAvailable =
+              leftSingle !== undefined && rightSingle !== undefined;
+            const leftComponents = leftSingle
+              ? checkpointComponentSet(coldBase, leftSingle)
+              : [];
+            const rightComponents = rightSingle
+              ? checkpointComponentSet(coldBase, rightSingle)
+              : [];
+            const additiveComponents = isolatedEffectsAvailable
+              ? [...new Set([...leftComponents, ...rightComponents])].sort()
+              : [];
+            const introducedComponents = isolatedEffectsAvailable
+              ? observedComponents.filter(
+                  (component) => !additiveComponents.includes(component),
+                )
+              : [];
+            const maskedComponents = isolatedEffectsAvailable
+              ? additiveComponents.filter(
+                  (component) => !observedComponents.includes(component),
+                )
+              : [];
+            const pairObservation = {
+              pairId,
+              browserKeys: [leftKey, rightKey],
+              values: {
+                [leftKey]: leftValue,
+                [rightKey]: rightValue,
+              },
+              interactionClass: isolatedEffectsAvailable
+                ? "comparable-isolated-effects"
+                : "qualification-enabled",
+              changedRustKeys,
+              changedSemanticNodes,
+              changedPipelineSteps,
+              predictedExecutedSteps,
+              actualExecutedSteps,
+              deactivatedSteps,
+              observedComponents,
+              observedStepComponents,
+              introducedComponents,
+              maskedComponents,
+              changedOutputArtifactKinds: changedFields(
+                outputArtifacts(coldBase),
+                outputArtifacts(coldPair),
+              ),
+            };
+            if (!isolatedEffectsAvailable) {
+              qualificationEnabledPairs.push(pairObservation);
+            } else if (
+              introducedComponents.length > 0 ||
+              maskedComponents.length > 0
+            ) {
+              nonAdditivePairs.push(pairObservation);
+            }
+            pairCases.push(JSON.stringify(pairObservation));
           }
         }
       }
@@ -611,7 +651,8 @@ describe("two-factor interaction tomography", () => {
           .reduce(
             (rightTotal, rightKey) =>
               rightTotal +
-              alternates.get(leftKey)!.length * alternates.get(rightKey)!.length,
+              alternates.get(leftKey)!.length *
+                alternates.get(rightKey)!.length,
             0,
           ),
       0,
@@ -625,7 +666,7 @@ describe("two-factor interaction tomography", () => {
     const evidence = {
       protocolVersion: "chronicle-interaction-influence-ledger/v1",
       claimBoundary:
-        "Exhaustive two-factor structural interaction and exact 55-step plus 15-display-group warm/cold percolation proof across every valid pair of non-baseline declared equivalence-class values for all 46 computational browser axes, on the deterministic configuration-influence-probes corpus. Invalid selected-timezone combinations are enumerated with their qualification reason. This does not claim numeric statistical additivity or exhaust interactions of arity three and above. Step recomputation is minimal; physical execution remains one fused Rust pipeline run whenever any required checkpoint changes.",
+        "Exhaustive two-factor structural interaction and exact 55-query plus 15-display-group warm/cold execution proof across every valid pair of non-baseline declared equivalence-class values for all 46 computational browser axes, on the deterministic configuration-influence-probes corpus. Invalid selected-timezone combinations are enumerated with their qualification reason. This does not claim numeric statistical additivity or exhaust interactions of arity three and above. Step execution is taken from actual Salsa query events; the fused Rust path is an independent cold oracle only.",
       plan: { id: plan.plan_id, revision: plan.revision },
       implementationReceipt,
       fixture: {
@@ -678,7 +719,10 @@ describe("two-factor interaction tomography", () => {
       writeFileSync(EXPECTED_FILE, serialized, "utf8");
       return;
     }
-    expect(existsSync(EXPECTED_FILE), "missing interaction influence ledger").toBe(true);
+    expect(
+      existsSync(EXPECTED_FILE),
+      "missing interaction influence ledger",
+    ).toBe(true);
     expect(serialized).toBe(readFileSync(EXPECTED_FILE, "utf8"));
   }, 600_000);
 });

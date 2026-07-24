@@ -19,12 +19,17 @@ wasm-opt = [
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+# Used only by the local dependency-evidence refresh command. The special WASM
+# package is written to a temporary directory; normal builds never enable it.
+dependency-campaign-bootstrap = []
+
 [dependencies]
 arrow-array = { version = "59.1.0", default-features = false }
 arrow-ipc = { version = "59.1.0", default-features = false, features = ["lz4"] }
 arrow-schema = { version = "59.1.0", default-features = false }
 calamine = { version = "0.36", default-features = false }
-chronicle_chrono_kernel_wasm = { path = "../chronicle_chrono_kernel_wasm" }
+chronicle_chrono_kernel_wasm = { path = "../chronicle_chrono_kernel_wasm", features = ["incremental-v2"] }
 chronicle_preprocessing_semantic_adapter = { path = "../chronicle_preprocessing_semantic_adapter" }
 hex = "0.4"
 csv = "1.3"

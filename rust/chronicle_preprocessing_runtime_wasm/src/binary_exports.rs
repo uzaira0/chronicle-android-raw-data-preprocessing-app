@@ -886,7 +886,7 @@ fn push_cell(
     if let Some(lineage) = row_lineage {
         builders
             .row_lineage_output_kind
-            .append(lineage.output_kind)
+            .append(&lineage.output_kind)
             .map_err(|error| error.to_string())?;
         builders
             .row_lineage_row_index
@@ -1156,7 +1156,12 @@ pub fn result_cell_correspondence_arrow(
 ) -> Result<(Vec<u8>, u32), String> {
     let lineages = row_lineages
         .iter()
-        .map(|lineage| ((lineage.output_kind, lineage.output_row_index), lineage))
+        .map(|lineage| {
+            (
+                (lineage.output_kind.as_str(), lineage.output_row_index),
+                lineage,
+            )
+        })
         .collect::<HashMap<_, _>>();
     let mut batch_writer = ResultCellBatchWriter::new()?;
     let mut sorted_outputs = outputs.iter().collect::<Vec<_>>();
@@ -1199,7 +1204,7 @@ pub fn row_lineage_arrow(
     for lineage in lineages {
         for source_range in &lineage.source_data_row_ranges {
             output_kind
-                .append(lineage.output_kind)
+                .append(&lineage.output_kind)
                 .map_err(|error| format!("encode lineage output kind: {error}"))?;
             output_row_index.push(lineage.output_row_index);
             relationship_kind
@@ -1211,7 +1216,7 @@ pub fn row_lineage_arrow(
                 .append(source_input_digest)
                 .map_err(|error| format!("encode lineage source digest: {error}"))?;
             terminal_logical_node
-                .append(lineage.terminal_logical_node)
+                .append(&lineage.terminal_logical_node)
                 .map_err(|error| format!("encode lineage terminal node: {error}"))?;
             dependency_precision
                 .append("conservative")
@@ -1227,7 +1232,7 @@ pub fn row_lineage_arrow(
         }
         for search in &lineage.searches {
             output_kind
-                .append(lineage.output_kind)
+                .append(&lineage.output_kind)
                 .map_err(|error| format!("encode lineage output kind: {error}"))?;
             output_row_index.push(lineage.output_row_index);
             relationship_kind
@@ -1239,19 +1244,19 @@ pub fn row_lineage_arrow(
                 .append(source_input_digest)
                 .map_err(|error| format!("encode lineage source digest: {error}"))?;
             terminal_logical_node
-                .append(lineage.terminal_logical_node)
+                .append(&lineage.terminal_logical_node)
                 .map_err(|error| format!("encode lineage terminal node: {error}"))?;
             dependency_precision
                 .append("exact-event-range")
                 .map_err(|error| format!("encode lineage precision: {error}"))?;
             search_protocol_version
-                .append(search.protocol_version)
+                .append(&search.protocol_version)
                 .map_err(|error| format!("encode lineage search protocol: {error}"))?;
             search_index_space
-                .append(search.index_space)
+                .append(&search.index_space)
                 .map_err(|error| format!("encode lineage search index space: {error}"))?;
             search_reason
-                .append(search.reason)
+                .append(&search.reason)
                 .map_err(|error| format!("encode lineage search reason: {error}"))?;
             search_start_participant_id
                 .append(&search.start_participant_id)
@@ -2119,7 +2124,7 @@ mod tests {
     #[test]
     fn lineage_is_a_normalized_deterministic_arrow_range_table() {
         let lineages = vec![PipelineRowLineage {
-            output_kind: "app-csv",
+            output_kind: "app-csv".to_string(),
             output_row_index: 0,
             source_data_row_ranges: vec![
                 chronicle_chrono_kernel_wasm::pipeline_v2::SourceDataRowRange { first: 1, last: 1 },
@@ -2128,9 +2133,9 @@ mod tests {
             source_data_row_count: 3,
             searches: vec![
                 chronicle_chrono_kernel_wasm::pipeline_v2::LineageSearchEvidence {
-                    protocol_version: "chronicle-lineage-search/v1",
-                    reason: "no-qualifying-stop",
-                    index_space: "pipeline-event-order",
+                    protocol_version: "chronicle-lineage-search/v1".to_string(),
+                    reason: "no-qualifying-stop".to_string(),
+                    index_space: "pipeline-event-order".to_string(),
                     start_participant_id: "P01".to_string(),
                     start_event_index: 2,
                     end_event_index_exclusive: 5,
@@ -2138,7 +2143,7 @@ mod tests {
                     candidate_chain_digest: format!("blake3:{}", "b".repeat(64)),
                 },
             ],
-            terminal_logical_node: "outputs",
+            terminal_logical_node: "outputs".to_string(),
         }];
         let digest = format!("sha256:{}", "a".repeat(64));
         let first = row_lineage_arrow(&lineages, &digest).unwrap();
@@ -2392,15 +2397,15 @@ mod tests {
         .contains("unsupported canonical cell media type"));
 
         let lineage_with_digest = |candidate_chain_digest: String| PipelineRowLineage {
-            output_kind: "app-csv",
+            output_kind: "app-csv".to_string(),
             output_row_index: 0,
             source_data_row_ranges: Vec::new(),
             source_data_row_count: 0,
             searches: vec![
                 chronicle_chrono_kernel_wasm::pipeline_v2::LineageSearchEvidence {
-                    protocol_version: "chronicle-lineage-search/v1",
-                    reason: "no-qualifying-stop",
-                    index_space: "pipeline-event-order",
+                    protocol_version: "chronicle-lineage-search/v1".to_string(),
+                    reason: "no-qualifying-stop".to_string(),
+                    index_space: "pipeline-event-order".to_string(),
                     start_participant_id: "P01".into(),
                     start_event_index: 0,
                     end_event_index_exclusive: 1,
@@ -2408,7 +2413,7 @@ mod tests {
                     candidate_chain_digest,
                 },
             ],
-            terminal_logical_node: "outputs",
+            terminal_logical_node: "outputs".to_string(),
         };
         assert!(row_lineage_arrow(
             &[lineage_with_digest(format!("sha256:{}", "b".repeat(64)))],
@@ -2443,7 +2448,7 @@ mod tests {
             },
         ];
         let lineages = [PipelineRowLineage {
-            output_kind: "app-csv",
+            output_kind: "app-csv".to_string(),
             output_row_index: 0,
             source_data_row_ranges: vec![
                 chronicle_chrono_kernel_wasm::pipeline_v2::SourceDataRowRange { first: 1, last: 1 },
@@ -2451,7 +2456,7 @@ mod tests {
             ],
             source_data_row_count: 2,
             searches: Vec::new(),
-            terminal_logical_node: "outputs",
+            terminal_logical_node: "outputs".to_string(),
         }];
 
         let (first, row_count) = result_cell_correspondence_arrow(&outputs, &lineages).unwrap();

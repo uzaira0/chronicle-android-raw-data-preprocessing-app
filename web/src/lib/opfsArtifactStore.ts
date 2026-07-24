@@ -14,6 +14,7 @@ const ROOTS_DIRECTORY = "roots";
 const CLOSURE_MAGIC = new TextEncoder().encode("CHRONICLE-CLOSURE-V1\n");
 const MAX_CLOSURE_MANIFEST_BYTES = 16 * 1024 * 1024;
 const MAX_CLOSURE_OBJECTS = 100_000;
+export const MAX_RUNTIME_QUERY_CACHE_BYTES = 128 * 1024 * 1024;
 
 export type PersistedRuntimeArtifact = {
   kind: string;
@@ -32,6 +33,15 @@ export type WorkspaceRootSlot = {
   checksum: string;
 };
 
+export type WorkspaceQueryCacheSlot = {
+  protocolVersion: "chronicle-query-cache-root/v1";
+  generation: number;
+  baseWorkspaceRootDigest: string;
+  cacheObjectDigest: string;
+  size: number;
+  checksum: string;
+};
+
 type IterableDirectoryHandle = FileSystemDirectoryHandle & {
   entries(): AsyncIterableIterator<[
     string,
@@ -40,6 +50,10 @@ type IterableDirectoryHandle = FileSystemDirectoryHandle & {
 };
 
 type UnsignedWorkspaceRootSlot = Omit<WorkspaceRootSlot, "checksum">;
+type UnsignedWorkspaceQueryCacheSlot = Omit<
+  WorkspaceQueryCacheSlot,
+  "checksum"
+>;
 
 export type RuntimeClosureManifest = {
   protocolVersion: "chronicle-runtime-closure/v1";
@@ -102,9 +116,14 @@ async function writeFile(
 async function readFile(
   directory: FileSystemDirectoryHandle,
   name: string,
+  maxBytes?: number,
 ): Promise<Uint8Array> {
   const handle = await directory.getFileHandle(name);
-  return new Uint8Array(await (await handle.getFile()).arrayBuffer());
+  const file = await handle.getFile();
+  if (maxBytes !== undefined && file.size > maxBytes) {
+    throw new Error(`file exceeds the ${maxBytes} byte read limit`);
+  }
+  return new Uint8Array(await file.arrayBuffer());
 }
 
 async function storeDirectories(root: FileSystemDirectoryHandle): Promise<{
@@ -190,6 +209,35 @@ async function parseSlot(bytes: Uint8Array): Promise<WorkspaceRootSlot> {
   }
   digestHex(parsed.workspaceRootDigest);
   for (const digest of parsed.artifactDigests) digestHex(digest);
+  return parsed;
+}
+
+async function signedCacheSlot(
+  unsigned: UnsignedWorkspaceQueryCacheSlot,
+): Promise<WorkspaceQueryCacheSlot> {
+  return { ...unsigned, checksum: await sha256(encodeJson(unsigned)) };
+}
+
+async function parseCacheSlot(
+  bytes: Uint8Array,
+): Promise<WorkspaceQueryCacheSlot> {
+  const parsed = JSON.parse(
+    new TextDecoder().decode(bytes),
+  ) as WorkspaceQueryCacheSlot;
+  const { checksum, ...unsigned } = parsed;
+  if (
+    parsed.protocolVersion !== "chronicle-query-cache-root/v1" ||
+    !Number.isSafeInteger(parsed.generation) ||
+    parsed.generation < 1 ||
+    !Number.isSafeInteger(parsed.size) ||
+    parsed.size < 1 ||
+    parsed.size > MAX_RUNTIME_QUERY_CACHE_BYTES ||
+    checksum !== (await sha256(encodeJson(unsigned)))
+  ) {
+    throw new Error("invalid OPFS query-cache slot");
+  }
+  digestHex(parsed.baseWorkspaceRootDigest);
+  digestHex(parsed.cacheObjectDigest);
   return parsed;
 }
 
@@ -408,6 +456,113 @@ export async function recoverRuntimeWorkspaceRoots(
   return recoverableSlotsFromDirectories(objects, roots);
 }
 
+async function queryCacheSlotCandidates(
+  roots: FileSystemDirectoryHandle,
+): Promise<WorkspaceQueryCacheSlot[]> {
+  const candidates: WorkspaceQueryCacheSlot[] = [];
+  for (const name of ["cache-a.json", "cache-b.json"]) {
+    try {
+      candidates.push(await parseCacheSlot(await readFile(roots, name)));
+    } catch {
+      // Query caches are optional. A missing, torn, or corrupt cache pointer
+      // never changes authoritative workspace recovery.
+    }
+  }
+  candidates.sort((left, right) => right.generation - left.generation);
+  return candidates;
+}
+
+export async function persistRuntimeQueryCache(
+  root: FileSystemDirectoryHandle,
+  input: {
+    baseWorkspaceRootDigest: string;
+    bytes: Uint8Array;
+  },
+): Promise<WorkspaceQueryCacheSlot> {
+  digestHex(input.baseWorkspaceRootDigest);
+  if (input.bytes.byteLength < 1) {
+    throw new Error("query cache is empty");
+  }
+  if (input.bytes.byteLength > MAX_RUNTIME_QUERY_CACHE_BYTES) {
+    throw new Error(
+      `query cache exceeds the ${MAX_RUNTIME_QUERY_CACHE_BYTES} byte limit`,
+    );
+  }
+  const { objects, roots } = await storeDirectories(root);
+  const cacheObjectDigest = await sha256(input.bytes);
+  await putObject(objects, {
+    kind: "salsa-query-cache",
+    digest: cacheObjectDigest,
+    size: input.bytes.byteLength,
+    bytes: input.bytes,
+    digestVerified: true,
+  });
+  const candidates = await queryCacheSlotCandidates(roots);
+  const unsigned: UnsignedWorkspaceQueryCacheSlot = {
+    protocolVersion: "chronicle-query-cache-root/v1",
+    generation: (candidates[0]?.generation ?? 0) + 1,
+    baseWorkspaceRootDigest: input.baseWorkspaceRootDigest,
+    cacheObjectDigest,
+    size: input.bytes.byteLength,
+  };
+  const slot = await signedCacheSlot(unsigned);
+  const slotName = slot.generation % 2 === 1 ? "cache-a.json" : "cache-b.json";
+  await writeFile(roots, slotName, encodeJson(slot));
+  const verified = await parseCacheSlot(await readFile(roots, slotName));
+  if (
+    verified.baseWorkspaceRootDigest !== input.baseWorkspaceRootDigest ||
+    verified.cacheObjectDigest !== cacheObjectDigest
+  ) {
+    throw new Error("OPFS query-cache commit verification failed");
+  }
+  return verified;
+}
+
+export async function recoverRuntimeQueryCache(
+  root: FileSystemDirectoryHandle,
+  baseWorkspaceRootDigest: string,
+): Promise<
+  { slot: WorkspaceQueryCacheSlot; bytes: Uint8Array } | undefined
+> {
+  digestHex(baseWorkspaceRootDigest);
+  const { objects, roots } = await storeDirectories(root);
+  for (const slot of await queryCacheSlotCandidates(roots)) {
+    if (slot.baseWorkspaceRootDigest !== baseWorkspaceRootDigest) continue;
+    try {
+      const { directory, name } = await objectDirectory(
+        objects,
+        slot.cacheObjectDigest,
+        false,
+      );
+      const bytes = await readFile(
+        directory,
+        name,
+        MAX_RUNTIME_QUERY_CACHE_BYTES,
+      );
+      if ((await sha256(bytes)) !== slot.cacheObjectDigest) continue;
+      if (bytes.byteLength !== slot.size) continue;
+      return { slot, bytes };
+    } catch {
+      // Try the other alternating pointer, then run cold if none is valid.
+    }
+  }
+  return undefined;
+}
+
+/** Signed A/B cache pointers for retention; object integrity is checked on use. */
+export async function recoverRuntimeQueryCacheSlots(
+  root: FileSystemDirectoryHandle,
+  baseWorkspaceRootDigest?: string,
+): Promise<WorkspaceQueryCacheSlot[]> {
+  if (baseWorkspaceRootDigest) digestHex(baseWorkspaceRootDigest);
+  const { roots } = await storeDirectories(root);
+  return (await queryCacheSlotCandidates(roots)).filter(
+    (slot) =>
+      baseWorkspaceRootDigest === undefined ||
+      slot.baseWorkspaceRootDigest === baseWorkspaceRootDigest,
+  );
+}
+
 export async function readRuntimeObject(
   root: FileSystemDirectoryHandle,
   digest: string,
@@ -589,12 +744,16 @@ export async function importRuntimeClosure(
 export async function garbageCollectRuntimeObjects(
   root: FileSystemDirectoryHandle,
   retainedRoots: readonly WorkspaceRootSlot[],
+  retainedQueryCaches: readonly WorkspaceQueryCacheSlot[] = [],
 ): Promise<number> {
   const { objects } = await storeDirectories(root);
   const retained = new Set<string>();
   for (const slot of retainedRoots) {
     retained.add(digestHex(slot.workspaceRootDigest));
     for (const digest of slot.artifactDigests) retained.add(digestHex(digest));
+  }
+  for (const slot of retainedQueryCaches) {
+    retained.add(digestHex(slot.cacheObjectDigest));
   }
   let removed = 0;
   for await (const [prefix, handle] of (

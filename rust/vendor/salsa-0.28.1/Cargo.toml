@@ -1,0 +1,58 @@
+[package]
+name = "salsa"
+version = "0.28.1"
+edition = "2024"
+rust-version = "1.85"
+authors = ["Salsa developers"]
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/salsa-rs/salsa"
+description = "A generic framework for on-demand, incrementalized computation (experimental)"
+readme = "README.md"
+
+[features]
+accumulator = ["salsa-macro-rules/accumulator"]
+default = ["salsa_unstable", "rayon", "macros", "inventory", "accumulator"]
+detailed-trace = []
+inventory = ["dep:inventory"]
+macros = ["dep:salsa-macros"]
+persistence = [
+    "dep:serde",
+    "dep:erased-serde",
+    "salsa-macros/persistence",
+    "thin-vec/serde",
+]
+salsa_unstable = []
+shuttle = ["dep:shuttle"]
+
+[lib]
+name = "salsa"
+path = "src/lib.rs"
+
+[dependencies]
+boxcar = "0.2.14"
+compact_str = { version = "0.10", optional = true }
+crossbeam-queue = "0.3.12"
+crossbeam-utils = "0.8.21"
+erased-serde = { version = "0.4.6", optional = true }
+hashbrown = "0.17"
+hashlink = "0.12"
+indexmap = "2"
+intrusive-collections = "0.10.1"
+inventory = { version = "0.3.24", optional = true }
+ordermap = { version = "1", optional = true }
+parking_lot = "0.12"
+portable-atomic = "1"
+rayon = { version = "1.10.0", optional = true }
+rustc-hash = "2"
+salsa-macro-rules = "0.28.1"
+salsa-macros = { version = "0.28.1", optional = true }
+serde = { version = "1.0.219", features = ["derive"], optional = true }
+shuttle = { version = "0.9.1", optional = true }
+smallvec = { version = "1", features = ["const_new"] }
+thin-vec = "0.2.14"
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+triomphe = { version = "0.1", optional = true }
+typeid = "1.0"
+
+[target.'cfg(any())'.dependencies]
+salsa-macros = "=0.28.1"

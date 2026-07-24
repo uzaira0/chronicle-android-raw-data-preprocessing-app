@@ -3,8 +3,8 @@
 
 The generated YAML remains a structural source projection, never an executable
 body. This generator verifies every reporting group and declared step, records
-the current fused implementation honestly, and keeps the target 55-query
-executor distinct from the post-run logical evidence projection.
+the 55-query Salsa implementation as the production computation authority,
+and records the fused implementation only as an independent cold-test oracle.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -25,6 +26,11 @@ GRAPH_YAML = ROOT / "web/schema/chronicle-pipeline-graph.yaml"
 LOCAL_CONTRACT = ROOT / "web/schema/chronicle-local-contract.linkml.yaml"
 GRAPH_DEF = ROOT / "web/src/lib/pipelineGraph/graphDef.ts"
 PIPELINE_V2 = ROOT / "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs"
+PIPELINE_INCREMENTAL = (
+    ROOT / "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs"
+)
+STEP_CONTRACT = ROOT / "rust/chronicle_chrono_kernel_wasm/src/step_contract.rs"
+KERNEL_MANIFEST = ROOT / "rust/chronicle_chrono_kernel_wasm/Cargo.toml"
 MATCHER_WASM = ROOT / "rust/chronicle_app_usage_wasm"
 TYPESCRIPT_PIPELINE = ROOT / "web/src/lib/browserPipeline.ts"
 TYPESCRIPT_GRAPH = ROOT / "web/src/lib/pipelineGraph"
@@ -102,22 +108,25 @@ def rust_surface(surface_id: str, category: str, path: str, entrypoint: str) -> 
 
 RUNTIME_SURFACES = [
     rust_surface(
-        "fused_physical_pipeline",
+        "tracked_physical_pipeline",
         "product-computation",
-        "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs",
-        "run_pipeline_v2_with_supports",
+        "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "IncrementalPipelineV2Engine",
     ),
-    rust_surface(
-        "semantic_graph_scheduler",
-        "semantic-computation",
-        "rust/chronicle_preprocessing_semantic_adapter/src/scheduler.rs",
-        "pub fn run",
-    ),
+    {
+        **rust_surface(
+            "product_stage_projection",
+            "semantic-projection",
+            "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
+            "project_product_stages",
+        ),
+        "does_not_schedule_physical_queries": True,
+    },
     rust_surface(
         "dependency_certificate",
         "semantic-validation",
-        "rust/chronicle_preprocessing_semantic_adapter/src/scheduler.rs",
-        "dependency_cache_decision",
+        "rust/chronicle_preprocessing_semantic_adapter/src/dependency_cache.rs",
+        "evaluate_dependency_cache_decision",
     ),
     rust_surface(
         "role_materialization",
@@ -247,140 +256,6 @@ RUNTIME_SURFACES = [
     ),
 ]
 
-TRUE = {"kind": "always"}
-
-
-def option_true(option_key: str) -> dict:
-    return {"kind": "option-true", "option_key": option_key}
-
-
-def all_conditions(*terms: dict) -> dict:
-    effective = [term for term in terms if term != TRUE]
-    if not effective:
-        return TRUE
-    if len(effective) == 1:
-        return effective[0]
-    return {"kind": "all", "terms": effective}
-
-
-APPLICABILITY = {
-    "parse_events": TRUE,
-    "normalize_timezones": TRUE,
-    "dedup_and_order": TRUE,
-    "app_policy": option_true("use_filter_file"),
-    "device_state_timeline": option_true("process_screen_usage"),
-    "reconstruct_episodes": option_true("process_app_usage"),
-    "categorize_apps": {
-        "kind": "all",
-        "terms": [option_true("process_app_usage"), option_true("use_app_codebook")],
-    },
-    "episode_annotations": option_true("process_app_usage"),
-    "interval_cleaning": {
-        "kind": "all",
-        "terms": [
-            option_true("process_app_usage"),
-            {
-                "kind": "any",
-                "terms": [
-                    option_true("use_filter_file"),
-                    {"kind": "array-nonempty", "option_key": "interaction_types_to_remove"},
-                    option_true("filter_zero_duration_sessions"),
-                ],
-            },
-        ],
-    },
-    "effective_usage": {
-        "kind": "all",
-        "terms": [
-            option_true("process_app_usage"),
-            option_true("enable_screen_gated_crediting"),
-        ],
-    },
-    "observation_window": {
-        "kind": "all",
-        "terms": [
-            option_true("process_app_usage"),
-            option_true("enable_study_window_filter"),
-        ],
-    },
-    "attribute_person": {
-        "kind": "all",
-        "terms": [
-            option_true("process_app_usage"),
-            option_true("enable_person_attribution"),
-        ],
-    },
-    "day_coverage": {
-        "kind": "all",
-        "terms": [
-            option_true("process_app_usage"),
-            {
-                "kind": "any",
-                "terms": [
-                    option_true("add_no_activity_placeholder_days"),
-                    option_true("enable_day_coverage"),
-                ],
-            },
-        ],
-    },
-    "score_compliance": {
-        "kind": "all",
-        "terms": [
-            option_true("process_app_usage"),
-            option_true("enable_compliance_scoring"),
-        ],
-    },
-    "outputs": TRUE,
-}
-
-STEP_LOCAL_APPLICABILITY = {
-    "exact_dedupe": option_true("deduplicate_exact_rows"),
-    "nudge_duplicate_timestamps": option_true(
-        "correct_duplicate_event_timestamps"
-    ),
-    "split_concurrent": {
-        "kind": "any",
-        "terms": [
-            option_true("model_concurrent_usage"),
-            option_true("use_background_apps_file"),
-        ],
-    },
-    "blank_junk_timing": option_true("use_filter_file"),
-    "drop_selected_types": {
-        "kind": "array-nonempty",
-        "option_key": "interaction_types_to_remove",
-    },
-    "drop_zero_duration": option_true("filter_zero_duration_sessions"),
-    "inject_placeholders": option_true("add_no_activity_placeholder_days"),
-    "build_coverage_table": option_true("enable_day_coverage"),
-}
-
-SUPPORT_ROLES = {
-    "filter_file": {"required_when": option_true("use_filter_file")},
-    "apps_forcing_screen_open_file": {
-        "required_when": option_true("use_apps_forcing_screen_open_file")
-    },
-    "background_apps_file": {
-        "required_when": option_true("use_background_apps_file")
-    },
-    "app_codebook_file": {"required_when": option_true("use_app_codebook")},
-    "study_dates_file": {
-        # Day coverage uses a supplied study window when one exists, but its
-        # documented fallback is the participant's observed date range.
-        # Placeholder rows likewise derive their dates from observed events.
-        "required_when": option_true("enable_study_window_filter")
-    },
-    "device_sharing_file": {
-        # Compliance can run without this optional qualification and then
-        # deterministically treats every participant as non-shared. Person
-        # attribution is the only computation that cannot proceed without it.
-        "required_when": option_true("enable_person_attribution")
-    },
-    "survey_attribution_file": {"required": False, "qualification": "optional-evidence"},
-    "enrolled_devices_file": {"required": False, "qualification": "reserved-support"},
-}
-
-
 def digest(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -492,7 +367,10 @@ def canonical_digest(value: object) -> str:
 
 def configuration_axes() -> dict[str, list[str]]:
     contract = yaml.safe_load(LOCAL_CONTRACT.read_text(encoding="utf-8"))
-    option_slots = contract["classes"]["BrowserProcessingOptions"]["slots"]
+    option_slots = (
+        contract["classes"]["BrowserProcessingOptions"]["slots"]
+        + contract["classes"]["BrowserProcessingRuntime"]["slots"]
+    )
     axes = {"computational": [], "annotation": [], "view": [], "execution": []}
     for option_key in option_slots:
         slot = contract["slots"][option_key]
@@ -602,26 +480,65 @@ def build_dependency_certificate(plan: dict) -> dict:
             "proof_ledgers": ledgers,
         },
         "narrowing_policy": {
-            "certified_surface": "declared-node-input-key",
-            "unknown_option": "full-logical-recompute",
-            "missing_option": "full-logical-recompute",
+            "certified_surface": "classified-product-input-surface-plus-exact-query-reads",
+            "unknown_option": "discard-query-state-and-run-all-55-queries-cold",
+            "missing_option": "discard-query-state-and-run-all-55-queries-cold",
             "unknown_role": "fail-closed",
-            "certificate_mismatch": "full-logical-recompute",
+            "certificate_mismatch": "discard-query-state-and-run-all-55-queries-cold",
             "stale_empirical_evidence": "release-blocking",
-            "code_or_contract_change": "full-logical-recompute",
+            "code_or_contract_change": "discard-query-state-and-run-all-55-queries-cold",
         },
         "claim_boundary": (
             "The certificate proves complete classification and binding of the current "
-            "product option/role surface and binds the named empirical ledgers. Narrow "
-            "cache reuse is permitted only for that exact structural surface. Empirical "
-            "absence-of-effect claims remain bounded by each ledger's own claim boundary; "
-            "unclassified or mismatched runtime state falls back to full logical recomputation."
+            "product option/role surface and binds the named empirical ledgers. Salsa's "
+            "actual query reads decide physical reuse; the 15 product stages are derived "
+            "views and do not schedule work. Empirical absence-of-effect claims remain "
+            "bounded by each ledger's claim boundary. Unknown or mismatched state discards "
+            "incremental query state and runs all 55 Rust queries cold."
         ),
     }
 
 
 def source_path_for_unit(unit_id: str) -> Path:
     return ROOT / "web/src/lib/pipelineGraph/steps" / UNIT_MODULES[unit_id]
+
+
+def independently_callable_rust_steps(step_ids: list[str]) -> list[str]:
+    source = PIPELINE_INCREMENTAL.read_text(encoding="utf-8")
+    tracked_functions = set(
+        re.findall(
+            r"#\[salsa::tracked\([^\]]*\)\]\s*fn\s+([a-z0-9_]+)\s*\(",
+            source,
+        )
+    )
+    unknown = sorted(tracked_functions - set(step_ids))
+    if unknown:
+        raise RuntimeError(f"tracked Rust queries are absent from the 55-step contract: {unknown}")
+    return [step_id for step_id in step_ids if step_id in tracked_functions]
+
+
+def rust_step_contract() -> dict:
+    result = subprocess.run(
+        [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
+            str(KERNEL_MANIFEST),
+            "--features",
+            "incremental-v2",
+            "--bin",
+            "export_pipeline_step_contract",
+        ],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    contract = json.loads(result.stdout)
+    if contract.get("protocolVersion") != "chronicle-preprocessing-step-contract/v3":
+        raise RuntimeError("unsupported Rust step contract protocol")
+    return contract
 
 
 def capability(kind: str, identifier: str) -> str:
@@ -634,18 +551,6 @@ def load_and_verify() -> dict:
     steps = projection["graph_steps"]
     if len(nodes) != 15 or len(steps) != 55:
         raise RuntimeError(f"expected 15 nodes/55 steps, found {len(nodes)}/{len(steps)}")
-
-    graph_source = GRAPH_DEF.read_text(encoding="utf-8")
-    for node in nodes:
-        marker = f'id: "{node["node_id"]}"'
-        if marker not in graph_source:
-            raise RuntimeError(f"node has no executable graphDef source site: {node['node_id']}")
-
-    for step in steps:
-        source = source_path_for_unit(step["unit_id"])
-        marker = f'id: "{step["step_id"]}"'
-        if marker not in source.read_text(encoding="utf-8"):
-            raise RuntimeError(f"step has no executable source site: {step['step_id']} in {source}")
 
     rust_source = PIPELINE_V2.read_text(encoding="utf-8")
     for function in (
@@ -663,9 +568,13 @@ def load_and_verify() -> dict:
 
 
 def build_plan(projection: dict) -> dict:
+    rust_contract = rust_step_contract()
+    rust_groups = {group["id"]: group for group in rust_contract["groups"]}
+    rust_steps = {step["id"]: step for step in rust_contract["steps"]}
     nodes = []
     for node in projection["graph_nodes"]:
         node_id = node["node_id"]
+        rust_group = rust_groups[node_id]
         nodes.append(
             {
                 "node_id": node_id,
@@ -674,20 +583,24 @@ def build_plan(projection: dict) -> dict:
                 "capability_id": capability("node", node_id),
                 "input_nodes": node.get("node_inputs", []),
                 "output_role": f"urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/{node_id}",
-                "knobs": node.get("node_knobs", []),
-                "support_roles": node.get("node_support_files", []),
-                "applicability": APPLICABILITY[node_id],
-                "can_bypass": node["has_bypass"],
-                "early_cutoff": node["has_early_cutoff"],
+                "knobs": [
+                    {"option_key": knob["optionKey"], "edge": knob["edge"]}
+                    for knob in rust_group["knobs"]
+                ],
+                "support_roles": rust_group["supportRoles"],
+                "applicability": rust_group["applicability"],
+                "can_bypass": rust_group["canBypass"],
+                "early_cutoff": rust_group["earlyCutoff"],
                 "determinism": "semantic",
-                "implementation_status": "rust-wasm-active-logical-authority",
+                "implementation_status": "rust-wasm-product-stage-projection",
+                "physical_execution_authority": False,
             }
         )
 
     steps = []
     for step in projection["graph_steps"]:
         step_id = step["step_id"]
-        source = source_path_for_unit(step["unit_id"])
+        rust_step = rust_steps[step_id]
         steps.append(
             {
                 "step_id": step_id,
@@ -696,12 +609,21 @@ def build_plan(projection: dict) -> dict:
                 "description": step["step_description"],
                 "capability_id": capability("step", step_id),
                 "input_steps": step.get("step_inputs", []),
-                "applicability": all_conditions(
-                    APPLICABILITY[step["unit_id"]],
-                    STEP_LOCAL_APPLICABILITY.get(step_id, TRUE),
-                ),
-                "can_bypass": step["has_bypass"],
-                "legacy_executable_source": str(source.relative_to(ROOT)),
+                "request_fields": rust_step["requestFields"],
+                "source_role_bindings": [
+                    {
+                        "role": binding["role"],
+                        "when_all": binding["whenAll"],
+                    }
+                    for binding in rust_step["sourceRoleBindings"]
+                ],
+                "applicability": rust_step["applicability"],
+                "can_bypass": rust_step["canBypass"],
+                "rust_executable_source": {
+                    "path": str(PIPELINE_INCREMENTAL.relative_to(ROOT)),
+                    "entrypoint": step_id,
+                    "tracking": "salsa-query",
+                },
                 "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1",
             }
         )
@@ -714,8 +636,8 @@ def build_plan(projection: dict) -> dict:
         "implementation_state": {
             "browser_selector": "typescript-worker-calls-rust-execute-workspace",
             "active_logical_authority": "rust-composed-runtime",
-            "physical_execution": "fused-rust-pipeline-v2",
-            "logical_execution_evidence": "rust-scheduler-15-units-55-step-projection",
+            "physical_execution": "salsa-tracked-rust-pipeline-v2",
+            "logical_execution_evidence": "salsa-actual-step-events-grouped-into-15-product-views",
             "workspace_authority": "rust-root-and-closure-contract-with-opfs-browser-io-adapter",
             "semantic_index": "derived-rust-oxigraph-registered-queries-only",
             "typescript_boundary": "interaction-visualization-and-browser-io-only",
@@ -733,26 +655,25 @@ def build_plan(projection: dict) -> dict:
         "execution_states": ["cached", "recomputed", "error", "skipped", "bypassed"],
         "root_roles": [
             {
-                "role_id": "raw_chronicle_csv",
-                "cardinality": {"minimum": 1, "maximum": 1},
-                "media_types": ["text/csv"],
-                "required": True,
-            },
-            {
-                "role_id": "processing_options",
-                "cardinality": {"minimum": 1, "maximum": 1},
-                "media_types": ["application/json"],
-                "required": True,
-            },
-            *[
-                {
-                    "role_id": role_id,
-                    "cardinality": {"minimum": 0, "maximum": 1},
-                    "media_types": ["text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
-                    **policy,
-                }
-                for role_id, policy in SUPPORT_ROLES.items()
-            ],
+                "role_id": role["roleId"],
+                "cardinality": {
+                    "minimum": role["minimum"],
+                    "maximum": role["maximum"],
+                },
+                "media_types": role["mediaTypes"],
+                "required": role["required"],
+                **(
+                    {"required_when": role["requiredWhen"]}
+                    if "requiredWhen" in role
+                    else {}
+                ),
+                **(
+                    {"qualification": role["qualification"]}
+                    if "qualification" in role
+                    else {}
+                ),
+            }
+            for role in rust_contract["rootRoles"]
         ],
         "nodes": nodes,
         "steps": steps,
@@ -833,14 +754,39 @@ def build_runtime_authority(plan: dict) -> dict:
 
 
 def build_bindings(plan: dict, runtime_authority: dict) -> dict:
-    logical_capabilities = [node["capability_id"] for node in plan["nodes"]] + [
-        step["capability_id"] for step in plan["steps"]
-    ]
+    node_capabilities = [node["capability_id"] for node in plan["nodes"]]
+    step_capabilities = [step["capability_id"] for step in plan["steps"]]
+    logical_capabilities = node_capabilities + step_capabilities
     runtime_capabilities = [
         surface["capability_id"] for surface in runtime_authority["surfaces"]
     ]
     complete_authority = logical_capabilities + runtime_capabilities
+    product_runtime_capabilities = node_capabilities + runtime_capabilities
     runtime_implementation_digest = rust_runtime_implementation_digest()
+    tracked_step_bindings = [
+        {
+            "binding_id": f"urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-step/{step['step_id']}",
+            "capability_ids": [step["capability_id"]],
+            "implementation": {
+                "implementation_id": f"urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-step/{step['step_id']}",
+                "language": "rust",
+                "target": "wasm32-unknown-unknown",
+                "source": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+                "entrypoint": step["step_id"],
+                "build_digest": runtime_implementation_digest,
+            },
+            "relationship": "one-to-one",
+            "status": "active",
+            "authority": True,
+            "evidence_projection": {
+                "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/salsa-step/v1",
+                "loss": "lossless",
+                "notes": "Salsa reports whether this exact Rust query body executed or its typed result was reused.",
+            },
+            "notes": "Production computation authority for one exact Chronicle preprocessing step.",
+        }
+        for step in plan["steps"]
+    ]
     return {
         "protocol_version": "0.1",
         "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1",
@@ -851,7 +797,7 @@ def build_bindings(plan: dict, runtime_authority: dict) -> dict:
         "bindings": [
             {
                 "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-wasm-product-runtime",
-                "capability_ids": complete_authority,
+                "capability_ids": product_runtime_capabilities,
                 "implementation": {
                     "implementation_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:implementation/rust-wasm-product-runtime",
                     "language": "rust",
@@ -860,16 +806,17 @@ def build_bindings(plan: dict, runtime_authority: dict) -> dict:
                     "entrypoint": "execute_workspace",
                     "build_digest": runtime_implementation_digest,
                 },
-                "relationship": "fused",
+                "relationship": "projection",
                 "status": "active",
                 "authority": True,
                 "evidence_projection": {
                     "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:evidence/rust-runtime/v1",
                     "loss": "lossless",
-                    "notes": "The physical kernel is fused, while the Rust scheduler emits complete logical-unit status, bindings, reasons, obligations, artifact closure, and step projection.",
+                    "notes": "The runtime projects actual Salsa step-execution events into the 15 product reporting groups, evidence, obligations, and artifact records.",
                 },
                 "notes": "Production worker authority for parsing, validation, computation, scheduling, evidence, artifact encoding, typed views, and semantic indexing.",
             },
+            *tracked_step_bindings,
             {
                 "binding_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding/rust-native-parity-runtime",
                 "capability_ids": complete_authority,
@@ -917,6 +864,7 @@ def build_bindings(plan: dict, runtime_authority: dict) -> dict:
 def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) -> dict:
     node_ids = [node["node_id"] for node in projection["graph_nodes"]]
     step_ids = [step["step_id"] for step in projection["graph_steps"]]
+    callable_step_ids = independently_callable_rust_steps(step_ids)
     return {
         "inventory_version": "0.1.0",
         "branch_authority": {
@@ -929,10 +877,14 @@ def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) 
                 "path": str(GRAPH_DEF.relative_to(ROOT)),
                 "digest": digest(GRAPH_DEF),
                 "executable": True,
+                "production_authority": False,
+                "purpose": "test-only-migration-reference",
             },
             "step_wirings": {
                 "directory": "web/src/lib/pipelineGraph/steps",
                 "executable": True,
+                "production_authority": False,
+                "purpose": "test-only-migration-reference",
             },
             "structural_projection": {
                 "path": str(GRAPH_YAML.relative_to(ROOT)),
@@ -941,8 +893,14 @@ def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) 
             },
             "rust_migration_base": {
                 "path": str(PIPELINE_V2.relative_to(ROOT)),
-                "digest": digest(PIPELINE_V2),
-                "coverage": "active-fused-physical-kernel-behind-complete-logical-rust-runtime",
+                "included_paths": [
+                    str(path.relative_to(ROOT))
+                    for path in [PIPELINE_V2, PIPELINE_INCREMENTAL, STEP_CONTRACT]
+                ],
+                "digest": closure_digest(
+                    [PIPELINE_V2, PIPELINE_INCREMENTAL, STEP_CONTRACT]
+                ),
+                "coverage": "active-55-query-salsa-kernel-plus-fused-cold-test-oracle",
             },
             "rust_product_runtime": {
                 "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
@@ -965,13 +923,15 @@ def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) 
                 "expected": 70,
                 "recorded": 70,
                 "percent": 100,
-                "claim": "identity-and-entrypoint-coverage-not-callable-step-coverage",
+                "claim": "identity-and-exact-rust-query-entrypoint-coverage",
             },
             "physical_execution": {
-                "fused_executor_count": 1,
-                "independently_callable_steps": 0,
-                "independently_cached_steps": 0,
-                "actual_step_execution_events": 0,
+                "tracked_executor_count": 1,
+                "fused_cold_oracle_count": 1,
+                "independently_callable_steps": len(callable_step_ids),
+                "independently_cached_steps": len(callable_step_ids),
+                "production_authoritative_incremental_steps": len(callable_step_ids),
+                "actual_step_execution_event_ids": len(callable_step_ids),
                 "target_steps": 55,
             },
             "dependency_surface": {
@@ -994,15 +954,15 @@ def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) 
         },
         "node_ids": node_ids,
         "step_ids": step_ids,
-        "rust_fused_checkpoint_projection_groups": node_ids,
+        "rust_actual_event_projection_groups": node_ids,
         "rust_declared_step_ids": step_ids,
-        "rust_independently_callable_step_ids": [],
-        "rust_independently_cached_step_ids": [],
-        "rust_post_run_status_projection": {
+        "rust_independently_callable_step_ids": callable_step_ids,
+        "rust_independently_cached_step_ids": callable_step_ids,
+        "rust_actual_step_event_projection": {
             "covers": "rust_declared_step_ids",
             "count": len(step_ids),
         },
-        "physical_incremental_execution_status": "release-blocked",
+        "physical_incremental_execution_status": "runtime-cutover-active-release-blocked",
         "typescript_production_authority_capabilities": [],
         "runtime_authority_surface_count": len(RUNTIME_SURFACES),
         "dependency_certificate": {
@@ -1058,11 +1018,31 @@ def sync_existing_ontology_resources(check: bool) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
+    parser.add_argument(
+        "--contracts-only",
+        action="store_true",
+        help=(
+            "update/check the product plan, runtime authority, and capability "
+            "bindings without reading empirical ledgers; use before rebuilding "
+            "WASM and regenerating evidence after a contract change"
+        ),
+    )
     args = parser.parse_args()
     projection = load_and_verify()
     plan = build_plan(projection)
     runtime_authority = build_runtime_authority(plan)
     bindings = build_bindings(plan, runtime_authority)
+    if args.contracts_only:
+        write_or_check(PLAN_OUTPUT, plan, args.check)
+        write_or_check(RUNTIME_AUTHORITY_OUTPUT, runtime_authority, args.check)
+        write_or_check(BINDINGS_OUTPUT, bindings, args.check)
+        sync_existing_ontology_resources(args.check)
+        mode = "checked" if args.check else "generated"
+        print(
+            f"semantic_behavior_contracts={mode} groups=15 declared_steps=55 "
+            "tracked_executors=1"
+        )
+        return 0
     dependency_certificate = build_dependency_certificate(plan)
     inventory = build_inventory(projection, plan, dependency_certificate)
     write_or_check(PLAN_OUTPUT, plan, args.check)
@@ -1076,7 +1056,8 @@ def main() -> int:
     mode = "checked" if args.check else "generated"
     print(
         f"semantic_behavior_inventory={mode} groups=15 declared_steps=55 "
-        "fused_executors=1 independently_cached_steps=0"
+        f"tracked_executors=1 independently_cached_steps={len(inventory['rust_independently_cached_step_ids'])} "
+        f"production_authoritative_incremental_steps={len(inventory['rust_independently_cached_step_ids'])}"
     )
     return 0
 

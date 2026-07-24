@@ -1,11 +1,17 @@
-# Salsa trial against the real preprocessing code
+# Salsa decision record and original product trial
 
 Captured: 2026-07-23.
 
-This is a dependency trial, not a second Chronicle pipeline and not a claim
-that the 55 transformations are incremental already. The trial lives in
-`rust/chronicle_incremental_query_spike` so it cannot change the production
-runtime identity while the engine decision is still open.
+This file preserves the original bounded dependency trial. The decision is no
+longer open: Salsa `0.28.1` is selected and all 55 transformations are now real
+tracked computations in the production kernel. The current implementation,
+remaining acceptance checks, and complete comparison with `incremental-rs`,
+`depends`, `comemo`, `incremental-query`, and the bounded fallback are in the
+[authoritative 55-step plan](../semantic-federation/55-step-incremental-rust-plan.md#existing-software-decision).
+
+The trial directory is named `rust/chronicle_incremental_query_spike`, but it
+tests **Salsa**. It does not use or endorse the separate project named
+`incremental-query`.
 
 ## What the trial actually calls
 
@@ -116,19 +122,22 @@ deploy artifact as evidence.
 introduce it. `cargo deny` passed advisories, licenses, bans, and sources using
 the repository policy.
 
-## Decision now
+## Decision made after this trial
 
-Salsa has passed the representative native/WASM, actual-read, event, early
-cutoff, qualification-hole, and verified-snapshot tests. It has not yet passed
-the complete product decision because these checks remain:
+Salsa passed the representative native/WASM, actual-read, event, early-cutoff,
+qualification-hole, and verified-snapshot tests, then passed the complete
+55-query native/browser-WASM compile and cold-oracle parity gates. It is the
+selected production implementation. These product-release checks remain:
 
-- all 55 callable transformations and exact invalidation sets;
-- byte-for-byte fused-oracle equality for outputs, states, lineage, and
-  correspondence data;
+- exact actual-read/invalidation campaigns over all configuration, source,
+  support, qualification, binding, and semantic-model changes;
+- byte-for-byte fused-oracle equality for every campaign result, state,
+  lineage, and correspondence value;
 - persistence through the existing alternating OPFS roots, including crash
   injection;
 - an apples-to-apples integrated WASM size and incremental-memory comparison.
 
-Therefore Salsa remains the selected implementation candidate, while the fused
-pipeline remains production authority and the bounded memo-table fallback
-remains available.
+The tracked engine is the implementation under test; the fused pipeline remains
+an independent cold oracle and temporary rollback until every release gate
+passes. The bounded memo table is a contingency only if a named mandatory Salsa
+condition fails.

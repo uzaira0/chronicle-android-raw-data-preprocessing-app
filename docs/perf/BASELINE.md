@@ -66,12 +66,13 @@ All five Hyperfine measurements landed within 29 milliseconds. The median is
 the tracked comparison value. This is a machine-specific regression baseline,
 not a portable latency promise.
 
-## Current warm-execution limitation
+## Historical pre-Salsa warm-path baseline
 
 A targeted 2026-07-23 diagnostic on the same 60,624-row fixture measured the
-current worker-local warm path. These values are diagnostic single-run/range
-measurements, not release budgets; the active plan requires a committed,
-repeatable benchmark before comparing the replacement runtime.
+old fused worker-local warm path before the 55-query runtime cutover. These
+values preserve the optimization baseline and must not be used as the current
+runtime result. The active plan requires a committed, repeatable measurement of
+the tracked runtime before any new performance claim.
 
 | Request after an initial cold run | Observed wall time | What physically happened |
 |---|---:|---|
@@ -81,10 +82,10 @@ repeatable benchmark before comparing the replacement runtime.
 | Middle `modelConcurrentUsage` option changed | about 8.25 s | Ran the complete fused pipeline. |
 | Output-only `studyName` changed | about 8.71 s | Ran the complete fused pipeline. |
 
-The important result is not the small timing differences: every changed case
-still performs the full physical computation. The runtime's 55 `cached` and
-`recomputed` labels are created after the fused result exists, so they cannot be
-used as performance evidence. The
+The historical result was that every changed case performed the full physical
+computation and the 55 labels were post-run projections. The current runtime
+has removed that physical gate; fresh measurements must now prove the benefit
+and cost of exact Salsa query reuse. The
 [55-step incremental Rust plan](../semantic-federation/55-step-incremental-rust-plan.md)
 requires actual query execution events and separate cold, unchanged, upstream,
 middle, downstream, and qualification/binding measurements.
@@ -115,10 +116,11 @@ these figures are evidence for this machine and commit, not portable promises.
 
 ## Known profiling gaps
 
-- The committed [Salsa product trial](SALSA_PRODUCT_TRIAL.md) now measures real
-  execution events for six representative queries. It must be rerun after all
-  55 transformations are callable; the present middle/raw/support cases still
-  enter one fused query.
+- The committed [Salsa product trial](SALSA_PRODUCT_TRIAL.md) preserves the
+  original six-query selection benchmark. All 55 transformations are now
+  callable; the replacement measurement must cover cold, unchanged, upstream,
+  middle, downstream, qualification/binding, cache export, cache restore,
+  snapshot bytes, peak memory, and actual execution events.
 - Repeated large-fixture peak RSS in Chromium rather than the Node WASM host.
 - Cross-browser OPFS and performance measurements outside Chromium.
 - Cold-versus-warm semantic-index query profiling after adding an index cache.

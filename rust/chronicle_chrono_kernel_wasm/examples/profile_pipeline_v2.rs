@@ -1,9 +1,14 @@
+#[cfg(feature = "incremental-v2")]
+use chronicle_chrono_kernel_wasm::pipeline_v2::IncrementalPipelineV2Engine;
 use chronicle_chrono_kernel_wasm::pipeline_v2::{
-    run_pipeline_v2_with_supports, PipelineV2Options, PipelineV2SupportFiles, UsageSessionMode,
+    run_pipeline_v2_with_supports, PipelineV2Options, PipelineV2Result, PipelineV2SupportFiles,
+    UsageSessionMode,
 };
 use chrono::{TimeZone, Utc};
 use sha2::{Digest, Sha256};
 use std::hint::black_box;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::time::Instant;
 
 const RAW_HEADER: &str = "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n";
@@ -12,14 +17,23 @@ const APPS_FORCING_CSV: &[u8] = b"package_name,label_or_note\ncom.example.app1,S
 const BACKGROUND_APPS_CSV: &[u8] =
     b"package_name,label_or_note\ncom.example.app2,Synthetic background audio\n";
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct Args {
     rows: usize,
     iterations: usize,
+    mode: Mode,
+    case: Option<String>,
+    cache_file: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    Sequential,
+    Incremental,
 }
 
 fn usage() -> &'static str {
-    "usage: profile_pipeline_v2 [--rows N] [--iterations N]"
+    "usage: profile_pipeline_v2 [--rows N] [--iterations N] [--mode sequential|incremental] [--case NAME] [--cache-file PATH]"
 }
 
 fn positive_usize(flag: &str, value: Option<String>) -> Result<usize, String> {
@@ -36,11 +50,37 @@ fn positive_usize(flag: &str, value: Option<String>) -> Result<usize, String> {
 fn parse_args() -> Result<Args, String> {
     let mut rows = 10_000;
     let mut iterations = 1;
+    let mut mode = Mode::Sequential;
+    let mut case = None;
+    let mut cache_file = None;
     let mut args = std::env::args().skip(1);
     while let Some(flag) = args.next() {
         match flag.as_str() {
             "--rows" => rows = positive_usize("--rows", args.next())?,
             "--iterations" => iterations = positive_usize("--iterations", args.next())?,
+            "--mode" => {
+                mode = match args.next().as_deref() {
+                    Some("sequential") => Mode::Sequential,
+                    Some("incremental") => Mode::Incremental,
+                    value => {
+                        return Err(format!(
+                            "invalid --mode value {value:?}; expected sequential or incremental"
+                        ));
+                    }
+                }
+            }
+            "--case" => {
+                case = Some(
+                    args.next()
+                        .ok_or_else(|| "--case requires a value".to_string())?,
+                );
+            }
+            "--cache-file" => {
+                cache_file = Some(PathBuf::from(
+                    args.next()
+                        .ok_or_else(|| "--cache-file requires a path".to_string())?,
+                ));
+            }
             "--help" | "-h" => {
                 println!("{}", usage());
                 std::process::exit(0);
@@ -48,7 +88,13 @@ fn parse_args() -> Result<Args, String> {
             _ => return Err(format!("unknown argument {flag:?}; {}", usage())),
         }
     }
-    Ok(Args { rows, iterations })
+    Ok(Args {
+        rows,
+        iterations,
+        mode,
+        case,
+        cache_file,
+    })
 }
 
 fn interaction(index: usize) -> &'static str {
@@ -163,18 +209,422 @@ fn options() -> PipelineV2Options {
     }
 }
 
+fn result_digest(result: &PipelineV2Result) -> String {
+    let mut digest = Sha256::new();
+    for bytes in [
+        &result.app_csv_bytes,
+        &result.screen_csv_bytes,
+        &result.day_coverage_csv_bytes,
+        &result.compliance_csv_bytes,
+        &result.credited_app_csv_bytes,
+        &result.review_summary_json_bytes,
+        &result.visualization_data_json_bytes,
+    ] {
+        digest.update((bytes.len() as u64).to_le_bytes());
+        digest.update(bytes);
+    }
+    digest.update(
+        serde_json::to_vec(&result.pipeline_step_checkpoints).expect("serialize step checkpoints"),
+    );
+    digest.update(
+        serde_json::to_vec(&result.logical_stage_checkpoints).expect("serialize stage checkpoints"),
+    );
+    digest.update(serde_json::to_vec(&result.row_lineage).expect("serialize row lineage"));
+    for aggregate in &result.aggregate_csv_outputs {
+        digest.update(aggregate.kind.as_bytes());
+        digest.update(aggregate.row_count.to_le_bytes());
+        digest.update(&aggregate.bytes);
+    }
+    for value in [
+        result.original_row_count,
+        result.processed_row_count,
+        result.app_row_count,
+        result.screen_row_count,
+        result.day_coverage_row_count,
+        result.compliance_row_count,
+        result.credited_app_row_count,
+        result.duplicate_timestamps_corrected,
+        result.exact_duplicate_rows_removed,
+        result.rows_before_timezone_handling,
+        result.rows_after_timezone_handling,
+        result.rows_removed_by_timezone,
+    ] {
+        digest.update(value.to_le_bytes());
+    }
+    for value in [
+        &result.timezone,
+        &result.timezone_action,
+        &result.timezone_retained_source_rows_digest,
+        &result.timezone_stage_digest,
+    ] {
+        digest.update(value.as_bytes());
+    }
+    for timezone in &result.available_timezones {
+        digest.update(timezone.as_bytes());
+    }
+    format!("sha256:{}", hex::encode(digest.finalize()))
+}
+
+fn support<'a>(codebook_csv: &'a [u8], filter_csv: &'a [u8]) -> PipelineV2SupportFiles<'a> {
+    PipelineV2SupportFiles {
+        filter_csv,
+        apps_forcing_csv: APPS_FORCING_CSV,
+        background_apps_csv: BACKGROUND_APPS_CSV,
+        codebook_csv,
+        ..PipelineV2SupportFiles::default()
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn resident_memory_kib() -> Option<u64> {
+    let output = Command::new("/bin/ps")
+        .args(["-o", "rss=", "-p", &std::process::id().to_string()])
+        .output()
+        .ok()?;
+    std::str::from_utf8(&output.stdout)
+        .ok()?
+        .trim()
+        .parse()
+        .ok()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn resident_memory_kib() -> Option<u64> {
+    None
+}
+
+fn report_memory(label: &str) {
+    if let Some(kib) = resident_memory_kib() {
+        println!("memory={label} resident_kib={kib}");
+    }
+}
+
+#[cfg(feature = "incremental-v2")]
+fn measure_incremental_case(
+    label: &str,
+    raw_csv: &[u8],
+    codebook_csv: &[u8],
+    baseline_options: &PipelineV2Options,
+    changed_raw_csv: &[u8],
+    changed_filter_csv: &[u8],
+    changed_options: &PipelineV2Options,
+) -> Result<(), String> {
+    let mut engine = IncrementalPipelineV2Engine::default();
+    engine.execute(raw_csv, baseline_options, support(codebook_csv, FILTER_CSV))?;
+    let started = Instant::now();
+    let execution = engine.execute(
+        changed_raw_csv,
+        changed_options,
+        support(codebook_csv, changed_filter_csv),
+    )?;
+    let elapsed = started.elapsed();
+    let oracle = run_pipeline_v2_with_supports(
+        changed_raw_csv,
+        changed_options,
+        support(codebook_csv, changed_filter_csv),
+    )?;
+    let actual_digest = result_digest(&execution.result);
+    let oracle_digest = result_digest(&oracle);
+    if actual_digest != oracle_digest {
+        return Err(format!(
+            "{label} incremental result differs from cold oracle: actual={actual_digest} oracle={oracle_digest}"
+        ));
+    }
+    println!(
+        "case={label} elapsed_ns={} elapsed_ms={:.3} executed_count={} executed_steps={} result_digest={actual_digest}",
+        elapsed.as_nanos(),
+        elapsed.as_secs_f64() * 1_000.0,
+        execution.executed_steps.len(),
+        execution.executed_steps.join(","),
+    );
+    Ok(())
+}
+
+#[cfg(feature = "incremental-v2")]
+fn profile_incremental(
+    rows: usize,
+    raw_csv: &[u8],
+    codebook_csv: &[u8],
+    baseline_options: &PipelineV2Options,
+    selected_case: Option<&str>,
+    cache_file: Option<&Path>,
+) -> Result<(), String> {
+    let cache_identity = "profile-pipeline-v2/cache/v1";
+    if matches!(
+        selected_case,
+        Some("cache_restore" | "cache_restore_benchmark")
+    ) {
+        let path = cache_file.ok_or_else(|| {
+            "cache_restore and cache_restore_benchmark require --cache-file".to_string()
+        })?;
+        let cache = std::fs::read(path)
+            .map_err(|error| format!("read query cache {}: {error}", path.display()))?;
+        let restore_started = Instant::now();
+        let mut restored = IncrementalPipelineV2Engine::default();
+        restored.restore_cache(&cache, cache_identity)?;
+        let restore_elapsed = restore_started.elapsed();
+        report_memory("restore_only_after_restore");
+        let execute_started = Instant::now();
+        let execution =
+            restored.execute(raw_csv, baseline_options, support(codebook_csv, FILTER_CSV))?;
+        let execute_elapsed = execute_started.elapsed();
+        let actual_digest = result_digest(&execution.result);
+        if selected_case == Some("cache_restore_benchmark") {
+            println!(
+                "case=cache_restore_benchmark cache_bytes={} restore_ns={} restore_ms={:.3} execute_ns={} execute_ms={:.3} executed_count={} result_digest={actual_digest}",
+                cache.len(),
+                restore_elapsed.as_nanos(),
+                restore_elapsed.as_secs_f64() * 1_000.0,
+                execute_elapsed.as_nanos(),
+                execute_elapsed.as_secs_f64() * 1_000.0,
+                execution.executed_steps.len(),
+            );
+            return Ok(());
+        }
+        let oracle = run_pipeline_v2_with_supports(
+            raw_csv,
+            baseline_options,
+            support(codebook_csv, FILTER_CSV),
+        )?;
+        if actual_digest != result_digest(&oracle) || !execution.executed_steps.is_empty() {
+            return Err(
+                "restore-only query cache did not reproduce zero-body oracle parity".into(),
+            );
+        }
+        println!(
+            "case=cache_restore cache_bytes={} restore_ns={} restore_ms={:.3} execute_ns={} execute_ms={:.3} executed_count={} result_digest={actual_digest}",
+            cache.len(),
+            restore_elapsed.as_nanos(),
+            restore_elapsed.as_secs_f64() * 1_000.0,
+            execute_elapsed.as_nanos(),
+            execute_elapsed.as_secs_f64() * 1_000.0,
+            execution.executed_steps.len(),
+        );
+        return Ok(());
+    }
+
+    let cold_started = Instant::now();
+    let mut cold_engine = IncrementalPipelineV2Engine::default();
+    let cold = cold_engine.execute(raw_csv, baseline_options, support(codebook_csv, FILTER_CSV))?;
+    let cold_elapsed = cold_started.elapsed();
+    if selected_case == Some("cold_benchmark") {
+        let cold_digest = result_digest(&cold.result);
+        println!(
+            "case=cold_benchmark rows={rows} input_bytes={} elapsed_ns={} elapsed_ms={:.3} executed_count={} result_digest={cold_digest}",
+            raw_csv.len(),
+            cold_elapsed.as_nanos(),
+            cold_elapsed.as_secs_f64() * 1_000.0,
+            cold.executed_steps.len(),
+        );
+        return Ok(());
+    }
+    let cold_oracle = run_pipeline_v2_with_supports(
+        raw_csv,
+        baseline_options,
+        support(codebook_csv, FILTER_CSV),
+    )?;
+    let cold_digest = result_digest(&cold.result);
+    if cold_digest != result_digest(&cold_oracle) {
+        return Err("cold incremental result differs from sequential oracle".into());
+    }
+    drop(cold_oracle);
+    println!(
+        "case=cold rows={rows} input_bytes={} elapsed_ns={} elapsed_ms={:.3} executed_count={} executed_steps={} result_digest={cold_digest}",
+        raw_csv.len(),
+        cold_elapsed.as_nanos(),
+        cold_elapsed.as_secs_f64() * 1_000.0,
+        cold.executed_steps.len(),
+        cold.executed_steps.join(","),
+    );
+    if selected_case == Some("cold") {
+        return Ok(());
+    }
+    drop(cold);
+    report_memory("after_cold");
+
+    if selected_case.is_none() || selected_case == Some("unchanged") {
+        measure_incremental_case(
+            "unchanged",
+            raw_csv,
+            codebook_csv,
+            baseline_options,
+            raw_csv,
+            FILTER_CSV,
+            baseline_options,
+        )?;
+    }
+
+    let mut upstream = baseline_options.clone();
+    upstream.timezone_handling = "primary-convert".into();
+    if selected_case.is_none() || selected_case == Some("upstream_timezone_policy") {
+        measure_incremental_case(
+            "upstream_timezone_policy",
+            raw_csv,
+            codebook_csv,
+            baseline_options,
+            raw_csv,
+            FILTER_CSV,
+            &upstream,
+        )?;
+    }
+
+    let mut middle = baseline_options.clone();
+    middle.model_concurrent_usage = false;
+    if selected_case.is_none() || selected_case == Some("middle_concurrent_usage") {
+        measure_incremental_case(
+            "middle_concurrent_usage",
+            raw_csv,
+            codebook_csv,
+            baseline_options,
+            raw_csv,
+            FILTER_CSV,
+            &middle,
+        )?;
+    }
+
+    let mut downstream = baseline_options.clone();
+    downstream.enable_day_coverage = false;
+    if selected_case.is_none() || selected_case == Some("downstream_day_coverage") {
+        measure_incremental_case(
+            "downstream_day_coverage",
+            raw_csv,
+            codebook_csv,
+            baseline_options,
+            raw_csv,
+            FILTER_CSV,
+            &downstream,
+        )?;
+    }
+
+    let mut output = baseline_options.clone();
+    output.study_name = "Synthetic Profile Renamed".into();
+    if selected_case.is_none() || selected_case == Some("output_study_name") {
+        measure_incremental_case(
+            "output_study_name",
+            raw_csv,
+            codebook_csv,
+            baseline_options,
+            raw_csv,
+            FILTER_CSV,
+            &output,
+        )?;
+    }
+
+    let mut changed_raw = raw_csv.to_vec();
+    changed_raw.push(b'\n');
+    if selected_case.is_none() || selected_case == Some("raw_representation_only") {
+        measure_incremental_case(
+            "raw_representation_only",
+            raw_csv,
+            codebook_csv,
+            baseline_options,
+            &changed_raw,
+            FILTER_CSV,
+            baseline_options,
+        )?;
+    }
+
+    let changed_filter = b"app_package_name,known_application_labels\ncom.example.app0,App 00\ncom.example.absent,Absent\n";
+    if selected_case.is_none() || selected_case == Some("support_filter_add_absent_app") {
+        measure_incremental_case(
+            "support_filter_add_absent_app",
+            raw_csv,
+            codebook_csv,
+            baseline_options,
+            raw_csv,
+            changed_filter,
+            baseline_options,
+        )?;
+    }
+
+    if selected_case.is_some()
+        && selected_case != Some("cache_snapshot")
+        && selected_case != Some("cache_export")
+    {
+        return Ok(());
+    }
+
+    let export_started = Instant::now();
+    let cache = cold_engine.export_cache(cache_identity)?;
+    let export_elapsed = export_started.elapsed();
+    #[derive(serde::Deserialize)]
+    struct CacheSizeProbe {
+        database_uncompressed_size: u64,
+    }
+    let cache_size_probe: CacheSizeProbe = rmp_serde::from_slice(&cache)
+        .map_err(|error| format!("inspect cache-size metadata: {error}"))?;
+    if selected_case == Some("cache_export") {
+        let path = cache_file.ok_or_else(|| "cache_export requires --cache-file".to_string())?;
+        std::fs::write(path, &cache)
+            .map_err(|error| format!("write query cache {}: {error}", path.display()))?;
+        println!(
+            "case=cache_export cache_bytes={} cache_uncompressed_bytes={} export_ns={} export_ms={:.3} path={}",
+            cache.len(),
+            cache_size_probe.database_uncompressed_size,
+            export_elapsed.as_nanos(),
+            export_elapsed.as_secs_f64() * 1_000.0,
+            path.display(),
+        );
+        return Ok(());
+    }
+    report_memory("after_export");
+    // A production restore occurs in a fresh worker. Releasing the source
+    // database here prevents this benchmark from measuring two complete Salsa
+    // databases at once, which is not the browser reload path.
+    drop(cold_engine);
+    report_memory("after_source_drop");
+    let restore_started = Instant::now();
+    let mut restored = IncrementalPipelineV2Engine::default();
+    restored.restore_cache(&cache, cache_identity)?;
+    let restore_elapsed = restore_started.elapsed();
+    report_memory("after_restore");
+    let restored_started = Instant::now();
+    let restored_execution =
+        restored.execute(raw_csv, baseline_options, support(codebook_csv, FILTER_CSV))?;
+    let restored_elapsed = restored_started.elapsed();
+    if !restored_execution.executed_steps.is_empty()
+        || result_digest(&restored_execution.result) != cold_digest
+    {
+        return Err("restored query cache did not reproduce zero-body reuse".into());
+    }
+    println!(
+        "case=cache_snapshot cache_bytes={} cache_uncompressed_bytes={} export_ns={} export_ms={:.3} restore_ns={} restore_ms={:.3} restored_execute_ns={} restored_execute_ms={:.3} restored_executed_count={}",
+        cache.len(),
+        cache_size_probe.database_uncompressed_size,
+        export_elapsed.as_nanos(),
+        export_elapsed.as_secs_f64() * 1_000.0,
+        restore_elapsed.as_nanos(),
+        restore_elapsed.as_secs_f64() * 1_000.0,
+        restored_elapsed.as_nanos(),
+        restored_elapsed.as_secs_f64() * 1_000.0,
+        restored_execution.executed_steps.len(),
+    );
+    Ok(())
+}
+
 fn main() -> Result<(), String> {
     let args = parse_args()?;
     let raw_csv = synthetic_raw_csv(args.rows);
     let codebook_csv = synthetic_codebook_csv();
     let options = options();
-    let support = PipelineV2SupportFiles {
-        filter_csv: FILTER_CSV,
-        apps_forcing_csv: APPS_FORCING_CSV,
-        background_apps_csv: BACKGROUND_APPS_CSV,
-        codebook_csv: &codebook_csv,
-        ..PipelineV2SupportFiles::default()
-    };
+    if args.mode == Mode::Incremental {
+        #[cfg(feature = "incremental-v2")]
+        {
+            return profile_incremental(
+                args.rows,
+                &raw_csv,
+                &codebook_csv,
+                &options,
+                args.case.as_deref(),
+                args.cache_file.as_deref(),
+            );
+        }
+        #[cfg(not(feature = "incremental-v2"))]
+        {
+            return Err("--mode incremental requires --features incremental-v2".into());
+        }
+    }
+    let support = support(&codebook_csv, FILTER_CSV);
 
     let started = Instant::now();
     let mut checksum = Sha256::new();

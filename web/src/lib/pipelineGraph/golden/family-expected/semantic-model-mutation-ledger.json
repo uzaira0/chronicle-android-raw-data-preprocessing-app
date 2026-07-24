@@ -1,1080 +1,3128 @@
 {
   "protocolVersion": "chronicle-semantic-model-mutation-ledger/v1",
-  "claimBoundary": "In-memory mutation of every declared DAG edge (removal and reversal), every recorded computational option binding, and every raw/support role binding. A mutant is killed by a structural cycle, a required cross-unit typed step port, or disagreement with a checked one-factor empirical percolation observation. Rust checkpoint-component and qualification-rule mutation witnesses are enforced separately by their unit tests.",
+  "claimBoundary": "In-memory mutation of every declared 55-step Rust query edge (removal and reversal), every computational request/applicability binding, and every raw/support role binding. A mutant is killed by disagreement with an actual Salsa execution campaign, a structural cycle, or the independent Rust AST check that proves declared edges and request fields equal direct query calls and helper reads. Rust checkpoint-component and qualification-rule mutations are enforced by their focused unit tests.",
   "plan": {
     "id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:plan/raw-data/v1",
     "revision": "0.1.0"
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:6d2686a698d2edd8d4372c9cf067ff0a3405fe3abe3f0a965f56bb803338e1e6",
-    "planDigest": "sha256:3b1db580ca483d5f7f198a82fcc8166e9ad180eaea587db1ae950a5fa06649a6",
+    "implementationDigest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b",
+    "planDigest": "sha256:6de88ad84552191fb4cea4acda553006cddc096f20c24e2138954f1d4d48231c",
     "profileDigest": "sha256:ad3a1e58f4a69a2f81c412391f5736bf1c2f73216a5cd9742bc319bb07b01435",
     "profileLockDigest": "sha256:aa51a18ee2104560bf6f239de05f7dfccec3aec6f4940123e305519c3bb81521",
-    "runtimeAuthorityDigest": "sha256:11142579a05120fce9a1fe8e0edfffdcae385b34a10080d878e8d82b73cc8627",
-    "productContractDigest": "sha256:00c1f57a6e487e1136f2a431a786cbf4bbb5f109da31f97993ed0dd6d0a1a8ba"
+    "runtimeAuthorityDigest": "sha256:23a1384913bcee5a9d6e48ff0f2a7e3712ce27826ce0b52c235531de3be07724",
+    "productContractDigest": "sha256:8909a12a03d890c3528ec7148472b9852d8981007babb628b8fbccc5fa45410d"
   },
   "sourceLedgers": {
-    "configurationCaseSetDigest": "sha256:839446e86a94f1adaa1a2b4a4ac907289c0527a3829985101ea5c55fbe2d3fbb",
-    "artifactCaseSetDigest": "sha256:cbbfb585a220b1e498ec5563638a1f6cb1c1a686b48840130cba16abe67f3e41",
-    "rawBoundaryCaseSetDigest": "sha256:f8caad78b33828f984eefda7ec9fb90cdbecd1f979e94597635738bd83c69bc1"
+    "configurationCaseSetDigest": "sha256:f3385953494815b7eba47728b952f7b8517e678ea0f6f8dc8697a1ceff66e407",
+    "artifactCaseSetDigest": "sha256:d7cbca9f88e8cf8ffdf1641b2ad2571a9e566d1280ae1ae82b26c08c82d67fbf",
+    "rawBoundaryCaseSetDigest": "sha256:5af80b920feee505865782a6a10aedc83a16e1ac012b9250e4ec29f30401a532"
   },
   "observationCount": 1734,
   "counts": {
-    "total": 116,
-    "killed": 116,
+    "total": 343,
+    "killed": 343,
     "survived": 0,
     "byClass": {
-      "remove-edge": 23,
-      "reverse-edge": 23,
-      "remove-option-binding": 59,
-      "remove-role-binding": 11
+      "remove-edge": 128,
+      "reverse-edge": 128,
+      "remove-option-binding": 73,
+      "remove-role-binding": 14
     },
-    "structuralCycles": 7,
-    "structuralConditionBindings": 21,
-    "structuralStepBindings": 2
+    "structuralCycles": 62,
+    "structuralConditionBindings": 6,
+    "structuralStepBindings": 77,
+    "rustRequestReadBindings": 10
+  },
+  "structuralProofs": {
+    "rustSource": "rust/chronicle_chrono_kernel_wasm/src/step_contract.rs::tests::declared_step_edges_equal_direct_salsa_query_calls",
+    "statement": "The Rust test parses pipeline_v2_incremental.rs with syn and compares each tracked query's direct calls and transitive option helper reads with the exported contract."
   },
   "mutants": [
     {
-      "mutantId": "remove-edge:parse_events->normalize_timezones",
+      "mutantId": "remove-edge:csv_parse->drop_empty_timestamp",
       "mutantClass": "remove-edge",
-      "sourceId": "parse_events",
-      "targetId": "normalize_timezones",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
-    },
-    {
-      "mutantId": "reverse-edge:parse_events->normalize_timezones",
-      "mutantClass": "reverse-edge",
-      "sourceId": "parse_events",
-      "targetId": "normalize_timezones",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
-    },
-    {
-      "mutantId": "remove-edge:normalize_timezones->dedup_and_order",
-      "mutantClass": "remove-edge",
-      "sourceId": "normalize_timezones",
-      "targetId": "dedup_and_order",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
-    },
-    {
-      "mutantId": "reverse-edge:normalize_timezones->dedup_and_order",
-      "mutantClass": "reverse-edge",
-      "sourceId": "normalize_timezones",
-      "targetId": "dedup_and_order",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-edge:dedup_and_order->app_policy",
-      "mutantClass": "remove-edge",
-      "sourceId": "dedup_and_order",
-      "targetId": "app_policy",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "reverse-edge:dedup_and_order->app_policy",
-      "mutantClass": "reverse-edge",
-      "sourceId": "dedup_and_order",
-      "targetId": "app_policy",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-edge:app_policy->device_state_timeline",
-      "mutantClass": "remove-edge",
-      "sourceId": "app_policy",
-      "targetId": "device_state_timeline",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "reverse-edge:app_policy->device_state_timeline",
-      "mutantClass": "reverse-edge",
-      "sourceId": "app_policy",
-      "targetId": "device_state_timeline",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:processScreenUsage:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-edge:app_policy->reconstruct_episodes",
-      "mutantClass": "remove-edge",
-      "sourceId": "app_policy",
-      "targetId": "reconstruct_episodes",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "reverse-edge:app_policy->reconstruct_episodes",
-      "mutantClass": "reverse-edge",
-      "sourceId": "app_policy",
-      "targetId": "reconstruct_episodes",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:processAppUsage:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-edge:reconstruct_episodes->categorize_apps",
-      "mutantClass": "remove-edge",
-      "sourceId": "reconstruct_episodes",
-      "targetId": "categorize_apps",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
-    },
-    {
-      "mutantId": "reverse-edge:reconstruct_episodes->categorize_apps",
-      "mutantClass": "reverse-edge",
-      "sourceId": "reconstruct_episodes",
-      "targetId": "categorize_apps",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
-    },
-    {
-      "mutantId": "remove-edge:categorize_apps->episode_annotations",
-      "mutantClass": "remove-edge",
-      "sourceId": "categorize_apps",
-      "targetId": "episode_annotations",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
-    },
-    {
-      "mutantId": "reverse-edge:categorize_apps->episode_annotations",
-      "mutantClass": "reverse-edge",
-      "sourceId": "categorize_apps",
-      "targetId": "episode_annotations",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
-    },
-    {
-      "mutantId": "remove-edge:episode_annotations->interval_cleaning",
-      "mutantClass": "remove-edge",
-      "sourceId": "episode_annotations",
-      "targetId": "interval_cleaning",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
-    },
-    {
-      "mutantId": "reverse-edge:episode_annotations->interval_cleaning",
-      "mutantClass": "reverse-edge",
-      "sourceId": "episode_annotations",
-      "targetId": "interval_cleaning",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
-    },
-    {
-      "mutantId": "remove-edge:app_policy->effective_usage",
-      "mutantClass": "remove-edge",
-      "sourceId": "app_policy",
-      "targetId": "effective_usage",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:correctDuplicateEventTimestamps:inactive:true:false:catalog-random"
-    },
-    {
-      "mutantId": "reverse-edge:app_policy->effective_usage",
-      "mutantClass": "reverse-edge",
-      "sourceId": "app_policy",
-      "targetId": "effective_usage",
-      "killed": true,
-      "killKind": "structural-cycle",
-      "witnessId": "plan-toposort"
-    },
-    {
-      "mutantId": "remove-edge:interval_cleaning->effective_usage",
-      "mutantClass": "remove-edge",
-      "sourceId": "interval_cleaning",
-      "targetId": "effective_usage",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
-    },
-    {
-      "mutantId": "reverse-edge:interval_cleaning->effective_usage",
-      "mutantClass": "reverse-edge",
-      "sourceId": "interval_cleaning",
-      "targetId": "effective_usage",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
-    },
-    {
-      "mutantId": "remove-edge:interval_cleaning->observation_window",
-      "mutantClass": "remove-edge",
-      "sourceId": "interval_cleaning",
-      "targetId": "observation_window",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
-    },
-    {
-      "mutantId": "reverse-edge:interval_cleaning->observation_window",
-      "mutantClass": "reverse-edge",
-      "sourceId": "interval_cleaning",
-      "targetId": "observation_window",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
-    },
-    {
-      "mutantId": "remove-edge:observation_window->attribute_person",
-      "mutantClass": "remove-edge",
-      "sourceId": "observation_window",
-      "targetId": "attribute_person",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
-    },
-    {
-      "mutantId": "reverse-edge:observation_window->attribute_person",
-      "mutantClass": "reverse-edge",
-      "sourceId": "observation_window",
-      "targetId": "attribute_person",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
-    },
-    {
-      "mutantId": "remove-edge:app_policy->day_coverage",
-      "mutantClass": "remove-edge",
-      "sourceId": "app_policy",
-      "targetId": "day_coverage",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:correctDuplicateEventTimestamps:inactive:true:false:catalog-random"
-    },
-    {
-      "mutantId": "reverse-edge:app_policy->day_coverage",
-      "mutantClass": "reverse-edge",
-      "sourceId": "app_policy",
-      "targetId": "day_coverage",
-      "killed": true,
-      "killKind": "structural-cycle",
-      "witnessId": "plan-toposort"
-    },
-    {
-      "mutantId": "remove-edge:attribute_person->day_coverage",
-      "mutantClass": "remove-edge",
-      "sourceId": "attribute_person",
-      "targetId": "day_coverage",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
-    },
-    {
-      "mutantId": "reverse-edge:attribute_person->day_coverage",
-      "mutantClass": "reverse-edge",
-      "sourceId": "attribute_person",
-      "targetId": "day_coverage",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
-    },
-    {
-      "mutantId": "remove-edge:attribute_person->score_compliance",
-      "mutantClass": "remove-edge",
-      "sourceId": "attribute_person",
-      "targetId": "score_compliance",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:enablePersonAttribution:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "reverse-edge:attribute_person->score_compliance",
-      "mutantClass": "reverse-edge",
-      "sourceId": "attribute_person",
-      "targetId": "score_compliance",
-      "killed": true,
-      "killKind": "structural-cycle",
-      "witnessId": "plan-toposort"
-    },
-    {
-      "mutantId": "remove-edge:day_coverage->score_compliance",
-      "mutantClass": "remove-edge",
-      "sourceId": "day_coverage",
-      "targetId": "score_compliance",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:addNoActivityPlaceholderDays:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "reverse-edge:day_coverage->score_compliance",
-      "mutantClass": "reverse-edge",
-      "sourceId": "day_coverage",
-      "targetId": "score_compliance",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:addNoActivityPlaceholderDays:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-edge:app_policy->outputs",
-      "mutantClass": "remove-edge",
-      "sourceId": "app_policy",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:correctDuplicateEventTimestamps:inactive:true:false:catalog-random"
-    },
-    {
-      "mutantId": "reverse-edge:app_policy->outputs",
-      "mutantClass": "reverse-edge",
-      "sourceId": "app_policy",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "structural-cycle",
-      "witnessId": "plan-toposort"
-    },
-    {
-      "mutantId": "remove-edge:attribute_person->outputs",
-      "mutantClass": "remove-edge",
-      "sourceId": "attribute_person",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "structural-step-binding",
-      "witnessId": "outputs:cross-unit-step-port:attribute_person"
-    },
-    {
-      "mutantId": "reverse-edge:attribute_person->outputs",
-      "mutantClass": "reverse-edge",
-      "sourceId": "attribute_person",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "structural-cycle",
-      "witnessId": "plan-toposort"
-    },
-    {
-      "mutantId": "remove-edge:day_coverage->outputs",
-      "mutantClass": "remove-edge",
-      "sourceId": "day_coverage",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:addNoActivityPlaceholderDays:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "reverse-edge:day_coverage->outputs",
-      "mutantClass": "reverse-edge",
-      "sourceId": "day_coverage",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "structural-cycle",
-      "witnessId": "plan-toposort"
-    },
-    {
-      "mutantId": "remove-edge:device_state_timeline->outputs",
-      "mutantClass": "remove-edge",
-      "sourceId": "device_state_timeline",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:processScreenUsage:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "reverse-edge:device_state_timeline->outputs",
-      "mutantClass": "reverse-edge",
-      "sourceId": "device_state_timeline",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:processAppUsage:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-edge:effective_usage->outputs",
-      "mutantClass": "remove-edge",
-      "sourceId": "effective_usage",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:enableScreenGatedCrediting:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "reverse-edge:effective_usage->outputs",
-      "mutantClass": "reverse-edge",
-      "sourceId": "effective_usage",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:processScreenUsage:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-edge:observation_window->outputs",
-      "mutantClass": "remove-edge",
-      "sourceId": "observation_window",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "structural-step-binding",
-      "witnessId": "outputs:cross-unit-step-port:observation_window"
-    },
-    {
-      "mutantId": "reverse-edge:observation_window->outputs",
-      "mutantClass": "reverse-edge",
-      "sourceId": "observation_window",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "structural-cycle",
-      "witnessId": "plan-toposort"
-    },
-    {
-      "mutantId": "remove-edge:score_compliance->outputs",
-      "mutantClass": "remove-edge",
-      "sourceId": "score_compliance",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:enableComplianceScoring:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "reverse-edge:score_compliance->outputs",
-      "mutantClass": "reverse-edge",
-      "sourceId": "score_compliance",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:processScreenUsage:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:processAppUsage->attribute_person",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "processAppUsage",
-      "targetId": "attribute_person",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "attribute_person:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:processAppUsage->categorize_apps",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "processAppUsage",
-      "targetId": "categorize_apps",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "categorize_apps:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:processAppUsage->day_coverage",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "processAppUsage",
-      "targetId": "day_coverage",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "day_coverage:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:processAppUsage->effective_usage",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "processAppUsage",
-      "targetId": "effective_usage",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "effective_usage:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:processAppUsage->episode_annotations",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "processAppUsage",
-      "targetId": "episode_annotations",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "episode_annotations:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:processAppUsage->interval_cleaning",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "processAppUsage",
-      "targetId": "interval_cleaning",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "interval_cleaning:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:processAppUsage->observation_window",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "processAppUsage",
-      "targetId": "observation_window",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "observation_window:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:processAppUsage->reconstruct_episodes",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "processAppUsage",
-      "targetId": "reconstruct_episodes",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "reconstruct_episodes:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:processAppUsage->score_compliance",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "processAppUsage",
-      "targetId": "score_compliance",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "score_compliance:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:processScreenUsage->device_state_timeline",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "processScreenUsage",
-      "targetId": "device_state_timeline",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "device_state_timeline:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:allowStopEventReuse->reconstruct_episodes",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "allowStopEventReuse",
-      "targetId": "reconstruct_episodes",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:allowStopEventReuse:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:useActivityStoppedAsFallback->reconstruct_episodes",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "useActivityStoppedAsFallback",
-      "targetId": "reconstruct_episodes",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:useActivityStoppedAsFallback:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:applyThresholdToFallback->reconstruct_episodes",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "applyThresholdToFallback",
-      "targetId": "reconstruct_episodes",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:applyThresholdToFallback:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:longDurationThresholdHours->reconstruct_episodes",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "longDurationThresholdHours",
-      "targetId": "reconstruct_episodes",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:longDurationThresholdHours:active:h12:h1:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:correctDuplicateEventTimestamps->dedup_and_order",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "correctDuplicateEventTimestamps",
-      "targetId": "dedup_and_order",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:deduplicateExactRows->dedup_and_order",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "deduplicateExactRows",
-      "targetId": "dedup_and_order",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:deduplicateExactRows:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:selectedTimezone->normalize_timezones",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "selectedTimezone",
-      "targetId": "normalize_timezones",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:timezoneHandling->normalize_timezones",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "timezoneHandling",
-      "targetId": "normalize_timezones",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:timezoneHandling:active:selected_filter:selected_convert:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:useFilterFile->app_policy",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "useFilterFile",
-      "targetId": "app_policy",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "app_policy:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:useFilterFile->interval_cleaning",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "useFilterFile",
-      "targetId": "interval_cleaning",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "interval_cleaning:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:useAppsForcingScreenOpenFile->device_state_timeline",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "useAppsForcingScreenOpenFile",
-      "targetId": "device_state_timeline",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:useAppsForcingScreenOpenFile:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:useBackgroundAppsFile->reconstruct_episodes",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "useBackgroundAppsFile",
-      "targetId": "reconstruct_episodes",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:useBackgroundAppsFile:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:useAppCodebook->categorize_apps",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "useAppCodebook",
-      "targetId": "categorize_apps",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "categorize_apps:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:includeCategoryColumn->categorize_apps",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "includeCategoryColumn",
-      "targetId": "categorize_apps",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:includeCategoryColumn:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:includeCategoryColumn->outputs",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "includeCategoryColumn",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:includeCategoryColumn:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:enableAggregates->outputs",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "enableAggregates",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:enableAggregates:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:aggregateShape->outputs",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "aggregateShape",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:aggregateShape:active:wide:long:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:enableParquetExport->outputs",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "enableParquetExport",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:enableParquetExport:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:enableSpssExport->outputs",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "enableSpssExport",
-      "targetId": "outputs",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:enableSpssExport:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:minimumUsageDuration->reconstruct_episodes",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "minimumUsageDuration",
-      "targetId": "reconstruct_episodes",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:minimumUsageDuration:active:s0:s60:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:filterZeroDurationSessions->interval_cleaning",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "filterZeroDurationSessions",
-      "targetId": "interval_cleaning",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "interval_cleaning:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:customAppEngagementDuration->episode_annotations",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "customAppEngagementDuration",
-      "targetId": "episode_annotations",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:customAppEngagementDuration:active:s300:s0:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:longUsageDurationThresholds->episode_annotations",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "longUsageDurationThresholds",
-      "targetId": "episode_annotations",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:longUsageDurationThresholds:active:default:empty:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:longDataTimeGapThresholds->episode_annotations",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "longDataTimeGapThresholds",
-      "targetId": "episode_annotations",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:longDataTimeGapThresholds:active:default:empty:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:longDataTimeGapThresholds->interval_cleaning",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "longDataTimeGapThresholds",
-      "targetId": "interval_cleaning",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:longDataTimeGapThresholds:inactive:default:empty:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:screenUsageAutoLockTimeoutSeconds->device_state_timeline",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "screenUsageAutoLockTimeoutSeconds",
-      "targetId": "device_state_timeline",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:screenUsageAutoLockTimeoutSeconds:active:s120:s0:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:screenUsageAutoLockToleranceSeconds->device_state_timeline",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "screenUsageAutoLockToleranceSeconds",
-      "targetId": "device_state_timeline",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:screenUsageAutoLockToleranceSeconds:active:s30:s0:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:screenUsageManualLockMaxTailGapSeconds->device_state_timeline",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "screenUsageManualLockMaxTailGapSeconds",
-      "targetId": "device_state_timeline",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:screenUsageManualLockMaxTailGapSeconds:active:s30:s0:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:screenUsageKeyguardNearStopSeconds->device_state_timeline",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "screenUsageKeyguardNearStopSeconds",
-      "targetId": "device_state_timeline",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:screenUsageKeyguardNearStopSeconds:active:s2:s0:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:sameAppInteractionTypesToStopUsageAt->dedup_and_order",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "sameAppInteractionTypesToStopUsageAt",
-      "targetId": "dedup_and_order",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:sameAppInteractionTypesToStopUsageAt:active:default:empty:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:sameAppInteractionTypesToStopUsageAt->reconstruct_episodes",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "sameAppInteractionTypesToStopUsageAt",
-      "targetId": "reconstruct_episodes",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:sameAppInteractionTypesToStopUsageAt:active:default:empty:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:otherInteractionTypesToStopUsageAt->dedup_and_order",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "otherInteractionTypesToStopUsageAt",
-      "targetId": "dedup_and_order",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:otherInteractionTypesToStopUsageAt:active:default:empty:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:otherInteractionTypesToStopUsageAt->reconstruct_episodes",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "otherInteractionTypesToStopUsageAt",
-      "targetId": "reconstruct_episodes",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:otherInteractionTypesToStopUsageAt:active:default:empty:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:modelConcurrentUsage->reconstruct_episodes",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "modelConcurrentUsage",
-      "targetId": "reconstruct_episodes",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:modelConcurrentUsage:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:applyMinimumUsageDurationToConcurrentSubintervals->reconstruct_episodes",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "applyMinimumUsageDurationToConcurrentSubintervals",
-      "targetId": "reconstruct_episodes",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:applyMinimumUsageDurationToConcurrentSubintervals:active:true:false:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:interactionTypesToRemove->interval_cleaning",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "interactionTypesToRemove",
-      "targetId": "interval_cleaning",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "interval_cleaning:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:interactionTypeRemap->parse_events",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "interactionTypeRemap",
-      "targetId": "parse_events",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:proximityIntervalSeconds->reconstruct_episodes",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "proximityIntervalSeconds",
-      "targetId": "reconstruct_episodes",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:proximityIntervalSeconds:active:s2:s0:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:addNoActivityPlaceholderDays->day_coverage",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "addNoActivityPlaceholderDays",
-      "targetId": "day_coverage",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "day_coverage:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:enableScreenGatedCrediting->effective_usage",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "enableScreenGatedCrediting",
-      "targetId": "effective_usage",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "effective_usage:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:creditedSessionCapMinutes->effective_usage",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "creditedSessionCapMinutes",
-      "targetId": "effective_usage",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:creditedSessionCapMinutes:active:m360:m0:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:deviceLivenessGapToleranceMinutes->effective_usage",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "deviceLivenessGapToleranceMinutes",
-      "targetId": "effective_usage",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:deviceLivenessGapToleranceMinutes:active:m120:m0:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:autoLockBridgeSeconds->effective_usage",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "autoLockBridgeSeconds",
-      "targetId": "effective_usage",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:autoLockBridgeSeconds:active:s120:s0:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:noWitnessMinDayApps->effective_usage",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "noWitnessMinDayApps",
-      "targetId": "effective_usage",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:noWitnessMinDayApps:active:n2:n0:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:enableStudyWindowFilter->observation_window",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "enableStudyWindowFilter",
-      "targetId": "observation_window",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "observation_window:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:enablePersonAttribution->attribute_person",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "enablePersonAttribution",
-      "targetId": "attribute_person",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "attribute_person:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:enableComplianceScoring->score_compliance",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "enableComplianceScoring",
-      "targetId": "score_compliance",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "score_compliance:applicability"
-    },
-    {
-      "mutantId": "remove-option-binding:complianceThresholdPercent->score_compliance",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "complianceThresholdPercent",
-      "targetId": "score_compliance",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:complianceThresholdPercent:active:p70:p0:catalog-random"
-    },
-    {
-      "mutantId": "remove-option-binding:enableDayCoverage->day_coverage",
-      "mutantClass": "remove-option-binding",
-      "sourceId": "enableDayCoverage",
-      "targetId": "day_coverage",
-      "killed": true,
-      "killKind": "structural-condition-binding",
-      "witnessId": "day_coverage:applicability"
-    },
-    {
-      "mutantId": "remove-role-binding:raw_chronicle_csv->parse_events",
-      "mutantClass": "remove-role-binding",
-      "sourceId": "raw_chronicle_csv",
-      "targetId": "parse_events",
+      "sourceId": "csv_parse",
+      "targetId": "drop_empty_timestamp",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "artifact:raw-field:study_id"
     },
     {
-      "mutantId": "remove-role-binding:filter_file->app_policy",
-      "mutantClass": "remove-role-binding",
-      "sourceId": "filter_file",
-      "targetId": "app_policy",
+      "mutantId": "reverse-edge:csv_parse->drop_empty_timestamp",
+      "mutantClass": "reverse-edge",
+      "sourceId": "csv_parse",
+      "targetId": "drop_empty_timestamp",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "artifact:support:filter-activate-used-package"
+      "witnessId": "artifact:raw-field:study_id"
     },
     {
-      "mutantId": "remove-role-binding:apps_forcing_screen_open_file->device_state_timeline",
-      "mutantClass": "remove-role-binding",
-      "sourceId": "apps_forcing_screen_open_file",
-      "targetId": "device_state_timeline",
+      "mutantId": "remove-edge:drop_empty_timestamp->detect_device_model",
+      "mutantClass": "remove-edge",
+      "sourceId": "drop_empty_timestamp",
+      "targetId": "detect_device_model",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "artifact:support:forcing-activate-screen-tail-package"
+      "witnessId": "artifact:raw-field:study_id"
     },
     {
-      "mutantId": "remove-role-binding:background_apps_file->reconstruct_episodes",
-      "mutantClass": "remove-role-binding",
-      "sourceId": "background_apps_file",
-      "targetId": "reconstruct_episodes",
+      "mutantId": "reverse-edge:drop_empty_timestamp->detect_device_model",
+      "mutantClass": "reverse-edge",
+      "sourceId": "drop_empty_timestamp",
+      "targetId": "detect_device_model",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "artifact:support:background-remove-used-package"
+      "witnessId": "artifact:raw-field:study_id"
     },
     {
-      "mutantId": "remove-role-binding:app_codebook_file->categorize_apps",
-      "mutantClass": "remove-role-binding",
-      "sourceId": "app_codebook_file",
-      "targetId": "categorize_apps",
+      "mutantId": "remove-edge:drop_empty_timestamp->build_canonical_rows",
+      "mutantClass": "remove-edge",
+      "sourceId": "drop_empty_timestamp",
+      "targetId": "build_canonical_rows",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "artifact:support:codebook-edit-category"
+      "witnessId": "artifact:raw-field:study_id"
     },
     {
-      "mutantId": "remove-role-binding:study_dates_file->day_coverage",
-      "mutantClass": "remove-role-binding",
-      "sourceId": "study_dates_file",
-      "targetId": "day_coverage",
+      "mutantId": "reverse-edge:drop_empty_timestamp->build_canonical_rows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "drop_empty_timestamp",
+      "targetId": "build_canonical_rows",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:detect_device_model->build_canonical_rows",
+      "mutantClass": "remove-edge",
+      "sourceId": "detect_device_model",
+      "targetId": "build_canonical_rows",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:detect_device_model->build_canonical_rows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "detect_device_model",
+      "targetId": "build_canonical_rows",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:parse_remap_config->build_canonical_rows",
+      "mutantClass": "remove-edge",
+      "sourceId": "parse_remap_config",
+      "targetId": "build_canonical_rows",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "artifact:support-representation:study_dates_file:crlf"
+      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
     },
     {
-      "mutantId": "remove-role-binding:study_dates_file->observation_window",
-      "mutantClass": "remove-role-binding",
-      "sourceId": "study_dates_file",
-      "targetId": "observation_window",
+      "mutantId": "reverse-edge:parse_remap_config->build_canonical_rows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "parse_remap_config",
+      "targetId": "build_canonical_rows",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "artifact:support:study-window-narrow"
+      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
     },
     {
-      "mutantId": "remove-role-binding:device_sharing_file->attribute_person",
-      "mutantClass": "remove-role-binding",
-      "sourceId": "device_sharing_file",
-      "targetId": "attribute_person",
+      "mutantId": "remove-edge:build_canonical_rows->stable_sort",
+      "mutantClass": "remove-edge",
+      "sourceId": "build_canonical_rows",
+      "targetId": "stable_sort",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:build_canonical_rows->stable_sort",
+      "mutantClass": "reverse-edge",
+      "sourceId": "build_canonical_rows",
+      "targetId": "stable_sort",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:stable_sort->collect_timezones",
+      "mutantClass": "remove-edge",
+      "sourceId": "stable_sort",
+      "targetId": "collect_timezones",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:stable_sort->collect_timezones",
+      "mutantClass": "reverse-edge",
+      "sourceId": "stable_sort",
+      "targetId": "collect_timezones",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:stable_sort->compute_dominant_timezone",
+      "mutantClass": "remove-edge",
+      "sourceId": "stable_sort",
+      "targetId": "compute_dominant_timezone",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:stable_sort->compute_dominant_timezone",
+      "mutantClass": "reverse-edge",
+      "sourceId": "stable_sort",
+      "targetId": "compute_dominant_timezone",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:stable_sort->select_timezone_strategy",
+      "mutantClass": "remove-edge",
+      "sourceId": "stable_sort",
+      "targetId": "select_timezone_strategy",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:stable_sort->select_timezone_strategy",
+      "mutantClass": "reverse-edge",
+      "sourceId": "stable_sort",
+      "targetId": "select_timezone_strategy",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:compute_dominant_timezone->select_timezone_strategy",
+      "mutantClass": "remove-edge",
+      "sourceId": "compute_dominant_timezone",
+      "targetId": "select_timezone_strategy",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:compute_dominant_timezone->select_timezone_strategy",
+      "mutantClass": "reverse-edge",
+      "sourceId": "compute_dominant_timezone",
+      "targetId": "select_timezone_strategy",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:select_timezone_strategy->restamp_rows",
+      "mutantClass": "remove-edge",
+      "sourceId": "select_timezone_strategy",
+      "targetId": "restamp_rows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:select_timezone_strategy->restamp_rows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "select_timezone_strategy",
+      "targetId": "restamp_rows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:stable_sort->row_count_report",
+      "mutantClass": "remove-edge",
+      "sourceId": "stable_sort",
+      "targetId": "row_count_report",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:stable_sort->row_count_report",
+      "mutantClass": "reverse-edge",
+      "sourceId": "stable_sort",
+      "targetId": "row_count_report",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:select_timezone_strategy->row_count_report",
+      "mutantClass": "remove-edge",
+      "sourceId": "select_timezone_strategy",
+      "targetId": "row_count_report",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:select_timezone_strategy->row_count_report",
+      "mutantClass": "reverse-edge",
+      "sourceId": "select_timezone_strategy",
+      "targetId": "row_count_report",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:restamp_rows->exact_dedupe",
+      "mutantClass": "remove-edge",
+      "sourceId": "restamp_rows",
+      "targetId": "exact_dedupe",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:restamp_rows->exact_dedupe",
+      "mutantClass": "reverse-edge",
+      "sourceId": "restamp_rows",
+      "targetId": "exact_dedupe",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:exact_dedupe->count_dup_groups",
+      "mutantClass": "remove-edge",
+      "sourceId": "exact_dedupe",
+      "targetId": "count_dup_groups",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:deduplicateExactRows:active:true:false:support-intersections"
+    },
+    {
+      "mutantId": "reverse-edge:exact_dedupe->count_dup_groups",
+      "mutantClass": "reverse-edge",
+      "sourceId": "exact_dedupe",
+      "targetId": "count_dup_groups",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:deduplicateExactRows:active:true:false:support-intersections"
+    },
+    {
+      "mutantId": "remove-edge:exact_dedupe->nudge_duplicate_timestamps",
+      "mutantClass": "remove-edge",
+      "sourceId": "exact_dedupe",
+      "targetId": "nudge_duplicate_timestamps",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:deduplicateExactRows:active:true:false:support-intersections"
+    },
+    {
+      "mutantId": "reverse-edge:exact_dedupe->nudge_duplicate_timestamps",
+      "mutantClass": "reverse-edge",
+      "sourceId": "exact_dedupe",
+      "targetId": "nudge_duplicate_timestamps",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:deduplicateExactRows:active:true:false:support-intersections"
+    },
+    {
+      "mutantId": "remove-edge:nudge_duplicate_timestamps->mark_data_time_gaps",
+      "mutantClass": "remove-edge",
+      "sourceId": "nudge_duplicate_timestamps",
+      "targetId": "mark_data_time_gaps",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:nudge_duplicate_timestamps->mark_data_time_gaps",
+      "mutantClass": "reverse-edge",
+      "sourceId": "nudge_duplicate_timestamps",
+      "targetId": "mark_data_time_gaps",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:mark_data_time_gaps->tag_filtered_packages",
+      "mutantClass": "remove-edge",
+      "sourceId": "mark_data_time_gaps",
+      "targetId": "tag_filtered_packages",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:mark_data_time_gaps->tag_filtered_packages",
+      "mutantClass": "reverse-edge",
+      "sourceId": "mark_data_time_gaps",
+      "targetId": "tag_filtered_packages",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:tag_filtered_packages->collect_keyguard_timestamps",
+      "mutantClass": "remove-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "collect_keyguard_timestamps",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:tag_filtered_packages->collect_keyguard_timestamps",
+      "mutantClass": "reverse-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "collect_keyguard_timestamps",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:tag_filtered_packages->walk_screen_state_machine",
+      "mutantClass": "remove-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "walk_screen_state_machine",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:tag_filtered_packages->walk_screen_state_machine",
+      "mutantClass": "reverse-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "walk_screen_state_machine",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:tag_filtered_packages->build_classified_sessions",
+      "mutantClass": "remove-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "build_classified_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useFilterFile:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:tag_filtered_packages->build_classified_sessions",
+      "mutantClass": "reverse-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "build_classified_sessions",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:walk_screen_state_machine->build_classified_sessions",
+      "mutantClass": "remove-edge",
+      "sourceId": "walk_screen_state_machine",
+      "targetId": "build_classified_sessions",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:walk_screen_state_machine->build_classified_sessions",
+      "mutantClass": "reverse-edge",
+      "sourceId": "walk_screen_state_machine",
+      "targetId": "build_classified_sessions",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:collect_keyguard_timestamps->build_classified_sessions",
+      "mutantClass": "remove-edge",
+      "sourceId": "collect_keyguard_timestamps",
+      "targetId": "build_classified_sessions",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:collect_keyguard_timestamps->build_classified_sessions",
+      "mutantClass": "reverse-edge",
+      "sourceId": "collect_keyguard_timestamps",
+      "targetId": "build_classified_sessions",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:tag_filtered_packages->compute_junk_packages",
+      "mutantClass": "remove-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "compute_junk_packages",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:tag_filtered_packages->compute_junk_packages",
+      "mutantClass": "reverse-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "compute_junk_packages",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:tag_filtered_packages->junk_blind_fold",
+      "mutantClass": "remove-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "junk_blind_fold",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:tag_filtered_packages->junk_blind_fold",
+      "mutantClass": "reverse-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "junk_blind_fold",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:junk_blind_fold->build_matcher_input",
+      "mutantClass": "remove-edge",
+      "sourceId": "junk_blind_fold",
+      "targetId": "build_matcher_input",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:junk_blind_fold->build_matcher_input",
+      "mutantClass": "reverse-edge",
+      "sourceId": "junk_blind_fold",
+      "targetId": "build_matcher_input",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:build_matcher_input->run_matcher",
+      "mutantClass": "remove-edge",
+      "sourceId": "build_matcher_input",
+      "targetId": "run_matcher",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:build_matcher_input->run_matcher",
+      "mutantClass": "reverse-edge",
+      "sourceId": "build_matcher_input",
+      "targetId": "run_matcher",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:junk_blind_fold->apply_matcher_output",
+      "mutantClass": "remove-edge",
+      "sourceId": "junk_blind_fold",
+      "targetId": "apply_matcher_output",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:junk_blind_fold->apply_matcher_output",
+      "mutantClass": "reverse-edge",
+      "sourceId": "junk_blind_fold",
+      "targetId": "apply_matcher_output",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:run_matcher->apply_matcher_output",
+      "mutantClass": "remove-edge",
+      "sourceId": "run_matcher",
+      "targetId": "apply_matcher_output",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:run_matcher->apply_matcher_output",
+      "mutantClass": "reverse-edge",
+      "sourceId": "run_matcher",
+      "targetId": "apply_matcher_output",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:compute_junk_packages->apply_matcher_output",
+      "mutantClass": "remove-edge",
+      "sourceId": "compute_junk_packages",
+      "targetId": "apply_matcher_output",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useFilterFile:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:compute_junk_packages->apply_matcher_output",
+      "mutantClass": "reverse-edge",
+      "sourceId": "compute_junk_packages",
+      "targetId": "apply_matcher_output",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useFilterFile:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:apply_matcher_output->relabel_usage_with_floor",
+      "mutantClass": "remove-edge",
+      "sourceId": "apply_matcher_output",
+      "targetId": "relabel_usage_with_floor",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:apply_matcher_output->relabel_usage_with_floor",
+      "mutantClass": "reverse-edge",
+      "sourceId": "apply_matcher_output",
+      "targetId": "relabel_usage_with_floor",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:compute_junk_packages->relabel_usage_with_floor",
+      "mutantClass": "remove-edge",
+      "sourceId": "compute_junk_packages",
+      "targetId": "relabel_usage_with_floor",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useFilterFile:active:true:false:support-intersections"
+    },
+    {
+      "mutantId": "reverse-edge:compute_junk_packages->relabel_usage_with_floor",
+      "mutantClass": "reverse-edge",
+      "sourceId": "compute_junk_packages",
+      "targetId": "relabel_usage_with_floor",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:relabel_usage_with_floor->junk_downstream_mark",
+      "mutantClass": "remove-edge",
+      "sourceId": "relabel_usage_with_floor",
+      "targetId": "junk_downstream_mark",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:relabel_usage_with_floor->junk_downstream_mark",
+      "mutantClass": "reverse-edge",
+      "sourceId": "relabel_usage_with_floor",
+      "targetId": "junk_downstream_mark",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:compute_junk_packages->junk_downstream_mark",
+      "mutantClass": "remove-edge",
+      "sourceId": "compute_junk_packages",
+      "targetId": "junk_downstream_mark",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:compute_junk_packages->junk_downstream_mark",
+      "mutantClass": "reverse-edge",
+      "sourceId": "compute_junk_packages",
+      "targetId": "junk_downstream_mark",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:junk_downstream_mark->sort_episodes",
+      "mutantClass": "remove-edge",
+      "sourceId": "junk_downstream_mark",
+      "targetId": "sort_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:junk_downstream_mark->sort_episodes",
+      "mutantClass": "reverse-edge",
+      "sourceId": "junk_downstream_mark",
+      "targetId": "sort_episodes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:sort_episodes->split_concurrent",
+      "mutantClass": "remove-edge",
+      "sourceId": "sort_episodes",
+      "targetId": "split_concurrent",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:sort_episodes->split_concurrent",
+      "mutantClass": "reverse-edge",
+      "sourceId": "sort_episodes",
+      "targetId": "split_concurrent",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:compute_junk_packages->split_concurrent",
+      "mutantClass": "remove-edge",
+      "sourceId": "compute_junk_packages",
+      "targetId": "split_concurrent",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:compute_junk_packages->split_concurrent",
+      "mutantClass": "reverse-edge",
+      "sourceId": "compute_junk_packages",
+      "targetId": "split_concurrent",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:split_concurrent->codebook_join",
+      "mutantClass": "remove-edge",
+      "sourceId": "split_concurrent",
+      "targetId": "codebook_join",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:split_concurrent->codebook_join",
+      "mutantClass": "reverse-edge",
+      "sourceId": "split_concurrent",
+      "targetId": "codebook_join",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:codebook_join->derive_broad_category",
+      "mutantClass": "remove-edge",
+      "sourceId": "codebook_join",
+      "targetId": "derive_broad_category",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:codebook_join->derive_broad_category",
+      "mutantClass": "reverse-edge",
+      "sourceId": "codebook_join",
+      "targetId": "derive_broad_category",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:derive_broad_category->collapse_genre",
+      "mutantClass": "remove-edge",
+      "sourceId": "derive_broad_category",
+      "targetId": "collapse_genre",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:derive_broad_category->collapse_genre",
+      "mutantClass": "reverse-edge",
+      "sourceId": "derive_broad_category",
+      "targetId": "collapse_genre",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:collapse_genre->engagement_walk",
+      "mutantClass": "remove-edge",
+      "sourceId": "collapse_genre",
+      "targetId": "engagement_walk",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:collapse_genre->engagement_walk",
+      "mutantClass": "reverse-edge",
+      "sourceId": "collapse_genre",
+      "targetId": "engagement_walk",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:engagement_walk->flag_and_retain",
+      "mutantClass": "remove-edge",
+      "sourceId": "engagement_walk",
+      "targetId": "flag_and_retain",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:engagement_walk->flag_and_retain",
+      "mutantClass": "reverse-edge",
+      "sourceId": "engagement_walk",
+      "targetId": "flag_and_retain",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:flag_and_retain->blank_junk_timing",
+      "mutantClass": "remove-edge",
+      "sourceId": "flag_and_retain",
+      "targetId": "blank_junk_timing",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:flag_and_retain->blank_junk_timing",
+      "mutantClass": "reverse-edge",
+      "sourceId": "flag_and_retain",
+      "targetId": "blank_junk_timing",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:blank_junk_timing->drop_selected_types",
+      "mutantClass": "remove-edge",
+      "sourceId": "blank_junk_timing",
+      "targetId": "drop_selected_types",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:blank_junk_timing->drop_selected_types",
+      "mutantClass": "reverse-edge",
+      "sourceId": "blank_junk_timing",
+      "targetId": "drop_selected_types",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:drop_selected_types->drop_zero_duration",
+      "mutantClass": "remove-edge",
+      "sourceId": "drop_selected_types",
+      "targetId": "drop_zero_duration",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:drop_selected_types->drop_zero_duration",
+      "mutantClass": "reverse-edge",
+      "sourceId": "drop_selected_types",
+      "targetId": "drop_zero_duration",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:drop_zero_duration->partition_credit_sessions",
+      "mutantClass": "remove-edge",
+      "sourceId": "drop_zero_duration",
+      "targetId": "partition_credit_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:drop_zero_duration->partition_credit_sessions",
+      "mutantClass": "reverse-edge",
+      "sourceId": "drop_zero_duration",
+      "targetId": "partition_credit_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:tag_filtered_packages->build_liveness_substrate",
+      "mutantClass": "remove-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "build_liveness_substrate",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:tag_filtered_packages->build_liveness_substrate",
+      "mutantClass": "reverse-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "build_liveness_substrate",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:partition_credit_sessions->report_screen_incapable",
+      "mutantClass": "remove-edge",
+      "sourceId": "partition_credit_sessions",
+      "targetId": "report_screen_incapable",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:partition_credit_sessions->report_screen_incapable",
+      "mutantClass": "reverse-edge",
+      "sourceId": "partition_credit_sessions",
+      "targetId": "report_screen_incapable",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:build_liveness_substrate->report_screen_incapable",
+      "mutantClass": "remove-edge",
+      "sourceId": "build_liveness_substrate",
+      "targetId": "report_screen_incapable",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:build_liveness_substrate->report_screen_incapable",
+      "mutantClass": "reverse-edge",
+      "sourceId": "build_liveness_substrate",
+      "targetId": "report_screen_incapable",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:partition_credit_sessions->count_day_apps",
+      "mutantClass": "remove-edge",
+      "sourceId": "partition_credit_sessions",
+      "targetId": "count_day_apps",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:partition_credit_sessions->count_day_apps",
+      "mutantClass": "reverse-edge",
+      "sourceId": "partition_credit_sessions",
+      "targetId": "count_day_apps",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:partition_credit_sessions->credit_sessions",
+      "mutantClass": "remove-edge",
+      "sourceId": "partition_credit_sessions",
+      "targetId": "credit_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:partition_credit_sessions->credit_sessions",
+      "mutantClass": "reverse-edge",
+      "sourceId": "partition_credit_sessions",
+      "targetId": "credit_sessions",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:build_liveness_substrate->credit_sessions",
+      "mutantClass": "remove-edge",
+      "sourceId": "build_liveness_substrate",
+      "targetId": "credit_sessions",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:build_liveness_substrate->credit_sessions",
+      "mutantClass": "reverse-edge",
+      "sourceId": "build_liveness_substrate",
+      "targetId": "credit_sessions",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:count_day_apps->credit_sessions",
+      "mutantClass": "remove-edge",
+      "sourceId": "count_day_apps",
+      "targetId": "credit_sessions",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:count_day_apps->credit_sessions",
+      "mutantClass": "reverse-edge",
+      "sourceId": "count_day_apps",
+      "targetId": "credit_sessions",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:partition_credit_sessions->emit_credited_rows",
+      "mutantClass": "remove-edge",
+      "sourceId": "partition_credit_sessions",
+      "targetId": "emit_credited_rows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:longDurationThresholdHours:active:h12:h1:support-intersections"
+    },
+    {
+      "mutantId": "reverse-edge:partition_credit_sessions->emit_credited_rows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "partition_credit_sessions",
+      "targetId": "emit_credited_rows",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:build_liveness_substrate->emit_credited_rows",
+      "mutantClass": "remove-edge",
+      "sourceId": "build_liveness_substrate",
+      "targetId": "emit_credited_rows",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:build_liveness_substrate->emit_credited_rows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "build_liveness_substrate",
+      "targetId": "emit_credited_rows",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:credit_sessions->emit_credited_rows",
+      "mutantClass": "remove-edge",
+      "sourceId": "credit_sessions",
+      "targetId": "emit_credited_rows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:creditedSessionCapMinutes:active:m360:m0:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:credit_sessions->emit_credited_rows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "credit_sessions",
+      "targetId": "emit_credited_rows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:creditedSessionCapMinutes:active:m360:m0:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:partition_credit_sessions->assemble_credit_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "partition_credit_sessions",
+      "targetId": "assemble_credit_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:longDurationThresholdHours:active:h12:h1:temporal-pathologies"
+    },
+    {
+      "mutantId": "reverse-edge:partition_credit_sessions->assemble_credit_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "partition_credit_sessions",
+      "targetId": "assemble_credit_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:report_screen_incapable->assemble_credit_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "report_screen_incapable",
+      "targetId": "assemble_credit_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:report_screen_incapable->assemble_credit_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "report_screen_incapable",
+      "targetId": "assemble_credit_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:emit_credited_rows->assemble_credit_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "emit_credited_rows",
+      "targetId": "assemble_credit_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:creditedSessionCapMinutes:active:m360:m0:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:emit_credited_rows->assemble_credit_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "emit_credited_rows",
+      "targetId": "assemble_credit_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:creditedSessionCapMinutes:active:m360:m0:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:drop_zero_duration->resolve_participant_windows",
+      "mutantClass": "remove-edge",
+      "sourceId": "drop_zero_duration",
+      "targetId": "resolve_participant_windows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:drop_zero_duration->resolve_participant_windows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "drop_zero_duration",
+      "targetId": "resolve_participant_windows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:drop_zero_duration->filter_rows_to_window",
+      "mutantClass": "remove-edge",
+      "sourceId": "drop_zero_duration",
+      "targetId": "filter_rows_to_window",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:drop_zero_duration->filter_rows_to_window",
+      "mutantClass": "reverse-edge",
+      "sourceId": "drop_zero_duration",
+      "targetId": "filter_rows_to_window",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:resolve_participant_windows->filter_rows_to_window",
+      "mutantClass": "remove-edge",
+      "sourceId": "resolve_participant_windows",
+      "targetId": "filter_rows_to_window",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:resolve_participant_windows->filter_rows_to_window",
+      "mutantClass": "reverse-edge",
+      "sourceId": "resolve_participant_windows",
+      "targetId": "filter_rows_to_window",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:filter_rows_to_window->resolve_sharing_status",
+      "mutantClass": "remove-edge",
+      "sourceId": "filter_rows_to_window",
+      "targetId": "resolve_sharing_status",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:filter_rows_to_window->resolve_sharing_status",
+      "mutantClass": "reverse-edge",
+      "sourceId": "filter_rows_to_window",
+      "targetId": "resolve_sharing_status",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:filter_rows_to_window->attribute_rows",
+      "mutantClass": "remove-edge",
+      "sourceId": "filter_rows_to_window",
+      "targetId": "attribute_rows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:filter_rows_to_window->attribute_rows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "filter_rows_to_window",
+      "targetId": "attribute_rows",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:resolve_sharing_status->attribute_rows",
+      "mutantClass": "remove-edge",
+      "sourceId": "resolve_sharing_status",
+      "targetId": "attribute_rows",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "artifact:support:sharing-shared-to-nonshared"
     },
     {
-      "mutantId": "remove-role-binding:device_sharing_file->score_compliance",
-      "mutantClass": "remove-role-binding",
-      "sourceId": "device_sharing_file",
-      "targetId": "score_compliance",
+      "mutantId": "reverse-edge:resolve_sharing_status->attribute_rows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "resolve_sharing_status",
+      "targetId": "attribute_rows",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "artifact:support-representation:device_sharing_file:crlf"
+      "witnessId": "artifact:support:sharing-shared-to-nonshared"
     },
     {
-      "mutantId": "remove-role-binding:survey_attribution_file->attribute_person",
-      "mutantClass": "remove-role-binding",
-      "sourceId": "survey_attribution_file",
-      "targetId": "attribute_person",
+      "mutantId": "remove-edge:build_survey_lookup->attribute_rows",
+      "mutantClass": "remove-edge",
+      "sourceId": "build_survey_lookup",
+      "targetId": "attribute_rows",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "artifact:support:survey-target-to-other"
     },
     {
-      "mutantId": "remove-role-binding:enrolled_devices_file->score_compliance",
+      "mutantId": "reverse-edge:build_survey_lookup->attribute_rows",
+      "mutantClass": "reverse-edge",
+      "sourceId": "build_survey_lookup",
+      "targetId": "attribute_rows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:survey-target-to-other"
+    },
+    {
+      "mutantId": "remove-edge:attribute_rows->inject_placeholders",
+      "mutantClass": "remove-edge",
+      "sourceId": "attribute_rows",
+      "targetId": "inject_placeholders",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:attribute_rows->inject_placeholders",
+      "mutantClass": "reverse-edge",
+      "sourceId": "attribute_rows",
+      "targetId": "inject_placeholders",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:tag_filtered_packages->inject_placeholders",
+      "mutantClass": "remove-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "inject_placeholders",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:raw-field:study_id"
+    },
+    {
+      "mutantId": "reverse-edge:tag_filtered_packages->inject_placeholders",
+      "mutantClass": "reverse-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "inject_placeholders",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:tag_filtered_packages->build_raw_date_index",
+      "mutantClass": "remove-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "build_raw_date_index",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:tag_filtered_packages->build_raw_date_index",
+      "mutantClass": "reverse-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "build_raw_date_index",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:inject_placeholders->build_coverage_table",
+      "mutantClass": "remove-edge",
+      "sourceId": "inject_placeholders",
+      "targetId": "build_coverage_table",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:inject_placeholders->build_coverage_table",
+      "mutantClass": "reverse-edge",
+      "sourceId": "inject_placeholders",
+      "targetId": "build_coverage_table",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:build_raw_date_index->build_coverage_table",
+      "mutantClass": "remove-edge",
+      "sourceId": "build_raw_date_index",
+      "targetId": "build_coverage_table",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:build_raw_date_index->build_coverage_table",
+      "mutantClass": "reverse-edge",
+      "sourceId": "build_raw_date_index",
+      "targetId": "build_coverage_table",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:inject_placeholders->accumulate_attribution_minutes",
+      "mutantClass": "remove-edge",
+      "sourceId": "inject_placeholders",
+      "targetId": "accumulate_attribution_minutes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:inject_placeholders->accumulate_attribution_minutes",
+      "mutantClass": "reverse-edge",
+      "sourceId": "inject_placeholders",
+      "targetId": "accumulate_attribution_minutes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:accumulate_attribution_minutes->score_days",
+      "mutantClass": "remove-edge",
+      "sourceId": "accumulate_attribution_minutes",
+      "targetId": "score_days",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:addNoActivityPlaceholderDays:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:accumulate_attribution_minutes->score_days",
+      "mutantClass": "reverse-edge",
+      "sourceId": "accumulate_attribution_minutes",
+      "targetId": "score_days",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:addNoActivityPlaceholderDays:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:attribute_rows->score_days",
+      "mutantClass": "remove-edge",
+      "sourceId": "attribute_rows",
+      "targetId": "score_days",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:longDurationThresholdHours:active:h12:h1:support-intersections"
+    },
+    {
+      "mutantId": "reverse-edge:attribute_rows->score_days",
+      "mutantClass": "reverse-edge",
+      "sourceId": "attribute_rows",
+      "targetId": "score_days",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:parse_remap_config->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "parse_remap_config",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:parse_remap_config->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "parse_remap_config",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:csv_parse->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "csv_parse",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:csv_parse->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "csv_parse",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:drop_empty_timestamp->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "drop_empty_timestamp",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:drop_empty_timestamp->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "drop_empty_timestamp",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:detect_device_model->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "detect_device_model",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:detect_device_model->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "detect_device_model",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:resolve_preproc_datetime->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "resolve_preproc_datetime",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:resolve_preproc_datetime->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "resolve_preproc_datetime",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:build_canonical_rows->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "build_canonical_rows",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:build_canonical_rows->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "build_canonical_rows",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:stable_sort->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "stable_sort",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:stable_sort->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "stable_sort",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:collect_timezones->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "collect_timezones",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:collect_timezones->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "collect_timezones",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:compute_dominant_timezone->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "compute_dominant_timezone",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:compute_dominant_timezone->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "compute_dominant_timezone",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:select_timezone_strategy->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "select_timezone_strategy",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:select_timezone_strategy->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "select_timezone_strategy",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:restamp_rows->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "restamp_rows",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:restamp_rows->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "restamp_rows",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:row_count_report->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "row_count_report",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:row_count_report->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "row_count_report",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:exact_dedupe->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "exact_dedupe",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:exact_dedupe->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "exact_dedupe",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:count_dup_groups->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "count_dup_groups",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:count_dup_groups->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "count_dup_groups",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:nudge_duplicate_timestamps->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "nudge_duplicate_timestamps",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:nudge_duplicate_timestamps->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "nudge_duplicate_timestamps",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:mark_data_time_gaps->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "mark_data_time_gaps",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:mark_data_time_gaps->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "mark_data_time_gaps",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:tag_filtered_packages->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useFilterFile:inactive:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:tag_filtered_packages->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "tag_filtered_packages",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:collect_keyguard_timestamps->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "collect_keyguard_timestamps",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:collect_keyguard_timestamps->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "collect_keyguard_timestamps",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:walk_screen_state_machine->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "walk_screen_state_machine",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:walk_screen_state_machine->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "walk_screen_state_machine",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:build_classified_sessions->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "build_classified_sessions",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useAppsForcingScreenOpenFile:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:build_classified_sessions->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "build_classified_sessions",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useAppsForcingScreenOpenFile:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-edge:compute_junk_packages->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "compute_junk_packages",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:compute_junk_packages->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "compute_junk_packages",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:junk_blind_fold->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "junk_blind_fold",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:junk_blind_fold->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "junk_blind_fold",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:build_matcher_input->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "build_matcher_input",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:otherInteractionTypesToStopUsageAt:nonconcurrent-other-stop:default:empty:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:build_matcher_input->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "build_matcher_input",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:run_matcher->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "run_matcher",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:proximityIntervalSeconds:active:s2:s0:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:run_matcher->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "run_matcher",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:apply_matcher_output->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "apply_matcher_output",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:apply_matcher_output->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "apply_matcher_output",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:relabel_usage_with_floor->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "relabel_usage_with_floor",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:relabel_usage_with_floor->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "relabel_usage_with_floor",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:junk_downstream_mark->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "junk_downstream_mark",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:junk_downstream_mark->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "junk_downstream_mark",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:sort_episodes->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "sort_episodes",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:sort_episodes->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "sort_episodes",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:split_concurrent->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "split_concurrent",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:split_concurrent->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "split_concurrent",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:codebook_join->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "codebook_join",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:codebook_join->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "codebook_join",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:derive_broad_category->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "derive_broad_category",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:derive_broad_category->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "derive_broad_category",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:collapse_genre->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "collapse_genre",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:collapse_genre->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "collapse_genre",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:engagement_walk->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "engagement_walk",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:engagement_walk->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "engagement_walk",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:flag_and_retain->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "flag_and_retain",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:flag_and_retain->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "flag_and_retain",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:blank_junk_timing->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "blank_junk_timing",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:blank_junk_timing->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "blank_junk_timing",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:drop_selected_types->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "drop_selected_types",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:drop_selected_types->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "drop_selected_types",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:drop_zero_duration->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "drop_zero_duration",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:drop_zero_duration->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "drop_zero_duration",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:partition_credit_sessions->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "partition_credit_sessions",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:partition_credit_sessions->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "partition_credit_sessions",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:build_liveness_substrate->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "build_liveness_substrate",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:build_liveness_substrate->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "build_liveness_substrate",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:report_screen_incapable->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "report_screen_incapable",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:report_screen_incapable->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "report_screen_incapable",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:count_day_apps->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "count_day_apps",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:count_day_apps->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "count_day_apps",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:credit_sessions->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "credit_sessions",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:credit_sessions->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "credit_sessions",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:emit_credited_rows->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "emit_credited_rows",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:emit_credited_rows->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "emit_credited_rows",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:assemble_credit_result->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "assemble_credit_result",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:assemble_credit_result->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "assemble_credit_result",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:resolve_participant_windows->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "resolve_participant_windows",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:resolve_participant_windows->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "resolve_participant_windows",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:filter_rows_to_window->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "filter_rows_to_window",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableStudyWindowFilter:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "reverse-edge:filter_rows_to_window->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "filter_rows_to_window",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:resolve_sharing_status->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "resolve_sharing_status",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:resolve_sharing_status->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "resolve_sharing_status",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:build_survey_lookup->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "build_survey_lookup",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:build_survey_lookup->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "build_survey_lookup",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:attribute_rows->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "attribute_rows",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:attribute_rows->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "attribute_rows",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:inject_placeholders->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "inject_placeholders",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:addNoActivityPlaceholderDays:active:true:false:support-intersections"
+    },
+    {
+      "mutantId": "reverse-edge:inject_placeholders->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "inject_placeholders",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:build_raw_date_index->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "build_raw_date_index",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:build_raw_date_index->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "build_raw_date_index",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:build_coverage_table->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "build_coverage_table",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:build_coverage_table->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "build_coverage_table",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-edge:accumulate_attribution_minutes->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "accumulate_attribution_minutes",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:accumulate_attribution_minutes->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "accumulate_attribution_minutes",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:score_days->assemble_result",
+      "mutantClass": "remove-edge",
+      "sourceId": "score_days",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:complianceThresholdPercent:active:p70:p0:configuration-influence-probes"
+    },
+    {
+      "mutantId": "reverse-edge:score_days->assemble_result",
+      "mutantClass": "reverse-edge",
+      "sourceId": "score_days",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:complianceThresholdPercent:active:p70:p0:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-option-binding:processAppUsage->assemble_result",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "processAppUsage",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:processScreenUsage->assemble_result",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "processScreenUsage",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:allowStopEventReuse->run_matcher",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "allowStopEventReuse",
+      "targetId": "run_matcher",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:allowStopEventReuse:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:useActivityStoppedAsFallback->run_matcher",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useActivityStoppedAsFallback",
+      "targetId": "run_matcher",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useActivityStoppedAsFallback:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:applyThresholdToFallback->run_matcher",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "applyThresholdToFallback",
+      "targetId": "run_matcher",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:applyThresholdToFallback:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:longDurationThresholdHours->run_matcher",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "longDurationThresholdHours",
+      "targetId": "run_matcher",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:longDurationThresholdHours:active:h12:h1:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:correctDuplicateEventTimestamps->nudge_duplicate_timestamps",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "correctDuplicateEventTimestamps",
+      "targetId": "nudge_duplicate_timestamps",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:correctDuplicateEventTimestamps->assemble_result",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "correctDuplicateEventTimestamps",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:deduplicateExactRows->exact_dedupe",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "deduplicateExactRows",
+      "targetId": "exact_dedupe",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:deduplicateExactRows:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:deduplicateExactRows->assemble_result",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "deduplicateExactRows",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:deduplicateExactRows:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:selectedTimezone->build_canonical_rows",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "selectedTimezone",
+      "targetId": "build_canonical_rows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:selectedTimezone->select_timezone_strategy",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "selectedTimezone",
+      "targetId": "select_timezone_strategy",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:selectedTimezone:active:america_chicago:america_new_york:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:selectedTimezone->assemble_result",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "selectedTimezone",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:selectedTimezone:primary-timezone:none:america_chicago:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:timezoneHandling->select_timezone_strategy",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "timezoneHandling",
+      "targetId": "select_timezone_strategy",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:timezoneHandling:active:selected_filter:selected_convert:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:timezoneHandling->assemble_result",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "timezoneHandling",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:useFilterFile->tag_filtered_packages",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useFilterFile",
+      "targetId": "tag_filtered_packages",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useFilterFile:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:useAppsForcingScreenOpenFile->build_classified_sessions",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useAppsForcingScreenOpenFile",
+      "targetId": "build_classified_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useAppsForcingScreenOpenFile:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:useBackgroundAppsFile->build_matcher_input",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useBackgroundAppsFile",
+      "targetId": "build_matcher_input",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useBackgroundAppsFile:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:useBackgroundAppsFile->junk_downstream_mark",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useBackgroundAppsFile",
+      "targetId": "junk_downstream_mark",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:useBackgroundAppsFile->split_concurrent",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useBackgroundAppsFile",
+      "targetId": "split_concurrent",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:useBackgroundAppsFile->assemble_result",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useBackgroundAppsFile",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useBackgroundAppsFile:inactive:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:useAppCodebook->codebook_join",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useAppCodebook",
+      "targetId": "codebook_join",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useAppCodebook:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:useAppCodebook->derive_broad_category",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useAppCodebook",
+      "targetId": "derive_broad_category",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:useAppCodebook->collapse_genre",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useAppCodebook",
+      "targetId": "collapse_genre",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:useAppCodebook->assemble_result",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "useAppCodebook",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:useAppCodebook:inactive:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:includeCategoryColumn->assemble_result",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "includeCategoryColumn",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:includeCategoryColumn:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enableAggregates->assemble_result",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableAggregates",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableAggregates:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:aggregateShape->assemble_result",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "aggregateShape",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:aggregateShape:active:wide:long:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:minimumUsageDuration->relabel_usage_with_floor",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "minimumUsageDuration",
+      "targetId": "relabel_usage_with_floor",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:minimumUsageDuration:active:s0:s60:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:minimumUsageDuration->split_concurrent",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "minimumUsageDuration",
+      "targetId": "split_concurrent",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:filterZeroDurationSessions->drop_zero_duration",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "filterZeroDurationSessions",
+      "targetId": "drop_zero_duration",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:filterZeroDurationSessions:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:customAppEngagementDuration->engagement_walk",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "customAppEngagementDuration",
+      "targetId": "engagement_walk",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:customAppEngagementDuration:active:s300:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:customAppEngagementDuration->assemble_result",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "customAppEngagementDuration",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:customAppEngagementDuration:inactive:s300:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:longUsageDurationThresholds->flag_and_retain",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "longUsageDurationThresholds",
+      "targetId": "flag_and_retain",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:longUsageDurationThresholds:active:default:empty:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:longDataTimeGapThresholds->flag_and_retain",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "longDataTimeGapThresholds",
+      "targetId": "flag_and_retain",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:longDataTimeGapThresholds:active:default:empty:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:longDataTimeGapThresholds->drop_selected_types",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "longDataTimeGapThresholds",
+      "targetId": "drop_selected_types",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "remove-option-binding:screenUsageAutoLockTimeoutSeconds->build_classified_sessions",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenUsageAutoLockTimeoutSeconds",
+      "targetId": "build_classified_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenUsageAutoLockTimeoutSeconds:active:s120:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenUsageAutoLockToleranceSeconds->build_classified_sessions",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenUsageAutoLockToleranceSeconds",
+      "targetId": "build_classified_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenUsageAutoLockToleranceSeconds:active:s30:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenUsageManualLockMaxTailGapSeconds->build_classified_sessions",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenUsageManualLockMaxTailGapSeconds",
+      "targetId": "build_classified_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenUsageManualLockMaxTailGapSeconds:active:s30:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:screenUsageKeyguardNearStopSeconds->build_classified_sessions",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "screenUsageKeyguardNearStopSeconds",
+      "targetId": "build_classified_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:screenUsageKeyguardNearStopSeconds:active:s2:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:sameAppInteractionTypesToStopUsageAt->nudge_duplicate_timestamps",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "sameAppInteractionTypesToStopUsageAt",
+      "targetId": "nudge_duplicate_timestamps",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:sameAppInteractionTypesToStopUsageAt:active:default:empty:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:sameAppInteractionTypesToStopUsageAt->build_matcher_input",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "sameAppInteractionTypesToStopUsageAt",
+      "targetId": "build_matcher_input",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:sameAppInteractionTypesToStopUsageAt:active:default:empty:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:otherInteractionTypesToStopUsageAt->nudge_duplicate_timestamps",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "otherInteractionTypesToStopUsageAt",
+      "targetId": "nudge_duplicate_timestamps",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:otherInteractionTypesToStopUsageAt:active:default:empty:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:otherInteractionTypesToStopUsageAt->build_matcher_input",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "otherInteractionTypesToStopUsageAt",
+      "targetId": "build_matcher_input",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:otherInteractionTypesToStopUsageAt:active:default:empty:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:modelConcurrentUsage->build_matcher_input",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "modelConcurrentUsage",
+      "targetId": "build_matcher_input",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:modelConcurrentUsage:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:modelConcurrentUsage->split_concurrent",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "modelConcurrentUsage",
+      "targetId": "split_concurrent",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:modelConcurrentUsage:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:modelConcurrentUsage->assemble_result",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "modelConcurrentUsage",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:modelConcurrentUsage:inactive:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:applyMinimumUsageDurationToConcurrentSubintervals->split_concurrent",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "applyMinimumUsageDurationToConcurrentSubintervals",
+      "targetId": "split_concurrent",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:applyMinimumUsageDurationToConcurrentSubintervals:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:interactionTypesToRemove->drop_selected_types",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "interactionTypesToRemove",
+      "targetId": "drop_selected_types",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:interactionTypesToRemove:active:none:usage_stat:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:interactionTypeRemap->parse_remap_config",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "interactionTypeRemap",
+      "targetId": "parse_remap_config",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:interactionTypeRemap:active:none:custom:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:proximityIntervalSeconds->run_matcher",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "proximityIntervalSeconds",
+      "targetId": "run_matcher",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:proximityIntervalSeconds:active:s2:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:addNoActivityPlaceholderDays->inject_placeholders",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "addNoActivityPlaceholderDays",
+      "targetId": "inject_placeholders",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:addNoActivityPlaceholderDays:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enableScreenGatedCrediting->partition_credit_sessions",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableScreenGatedCrediting",
+      "targetId": "partition_credit_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableScreenGatedCrediting:active:false:true:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enableScreenGatedCrediting->build_liveness_substrate",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableScreenGatedCrediting",
+      "targetId": "build_liveness_substrate",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableScreenGatedCrediting:active:false:true:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enableScreenGatedCrediting->report_screen_incapable",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableScreenGatedCrediting",
+      "targetId": "report_screen_incapable",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "report_screen_incapable:applicability-or-source-role-condition"
+    },
+    {
+      "mutantId": "remove-option-binding:enableScreenGatedCrediting->count_day_apps",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableScreenGatedCrediting",
+      "targetId": "count_day_apps",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "count_day_apps:applicability-or-source-role-condition"
+    },
+    {
+      "mutantId": "remove-option-binding:enableScreenGatedCrediting->credit_sessions",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableScreenGatedCrediting",
+      "targetId": "credit_sessions",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "credit_sessions:applicability-or-source-role-condition"
+    },
+    {
+      "mutantId": "remove-option-binding:enableScreenGatedCrediting->emit_credited_rows",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableScreenGatedCrediting",
+      "targetId": "emit_credited_rows",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "emit_credited_rows:applicability-or-source-role-condition"
+    },
+    {
+      "mutantId": "remove-option-binding:enableScreenGatedCrediting->assemble_credit_result",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableScreenGatedCrediting",
+      "targetId": "assemble_credit_result",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "assemble_credit_result:applicability-or-source-role-condition"
+    },
+    {
+      "mutantId": "remove-option-binding:enableScreenGatedCrediting->assemble_result",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableScreenGatedCrediting",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableScreenGatedCrediting:inactive:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:creditedSessionCapMinutes->credit_sessions",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "creditedSessionCapMinutes",
+      "targetId": "credit_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:creditedSessionCapMinutes:active:m360:m0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:deviceLivenessGapToleranceMinutes->credit_sessions",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "deviceLivenessGapToleranceMinutes",
+      "targetId": "credit_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:deviceLivenessGapToleranceMinutes:active:m120:m0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:autoLockBridgeSeconds->credit_sessions",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "autoLockBridgeSeconds",
+      "targetId": "credit_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:autoLockBridgeSeconds:active:s120:s0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:noWitnessMinDayApps->credit_sessions",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "noWitnessMinDayApps",
+      "targetId": "credit_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:noWitnessMinDayApps:active:n2:n0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enableStudyWindowFilter->filter_rows_to_window",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableStudyWindowFilter",
+      "targetId": "filter_rows_to_window",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableStudyWindowFilter:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enablePersonAttribution->resolve_sharing_status",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enablePersonAttribution",
+      "targetId": "resolve_sharing_status",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enablePersonAttribution:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enablePersonAttribution->build_survey_lookup",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enablePersonAttribution",
+      "targetId": "build_survey_lookup",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enablePersonAttribution:active:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enableComplianceScoring->accumulate_attribution_minutes",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableComplianceScoring",
+      "targetId": "accumulate_attribution_minutes",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableComplianceScoring:active:false:true:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enableComplianceScoring->score_days",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableComplianceScoring",
+      "targetId": "score_days",
+      "killed": true,
+      "killKind": "structural-condition-binding",
+      "witnessId": "score_days:applicability-or-source-role-condition"
+    },
+    {
+      "mutantId": "remove-option-binding:enableComplianceScoring->assemble_result",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableComplianceScoring",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableComplianceScoring:inactive:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:complianceThresholdPercent->score_days",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "complianceThresholdPercent",
+      "targetId": "score_days",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:complianceThresholdPercent:active:p70:p0:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enableDayCoverage->build_coverage_table",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableDayCoverage",
+      "targetId": "build_coverage_table",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableDayCoverage:active:false:true:catalog-random"
+    },
+    {
+      "mutantId": "remove-option-binding:enableDayCoverage->assemble_result",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enableDayCoverage",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "configuration:enableDayCoverage:inactive:true:false:catalog-random"
+    },
+    {
+      "mutantId": "remove-role-binding:raw_chronicle_csv->csv_parse",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "raw_chronicle_csv",
+      "targetId": "csv_parse",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:raw-field:study_id"
+    },
+    {
+      "mutantId": "remove-role-binding:filter_file->tag_filtered_packages",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "filter_file",
+      "targetId": "tag_filtered_packages",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:filter-activate-used-package"
+    },
+    {
+      "mutantId": "remove-role-binding:apps_forcing_screen_open_file->build_classified_sessions",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "apps_forcing_screen_open_file",
+      "targetId": "build_classified_sessions",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:forcing-activate-screen-tail-package"
+    },
+    {
+      "mutantId": "remove-role-binding:background_apps_file->build_matcher_input",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "background_apps_file",
+      "targetId": "build_matcher_input",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:background-remove-used-package"
+    },
+    {
+      "mutantId": "remove-role-binding:background_apps_file->junk_downstream_mark",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "background_apps_file",
+      "targetId": "junk_downstream_mark",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support-representation:background_apps_file:crlf"
+    },
+    {
+      "mutantId": "remove-role-binding:background_apps_file->split_concurrent",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "background_apps_file",
+      "targetId": "split_concurrent",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support-representation:background_apps_file:crlf"
+    },
+    {
+      "mutantId": "remove-role-binding:app_codebook_file->codebook_join",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "app_codebook_file",
+      "targetId": "codebook_join",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:codebook-edit-category"
+    },
+    {
+      "mutantId": "remove-role-binding:app_codebook_file->assemble_result",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "app_codebook_file",
+      "targetId": "assemble_result",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support-representation:app_codebook_file:crlf"
+    },
+    {
+      "mutantId": "remove-role-binding:study_dates_file->resolve_participant_windows",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "study_dates_file",
+      "targetId": "resolve_participant_windows",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:study-window-narrow"
+    },
+    {
+      "mutantId": "remove-role-binding:study_dates_file->filter_rows_to_window",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "study_dates_file",
+      "targetId": "filter_rows_to_window",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support-representation:study_dates_file:crlf"
+    },
+    {
+      "mutantId": "remove-role-binding:study_dates_file->build_coverage_table",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "study_dates_file",
+      "targetId": "build_coverage_table",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support-representation:study_dates_file:crlf"
+    },
+    {
+      "mutantId": "remove-role-binding:device_sharing_file->resolve_sharing_status",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "device_sharing_file",
+      "targetId": "resolve_sharing_status",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:sharing-shared-to-nonshared"
+    },
+    {
+      "mutantId": "remove-role-binding:survey_attribution_file->build_survey_lookup",
+      "mutantClass": "remove-role-binding",
+      "sourceId": "survey_attribution_file",
+      "targetId": "build_survey_lookup",
+      "killed": true,
+      "killKind": "empirical-cluster-mismatch",
+      "witnessId": "artifact:support:survey-target-to-other"
+    },
+    {
+      "mutantId": "remove-role-binding:enrolled_devices_file->assemble_result",
       "mutantClass": "remove-role-binding",
       "sourceId": "enrolled_devices_file",
-      "targetId": "score_compliance",
+      "targetId": "assemble_result",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "artifact:support:enrollment-one-to-two-devices"

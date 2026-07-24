@@ -78,7 +78,7 @@ fn main() {
         "duplicate runtime authority surface"
     );
     for required in [
-        "semantic_graph_scheduler",
+        "product_stage_projection",
         "execution_evidence",
         "request_validation",
         "typed_views",
@@ -106,15 +106,23 @@ fn main() {
         "every embedded runtime authority surface must be required and Rust-owned"
     );
 
-    let required_capabilities: BTreeSet<_> = nodes
+    let node_capabilities: BTreeSet<_> = nodes
         .iter()
         .map(|node| text(node, "capability_id"))
-        .chain(steps.iter().map(|step| text(step, "capability_id")))
-        .chain(
-            runtime_surfaces
-                .iter()
-                .map(|surface| text(surface, "capability_id")),
-        )
+        .collect();
+    let step_capabilities: BTreeMap<_, _> = steps
+        .iter()
+        .map(|step| (text(step, "capability_id"), text(step, "step_id")))
+        .collect();
+    let runtime_capabilities: BTreeSet<_> = runtime_surfaces
+        .iter()
+        .map(|surface| text(surface, "capability_id"))
+        .collect();
+    let required_capabilities: BTreeSet<_> = node_capabilities
+        .iter()
+        .copied()
+        .chain(step_capabilities.keys().copied())
+        .chain(runtime_capabilities.iter().copied())
         .collect();
     let active_authorities: Vec<_> = bindings["bindings"]
         .as_array()
@@ -124,32 +132,77 @@ fn main() {
             text(binding, "status") == "active" && binding["authority"].as_bool() == Some(true)
         })
         .collect();
-    assert_eq!(
-        active_authorities.len(),
-        1,
-        "embedded contract requires one selected production authority"
-    );
-    let selected = active_authorities[0];
-    assert_eq!(
-        text(&selected["implementation"], "language"),
-        "rust",
-        "selected production authority must be Rust"
-    );
-    assert_eq!(
-        text(&selected["implementation"], "entrypoint"),
-        "execute_workspace",
-        "selected production authority must be the composed runtime"
-    );
-    let selected_capabilities: BTreeSet<_> = selected["capability_ids"]
-        .as_array()
-        .expect("selected capability array")
+    let mut authorities_by_capability: BTreeMap<&str, Vec<&Value>> = BTreeMap::new();
+    for authority in &active_authorities {
+        assert_eq!(
+            text(&authority["implementation"], "language"),
+            "rust",
+            "every selected production authority must be Rust"
+        );
+        for capability in authority["capability_ids"]
+            .as_array()
+            .expect("selected capability array")
+        {
+            let capability = capability.as_str().expect("selected capability string");
+            assert!(
+                required_capabilities.contains(capability),
+                "selected authority references unknown capability {capability}"
+            );
+            authorities_by_capability
+                .entry(capability)
+                .or_default()
+                .push(authority);
+        }
+    }
+    for capability in &required_capabilities {
+        assert_eq!(
+            authorities_by_capability
+                .get(capability)
+                .map(Vec::len)
+                .unwrap_or_default(),
+            1,
+            "embedded contract requires exactly one selected production authority for {capability}"
+        );
+    }
+
+    let product_runtime = active_authorities
         .iter()
-        .map(|value| value.as_str().expect("selected capability string"))
+        .find(|authority| text(&authority["implementation"], "entrypoint") == "execute_workspace")
+        .expect("selected composed product runtime");
+    let product_runtime_capabilities: BTreeSet<_> = product_runtime["capability_ids"]
+        .as_array()
+        .expect("product runtime capability array")
+        .iter()
+        .map(|value| value.as_str().expect("product runtime capability string"))
+        .collect();
+    let expected_product_runtime_capabilities: BTreeSet<_> = node_capabilities
+        .iter()
+        .copied()
+        .chain(runtime_capabilities.iter().copied())
         .collect();
     assert_eq!(
-        selected_capabilities, required_capabilities,
-        "selected Rust runtime must cover the exact required capability closure"
+        product_runtime_capabilities, expected_product_runtime_capabilities,
+        "selected product runtime must cover the exact node and runtime capability set"
     );
+
+    for (capability, step_id) in &step_capabilities {
+        let authority = authorities_by_capability[capability][0];
+        assert_eq!(
+            text(authority, "relationship"),
+            "one-to-one",
+            "step {step_id} must have a one-to-one production binding"
+        );
+        assert_eq!(
+            text(&authority["implementation"], "entrypoint"),
+            *step_id,
+            "step {step_id} must bind to its exact Rust query"
+        );
+        assert_eq!(
+            text(&authority["implementation"], "source"),
+            "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+            "step {step_id} must bind to the tracked Rust source"
+        );
+    }
 
     validate_graph(nodes, steps);
     validate_dependency_certificate(
@@ -533,11 +586,14 @@ fn render_registry(
     output.push_str("];\n\npub const STEP_BINDINGS: &[StepBinding] = &[\n");
     for step in steps {
         output.push_str(&format!(
-            "    StepBinding {{ step_id: {}, unit_id: {}, capability_id: {}, stage: PhysicalStage::{} }},\n",
+            "    StepBinding {{ step_id: {}, unit_id: {}, capability_id: {}, entrypoint: {}, tracking: \"salsa::tracked\" }},\n",
             quoted(text(step, "step_id")),
             quoted(text(step, "unit_id")),
             quoted(text(step, "capability_id")),
-            variant(text(step, "unit_id")),
+            quoted(&format!(
+                "chronicle_chrono_kernel_wasm::pipeline_v2::incremental::tracked::{}",
+                text(step, "step_id")
+            )),
         ));
     }
     output.push_str("];\n");

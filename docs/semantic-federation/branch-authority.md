@@ -10,11 +10,15 @@
 
 The isolated branch is stacked on desktop-removal. The generated YAML is a
 structural projection, not an executable body. The production browser worker
-selects the composed Rust/WASM runtime, but the current physical executor is
-still one fused pipeline. Its 15 grouped checkpoints and 55 step statuses are
-logical evidence calculated around or after that full run, not 55 independently
-cached Rust computations. The active migration and acceptance checks are in
-`55-step-incremental-rust-plan.md`.
+selects the composed Rust/WASM runtime. The branch now contains 55 real
+Salsa-tracked Rust computations and a stateful engine with complete four-mode
+parity against the fused Rust oracle. The production runtime consumes actual
+Salsa execution events and derives the existing 15-group display state from
+them. Compatible query-cache export/restore and optional OPFS cache roots are
+implemented, but their complete real-WASM reload/crash/size proof, regenerated
+dependency evidence, broad campaigns, saved-view proof, and production gates
+remain active. The exact live status and acceptance checks are in
+`55-step-incremental-rust-plan.md`; no other document is an independent plan.
 
 Production Pages, `main`, research-pipeline, GitOps, homelab provisioning, and
 runner infrastructure are outside this branch's authority.

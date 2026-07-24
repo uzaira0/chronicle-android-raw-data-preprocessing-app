@@ -6,8 +6,8 @@
   "implementation_state": {
     "browser_selector": "typescript-worker-calls-rust-execute-workspace",
     "active_logical_authority": "rust-composed-runtime",
-    "physical_execution": "fused-rust-pipeline-v2",
-    "logical_execution_evidence": "rust-scheduler-15-units-55-step-projection",
+    "physical_execution": "salsa-tracked-rust-pipeline-v2",
+    "logical_execution_evidence": "salsa-actual-step-events-grouped-into-15-product-views",
     "workspace_authority": "rust-root-and-closure-contract-with-opfs-browser-io-adapter",
     "semantic_index": "derived-rust-oxigraph-registered-queries-only",
     "typescript_boundary": "interaction-visualization-and-browser-io-only",
@@ -66,6 +66,7 @@
         "text/csv",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       ],
+      "required": false,
       "required_when": {
         "kind": "option-true",
         "option_key": "use_filter_file"
@@ -81,6 +82,7 @@
         "text/csv",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       ],
+      "required": false,
       "required_when": {
         "kind": "option-true",
         "option_key": "use_apps_forcing_screen_open_file"
@@ -96,6 +98,7 @@
         "text/csv",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       ],
+      "required": false,
       "required_when": {
         "kind": "option-true",
         "option_key": "use_background_apps_file"
@@ -111,6 +114,7 @@
         "text/csv",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       ],
+      "required": false,
       "required_when": {
         "kind": "option-true",
         "option_key": "use_app_codebook"
@@ -126,6 +130,7 @@
         "text/csv",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       ],
+      "required": false,
       "required_when": {
         "kind": "option-true",
         "option_key": "enable_study_window_filter"
@@ -141,6 +146,7 @@
         "text/csv",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       ],
+      "required": false,
       "required_when": {
         "kind": "option-true",
         "option_key": "enable_person_attribution"
@@ -185,6 +191,14 @@
         {
           "option_key": "interaction_type_remap",
           "edge": "tunes"
+        },
+        {
+          "option_key": "selected_timezone",
+          "edge": "tunes"
+        },
+        {
+          "option_key": "datetime_of_preprocessing",
+          "edge": "tunes"
         }
       ],
       "support_roles": [],
@@ -194,7 +208,8 @@
       "can_bypass": false,
       "early_cutoff": true,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-active-logical-authority"
+      "implementation_status": "rust-wasm-product-stage-projection",
+      "physical_execution_authority": false
     },
     {
       "node_id": "normalize_timezones",
@@ -222,7 +237,8 @@
       "can_bypass": false,
       "early_cutoff": true,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-active-logical-authority"
+      "implementation_status": "rust-wasm-product-stage-projection",
+      "physical_execution_authority": false
     },
     {
       "node_id": "dedup_and_order",
@@ -258,7 +274,8 @@
       "can_bypass": false,
       "early_cutoff": true,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-active-logical-authority"
+      "implementation_status": "rust-wasm-product-stage-projection",
+      "physical_execution_authority": false
     },
     {
       "node_id": "app_policy",
@@ -285,7 +302,8 @@
       "can_bypass": true,
       "early_cutoff": true,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-active-logical-authority"
+      "implementation_status": "rust-wasm-product-stage-projection",
+      "physical_execution_authority": false
     },
     {
       "node_id": "device_state_timeline",
@@ -332,7 +350,8 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-active-logical-authority"
+      "implementation_status": "rust-wasm-product-stage-projection",
+      "physical_execution_authority": false
     },
     {
       "node_id": "reconstruct_episodes",
@@ -403,7 +422,8 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-active-logical-authority"
+      "implementation_status": "rust-wasm-product-stage-projection",
+      "physical_execution_authority": false
     },
     {
       "node_id": "categorize_apps",
@@ -422,10 +442,6 @@
         {
           "option_key": "use_app_codebook",
           "edge": "gates"
-        },
-        {
-          "option_key": "include_category_column",
-          "edge": "tunes"
         }
       ],
       "support_roles": [
@@ -447,7 +463,8 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-active-logical-authority"
+      "implementation_status": "rust-wasm-product-stage-projection",
+      "physical_execution_authority": false
     },
     {
       "node_id": "episode_annotations",
@@ -484,7 +501,8 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-active-logical-authority"
+      "implementation_status": "rust-wasm-product-stage-projection",
+      "physical_execution_authority": false
     },
     {
       "node_id": "interval_cleaning",
@@ -547,7 +565,8 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-active-logical-authority"
+      "implementation_status": "rust-wasm-product-stage-projection",
+      "physical_execution_authority": false
     },
     {
       "node_id": "effective_usage",
@@ -602,7 +621,8 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-active-logical-authority"
+      "implementation_status": "rust-wasm-product-stage-projection",
+      "physical_execution_authority": false
     },
     {
       "node_id": "observation_window",
@@ -642,7 +662,8 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-active-logical-authority"
+      "implementation_status": "rust-wasm-product-stage-projection",
+      "physical_execution_authority": false
     },
     {
       "node_id": "attribute_person",
@@ -683,7 +704,8 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-active-logical-authority"
+      "implementation_status": "rust-wasm-product-stage-projection",
+      "physical_execution_authority": false
     },
     {
       "node_id": "day_coverage",
@@ -737,7 +759,8 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-active-logical-authority"
+      "implementation_status": "rust-wasm-product-stage-projection",
+      "physical_execution_authority": false
     },
     {
       "node_id": "score_compliance",
@@ -783,7 +806,8 @@
       "can_bypass": true,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-active-logical-authority"
+      "implementation_status": "rust-wasm-product-stage-projection",
+      "physical_execution_authority": false
     },
     {
       "node_id": "outputs",
@@ -793,10 +817,17 @@
       "input_nodes": [
         "app_policy",
         "attribute_person",
+        "categorize_apps",
         "day_coverage",
+        "dedup_and_order",
         "device_state_timeline",
         "effective_usage",
+        "episode_annotations",
+        "interval_cleaning",
+        "normalize_timezones",
         "observation_window",
+        "parse_events",
+        "reconstruct_episodes",
         "score_compliance"
       ],
       "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/outputs",
@@ -833,7 +864,8 @@
       "can_bypass": false,
       "early_cutoff": false,
       "determinism": "semantic",
-      "implementation_status": "rust-wasm-active-logical-authority"
+      "implementation_status": "rust-wasm-product-stage-projection",
+      "physical_execution_authority": false
     }
   ],
   "steps": [
@@ -844,11 +876,19 @@
       "description": "Parse the interaction-type remap option into a lookup map.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/parse_remap_config/v1",
       "input_steps": [],
+      "request_fields": [
+        "interaction_type_remap"
+      ],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "always"
       },
       "can_bypass": false,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "parse_remap_config",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -858,11 +898,22 @@
       "description": "Parse the raw Chronicle CSV text into header-keyed rows (throws on parse errors).",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/csv_parse/v1",
       "input_steps": [],
+      "request_fields": [],
+      "source_role_bindings": [
+        {
+          "role": "raw_chronicle_csv",
+          "when_all": []
+        }
+      ],
       "applicability": {
         "kind": "always"
       },
       "can_bypass": false,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "csv_parse",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -874,11 +925,17 @@
       "input_steps": [
         "csv_parse"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "always"
       },
       "can_bypass": false,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "drop_empty_timestamp",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -890,11 +947,17 @@
       "input_steps": [
         "drop_empty_timestamp"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "always"
       },
       "can_bypass": false,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "detect_device_model",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -904,11 +967,19 @@
       "description": "Resolve the datetime-of-preprocessing stamp (runtime-pinned for reproducibility).",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/resolve_preproc_datetime/v1",
       "input_steps": [],
+      "request_fields": [
+        "datetime_of_preprocessing"
+      ],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "always"
       },
       "can_bypass": false,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "resolve_preproc_datetime",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -919,15 +990,22 @@
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_canonical_rows/v1",
       "input_steps": [
         "drop_empty_timestamp",
-        "resolve_preproc_datetime",
         "detect_device_model",
         "parse_remap_config"
       ],
+      "request_fields": [
+        "timezone"
+      ],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "always"
       },
       "can_bypass": false,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "build_canonical_rows",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -939,11 +1017,17 @@
       "input_steps": [
         "build_canonical_rows"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "always"
       },
       "can_bypass": false,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "stable_sort",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -955,11 +1039,17 @@
       "input_steps": [
         "stable_sort"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "always"
       },
       "can_bypass": false,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/parseEvents.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "collect_timezones",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -971,11 +1061,17 @@
       "input_steps": [
         "stable_sort"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "always"
       },
       "can_bypass": false,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/normalizeTimezones.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "compute_dominant_timezone",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -988,11 +1084,20 @@
         "stable_sort",
         "compute_dominant_timezone"
       ],
+      "request_fields": [
+        "timezone",
+        "timezone_handling"
+      ],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "always"
       },
       "can_bypass": false,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/normalizeTimezones.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "select_timezone_strategy",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1004,11 +1109,17 @@
       "input_steps": [
         "select_timezone_strategy"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "always"
       },
       "can_bypass": false,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/normalizeTimezones.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "restamp_rows",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1018,14 +1129,20 @@
       "description": "Before/after/removed row counts for the timezone step's report.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/row_count_report/v1",
       "input_steps": [
-        "select_timezone_strategy",
-        "restamp_rows"
+        "stable_sort",
+        "select_timezone_strategy"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "always"
       },
       "can_bypass": false,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/normalizeTimezones.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "row_count_report",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1037,12 +1154,19 @@
       "input_steps": [
         "restamp_rows"
       ],
+      "request_fields": [
+        "deduplicate_exact_rows"
+      ],
+      "source_role_bindings": [],
       "applicability": {
-        "kind": "option-true",
-        "option_key": "deduplicate_exact_rows"
+        "kind": "always"
       },
-      "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dedupAndOrder.ts",
+      "can_bypass": false,
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "exact_dedupe",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1054,11 +1178,17 @@
       "input_steps": [
         "exact_dedupe"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "always"
       },
       "can_bypass": false,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dedupAndOrder.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "count_dup_groups",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1070,12 +1200,21 @@
       "input_steps": [
         "exact_dedupe"
       ],
+      "request_fields": [
+        "correct_duplicate_event_timestamps",
+        "same_app_stop_types",
+        "other_stop_types"
+      ],
+      "source_role_bindings": [],
       "applicability": {
-        "kind": "option-true",
-        "option_key": "correct_duplicate_event_timestamps"
+        "kind": "always"
       },
-      "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dedupAndOrder.ts",
+      "can_bypass": false,
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "nudge_duplicate_timestamps",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1087,11 +1226,17 @@
       "input_steps": [
         "nudge_duplicate_timestamps"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "always"
       },
       "can_bypass": false,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dedupAndOrder.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "mark_data_time_gaps",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1103,12 +1248,30 @@
       "input_steps": [
         "mark_data_time_gaps"
       ],
+      "request_fields": [
+        "use_filter_file"
+      ],
+      "source_role_bindings": [
+        {
+          "role": "filter_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "use_filter_file",
+              "value": true
+            }
+          ]
+        }
+      ],
       "applicability": {
-        "kind": "option-true",
-        "option_key": "use_filter_file"
+        "kind": "always"
       },
-      "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/appPolicy.ts",
+      "can_bypass": false,
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "tag_filtered_packages",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1120,12 +1283,18 @@
       "input_steps": [
         "tag_filtered_packages"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_screen_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/deviceStateTimeline.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "collect_keyguard_timestamps",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1137,12 +1306,18 @@
       "input_steps": [
         "tag_filtered_packages"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_screen_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/deviceStateTimeline.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "walk_screen_state_machine",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1156,12 +1331,35 @@
         "walk_screen_state_machine",
         "collect_keyguard_timestamps"
       ],
+      "request_fields": [
+        "use_apps_forcing_screen_open",
+        "screen_auto_lock_timeout_seconds",
+        "screen_auto_lock_tolerance_seconds",
+        "screen_manual_lock_max_tail_seconds",
+        "screen_keyguard_near_stop_seconds"
+      ],
+      "source_role_bindings": [
+        {
+          "role": "apps_forcing_screen_open_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "use_apps_forcing_screen_open",
+              "value": true
+            }
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_screen_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/deviceStateTimeline.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "build_classified_sessions",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1173,12 +1371,18 @@
       "input_steps": [
         "tag_filtered_packages"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "compute_junk_packages",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1188,15 +1392,20 @@
       "description": "Fold pre-relabeled junk events back to their Activity equivalents so the matcher sees every app identically (junk-BLIND matching).",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/junk_blind_fold/v1",
       "input_steps": [
-        "tag_filtered_packages",
-        "compute_junk_packages"
+        "tag_filtered_packages"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "junk_blind_fold",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1208,12 +1417,34 @@
       "input_steps": [
         "junk_blind_fold"
       ],
+      "request_fields": [
+        "same_app_stop_types",
+        "other_stop_types",
+        "model_concurrent_usage",
+        "use_background_apps_file"
+      ],
+      "source_role_bindings": [
+        {
+          "role": "background_apps_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "use_background_apps_file",
+              "value": true
+            }
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "build_matcher_input",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1225,12 +1456,24 @@
       "input_steps": [
         "build_matcher_input"
       ],
+      "request_fields": [
+        "allow_stop_event_reuse",
+        "use_activity_stopped_as_fallback",
+        "apply_threshold_to_fallback",
+        "long_duration_threshold_ns",
+        "proximity_interval_ns"
+      ],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "run_matcher",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1244,12 +1487,18 @@
         "run_matcher",
         "compute_junk_packages"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "apply_matcher_output",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1259,14 +1508,23 @@
       "description": "Drop pauses/unmatched resumes, relabel matched resumes as usage episodes, and apply the minimum-duration floor.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/relabel_usage_with_floor/v1",
       "input_steps": [
-        "apply_matcher_output"
+        "apply_matcher_output",
+        "compute_junk_packages"
       ],
+      "request_fields": [
+        "minimum_usage_duration"
+      ],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "relabel_usage_with_floor",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1279,12 +1537,31 @@
         "relabel_usage_with_floor",
         "compute_junk_packages"
       ],
+      "request_fields": [
+        "use_background_apps_file"
+      ],
+      "source_role_bindings": [
+        {
+          "role": "background_apps_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "use_background_apps_file",
+              "value": true
+            }
+          ]
+        }
+      ],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "junk_downstream_mark",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1296,12 +1573,18 @@
       "input_steps": [
         "junk_downstream_mark"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "sort_episodes",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1311,32 +1594,37 @@
       "description": "Phase 2 (concurrent modeling / background apps only): layer overlapping sessions into primary/secondary sub-intervals.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/split_concurrent/v1",
       "input_steps": [
-        "sort_episodes"
+        "sort_episodes",
+        "compute_junk_packages"
+      ],
+      "request_fields": [
+        "model_concurrent_usage",
+        "minimum_usage_duration",
+        "apply_minimum_usage_duration_to_concurrent_subintervals",
+        "use_background_apps_file"
+      ],
+      "source_role_bindings": [
+        {
+          "role": "background_apps_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "use_background_apps_file",
+              "value": true
+            }
+          ]
+        }
       ],
       "applicability": {
-        "kind": "all",
-        "terms": [
-          {
-            "kind": "option-true",
-            "option_key": "process_app_usage"
-          },
-          {
-            "kind": "any",
-            "terms": [
-              {
-                "kind": "option-true",
-                "option_key": "model_concurrent_usage"
-              },
-              {
-                "kind": "option-true",
-                "option_key": "use_background_apps_file"
-              }
-            ]
-          }
-        ]
+        "kind": "option-true",
+        "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/reconstructEpisodes.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "split_concurrent",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1348,21 +1636,31 @@
       "input_steps": [
         "split_concurrent"
       ],
+      "request_fields": [
+        "use_app_codebook"
+      ],
+      "source_role_bindings": [
+        {
+          "role": "app_codebook_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "use_app_codebook",
+              "value": true
+            }
+          ]
+        }
+      ],
       "applicability": {
-        "kind": "all",
-        "terms": [
-          {
-            "kind": "option-true",
-            "option_key": "process_app_usage"
-          },
-          {
-            "kind": "option-true",
-            "option_key": "use_app_codebook"
-          }
-        ]
+        "kind": "option-true",
+        "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/categorizeApps.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "codebook_join",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1374,21 +1672,20 @@
       "input_steps": [
         "codebook_join"
       ],
+      "request_fields": [
+        "use_app_codebook"
+      ],
+      "source_role_bindings": [],
       "applicability": {
-        "kind": "all",
-        "terms": [
-          {
-            "kind": "option-true",
-            "option_key": "process_app_usage"
-          },
-          {
-            "kind": "option-true",
-            "option_key": "use_app_codebook"
-          }
-        ]
+        "kind": "option-true",
+        "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/categorizeApps.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "derive_broad_category",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1400,21 +1697,20 @@
       "input_steps": [
         "derive_broad_category"
       ],
+      "request_fields": [
+        "use_app_codebook"
+      ],
+      "source_role_bindings": [],
       "applicability": {
-        "kind": "all",
-        "terms": [
-          {
-            "kind": "option-true",
-            "option_key": "process_app_usage"
-          },
-          {
-            "kind": "option-true",
-            "option_key": "use_app_codebook"
-          }
-        ]
+        "kind": "option-true",
+        "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/categorizeApps.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "collapse_genre",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1426,12 +1722,20 @@
       "input_steps": [
         "collapse_genre"
       ],
+      "request_fields": [
+        "custom_app_engagement_duration"
+      ],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/episodeAnnotations.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "engagement_walk",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1443,12 +1747,21 @@
       "input_steps": [
         "engagement_walk"
       ],
+      "request_fields": [
+        "long_data_time_gap_thresholds",
+        "long_usage_duration_thresholds"
+      ],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "option-true",
         "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/episodeAnnotations.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "flag_and_retain",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1460,43 +1773,18 @@
       "input_steps": [
         "flag_and_retain"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
-        "kind": "all",
-        "terms": [
-          {
-            "kind": "all",
-            "terms": [
-              {
-                "kind": "option-true",
-                "option_key": "process_app_usage"
-              },
-              {
-                "kind": "any",
-                "terms": [
-                  {
-                    "kind": "option-true",
-                    "option_key": "use_filter_file"
-                  },
-                  {
-                    "kind": "array-nonempty",
-                    "option_key": "interaction_types_to_remove"
-                  },
-                  {
-                    "kind": "option-true",
-                    "option_key": "filter_zero_duration_sessions"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "kind": "option-true",
-            "option_key": "use_filter_file"
-          }
-        ]
+        "kind": "option-true",
+        "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/intervalCleaning.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "blank_junk_timing",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1508,43 +1796,21 @@
       "input_steps": [
         "blank_junk_timing"
       ],
+      "request_fields": [
+        "interaction_types_to_remove",
+        "long_data_time_gap_thresholds"
+      ],
+      "source_role_bindings": [],
       "applicability": {
-        "kind": "all",
-        "terms": [
-          {
-            "kind": "all",
-            "terms": [
-              {
-                "kind": "option-true",
-                "option_key": "process_app_usage"
-              },
-              {
-                "kind": "any",
-                "terms": [
-                  {
-                    "kind": "option-true",
-                    "option_key": "use_filter_file"
-                  },
-                  {
-                    "kind": "array-nonempty",
-                    "option_key": "interaction_types_to_remove"
-                  },
-                  {
-                    "kind": "option-true",
-                    "option_key": "filter_zero_duration_sessions"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "kind": "array-nonempty",
-            "option_key": "interaction_types_to_remove"
-          }
-        ]
+        "kind": "option-true",
+        "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/intervalCleaning.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "drop_selected_types",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1556,43 +1822,20 @@
       "input_steps": [
         "drop_selected_types"
       ],
+      "request_fields": [
+        "filter_zero_duration_sessions"
+      ],
+      "source_role_bindings": [],
       "applicability": {
-        "kind": "all",
-        "terms": [
-          {
-            "kind": "all",
-            "terms": [
-              {
-                "kind": "option-true",
-                "option_key": "process_app_usage"
-              },
-              {
-                "kind": "any",
-                "terms": [
-                  {
-                    "kind": "option-true",
-                    "option_key": "use_filter_file"
-                  },
-                  {
-                    "kind": "array-nonempty",
-                    "option_key": "interaction_types_to_remove"
-                  },
-                  {
-                    "kind": "option-true",
-                    "option_key": "filter_zero_duration_sessions"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "kind": "option-true",
-            "option_key": "filter_zero_duration_sessions"
-          }
-        ]
+        "kind": "option-true",
+        "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/intervalCleaning.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "drop_zero_duration",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1604,6 +1847,8 @@
       "input_steps": [
         "drop_zero_duration"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -1618,7 +1863,11 @@
         ]
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "partition_credit_sessions",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1630,6 +1879,8 @@
       "input_steps": [
         "tag_filtered_packages"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -1644,7 +1895,11 @@
         ]
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "build_liveness_substrate",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1657,6 +1912,8 @@
         "partition_credit_sessions",
         "build_liveness_substrate"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -1671,7 +1928,11 @@
         ]
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "report_screen_incapable",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1683,6 +1944,8 @@
       "input_steps": [
         "partition_credit_sessions"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -1697,7 +1960,11 @@
         ]
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "count_day_apps",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1711,6 +1978,13 @@
         "build_liveness_substrate",
         "count_day_apps"
       ],
+      "request_fields": [
+        "credited_session_cap_minutes",
+        "device_liveness_gap_tolerance_minutes",
+        "auto_lock_bridge_seconds",
+        "no_witness_min_day_apps"
+      ],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -1725,7 +1999,11 @@
         ]
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "credit_sessions",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1735,8 +2013,12 @@
       "description": "Rewrite each session into one clone row per credited interval, recomputing duration and calendar columns.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/emit_credited_rows/v1",
       "input_steps": [
+        "partition_credit_sessions",
+        "build_liveness_substrate",
         "credit_sessions"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -1751,7 +2033,11 @@
         ]
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "emit_credited_rows",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1765,6 +2051,8 @@
         "report_screen_incapable",
         "emit_credited_rows"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -1779,7 +2067,11 @@
         ]
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/effectiveUsage.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "assemble_credit_result",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1791,21 +2083,23 @@
       "input_steps": [
         "drop_zero_duration"
       ],
+      "request_fields": [],
+      "source_role_bindings": [
+        {
+          "role": "study_dates_file",
+          "when_all": []
+        }
+      ],
       "applicability": {
-        "kind": "all",
-        "terms": [
-          {
-            "kind": "option-true",
-            "option_key": "process_app_usage"
-          },
-          {
-            "kind": "option-true",
-            "option_key": "enable_study_window_filter"
-          }
-        ]
+        "kind": "option-true",
+        "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/observationWindow.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "resolve_participant_windows",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1818,21 +2112,31 @@
         "drop_zero_duration",
         "resolve_participant_windows"
       ],
+      "request_fields": [
+        "enable_study_window_filter"
+      ],
+      "source_role_bindings": [
+        {
+          "role": "study_dates_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "enable_study_window_filter",
+              "value": true
+            }
+          ]
+        }
+      ],
       "applicability": {
-        "kind": "all",
-        "terms": [
-          {
-            "kind": "option-true",
-            "option_key": "process_app_usage"
-          },
-          {
-            "kind": "option-true",
-            "option_key": "enable_study_window_filter"
-          }
-        ]
+        "kind": "option-true",
+        "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/observationWindow.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "filter_rows_to_window",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1844,21 +2148,31 @@
       "input_steps": [
         "filter_rows_to_window"
       ],
+      "request_fields": [
+        "enable_person_attribution"
+      ],
+      "source_role_bindings": [
+        {
+          "role": "device_sharing_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "enable_person_attribution",
+              "value": true
+            }
+          ]
+        }
+      ],
       "applicability": {
-        "kind": "all",
-        "terms": [
-          {
-            "kind": "option-true",
-            "option_key": "process_app_usage"
-          },
-          {
-            "kind": "option-true",
-            "option_key": "enable_person_attribution"
-          }
-        ]
+        "kind": "option-true",
+        "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/attributePerson.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "resolve_sharing_status",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1868,21 +2182,31 @@
       "description": "(participant, exact event timestamp) → user map from survey answers; later rows win.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/build_survey_lookup/v1",
       "input_steps": [],
+      "request_fields": [
+        "enable_person_attribution"
+      ],
+      "source_role_bindings": [
+        {
+          "role": "survey_attribution_file",
+          "when_all": [
+            {
+              "operator": "boolean_equals",
+              "request_field": "enable_person_attribution",
+              "value": true
+            }
+          ]
+        }
+      ],
       "applicability": {
-        "kind": "all",
-        "terms": [
-          {
-            "kind": "option-true",
-            "option_key": "process_app_usage"
-          },
-          {
-            "kind": "option-true",
-            "option_key": "enable_person_attribution"
-          }
-        ]
+        "kind": "option-true",
+        "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/attributePerson.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "build_survey_lookup",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1896,21 +2220,18 @@
         "resolve_sharing_status",
         "build_survey_lookup"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
-        "kind": "all",
-        "terms": [
-          {
-            "kind": "option-true",
-            "option_key": "process_app_usage"
-          },
-          {
-            "kind": "option-true",
-            "option_key": "enable_person_attribution"
-          }
-        ]
+        "kind": "option-true",
+        "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/attributePerson.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "attribute_rows",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1923,39 +2244,20 @@
         "attribute_rows",
         "tag_filtered_packages"
       ],
+      "request_fields": [
+        "add_no_activity_placeholder_days"
+      ],
+      "source_role_bindings": [],
       "applicability": {
-        "kind": "all",
-        "terms": [
-          {
-            "kind": "all",
-            "terms": [
-              {
-                "kind": "option-true",
-                "option_key": "process_app_usage"
-              },
-              {
-                "kind": "any",
-                "terms": [
-                  {
-                    "kind": "option-true",
-                    "option_key": "add_no_activity_placeholder_days"
-                  },
-                  {
-                    "kind": "option-true",
-                    "option_key": "enable_day_coverage"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "kind": "option-true",
-            "option_key": "add_no_activity_placeholder_days"
-          }
-        ]
+        "kind": "option-true",
+        "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dayCoverage.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "inject_placeholders",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -1967,30 +2269,18 @@
       "input_steps": [
         "tag_filtered_packages"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
-        "kind": "all",
-        "terms": [
-          {
-            "kind": "option-true",
-            "option_key": "process_app_usage"
-          },
-          {
-            "kind": "any",
-            "terms": [
-              {
-                "kind": "option-true",
-                "option_key": "add_no_activity_placeholder_days"
-              },
-              {
-                "kind": "option-true",
-                "option_key": "enable_day_coverage"
-              }
-            ]
-          }
-        ]
+        "kind": "option-true",
+        "option_key": "process_app_usage"
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dayCoverage.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "build_raw_date_index",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -2003,30 +2293,19 @@
         "inject_placeholders",
         "build_raw_date_index"
       ],
+      "request_fields": [],
+      "source_role_bindings": [
+        {
+          "role": "study_dates_file",
+          "when_all": []
+        }
+      ],
       "applicability": {
         "kind": "all",
         "terms": [
           {
-            "kind": "all",
-            "terms": [
-              {
-                "kind": "option-true",
-                "option_key": "process_app_usage"
-              },
-              {
-                "kind": "any",
-                "terms": [
-                  {
-                    "kind": "option-true",
-                    "option_key": "add_no_activity_placeholder_days"
-                  },
-                  {
-                    "kind": "option-true",
-                    "option_key": "enable_day_coverage"
-                  }
-                ]
-              }
-            ]
+            "kind": "option-true",
+            "option_key": "process_app_usage"
           },
           {
             "kind": "option-true",
@@ -2035,7 +2314,11 @@
         ]
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/dayCoverage.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "build_coverage_table",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -2047,6 +2330,8 @@
       "input_steps": [
         "inject_placeholders"
       ],
+      "request_fields": [],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -2061,7 +2346,11 @@
         ]
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/scoreCompliance.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "accumulate_attribution_minutes",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -2074,6 +2363,10 @@
         "accumulate_attribution_minutes",
         "attribute_rows"
       ],
+      "request_fields": [
+        "compliance_threshold_percent"
+      ],
+      "source_role_bindings": [],
       "applicability": {
         "kind": "all",
         "terms": [
@@ -2088,7 +2381,11 @@
         ]
       },
       "can_bypass": true,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/scoreCompliance.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "score_days",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     },
     {
@@ -2098,20 +2395,129 @@
       "description": "Assemble everything the run produced — app rows, screen sessions, credited usage, window/attribution/coverage/compliance reports — into the downloadable result set.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/assemble_result/v1",
       "input_steps": [
+        "parse_remap_config",
+        "csv_parse",
+        "drop_empty_timestamp",
+        "detect_device_model",
+        "resolve_preproc_datetime",
+        "build_canonical_rows",
+        "stable_sort",
+        "collect_timezones",
+        "compute_dominant_timezone",
+        "select_timezone_strategy",
+        "restamp_rows",
+        "row_count_report",
+        "exact_dedupe",
+        "count_dup_groups",
+        "nudge_duplicate_timestamps",
+        "mark_data_time_gaps",
         "tag_filtered_packages",
-        "inject_placeholders",
-        "build_coverage_table",
+        "collect_keyguard_timestamps",
+        "walk_screen_state_machine",
         "build_classified_sessions",
+        "compute_junk_packages",
+        "junk_blind_fold",
+        "build_matcher_input",
+        "run_matcher",
+        "apply_matcher_output",
+        "relabel_usage_with_floor",
+        "junk_downstream_mark",
+        "sort_episodes",
+        "split_concurrent",
+        "codebook_join",
+        "derive_broad_category",
+        "collapse_genre",
+        "engagement_walk",
+        "flag_and_retain",
+        "blank_junk_timing",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "partition_credit_sessions",
+        "build_liveness_substrate",
+        "report_screen_incapable",
+        "count_day_apps",
+        "credit_sessions",
+        "emit_credited_rows",
         "assemble_credit_result",
+        "resolve_participant_windows",
         "filter_rows_to_window",
+        "resolve_sharing_status",
+        "build_survey_lookup",
         "attribute_rows",
+        "inject_placeholders",
+        "build_raw_date_index",
+        "build_coverage_table",
+        "accumulate_attribution_minutes",
         "score_days"
+      ],
+      "request_fields": [
+        "study_name",
+        "timezone",
+        "timezone_handling",
+        "usage_session_mode",
+        "include_app_output",
+        "include_screen_output",
+        "use_background_apps_file",
+        "use_app_codebook",
+        "include_category_column",
+        "deduplicate_exact_rows",
+        "correct_duplicate_event_timestamps",
+        "datetime_of_preprocessing",
+        "custom_app_engagement_duration",
+        "model_concurrent_usage",
+        "enable_screen_gated_crediting",
+        "enable_day_coverage",
+        "enable_compliance_scoring",
+        "enable_aggregates",
+        "aggregate_shape"
+      ],
+      "source_role_bindings": [
+        {
+          "role": "app_codebook_file",
+          "when_all": [
+            {
+              "operator": "string_one_of",
+              "request_field": "usage_session_mode",
+              "values": [
+                "app_usage",
+                "app_and_screen_usage"
+              ]
+            },
+            {
+              "operator": "boolean_equals",
+              "request_field": "use_app_codebook",
+              "value": true
+            }
+          ]
+        },
+        {
+          "role": "enrolled_devices_file",
+          "when_all": [
+            {
+              "operator": "string_one_of",
+              "request_field": "usage_session_mode",
+              "values": [
+                "app_usage",
+                "app_and_screen_usage"
+              ]
+            },
+            {
+              "operator": "boolean_equals",
+              "request_field": "enable_compliance_scoring",
+              "value": true
+            }
+          ]
+        }
       ],
       "applicability": {
         "kind": "always"
       },
       "can_bypass": false,
-      "legacy_executable_source": "web/src/lib/pipelineGraph/steps/outputs.ts",
+      "rust_executable_source": {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "assemble_result",
+        "tracking": "salsa-query"
+      },
       "binding_set_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:binding-set/v1"
     }
   ],

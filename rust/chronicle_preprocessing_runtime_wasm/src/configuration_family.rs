@@ -283,7 +283,7 @@ pub fn compile_configuration_family(
         .find(|partition| partition.perspective_id == "published-outputs")
         .expect("published-outputs partition is constructed")
         .width;
-    let influence = influence_envelope(plan, &["selected_timezone", "timezone_handling"]);
+    let influence = influence_envelope(plan, &["timezone_handling"]);
     if influence.seed_nodes != ["normalize_timezones"] {
         return Err(format!(
             "timezone option authority drifted from normalize_timezones: {:?}",
@@ -368,7 +368,7 @@ pub fn compile_configuration_family(
         input_digest: input_digest.into(),
         axis: ConfigurationAxis {
             axis_id: "timezone-handling".into(),
-            option_keys: vec!["selected_timezone".into(), "timezone_handling".into()],
+            option_keys: vec!["timezone_handling".into()],
             cardinality: expected.len(),
             variants: expected_variants
                 .iter()

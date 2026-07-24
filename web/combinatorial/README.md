@@ -83,8 +83,10 @@ Notes:
   set to equal the deterministic semantic percolation cluster, enforce the plan
   cone, and retain the exact observed effect set. A dedicated influence-probe
   corpus makes every one of the 46 computational axes produce at least one
-  substantive witness. Logical minimality is distinct from physical execution:
-  one fused Rust run remains the correctness backstop for any logical cache miss.
+  substantive witness. This checked ledger predates the 55-query Salsa cutover
+  and must be regenerated before it proves current physical work. Current
+  physical status comes from actual Salsa query events; the fused Rust run is
+  an independent cold oracle rather than the warm path.
 - The artifact dependency tomography ledger then holds the full configuration
   constant across all eleven raw columns, four raw-row mutation classes, eight
   substantive support-role mutations, and nine byte-different representation

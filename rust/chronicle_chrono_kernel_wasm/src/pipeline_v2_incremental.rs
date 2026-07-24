@@ -1,0 +1,5786 @@
+//! Pure product transformations shared by the cold sequential executor and
+//! the tracked incremental executor. This module contains Chronicle logic,
+//! not a generic graph abstraction.
+
+use super::*;
+
+pub(super) fn parse_remap_config(entries: &[String]) -> BTreeMap<String, String> {
+    entries
+        .iter()
+        .filter_map(|entry| {
+            let (from, to) = entry.split_once("=>")?;
+            let from = from.trim();
+            let to = to.trim();
+            if from.is_empty() || to.is_empty() {
+                None
+            } else {
+                Some((from.to_string(), to.to_string()))
+            }
+        })
+        .collect()
+}
+
+pub(super) fn csv_parse(csv_bytes: &[u8]) -> Vec<RawRow> {
+    let mut terminated = Vec::new();
+    let csv_bytes = if csv_bytes.ends_with(b"\n") {
+        csv_bytes
+    } else {
+        terminated.reserve(csv_bytes.len() + 1);
+        terminated.extend_from_slice(csv_bytes);
+        terminated.push(b'\n');
+        &terminated
+    };
+    let mut reader = CsvReader::new();
+    let mut field_buf = vec![0u8; 1024];
+    let mut input = csv_bytes;
+
+    let mut headers = Vec::new();
+    loop {
+        let (result, consumed, produced) = reader.read_field(input, &mut field_buf);
+        input = &input[consumed..];
+        match result {
+            ReadFieldResult::InputEmpty => continue,
+            ReadFieldResult::OutputFull => {
+                field_buf.resize(field_buf.len() * 2, 0);
+            }
+            ReadFieldResult::Field { record_end } => {
+                headers.push(
+                    std::str::from_utf8(&field_buf[..produced])
+                        .unwrap_or("")
+                        .to_string(),
+                );
+                if record_end {
+                    break;
+                }
+            }
+            ReadFieldResult::End => break,
+        }
+    }
+
+    let column_indices = headers
+        .iter()
+        .enumerate()
+        .map(|(index, header)| (header.as_str(), index))
+        .collect::<HashMap<_, _>>();
+    let event = column_indices.get("event_timestamp").copied();
+    let timezone = column_indices.get("timezone").copied();
+    let package = column_indices.get("app_package_name").copied();
+    let interaction = column_indices.get("interaction_type").copied();
+    let label = column_indices.get("application_label").copied();
+    let study = column_indices.get("study_id").copied();
+    let participant = column_indices.get("participant_id").copied();
+    let username = column_indices.get("username").copied();
+
+    let mut row_values = vec![String::new(); headers.len()];
+    let mut column_index = 0;
+    let mut data_row_number = 0_u32;
+    let mut raw_rows = Vec::with_capacity(1024);
+    loop {
+        let (result, consumed, produced) = reader.read_field(input, &mut field_buf);
+        input = &input[consumed..];
+        match result {
+            ReadFieldResult::InputEmpty => continue,
+            ReadFieldResult::OutputFull => {
+                field_buf.resize(field_buf.len() * 2, 0);
+            }
+            ReadFieldResult::Field { record_end } => {
+                if column_index < row_values.len() {
+                    let value = std::str::from_utf8(&field_buf[..produced]).unwrap_or("");
+                    row_values[column_index].clear();
+                    row_values[column_index].push_str(value);
+                }
+                column_index += 1;
+                if record_end {
+                    data_row_number += 1;
+                    let get = |slot: Option<usize>| -> &str {
+                        slot.and_then(|index| row_values.get(index))
+                            .map(String::as_str)
+                            .unwrap_or("")
+                    };
+                    raw_rows.push(RawRow {
+                        source_data_row: data_row_number,
+                        event_timestamp: get(event).trim().to_string(),
+                        timezone: get(timezone).trim().to_string(),
+                        app_package_name: get(package).trim().to_string(),
+                        interaction_type: get(interaction).trim().to_string(),
+                        application_label: get(label).trim().to_string(),
+                        study_id: get(study).trim().to_string(),
+                        participant_id: get(participant).trim().to_string(),
+                        username: get(username).trim().to_string(),
+                    });
+                    for value in &mut row_values {
+                        value.clear();
+                    }
+                    column_index = 0;
+                }
+            }
+            ReadFieldResult::End => break,
+        }
+    }
+    raw_rows
+}
+
+pub(super) fn drop_empty_timestamp(raw_rows: Vec<RawRow>) -> Vec<RawRow> {
+    raw_rows
+        .into_iter()
+        .filter(|row| !row.event_timestamp.is_empty())
+        .collect()
+}
+
+pub(super) fn detect_device_model(raw_rows: &[RawRow]) -> String {
+    if raw_rows.iter().any(|row| {
+        AMAZON_APPS
+            .iter()
+            .any(|package| row.app_package_name.contains(package))
+    }) {
+        "Amazon Fire".to_string()
+    } else {
+        "Android".to_string()
+    }
+}
+
+pub(super) fn resolve_preproc_datetime(value: &str) -> String {
+    value.to_string()
+}
+
+pub(super) fn build_canonical_rows(
+    raw_rows: Vec<RawRow>,
+    fallback_timezone: &str,
+    interaction_remap: &BTreeMap<String, String>,
+    possible_device_model: &str,
+) -> Result<Vec<Row>, String> {
+    let fallback: Tz = fallback_timezone
+        .parse()
+        .map_err(|error| format!("tz {fallback_timezone}: {error}"))?;
+    let mut strings = SharedStringPool::default();
+    raw_rows
+        .into_iter()
+        .enumerate()
+        .map(|(index, raw)| {
+            let event_timestamp_ns = parse_chronicle_timestamp_ns(&raw.event_timestamp)
+                .ok_or_else(|| format!("Invalid event_timestamp: {}", raw.event_timestamp))?;
+            let timezone = if raw.timezone.is_empty() {
+                "UTC".to_string()
+            } else {
+                raw.timezone
+            };
+            let interaction_type = interaction_remap
+                .get(&raw.interaction_type)
+                .cloned()
+                .unwrap_or_else(|| {
+                    normalize_interaction_type_local(&raw.interaction_type).to_string()
+                });
+            let mut row = Row::new(RowData {
+                source_data_rows: SourceDataRows::single(raw.source_data_row),
+                lineage_searches: empty_lineage_searches(),
+                study_id: strings.intern_owned(raw.study_id),
+                participant_id: strings.intern_owned(raw.participant_id),
+                possible_device_model: strings.intern(possible_device_model),
+                username: strings
+                    .intern_owned(raw.username.replace("Target child", "Target Child")),
+                application_label: strings.intern_owned(raw.application_label),
+                interaction_type: strings.intern_owned(interaction_type),
+                app_package_name: strings.intern_owned(raw.app_package_name),
+                event_timestamp_ns,
+                timezone: strings.intern_owned(timezone),
+                data_time_gap_hours: 0.0,
+                date: SharedString::default(),
+                day: 0,
+                weekday_mf: 0,
+                weekday_mth: 0,
+                weekday_su_th: 0,
+                hour: 0,
+                quarter: 0,
+                start_timestamp_ns: None,
+                stop_timestamp_ns: None,
+                duration_seconds: None,
+                duration_minutes: None,
+                screen_usage_end_reason: None,
+                screen_usage_end_reason_confidence: None,
+                screen_usage_stop_event_type: None,
+                screen_usage_last_activity_timestamp_ns: None,
+                screen_usage_tail_gap_seconds: None,
+                screen_usage_foreground_app_package: None,
+                screen_usage_apps_forcing_screen_open_label: None,
+                screen_usage_lock_screen_only: None,
+                any_app_usage_flags: strings.intern("[]"),
+                valid_app_new_engage_30s: 0,
+                valid_app_new_engage_custom: 0,
+                valid_app_switched_app: 0,
+                valid_app_usage_time_gap_hours: 0.0,
+                any_app_new_engage_30s: 0,
+                any_app_new_engage_custom: 0,
+                any_app_switched_app: 0,
+                any_app_usage_time_gap_hours: 0.0,
+                genre_id_scraped: None,
+                broad_app_category: None,
+                codebook_fields: empty_codebook_fields(),
+                codebook_genre_fields_cleared: false,
+                index,
+                usage_layer: None,
+            });
+            let row_timezone = row.timezone.parse().unwrap_or(fallback);
+            populate_time_columns(&mut row, row_timezone);
+            row.date = strings.intern(row.date.as_str());
+            Ok(row)
+        })
+        .collect()
+}
+
+pub(super) fn stable_sort(mut rows: Vec<Row>) -> Vec<Row> {
+    rows.sort_by(|left, right| {
+        left.event_timestamp_ns
+            .cmp(&right.event_timestamp_ns)
+            .then(left.index.cmp(&right.index))
+    });
+    rows
+}
+
+pub(super) fn collect_timezones(rows: &[Row]) -> BTreeSet<String> {
+    rows.iter().map(|row| row.timezone.to_string()).collect()
+}
+
+pub(super) fn compute_dominant_timezone(rows: &[Row]) -> String {
+    let mut counts = HashMap::<String, usize>::new();
+    let mut primary = "UTC".to_string();
+    let mut primary_count = 0;
+    for row in rows {
+        if row.timezone.is_empty() {
+            continue;
+        }
+        let count = counts.entry(row.timezone.to_string()).or_default();
+        *count += 1;
+        if *count > primary_count {
+            primary = row.timezone.to_string();
+            primary_count = *count;
+        }
+    }
+    primary
+}
+
+pub(super) struct TimezoneSelection {
+    pub rows: Vec<Row>,
+    pub target_timezone: String,
+    pub action: &'static str,
+}
+
+pub(super) fn select_timezone_strategy(
+    mut rows: Vec<Row>,
+    selected_timezone: &str,
+    handling: &str,
+    primary_timezone: &str,
+) -> Result<TimezoneSelection, String> {
+    let (target_timezone, action) = match handling {
+        "selected-filter" => {
+            if selected_timezone.trim().is_empty() {
+                return Err("selected timezone is required for selected-filter".into());
+            }
+            rows.retain(|row| row.timezone == selected_timezone);
+            if rows.is_empty() {
+                return Err(format!(
+                    "selected timezone {selected_timezone} is not present in the input; filtering would remove all rows"
+                ));
+            }
+            (selected_timezone.to_string(), "filtered_to_selected")
+        }
+        "selected-convert" => {
+            if selected_timezone.trim().is_empty() {
+                return Err("selected timezone is required for selected-convert".into());
+            }
+            (selected_timezone.to_string(), "converted_to_selected")
+        }
+        "primary-filter" => {
+            rows.retain(|row| row.timezone == primary_timezone);
+            (primary_timezone.to_string(), "filtered_to_primary")
+        }
+        "primary-convert" => (primary_timezone.to_string(), "converted_to_primary"),
+        other => return Err(format!("unsupported timezone handling: {other}")),
+    };
+    Ok(TimezoneSelection {
+        rows,
+        target_timezone,
+        action,
+    })
+}
+
+pub(super) fn restamp_rows(mut rows: Vec<Row>, target_timezone: &str) -> Result<Vec<Row>, String> {
+    let timezone: Tz = target_timezone
+        .parse()
+        .map_err(|error| format!("tz: {error}"))?;
+    let mut strings = SharedStringPool::default();
+    let target_timezone = strings.intern(target_timezone);
+    for row in &mut rows {
+        row.timezone = target_timezone.clone();
+        populate_time_columns(row, timezone);
+        row.date = strings.intern(row.date.as_str());
+    }
+    Ok(rows)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct RowCountReport {
+    pub before: u32,
+    pub after: u32,
+    pub removed: u32,
+}
+
+pub(super) fn row_count_report(before: u32, after: u32) -> RowCountReport {
+    RowCountReport {
+        before,
+        after,
+        removed: before.saturating_sub(after),
+    }
+}
+
+pub(super) fn exact_dedupe(rows: Vec<Row>, enabled: bool) -> Vec<Row> {
+    if enabled {
+        dedupe_exact_rows(rows)
+    } else {
+        rows
+    }
+}
+
+pub(super) fn nudge_duplicate_timestamps(
+    rows: Vec<Row>,
+    enabled: bool,
+    same_app_stop_types: &[String],
+    other_stop_types: &[String],
+) -> Vec<Row> {
+    if !enabled {
+        return rows;
+    }
+    unalign_duplicate_timestamps(rows, same_app_stop_types, other_stop_types)
+}
+
+pub(super) fn mark_gaps(rows: Vec<Row>) -> Vec<Row> {
+    mark_data_time_gaps(rows)
+}
+
+pub(super) fn tag_filtered_packages(rows: Vec<Row>, enabled: bool, filter_csv: &[u8]) -> Vec<Row> {
+    if enabled {
+        label_filtered_apps(rows, &parse_filter_csv(filter_csv))
+    } else {
+        rows
+    }
+}
+
+pub(super) fn compute_junk_packages(rows: &[Row]) -> BTreeSet<String> {
+    rows.iter()
+        .filter(|row| {
+            matches!(
+                row.interaction_type.as_str(),
+                FILTERED_RESUMED
+                    | FILTERED_PAUSED
+                    | FILTERED_STOPPED
+                    | "Filtered App Destroyed"
+                    | FILTERED_APP_USAGE
+                    | FILTERED_APP_BACKGROUND_USAGE
+            )
+        })
+        .map(|row| row.app_package_name.to_string())
+        .collect()
+}
+
+pub(super) fn junk_blind_fold(mut rows: Vec<Row>) -> Vec<Row> {
+    for row in &mut rows {
+        row.interaction_type = match row.interaction_type.as_str() {
+            FILTERED_RESUMED => ACTIVITY_RESUMED,
+            FILTERED_PAUSED => ACTIVITY_PAUSED,
+            FILTERED_STOPPED => ACTIVITY_STOPPED,
+            "Filtered App Destroyed" => "Activity Destroyed",
+            other => other,
+        }
+        .into();
+    }
+    rows
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct MatcherInput {
+    pub app_codes: Vec<i32>,
+    pub timestamps: Vec<i64>,
+    pub resumed: Vec<bool>,
+    pub same_stop: Vec<bool>,
+    pub other_stop: Vec<bool>,
+    pub stopped: Vec<bool>,
+    pub background: Vec<bool>,
+}
+
+pub(super) fn build_matcher_input(
+    rows: &[Row],
+    same_stop_types: &[String],
+    other_stop_types: &[String],
+    background_apps: &AHashSet<String>,
+    model_concurrent_usage: bool,
+) -> Result<MatcherInput, String> {
+    if !rows.iter().any(|row| {
+        row.interaction_type == ACTIVITY_RESUMED || row.interaction_type == ACTIVITY_PAUSED
+    }) {
+        return Err("No valid app usage data during the study period".to_string());
+    }
+    let packages = rows
+        .iter()
+        .map(|row| row.app_package_name.to_string())
+        .collect::<Vec<_>>();
+    let same_stop_types = same_stop_types
+        .iter()
+        .map(String::as_str)
+        .collect::<AHashSet<_>>();
+    let other_stop_types = other_stop_types
+        .iter()
+        .map(String::as_str)
+        .collect::<AHashSet<_>>();
+    let mut resumed = Vec::with_capacity(rows.len());
+    let mut same_stop = Vec::with_capacity(rows.len());
+    let mut other_stop = Vec::with_capacity(rows.len());
+    let mut stopped = Vec::with_capacity(rows.len());
+    let mut background = Vec::with_capacity(rows.len());
+    for row in rows {
+        let interaction = row.interaction_type.as_str();
+        let is_background = background_apps.contains(row.app_package_name.as_str());
+        resumed.push(interaction == ACTIVITY_RESUMED);
+        same_stop.push(if is_background {
+            interaction == ACTIVITY_RESUMED || interaction == ACTIVITY_STOPPED
+        } else {
+            same_stop_types.contains(interaction)
+        });
+        other_stop.push(!model_concurrent_usage && other_stop_types.contains(interaction));
+        stopped.push(!is_background && interaction == ACTIVITY_STOPPED);
+        background.push(is_background);
+    }
+    Ok(MatcherInput {
+        app_codes: factorize(&packages),
+        timestamps: rows.iter().map(|row| row.event_timestamp_ns).collect(),
+        resumed,
+        same_stop,
+        other_stop,
+        stopped,
+        background,
+    })
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct MatcherOutput {
+    pub start_indices: Vec<usize>,
+    pub stop_start_indices: Vec<usize>,
+    pub stop_event_indices: Vec<usize>,
+    pub missing_indices: Vec<usize>,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn run_matcher(
+    input: &MatcherInput,
+    allow_stop_event_reuse: bool,
+    use_activity_stopped_as_fallback: bool,
+    apply_threshold_to_fallback: bool,
+    long_duration_threshold_ns: i64,
+    proximity_interval_ns: i64,
+) -> Result<MatcherOutput, String> {
+    let result = _rust_app_usage_matcher::match_app_usage_update_indices_with_proximity_core(
+        &input.app_codes,
+        &input.timestamps,
+        &input.resumed,
+        &input.same_stop,
+        &input.other_stop,
+        &input.stopped,
+        &input.background,
+        _rust_app_usage_matcher::MatchOptions {
+            allow_stop_event_reuse,
+            use_activity_stopped_as_fallback,
+            apply_threshold_to_fallback,
+            long_duration_threshold_ns,
+        },
+        proximity_interval_ns,
+    )
+    .map_err(|error| format!("matcher: {error}"))?;
+    Ok(MatcherOutput {
+        start_indices: result.start_indices,
+        stop_start_indices: result.stop_start_indices,
+        stop_event_indices: result.stop_event_indices,
+        missing_indices: result.missing_indices,
+    })
+}
+
+pub(super) fn apply_matcher_output(
+    mut rows: Vec<Row>,
+    result: &MatcherOutput,
+    filtered_packages: &BTreeSet<String>,
+) -> Vec<Row> {
+    let mut search_suffix_digests = vec![String::new(); rows.len() + 1];
+    search_suffix_digests[rows.len()] = empty_lineage_search_suffix_digest(rows.len() as u32);
+    for index in (0..rows.len()).rev() {
+        search_suffix_digests[index] = lineage_search_suffix_digest(
+            &rows[index],
+            index,
+            Some(&search_suffix_digests[index + 1]),
+        );
+    }
+    for &start_index in &result.start_indices {
+        rows[start_index].start_timestamp_ns = Some(rows[start_index].event_timestamp_ns);
+    }
+    for (position, &start_index) in result.stop_start_indices.iter().enumerate() {
+        let stop_index = result.stop_event_indices[position];
+        let lower = start_index.min(stop_index);
+        let upper = start_index.max(stop_index);
+        let stop_source_rows = rows[stop_index].source_data_rows.clone();
+        rows[start_index].source_data_rows.merge(&stop_source_rows);
+        let search_start_event_index = (lower + 1) as u32;
+        let search_end_event_index_exclusive = (upper + 1) as u32;
+        let start_participant_id = rows[start_index].participant_id.to_string();
+        Arc::make_mut(&mut rows[start_index].lineage_searches).push(LineageSearchEvidence {
+            protocol_version: "chronicle-lineage-search/v1".to_string(),
+            reason: "selected-qualifying-stop".to_string(),
+            index_space: "pipeline-event-order".to_string(),
+            start_participant_id,
+            start_event_index: search_start_event_index,
+            end_event_index_exclusive: search_end_event_index_exclusive,
+            candidate_event_count: search_end_event_index_exclusive
+                .saturating_sub(search_start_event_index),
+            candidate_chain_digest: lineage_search_range_digest(
+                &search_suffix_digests,
+                search_start_event_index,
+                search_end_event_index_exclusive,
+            ),
+        });
+        rows[start_index].stop_timestamp_ns = Some(rows[stop_index].event_timestamp_ns);
+    }
+    let missing_indices = result
+        .missing_indices
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let search_end_event_index_exclusive = rows.len() as u32;
+    for (index, row) in rows.iter_mut().enumerate() {
+        if !missing_indices.contains(&index) {
+            continue;
+        }
+        let search_start_event_index = (index + 1) as u32;
+        let start_participant_id = row.participant_id.to_string();
+        Arc::make_mut(&mut row.lineage_searches).push(LineageSearchEvidence {
+            protocol_version: "chronicle-lineage-search/v1".to_string(),
+            reason: "no-qualifying-stop".to_string(),
+            index_space: "pipeline-event-order".to_string(),
+            start_participant_id,
+            start_event_index: search_start_event_index,
+            end_event_index_exclusive: search_end_event_index_exclusive,
+            candidate_event_count: search_end_event_index_exclusive
+                .saturating_sub(search_start_event_index),
+            candidate_chain_digest: lineage_search_range_digest(
+                &search_suffix_digests,
+                search_start_event_index,
+                search_end_event_index_exclusive,
+            ),
+        });
+        row.interaction_type = END_OF_USAGE_MISSING.into();
+        row.stop_timestamp_ns = None;
+        row.duration_seconds = None;
+        row.duration_minutes = None;
+        if filtered_packages.contains(row.app_package_name.as_str()) {
+            row.start_timestamp_ns = None;
+        }
+    }
+    rows
+}
+
+pub(super) fn relabel_usage_with_floor(
+    rows: Vec<Row>,
+    filtered_packages: &BTreeSet<String>,
+    minimum_usage_duration: f64,
+) -> Vec<Row> {
+    rows.into_iter()
+        .filter(|row| row.interaction_type != ACTIVITY_PAUSED)
+        .filter(|row| {
+            row.interaction_type != ACTIVITY_RESUMED
+                || (row.start_timestamp_ns.is_some() && row.stop_timestamp_ns.is_some())
+        })
+        .map(|mut row| {
+            if row.interaction_type == ACTIVITY_RESUMED {
+                let is_filtered = filtered_packages.contains(row.app_package_name.as_str());
+                row.interaction_type = if is_filtered {
+                    FILTERED_APP_USAGE
+                } else {
+                    APP_USAGE
+                }
+                .into();
+                if is_filtered {
+                    row.start_timestamp_ns = None;
+                    row.stop_timestamp_ns = None;
+                    row.duration_seconds = None;
+                    row.duration_minutes = None;
+                } else {
+                    let start = row.start_timestamp_ns.expect("paired usage start");
+                    let stop = row.stop_timestamp_ns.expect("paired usage stop");
+                    let duration_seconds = (stop - start) as f64 / 1_000_000_000.0;
+                    if minimum_usage_duration > 0.0 && duration_seconds < minimum_usage_duration {
+                        row.duration_seconds = None;
+                        row.duration_minutes = None;
+                    } else {
+                        row.duration_seconds = Some(duration_seconds);
+                        row.duration_minutes = Some(duration_seconds / 60.0);
+                    }
+                }
+            }
+            row
+        })
+        .collect()
+}
+
+pub(super) fn junk_downstream_mark(
+    mut rows: Vec<Row>,
+    filtered_packages: &BTreeSet<String>,
+    background_apps: &AHashSet<String>,
+) -> Vec<Row> {
+    for row in &mut rows {
+        if !filtered_packages.contains(row.app_package_name.as_str()) {
+            continue;
+        }
+        if row.interaction_type == APP_USAGE
+            && background_apps.contains(row.app_package_name.as_str())
+        {
+            row.interaction_type = FILTERED_APP_BACKGROUND_USAGE.into();
+            continue;
+        }
+        if row.interaction_type == APP_USAGE {
+            row.interaction_type = FILTERED_APP_USAGE.into();
+            row.duration_seconds = None;
+            row.duration_minutes = None;
+            continue;
+        }
+        if row.interaction_type == ACTIVITY_STOPPED {
+            row.interaction_type = FILTERED_STOPPED.into();
+        }
+        row.start_timestamp_ns = None;
+        row.stop_timestamp_ns = None;
+        row.duration_seconds = None;
+        row.duration_minutes = None;
+    }
+    rows
+}
+
+pub(super) fn sort_episodes(mut rows: Vec<Row>) -> Vec<Row> {
+    rows.sort_by(|left, right| {
+        left.event_timestamp_ns
+            .cmp(&right.event_timestamp_ns)
+            .then(left.index.cmp(&right.index))
+    });
+    rows
+}
+
+pub(super) fn split_concurrent(
+    rows: Vec<Row>,
+    filtered_packages: &BTreeSet<String>,
+    background_apps: &AHashSet<String>,
+    model_concurrent_usage: bool,
+    minimum_usage_duration: f64,
+    apply_minimum_to_subintervals: bool,
+) -> Result<Vec<Row>, String> {
+    if !model_concurrent_usage && background_apps.is_empty() {
+        return Ok(sort_episodes(rows));
+    }
+    let app_usage_indices = rows
+        .iter()
+        .enumerate()
+        .filter(|(_, row)| {
+            row.interaction_type == APP_USAGE
+                && !filtered_packages.contains(row.app_package_name.as_str())
+        })
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    let starts = app_usage_indices
+        .iter()
+        .map(|&index| rows[index].start_timestamp_ns.unwrap_or(0))
+        .collect::<Vec<_>>();
+    let stops = app_usage_indices
+        .iter()
+        .map(|&index| rows[index].stop_timestamp_ns.unwrap_or(0))
+        .collect::<Vec<_>>();
+    let layered = split_overlapping_sessions(&starts, &stops)
+        .map_err(|error| format!("split_overlapping_sessions: {error}"))?;
+    let mut expanded = rows
+        .iter()
+        .filter(|row| {
+            row.interaction_type != APP_USAGE
+                || filtered_packages.contains(row.app_package_name.as_str())
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    for layered_session in &layered {
+        let source_index = app_usage_indices[layered_session.session_index];
+        let mut row = rows[source_index].clone();
+        let duration_seconds =
+            (layered_session.stop_ns - layered_session.start_ns) as f64 / 1_000_000_000.0;
+        row.start_timestamp_ns = Some(layered_session.start_ns);
+        row.stop_timestamp_ns = Some(layered_session.stop_ns);
+        if apply_minimum_to_subintervals
+            && minimum_usage_duration > 0.0
+            && duration_seconds < minimum_usage_duration
+        {
+            row.duration_seconds = None;
+            row.duration_minutes = None;
+        } else {
+            row.duration_seconds = Some(duration_seconds);
+            row.duration_minutes = Some(duration_seconds / 60.0);
+        }
+        row.usage_layer = Some(match layered_session.layer {
+            UsageLayer::Primary => "primary".into(),
+            UsageLayer::Secondary => "secondary".into(),
+        });
+        expanded.push(row);
+    }
+    Ok(sort_episodes(expanded))
+}
+
+pub(super) fn codebook_join(rows: Vec<Row>, enabled: bool, codebook_csv: &[u8]) -> Vec<Row> {
+    let codebook = if enabled {
+        parse_codebook_csv(codebook_csv)
+    } else {
+        HashMap::new()
+    };
+    let mut rows = rows;
+    join_codebook(&mut rows, enabled, &codebook);
+    rows
+}
+
+pub(super) fn derive_broad_category_step(mut rows: Vec<Row>, enabled: bool) -> Vec<Row> {
+    derive_broad_category(&mut rows, enabled);
+    rows
+}
+
+pub(super) fn collapse_genre_step(mut rows: Vec<Row>, enabled: bool) -> Vec<Row> {
+    collapse_genre(&mut rows, enabled);
+    rows
+}
+
+pub(super) fn engagement_walk(mut rows: Vec<Row>, custom_app_engagement_duration: f64) -> Vec<Row> {
+    add_app_usage_detail_columns(&mut rows, custom_app_engagement_duration);
+    rows
+}
+
+pub(super) fn flag_and_retain(
+    mut rows: Vec<Row>,
+    long_data_time_gap_thresholds: &[f64],
+    long_usage_duration_thresholds: &[f64],
+) -> Vec<Row> {
+    mark_app_usage_flags(
+        &mut rows,
+        long_data_time_gap_thresholds,
+        long_usage_duration_thresholds,
+    );
+    rows
+}
+
+pub(super) fn blank_junk_timing(mut rows: Vec<Row>) -> Vec<Row> {
+    clear_filtered_usage_timing(&mut rows);
+    rows
+}
+
+pub(super) fn drop_selected_types(
+    rows: Vec<Row>,
+    interaction_types_to_remove: &[String],
+    long_data_time_gap_thresholds: &[f64],
+) -> Vec<Row> {
+    if interaction_types_to_remove.is_empty() {
+        return rows;
+    }
+    let threshold = long_data_time_gap_thresholds
+        .iter()
+        .copied()
+        .fold(f64::INFINITY, f64::min);
+    let remove_set = interaction_types_to_remove
+        .iter()
+        .map(String::as_str)
+        .collect::<AHashSet<_>>();
+    rows.into_iter()
+        .filter(|row| {
+            !remove_set.contains(row.interaction_type.as_str())
+                || row.data_time_gap_hours >= threshold
+        })
+        .collect()
+}
+
+pub(super) fn drop_zero_duration(rows: Vec<Row>, enabled: bool) -> Vec<Row> {
+    if !enabled {
+        return rows;
+    }
+    rows.into_iter()
+        .filter(|row| {
+            row.interaction_type != APP_USAGE
+                || row.duration_seconds.is_none_or(|duration| duration > 0.0)
+        })
+        .collect()
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub(super) struct CreditPartition {
+    pub sessions: Vec<Row>,
+    pub rest: Vec<Row>,
+    pub session_rows_digest: String,
+    pub rest_rows_digest: String,
+}
+
+pub(super) fn partition_credit_sessions(
+    app_rows: &[Row],
+    input_row_parts: Option<&[RowCheckpointParts]>,
+) -> Result<CreditPartition, String> {
+    let session_count = app_rows.iter().filter(|row| is_credit_session(row)).count();
+    let rest_count = app_rows.len() - session_count;
+    let (session_rows_digest, rest_rows_digest) = if let Some(parts) = input_row_parts {
+        if parts.len() != app_rows.len() {
+            return Err(format!(
+                "screen-credit checkpoint row-part count drift: {} parts for {} rows",
+                parts.len(),
+                app_rows.len(),
+            ));
+        }
+        (
+            row_parts_sequence_digest(
+                session_count,
+                app_rows
+                    .iter()
+                    .zip(parts)
+                    .filter_map(|(row, parts)| is_credit_session(row).then_some(parts)),
+            ),
+            row_parts_sequence_digest(
+                rest_count,
+                app_rows
+                    .iter()
+                    .zip(parts)
+                    .filter_map(|(row, parts)| (!is_credit_session(row)).then_some(parts)),
+            ),
+        )
+    } else {
+        let sessions = app_rows
+            .iter()
+            .filter(|row| is_credit_session(row))
+            .collect::<Vec<_>>();
+        let rest = app_rows
+            .iter()
+            .filter(|row| !is_credit_session(row))
+            .collect::<Vec<_>>();
+        (
+            row_reference_sequence_digest(&sessions),
+            row_reference_sequence_digest(&rest),
+        )
+    };
+    Ok(CreditPartition {
+        sessions: app_rows
+            .iter()
+            .filter(|row| is_credit_session(row))
+            .cloned()
+            .collect(),
+        rest: app_rows
+            .iter()
+            .filter(|row| !is_credit_session(row))
+            .cloned()
+            .collect(),
+        session_rows_digest,
+        rest_rows_digest,
+    })
+}
+
+pub(super) fn build_liveness_substrate(
+    raw_events: &[Row],
+) -> Result<ScreenCreditSubstrate, String> {
+    build_screen_credit_substrate(raw_events)
+}
+
+pub(super) fn screen_incapable_participants(
+    partition: &CreditPartition,
+    substrate: &ScreenCreditSubstrate,
+) -> Vec<String> {
+    let mut screen_incapable = Vec::new();
+    let mut seen = AHashSet::new();
+    for row in &partition.sessions {
+        let incapable = substrate
+            .points
+            .get(row.participant_id.as_str())
+            .is_none_or(Vec::is_empty)
+            || !substrate.capable.contains(row.participant_id.as_str());
+        if incapable && seen.insert(row.participant_id.to_string()) {
+            screen_incapable.push(row.participant_id.to_string());
+        }
+    }
+    screen_incapable
+}
+
+pub(super) type DayApps = BTreeMap<(String, String), BTreeSet<String>>;
+
+pub(super) fn count_day_apps(partition: &CreditPartition) -> DayApps {
+    let mut day_apps = DayApps::new();
+    for row in &partition.sessions {
+        day_apps
+            .entry((row.participant_id.to_string(), row.date.to_string()))
+            .or_default()
+            .insert(row.app_package_name.to_string());
+    }
+    day_apps
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn credit_sessions(
+    partition: &CreditPartition,
+    substrate: &ScreenCreditSubstrate,
+    day_apps: &DayApps,
+    credited_session_cap_minutes: f64,
+    device_liveness_gap_tolerance_minutes: f64,
+    auto_lock_bridge_seconds: f64,
+    no_witness_min_day_apps: u32,
+) -> Vec<CreditDecision> {
+    let tolerance_ns =
+        (device_liveness_gap_tolerance_minutes * 60.0).round() as i64 * 1_000_000_000;
+    let cap_ns = (credited_session_cap_minutes * 60.0).round() as i64 * 1_000_000_000;
+    let auto_lock_ns = auto_lock_bridge_seconds.round() as i64 * 1_000_000_000;
+    let alive_spans = substrate
+        .all_timestamps
+        .iter()
+        .map(|(participant_id, timestamps)| {
+            let boots = substrate
+                .boots
+                .get(participant_id)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            (
+                participant_id.as_str(),
+                build_alive_spans(timestamps, tolerance_ns, boots),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    partition
+        .sessions
+        .iter()
+        .map(|row| {
+            let (Some(start), Some(raw_end)) = (row.start_timestamp_ns, row.stop_timestamp_ns)
+            else {
+                return CreditDecision::Passthrough;
+            };
+            if raw_end <= start {
+                return CreditDecision::Passthrough;
+            }
+            let end = raw_end.min(start.saturating_add(cap_ns));
+            let points = substrate
+                .points
+                .get(row.participant_id.as_str())
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            let (intervals, no_witness_fallback) = if points.is_empty()
+                || !substrate.capable.contains(row.participant_id.as_str())
+            {
+                (vec![(start, end)], false)
+            } else {
+                let participant_alive_spans = alive_spans
+                    .get(row.participant_id.as_str())
+                    .map(Vec::as_slice)
+                    .unwrap_or_default();
+                let alive = clip_alive_spans(participant_alive_spans, start, end);
+                let first_in_window = points.partition_point(|point| point.timestamp_ns < start);
+                let has_point = points
+                    .get(first_in_window)
+                    .is_some_and(|point| point.timestamp_ns <= end);
+                if screen_state_at(points, start).is_none() && !has_point {
+                    let app_count = day_apps
+                        .get(&(row.participant_id.to_string(), row.date.to_string()))
+                        .map(BTreeSet::len)
+                        .unwrap_or_default();
+                    if app_count >= no_witness_min_day_apps as usize {
+                        (alive, true)
+                    } else {
+                        (Vec::new(), false)
+                    }
+                } else {
+                    let screen = creditable_intervals(points, start, end, auto_lock_ns);
+                    (intersect_intervals(&screen, &alive), false)
+                }
+            };
+            CreditDecision::Intervals {
+                intervals,
+                session_capped: end < raw_end,
+                no_witness_fallback,
+            }
+        })
+        .collect()
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub(super) struct CreditEmission {
+    pub credited: Vec<Row>,
+    pub counts: CreditEmissionCounts,
+    pub credited_rows_digest: String,
+}
+
+pub(super) fn emit_credited_rows(
+    partition: &CreditPartition,
+    decisions: &[CreditDecision],
+    substrate: &ScreenCreditSubstrate,
+    device_liveness_gap_tolerance_minutes: f64,
+) -> CreditEmission {
+    let tolerance_ns =
+        (device_liveness_gap_tolerance_minutes * 60.0).round() as i64 * 1_000_000_000;
+    let mut credited = Vec::new();
+    let mut counts = CreditEmissionCounts {
+        truncated_sessions: 0,
+        no_witness_fallbacks: 0,
+        fully_dead_sessions: 0,
+    };
+    for (row, decision) in partition.sessions.iter().zip(decisions) {
+        let intervals = match decision {
+            CreditDecision::Passthrough => {
+                credited.push(row.clone());
+                continue;
+            }
+            CreditDecision::Intervals {
+                intervals,
+                session_capped,
+                no_witness_fallback,
+            } => {
+                if *session_capped {
+                    counts.truncated_sessions += 1;
+                }
+                if *no_witness_fallback {
+                    counts.no_witness_fallbacks += 1;
+                }
+                intervals
+            }
+        };
+        let before = credited.len();
+        let mut original_row = Some(row.clone());
+        for (interval_index, (interval_start, interval_end)) in intervals.iter().enumerate() {
+            if interval_end <= interval_start {
+                continue;
+            }
+            let mut credited_row = if interval_index + 1 == intervals.len() {
+                original_row.take().expect("credit source row is available")
+            } else {
+                original_row
+                    .as_ref()
+                    .expect("credit source row is available")
+                    .clone()
+            };
+            let (contributors, search) = credit_lineage_contributors(
+                substrate,
+                &credited_row.participant_id,
+                *interval_start,
+                *interval_end,
+                tolerance_ns,
+            );
+            credited_row.source_data_rows.merge(&contributors);
+            if let Some(search) = search {
+                Arc::make_mut(&mut credited_row.lineage_searches).push(search);
+            }
+            let duration_seconds = (*interval_end - *interval_start) as f64 / 1_000_000_000.0;
+            credited_row.start_timestamp_ns = Some(*interval_start);
+            credited_row.stop_timestamp_ns = Some(*interval_end);
+            credited_row.event_timestamp_ns = *interval_start;
+            credited_row.duration_seconds = Some(duration_seconds);
+            credited_row.duration_minutes = Some(duration_seconds * (1.0 / 60.0));
+            let timezone: Tz = credited_row.timezone.parse().unwrap_or(chrono_tz::UTC);
+            populate_time_columns(&mut credited_row, timezone);
+            credited.push(credited_row);
+        }
+        if credited.len() == before {
+            counts.fully_dead_sessions += 1;
+        }
+    }
+    let references = credited.iter().collect::<Vec<_>>();
+    CreditEmission {
+        credited_rows_digest: row_reference_sequence_digest(&references),
+        credited,
+        counts,
+    }
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub(super) struct CreditResult {
+    pub rows: Vec<Row>,
+    pub credited_rows_digest: String,
+    pub rest_rows_digest: String,
+    pub report: CreditReportOwned,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct CreditReportOwned {
+    pub sessions: usize,
+    pub credited_rows: usize,
+    pub credited_minutes: f64,
+    pub raw_session_minutes: f64,
+    pub truncated_sessions: usize,
+    pub fully_dead_sessions: usize,
+    pub no_witness_fallbacks: usize,
+    pub screen_incapable_participants: Vec<String>,
+}
+
+pub(super) fn assemble_credit_result(
+    partition: &CreditPartition,
+    screen_incapable: &[String],
+    emission: &CreditEmission,
+) -> CreditResult {
+    let mut rows = emission.credited.clone();
+    rows.extend(partition.rest.iter().cloned());
+    CreditResult {
+        rows,
+        credited_rows_digest: emission.credited_rows_digest.clone(),
+        rest_rows_digest: partition.rest_rows_digest.clone(),
+        report: CreditReportOwned {
+            sessions: partition.sessions.len(),
+            credited_rows: emission.credited.len(),
+            credited_minutes: emission
+                .credited
+                .iter()
+                .map(|row| row.duration_minutes.unwrap_or(0.0))
+                .sum(),
+            raw_session_minutes: partition
+                .sessions
+                .iter()
+                .map(|row| row.duration_minutes.unwrap_or(0.0))
+                .sum(),
+            truncated_sessions: emission.counts.truncated_sessions,
+            fully_dead_sessions: emission.counts.fully_dead_sessions,
+            no_witness_fallbacks: emission.counts.no_witness_fallbacks,
+            screen_incapable_participants: screen_incapable.to_vec(),
+        },
+    }
+}
+
+pub(super) fn resolve_windows(
+    rows: &[Row],
+    study_dates_csv: &[u8],
+) -> Result<Vec<ResolvedParticipantWindow>, String> {
+    let windows = if study_dates_csv.is_empty() {
+        Vec::new()
+    } else {
+        parse_study_windows(study_dates_csv)?
+    };
+    Ok(resolve_participant_windows(rows, &windows))
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub(super) struct WindowedRows {
+    pub rows: Vec<Row>,
+    pub dropped_rows: usize,
+    pub participants_without_window: Vec<String>,
+    pub applied: bool,
+}
+
+pub(super) fn filter_to_window(
+    rows: Vec<Row>,
+    resolved: &[ResolvedParticipantWindow],
+    enabled: bool,
+    study_dates_csv: &[u8],
+) -> Result<WindowedRows, String> {
+    if enabled {
+        if study_dates_csv.is_empty() {
+            return Err(
+                "Study dates file is required when study-window filtering is enabled".into(),
+            );
+        }
+        let (rows, dropped_rows, participants_without_window) = apply_study_window(rows, resolved);
+        Ok(WindowedRows {
+            rows,
+            dropped_rows,
+            participants_without_window,
+            applied: true,
+        })
+    } else {
+        let mut participants_without_window = resolved
+            .iter()
+            .filter_map(|entry| {
+                entry
+                    .window
+                    .is_none()
+                    .then_some(entry.participant_id.clone())
+            })
+            .collect::<Vec<_>>();
+        participants_without_window.sort();
+        Ok(WindowedRows {
+            rows,
+            dropped_rows: 0,
+            participants_without_window,
+            applied: false,
+        })
+    }
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub(super) enum SharingResolutionValue {
+    Disabled,
+    Enabled(SharingResolution),
+}
+
+pub(super) fn resolve_sharing(
+    rows: &[Row],
+    enabled: bool,
+    device_sharing_csv: &[u8],
+) -> Result<SharingResolutionValue, String> {
+    if !enabled {
+        return Ok(SharingResolutionValue::Disabled);
+    }
+    if device_sharing_csv.is_empty() {
+        return Err("Device sharing file is required when person attribution is enabled".into());
+    }
+    let sharing = parse_device_sharing(device_sharing_csv)?;
+    let mut statuses = BTreeMap::new();
+    for participant_id in rows.iter().map(|row| &row.participant_id) {
+        if statuses.contains_key(participant_id.as_str()) {
+            continue;
+        }
+        statuses.insert(
+            participant_id.to_string(),
+            sharing_status_for(participant_id.as_str(), &sharing)?,
+        );
+    }
+    Ok(SharingResolutionValue::Enabled(SharingResolution {
+        shared_participants: statuses
+            .iter()
+            .filter_map(|(participant_id, status)| {
+                (*status == SharingStatus::Shared).then_some(participant_id.clone())
+            })
+            .collect(),
+        non_shared_participants: statuses
+            .iter()
+            .filter_map(|(participant_id, status)| {
+                (*status == SharingStatus::NonShared).then_some(participant_id.clone())
+            })
+            .collect(),
+        status_by_participant: statuses,
+    }))
+}
+
+pub(super) fn survey_lookup(
+    enabled: bool,
+    survey_attribution_csv: &[u8],
+) -> Result<SurveyLookup, String> {
+    if enabled {
+        parse_survey_lookup(survey_attribution_csv)
+    } else {
+        Ok(BTreeMap::new())
+    }
+}
+
+pub(super) type SurveyLookup = BTreeMap<(String, i64), String>;
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub(super) struct AttributedRows {
+    pub rows: Vec<Row>,
+    pub report: Option<AttributionReport>,
+    pub shared_participants: BTreeSet<String>,
+}
+
+pub(super) fn attribute_rows(
+    rows: Vec<Row>,
+    resolution: &SharingResolutionValue,
+    survey: &SurveyLookup,
+) -> Result<AttributedRows, String> {
+    match resolution {
+        SharingResolutionValue::Disabled => Ok(AttributedRows {
+            rows,
+            report: None,
+            shared_participants: BTreeSet::new(),
+        }),
+        SharingResolutionValue::Enabled(resolution) => {
+            let shared_participants = resolution
+                .shared_participants
+                .iter()
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            let (rows, report) = attribute_person(rows, resolution, survey)?;
+            Ok(AttributedRows {
+                rows,
+                report: Some(report),
+                shared_participants,
+            })
+        }
+    }
+}
+
+pub(super) fn inject_placeholders(rows: Vec<Row>, raw_rows: &[Row], enabled: bool) -> Vec<Row> {
+    if enabled {
+        add_no_activity_placeholder_rows(rows, raw_rows)
+    } else {
+        rows
+    }
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub(super) struct CoverageOutput {
+    pub csv_bytes: Vec<u8>,
+    pub report: DayCoverageCheckpoint,
+}
+
+pub(super) fn build_coverage(
+    usage_rows: &[Row],
+    raw_dates: &BTreeMap<String, BTreeSet<String>>,
+    study_dates_csv: &[u8],
+) -> Result<CoverageOutput, String> {
+    let windows = if study_dates_csv.is_empty() {
+        Vec::new()
+    } else {
+        parse_study_windows(study_dates_csv)?
+    };
+    let mut usage_dates: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for row in usage_rows {
+        if row.interaction_type == APP_USAGE
+            && row.duration_minutes.is_some_and(|value| value > 0.0)
+        {
+            usage_dates
+                .entry(row.participant_id.to_string())
+                .or_default()
+                .insert(row.date.to_string());
+        }
+    }
+    let participants = raw_dates
+        .keys()
+        .chain(usage_dates.keys())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let mut lines = vec!["participant_id,date,status".to_string()];
+    let mut coverage = Vec::new();
+    for participant_id in participants {
+        let raw = raw_dates.get(&participant_id).cloned().unwrap_or_default();
+        let used = usage_dates
+            .get(&participant_id)
+            .cloned()
+            .unwrap_or_default();
+        let all_dates = raw.union(&used).cloned().collect::<BTreeSet<_>>();
+        let window = if windows.is_empty() {
+            None
+        } else {
+            window_for(&participant_id, &windows)
+        };
+        let spine = if let Some(window) = window {
+            inclusive_dates(&window.start_date, &window.end_date)?
+        } else if let (Some(start), Some(end)) = (all_dates.first(), all_dates.last()) {
+            inclusive_dates(start, end)?
+        } else {
+            Vec::new()
+        };
+        for date in &spine {
+            let status = if used.contains(date) {
+                "usage"
+            } else if raw.contains(date) {
+                "no_activity"
+            } else {
+                "no_data"
+            };
+            lines.push(format!(
+                "{},{date},{status}",
+                csv_escape_value(&participant_id)
+            ));
+            coverage.push(CoverageDayCheckpoint {
+                participant_id: participant_id.clone(),
+                date: date.clone(),
+                status: status.to_string(),
+            });
+        }
+        for date in all_dates {
+            if window.is_some_and(|window| date < window.start_date || date > window.end_date) {
+                continue;
+            }
+            if !spine.contains(&date) {
+                return Err(format!(
+                    "Day coverage: {participant_id} has data on {date} but the day spine does not cover it."
+                ));
+            }
+        }
+    }
+    let report = DayCoverageCheckpoint {
+        usage_days: coverage.iter().filter(|day| day.status == "usage").count(),
+        no_activity_days: coverage
+            .iter()
+            .filter(|day| day.status == "no_activity")
+            .count(),
+        no_data_days: coverage
+            .iter()
+            .filter(|day| day.status == "no_data")
+            .count(),
+        coverage,
+    };
+    Ok(CoverageOutput {
+        csv_bytes: lines.join("\n").into_bytes(),
+        report,
+    })
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct AttributionMinutes {
+    pub participants_seen: BTreeMap<String, BTreeSet<String>>,
+    pub buckets: BTreeMap<(String, String), (f64, f64)>,
+}
+
+pub(super) fn accumulate_minutes(rows: &[Row]) -> AttributionMinutes {
+    let mut participants_seen = BTreeMap::<String, BTreeSet<String>>::new();
+    let mut buckets = BTreeMap::<(String, String), (f64, f64)>::new();
+    for row in rows {
+        participants_seen
+            .entry(row.participant_id.to_string())
+            .or_default()
+            .insert(row.date.to_string());
+        if row.interaction_type != APP_USAGE && row.interaction_type != NON_TARGET_CHILD_APP_USAGE {
+            continue;
+        }
+        let minutes = row.duration_minutes.unwrap_or(0.0);
+        let bucket = buckets
+            .entry((row.participant_id.to_string(), row.date.to_string()))
+            .or_default();
+        if is_null_username(&row.username) || row.username == "None" {
+            bucket.1 += minutes;
+        } else {
+            bucket.0 += minutes;
+        }
+    }
+    AttributionMinutes {
+        participants_seen,
+        buckets,
+    }
+}
+
+pub(super) fn score_attribution_days(
+    attribution: &AttributionMinutes,
+    shared_participants: &BTreeSet<String>,
+    threshold_percent: f64,
+) -> ComplianceResultCheckpoint {
+    let mut days = Vec::new();
+    for (participant_id, dates) in &attribution.participants_seen {
+        let shared = shared_participants.contains(participant_id);
+        for date in dates {
+            let (known, unknown) = attribution
+                .buckets
+                .get(&(participant_id.clone(), date.clone()))
+                .copied()
+                .unwrap_or_default();
+            let total = known + unknown;
+            let compliance = if !shared || total <= 0.0 {
+                100.0
+            } else {
+                ((known / total) * 10_000.0).round() / 100.0
+            };
+            days.push(ComplianceDayCheckpoint {
+                participant_id: participant_id.clone(),
+                date: date.clone(),
+                sharing_status: if shared { "Shared" } else { "Non-Shared" }.to_string(),
+                known_minutes: (known * 100.0).round() / 100.0,
+                unknown_minutes: (unknown * 100.0).round() / 100.0,
+                compliance_percent: compliance,
+                zero_real_usage: total <= 0.0,
+                is_valid: compliance >= threshold_percent,
+            });
+        }
+    }
+    ComplianceResultCheckpoint {
+        valid_days: days.iter().filter(|day| day.is_valid).count(),
+        invalid_days: days.iter().filter(|day| !day.is_valid).count(),
+        zero_usage_days: days.iter().filter(|day| day.zero_real_usage).count(),
+        days,
+    }
+}
+
+pub(super) fn compliance_csv(
+    result: &ComplianceResultCheckpoint,
+    enrolled_devices_csv: &[u8],
+) -> Result<Vec<u8>, String> {
+    let enrolled_devices = parse_enrolled_devices(enrolled_devices_csv)?;
+    let mut lines = vec![
+        "participant_id,date,sharing_status,known_minutes,unknown_minutes,compliance_percent,zero_real_usage,is_valid,expected_device_count".to_string(),
+    ];
+    for day in &result.days {
+        let expected = enrolled_devices
+            .get(&day.participant_id)
+            .map(u32::to_string)
+            .unwrap_or_default();
+        lines.push(format!(
+            "{},{date},{},{},{},{},{},{},{}",
+            csv_escape_value(&day.participant_id),
+            day.sharing_status,
+            js_rounded_number(day.known_minutes),
+            js_rounded_number(day.unknown_minutes),
+            js_rounded_number(day.compliance_percent),
+            u8::from(day.zero_real_usage),
+            u8::from(day.is_valid),
+            expected,
+            date = day.date,
+        ));
+    }
+    Ok(lines.join("\n").into_bytes())
+}
+
+pub(super) fn collect_keyguard_timestamps(rows: &[Row]) -> Vec<i64> {
+    let lock_events = LOCK_SCREEN_EVENTS.iter().copied().collect::<AHashSet<_>>();
+    let mut timestamps = rows
+        .iter()
+        .filter(|row| lock_events.contains(row.interaction_type.as_str()))
+        .map(|row| row.event_timestamp_ns)
+        .collect::<Vec<_>>();
+    timestamps.sort_unstable();
+    timestamps
+}
+
+pub(super) fn walk_screen_state_machine(rows: &[Row]) -> Vec<ScreenSessionClose> {
+    let start_events = SCREEN_START_EVENTS.iter().copied().collect::<AHashSet<_>>();
+    let stop_events = SCREEN_STOP_EVENTS.iter().copied().collect::<AHashSet<_>>();
+    let lock_events = LOCK_SCREEN_EVENTS.iter().copied().collect::<AHashSet<_>>();
+    let unlock_events = UNLOCK_EVENTS.iter().copied().collect::<AHashSet<_>>();
+    let foreground_events = FOREGROUND_EVENTS.iter().copied().collect::<AHashSet<_>>();
+    let meaningful_events = MEANINGFUL_ACTIVITY_EVENTS
+        .iter()
+        .copied()
+        .collect::<AHashSet<_>>();
+    let mut closes = Vec::new();
+    let mut state: Option<ScreenState> = None;
+    for (index, row) in rows.iter().enumerate() {
+        let interaction = row.interaction_type.as_str();
+        let package = (!row.app_package_name.is_empty()).then(|| row.app_package_name.clone());
+        if start_events.contains(interaction) {
+            if let Some(current) = state.as_mut() {
+                current.source_data_rows.merge(&row.source_data_rows);
+            } else {
+                state = Some(ScreenState {
+                    start_index: index,
+                    start_timestamp_ns: row.event_timestamp_ns,
+                    start_timezone: row.timezone.clone(),
+                    lock_screen_seen: lock_events.contains(interaction),
+                    unlocked_seen: false,
+                    foreground_pkg: None,
+                    last_meaningful_ts_ns: None,
+                    last_meaningful_pkg: None,
+                    source_data_rows: row.source_data_rows.clone(),
+                });
+            }
+            continue;
+        }
+        let Some(current) = state.as_mut() else {
+            continue;
+        };
+        current.source_data_rows.merge(&row.source_data_rows);
+        if lock_events.contains(interaction) {
+            current.lock_screen_seen = true;
+        }
+        if unlock_events.contains(interaction) {
+            current.unlocked_seen = true;
+        }
+        if foreground_events.contains(interaction) {
+            current.foreground_pkg = package.clone();
+        }
+        if meaningful_events.contains(interaction) {
+            current.last_meaningful_ts_ns = Some(row.event_timestamp_ns);
+            current.last_meaningful_pkg = package.or_else(|| current.foreground_pkg.clone());
+        }
+        if stop_events.contains(interaction) {
+            closes.push(ScreenSessionClose {
+                state: current.clone(),
+                stop_timestamp_ns: Some(row.event_timestamp_ns),
+                stop_event_type: Some(interaction.into()),
+            });
+            state = None;
+        }
+    }
+    if let Some(state) = state {
+        closes.push(ScreenSessionClose {
+            state,
+            stop_timestamp_ns: None,
+            stop_event_type: None,
+        });
+    }
+    closes
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct ScreenClassificationSettings {
+    pub auto_lock_timeout_seconds: f64,
+    pub auto_lock_tolerance_seconds: f64,
+    pub manual_lock_max_tail_seconds: f64,
+    pub keyguard_near_stop_seconds: f64,
+}
+
+pub(super) fn build_classified_sessions(
+    rows: &[Row],
+    closes: &[ScreenSessionClose],
+    keyguard_timestamps: &[i64],
+    apps_forcing: &HashMap<String, String>,
+    settings: ScreenClassificationSettings,
+) -> Vec<Row> {
+    let mut sessions = Vec::with_capacity(closes.len());
+    for close in closes {
+        let state = &close.state;
+        let start_row = &rows[state.start_index];
+        let mut session = start_row.clone();
+        session.source_data_rows = state.source_data_rows.clone();
+        session.interaction_type = SCREEN_USAGE.into();
+        session.start_timestamp_ns = Some(state.start_timestamp_ns);
+        session.stop_timestamp_ns = close.stop_timestamp_ns;
+        session.duration_seconds = close
+            .stop_timestamp_ns
+            .map(|stop| (stop - state.start_timestamp_ns) as f64 / 1e9);
+        session.duration_minutes = session.duration_seconds.map(|seconds| seconds / 60.0);
+        session.application_label = SharedString::default();
+        session.app_package_name = state.foreground_pkg.clone().unwrap_or_default();
+        session.screen_usage_foreground_app_package = state.foreground_pkg.clone();
+        session.screen_usage_end_reason = None;
+        session.screen_usage_end_reason_confidence = None;
+        session.screen_usage_stop_event_type = close.stop_event_type.clone();
+        session.screen_usage_last_activity_timestamp_ns = state.last_meaningful_ts_ns;
+        session.screen_usage_tail_gap_seconds = None;
+        session.screen_usage_apps_forcing_screen_open_label = None;
+        session.screen_usage_lock_screen_only = Some(0);
+        session.data_time_gap_hours = 0.0;
+        session.event_timestamp_ns = state.start_timestamp_ns;
+        session.timezone.clone_from(&state.start_timezone);
+        session.index = start_row.index + 1_000_000;
+        if let Ok(timezone) = session.timezone.parse::<Tz>() {
+            populate_time_columns(&mut session, timezone);
+        }
+
+        let Some(stop_timestamp_ns) = close.stop_timestamp_ns else {
+            session.screen_usage_end_reason = Some("missing_stop".into());
+            session.screen_usage_end_reason_confidence = Some(1.0);
+            sessions.push(session);
+            continue;
+        };
+        let last_package = state
+            .last_meaningful_pkg
+            .clone()
+            .or_else(|| state.foreground_pkg.clone())
+            .unwrap_or_default();
+        let forcing_label = apps_forcing
+            .get(last_package.as_str())
+            .cloned()
+            .unwrap_or_default();
+        let tail_gap = state
+            .last_meaningful_ts_ns
+            .map(|timestamp| (stop_timestamp_ns - timestamp) as f64 / 1e9);
+        session.screen_usage_tail_gap_seconds = tail_gap;
+        session.screen_usage_apps_forcing_screen_open_label =
+            (!forcing_label.is_empty()).then(|| forcing_label.clone().into());
+
+        if state.lock_screen_seen && !state.unlocked_seen && state.foreground_pkg.is_none() {
+            session.screen_usage_end_reason = Some("lock_screen_only".into());
+            session.screen_usage_end_reason_confidence = Some(0.95);
+            session.screen_usage_lock_screen_only = Some(1);
+        } else if tail_gap.is_some_and(|gap| {
+            !forcing_label.is_empty() && gap > settings.auto_lock_timeout_seconds
+        }) {
+            session.screen_usage_end_reason = Some("app_kept_awake_or_extended".into());
+            session.screen_usage_end_reason_confidence = Some(0.9);
+        } else if tail_gap.is_some_and(|gap| gap <= settings.manual_lock_max_tail_seconds) {
+            session.screen_usage_end_reason = Some("probable_manual_lock".into());
+            session.screen_usage_end_reason_confidence = Some(0.85);
+        } else if tail_gap.is_some_and(|gap| {
+            (gap - settings.auto_lock_timeout_seconds).abs() <= settings.auto_lock_tolerance_seconds
+        }) {
+            session.screen_usage_end_reason = Some("probable_auto_lock".into());
+            session.screen_usage_end_reason_confidence = Some(0.9);
+        } else if state.lock_screen_seen
+            && keyguard_timestamps[keyguard_timestamps.partition_point(|timestamp| {
+                *timestamp
+                    < stop_timestamp_ns.saturating_sub(
+                        (settings.keyguard_near_stop_seconds * 1_000_000_000.0).ceil() as i64,
+                    )
+            })
+                ..keyguard_timestamps.partition_point(|timestamp| {
+                    *timestamp
+                        <= stop_timestamp_ns.saturating_add(
+                            (settings.keyguard_near_stop_seconds * 1_000_000_000.0).ceil() as i64,
+                        )
+                })]
+                .iter()
+                .any(|timestamp| {
+                    ((stop_timestamp_ns - *timestamp) as f64 / 1e9).abs()
+                        <= settings.keyguard_near_stop_seconds
+                })
+        {
+            session.screen_usage_end_reason = Some("probable_manual_lock".into());
+            session.screen_usage_end_reason_confidence = Some(0.7);
+        } else if tail_gap.is_some() {
+            session.screen_usage_end_reason = Some("extended_idle_or_unknown".into());
+            session.screen_usage_end_reason_confidence = Some(0.5);
+        } else {
+            session.screen_usage_end_reason = Some("unknown".into());
+            session.screen_usage_end_reason_confidence = Some(0.25);
+        }
+        sessions.push(session);
+    }
+    sessions
+}
+
+#[cfg(feature = "incremental-v2")]
+mod tracked {
+    use super::*;
+    use salsa::Setter;
+    use std::fmt;
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct StepValue<T> {
+        value: Arc<T>,
+        checkpoint: LogicalStageCheckpoint,
+    }
+
+    impl<T> PartialEq for StepValue<T> {
+        fn eq(&self, other: &Self) -> bool {
+            self.checkpoint == other.checkpoint
+        }
+    }
+
+    impl<T> Eq for StepValue<T> {}
+
+    impl<T> fmt::Debug for StepValue<T> {
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter
+                .debug_struct("StepValue")
+                .field("step", &self.checkpoint.node_id)
+                .field("digest", &self.checkpoint.terminal_digest)
+                .finish()
+        }
+    }
+
+    fn value_step<T: serde::Serialize>(step: &str, value: T) -> Result<StepValue<T>, String> {
+        let bytes = serde_json::to_vec(&value)
+            .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
+        Ok(StepValue {
+            value: Arc::new(value),
+            checkpoint: logical_stage_checkpoint(step, &[], &[("value", &bytes)]),
+        })
+    }
+
+    fn rows_step(step: &str, rows: Vec<Row>) -> StepValue<Vec<Row>> {
+        let checkpoint = logical_stage_rows_checkpoint(step, &rows);
+        StepValue {
+            value: Arc::new(rows),
+            checkpoint,
+        }
+    }
+
+    fn same_row_state(left: &LogicalStageCheckpoint, right: &LogicalStageCheckpoint) -> bool {
+        left.row_membership_digest == right.row_membership_digest
+            && left.row_order_digest == right.row_order_digest
+            && left.temporal_state_digest == right.temporal_state_digest
+            && left.classification_digest == right.classification_digest
+            && left.payload_digest == right.payload_digest
+            && left.schema_digest == right.schema_digest
+    }
+
+    /// Keep the upstream row allocation when a real step is observationally
+    /// unchanged. The step still has its own checkpoint and execution event;
+    /// only the identical immutable row table is shared between Salsa memos.
+    fn rows_step_reusing(
+        step: &str,
+        upstream: &StepValue<Vec<Row>>,
+        rows: Vec<Row>,
+    ) -> StepValue<Vec<Row>> {
+        let checkpoint = logical_stage_rows_checkpoint(step, &rows);
+        let value = if same_row_state(&upstream.checkpoint, &checkpoint) {
+            Arc::clone(&upstream.value)
+        } else {
+            Arc::new(rows)
+        };
+        StepValue { value, checkpoint }
+    }
+
+    fn value_payload_step<T, P: serde::Serialize>(
+        step: &str,
+        value: T,
+        payload: &P,
+    ) -> Result<StepValue<T>, String> {
+        let checkpoint = value_payload_checkpoint(step, payload)?;
+        Ok(StepValue {
+            value: Arc::new(value),
+            checkpoint,
+        })
+    }
+
+    fn value_payload_checkpoint<P: serde::Serialize>(
+        step: &str,
+        payload: &P,
+    ) -> Result<LogicalStageCheckpoint, String> {
+        let bytes = serde_json::to_vec(payload)
+            .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
+        Ok(logical_stage_checkpoint(step, &[], &[("value", &bytes)]))
+    }
+
+    fn rows_and_value_checkpoint<P: serde::Serialize>(
+        step: &str,
+        rows: &[Row],
+        payload: &P,
+    ) -> Result<LogicalStageCheckpoint, String> {
+        let bytes = serde_json::to_vec(payload)
+            .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
+        Ok(logical_stage_checkpoint(
+            step,
+            &[("rows", rows)],
+            &[("value", &bytes)],
+        ))
+    }
+
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct SelectedTimezone {
+        rows: Vec<Row>,
+        target_timezone: String,
+        action: String,
+    }
+
+    fn selected_timezone_step(
+        step: &str,
+        selected: TimezoneSelection,
+    ) -> Result<StepValue<SelectedTimezone>, String> {
+        let metadata = serde_json::json!({
+            "targetTimezone": &selected.target_timezone,
+            "action": selected.action,
+        });
+        let bytes = serde_json::to_vec(&metadata)
+            .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
+        let checkpoint =
+            logical_stage_checkpoint(step, &[("rows", &selected.rows)], &[("value", &bytes)]);
+        Ok(StepValue {
+            value: Arc::new(SelectedTimezone {
+                rows: selected.rows,
+                target_timezone: selected.target_timezone,
+                action: selected.action.to_string(),
+            }),
+            checkpoint,
+        })
+    }
+
+    #[salsa::db]
+    trait EarlyStepDb: salsa::Database {
+        fn record_query_body(&self, step: &'static str);
+    }
+
+    #[salsa::input(persist, singleton)]
+    struct EarlyRawInput {
+        #[returns(clone)]
+        bytes: Arc<Vec<u8>>,
+    }
+
+    #[salsa::input(persist, singleton)]
+    struct EarlyConfigInput {
+        #[returns(clone)]
+        interaction_type_remap: Arc<Vec<String>>,
+        #[returns(clone)]
+        timezone: String,
+        #[returns(clone)]
+        timezone_handling: String,
+        #[returns(clone)]
+        datetime_of_preprocessing: String,
+        #[returns(copy)]
+        deduplicate_exact_rows: bool,
+        #[returns(copy)]
+        correct_duplicate_event_timestamps: bool,
+        #[returns(clone)]
+        same_app_stop_types: Arc<Vec<String>>,
+        #[returns(clone)]
+        other_stop_types: Arc<Vec<String>>,
+    }
+
+    #[salsa::input(persist, singleton)]
+    struct UsageConfigInput {
+        #[returns(copy)]
+        usage_session_mode: UsageSessionMode,
+        #[returns(copy)]
+        model_concurrent_usage: bool,
+        #[returns(copy)]
+        allow_stop_event_reuse: bool,
+        #[returns(copy)]
+        use_activity_stopped_as_fallback: bool,
+        #[returns(copy)]
+        apply_threshold_to_fallback: bool,
+        #[returns(copy)]
+        long_duration_threshold_ns: i64,
+        #[returns(copy)]
+        proximity_interval_ns: i64,
+        #[returns(copy)]
+        minimum_usage_duration: f64,
+        #[returns(copy)]
+        apply_minimum_usage_duration_to_concurrent_subintervals: bool,
+        #[returns(copy)]
+        custom_app_engagement_duration: f64,
+        #[returns(clone)]
+        long_data_time_gap_thresholds: Arc<Vec<f64>>,
+        #[returns(clone)]
+        long_usage_duration_thresholds: Arc<Vec<f64>>,
+        #[returns(clone)]
+        interaction_types_to_remove: Arc<Vec<String>>,
+        #[returns(copy)]
+        filter_zero_duration_sessions: bool,
+    }
+
+    #[salsa::input(persist, singleton)]
+    struct UsageSupportInput {
+        #[returns(copy)]
+        use_filter_file: bool,
+        #[returns(copy)]
+        use_background_apps_file: bool,
+        #[returns(copy)]
+        use_app_codebook: bool,
+        #[returns(copy)]
+        use_apps_forcing_screen_open: bool,
+        #[returns(copy)]
+        screen_auto_lock_timeout_seconds: f64,
+        #[returns(copy)]
+        screen_auto_lock_tolerance_seconds: f64,
+        #[returns(copy)]
+        screen_manual_lock_max_tail_seconds: f64,
+        #[returns(copy)]
+        screen_keyguard_near_stop_seconds: f64,
+        #[returns(clone)]
+        filter_csv: Arc<Vec<u8>>,
+        #[returns(clone)]
+        background_apps_csv: Arc<Vec<u8>>,
+        #[returns(clone)]
+        codebook_csv: Arc<Vec<u8>>,
+        #[returns(clone)]
+        apps_forcing_csv: Arc<Vec<u8>>,
+    }
+
+    #[salsa::input(persist, singleton)]
+    struct LateConfigInput {
+        #[returns(copy)]
+        enable_screen_gated_crediting: bool,
+        #[returns(copy)]
+        credited_session_cap_minutes: f64,
+        #[returns(copy)]
+        device_liveness_gap_tolerance_minutes: f64,
+        #[returns(copy)]
+        auto_lock_bridge_seconds: f64,
+        #[returns(copy)]
+        no_witness_min_day_apps: u32,
+        #[returns(copy)]
+        enable_study_window_filter: bool,
+        #[returns(copy)]
+        enable_person_attribution: bool,
+        #[returns(copy)]
+        add_no_activity_placeholder_days: bool,
+        #[returns(copy)]
+        enable_day_coverage: bool,
+        #[returns(copy)]
+        enable_compliance_scoring: bool,
+        #[returns(copy)]
+        compliance_threshold_percent: f64,
+    }
+
+    #[salsa::input(persist, singleton)]
+    struct LateSupportInput {
+        #[returns(clone)]
+        study_dates_csv: Arc<Vec<u8>>,
+        #[returns(clone)]
+        device_sharing_csv: Arc<Vec<u8>>,
+        #[returns(clone)]
+        survey_attribution_csv: Arc<Vec<u8>>,
+        #[returns(clone)]
+        enrolled_devices_csv: Arc<Vec<u8>>,
+    }
+
+    #[salsa::input(persist, singleton)]
+    struct OutputConfigInput {
+        #[returns(clone)]
+        study_name: String,
+        #[returns(copy)]
+        include_app_output: bool,
+        #[returns(copy)]
+        include_screen_output: bool,
+        #[returns(copy)]
+        include_category_column: bool,
+        #[returns(copy)]
+        enable_aggregates: bool,
+        #[returns(clone)]
+        aggregate_shape: String,
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn parse_remap_config(
+        db: &dyn EarlyStepDb,
+        config: EarlyConfigInput,
+    ) -> Result<StepValue<BTreeMap<String, String>>, String> {
+        db.record_query_body("parse_remap_config");
+        value_step(
+            "parse_remap_config",
+            super::parse_remap_config(&config.interaction_type_remap(db)),
+        )
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn csv_parse(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+    ) -> Result<StepValue<Vec<RawRow>>, String> {
+        db.record_query_body("csv_parse");
+        value_step("csv_parse", super::csv_parse(&raw.bytes(db)))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn drop_empty_timestamp(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+    ) -> Result<StepValue<Vec<RawRow>>, String> {
+        db.record_query_body("drop_empty_timestamp");
+        let parsed = csv_parse(db, raw)?;
+        value_step(
+            "drop_empty_timestamp",
+            super::drop_empty_timestamp((*parsed.value).clone()),
+        )
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn detect_device_model(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+    ) -> Result<StepValue<String>, String> {
+        db.record_query_body("detect_device_model");
+        let rows = drop_empty_timestamp(db, raw)?;
+        value_step(
+            "detect_device_model",
+            super::detect_device_model(&rows.value),
+        )
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn resolve_preproc_datetime(
+        db: &dyn EarlyStepDb,
+        config: EarlyConfigInput,
+    ) -> Result<StepValue<String>, String> {
+        db.record_query_body("resolve_preproc_datetime");
+        value_step(
+            "resolve_preproc_datetime",
+            super::resolve_preproc_datetime(&config.datetime_of_preprocessing(db)),
+        )
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn build_canonical_rows(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        config: EarlyConfigInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("build_canonical_rows");
+        let raw_rows = drop_empty_timestamp(db, raw)?;
+        let remap = parse_remap_config(db, config)?;
+        let device_model = detect_device_model(db, raw)?;
+        let rows = super::build_canonical_rows(
+            (*raw_rows.value).clone(),
+            &config.timezone(db),
+            &remap.value,
+            &device_model.value,
+        )?;
+        Ok(rows_step("build_canonical_rows", rows))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn stable_sort(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        config: EarlyConfigInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("stable_sort");
+        let rows = build_canonical_rows(db, raw, config)?;
+        Ok(rows_step_reusing(
+            "stable_sort",
+            &rows,
+            super::stable_sort((*rows.value).clone()),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn collect_timezones(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        config: EarlyConfigInput,
+    ) -> Result<StepValue<BTreeSet<String>>, String> {
+        db.record_query_body("collect_timezones");
+        let rows = stable_sort(db, raw, config)?;
+        value_step("collect_timezones", super::collect_timezones(&rows.value))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn compute_dominant_timezone(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        config: EarlyConfigInput,
+    ) -> Result<StepValue<String>, String> {
+        db.record_query_body("compute_dominant_timezone");
+        let rows = stable_sort(db, raw, config)?;
+        value_step(
+            "compute_dominant_timezone",
+            super::compute_dominant_timezone(&rows.value),
+        )
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn select_timezone_strategy(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        config: EarlyConfigInput,
+    ) -> Result<StepValue<SelectedTimezone>, String> {
+        db.record_query_body("select_timezone_strategy");
+        let rows = stable_sort(db, raw, config)?;
+        let primary = compute_dominant_timezone(db, raw, config)?;
+        selected_timezone_step(
+            "select_timezone_strategy",
+            super::select_timezone_strategy(
+                (*rows.value).clone(),
+                &config.timezone(db),
+                &config.timezone_handling(db),
+                &primary.value,
+            )?,
+        )
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn restamp_rows(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        config: EarlyConfigInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("restamp_rows");
+        let selected = select_timezone_strategy(db, raw, config)?;
+        let rows =
+            super::restamp_rows(selected.value.rows.clone(), &selected.value.target_timezone)?;
+        Ok(rows_step("restamp_rows", rows))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn row_count_report(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        config: EarlyConfigInput,
+    ) -> Result<StepValue<RowCountReport>, String> {
+        db.record_query_body("row_count_report");
+        let before = stable_sort(db, raw, config)?.value.len() as u32;
+        let selected = select_timezone_strategy(db, raw, config)?;
+        let after = selected.value.rows.len() as u32;
+        value_step("row_count_report", super::row_count_report(before, after))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn exact_dedupe(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        config: EarlyConfigInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("exact_dedupe");
+        let rows = restamp_rows(db, raw, config)?;
+        Ok(rows_step_reusing(
+            "exact_dedupe",
+            &rows,
+            super::exact_dedupe((*rows.value).clone(), config.deduplicate_exact_rows(db)),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn count_dup_groups(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        config: EarlyConfigInput,
+    ) -> Result<StepValue<u32>, String> {
+        db.record_query_body("count_dup_groups");
+        let rows = exact_dedupe(db, raw, config)?;
+        value_step("count_dup_groups", count_duplicate_groups(&rows.value))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn nudge_duplicate_timestamps(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        config: EarlyConfigInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("nudge_duplicate_timestamps");
+        let rows = exact_dedupe(db, raw, config)?;
+        Ok(rows_step_reusing(
+            "nudge_duplicate_timestamps",
+            &rows,
+            super::nudge_duplicate_timestamps(
+                (*rows.value).clone(),
+                config.correct_duplicate_event_timestamps(db),
+                &config.same_app_stop_types(db),
+                &config.other_stop_types(db),
+            ),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn mark_data_time_gaps(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        config: EarlyConfigInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("mark_data_time_gaps");
+        let rows = nudge_duplicate_timestamps(db, raw, config)?;
+        Ok(rows_step_reusing(
+            "mark_data_time_gaps",
+            &rows,
+            super::mark_gaps((*rows.value).clone()),
+        ))
+    }
+
+    fn background_apps(
+        db: &dyn EarlyStepDb,
+        _config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> AHashSet<String> {
+        if support.use_background_apps_file(db) {
+            parse_background_apps_csv(&support.background_apps_csv(db))
+        } else {
+            AHashSet::new()
+        }
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn tag_filtered_packages(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        _config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("tag_filtered_packages");
+        let rows = mark_data_time_gaps(db, raw, early)?;
+        let enabled = support.use_filter_file(db);
+        let filter_csv = if enabled {
+            support.filter_csv(db)
+        } else {
+            Arc::default()
+        };
+        Ok(rows_step_reusing(
+            "tag_filtered_packages",
+            &rows,
+            super::tag_filtered_packages((*rows.value).clone(), enabled, &filter_csv),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn collect_keyguard_timestamps(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<i64>>, String> {
+        db.record_query_body("collect_keyguard_timestamps");
+        let rows = tag_filtered_packages(db, raw, early, config, support)?;
+        value_step(
+            "collect_keyguard_timestamps",
+            super::collect_keyguard_timestamps(&rows.value),
+        )
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn walk_screen_state_machine(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<ScreenSessionClose>>, String> {
+        db.record_query_body("walk_screen_state_machine");
+        let rows = tag_filtered_packages(db, raw, early, config, support)?;
+        value_step(
+            "walk_screen_state_machine",
+            super::walk_screen_state_machine(&rows.value),
+        )
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn build_classified_sessions(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("build_classified_sessions");
+        let rows = tag_filtered_packages(db, raw, early, config, support)?;
+        let closes = walk_screen_state_machine(db, raw, early, config, support)?;
+        if closes.value.is_empty() {
+            return Ok(rows_step("build_classified_sessions", Vec::new()));
+        }
+        let keyguard = collect_keyguard_timestamps(db, raw, early, config, support)?;
+        let forcing = if support.use_apps_forcing_screen_open(db) {
+            parse_apps_forcing_csv(&support.apps_forcing_csv(db))
+        } else {
+            HashMap::new()
+        };
+        Ok(rows_step(
+            "build_classified_sessions",
+            super::build_classified_sessions(
+                &rows.value,
+                &closes.value,
+                &keyguard.value,
+                &forcing,
+                ScreenClassificationSettings {
+                    auto_lock_timeout_seconds: support.screen_auto_lock_timeout_seconds(db),
+                    auto_lock_tolerance_seconds: support.screen_auto_lock_tolerance_seconds(db),
+                    manual_lock_max_tail_seconds: support.screen_manual_lock_max_tail_seconds(db),
+                    keyguard_near_stop_seconds: support.screen_keyguard_near_stop_seconds(db),
+                },
+            ),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn compute_junk_packages(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<BTreeSet<String>>, String> {
+        db.record_query_body("compute_junk_packages");
+        let rows = tag_filtered_packages(db, raw, early, config, support)?;
+        value_step(
+            "compute_junk_packages",
+            super::compute_junk_packages(&rows.value),
+        )
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn junk_blind_fold(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("junk_blind_fold");
+        let rows = tag_filtered_packages(db, raw, early, config, support)?;
+        Ok(rows_step_reusing(
+            "junk_blind_fold",
+            &rows,
+            super::junk_blind_fold((*rows.value).clone()),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn build_matcher_input(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<MatcherInput>, String> {
+        db.record_query_body("build_matcher_input");
+        let rows = junk_blind_fold(db, raw, early, config, support)?;
+        let input = super::build_matcher_input(
+            &rows.value,
+            &early.same_app_stop_types(db),
+            &early.other_stop_types(db),
+            &background_apps(db, config, support),
+            config.model_concurrent_usage(db),
+        )?;
+        value_step("build_matcher_input", input)
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn run_matcher(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<MatcherOutput>, String> {
+        db.record_query_body("run_matcher");
+        let input = build_matcher_input(db, raw, early, config, support)?;
+        value_step(
+            "run_matcher",
+            super::run_matcher(
+                &input.value,
+                config.allow_stop_event_reuse(db),
+                config.use_activity_stopped_as_fallback(db),
+                config.apply_threshold_to_fallback(db),
+                config.long_duration_threshold_ns(db),
+                config.proximity_interval_ns(db),
+            )?,
+        )
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn apply_matcher_output(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("apply_matcher_output");
+        let rows = junk_blind_fold(db, raw, early, config, support)?;
+        let matcher = run_matcher(db, raw, early, config, support)?;
+        let filtered = compute_junk_packages(db, raw, early, config, support)?;
+        Ok(rows_step_reusing(
+            "apply_matcher_output",
+            &rows,
+            super::apply_matcher_output((*rows.value).clone(), &matcher.value, &filtered.value),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn relabel_usage_with_floor(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("relabel_usage_with_floor");
+        let rows = apply_matcher_output(db, raw, early, config, support)?;
+        let filtered = compute_junk_packages(db, raw, early, config, support)?;
+        Ok(rows_step_reusing(
+            "relabel_usage_with_floor",
+            &rows,
+            super::relabel_usage_with_floor(
+                (*rows.value).clone(),
+                &filtered.value,
+                config.minimum_usage_duration(db),
+            ),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn junk_downstream_mark(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("junk_downstream_mark");
+        let rows = relabel_usage_with_floor(db, raw, early, config, support)?;
+        let filtered = compute_junk_packages(db, raw, early, config, support)?;
+        Ok(rows_step_reusing(
+            "junk_downstream_mark",
+            &rows,
+            super::junk_downstream_mark(
+                (*rows.value).clone(),
+                &filtered.value,
+                &background_apps(db, config, support),
+            ),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn sort_episodes(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("sort_episodes");
+        let rows = junk_downstream_mark(db, raw, early, config, support)?;
+        Ok(rows_step_reusing(
+            "sort_episodes",
+            &rows,
+            super::sort_episodes((*rows.value).clone()),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn split_concurrent(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("split_concurrent");
+        let rows = sort_episodes(db, raw, early, config, support)?;
+        let filtered = compute_junk_packages(db, raw, early, config, support)?;
+        Ok(rows_step_reusing(
+            "split_concurrent",
+            &rows,
+            super::split_concurrent(
+                (*rows.value).clone(),
+                &filtered.value,
+                &background_apps(db, config, support),
+                config.model_concurrent_usage(db),
+                config.minimum_usage_duration(db),
+                config.apply_minimum_usage_duration_to_concurrent_subintervals(db),
+            )?,
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn codebook_join(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("codebook_join");
+        let rows = split_concurrent(db, raw, early, config, support)?;
+        let enabled = support.use_app_codebook(db);
+        let codebook_csv = if enabled {
+            support.codebook_csv(db)
+        } else {
+            Arc::default()
+        };
+        Ok(rows_step_reusing(
+            "codebook_join",
+            &rows,
+            super::codebook_join((*rows.value).clone(), enabled, &codebook_csv),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn derive_broad_category(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("derive_broad_category");
+        let rows = codebook_join(db, raw, early, config, support)?;
+        Ok(rows_step_reusing(
+            "derive_broad_category",
+            &rows,
+            super::derive_broad_category_step((*rows.value).clone(), support.use_app_codebook(db)),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn collapse_genre(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("collapse_genre");
+        let rows = derive_broad_category(db, raw, early, config, support)?;
+        Ok(rows_step_reusing(
+            "collapse_genre",
+            &rows,
+            super::collapse_genre_step((*rows.value).clone(), support.use_app_codebook(db)),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn engagement_walk(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("engagement_walk");
+        let rows = collapse_genre(db, raw, early, config, support)?;
+        Ok(rows_step_reusing(
+            "engagement_walk",
+            &rows,
+            super::engagement_walk(
+                (*rows.value).clone(),
+                config.custom_app_engagement_duration(db),
+            ),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn flag_and_retain(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("flag_and_retain");
+        let rows = engagement_walk(db, raw, early, config, support)?;
+        Ok(rows_step_reusing(
+            "flag_and_retain",
+            &rows,
+            super::flag_and_retain(
+                (*rows.value).clone(),
+                &config.long_data_time_gap_thresholds(db),
+                &config.long_usage_duration_thresholds(db),
+            ),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn blank_junk_timing(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("blank_junk_timing");
+        let rows = flag_and_retain(db, raw, early, config, support)?;
+        Ok(rows_step_reusing(
+            "blank_junk_timing",
+            &rows,
+            super::blank_junk_timing((*rows.value).clone()),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn drop_selected_types(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("drop_selected_types");
+        let rows = blank_junk_timing(db, raw, early, config, support)?;
+        Ok(rows_step_reusing(
+            "drop_selected_types",
+            &rows,
+            super::drop_selected_types(
+                (*rows.value).clone(),
+                &config.interaction_types_to_remove(db),
+                &config.long_data_time_gap_thresholds(db),
+            ),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn drop_zero_duration(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("drop_zero_duration");
+        let rows = drop_selected_types(db, raw, early, config, support)?;
+        Ok(rows_step_reusing(
+            "drop_zero_duration",
+            &rows,
+            super::drop_zero_duration(
+                (*rows.value).clone(),
+                config.filter_zero_duration_sessions(db),
+            ),
+        ))
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn partition_credit_sessions(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<CreditPartition>, String> {
+        db.record_query_body("partition_credit_sessions");
+        let rows = drop_zero_duration(db, raw, early, config, support)?;
+        let partition = super::partition_credit_sessions(&rows.value, None)?;
+        let payload = CreditPartitionCheckpoint {
+            session_count: partition.sessions.len(),
+            rest_count: partition.rest.len(),
+            session_rows_digest: &partition.session_rows_digest,
+            rest_rows_digest: &partition.rest_rows_digest,
+        };
+        let checkpoint = value_payload_checkpoint("partition_credit_sessions", &payload)?;
+        Ok(StepValue {
+            value: Arc::new(partition),
+            checkpoint,
+        })
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn build_liveness_substrate(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<ScreenCreditSubstrate>, String> {
+        db.record_query_body("build_liveness_substrate");
+        let rows = tag_filtered_packages(db, raw, early, config, support)?;
+        value_step(
+            "build_liveness_substrate",
+            super::build_liveness_substrate(&rows.value)?,
+        )
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn report_screen_incapable(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<Vec<String>>, String> {
+        db.record_query_body("report_screen_incapable");
+        let partition = partition_credit_sessions(db, raw, early, config, support)?;
+        let substrate = build_liveness_substrate(db, raw, early, config, support)?;
+        value_step(
+            "report_screen_incapable",
+            super::screen_incapable_participants(&partition.value, &substrate.value),
+        )
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn count_day_apps(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<DayApps>, String> {
+        db.record_query_body("count_day_apps");
+        let partition = partition_credit_sessions(db, raw, early, config, support)?;
+        let day_apps = super::count_day_apps(&partition.value);
+        let payload = day_apps
+            .iter()
+            .map(|((participant_id, date), packages)| {
+                serde_json::json!({
+                    "participantId": participant_id,
+                    "date": date,
+                    "packages": packages,
+                })
+            })
+            .collect::<Vec<_>>();
+        value_payload_step("count_day_apps", day_apps, &payload)
+    }
+
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct CreditSessionPlan {
+        decisions: Vec<CreditDecision>,
+        tolerance_minutes: f64,
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn credit_sessions(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+        late: LateConfigInput,
+    ) -> Result<StepValue<CreditSessionPlan>, String> {
+        db.record_query_body("credit_sessions");
+        let partition = partition_credit_sessions(db, raw, early, config, support)?;
+        let substrate = build_liveness_substrate(db, raw, early, config, support)?;
+        let day_apps = count_day_apps(db, raw, early, config, support)?;
+        let tolerance_minutes = late.device_liveness_gap_tolerance_minutes(db);
+        let decisions = super::credit_sessions(
+            &partition.value,
+            &substrate.value,
+            &day_apps.value,
+            late.credited_session_cap_minutes(db),
+            tolerance_minutes,
+            late.auto_lock_bridge_seconds(db),
+            late.no_witness_min_day_apps(db),
+        );
+        let payload = serde_json::json!({
+            "decisions": decisions,
+            "toleranceMinutes": tolerance_minutes,
+        });
+        value_payload_step(
+            "credit_sessions",
+            CreditSessionPlan {
+                decisions,
+                tolerance_minutes,
+            },
+            &payload,
+        )
+    }
+
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct CreditEmissionStep {
+        emission: CreditEmission,
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn emit_credited_rows(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+        late: LateConfigInput,
+    ) -> Result<StepValue<CreditEmissionStep>, String> {
+        db.record_query_body("emit_credited_rows");
+        let plan = credit_sessions(db, raw, early, config, support, late)?;
+        let partition = partition_credit_sessions(db, raw, early, config, support)?;
+        let substrate = build_liveness_substrate(db, raw, early, config, support)?;
+        let emission = super::emit_credited_rows(
+            &partition.value,
+            &plan.value.decisions,
+            &substrate.value,
+            plan.value.tolerance_minutes,
+        );
+        let payload = serde_json::json!({
+            "creditedRowsDigest": emission.credited_rows_digest,
+            "emissionCounts": emission.counts,
+        });
+        value_payload_step(
+            "emit_credited_rows",
+            CreditEmissionStep { emission },
+            &payload,
+        )
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn assemble_credit_result(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+        late: LateConfigInput,
+    ) -> Result<StepValue<CreditResult>, String> {
+        db.record_query_body("assemble_credit_result");
+        let partition = partition_credit_sessions(db, raw, early, config, support)?;
+        let screen_incapable = report_screen_incapable(db, raw, early, config, support)?;
+        let emission = emit_credited_rows(db, raw, early, config, support, late)?;
+        let result = super::assemble_credit_result(
+            &partition.value,
+            &screen_incapable.value,
+            &emission.value.emission,
+        );
+        let payload = serde_json::json!({
+            "creditedRowsDigest": result.credited_rows_digest,
+            "restRowsDigest": result.rest_rows_digest,
+            "report": result.report,
+        });
+        value_payload_step("assemble_credit_result", result, &payload)
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn resolve_participant_windows(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+        late_support: LateSupportInput,
+    ) -> Result<StepValue<Vec<ResolvedParticipantWindow>>, String> {
+        db.record_query_body("resolve_participant_windows");
+        let rows = drop_zero_duration(db, raw, early, config, support)?;
+        value_step(
+            "resolve_participant_windows",
+            super::resolve_windows(&rows.value, &late_support.study_dates_csv(db))?,
+        )
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn filter_rows_to_window(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+        late: LateConfigInput,
+        late_support: LateSupportInput,
+    ) -> Result<StepValue<WindowedRows>, String> {
+        db.record_query_body("filter_rows_to_window");
+        let rows = drop_zero_duration(db, raw, early, config, support)?;
+        let resolved = resolve_participant_windows(db, raw, early, config, support, late_support)?;
+        let enabled = late.enable_study_window_filter(db);
+        let study_dates = if enabled {
+            late_support.study_dates_csv(db)
+        } else {
+            Arc::default()
+        };
+        let value = super::filter_to_window(
+            (*rows.value).clone(),
+            &resolved.value,
+            enabled,
+            &study_dates,
+        )?;
+        let payload = serde_json::json!({
+            "applied": value.applied,
+            "droppedRows": value.dropped_rows,
+            "participantsWithoutWindow": value.participants_without_window,
+        });
+        let checkpoint = rows_and_value_checkpoint("filter_rows_to_window", &value.rows, &payload)?;
+        Ok(StepValue {
+            value: Arc::new(value),
+            checkpoint,
+        })
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn resolve_sharing_status(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+        late: LateConfigInput,
+        late_support: LateSupportInput,
+    ) -> Result<StepValue<SharingResolutionValue>, String> {
+        db.record_query_body("resolve_sharing_status");
+        let windowed = filter_rows_to_window(db, raw, early, config, support, late, late_support)?;
+        let enabled = late.enable_person_attribution(db);
+        let sharing_csv = if enabled {
+            late_support.device_sharing_csv(db)
+        } else {
+            Arc::default()
+        };
+        let value = super::resolve_sharing(&windowed.value.rows, enabled, &sharing_csv)?;
+        match &value {
+            SharingResolutionValue::Disabled => value_payload_step(
+                "resolve_sharing_status",
+                value,
+                &serde_json::json!({"enabled": false}),
+            ),
+            SharingResolutionValue::Enabled(resolution) => {
+                let checkpoint = value_payload_checkpoint("resolve_sharing_status", resolution)?;
+                Ok(StepValue {
+                    value: Arc::new(value),
+                    checkpoint,
+                })
+            }
+        }
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn build_survey_lookup(
+        db: &dyn EarlyStepDb,
+        late: LateConfigInput,
+        late_support: LateSupportInput,
+    ) -> Result<StepValue<SurveyLookup>, String> {
+        db.record_query_body("build_survey_lookup");
+        let enabled = late.enable_person_attribution(db);
+        if !enabled {
+            return value_payload_step(
+                "build_survey_lookup",
+                BTreeMap::new(),
+                &serde_json::json!({"enabled": false}),
+            );
+        }
+        let survey = super::survey_lookup(true, &late_support.survey_attribution_csv(db))?;
+        let payload = survey
+            .iter()
+            .map(|((participant_id, event_timestamp_ns), user)| {
+                serde_json::json!({
+                    "participantId": participant_id,
+                    "eventTimestampNs": event_timestamp_ns,
+                    "user": user,
+                })
+            })
+            .collect::<Vec<_>>();
+        value_payload_step("build_survey_lookup", survey, &payload)
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn attribute_rows(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+        late: LateConfigInput,
+        late_support: LateSupportInput,
+    ) -> Result<StepValue<AttributedRows>, String> {
+        db.record_query_body("attribute_rows");
+        let windowed = filter_rows_to_window(db, raw, early, config, support, late, late_support)?;
+        let sharing = resolve_sharing_status(db, raw, early, config, support, late, late_support)?;
+        let survey = build_survey_lookup(db, late, late_support)?;
+        let value =
+            super::attribute_rows(windowed.value.rows.clone(), &sharing.value, &survey.value)?;
+        let payload = match &value.report {
+            Some(report) => serde_json::json!({"applied": true, "report": report}),
+            None => serde_json::json!({"applied": false}),
+        };
+        let checkpoint = rows_and_value_checkpoint("attribute_rows", &value.rows, &payload)?;
+        Ok(StepValue {
+            value: Arc::new(value),
+            checkpoint,
+        })
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn inject_placeholders(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+        late: LateConfigInput,
+        late_support: LateSupportInput,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        db.record_query_body("inject_placeholders");
+        let attributed = attribute_rows(db, raw, early, config, support, late, late_support)?;
+        let policy_rows = tag_filtered_packages(db, raw, early, config, support)?;
+        let applied = late.add_no_activity_placeholder_days(db);
+        let rows =
+            super::inject_placeholders(attributed.value.rows.clone(), &policy_rows.value, applied);
+        let checkpoint = rows_and_value_checkpoint(
+            "inject_placeholders",
+            &rows,
+            &serde_json::json!({"applied": applied}),
+        )?;
+        Ok(StepValue {
+            value: Arc::new(rows),
+            checkpoint,
+        })
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn build_raw_date_index(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<BTreeMap<String, BTreeSet<String>>>, String> {
+        db.record_query_body("build_raw_date_index");
+        let rows = tag_filtered_packages(db, raw, early, config, support)?;
+        value_step(
+            "build_raw_date_index",
+            super::build_raw_date_index(&rows.value),
+        )
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn build_coverage_table(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+        late: LateConfigInput,
+        late_support: LateSupportInput,
+    ) -> Result<StepValue<CoverageOutput>, String> {
+        db.record_query_body("build_coverage_table");
+        let rows = inject_placeholders(db, raw, early, config, support, late, late_support)?;
+        let raw_dates = build_raw_date_index(db, raw, early, config, support)?;
+        let output = super::build_coverage(
+            &rows.value,
+            &raw_dates.value,
+            &late_support.study_dates_csv(db),
+        )?;
+        let checkpoint = value_payload_checkpoint("build_coverage_table", &output.report)?;
+        Ok(StepValue {
+            value: Arc::new(output),
+            checkpoint,
+        })
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn accumulate_attribution_minutes(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+        late: LateConfigInput,
+        late_support: LateSupportInput,
+    ) -> Result<StepValue<AttributionMinutes>, String> {
+        db.record_query_body("accumulate_attribution_minutes");
+        let rows = inject_placeholders(db, raw, early, config, support, late, late_support)?;
+        let value = super::accumulate_minutes(&rows.value);
+        let buckets = value
+            .buckets
+            .iter()
+            .map(
+                |((participant_id, date), (known_minutes, unknown_minutes))| {
+                    serde_json::json!({
+                        "participantId": participant_id,
+                        "date": date,
+                        "knownMinutes": known_minutes,
+                        "unknownMinutes": unknown_minutes,
+                    })
+                },
+            )
+            .collect::<Vec<_>>();
+        let payload = serde_json::json!({
+            "participantsSeen": value.participants_seen,
+            "buckets": buckets,
+        });
+        value_payload_step("accumulate_attribution_minutes", value, &payload)
+    }
+
+    #[salsa::tracked(returns(clone), persist)]
+    fn score_days(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+        late: LateConfigInput,
+        late_support: LateSupportInput,
+    ) -> Result<StepValue<ComplianceResultCheckpoint>, String> {
+        db.record_query_body("score_days");
+        let minutes =
+            accumulate_attribution_minutes(db, raw, early, config, support, late, late_support)?;
+        let attributed = attribute_rows(db, raw, early, config, support, late, late_support)?;
+        value_step(
+            "score_days",
+            super::score_attribution_days(
+                &minutes.value,
+                &attributed.value.shared_participants,
+                late.compliance_threshold_percent(db),
+            ),
+        )
+    }
+
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct AssembledOutputs {
+        app_csv_bytes: Vec<u8>,
+        screen_csv_bytes: Vec<u8>,
+        day_coverage_csv_bytes: Vec<u8>,
+        compliance_csv_bytes: Vec<u8>,
+        credited_app_csv_bytes: Vec<u8>,
+        review_summary_json_bytes: Vec<u8>,
+        visualization_data_json_bytes: Vec<u8>,
+        aggregate_csv_outputs: Vec<aggregates::AggregateCsvOutput>,
+        row_lineage: Vec<PipelineRowLineage>,
+    }
+
+    fn assembled_checkpoint(
+        node_id: &str,
+        outputs: &AssembledOutputs,
+    ) -> Result<LogicalStageCheckpoint, String> {
+        let row_lineage_bytes = serde_json::to_vec(&outputs.row_lineage)
+            .map_err(|error| format!("serialize row lineage checkpoint: {error}"))?;
+        let aggregate_checkpoint_bytes = serde_json::to_vec(
+            &outputs
+                .aggregate_csv_outputs
+                .iter()
+                .map(|aggregate| {
+                    serde_json::json!({
+                        "kind": aggregate.kind,
+                        "rowCount": aggregate.row_count,
+                        "digest": format!(
+                            "sha256:{}",
+                            hex::encode(Sha256::digest(&aggregate.bytes))
+                        ),
+                    })
+                })
+                .collect::<Vec<_>>(),
+        )
+        .map_err(|error| format!("serialize aggregate checkpoint: {error}"))?;
+        Ok(logical_stage_checkpoint(
+            node_id,
+            &[],
+            &[
+                ("app_csv", &outputs.app_csv_bytes),
+                ("screen_csv", &outputs.screen_csv_bytes),
+                ("day_coverage_csv", &outputs.day_coverage_csv_bytes),
+                ("compliance_csv", &outputs.compliance_csv_bytes),
+                ("credited_app_csv", &outputs.credited_app_csv_bytes),
+                ("review_summary_json", &outputs.review_summary_json_bytes),
+                (
+                    "visualization_data_json",
+                    &outputs.visualization_data_json_bytes,
+                ),
+                ("aggregates", &aggregate_checkpoint_bytes),
+                ("row_lineage", &row_lineage_bytes),
+            ],
+        ))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn output_options(
+        db: &dyn EarlyStepDb,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+        late: LateConfigInput,
+        output: OutputConfigInput,
+    ) -> PipelineV2Options {
+        PipelineV2Options {
+            study_name: output.study_name(db),
+            timezone: early.timezone(db),
+            timezone_handling: early.timezone_handling(db),
+            usage_session_mode: config.usage_session_mode(db),
+            include_app_output: output.include_app_output(db),
+            include_screen_output: output.include_screen_output(db),
+            use_filter_file: false,
+            use_apps_forcing_screen_open: false,
+            use_background_apps_file: support.use_background_apps_file(db),
+            use_app_codebook: support.use_app_codebook(db),
+            include_category_column: output.include_category_column(db),
+            deduplicate_exact_rows: early.deduplicate_exact_rows(db),
+            interaction_type_remap: Vec::new(),
+            correct_duplicate_event_timestamps: early.correct_duplicate_event_timestamps(db),
+            allow_stop_event_reuse: false,
+            use_activity_stopped_as_fallback: false,
+            apply_threshold_to_fallback: false,
+            long_duration_threshold_ns: 0,
+            proximity_interval_ns: 0,
+            custom_app_engagement_duration: config.custom_app_engagement_duration(db),
+            long_data_time_gap_thresholds: Vec::new(),
+            long_usage_duration_thresholds: Vec::new(),
+            same_app_stop_types: Vec::new(),
+            other_stop_types: Vec::new(),
+            interaction_types_to_remove: Vec::new(),
+            screen_auto_lock_timeout_seconds: 0.0,
+            screen_auto_lock_tolerance_seconds: 0.0,
+            screen_manual_lock_max_tail_seconds: 0.0,
+            screen_keyguard_near_stop_seconds: 0.0,
+            datetime_of_preprocessing: early.datetime_of_preprocessing(db),
+            model_concurrent_usage: config.model_concurrent_usage(db),
+            minimum_usage_duration: 0.0,
+            apply_minimum_usage_duration_to_concurrent_subintervals: false,
+            filter_zero_duration_sessions: false,
+            add_no_activity_placeholder_days: false,
+            enable_study_window_filter: false,
+            enable_person_attribution: false,
+            enable_day_coverage: late.enable_day_coverage(db),
+            enable_compliance_scoring: late.enable_compliance_scoring(db),
+            compliance_threshold_percent: 0.0,
+            enable_screen_gated_crediting: late.enable_screen_gated_crediting(db),
+            enable_aggregates: output.enable_aggregates(db),
+            aggregate_shape: output.aggregate_shape(db),
+            credited_session_cap_minutes: 0.0,
+            device_liveness_gap_tolerance_minutes: 0.0,
+            auto_lock_bridge_seconds: 0.0,
+            no_witness_min_day_apps: 0,
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn assemble_outputs(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+        late: LateConfigInput,
+        late_support: LateSupportInput,
+        output: OutputConfigInput,
+    ) -> Result<StepValue<AssembledOutputs>, String> {
+        let options = output_options(db, early, config, support, late, output);
+        let policy_rows = tag_filtered_packages(db, raw, early, config, support)?;
+        let screen_rows = if matches!(
+            options.usage_session_mode,
+            UsageSessionMode::ScreenUsage | UsageSessionMode::AppAndScreenUsage
+        ) {
+            build_classified_sessions(db, raw, early, config, support)?
+                .value
+                .as_ref()
+                .clone()
+        } else {
+            Vec::new()
+        };
+
+        let app_mode = matches!(
+            options.usage_session_mode,
+            UsageSessionMode::AppUsage | UsageSessionMode::AppAndScreenUsage
+        );
+        let app_rows = if app_mode {
+            inject_placeholders(db, raw, early, config, support, late, late_support)?
+                .value
+                .as_ref()
+                .clone()
+        } else {
+            Vec::new()
+        };
+        let include_aliases = if !app_mode || !options.use_app_codebook {
+            true
+        } else {
+            parse_codebook_csv(&support.codebook_csv(db)).is_empty()
+                || options.include_category_column
+        };
+        let app_csv_bytes = if app_mode && options.include_app_output {
+            write_app_csv(&app_rows, &options, include_aliases)
+        } else {
+            Vec::new()
+        };
+        let screen_csv_bytes = if options.include_screen_output
+            && !matches!(options.usage_session_mode, UsageSessionMode::AppUsage)
+        {
+            write_screen_csv(&screen_rows, &options)
+        } else {
+            Vec::new()
+        };
+
+        let (day_coverage_csv_bytes, _) = if app_mode && late.enable_day_coverage(db) {
+            let coverage =
+                build_coverage_table(db, raw, early, config, support, late, late_support)?;
+            (
+                coverage.value.csv_bytes.clone(),
+                coverage.value.report.coverage.len() as u32,
+            )
+        } else {
+            (Vec::new(), 0)
+        };
+        let compliance_csv_bytes = if app_mode && late.enable_compliance_scoring(db) {
+            let scored = score_days(db, raw, early, config, support, late, late_support)?;
+            super::compliance_csv(&scored.value, &late_support.enrolled_devices_csv(db))?
+        } else {
+            Vec::new()
+        };
+        let credited_rows = if app_mode && late.enable_screen_gated_crediting(db) {
+            Some(assemble_credit_result(
+                db, raw, early, config, support, late,
+            )?)
+        } else {
+            None
+        };
+        let credited_app_csv_bytes = if let Some(credited) = &credited_rows {
+            write_app_csv_from_iter(
+                credited.value.rows.iter(),
+                credited.value.rows.len(),
+                &options,
+                include_aliases,
+            )
+        } else {
+            Vec::new()
+        };
+
+        let review_summary_json_bytes =
+            serde_json::to_vec(&build_review_summary(&app_rows, &screen_rows))
+                .map_err(|error| format!("serialize review summary: {error}"))?;
+        let visualization_data_json_bytes = serde_json::to_vec(&build_visualization_data(
+            &app_rows,
+            &screen_rows,
+            &policy_rows.value,
+        ))
+        .map_err(|error| format!("serialize visualization data: {error}"))?;
+        let aggregate_csv_outputs =
+            aggregates::build_aggregate_outputs(&app_rows, &screen_rows, &options);
+        let mut row_lineage = Vec::new();
+        if !app_csv_bytes.is_empty() {
+            row_lineage.extend(build_row_lineage("app-csv", "outputs", &app_rows));
+        }
+        if !screen_csv_bytes.is_empty() {
+            row_lineage.extend(build_row_lineage("screen-csv", "outputs", &screen_rows));
+        }
+        if let Some(credited) = &credited_rows {
+            row_lineage.extend(build_row_lineage_from_iter(
+                "credited-app-csv",
+                "effective_usage",
+                credited.value.rows.iter(),
+            ));
+        }
+        let outputs = AssembledOutputs {
+            app_csv_bytes,
+            screen_csv_bytes,
+            day_coverage_csv_bytes,
+            compliance_csv_bytes,
+            credited_app_csv_bytes,
+            review_summary_json_bytes,
+            visualization_data_json_bytes,
+            aggregate_csv_outputs,
+            row_lineage,
+        };
+        let checkpoint = assembled_checkpoint("assemble_result", &outputs)?;
+        Ok(StepValue {
+            value: Arc::new(outputs),
+            checkpoint,
+        })
+    }
+
+    #[derive(Clone, Copy)]
+    struct TrackedInputs {
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        usage: UsageConfigInput,
+        usage_support: UsageSupportInput,
+        late: LateConfigInput,
+        late_support: LateSupportInput,
+        output: OutputConfigInput,
+    }
+
+    impl TrackedInputs {
+        fn restored(db: &EarlyDatabase) -> Result<Self, String> {
+            Ok(Self {
+                raw: EarlyRawInput::try_get(db)
+                    .ok_or_else(|| "restored Salsa cache is missing EarlyRawInput".to_string())?,
+                early: EarlyConfigInput::try_get(db).ok_or_else(|| {
+                    "restored Salsa cache is missing EarlyConfigInput".to_string()
+                })?,
+                usage: UsageConfigInput::try_get(db).ok_or_else(|| {
+                    "restored Salsa cache is missing UsageConfigInput".to_string()
+                })?,
+                usage_support: UsageSupportInput::try_get(db).ok_or_else(|| {
+                    "restored Salsa cache is missing UsageSupportInput".to_string()
+                })?,
+                late: LateConfigInput::try_get(db)
+                    .ok_or_else(|| "restored Salsa cache is missing LateConfigInput".to_string())?,
+                late_support: LateSupportInput::try_get(db).ok_or_else(|| {
+                    "restored Salsa cache is missing LateSupportInput".to_string()
+                })?,
+                output: OutputConfigInput::try_get(db).ok_or_else(|| {
+                    "restored Salsa cache is missing OutputConfigInput".to_string()
+                })?,
+            })
+        }
+
+        fn new(
+            db: &EarlyDatabase,
+            csv_bytes: &[u8],
+            options: &PipelineV2Options,
+            support: PipelineV2SupportFiles<'_>,
+        ) -> Self {
+            Self {
+                raw: EarlyRawInput::new(db, Arc::new(csv_bytes.to_vec())),
+                early: EarlyConfigInput::new(
+                    db,
+                    Arc::new(options.interaction_type_remap.clone()),
+                    options.timezone.clone(),
+                    options.timezone_handling.clone(),
+                    options.datetime_of_preprocessing.clone(),
+                    options.deduplicate_exact_rows,
+                    options.correct_duplicate_event_timestamps,
+                    Arc::new(options.same_app_stop_types.clone()),
+                    Arc::new(options.other_stop_types.clone()),
+                ),
+                usage: UsageConfigInput::new(
+                    db,
+                    options.usage_session_mode,
+                    options.model_concurrent_usage,
+                    options.allow_stop_event_reuse,
+                    options.use_activity_stopped_as_fallback,
+                    options.apply_threshold_to_fallback,
+                    options.long_duration_threshold_ns,
+                    options.proximity_interval_ns,
+                    options.minimum_usage_duration,
+                    options.apply_minimum_usage_duration_to_concurrent_subintervals,
+                    options.custom_app_engagement_duration,
+                    Arc::new(options.long_data_time_gap_thresholds.clone()),
+                    Arc::new(options.long_usage_duration_thresholds.clone()),
+                    Arc::new(options.interaction_types_to_remove.clone()),
+                    options.filter_zero_duration_sessions,
+                ),
+                usage_support: UsageSupportInput::new(
+                    db,
+                    options.use_filter_file,
+                    options.use_background_apps_file,
+                    options.use_app_codebook,
+                    options.use_apps_forcing_screen_open,
+                    options.screen_auto_lock_timeout_seconds,
+                    options.screen_auto_lock_tolerance_seconds,
+                    options.screen_manual_lock_max_tail_seconds,
+                    options.screen_keyguard_near_stop_seconds,
+                    Arc::new(support.filter_csv.to_vec()),
+                    Arc::new(support.background_apps_csv.to_vec()),
+                    Arc::new(support.codebook_csv.to_vec()),
+                    Arc::new(support.apps_forcing_csv.to_vec()),
+                ),
+                late: LateConfigInput::new(
+                    db,
+                    options.enable_screen_gated_crediting,
+                    options.credited_session_cap_minutes,
+                    options.device_liveness_gap_tolerance_minutes,
+                    options.auto_lock_bridge_seconds,
+                    options.no_witness_min_day_apps,
+                    options.enable_study_window_filter,
+                    options.enable_person_attribution,
+                    options.add_no_activity_placeholder_days,
+                    options.enable_day_coverage,
+                    options.enable_compliance_scoring,
+                    options.compliance_threshold_percent,
+                ),
+                late_support: LateSupportInput::new(
+                    db,
+                    Arc::new(support.study_dates_csv.to_vec()),
+                    Arc::new(support.device_sharing_csv.to_vec()),
+                    Arc::new(support.survey_attribution_csv.to_vec()),
+                    Arc::new(support.enrolled_devices_csv.to_vec()),
+                ),
+                output: OutputConfigInput::new(
+                    db,
+                    options.study_name.clone(),
+                    options.include_app_output,
+                    options.include_screen_output,
+                    options.include_category_column,
+                    options.enable_aggregates,
+                    options.aggregate_shape.clone(),
+                ),
+            }
+        }
+
+        fn update(
+            self,
+            db: &mut EarlyDatabase,
+            csv_bytes: &[u8],
+            options: &PipelineV2Options,
+            support: PipelineV2SupportFiles<'_>,
+        ) {
+            macro_rules! set_if_changed {
+                ($input:expr, $getter:ident, $setter:ident, $value:expr) => {{
+                    let value = $value;
+                    if $input.$getter(db) != value {
+                        $input.$setter(db).to(value);
+                    }
+                }};
+            }
+            macro_rules! set_arc_vec_if_changed {
+                ($input:expr, $getter:ident, $setter:ident, $slice:expr, $owned:expr) => {{
+                    let current = $input.$getter(db);
+                    if current.as_slice() != $slice {
+                        $input.$setter(db).to(Arc::new($owned));
+                    }
+                }};
+            }
+            set_arc_vec_if_changed!(self.raw, bytes, set_bytes, csv_bytes, csv_bytes.to_vec());
+            set_arc_vec_if_changed!(
+                self.early,
+                interaction_type_remap,
+                set_interaction_type_remap,
+                options.interaction_type_remap.as_slice(),
+                options.interaction_type_remap.clone()
+            );
+            set_if_changed!(self.early, timezone, set_timezone, options.timezone.clone());
+            set_if_changed!(
+                self.early,
+                timezone_handling,
+                set_timezone_handling,
+                options.timezone_handling.clone()
+            );
+            set_if_changed!(
+                self.early,
+                datetime_of_preprocessing,
+                set_datetime_of_preprocessing,
+                options.datetime_of_preprocessing.clone()
+            );
+            set_if_changed!(
+                self.early,
+                deduplicate_exact_rows,
+                set_deduplicate_exact_rows,
+                options.deduplicate_exact_rows
+            );
+            set_if_changed!(
+                self.early,
+                correct_duplicate_event_timestamps,
+                set_correct_duplicate_event_timestamps,
+                options.correct_duplicate_event_timestamps
+            );
+            set_arc_vec_if_changed!(
+                self.early,
+                same_app_stop_types,
+                set_same_app_stop_types,
+                options.same_app_stop_types.as_slice(),
+                options.same_app_stop_types.clone()
+            );
+            set_arc_vec_if_changed!(
+                self.early,
+                other_stop_types,
+                set_other_stop_types,
+                options.other_stop_types.as_slice(),
+                options.other_stop_types.clone()
+            );
+
+            set_if_changed!(
+                self.usage,
+                usage_session_mode,
+                set_usage_session_mode,
+                options.usage_session_mode
+            );
+            set_if_changed!(
+                self.usage_support,
+                use_filter_file,
+                set_use_filter_file,
+                options.use_filter_file
+            );
+            set_if_changed!(
+                self.usage_support,
+                use_background_apps_file,
+                set_use_background_apps_file,
+                options.use_background_apps_file
+            );
+            set_if_changed!(
+                self.usage,
+                model_concurrent_usage,
+                set_model_concurrent_usage,
+                options.model_concurrent_usage
+            );
+            set_if_changed!(
+                self.usage,
+                allow_stop_event_reuse,
+                set_allow_stop_event_reuse,
+                options.allow_stop_event_reuse
+            );
+            set_if_changed!(
+                self.usage,
+                use_activity_stopped_as_fallback,
+                set_use_activity_stopped_as_fallback,
+                options.use_activity_stopped_as_fallback
+            );
+            set_if_changed!(
+                self.usage,
+                apply_threshold_to_fallback,
+                set_apply_threshold_to_fallback,
+                options.apply_threshold_to_fallback
+            );
+            set_if_changed!(
+                self.usage,
+                long_duration_threshold_ns,
+                set_long_duration_threshold_ns,
+                options.long_duration_threshold_ns
+            );
+            set_if_changed!(
+                self.usage,
+                proximity_interval_ns,
+                set_proximity_interval_ns,
+                options.proximity_interval_ns
+            );
+            set_if_changed!(
+                self.usage,
+                minimum_usage_duration,
+                set_minimum_usage_duration,
+                options.minimum_usage_duration
+            );
+            set_if_changed!(
+                self.usage,
+                apply_minimum_usage_duration_to_concurrent_subintervals,
+                set_apply_minimum_usage_duration_to_concurrent_subintervals,
+                options.apply_minimum_usage_duration_to_concurrent_subintervals
+            );
+            set_if_changed!(
+                self.usage_support,
+                use_app_codebook,
+                set_use_app_codebook,
+                options.use_app_codebook
+            );
+            set_if_changed!(
+                self.usage,
+                custom_app_engagement_duration,
+                set_custom_app_engagement_duration,
+                options.custom_app_engagement_duration
+            );
+            set_arc_vec_if_changed!(
+                self.usage,
+                long_data_time_gap_thresholds,
+                set_long_data_time_gap_thresholds,
+                options.long_data_time_gap_thresholds.as_slice(),
+                options.long_data_time_gap_thresholds.clone()
+            );
+            set_arc_vec_if_changed!(
+                self.usage,
+                long_usage_duration_thresholds,
+                set_long_usage_duration_thresholds,
+                options.long_usage_duration_thresholds.as_slice(),
+                options.long_usage_duration_thresholds.clone()
+            );
+            set_if_changed!(
+                self.usage_support,
+                use_apps_forcing_screen_open,
+                set_use_apps_forcing_screen_open,
+                options.use_apps_forcing_screen_open
+            );
+            set_if_changed!(
+                self.usage_support,
+                screen_auto_lock_timeout_seconds,
+                set_screen_auto_lock_timeout_seconds,
+                options.screen_auto_lock_timeout_seconds
+            );
+            set_if_changed!(
+                self.usage_support,
+                screen_auto_lock_tolerance_seconds,
+                set_screen_auto_lock_tolerance_seconds,
+                options.screen_auto_lock_tolerance_seconds
+            );
+            set_if_changed!(
+                self.usage_support,
+                screen_manual_lock_max_tail_seconds,
+                set_screen_manual_lock_max_tail_seconds,
+                options.screen_manual_lock_max_tail_seconds
+            );
+            set_if_changed!(
+                self.usage_support,
+                screen_keyguard_near_stop_seconds,
+                set_screen_keyguard_near_stop_seconds,
+                options.screen_keyguard_near_stop_seconds
+            );
+            set_arc_vec_if_changed!(
+                self.usage,
+                interaction_types_to_remove,
+                set_interaction_types_to_remove,
+                options.interaction_types_to_remove.as_slice(),
+                options.interaction_types_to_remove.clone()
+            );
+            set_if_changed!(
+                self.usage,
+                filter_zero_duration_sessions,
+                set_filter_zero_duration_sessions,
+                options.filter_zero_duration_sessions
+            );
+
+            set_arc_vec_if_changed!(
+                self.usage_support,
+                filter_csv,
+                set_filter_csv,
+                support.filter_csv,
+                support.filter_csv.to_vec()
+            );
+            set_arc_vec_if_changed!(
+                self.usage_support,
+                background_apps_csv,
+                set_background_apps_csv,
+                support.background_apps_csv,
+                support.background_apps_csv.to_vec()
+            );
+            set_arc_vec_if_changed!(
+                self.usage_support,
+                codebook_csv,
+                set_codebook_csv,
+                support.codebook_csv,
+                support.codebook_csv.to_vec()
+            );
+            set_arc_vec_if_changed!(
+                self.usage_support,
+                apps_forcing_csv,
+                set_apps_forcing_csv,
+                support.apps_forcing_csv,
+                support.apps_forcing_csv.to_vec()
+            );
+
+            set_if_changed!(
+                self.late,
+                enable_screen_gated_crediting,
+                set_enable_screen_gated_crediting,
+                options.enable_screen_gated_crediting
+            );
+            set_if_changed!(
+                self.late,
+                credited_session_cap_minutes,
+                set_credited_session_cap_minutes,
+                options.credited_session_cap_minutes
+            );
+            set_if_changed!(
+                self.late,
+                device_liveness_gap_tolerance_minutes,
+                set_device_liveness_gap_tolerance_minutes,
+                options.device_liveness_gap_tolerance_minutes
+            );
+            set_if_changed!(
+                self.late,
+                auto_lock_bridge_seconds,
+                set_auto_lock_bridge_seconds,
+                options.auto_lock_bridge_seconds
+            );
+            set_if_changed!(
+                self.late,
+                no_witness_min_day_apps,
+                set_no_witness_min_day_apps,
+                options.no_witness_min_day_apps
+            );
+            set_if_changed!(
+                self.late,
+                enable_study_window_filter,
+                set_enable_study_window_filter,
+                options.enable_study_window_filter
+            );
+            set_if_changed!(
+                self.late,
+                enable_person_attribution,
+                set_enable_person_attribution,
+                options.enable_person_attribution
+            );
+            set_if_changed!(
+                self.late,
+                add_no_activity_placeholder_days,
+                set_add_no_activity_placeholder_days,
+                options.add_no_activity_placeholder_days
+            );
+            set_if_changed!(
+                self.late,
+                enable_day_coverage,
+                set_enable_day_coverage,
+                options.enable_day_coverage
+            );
+            set_if_changed!(
+                self.late,
+                enable_compliance_scoring,
+                set_enable_compliance_scoring,
+                options.enable_compliance_scoring
+            );
+            set_if_changed!(
+                self.late,
+                compliance_threshold_percent,
+                set_compliance_threshold_percent,
+                options.compliance_threshold_percent
+            );
+            set_arc_vec_if_changed!(
+                self.late_support,
+                study_dates_csv,
+                set_study_dates_csv,
+                support.study_dates_csv,
+                support.study_dates_csv.to_vec()
+            );
+            set_arc_vec_if_changed!(
+                self.late_support,
+                device_sharing_csv,
+                set_device_sharing_csv,
+                support.device_sharing_csv,
+                support.device_sharing_csv.to_vec()
+            );
+            set_arc_vec_if_changed!(
+                self.late_support,
+                survey_attribution_csv,
+                set_survey_attribution_csv,
+                support.survey_attribution_csv,
+                support.survey_attribution_csv.to_vec()
+            );
+            set_arc_vec_if_changed!(
+                self.late_support,
+                enrolled_devices_csv,
+                set_enrolled_devices_csv,
+                support.enrolled_devices_csv,
+                support.enrolled_devices_csv.to_vec()
+            );
+
+            set_if_changed!(
+                self.output,
+                study_name,
+                set_study_name,
+                options.study_name.clone()
+            );
+            set_if_changed!(
+                self.output,
+                include_app_output,
+                set_include_app_output,
+                options.include_app_output
+            );
+            set_if_changed!(
+                self.output,
+                include_screen_output,
+                set_include_screen_output,
+                options.include_screen_output
+            );
+            set_if_changed!(
+                self.output,
+                include_category_column,
+                set_include_category_column,
+                options.include_category_column
+            );
+            set_if_changed!(
+                self.output,
+                enable_aggregates,
+                set_enable_aggregates,
+                options.enable_aggregates
+            );
+            set_if_changed!(
+                self.output,
+                aggregate_shape,
+                set_aggregate_shape,
+                options.aggregate_shape.clone()
+            );
+        }
+    }
+
+    pub(super) struct TrackedExecution {
+        pub result: Arc<PipelineV2Result>,
+        pub executed_steps: Vec<String>,
+    }
+
+    #[derive(Clone)]
+    struct CachedDatabasePayload {
+        engine_revision: u64,
+        bytes: Arc<Vec<u8>>,
+        digest: String,
+        uncompressed_size: u64,
+    }
+
+    #[derive(Default)]
+    pub(super) struct TrackedEngine {
+        db: EarlyDatabase,
+        inputs: Option<TrackedInputs>,
+        revision: u64,
+        cached_database_payload: Option<CachedDatabasePayload>,
+    }
+
+    const CACHE_PROTOCOL: &str = "chronicle-salsa-query-cache/v4";
+    const CACHE_CODEC: &str = "messagepack-rmp-serde-1.3.1+lz4-frame-0.13.1";
+    const CACHE_SALSA_VERSION: &str = "0.28.1";
+    pub(super) const MAX_CACHE_BYTES: usize = 128 * 1024 * 1024;
+    const MAX_DECOMPRESSED_CACHE_BYTES: u64 = 384 * 1024 * 1024;
+    // The measured 60,624-row fixture expanded its 6.7 MiB CSV to an 868 MiB
+    // Salsa snapshot and restored more slowly than a cold calculation. Keep
+    // restart caching for smaller workspaces where it is useful; larger inputs
+    // run cold instead of paying a known memory/time penalty. The stream limits
+    // below remain the final safety check if a small input expands unusually.
+    const MAX_CACHE_INGRESS_BYTES: usize = 3 * 1024 * 1024;
+
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct CacheEnvelope {
+        protocol_version: String,
+        codec: String,
+        salsa_version: String,
+        engine_revision: u64,
+        identity: String,
+        identity_sha256: String,
+        database_payload_sha256: String,
+        database_payload_size: u64,
+        database_uncompressed_size: u64,
+        database_payload: Vec<u8>,
+    }
+
+    #[derive(serde::Serialize)]
+    struct CacheEnvelopeRef<'a> {
+        protocol_version: &'static str,
+        codec: &'static str,
+        salsa_version: &'static str,
+        engine_revision: u64,
+        identity: &'a str,
+        identity_sha256: String,
+        database_payload_sha256: &'a str,
+        database_payload_size: u64,
+        database_uncompressed_size: u64,
+        database_payload: &'a [u8],
+    }
+
+    struct CountingWriter<W> {
+        inner: W,
+        bytes_written: u64,
+        max_bytes: u64,
+        label: &'static str,
+    }
+
+    impl<W> CountingWriter<W> {
+        fn new(inner: W, max_bytes: u64, label: &'static str) -> Self {
+            Self {
+                inner,
+                bytes_written: 0,
+                max_bytes,
+                label,
+            }
+        }
+
+        fn into_parts(self) -> (W, u64) {
+            (self.inner, self.bytes_written)
+        }
+    }
+
+    impl<W: std::io::Write> std::io::Write for CountingWriter<W> {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            let attempted = self
+                .bytes_written
+                .checked_add(bytes.len() as u64)
+                .ok_or_else(|| std::io::Error::other("query-cache byte count overflow"))?;
+            if attempted > self.max_bytes {
+                return Err(std::io::Error::other(format!(
+                    "{} exceeds the {} byte limit",
+                    self.label, self.max_bytes
+                )));
+            }
+            let written = self.inner.write(bytes)?;
+            self.bytes_written = self
+                .bytes_written
+                .checked_add(written as u64)
+                .ok_or_else(|| std::io::Error::other("query-cache byte count overflow"))?;
+            Ok(written)
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            self.inner.flush()
+        }
+    }
+
+    struct LimitedVecWriter {
+        bytes: Vec<u8>,
+        max_bytes: usize,
+    }
+
+    impl LimitedVecWriter {
+        fn new(max_bytes: usize) -> Self {
+            Self {
+                bytes: Vec::new(),
+                max_bytes,
+            }
+        }
+
+        fn into_inner(self) -> Vec<u8> {
+            self.bytes
+        }
+    }
+
+    impl std::io::Write for LimitedVecWriter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            let attempted = self
+                .bytes
+                .len()
+                .checked_add(bytes.len())
+                .ok_or_else(|| std::io::Error::other("query-cache byte count overflow"))?;
+            if attempted > self.max_bytes {
+                return Err(std::io::Error::other(format!(
+                    "compressed query cache exceeds the {} byte limit",
+                    self.max_bytes
+                )));
+            }
+            self.bytes.extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    struct CountingReader<R> {
+        inner: R,
+        bytes_read: u64,
+        max_bytes: u64,
+    }
+
+    impl<R> CountingReader<R> {
+        fn new(inner: R, max_bytes: u64) -> Self {
+            Self {
+                inner,
+                bytes_read: 0,
+                max_bytes,
+            }
+        }
+    }
+
+    impl<R: std::io::Read> std::io::Read for CountingReader<R> {
+        fn read(&mut self, bytes: &mut [u8]) -> std::io::Result<usize> {
+            let remaining_with_probe = self
+                .max_bytes
+                .saturating_add(1)
+                .saturating_sub(self.bytes_read);
+            if remaining_with_probe == 0 {
+                return Err(std::io::Error::other(
+                    "query-cache decompressed size exceeds limit",
+                ));
+            }
+            let allowed = usize::try_from(remaining_with_probe)
+                .unwrap_or(usize::MAX)
+                .min(bytes.len());
+            let read = self.inner.read(&mut bytes[..allowed])?;
+            self.bytes_read = self
+                .bytes_read
+                .checked_add(read as u64)
+                .ok_or_else(|| std::io::Error::other("query-cache byte count overflow"))?;
+            if self.bytes_read > self.max_bytes {
+                return Err(std::io::Error::other(
+                    "query-cache decompressed size exceeds limit",
+                ));
+            }
+            Ok(read)
+        }
+    }
+
+    fn cache_sha256(bytes: &[u8]) -> String {
+        format!("sha256:{}", hex::encode(Sha256::digest(bytes)))
+    }
+
+    fn encode_messagepack<T: serde::Serialize>(value: &T, label: &str) -> Result<Vec<u8>, String> {
+        use rmp_serde::config::BytesMode;
+        let mut bytes = LimitedVecWriter::new(MAX_CACHE_BYTES);
+        value
+            .serialize(
+                &mut rmp_serde::Serializer::new(&mut bytes)
+                    .with_struct_map()
+                    .with_bytes(BytesMode::ForceAll),
+            )
+            .map_err(|error| format!("encode {label} as MessagePack: {error}"))?;
+        Ok(bytes.into_inner())
+    }
+
+    fn encode_database(database: &impl serde::Serialize) -> Result<(Vec<u8>, u64), String> {
+        use rmp_serde::config::BytesMode;
+        let encoder = lz4_flex::frame::FrameEncoder::new(LimitedVecWriter::new(MAX_CACHE_BYTES));
+        let mut writer = CountingWriter::new(
+            encoder,
+            MAX_DECOMPRESSED_CACHE_BYTES,
+            "decompressed query cache",
+        );
+        database
+            .serialize(
+                &mut rmp_serde::Serializer::new(&mut writer)
+                    .with_struct_map()
+                    .with_bytes(BytesMode::ForceAll),
+            )
+            .map_err(|error| format!("encode Salsa database as MessagePack: {error}"))?;
+        let (encoder, uncompressed_size) = writer.into_parts();
+        encoder
+            .finish()
+            .map(|bytes| (bytes.into_inner(), uncompressed_size))
+            .map_err(|error| format!("finish Salsa database LZ4 frame: {error}"))
+    }
+
+    fn decode_messagepack<T: serde::de::DeserializeOwned>(
+        bytes: &[u8],
+        label: &str,
+    ) -> Result<T, String> {
+        if bytes.len() > MAX_CACHE_BYTES {
+            return Err(format!(
+                "{label} exceeds the {} byte cache limit",
+                MAX_CACHE_BYTES
+            ));
+        }
+        rmp_serde::from_slice(bytes)
+            .map_err(|error| format!("decode {label} from MessagePack: {error}"))
+    }
+
+    impl TrackedEngine {
+        pub fn export_cache(&mut self, identity: &str) -> Result<Vec<u8>, String> {
+            if identity.is_empty() {
+                return Err("query-cache identity must not be empty".to_string());
+            }
+            if identity.len() > 64 * 1024 {
+                return Err("query-cache identity exceeds 64 KiB".to_string());
+            }
+            let inputs = self.inputs.ok_or_else(|| {
+                "query cache is unavailable before the first execution".to_string()
+            })?;
+            let ingress_bytes = [
+                inputs.raw.bytes(&self.db).len(),
+                inputs.usage_support.filter_csv(&self.db).len(),
+                inputs.usage_support.background_apps_csv(&self.db).len(),
+                inputs.usage_support.codebook_csv(&self.db).len(),
+                inputs.usage_support.apps_forcing_csv(&self.db).len(),
+                inputs.late_support.study_dates_csv(&self.db).len(),
+                inputs.late_support.device_sharing_csv(&self.db).len(),
+                inputs.late_support.survey_attribution_csv(&self.db).len(),
+                inputs.late_support.enrolled_devices_csv(&self.db).len(),
+            ]
+            .into_iter()
+            .try_fold(0_usize, |total, size| total.checked_add(size))
+            .ok_or_else(|| "query-cache ingress byte count overflow".to_string())?;
+            if ingress_bytes > MAX_CACHE_INGRESS_BYTES {
+                return Err(format!(
+                    "query cache skipped because {} ingress bytes exceed the measured-safe {} byte limit",
+                    ingress_bytes, MAX_CACHE_INGRESS_BYTES
+                ));
+            }
+            let payload = match &self.cached_database_payload {
+                Some(payload) if payload.engine_revision == self.revision => payload.clone(),
+                _ => {
+                    let (bytes, uncompressed_size) = with_row_serialize_context(|| {
+                        encode_database(&<dyn salsa::Database>::as_serialize(&mut self.db))
+                    })?;
+                    let payload = CachedDatabasePayload {
+                        engine_revision: self.revision,
+                        digest: cache_sha256(&bytes),
+                        bytes: Arc::new(bytes),
+                        uncompressed_size,
+                    };
+                    self.cached_database_payload = Some(payload.clone());
+                    payload
+                }
+            };
+            let envelope = CacheEnvelopeRef {
+                protocol_version: CACHE_PROTOCOL,
+                codec: CACHE_CODEC,
+                salsa_version: CACHE_SALSA_VERSION,
+                engine_revision: self.revision,
+                identity,
+                identity_sha256: cache_sha256(identity.as_bytes()),
+                database_payload_sha256: &payload.digest,
+                database_payload_size: payload.bytes.len() as u64,
+                database_uncompressed_size: payload.uncompressed_size,
+                database_payload: payload.bytes.as_slice(),
+            };
+            let bytes = encode_messagepack(&envelope, "query-cache envelope")?;
+            if bytes.len() > MAX_CACHE_BYTES {
+                return Err(format!(
+                    "query-cache envelope exceeds the {} byte cache limit: actual={}",
+                    MAX_CACHE_BYTES,
+                    bytes.len(),
+                ));
+            }
+            Ok(bytes)
+        }
+
+        pub fn restore_cache(
+            &mut self,
+            bytes: &[u8],
+            expected_identity: &str,
+        ) -> Result<(), String> {
+            let envelope: CacheEnvelope = decode_messagepack(bytes, "query-cache envelope")?;
+            if envelope.protocol_version != CACHE_PROTOCOL {
+                return Err(format!(
+                    "unsupported query-cache protocol: {}",
+                    envelope.protocol_version
+                ));
+            }
+            if envelope.codec != CACHE_CODEC {
+                return Err(format!("unsupported query-cache codec: {}", envelope.codec));
+            }
+            if envelope.salsa_version != CACHE_SALSA_VERSION {
+                return Err(format!(
+                    "query-cache Salsa version mismatch: expected={} actual={}",
+                    CACHE_SALSA_VERSION, envelope.salsa_version
+                ));
+            }
+            if envelope.engine_revision == 0 {
+                return Err("query-cache engine revision must be positive".to_string());
+            }
+            if envelope.identity != expected_identity {
+                return Err(format!(
+                    "query-cache identity mismatch: expected={} actual={}",
+                    expected_identity, envelope.identity
+                ));
+            }
+            if cache_sha256(envelope.identity.as_bytes()) != envelope.identity_sha256 {
+                return Err("query-cache identity digest mismatch".to_string());
+            }
+            let verify_payload = |label: &str,
+                                  payload: &[u8],
+                                  declared_size: u64,
+                                  declared_digest: &str|
+             -> Result<(), String> {
+                if payload.len() as u64 != declared_size {
+                    return Err(format!(
+                        "query-cache {label} size mismatch: declared={declared_size} actual={}",
+                        payload.len()
+                    ));
+                }
+                let actual_digest = cache_sha256(payload);
+                if actual_digest != declared_digest {
+                    return Err(format!(
+                        "query-cache {label} digest mismatch: declared={declared_digest} actual={actual_digest}"
+                    ));
+                }
+                Ok(())
+            };
+            verify_payload(
+                "database payload",
+                &envelope.database_payload,
+                envelope.database_payload_size,
+                &envelope.database_payload_sha256,
+            )?;
+            if envelope.database_uncompressed_size > MAX_DECOMPRESSED_CACHE_BYTES {
+                return Err(format!(
+                    "query-cache declared uncompressed size exceeds the {} byte limit: actual={}",
+                    MAX_DECOMPRESSED_CACHE_BYTES, envelope.database_uncompressed_size
+                ));
+            }
+            let mut restored = EarlyDatabase::default();
+            let decoder = lz4_flex::frame::FrameDecoder::new(envelope.database_payload.as_slice());
+            let reader = CountingReader::new(decoder, MAX_DECOMPRESSED_CACHE_BYTES);
+            let mut deserializer = rmp_serde::Deserializer::new(reader);
+            with_row_deserialize_context(|| {
+                <dyn salsa::Database>::deserialize(&mut restored, &mut deserializer)
+            })
+            .map_err(|error| format!("restore Salsa database: {error}"))?;
+            let mut reader = deserializer.into_inner();
+            let mut trailing = [0_u8; 1];
+            use std::io::Read as _;
+            if reader
+                .read(&mut trailing)
+                .map_err(|error| format!("finish reading Salsa database: {error}"))?
+                != 0
+            {
+                return Err("query-cache database contains trailing data".to_string());
+            }
+            if reader.bytes_read != envelope.database_uncompressed_size {
+                return Err(format!(
+                    "query-cache uncompressed size mismatch: declared={} actual={}",
+                    envelope.database_uncompressed_size, reader.bytes_read
+                ));
+            }
+
+            // Recover the seven product inputs from Salsa itself. Each input
+            // is a persisted singleton, so a schema mismatch or incomplete
+            // cache fails before the restored database becomes live.
+            let inputs = TrackedInputs::restored(&restored)?;
+            let _ = inputs.raw.bytes(&restored);
+            restored.take_query_bodies();
+            restored.take_will_execute();
+            self.db = restored;
+            self.inputs = Some(inputs);
+            self.revision = envelope.engine_revision;
+            self.cached_database_payload = Some(CachedDatabasePayload {
+                engine_revision: envelope.engine_revision,
+                digest: envelope.database_payload_sha256,
+                bytes: Arc::new(envelope.database_payload),
+                uncompressed_size: envelope.database_uncompressed_size,
+            });
+            Ok(())
+        }
+
+        pub fn execute(
+            &mut self,
+            csv_bytes: &[u8],
+            options: &PipelineV2Options,
+            support: PipelineV2SupportFiles<'_>,
+        ) -> Result<TrackedExecution, String> {
+            let inputs = match self.inputs {
+                Some(inputs) => {
+                    inputs.update(&mut self.db, csv_bytes, options, support);
+                    inputs
+                }
+                None => {
+                    let inputs = TrackedInputs::new(&self.db, csv_bytes, options, support);
+                    self.inputs = Some(inputs);
+                    inputs
+                }
+            };
+            self.db.take_query_bodies();
+            self.db.take_will_execute();
+            let result = assemble_result(
+                &self.db,
+                inputs.raw,
+                inputs.early,
+                inputs.usage,
+                inputs.usage_support,
+                inputs.late,
+                inputs.late_support,
+                inputs.output,
+            )?
+            .value;
+            let query_bodies = self.db.take_query_bodies();
+            let will_execute = self.db.take_will_execute();
+            if query_bodies.len() != will_execute.len() {
+                return Err(format!(
+                    "Salsa execution-event mismatch: {} query bodies but {} WillExecute events: {will_execute:?}",
+                    query_bodies.len(),
+                    will_execute.len(),
+                ));
+            }
+            let executed_steps = query_bodies
+                .into_iter()
+                .map(str::to_string)
+                .collect::<Vec<_>>();
+            if !executed_steps.is_empty() {
+                self.revision = self
+                    .revision
+                    .checked_add(1)
+                    .ok_or_else(|| "tracked-engine revision overflow".to_string())?;
+                self.cached_database_payload = None;
+            }
+            Ok(TrackedExecution {
+                result,
+                executed_steps,
+            })
+        }
+    }
+
+    fn not_applicable(step: &str) -> LogicalStageCheckpoint {
+        logical_stage_state_checkpoint(step, "not_applicable")
+    }
+
+    fn insert_checkpoint(
+        checkpoints: &mut BTreeMap<String, LogicalStageCheckpoint>,
+        checkpoint: &LogicalStageCheckpoint,
+    ) {
+        checkpoints.insert(checkpoint.node_id.clone(), checkpoint.clone());
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[salsa::tracked(returns(clone), persist)]
+    fn assemble_result(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        usage: UsageConfigInput,
+        usage_support: UsageSupportInput,
+        late: LateConfigInput,
+        late_support: LateSupportInput,
+        output: OutputConfigInput,
+    ) -> Result<StepValue<PipelineV2Result>, String> {
+        db.record_query_body("assemble_result");
+        let options = output_options(db, early, usage, usage_support, late, output);
+        let mut step_checkpoints = BTreeMap::new();
+
+        let remap = parse_remap_config(db, early)?;
+        insert_checkpoint(&mut step_checkpoints, &remap.checkpoint);
+        let parsed = csv_parse(db, raw)?;
+        insert_checkpoint(&mut step_checkpoints, &parsed.checkpoint);
+        let nonempty = drop_empty_timestamp(db, raw)?;
+        insert_checkpoint(&mut step_checkpoints, &nonempty.checkpoint);
+        let model = detect_device_model(db, raw)?;
+        insert_checkpoint(&mut step_checkpoints, &model.checkpoint);
+        let preprocessing_datetime = resolve_preproc_datetime(db, early)?;
+        insert_checkpoint(&mut step_checkpoints, &preprocessing_datetime.checkpoint);
+        let canonical = build_canonical_rows(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &canonical.checkpoint);
+        let sorted = stable_sort(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &sorted.checkpoint);
+        let timezones = collect_timezones(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &timezones.checkpoint);
+        let dominant = compute_dominant_timezone(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &dominant.checkpoint);
+        let selected = select_timezone_strategy(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &selected.checkpoint);
+        let restamped = restamp_rows(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &restamped.checkpoint);
+        let row_counts = row_count_report(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &row_counts.checkpoint);
+        let deduped = exact_dedupe(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &deduped.checkpoint);
+        let duplicate_groups = count_dup_groups(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &duplicate_groups.checkpoint);
+        let nudged = nudge_duplicate_timestamps(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &nudged.checkpoint);
+        let gaps = mark_data_time_gaps(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &gaps.checkpoint);
+        let policy = tag_filtered_packages(db, raw, early, usage, usage_support)?;
+        insert_checkpoint(&mut step_checkpoints, &policy.checkpoint);
+
+        let screen_mode = matches!(
+            options.usage_session_mode,
+            UsageSessionMode::ScreenUsage | UsageSessionMode::AppAndScreenUsage
+        );
+        let screen_rows = if screen_mode {
+            let keyguard = collect_keyguard_timestamps(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &keyguard.checkpoint);
+            let walked = walk_screen_state_machine(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &walked.checkpoint);
+            let built = build_classified_sessions(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &built.checkpoint);
+            built.value.as_ref().clone()
+        } else {
+            for step in [
+                "collect_keyguard_timestamps",
+                "walk_screen_state_machine",
+                "build_classified_sessions",
+            ] {
+                step_checkpoints.insert(step.into(), not_applicable(step));
+            }
+            Vec::new()
+        };
+
+        let app_mode = matches!(
+            options.usage_session_mode,
+            UsageSessionMode::AppUsage | UsageSessionMode::AppAndScreenUsage
+        );
+        let mut reconstruct_rows = Vec::new();
+        let mut categorized_rows = Vec::new();
+        let mut annotated_rows = Vec::new();
+        let mut cleaned_rows = Vec::new();
+        let mut app_rows = Vec::new();
+        let mut day_coverage_bytes = Vec::new();
+        let mut compliance_bytes = Vec::new();
+        let mut credited_count = 0;
+        let mut day_coverage_count = 0;
+        let mut compliance_count = 0;
+
+        let (
+            effective_checkpoint,
+            observation_checkpoint,
+            attribution_checkpoint,
+            day_coverage_checkpoint,
+            compliance_checkpoint,
+        ) = if app_mode {
+            let junk = compute_junk_packages(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &junk.checkpoint);
+            let blind = junk_blind_fold(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &blind.checkpoint);
+            let matcher_input = build_matcher_input(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &matcher_input.checkpoint);
+            let matcher = run_matcher(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &matcher.checkpoint);
+            let applied = apply_matcher_output(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &applied.checkpoint);
+            let relabeled = relabel_usage_with_floor(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &relabeled.checkpoint);
+            let downstream = junk_downstream_mark(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &downstream.checkpoint);
+            let sorted_episodes = sort_episodes(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &sorted_episodes.checkpoint);
+            let split = split_concurrent(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &split.checkpoint);
+            reconstruct_rows = split.value.as_ref().clone();
+            let joined = codebook_join(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &joined.checkpoint);
+            let broad = derive_broad_category(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &broad.checkpoint);
+            let collapsed = collapse_genre(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &collapsed.checkpoint);
+            categorized_rows = collapsed.value.as_ref().clone();
+            let engagement = engagement_walk(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &engagement.checkpoint);
+            let flagged = flag_and_retain(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &flagged.checkpoint);
+            annotated_rows = flagged.value.as_ref().clone();
+            let blanked = blank_junk_timing(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &blanked.checkpoint);
+            let selected_types = drop_selected_types(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &selected_types.checkpoint);
+            let zero_filtered = drop_zero_duration(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &zero_filtered.checkpoint);
+            cleaned_rows = zero_filtered.value.as_ref().clone();
+
+            let effective = if options.enable_screen_gated_crediting {
+                let partition = partition_credit_sessions(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &partition.checkpoint);
+                let substrate = build_liveness_substrate(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &substrate.checkpoint);
+                let incapable = report_screen_incapable(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &incapable.checkpoint);
+                let day_apps = count_day_apps(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &day_apps.checkpoint);
+                let credited = credit_sessions(db, raw, early, usage, usage_support, late)?;
+                insert_checkpoint(&mut step_checkpoints, &credited.checkpoint);
+                let emitted = emit_credited_rows(db, raw, early, usage, usage_support, late)?;
+                insert_checkpoint(&mut step_checkpoints, &emitted.checkpoint);
+                let assembled = assemble_credit_result(db, raw, early, usage, usage_support, late)?;
+                insert_checkpoint(&mut step_checkpoints, &assembled.checkpoint);
+                credited_count = assembled.value.rows.len() as u32;
+                logical_stage_checkpoint(
+                    "effective_usage",
+                    &[],
+                    &[(
+                        "assemble_credit_result",
+                        assembled.checkpoint.terminal_digest.as_bytes(),
+                    )],
+                )
+            } else {
+                for step in [
+                    "partition_credit_sessions",
+                    "build_liveness_substrate",
+                    "report_screen_incapable",
+                    "count_day_apps",
+                    "credit_sessions",
+                    "emit_credited_rows",
+                    "assemble_credit_result",
+                ] {
+                    step_checkpoints.insert(step.into(), not_applicable(step));
+                }
+                logical_stage_state_checkpoint("effective_usage", "not_applicable")
+            };
+
+            let windows =
+                resolve_participant_windows(db, raw, early, usage, usage_support, late_support)?;
+            insert_checkpoint(&mut step_checkpoints, &windows.checkpoint);
+            let windowed =
+                filter_rows_to_window(db, raw, early, usage, usage_support, late, late_support)?;
+            insert_checkpoint(&mut step_checkpoints, &windowed.checkpoint);
+            let windowed_rows = windowed.value.rows.clone();
+            let observation = logical_stage_rows_checkpoint("observation_window", &windowed_rows);
+
+            let sharing =
+                resolve_sharing_status(db, raw, early, usage, usage_support, late, late_support)?;
+            insert_checkpoint(&mut step_checkpoints, &sharing.checkpoint);
+            let survey = build_survey_lookup(db, late, late_support)?;
+            insert_checkpoint(&mut step_checkpoints, &survey.checkpoint);
+            let attributed =
+                attribute_rows(db, raw, early, usage, usage_support, late, late_support)?;
+            insert_checkpoint(&mut step_checkpoints, &attributed.checkpoint);
+            let attributed_rows_value = attributed.value.rows.clone();
+            let shared_participants = attributed.value.shared_participants.clone();
+            let shared_bytes = serde_json::to_vec(&shared_participants)
+                .map_err(|error| format!("serialize shared-participant checkpoint: {error}"))?;
+            let attribution = logical_stage_checkpoint(
+                "attribute_person",
+                &[("rows", &attributed_rows_value)],
+                &[("shared_participants", &shared_bytes)],
+            );
+
+            let placeholders =
+                inject_placeholders(db, raw, early, usage, usage_support, late, late_support)?;
+            insert_checkpoint(&mut step_checkpoints, &placeholders.checkpoint);
+            app_rows = placeholders.value.as_ref().clone();
+            let raw_dates = build_raw_date_index(db, raw, early, usage, usage_support)?;
+            insert_checkpoint(&mut step_checkpoints, &raw_dates.checkpoint);
+            if options.enable_day_coverage {
+                let coverage =
+                    build_coverage_table(db, raw, early, usage, usage_support, late, late_support)?;
+                insert_checkpoint(&mut step_checkpoints, &coverage.checkpoint);
+                day_coverage_bytes = coverage.value.csv_bytes.clone();
+                day_coverage_count = coverage.value.report.coverage.len() as u32;
+            } else {
+                step_checkpoints.insert(
+                    "build_coverage_table".into(),
+                    not_applicable("build_coverage_table"),
+                );
+            }
+            let day_coverage = logical_stage_checkpoint(
+                "day_coverage",
+                &[("rows", &app_rows)],
+                &[("day_coverage_csv", &day_coverage_bytes)],
+            );
+
+            if options.enable_compliance_scoring {
+                let minutes = accumulate_attribution_minutes(
+                    db,
+                    raw,
+                    early,
+                    usage,
+                    usage_support,
+                    late,
+                    late_support,
+                )?;
+                insert_checkpoint(&mut step_checkpoints, &minutes.checkpoint);
+                let scored = score_days(db, raw, early, usage, usage_support, late, late_support)?;
+                insert_checkpoint(&mut step_checkpoints, &scored.checkpoint);
+                compliance_count = scored.value.days.len() as u32;
+                compliance_bytes =
+                    super::compliance_csv(&scored.value, &late_support.enrolled_devices_csv(db))?;
+            } else {
+                for step in ["accumulate_attribution_minutes", "score_days"] {
+                    step_checkpoints.insert(step.into(), not_applicable(step));
+                }
+            }
+            let compliance = logical_stage_checkpoint(
+                "score_compliance",
+                &[],
+                &[("compliance_csv", &compliance_bytes)],
+            );
+            (
+                effective,
+                observation,
+                attribution,
+                day_coverage,
+                compliance,
+            )
+        } else {
+            for definition in &crate::step_contract::PIPELINE_STEPS[20..54] {
+                step_checkpoints.insert(definition.id.into(), not_applicable(definition.id));
+            }
+            (
+                logical_stage_state_checkpoint("effective_usage", "not_applicable"),
+                logical_stage_state_checkpoint("observation_window", "not_applicable"),
+                logical_stage_state_checkpoint("attribute_person", "not_applicable"),
+                logical_stage_state_checkpoint("day_coverage", "not_applicable"),
+                logical_stage_state_checkpoint("score_compliance", "not_applicable"),
+            )
+        };
+
+        let assembled = assemble_outputs(
+            db,
+            raw,
+            early,
+            usage,
+            usage_support,
+            late,
+            late_support,
+            output,
+        )?;
+        insert_checkpoint(&mut step_checkpoints, &assembled.checkpoint);
+        if step_checkpoints.len() != 55 {
+            return Err(format!(
+                "tracked step checkpoint coverage mismatch: expected 55, got {}",
+                step_checkpoints.len()
+            ));
+        }
+
+        let outputs_checkpoint = assembled_checkpoint("outputs", &assembled.value)?;
+        let logical_checkpoints = [
+            logical_stage_rows_checkpoint("parse_events", &sorted.value),
+            logical_stage_rows_checkpoint("normalize_timezones", &restamped.value),
+            logical_stage_rows_checkpoint("dedup_and_order", &gaps.value),
+            logical_stage_rows_checkpoint("app_policy", &policy.value),
+            logical_stage_rows_checkpoint("device_state_timeline", &screen_rows),
+            if app_mode {
+                logical_stage_rows_checkpoint("reconstruct_episodes", &reconstruct_rows)
+            } else {
+                logical_stage_state_checkpoint("reconstruct_episodes", "not_applicable")
+            },
+            if app_mode {
+                logical_stage_rows_checkpoint("categorize_apps", &categorized_rows)
+            } else {
+                logical_stage_state_checkpoint("categorize_apps", "not_applicable")
+            },
+            if app_mode {
+                logical_stage_rows_checkpoint("episode_annotations", &annotated_rows)
+            } else {
+                logical_stage_state_checkpoint("episode_annotations", "not_applicable")
+            },
+            if app_mode {
+                logical_stage_rows_checkpoint("interval_cleaning", &cleaned_rows)
+            } else {
+                logical_stage_state_checkpoint("interval_cleaning", "not_applicable")
+            },
+            effective_checkpoint,
+            observation_checkpoint,
+            attribution_checkpoint,
+            day_coverage_checkpoint,
+            compliance_checkpoint,
+            outputs_checkpoint,
+        ]
+        .into_iter()
+        .map(|checkpoint| (checkpoint.node_id.clone(), checkpoint))
+        .collect::<BTreeMap<_, _>>();
+        let logical_digests = logical_checkpoints
+            .iter()
+            .map(|(node, checkpoint)| (node.clone(), checkpoint.terminal_digest.clone()))
+            .collect();
+        let step_digests = step_checkpoints
+            .iter()
+            .map(|(step, checkpoint)| (step.clone(), checkpoint.terminal_digest.clone()))
+            .collect();
+        let original_row_count = sorted.value.len() as u32;
+        let processed_row_count = policy.value.len() as u32;
+        let rows_before_timezone_handling = sorted.value.len() as u32;
+        let rows_after_timezone_handling = selected.value.rows.len() as u32;
+        let exact_duplicate_rows_removed =
+            restamped.value.len().saturating_sub(deduped.value.len()) as u32;
+        let result = PipelineV2Result {
+            app_csv_bytes: assembled.value.app_csv_bytes.clone(),
+            screen_csv_bytes: assembled.value.screen_csv_bytes.clone(),
+            day_coverage_csv_bytes: assembled.value.day_coverage_csv_bytes.clone(),
+            compliance_csv_bytes: assembled.value.compliance_csv_bytes.clone(),
+            credited_app_csv_bytes: assembled.value.credited_app_csv_bytes.clone(),
+            review_summary_json_bytes: assembled.value.review_summary_json_bytes.clone(),
+            visualization_data_json_bytes: assembled.value.visualization_data_json_bytes.clone(),
+            aggregate_csv_outputs: assembled.value.aggregate_csv_outputs.clone(),
+            row_lineage: assembled.value.row_lineage.clone(),
+            original_row_count,
+            processed_row_count,
+            app_row_count: app_rows.len() as u32,
+            screen_row_count: screen_rows.len() as u32,
+            day_coverage_row_count: day_coverage_count,
+            compliance_row_count: compliance_count,
+            credited_app_row_count: credited_count,
+            duplicate_timestamps_corrected: if options.correct_duplicate_event_timestamps {
+                *duplicate_groups.value
+            } else {
+                0
+            },
+            exact_duplicate_rows_removed,
+            available_timezones: timezones.value.iter().cloned().collect(),
+            timezone: selected.value.target_timezone.clone(),
+            timezone_action: selected.value.action.clone(),
+            rows_before_timezone_handling,
+            rows_after_timezone_handling,
+            rows_removed_by_timezone: rows_before_timezone_handling
+                .saturating_sub(rows_after_timezone_handling),
+            timezone_retained_source_rows_digest: timezone_retained_source_rows_digest(
+                &selected.value.rows,
+            ),
+            timezone_stage_digest: timezone_stage_digest(&restamped.value),
+            logical_stage_digests: logical_digests,
+            logical_stage_checkpoints: logical_checkpoints,
+            pipeline_step_digests: step_digests,
+            pipeline_step_checkpoints: step_checkpoints,
+        };
+        Ok(StepValue {
+            value: Arc::new(result),
+            checkpoint: assembled.checkpoint,
+        })
+    }
+
+    #[salsa::db]
+    #[derive(Clone)]
+    struct EarlyDatabase {
+        storage: salsa::Storage<Self>,
+        query_bodies: Arc<Mutex<Vec<&'static str>>>,
+        will_execute: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl Default for EarlyDatabase {
+        fn default() -> Self {
+            let will_execute = Arc::<Mutex<Vec<String>>>::default();
+            Self {
+                storage: salsa::Storage::builder()
+                    .event_callback(Box::new({
+                        let will_execute = Arc::clone(&will_execute);
+                        move |event| {
+                            if let salsa::EventKind::WillExecute { database_key } = event.kind {
+                                will_execute
+                                    .lock()
+                                    .expect("Salsa execution event log")
+                                    .push(format!("{database_key:?}"));
+                            }
+                        }
+                    }))
+                    .ingredient::<EarlyRawInput>()
+                    .ingredient::<EarlyConfigInput>()
+                    .ingredient::<UsageConfigInput>()
+                    .ingredient::<UsageSupportInput>()
+                    .ingredient::<LateConfigInput>()
+                    .ingredient::<LateSupportInput>()
+                    .ingredient::<OutputConfigInput>()
+                    .ingredient::<parse_remap_config>()
+                    .ingredient::<csv_parse>()
+                    .ingredient::<drop_empty_timestamp>()
+                    .ingredient::<detect_device_model>()
+                    .ingredient::<resolve_preproc_datetime>()
+                    .ingredient::<build_canonical_rows>()
+                    .ingredient::<stable_sort>()
+                    .ingredient::<collect_timezones>()
+                    .ingredient::<compute_dominant_timezone>()
+                    .ingredient::<select_timezone_strategy>()
+                    .ingredient::<restamp_rows>()
+                    .ingredient::<row_count_report>()
+                    .ingredient::<exact_dedupe>()
+                    .ingredient::<count_dup_groups>()
+                    .ingredient::<nudge_duplicate_timestamps>()
+                    .ingredient::<mark_data_time_gaps>()
+                    .ingredient::<tag_filtered_packages>()
+                    .ingredient::<collect_keyguard_timestamps>()
+                    .ingredient::<walk_screen_state_machine>()
+                    .ingredient::<build_classified_sessions>()
+                    .ingredient::<compute_junk_packages>()
+                    .ingredient::<junk_blind_fold>()
+                    .ingredient::<build_matcher_input>()
+                    .ingredient::<run_matcher>()
+                    .ingredient::<apply_matcher_output>()
+                    .ingredient::<relabel_usage_with_floor>()
+                    .ingredient::<junk_downstream_mark>()
+                    .ingredient::<sort_episodes>()
+                    .ingredient::<split_concurrent>()
+                    .ingredient::<codebook_join>()
+                    .ingredient::<derive_broad_category>()
+                    .ingredient::<collapse_genre>()
+                    .ingredient::<engagement_walk>()
+                    .ingredient::<flag_and_retain>()
+                    .ingredient::<blank_junk_timing>()
+                    .ingredient::<drop_selected_types>()
+                    .ingredient::<drop_zero_duration>()
+                    .ingredient::<partition_credit_sessions>()
+                    .ingredient::<build_liveness_substrate>()
+                    .ingredient::<report_screen_incapable>()
+                    .ingredient::<count_day_apps>()
+                    .ingredient::<credit_sessions>()
+                    .ingredient::<emit_credited_rows>()
+                    .ingredient::<assemble_credit_result>()
+                    .ingredient::<resolve_participant_windows>()
+                    .ingredient::<filter_rows_to_window>()
+                    .ingredient::<resolve_sharing_status>()
+                    .ingredient::<build_survey_lookup>()
+                    .ingredient::<attribute_rows>()
+                    .ingredient::<inject_placeholders>()
+                    .ingredient::<build_raw_date_index>()
+                    .ingredient::<build_coverage_table>()
+                    .ingredient::<accumulate_attribution_minutes>()
+                    .ingredient::<score_days>()
+                    .ingredient::<assemble_result>()
+                    .build(),
+                query_bodies: Arc::default(),
+                will_execute,
+            }
+        }
+    }
+
+    #[salsa::db]
+    impl salsa::Database for EarlyDatabase {}
+
+    #[salsa::db]
+    impl EarlyStepDb for EarlyDatabase {
+        fn record_query_body(&self, step: &'static str) {
+            self.query_bodies.lock().expect("query body log").push(step);
+        }
+    }
+
+    impl EarlyDatabase {
+        fn take_query_bodies(&self) -> Vec<&'static str> {
+            std::mem::take(&mut *self.query_bodies.lock().expect("query body log"))
+        }
+
+        fn take_will_execute(&self) -> Vec<String> {
+            std::mem::take(&mut *self.will_execute.lock().expect("Salsa execution event log"))
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use salsa::Setter;
+
+        fn csv() -> Arc<Vec<u8>> {
+            Arc::new(
+                concat!(
+                    "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+                    "Study,P01,Target Child,,Screen Interactive,,2026-03-07 09:59:00,America/Chicago\n",
+                    "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+                    "Study,P01,Target Child,Chat,Device Shutdown,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+                    "Study,P01,Target Child,Chat,User Interaction,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+                    "Study,P01,Target Child,,Screen Non-Interactive,,2026-03-07 10:01:00,America/Chicago\n"
+                )
+                .as_bytes()
+                .to_vec(),
+            )
+        }
+
+        fn inputs(db: &EarlyDatabase) -> (EarlyRawInput, EarlyConfigInput) {
+            (
+                EarlyRawInput::new(db, csv()),
+                EarlyConfigInput::new(
+                    db,
+                    Arc::new(Vec::new()),
+                    "America/Chicago".into(),
+                    "selected-convert".into(),
+                    "2026-07-23 00:00:00 UTC".into(),
+                    true,
+                    true,
+                    Arc::new(vec!["Activity Paused".into(), "Activity Resumed".into()]),
+                    Arc::new(vec!["Activity Resumed".into(), "Device Shutdown".into()]),
+                ),
+            )
+        }
+
+        fn usage_inputs(db: &EarlyDatabase) -> (UsageConfigInput, UsageSupportInput) {
+            (
+                UsageConfigInput::new(
+                    db,
+                    UsageSessionMode::AppAndScreenUsage,
+                    false,
+                    false,
+                    true,
+                    true,
+                    43_200_000_000_000,
+                    0,
+                    0.0,
+                    false,
+                    300.0,
+                    Arc::new(vec![1.0]),
+                    Arc::new(vec![1.0]),
+                    Arc::new(Vec::new()),
+                    false,
+                ),
+                UsageSupportInput::new(
+                    db,
+                    false,
+                    false,
+                    false,
+                    false,
+                    120.0,
+                    30.0,
+                    30.0,
+                    2.0,
+                    Arc::default(),
+                    Arc::default(),
+                    Arc::default(),
+                    Arc::default(),
+                ),
+            )
+        }
+
+        fn late_inputs(db: &EarlyDatabase) -> (LateConfigInput, LateSupportInput) {
+            (
+                LateConfigInput::new(
+                    db, true, 360.0, 120.0, 120.0, 2, true, true, true, true, true, 70.0,
+                ),
+                LateSupportInput::new(
+                    db,
+                    Arc::new(
+                        b"participant_id,start_date,end_date\nP01,2026-03-07,2026-03-07\n".to_vec(),
+                    ),
+                    Arc::new(b"participant_id,sharing_status\nP01,Non-Shared\n".to_vec()),
+                    Arc::default(),
+                    Arc::new(b"participant_id,device_count\nP01,1\n".to_vec()),
+                ),
+            )
+        }
+
+        fn output_input(db: &EarlyDatabase) -> OutputConfigInput {
+            OutputConfigInput::new(
+                db,
+                "Tracked early steps".into(),
+                false,
+                false,
+                false,
+                false,
+                "wide".into(),
+            )
+        }
+
+        fn run_all(
+            db: &EarlyDatabase,
+            raw: EarlyRawInput,
+            config: EarlyConfigInput,
+        ) -> Result<BTreeMap<String, String>, String> {
+            let values = [
+                parse_remap_config(db, config)?.checkpoint,
+                csv_parse(db, raw)?.checkpoint,
+                drop_empty_timestamp(db, raw)?.checkpoint,
+                detect_device_model(db, raw)?.checkpoint,
+                resolve_preproc_datetime(db, config)?.checkpoint,
+                build_canonical_rows(db, raw, config)?.checkpoint,
+                stable_sort(db, raw, config)?.checkpoint,
+                collect_timezones(db, raw, config)?.checkpoint,
+                compute_dominant_timezone(db, raw, config)?.checkpoint,
+                select_timezone_strategy(db, raw, config)?.checkpoint,
+                restamp_rows(db, raw, config)?.checkpoint,
+                row_count_report(db, raw, config)?.checkpoint,
+                exact_dedupe(db, raw, config)?.checkpoint,
+                count_dup_groups(db, raw, config)?.checkpoint,
+                nudge_duplicate_timestamps(db, raw, config)?.checkpoint,
+                mark_data_time_gaps(db, raw, config)?.checkpoint,
+            ];
+            Ok(values
+                .into_iter()
+                .map(|checkpoint| (checkpoint.node_id, checkpoint.terminal_digest))
+                .collect())
+        }
+
+        fn run_reconstruction(
+            db: &EarlyDatabase,
+            raw: EarlyRawInput,
+            early: EarlyConfigInput,
+            config: UsageConfigInput,
+            support: UsageSupportInput,
+        ) -> Result<BTreeMap<String, String>, String> {
+            let values = [
+                tag_filtered_packages(db, raw, early, config, support)?.checkpoint,
+                compute_junk_packages(db, raw, early, config, support)?.checkpoint,
+                junk_blind_fold(db, raw, early, config, support)?.checkpoint,
+                build_matcher_input(db, raw, early, config, support)?.checkpoint,
+                run_matcher(db, raw, early, config, support)?.checkpoint,
+                apply_matcher_output(db, raw, early, config, support)?.checkpoint,
+                relabel_usage_with_floor(db, raw, early, config, support)?.checkpoint,
+                junk_downstream_mark(db, raw, early, config, support)?.checkpoint,
+                sort_episodes(db, raw, early, config, support)?.checkpoint,
+                split_concurrent(db, raw, early, config, support)?.checkpoint,
+                codebook_join(db, raw, early, config, support)?.checkpoint,
+                derive_broad_category(db, raw, early, config, support)?.checkpoint,
+                collapse_genre(db, raw, early, config, support)?.checkpoint,
+                engagement_walk(db, raw, early, config, support)?.checkpoint,
+                flag_and_retain(db, raw, early, config, support)?.checkpoint,
+                blank_junk_timing(db, raw, early, config, support)?.checkpoint,
+                drop_selected_types(db, raw, early, config, support)?.checkpoint,
+                drop_zero_duration(db, raw, early, config, support)?.checkpoint,
+            ];
+            Ok(values
+                .into_iter()
+                .map(|checkpoint| (checkpoint.node_id, checkpoint.terminal_digest))
+                .collect())
+        }
+
+        fn run_screen(
+            db: &EarlyDatabase,
+            raw: EarlyRawInput,
+            early: EarlyConfigInput,
+            config: UsageConfigInput,
+            support: UsageSupportInput,
+        ) -> Result<BTreeMap<String, String>, String> {
+            let values = [
+                collect_keyguard_timestamps(db, raw, early, config, support)?.checkpoint,
+                walk_screen_state_machine(db, raw, early, config, support)?.checkpoint,
+                build_classified_sessions(db, raw, early, config, support)?.checkpoint,
+            ];
+            Ok(values
+                .into_iter()
+                .map(|checkpoint| (checkpoint.node_id, checkpoint.terminal_digest))
+                .collect())
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn run_late(
+            db: &EarlyDatabase,
+            raw: EarlyRawInput,
+            early: EarlyConfigInput,
+            config: UsageConfigInput,
+            support: UsageSupportInput,
+            late: LateConfigInput,
+            late_support: LateSupportInput,
+        ) -> Result<BTreeMap<String, String>, String> {
+            let values = [
+                partition_credit_sessions(db, raw, early, config, support)?.checkpoint,
+                build_liveness_substrate(db, raw, early, config, support)?.checkpoint,
+                report_screen_incapable(db, raw, early, config, support)?.checkpoint,
+                count_day_apps(db, raw, early, config, support)?.checkpoint,
+                credit_sessions(db, raw, early, config, support, late)?.checkpoint,
+                emit_credited_rows(db, raw, early, config, support, late)?.checkpoint,
+                assemble_credit_result(db, raw, early, config, support, late)?.checkpoint,
+                resolve_participant_windows(db, raw, early, config, support, late_support)?
+                    .checkpoint,
+                filter_rows_to_window(db, raw, early, config, support, late, late_support)?
+                    .checkpoint,
+                resolve_sharing_status(db, raw, early, config, support, late, late_support)?
+                    .checkpoint,
+                build_survey_lookup(db, late, late_support)?.checkpoint,
+                attribute_rows(db, raw, early, config, support, late, late_support)?.checkpoint,
+                inject_placeholders(db, raw, early, config, support, late, late_support)?
+                    .checkpoint,
+                build_raw_date_index(db, raw, early, config, support)?.checkpoint,
+                build_coverage_table(db, raw, early, config, support, late, late_support)?
+                    .checkpoint,
+                accumulate_attribution_minutes(
+                    db,
+                    raw,
+                    early,
+                    config,
+                    support,
+                    late,
+                    late_support,
+                )?
+                .checkpoint,
+                score_days(db, raw, early, config, support, late, late_support)?.checkpoint,
+            ];
+            Ok(values
+                .into_iter()
+                .map(|checkpoint| (checkpoint.node_id.clone(), checkpoint.terminal_digest))
+                .collect())
+        }
+
+        fn pipeline_options() -> PipelineV2Options {
+            PipelineV2Options {
+                study_name: "Tracked early steps".into(),
+                timezone: "America/Chicago".into(),
+                timezone_handling: "selected-convert".into(),
+                usage_session_mode: UsageSessionMode::AppAndScreenUsage,
+                include_app_output: false,
+                include_screen_output: false,
+                use_filter_file: false,
+                use_apps_forcing_screen_open: false,
+                use_background_apps_file: false,
+                use_app_codebook: false,
+                include_category_column: false,
+                deduplicate_exact_rows: true,
+                interaction_type_remap: Vec::new(),
+                correct_duplicate_event_timestamps: true,
+                allow_stop_event_reuse: false,
+                use_activity_stopped_as_fallback: true,
+                apply_threshold_to_fallback: true,
+                long_duration_threshold_ns: 43_200_000_000_000,
+                proximity_interval_ns: 0,
+                custom_app_engagement_duration: 300.0,
+                long_data_time_gap_thresholds: vec![1.0],
+                long_usage_duration_thresholds: vec![1.0],
+                same_app_stop_types: vec!["Activity Paused".into(), "Activity Resumed".into()],
+                other_stop_types: vec!["Activity Resumed".into(), "Device Shutdown".into()],
+                interaction_types_to_remove: Vec::new(),
+                screen_auto_lock_timeout_seconds: 120.0,
+                screen_auto_lock_tolerance_seconds: 30.0,
+                screen_manual_lock_max_tail_seconds: 30.0,
+                screen_keyguard_near_stop_seconds: 2.0,
+                datetime_of_preprocessing: "2026-07-23 00:00:00 UTC".into(),
+                model_concurrent_usage: false,
+                minimum_usage_duration: 0.0,
+                apply_minimum_usage_duration_to_concurrent_subintervals: false,
+                filter_zero_duration_sessions: false,
+                add_no_activity_placeholder_days: false,
+                enable_study_window_filter: false,
+                enable_person_attribution: false,
+                enable_day_coverage: false,
+                enable_compliance_scoring: false,
+                compliance_threshold_percent: 70.0,
+                enable_screen_gated_crediting: false,
+                enable_aggregates: false,
+                aggregate_shape: "wide".into(),
+                credited_session_cap_minutes: 360.0,
+                device_liveness_gap_tolerance_minutes: 120.0,
+                auto_lock_bridge_seconds: 120.0,
+                no_witness_min_day_apps: 2,
+            }
+        }
+
+        fn late_pipeline_options() -> PipelineV2Options {
+            let mut options = pipeline_options();
+            options.enable_screen_gated_crediting = true;
+            options.enable_study_window_filter = true;
+            options.enable_person_attribution = true;
+            options.add_no_activity_placeholder_days = true;
+            options.enable_day_coverage = true;
+            options.enable_compliance_scoring = true;
+            options
+        }
+
+        #[test]
+        fn sixteen_tracked_steps_match_the_sequential_oracle_and_reuse_exactly() {
+            let mut db = EarlyDatabase::default();
+            let (raw, config) = inputs(&db);
+            let tracked = run_all(&db, raw, config).unwrap();
+            let oracle = run_pipeline_v2(&csv(), &pipeline_options(), &[], &[], &[]).unwrap();
+            assert_eq!(tracked.len(), 16);
+            for (step, digest) in &tracked {
+                assert_eq!(
+                    oracle.pipeline_step_digests.get(step),
+                    Some(digest),
+                    "{step}"
+                );
+            }
+            let mut bodies = db.take_query_bodies();
+            bodies.sort_unstable();
+            let mut expected = crate::step_contract::PIPELINE_STEPS[..16]
+                .iter()
+                .map(|step| step.id)
+                .collect::<Vec<_>>();
+            expected.sort_unstable();
+            assert_eq!(bodies, expected);
+
+            assert_eq!(run_all(&db, raw, config).unwrap(), tracked);
+            assert!(db.take_query_bodies().is_empty());
+
+            config
+                .set_interaction_type_remap(&mut db)
+                .to(Arc::new(vec!["Never Seen=>Unused".into()]));
+            run_all(&db, raw, config).unwrap();
+            let mut changed = db.take_query_bodies();
+            changed.sort_unstable();
+            assert_eq!(changed, ["build_canonical_rows", "parse_remap_config"]);
+
+            config.set_deduplicate_exact_rows(&mut db).to(false);
+            run_all(&db, raw, config).unwrap();
+            assert_eq!(db.take_query_bodies(), ["exact_dedupe"]);
+
+            config
+                .set_datetime_of_preprocessing(&mut db)
+                .to("2026-07-24 00:00:00 UTC".into());
+            run_all(&db, raw, config).unwrap();
+            assert_eq!(db.take_query_bodies(), ["resolve_preproc_datetime"]);
+
+            config
+                .set_other_stop_types(&mut db)
+                .to(Arc::new(vec!["Activity Resumed".into()]));
+            run_all(&db, raw, config).unwrap();
+            let mut changed = db.take_query_bodies();
+            changed.sort_unstable();
+            assert_eq!(
+                changed,
+                ["mark_data_time_gaps", "nudge_duplicate_timestamps"]
+            );
+
+            config
+                .set_same_app_stop_types(&mut db)
+                .to(Arc::new(vec!["Activity Paused".into()]));
+            run_all(&db, raw, config).unwrap();
+            assert_eq!(db.take_query_bodies(), ["nudge_duplicate_timestamps"]);
+        }
+
+        #[test]
+        fn reconstruction_queries_match_the_oracle_and_track_conditional_support_reads() {
+            let mut db = EarlyDatabase::default();
+            let (raw, early) = inputs(&db);
+            let (config, support) = usage_inputs(&db);
+            let tracked = run_reconstruction(&db, raw, early, config, support).unwrap();
+            let oracle = run_pipeline_v2(&csv(), &pipeline_options(), &[], &[], &[]).unwrap();
+            assert_eq!(tracked.len(), 18);
+            for (step, digest) in &tracked {
+                assert_eq!(
+                    oracle.pipeline_step_digests.get(step),
+                    Some(digest),
+                    "{step}"
+                );
+            }
+
+            db.take_query_bodies();
+            assert_eq!(
+                run_reconstruction(&db, raw, early, config, support).unwrap(),
+                tracked
+            );
+            assert!(db.take_query_bodies().is_empty());
+
+            support
+                .set_filter_csv(&mut db)
+                .to(Arc::new(b"app_package_name\ncom.example.chat\n".to_vec()));
+            support
+                .set_background_apps_csv(&mut db)
+                .to(Arc::new(b"package_name\ncom.example.chat\n".to_vec()));
+            run_reconstruction(&db, raw, early, config, support).unwrap();
+            assert!(
+                db.take_query_bodies().is_empty(),
+                "disabled support files are not query dependencies"
+            );
+
+            support.set_use_filter_file(&mut db).to(true);
+            run_reconstruction(&db, raw, early, config, support).unwrap();
+            assert!(db.take_query_bodies().contains(&"tag_filtered_packages"));
+
+            db.take_query_bodies();
+            config.set_allow_stop_event_reuse(&mut db).to(true);
+            run_reconstruction(&db, raw, early, config, support).unwrap();
+            assert!(db.take_query_bodies().contains(&"run_matcher"));
+        }
+
+        #[test]
+        fn screen_queries_match_the_oracle_and_ignore_disabled_support_bytes() {
+            let mut db = EarlyDatabase::default();
+            let (raw, early) = inputs(&db);
+            let (config, support) = usage_inputs(&db);
+            let tracked = run_screen(&db, raw, early, config, support).unwrap();
+            let oracle = run_pipeline_v2(&csv(), &pipeline_options(), &[], &[], &[]).unwrap();
+            assert_eq!(tracked.len(), 3);
+            for (step, digest) in &tracked {
+                assert_eq!(
+                    oracle.pipeline_step_digests.get(step),
+                    Some(digest),
+                    "{step}"
+                );
+            }
+
+            db.take_query_bodies();
+            assert_eq!(
+                run_screen(&db, raw, early, config, support).unwrap(),
+                tracked
+            );
+            assert!(db.take_query_bodies().is_empty());
+
+            support.set_apps_forcing_csv(&mut db).to(Arc::new(
+                b"package_name,label_or_note\ncom.example.chat,Video player\n".to_vec(),
+            ));
+            run_screen(&db, raw, early, config, support).unwrap();
+            assert!(
+                db.take_query_bodies().is_empty(),
+                "disabled apps-forcing bytes are not a dependency"
+            );
+
+            support.set_use_apps_forcing_screen_open(&mut db).to(true);
+            run_screen(&db, raw, early, config, support).unwrap();
+            assert_eq!(db.take_query_bodies(), ["build_classified_sessions"]);
+        }
+
+        #[test]
+        fn late_queries_match_the_fused_oracle_and_reuse_exactly() {
+            let db = EarlyDatabase::default();
+            let (raw, early) = inputs(&db);
+            let (config, support) = usage_inputs(&db);
+            let (late, late_support) = late_inputs(&db);
+            let output = output_input(&db);
+            let tracked = run_late(&db, raw, early, config, support, late, late_support).unwrap();
+            let options = late_pipeline_options();
+            let oracle = run_pipeline_v2_with_supports(
+                &csv(),
+                &options,
+                PipelineV2SupportFiles {
+                    study_dates_csv: &late_support.study_dates_csv(&db),
+                    device_sharing_csv: &late_support.device_sharing_csv(&db),
+                    survey_attribution_csv: &late_support.survey_attribution_csv(&db),
+                    enrolled_devices_csv: &late_support.enrolled_devices_csv(&db),
+                    ..PipelineV2SupportFiles::default()
+                },
+            )
+            .unwrap();
+            assert_eq!(tracked.len(), 17);
+            for (step, digest) in &tracked {
+                assert_eq!(
+                    oracle.pipeline_step_digests.get(step),
+                    Some(digest),
+                    "{step}"
+                );
+            }
+            let assembled =
+                assemble_result(&db, raw, early, config, support, late, late_support, output)
+                    .unwrap();
+            assert_eq!(
+                oracle.pipeline_step_digests.get("assemble_result"),
+                Some(&assembled.checkpoint.terminal_digest)
+            );
+            assert_eq!(assembled.value.app_csv_bytes, oracle.app_csv_bytes);
+            assert_eq!(assembled.value.screen_csv_bytes, oracle.screen_csv_bytes);
+            assert_eq!(
+                assembled.value.day_coverage_csv_bytes,
+                oracle.day_coverage_csv_bytes
+            );
+            assert_eq!(
+                assembled.value.compliance_csv_bytes,
+                oracle.compliance_csv_bytes
+            );
+            assert_eq!(
+                assembled.value.credited_app_csv_bytes,
+                oracle.credited_app_csv_bytes
+            );
+            assert_eq!(
+                assembled.value.review_summary_json_bytes,
+                oracle.review_summary_json_bytes
+            );
+            assert_eq!(
+                assembled.value.visualization_data_json_bytes,
+                oracle.visualization_data_json_bytes
+            );
+            assert_eq!(
+                assembled.value.aggregate_csv_outputs.len(),
+                oracle.aggregate_csv_outputs.len()
+            );
+            assert_eq!(assembled.value.row_lineage, oracle.row_lineage);
+
+            db.take_query_bodies();
+            assert_eq!(
+                run_late(&db, raw, early, config, support, late, late_support,).unwrap(),
+                tracked
+            );
+            assert_eq!(
+                assemble_result(&db, raw, early, config, support, late, late_support, output,)
+                    .unwrap()
+                    .checkpoint,
+                assembled.checkpoint
+            );
+            assert!(db.take_query_bodies().is_empty());
+        }
+
+        #[test]
+        fn stateful_engine_matches_the_complete_oracle_and_reports_real_execution() {
+            let options = late_pipeline_options();
+            let study_dates =
+                b"participant_id,start_date,end_date\nP01,2026-03-07,2026-03-07\n".to_vec();
+            let device_sharing = b"participant_id,sharing_status\nP01,Non-Shared\n".to_vec();
+            let enrolled_devices = b"participant_id,device_count\nP01,1\n".to_vec();
+            let support = PipelineV2SupportFiles {
+                study_dates_csv: &study_dates,
+                device_sharing_csv: &device_sharing,
+                enrolled_devices_csv: &enrolled_devices,
+                ..PipelineV2SupportFiles::default()
+            };
+            let oracle = run_pipeline_v2_with_supports(&csv(), &options, support).unwrap();
+            let mut engine = TrackedEngine::default();
+            let tracked = engine.execute(&csv(), &options, support).unwrap();
+            assert_eq!(tracked.executed_steps.len(), 55);
+            assert_eq!(
+                tracked.executed_steps.iter().collect::<BTreeSet<_>>().len(),
+                55
+            );
+            assert_eq!(
+                tracked.result.pipeline_step_checkpoints,
+                oracle.pipeline_step_checkpoints
+            );
+            assert_eq!(
+                tracked.result.logical_stage_checkpoints,
+                oracle.logical_stage_checkpoints
+            );
+            assert_eq!(tracked.result.app_csv_bytes, oracle.app_csv_bytes);
+            assert_eq!(tracked.result.screen_csv_bytes, oracle.screen_csv_bytes);
+            assert_eq!(
+                tracked.result.day_coverage_csv_bytes,
+                oracle.day_coverage_csv_bytes
+            );
+            assert_eq!(
+                tracked.result.compliance_csv_bytes,
+                oracle.compliance_csv_bytes
+            );
+            assert_eq!(
+                tracked.result.credited_app_csv_bytes,
+                oracle.credited_app_csv_bytes
+            );
+            assert_eq!(
+                tracked.result.review_summary_json_bytes,
+                oracle.review_summary_json_bytes
+            );
+            assert_eq!(
+                tracked.result.visualization_data_json_bytes,
+                oracle.visualization_data_json_bytes
+            );
+            assert_eq!(tracked.result.row_lineage, oracle.row_lineage);
+            assert_eq!(
+                (
+                    tracked.result.original_row_count,
+                    tracked.result.processed_row_count,
+                    tracked.result.app_row_count,
+                    tracked.result.screen_row_count,
+                    tracked.result.day_coverage_row_count,
+                    tracked.result.compliance_row_count,
+                    tracked.result.credited_app_row_count,
+                    tracked.result.duplicate_timestamps_corrected,
+                    tracked.result.exact_duplicate_rows_removed,
+                    tracked.result.available_timezones.clone(),
+                    tracked.result.timezone.clone(),
+                    tracked.result.timezone_action.clone(),
+                ),
+                (
+                    oracle.original_row_count,
+                    oracle.processed_row_count,
+                    oracle.app_row_count,
+                    oracle.screen_row_count,
+                    oracle.day_coverage_row_count,
+                    oracle.compliance_row_count,
+                    oracle.credited_app_row_count,
+                    oracle.duplicate_timestamps_corrected,
+                    oracle.exact_duplicate_rows_removed,
+                    oracle.available_timezones,
+                    oracle.timezone,
+                    oracle.timezone_action,
+                )
+            );
+
+            let warm = engine.execute(&csv(), &options, support).unwrap();
+            assert!(
+                warm.executed_steps.is_empty(),
+                "warm execution reran {:?}",
+                warm.executed_steps
+            );
+            assert_eq!(
+                warm.result.pipeline_step_checkpoints,
+                tracked.result.pipeline_step_checkpoints
+            );
+
+            let mut output_only = options.clone();
+            output_only.study_name = "Output-only change".into();
+            let changed = engine.execute(&csv(), &output_only, support).unwrap();
+            assert_eq!(changed.executed_steps, ["assemble_result"]);
+        }
+
+        #[test]
+        fn persisted_engine_reuses_all_55_queries_and_fails_closed() {
+            let options = late_pipeline_options();
+            let study_dates =
+                b"participant_id,start_date,end_date\nP01,2026-03-07,2026-03-07\n".to_vec();
+            let device_sharing = b"participant_id,sharing_status\nP01,Non-Shared\n".to_vec();
+            let enrolled_devices = b"participant_id,device_count\nP01,1\n".to_vec();
+            let support = PipelineV2SupportFiles {
+                study_dates_csv: &study_dates,
+                device_sharing_csv: &device_sharing,
+                enrolled_devices_csv: &enrolled_devices,
+                ..PipelineV2SupportFiles::default()
+            };
+            let identity = "implementation+build+verified-workspace-root:test";
+
+            let mut original = TrackedEngine::default();
+            let cold = original.execute(&csv(), &options, support).unwrap();
+            assert_eq!(cold.executed_steps.len(), 55);
+            let snapshot = original.export_cache(identity).unwrap();
+            assert!(!snapshot.is_empty());
+            let first_payload = original.cached_database_payload.clone().unwrap();
+            let second_snapshot = original
+                .export_cache("implementation+build+verified-workspace-root:test-2")
+                .unwrap();
+            let second_payload = original.cached_database_payload.clone().unwrap();
+            assert!(Arc::ptr_eq(&first_payload.bytes, &second_payload.bytes));
+            let first_envelope: CacheEnvelope =
+                decode_messagepack(&snapshot, "first test query-cache envelope").unwrap();
+            let second_envelope: CacheEnvelope =
+                decode_messagepack(&second_snapshot, "second test query-cache envelope").unwrap();
+            assert_eq!(
+                first_envelope.database_payload_sha256,
+                second_envelope.database_payload_sha256
+            );
+            assert_eq!(
+                first_envelope.database_payload,
+                second_envelope.database_payload
+            );
+
+            let mut restored = TrackedEngine::default();
+            restored.restore_cache(&snapshot, identity).unwrap();
+            let warm = restored.execute(&csv(), &options, support).unwrap();
+            assert!(
+                warm.executed_steps.is_empty(),
+                "restored warm execution reran {:?}",
+                warm.executed_steps
+            );
+            assert_result_parity(
+                &warm.result,
+                &cold.result,
+                UsageSessionMode::AppAndScreenUsage,
+            );
+
+            let mut output_only = options.clone();
+            output_only.study_name = "Restored output change".into();
+            let changed = restored.execute(&csv(), &output_only, support).unwrap();
+            assert_eq!(changed.executed_steps, ["assemble_result"]);
+            assert!(restored.cached_database_payload.is_none());
+            let oracle = run_pipeline_v2_with_supports(&csv(), &output_only, support).unwrap();
+            assert_result_parity(
+                &changed.result,
+                &oracle,
+                UsageSessionMode::AppAndScreenUsage,
+            );
+
+            let mut wrong_identity = TrackedEngine::default();
+            assert!(wrong_identity
+                .restore_cache(&snapshot, "different-workspace-root")
+                .unwrap_err()
+                .contains("identity mismatch"));
+
+            let mut corrupt = snapshot.clone();
+            let last = corrupt.len() - 1;
+            corrupt[last] ^= 1;
+            let mut corrupt_target = TrackedEngine::default();
+            assert!(corrupt_target.restore_cache(&corrupt, identity).is_err());
+
+            let mut truncated_target = TrackedEngine::default();
+            assert!(truncated_target
+                .restore_cache(&snapshot[..snapshot.len() - 1], identity)
+                .is_err());
+
+            let mut oversized: CacheEnvelope =
+                decode_messagepack(&snapshot, "test query-cache envelope").unwrap();
+            oversized.database_uncompressed_size = MAX_DECOMPRESSED_CACHE_BYTES + 1;
+            let oversized = encode_messagepack(&oversized, "test oversized envelope").unwrap();
+            let mut oversized_target = TrackedEngine::default();
+            assert!(oversized_target
+                .restore_cache(&oversized, identity)
+                .unwrap_err()
+                .contains("declared uncompressed size exceeds"));
+        }
+
+        fn assert_checkpoint_parity(
+            kind: &str,
+            actual: &BTreeMap<String, LogicalStageCheckpoint>,
+            expected: &BTreeMap<String, LogicalStageCheckpoint>,
+            mode: UsageSessionMode,
+        ) {
+            let differences = actual
+                .keys()
+                .chain(expected.keys())
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .filter_map(|step| {
+                    let actual_checkpoint = actual.get(step);
+                    let expected_checkpoint = expected.get(step);
+                    let actual_digest =
+                        actual_checkpoint.map(|checkpoint| checkpoint.terminal_digest.as_str());
+                    let expected_digest =
+                        expected_checkpoint.map(|checkpoint| checkpoint.terminal_digest.as_str());
+                    (actual_digest != expected_digest).then_some((
+                        step.as_str(),
+                        actual_checkpoint,
+                        expected_checkpoint,
+                    ))
+                })
+                .collect::<Vec<_>>();
+            assert!(
+                differences.is_empty(),
+                "{kind} checkpoint differences for {mode:?}: {differences:#?}"
+            );
+        }
+
+        fn assert_result_parity(
+            actual: &PipelineV2Result,
+            expected: &PipelineV2Result,
+            mode: UsageSessionMode,
+        ) {
+            let aggregate_signature = |outputs: &[aggregates::AggregateCsvOutput]| {
+                outputs
+                    .iter()
+                    .map(|output| {
+                        (
+                            output.kind.clone(),
+                            output.row_count,
+                            format!("sha256:{}", hex::encode(Sha256::digest(&output.bytes))),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(
+                aggregate_signature(&actual.aggregate_csv_outputs),
+                aggregate_signature(&expected.aggregate_csv_outputs),
+                "aggregate differences for {mode:?}"
+            );
+            let byte_signature =
+                |bytes: &[u8]| format!("sha256:{}", hex::encode(Sha256::digest(bytes)));
+            assert_eq!(
+                [
+                    ("app_csv", byte_signature(&actual.app_csv_bytes)),
+                    ("screen_csv", byte_signature(&actual.screen_csv_bytes)),
+                    (
+                        "day_coverage_csv",
+                        byte_signature(&actual.day_coverage_csv_bytes),
+                    ),
+                    (
+                        "compliance_csv",
+                        byte_signature(&actual.compliance_csv_bytes),
+                    ),
+                    (
+                        "credited_app_csv",
+                        byte_signature(&actual.credited_app_csv_bytes),
+                    ),
+                    (
+                        "review_summary_json",
+                        byte_signature(&actual.review_summary_json_bytes),
+                    ),
+                    (
+                        "visualization_data_json",
+                        byte_signature(&actual.visualization_data_json_bytes),
+                    ),
+                    (
+                        "row_lineage",
+                        byte_signature(&serde_json::to_vec(&actual.row_lineage).unwrap()),
+                    ),
+                ],
+                [
+                    ("app_csv", byte_signature(&expected.app_csv_bytes)),
+                    ("screen_csv", byte_signature(&expected.screen_csv_bytes)),
+                    (
+                        "day_coverage_csv",
+                        byte_signature(&expected.day_coverage_csv_bytes),
+                    ),
+                    (
+                        "compliance_csv",
+                        byte_signature(&expected.compliance_csv_bytes),
+                    ),
+                    (
+                        "credited_app_csv",
+                        byte_signature(&expected.credited_app_csv_bytes),
+                    ),
+                    (
+                        "review_summary_json",
+                        byte_signature(&expected.review_summary_json_bytes),
+                    ),
+                    (
+                        "visualization_data_json",
+                        byte_signature(&expected.visualization_data_json_bytes),
+                    ),
+                    (
+                        "row_lineage",
+                        byte_signature(&serde_json::to_vec(&expected.row_lineage).unwrap()),
+                    ),
+                ],
+                "terminal output differences for {mode:?}"
+            );
+            assert_checkpoint_parity(
+                "step",
+                &actual.pipeline_step_checkpoints,
+                &expected.pipeline_step_checkpoints,
+                mode,
+            );
+            assert_checkpoint_parity(
+                "logical stage",
+                &actual.logical_stage_checkpoints,
+                &expected.logical_stage_checkpoints,
+                mode,
+            );
+            assert_eq!(actual.app_csv_bytes, expected.app_csv_bytes);
+            assert_eq!(actual.screen_csv_bytes, expected.screen_csv_bytes);
+            assert_eq!(
+                actual.day_coverage_csv_bytes,
+                expected.day_coverage_csv_bytes
+            );
+            assert_eq!(actual.compliance_csv_bytes, expected.compliance_csv_bytes);
+            assert_eq!(
+                actual.credited_app_csv_bytes,
+                expected.credited_app_csv_bytes
+            );
+            assert_eq!(
+                actual.review_summary_json_bytes,
+                expected.review_summary_json_bytes
+            );
+            assert_eq!(
+                actual.visualization_data_json_bytes,
+                expected.visualization_data_json_bytes
+            );
+            assert_eq!(actual.row_lineage, expected.row_lineage);
+            assert_eq!(actual.original_row_count, expected.original_row_count);
+            assert_eq!(actual.processed_row_count, expected.processed_row_count);
+            assert_eq!(actual.app_row_count, expected.app_row_count);
+            assert_eq!(actual.screen_row_count, expected.screen_row_count);
+            assert_eq!(
+                actual.day_coverage_row_count,
+                expected.day_coverage_row_count
+            );
+            assert_eq!(actual.compliance_row_count, expected.compliance_row_count);
+            assert_eq!(
+                actual.credited_app_row_count,
+                expected.credited_app_row_count
+            );
+            assert_eq!(
+                actual.duplicate_timestamps_corrected,
+                expected.duplicate_timestamps_corrected
+            );
+            assert_eq!(
+                actual.exact_duplicate_rows_removed,
+                expected.exact_duplicate_rows_removed
+            );
+            assert_eq!(actual.available_timezones, expected.available_timezones);
+            assert_eq!(actual.timezone, expected.timezone);
+            assert_eq!(actual.timezone_action, expected.timezone_action);
+            assert_eq!(
+                actual.timezone_retained_source_rows_digest,
+                expected.timezone_retained_source_rows_digest
+            );
+            assert_eq!(actual.timezone_stage_digest, expected.timezone_stage_digest);
+        }
+
+        #[test]
+        fn stateful_engine_matches_oracle_across_usage_applicability_modes() {
+            let modes = [
+                UsageSessionMode::NoUsage,
+                UsageSessionMode::AppUsage,
+                UsageSessionMode::ScreenUsage,
+                UsageSessionMode::AppAndScreenUsage,
+            ];
+            for mode in modes {
+                let mut options = pipeline_options();
+                options.usage_session_mode = mode;
+                options.include_app_output = true;
+                options.include_screen_output = true;
+                let support = PipelineV2SupportFiles::default();
+                let expected = run_pipeline_v2_with_supports(&csv(), &options, support).unwrap();
+                let mut engine = TrackedEngine::default();
+                let actual = engine.execute(&csv(), &options, support).unwrap();
+                assert_result_parity(&actual.result, &expected, mode);
+            }
+        }
+    }
+}
+
+#[cfg(feature = "incremental-v2")]
+#[derive(Default)]
+pub struct IncrementalPipelineV2Engine {
+    inner: tracked::TrackedEngine,
+}
+
+#[cfg(feature = "incremental-v2")]
+pub struct IncrementalPipelineV2Execution {
+    pub result: Arc<PipelineV2Result>,
+    pub executed_steps: Vec<String>,
+}
+
+#[cfg(feature = "incremental-v2")]
+impl IncrementalPipelineV2Engine {
+    pub const MAX_PERSISTED_CACHE_BYTES: usize = tracked::MAX_CACHE_BYTES;
+
+    pub fn execute(
+        &mut self,
+        csv_bytes: &[u8],
+        options: &PipelineV2Options,
+        support: PipelineV2SupportFiles<'_>,
+    ) -> Result<IncrementalPipelineV2Execution, String> {
+        let execution = self.inner.execute(csv_bytes, options, support)?;
+        Ok(IncrementalPipelineV2Execution {
+            result: execution.result,
+            executed_steps: execution.executed_steps,
+        })
+    }
+
+    pub fn export_cache(&mut self, identity: &str) -> Result<Vec<u8>, String> {
+        self.inner.export_cache(identity)
+    }
+
+    pub fn restore_cache(&mut self, bytes: &[u8], expected_identity: &str) -> Result<(), String> {
+        self.inner.restore_cache(bytes, expected_identity)
+    }
+}

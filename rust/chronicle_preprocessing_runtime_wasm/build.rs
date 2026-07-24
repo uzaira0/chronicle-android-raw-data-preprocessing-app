@@ -85,6 +85,23 @@ fn main() {
         repository_root.display()
     );
 
+    // Watch the directories as well as the files discovered below. Watching
+    // only today's files misses a newly added or removed Rust module and can
+    // leave the compiled implementation receipt bound to stale source.
+    for relative in [
+        "rust/chronicle_preprocessing_runtime_wasm/src",
+        "rust/chronicle_preprocessing_semantic_adapter/src",
+        "rust/chronicle_chrono_kernel_wasm/src",
+        "rust/vendor/salsa-0.28.1/src",
+        "rust/chronicle_app_usage_matcher/src",
+        "rust/chronicle_semantic_index_wasm/src",
+    ] {
+        println!(
+            "cargo:rerun-if-changed={}",
+            repository_root.join(relative).display()
+        );
+    }
+
     let mut files = Vec::new();
     for relative in [
         "rust/chronicle_preprocessing_runtime_wasm/Cargo.toml",
@@ -99,6 +116,8 @@ fn main() {
         "rust/chronicle_chrono_kernel_wasm/Cargo.toml",
         "rust/chronicle_chrono_kernel_wasm/Cargo.lock",
         "rust/chronicle_chrono_kernel_wasm/src",
+        "rust/vendor/salsa-0.28.1/Cargo.toml",
+        "rust/vendor/salsa-0.28.1/src",
         "rust/chronicle_app_usage_matcher/Cargo.toml",
         "rust/chronicle_app_usage_matcher/Cargo.lock",
         "rust/chronicle_app_usage_matcher/src",
@@ -151,6 +170,14 @@ fn main() {
             &mut environment_hasher,
             std::env::var(key).unwrap_or_default().as_bytes(),
         );
+    }
+    let mut enabled_features = std::env::vars()
+        .filter(|(key, value)| key.starts_with("CARGO_FEATURE_") && value == "1")
+        .collect::<Vec<_>>();
+    enabled_features.sort();
+    for (key, value) in enabled_features {
+        digest_field(&mut environment_hasher, key.as_bytes());
+        digest_field(&mut environment_hasher, value.as_bytes());
     }
     let rustc = std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
     let rustc_version = Command::new(rustc)

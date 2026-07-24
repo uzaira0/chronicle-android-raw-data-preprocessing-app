@@ -1,9 +1,4 @@
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
@@ -32,6 +27,11 @@ import {
   generateSyntheticChronicleCorpus,
   SYNTHETIC_CORPUS_PROFILES,
 } from "@/testSupport/syntheticChronicleCorpus";
+import {
+  sourceRoleIsActive,
+  type RustStepContract,
+} from "@/testSupport/rustStepContract";
+import { dependencyCampaignRuntimeBytes } from "@/testSupport/dependencyCampaignRuntime";
 import * as runtime from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
 
 const EXPECTED_FILE = join(
@@ -92,7 +92,8 @@ type RuntimeManifest = {
     required: boolean;
     condition_result: boolean | null;
     accepted_assignment_ids: string[];
-    state: "open" | "ready" | "satisfied" | "blocked" | "invalid" | "not_applicable";
+    state:
+      "open" | "ready" | "satisfied" | "blocked" | "invalid" | "not_applicable";
   }>;
   openObligations: Array<{ role_id?: string; roleId?: string }>;
   counts: Record<string, number>;
@@ -138,19 +139,7 @@ type ObservedRuntimeManifest = RuntimeManifest & {
   outputCells: Record<string, string>;
 };
 
-type RustStepContract = {
-  protocolVersion: "chronicle-preprocessing-step-contract/v1";
-  steps: Array<{
-    id: string;
-    group: string;
-    inputs: string[];
-    requestFields: string[];
-    sourceRoles: string[];
-  }>;
-};
-
 const plan = JSON.parse(readFileSync(PLAN_FILE, "utf8")) as ProductPlan;
-const planByNode = new Map(plan.nodes.map((node) => [node.node_id, node]));
 const catalog = buildSyntheticCatalog({
   codebookCsv,
   filterCsv,
@@ -160,23 +149,22 @@ const catalog = buildSyntheticCatalog({
 let stepContract: RustStepContract;
 
 beforeAll(() => {
-  const wasmBytes = readFileSync(
-    new URL(
-      "../../../wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm",
-      import.meta.url,
-    ),
-  );
-  runtime.initSync({ module: wasmBytes });
-  stepContract = JSON.parse(runtime.pipeline_step_contract_json()) as RustStepContract;
+  runtime.initSync({ module: dependencyCampaignRuntimeBytes() });
+  stepContract = JSON.parse(
+    runtime.pipeline_step_contract_json(),
+  ) as RustStepContract;
   expect(stepContract.protocolVersion).toBe(
-    "chronicle-preprocessing-step-contract/v1",
+    "chronicle-preprocessing-step-contract/v3",
   );
   expect(stepContract.steps).toHaveLength(55);
 });
 
 async function sha256Uri(value: Uint8Array | string): Promise<string> {
   const bytes = typeof value === "string" ? encoder.encode(value) : value;
-  const digest = await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer);
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    Uint8Array.from(bytes).buffer,
+  );
   return `sha256:${Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("")}`;
@@ -187,15 +175,14 @@ async function artifactDigests(
 ): Promise<Record<InterventionRoleId, string>> {
   const supportDigests = await Promise.all(
     SUPPORT_ROLE_IDS.map(
-      async (roleId) => [roleId, await sha256Uri(state.supports[roleId].csv)] as const,
+      async (roleId) =>
+        [roleId, await sha256Uri(state.supports[roleId].csv)] as const,
     ),
   );
-  return Object.fromEntries(
-    [
-      ["raw_chronicle_csv", await sha256Uri(state.rawCsv)] as const,
-      ...supportDigests,
-    ],
-  ) as Record<InterventionRoleId, string>;
+  return Object.fromEntries([
+    ["raw_chronicle_csv", await sha256Uri(state.rawCsv)] as const,
+    ...supportDigests,
+  ]) as Record<InterventionRoleId, string>;
 }
 
 async function execute(
@@ -246,19 +233,9 @@ function changedFields(
     .sort();
 }
 
-function nodeInputKeys(manifest: RuntimeManifest): Record<string, string> {
-  return Object.fromEntries(
-    manifest.nodeExecutions.map((execution) => [execution.node_id, execution.input_key]),
-  );
-}
-
-function stepInputKeys(manifest: RuntimeManifest): Record<string, string> {
-  return Object.fromEntries(
-    manifest.stepExecutions.map(({ step_id, input_key }) => [step_id, input_key]),
-  );
-}
-
-function nodeOutputDigests(manifest: RuntimeManifest): Record<string, string | null> {
+function nodeOutputDigests(
+  manifest: RuntimeManifest,
+): Record<string, string | null> {
   return Object.fromEntries(
     manifest.nodeExecutions.map((execution) => [
       execution.node_id,
@@ -267,13 +244,25 @@ function nodeOutputDigests(manifest: RuntimeManifest): Record<string, string | n
   );
 }
 
-function nodeStatuses(manifest: RuntimeManifest): Record<string, string> {
+function stepStatuses(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
-    manifest.nodeExecutions.map((execution) => [execution.node_id, execution.status]),
+    manifest.stepExecutions.map((execution) => [
+      execution.step_id,
+      execution.status,
+    ]),
   );
 }
 
-function qualificationByRole(manifest: RuntimeManifest): Record<string, unknown> {
+function executedStepIds(manifest: RuntimeManifest): string[] {
+  return manifest.stepExecutions
+    .filter(({ status }) => status === "recomputed")
+    .map(({ step_id }) => step_id)
+    .sort();
+}
+
+function qualificationByRole(
+  manifest: RuntimeManifest,
+): Record<string, unknown> {
   return Object.fromEntries(
     manifest.qualificationTraces
       .filter(({ selected_role_id }) => selected_role_id !== null)
@@ -310,34 +299,26 @@ function requirementByRole(manifest: RuntimeManifest): Record<string, unknown> {
   );
 }
 
-function predictedPercolationCluster(
-  roleId: InterventionRoleId,
-  changedSemanticNodes: ReadonlySet<string>,
-): string[] {
-  const result = new Set<string>();
-  for (const nodeId of order) {
-    const node = planByNode.get(nodeId)!;
-    const directlyPerturbed =
-      (roleId === "raw_chronicle_csv" && nodeId === "parse_events") ||
-      node.support_roles.includes(roleId);
-    const reachedThroughChangedState = node.input_nodes.some((input) =>
-      changedSemanticNodes.has(input),
-    );
-    if (directlyPerturbed || reachedThroughChangedState) result.add(nodeId);
-  }
-  return [...result].sort();
-}
-
-function predictedStepPercolationCluster(
+function predictedExecutedSteps(
   roleId: InterventionRoleId,
   changedSemanticSteps: ReadonlySet<string>,
+  targetOptions: Record<string, unknown>,
+  source: RuntimeManifest,
+  target: RuntimeManifest,
 ): string[] {
+  const sourceStatuses = stepStatuses(source);
+  const targetStatuses = stepStatuses(target);
   return stepContract.steps
-    .filter(
-      (step) =>
-        step.sourceRoles.includes(roleId) ||
-        step.inputs.some((input) => changedSemanticSteps.has(input)),
-    )
+    .filter((step) => {
+      const sourceApplicable = sourceStatuses[step.id] !== "bypassed";
+      const targetApplicable = targetStatuses[step.id] !== "bypassed";
+      return (
+        targetApplicable &&
+        (!sourceApplicable ||
+          sourceRoleIsActive(step, roleId, targetOptions) ||
+          step.inputs.some((input) => changedSemanticSteps.has(input)))
+      );
+    })
     .map(({ id }) => id)
     .sort();
 }
@@ -359,11 +340,14 @@ const OUTPUT_ARTIFACT_KINDS = new Set([
   "result-cell-correspondence-arrow",
 ]);
 
-function outputArtifactDigests(manifest: RuntimeManifest): Record<string, string> {
+function outputArtifactDigests(
+  manifest: RuntimeManifest,
+): Record<string, string> {
   return Object.fromEntries(
     manifest.artifacts
       .filter(
-        ({ kind }) => OUTPUT_ARTIFACT_KINDS.has(kind) || kind.startsWith("aggregate-"),
+        ({ kind }) =>
+          OUTPUT_ARTIFACT_KINDS.has(kind) || kind.startsWith("aggregate-"),
       )
       .sort((left, right) => left.kind.localeCompare(right.kind))
       .map(({ kind, digest }) => [kind, digest]),
@@ -385,19 +369,20 @@ function changedCheckpointComponents(
   return Object.fromEntries(
     Object.keys(source.processingSummary.logicalStageCheckpoints)
       .sort()
-      .map((nodeId) => [
-        nodeId,
-        changedFields(
-          source.processingSummary.logicalStageCheckpoints[nodeId] as unknown as Record<
-            string,
-            unknown
-          >,
-          target.processingSummary.logicalStageCheckpoints[nodeId] as unknown as Record<
-            string,
-            unknown
-          >,
-        ).filter((field) => field !== "terminalDigest"),
-      ] as const)
+      .map(
+        (nodeId) =>
+          [
+            nodeId,
+            changedFields(
+              source.processingSummary.logicalStageCheckpoints[
+                nodeId
+              ] as unknown as Record<string, unknown>,
+              target.processingSummary.logicalStageCheckpoints[
+                nodeId
+              ] as unknown as Record<string, unknown>,
+            ).filter((field) => field !== "terminalDigest"),
+          ] as const,
+      )
       .filter(([, components]) => components.length > 0),
   );
 }
@@ -409,13 +394,16 @@ function changedStepCheckpointComponents(
   return Object.fromEntries(
     Object.keys(source.processingSummary.pipelineStepCheckpoints)
       .sort()
-      .map((stepId) => [
-        stepId,
-        changedFields(
-          source.processingSummary.pipelineStepCheckpoints[stepId],
-          target.processingSummary.pipelineStepCheckpoints[stepId],
-        ).filter((field) => field !== "terminalDigest"),
-      ] as const)
+      .map(
+        (stepId) =>
+          [
+            stepId,
+            changedFields(
+              source.processingSummary.pipelineStepCheckpoints[stepId],
+              target.processingSummary.pipelineStepCheckpoints[stepId],
+            ).filter((field) => field !== "terminalDigest"),
+          ] as const,
+      )
       .filter(([, components]) => components.length > 0),
   );
 }
@@ -443,12 +431,15 @@ describe("artifact dependency tomography", () => {
     ) {
       throw new Error(`invalid artifact shard ${SHARD_INDEX}/${SHARD_COUNT}`);
     }
-    expect([...plan.nodes.map(({ node_id }) => node_id)].sort()).toEqual([...order].sort());
+    expect([...plan.nodes.map(({ node_id }) => node_id)].sort()).toEqual(
+      [...order].sort(),
+    );
     expect(
       SUPPORT_ROLE_IDS.filter(
-        (roleId) => !plan.nodes.some((node) => node.support_roles.includes(roleId)),
+        (roleId) =>
+          !stepContract.steps.some((step) => step.sourceRoles.includes(roleId)),
       ),
-      "every support role needs an owning logical node",
+      "every support role needs an owning Rust query",
     ).toEqual([]);
 
     const reports: Array<Record<string, unknown>> = [];
@@ -480,9 +471,10 @@ describe("artifact dependency tomography", () => {
         forcingCsv,
         backgroundCsv,
       });
-      const interventions = buildArtifactInterventions({ corpus, catalog }).filter(
-        ({ id }) => !FILTER || id === FILTER,
-      );
+      const interventions = buildArtifactInterventions({
+        corpus,
+        catalog,
+      }).filter(({ id }) => !FILTER || id === FILTER);
       expect(
         interventions.length,
         `${corpus.id}: artifact intervention filter matched nothing`,
@@ -497,306 +489,335 @@ describe("artifact dependency tomography", () => {
       });
 
       for (const intervention of interventions) {
-      const caseId = `${corpus.id}:${intervention.id}`;
-      const targetState = intervention.apply(sourceState);
-      const targetDigests = await artifactDigests(targetState);
-      expect(
-        changedFields(sourceDigests, targetDigests),
-        `${caseId}: intervention must change exactly its declared source artifact`,
-      ).toEqual([intervention.roleId]);
+        const caseId = `${corpus.id}:${intervention.id}`;
+        const targetState = intervention.apply(sourceState);
+        const targetDigests = await artifactDigests(targetState);
+        expect(
+          changedFields(sourceDigests, targetDigests),
+          `${caseId}: intervention must change exactly its declared source artifact`,
+        ).toEqual([intervention.roleId]);
 
-      const coldSource = await execute(
-        sourceState,
-        `${corpus.id}.csv`,
-        `artifact:cold-source:${caseId}`,
-        `${caseId}:cold-source`,
-        null,
-      );
-      const coldTarget = await execute(
-        targetState,
-        `${corpus.id}.csv`,
-        `artifact:cold-target:${caseId}`,
-        `${caseId}:cold-target`,
-        null,
-      );
-      const workspace = `artifact:warm:${caseId}`;
-      const warmSource = await execute(
-        sourceState,
-        `${corpus.id}.csv`,
-        workspace,
-        `${caseId}:warm-source`,
-        null,
-      );
-      const warmTarget = await execute(
-        targetState,
-        `${corpus.id}.csv`,
-        workspace,
-        `${caseId}:warm-target`,
-        warmSource.workspaceRootDigest,
-      );
+        const coldSource = await execute(
+          sourceState,
+          `${corpus.id}.csv`,
+          `artifact:cold-source:${caseId}`,
+          `${caseId}:cold-source`,
+          null,
+        );
+        const coldTarget = await execute(
+          targetState,
+          `${corpus.id}.csv`,
+          `artifact:cold-target:${caseId}`,
+          `${caseId}:cold-target`,
+          null,
+        );
+        const workspace = `artifact:warm:${caseId}`;
+        const warmSource = await execute(
+          sourceState,
+          `${corpus.id}.csv`,
+          workspace,
+          `${caseId}:warm-source`,
+          null,
+        );
+        const warmTarget = await execute(
+          targetState,
+          `${corpus.id}.csv`,
+          workspace,
+          `${caseId}:warm-target`,
+          warmSource.workspaceRootDigest,
+        );
 
-      for (const manifest of [coldSource, coldTarget, warmSource, warmTarget]) {
-        expect(manifest.openObligations, `${caseId}: binding holes`).toEqual([]);
+        for (const manifest of [
+          coldSource,
+          coldTarget,
+          warmSource,
+          warmTarget,
+        ]) {
+          expect(manifest.openObligations, `${caseId}: binding holes`).toEqual(
+            [],
+          );
+          expect(
+            manifest.qualificationTraces,
+            `${caseId}: one qualification proof per supplied root role`,
+          ).toHaveLength(plan.root_roles.length);
+          expect(
+            manifest.qualificationTraces.every(
+              (trace) =>
+                trace.decision === "accepted" &&
+                trace.selected_role_id !== null &&
+                trace.rule_evaluations.every(({ passed }) => passed),
+            ),
+            `${caseId}: a candidate bypassed deterministic qualification`,
+          ).toBe(true);
+          expect(
+            Object.keys(qualificationByRole(manifest)).sort(),
+            `${caseId}: qualification did not cover the exact root-role vocabulary`,
+          ).toEqual(plan.root_roles.map(({ role_id }) => role_id).sort());
+          expect(
+            manifest.requirementTraces,
+            `${caseId}: one requirement proof per root role`,
+          ).toHaveLength(plan.root_roles.length);
+          expect(
+            manifest.requirementTraces.every(
+              ({ state }) => state === "satisfied",
+            ),
+            `${caseId}: supplied fixture left a role unsatisfied`,
+          ).toBe(true);
+          expect(
+            manifest.nodeExecutions,
+            `${caseId}: logical stages`,
+          ).toHaveLength(15);
+          expect(
+            manifest.stepExecutions,
+            `${caseId}: Rust pipeline steps`,
+          ).toHaveLength(55);
+          expect(
+            manifest.stepExecutions.map(({ step_id }) => step_id).sort(),
+          ).toEqual(stepContract.steps.map(({ id }) => id).sort());
+          expect(
+            manifest.stepExecutions.every(
+              ({ status }) => status !== "error" && status !== "skipped",
+            ),
+            `${caseId}: failed Rust pipeline step`,
+          ).toBe(true);
+          expect(
+            Object.keys(
+              manifest.processingSummary.logicalStageCheckpoints,
+            ).sort(),
+            `${caseId}: typed checkpoint coverage`,
+          ).toEqual(plan.nodes.map(({ node_id }) => node_id).sort());
+          for (const [nodeId, checkpoint] of Object.entries(
+            manifest.processingSummary.logicalStageCheckpoints,
+          )) {
+            expect(checkpoint.protocolVersion).toBe(
+              "chronicle-logical-stage-checkpoint/v3",
+            );
+            expect(checkpoint.nodeId).toBe(nodeId);
+            expect(checkpoint.terminalDigest).toBe(
+              manifest.processingSummary.logicalStageDigests[nodeId],
+            );
+          }
+          expect(
+            Object.keys(
+              manifest.processingSummary.pipelineStepCheckpoints,
+            ).sort(),
+            `${caseId}: 55-step checkpoint coverage`,
+          ).toEqual(stepContract.steps.map(({ id }) => id).sort());
+          for (const [stepId, checkpoint] of Object.entries(
+            manifest.processingSummary.pipelineStepCheckpoints,
+          )) {
+            expect(checkpoint.protocolVersion).toBe(
+              "chronicle-logical-stage-checkpoint/v3",
+            );
+            expect(checkpoint.nodeId).toBe(stepId);
+            expect(checkpoint.terminalDigest).toBe(
+              manifest.processingSummary.pipelineStepDigests[stepId],
+            );
+          }
+          expect(
+            manifest.nodeExecutions.every(
+              ({ status }) => status !== "error" && status !== "skipped",
+            ),
+            `${caseId}: failed logical execution`,
+          ).toBe(true);
+          const currentReceipt = authorityReceipt(manifest);
+          if (!receipt) receipt = currentReceipt;
+          else
+            expect(currentReceipt, `${caseId}: authority drift`).toEqual(
+              receipt,
+            );
+        }
+
         expect(
-          manifest.qualificationTraces,
-          `${caseId}: one qualification proof per supplied root role`,
-        ).toHaveLength(plan.root_roles.length);
+          semanticOutcome(warmSource),
+          `${caseId}: warm source oracle`,
+        ).toEqual(semanticOutcome(coldSource));
         expect(
-          manifest.qualificationTraces.every(
-            (trace) =>
-              trace.decision === "accepted" &&
-              trace.selected_role_id !== null &&
-              trace.rule_evaluations.every(({ passed }) => passed),
-          ),
-          `${caseId}: a candidate bypassed deterministic qualification`,
-        ).toBe(true);
+          semanticOutcome(warmTarget),
+          `${caseId}: warm target oracle`,
+        ).toEqual(semanticOutcome(coldTarget));
         expect(
-          Object.keys(qualificationByRole(manifest)).sort(),
-          `${caseId}: qualification did not cover the exact root-role vocabulary`,
-        ).toEqual(plan.root_roles.map(({ role_id }) => role_id).sort());
+          warmSource.outputCells,
+          `${caseId}: warm source cell oracle`,
+        ).toEqual(coldSource.outputCells);
         expect(
-          manifest.requirementTraces,
-          `${caseId}: one requirement proof per root role`,
-        ).toHaveLength(plan.root_roles.length);
+          warmTarget.outputCells,
+          `${caseId}: warm target cell oracle`,
+        ).toEqual(coldTarget.outputCells);
         expect(
-          manifest.requirementTraces.every(({ state }) => state === "satisfied"),
-          `${caseId}: supplied fixture left a role unsatisfied`,
-        ).toBe(true);
-        expect(manifest.nodeExecutions, `${caseId}: logical stages`).toHaveLength(15);
-        expect(manifest.stepExecutions, `${caseId}: Rust pipeline steps`).toHaveLength(55);
-        expect(manifest.stepExecutions.map(({ step_id }) => step_id).sort()).toEqual(
-          stepContract.steps.map(({ id }) => id).sort(),
+          nodeOutputDigests(warmTarget),
+          `${caseId}: every warm logical checkpoint needs a cold target`,
+        ).toEqual(nodeOutputDigests(coldTarget));
+        expect(
+          warmTarget.processingSummary.pipelineStepDigests,
+          `${caseId}: every warm Rust step checkpoint needs a cold target`,
+        ).toEqual(coldTarget.processingSummary.pipelineStepDigests);
+        const changedQualificationRoles = changedFields(
+          qualificationByRole(coldSource),
+          qualificationByRole(coldTarget),
+        );
+        const changedRequirementRoles = changedFields(
+          requirementByRole(coldSource),
+          requirementByRole(coldTarget),
         );
         expect(
-          manifest.stepExecutions.every(
-            ({ status }) => status !== "error" && status !== "skipped",
-          ),
-          `${caseId}: failed Rust pipeline step`,
-        ).toBe(true);
+          changedQualificationRoles,
+          `${caseId}: source-to-binding correspondence must change exactly one role`,
+        ).toEqual([intervention.roleId]);
         expect(
-          Object.keys(manifest.processingSummary.logicalStageCheckpoints).sort(),
-          `${caseId}: typed checkpoint coverage`,
-        ).toEqual(plan.nodes.map(({ node_id }) => node_id).sort());
-        for (const [nodeId, checkpoint] of Object.entries(
-          manifest.processingSummary.logicalStageCheckpoints,
-        )) {
-          expect(checkpoint.protocolVersion).toBe(
-            "chronicle-logical-stage-checkpoint/v3",
-          );
-          expect(checkpoint.nodeId).toBe(nodeId);
-          expect(checkpoint.terminalDigest).toBe(
-            manifest.processingSummary.logicalStageDigests[nodeId],
-          );
-        }
-        expect(
-          Object.keys(manifest.processingSummary.pipelineStepCheckpoints).sort(),
-          `${caseId}: 55-step checkpoint coverage`,
-        ).toEqual(stepContract.steps.map(({ id }) => id).sort());
-        for (const [stepId, checkpoint] of Object.entries(
-          manifest.processingSummary.pipelineStepCheckpoints,
-        )) {
-          expect(checkpoint.protocolVersion).toBe(
-            "chronicle-logical-stage-checkpoint/v3",
-          );
-          expect(checkpoint.nodeId).toBe(stepId);
-          expect(checkpoint.terminalDigest).toBe(
-            manifest.processingSummary.pipelineStepDigests[stepId],
-          );
-        }
-        expect(
-          manifest.nodeExecutions.every(
-            ({ status }) => status !== "error" && status !== "skipped",
-          ),
-          `${caseId}: failed logical execution`,
-        ).toBe(true);
-        const currentReceipt = authorityReceipt(manifest);
-        if (!receipt) receipt = currentReceipt;
-        else expect(currentReceipt, `${caseId}: authority drift`).toEqual(receipt);
-      }
+          changedRequirementRoles,
+          `${caseId}: binding-to-requirement correspondence must change exactly one role`,
+        ).toEqual([intervention.roleId]);
 
-      expect(semanticOutcome(warmSource), `${caseId}: warm source oracle`).toEqual(
-        semanticOutcome(coldSource),
-      );
-      expect(semanticOutcome(warmTarget), `${caseId}: warm target oracle`).toEqual(
-        semanticOutcome(coldTarget),
-      );
-      expect(warmSource.outputCells, `${caseId}: warm source cell oracle`).toEqual(
-        coldSource.outputCells,
-      );
-      expect(warmTarget.outputCells, `${caseId}: warm target cell oracle`).toEqual(
-        coldTarget.outputCells,
-      );
-      expect(
-        nodeOutputDigests(warmTarget),
-        `${caseId}: every warm logical checkpoint needs a cold target`,
-      ).toEqual(nodeOutputDigests(coldTarget));
-      expect(
-        warmTarget.processingSummary.pipelineStepDigests,
-        `${caseId}: every warm Rust step checkpoint needs a cold target`,
-      ).toEqual(coldTarget.processingSummary.pipelineStepDigests);
-      const changedQualificationRoles = changedFields(
-        qualificationByRole(coldSource),
-        qualificationByRole(coldTarget),
-      );
-      const changedRequirementRoles = changedFields(
-        requirementByRole(coldSource),
-        requirementByRole(coldTarget),
-      );
-      expect(
-        changedQualificationRoles,
-        `${caseId}: source-to-binding correspondence must change exactly one role`,
-      ).toEqual([intervention.roleId]);
-      expect(
-        changedRequirementRoles,
-        `${caseId}: binding-to-requirement correspondence must change exactly one role`,
-      ).toEqual([intervention.roleId]);
-
-      const changedSemanticNodes = changedFields(
-        coldSource.processingSummary.logicalStageDigests,
-        coldTarget.processingSummary.logicalStageDigests,
-      );
-      const checkpointComponentChanges = changedCheckpointComponents(
-        coldSource,
-        coldTarget,
-      );
-      expect(
-        Object.keys(checkpointComponentChanges).sort(),
-        `${caseId}: typed components and terminal commitments disagree`,
-      ).toEqual(changedSemanticNodes);
-      const changedSemanticSteps = changedFields(
-        coldSource.processingSummary.pipelineStepDigests,
-        coldTarget.processingSummary.pipelineStepDigests,
-      );
-      const stepCheckpointComponentChanges = changedStepCheckpointComponents(
-        coldSource,
-        coldTarget,
-      );
-      expect(
-        Object.keys(stepCheckpointComponentChanges).sort(),
-        `${caseId}: step components and terminal commitments disagree`,
-      ).toEqual(changedSemanticSteps);
-      if (intervention.expectedSemanticEffect === "required") {
-        requiredInterventionIds.add(intervention.id);
-        const contexts = activationContexts.get(intervention.id) ?? {
-          active: new Set<string>(),
-          converged: new Set<string>(),
-        };
-        if (changedSemanticNodes.length > 0) {
-          semanticEffects += 1;
-          contexts.active.add(corpus.id);
-          semanticWitnessesByIntervention.set(
-            intervention.id,
-            (semanticWitnessesByIntervention.get(intervention.id) ?? 0) + 1,
-          );
+        const changedSemanticNodes = changedFields(
+          coldSource.processingSummary.logicalStageDigests,
+          coldTarget.processingSummary.logicalStageDigests,
+        );
+        const checkpointComponentChanges = changedCheckpointComponents(
+          coldSource,
+          coldTarget,
+        );
+        expect(
+          Object.keys(checkpointComponentChanges).sort(),
+          `${caseId}: typed components and terminal commitments disagree`,
+        ).toEqual(changedSemanticNodes);
+        const changedSemanticSteps = changedFields(
+          coldSource.processingSummary.pipelineStepDigests,
+          coldTarget.processingSummary.pipelineStepDigests,
+        );
+        const stepCheckpointComponentChanges = changedStepCheckpointComponents(
+          coldSource,
+          coldTarget,
+        );
+        expect(
+          Object.keys(stepCheckpointComponentChanges).sort(),
+          `${caseId}: step components and terminal commitments disagree`,
+        ).toEqual(changedSemanticSteps);
+        if (intervention.expectedSemanticEffect === "required") {
+          requiredInterventionIds.add(intervention.id);
+          const contexts = activationContexts.get(intervention.id) ?? {
+            active: new Set<string>(),
+            converged: new Set<string>(),
+          };
+          if (changedSemanticSteps.length > 0) {
+            semanticEffects += 1;
+            contexts.active.add(corpus.id);
+            semanticWitnessesByIntervention.set(
+              intervention.id,
+              (semanticWitnessesByIntervention.get(intervention.id) ?? 0) + 1,
+            );
+          } else {
+            contextualConvergences += 1;
+            contexts.converged.add(corpus.id);
+          }
+          activationContexts.set(intervention.id, contexts);
         } else {
-          contextualConvergences += 1;
-          contexts.converged.add(corpus.id);
+          expect(
+            changedSemanticSteps,
+            `${caseId}: representation/ignored-field control must converge`,
+          ).toEqual([]);
+          exactEquivalences += 1;
         }
-        activationContexts.set(intervention.id, contexts);
-      } else {
-        expect(
-          changedSemanticNodes,
-          `${caseId}: representation/ignored-field control must converge`,
-        ).toEqual([]);
-        exactEquivalences += 1;
-      }
 
-      const observedInputKeyNodes = changedFields(
-        nodeInputKeys(warmSource),
-        nodeInputKeys(warmTarget),
-      );
-      const predictedInputKeyNodes = predictedPercolationCluster(
-        intervention.roleId,
-        new Set(changedSemanticNodes),
-      );
-      expect(
-        observedInputKeyNodes,
-        `${caseId}: declared and empirical percolation must agree exactly`,
-      ).toEqual(predictedInputKeyNodes);
-      const observedInputKeySteps = changedFields(
-        stepInputKeys(warmSource),
-        stepInputKeys(warmTarget),
-      );
-      const predictedInputKeySteps = predictedStepPercolationCluster(
+      const actualExecutedSteps = executedStepIds(warmTarget);
+      const exactTargetOptions = buildRustV2Options(ALL_ON, GOLDEN_RUNTIME);
+      const expectedExecutedSteps = predictedExecutedSteps(
         intervention.roleId,
         new Set(changedSemanticSteps),
-      );
-      expect(
-        observedInputKeySteps,
-        `${caseId}: declared and empirical 55-step percolation must agree exactly`,
-      ).toEqual(predictedInputKeySteps);
-
-      const directBinders = plan.nodes
-        .filter(
-          (node) =>
-            (intervention.roleId === "raw_chronicle_csv" &&
-              node.node_id === "parse_events") ||
-            node.support_roles.includes(intervention.roleId),
-        )
-        .map(({ node_id }) => node_id)
-        .sort();
-      for (const binder of directBinders) {
-        expect(observedInputKeyNodes, `${caseId}: missing direct binder`).toContain(
-          binder,
+        exactTargetOptions,
+        coldSource,
+          coldTarget,
         );
         expect(
-          nodeStatuses(warmTarget)[binder],
-          `${caseId}: direct binder was falsely cached`,
-        ).not.toBe("cached");
-      }
+          actualExecutedSteps,
+          `${caseId}: declared inputs and actual Salsa query bodies must agree exactly`,
+        ).toEqual(expectedExecutedSteps);
+        const sourceStatuses = stepStatuses(coldSource);
+        const targetStatuses = stepStatuses(coldTarget);
+        const deactivatedSteps = stepContract.steps
+          .filter(
+            ({ id }) =>
+              sourceStatuses[id] !== "bypassed" &&
+              targetStatuses[id] === "bypassed",
+          )
+          .map(({ id }) => id)
+          .sort();
+        expect(
+          deactivatedSteps,
+          `${caseId}: artifact bytes cannot change applicability`,
+        ).toEqual([]);
+        const directBindingSteps = stepContract.steps
+          .filter(
+            (step) =>
+            targetStatuses[step.id] !== "bypassed" &&
+            sourceRoleIsActive(step, intervention.roleId, exactTargetOptions),
+          )
+          .map(({ id }) => id)
+          .sort();
+        for (const binder of directBindingSteps) {
+          expect(
+            actualExecutedSteps,
+            `${caseId}: direct Rust artifact binding did not execute`,
+          ).toContain(binder);
+        }
 
-      const changedOutputArtifactKinds = changedFields(
-        outputArtifactDigests(coldSource),
-        outputArtifactDigests(coldTarget),
-      );
-      const changedOutputCellAddresses = changedCellAddresses(
-        coldSource.outputCells,
-        coldTarget.outputCells,
-      );
-      cellEvidenceCases.push({
-        caseId,
-        changedComponents: intervention.changedComponents,
-        changedOutputCellAddresses,
-      });
-      const report = {
-        corpusId: corpus.id,
-        interventionId: intervention.id,
-        roleId: intervention.roleId,
-        mutationClass: intervention.mutationClass,
-        changedComponents: intervention.changedComponents,
-        description: intervention.description,
-        expectedSemanticEffect: intervention.expectedSemanticEffect,
-        observedSemanticEffect: changedSemanticNodes.length > 0,
-        directBinders,
-        changedQualificationRoles,
-        changedRequirementRoles,
-        changedSemanticNodes,
-        checkpointComponentChanges,
-        changedSemanticSteps,
-        stepCheckpointComponentChanges,
-        predictedInputKeyNodes,
-        observedInputKeyNodes,
-        predictedInputKeySteps,
-        observedInputKeySteps,
-        changedOutputArtifactKinds,
-        changedOutputCellCount: changedOutputCellAddresses.length,
-        changedOutputCellAddressDigest: await sha256Uri(
-          changedOutputCellAddresses.join("\n"),
-        ),
-        changedOutputCellScopesByArtifact: changedCellScopesByArtifact(
+        const changedOutputArtifactKinds = changedFields(
+          outputArtifactDigests(coldSource),
+          outputArtifactDigests(coldTarget),
+        );
+        const changedOutputCellAddresses = changedCellAddresses(
+          coldSource.outputCells,
+          coldTarget.outputCells,
+        );
+        cellEvidenceCases.push({
+          caseId,
+          changedComponents: intervention.changedComponents,
           changedOutputCellAddresses,
-        ),
-        changedCountFields: changedFields(coldSource.counts, coldTarget.counts),
-        changedProcessingSummaryFields: changedFields(
-          coldSource.processingSummary,
-          coldTarget.processingSummary,
-        ),
-        warmExecution: warmTarget.nodeExecutions
-          .filter(({ status }) => status !== "cached")
-          .map(({ node_id, status }) => ({ nodeId: node_id, status })),
-      };
-      reports.push(report);
-      caseIdentities.push(JSON.stringify(report));
+        });
+        const report = {
+          corpusId: corpus.id,
+          interventionId: intervention.id,
+          roleId: intervention.roleId,
+          mutationClass: intervention.mutationClass,
+          changedComponents: intervention.changedComponents,
+          description: intervention.description,
+          expectedSemanticEffect: intervention.expectedSemanticEffect,
+          observedSemanticEffect: changedSemanticSteps.length > 0,
+          directBindingSteps,
+          changedQualificationRoles,
+          changedRequirementRoles,
+          changedSemanticNodes,
+          checkpointComponentChanges,
+          changedSemanticSteps,
+          stepCheckpointComponentChanges,
+          expectedExecutedSteps,
+          actualExecutedSteps,
+          deactivatedSteps,
+          changedOutputArtifactKinds,
+          changedOutputCellCount: changedOutputCellAddresses.length,
+          changedOutputCellAddressDigest: await sha256Uri(
+            changedOutputCellAddresses.join("\n"),
+          ),
+          changedOutputCellScopesByArtifact: changedCellScopesByArtifact(
+            changedOutputCellAddresses,
+          ),
+          changedCountFields: changedFields(
+            coldSource.counts,
+            coldTarget.counts,
+          ),
+          changedProcessingSummaryFields: changedFields(
+            coldSource.processingSummary,
+            coldTarget.processingSummary,
+          ),
+          displayGroupStatuses: warmTarget.nodeExecutions.map(
+            ({ node_id, status }) => ({
+              nodeId: node_id,
+              status,
+            }),
+          ),
+        };
+        reports.push(report);
+        caseIdentities.push(JSON.stringify(report));
       }
     }
 
@@ -823,7 +844,9 @@ describe("artifact dependency tomography", () => {
       null,
       2,
     )}\n`;
-    const cellEvidenceCompressed = gzipSync(cellEvidenceSerialized, { level: 9 });
+    const cellEvidenceCompressed = gzipSync(cellEvidenceSerialized, {
+      level: 9,
+    });
     const cellEvidenceDigest = await sha256Uri(cellEvidenceSerialized);
 
     const evidence = {
@@ -910,11 +933,14 @@ describe("artifact dependency tomography", () => {
       writeFileSync(EXPECTED_FILE, serialized, "utf8");
       return;
     }
-    expect(existsSync(CELL_EVIDENCE_FILE), "missing output-cell evidence sidecar").toBe(
+    expect(
+      existsSync(CELL_EVIDENCE_FILE),
+      "missing output-cell evidence sidecar",
+    ).toBe(true);
+    expect(cellEvidenceCompressed).toEqual(readFileSync(CELL_EVIDENCE_FILE));
+    expect(existsSync(EXPECTED_FILE), "missing artifact-influence ledger").toBe(
       true,
     );
-    expect(cellEvidenceCompressed).toEqual(readFileSync(CELL_EVIDENCE_FILE));
-    expect(existsSync(EXPECTED_FILE), "missing artifact-influence ledger").toBe(true);
     expect(serialized).toBe(readFileSync(EXPECTED_FILE, "utf8"));
   }, 600_000);
 });

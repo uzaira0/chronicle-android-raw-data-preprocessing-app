@@ -8,8 +8,11 @@ const opfs = vi.hoisted(() => ({
   garbageCollectRuntimeObjects: vi.fn(),
   importRuntimeClosure: vi.fn(),
   openOpfsWorkspace: vi.fn(),
+  persistRuntimeQueryCache: vi.fn(),
   persistRuntimeWorkspace: vi.fn(),
   readRuntimeObject: vi.fn(),
+  recoverRuntimeQueryCache: vi.fn(),
+  recoverRuntimeQueryCacheSlots: vi.fn(),
   recoverRuntimeWorkspace: vi.fn(),
   recoverRuntimeWorkspaceRoots: vi.fn(),
   runtimeClosureWorkspaceId: vi.fn(),
@@ -127,9 +130,10 @@ const kernel = {
   runtime_version: vi.fn(() => "test-runtime"),
   implementation_build_digest: vi.fn(() => `sha256:${"0".repeat(64)}`),
   build_environment_digest: vi.fn(() => `sha256:${"f".repeat(64)}`),
+  query_cache_max_bytes: vi.fn(() => 128 * 1024 * 1024),
   pipeline_step_contract_json: vi.fn(() =>
     JSON.stringify({
-      protocolVersion: "chronicle-preprocessing-step-contract/v1",
+      protocolVersion: "chronicle-preprocessing-step-contract/v3",
       groups: [],
       steps: [],
     }),
@@ -154,6 +158,8 @@ const kernel = {
   inspect_raw_file_v1: () =>
     JSON.stringify({ fileName: "raw.csv", warnings: [], columns: [], timezones: [] }),
   execute_workspace: vi.fn(),
+  export_workspace_query_cache: vi.fn(() => enc.encode("query-cache")),
+  restore_workspace_query_cache: vi.fn(),
   execute_bounded_v2_shadow: vi.fn(),
   verify_evidence_journal_cbor: vi.fn(() => 1),
 };
@@ -176,6 +182,8 @@ beforeEach(() => {
   opfs.openOpfsWorkspace.mockResolvedValue(root);
   opfs.recoverRuntimeWorkspace.mockResolvedValue(slot);
   opfs.recoverRuntimeWorkspaceRoots.mockResolvedValue([slot]);
+  opfs.recoverRuntimeQueryCache.mockResolvedValue(undefined);
+  opfs.recoverRuntimeQueryCacheSlots.mockResolvedValue([]);
   opfs.readRuntimeObject.mockImplementation(
     (_root: FileSystemDirectoryHandle, digest: string) =>
       Promise.resolve(bytesByDigest.get(digest) ?? enc.encode("missing")),
@@ -265,7 +273,7 @@ describe("persisted Rust workspace boundary", () => {
       /no persisted Rust workspace/,
     );
     await expect(garbageCollectPersistedRustWorkspace(workspaceId)).resolves.toBe(4);
-    expect(opfs.garbageCollectRuntimeObjects).toHaveBeenLastCalledWith(root, []);
+    expect(opfs.garbageCollectRuntimeObjects).toHaveBeenLastCalledWith(root, [], []);
   });
 
   it("rejects import identity drift and absent artifact assignments", async () => {

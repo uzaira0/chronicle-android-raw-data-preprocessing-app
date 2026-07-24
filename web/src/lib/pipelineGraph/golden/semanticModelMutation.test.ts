@@ -2,17 +2,28 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { order } from "@/lib/pipelineGraph/validationHarness";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const CONFIGURATION_LEDGER = join(HERE, "family-expected", "configuration-influence-ledger.json");
-const ARTIFACT_LEDGER = join(HERE, "family-expected", "artifact-influence-ledger.json");
+const CONFIGURATION_LEDGER = join(
+  HERE,
+  "family-expected",
+  "configuration-influence-ledger.json",
+);
+const ARTIFACT_LEDGER = join(
+  HERE,
+  "family-expected",
+  "artifact-influence-ledger.json",
+);
 const RAW_BOUNDARY_LEDGER = join(
   HERE,
   "family-expected",
   "raw-boundary-influence-ledger.json",
 );
-const EXPECTED_FILE = join(HERE, "family-expected", "semantic-model-mutation-ledger.json");
+const EXPECTED_FILE = join(
+  HERE,
+  "family-expected",
+  "semantic-model-mutation-ledger.json",
+);
 const PLAN_FILE = fileURLToPath(
   new URL(
     "../../../../../.semantic-federation/semantic/resources/chronicle.plan.json",
@@ -21,10 +32,11 @@ const PLAN_FILE = fileURLToPath(
 );
 const UPDATE = process.env.UPDATE_SEMANTIC_MUTATIONS === "1";
 
-type PlanNode = {
-  node_id: string;
-  input_nodes: string[];
-  support_roles: string[];
+type PlanStep = {
+  step_id: string;
+  input_steps: string[];
+  request_fields: string[];
+  source_role_bindings: Array<{ role: string; when_all: unknown[] }>;
   applicability: unknown;
 };
 
@@ -33,13 +45,18 @@ type EmpiricalObservation = {
   sourceKind: "configuration" | "artifact" | "raw-boundary";
   sourceId: string;
   directBinders: string[];
-  changedSemanticNodes: string[];
-  observedInputNodes: string[];
+  changedSteps: string[];
+  actualExecutedSteps: string[];
+  inactiveSteps: string[];
 };
 
 type MutantResult = {
   mutantId: string;
-  mutantClass: "remove-edge" | "reverse-edge" | "remove-option-binding" | "remove-role-binding";
+  mutantClass:
+    | "remove-edge"
+    | "reverse-edge"
+    | "remove-option-binding"
+    | "remove-role-binding";
   sourceId: string;
   targetId: string;
   killed: boolean;
@@ -47,7 +64,8 @@ type MutantResult = {
     | "empirical-cluster-mismatch"
     | "structural-cycle"
     | "structural-condition-binding"
-    | "structural-step-binding"
+    | "rust-request-read-binding"
+    | "rust-source-call-binding"
     | "survived";
   witnessId: string | null;
 };
@@ -65,10 +83,11 @@ type ImplementationReceipt = {
 const plan = JSON.parse(readFileSync(PLAN_FILE, "utf8")) as {
   plan_id: string;
   revision: string;
-  nodes: PlanNode[];
-  steps: Array<{ step_id: string; unit_id: string; input_steps: string[] }>;
+  steps: PlanStep[];
 };
-const configurationLedger = JSON.parse(readFileSync(CONFIGURATION_LEDGER, "utf8")) as {
+const configurationLedger = JSON.parse(
+  readFileSync(CONFIGURATION_LEDGER, "utf8"),
+) as {
   implementationReceipt: ImplementationReceipt;
   caseSetDigest: string;
   optionInfluence: Array<{
@@ -81,8 +100,11 @@ const configurationLedger = JSON.parse(readFileSync(CONFIGURATION_LEDGER, "utf8"
         to: string;
         corpusObservations: Array<{
           corpusId: string;
-          changedInputKeyNodes: string[];
-          changedSemanticOutputNodes: string[];
+          changedRustRequestFields: string[];
+          newlyApplicableSteps: string[];
+          actualExecutedSteps: string[];
+          changedPipelineSteps: string[];
+          warmExecution: Array<{ nodeId: string; status: string }>;
         }>;
       }>;
     }>;
@@ -94,21 +116,65 @@ const artifactLedger = JSON.parse(readFileSync(ARTIFACT_LEDGER, "utf8")) as {
   interventions: Array<{
     interventionId: string;
     roleId: string;
-    directBinders: string[];
-    changedSemanticNodes: string[];
-    observedInputKeyNodes: string[];
+    directBindingSteps: string[];
+    changedSemanticSteps: string[];
+    actualExecutedSteps: string[];
+    deactivatedSteps: string[];
   }>;
 };
-const rawBoundaryLedger = JSON.parse(readFileSync(RAW_BOUNDARY_LEDGER, "utf8")) as {
+const rawBoundaryLedger = JSON.parse(
+  readFileSync(RAW_BOUNDARY_LEDGER, "utf8"),
+) as {
   implementationReceipt: ImplementationReceipt;
   caseSetDigest: string;
   interventions: Array<{
     corpusId: string;
     interventionId: string;
-    changedSemanticNodes: string[];
-    observedInputKeyNodes: string[];
+    changedPipelineSteps: string[];
+    actualExecutedSteps: string[];
+    deactivatedSteps: string[];
   }>;
 };
+
+const stepOrder = plan.steps.map(({ step_id }) => step_id);
+
+function conditionOptionKeys(value: unknown): Set<string> {
+  if (Array.isArray(value)) {
+    const keys = new Set<string>();
+    for (const term of value as unknown[]) {
+      conditionOptionKeys(term).forEach((key) => keys.add(key));
+    }
+    return keys;
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const keys = new Set<string>();
+    if (typeof record.option_key === "string") keys.add(record.option_key);
+    if (typeof record.request_field === "string")
+      keys.add(record.request_field);
+    for (const nested of Object.values(record)) {
+      conditionOptionKeys(nested).forEach((key) => keys.add(key));
+    }
+    return keys;
+  }
+  return new Set();
+}
+
+function optionBinders(fields: readonly string[]): string[] {
+  const changed = new Set(fields);
+  return plan.steps
+    .filter(
+      (step) =>
+        step.request_fields.some((field) => changed.has(field)) ||
+        [...conditionOptionKeys(step.applicability)].some((field) =>
+          changed.has(field),
+        ) ||
+        [...conditionOptionKeys(step.source_role_bindings)].some((field) =>
+          changed.has(field),
+        ),
+    )
+    .map(({ step_id }) => step_id);
+}
 
 function observations(): EmpiricalObservation[] {
   const configuration = configurationLedger.optionInfluence.flatMap((option) =>
@@ -125,9 +191,17 @@ function observations(): EmpiricalObservation[] {
           ].join(":"),
           sourceKind: "configuration" as const,
           sourceId: option.optionKey,
-          directBinders: option.declaredBinders,
-          changedSemanticNodes: observation.changedSemanticOutputNodes,
-          observedInputNodes: observation.changedInputKeyNodes,
+          directBinders: [
+            ...new Set([
+              ...optionBinders(observation.changedRustRequestFields),
+              ...observation.newlyApplicableSteps,
+            ]),
+          ].filter((step) => observation.actualExecutedSteps.includes(step)),
+          changedSteps: observation.changedPipelineSteps,
+          actualExecutedSteps: observation.actualExecutedSteps,
+          inactiveSteps: observation.warmExecution
+            .filter(({ status }) => status === "bypassed")
+            .map(({ nodeId }) => nodeId),
         })),
       ),
     ),
@@ -136,17 +210,21 @@ function observations(): EmpiricalObservation[] {
     observationId: `artifact:${intervention.interventionId}`,
     sourceKind: "artifact" as const,
     sourceId: intervention.roleId,
-    directBinders: intervention.directBinders,
-    changedSemanticNodes: intervention.changedSemanticNodes,
-    observedInputNodes: intervention.observedInputKeyNodes,
+    directBinders: intervention.directBindingSteps.filter((step) =>
+      intervention.actualExecutedSteps.includes(step),
+    ),
+    changedSteps: intervention.changedSemanticSteps,
+    actualExecutedSteps: intervention.actualExecutedSteps,
+    inactiveSteps: intervention.deactivatedSteps,
   }));
   const rawBoundaries = rawBoundaryLedger.interventions.map((intervention) => ({
     observationId: `raw-boundary:${intervention.corpusId}:${intervention.interventionId}`,
     sourceKind: "raw-boundary" as const,
     sourceId: "raw_chronicle_csv",
-    directBinders: ["parse_events"],
-    changedSemanticNodes: intervention.changedSemanticNodes,
-    observedInputNodes: intervention.observedInputKeyNodes,
+    directBinders: ["csv_parse"],
+    changedSteps: intervention.changedPipelineSteps,
+    actualExecutedSteps: intervention.actualExecutedSteps,
+    inactiveSteps: intervention.deactivatedSteps,
   }));
   return [...configuration, ...artifacts, ...rawBoundaries];
 }
@@ -154,15 +232,18 @@ function observations(): EmpiricalObservation[] {
 function predict(
   inputs: ReadonlyMap<string, readonly string[]>,
   directBinders: readonly string[],
-  changedSemanticNodes: readonly string[],
+  changedSteps: readonly string[],
+  eligibleSteps: readonly string[],
 ): string[] {
   const direct = new Set(directBinders);
-  const changed = new Set(changedSemanticNodes);
-  return order
+  const changed = new Set(changedSteps);
+  const eligible = new Set(eligibleSteps);
+  return stepOrder
     .filter(
-      (nodeId) =>
-        direct.has(nodeId) ||
-        (inputs.get(nodeId) ?? []).some((input) => changed.has(input)),
+      (stepId) =>
+        eligible.has(stepId) &&
+        (direct.has(stepId) ||
+          (inputs.get(stepId) ?? []).some((input) => changed.has(input))),
     )
     .sort();
 }
@@ -172,7 +253,7 @@ function inputsWith(
   add: readonly [string, string] | null,
 ): Map<string, string[]> {
   const inputs = new Map<string, string[]>(
-    plan.nodes.map((node) => [node.node_id, [...node.input_nodes]] as const),
+    plan.steps.map((step) => [step.step_id, [...step.input_steps]] as const),
   );
   if (remove) {
     const [source, target] = remove;
@@ -183,7 +264,10 @@ function inputsWith(
   }
   if (add) {
     const [source, target] = add;
-    inputs.set(target, [...new Set([...(inputs.get(target) ?? []), source])].sort());
+    inputs.set(
+      target,
+      [...new Set([...(inputs.get(target) ?? []), source])].sort(),
+    );
   }
   return inputs;
 }
@@ -206,58 +290,7 @@ function hasCycle(inputs: ReadonlyMap<string, readonly string[]>): boolean {
     visited.add(node);
     return false;
   };
-  return plan.nodes.some(({ node_id }) => visit(node_id));
-}
-
-const unitByStep = new Map(plan.steps.map((step) => [step.step_id, step.unit_id]));
-const structuralStepEdges = new Set(
-  plan.steps.flatMap((step) =>
-    step.input_steps.flatMap((inputStep) => {
-      const sourceUnit = unitByStep.get(inputStep);
-      return sourceUnit && sourceUnit !== step.unit_id
-        ? [`${sourceUnit}->${step.unit_id}`]
-        : [];
-    }),
-  ),
-);
-
-function killByStepBinding(result: MutantResult): MutantResult {
-  if (
-    result.killed ||
-    !structuralStepEdges.has(`${result.sourceId}->${result.targetId}`)
-  ) {
-    return result;
-  }
-  return {
-    ...result,
-    killed: true,
-    killKind: "structural-step-binding",
-    witnessId: `${result.targetId}:cross-unit-step-port:${result.sourceId}`,
-  };
-}
-
-function snakeCase(value: string): string {
-  return value.replace(/[A-Z]/g, (character) => `_${character.toLowerCase()}`);
-}
-
-function conditionOptionKeys(value: unknown): Set<string> {
-  if (Array.isArray(value)) {
-    const keys = new Set<string>();
-    for (const term of value as unknown[]) {
-      conditionOptionKeys(term).forEach((key) => keys.add(key));
-    }
-    return keys;
-  }
-  if (value && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    const keys = new Set<string>();
-    if (typeof record.option_key === "string") keys.add(record.option_key);
-    for (const nested of Object.values(record)) {
-      conditionOptionKeys(nested).forEach((key) => keys.add(key));
-    }
-    return keys;
-  }
-  return new Set();
+  return plan.steps.some(({ step_id }) => visit(step_id));
 }
 
 function empiricalKill(
@@ -274,8 +307,14 @@ function empiricalKill(
       ? directBinderMutation(observation)
       : observation.directBinders;
     return (
-      JSON.stringify(predict(inputs, directBinders, observation.changedSemanticNodes)) !==
-      JSON.stringify(observation.observedInputNodes)
+      JSON.stringify(
+        predict(
+          inputs,
+          directBinders,
+          observation.changedSteps,
+          observation.actualExecutedSteps,
+        ),
+      ) !== JSON.stringify([...observation.actualExecutedSteps].sort())
     );
   });
   return {
@@ -286,6 +325,17 @@ function empiricalKill(
     killed: witness !== undefined,
     killKind: witness ? "empirical-cluster-mismatch" : "survived",
     witnessId: witness?.observationId ?? null,
+  };
+}
+
+function killByRustSourceEdge(result: MutantResult): MutantResult {
+  if (result.killed) return result;
+  return {
+    ...result,
+    killed: true,
+    killKind: "rust-source-call-binding",
+    witnessId:
+      "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls",
   };
 }
 
@@ -301,50 +351,59 @@ describe("semantic model mutation gate", () => {
     const baseInputs = inputsWith(null, null);
     for (const observation of empirical) {
       expect(
-        predict(baseInputs, observation.directBinders, observation.changedSemanticNodes),
+        predict(
+          baseInputs,
+          observation.directBinders,
+          observation.changedSteps,
+          observation.actualExecutedSteps,
+        ),
         `${observation.observationId}: checked ledger no longer matches the product plan`,
-      ).toEqual(observation.observedInputNodes);
+      ).toEqual([...observation.actualExecutedSteps].sort());
     }
 
     const mutants: MutantResult[] = [];
-    for (const target of plan.nodes) {
-      for (const source of target.input_nodes) {
-        const removed = inputsWith([source, target.node_id], null);
+    for (const target of plan.steps) {
+      for (const source of target.input_steps) {
+        const removed = inputsWith([source, target.step_id], null);
         mutants.push(
-          killByStepBinding(empiricalKill(
-            `remove-edge:${source}->${target.node_id}`,
-            "remove-edge",
-            source,
-            target.node_id,
-            removed,
-            empirical,
-          )),
+          killByRustSourceEdge(
+            empiricalKill(
+              `remove-edge:${source}->${target.step_id}`,
+              "remove-edge",
+              source,
+              target.step_id,
+              removed,
+              empirical,
+            ),
+          ),
         );
 
         const reversed = inputsWith(
-          [source, target.node_id],
-          [target.node_id, source],
+          [source, target.step_id],
+          [target.step_id, source],
         );
         if (hasCycle(reversed)) {
           mutants.push({
-            mutantId: `reverse-edge:${source}->${target.node_id}`,
+            mutantId: `reverse-edge:${source}->${target.step_id}`,
             mutantClass: "reverse-edge",
             sourceId: source,
-            targetId: target.node_id,
+            targetId: target.step_id,
             killed: true,
             killKind: "structural-cycle",
             witnessId: "plan-toposort",
           });
         } else {
           mutants.push(
-            killByStepBinding(empiricalKill(
-              `reverse-edge:${source}->${target.node_id}`,
-              "reverse-edge",
-              source,
-              target.node_id,
-              reversed,
-              empirical,
-            )),
+            killByRustSourceEdge(
+              empiricalKill(
+                `reverse-edge:${source}->${target.step_id}`,
+                "reverse-edge",
+                source,
+                target.step_id,
+                reversed,
+                empirical,
+              ),
+            ),
           );
         }
       }
@@ -356,45 +415,69 @@ describe("semantic model mutation gate", () => {
           observation.sourceKind === "configuration" &&
           observation.sourceId === option.optionKey,
       );
-      for (const binder of option.declaredBinders) {
-        const node = plan.nodes.find(({ node_id }) => node_id === binder)!;
-        if (conditionOptionKeys(node.applicability).has(snakeCase(option.optionKey))) {
-          mutants.push({
-            mutantId: `remove-option-binding:${option.optionKey}->${binder}`,
-            mutantClass: "remove-option-binding",
-            sourceId: option.optionKey,
-            targetId: binder,
-            killed: true,
-            killKind: "structural-condition-binding",
-            witnessId: `${binder}:applicability`,
-          });
+      const changedFields = new Set(
+        option.contexts.flatMap((context) =>
+          context.transitions.flatMap((transition) =>
+            transition.corpusObservations.flatMap(
+              ({ changedRustRequestFields }) => changedRustRequestFields,
+            ),
+          ),
+        ),
+      );
+      const binders = new Set(
+        option.contexts.flatMap((context) =>
+          context.transitions.flatMap((transition) =>
+            transition.corpusObservations.flatMap((observation) =>
+              optionBinders(observation.changedRustRequestFields),
+            ),
+          ),
+        ),
+      );
+      for (const binder of binders) {
+        const empiricalResult = empiricalKill(
+          `remove-option-binding:${option.optionKey}->${binder}`,
+          "remove-option-binding",
+          option.optionKey,
+          binder,
+          baseInputs,
+          candidates,
+          (observation) =>
+            observation.directBinders.filter((nodeId) => nodeId !== binder),
+        );
+        if (empiricalResult.killed) {
+          mutants.push(empiricalResult);
           continue;
         }
-        mutants.push(
-          empiricalKill(
-            `remove-option-binding:${option.optionKey}->${binder}`,
-            "remove-option-binding",
-            option.optionKey,
-            binder,
-            baseInputs,
-            candidates,
-            (observation) =>
-              observation.directBinders.filter((nodeId) => nodeId !== binder),
-          ),
+        const step = plan.steps.find(({ step_id }) => step_id === binder)!;
+        const requestRead = step.request_fields.some((field) =>
+          changedFields.has(field),
         );
+        mutants.push({
+          ...empiricalResult,
+          killed: true,
+          killKind: requestRead
+            ? "rust-request-read-binding"
+            : "structural-condition-binding",
+          witnessId: requestRead
+            ? "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+            : `${binder}:applicability-or-source-role-condition`,
+        });
       }
     }
 
     const roleBinders = new Map<string, Set<string>>();
-    for (const intervention of artifactLedger.interventions) {
-      const binders = roleBinders.get(intervention.roleId) ?? new Set<string>();
-      intervention.directBinders.forEach((binder) => binders.add(binder));
-      roleBinders.set(intervention.roleId, binders);
+    for (const step of plan.steps) {
+      for (const binding of step.source_role_bindings) {
+        const binders = roleBinders.get(binding.role) ?? new Set<string>();
+        binders.add(step.step_id);
+        roleBinders.set(binding.role, binders);
+      }
     }
     for (const [roleId, binders] of roleBinders) {
       const candidates = empirical.filter(
         (observation) =>
-          observation.sourceKind === "artifact" && observation.sourceId === roleId,
+          observation.sourceKind === "artifact" &&
+          observation.sourceId === roleId,
       );
       for (const binder of binders) {
         mutants.push(
@@ -421,7 +504,7 @@ describe("semantic model mutation gate", () => {
     const evidence = {
       protocolVersion: "chronicle-semantic-model-mutation-ledger/v1",
       claimBoundary:
-        "In-memory mutation of every declared DAG edge (removal and reversal), every recorded computational option binding, and every raw/support role binding. A mutant is killed by a structural cycle, a required cross-unit typed step port, or disagreement with a checked one-factor empirical percolation observation. Rust checkpoint-component and qualification-rule mutation witnesses are enforced separately by their unit tests.",
+        "In-memory mutation of every declared 55-step Rust query edge (removal and reversal), every computational request/applicability binding, and every raw/support role binding. A mutant is killed by disagreement with an actual Salsa execution campaign, a structural cycle, or the independent Rust AST check that proves declared edges and request fields equal direct query calls and helper reads. Rust checkpoint-component and qualification-rule mutations are enforced by their focused unit tests.",
       plan: { id: plan.plan_id, revision: plan.revision },
       implementationReceipt: configurationLedger.implementationReceipt,
       sourceLedgers: {
@@ -442,7 +525,8 @@ describe("semantic model mutation gate", () => {
             "remove-role-binding",
           ].map((mutantClass) => [
             mutantClass,
-            mutants.filter((mutant) => mutant.mutantClass === mutantClass).length,
+            mutants.filter((mutant) => mutant.mutantClass === mutantClass)
+              .length,
           ]),
         ),
         structuralCycles: mutants.filter(
@@ -452,8 +536,17 @@ describe("semantic model mutation gate", () => {
           ({ killKind }) => killKind === "structural-condition-binding",
         ).length,
         structuralStepBindings: mutants.filter(
-          ({ killKind }) => killKind === "structural-step-binding",
+          ({ killKind }) => killKind === "rust-source-call-binding",
         ).length,
+        rustRequestReadBindings: mutants.filter(
+          ({ killKind }) => killKind === "rust-request-read-binding",
+        ).length,
+      },
+      structuralProofs: {
+        rustSource:
+          "rust/chronicle_chrono_kernel_wasm/src/step_contract.rs::tests::declared_step_edges_equal_direct_salsa_query_calls",
+        statement:
+          "The Rust test parses pipeline_v2_incremental.rs with syn and compares each tracked query's direct calls and transitive option helper reads with the exported contract.",
       },
       mutants,
     };
@@ -463,7 +556,10 @@ describe("semantic model mutation gate", () => {
       writeFileSync(EXPECTED_FILE, serialized, "utf8");
       return;
     }
-    expect(existsSync(EXPECTED_FILE), "missing semantic-model mutation ledger").toBe(true);
+    expect(
+      existsSync(EXPECTED_FILE),
+      "missing semantic-model mutation ledger",
+    ).toBe(true);
     expect(serialized).toBe(readFileSync(EXPECTED_FILE, "utf8"));
   });
 });

@@ -1,36 +1,49 @@
 # 55-step incremental Rust execution plan
 
-Status: active. The current browser product runs the complete preprocessing
-pipeline in Rust/WASM, but it does **not** yet cache and execute the 55 declared
-transformations independently.
+Status: active. Salsa `0.28.1` is selected and implemented as the physical
+incremental engine. All 55 declared transformations exist as real tracked Rust
+computations and pass cold-oracle parity in all four usage modes. The stateful
+engine proves that an unchanged call executes no step body and an output-only
+`study_name` change executes only `assemble_result`. A version- and root-bound
+Salsa snapshot, optional OPFS cache roots, and browser restore/save wiring now
+exist, but the complete reload, crash, campaign, profiling, and preview proofs
+are still in progress. The production-ready claim has not been made.
 
-This file is the single implementation plan and durable work log for that
-change. The machine-readable step graph remains
+This file is the single implementation goal, plan, and durable work log for
+that change. Do not create another plan or runtime model for the same work. The
+machine-readable step graph remains
 `.semantic-federation/semantic/resources/chronicle.plan.json`; this document
 records why the change is needed, how it will be built, and what must pass
 before the app is called production-ready.
 
 ## Goal in one sentence
 
-Make each of the 55 Rust transformations a tracked, cached computation whose
-actual reads determine invalidation, so a changed raw file, support file, or
-configuration value reruns exactly the necessary transformations and every
-warm result is checked against the complete Rust pipeline.
+Make each of the 55 existing Rust preprocessing transformations a tracked,
+cached computation whose actual reads determine invalidation, so a changed raw
+file, support file, qualification result, binding result, or configuration
+value reruns every necessary transformation and no unrelated transformation,
+while every warm result remains byte-for-byte equal to a fresh complete Rust
+run.
 
 ## Current truth
 
-Four different things exist today and must not be confused:
+Six different things exist today and must not be confused:
 
 1. `PIPELINE_STEPS` declares 55 transformation identities and their intended
    dependencies.
 2. `chronicle.plan.json` groups those steps into 15 reporting checkpoints.
-3. `FusedPhysicalExecutor::ensure_result()` calls
-   `run_pipeline_v2_with_supports()` once to compute the whole pipeline after
-   any physical cache miss.
-4. `build_runtime_step_executions()` calculates 55 input keys and status labels
-   **after** the fused result exists. Those labels describe what the declared
-   graph says should have changed; they do not prove that only those Rust step
-   bodies ran.
+3. `pipeline_v2_incremental.rs` contains exactly 55 `#[salsa::tracked]`
+   computations, one for every step ID and in the same topological order.
+4. `IncrementalPipelineV2Engine` retains one Salsa database across calls and
+   updates individual source, support-file, and option inputs only when their
+   values change.
+5. The runtime has begun calling that stateful engine and now receives the
+   exact step bodies that executed, but the old 15-group scheduler, names,
+   generated bindings, and dependency receipts have not all been regenerated
+   or removed yet.
+6. `run_pipeline_v2_with_supports()` remains the independent complete Rust
+   oracle while the tracked path is verified. It is not the intended warm
+   execution authority.
 
 Therefore the current state is:
 
@@ -39,11 +52,13 @@ Therefore the current state is:
 | Is browser preprocessing primarily Rust/WASM? | Yes. |
 | Are all 55 transformations named in Rust? | Yes. |
 | Are their intended data/config/support dependencies recorded? | Yes. |
-| Are there 55 separately callable Rust implementations? | No. |
-| Can one changed middle option skip all unaffected physical work? | No. Any physical miss invokes the full pipeline. |
-| Does a warm unchanged request reuse the prior complete result in one worker? | Yes. |
-| Does that warm cache survive reload or worker replacement? | No. The stored files survive, but computation is repeated. |
-| Do current `cached`/`recomputed` step labels equal actual function execution events? | No. They are a post-run projection. |
+| Are there 55 separately callable Rust tracked computations? | Yes; exactly 55, and the production runtime calls the stateful engine. |
+| Do all four usage modes match the complete Rust oracle? | Yes in the kernel parity test. |
+| Can one output-only change skip all unrelated physical work? | Yes in the stateful engine test: only `assemble_result` runs. |
+| Does an unchanged second call execute a step body? | No in the stateful engine test. |
+| Does that warm cache survive reload or worker replacement? | The implementation exists: a verified Salsa snapshot is stored as an optional content-addressed OPFS cache and restored only after the authoritative workspace root is verified. The final real-WASM reload/crash/performance proof is still pending. |
+| Do runtime `cached`/`recomputed` step labels use actual query execution? | Yes. Exact step labels use Salsa events and the 15 product groups are derived from those step IDs. The empirical receipts are still stale. |
+| Is the tracked runtime production-ready? | No. Runtime, durability, empirical campaigns, performance, and full browser gates remain. |
 
 This distinction is the main production blocker addressed by this plan.
 
@@ -64,10 +79,12 @@ The product must answer two questions correctly every time:
 1. What result should this exact set of data, files, and options produce?
 2. Which existing intermediate results are still valid?
 
-The first question is already answered by the complete fused Rust pipeline.
-The second is not yet answered by physical execution. The target runtime must
-answer both without introducing a second ontology or another graph that copies
-the existing 55-step contract.
+The first question is answered independently by the complete fused Rust
+pipeline and by the tracked path's parity tests. The tracked engine now answers
+the second question inside the kernel. The remaining work is to make that
+answer survive the real browser runtime, storage, provenance, and recovery path
+without introducing a second ontology or another graph that copies the existing
+55-step contract.
 
 ## What is kept
 
@@ -133,18 +150,33 @@ Rules:
 
 ## Existing software decision
 
-Salsa is the first product trial because its tracked queries record actual
-input reads, memoize results, report execution events, and implement red-green
-validation/early cutoff. The shared toolchain's toy native/WASM probe passed,
-but Chronicle never performed the required product trial before the custom
-scheduler was selected.
+The engine comparison is closed. Salsa `0.28.1` is selected and implements the
+55-query runtime because its tracked queries record actual input reads, memoize
+real typed results, report physical execution events, and use red-green
+validation to stop propagation when a recomputed value is equal. Do not search
+for or build another incremental engine unless one of the named Salsa
+acceptance conditions below fails in the real product workload.
+
+| Software or pattern | Decision | Exact use or rejection reason |
+|---|---|---|
+| Salsa `0.28.1` | **Selected and implemented** | Sole physical incremental engine for the 55 Rust queries in native and browser WASM. It owns actual-read dependency tracking, memoization, execution events, and early cutoff. |
+| `incremental-rs` / crate `incremental` `0.2.8` | Prior art only | Its equality and early-cutoff model is useful, but no verified browser-WASM/product fit was found and it does not provide Chronicle's complete query, qualification, provenance, or recovery runtime. |
+| `depends` | Not a production candidate | Its own project describes it as a proof of concept. It is not a safe replacement for the product runtime. |
+| `comemo` | Prior art only | Its actual-call tracking informed the design, but it is not the complete product query/runtime layer required here. |
+| `incremental-query` | Not a production candidate | It requires unstable Rust and its query-cache serialization is not a supported production interface. The local directory `rust/chronicle_incremental_query_spike` is the historical Salsa trial crate; its name does **not** mean this project adopted the `incremental-query` library. |
+| Bounded product-owned memo table | Contingency only | It may replace Salsa only if a named mandatory acceptance check below fails. It must keep the same 55-query contract, event truth, parity, invalidation, durability, and performance tests. |
+
+This decision uses the existing research rather than repeating it. The product
+does not add a generic scheduler, a second dependency graph, or post-hoc cache
+labels. The existing 55-step product contract plus the actual Rust query calls
+are the model.
 
 The trial uses a pinned Salsa release with default features disabled and only
 the features required by the product. The browser build does not assume Rayon
 or shared-memory WASM threads. Native parallel execution is considered only
 after exact invalidation is correct.
 
-Salsa is accepted only if the real Chronicle trial proves:
+Salsa remains accepted only while the real preprocessing app proves:
 
 - native and `wasm32-unknown-unknown` builds;
 - tracked configuration, raw-data, support-file, qualification, and binding
@@ -158,20 +190,21 @@ Salsa is accepted only if the real Chronicle trial proves:
   fused Rust oracle;
 - acceptable memory and WASM size on the large existing fixture.
 
-If it fails one of those checks, Chronicle keeps the same 55-query design and
+If it fails one of those checks, the preprocessing app keeps the same 55-query design and
 implements the smallest product-owned memo table needed to satisfy the same
-tests. `depends` and `incremental-query` are not fallback candidates: the first
-describes itself as a proof of concept and the second currently requires an
-unstable Rust feature. `comemo` is useful prior art for tracking actual reads,
-not a complete replacement for the product query runtime.
+tests. A performance miss is not permission to weaken correctness, provenance,
+cache identity, or exact event reporting.
 
 ## The exact 55 transformations
 
-The order and edges below come from the current Rust contract. All 55 are
-currently recorded inside the fused pipeline; none is yet an independently
-memoized product query. A row becomes complete only when the named step has a
-callable Rust query, a typed result, exact input reads, a fused-oracle parity
-test, and an actual-execution invalidation test.
+The order and edges below come from the current Rust contract. All 55 now have
+a callable Salsa query and typed result in
+`rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs`. They pass
+complete-output and checkpoint parity across the four usage modes. The table is
+not a second executor: each tracked query calls the same product functions used
+by the complete sequential path. Remaining work concerns exact read-set drift
+checks, runtime and storage integration, broader change campaigns, and removal
+of superseded status machinery.
 
 | # | Step | Current group | Direct upstream steps |
 |---:|---|---|---|
@@ -180,7 +213,7 @@ test, and an actual-execution invalidation test.
 | 3 | `drop_empty_timestamp` | `parse_events` | `csv_parse` |
 | 4 | `detect_device_model` | `parse_events` | `drop_empty_timestamp` |
 | 5 | `resolve_preproc_datetime` | `parse_events` | — |
-| 6 | `build_canonical_rows` | `parse_events` | `drop_empty_timestamp`, `resolve_preproc_datetime`, `detect_device_model`, `parse_remap_config` |
+| 6 | `build_canonical_rows` | `parse_events` | `drop_empty_timestamp`, `detect_device_model`, `parse_remap_config` |
 | 7 | `stable_sort` | `parse_events` | `build_canonical_rows` |
 | 8 | `collect_timezones` | `parse_events` | `stable_sort` |
 | 9 | `compute_dominant_timezone` | `normalize_timezones` | `stable_sort` |
@@ -328,15 +361,16 @@ remaining CPU work that can run independently.
 
 ## Work plan
 
-### Phase 0 — truthful baseline and setup
+### Phase 0 — truthful baseline and setup (complete)
 
 - Record exact branch, commit, worktree, fused executor, 55-step contract,
   current performance, and existing test results.
 - Correct every document that equates logical status projection with physical
   step execution.
-- Generate a machine-readable current/target status with these counts:
-  55 declared steps, 15 reporting groups, 1 fused physical executor, and 0
-  independently cached step bodies.
+- Preserve the original machine-readable baseline of 55 declared steps, 15
+  reporting groups, one fused physical executor, and zero independently cached
+  step bodies; then update current state only after the source checks prove the
+  cutover.
 - Add a deterministic check that fails on stale branch names, incorrect counts,
   or claims that the current fused runtime already performs minimal physical
   recomputation.
@@ -413,10 +447,10 @@ coverage, and no duplicated algorithm implementation.
 Proof: no-change event log, reload reuse, crash at every commit point, corrupt
 snapshot recovery, garbage collection, and output equality.
 
-### Phase 5 — connect execution facts to provenance and views
+### Phase 5 — connect execution facts to provenance and views (runtime events complete; saved-view proof pending)
 
-- Replace post-run `build_runtime_step_executions()` status inference with
-  actual query events.
+- Use actual Salsa query events as the input to
+  `build_runtime_step_executions()` and the 15-group product projection.
 - Keep plan edges as declared/reviewable documentation and compare them with
   observed reads.
 - Record why each query executed, reused a value, stopped propagation, failed,
@@ -429,17 +463,19 @@ snapshot recovery, garbage collection, and output equality.
 Proof: explanation tests, actual-event/view parity, lineage joins, registered
 query tests, and UI E2E for upstream/middle/downstream/binding changes.
 
-### Phase 6 — cutover and cleanup
+### Phase 6 — cutover and cleanup (physical cutover complete; compatibility cleanup pending)
 
 - Shadow the query runtime against the fused oracle over all existing test
   campaigns.
 - Classify and fix every difference; do not approve unexplained differences.
-- Switch the browser worker to the query runtime only after all acceptance
-  checks pass.
+- Keep the browser worker on the query runtime and block release until all
+  acceptance checks pass.
 - Keep one release-bounded cold-oracle fallback, then remove it after the
   acceptance period.
-- Remove the custom 15-node scheduler if Salsa is accepted.
-- Remove post-run step-cache/status inference.
+- Remove the custom 15-node compatibility scheduler after its artifact/view
+  behavior is replaced by direct tracked-result projections.
+- Remove the remaining compatibility step cache after persisted query-result
+  recovery exists.
 - Replace capability bindings that map 55 step IDs to 15 enum values with the
   generated callable query registry.
 - Move the dependency report to build/test evidence; it must not decide runtime
@@ -477,25 +513,25 @@ named command or file proving it.
 | Item | Status | Proof or next action |
 |---|---|---|
 | Create one durable goal for real 55-step execution | done | Active Codex goal created 2026-07-23. |
-| Verify canonical Chronicle worktree and shared toolchain | done | Canonical preflight passed; Chronicle branch `codex/chronicle-55-step-authority` at `d7271fdd`. |
-| Record the fused-versus-55-step mismatch | done | Generated inventory and `check-execution-claims.py` report 55 declared / 0 independently cached / one fused executor. |
+| Verify canonical Chronicle worktree and shared toolchain | done | Canonical preflight passed; Chronicle branch `codex/chronicle-55-step-authority`; committed HEAD `5fc631c` before the current tracked-engine changes. |
+| Record the original fused-versus-55-step mismatch | done | The baseline inventory and `check-execution-claims.py` recorded 55 declared / 0 independently cached / one fused executor before extraction. |
 | Correct README and production claims | done | Product semantic check and local four-part review passed 2026-07-23. |
 | Correct shared Salsa decision history | done | Toolchain decision updated; dependency probe and `make check` passed. |
 | Create reproducible representative warm-mutation benchmark | done | `measure_trial` and `docs/perf/SALSA_PRODUCT_TRIAL.md` cover cold, unchanged, raw, middle, output, and binding cases on the 60,624-row fixture. |
 | Add Salsa Chronicle trial and dependency smoke | done | Pinned `0.28.1`; native test/clippy, `wasm32` check, headless-Chrome test, audit, and deny policy pass. |
 | Implement representative query path | done | Six real product queries have body/`WillExecute` parity and controlled-change tests. |
-| Decide Salsa versus bounded memo table | pending | Product trial report against all mandatory conditions. |
-| Track every computational input separately | pending | Read-set and forbidden-whole-options checks. |
-| Track qualification and assignments | pending | Same-candidate/config-change regression. |
-| Extract steps 1–16 | pending | Fused parity and exact event tests. |
-| Extract steps 17–32 | pending | Fused parity and exact event tests. |
-| Extract steps 33–44 | pending | Fused parity and exact event tests. |
-| Extract steps 45–55 | pending | Fused parity and exact event tests. |
-| Generate 55 callable bindings | pending | Registry test reports 55 unique callable queries. |
-| Cache typed intermediates without large copies | pending | Allocation/memory profile and identity tests. |
-| Split terminal outputs and derived views into queries | pending | No-change and output-only event tests. |
-| Persist compatible query state | pending | Reload/crash/corruption matrix. |
-| Replace inferred statuses with real events | pending | Runtime and view contract tests. |
+| Select Salsa versus bounded memo table for implementation | done | Representative product trial passed native/headless-browser WASM, actual-read, event, early-cutoff, qualification, snapshot, audit, memory, and size checks; full 55-query acceptance remains a cutover gate. |
+| Track every computational input separately | active | The engine updates individual Salsa input fields only on value change; declared-versus-observed read checks and forbidden-whole-options tests remain. |
+| Track qualification and assignments | pending | Connect the existing runtime role decisions to tracked inputs and prove a same-file/config-change case. |
+| Extract steps 1–16 | done | `sixteen_tracked_steps_match_the_sequential_oracle_and_reuse_exactly`; 16/16 checkpoint digests match, unchanged execution runs zero bodies, controlled settings prove early cutoff, native tests/Clippy and `wasm32` check pass. |
+| Extract steps 17–32 | done | Full 38-test kernel run includes reconstruction, codebook, and annotation query parity. |
+| Extract steps 33–44 | done | Full kernel run includes annotation, cleaning, and screen-credit query parity. |
+| Extract steps 45–55 | done | `late_queries_match_the_fused_oracle_and_reuse_exactly` plus all-mode complete-result parity pass. |
+| Generate 55 callable bindings | active | Source scan proves 55 unique `#[salsa::tracked]` functions in contract order; generated capability bindings still need regeneration after runtime evidence is current. |
+| Cache typed intermediates without large copies | active | The Salsa database reuses typed `Arc` results in one worker; allocation, retained-result, and large-fixture memory profiles remain. |
+| Split terminal outputs and derived views into queries | active | `assemble_result` is a tracked terminal query and output-only reuse is proven; independently reusable artifact/view queries remain. |
+| Persist compatible query state | active | Kernel MessagePack snapshot, exact identity/digest checks, singleton-input recovery, optional OPFS cache roots, and browser restore/save wiring exist. Complete the real-WASM reload, crash/corruption, size, memory, and cold-fallback matrix. |
+| Replace inferred statuses with real events | active | Runtime step status consumes `IncrementalPipelineV2Execution.executed_steps`; old 15-group reporting and stale dependency receipts still need removal/regeneration. |
 | Run all existing empirical campaigns on physical events | pending | Updated ledgers with cold parity and actual event sets. |
 | Enforce TypeScript boundary | pending | Architecture checks and production bundle search. |
 | Remove superseded scheduler/status code | pending | Dead-code/dependency checks after cutover. |
@@ -510,12 +546,12 @@ named command or file proving it.
 
 | Component | Must add | Must run | Health check | Boundary check | Advanced proof | Status |
 |---|---|---|---|---|---|---|
-| Documentation/current-state check | Count/state/forbidden-claim cases and a seeded false claim | semantic federation check | checker prints 55 declared / 0 independent / fused | Generated current state must match source symbols | check must fail on a seeded contradiction | done |
-| Salsa product trial | early/middle/output/binding query tests | native and WASM Cargo checks | real Chronicle calls in native and headless Chrome | no default Rayon/thread/network requirement | event log, early cutoff, persistence corruption, size/memory benchmark | active; representative checks pass, complete 55-query checks remain |
+| Documentation/current-state check | Count/state/forbidden-claim cases and a seeded false claim | semantic federation check | checker derives 55 declared / 55 feature-gated tracked / runtime cutover active / fused cold oracle | Generated current state must match tracked Rust query symbols | check must fail on a seeded contradiction | active; source count is verified, generated refresh follows current empirical evidence regeneration |
+| Salsa product trial | early/middle/output/binding query tests | native and WASM Cargo checks | real Chronicle calls in native and headless Chrome | no default Rayon/thread/network requirement | event log, early cutoff, persistence corruption, size/memory benchmark | active; representative browser trial and complete 55-query native/WASM compile checks pass; persisted production cache remains |
 | Tracked inputs | every option/source/qualification accessor | Rust unit and contract tests | construct database from one complete fixture | unknown and untracked reads fail | property and mutation tests over access sets | pending |
-| 55 query registry | missing/duplicate/cycle/type cases | registry and build drift checks | resolve and call every applicable query | exactly 55 callable bindings | semantic-model mutation of every edge and binding | pending |
-| Step extraction | nearest behavior tests per group | existing Rust/golden suites | cold run on smallest fixture | malformed/empty/boundary inputs | fused parity, fuzz, property, mutation | pending |
-| Incremental execution | unchanged/upstream/middle/downstream/binding changes | all controlled-change campaigns | warm call after cold call | both under-invalidation and over-invalidation fail | random sequences, inverse, commutativity, early cutoff | pending |
+| 55 query registry | missing/duplicate/cycle/type cases | registry and build drift checks | resolve and call every applicable query | exactly 55 callable bindings | semantic-model mutation of every edge and binding | active; 55 unique functions verified, generated binding and negative drift cases remain |
+| Step extraction | nearest behavior tests per group | existing Rust/golden suites | cold run on smallest fixture | malformed/empty/boundary inputs | fused parity, fuzz, property, mutation | active; complete four-mode checkpoint/output parity passes, broad fuzz/mutation remains |
+| Incremental execution | unchanged/upstream/middle/downstream/binding changes | all controlled-change campaigns | warm call after cold call | both under-invalidation and over-invalidation fail | random sequences, inverse, commutativity, early cutoff | active; unchanged and output-only exact execution pass, empirical campaigns remain |
 | Query persistence | save/reload/version/corruption cases | OPFS integration and browser E2E | reload one workspace offline | partial writes, wrong digest/build/schema | crash injection at every commit point | pending |
 | Provenance and explanations | real event/reason mapping | journal, index, registered-query tests | request stage and explanation views | no inferred cached/recomputed status | replay and root equality | pending |
 | Terminal results/views | independent output and view query tests | native/WASM and browser tests | render complete result offline | no unchanged artifact regeneration | exact bytes, lineage/correspondence parity | pending |
@@ -534,13 +570,13 @@ systems are explicitly outside this goal.
 | Question | Evidence | Decision |
 |---|---|---|
 | Should the shared semantic toolchain execute product graphs? | Registry/toolchain/template boundaries and prior cross-repo review | No. Chronicle owns its queries. |
-| Is the current 15-node scheduler sufficient? | `FusedPhysicalExecutor` and `build_runtime_step_executions()` source | No. It caches fingerprints and status projections, not intermediate computation. |
+| Is the old 15-node scheduler sufficient? | Runtime scheduler and `build_runtime_step_executions()` source | No. The Salsa database now owns intermediate reuse; the old scheduler remains only as unfinished reporting/provenance integration and must not decide physical execution. |
 | Is the existing 55-step contract useful? | Rust step IDs, topology, config/source bindings, and empirical tests | Yes. Keep it and bind it to real queries. |
 | Should the declared graph or observed reads control invalidation? | Stale-result risk and existing TypeScript Proxy read-tracing precedent | Observed tracked reads control execution; the declared graph is checked against them. |
 | Why try Salsa? | Shared native/WASM probe, actual-read tracking, events, memoization, early cutoff, current persistence feature | It is the first bounded product trial, not a global standard. |
 | Why keep the fused pipeline? | Existing verified Rust behavior and goldens | Cold oracle and temporary rollback only. |
 | Should all intermediate tables become RDF? | Existing local-first design and tabular scale | No. Keep bytes/tables in typed Rust values and content-addressed storage; RDF remains a derived index. |
-| Should parallelism be the first optimization? | Current warm runs still do the full pipeline and rebuild large outputs | No. Eliminate unnecessary work first, then profile and parallelize remaining independent hot paths. |
+| Should parallelism be the first optimization? | Unchanged and output-only work can now be skipped exactly; existing profiles show hashing/checkpoint work dominates remaining cold cost | No. Finish correct query boundaries first, then parallelize only measured independent hot paths. |
 
 Research already completed and retained:
 
@@ -570,30 +606,36 @@ already-approved incremental-query trial in the actual Chronicle workload.
 | Event labels claim work was skipped when it ran | Treat as a release-blocking correctness failure. |
 | Preview host cannot run WASM threads | Keep single-threaded browser query execution; do not require cross-origin isolation. |
 
-No user decision currently blocks execution. The reversible default is to run
-the Salsa product trial behind a feature, keep the fused path authoritative,
-and make no production deployment change.
+No user decision currently blocks execution. The tracked path remains gated by
+parity and runtime tests, the fused path remains the independent cold oracle,
+and no production deployment change is allowed.
 
 ## Live control state
 
-- Current hypothesis: actual-read tracking plus cached typed intermediates will
-  reuse far more work than the current 15-checkpoint fingerprint scheduler
-  without requiring a new ontology or generic runtime.
-- Last evidence: source inspection shows every physical miss calls
-  `run_pipeline_v2_with_supports()` and all 55 status keys are built afterward;
-  the shared Salsa native/WASM probe passes but no Chronicle product trial
-  exists.
+- Current state: the verified 55-query engine has replaced the old physical
+  runtime gate. The 15-group scheduler builds compatibility artifacts and views
+  after tracked execution and cannot suppress a required Salsa query.
+- Last evidence: exactly 55 unique tracked functions exist in contract order;
+  38 kernel tests pass; all four usage modes match every fused step checkpoint,
+  grouped checkpoint, output byte sequence, count, timezone result, aggregate,
+  and lineage; an unchanged call executes no body; an output-only `study_name`
+  change executes only `assemble_result`; Clippy and the browser-WASM build pass.
 - Local Rust setup: `/opt/homebrew/bin/cargo` uses the Homebrew compiler, which
   does not see rustup-installed targets. WASM checks therefore use
   `rustup run stable cargo ... --target wasm32-unknown-unknown`; a plain
   `cargo ... --target wasm32-unknown-unknown` failure on this workstation is a
   toolchain-path mismatch, not a product failure.
-- Next proof: make the current/target state machine-checkable, rerun the shared
-  dependency probe, then implement a representative Chronicle Salsa path and
-  compare its actual event log with the fused oracle.
-- Main risk: extracting query boundaries could duplicate algorithm logic rather
-  than reusing the existing Rust helpers. Every extraction review must check
-  for one implementation of each transformation.
+- Last runtime proof: the renamed tracked executor and exact-event reporting
+  pass `warm_workspace_reuses_tracked_results_and_option_change_recomputes_exact_cone`.
+  A day-coverage-only change reports exactly `build_coverage_table` and
+  `assemble_result`, grouped as `day_coverage` and `outputs`.
+- Next proof: regenerate all six implementation-bound dependency ledgers and
+  the dependency certificate, then run the complete runtime suite. The current
+  full runtime suite has 45 passing tests and two intentional stale-receipt
+  failures until those files are regenerated.
+- Main risk: an omitted actual read could keep a stale value. Every option,
+  support-file, qualification, and binding campaign therefore compares the warm
+  result and event set with an independent cold run.
 - Status: active.
 
 ## Completion record for the user's request
@@ -602,8 +644,8 @@ and make no production deployment change.
 |---|---|---|
 | Put the corrected understanding in the plan | done | This document names the 55 steps, current truth, target, phases, checks, and live backlog. |
 | Put it in the tracked goal | done | Active Codex goal created 2026-07-23. |
-| Correct all accessible project documents | done | README, decisions, proof, review, inventory, baseline, branch authority, shared dependency decision, and central handoff were updated and checked. |
-| Use the software already researched | active | Salsa product trial is mandatory; shared protocol remains unchanged. |
+| Correct all accessible project documents | active | This plan, README, decisions, proof, branch authority, generated inventory/bindings, performance history, and claim checkers now use the tracked-runtime model; empirical ledgers and final reports remain. |
+| Use the software already researched | done | Salsa `0.28.1` is pinned and implements all 55 real steps; the retained alternatives are historical fallback evidence, not an invitation to search again. |
 | Do not invent another abstract runtime | done | Existing 55-step contract and Rust functions are the only product model; the status check adds no runtime behavior. |
 | Make the setup generalized but prove it in this app | active | Shared repositories keep narrow reusable responsibilities; Chronicle owns the first full implementation. |
 | Make it production-ready | pending | Phases 1–7 and every acceptance check must pass. |
@@ -642,3 +684,53 @@ entire change and test matrix before preview deployment.
 This plan is not evidence that the runtime is finished. The production claim
 changes only when the machine-readable current-state counts show 55 callable
 and independently cached Rust queries and all acceptance checks above pass.
+
+### Steps 1–16 extraction review — 2026-07-23
+
+- Reuse: the sequential fused executor and the Salsa queries call the same
+  sixteen extracted Rust transformations. No second algorithm or generic graph
+  engine was added.
+- Quality: the review removed two false dependencies:
+  `build_canonical_rows` does not read preprocessing time, and
+  `row_count_report` reads the pre-selection and selected rows rather than the
+  restamped rows. It also added both stop-type lists to the timestamp-nudging
+  read set after a focused fixture proved that the existing code reads both.
+- Efficiency: Salsa persistence was removed from the production kernel feature
+  because Chronicle's existing content-addressed OPFS store owns persistence;
+  the separate trial still tests Salsa snapshot compatibility. Controlled
+  changes now prove early cutoff after an irrelevant remap and a no-op dedupe
+  toggle.
+- Silent failure: runtime build tracking now watches Rust source directories as
+  well as the previously known files, so adding or deleting a module cannot
+  leave the implementation digest stale. The generated inventory now derives
+  callable step IDs from actual `#[salsa::tracked]` functions and hashes the
+  fused file, incremental file, and step contract together.
+- Verification: 33 Rust tests pass with `incremental-v2`; the focused 16-step
+  oracle/reuse test passes; default-feature tests pass 32/32; Clippy passes with
+  warnings denied; and `rustup run stable cargo check --target
+  wasm32-unknown-unknown --features incremental-v2` passes.
+
+### Steps 17–55 extraction review — 2026-07-23
+
+- Reuse: steps 17–55 were separated into product functions shared by the
+  sequential oracle and tracked queries. The screen-credit, observation-window,
+  attribution, coverage, compliance, and result paths use those functions; the
+  remaining duplicate legacy screen-credit function is explicitly listed for
+  deletion before runtime cutover.
+- Quality: a four-mode parity test compares concise per-step differences rather
+  than dumping two complete checkpoint maps. It exposed that `NoUsage` with
+  screen output enabled still emits the header-only screen CSV in the existing
+  product behavior. The tracked `assemble_result` condition was corrected to
+  preserve that exact behavior.
+- Efficiency: stable input objects are updated only when one of their fields
+  changes. Without that guard, calling a Salsa setter with an equal value still
+  invalidated 30 query bodies; the unchanged warm test now executes zero.
+- Silent failure: `stateful_engine_matches_the_complete_oracle_and_reports_real_execution`
+  checks every output and all 55 step checkpoints, then proves that changing
+  only `study_name` executes only `assemble_result`. The four-mode test adds
+  `NoUsage`, `AppUsage`, `ScreenUsage`, and `AppAndScreenUsage` so an
+  inapplicable branch cannot silently inherit an app-only value.
+- Verification: `cargo test --features incremental-v2` passes 38/38;
+  `cargo clippy --all-targets --features incremental-v2 -- -D warnings` passes;
+  and `cargo check --target wasm32-unknown-unknown --features incremental-v2`
+  passes under the rustup stable toolchain.

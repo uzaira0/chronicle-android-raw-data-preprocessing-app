@@ -6,9 +6,12 @@ import {
   importRuntimeClosure,
   openOpfsRoot,
   openOpfsWorkspace,
+  persistRuntimeQueryCache,
   persistRuntimeWorkspace,
   probeOpfsCapability,
   readRuntimeObject,
+  recoverRuntimeQueryCache,
+  recoverRuntimeQueryCacheSlots,
   recoverRuntimeWorkspace,
   recoverRuntimeWorkspaceRoots,
   runtimeClosureWorkspaceId,
@@ -137,6 +140,109 @@ function objectFile(root: MemoryDirectoryHandle, objectDigest: string): MemoryFi
 }
 
 describe("OPFS content-addressed runtime workspace", () => {
+  it("commits optional query caches without making them workspace authority", async () => {
+    const root = new MemoryDirectoryHandle();
+    const firstRoot = await artifact("workspace-root-json", "root-one");
+    const workspaceSlot = await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: firstRoot.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [firstRoot],
+    });
+    const firstCacheBytes = new TextEncoder().encode("salsa-cache-one");
+    const firstCache = await persistRuntimeQueryCache(rootHandle(root), {
+      baseWorkspaceRootDigest: workspaceSlot.workspaceRootDigest,
+      bytes: firstCacheBytes,
+    });
+    expect(firstCache.generation).toBe(1);
+    await expect(
+      recoverRuntimeQueryCache(rootHandle(root), workspaceSlot.workspaceRootDigest),
+    ).resolves.toMatchObject({ slot: { generation: 1 }, bytes: firstCacheBytes });
+
+    expect(
+      await garbageCollectRuntimeObjects(
+        rootHandle(root),
+        [workspaceSlot],
+        [firstCache],
+      ),
+    ).toBe(0);
+    expect(await readRuntimeObject(rootHandle(root), firstCache.cacheObjectDigest)).toEqual(
+      firstCacheBytes,
+    );
+
+    const unrelatedRoot = `sha256:${"d".repeat(64)}`;
+    await expect(
+      recoverRuntimeQueryCache(rootHandle(root), unrelatedRoot),
+    ).resolves.toBeUndefined();
+    expect((await recoverRuntimeWorkspace(rootHandle(root)))?.workspaceRootDigest).toBe(
+      workspaceSlot.workspaceRootDigest,
+    );
+  });
+
+  it("drops corrupt or torn optional query caches while preserving the workspace", async () => {
+    const root = new MemoryDirectoryHandle();
+    const rootArtifact = await artifact("workspace-root-json", "stable-root");
+    const workspaceSlot = await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: rootArtifact.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [rootArtifact],
+    });
+    const cache = await persistRuntimeQueryCache(rootHandle(root), {
+      baseWorkspaceRootDigest: workspaceSlot.workspaceRootDigest,
+      bytes: new TextEncoder().encode("cache"),
+    });
+    objectFile(root, cache.cacheObjectDigest).bytes = new TextEncoder().encode("bad!!");
+    await expect(
+      recoverRuntimeQueryCache(rootHandle(root), workspaceSlot.workspaceRootDigest),
+    ).resolves.toBeUndefined();
+    await expect(recoverRuntimeWorkspace(rootHandle(root))).resolves.toMatchObject({
+      workspaceRootDigest: workspaceSlot.workspaceRootDigest,
+    });
+
+    const roots = root.directories
+      .get("chronicle-preprocessing-runtime-v1")!
+      .directories.get("roots")!;
+    roots.files.get("cache-a.json")!.bytes = new TextEncoder().encode("torn");
+    await expect(
+      recoverRuntimeQueryCache(rootHandle(root), workspaceSlot.workspaceRootDigest),
+    ).resolves.toBeUndefined();
+    await expect(recoverRuntimeWorkspace(rootHandle(root))).resolves.toMatchObject({
+      workspaceRootDigest: workspaceSlot.workspaceRootDigest,
+    });
+  });
+
+  it("retains both cache generations so corruption falls back to the prior cache", async () => {
+    const root = new MemoryDirectoryHandle();
+    const rootArtifact = await artifact("workspace-root-json", "stable-root");
+    const workspaceSlot = await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: rootArtifact.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [rootArtifact],
+    });
+    const firstBytes = new TextEncoder().encode("cache-generation-one");
+    const secondBytes = new TextEncoder().encode("cache-generation-two");
+    const first = await persistRuntimeQueryCache(rootHandle(root), {
+      baseWorkspaceRootDigest: workspaceSlot.workspaceRootDigest,
+      bytes: firstBytes,
+    });
+    const second = await persistRuntimeQueryCache(rootHandle(root), {
+      baseWorkspaceRootDigest: workspaceSlot.workspaceRootDigest,
+      bytes: secondBytes,
+    });
+    const retained = await recoverRuntimeQueryCacheSlots(rootHandle(root));
+    expect(retained.map(({ generation }) => generation)).toEqual([2, 1]);
+    expect(
+      await garbageCollectRuntimeObjects(rootHandle(root), [workspaceSlot], retained),
+    ).toBe(0);
+
+    objectFile(root, second.cacheObjectDigest).bytes = new TextEncoder().encode("corrupt");
+    await expect(
+      recoverRuntimeQueryCache(rootHandle(root), workspaceSlot.workspaceRootDigest),
+    ).resolves.toMatchObject({
+      slot: { generation: first.generation },
+      bytes: firstBytes,
+    });
+  });
+
   it("commits alternating roots, deduplicates objects, recovers, reads, and collects", async () => {
     const root = new MemoryDirectoryHandle();
     const firstRoot = await artifact("workspace-root-json", "root-one");

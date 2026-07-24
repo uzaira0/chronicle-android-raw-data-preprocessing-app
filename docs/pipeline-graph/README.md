@@ -1,5 +1,12 @@
 # Pipeline-Graph Initiative — Knowledge Base
 
+> Historical design record. Its July 2026 TypeScript execution-engine choices
+> are superseded by the
+> [55-step incremental Rust plan](../semantic-federation/55-step-incremental-rust-plan.md).
+> The current production path is 55 Salsa-tracked Rust/WASM computations; the
+> 15 groups and this directory's old TypeScript graph remain views, fixtures,
+> and migration history only.
+
 Transferred knowledge for the effort to (1) separate **cleaning** from **preprocessing**,
 (2) modularize the browser pipeline into a **typed dependency graph** (declared DAG with
 incremental recompute + a rendered interactive view), and (3) wire the research-pipeline-only

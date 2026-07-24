@@ -1,5 +1,12 @@
 # Decision Ledger + Prior-Art Research
 
+> Historical ledger. Decisions 1, 3, 5, 8, 9, and 11 describe the former
+> TypeScript/15-stage physical engine. They are retained to explain how the
+> current contract and tests evolved, but they no longer authorize production
+> execution. The current decision is Salsa `0.28.1` with exactly 55 tracked
+> Rust/WASM computations; see the
+> [authoritative plan](../semantic-federation/55-step-incremental-rust-plan.md#existing-software-decision).
+
 ## Decisions made (2026-07-14, with the project owner)
 
 | # | Decision | Choice | Rationale |
@@ -22,7 +29,7 @@
 |---|---|---|
 | Graph rendering/interaction | **Adopt** `@xyflow/react` (React Flow 12; verified 12.11.2, MIT, peer react>=17) | Dominant, active, React-19-compatible |
 | Auto-layout | **Adopt** `@dagrejs/dagre` (verified 3.0.0, MIT) | Simple layered DAG layout; elkjs (EPL-2.0) as fallback if layout quality demands |
-| Recompute engine (typed edges, dirty-prop, content-hash memo) | **Build** (small, bounded) | No discovered library models typed causal-role edges over coarse async worker stages with blob caching; ~25 nodes total |
+| Recompute engine (typed edges, dirty-prop, content-hash memo) | **Superseded: adopt Salsa `0.28.1`** | The original bounded TypeScript engine is historical. The real 55-query Rust/WASM trial passed and now owns physical invalidation and memoization; the existing plan remains the product contract and grouped view. |
 | Options/knob contract | **Adopt existing** LinkML contract pipeline | Already in repo, CI-checked |
 | §14/attribution/compliance logic | **Port** from Python with golden-fixture parity | Decided in #1 |
 | Session matcher | **Keep** shared Rust core (WASM + Python) | Existing byte-parity mechanism |

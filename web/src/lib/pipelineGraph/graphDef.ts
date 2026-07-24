@@ -90,7 +90,10 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           "logged interaction) and collects the timezones seen in the file.",
         section: "preprocess",
         inputs: [],
-        knobs: [{ optionKey: "interactionTypeRemap", edge: "tunes" }],
+        knobs: [
+          { optionKey: "interactionTypeRemap", edge: "tunes" },
+          { optionKey: "selectedTimezone", edge: "tunes" },
+        ],
         // Early cutoff (Salsa backdating): a remap that matches no event type
         // in the file leaves the parsed rows identical, so the whole
         // downstream graph — including the expensive matcher and splitter —
@@ -263,7 +266,6 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
         knobs: [
           { optionKey: "processAppUsage", edge: "gates" },
           { optionKey: "useAppCodebook", edge: "gates" },
-          { optionKey: "includeCategoryColumn", edge: "tunes" },
         ],
         supportFiles: ["appCodebookFile"],
         bypassedWhen: (options) =>
@@ -472,16 +474,22 @@ export function buildChronicleGraph(): GraphDef<PipelineCtx> {
           "into the downloadable result set.",
         section: "output",
         inputs: [
-          // Visualization output includes the canonical post-policy event
-          // substrate even when every app/screen analysis branch is disabled.
-          // Stage-local cold/warm intervention proved that routing only
-          // through optional analysis branches can hide this dependency.
+          // The downloadable result also carries every step checkpoint and
+          // its provenance. Therefore outputs depend on every preceding
+          // display group even when a particular CSV uses only some of them.
+          "parse_events",
+          "normalize_timezones",
+          "dedup_and_order",
           "app_policy",
-          "attribute_person",
-          "day_coverage",
           "device_state_timeline",
+          "reconstruct_episodes",
+          "categorize_apps",
+          "episode_annotations",
+          "interval_cleaning",
           "effective_usage",
           "observation_window",
+          "attribute_person",
+          "day_coverage",
           "score_compliance",
         ],
         knobs: [

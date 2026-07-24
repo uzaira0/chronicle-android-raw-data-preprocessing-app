@@ -7,12 +7,12 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:6d2686a698d2edd8d4372c9cf067ff0a3405fe3abe3f0a965f56bb803338e1e6",
-    "planDigest": "sha256:3b1db580ca483d5f7f198a82fcc8166e9ad180eaea587db1ae950a5fa06649a6",
+    "implementationDigest": "sha256:c3317f1d44430f3137c4b099494e8f6b1895f2205b4d463ee92291733c8e1e9b",
+    "planDigest": "sha256:6de88ad84552191fb4cea4acda553006cddc096f20c24e2138954f1d4d48231c",
     "profileDigest": "sha256:ad3a1e58f4a69a2f81c412391f5736bf1c2f73216a5cd9742bc319bb07b01435",
     "profileLockDigest": "sha256:aa51a18ee2104560bf6f239de05f7dfccec3aec6f4940123e305519c3bb81521",
-    "runtimeAuthorityDigest": "sha256:11142579a05120fce9a1fe8e0edfffdcae385b34a10080d878e8d82b73cc8627",
-    "productContractDigest": "sha256:00c1f57a6e487e1136f2a431a786cbf4bbb5f109da31f97993ed0dd6d0a1a8ba"
+    "runtimeAuthorityDigest": "sha256:23a1384913bcee5a9d6e48ff0f2a7e3712ce27826ce0b52c235531de3be07724",
+    "productContractDigest": "sha256:8909a12a03d890c3528ec7148472b9852d8981007babb628b8fbccc5fa45410d"
   },
   "roleRepresentatives": {
     "study_dates_file": {
@@ -64,22 +64,51 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataNodes": [
-        "attribute_person",
-        "categorize_apps",
-        "day_coverage",
-        "effective_usage",
-        "episode_annotations",
-        "interval_cleaning",
-        "observation_window",
-        "outputs",
-        "reconstruct_episodes",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "assemble_result"
       ],
-      "dataAfterConfigNodes": [
-        "day_coverage",
-        "observation_window"
+      "configAfterDataActualSteps": [
+        "assemble_result"
       ],
+      "configAfterDataDeactivatedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "build_survey_lookup",
+        "codebook_join",
+        "collapse_genre",
+        "compute_junk_packages",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
+      ],
+      "dataAfterConfigPredictedSteps": [],
+      "dataAfterConfigActualSteps": [],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -111,9 +140,9 @@
       },
       "dataCellConditioning": {
         "introducedCount": 0,
-        "maskedCount": 5816,
+        "maskedCount": 5726,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:95e4cbda9877a4e0f698e84d284970acc8233c3e88c6ea80826faa6677b09d47"
+        "maskedDigest": "sha256:1a26353cd6ee2f2ec95cca4c44b13063c8fa67d69c09cdc8acd63d61aee174ac"
       }
     },
     {
@@ -125,25 +154,92 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataNodes": [
-        "attribute_person",
-        "categorize_apps",
-        "day_coverage",
-        "effective_usage",
-        "episode_annotations",
-        "interval_cleaning",
-        "observation_window",
-        "outputs",
-        "reconstruct_episodes",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -153,16 +249,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 1338,
-        "maskedCount": 1338,
-        "introducedDigest": "sha256:97a304b1f0b2bcafe44c019340b410a94d434cae0c2606427a2ff36313593ded",
-        "maskedDigest": "sha256:84e5d5951ec7f4a40aa7a65237c2552993aaa26544050c7412fb767b88f8729e"
+        "introducedCount": 1340,
+        "maskedCount": 1340,
+        "introducedDigest": "sha256:f368be5d00b55b3f911b161673a2858640d6752f20c37c70b821cdbfb4ecf7b5",
+        "maskedDigest": "sha256:daeba1fdae96c7fc7675fbf09b0f36a6a445c34fe4f75a7d5f405477f6a59323"
       },
       "dataCellConditioning": {
-        "introducedCount": 1807,
-        "maskedCount": 2007,
-        "introducedDigest": "sha256:ce091fb3640eb67eeae1afdf268b1da056afd67db6fb264b5a2b4545280c6dd1",
-        "maskedDigest": "sha256:b580449168d3d564895455872673dadccc7fea936bcc4f43700437b526090db7"
+        "introducedCount": 1848,
+        "maskedCount": 2032,
+        "introducedDigest": "sha256:9a0a87a5e1d279f22a4bc6da094b32ae6f403b4c8aa16d7dd3cc3cff9e092674",
+        "maskedDigest": "sha256:65a50165e3493d49b55c2d83881485ded4167937ea4fccd7aa1104cad6c3ee98"
       }
     },
     {
@@ -174,25 +270,92 @@
         "label": "h1",
         "value": 1
       },
-      "configAfterDataNodes": [
-        "attribute_person",
-        "categorize_apps",
-        "day_coverage",
-        "effective_usage",
-        "episode_annotations",
-        "interval_cleaning",
-        "observation_window",
-        "outputs",
-        "reconstruct_episodes",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -202,16 +365,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 857,
-        "maskedCount": 857,
-        "introducedDigest": "sha256:d79247fceac8ea55d22d76945411f708b3158a2a364fc83ed6ed0ca41c906079",
-        "maskedDigest": "sha256:8b92f28317bbc39b65bb4bf28b91b518958b97f8c116fe7d64b2638e1e73c82d"
+        "introducedCount": 863,
+        "maskedCount": 863,
+        "introducedDigest": "sha256:29ee797c0f8138dbdf54271e7bc4b7bf13520193c0e824deb662a4ae70ea2b5b",
+        "maskedDigest": "sha256:7619a0260b6bc6f991e6fe3c1d78e31865c27a6253561e77a5e37acf56b6303a"
       },
       "dataCellConditioning": {
-        "introducedCount": 1890,
-        "maskedCount": 2928,
-        "introducedDigest": "sha256:bdbeaf63114cea6cebc4a8c60e442a36e4e746b4692fe010b19bde72e9f68af1",
-        "maskedDigest": "sha256:470f7eb3ac846e819f17405650d5dace101666dea2f7e7f569e52170177a11f9"
+        "introducedCount": 1904,
+        "maskedCount": 2865,
+        "introducedDigest": "sha256:d9bb63f56a44b1012291c48b0ca9a764dd924cb7718fc44cb06e5a13a24e030d",
+        "maskedDigest": "sha256:bf75b56e287d031b933f6ed77160b3eed67c4ac7e7bf571211ffc382694349a0"
       }
     },
     {
@@ -223,28 +386,114 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataNodes": [
-        "app_policy",
-        "attribute_person",
-        "categorize_apps",
-        "day_coverage",
-        "dedup_and_order",
-        "device_state_timeline",
-        "effective_usage",
-        "episode_annotations",
-        "interval_cleaning",
-        "observation_window",
-        "outputs",
-        "reconstruct_episodes",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -254,16 +503,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 1186,
-        "maskedCount": 1186,
-        "introducedDigest": "sha256:603833d9cd14b7b36e629c48f4508836799b369a24a3025e11cbcedc656289ac",
-        "maskedDigest": "sha256:a6329d87c6fa726c2350520ddaf0490a0c7f83d0bfc23fa5c9f61cb178dd1e2b"
+        "introducedCount": 1204,
+        "maskedCount": 1204,
+        "introducedDigest": "sha256:3121ee7c478de361bfd5412c1a5dca462c8f4cae91c927dc2c76467694f6c3a6",
+        "maskedDigest": "sha256:d6be67f766fb3b44b0314527ccdaa318d45d2728f7409ffc2babeff3775284bb"
       },
       "dataCellConditioning": {
-        "introducedCount": 1473,
-        "maskedCount": 1504,
-        "introducedDigest": "sha256:76486ab11f755c74e0aa198e6616019f7081bdb1153440b502e888883c3e7a69",
-        "maskedDigest": "sha256:87a313c2959404c7da93897168de91518c89ca326a72f0e770893607a29221f1"
+        "introducedCount": 1479,
+        "maskedCount": 1510,
+        "introducedDigest": "sha256:68c5d7a8aa13662cb30816150bc6b02ad46eb1ba0847cc5a49c953fcb1e092b7",
+        "maskedDigest": "sha256:4d90e8af228275feefd119c2edf28a1b754b981f126dd207d52ad00400cea653"
       }
     },
     {
@@ -275,28 +524,114 @@
         "label": "america_new_york",
         "value": "America/New_York"
       },
-      "configAfterDataNodes": [
-        "app_policy",
-        "attribute_person",
-        "categorize_apps",
-        "day_coverage",
-        "dedup_and_order",
-        "device_state_timeline",
-        "effective_usage",
-        "episode_annotations",
-        "interval_cleaning",
-        "normalize_timezones",
-        "observation_window",
-        "outputs",
-        "reconstruct_episodes",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_canonical_rows",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
       ],
-      "dataAfterConfigNodes": [
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_canonical_rows",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "assemble_result",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "resolve_participant_windows"
+      ],
+      "dataAfterConfigActualSteps": [
+        "assemble_result",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "resolve_participant_windows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [
           "attribute_person.classificationDigest",
@@ -329,15 +664,15 @@
       },
       "configCellConditioning": {
         "introducedCount": 24,
-        "maskedCount": 4260,
+        "maskedCount": 4190,
         "introducedDigest": "sha256:17ed53b062cf414ecc879436c52862a069ec01b13db31032b166ac2f39bb7167",
-        "maskedDigest": "sha256:9f9345f58e2220df7a84ec03f5204da48920c1d5969c79ef6efc481fc5ed0eb4"
+        "maskedDigest": "sha256:a71414ede35788609b85e9bb1fcd2ab29df56c313e6e9771356aaa03f1995a85"
       },
       "dataCellConditioning": {
         "introducedCount": 0,
-        "maskedCount": 4721,
+        "maskedCount": 4631,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:ceb769ce24628b6bbb98cbd3d2c2900b7495fe7762c72a0ece8a218d33c9cddd"
+        "maskedDigest": "sha256:12c58c1dae4febbd16efd5841d601d8e82051d923b360915328d1673f27faf9a"
       }
     },
     {
@@ -349,29 +684,124 @@
         "label": "selected_filter",
         "value": "selected-filter"
       },
-      "configAfterDataNodes": [
-        "app_policy",
-        "attribute_person",
-        "categorize_apps",
-        "day_coverage",
-        "dedup_and_order",
-        "device_state_timeline",
-        "effective_usage",
-        "episode_annotations",
-        "interval_cleaning",
-        "normalize_timezones",
-        "observation_window",
-        "outputs",
-        "reconstruct_episodes",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -381,16 +811,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 853,
-        "maskedCount": 853,
-        "introducedDigest": "sha256:c441d19a1fcad8badbf01870d9209df0981aa89279b7036f91fc4d36525f3773",
-        "maskedDigest": "sha256:6309fe9a685484d1881eccca2f2f96f3f8759eee631570a26c74bbc2b61faa4f"
+        "introducedCount": 852,
+        "maskedCount": 852,
+        "introducedDigest": "sha256:183e67c5864f3f08387347d095f2d60ebd798948a33802555fba8bb44e3e528a",
+        "maskedDigest": "sha256:8727d7bac27af532dc206c546fa7c6f1b0c7daf816e9b38e828279b08b894fb9"
       },
       "dataCellConditioning": {
-        "introducedCount": 1485,
-        "maskedCount": 3436,
-        "introducedDigest": "sha256:beb82a2cf3eb4751aa421809f8128d6ce0bb889e930c956575165568bfcdc762",
-        "maskedDigest": "sha256:862b872244d8b98c1a75c11e20a6372f76c2d1392abea708f354ed667f69199d"
+        "introducedCount": 1504,
+        "maskedCount": 3392,
+        "introducedDigest": "sha256:21a422ab00011278addcf034f4e3f1d7d71f83d579f644e828201d3ab07c390f",
+        "maskedDigest": "sha256:597270c0513a66a1d7fd8d9754a0a83c5c0542ec6d5b01e218068a386a5081be"
       }
     },
     {
@@ -402,29 +832,124 @@
         "label": "primary_filter",
         "value": "primary-filter"
       },
-      "configAfterDataNodes": [
-        "app_policy",
-        "attribute_person",
-        "categorize_apps",
-        "day_coverage",
-        "dedup_and_order",
-        "device_state_timeline",
-        "effective_usage",
-        "episode_annotations",
-        "interval_cleaning",
-        "normalize_timezones",
-        "observation_window",
-        "outputs",
-        "reconstruct_episodes",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -434,16 +959,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 853,
-        "maskedCount": 853,
-        "introducedDigest": "sha256:c441d19a1fcad8badbf01870d9209df0981aa89279b7036f91fc4d36525f3773",
-        "maskedDigest": "sha256:6309fe9a685484d1881eccca2f2f96f3f8759eee631570a26c74bbc2b61faa4f"
+        "introducedCount": 852,
+        "maskedCount": 852,
+        "introducedDigest": "sha256:183e67c5864f3f08387347d095f2d60ebd798948a33802555fba8bb44e3e528a",
+        "maskedDigest": "sha256:8727d7bac27af532dc206c546fa7c6f1b0c7daf816e9b38e828279b08b894fb9"
       },
       "dataCellConditioning": {
-        "introducedCount": 1485,
-        "maskedCount": 3436,
-        "introducedDigest": "sha256:beb82a2cf3eb4751aa421809f8128d6ce0bb889e930c956575165568bfcdc762",
-        "maskedDigest": "sha256:862b872244d8b98c1a75c11e20a6372f76c2d1392abea708f354ed667f69199d"
+        "introducedCount": 1504,
+        "maskedCount": 3392,
+        "introducedDigest": "sha256:21a422ab00011278addcf034f4e3f1d7d71f83d579f644e828201d3ab07c390f",
+        "maskedDigest": "sha256:597270c0513a66a1d7fd8d9754a0a83c5c0542ec6d5b01e218068a386a5081be"
       }
     },
     {
@@ -455,27 +980,106 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataNodes": [
-        "app_policy",
-        "attribute_person",
-        "categorize_apps",
-        "day_coverage",
-        "device_state_timeline",
-        "effective_usage",
-        "episode_annotations",
-        "interval_cleaning",
-        "observation_window",
-        "outputs",
-        "reconstruct_episodes",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -485,16 +1089,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 1397,
-        "maskedCount": 1397,
-        "introducedDigest": "sha256:0288e6e3342eb696f585e3388d96b751590371997d7bf56fa104236fd386185f",
-        "maskedDigest": "sha256:b88088b416f44d5b16557bd4d7cae3905901f506fe19fbfecabfb58f51e5b737"
+        "introducedCount": 1378,
+        "maskedCount": 1378,
+        "introducedDigest": "sha256:e6c508d8c617b642eecdca8f3aba686e19b7771e7a1cfd58ecdc0d33050698ea",
+        "maskedDigest": "sha256:c162af6f448a84e1eba7f5e21cfffb9cf22657df7ed395ee1a51c2758e52a792"
       },
       "dataCellConditioning": {
-        "introducedCount": 2394,
-        "maskedCount": 2108,
-        "introducedDigest": "sha256:0aaba0a2af2dc8073398af3f3075e1c1dbeff7914bd750c4b0f0ede83be54b31",
-        "maskedDigest": "sha256:25723ebe4c264f2a4f7a1246072a2f3a37fb378c2ec30dff5eec8fa613f05484"
+        "introducedCount": 2441,
+        "maskedCount": 2065,
+        "introducedDigest": "sha256:c65a9368cbcba049242dd62a884909963b567d64579e3f0b749841364fba0343",
+        "maskedDigest": "sha256:816b7d9b232a6994726d47e09843bd0ee65c1dc853e69f0c380eac5ea33b6e3e"
       }
     },
     {
@@ -506,25 +1110,94 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataNodes": [
-        "attribute_person",
-        "categorize_apps",
-        "day_coverage",
-        "effective_usage",
-        "episode_annotations",
-        "interval_cleaning",
-        "observation_window",
-        "outputs",
-        "reconstruct_episodes",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "build_matcher_input",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "build_matcher_input",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -534,16 +1207,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 855,
-        "maskedCount": 855,
-        "introducedDigest": "sha256:5497872b636907924662359c4dd3fc202066c1fcd18f0acfc581b00625e39d30",
-        "maskedDigest": "sha256:a9e01bb084e8be049ad427f272e273a55592c31c6d00cd02bb39c8f9c043bdc5"
+        "introducedCount": 849,
+        "maskedCount": 849,
+        "introducedDigest": "sha256:a28f42fe1c7cdaaba4a78f730defa19a16dd9e69d0a2fa8f31d5817e0b22d930",
+        "maskedDigest": "sha256:832a957f2d1aab4f85082e84f44cf16e28bc4045562ad781180384b8022f34e9"
       },
       "dataCellConditioning": {
-        "introducedCount": 1869,
-        "maskedCount": 2940,
-        "introducedDigest": "sha256:442a55600286047b1f6222a4d55a01e73433cec50dc3107cb9728641f925636d",
-        "maskedDigest": "sha256:eb8a03595c3b7eab41dd9d4e0f4dcdd3b42131e338b630d35300ee770ee92a9f"
+        "introducedCount": 1883,
+        "maskedCount": 2853,
+        "introducedDigest": "sha256:10df43a0cc1853bb81d6a3cb1c0b17023d251cf4c89f6a8d49d9c168bbb38aab",
+        "maskedDigest": "sha256:3b10529cbc1945dd4b7a2ae9f1fa98a165464f8d22206cacaf8556d781cea306"
       }
     },
     {
@@ -555,24 +1228,80 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataNodes": [
-        "attribute_person",
-        "categorize_apps",
-        "day_coverage",
-        "effective_usage",
-        "episode_annotations",
-        "interval_cleaning",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "partition_credit_sessions",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "partition_credit_sessions",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -603,17 +1332,36 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataNodes": [
-        "categorize_apps",
-        "outputs"
+      "configAfterDataPredictedSteps": [
+        "assemble_result"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "assemble_result"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -644,25 +1392,88 @@
         "label": "s0",
         "value": 0
       },
-      "configAfterDataNodes": [
-        "attribute_person",
-        "categorize_apps",
-        "day_coverage",
-        "effective_usage",
-        "episode_annotations",
-        "interval_cleaning",
-        "observation_window",
-        "outputs",
-        "reconstruct_episodes",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -678,9 +1489,9 @@
         "maskedDigest": "sha256:1b00e328276461604779de76862b3faa8ddb6dadfd6094b16689ee12edb42a1a"
       },
       "dataCellConditioning": {
-        "introducedCount": 66,
+        "introducedCount": 74,
         "maskedCount": 0,
-        "introducedDigest": "sha256:4945fe34b32a54655dc736533f91d22c30637d6d3370b55fd971caf2889c3dc4",
+        "introducedDigest": "sha256:24dbcf7843fb3d6d9d0923014d002f7b10dab9e54589b0cc4dd8d3aa98d0ae61",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     },
@@ -693,23 +1504,74 @@
         "label": "s0",
         "value": 0
       },
-      "configAfterDataNodes": [
-        "attribute_person",
-        "day_coverage",
-        "effective_usage",
-        "episode_annotations",
-        "interval_cleaning",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "count_day_apps",
+        "credit_sessions",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "partition_credit_sessions",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "count_day_apps",
+        "credit_sessions",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "partition_credit_sessions",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -726,9 +1588,9 @@
       },
       "dataCellConditioning": {
         "introducedCount": 326,
-        "maskedCount": 138,
-        "introducedDigest": "sha256:c10ddbf067332acbb9e8cda72bab896690b8f80b89a7ad049cd31280b357ee16",
-        "maskedDigest": "sha256:fa98001e6cc02d168c5f2149ea1bc3ddd9c7c74299600978c13d67ee8fe5a9ec"
+        "maskedCount": 140,
+        "introducedDigest": "sha256:8f72d7a73322aee6a4f2de54ed203997192a76ce6dd8b7d3497c64712fcb6d80",
+        "maskedDigest": "sha256:16fe4826924078e628060856bdbdac4cbda78ac526476c109ce15634783bc13d"
       }
     },
     {
@@ -740,23 +1602,72 @@
         "label": "empty",
         "value": []
       },
-      "configAfterDataNodes": [
-        "attribute_person",
-        "day_coverage",
-        "effective_usage",
-        "episode_annotations",
-        "interval_cleaning",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "count_day_apps",
+        "credit_sessions",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "partition_credit_sessions",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "count_day_apps",
+        "credit_sessions",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "partition_credit_sessions",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -766,16 +1677,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 15,
-        "maskedCount": 15,
-        "introducedDigest": "sha256:51fc60ca6f4d5828e1ca85715390b89ad09c51246d7e2d5ab1e2969bc1201707",
-        "maskedDigest": "sha256:c3b0104fd4c5c19468a2752372ff9a4fa6d37776b846cc903ab274785afb00af"
+        "introducedCount": 7,
+        "maskedCount": 7,
+        "introducedDigest": "sha256:714befd4f54ab32811353a08bca17c5e655ac940d46ea4ceddc44616f08657f9",
+        "maskedDigest": "sha256:e4e16797999fe2d61d6d3aa91c2377e7a3bb133c26c78ebfb54501f3fabee9e5"
       },
       "dataCellConditioning": {
         "introducedCount": 0,
-        "maskedCount": 28,
+        "maskedCount": 12,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:0216f97f13234ce90e775a0111ccac821866d5df1a0e8cd2bb146570b25b8925"
+        "maskedDigest": "sha256:58fa85863aedf3b3146f064073785ef02e25a0f2eb10695fb5e08bacdff6fd3d"
       }
     },
     {
@@ -787,23 +1698,72 @@
         "label": "empty",
         "value": []
       },
-      "configAfterDataNodes": [
-        "attribute_person",
-        "day_coverage",
-        "effective_usage",
-        "episode_annotations",
-        "interval_cleaning",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "count_day_apps",
+        "credit_sessions",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "partition_credit_sessions",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "count_day_apps",
+        "credit_sessions",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "partition_credit_sessions",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -834,26 +1794,96 @@
         "label": "empty",
         "value": []
       },
-      "configAfterDataNodes": [
-        "attribute_person",
-        "categorize_apps",
-        "day_coverage",
-        "dedup_and_order",
-        "effective_usage",
-        "episode_annotations",
-        "interval_cleaning",
-        "observation_window",
-        "outputs",
-        "reconstruct_episodes",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "build_matcher_input",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "build_matcher_input",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -863,16 +1893,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 1266,
-        "maskedCount": 1266,
-        "introducedDigest": "sha256:c98b9984081061af1aaab65f078d0ff0b4f96d3f35e8db52094753e1412655c0",
-        "maskedDigest": "sha256:a4aaedf147beeacfa8ef056c67759271dfbf888088cd87687a692c436347a7c1"
+        "introducedCount": 1277,
+        "maskedCount": 1277,
+        "introducedDigest": "sha256:6578aa4d0a88a7335cd84df1a27560ec59c79504272f5b43ca67f9b9f5af58c6",
+        "maskedDigest": "sha256:677376d3e3914ca40ecb460bfa81f24b3a0452311d38212c992a6d6c3a5b4247"
       },
       "dataCellConditioning": {
-        "introducedCount": 1772,
-        "maskedCount": 2355,
-        "introducedDigest": "sha256:695636d85f0ff850b3362283bdb2f05eed09be85905082b127874c3fb4e98c38",
-        "maskedDigest": "sha256:483959d4fd5b85bcbe82ad25524cd682f2e89600c3972ccafff69899f1182a22"
+        "introducedCount": 1836,
+        "maskedCount": 2356,
+        "introducedDigest": "sha256:c94301ecf4d51b51fcf07976d61fc88168028e6f563a006922be6e69ca089881",
+        "maskedDigest": "sha256:d01f68925b240d42d64b83275bb9598e23b4a8ea456600563ed9461de1729407"
       }
     },
     {
@@ -884,25 +1914,82 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataNodes": [
-        "attribute_person",
-        "categorize_apps",
-        "day_coverage",
-        "effective_usage",
-        "episode_annotations",
-        "interval_cleaning",
-        "observation_window",
-        "outputs",
-        "reconstruct_episodes",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "partition_credit_sessions",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days",
+        "split_concurrent"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "partition_credit_sessions",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days",
+        "split_concurrent"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -918,9 +2005,9 @@
         "maskedDigest": "sha256:1b00e328276461604779de76862b3faa8ddb6dadfd6094b16689ee12edb42a1a"
       },
       "dataCellConditioning": {
-        "introducedCount": 66,
+        "introducedCount": 74,
         "maskedCount": 0,
-        "introducedDigest": "sha256:4945fe34b32a54655dc736533f91d22c30637d6d3370b55fd971caf2889c3dc4",
+        "introducedDigest": "sha256:24dbcf7843fb3d6d9d0923014d002f7b10dab9e54589b0cc4dd8d3aa98d0ae61",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
     },
@@ -933,22 +2020,68 @@
         "label": "none",
         "value": []
       },
-      "configAfterDataNodes": [
-        "attribute_person",
-        "day_coverage",
-        "effective_usage",
-        "interval_cleaning",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "count_day_apps",
+        "credit_sessions",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "partition_credit_sessions",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "count_day_apps",
+        "credit_sessions",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "partition_credit_sessions",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -958,16 +2091,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 1411,
-        "maskedCount": 1411,
-        "introducedDigest": "sha256:88373ef2479e39f0132735baa1f70a2ee582240325b3ee2dcf8332e81b92f5fc",
-        "maskedDigest": "sha256:991d1e9156277d105d9ce795eb558d536c750179b35b6efe9ad4d176980a53cb"
+        "introducedCount": 1412,
+        "maskedCount": 1412,
+        "introducedDigest": "sha256:96383062dc03f33ebd20c159c5c8a8abd0769d042475420e93546f393566651c",
+        "maskedDigest": "sha256:d2a5810a82172612ac3cc3934736f3cdd58b43d68fd9bf621d90d258869c85d4"
       },
       "dataCellConditioning": {
-        "introducedCount": 1687,
-        "maskedCount": 1621,
-        "introducedDigest": "sha256:0499ccb5dcc5edf1e13c0a165999002692d0370de36d245292d3421b29fddf4e",
-        "maskedDigest": "sha256:7feea092ec78ce0739523fbeaf931a259364ed69883a9a9ad3cf854a3374c92b"
+        "introducedCount": 1683,
+        "maskedCount": 1620,
+        "introducedDigest": "sha256:29b91b65110c248d225056ce00198beb9b68880927ffc782a5f28cb9a82cf06c",
+        "maskedDigest": "sha256:1dc1e793428683eba3d9392dc7475d9287f283c4b4264a21ad21f318687d8c65"
       }
     },
     {
@@ -981,30 +2114,134 @@
           "Custom Foreground => Activity Resumed"
         ]
       },
-      "configAfterDataNodes": [
-        "app_policy",
-        "attribute_person",
-        "categorize_apps",
-        "day_coverage",
-        "dedup_and_order",
-        "device_state_timeline",
-        "effective_usage",
-        "episode_annotations",
-        "interval_cleaning",
-        "normalize_timezones",
-        "observation_window",
-        "outputs",
-        "parse_events",
-        "reconstruct_episodes",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_canonical_rows",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "collect_timezones",
+        "compute_dominant_timezone",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "parse_remap_config",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "stable_sort",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_canonical_rows",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "collect_timezones",
+        "compute_dominant_timezone",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "parse_remap_config",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "stable_sort",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -1014,16 +2251,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 1128,
-        "maskedCount": 1128,
-        "introducedDigest": "sha256:d2664ac046e155034567bf1209f519ecf8a9657323601f93b34a903ed1b44917",
-        "maskedDigest": "sha256:98bc969228a75eabdb8057dff03a25739793ea6f15d3ead1e08e2ddb00b2fac0"
+        "introducedCount": 1132,
+        "maskedCount": 1132,
+        "introducedDigest": "sha256:234dfe6f50ef53554cc0b12721063f218423390a363c9814d36cd1993f5b6f0a",
+        "maskedDigest": "sha256:6e9f64460c20c87206c6a9dda82032cd9854485cb6844f7ecd12e962ade9eecd"
       },
       "dataCellConditioning": {
-        "introducedCount": 1535,
-        "maskedCount": 1498,
-        "introducedDigest": "sha256:b7ffd5f2f0ec1c80ca2078dc90b8e10df851b06655ccf69bbb5ca82f0ef59bb6",
-        "maskedDigest": "sha256:af291febba5affad2fbe5ce2039185710ae5fca8096a5e7372f02929ab593a08"
+        "introducedCount": 1562,
+        "maskedCount": 1518,
+        "introducedDigest": "sha256:f8873a35714e2bfb15a6529e097f91b09cd841fd98d0f3ee384a847252c09d4e",
+        "maskedDigest": "sha256:e39c225976ea07baaad8890970fdd36b3c3c339da8afe5bc00e0f49818592769"
       }
     },
     {
@@ -1035,18 +2272,44 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataNodes": [
-        "day_coverage",
-        "outputs",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "build_coverage_table",
+        "inject_placeholders",
+        "score_days"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "build_coverage_table",
+        "inject_placeholders",
+        "score_days"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [
           "score_compliance.payloadDigest"
@@ -1060,16 +2323,16 @@
         "masked": []
       },
       "configCellConditioning": {
-        "introducedCount": 1311,
-        "maskedCount": 1298,
-        "introducedDigest": "sha256:d97bfc1981445f0a599c9afee0d2222ef04722bdcf0f2ce98d13a8cc82ead498",
-        "maskedDigest": "sha256:34618812c1a643f69b1883840eb12b467dc6a823661fd0249ee6417ee8d9040d"
+        "introducedCount": 1304,
+        "maskedCount": 1291,
+        "introducedDigest": "sha256:6ba3de258f78cd292e6615d655106a199613975095ae67700a816d4f3649dddc",
+        "maskedDigest": "sha256:16ff38734b7148cfd556ca6d854970e040653bf67ef14a321257ca6a51d103da"
       },
       "dataCellConditioning": {
-        "introducedCount": 1299,
-        "maskedCount": 1300,
-        "introducedDigest": "sha256:42dc710ac9aad02686b7803061630d107762e28f300f588de4f303f292a6d026",
-        "maskedDigest": "sha256:dd04a3092326e8cd8ad0859fef138ba1095b6ddf85b8089a5fc9ed959f9d2905"
+        "introducedCount": 1292,
+        "maskedCount": 1293,
+        "introducedDigest": "sha256:1326b725ac4b4192b7399f875b1dcc1a8a0d690898922153548f08413c75e12c",
+        "maskedDigest": "sha256:ba2922c08695fe14b831c62628582637322c8b9f55ce97ad44b2204d6ff42f1b"
       }
     },
     {
@@ -1081,19 +2344,40 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_sharing_status",
+        "score_days"
       ],
-      "dataAfterConfigNodes": [
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_sharing_status",
+        "score_days"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "assemble_result",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "resolve_participant_windows"
+      ],
+      "dataAfterConfigActualSteps": [
+        "assemble_result",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "resolve_participant_windows"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [
           "attribute_person.classificationDigest",
@@ -1130,16 +2414,16 @@
         ]
       },
       "configCellConditioning": {
-        "introducedCount": 4721,
+        "introducedCount": 4631,
         "maskedCount": 0,
-        "introducedDigest": "sha256:ceb769ce24628b6bbb98cbd3d2c2900b7495fe7762c72a0ece8a218d33c9cddd",
+        "introducedDigest": "sha256:12c58c1dae4febbd16efd5841d601d8e82051d923b360915328d1673f27faf9a",
         "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
       "dataCellConditioning": {
         "introducedCount": 0,
-        "maskedCount": 4721,
+        "maskedCount": 4631,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:ceb769ce24628b6bbb98cbd3d2c2900b7495fe7762c72a0ece8a218d33c9cddd"
+        "maskedDigest": "sha256:12c58c1dae4febbd16efd5841d601d8e82051d923b360915328d1673f27faf9a"
       }
     },
     {
@@ -1151,19 +2435,50 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataNodes": [
-        "attribute_person",
-        "day_coverage",
-        "outputs",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "resolve_sharing_status",
+        "score_days"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "resolve_sharing_status",
+        "score_days"
       ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -1194,18 +2509,36 @@
         "label": "false",
         "value": false
       },
-      "configAfterDataNodes": [
-        "day_coverage",
-        "outputs",
-        "score_compliance"
+      "configAfterDataPredictedSteps": [
+        "assemble_result"
       ],
-      "dataAfterConfigNodes": [
-        "attribute_person",
-        "day_coverage",
-        "observation_window",
-        "outputs",
-        "score_compliance"
+      "configAfterDataActualSteps": [
+        "assemble_result"
       ],
+      "configAfterDataDeactivatedSteps": [
+        "build_coverage_table"
+      ],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
       "configConditioning": {
         "introduced": [],
         "masked": []
@@ -1230,5 +2563,5 @@
       }
     }
   ],
-  "caseSetDigest": "sha256:e13799d475ff4d5b7d9e11823c1cd4b8db5854501b86a1dde706464cdec6741b"
+  "caseSetDigest": "sha256:58589e1204580fca03c2482259edfcb166fae64f44016fdef8dda215077ce332"
 }

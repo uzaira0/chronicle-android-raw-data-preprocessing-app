@@ -23,14 +23,19 @@ import {
   exportRuntimeClosure,
   garbageCollectRuntimeObjects,
   importRuntimeClosure,
+  MAX_RUNTIME_QUERY_CACHE_BYTES,
   openOpfsWorkspace,
+  persistRuntimeQueryCache,
   persistRuntimeWorkspace,
   readRuntimeObject,
+  recoverRuntimeQueryCache,
+  recoverRuntimeQueryCacheSlots,
   recoverRuntimeWorkspace,
   recoverRuntimeWorkspaceRoots,
   runtimeClosureWorkspaceId,
   type PersistedRuntimeArtifact,
   type RuntimeClosureInspection,
+  type WorkspaceQueryCacheSlot,
   type WorkspaceRootSlot,
 } from "@/lib/opfsArtifactStore";
 
@@ -53,6 +58,7 @@ type KernelModule = {
   runtime_version(): string;
   implementation_build_digest(): string;
   build_environment_digest(): string;
+  query_cache_max_bytes(): number;
   pipeline_step_contract_json(): string;
   plan_stage_view_json(optionsJson: string): string;
   RuntimeSupportFiles: new () => RuntimeSupportFilesHandle;
@@ -63,6 +69,20 @@ type KernelModule = {
     csvBytes: Uint8Array,
     supportFiles: RuntimeSupportFilesHandle,
   ): KernelHandle;
+  export_workspace_query_cache?(
+    workspaceId: string,
+    committedRootDigest: string,
+  ): Uint8Array;
+  restore_workspace_query_cache?(
+    workspaceId: string,
+    committedRootDigest: string,
+    cacheBytes: Uint8Array,
+    semanticIndexSource: Uint8Array,
+  ): void;
+  workspace_query_state_matches_root?(
+    workspaceId: string,
+    committedRootDigest: string,
+  ): boolean;
   execute_bounded_v2_shadow(
     requestJson: string,
     csvBytes: Uint8Array,
@@ -949,6 +969,13 @@ export type RustRuntimeExecution = {
 
 let initPromise: Promise<KernelModule> | null = null;
 
+// The Rust worker retains exactly one live Salsa database. Keep the matching
+// root token here when OPFS persistence is disabled so repeated calls still
+// continue that database instead of accidentally forcing a cold reset.
+let ephemeralContinuation:
+  | { workspaceId: string; workspaceRootDigest: string }
+  | undefined;
+
 export type RustPersistenceAdapter = {
   openRoot(workspaceId: string): Promise<FileSystemDirectoryHandle>;
   recover(
@@ -969,7 +996,40 @@ export type RustPersistenceAdapter = {
       recoveredSlot?: WorkspaceRootSlot;
     },
   ): Promise<WorkspaceRootSlot>;
+  recoverQueryCache?(
+    root: FileSystemDirectoryHandle,
+    baseWorkspaceRootDigest: string,
+  ): Promise<{ slot: WorkspaceQueryCacheSlot; bytes: Uint8Array } | undefined>;
+  persistQueryCache?(
+    root: FileSystemDirectoryHandle,
+    input: { baseWorkspaceRootDigest: string; bytes: Uint8Array },
+  ): Promise<WorkspaceQueryCacheSlot>;
+  readArtifact?(
+    root: FileSystemDirectoryHandle,
+    slot: WorkspaceRootSlot,
+    kind: string,
+  ): Promise<Uint8Array>;
 };
+
+async function readArtifactFromWorkspaceSlot(
+  root: FileSystemDirectoryHandle,
+  slot: WorkspaceRootSlot,
+  kind: string,
+): Promise<Uint8Array> {
+  const rootCommit = JSON.parse(
+    new TextDecoder().decode(
+      await readRuntimeObject(root, slot.workspaceRootDigest),
+    ),
+  ) as { artifactClosureDigest: string };
+  const closure = JSON.parse(
+    new TextDecoder().decode(
+      await readRuntimeObject(root, rootCommit.artifactClosureDigest),
+    ),
+  ) as { artifacts: Array<{ kind: string; digest: string }> };
+  const artifact = closure.artifacts.find((candidate) => candidate.kind === kind);
+  if (!artifact) throw new Error(`persisted Rust artifact is missing: ${kind}`);
+  return readRuntimeObject(root, artifact.digest);
+}
 
 const defaultPersistenceAdapter: RustPersistenceAdapter = {
   openRoot: openOpfsWorkspace,
@@ -987,6 +1047,9 @@ const defaultPersistenceAdapter: RustPersistenceAdapter = {
     );
   },
   persist: persistRuntimeWorkspace,
+  recoverQueryCache: recoverRuntimeQueryCache,
+  persistQueryCache: persistRuntimeQueryCache,
+  readArtifact: readArtifactFromWorkspaceSlot,
 };
 
 async function verifyRootClosure(
@@ -1199,7 +1262,12 @@ export async function garbageCollectPersistedRustWorkspace(
   return withWorkspaceLock(workspaceId, async () => {
     const root = await openOpfsWorkspace(workspaceId);
     const slots = await recoverRuntimeWorkspaceRoots(root);
-    return garbageCollectRuntimeObjects(root, slots);
+    const caches = await recoverRuntimeQueryCacheSlots(root);
+    return garbageCollectRuntimeObjects(
+      root,
+      slots,
+      caches,
+    );
   });
 }
 
@@ -1234,6 +1302,7 @@ export function setRustPersistenceForTesting(
   adapter: RustPersistenceAdapter | null,
 ): void {
   persistenceAdapter = adapter ?? defaultPersistenceAdapter;
+  ephemeralContinuation = undefined;
 }
 
 async function loadKernel(): Promise<KernelModule> {
@@ -1574,6 +1643,9 @@ async function executeRustRuntimeUnlocked(
   let runtimeSupportFiles: RuntimeSupportFilesHandle | null = null;
   try {
     const kernel = await loadKernel();
+    if (kernel.query_cache_max_bytes() !== MAX_RUNTIME_QUERY_CACHE_BYTES) {
+      throw new Error("Rust and OPFS query-cache byte limits disagree");
+    }
     const [filterBytes, forcingBytes, backgroundBytes, codebookBytes] =
       await Promise.all([
         supportBytes(
@@ -1683,15 +1755,57 @@ async function executeRustRuntimeUnlocked(
           kernel,
           workspaceId,
         );
+        if (
+          persistenceAdapter.recoverQueryCache &&
+          persistenceAdapter.readArtifact &&
+          kernel.restore_workspace_query_cache &&
+          !kernel.workspace_query_state_matches_root?.(
+            workspaceId,
+            recoveredRoot.workspaceRootDigest,
+          )
+        ) {
+          try {
+            const recoveredQueryCache =
+              await persistenceAdapter.recoverQueryCache(
+                opfsRoot,
+                recoveredRoot.workspaceRootDigest,
+              );
+            if (recoveredQueryCache) {
+              const semanticIndexSource =
+                await persistenceAdapter.readArtifact(
+                  opfsRoot,
+                  recoveredRoot,
+                  "semantic-index-source-json",
+                );
+              kernel.restore_workspace_query_cache(
+                workspaceId,
+                recoveredRoot.workspaceRootDigest,
+                recoveredQueryCache.bytes,
+                semanticIndexSource,
+              );
+            }
+          } catch (error) {
+            console.warn(
+              "Verified Rust workspace, but its optional query cache could not be restored; running cold",
+              error,
+            );
+          }
+        }
       }
     }
+    const previousWorkspaceRootDigest =
+      recoveredRoot?.workspaceRootDigest ??
+      (!runtime.persistRustWorkspace &&
+      ephemeralContinuation?.workspaceId === workspaceId
+        ? ephemeralContinuation.workspaceRootDigest
+        : null);
     const requestId = `execute-${inputSha256.slice(0, 16)}`;
     handle = kernel.execute_workspace(
       JSON.stringify({
         protocolVersion: "chronicle-preprocessing-runtime/v1",
         requestId,
         command: "ExecuteWorkspace",
-        workspaceRootDigest: recoveredRoot?.workspaceRootDigest ?? null,
+        workspaceRootDigest: previousWorkspaceRootDigest,
         workspaceId,
         inputFileName,
         inputSha256: `sha256:${inputSha256}`,
@@ -1729,7 +1843,7 @@ async function executeRustRuntimeUnlocked(
     }
     if (
       manifest.previousWorkspaceRootDigest !==
-      (recoveredRoot?.workspaceRootDigest ?? null)
+      previousWorkspaceRootDigest
     ) {
       throw new Error("runtime manifest previous-root identity mismatch");
     }
@@ -1826,18 +1940,55 @@ async function executeRustRuntimeUnlocked(
         : undefined;
     if (
       persistedWorkspace &&
+      opfsRoot &&
+      manifest.dependencyCacheDecision.mode === "certified_narrow" &&
+      manifest.dependencyCacheDecision.empirical_evidence_current &&
+      persistenceAdapter.persistQueryCache &&
+      kernel.export_workspace_query_cache
+    ) {
+      try {
+        const cacheBytes = kernel.export_workspace_query_cache(
+          workspaceId,
+          persistedWorkspace.workspaceRootDigest,
+        );
+        await persistenceAdapter.persistQueryCache(
+          opfsRoot,
+          {
+            baseWorkspaceRootDigest: persistedWorkspace.workspaceRootDigest,
+            bytes: cacheBytes,
+          },
+        );
+      } catch (error) {
+        console.warn(
+          "Committed Rust workspace, but its optional query cache could not be saved",
+          error,
+        );
+      }
+    }
+    if (
+      persistedWorkspace &&
       recoveredRoot &&
       opfsRoot &&
       persistenceAdapter === defaultPersistenceAdapter
     ) {
       try {
-        await garbageCollectRuntimeObjects(opfsRoot, [
-          persistedWorkspace,
-          recoveredRoot,
-        ]);
+        const retainedQueryCaches = await recoverRuntimeQueryCacheSlots(opfsRoot);
+        await garbageCollectRuntimeObjects(
+          opfsRoot,
+          [persistedWorkspace, recoveredRoot],
+          retainedQueryCaches,
+        );
       } catch (error) {
         console.warn("Committed Rust workspace but could not reclaim stale OPFS objects", error);
       }
+    }
+    if (runtime.persistRustWorkspace) {
+      ephemeralContinuation = undefined;
+    } else {
+      ephemeralContinuation = {
+        workspaceId,
+        workspaceRootDigest: manifest.workspaceRootDigest,
+      };
     }
     return { workspaceId, manifest, artifacts, persistedWorkspace };
   } finally {

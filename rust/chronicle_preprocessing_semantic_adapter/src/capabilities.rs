@@ -10,7 +10,8 @@ pub struct StepBinding {
     pub step_id: &'static str,
     pub unit_id: &'static str,
     pub capability_id: &'static str,
-    pub stage: PhysicalStage,
+    pub entrypoint: &'static str,
+    pub tracking: &'static str,
 }
 
 include!(concat!(env!("OUT_DIR"), "/capability_registry.rs"));

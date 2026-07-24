@@ -1,9 +1,4 @@
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
@@ -28,10 +23,15 @@ import {
   SYNTHETIC_CORPUS_PROFILES,
 } from "@/testSupport/syntheticChronicleCorpus";
 import {
+  sourceRoleIsActive,
+  type RustStepContract,
+} from "@/testSupport/rustStepContract";
+import {
   captureCanonicalOutputCells,
   changedCellAddresses,
   changedCellScopesByArtifact,
 } from "@/testSupport/outputCellTomography";
+import { dependencyCampaignRuntimeBytes } from "@/testSupport/dependencyCampaignRuntime";
 import * as runtime from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
 
 const EXPECTED_FILE = join(
@@ -127,19 +127,7 @@ type ProductPlan = {
   nodes: PlanNode[];
 };
 
-type RustStepContract = {
-  protocolVersion: "chronicle-preprocessing-step-contract/v1";
-  steps: Array<{
-    id: string;
-    group: string;
-    inputs: string[];
-    requestFields: string[];
-    sourceRoles: string[];
-  }>;
-};
-
 const plan = JSON.parse(readFileSync(PLAN_FILE, "utf8")) as ProductPlan;
-const planByNode = new Map(plan.nodes.map((node) => [node.node_id, node]));
 const catalog = buildSyntheticCatalog({
   codebookCsv,
   filterCsv,
@@ -151,18 +139,15 @@ const interventions = buildRawBoundaryInterventions().filter(
 );
 
 beforeAll(() => {
-  const wasmBytes = readFileSync(
-    new URL(
-      "../../../wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm",
-      import.meta.url,
-    ),
-  );
-  runtime.initSync({ module: wasmBytes });
+  runtime.initSync({ module: dependencyCampaignRuntimeBytes() });
 });
 
 async function sha256Uri(value: Uint8Array | string): Promise<string> {
   const bytes = typeof value === "string" ? encoder.encode(value) : value;
-  const digest = await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer);
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    Uint8Array.from(bytes).buffer,
+  );
   return `sha256:${Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("")}`;
@@ -173,7 +158,8 @@ async function artifactDigests(
 ): Promise<Record<InterventionRoleId, string>> {
   const supports = await Promise.all(
     SUPPORT_ROLE_IDS.map(
-      async (roleId) => [roleId, await sha256Uri(state.supports[roleId].csv)] as const,
+      async (roleId) =>
+        [roleId, await sha256Uri(state.supports[roleId].csv)] as const,
     ),
   );
   return Object.fromEntries([
@@ -233,7 +219,9 @@ function changedFields(
 function firstLineDifference(left: string, right: string): string {
   const leftLines = left.split("\n");
   const rightLines = right.split("\n");
-  const index = leftLines.findIndex((line, lineIndex) => line !== rightLines[lineIndex]);
+  const index = leftLines.findIndex(
+    (line, lineIndex) => line !== rightLines[lineIndex],
+  );
   return index < 0
     ? "no line difference"
     : `line ${index + 1}: ${JSON.stringify(leftLines[index])} -> ${JSON.stringify(rightLines[index])}`;
@@ -245,19 +233,20 @@ function checkpointComponentChanges(
 ): Record<string, string[]> {
   return Object.fromEntries(
     order
-      .map((nodeId) => [
-        nodeId,
-        changedFields(
-          source.processingSummary.logicalStageCheckpoints[nodeId] as unknown as Record<
-            string,
-            unknown
-          >,
-          target.processingSummary.logicalStageCheckpoints[nodeId] as unknown as Record<
-            string,
-            unknown
-          >,
-        ).filter((field) => field !== "terminalDigest"),
-      ] as const)
+      .map(
+        (nodeId) =>
+          [
+            nodeId,
+            changedFields(
+              source.processingSummary.logicalStageCheckpoints[
+                nodeId
+              ] as unknown as Record<string, unknown>,
+              target.processingSummary.logicalStageCheckpoints[
+                nodeId
+              ] as unknown as Record<string, unknown>,
+            ).filter((field) => field !== "terminalDigest"),
+          ] as const,
+      )
       .filter(([, fields]) => fields.length > 0),
   );
 }
@@ -269,38 +258,45 @@ function stepCheckpointComponentChanges(
   return Object.fromEntries(
     Object.keys(source.processingSummary.pipelineStepCheckpoints)
       .sort()
-      .map((stepId) => [
-        stepId,
-        changedFields(
-          source.processingSummary.pipelineStepCheckpoints[stepId] as unknown as Record<
-            string,
-            unknown
-          >,
-          target.processingSummary.pipelineStepCheckpoints[stepId] as unknown as Record<
-            string,
-            unknown
-          >,
-        ).filter((field) => field !== "terminalDigest"),
-      ] as const)
+      .map(
+        (stepId) =>
+          [
+            stepId,
+            changedFields(
+              source.processingSummary.pipelineStepCheckpoints[
+                stepId
+              ] as unknown as Record<string, unknown>,
+              target.processingSummary.pipelineStepCheckpoints[
+                stepId
+              ] as unknown as Record<string, unknown>,
+            ).filter((field) => field !== "terminalDigest"),
+          ] as const,
+      )
       .filter(([, fields]) => fields.length > 0),
   );
 }
 
-function nodeInputKeys(manifest: RuntimeManifest): Record<string, string> {
+function stepStatuses(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
-    manifest.nodeExecutions.map(({ node_id, input_key }) => [node_id, input_key]),
+    manifest.stepExecutions.map(({ step_id, status }) => [step_id, status]),
   );
 }
 
-function stepInputKeys(manifest: RuntimeManifest): Record<string, string> {
-  return Object.fromEntries(
-    manifest.stepExecutions.map(({ step_id, input_key }) => [step_id, input_key]),
-  );
+function executedStepIds(manifest: RuntimeManifest): string[] {
+  return manifest.stepExecutions
+    .filter(({ status }) => status === "recomputed")
+    .map(({ step_id }) => step_id)
+    .sort();
 }
 
-function nodeOutputDigests(manifest: RuntimeManifest): Record<string, string | null> {
+function nodeOutputDigests(
+  manifest: RuntimeManifest,
+): Record<string, string | null> {
   return Object.fromEntries(
-    manifest.nodeExecutions.map(({ node_id, output }) => [node_id, output?.digest ?? null]),
+    manifest.nodeExecutions.map(({ node_id, output }) => [
+      node_id,
+      output?.digest ?? null,
+    ]),
   );
 }
 
@@ -321,47 +317,62 @@ const OUTPUT_ARTIFACT_KINDS = new Set([
   "result-cell-correspondence-arrow",
 ]);
 
-function outputArtifactDigests(manifest: RuntimeManifest): Record<string, string> {
+function outputArtifactDigests(
+  manifest: RuntimeManifest,
+): Record<string, string> {
   return Object.fromEntries(
     manifest.artifacts
-      .filter(({ kind }) => OUTPUT_ARTIFACT_KINDS.has(kind) || kind.startsWith("aggregate-"))
+      .filter(
+        ({ kind }) =>
+          OUTPUT_ARTIFACT_KINDS.has(kind) || kind.startsWith("aggregate-"),
+      )
       .sort((left, right) => left.kind.localeCompare(right.kind))
       .map(({ kind, digest }) => [kind, digest]),
   );
 }
 
-function semanticOutcome(manifest: RuntimeManifest): Record<string, unknown> {
-  return {
-    counts: manifest.counts,
-    processingSummary: manifest.processingSummary,
-    outputArtifacts: outputArtifactDigests(manifest),
-  };
+function assertSameSemanticOutcome(
+  actual: RuntimeManifest,
+  expected: RuntimeManifest,
+  caseId: string,
+): void {
+  expect(
+    changedFields(actual.counts, expected.counts),
+    `${caseId}: counts`,
+  ).toEqual([]);
+  expect(
+    changedFields(actual.processingSummary, expected.processingSummary),
+    `${caseId}: processing summary fields`,
+  ).toEqual([]);
+  expect(
+    changedFields(
+      outputArtifactDigests(actual),
+      outputArtifactDigests(expected),
+    ),
+    `${caseId}: output artifacts`,
+  ).toEqual([]);
 }
 
-function predictedRawCluster(changedSemanticNodes: ReadonlySet<string>): string[] {
-  const result = new Set<string>();
-  for (const nodeId of order) {
-    const node = planByNode.get(nodeId)!;
-    if (
-      nodeId === "parse_events" ||
-      node.input_nodes.some((input) => changedSemanticNodes.has(input))
-    ) {
-      result.add(nodeId);
-    }
-  }
-  return [...result].sort();
-}
-
-function predictedRawStepCluster(
+function predictedRawExecutedSteps(
   stepContract: RustStepContract,
   changedSemanticSteps: ReadonlySet<string>,
+  targetOptions: Record<string, unknown>,
+  source: RuntimeManifest,
+  target: RuntimeManifest,
 ): string[] {
+  const sourceStatuses = stepStatuses(source);
+  const targetStatuses = stepStatuses(target);
   return stepContract.steps
-    .filter(
-      (step) =>
-        step.sourceRoles.includes("raw_chronicle_csv") ||
-        step.inputs.some((input) => changedSemanticSteps.has(input)),
-    )
+    .filter((step) => {
+      const sourceApplicable = sourceStatuses[step.id] !== "bypassed";
+      const targetApplicable = targetStatuses[step.id] !== "bypassed";
+      return (
+        targetApplicable &&
+        (!sourceApplicable ||
+          sourceRoleIsActive(step, "raw_chronicle_csv", targetOptions) ||
+          step.inputs.some((input) => changedSemanticSteps.has(input)))
+      );
+    })
     .map(({ id }) => id)
     .sort();
 }
@@ -383,9 +394,10 @@ function assertCompleteSuccessfulManifest(
   caseId: string,
 ): void {
   expect(manifest.openObligations, `${caseId}: binding holes`).toEqual([]);
-  expect(manifest.qualificationTraces, `${caseId}: qualification coverage`).toHaveLength(
-    plan.root_roles.length,
-  );
+  expect(
+    manifest.qualificationTraces,
+    `${caseId}: qualification coverage`,
+  ).toHaveLength(plan.root_roles.length);
   expect(
     manifest.qualificationTraces.every(
       (trace) =>
@@ -399,8 +411,14 @@ function assertCompleteSuccessfulManifest(
     manifest.requirementTraces.every(({ state }) => state === "satisfied"),
     `${caseId}: unsatisfied role requirement`,
   ).toBe(true);
-  expect(manifest.nodeExecutions, `${caseId}: logical execution coverage`).toHaveLength(15);
-  expect(manifest.stepExecutions, `${caseId}: Rust step execution coverage`).toHaveLength(55);
+  expect(
+    manifest.nodeExecutions,
+    `${caseId}: logical execution coverage`,
+  ).toHaveLength(15);
+  expect(
+    manifest.stepExecutions,
+    `${caseId}: Rust step execution coverage`,
+  ).toHaveLength(55);
   expect(
     manifest.nodeExecutions.every(
       ({ status }) => status !== "error" && status !== "skipped",
@@ -413,11 +431,15 @@ function assertCompleteSuccessfulManifest(
     ),
     `${caseId}: failed Rust step execution`,
   ).toBe(true);
-  expect(Object.keys(manifest.processingSummary.logicalStageCheckpoints).sort()).toEqual(
-    [...order].sort(),
-  );
-  expect(Object.keys(manifest.processingSummary.pipelineStepCheckpoints)).toHaveLength(55);
-  expect(Object.keys(manifest.processingSummary.pipelineStepDigests).sort()).toEqual(
+  expect(
+    Object.keys(manifest.processingSummary.logicalStageCheckpoints).sort(),
+  ).toEqual([...order].sort());
+  expect(
+    Object.keys(manifest.processingSummary.pipelineStepCheckpoints),
+  ).toHaveLength(55);
+  expect(
+    Object.keys(manifest.processingSummary.pipelineStepDigests).sort(),
+  ).toEqual(
     Object.keys(manifest.processingSummary.pipelineStepCheckpoints).sort(),
   );
   expect(manifest.stepExecutions.map(({ step_id }) => step_id).sort()).toEqual(
@@ -426,7 +448,9 @@ function assertCompleteSuccessfulManifest(
   for (const [nodeId, checkpoint] of Object.entries(
     manifest.processingSummary.logicalStageCheckpoints,
   )) {
-    expect(checkpoint.protocolVersion).toBe("chronicle-logical-stage-checkpoint/v3");
+    expect(checkpoint.protocolVersion).toBe(
+      "chronicle-logical-stage-checkpoint/v3",
+    );
     expect(checkpoint.nodeId).toBe(nodeId);
     expect(checkpoint.terminalDigest).toBe(
       manifest.processingSummary.logicalStageDigests[nodeId],
@@ -435,7 +459,9 @@ function assertCompleteSuccessfulManifest(
   for (const [stepId, checkpoint] of Object.entries(
     manifest.processingSummary.pipelineStepCheckpoints,
   )) {
-    expect(checkpoint.protocolVersion).toBe("chronicle-logical-stage-checkpoint/v3");
+    expect(checkpoint.protocolVersion).toBe(
+      "chronicle-logical-stage-checkpoint/v3",
+    );
     expect(checkpoint.nodeId).toBe(stepId);
     expect(checkpoint.terminalDigest).toBe(
       manifest.processingSummary.pipelineStepDigests[stepId],
@@ -453,13 +479,22 @@ describe("raw timestamp boundary tomography", () => {
       SHARD_INDEX < 0 ||
       SHARD_INDEX >= SHARD_COUNT
     ) {
-      throw new Error(`invalid raw-boundary shard ${SHARD_INDEX}/${SHARD_COUNT}`);
+      throw new Error(
+        `invalid raw-boundary shard ${SHARD_INDEX}/${SHARD_COUNT}`,
+      );
     }
-    expect(interventions.length, "raw boundary filter matched nothing").toBeGreaterThan(0);
-    expect(plan.nodes.map(({ node_id }) => node_id).sort()).toEqual([...order].sort());
-    const stepContract = JSON.parse(runtime.pipeline_step_contract_json()) as RustStepContract;
+    expect(
+      interventions.length,
+      "raw boundary filter matched nothing",
+    ).toBeGreaterThan(0);
+    expect(plan.nodes.map(({ node_id }) => node_id).sort()).toEqual(
+      [...order].sort(),
+    );
+    const stepContract = JSON.parse(
+      runtime.pipeline_step_contract_json(),
+    ) as RustStepContract;
     expect(stepContract.protocolVersion).toBe(
-      "chronicle-preprocessing-step-contract/v1",
+      "chronicle-preprocessing-step-contract/v3",
     );
     expect(stepContract.steps).toHaveLength(55);
 
@@ -531,40 +566,54 @@ describe("raw timestamp boundary tomography", () => {
           warmSource.workspaceRootDigest,
         );
 
-        for (const manifest of [coldSource, coldTarget, warmSource, warmTarget]) {
+        for (const manifest of [
+          coldSource,
+          coldTarget,
+          warmSource,
+          warmTarget,
+        ]) {
           assertCompleteSuccessfulManifest(manifest, caseId);
           const receipt = authorityReceipt(manifest);
           if (!authority) authority = receipt;
           else expect(receipt, `${caseId}: authority drift`).toEqual(authority);
         }
 
-        expect(semanticOutcome(warmSource), `${caseId}: warm source oracle`).toEqual(
-          semanticOutcome(coldSource),
-        );
-        expect(semanticOutcome(warmTarget), `${caseId}: warm target oracle`).toEqual(
-          semanticOutcome(coldTarget),
-        );
-        expect(warmSource.outputCells, `${caseId}: warm source cell oracle`).toEqual(
-          coldSource.outputCells,
-        );
-        expect(warmTarget.outputCells, `${caseId}: warm target cell oracle`).toEqual(
-          coldTarget.outputCells,
-        );
-        expect(nodeOutputDigests(warmTarget), `${caseId}: checkpoint cold oracle`).toEqual(
-          nodeOutputDigests(coldTarget),
+        assertSameSemanticOutcome(
+          warmSource,
+          coldSource,
+          `${caseId}: warm source oracle`,
         );
         expect(
           warmTarget.processingSummary.pipelineStepDigests,
           `${caseId}: every warm Rust step checkpoint needs a cold target`,
         ).toEqual(coldTarget.processingSummary.pipelineStepDigests);
-
+        assertSameSemanticOutcome(
+          warmTarget,
+          coldTarget,
+          `${caseId}: warm target oracle`,
+        );
+        expect(
+          warmSource.outputCells,
+          `${caseId}: warm source cell oracle`,
+        ).toEqual(coldSource.outputCells);
+        expect(
+          warmTarget.outputCells,
+          `${caseId}: warm target cell oracle`,
+        ).toEqual(coldTarget.outputCells);
+        expect(
+          nodeOutputDigests(warmTarget),
+          `${caseId}: checkpoint cold oracle`,
+        ).toEqual(nodeOutputDigests(coldTarget));
         const sourceQualification: Record<string, string> = Object.fromEntries(
           coldSource.qualificationTraces
             .filter(
               (trace): trace is typeof trace & { selected_role_id: string } =>
                 trace.selected_role_id !== null,
             )
-            .map((trace) => [trace.selected_role_id, trace.artifact_digest] as const),
+            .map(
+              (trace) =>
+                [trace.selected_role_id, trace.artifact_digest] as const,
+            ),
         );
         const targetQualification: Record<string, string> = Object.fromEntries(
           coldTarget.qualificationTraces
@@ -572,7 +621,10 @@ describe("raw timestamp boundary tomography", () => {
               (trace): trace is typeof trace & { selected_role_id: string } =>
                 trace.selected_role_id !== null,
             )
-            .map((trace) => [trace.selected_role_id, trace.artifact_digest] as const),
+            .map(
+              (trace) =>
+                [trace.selected_role_id, trace.artifact_digest] as const,
+            ),
         );
         expect(
           changedFields(sourceQualification, targetQualification),
@@ -590,10 +642,14 @@ describe("raw timestamp boundary tomography", () => {
             targetState.rawCsv,
           )}`,
         ).toBeGreaterThan(0);
-        const componentChanges = checkpointComponentChanges(coldSource, coldTarget);
-        expect(Object.keys(componentChanges).sort(), `${caseId}: component/terminal drift`).toEqual(
-          changedSemanticNodes,
+        const componentChanges = checkpointComponentChanges(
+          coldSource,
+          coldTarget,
         );
+        expect(
+          Object.keys(componentChanges).sort(),
+          `${caseId}: component/terminal drift`,
+        ).toEqual(changedSemanticNodes);
         const changedSemanticSteps = changedFields(
           coldSource.processingSummary.pipelineStepDigests,
           coldTarget.processingSummary.pipelineStepDigests,
@@ -607,50 +663,61 @@ describe("raw timestamp boundary tomography", () => {
           `${caseId}: step component/terminal drift`,
         ).toEqual(changedSemanticSteps);
 
-        const sourceParse = coldSource.processingSummary.logicalStageCheckpoints.parse_events;
-        const targetParse = coldTarget.processingSummary.logicalStageCheckpoints.parse_events;
+        const sourceParse =
+          coldSource.processingSummary.logicalStageCheckpoints.parse_events;
+        const targetParse =
+          coldTarget.processingSummary.logicalStageCheckpoints.parse_events;
         expect(
           targetParse.temporalStateDigest,
           `${caseId}: timestamp edit lacks temporal witness`,
         ).not.toBe(sourceParse.temporalStateDigest);
-        expect(targetParse.rowMembershipDigest, `${caseId}: false membership effect`).toBe(
-          sourceParse.rowMembershipDigest,
-        );
-        expect(targetParse.classificationDigest, `${caseId}: false classification effect`).toBe(
-          sourceParse.classificationDigest,
-        );
-        expect(targetParse.payloadDigest, `${caseId}: false payload effect`).toBe(
-          sourceParse.payloadDigest,
-        );
+        expect(
+          targetParse.rowMembershipDigest,
+          `${caseId}: false membership effect`,
+        ).toBe(sourceParse.rowMembershipDigest);
+        expect(
+          targetParse.classificationDigest,
+          `${caseId}: false classification effect`,
+        ).toBe(sourceParse.classificationDigest);
+        expect(
+          targetParse.payloadDigest,
+          `${caseId}: false payload effect`,
+        ).toBe(sourceParse.payloadDigest);
         expect(targetParse.schemaDigest, `${caseId}: false schema effect`).toBe(
           sourceParse.schemaDigest,
         );
 
-        const observedInputKeyNodes = changedFields(
-          nodeInputKeys(warmSource),
-          nodeInputKeys(warmTarget),
-        );
-        const predictedInputKeyNodes = predictedRawCluster(new Set(changedSemanticNodes));
-        expect(
-          observedInputKeyNodes,
-          `${caseId}: declared and empirical raw percolation disagree`,
-        ).toEqual(predictedInputKeyNodes);
-        const observedInputKeySteps = changedFields(
-          stepInputKeys(warmSource),
-          stepInputKeys(warmTarget),
-        );
-        const predictedInputKeySteps = predictedRawStepCluster(
+        const actualExecutedSteps = executedStepIds(warmTarget);
+        const exactTargetOptions = buildRustV2Options(ALL_ON, GOLDEN_RUNTIME);
+        const predictedExecutedSteps = predictedRawExecutedSteps(
           stepContract,
           new Set(changedSemanticSteps),
+          exactTargetOptions,
+          coldSource,
+          coldTarget,
         );
         expect(
-          observedInputKeySteps,
-          `${caseId}: declared and empirical 55-step raw percolation disagree`,
-        ).toEqual(predictedInputKeySteps);
+          actualExecutedSteps,
+          `${caseId}: raw dependency prediction and actual Salsa query bodies disagree`,
+        ).toEqual(predictedExecutedSteps);
+        const sourceStatuses = stepStatuses(coldSource);
+        const targetStatuses = stepStatuses(coldTarget);
+        const deactivatedSteps = stepContract.steps
+          .filter(
+            ({ id }) =>
+              sourceStatuses[id] !== "bypassed" &&
+              targetStatuses[id] === "bypassed",
+          )
+          .map(({ id }) => id)
+          .sort();
         expect(
-          warmTarget.nodeExecutions.find(({ node_id }) => node_id === "parse_events")?.status,
-          `${caseId}: raw binder falsely cached`,
-        ).not.toBe("cached");
+          deactivatedSteps,
+          `${caseId}: raw bytes cannot change applicability`,
+        ).toEqual([]);
+        expect(
+          actualExecutedSteps,
+          `${caseId}: raw CSV binder did not execute`,
+        ).toContain("csv_parse");
 
         const changedOutputCellAddresses = changedCellAddresses(
           coldSource.outputCells,
@@ -669,10 +736,9 @@ describe("raw timestamp boundary tomography", () => {
           checkpointComponentChanges: componentChanges,
           changedPipelineSteps: changedSemanticSteps,
           stepCheckpointComponentChanges: stepComponentChanges,
-          predictedInputKeyNodes,
-          observedInputKeyNodes,
-          predictedInputKeySteps,
-          observedInputKeySteps,
+          predictedExecutedSteps,
+          actualExecutedSteps,
+          deactivatedSteps,
           changedOutputArtifactKinds: changedFields(
             outputArtifactDigests(coldSource),
             outputArtifactDigests(coldTarget),
@@ -684,7 +750,10 @@ describe("raw timestamp boundary tomography", () => {
           changedOutputCellScopesByArtifact: changedCellScopesByArtifact(
             changedOutputCellAddresses,
           ),
-          changedCountFields: changedFields(coldSource.counts, coldTarget.counts),
+          changedCountFields: changedFields(
+            coldSource.counts,
+            coldTarget.counts,
+          ),
           warmExecution: warmTarget.nodeExecutions
             .filter(({ status }) => status !== "cached")
             .map(({ node_id, status }) => ({ nodeId: node_id, status })),
@@ -707,7 +776,9 @@ describe("raw timestamp boundary tomography", () => {
       null,
       2,
     )}\n`;
-    const cellEvidenceCompressed = gzipSync(cellEvidenceSerialized, { level: 9 });
+    const cellEvidenceCompressed = gzipSync(cellEvidenceSerialized, {
+      level: 9,
+    });
     const cellEvidenceDigest = await sha256Uri(cellEvidenceSerialized);
 
     const evidence = {
@@ -769,11 +840,15 @@ describe("raw timestamp boundary tomography", () => {
       writeFileSync(EXPECTED_FILE, serialized, "utf8");
       return;
     }
-    expect(existsSync(CELL_EVIDENCE_FILE), "missing output-cell evidence sidecar").toBe(
-      true,
-    );
+    expect(
+      existsSync(CELL_EVIDENCE_FILE),
+      "missing output-cell evidence sidecar",
+    ).toBe(true);
     expect(cellEvidenceCompressed).toEqual(readFileSync(CELL_EVIDENCE_FILE));
-    expect(existsSync(EXPECTED_FILE), "missing raw-boundary influence ledger").toBe(true);
+    expect(
+      existsSync(EXPECTED_FILE),
+      "missing raw-boundary influence ledger",
+    ).toBe(true);
     expect(serialized).toBe(readFileSync(EXPECTED_FILE, "utf8"));
   }, 600_000);
 });

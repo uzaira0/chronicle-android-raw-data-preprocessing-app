@@ -3,11 +3,19 @@
 An application for preprocessing and plotting Chronicle Android raw data.
 
 The browser application is the first full implementation target for the
-generalized semantic-federation scaffold. It is not yet the completed physical
-incremental-execution example: browser computation is Rust/WASM, but any
-physical cache miss still runs the complete fused pipeline once. The current
-55 step statuses are calculated from the declared graph after that run; the 55
-transformations are not yet independently callable and cached.
+generalized semantic-federation scaffold. Browser computation is Rust/WASM, and
+all 55 preprocessing transformations now exist as individually tracked Salsa
+computations that match the complete Rust oracle in every usage mode. The
+stateful kernel skips every step on an unchanged call and runs only
+`assemble_result` for an output-only study-name change.
+
+This is not yet a production-readiness claim. The runtime now computes through
+the 55 tracked queries and reports their actual execution events, while the old
+15-group scheduler remains only as a compatibility artifact/view builder.
+Generated dependency evidence must be rebuilt against the tracked
+implementation. A root-bound optional query-cache persistence path now exists,
+but its full real-WASM reload/crash/size proof and the empirical, browser,
+mutation, security, and performance gates remain.
 
 See the
 [55-step incremental Rust plan](docs/semantic-federation/55-step-incremental-rust-plan.md)
@@ -22,15 +30,15 @@ The executable variability proof combines the closed
 with a contract-derived Rust/WASM campaign over all 46 computational options,
 separate proofs for the eight annotation/view/execution axes, catalog-derived
 synthetic corpora, explicit binding/qualification holes, and
-incremental-versus-cold replay. A checked controlled-intervention ledger holds
+incremental-versus-cold replay. The existing checked controlled-intervention ledger holds
 all other inputs constant across every ordered value transition, records the
 exact observed invalidation/state/output effects, compares all 15 logical-stage
 checkpoints with an independent cold Rust target, and requires a concrete
 activating case for every computational axis. The model preserves enum, numeric, list,
 and string equivalence domains; it does not reduce non-boolean settings to
-flags. Declared logical propagation is exact for the recorded test scope. It is
-test evidence for the planned physical executor, not proof that the current
-fused executor skipped the labeled steps.
+flags. Declared logical propagation is exact for the recorded test scope. Those
+ledgers predate the Salsa cutover and must be regenerated before they can prove
+the current physical execution sets.
 
 The companion
 [artifact dependency tomography](docs/semantic-federation/artifact-dependency-tomography.md)

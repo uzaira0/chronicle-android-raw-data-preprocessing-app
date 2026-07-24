@@ -1,8 +1,8 @@
 use super::*;
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct AggregateCsvOutput {
-    pub kind: &'static str,
+    pub kind: String,
     pub bytes: Vec<u8>,
     pub row_count: u32,
 }
@@ -107,9 +107,9 @@ fn summarize(app: Vec<&Row>, screen: Vec<&Row>, background: Vec<&Row>) -> Period
         .expect("aggregate group has a sample");
     let total_app_usage_minutes = minutes(total_app_ns);
     PeriodSummary {
-        study_id: sample.study_id.clone(),
-        participant_id: sample.participant_id.clone(),
-        timezone: sample.timezone.clone(),
+        study_id: sample.study_id.to_string(),
+        participant_id: sample.participant_id.to_string(),
+        timezone: sample.timezone.to_string(),
         day: sample.day,
         weekday_mf: sample.weekday_mf,
         weekday_mth: sample.weekday_mth,
@@ -147,8 +147,8 @@ where
     type Key = (String, String, String);
     let key = |row: &Row| {
         (
-            row.study_id.clone(),
-            row.participant_id.clone(),
+            row.study_id.to_string(),
+            row.participant_id.to_string(),
             period_of(&row.date),
         )
     };
@@ -321,9 +321,9 @@ fn top_apps_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
     let mut days = BTreeMap::<DayKey, Vec<&Row>>::new();
     for row in app_rows.iter().filter(|row| complete(row, APP_USAGE)) {
         days.entry((
-            row.study_id.clone(),
-            row.participant_id.clone(),
-            row.date.clone(),
+            row.study_id.to_string(),
+            row.participant_id.to_string(),
+            row.date.to_string(),
         ))
         .or_default()
         .push(row);
@@ -333,7 +333,7 @@ fn top_apps_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
         let mut packages = BTreeMap::<String, Vec<&Row>>::new();
         for row in rows {
             packages
-                .entry(row.app_package_name.clone())
+                .entry(row.app_package_name.to_string())
                 .or_default()
                 .push(row);
         }
@@ -352,7 +352,7 @@ fn top_apps_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
                     .sum();
                 (
                     package,
-                    rows[0].application_label.clone(),
+                    rows[0].application_label.to_string(),
                     foreground,
                     background,
                     rows.len(),
@@ -417,9 +417,9 @@ fn category_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
             .to_string();
         groups
             .entry((
-                row.study_id.clone(),
-                row.participant_id.clone(),
-                row.date.clone(),
+                row.study_id.to_string(),
+                row.participant_id.to_string(),
+                row.date.to_string(),
                 category,
             ))
             .or_default()
@@ -476,7 +476,7 @@ fn co_usage_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
     let mut participants = BTreeMap::<Participant, Vec<&Row>>::new();
     for row in app_rows.iter().filter(|row| complete(row, APP_USAGE)) {
         participants
-            .entry((row.study_id.clone(), row.participant_id.clone()))
+            .entry((row.study_id.to_string(), row.participant_id.to_string()))
             .or_default()
             .push(row);
     }
@@ -501,8 +501,8 @@ fn co_usage_csv(app_rows: &[Row], study_name: &str) -> (Vec<u8>, u32) {
                     continue;
                 }
                 let mut names = [
-                    other.app_package_name.clone(),
-                    session.app_package_name.clone(),
+                    other.app_package_name.to_string(),
+                    session.app_package_name.to_string(),
                 ];
                 names.sort();
                 let entry = pairs
@@ -556,7 +556,7 @@ pub(super) fn build_aggregate_outputs(
     let long = options.aggregate_shape == "long";
     let mut outputs = vec![
         AggregateCsvOutput {
-            kind: "aggregate-daily-summary-csv",
+            kind: "aggregate-daily-summary-csv".to_string(),
             bytes: summary_csv(
                 &daily,
                 &options.study_name,
@@ -571,7 +571,7 @@ pub(super) fn build_aggregate_outputs(
             },
         },
         AggregateCsvOutput {
-            kind: "aggregate-weekly-summary-csv",
+            kind: "aggregate-weekly-summary-csv".to_string(),
             bytes: summary_csv(
                 &weekly,
                 &options.study_name,
@@ -588,14 +588,14 @@ pub(super) fn build_aggregate_outputs(
     ];
     let (bytes, row_count) = top_apps_csv(app_rows, &options.study_name);
     outputs.push(AggregateCsvOutput {
-        kind: "aggregate-top-apps-csv",
+        kind: "aggregate-top-apps-csv".to_string(),
         bytes,
         row_count,
     });
     if options.use_app_codebook {
         let (bytes, row_count) = category_csv(app_rows, &options.study_name);
         outputs.push(AggregateCsvOutput {
-            kind: "aggregate-category-time-budget-csv",
+            kind: "aggregate-category-time-budget-csv".to_string(),
             bytes,
             row_count,
         });
@@ -603,7 +603,7 @@ pub(super) fn build_aggregate_outputs(
     if options.model_concurrent_usage || options.use_background_apps_file {
         let (bytes, row_count) = co_usage_csv(app_rows, &options.study_name);
         outputs.push(AggregateCsvOutput {
-            kind: "aggregate-app-co-usage-csv",
+            kind: "aggregate-app-co-usage-csv".to_string(),
             bytes,
             row_count,
         });

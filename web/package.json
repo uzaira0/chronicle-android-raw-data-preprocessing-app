@@ -23,6 +23,7 @@
     "test:interaction-influence-parallel": "node scripts/run_interaction_influence_parallel.mjs",
     "test:mixed-influence": "node scripts/run-clean-env.mjs node scripts/run_mixed_influence.mjs",
     "test:semantic-mutations": "node scripts/run-clean-env.mjs vitest run src/lib/pipelineGraph/golden/semanticModelMutation.test.ts",
+    "refresh:dependency-evidence": "node scripts/refresh_dependency_evidence.mjs",
     "test:coverage": "node scripts/run-clean-env.mjs vitest run --coverage",
     "check:contract": "node scripts/run-clean-env.mjs vite-node scripts/generate_contract_artifacts.mts --check && node scripts/run-clean-env.mjs vite-node scripts/check_contract_consistency.mts && node scripts/run-clean-env.mjs vite-node scripts/generate_pipeline_graph_artifacts.mts --check && node scripts/run-clean-env.mjs vite-node scripts/generate_output_codebook_artifacts.mts --check && node scripts/run-clean-env.mjs vite-node scripts/check_step_dataflow.mts && node scripts/run-clean-env.mjs vite-node scripts/check_contract_compat.mts",
     "check:contract-compat": "node scripts/run-clean-env.mjs vite-node scripts/check_contract_compat.mts",

@@ -57,12 +57,32 @@ Most npm scripts wrap the real command in `node scripts/run-clean-env.mjs` to st
 - `chronicle_app_usage_matcher` — **the single source of truth for session matching**. Core functions (`match_app_usage_core`, `split_overlapping_sessions` — an O(N log N) sweep-line) are binding-agnostic. A `python` feature (default on) gates PyO3 + numpy; the web crates depend on it with `default-features = false`, and `make rust` tests it feature-free.
 - `chronicle_app_usage_wasm` — wasm-bindgen wrapper around the matcher (path dep, `default-features = false` to exclude PyO3). Used by the web worker.
 - `chronicle_chrono_kernel_wasm` — chrono-tz timestamp/CSV kernels for the web.
+- `chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs` — the physical
+  preprocessing engine: exactly 55 Salsa `0.28.1` tracked Rust computations.
+  Their actual reads control invalidation; Salsa execution events are the only
+  source of physical cached/recomputed status. The complete sequential
+  `run_pipeline_v2_with_supports()` path is an independent cold oracle and
+  temporary rollback, not the warm execution path.
+- `chronicle_preprocessing_runtime_wasm` — product contract, qualification,
+  execution, evidence, typed views, and the root-bound query-cache API. Its
+  saved Salsa snapshot is optional acceleration only; authoritative source,
+  result, journal, and workspace-root objects remain in the verified closure.
 - Prebuilt WASM packages are committed under `web/src/wasm/*/pkg/` so the web build needs only Node (no Rust toolchain). They are **force-tracked** (`.gitignore` excludes `pkg/`); after `npm run build:wasm` you must `git add -f` the regenerated pkg.
 
 ### Web (`web/src/`)
 - `App.tsx` + `components/WorkflowNav.tsx` — tab UI: **settings → files → process → view**.
-- `lib/browserPipeline.ts` — orchestrates the in-browser pipeline (CSV parse → timezone → session split → WASM matching → codebook enrichment → plotting → aggregation → Parquet/SPSS/CSV output).
-- `lib/chronicleMatcher.ts` + `workers/chronicle-worker.ts` — a Comlink-managed `WorkerPool`; each worker holds warm WASM + codebook and runs the matcher off the main thread.
+- `lib/rustPipelineRuntime.ts` + `workers/chronicle-worker.ts` — the production
+  Comlink worker boundary. Rust/WASM owns parsing, qualification, all 55
+  transformations, incremental execution, evidence, and result artifacts.
+- `lib/opfsArtifactStore.ts` — thin browser persistence for Rust-owned
+  content-addressed objects, alternating authoritative workspace roots, and
+  separate optional alternating query-cache roots. Cache recovery occurs only
+  after workspace verification and always falls back cold on failure.
+- `lib/browserPipeline.ts` and `lib/pipelineGraph/steps/` — legacy/test behavior
+  references and shared UI-facing types. Production computation must not call
+  their TypeScript transformation or scheduler bodies.
+- `lib/chronicleMatcher.ts` — the browser-facing worker pool; the matcher itself
+  remains Rust authority inside the composed runtime.
 - `lib/plotGenerator.ts` + `lib/plotScene.ts` — a resolution-independent **Scene** model feeds both PNG (canvas) and SVG exports *and* the interactive surfaces, so they cannot drift. Plot types: app timeline, screen timeline, activity heatmap.
 - `components/TimelineViewPanel.tsx` — the current **"view" tab**: an interactive zoomable waterfall timeline built from the Scene model. `buildAppTimelineViews()` / `buildScreenTimelineViews()` in `plotGenerator.ts` are the switch points that feed both the View tab and the exported interactive HTML (`lib/timelineViewer.ts`).
 - Persistence: IndexedDB projects (`lib/projectsStore.ts`, file bundling opt-in), localStorage settings/presets (`lib/settingsPersistence.ts`). Service worker (`public/sw.js`) caches for offline use.

@@ -81,40 +81,41 @@
   ],
   "surfaces": [
     {
-      "surface_id": "fused_physical_pipeline",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/fused-physical-pipeline/v1",
+      "surface_id": "tracked_physical_pipeline",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/tracked-physical-pipeline/v1",
       "category": "product-computation",
       "current": {
         "language": "rust",
-        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs",
-        "entrypoint": "run_pipeline_v2_with_supports",
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "IncrementalPipelineV2Engine",
         "status": "active-production-authority"
       },
       "target": {
         "language": "rust",
-        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs",
-        "entrypoint": "run_pipeline_v2_with_supports",
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": "IncrementalPipelineV2Engine",
         "status": "active"
       },
       "requires_active_authority": true
     },
     {
-      "surface_id": "semantic_graph_scheduler",
-      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/semantic-graph-scheduler/v1",
-      "category": "semantic-computation",
+      "surface_id": "product_stage_projection",
+      "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/runtime/product-stage-projection/v1",
+      "category": "semantic-projection",
       "current": {
         "language": "rust",
-        "path": "rust/chronicle_preprocessing_semantic_adapter/src/scheduler.rs",
-        "entrypoint": "pub fn run",
+        "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
+        "entrypoint": "project_product_stages",
         "status": "active-production-authority"
       },
       "target": {
         "language": "rust",
-        "path": "rust/chronicle_preprocessing_semantic_adapter/src/scheduler.rs",
-        "entrypoint": "pub fn run",
+        "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
+        "entrypoint": "project_product_stages",
         "status": "active"
       },
-      "requires_active_authority": true
+      "requires_active_authority": true,
+      "does_not_schedule_physical_queries": true
     },
     {
       "surface_id": "dependency_certificate",
@@ -122,14 +123,14 @@
       "category": "semantic-validation",
       "current": {
         "language": "rust",
-        "path": "rust/chronicle_preprocessing_semantic_adapter/src/scheduler.rs",
-        "entrypoint": "dependency_cache_decision",
+        "path": "rust/chronicle_preprocessing_semantic_adapter/src/dependency_cache.rs",
+        "entrypoint": "evaluate_dependency_cache_decision",
         "status": "active-production-authority"
       },
       "target": {
         "language": "rust",
-        "path": "rust/chronicle_preprocessing_semantic_adapter/src/scheduler.rs",
-        "entrypoint": "dependency_cache_decision",
+        "path": "rust/chronicle_preprocessing_semantic_adapter/src/dependency_cache.rs",
+        "entrypoint": "evaluate_dependency_cache_decision",
         "status": "active"
       },
       "requires_active_authority": true

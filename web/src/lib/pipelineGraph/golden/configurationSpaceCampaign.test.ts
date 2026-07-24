@@ -1,9 +1,4 @@
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -19,9 +14,13 @@ import {
   VIEW_BROWSER_OPTION_KEYS,
 } from "@/lib/generatedContract";
 import { GOLDEN_RUNTIME } from "@/lib/pipelineGraph/golden/goldenScenario";
+
+const RUNTIME_ARTIFACT_REQUEST_FIELDS = new Set([
+  "enable_parquet_export",
+  "enable_spss_export",
+]);
 import {
   ALL_ON,
-  byId,
   def,
   descendantsOf,
   order,
@@ -36,6 +35,7 @@ import {
   SYNTHETIC_CORPUS_PROFILES,
   type SyntheticChronicleCorpus,
 } from "@/testSupport/syntheticChronicleCorpus";
+import { dependencyCampaignRuntimeBytes } from "@/testSupport/dependencyCampaignRuntime";
 import * as runtime from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
 import { configurationEquivalenceClasses } from "@/testSupport/configurationEquivalenceClasses";
 
@@ -120,7 +120,7 @@ type RuntimeManifest = {
 };
 
 type RustStepContract = {
-  protocolVersion: "chronicle-preprocessing-step-contract/v1";
+  protocolVersion: "chronicle-preprocessing-step-contract/v3";
   steps: Array<{
     id: string;
     group: string;
@@ -153,17 +153,12 @@ const t3Configs = coveringT3.configs as Configuration[];
 const seededConfigs = seededHighOrder.configs as Configuration[];
 
 beforeAll(() => {
-  const wasmBytes = readFileSync(
-    new URL(
-      "../../../wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm",
-      import.meta.url,
-    ),
-  );
-  runtime.initSync({ module: wasmBytes });
+  runtime.initSync({ module: dependencyCampaignRuntimeBytes() });
 });
 
 async function sha256Uri(value: Uint8Array | string): Promise<string> {
-  const bytes = typeof value === "string" ? encoder.encode(value) : Uint8Array.from(value);
+  const bytes =
+    typeof value === "string" ? encoder.encode(value) : Uint8Array.from(value);
   const digest = await crypto.subtle.digest("SHA-256", bytes.buffer);
   return `sha256:${Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
@@ -176,66 +171,96 @@ function supportCsv(
   omittedRole?: string,
   bindAllSupport = false,
 ) {
-  const firstTimestamp = corpus.csv.split("\n")[1]?.split(",")[7] ?? "2026-01-01 00:00:00";
-  return new Map<string, { name: string; csv: string }>([
-    ...(bindAllSupport || options.useFilterFile
-      ? [["filter_file", { name: "apps-to-filter.csv", csv: filterCsv }] as const]
-      : []),
-    ...(bindAllSupport || options.useAppsForcingScreenOpenFile
-      ? [["apps_forcing_screen_open_file", { name: "forcing-screen-open.csv", csv: forcingCsv }] as const]
-      : []),
-    ...(bindAllSupport || options.useBackgroundAppsFile
-      ? [["background_apps_file", { name: "background-apps.csv", csv: backgroundCsv }] as const]
-      : []),
-    ...(bindAllSupport || options.useAppCodebook
-      ? [[
-          "app_codebook_file",
-          {
-            name: "catalog-derived-codebook.csv",
-            csv: buildCodebookSlice(catalog, corpus.usedPackages),
-          },
-        ] as const]
-      : []),
-    ...(bindAllSupport ||
-    options.enableStudyWindowFilter ||
-    options.addNoActivityPlaceholderDays ||
-    options.enableDayCoverage
-      ? [[
-          "study_dates_file",
-          {
-            name: "study-dates.csv",
-            csv: `participant_id,start_date,end_date\n${corpus.participantId},2026-01-01,2026-12-31\n`,
-          },
-        ] as const]
-      : []),
-    ...(bindAllSupport || options.enablePersonAttribution || options.enableComplianceScoring
-      ? [[
-          "device_sharing_file",
-          {
-            name: "device-sharing.csv",
-            csv: `participant_id,sharing_status\n${corpus.participantId},Shared\n`,
-          },
-        ] as const]
-      : []),
-    ...(bindAllSupport || options.enablePersonAttribution
-      ? [[
-          "survey_attribution_file",
-          {
-            name: "survey-attribution.csv",
-            csv: `participant_id,event_timestamp,users\n${corpus.participantId},${firstTimestamp},Target Child\n`,
-          },
-        ] as const]
-      : []),
-    ...(bindAllSupport || options.enableComplianceScoring
-      ? [[
-          "enrolled_devices_file",
-          {
-            name: "enrolled-devices.csv",
-            csv: `participant_id,device_count\n${corpus.participantId},1\n`,
-          },
-        ] as const]
-      : []),
-  ].filter(([role]) => role !== omittedRole));
+  const firstTimestamp =
+    corpus.csv.split("\n")[1]?.split(",")[7] ?? "2026-01-01 00:00:00";
+  return new Map<string, { name: string; csv: string }>(
+    [
+      ...(bindAllSupport || options.useFilterFile
+        ? [
+            [
+              "filter_file",
+              { name: "apps-to-filter.csv", csv: filterCsv },
+            ] as const,
+          ]
+        : []),
+      ...(bindAllSupport || options.useAppsForcingScreenOpenFile
+        ? [
+            [
+              "apps_forcing_screen_open_file",
+              { name: "forcing-screen-open.csv", csv: forcingCsv },
+            ] as const,
+          ]
+        : []),
+      ...(bindAllSupport || options.useBackgroundAppsFile
+        ? [
+            [
+              "background_apps_file",
+              { name: "background-apps.csv", csv: backgroundCsv },
+            ] as const,
+          ]
+        : []),
+      ...(bindAllSupport || options.useAppCodebook
+        ? [
+            [
+              "app_codebook_file",
+              {
+                name: "catalog-derived-codebook.csv",
+                csv: buildCodebookSlice(catalog, corpus.usedPackages),
+              },
+            ] as const,
+          ]
+        : []),
+      ...(bindAllSupport ||
+      options.enableStudyWindowFilter ||
+      options.addNoActivityPlaceholderDays ||
+      options.enableDayCoverage
+        ? [
+            [
+              "study_dates_file",
+              {
+                name: "study-dates.csv",
+                csv: `participant_id,start_date,end_date\n${corpus.participantId},2026-01-01,2026-12-31\n`,
+              },
+            ] as const,
+          ]
+        : []),
+      ...(bindAllSupport ||
+      options.enablePersonAttribution ||
+      options.enableComplianceScoring
+        ? [
+            [
+              "device_sharing_file",
+              {
+                name: "device-sharing.csv",
+                csv: `participant_id,sharing_status\n${corpus.participantId},Shared\n`,
+              },
+            ] as const,
+          ]
+        : []),
+      ...(bindAllSupport || options.enablePersonAttribution
+        ? [
+            [
+              "survey_attribution_file",
+              {
+                name: "survey-attribution.csv",
+                csv: `participant_id,event_timestamp,users\n${corpus.participantId},${firstTimestamp},Target Child\n`,
+              },
+            ] as const,
+          ]
+        : []),
+      ...(bindAllSupport || options.enableComplianceScoring
+        ? [
+            [
+              "enrolled_devices_file",
+              {
+                name: "enrolled-devices.csv",
+                csv: `participant_id,device_count\n${corpus.participantId},1\n`,
+              },
+            ] as const,
+          ]
+        : []),
+    ].filter(([role]) => role !== omittedRole),
+  );
 }
 
 async function execute(
@@ -263,24 +288,30 @@ async function execute(
       supports.put_with_name(role, file.name, encoder.encode(file.csv));
       boundRoles.push(role);
     }
-    handle = runtime.execute_workspace(
-      JSON.stringify({
-        protocolVersion: "chronicle-preprocessing-runtime/v1",
-        requestId: identity,
-        command: "ExecuteWorkspace",
-        workspaceRootDigest: previousRoot,
-        workspaceId,
-        inputFileName: `${corpus.id}.csv`,
-        inputSha256: inputDigest,
-        options: buildRustV2Options(config.options, GOLDEN_RUNTIME),
-      }),
-      csvBytes,
-      supports,
-    );
+    try {
+      handle = runtime.execute_workspace(
+        JSON.stringify({
+          protocolVersion: "chronicle-preprocessing-runtime/v1",
+          requestId: identity,
+          command: "ExecuteWorkspace",
+          workspaceRootDigest: previousRoot,
+          workspaceId,
+          inputFileName: `${corpus.id}.csv`,
+          inputSha256: inputDigest,
+          options: buildRustV2Options(config.options, GOLDEN_RUNTIME),
+        }),
+        csvBytes,
+        supports,
+      );
+    } catch (error) {
+      throw new Error(`${identity}: ${String(error)}`);
+    }
     const manifest = JSON.parse(handle.manifest_json()) as RuntimeManifest;
     const capturedArtifacts = new Map<string, Uint8Array>();
     for (let index = 0; index < handle.artifact_count; index += 1) {
-      const metadata = JSON.parse(handle.artifact_metadata_json(index)) as { kind: string };
+      const metadata = JSON.parse(handle.artifact_metadata_json(index)) as {
+        kind: string;
+      };
       if (captureKinds.has(metadata.kind)) {
         capturedArtifacts.set(metadata.kind, handle.take_artifact_bytes(index));
       }
@@ -353,7 +384,10 @@ function semanticOutcome(manifest: RuntimeManifest) {
 function computationalOutcome(manifest: RuntimeManifest) {
   const processingSummary = Object.fromEntries(
     Object.entries(manifest.processingSummary)
-      .filter(([key]) => key !== "publishedOutputsDigest" && key !== "provenanceDigest")
+      .filter(
+        ([key]) =>
+          key !== "publishedOutputsDigest" && key !== "provenanceDigest",
+      )
       .map(([key, value]) => [
         key,
         key === "logicalStageDigests" || key === "logicalStageCheckpoints"
@@ -381,19 +415,20 @@ function changedCheckpointComponents(
   return Object.fromEntries(
     Object.keys(source.processingSummary.logicalStageCheckpoints)
       .sort()
-      .map((nodeId) => [
-        nodeId,
-        changedFields(
-          source.processingSummary.logicalStageCheckpoints[nodeId] as unknown as Record<
-            string,
-            unknown
-          >,
-          target.processingSummary.logicalStageCheckpoints[nodeId] as unknown as Record<
-            string,
-            unknown
-          >,
-        ).filter((field) => field !== "terminalDigest"),
-      ] as const)
+      .map(
+        (nodeId) =>
+          [
+            nodeId,
+            changedFields(
+              source.processingSummary.logicalStageCheckpoints[
+                nodeId
+              ] as unknown as Record<string, unknown>,
+              target.processingSummary.logicalStageCheckpoints[
+                nodeId
+              ] as unknown as Record<string, unknown>,
+            ).filter((field) => field !== "terminalDigest"),
+          ] as const,
+      )
       .filter(([, components]) => components.length > 0),
   );
 }
@@ -405,19 +440,20 @@ function changedStepCheckpointComponents(
   return Object.fromEntries(
     Object.keys(source.processingSummary.pipelineStepCheckpoints)
       .sort()
-      .map((stepId) => [
-        stepId,
-        changedFields(
-          source.processingSummary.pipelineStepCheckpoints[stepId] as unknown as Record<
-            string,
-            unknown
-          >,
-          target.processingSummary.pipelineStepCheckpoints[stepId] as unknown as Record<
-            string,
-            unknown
-          >,
-        ).filter((field) => field !== "terminalDigest"),
-      ] as const)
+      .map(
+        (stepId) =>
+          [
+            stepId,
+            changedFields(
+              source.processingSummary.pipelineStepCheckpoints[
+                stepId
+              ] as unknown as Record<string, unknown>,
+              target.processingSummary.pipelineStepCheckpoints[
+                stepId
+              ] as unknown as Record<string, unknown>,
+            ).filter((field) => field !== "terminalDigest"),
+          ] as const,
+      )
       .filter(([, components]) => components.length > 0),
   );
 }
@@ -447,7 +483,8 @@ function outputArtifacts(manifest: RuntimeManifest): Array<{
   return manifest.artifacts
     .filter(
       (artifact) =>
-        OUTPUT_ARTIFACT_KINDS.has(artifact.kind) || artifact.kind.startsWith("aggregate-"),
+        OUTPUT_ARTIFACT_KINDS.has(artifact.kind) ||
+        artifact.kind.startsWith("aggregate-"),
     )
     .sort((left, right) => left.kind.localeCompare(right.kind));
 }
@@ -465,12 +502,15 @@ function alternateConfiguration(key: string): Configuration {
   }
   const candidate = [...t3Configs, ...seededConfigs].find(
     (config) =>
-      JSON.stringify(config.options[key as keyof BrowserProcessingOptions] ?? null) !==
+      JSON.stringify(
+        config.options[key as keyof BrowserProcessingOptions] ?? null,
+      ) !==
       JSON.stringify(baseline[key as keyof BrowserProcessingOptions] ?? null),
   );
   if (!candidate) throw new Error(`no alternate equivalence class for ${key}`);
   const value = candidate.options[key as keyof BrowserProcessingOptions];
-  if (value === undefined) delete (options as unknown as Record<string, unknown>)[key];
+  if (value === undefined)
+    delete (options as unknown as Record<string, unknown>)[key];
   else (options as unknown as Record<string, unknown>)[key] = value;
   return { id: `single-${key}`, options };
 }
@@ -627,37 +667,48 @@ function nodeStatuses(manifest: RuntimeManifest): Record<string, string> {
   );
 }
 
-function stepInputKeys(manifest: RuntimeManifest): Record<string, string> {
+function executedStepIds(manifest: RuntimeManifest): string[] {
+  return manifest.stepExecutions
+    .filter((step) => step.status === "recomputed")
+    .map((step) => step.step_id)
+    .sort();
+}
+
+function stepStatuses(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
-    manifest.stepExecutions.map((step) => [step.step_id, step.input_key]),
+    manifest.stepExecutions.map((step) => [step.step_id, step.status]),
   );
 }
 
-function nodeOutputDigests(manifest: RuntimeManifest): Record<string, string | null> {
+function executedGroupIds(manifest: RuntimeManifest): string[] {
+  return [
+    ...new Set(
+      manifest.stepExecutions
+        .filter((step) => step.status === "recomputed")
+        .map((step) => step.unit_id),
+    ),
+  ].sort();
+}
+
+function nodeOutputDigests(
+  manifest: RuntimeManifest,
+): Record<string, string | null> {
   return Object.fromEntries(
-    manifest.nodeExecutions.map((node) => [node.node_id, node.output?.digest ?? null]),
+    manifest.nodeExecutions.map((node) => [
+      node.node_id,
+      node.output?.digest ?? null,
+    ]),
   );
 }
 
-function predictedPercolatedInputNodes(
-  optionKey: string,
-  changedSemanticOutputNodes: ReadonlySet<string>,
-): string[] {
-  const percolated = new Set<string>();
-  for (const nodeId of order) {
-    const node = byId.get(nodeId)!;
-    const directlyPerturbed = node.knobs.some((knob) => knob.optionKey === optionKey);
-    const reachedThroughInput = node.inputs.some((input) =>
-      changedSemanticOutputNodes.has(input),
-    );
-    if (directlyPerturbed || reachedThroughInput) percolated.add(nodeId);
-  }
-  return [...percolated].sort();
-}
-
-function outputArtifactDigests(manifest: RuntimeManifest): Record<string, string> {
+function outputArtifactDigests(
+  manifest: RuntimeManifest,
+): Record<string, string> {
   return Object.fromEntries(
-    outputArtifacts(manifest).map((artifact) => [artifact.kind, artifact.digest]),
+    outputArtifacts(manifest).map((artifact) => [
+      artifact.kind,
+      artifact.digest,
+    ]),
   );
 }
 
@@ -685,7 +736,10 @@ function errorText(error: unknown): string {
 
 describe("deterministic catalog-derived synthetic corpus", () => {
   it("replays exactly and represents every support-driven application class", () => {
-    for (const profile of [...SYNTHETIC_CORPUS_PROFILES, QUALIFICATION_CORPUS_PROFILE]) {
+    for (const profile of [
+      ...SYNTHETIC_CORPUS_PROFILES,
+      QUALIFICATION_CORPUS_PROFILE,
+    ]) {
       const first = generateSyntheticChronicleCorpus(profile, catalog);
       const second = generateSyntheticChronicleCorpus(profile, catalog);
       expect(second).toEqual(first);
@@ -700,16 +754,20 @@ describe("deterministic catalog-derived synthetic corpus", () => {
       expect(first.usedPackages.length).toBeGreaterThanOrEqual(5);
     }
     expect(
-      generateSyntheticChronicleCorpus(SYNTHETIC_CORPUS_PROFILES[0], catalog).csv,
+      generateSyntheticChronicleCorpus(SYNTHETIC_CORPUS_PROFILES[0], catalog)
+        .csv,
     ).not.toBe(
-      generateSyntheticChronicleCorpus(SYNTHETIC_CORPUS_PROFILES[1], catalog).csv,
+      generateSyntheticChronicleCorpus(SYNTHETIC_CORPUS_PROFILES[1], catalog)
+        .csv,
     );
   });
 });
 
 describe("Rust/WASM configuration-space campaign", () => {
   it("makes every conditional support binding hole explicit and blocks execution", async () => {
-    const corpus = corpora.find((candidate) => candidate.id === "support-intersections")!;
+    const corpus = corpora.find(
+      (candidate) => candidate.id === "support-intersections",
+    )!;
     const options: BrowserProcessingOptions = {
       ...ALL_ON,
       useFilterFile: true,
@@ -731,15 +789,26 @@ describe("Rust/WASM configuration-space campaign", () => {
       "study_dates_file",
       "device_sharing_file",
     ];
-    const complete = await evaluateRequirements(corpus, config, "bindings:complete");
+    const complete = await evaluateRequirements(
+      corpus,
+      config,
+      "bindings:complete",
+    );
     expect(complete.ready).toBe(true);
     expect(complete.openObligations).toEqual([]);
 
     for (const role of requiredRoles) {
-      const report = await evaluateRequirements(corpus, config, `bindings:missing:${role}`, role);
+      const report = await evaluateRequirements(
+        corpus,
+        config,
+        `bindings:missing:${role}`,
+        role,
+      );
       expect(report.ready, role).toBe(false);
       expect(
-        report.openObligations.some((obligation) => obligation.role_id === role),
+        report.openObligations.some(
+          (obligation) => obligation.role_id === role,
+        ),
         role,
       ).toBe(true);
       await expect(
@@ -764,7 +833,9 @@ describe("Rust/WASM configuration-space campaign", () => {
         const identity = `cold:t3:${corpus.id}:${config.id}`;
         const { manifest } = await execute(corpus, config, identity);
         coldExecutions += 1;
-        expect(manifest.protocolVersion, identity).toBe("chronicle-preprocessing-runtime/v1");
+        expect(manifest.protocolVersion, identity).toBe(
+          "chronicle-preprocessing-runtime/v1",
+        );
         expect(manifest.openObligations, identity).toEqual([]);
         expect(manifest.nodeExecutions, identity).toHaveLength(15);
         expect(
@@ -776,12 +847,19 @@ describe("Rust/WASM configuration-space campaign", () => {
         published.add(manifest.processingSummary.publishedOutputsDigest);
         provenance.add(manifest.processingSummary.provenanceDigest);
         roots.add(manifest.workspaceRootDigest);
-        minimumProcessed = Math.min(minimumProcessed, manifest.counts.processed);
-        maximumProcessed = Math.max(maximumProcessed, manifest.counts.processed);
+        minimumProcessed = Math.min(
+          minimumProcessed,
+          manifest.counts.processed,
+        );
+        maximumProcessed = Math.max(
+          maximumProcessed,
+          manifest.counts.processed,
+        );
         caseIdentities.push(
           `${identity}:${manifest.workspaceRootDigest}:${manifest.processingSummary.publishedOutputsDigest}`,
         );
-        if (corpus.id === "support-intersections") coldDense.set(config.id, manifest);
+        if (corpus.id === "support-intersections")
+          coldDense.set(config.id, manifest);
       }
       corpusReports.push({
         corpusId: corpus.id,
@@ -797,7 +875,9 @@ describe("Rust/WASM configuration-space campaign", () => {
       });
     }
 
-    const highOrderCorpus = corpora.find((corpus) => corpus.id === "interaction-pathologies")!;
+    const highOrderCorpus = corpora.find(
+      (corpus) => corpus.id === "interaction-pathologies",
+    )!;
     const highOrderPublished = new Set<string>();
     for (const config of seededConfigs) {
       const identity = `cold:seeded:${highOrderCorpus.id}:${config.id}`;
@@ -816,15 +896,23 @@ describe("Rust/WASM configuration-space campaign", () => {
       );
     }
 
-    const denseCorpus = corpora.find((corpus) => corpus.id === "support-intersections")!;
+    const denseCorpus = corpora.find(
+      (corpus) => corpus.id === "support-intersections",
+    )!;
     const warmWorkspace = "warm:t3:support-intersections";
     let previousRoot: string | null = null;
     for (const config of t3Configs) {
-      const warm = await execute(denseCorpus, config, warmWorkspace, previousRoot);
-      const cold = coldDense.get(config.id)!;
-      expect(semanticOutcome(warm.manifest), `incremental ${config.id}`).toEqual(
-        semanticOutcome(cold),
+      const warm = await execute(
+        denseCorpus,
+        config,
+        warmWorkspace,
+        previousRoot,
       );
+      const cold = coldDense.get(config.id)!;
+      expect(
+        semanticOutcome(warm.manifest),
+        `incremental ${config.id}`,
+      ).toEqual(semanticOutcome(cold));
       previousRoot = warm.manifest.workspaceRootDigest;
     }
 
@@ -838,11 +926,18 @@ describe("Rust/WASM configuration-space campaign", () => {
         options: { ...ALL_ON },
       };
       const changed = alternateConfiguration(key);
-      const baselineProjection = buildRustV2Options(baseline.options, GOLDEN_RUNTIME);
-      const changedProjection = buildRustV2Options(changed.options, GOLDEN_RUNTIME);
-      expect(changedProjection, `${key}: Rust projection must change`).not.toEqual(
-        baselineProjection,
+      const baselineProjection = buildRustV2Options(
+        baseline.options,
+        GOLDEN_RUNTIME,
       );
+      const changedProjection = buildRustV2Options(
+        changed.options,
+        GOLDEN_RUNTIME,
+      );
+      expect(
+        changedProjection,
+        `${key}: Rust projection must change`,
+      ).not.toEqual(baselineProjection);
 
       const workspaceIdentity = `single-option-transition:${key}`;
       const initial = await execute(denseCorpus, baseline, workspaceIdentity);
@@ -852,13 +947,19 @@ describe("Rust/WASM configuration-space campaign", () => {
         workspaceIdentity,
         initial.manifest.workspaceRootDigest,
       );
-      const cold = await execute(denseCorpus, changed, `single-option-cold:${key}`);
-      expect(semanticOutcome(warm.manifest), `${key}: warm/cold semantic outcome`).toEqual(
-        semanticOutcome(cold.manifest),
+      const cold = await execute(
+        denseCorpus,
+        changed,
+        `single-option-cold:${key}`,
       );
-      expect(outputArtifacts(warm.manifest), `${key}: warm/cold output artifacts`).toEqual(
-        outputArtifacts(cold.manifest),
-      );
+      expect(
+        semanticOutcome(warm.manifest),
+        `${key}: warm/cold semantic outcome`,
+      ).toEqual(semanticOutcome(cold.manifest));
+      expect(
+        outputArtifacts(warm.manifest),
+        `${key}: warm/cold output artifacts`,
+      ).toEqual(outputArtifacts(cold.manifest));
     }
 
     // View and execution-strategy axes are deliberately absent from the Rust
@@ -879,7 +980,8 @@ describe("Rust/WASM configuration-space campaign", () => {
       orthogonalBaseline,
       "orthogonal-workspace",
     );
-    let orthogonalPreviousRoot = orthogonalBaselineRun.manifest.workspaceRootDigest;
+    let orthogonalPreviousRoot =
+      orthogonalBaselineRun.manifest.workspaceRootDigest;
     const orthogonalProjection = buildRustV2Options(
       orthogonalBaseline.options,
       GOLDEN_RUNTIME,
@@ -896,12 +998,14 @@ describe("Rust/WASM configuration-space campaign", () => {
         "orthogonal-workspace",
         orthogonalPreviousRoot,
       );
-      expect(semanticOutcome(changedRun.manifest), `${key}: semantic invariance`).toEqual(
-        semanticOutcome(orthogonalBaselineRun.manifest),
-      );
-      expect(outputArtifacts(changedRun.manifest), `${key}: artifact invariance`).toEqual(
-        outputArtifacts(orthogonalBaselineRun.manifest),
-      );
+      expect(
+        semanticOutcome(changedRun.manifest),
+        `${key}: semantic invariance`,
+      ).toEqual(semanticOutcome(orthogonalBaselineRun.manifest));
+      expect(
+        outputArtifacts(changedRun.manifest),
+        `${key}: artifact invariance`,
+      ).toEqual(outputArtifacts(orthogonalBaselineRun.manifest));
       expect(
         changedRun.manifest.nodeExecutions.filter(
           (node) => node.status === "recomputed" || node.status === "error",
@@ -949,22 +1053,27 @@ describe("Rust/WASM configuration-space campaign", () => {
       undefined,
       captureAppCsv,
     );
-    expect(semanticOutcome(annotationWarm.manifest), "studyName: warm/cold outcome").toEqual(
-      semanticOutcome(annotationCold.manifest),
-    );
-    expect(outputArtifacts(annotationWarm.manifest), "studyName: warm/cold artifacts").toEqual(
-      outputArtifacts(annotationCold.manifest),
-    );
+    expect(
+      semanticOutcome(annotationWarm.manifest),
+      "studyName: warm/cold outcome",
+    ).toEqual(semanticOutcome(annotationCold.manifest));
+    expect(
+      outputArtifacts(annotationWarm.manifest),
+      "studyName: warm/cold artifacts",
+    ).toEqual(outputArtifacts(annotationCold.manifest));
     expect(
       annotationWarm.manifest.nodeExecutions
         .filter((node) => node.status === "recomputed")
         .map((node) => node.node_id),
       "studyName: exact invalidation cone",
     ).toEqual(["outputs"]);
-    expect(computationalOutcome(annotationWarm.manifest), "studyName: upstream invariance").toEqual(
-      computationalOutcome(annotationInitial.manifest),
-    );
-    expect(annotationWarm.manifest.processingSummary.publishedOutputsDigest).not.toBe(
+    expect(
+      computationalOutcome(annotationWarm.manifest),
+      "studyName: upstream invariance",
+    ).toEqual(computationalOutcome(annotationInitial.manifest));
+    expect(
+      annotationWarm.manifest.processingSummary.publishedOutputsDigest,
+    ).not.toBe(
       annotationInitial.manifest.processingSummary.publishedOutputsDigest,
     );
     const baselineAppCsv = new TextDecoder().decode(
@@ -986,7 +1095,11 @@ describe("Rust/WASM configuration-space campaign", () => {
         config.options.timezoneHandling === "selected-filter" &&
         config.options.selectedTimezone === "America/New_York";
       try {
-        const { manifest } = await execute(qualificationCorpus, config, identity);
+        const { manifest } = await execute(
+          qualificationCorpus,
+          config,
+          identity,
+        );
         expect(shouldFail, `${identity} unexpectedly succeeded`).toBe(false);
         expect(manifest.openObligations, identity).toEqual([]);
         qualificationSuccesses.push(config.id);
@@ -1050,7 +1163,10 @@ describe("Rust/WASM configuration-space campaign", () => {
       writeFileSync(EXPECTED_FILE, serialized, "utf8");
       return;
     }
-    expect(existsSync(EXPECTED_FILE), "missing configuration-space evidence snapshot").toBe(true);
+    expect(
+      existsSync(EXPECTED_FILE),
+      "missing configuration-space evidence snapshot",
+    ).toBe(true);
     expect(serialized).toBe(readFileSync(EXPECTED_FILE, "utf8"));
   }, 600_000);
 
@@ -1071,18 +1187,16 @@ describe("Rust/WASM configuration-space campaign", () => {
     }
     const perturbationKeys = COMPUTATIONAL_BROWSER_OPTION_KEYS.filter(
       (key, index) =>
-        (!influenceKeyFilter || key === influenceKeyFilter) && index % shardCount === shardIndex,
+        (!influenceKeyFilter || key === influenceKeyFilter) &&
+        index % shardCount === shardIndex,
     );
-    const stepContract = JSON.parse(runtime.pipeline_step_contract_json()) as RustStepContract;
+    const stepContract = JSON.parse(
+      runtime.pipeline_step_contract_json(),
+    ) as RustStepContract;
     expect(stepContract.protocolVersion).toBe(
-      "chronicle-preprocessing-step-contract/v1",
+      "chronicle-preprocessing-step-contract/v3",
     );
     expect(stepContract.steps).toHaveLength(55);
-    const missingBinders = COMPUTATIONAL_BROWSER_OPTION_KEYS.filter(
-      (key) => !def.nodes.some((node) => node.knobs.some((knob) => knob.optionKey === key)),
-    );
-    expect(missingBinders, "every computational axis needs a declared DAG binder").toEqual([]);
-
     const domainDescriptor = COMPUTATIONAL_BROWSER_OPTION_KEYS.map((key) => ({
       key,
       classes: configurationEquivalenceClasses(key).map(({ label, value }) => ({
@@ -1095,7 +1209,8 @@ describe("Rust/WASM configuration-space campaign", () => {
     const axesWithSubstantiveObservedEffects = new Set<string>();
     const staleLogicalCheckpointCases: Array<Record<string, unknown>> = [];
     const percolationClusterMismatchCases: Array<Record<string, unknown>> = [];
-    const stepPercolationClusterMismatchCases: Array<Record<string, unknown>> = [];
+    const stepPercolationClusterMismatchCases: Array<Record<string, unknown>> =
+      [];
     let receipt: ReturnType<typeof authorityReceipt> | undefined;
     let coldExecutions = 0;
     let orderedTransitions = 0;
@@ -1104,12 +1219,11 @@ describe("Rust/WASM configuration-space campaign", () => {
 
     for (const key of perturbationKeys) {
       const classes = configurationEquivalenceClasses(key);
-      const binders = def.nodes
-        .filter((node) => node.knobs.some((knob) => knob.optionKey === key))
-        .map((node) => node.id)
-        .sort();
-      const declaredCone = [...descendantsOf(new Set(binders))].sort();
-      const observedInputKeyNodes = new Set<string>();
+      const declaredStepBinders = new Set<string>();
+      const declaredGroupBinders = new Set<string>();
+      const declaredRuntimeArtifactBindings = new Set<string>();
+      const observedCompatibilityInputKeyNodes = new Set<string>();
+      const observedExecutedGroups = new Set<string>();
       const observedSemanticOutputNodes = new Set<string>();
       const observedChangedPipelineSteps = new Set<string>();
       const observedArtifactKinds = new Set<string>();
@@ -1121,9 +1235,13 @@ describe("Rust/WASM configuration-space campaign", () => {
         ({ id }) => !influenceContextFilter || id === influenceContextFilter,
       )) {
         const eligibleClasses = classes.filter(
-          ({ label }) => !context.eligibleLabels || context.eligibleLabels.has(label),
+          ({ label }) =>
+            !context.eligibleLabels || context.eligibleLabels.has(label),
         );
-        expect(eligibleClasses.length, `${key}/${context.id}: need at least two values`).toBeGreaterThan(1);
+        expect(
+          eligibleClasses.length,
+          `${key}/${context.id}: need at least two values`,
+        ).toBeGreaterThan(1);
         const transitionReports = new Map<
           string,
           {
@@ -1184,8 +1302,16 @@ describe("Rust/WASM configuration-space campaign", () => {
             coldExecutions += 1;
             const currentReceipt = authorityReceipt(run.manifest);
             if (!receipt) receipt = currentReceipt;
-            else expect(currentReceipt, `${identity}: implementation drift`).toEqual(receipt);
-            coldByLabel.set(equivalenceClass.label, { config, run, requirements });
+            else
+              expect(
+                currentReceipt,
+                `${identity}: implementation drift`,
+              ).toEqual(receipt);
+            coldByLabel.set(equivalenceClass.label, {
+              config,
+              run,
+              requirements,
+            });
           }
 
           for (const from of eligibleClasses) {
@@ -1226,21 +1352,30 @@ describe("Rust/WASM configuration-space campaign", () => {
               );
               incrementalExecutions += 2;
 
-              expect(semanticOutcome(initial.manifest), `${workspace}: cold source`).toEqual(
-                semanticOutcome(source.run.manifest),
-              );
-              expect(outputArtifacts(initial.manifest), `${workspace}: source artifacts`).toEqual(
-                outputArtifacts(source.run.manifest),
-              );
-              expect(semanticOutcome(warm.manifest), `${workspace}: warm/cold target`).toEqual(
-                semanticOutcome(target.run.manifest),
-              );
-              expect(outputArtifacts(warm.manifest), `${workspace}: warm/cold artifacts`).toEqual(
-                outputArtifacts(target.run.manifest),
-              );
+              expect(
+                semanticOutcome(initial.manifest),
+                `${workspace}: cold source`,
+              ).toEqual(semanticOutcome(source.run.manifest));
+              expect(
+                outputArtifacts(initial.manifest),
+                `${workspace}: source artifacts`,
+              ).toEqual(outputArtifacts(source.run.manifest));
+              expect(
+                semanticOutcome(warm.manifest),
+                `${workspace}: warm/cold target`,
+              ).toEqual(semanticOutcome(target.run.manifest));
+              expect(
+                outputArtifacts(warm.manifest),
+                `${workspace}: warm/cold artifacts`,
+              ).toEqual(outputArtifacts(target.run.manifest));
               const warmNodeOutputDigests = nodeOutputDigests(warm.manifest);
-              const coldTargetNodeOutputDigests = nodeOutputDigests(target.run.manifest);
-              if (JSON.stringify(warmNodeOutputDigests) !== JSON.stringify(coldTargetNodeOutputDigests)) {
+              const coldTargetNodeOutputDigests = nodeOutputDigests(
+                target.run.manifest,
+              );
+              if (
+                JSON.stringify(warmNodeOutputDigests) !==
+                JSON.stringify(coldTargetNodeOutputDigests)
+              ) {
                 staleLogicalCheckpointCases.push({
                   workspace,
                   optionKey: key,
@@ -1256,11 +1391,12 @@ describe("Rust/WASM configuration-space campaign", () => {
                   ),
                 });
               }
-              expect(warm.manifest.openObligations, `${workspace}: warm obligations`).toEqual(
-                target.run.manifest.openObligations,
-              );
+              expect(
+                warm.manifest.openObligations,
+                `${workspace}: warm obligations`,
+              ).toEqual(target.run.manifest.openObligations);
 
-              const changedInputKeyNodes = changedFields(
+              const changedCompatibilityInputKeyNodes = changedFields(
                 nodeInputKeys(initial.manifest),
                 nodeInputKeys(warm.manifest),
               );
@@ -1284,10 +1420,11 @@ describe("Rust/WASM configuration-space campaign", () => {
                 Object.keys(checkpointComponentChanges).sort(),
                 `${workspace}: typed checkpoint components do not commit to the terminal graph`,
               ).toEqual(changedSemanticOutputNodes);
-              const stepCheckpointComponentChanges = changedStepCheckpointComponents(
-                source.run.manifest,
-                target.run.manifest,
-              );
+              const stepCheckpointComponentChanges =
+                changedStepCheckpointComponents(
+                  source.run.manifest,
+                  target.run.manifest,
+                );
               expect(
                 Object.keys(stepCheckpointComponentChanges).sort(),
                 `${workspace}: typed step checkpoint components do not commit to the 55-step graph`,
@@ -1311,58 +1448,88 @@ describe("Rust/WASM configuration-space campaign", () => {
               const sourceObligations = obligationRoles(source.requirements);
               const targetObligations = obligationRoles(target.requirements);
 
-              for (const binder of binders) {
-                expect(
-                  changedInputKeyNodes,
-                  `${workspace}: direct binder ${binder} ignored ${key}`,
-                ).toContain(binder);
-                expect(nodeStatuses(warm.manifest)[binder], `${workspace}: stale binder`).not.toBe(
-                  "cached",
+              const actualExecutedGroups = executedGroupIds(warm.manifest);
+              const changedRustRequestFields = changedFields(
+                buildRustV2Options(source.config.options, GOLDEN_RUNTIME),
+                buildRustV2Options(target.config.options, GOLDEN_RUNTIME),
+              );
+              const actualExecutedSteps = executedStepIds(warm.manifest);
+              const changedStepOutputs = new Set(changedPipelineSteps);
+              const sourceStepStatuses = stepStatuses(source.run.manifest);
+              const targetStepStatuses = stepStatuses(target.run.manifest);
+              const newlyApplicableSteps = stepContract.steps
+                .filter(
+                  (step) =>
+                    sourceStepStatuses[step.id] === "bypassed" &&
+                    targetStepStatuses[step.id] !== "bypassed",
+                )
+                .map(({ id }) => id)
+                .sort();
+              const directStepBinders = stepContract.steps
+                .filter(
+                  (step) =>
+                    newlyApplicableSteps.includes(step.id) ||
+                    step.requestFields.some((field) =>
+                      changedRustRequestFields.includes(field),
+                    ),
+                )
+                .map(({ id }) => id);
+              for (const stepId of directStepBinders) {
+                declaredStepBinders.add(stepId);
+                declaredGroupBinders.add(
+                  stepContract.steps.find(({ id }) => id === stepId)!.group,
                 );
               }
-              const outsideDeclaredCone = changedInputKeyNodes.filter(
-                (node) => !declaredCone.includes(node),
-              );
-              expect(
-                outsideDeclaredCone,
-                `${workspace}: invalidation escaped the declared cone; statuses=${JSON.stringify(
-                  nodeStatuses(warm.manifest),
-                )}`,
-              ).toEqual([]);
-              const predictedInputKeyNodes = predictedPercolatedInputNodes(
-                key,
-                new Set(changedSemanticOutputNodes),
-              );
-              if (JSON.stringify(changedInputKeyNodes) !== JSON.stringify(predictedInputKeyNodes)) {
+              for (const field of changedRustRequestFields) {
+                if (RUNTIME_ARTIFACT_REQUEST_FIELDS.has(field)) {
+                  declaredRuntimeArtifactBindings.add(field);
+                  declaredGroupBinders.add("outputs");
+                }
+              }
+              const predictedExecutedSteps = stepContract.steps
+                .filter((step) => {
+                  const targetApplicable =
+                    targetStepStatuses[step.id] !== "bypassed";
+                  const newlyApplicable =
+                    sourceStepStatuses[step.id] === "bypassed" &&
+                    targetApplicable;
+                  return (
+                    targetApplicable &&
+                    (newlyApplicable ||
+                      step.requestFields.some((field) =>
+                        changedRustRequestFields.includes(field),
+                      ) ||
+                      step.inputs.some((input) =>
+                        changedStepOutputs.has(input),
+                      ))
+                  );
+                })
+                .map((step) => step.id)
+                .sort();
+              const predictedExecutedGroups = [
+                ...new Set(
+                  stepContract.steps
+                    .filter((step) => predictedExecutedSteps.includes(step.id))
+                    .map((step) => step.group),
+                ),
+              ].sort();
+              if (
+                JSON.stringify(actualExecutedGroups) !==
+                JSON.stringify(predictedExecutedGroups)
+              ) {
                 percolationClusterMismatchCases.push({
                   workspace,
                   optionKey: key,
                   contextId: context.id,
                   corpusId: corpus.id,
-                  observed: changedInputKeyNodes,
-                  predicted: predictedInputKeyNodes,
+                  observed: actualExecutedGroups,
+                  predicted: predictedExecutedGroups,
                   changedSemanticOutputNodes,
                 });
               }
-              const changedRustRequestFields = changedFields(
-                buildRustV2Options(source.config.options, GOLDEN_RUNTIME),
-                buildRustV2Options(target.config.options, GOLDEN_RUNTIME),
-              );
-              const changedStepInputKeys = changedFields(
-                stepInputKeys(initial.manifest),
-                stepInputKeys(warm.manifest),
-              );
-              const changedStepOutputs = new Set(changedPipelineSteps);
-              const predictedStepInputKeys = stepContract.steps
-                .filter(
-                  (step) =>
-                    step.requestFields.some((field) => changedRustRequestFields.includes(field)) ||
-                    step.inputs.some((input) => changedStepOutputs.has(input)),
-                )
-                .map((step) => step.id)
-                .sort();
               if (
-                JSON.stringify(changedStepInputKeys) !== JSON.stringify(predictedStepInputKeys)
+                JSON.stringify(actualExecutedSteps) !==
+                JSON.stringify(predictedExecutedSteps)
               ) {
                 stepPercolationClusterMismatchCases.push({
                   workspace,
@@ -1370,38 +1537,58 @@ describe("Rust/WASM configuration-space campaign", () => {
                   contextId: context.id,
                   corpusId: corpus.id,
                   changedRustRequestFields,
-                  observed: changedStepInputKeys,
-                  predicted: predictedStepInputKeys,
+                  observed: actualExecutedSteps,
+                  predicted: predictedExecutedSteps,
                   changedStepOutputs: changedPipelineSteps,
                 });
               }
 
-              changedInputKeyNodes.forEach((node) => observedInputKeyNodes.add(node));
+              changedCompatibilityInputKeyNodes.forEach((node) =>
+                observedCompatibilityInputKeyNodes.add(node),
+              );
+              actualExecutedGroups.forEach((node) =>
+                observedExecutedGroups.add(node),
+              );
               changedSemanticOutputNodes.forEach((node) =>
                 observedSemanticOutputNodes.add(node),
               );
-              changedPipelineSteps.forEach((step) => observedChangedPipelineSteps.add(step));
-              changedArtifactKinds.forEach((kind) => observedArtifactKinds.add(kind));
-              changedRoleStates.forEach((role) => observedRoleStateKeys.add(role));
-              changedNodeStates.forEach((node) => observedNodeStateKeys.add(node));
-              const nonProvenanceSummaryChanges = changedProcessingSummaryFields.filter(
-                (field) => field !== "provenanceDigest" && field !== "publishedOutputsDigest",
+              changedPipelineSteps.forEach((step) =>
+                observedChangedPipelineSteps.add(step),
               );
+              changedArtifactKinds.forEach((kind) =>
+                observedArtifactKinds.add(kind),
+              );
+              changedRoleStates.forEach((role) =>
+                observedRoleStateKeys.add(role),
+              );
+              changedNodeStates.forEach((node) =>
+                observedNodeStateKeys.add(node),
+              );
+              const nonProvenanceSummaryChanges =
+                changedProcessingSummaryFields.filter(
+                  (field) =>
+                    field !== "provenanceDigest" &&
+                    field !== "publishedOutputsDigest",
+                );
               if (
                 changedArtifactKinds.length > 0 ||
                 changedCountFields.length > 0 ||
                 nonProvenanceSummaryChanges.length > 0 ||
                 changedRoleStates.length > 0 ||
                 changedNodeStates.length > 0 ||
-                JSON.stringify(sourceObligations) !== JSON.stringify(targetObligations)
+                JSON.stringify(sourceObligations) !==
+                  JSON.stringify(targetObligations)
               ) {
                 axesWithSubstantiveObservedEffects.add(key);
               }
 
               const observation = {
                 corpusId: corpus.id,
-                changedInputKeyNodes,
-                changedStepInputKeys,
+                changedRustRequestFields,
+                newlyApplicableSteps,
+                changedCompatibilityInputKeyNodes,
+                actualExecutedGroups,
+                actualExecutedSteps,
                 changedSemanticOutputNodes,
                 changedPipelineSteps,
                 checkpointComponentChanges,
@@ -1423,7 +1610,13 @@ describe("Rust/WASM configuration-space campaign", () => {
                 .get(`${from.label}->${to.label}`)!
                 .corpusObservations.push(observation);
               caseIdentities.push(
-                JSON.stringify([key, context.id, from.label, to.label, observation]),
+                JSON.stringify([
+                  key,
+                  context.id,
+                  from.label,
+                  to.label,
+                  observation,
+                ]),
               );
             }
           }
@@ -1439,12 +1632,25 @@ describe("Rust/WASM configuration-space campaign", () => {
         });
       }
 
+      expect(
+        [...declaredStepBinders, ...declaredRuntimeArtifactBindings],
+        `${key}: no Rust query or runtime-artifact binding was exercised`,
+      ).not.toEqual([]);
+      const binders = [...declaredGroupBinders].sort();
+      const declaredCone = [...descendantsOf(new Set(binders))].sort();
       reports.push({
         optionKey: key,
         classes: classes.map(({ label, value }) => ({ label, value })),
         declaredBinders: binders,
+        declaredStepBinders: [...declaredStepBinders].sort(),
+        declaredRuntimeArtifactBindings: [
+          ...declaredRuntimeArtifactBindings,
+        ].sort(),
         declaredCone,
-        observedInputKeyNodes: [...observedInputKeyNodes].sort(),
+        observedCompatibilityInputKeyNodes: [
+          ...observedCompatibilityInputKeyNodes,
+        ].sort(),
+        observedExecutedGroups: [...observedExecutedGroups].sort(),
         observedSemanticOutputNodes: [...observedSemanticOutputNodes].sort(),
         observedChangedPipelineSteps: [...observedChangedPipelineSteps].sort(),
         observedArtifactKinds: [...observedArtifactKinds].sort(),
@@ -1454,9 +1660,10 @@ describe("Rust/WASM configuration-space campaign", () => {
       });
     }
 
-    const axesWithoutSubstantiveObservedEffects = COMPUTATIONAL_BROWSER_OPTION_KEYS.filter(
-      (key) => !axesWithSubstantiveObservedEffects.has(key),
-    );
+    const axesWithoutSubstantiveObservedEffects =
+      COMPUTATIONAL_BROWSER_OPTION_KEYS.filter(
+        (key) => !axesWithSubstantiveObservedEffects.has(key),
+      );
     expect(
       staleLogicalCheckpointCases,
       "every warm logical-stage checkpoint must equal an independent cold target",
@@ -1484,23 +1691,28 @@ describe("Rust/WASM configuration-space campaign", () => {
       protocolVersion: "chronicle-configuration-influence-ledger/v1",
       logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v3",
       claimBoundary:
-        "Exact 55-step and 15-display-group percolation plus warm/cold equality for the recorded Rust/WASM implementation, equivalence classes, contexts, support bindings, and synthetic corpora. Absence of an observed effect remains bounded to this declared test scope. Step recomputation is minimal; physical execution remains one fused Rust pipeline run whenever any required checkpoint changes.",
+        "Exact 55-query and 15-display-group execution plus warm/cold equality for the recorded Rust/WASM implementation, equivalence classes, contexts, support bindings, and synthetic corpora. Absence of an observed effect remains bounded to this declared test scope. Step execution is taken from actual Salsa query events; the fused Rust path is an independent cold oracle only.",
       contractAuthority: "web/schema/chronicle-local-contract.linkml.yaml",
-      planAuthority: ".semantic-federation/semantic/resources/chronicle.plan.json",
+      planAuthority:
+        ".semantic-federation/semantic/resources/chronicle.plan.json",
       equivalenceClassAuthority: "web/scripts/generate_combinatorial_model.mts",
       implementationReceipt: receipt,
-      computationalDomainDigest: await sha256Uri(JSON.stringify(domainDescriptor)),
+      computationalDomainDigest: await sha256Uri(
+        JSON.stringify(domainDescriptor),
+      ),
       computationalOptionCount: COMPUTATIONAL_BROWSER_OPTION_KEYS.length,
       equivalenceClassValueCount: domainDescriptor.reduce(
         (total, domain) => total + domain.classes.length,
         0,
       ),
-      syntheticCorpora: corpora.map(({ id, seed, rowCount, injectedFeatures }) => ({
-        id,
-        seed,
-        rowCount,
-        injectedFeatures,
-      })),
+      syntheticCorpora: corpora.map(
+        ({ id, seed, rowCount, injectedFeatures }) => ({
+          id,
+          seed,
+          rowCount,
+          injectedFeatures,
+        }),
+      ),
       executionCounts: {
         requirementEvaluations,
         coldExecutions,
@@ -1519,8 +1731,10 @@ describe("Rust/WASM configuration-space campaign", () => {
         stepClusterMismatchCases: stepPercolationClusterMismatchCases.length,
       },
       physicalExecutionBoundary:
-        "The product scheduler records and invalidates all 55 Rust step checkpoints exactly. FusedPhysicalExecutor still computes the physical Rust pipeline once per cache-miss run; partial physical-stage execution is not claimed.",
-      axesWithSubstantiveObservedEffects: [...axesWithSubstantiveObservedEffects].sort(),
+        "The production runtime executes and reuses 55 Salsa-tracked Rust queries. The recorded executed-step set comes from actual query bodies, and the 15 display groups are derived from those IDs. The fused Rust path is used only as an independent cold oracle.",
+      axesWithSubstantiveObservedEffects: [
+        ...axesWithSubstantiveObservedEffects,
+      ].sort(),
       axesWithoutSubstantiveObservedEffects,
       computationalOptionOrder: COMPUTATIONAL_BROWSER_OPTION_KEYS,
       optionInfluence: reports,

@@ -3,17 +3,20 @@
 This repository is the first full implementation target for the generalized
 semantic federation. It already proves the shared profile, qualification,
 storage, provenance, browser, and product-ownership boundaries described below.
-It does **not** yet prove minimal physical recomputation across all 55 Rust
-transformations.
+The kernel now proves minimal reuse for unchanged and output-only changes across
+55 real tracked Rust computations, plus complete parity in all four usage
+modes. It does **not** yet prove the full production requirement across browser
+reload, every configuration/support/binding intervention, runtime provenance,
+and the existing large empirical campaigns.
 
-The current browser product runs the complete preprocessing algorithm in
-Rust/WASM. After any physical cache miss it calls the fused pipeline once, then
-calculates 55 logical input keys and statuses from the completed result. The
-authoritative plan for replacing that projection with 55 real cached Rust
-computations is the
+The current branch contains 55 Salsa-tracked Rust computations and a stateful
+engine that produces complete `PipelineV2Result` values. Runtime computation
+and step reporting consume actual executed-step IDs. The old 15-group scheduler
+now builds compatibility artifacts and product views only; it does not decide
+which tracked computation executes. The generated empirical evidence is still
+stale and must be rebuilt. The authoritative live status and remaining checks are in the
 [55-step incremental Rust plan](55-step-incremental-rust-plan.md). Until those
-checks pass, this document must not be read as a completed physical incremental
-execution claim.
+checks pass, this document must not be read as a completed production claim.
 
 ## Reusable authority layers
 
@@ -38,9 +41,9 @@ flowchart LR
     I["Immutable input and support artifacts"]
     A["Rust role assignments"]
     O["Open obligations and node states"]
-    K["Declared dirty set and cache decision"]
-    P["One fused Rust physical pipeline run on any miss"]
-    E["Post-run logical evidence for 15 groups and 55 steps"]
+    K["Salsa tracks the values each Rust step actually reads"]
+    P["55 tracked Rust computations with typed reused results"]
+    E["Actual step events grouped into 15 product views"]
     C["Verified artifact closure and OPFS root"]
     V["Typed stage, artifact, obligation and explanation views"]
     U["TypeScript rendering and interaction"]
@@ -51,18 +54,15 @@ flowchart LR
 The product plan declares exact roles, cardinalities, media types, options,
 applicability, bypass conditions, logical dependencies, and capability IDs.
 Ingestion hashes immutable candidates. Rust assigns valid candidates to roles;
-missing required roles remain explicit obligations. The current scheduler
-derives 15 group input keys from upstream checkpoint artifacts, support roles,
-raw input, and declared options. On any group miss,
-`FusedPhysicalExecutor::ensure_result()` computes the complete pipeline. The 55
-step input keys and statuses are then built from that completed result.
+missing required roles remain explicit obligations. The tracked engine exposes
+each relevant source, support file, and option as Salsa inputs. Each of the 55
+queries reads only the values and upstream results it needs. Salsa reuses a
+typed result when its dependencies remain valid and stops propagation when a
+recomputed value is equal.
 
-This is useful dependency and stale-result test evidence, but it is not a
-physical dirty-cone executor. The target implementation makes each of the 55
-steps a callable tracked computation, records actual execution events, caches
-real intermediate results, and stops downstream execution when a recomputed
-value is unchanged. The fused path remains the independent cold oracle during
-that migration.
+The fused path remains an independent cold oracle during migration. The old
+15-group input keys remain temporarily for provenance compatibility and gap
+detection; they must not decide which physical query executes after cutover.
 
 ## Chronicle raw-data preprocessing authority
 
@@ -110,29 +110,40 @@ oracle and cannot be selected as production authority.
   decision, reason, requirement condition, and requirement state; every
   rule-level expected/observed evaluation is retained in the derived graph.
 
-The current memoization state lives in worker memory. A completely unchanged
-request can reuse the prior fused result. After a reload or worker crash, the
-stored artifacts and root records are recovered and verified, but computation
-is rerun. For changed requests, current node/step statuses describe the declared
-dependency effect while physical execution still runs the fused pipeline.
+The Salsa database stays warm in the worker and can now be exported as a
+versioned MessagePack snapshot. The browser stores that snapshot as an optional
+content-addressed object behind alternating cache-root records. Restore is
+attempted only after the authoritative workspace root and its semantic-index
+source have been verified, and only when the exact implementation, contracts,
+profiles, workspace, and committed base-root identity match. Runtime reporting
+caches are reconstructed from the verified semantic-index source rather than
+trusted from a second snapshot.
 
-The target runtime persists only a verified, version-bound query cache. A
-missing, corrupt, incompatible, or partial cache is discarded and rebuilt from
-the authoritative source files, options, contract, implementation identity, and
-stored result objects.
+This saved query state is acceleration only. Source files, options, contracts,
+committed workspace roots, immutable result objects, and append-only evidence
+remain authoritative. A missing, corrupt, incompatible, partial, oversized, or
+stale query cache is discarded and rebuilt by running cold. Cache restore or
+save failure cannot hide a required computation or invalidate an otherwise
+successful authoritative workspace commit. The real-WASM reload, crash,
+retention, size, and memory matrix remains a release gate.
 
 ## Dependency decisions
 
 - The scheduler remains product-owned; there is no federation-wide engine. The
-  existing custom 15-group scheduler is provisional. The previously approved
+  existing custom 15-group scheduler has no physical execution authority. The previously approved
   Salsa trial now passes representative native/headless-browser WASM,
   actual-read, execution-event, early-cutoff, qualification-hole, and verified
   snapshot tests. The measured results are in
-  [the product-trial report](../perf/SALSA_PRODUCT_TRIAL.md). Salsa is selected
-  only after the same checks cover all 55 Chronicle queries and actual-read
-  invalidation, early cutoff, event reporting, persistence safety, memory, and
-  bundle checks pass. Otherwise Chronicle implements a bounded product memo
-  table against the same tests.
+  [the product-trial report](../perf/SALSA_PRODUCT_TRIAL.md). Salsa `0.28.1` is selected
+  and all 55 real step queries now pass native complete-result parity, exact
+  unchanged reuse, output-only invalidation, Clippy, and browser-WASM compile
+  checks. Production cutover still requires the broader actual-read campaigns,
+  runtime event/view truth, persistence safety, memory, and bundle checks. The
+  comparison with the other researched Rust incremental libraries is closed in
+  the [authoritative plan](55-step-incremental-rust-plan.md#existing-software-decision).
+  If a
+  mandatory condition fails, Chronicle retains the bounded product memo
+  fallback against the same tests rather than changing the product contract.
 - Oxigraph is the derived RDF/SPARQL engine. It is pinned to upstream revision
   `d14ac0b5c4fa67b15d03af945d8669e3497c25a9` because crates.io `0.5.9`
   transitively pins vulnerable `quick-xml 0.37`; the pinned revision uses
@@ -212,9 +223,11 @@ empirical result into a permanent anti-staleness contract rather than a manual
 observation. All 1,380 transitions compare all 15 logical checkpoints with an
 independent cold target and compare the observed invalidation set with the
 deterministically predicted semantic percolation cluster. Both mismatch counts
-are zero. This proves logical minimality for the recorded scope; it does not
-claim partial physical execution, because any logical cache miss still invokes
-the fused Rust pipeline once.
+are zero. This proves logical minimality for the recorded pre-cutover scope.
+The checked ledger must be regenerated before it can claim current physical
+execution. In the current implementation, actual Salsa `WillExecute` events,
+not the old 15-stage cache projection, are the only source for physical
+`cached` versus `recomputed` status.
 
 Code and contract changes are also explicit intervention dimensions. Every
 logical node input key commits independently to (1) the production Rust source,

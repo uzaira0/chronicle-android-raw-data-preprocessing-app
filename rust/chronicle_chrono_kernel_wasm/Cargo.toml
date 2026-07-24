@@ -5,6 +5,10 @@ edition = "2021"
 license = "GPL-3.0-only"
 publish = false
 
+[features]
+default = []
+incremental-v2 = ["dep:lz4_flex", "dep:rmp-serde", "dep:salsa"]
+
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = [
     '-O3',
@@ -21,7 +25,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 wasm-bindgen = "0.2"
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive", "rc"] }
 serde-wasm-bindgen = "0.6"
 chrono = { version = "0.4", default-features = false, features = ["alloc", "wasmbind"] }
 chrono-tz = { version = "0.10", default-features = false }
@@ -33,6 +37,12 @@ serde_json = "1.0"
 ryu-js = "1.0"
 hex = "0.4"
 sha2 = "0.10"
+salsa = { version = "=0.28.1", path = "../vendor/salsa-0.28.1", default-features = false, features = ["macros", "persistence"], optional = true }
+rmp-serde = { version = "=1.3.1", optional = true }
+lz4_flex = { version = "=0.13.1", optional = true }
+
+[dev-dependencies]
+syn = { version = "2.0", features = ["full", "visit"] }
 
 [profile.release]
 opt-level = 3
@@ -40,3 +50,8 @@ lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = "symbols"
+
+[profile.profiling]
+inherits = "release"
+debug = 1
+strip = "none"

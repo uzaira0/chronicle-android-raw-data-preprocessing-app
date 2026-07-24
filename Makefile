@@ -29,7 +29,7 @@ SALSA_BENCH_RAW ?= .tmp-benchmark/chronicle-synthetic-60000.csv
         semgrep ast-grep cargo-audit cargo-deny trivy gitleaks \
         typecheck web-test contract semantic-federation combinatorial gate-truth \
         mutation mutation-web mutation-rust coverage coverage-rust coverage-all \
-        knip profile e2e deploy-artifact
+        knip profile e2e deploy-artifact dependency-evidence
 
 help:
 	@echo 'Local CI (GitHub Actions carries CD only):'
@@ -43,7 +43,7 @@ help:
 	@echo '               typecheck web-test contract e2e gate-truth mutation'
 	@echo '               mutation-web mutation-rust coverage coverage-rust coverage-all'
 	@echo '               knip profile combinatorial deploy-artifact salsa-browser-test'
-	@echo '               salsa-benchmark'
+	@echo '               salsa-benchmark dependency-evidence'
 
 # ---------- aggregates ----------
 ci: rust security
@@ -76,22 +76,22 @@ web: typecheck web-test contract semantic-federation
 # (chronicle_app_usage_wasm, chronicle_chrono_kernel_wasm); its tests run
 # feature-free so no libpython is required on PATH.
 rust:
-	cargo test --manifest-path $(MATCHER) --no-default-features
-	cargo test --manifest-path $(CHRONO_KERNEL)
-	rustup run stable cargo check --manifest-path $(CHRONO_KERNEL) --target wasm32-unknown-unknown
-	cargo test --manifest-path $(SEMANTIC_RUNTIME)
-	rustup run stable cargo check --manifest-path $(SEMANTIC_RUNTIME) --target wasm32-unknown-unknown --features wasm
-	cargo test --manifest-path $(PRODUCT_RUNTIME)
-	rustup run stable cargo check --manifest-path $(PRODUCT_RUNTIME) --target wasm32-unknown-unknown
-	cargo test --manifest-path $(SALSA_SPIKE)
-	rustup run stable cargo check --manifest-path $(SALSA_SPIKE) --target wasm32-unknown-unknown
-	cargo test --manifest-path $(SEMANTIC_INDEX)
-	rustup run stable cargo check --manifest-path $(SEMANTIC_INDEX) --target wasm32-unknown-unknown
-	cargo clippy --manifest-path $(CHRONO_KERNEL) --all-targets -- -D warnings
-	cargo clippy --manifest-path $(SEMANTIC_RUNTIME) --all-targets -- -D warnings
-	cargo clippy --manifest-path $(PRODUCT_RUNTIME) --all-targets -- -D warnings
-	cargo clippy --manifest-path $(SALSA_SPIKE) --all-targets -- -D warnings
-	cargo clippy --manifest-path $(SEMANTIC_INDEX) --all-targets -- -D warnings
+	cargo test --locked --manifest-path $(MATCHER) --no-default-features
+	cargo test --locked --manifest-path $(CHRONO_KERNEL) --features incremental-v2
+	rustup run stable cargo check --locked --manifest-path $(CHRONO_KERNEL) --target wasm32-unknown-unknown --features incremental-v2
+	cargo test --locked --manifest-path $(SEMANTIC_RUNTIME)
+	rustup run stable cargo check --locked --manifest-path $(SEMANTIC_RUNTIME) --target wasm32-unknown-unknown --features wasm
+	cargo test --locked --manifest-path $(PRODUCT_RUNTIME)
+	rustup run stable cargo check --locked --manifest-path $(PRODUCT_RUNTIME) --target wasm32-unknown-unknown
+	cargo test --locked --manifest-path $(SALSA_SPIKE)
+	rustup run stable cargo check --locked --manifest-path $(SALSA_SPIKE) --target wasm32-unknown-unknown
+	cargo test --locked --manifest-path $(SEMANTIC_INDEX)
+	rustup run stable cargo check --locked --manifest-path $(SEMANTIC_INDEX) --target wasm32-unknown-unknown
+	cargo clippy --locked --manifest-path $(CHRONO_KERNEL) --all-targets --features incremental-v2 -- -D warnings
+	cargo clippy --locked --manifest-path $(SEMANTIC_RUNTIME) --all-targets -- -D warnings
+	cargo clippy --locked --manifest-path $(PRODUCT_RUNTIME) --all-targets -- -D warnings
+	cargo clippy --locked --manifest-path $(SALSA_SPIKE) --all-targets -- -D warnings
+	cargo clippy --locked --manifest-path $(SEMANTIC_INDEX) --all-targets -- -D warnings
 
 # A browser driver must match the installed browser major version. Set both
 # paths explicitly so wasm-pack cannot silently substitute an incompatible
@@ -162,6 +162,11 @@ combinatorial:
 # assert the drift gate FIRES (restores on exit, interrupt-safe).
 gate-truth:
 	scripts/run_gate_truth_checks.sh
+
+# Regenerate the six implementation-bound dependency ledgers using a temporary
+# test-only runtime, then rebuild the normal fail-closed WASM package.
+dependency-evidence:
+	cd web && npm run refresh:dependency-evidence
 
 # Mutation-score both the TypeScript oracle/UI boundary and the production Rust
 # authority. This is intentionally local-only and slow; run before release.

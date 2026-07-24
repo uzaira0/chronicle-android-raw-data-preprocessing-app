@@ -3,11 +3,10 @@
 // the PipelineGraph / PipelineNode / PipelineKnobBinding classes declared in
 // web/schema/chronicle-local-contract.linkml.yaml.
 //
-// Rust owns the 55-step graph structure. The retired TypeScript step wiring is
-// loaded only as a migration oracle: labels, descriptions and every edge must
-// still agree while the remaining per-step metadata moves to Rust. Validation
-// here is the bijection gate (docs/dag-validate-ontologize-productize-research.md
-// O1 + V7):
+// Rust owns the 55-step graph structure, applicability, option bindings,
+// support roles, bypasses, and early-cutoff declarations. The checked-in YAML
+// carries step display labels/descriptions only; they cannot affect execution.
+// Validation here checks:
 //   * every knob option_key is a BrowserProcessingOptions slot;
 //   * every support file is a BrowserSupportFiles slot;
 //   * inputs reference declared nodes and the graph topo-sorts (DAG);
@@ -21,12 +20,6 @@ import { fileURLToPath } from "node:url";
 
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
-import { buildChronicleGraph, UNBOUND_OPTION_KEYS } from "../src/lib/pipelineGraph/graphDef";
-import { topoSort } from "../src/lib/pipelineGraph/engine";
-import type { GraphDef } from "../src/lib/pipelineGraph/graphTypes";
-import { buildStepGraph, stepInputIds } from "../src/lib/pipelineGraph/stepGraph";
-import { ALL_UNIT_WIRINGS } from "../src/lib/pipelineGraph/steps";
-import { BROWSER_PROCESSING_OPTION_KEYS } from "../src/lib/generatedContract";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = path.resolve(HERE, "../schema/chronicle-local-contract.linkml.yaml");
@@ -40,16 +33,23 @@ type RustPipelineGroup = {
   id: string;
   label: string;
   section: string;
+  knobs: Array<{ optionKey: string; edge: string }>;
+  supportRoles: string[];
+  applicability: unknown;
+  canBypass: boolean;
+  earlyCutoff: boolean;
 };
 
 type RustPipelineStep = {
   id: string;
   group: string;
   inputs: string[];
+  canBypass: boolean;
 };
 
 type RustPipelineContract = {
-  protocolVersion: "chronicle-preprocessing-step-contract/v1";
+  protocolVersion: "chronicle-preprocessing-step-contract/v3";
+  unboundOptionKeys: string[];
   groups: RustPipelineGroup[];
   steps: RustPipelineStep[];
 };
@@ -62,13 +62,15 @@ function loadRustPipelineContract(): RustPipelineContract {
       "--quiet",
       "--manifest-path",
       RUST_MANIFEST_PATH,
+      "--features",
+      "incremental-v2",
       "--bin",
       "export_pipeline_step_contract",
     ],
     { encoding: "utf-8" },
   );
   const contract = JSON.parse(output) as RustPipelineContract;
-  if (contract.protocolVersion !== "chronicle-preprocessing-step-contract/v1") {
+  if (contract.protocolVersion !== "chronicle-preprocessing-step-contract/v3") {
     throw new Error(`Unsupported Rust step contract: ${contract.protocolVersion}`);
   }
   if (contract.groups.length !== 15 || contract.steps.length !== 55) {
@@ -78,10 +80,6 @@ function loadRustPipelineContract(): RustPipelineContract {
     );
   }
   return contract;
-}
-
-function camelToSnake(value: string): string {
-  return value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 }
 
 type SchemaDoc = {
@@ -107,52 +105,34 @@ function enumValues(schema: SchemaDoc, enumName: string): Set<string> {
 
 async function buildProjection(): Promise<string> {
   const schema = await loadSchema();
-  const optionSlots = classSlots(schema, "BrowserProcessingOptions");
+  const optionSlots = new Set([
+    ...classSlots(schema, "BrowserProcessingOptions"),
+    ...classSlots(schema, "BrowserProcessingRuntime"),
+  ]);
   const supportSlots = classSlots(schema, "BrowserSupportFiles");
   const sections = enumValues(schema, "PipelineSection");
   const knobEdges = enumValues(schema, "PipelineKnobEdge");
 
-  const def = buildChronicleGraph();
   const rustContract = loadRustPipelineContract();
-  // DAG + reference validation (throws on cycles / unknown inputs).
-  topoSort(def as GraphDef<unknown>);
+  const existingDisplay = parseYaml(
+    await readFile(OUTPUT_PATH, "utf-8"),
+  ) as {
+    graph_steps?: Array<{
+      step_id: string;
+      step_label: string;
+      step_description: string;
+    }>;
+  };
+  const displayStepsById = new Map(
+    (existingDisplay.graph_steps ?? []).map((step) => [step.step_id, step]),
+  );
   const ids = new Set(rustContract.groups.map((group) => group.id));
-  const legacyIds = new Set(def.nodes.map((node) => node.id));
-  if (ids.size !== def.nodes.length) throw new Error("Duplicate node ids in graphDef");
-  if (
-    ids.size !== legacyIds.size ||
-    [...ids].some((id) => !legacyIds.has(id))
-  ) {
-    throw new Error("Rust group ids disagree with the retired TypeScript graph");
-  }
+  if (ids.size !== rustContract.groups.length) throw new Error("Duplicate Rust group ids");
 
   const rustStepsById = new Map(rustContract.steps.map((step) => [step.id, step]));
-  const legacySteps = ALL_UNIT_WIRINGS.flatMap((wiring) => wiring.steps);
-  const legacyStepsById = new Map(legacySteps.map((step) => [step.id, step]));
-  if (
-    rustStepsById.size !== legacyStepsById.size ||
-    [...rustStepsById].some(([id]) => !legacyStepsById.has(id))
-  ) {
-    throw new Error("Rust step ids disagree with the retired TypeScript step wiring");
-  }
-
   for (const step of rustContract.steps) {
-    const legacy = legacyStepsById.get(step.id);
-    if (!legacy) throw new Error(`Missing retired TypeScript step ${step.id}`);
-    // Multiple named ports can come from the same producing step. The Rust
-    // graph records the dependency once because execution and invalidation do
-    // not gain a second edge from a second field projection.
-    const legacyInputs = [...new Set(stepInputIds(legacy))];
-    if (
-      step.group !== legacy.unit ||
-      step.inputs.length !== legacyInputs.length ||
-      step.inputs.some((input, index) => input !== legacyInputs[index])
-    ) {
-      throw new Error(
-        `Rust step ${step.id} disagrees with the retired TypeScript wiring: ` +
-          `${step.group}[${step.inputs.join(",")}] != ` +
-          `${legacy.unit}[${legacyInputs.join(",")}]`,
-      );
+    if (!displayStepsById.has(step.id)) {
+      throw new Error(`Missing checked-in display text for Rust step ${step.id}`);
     }
   }
 
@@ -172,41 +152,22 @@ async function buildProjection(): Promise<string> {
 
   const boundOptionKeys = new Set<string>();
   const nodes = rustContract.groups.map((group) => {
-    const node = def.nodes.find((candidate) => candidate.id === group.id);
-    if (!node) throw new Error(`Missing retired TypeScript group ${group.id}`);
     const inputs = groupInputs.get(group.id)!;
-    for (const input of node.inputs) {
-      if (!ids.has(input)) throw new Error(`${node.id}: unknown input "${input}"`);
-    }
-    const legacyInputs = [...node.inputs].sort();
-    if (
-      inputs.length !== legacyInputs.length ||
-      inputs.some((input, index) => input !== legacyInputs[index])
-    ) {
-      throw new Error(
-        `Rust-derived group inputs disagree for ${group.id}: ` +
-          `[${inputs.join(",")}] != [${legacyInputs.join(",")}]`,
-      );
-    }
     if (!sections.has(group.section)) {
       throw new Error(`${group.id}: unknown section "${group.section}"`);
     }
-    if (group.label !== node.label || group.section !== node.section) {
-      throw new Error(`Rust display group metadata disagrees for ${group.id}`);
-    }
-    const knobs = node.knobs.map((knob) => {
-      const slot = camelToSnake(knob.optionKey);
+    const knobs = group.knobs.map((knob) => {
+      const slot = knob.optionKey;
       if (!optionSlots.has(slot)) {
-        throw new Error(`${node.id}: knob "${knob.optionKey}" is not a BrowserProcessingOptions slot`);
+        throw new Error(`${group.id}: knob "${slot}" is not a BrowserProcessingOptions slot`);
       }
-      if (!knobEdges.has(knob.edge)) throw new Error(`${node.id}: unknown knob edge "${knob.edge}"`);
-      boundOptionKeys.add(knob.optionKey);
+      if (!knobEdges.has(knob.edge)) throw new Error(`${group.id}: unknown knob edge "${knob.edge}"`);
+      boundOptionKeys.add(slot);
       return { option_key: slot, edge: knob.edge };
     });
-    const supportFiles = (node.supportFiles ?? []).map((key) => {
-      const slot = camelToSnake(key);
+    const supportFiles = group.supportRoles.map((slot) => {
       if (!supportSlots.has(slot)) {
-        throw new Error(`${node.id}: support file "${key}" is not a BrowserSupportFiles slot`);
+        throw new Error(`${group.id}: support role "${slot}" is not a BrowserSupportFiles slot`);
       }
       return slot;
     });
@@ -217,56 +178,44 @@ async function buildProjection(): Promise<string> {
       node_inputs: inputs,
       node_knobs: knobs,
       ...(supportFiles.length > 0 ? { node_support_files: supportFiles } : {}),
-      has_bypass: node.bypassedWhen !== undefined,
-      has_early_cutoff: node.earlyCutoff === true,
+      has_bypass: group.canBypass,
+      has_early_cutoff: group.earlyCutoff,
     };
   });
 
   // Complement bijection: the contract keys with no node binding must be
   // exactly the ones graphDef declares as intentionally unbound.
-  const unboundKeys = BROWSER_PROCESSING_OPTION_KEYS.filter((key) => !boundOptionKeys.has(key));
-  for (const key of unboundKeys) {
-    if (!UNBOUND_OPTION_KEYS.has(key)) {
-      throw new Error(
-        `Contract option "${key}" is bound to no node and missing from UNBOUND_OPTION_KEYS — ` +
-          "bind it or declare it intentionally unbound in graphDef.ts",
-      );
-    }
+  const unbound = [...optionSlots].filter((key) => !boundOptionKeys.has(key)).sort();
+  const declaredUnbound = [...rustContract.unboundOptionKeys].sort();
+  if (
+    unbound.length !== declaredUnbound.length ||
+    unbound.some((key, index) => key !== declaredUnbound[index])
+  ) {
+    throw new Error(
+      `Rust option binding complement mismatch: actual=[${unbound.join(",")}] ` +
+        `declared=[${declaredUnbound.join(",")}].`,
+    );
   }
-  for (const key of UNBOUND_OPTION_KEYS) {
-    if (boundOptionKeys.has(key)) {
-      throw new Error(`"${key}" is in UNBOUND_OPTION_KEYS but IS bound to a node`);
-    }
-  }
-  const unbound = unboundKeys.map(camelToSnake);
 
-  // Flat step DAG, derived from the SAME wiring objects the step runner
-  // executes (buildStepGraph re-validates unit↔wiring bijection, port
-  // discipline, unit-edge witnessing and acyclicity — throws on violation).
-  const stepGraph = buildStepGraph(def as GraphDef<unknown>, ALL_UNIT_WIRINGS);
+  // Flat step DAG is derived only from the Rust contract. Retired TypeScript
+  // objects supply labels, descriptions, and bypass display metadata.
   const graphSteps = rustContract.steps.map((step) => {
-    const legacy = legacyStepsById.get(step.id)!;
+    const display = displayStepsById.get(step.id)!;
     return {
       step_id: step.id,
-      step_label: legacy.label,
-      step_description: legacy.description,
+      step_label: display.step_label,
+      step_description: display.step_description,
       unit_id: step.group,
       ...(step.inputs.length > 0 ? { step_inputs: step.inputs } : {}),
-      has_bypass:
-        legacy.bypassedWhen !== undefined ||
-        def.nodes.find((node) => node.id === step.group)?.bypassedWhen !== undefined,
+      has_bypass: step.canBypass,
     };
   });
-  if (graphSteps.length !== stepGraph.def.nodes.length) {
-    throw new Error("step projection count mismatch with derived step graph");
-  }
-
   const header = [
     "# GENERATED by web/scripts/generate_pipeline_graph_artifacts.mts — do not edit by hand.",
     "# Declarative projection of the Rust-owned 55-step contract in",
     "# rust/chronicle_chrono_kernel_wasm/src/step_contract.rs, conforming to the",
     "# PipelineGraph class in chronicle-local-contract.linkml.yaml. The retired",
-    "# TypeScript graph is checked only as a migration oracle.",
+    "# Step labels/descriptions are display-only text retained in this file.",
     "#",
     "# Contract options NOT bound to any graph node (output/runtime-tier knobs consumed",
     "# outside the DAG):",

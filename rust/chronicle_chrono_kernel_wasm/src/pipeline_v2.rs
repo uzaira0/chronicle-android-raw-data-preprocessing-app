@@ -11,7 +11,8 @@ use chrono_tz::Tz;
 use csv_core::{ReadFieldResult, Reader as CsvReader};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::rc::Rc;
+use std::hash::{Hash, Hasher};
+use std::sync::{Arc, OnceLock};
 use wasm_bindgen::prelude::*;
 
 use crate::{parse_chronicle_timestamp_ns, weekday_chronicle, write_csv_field};
@@ -20,6 +21,10 @@ use _rust_app_usage_matcher::{split_overlapping_sessions, UsageLayer};
 
 #[path = "pipeline_v2_aggregates.rs"]
 mod aggregates;
+#[path = "pipeline_v2_incremental.rs"]
+mod incremental;
+#[cfg(feature = "incremental-v2")]
+pub use incremental::{IncrementalPipelineV2Engine, IncrementalPipelineV2Execution};
 
 const PREPROCESSOR_VERSION: &str = "1.0.0";
 
@@ -202,7 +207,7 @@ pub struct PipelineV2Options {
     pub no_witness_min_day_apps: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum UsageSessionMode {
     NoUsage,
     AppUsage,
@@ -284,7 +289,7 @@ fn parse_background_apps_csv(bytes: &[u8]) -> AHashSet<String> {
 #[derive(Default, Debug, Clone)]
 pub struct CodebookEntry {
     /// Indexed by codebook_col_index() output name (e.g. "codebook_application_label", "bcm_play_store_genreId"…)
-    pub fields: Rc<Vec<Option<String>>>,
+    pub fields: Arc<Vec<Option<String>>>,
 }
 
 fn parse_codebook_csv(bytes: &[u8]) -> HashMap<String, CodebookEntry> {
@@ -304,7 +309,7 @@ fn parse_codebook_csv(bytes: &[u8]) -> HashMap<String, CodebookEntry> {
         map.insert(
             pkg,
             CodebookEntry {
-                fields: Rc::new(fields),
+                fields: Arc::new(fields),
             },
         );
     }
@@ -409,8 +414,226 @@ fn parse_csv_to_records(bytes: &[u8]) -> Vec<HashMap<String, String>> {
 
 // ---- canonical row ------------------------------------------------------
 
+/// Cheaply cloned immutable text used inside row-bearing incremental query
+/// results. A `Row` is copied at several real transformation boundaries; the
+/// text itself normally does not change at those boundaries, so sharing it
+/// avoids allocating another copy for every cached query result.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+struct SharedString(Arc<String>);
+
+impl Default for SharedString {
+    fn default() -> Self {
+        static EMPTY: OnceLock<Arc<String>> = OnceLock::new();
+        Self(Arc::clone(EMPTY.get_or_init(|| Arc::new(String::new()))))
+    }
+}
+
+impl SharedString {
+    fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl std::ops::Deref for SharedString {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_str()
+    }
+}
+
+impl std::fmt::Display for SharedString {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl AsRef<str> for SharedString {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl std::borrow::Borrow<str> for SharedString {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl From<String> for SharedString {
+    fn from(value: String) -> Self {
+        Self(Arc::new(value))
+    }
+}
+
+impl From<&str> for SharedString {
+    fn from(value: &str) -> Self {
+        Self(Arc::new(value.to_owned()))
+    }
+}
+
+impl PartialEq<str> for SharedString {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+
+impl PartialEq<&str> for SharedString {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+/// Temporary value interner used while a row table is constructed. It shares
+/// repeated strings within that table without retaining raw-data values after
+/// the table is dropped or introducing global mutable state.
+#[derive(Default)]
+struct SharedStringPool(HashMap<u64, Vec<SharedString>>);
+
+impl SharedStringPool {
+    fn intern_owned(&mut self, value: String) -> SharedString {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        value.hash(&mut hasher);
+        let bucket = self.0.entry(hasher.finish()).or_default();
+        if let Some(existing) = bucket.iter().find(|existing| existing.as_str() == value) {
+            return existing.clone();
+        }
+        let shared = SharedString::from(value);
+        bucket.push(shared.clone());
+        shared
+    }
+
+    fn intern(&mut self, value: &str) -> SharedString {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        value.hash(&mut hasher);
+        let bucket = self.0.entry(hasher.finish()).or_default();
+        if let Some(existing) = bucket.iter().find(|existing| existing.as_str() == value) {
+            return existing.clone();
+        }
+        let shared = SharedString::from(value);
+        bucket.push(shared.clone());
+        shared
+    }
+}
+
+impl serde::Serialize for SharedString {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        #[cfg(feature = "incremental-v2")]
+        {
+            enum Decision {
+                Definition(u64),
+                Reference(u64),
+            }
+            let decision = ROW_SERIALIZE_CONTEXT.with(|context| {
+                let mut context = context.borrow_mut();
+                let context = context.as_mut()?;
+                let address = Arc::as_ptr(&self.0) as usize;
+                if let Some(id) = context.string_ids_by_address.get(&address) {
+                    return Some(Decision::Reference(*id));
+                }
+                let id = context.next_string_id;
+                context.next_string_id = context
+                    .next_string_id
+                    .checked_add(1)
+                    .expect("shared-string ID overflow");
+                context.string_ids_by_address.insert(address, id);
+                Some(Decision::Definition(id))
+            });
+            if let Some(decision) = decision {
+                return match decision {
+                    Decision::Definition(id) => {
+                        serde::Serialize::serialize(&(0_u8, id, Some(self.as_str())), serializer)
+                    }
+                    Decision::Reference(id) => {
+                        serde::Serialize::serialize(&(1_u8, id, Option::<&str>::None), serializer)
+                    }
+                };
+            }
+        }
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for SharedString {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[cfg(feature = "incremental-v2")]
+        if ROW_DESERIALIZE_CONTEXT.with(|context| context.borrow().is_some()) {
+            use serde::de::Error as _;
+            let (kind, id, value) = <(u8, u64, Option<String>)>::deserialize(deserializer)?;
+            return match (kind, value) {
+                (0, Some(value)) => ROW_DESERIALIZE_CONTEXT.with(|context| {
+                    let mut context = context.borrow_mut();
+                    let context = context
+                        .as_mut()
+                        .expect("checked active shared-string context");
+                    if context.strings_by_id.contains_key(&id) {
+                        return Err(D::Error::custom(format!(
+                            "duplicate persisted shared-string definition {id}"
+                        )));
+                    }
+                    let value = Arc::new(value);
+                    context.strings_by_id.insert(id, Arc::clone(&value));
+                    Ok(Self(value))
+                }),
+                (1, None) => ROW_DESERIALIZE_CONTEXT.with(|context| {
+                    context
+                        .borrow()
+                        .as_ref()
+                        .and_then(|context| context.strings_by_id.get(&id))
+                        .cloned()
+                        .map(Self)
+                        .ok_or_else(|| {
+                            D::Error::custom(format!(
+                                "unknown persisted shared-string reference {id}"
+                            ))
+                        })
+                }),
+                (kind, _) => Err(D::Error::custom(format!(
+                    "invalid persisted shared-string record kind {kind} for ID {id}"
+                ))),
+            };
+        }
+        String::deserialize(deserializer).map(Self::from)
+    }
+}
+
 #[derive(Clone)]
-struct Row {
+struct Row(Arc<RowInner>);
+
+/// The derived checkpoint parts travel with the immutable row value. Most
+/// pipeline steps clone a `Row` without changing it, so hashing that row again
+/// at every later checkpoint is redundant. Any mutable access below clears
+/// the cached parts before exposing `RowData`.
+struct RowInner {
+    data: RowData,
+    checkpoint_parts: OnceLock<RowCheckpointParts>,
+}
+
+impl RowInner {
+    fn new(data: RowData) -> Self {
+        Self {
+            data,
+            checkpoint_parts: OnceLock::new(),
+        }
+    }
+}
+
+impl Clone for RowInner {
+    fn clone(&self) -> Self {
+        // A clone is created specifically so its data can be changed through
+        // `Arc::make_mut`; retaining a prior digest would make it stale.
+        Self::new(self.data.clone())
+    }
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct RowData {
     /// One-based raw CSV data-row numbers (the header is not counted) that
     /// may contribute to this row. Matching/state-machine outputs retain a
     /// conservative dependency set rather than claiming false exactness.
@@ -418,18 +641,22 @@ struct Row {
     /// Exact descriptions of candidate regions searched to establish that a
     /// required matching event was absent. These remain separate from rows
     /// that directly supplied output values.
-    lineage_searches: Vec<LineageSearchEvidence>,
-    study_id: String,
-    participant_id: String,
-    possible_device_model: String,
-    username: String,
-    application_label: String,
-    interaction_type: String,
-    app_package_name: String,
+    #[serde(
+        serialize_with = "serialize_lineage_searches",
+        deserialize_with = "deserialize_lineage_searches"
+    )]
+    lineage_searches: Arc<Vec<LineageSearchEvidence>>,
+    study_id: SharedString,
+    participant_id: SharedString,
+    possible_device_model: SharedString,
+    username: SharedString,
+    application_label: SharedString,
+    interaction_type: SharedString,
+    app_package_name: SharedString,
     event_timestamp_ns: i64,
-    timezone: String,
+    timezone: SharedString,
     data_time_gap_hours: f64,
-    date: String,
+    date: SharedString,
     day: u8,
     weekday_mf: u8,
     weekday_mth: u8,
@@ -440,15 +667,15 @@ struct Row {
     stop_timestamp_ns: Option<i64>,
     duration_seconds: Option<f64>,
     duration_minutes: Option<f64>,
-    screen_usage_end_reason: Option<String>,
+    screen_usage_end_reason: Option<SharedString>,
     screen_usage_end_reason_confidence: Option<f64>,
-    screen_usage_stop_event_type: Option<String>,
+    screen_usage_stop_event_type: Option<SharedString>,
     screen_usage_last_activity_timestamp_ns: Option<i64>,
     screen_usage_tail_gap_seconds: Option<f64>,
-    screen_usage_foreground_app_package: Option<String>,
-    screen_usage_apps_forcing_screen_open_label: Option<String>,
+    screen_usage_foreground_app_package: Option<SharedString>,
+    screen_usage_apps_forcing_screen_open_label: Option<SharedString>,
     screen_usage_lock_screen_only: Option<u8>,
-    any_app_usage_flags: String,
+    any_app_usage_flags: SharedString,
     valid_app_new_engage_30s: i32,
     valid_app_new_engage_custom: i32,
     valid_app_switched_app: i32,
@@ -457,30 +684,394 @@ struct Row {
     any_app_new_engage_custom: i32,
     any_app_switched_app: i32,
     any_app_usage_time_gap_hours: f64,
-    genre_id_scraped: Option<String>,
-    broad_app_category: Option<String>,
+    genre_id_scraped: Option<SharedString>,
+    broad_app_category: Option<SharedString>,
     /// Per-codebook column values (Option<String>) parallel to CODEBOOK_RENAME_PAIRS.
-    codebook_fields: Rc<Vec<Option<String>>>,
+    #[serde(
+        serialize_with = "serialize_codebook_fields",
+        deserialize_with = "deserialize_codebook_fields"
+    )]
+    codebook_fields: Arc<Vec<Option<String>>>,
     codebook_genre_fields_cleared: bool,
     index: usize,
     /// Present only when `model_concurrent_usage` is true. Value is "primary"
     /// or "secondary". None when the flag is off (column absent from output).
-    usage_layer: Option<String>,
+    usage_layer: Option<SharedString>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[cfg(feature = "incremental-v2")]
+#[derive(Default)]
+struct RowSerializeContext {
+    row_ids_by_address: HashMap<usize, u64>,
+    string_ids_by_address: HashMap<usize, u64>,
+    source_rows_ids_by_address: HashMap<usize, u64>,
+    lineage_ids_by_address: HashMap<usize, u64>,
+    codebook_ids_by_address: HashMap<usize, u64>,
+    next_row_id: u64,
+    next_string_id: u64,
+    next_source_rows_id: u64,
+    next_lineage_id: u64,
+    next_codebook_id: u64,
+}
+
+#[cfg(feature = "incremental-v2")]
+#[derive(Default)]
+struct RowDeserializeContext {
+    rows_by_id: HashMap<u64, Arc<RowInner>>,
+    strings_by_id: HashMap<u64, Arc<String>>,
+    source_rows_by_id: HashMap<u64, Arc<Vec<SourceDataRowRange>>>,
+    lineage_by_id: HashMap<u64, Arc<Vec<LineageSearchEvidence>>>,
+    codebook_by_id: HashMap<u64, Arc<Vec<Option<String>>>>,
+}
+
+#[cfg(feature = "incremental-v2")]
+thread_local! {
+    static ROW_SERIALIZE_CONTEXT: std::cell::RefCell<Option<RowSerializeContext>> = const { std::cell::RefCell::new(None) };
+    static ROW_DESERIALIZE_CONTEXT: std::cell::RefCell<Option<RowDeserializeContext>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(feature = "incremental-v2")]
+enum SharedArcDecision {
+    Definition(u64),
+    Reference(u64),
+}
+
+#[cfg(feature = "incremental-v2")]
+fn shared_arc_decision(
+    address: usize,
+    ids_by_address: &mut HashMap<usize, u64>,
+    next_id: &mut u64,
+    label: &str,
+) -> SharedArcDecision {
+    if let Some(id) = ids_by_address.get(&address) {
+        return SharedArcDecision::Reference(*id);
+    }
+    let id = *next_id;
+    *next_id = next_id
+        .checked_add(1)
+        .unwrap_or_else(|| panic!("{label} ID overflow"));
+    ids_by_address.insert(address, id);
+    SharedArcDecision::Definition(id)
+}
+
+fn serialize_lineage_searches<S>(
+    value: &Arc<Vec<LineageSearchEvidence>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    #[cfg(feature = "incremental-v2")]
+    if let Some(decision) = ROW_SERIALIZE_CONTEXT.with(|context| {
+        let mut context = context.borrow_mut();
+        let context = context.as_mut()?;
+        let RowSerializeContext {
+            lineage_ids_by_address,
+            next_lineage_id,
+            ..
+        } = context;
+        Some(shared_arc_decision(
+            Arc::as_ptr(value) as usize,
+            lineage_ids_by_address,
+            next_lineage_id,
+            "lineage-search vector",
+        ))
+    }) {
+        return match decision {
+            SharedArcDecision::Definition(id) => {
+                serde::Serialize::serialize(&(0_u8, id, Some(value.as_ref())), serializer)
+            }
+            SharedArcDecision::Reference(id) => serde::Serialize::serialize(
+                &(1_u8, id, Option::<&Vec<LineageSearchEvidence>>::None),
+                serializer,
+            ),
+        };
+    }
+    serde::Serialize::serialize(value, serializer)
+}
+
+fn deserialize_lineage_searches<'de, D>(
+    deserializer: D,
+) -> Result<Arc<Vec<LineageSearchEvidence>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[cfg(feature = "incremental-v2")]
+    if ROW_DESERIALIZE_CONTEXT.with(|context| context.borrow().is_some()) {
+        use serde::de::Error as _;
+        let (kind, id, value) =
+            <(u8, u64, Option<Vec<LineageSearchEvidence>>) as serde::Deserialize>::deserialize(
+                deserializer,
+            )?;
+        return match (kind, value) {
+            (0, Some(value)) => ROW_DESERIALIZE_CONTEXT.with(|context| {
+                let mut context = context.borrow_mut();
+                let context = context.as_mut().expect("checked active lineage context");
+                if context.lineage_by_id.contains_key(&id) {
+                    return Err(D::Error::custom(format!(
+                        "duplicate persisted lineage-search vector {id}"
+                    )));
+                }
+                let value = Arc::new(value);
+                context.lineage_by_id.insert(id, Arc::clone(&value));
+                Ok(value)
+            }),
+            (1, None) => ROW_DESERIALIZE_CONTEXT.with(|context| {
+                context
+                    .borrow()
+                    .as_ref()
+                    .and_then(|context| context.lineage_by_id.get(&id))
+                    .cloned()
+                    .ok_or_else(|| {
+                        D::Error::custom(format!("unknown persisted lineage-search vector {id}"))
+                    })
+            }),
+            (kind, _) => Err(D::Error::custom(format!(
+                "invalid persisted lineage-search vector kind {kind} for ID {id}"
+            ))),
+        };
+    }
+    <Vec<LineageSearchEvidence> as serde::Deserialize>::deserialize(deserializer).map(Arc::new)
+}
+
+fn serialize_codebook_fields<S>(
+    value: &Arc<Vec<Option<String>>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    #[cfg(feature = "incremental-v2")]
+    if let Some(decision) = ROW_SERIALIZE_CONTEXT.with(|context| {
+        let mut context = context.borrow_mut();
+        let context = context.as_mut()?;
+        let RowSerializeContext {
+            codebook_ids_by_address,
+            next_codebook_id,
+            ..
+        } = context;
+        Some(shared_arc_decision(
+            Arc::as_ptr(value) as usize,
+            codebook_ids_by_address,
+            next_codebook_id,
+            "codebook vector",
+        ))
+    }) {
+        return match decision {
+            SharedArcDecision::Definition(id) => {
+                serde::Serialize::serialize(&(0_u8, id, Some(value.as_ref())), serializer)
+            }
+            SharedArcDecision::Reference(id) => serde::Serialize::serialize(
+                &(1_u8, id, Option::<&Vec<Option<String>>>::None),
+                serializer,
+            ),
+        };
+    }
+    serde::Serialize::serialize(value, serializer)
+}
+
+fn deserialize_codebook_fields<'de, D>(
+    deserializer: D,
+) -> Result<Arc<Vec<Option<String>>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[cfg(feature = "incremental-v2")]
+    if ROW_DESERIALIZE_CONTEXT.with(|context| context.borrow().is_some()) {
+        use serde::de::Error as _;
+        let (kind, id, value) =
+            <(u8, u64, Option<Vec<Option<String>>>) as serde::Deserialize>::deserialize(
+                deserializer,
+            )?;
+        return match (kind, value) {
+            (0, Some(value)) => ROW_DESERIALIZE_CONTEXT.with(|context| {
+                let mut context = context.borrow_mut();
+                let context = context.as_mut().expect("checked active codebook context");
+                if context.codebook_by_id.contains_key(&id) {
+                    return Err(D::Error::custom(format!(
+                        "duplicate persisted codebook vector {id}"
+                    )));
+                }
+                let value = Arc::new(value);
+                context.codebook_by_id.insert(id, Arc::clone(&value));
+                Ok(value)
+            }),
+            (1, None) => ROW_DESERIALIZE_CONTEXT.with(|context| {
+                context
+                    .borrow()
+                    .as_ref()
+                    .and_then(|context| context.codebook_by_id.get(&id))
+                    .cloned()
+                    .ok_or_else(|| {
+                        D::Error::custom(format!("unknown persisted codebook vector {id}"))
+                    })
+            }),
+            (kind, _) => Err(D::Error::custom(format!(
+                "invalid persisted codebook vector kind {kind} for ID {id}"
+            ))),
+        };
+    }
+    <Vec<Option<String>> as serde::Deserialize>::deserialize(deserializer).map(Arc::new)
+}
+
+impl serde::Serialize for Row {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        #[cfg(feature = "incremental-v2")]
+        {
+            enum Decision {
+                Definition(u64),
+                Reference(u64),
+            }
+            let decision = ROW_SERIALIZE_CONTEXT.with(|context| {
+                let mut context = context.borrow_mut();
+                let context = context.as_mut()?;
+                let address = Arc::as_ptr(&self.0) as usize;
+                if let Some(id) = context.row_ids_by_address.get(&address) {
+                    return Some(Decision::Reference(*id));
+                }
+                let id = context.next_row_id;
+                context.next_row_id = context.next_row_id.checked_add(1).expect("row ID overflow");
+                context.row_ids_by_address.insert(address, id);
+                Some(Decision::Definition(id))
+            });
+            if let Some(decision) = decision {
+                return match decision {
+                    Decision::Definition(id) => {
+                        serde::Serialize::serialize(&(0_u8, id, Some(&self.0.data)), serializer)
+                    }
+                    Decision::Reference(id) => serde::Serialize::serialize(
+                        &(1_u8, id, Option::<&RowData>::None),
+                        serializer,
+                    ),
+                };
+            }
+        }
+        self.0.data.serialize(serializer)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Row {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[cfg(feature = "incremental-v2")]
+        if ROW_DESERIALIZE_CONTEXT.with(|context| context.borrow().is_some()) {
+            use serde::de::Error as _;
+            let (kind, id, data) = <(u8, u64, Option<RowData>)>::deserialize(deserializer)?;
+            return match (kind, data) {
+                (0, Some(data)) => ROW_DESERIALIZE_CONTEXT.with(|context| {
+                    let mut context = context.borrow_mut();
+                    let context = context.as_mut().expect("checked active row context");
+                    if context.rows_by_id.contains_key(&id) {
+                        return Err(D::Error::custom(format!(
+                            "duplicate persisted row definition {id}"
+                        )));
+                    }
+                    let row = Arc::new(RowInner::new(data));
+                    context.rows_by_id.insert(id, Arc::clone(&row));
+                    Ok(Self(row))
+                }),
+                (1, None) => ROW_DESERIALIZE_CONTEXT.with(|context| {
+                    context
+                        .borrow()
+                        .as_ref()
+                        .and_then(|context| context.rows_by_id.get(&id))
+                        .cloned()
+                        .map(Self)
+                        .ok_or_else(|| {
+                            D::Error::custom(format!("unknown persisted row reference {id}"))
+                        })
+                }),
+                (kind, _) => Err(D::Error::custom(format!(
+                    "invalid persisted row record kind {kind} for ID {id}"
+                ))),
+            };
+        }
+        RowData::deserialize(deserializer).map(|data| Self(Arc::new(RowInner::new(data))))
+    }
+}
+
+#[cfg(feature = "incremental-v2")]
+struct RowPersistenceContextGuard {
+    serialize: bool,
+}
+
+#[cfg(feature = "incremental-v2")]
+impl Drop for RowPersistenceContextGuard {
+    fn drop(&mut self) {
+        if self.serialize {
+            ROW_SERIALIZE_CONTEXT.with(|context| *context.borrow_mut() = None);
+        } else {
+            ROW_DESERIALIZE_CONTEXT.with(|context| *context.borrow_mut() = None);
+        }
+    }
+}
+
+#[cfg(feature = "incremental-v2")]
+fn with_row_serialize_context<T>(operation: impl FnOnce() -> T) -> T {
+    ROW_SERIALIZE_CONTEXT.with(|context| {
+        assert!(
+            context.borrow().is_none(),
+            "nested row serialization context"
+        );
+        *context.borrow_mut() = Some(RowSerializeContext::default());
+    });
+    let _guard = RowPersistenceContextGuard { serialize: true };
+    operation()
+}
+
+#[cfg(feature = "incremental-v2")]
+fn with_row_deserialize_context<T>(operation: impl FnOnce() -> T) -> T {
+    ROW_DESERIALIZE_CONTEXT.with(|context| {
+        assert!(
+            context.borrow().is_none(),
+            "nested row deserialization context"
+        );
+        *context.borrow_mut() = Some(RowDeserializeContext::default());
+    });
+    let _guard = RowPersistenceContextGuard { serialize: false };
+    operation()
+}
+
+impl Row {
+    fn new(data: RowData) -> Self {
+        Self(Arc::new(RowInner::new(data)))
+    }
+}
+
+impl std::ops::Deref for Row {
+    type Target = RowData;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0.data
+    }
+}
+
+impl std::ops::DerefMut for Row {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        let inner = Arc::make_mut(&mut self.0);
+        inner.checkpoint_parts = OnceLock::new();
+        &mut inner.data
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceDataRowRange {
     pub first: u32,
     pub last: u32,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LineageSearchEvidence {
-    pub protocol_version: &'static str,
-    pub reason: &'static str,
-    pub index_space: &'static str,
+    pub protocol_version: String,
+    pub reason: String,
+    pub index_space: String,
     pub start_participant_id: String,
     pub start_event_index: u32,
     pub end_event_index_exclusive: u32,
@@ -488,16 +1079,103 @@ pub struct LineageSearchEvidence {
     pub candidate_chain_digest: String,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
-#[serde(transparent)]
-struct SourceDataRows(Vec<SourceDataRowRange>);
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SourceDataRows(Arc<Vec<SourceDataRowRange>>);
+
+impl Default for SourceDataRows {
+    fn default() -> Self {
+        static EMPTY: OnceLock<Arc<Vec<SourceDataRowRange>>> = OnceLock::new();
+        Self(Arc::clone(EMPTY.get_or_init(|| Arc::new(Vec::new()))))
+    }
+}
+
+impl serde::Serialize for SourceDataRows {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        #[cfg(feature = "incremental-v2")]
+        if let Some(decision) = ROW_SERIALIZE_CONTEXT.with(|context| {
+            let mut context = context.borrow_mut();
+            let context = context.as_mut()?;
+            let RowSerializeContext {
+                source_rows_ids_by_address,
+                next_source_rows_id,
+                ..
+            } = context;
+            Some(shared_arc_decision(
+                Arc::as_ptr(&self.0) as usize,
+                source_rows_ids_by_address,
+                next_source_rows_id,
+                "source-row vector",
+            ))
+        }) {
+            return match decision {
+                SharedArcDecision::Definition(id) => {
+                    serde::Serialize::serialize(&(0_u8, id, Some(self.0.as_ref())), serializer)
+                }
+                SharedArcDecision::Reference(id) => serde::Serialize::serialize(
+                    &(1_u8, id, Option::<&Vec<SourceDataRowRange>>::None),
+                    serializer,
+                ),
+            };
+        }
+        serde::Serialize::serialize(&self.0, serializer)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for SourceDataRows {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[cfg(feature = "incremental-v2")]
+        if ROW_DESERIALIZE_CONTEXT.with(|context| context.borrow().is_some()) {
+            use serde::de::Error as _;
+            let (kind, id, value) =
+                <(u8, u64, Option<Vec<SourceDataRowRange>>) as serde::Deserialize>::deserialize(
+                    deserializer,
+                )?;
+            return match (kind, value) {
+                (0, Some(value)) => ROW_DESERIALIZE_CONTEXT.with(|context| {
+                    let mut context = context.borrow_mut();
+                    let context = context.as_mut().expect("checked active source-row context");
+                    if context.source_rows_by_id.contains_key(&id) {
+                        return Err(D::Error::custom(format!(
+                            "duplicate persisted source-row vector {id}"
+                        )));
+                    }
+                    let value = Arc::new(value);
+                    context.source_rows_by_id.insert(id, Arc::clone(&value));
+                    Ok(Self(value))
+                }),
+                (1, None) => ROW_DESERIALIZE_CONTEXT.with(|context| {
+                    context
+                        .borrow()
+                        .as_ref()
+                        .and_then(|context| context.source_rows_by_id.get(&id))
+                        .cloned()
+                        .map(Self)
+                        .ok_or_else(|| {
+                            D::Error::custom(format!("unknown persisted source-row vector {id}"))
+                        })
+                }),
+                (kind, _) => Err(D::Error::custom(format!(
+                    "invalid persisted source-row vector kind {kind} for ID {id}"
+                ))),
+            };
+        }
+        <Vec<SourceDataRowRange> as serde::Deserialize>::deserialize(deserializer)
+            .map(|value| Self(Arc::new(value)))
+    }
+}
 
 impl SourceDataRows {
     fn single(row: u32) -> Self {
-        Self(vec![SourceDataRowRange {
+        Self(Arc::new(vec![SourceDataRowRange {
             first: row,
             last: row,
-        }])
+        }]))
     }
 
     fn len(&self) -> usize {
@@ -535,7 +1213,7 @@ impl SourceDataRows {
             return;
         }
         if self.0.is_empty() {
-            self.0.clone_from(&additional.0);
+            self.0 = Arc::clone(&additional.0);
             return;
         }
 
@@ -563,7 +1241,7 @@ impl SourceDataRows {
             }
             merged.push(next);
         }
-        self.0 = merged;
+        self.0 = Arc::new(merged);
     }
 
     fn cmp_expanded(&self, other: &Self) -> std::cmp::Ordering {
@@ -576,8 +1254,14 @@ impl SourceDataRows {
     }
 }
 
-fn empty_codebook_fields() -> Rc<Vec<Option<String>>> {
-    Rc::new(vec![None; CODEBOOK_RENAME_PAIRS.len()])
+fn empty_codebook_fields() -> Arc<Vec<Option<String>>> {
+    static EMPTY: OnceLock<Arc<Vec<Option<String>>>> = OnceLock::new();
+    Arc::clone(EMPTY.get_or_init(|| Arc::new(vec![None; CODEBOOK_RENAME_PAIRS.len()])))
+}
+
+fn empty_lineage_searches() -> Arc<Vec<LineageSearchEvidence>> {
+    static EMPTY: OnceLock<Arc<Vec<LineageSearchEvidence>>> = OnceLock::new();
+    Arc::clone(EMPTY.get_or_init(|| Arc::new(Vec::new())))
 }
 
 // ---- tz formatters ------------------------------------------------------
@@ -682,7 +1366,8 @@ fn populate_time_columns(row: &mut Row, tz: Tz) {
         local.year(),
         local.month(),
         local.day()
-    );
+    )
+    .into();
     let day = weekday_chronicle(local.weekday());
     row.day = day;
     row.weekday_mf = if (2..=6).contains(&day) { 1 } else { 0 };
@@ -984,7 +1669,7 @@ fn format_csv_int(v: i32) -> String {
 // ---- main entry ---------------------------------------------------------
 
 /// Internal Rust-side result; not directly returned across the boundary.
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct PipelineV2Result {
     pub app_csv_bytes: Vec<u8>,
     pub screen_csv_bytes: Vec<u8>,
@@ -1046,15 +1731,15 @@ pub struct LogicalStageCheckpoint {
     pub terminal_digest: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PipelineRowLineage {
-    pub output_kind: &'static str,
+    pub output_kind: String,
     pub output_row_index: u32,
     pub source_data_row_ranges: Vec<SourceDataRowRange>,
     pub source_data_row_count: u32,
     pub searches: Vec<LineageSearchEvidence>,
-    pub terminal_logical_node: &'static str,
+    pub terminal_logical_node: String,
 }
 
 fn build_row_lineage(
@@ -1072,12 +1757,12 @@ fn build_row_lineage_from_iter<'a>(
 ) -> Vec<PipelineRowLineage> {
     rows.enumerate()
         .map(|(index, row)| PipelineRowLineage {
-            output_kind,
+            output_kind: output_kind.to_string(),
             output_row_index: index as u32,
             source_data_row_ranges: row.source_data_rows.ranges().to_vec(),
             source_data_row_count: row.source_data_rows.len() as u32,
-            searches: row.lineage_searches.clone(),
-            terminal_logical_node,
+            searches: row.lineage_searches.as_ref().clone(),
+            terminal_logical_node: terminal_logical_node.to_string(),
         })
         .collect()
 }
@@ -1241,7 +1926,7 @@ fn sha256_digest_field(hasher: &mut Sha256, bytes: &[u8]) {
     hasher.update(bytes);
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct RowCheckpointParts {
     identity: [u8; 32],
     temporal: [u8; 32],
@@ -1274,7 +1959,7 @@ fn encode_row_checkpoint_parts<S: CheckpointSink>(
     // Every field is deliberately bound and hashed. Adding a Row field makes
     // this exhaustive pattern fail; binding one without hashing it makes the
     // deny(unused_variables) lint fail.
-    let Row {
+    let RowData {
         source_data_rows,
         lineage_searches,
         study_id,
@@ -1321,7 +2006,7 @@ fn encode_row_checkpoint_parts<S: CheckpointSink>(
         codebook_genre_fields_cleared,
         index,
         usage_layer,
-    } = row;
+    } = &row.0.data;
 
     checkpoint_digest_field(identity, b"chronicle-row-identity/v3");
     let source_ranges = source_data_rows.ranges();
@@ -1336,7 +2021,7 @@ fn encode_row_checkpoint_parts<S: CheckpointSink>(
         checkpoint_update(identity, &encoded_range);
     }
     checkpoint_update(identity, &(lineage_searches.len() as u64).to_le_bytes());
-    for search in lineage_searches {
+    for search in lineage_searches.iter() {
         checkpoint_digest_field(identity, search.protocol_version.as_bytes());
         checkpoint_digest_field(identity, search.reason.as_bytes());
         checkpoint_digest_field(identity, search.index_space.as_bytes());
@@ -1441,7 +2126,7 @@ fn encode_row_checkpoint_parts<S: CheckpointSink>(
 }
 
 impl RowCheckpointScratch {
-    fn parts(&mut self, row: &Row) -> RowCheckpointParts {
+    fn compute_parts(&mut self, row: &Row) -> RowCheckpointParts {
         self.identity.clear();
         self.temporal.clear();
         self.classification.clear();
@@ -1472,9 +2157,17 @@ impl RowCheckpointScratch {
     }
 }
 
+fn row_checkpoint_parts(row: &Row, scratch: &mut RowCheckpointScratch) -> RowCheckpointParts {
+    *row.0
+        .checkpoint_parts
+        .get_or_init(|| scratch.compute_parts(row))
+}
+
 fn row_checkpoint_parts_for_rows(rows: &[Row]) -> Vec<RowCheckpointParts> {
     let mut scratch = RowCheckpointScratch::default();
-    rows.iter().map(|row| scratch.parts(row)).collect()
+    rows.iter()
+        .map(|row| row_checkpoint_parts(row, &mut scratch))
+        .collect()
 }
 
 fn row_parts_sequence_digest<'a>(
@@ -1503,7 +2196,7 @@ fn row_reference_sequence_digest(rows: &[&Row]) -> String {
     let mut scratch = RowCheckpointScratch::default();
     let parts = rows
         .iter()
-        .map(|row| scratch.parts(row))
+        .map(|row| row_checkpoint_parts(row, &mut scratch))
         .collect::<Vec<_>>();
     row_parts_sequence_digest(parts.len(), parts.iter())
 }
@@ -1922,17 +2615,20 @@ struct VisualizationRow {
 
 fn visualization_row(row: &Row) -> VisualizationRow {
     VisualizationRow {
-        participant_id: row.participant_id.clone(),
-        date: row.date.clone(),
+        participant_id: row.participant_id.to_string(),
+        date: row.date.to_string(),
         start_timestamp_ns: row.start_timestamp_ns.map(|value| value.to_string()),
         stop_timestamp_ns: row.stop_timestamp_ns.map(|value| value.to_string()),
         event_timestamp_ns: row.event_timestamp_ns.to_string(),
-        interaction_type: row.interaction_type.clone(),
-        broad_app_category: row.broad_app_category.clone(),
-        app_package_name: row.app_package_name.clone(),
-        application_label: row.application_label.clone(),
-        username: row.username.clone(),
-        screen_usage_end_reason: row.screen_usage_end_reason.clone(),
+        interaction_type: row.interaction_type.to_string(),
+        broad_app_category: row.broad_app_category.as_ref().map(ToString::to_string),
+        app_package_name: row.app_package_name.to_string(),
+        application_label: row.application_label.to_string(),
+        username: row.username.to_string(),
+        screen_usage_end_reason: row
+            .screen_usage_end_reason
+            .as_ref()
+            .map(ToString::to_string),
     }
 }
 
@@ -1947,7 +2643,7 @@ fn build_visualization_data(
             .entry(if row.participant_id.is_empty() {
                 "unknown".into()
             } else {
-                row.participant_id.clone()
+                row.participant_id.to_string()
             })
             .or_default()
             .push(row.event_timestamp_ns.to_string());
@@ -1989,9 +2685,9 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
 
     for row in app_rows {
         let key = (
-            row.study_id.clone(),
-            row.participant_id.clone(),
-            row.date.clone(),
+            row.study_id.to_string(),
+            row.participant_id.to_string(),
+            row.date.to_string(),
         );
         // The review day-detail intentionally includes any emitted app row
         // with a measured duration (including explicitly labeled filtered or
@@ -2014,9 +2710,9 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
             continue;
         }
         let key = (
-            row.study_id.clone(),
-            row.participant_id.clone(),
-            row.date.clone(),
+            row.study_id.to_string(),
+            row.participant_id.to_string(),
+            row.date.to_string(),
         );
         let day = days.entry(key).or_default();
         day.screen_ns += review_duration_ns(row);
@@ -2112,7 +2808,7 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
                     continue;
                 }
                 by_package
-                    .entry(row.app_package_name.clone())
+                    .entry(row.app_package_name.to_string())
                     .or_default()
                     .push(*row);
             }
@@ -2126,8 +2822,8 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
                         .sum::<f64>();
                     ReviewTopApp {
                         app_package_name,
-                        application_label: sample.application_label.clone(),
-                        category: sample.broad_app_category.clone(),
+                        application_label: sample.application_label.to_string(),
+                        category: sample.broad_app_category.as_ref().map(ToString::to_string),
                         minutes: review_round4(minutes),
                     }
                 })
@@ -2467,232 +3163,37 @@ fn parse_raw_rows(
     opts: &PipelineV2Options,
     step_checkpoints: &mut StepCheckpointRecorder<'_>,
 ) -> Result<(Vec<Row>, String), String> {
-    let tz: Tz = opts
-        .timezone
-        .parse()
-        .map_err(|e| format!("tz {}: {e}", opts.timezone))?;
-    let interaction_remap = opts
-        .interaction_type_remap
-        .iter()
-        .filter_map(|entry| {
-            let (from, to) = entry.split_once("=>")?;
-            let from = from.trim();
-            let to = to.trim();
-            if from.is_empty() || to.is_empty() {
-                None
-            } else {
-                Some((from.to_string(), to.to_string()))
-            }
-        })
-        .collect::<BTreeMap<_, _>>();
+    let interaction_remap = incremental::parse_remap_config(&opts.interaction_type_remap);
     step_checkpoints.value("parse_remap_config", &interaction_remap)?;
-
-    let mut terminated = Vec::new();
-    let csv_bytes = if csv_bytes.ends_with(b"\n") {
-        csv_bytes
-    } else {
-        terminated.reserve(csv_bytes.len() + 1);
-        terminated.extend_from_slice(csv_bytes);
-        terminated.push(b'\n');
-        &terminated
-    };
-    let mut rdr = CsvReader::new();
-    let mut field_buf = vec![0u8; 1024];
-    let mut input = csv_bytes;
-
-    let mut headers: Vec<String> = Vec::new();
-    loop {
-        let (result, n_in, n_out) = rdr.read_field(input, &mut field_buf);
-        input = &input[n_in..];
-        match result {
-            ReadFieldResult::InputEmpty => {
-                continue;
-            }
-            ReadFieldResult::OutputFull => {
-                field_buf.resize(field_buf.len() * 2, 0);
-                continue;
-            }
-            ReadFieldResult::Field { record_end } => {
-                let s = std::str::from_utf8(&field_buf[..n_out])
-                    .unwrap_or("")
-                    .to_string();
-                headers.push(s);
-                if record_end {
-                    break;
-                }
-            }
-            ReadFieldResult::End => break,
-        }
-    }
-
-    let mut col_idx_of: HashMap<&str, usize> = HashMap::new();
-    for (i, h) in headers.iter().enumerate() {
-        col_idx_of.insert(h.as_str(), i);
-    }
-    let h_event = col_idx_of.get("event_timestamp").copied();
-    let h_tz = col_idx_of.get("timezone").copied();
-    let h_pkg = col_idx_of.get("app_package_name").copied();
-    let h_int = col_idx_of.get("interaction_type").copied();
-    let h_label = col_idx_of.get("application_label").copied();
-    let h_study = col_idx_of.get("study_id").copied();
-    let h_pid = col_idx_of.get("participant_id").copied();
-    let h_user = col_idx_of.get("username").copied();
-
-    let mut row_vals: Vec<String> = vec![String::new(); headers.len()];
-    let mut col_idx = 0;
-    let mut data_row_number = 0_u32;
-    let mut raw_rows: Vec<RawRow> = Vec::with_capacity(1024);
-    loop {
-        let (result, n_in, n_out) = rdr.read_field(input, &mut field_buf);
-        input = &input[n_in..];
-        match result {
-            ReadFieldResult::InputEmpty => {
-                continue;
-            }
-            ReadFieldResult::OutputFull => {
-                field_buf.resize(field_buf.len() * 2, 0);
-                continue;
-            }
-            ReadFieldResult::Field { record_end } => {
-                if col_idx < row_vals.len() {
-                    let s = std::str::from_utf8(&field_buf[..n_out]).unwrap_or("");
-                    row_vals[col_idx].clear();
-                    row_vals[col_idx].push_str(s);
-                }
-                col_idx += 1;
-                if record_end {
-                    data_row_number += 1;
-                    let get = |slot: Option<usize>| -> &str {
-                        slot.and_then(|i| row_vals.get(i))
-                            .map(String::as_str)
-                            .unwrap_or("")
-                    };
-                    raw_rows.push(RawRow {
-                        source_data_row: data_row_number,
-                        event_timestamp: get(h_event).trim().to_string(),
-                        timezone: get(h_tz).trim().to_string(),
-                        app_package_name: get(h_pkg).trim().to_string(),
-                        interaction_type: get(h_int).trim().to_string(),
-                        application_label: get(h_label).trim().to_string(),
-                        study_id: get(h_study).trim().to_string(),
-                        participant_id: get(h_pid).trim().to_string(),
-                        username: get(h_user).trim().to_string(),
-                    });
-                    for s in row_vals.iter_mut() {
-                        s.clear();
-                    }
-                    col_idx = 0;
-                }
-            }
-            ReadFieldResult::End => break,
-        }
-    }
+    let raw_rows = incremental::csv_parse(csv_bytes);
     step_checkpoints.value("csv_parse", &raw_rows)?;
 
-    let raw_rows = raw_rows
-        .into_iter()
-        .filter(|row| !row.event_timestamp.is_empty())
-        .collect::<Vec<_>>();
+    let raw_rows = incremental::drop_empty_timestamp(raw_rows);
     step_checkpoints.value("drop_empty_timestamp", &raw_rows)?;
 
-    let possible_device_model = if raw_rows
-        .iter()
-        .any(|r| AMAZON_APPS.iter().any(|p| r.app_package_name.contains(*p)))
-    {
-        "Amazon Fire".to_string()
-    } else {
-        "Android".to_string()
-    };
+    let possible_device_model = incremental::detect_device_model(&raw_rows);
     step_checkpoints.value("detect_device_model", &possible_device_model)?;
-    step_checkpoints.value("resolve_preproc_datetime", &opts.datetime_of_preprocessing)?;
+    let preprocessing_datetime =
+        incremental::resolve_preproc_datetime(&opts.datetime_of_preprocessing);
+    step_checkpoints.value("resolve_preproc_datetime", &preprocessing_datetime)?;
 
-    let mut rows: Vec<Row> = Vec::with_capacity(raw_rows.len());
-    for (idx, raw) in raw_rows.into_iter().enumerate() {
-        let event_ns = parse_chronicle_timestamp_ns(&raw.event_timestamp)
-            .ok_or_else(|| format!("Invalid event_timestamp: {}", raw.event_timestamp))?;
-        let tz_str = if raw.timezone.is_empty() {
-            "UTC".to_string()
-        } else {
-            raw.timezone
-        };
-        let username = raw.username.replace("Target child", "Target Child");
-        // Product semantics: a custom exact remap has precedence over the
-        // built-in Android interaction-type map, and later duplicate entries
-        // win when the option list is collected above.
-        let interaction = interaction_remap
-            .get(&raw.interaction_type)
-            .cloned()
-            .unwrap_or_else(|| normalize_interaction_type_local(&raw.interaction_type).to_string());
-        let mut row = Row {
-            source_data_rows: SourceDataRows::single(raw.source_data_row),
-            lineage_searches: Vec::new(),
-            study_id: raw.study_id,
-            participant_id: raw.participant_id,
-            possible_device_model: possible_device_model.clone(),
-            username,
-            application_label: raw.application_label,
-            interaction_type: interaction,
-            app_package_name: raw.app_package_name,
-            event_timestamp_ns: event_ns,
-            timezone: tz_str.clone(),
-            data_time_gap_hours: 0.0,
-            date: String::new(),
-            day: 0,
-            weekday_mf: 0,
-            weekday_mth: 0,
-            weekday_su_th: 0,
-            hour: 0,
-            quarter: 0,
-            start_timestamp_ns: None,
-            stop_timestamp_ns: None,
-            duration_seconds: None,
-            duration_minutes: None,
-            screen_usage_end_reason: None,
-            screen_usage_end_reason_confidence: None,
-            screen_usage_stop_event_type: None,
-            screen_usage_last_activity_timestamp_ns: None,
-            screen_usage_tail_gap_seconds: None,
-            screen_usage_foreground_app_package: None,
-            screen_usage_apps_forcing_screen_open_label: None,
-            screen_usage_lock_screen_only: None,
-            any_app_usage_flags: "[]".to_string(),
-            valid_app_new_engage_30s: 0,
-            valid_app_new_engage_custom: 0,
-            valid_app_switched_app: 0,
-            valid_app_usage_time_gap_hours: 0.0,
-            any_app_new_engage_30s: 0,
-            any_app_new_engage_custom: 0,
-            any_app_switched_app: 0,
-            any_app_usage_time_gap_hours: 0.0,
-            genre_id_scraped: None,
-            broad_app_category: None,
-            codebook_fields: empty_codebook_fields(),
-            codebook_genre_fields_cleared: false,
-            index: idx,
-            usage_layer: None,
-        };
-        let row_tz: Tz = row.timezone.parse().unwrap_or(tz);
-        populate_time_columns(&mut row, row_tz);
-        rows.push(row);
-    }
+    let rows = incremental::build_canonical_rows(
+        raw_rows,
+        &opts.timezone,
+        &interaction_remap,
+        &possible_device_model,
+    )?;
     step_checkpoints.rows("build_canonical_rows", &rows);
 
-    rows.sort_by(|a, b| {
-        a.event_timestamp_ns
-            .cmp(&b.event_timestamp_ns)
-            .then(a.index.cmp(&b.index))
-    });
+    let rows = incremental::stable_sort(rows);
     step_checkpoints.rows("stable_sort", &rows);
-    let available_timezones = rows
-        .iter()
-        .map(|row| row.timezone.as_str())
-        .collect::<BTreeSet<_>>();
+    let available_timezones = incremental::collect_timezones(&rows);
     step_checkpoints.value("collect_timezones", &available_timezones)?;
 
     Ok((rows, opts.timezone.clone()))
 }
 
-#[derive(serde::Serialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct RawRow {
     source_data_row: u32,
     event_timestamp: String,
@@ -2706,7 +3207,9 @@ struct RawRow {
 }
 
 fn dedupe_exact_rows(rows: Vec<Row>) -> Vec<Row> {
-    let mut seen = HashMap::<(String, i64, String, String), usize>::with_capacity(rows.len());
+    let mut seen = HashMap::<(SharedString, i64, SharedString, SharedString), usize>::with_capacity(
+        rows.len(),
+    );
     let mut out: Vec<Row> = Vec::with_capacity(rows.len());
     for row in rows {
         let key = (
@@ -2762,15 +3265,19 @@ fn duplicate_priority(it: &str, stop_types: &AHashSet<&str>) -> u8 {
     1
 }
 
-fn unalign_duplicate_timestamps(mut rows: Vec<Row>, opts: &PipelineV2Options) -> Vec<Row> {
+fn unalign_duplicate_timestamps(
+    mut rows: Vec<Row>,
+    same_app_stop_types: &[String],
+    other_stop_types: &[String],
+) -> Vec<Row> {
     if rows.len() <= 1 {
         return rows;
     }
     let mut stop_types: AHashSet<&str> = AHashSet::new();
-    for v in &opts.same_app_stop_types {
+    for v in same_app_stop_types {
         stop_types.insert(v.as_str());
     }
-    for v in &opts.other_stop_types {
+    for v in other_stop_types {
         stop_types.insert(v.as_str());
     }
     let has_dupes =
@@ -2976,18 +3483,18 @@ fn label_filtered_apps(
         return rows;
     }
     for row in rows.iter_mut() {
-        let labels = match filter_map.get(&row.app_package_name) {
+        let labels = match filter_map.get(row.app_package_name.as_str()) {
             Some(s) => s,
             None => continue,
         };
-        if !labels.is_empty() && !labels.contains(&row.application_label) {
+        if !labels.is_empty() && !labels.contains(row.application_label.as_str()) {
             continue;
         }
         row.interaction_type = match row.interaction_type.as_str() {
-            ACTIVITY_RESUMED => FILTERED_RESUMED.to_string(),
-            ACTIVITY_PAUSED => FILTERED_PAUSED.to_string(),
-            ACTIVITY_STOPPED => FILTERED_STOPPED.to_string(),
-            "Activity Destroyed" => "Filtered App Destroyed".to_string(),
+            ACTIVITY_RESUMED => FILTERED_RESUMED.into(),
+            ACTIVITY_PAUSED => FILTERED_PAUSED.into(),
+            ACTIVITY_STOPPED => FILTERED_STOPPED.into(),
+            "Activity Destroyed" => "Filtered App Destroyed".into(),
             _ => row.interaction_type.clone(),
         };
     }
@@ -3065,309 +3572,50 @@ fn lineage_search_range_digest(
 #[allow(clippy::too_many_arguments)]
 fn process_usage_rows(
     rows: Vec<Row>,
-    resumed_type: &str,
-    paused_type: &str,
-    usage_type: &str,
-    stopped_type: &str,
-    same_stop_types: &AHashSet<String>,
-    other_stop_types: &AHashSet<String>,
     background_apps: &AHashSet<String>,
-    filtered_packages: &AHashSet<String>,
+    filtered_packages: &BTreeSet<String>,
     opts: &PipelineV2Options,
     step_checkpoints: &mut StepCheckpointRecorder<'_>,
 ) -> Result<Vec<Row>, String> {
-    let n = rows.len();
-    let pkgs: Vec<String> = rows.iter().map(|r| r.app_package_name.clone()).collect();
-    let app_codes = factorize(&pkgs);
-    let timestamps: Vec<i64> = rows.iter().map(|r| r.event_timestamp_ns).collect();
-    let mut resumed = vec![false; n];
-    let mut same_stop = vec![false; n];
-    let mut other_stop = vec![false; n];
-    let mut stopped = vec![false; n];
-    for i in 0..n {
-        let it = rows[i].interaction_type.as_str();
-        let is_background = background_apps.contains(&rows[i].app_package_name);
-        if it == resumed_type {
-            resumed[i] = true;
-        }
-        if if is_background {
-            it == resumed_type || it == stopped_type
-        } else {
-            same_stop_types.contains(it)
-        } {
-            same_stop[i] = true;
-        }
-        // Phase 1: when model_concurrent_usage is on, every app session runs to
-        // its own stop event, so other-app resumes are not treated as stops.
-        if !opts.model_concurrent_usage && other_stop_types.contains(it) {
-            other_stop[i] = true;
-        }
-        if !is_background && it == stopped_type {
-            stopped[i] = true;
-        }
-    }
-    let match_options = _rust_app_usage_matcher::MatchOptions {
-        allow_stop_event_reuse: opts.allow_stop_event_reuse,
-        use_activity_stopped_as_fallback: opts.use_activity_stopped_as_fallback,
-        apply_threshold_to_fallback: opts.apply_threshold_to_fallback,
-        long_duration_threshold_ns: opts.long_duration_threshold_ns,
-    };
-    let background: Vec<bool> = rows
-        .iter()
-        .map(|row| background_apps.contains(&row.app_package_name))
-        .collect();
-    step_checkpoints.value(
-        "build_matcher_input",
-        &serde_json::json!({
-            "appCodes": &app_codes,
-            "timestamps": &timestamps,
-            "resumed": &resumed,
-            "sameStop": &same_stop,
-            "otherStop": &other_stop,
-            "stopped": &stopped,
-            "background": &background,
-        }),
+    let matcher_input = incremental::build_matcher_input(
+        &rows,
+        &opts.same_app_stop_types,
+        &opts.other_stop_types,
+        background_apps,
+        opts.model_concurrent_usage,
     )?;
-    let result = _rust_app_usage_matcher::match_app_usage_update_indices_with_proximity_core(
-        &app_codes,
-        &timestamps,
-        &resumed,
-        &same_stop,
-        &other_stop,
-        &stopped,
-        &background,
-        match_options,
+    step_checkpoints.value("build_matcher_input", &matcher_input)?;
+    let result = incremental::run_matcher(
+        &matcher_input,
+        opts.allow_stop_event_reuse,
+        opts.use_activity_stopped_as_fallback,
+        opts.apply_threshold_to_fallback,
+        opts.long_duration_threshold_ns,
         opts.proximity_interval_ns,
-    )
-    .map_err(|e| format!("matcher: {e}"))?;
-    step_checkpoints.value(
-        "run_matcher",
-        &serde_json::json!({
-            "startIndices": &result.start_indices,
-            "stopStartIndices": &result.stop_start_indices,
-            "stopEventIndices": &result.stop_event_indices,
-            "missingIndices": &result.missing_indices,
-        }),
     )?;
+    step_checkpoints.value("run_matcher", &result)?;
 
-    let mut next = rows;
-    let mut search_suffix_digests = vec![String::new(); next.len() + 1];
-    search_suffix_digests[next.len()] = empty_lineage_search_suffix_digest(next.len() as u32);
-    for index in (0..next.len()).rev() {
-        search_suffix_digests[index] = lineage_search_suffix_digest(
-            &next[index],
-            index,
-            Some(&search_suffix_digests[index + 1]),
-        );
-    }
-    for &si in &result.start_indices {
-        next[si].start_timestamp_ns = Some(next[si].event_timestamp_ns);
-    }
-    for (k, &si) in result.stop_start_indices.iter().enumerate() {
-        let stop_idx = result.stop_event_indices[k];
-        let lower = si.min(stop_idx);
-        let upper = si.max(stop_idx);
-        let stop_source_rows = next[stop_idx].source_data_rows.clone();
-        next[si].source_data_rows.merge(&stop_source_rows);
-        let search_start_event_index = (lower + 1) as u32;
-        let search_end_event_index_exclusive = (upper + 1) as u32;
-        let start_participant_id = next[si].participant_id.clone();
-        next[si].lineage_searches.push(LineageSearchEvidence {
-            protocol_version: "chronicle-lineage-search/v1",
-            reason: "selected-qualifying-stop",
-            index_space: "pipeline-event-order",
-            start_participant_id,
-            start_event_index: search_start_event_index,
-            end_event_index_exclusive: search_end_event_index_exclusive,
-            candidate_event_count: search_end_event_index_exclusive
-                .saturating_sub(search_start_event_index),
-            candidate_chain_digest: lineage_search_range_digest(
-                &search_suffix_digests,
-                search_start_event_index,
-                search_end_event_index_exclusive,
-            ),
-        });
-        next[si].stop_timestamp_ns = Some(next[stop_idx].event_timestamp_ns);
-    }
-    let missing_indices = result
-        .missing_indices
-        .iter()
-        .copied()
-        .collect::<BTreeSet<_>>();
-    let search_end_event_index_exclusive = next.len() as u32;
-    for (index, row) in next.iter_mut().enumerate() {
-        if missing_indices.contains(&index) {
-            let search_start_event_index = (index + 1) as u32;
-            let start_participant_id = row.participant_id.clone();
-            row.lineage_searches.push(LineageSearchEvidence {
-                protocol_version: "chronicle-lineage-search/v1",
-                reason: "no-qualifying-stop",
-                index_space: "pipeline-event-order",
-                start_participant_id,
-                start_event_index: search_start_event_index,
-                end_event_index_exclusive: search_end_event_index_exclusive,
-                candidate_event_count: search_end_event_index_exclusive
-                    .saturating_sub(search_start_event_index),
-                candidate_chain_digest: lineage_search_range_digest(
-                    &search_suffix_digests,
-                    search_start_event_index,
-                    search_end_event_index_exclusive,
-                ),
-            });
-            row.interaction_type = END_OF_USAGE_MISSING.to_string();
-            row.stop_timestamp_ns = None;
-            row.duration_seconds = None;
-            row.duration_minutes = None;
-            if filtered_packages.contains(&row.app_package_name) {
-                row.start_timestamp_ns = None;
-            }
-        }
-    }
+    let next = incremental::apply_matcher_output(rows, &result, filtered_packages);
     step_checkpoints.rows("apply_matcher_output", &next);
 
-    let mut out: Vec<Row> = next
-        .into_iter()
-        .filter(|r| r.interaction_type != paused_type)
-        .filter(|r| {
-            r.interaction_type != resumed_type
-                || (r.start_timestamp_ns.is_some() && r.stop_timestamp_ns.is_some())
-        })
-        .map(|mut r| {
-            if r.interaction_type == resumed_type {
-                r.interaction_type = usage_type.to_string();
-                if usage_type == FILTERED_APP_USAGE {
-                    r.start_timestamp_ns = None;
-                    r.stop_timestamp_ns = None;
-                    r.duration_seconds = None;
-                    r.duration_minutes = None;
-                } else {
-                    let start = r.start_timestamp_ns.unwrap();
-                    let stop = r.stop_timestamp_ns.unwrap();
-                    let dur_s = (stop - start) as f64 / 1_000_000_000.0;
-                    // Null (but keep) sessions shorter than minimum_usage_duration,
-                    // matching browserPipeline.ts processUsageRows and the SSOT
-                    // contract. When concurrent usage is on these durations are
-                    // recomputed per sub-interval in Phase 2 below.
-                    if opts.minimum_usage_duration > 0.0 && dur_s < opts.minimum_usage_duration {
-                        r.duration_seconds = None;
-                        r.duration_minutes = None;
-                    } else {
-                        r.duration_seconds = Some(dur_s);
-                        r.duration_minutes = Some(dur_s / 60.0);
-                    }
-                }
-            }
-            r
-        })
-        .collect();
+    let out =
+        incremental::relabel_usage_with_floor(next, filtered_packages, opts.minimum_usage_duration);
     step_checkpoints.rows("relabel_usage_with_floor", &out);
 
-    if !filtered_packages.is_empty() {
-        for row in &mut out {
-            if !filtered_packages.contains(&row.app_package_name) {
-                continue;
-            }
-            if row.interaction_type == APP_USAGE && background_apps.contains(&row.app_package_name)
-            {
-                row.interaction_type = FILTERED_APP_BACKGROUND_USAGE.into();
-                continue;
-            }
-            if row.interaction_type == APP_USAGE {
-                row.interaction_type = FILTERED_APP_USAGE.into();
-                row.duration_seconds = None;
-                row.duration_minutes = None;
-                continue;
-            }
-            if row.interaction_type == ACTIVITY_STOPPED {
-                row.interaction_type = FILTERED_STOPPED.into();
-            }
-            row.start_timestamp_ns = None;
-            row.stop_timestamp_ns = None;
-            row.duration_seconds = None;
-            row.duration_minutes = None;
-        }
-    }
+    let out = incremental::junk_downstream_mark(out, filtered_packages, background_apps);
     step_checkpoints.rows("junk_downstream_mark", &out);
 
-    out.sort_by(|a, b| {
-        a.event_timestamp_ns
-            .cmp(&b.event_timestamp_ns)
-            .then(a.index.cmp(&b.index))
-    });
+    let out = incremental::sort_episodes(out);
     step_checkpoints.rows("sort_episodes", &out);
 
-    // Phase 2: split overlapping sessions and expand each into primary/secondary
-    // sub-interval rows. Only applied when model_concurrent_usage is on and
-    // this is the App Usage path (not Filtered App Usage — that path has no
-    // timing to split because timing is cleared above).
-    if (opts.model_concurrent_usage || !background_apps.is_empty())
-        && usage_type != FILTERED_APP_USAGE
-    {
-        let app_usage_indices: Vec<usize> = out
-            .iter()
-            .enumerate()
-            .filter(|(_, r)| {
-                r.interaction_type == usage_type && !filtered_packages.contains(&r.app_package_name)
-            })
-            .map(|(i, _)| i)
-            .collect();
-
-        let starts: Vec<i64> = app_usage_indices
-            .iter()
-            .map(|&i| out[i].start_timestamp_ns.unwrap_or(0))
-            .collect();
-        let stops: Vec<i64> = app_usage_indices
-            .iter()
-            .map(|&i| out[i].stop_timestamp_ns.unwrap_or(0))
-            .collect();
-
-        let layered = split_overlapping_sessions(&starts, &stops)
-            .map_err(|e| format!("split_overlapping_sessions: {e}"))?;
-
-        // Build expanded rows from the layered output, replacing the original
-        // app-usage rows. Non-app-usage rows are passed through unchanged.
-        let mut expanded: Vec<Row> = out
-            .iter()
-            .filter(|r| {
-                r.interaction_type != usage_type || filtered_packages.contains(&r.app_package_name)
-            })
-            .cloned()
-            .collect();
-
-        for ls in &layered {
-            let source_idx = app_usage_indices[ls.session_index];
-            let mut row = out[source_idx].clone();
-            let start = ls.start_ns;
-            let stop = ls.stop_ns;
-            let dur_s = (stop - start) as f64 / 1_000_000_000.0;
-            row.start_timestamp_ns = Some(start);
-            row.stop_timestamp_ns = Some(stop);
-            // Concurrent-usage option (default off): null — but keep — split
-            // sub-intervals shorter than minimum_usage_duration.
-            let below_threshold = opts.apply_minimum_usage_duration_to_concurrent_subintervals
-                && opts.minimum_usage_duration > 0.0
-                && dur_s < opts.minimum_usage_duration;
-            if below_threshold {
-                row.duration_seconds = None;
-                row.duration_minutes = None;
-            } else {
-                row.duration_seconds = Some(dur_s);
-                row.duration_minutes = Some(dur_s / 60.0);
-            }
-            row.usage_layer = Some(match ls.layer {
-                UsageLayer::Primary => "primary".to_string(),
-                UsageLayer::Secondary => "secondary".to_string(),
-            });
-            expanded.push(row);
-        }
-        out = expanded;
-    }
-
-    out.sort_by(|a, b| {
-        a.event_timestamp_ns
-            .cmp(&b.event_timestamp_ns)
-            .then(a.index.cmp(&b.index))
-    });
+    let out = incremental::split_concurrent(
+        out,
+        filtered_packages,
+        background_apps,
+        opts.model_concurrent_usage,
+        opts.minimum_usage_duration,
+        opts.apply_minimum_usage_duration_to_concurrent_subintervals,
+    )?;
     step_checkpoints.rows("split_concurrent", &out);
     Ok(out)
 }
@@ -3378,50 +3626,12 @@ fn run_app_usage_algorithm(
     background_apps: &AHashSet<String>,
     step_checkpoints: &mut StepCheckpointRecorder<'_>,
 ) -> Result<Vec<Row>, String> {
-    let filtered_packages: AHashSet<String> = rows
-        .iter()
-        .filter(|row| {
-            matches!(
-                row.interaction_type.as_str(),
-                FILTERED_RESUMED
-                    | FILTERED_PAUSED
-                    | FILTERED_STOPPED
-                    | "Filtered App Destroyed"
-                    | FILTERED_APP_USAGE
-                    | FILTERED_APP_BACKGROUND_USAGE
-            )
-        })
-        .map(|row| row.app_package_name.clone())
-        .collect();
-    let filtered_package_names = filtered_packages.iter().cloned().collect::<BTreeSet<_>>();
-    step_checkpoints.value("compute_junk_packages", &filtered_package_names)?;
-    for row in &mut rows {
-        row.interaction_type = match row.interaction_type.as_str() {
-            FILTERED_RESUMED => ACTIVITY_RESUMED,
-            FILTERED_PAUSED => ACTIVITY_PAUSED,
-            FILTERED_STOPPED => ACTIVITY_STOPPED,
-            "Filtered App Destroyed" => "Activity Destroyed",
-            other => other,
-        }
-        .to_string();
-    }
+    let filtered_packages = incremental::compute_junk_packages(&rows);
+    step_checkpoints.value("compute_junk_packages", &filtered_packages)?;
+    rows = incremental::junk_blind_fold(rows);
     step_checkpoints.rows("junk_blind_fold", &rows);
-    if !rows
-        .iter()
-        .any(|r| r.interaction_type == ACTIVITY_RESUMED || r.interaction_type == ACTIVITY_PAUSED)
-    {
-        return Err("No valid app usage data during the study period".to_string());
-    }
-    let same_stop: AHashSet<String> = opts.same_app_stop_types.iter().cloned().collect();
-    let other_stop: AHashSet<String> = opts.other_stop_types.iter().cloned().collect();
     let next = process_usage_rows(
         rows,
-        ACTIVITY_RESUMED,
-        ACTIVITY_PAUSED,
-        APP_USAGE,
-        ACTIVITY_STOPPED,
-        &same_stop,
-        &other_stop,
         background_apps,
         &filtered_packages,
         opts,
@@ -3430,24 +3640,20 @@ fn run_app_usage_algorithm(
     Ok(next)
 }
 
-fn join_codebook(
-    rows: &mut [Row],
-    opts: &PipelineV2Options,
-    codebook_map: &HashMap<String, CodebookEntry>,
-) {
-    if !opts.use_app_codebook {
+fn join_codebook(rows: &mut [Row], enabled: bool, codebook_map: &HashMap<String, CodebookEntry>) {
+    if !enabled {
         return;
     }
     for row in rows.iter_mut() {
         row.codebook_fields = codebook_map
-            .get(&row.app_package_name)
+            .get(row.app_package_name.as_str())
             .map(|entry| entry.fields.clone())
             .unwrap_or_else(empty_codebook_fields);
     }
 }
 
-fn derive_broad_category(rows: &mut [Row], opts: &PipelineV2Options) {
-    if !opts.use_app_codebook {
+fn derive_broad_category(rows: &mut [Row], enabled: bool) {
+    if !enabled {
         return;
     }
     let bcm_play_store_broad_idx = codebook_col_index("bcm_play_store_broad_app_category").unwrap();
@@ -3467,12 +3673,12 @@ fn derive_broad_category(rows: &mut [Row], opts: &PipelineV2Options) {
             .iter()
             .find_map(|candidate| candidate.filter(|value| !value.trim().is_empty()))
             .map(String::from);
-        row.broad_app_category = Some(chosen.unwrap_or_else(|| "Unknown".to_string()));
+        row.broad_app_category = Some(chosen.unwrap_or_else(|| "Unknown".to_string()).into());
     }
 }
 
-fn collapse_genre(rows: &mut [Row], opts: &PipelineV2Options) {
-    if !opts.use_app_codebook {
+fn collapse_genre(rows: &mut [Row], enabled: bool) {
+    if !enabled {
         return;
     }
     let babyemu_scraped_idx = codebook_col_index("babyemu_genreId_scraped").unwrap();
@@ -3493,7 +3699,7 @@ fn collapse_genre(rows: &mut [Row], opts: &PipelineV2Options) {
         .cloned()
         .collect::<Vec<_>>();
         if genre_values.is_empty() {
-            row.genre_id_scraped = Some("Unknown".to_string());
+            row.genre_id_scraped = Some("Unknown".into());
             continue;
         }
         let unique = genre_values
@@ -3501,7 +3707,7 @@ fn collapse_genre(rows: &mut [Row], opts: &PipelineV2Options) {
             .map(String::as_str)
             .collect::<AHashSet<_>>();
         if unique.len() == 1 {
-            row.genre_id_scraped = Some(genre_values[0].clone());
+            row.genre_id_scraped = Some(genre_values[0].clone().into());
             row.codebook_genre_fields_cleared = true;
         } else {
             row.genre_id_scraped = None;
@@ -3510,7 +3716,7 @@ fn collapse_genre(rows: &mut [Row], opts: &PipelineV2Options) {
     }
 }
 
-fn add_app_usage_detail_columns(rows: &mut [Row], opts: &PipelineV2Options) {
+fn add_app_usage_detail_columns(rows: &mut [Row], custom_app_engagement_duration: f64) {
     let any_indices: Vec<usize> = rows
         .iter()
         .enumerate()
@@ -3574,7 +3780,7 @@ fn add_app_usage_detail_columns(rows: &mut [Row], opts: &PipelineV2Options) {
     apply_metrics(
         rows,
         &any_indices,
-        opts.custom_app_engagement_duration,
+        custom_app_engagement_duration,
         |row, e30, ec, sw, gh| {
             row.any_app_new_engage_30s = e30;
             row.any_app_new_engage_custom = ec;
@@ -3585,7 +3791,7 @@ fn add_app_usage_detail_columns(rows: &mut [Row], opts: &PipelineV2Options) {
     apply_metrics(
         rows,
         &valid_indices,
-        opts.custom_app_engagement_duration,
+        custom_app_engagement_duration,
         |row, e30, ec, sw, gh| {
             row.valid_app_new_engage_30s = e30;
             row.valid_app_new_engage_custom = ec;
@@ -3595,10 +3801,14 @@ fn add_app_usage_detail_columns(rows: &mut [Row], opts: &PipelineV2Options) {
     );
 }
 
-fn mark_app_usage_flags(rows: &mut [Row], opts: &PipelineV2Options) {
-    let mut gap_thresholds = opts.long_data_time_gap_thresholds.clone();
+fn mark_app_usage_flags(
+    rows: &mut [Row],
+    long_data_time_gap_thresholds: &[f64],
+    long_usage_duration_thresholds: &[f64],
+) {
+    let mut gap_thresholds = long_data_time_gap_thresholds.to_vec();
     gap_thresholds.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
-    let mut dur_thresholds = opts.long_usage_duration_thresholds.clone();
+    let mut dur_thresholds = long_usage_duration_thresholds.to_vec();
     dur_thresholds.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
     for row in rows.iter_mut() {
         let mut flags: Vec<String> = Vec::new();
@@ -3613,9 +3823,9 @@ fn mark_app_usage_flags(rows: &mut [Row], opts: &PipelineV2Options) {
             flags.push(format!(">{}-HR APP USAGE", format_threshold(t)));
         }
         row.any_app_usage_flags = if flags.is_empty() {
-            "[]".to_string()
+            "[]".into()
         } else {
-            format!("['{}']", flags.join("', '"))
+            format!("['{}']", flags.join("', '")).into()
         };
     }
 }
@@ -3636,29 +3846,8 @@ fn clear_filtered_usage_timing(rows: &mut [Row]) {
     }
 }
 
-fn remove_selected_interaction_types(rows: Vec<Row>, opts: &PipelineV2Options) -> Vec<Row> {
-    if opts.interaction_types_to_remove.is_empty() {
-        return rows;
-    }
-    let threshold = opts
-        .long_data_time_gap_thresholds
-        .iter()
-        .copied()
-        .fold(f64::INFINITY, f64::min);
-    let remove_set: AHashSet<&str> = opts
-        .interaction_types_to_remove
-        .iter()
-        .map(|s| s.as_str())
-        .collect();
-    rows.into_iter()
-        .filter(|r| {
-            !remove_set.contains(r.interaction_type.as_str()) || r.data_time_gap_hours >= threshold
-        })
-        .collect()
-}
-
 fn add_no_activity_placeholder_rows(mut app_rows: Vec<Row>, raw_rows: &[Row]) -> Vec<Row> {
-    let mut usage_days: AHashSet<(String, String)> = AHashSet::new();
+    let mut usage_days: AHashSet<(SharedString, SharedString)> = AHashSet::new();
     for row in &app_rows {
         if row.interaction_type == APP_USAGE {
             usage_days.insert((row.participant_id.clone(), row.date.clone()));
@@ -3667,7 +3856,7 @@ fn add_no_activity_placeholder_rows(mut app_rows: Vec<Row>, raw_rows: &[Row]) ->
 
     // Preserve JavaScript Map insertion order: raw rows are event-sorted, so
     // samples are emitted in first-observed participant/day order.
-    let mut sample_index: HashMap<(String, String), usize> = HashMap::new();
+    let mut sample_index: HashMap<(SharedString, SharedString), usize> = HashMap::new();
     let mut samples: Vec<Row> = Vec::new();
     for row in raw_rows {
         let key = (row.participant_id.clone(), row.date.clone());
@@ -3707,7 +3896,7 @@ fn add_no_activity_placeholder_rows(mut app_rows: Vec<Row>, raw_rows: &[Row]) ->
     app_rows
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct StudyWindow {
     participant_id: String,
     start_date: String,
@@ -3783,7 +3972,7 @@ fn numerical_id(value: &str) -> Option<&str> {
     start.and_then(|begin| (bytes.len() - begin >= 3).then_some(&value[begin..]))
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct ResolvedParticipantWindow {
     participant_id: String,
     window: Option<StudyWindow>,
@@ -3801,7 +3990,7 @@ fn resolve_participant_windows(
         }
         let exact = windows
             .iter()
-            .find(|window| window.participant_id == row.participant_id);
+            .find(|window| window.participant_id == row.participant_id.as_str());
         let window = exact.or_else(|| {
             let id = numerical_id(&row.participant_id)?;
             windows
@@ -3809,7 +3998,7 @@ fn resolve_participant_windows(
                 .find(|window| numerical_id(&window.participant_id) == Some(id))
         });
         resolved.push(ResolvedParticipantWindow {
-            participant_id: row.participant_id.clone(),
+            participant_id: row.participant_id.to_string(),
             window: window.cloned(),
         });
     }
@@ -3838,21 +4027,24 @@ fn apply_study_window(
                 .get(row.participant_id.as_str())
                 .copied()
                 .flatten()
-                .is_none_or(|window| row.date >= window.start_date && row.date <= window.end_date)
+                .is_none_or(|window| {
+                    row.date.as_str() >= window.start_date.as_str()
+                        && row.date.as_str() <= window.end_date.as_str()
+                })
         })
         .collect::<Vec<_>>();
     let dropped = before.saturating_sub(rows.len());
     (rows, dropped, participants_without_window)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum SharingStatus {
     Shared,
     NonShared,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct SharingEntry {
     participant_id: String,
     status: SharingStatus,
@@ -4034,7 +4226,7 @@ fn is_target_child(username: &str) -> bool {
     username.to_ascii_lowercase().contains("target child")
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SharingResolution {
     status_by_participant: BTreeMap<String, SharingStatus>,
@@ -4042,7 +4234,7 @@ struct SharingResolution {
     non_shared_participants: Vec<String>,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AttributionReport {
     shared_participants: Vec<String>,
@@ -4069,7 +4261,7 @@ fn attribute_person(
     for row in &mut rows {
         let status = *resolution
             .status_by_participant
-            .get(&row.participant_id)
+            .get(row.participant_id.as_str())
             .ok_or_else(|| {
                 format!(
                     "Person attribution: unresolved sharing status for {:?}",
@@ -4094,9 +4286,9 @@ fn attribute_person(
                     report.null_usernames_filled += 1;
                 }
                 if let Some(user) =
-                    survey.get(&(row.participant_id.clone(), row.event_timestamp_ns))
+                    survey.get(&(row.participant_id.to_string(), row.event_timestamp_ns))
                 {
-                    row.username = format!("{user} (From Survey)");
+                    row.username = format!("{user} (From Survey)").into();
                     report.survey_relabels += 1;
                 }
                 if row.interaction_type == APP_USAGE && !is_target_child(&row.username) {
@@ -4144,15 +4336,15 @@ fn csv_escape_value(value: &str) -> String {
     }
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CoverageDayCheckpoint {
     participant_id: String,
     date: String,
-    status: &'static str,
+    status: String,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DayCoverageCheckpoint {
     coverage: Vec<CoverageDayCheckpoint>,
@@ -4168,10 +4360,10 @@ fn build_raw_date_index(raw_rows: &[Row]) -> BTreeMap<String, BTreeSet<String>> 
             .entry(if row.participant_id.is_empty() {
                 "unknown".into()
             } else {
-                row.participant_id.clone()
+                row.participant_id.to_string()
             })
             .or_default()
-            .insert(row.date.clone());
+            .insert(row.date.to_string());
     }
     raw_dates
 }
@@ -4182,87 +4374,23 @@ fn build_day_coverage_csv(
     windows: &[StudyWindow],
     step_checkpoints: &mut StepCheckpointRecorder<'_>,
 ) -> Result<(Vec<u8>, u32), String> {
-    let mut usage_dates: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    for row in usage_rows {
-        if row.interaction_type == APP_USAGE
-            && row.duration_minutes.is_some_and(|value| value > 0.0)
-        {
-            usage_dates
-                .entry(row.participant_id.clone())
-                .or_default()
-                .insert(row.date.clone());
-        }
-    }
-    let participants: BTreeSet<_> = raw_dates
-        .keys()
-        .chain(usage_dates.keys())
-        .cloned()
-        .collect();
-    let mut lines = vec!["participant_id,date,status".to_string()];
-    let mut coverage = Vec::new();
-    for participant_id in participants {
-        let raw = raw_dates.get(&participant_id).cloned().unwrap_or_default();
-        let used = usage_dates
-            .get(&participant_id)
-            .cloned()
-            .unwrap_or_default();
-        let all_dates: BTreeSet<_> = raw.union(&used).cloned().collect();
-        let window = if windows.is_empty() {
-            None
-        } else {
-            window_for(&participant_id, windows)
-        };
-        let spine = if let Some(window) = window {
-            inclusive_dates(&window.start_date, &window.end_date)?
-        } else if let (Some(start), Some(end)) = (all_dates.first(), all_dates.last()) {
-            inclusive_dates(start, end)?
-        } else {
-            Vec::new()
-        };
-        for date in &spine {
-            let status = if used.contains(date) {
-                "usage"
-            } else if raw.contains(date) {
-                "no_activity"
-            } else {
-                "no_data"
-            };
-            lines.push(format!(
-                "{},{date},{status}",
-                csv_escape_value(&participant_id)
-            ));
-            coverage.push(CoverageDayCheckpoint {
-                participant_id: participant_id.clone(),
-                date: date.clone(),
-                status,
-            });
-        }
-        for date in all_dates {
-            if window.is_some_and(|window| date < window.start_date || date > window.end_date) {
-                continue;
-            }
-            if !spine.contains(&date) {
-                return Err(format!(
-                    "Day coverage: {participant_id} has data on {date} but the day spine does not cover it."
-                ));
-            }
-        }
-    }
-    let bytes = lines.join("\n").into_bytes();
-    let report = DayCoverageCheckpoint {
-        usage_days: coverage.iter().filter(|day| day.status == "usage").count(),
-        no_activity_days: coverage
-            .iter()
-            .filter(|day| day.status == "no_activity")
-            .count(),
-        no_data_days: coverage
-            .iter()
-            .filter(|day| day.status == "no_data")
-            .count(),
-        coverage,
+    let study_dates_csv = if windows.is_empty() {
+        Vec::new()
+    } else {
+        let mut lines = vec!["participant_id,start_date,end_date".to_string()];
+        lines.extend(windows.iter().map(|window| {
+            format!(
+                "{},{},{}",
+                csv_escape_value(&window.participant_id),
+                window.start_date,
+                window.end_date
+            )
+        }));
+        lines.join("\n").into_bytes()
     };
-    step_checkpoints.value("build_coverage_table", &report)?;
-    Ok((bytes, report.coverage.len() as u32))
+    let output = incremental::build_coverage(usage_rows, raw_dates, &study_dates_csv)?;
+    step_checkpoints.value("build_coverage_table", &output.report)?;
+    Ok((output.csv_bytes, output.report.coverage.len() as u32))
 }
 
 fn js_rounded_number(value: f64) -> String {
@@ -4306,12 +4434,12 @@ fn parse_enrolled_devices(bytes: &[u8]) -> Result<BTreeMap<String, u32>, String>
     Ok(devices)
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ComplianceDayCheckpoint {
     participant_id: String,
     date: String,
-    sharing_status: &'static str,
+    sharing_status: String,
     known_minutes: f64,
     unknown_minutes: f64,
     compliance_percent: f64,
@@ -4319,7 +4447,7 @@ struct ComplianceDayCheckpoint {
     is_valid: bool,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ComplianceResultCheckpoint {
     days: Vec<ComplianceDayCheckpoint>,
@@ -4335,27 +4463,9 @@ fn build_compliance_csv(
     enrolled_devices: &BTreeMap<String, u32>,
     step_checkpoints: &mut StepCheckpointRecorder<'_>,
 ) -> Result<(Vec<u8>, u32), String> {
-    let mut participants_seen: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    let mut buckets: BTreeMap<(String, String), (f64, f64)> = BTreeMap::new();
-    for row in rows {
-        participants_seen
-            .entry(row.participant_id.clone())
-            .or_default()
-            .insert(row.date.clone());
-        if row.interaction_type != APP_USAGE && row.interaction_type != NON_TARGET_CHILD_APP_USAGE {
-            continue;
-        }
-        let minutes = row.duration_minutes.unwrap_or(0.0);
-        let bucket = buckets
-            .entry((row.participant_id.clone(), row.date.clone()))
-            .or_default();
-        if is_null_username(&row.username) || row.username == "None" {
-            bucket.1 += minutes;
-        } else {
-            bucket.0 += minutes;
-        }
-    }
-    let bucket_checkpoint = buckets
+    let attribution = incremental::accumulate_minutes(rows);
+    let bucket_checkpoint = attribution
+        .buckets
         .iter()
         .map(
             |((participant_id, date), (known_minutes, unknown_minutes))| {
@@ -4371,92 +4481,46 @@ fn build_compliance_csv(
     step_checkpoints.value(
         "accumulate_attribution_minutes",
         &serde_json::json!({
-            "participantsSeen": &participants_seen,
+            "participantsSeen": &attribution.participants_seen,
             "buckets": bucket_checkpoint,
         }),
     )?;
-    let mut days = Vec::new();
-    for (participant_id, dates) in participants_seen {
-        let shared = shared_participants.contains(&participant_id);
-        for date in dates {
-            let (known, unknown) = buckets
-                .get(&(participant_id.clone(), date.clone()))
-                .copied()
-                .unwrap_or_default();
-            let total = known + unknown;
-            let compliance = if !shared || total <= 0.0 {
-                100.0
-            } else {
-                ((known / total) * 10_000.0).round() / 100.0
-            };
-            let known = (known * 100.0).round() / 100.0;
-            let unknown = (unknown * 100.0).round() / 100.0;
-            days.push(ComplianceDayCheckpoint {
-                participant_id: participant_id.clone(),
-                date,
-                sharing_status: if shared { "Shared" } else { "Non-Shared" },
-                known_minutes: known,
-                unknown_minutes: unknown,
-                compliance_percent: compliance,
-                zero_real_usage: total <= 0.0,
-                is_valid: compliance >= threshold_percent,
-            });
-        }
-    }
-    let result = ComplianceResultCheckpoint {
-        valid_days: days.iter().filter(|day| day.is_valid).count(),
-        invalid_days: days.iter().filter(|day| !day.is_valid).count(),
-        zero_usage_days: days.iter().filter(|day| day.zero_real_usage).count(),
-        days,
-    };
+    let result =
+        incremental::score_attribution_days(&attribution, shared_participants, threshold_percent);
     step_checkpoints.value("score_days", &result)?;
-
-    let mut lines = vec![
-        "participant_id,date,sharing_status,known_minutes,unknown_minutes,compliance_percent,zero_real_usage,is_valid,expected_device_count".to_string(),
-    ];
-    for day in &result.days {
-        let expected = enrolled_devices
-            .get(&day.participant_id)
-            .map(u32::to_string)
-            .unwrap_or_default();
-        lines.push(format!(
-            "{},{date},{},{},{},{},{},{},{}",
-            csv_escape_value(&day.participant_id),
-            day.sharing_status,
-            js_rounded_number(day.known_minutes),
-            js_rounded_number(day.unknown_minutes),
-            js_rounded_number(day.compliance_percent),
-            u8::from(day.zero_real_usage),
-            u8::from(day.is_valid),
-            expected,
-            date = day.date,
-        ));
-    }
+    let enrolled_devices_csv = if enrolled_devices.is_empty() {
+        Vec::new()
+    } else {
+        let mut lines = vec!["participant_id,device_count".to_string()];
+        lines.extend(enrolled_devices.iter().map(|(participant_id, count)| {
+            format!("{},{}", csv_escape_value(participant_id), count)
+        }));
+        lines.join("\n").into_bytes()
+    };
+    let bytes = incremental::compliance_csv(&result, &enrolled_devices_csv)?;
     let row_count = result.days.len() as u32;
-    let bytes = lines.join("\n").into_bytes();
     Ok((bytes, row_count))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 enum ScreenCreditState {
     On,
     Off,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct ScreenChangePoint {
     timestamp_ns: i64,
     state: ScreenCreditState,
     source_data_rows: SourceDataRows,
 }
 
-#[derive(Default, serde::Serialize)]
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 struct ScreenCreditSubstrate {
     points: BTreeMap<String, Vec<ScreenChangePoint>>,
     boots: BTreeMap<String, Vec<i64>>,
     all_timestamps: BTreeMap<String, Vec<i64>>,
     source_events: BTreeMap<String, Vec<(i64, SourceDataRows)>>,
-    #[serde(skip)]
     source_event_suffix_digests: BTreeMap<String, Vec<String>>,
     capable: BTreeSet<String>,
 }
@@ -4518,12 +4582,12 @@ fn build_screen_credit_substrate(raw_events: &[Row]) -> Result<ScreenCreditSubst
             .entry(if row.participant_id.is_empty() {
                 "unknown".into()
             } else {
-                row.participant_id.clone()
+                row.participant_id.to_string()
             })
             .or_default()
             .push((
                 row.event_timestamp_ns,
-                row.interaction_type.clone(),
+                row.interaction_type.to_string(),
                 row.source_data_rows.clone(),
             ));
     }
@@ -4609,9 +4673,9 @@ fn credit_lineage_contributors(
         let lower = events.partition_point(|event| event.0 < lower_bound);
         let upper = events.partition_point(|event| event.0 <= upper_bound);
         Some(LineageSearchEvidence {
-            protocol_version: "chronicle-lineage-search/v1",
-            reason: "screen-credit-liveness-window",
-            index_space: "participant-source-event-order",
+            protocol_version: "chronicle-lineage-search/v1".to_string(),
+            reason: "screen-credit-liveness-window".to_string(),
+            index_space: "participant-source-event-order".to_string(),
             start_participant_id: participant_id.to_string(),
             start_event_index: lower as u32,
             end_event_index_exclusive: upper as u32,
@@ -4826,7 +4890,7 @@ fn intersect_intervals(left: &[CreditInterval], right: &[CreditInterval]) -> Vec
     output
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum CreditDecision {
     Passthrough,
@@ -4837,25 +4901,12 @@ enum CreditDecision {
     },
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CreditEmissionCounts {
     truncated_sessions: usize,
     no_witness_fallbacks: usize,
     fully_dead_sessions: usize,
-}
-
-#[derive(Debug, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct CreditReportCheckpoint<'a> {
-    sessions: usize,
-    credited_rows: usize,
-    credited_minutes: f64,
-    raw_session_minutes: f64,
-    truncated_sessions: usize,
-    fully_dead_sessions: usize,
-    no_witness_fallbacks: usize,
-    screen_incapable_participants: &'a [String],
 }
 
 #[derive(serde::Serialize)]
@@ -4878,7 +4929,7 @@ fn is_credit_session(row: &Row) -> bool {
     row.interaction_type == APP_USAGE && row.duration_minutes.is_some_and(|duration| duration > 0.0)
 }
 
-fn apply_screen_gated_credit(
+fn apply_screen_gated_credit_incremental(
     app_rows: &[Row],
     raw_events: &[Row],
     opts: &PipelineV2Options,
@@ -4886,90 +4937,23 @@ fn apply_screen_gated_credit(
     input_row_parts: Option<&[RowCheckpointParts]>,
     step_checkpoints: &mut StepCheckpointRecorder<'_>,
 ) -> Result<ScreenCreditOutput, String> {
-    let session_count = app_rows.iter().filter(|row| is_credit_session(row)).count();
-    let rest_count = app_rows.len() - session_count;
-    let (session_rows_digest, rest_rows_digest) = if let Some(parts) = input_row_parts {
-        if parts.len() != app_rows.len() {
-            return Err(format!(
-                "screen-credit checkpoint row-part count drift: {} parts for {} rows",
-                parts.len(),
-                app_rows.len(),
-            ));
-        }
-        let session_digest = row_parts_sequence_digest(
-            session_count,
-            app_rows
-                .iter()
-                .zip(parts)
-                .filter_map(|(row, parts)| is_credit_session(row).then_some(parts)),
-        );
-        let rest_digest = row_parts_sequence_digest(
-            rest_count,
-            app_rows
-                .iter()
-                .zip(parts)
-                .filter_map(|(row, parts)| (!is_credit_session(row)).then_some(parts)),
-        );
-        #[cfg(debug_assertions)]
-        {
-            let sessions = app_rows
-                .iter()
-                .filter(|row| is_credit_session(row))
-                .collect::<Vec<_>>();
-            let rest = app_rows
-                .iter()
-                .filter(|row| !is_credit_session(row))
-                .collect::<Vec<_>>();
-            assert_eq!(session_digest, row_reference_sequence_digest(&sessions));
-            assert_eq!(rest_digest, row_reference_sequence_digest(&rest));
-        }
-        (session_digest, rest_digest)
-    } else {
-        let sessions = app_rows
-            .iter()
-            .filter(|row| is_credit_session(row))
-            .collect::<Vec<_>>();
-        let rest = app_rows
-            .iter()
-            .filter(|row| !is_credit_session(row))
-            .collect::<Vec<_>>();
-        let session_digest = row_reference_sequence_digest(&sessions);
-        let rest_digest = row_reference_sequence_digest(&rest);
-        (session_digest, rest_digest)
-    };
+    let partition = incremental::partition_credit_sessions(app_rows, input_row_parts)?;
     step_checkpoints.value(
         "partition_credit_sessions",
         &CreditPartitionCheckpoint {
-            session_count,
-            rest_count,
-            session_rows_digest: &session_rows_digest,
-            rest_rows_digest: &rest_rows_digest,
+            session_count: partition.sessions.len(),
+            rest_count: partition.rest.len(),
+            session_rows_digest: &partition.session_rows_digest,
+            rest_rows_digest: &partition.rest_rows_digest,
         },
     )?;
 
-    let substrate = build_screen_credit_substrate(raw_events)?;
+    let substrate = incremental::build_liveness_substrate(raw_events)?;
     step_checkpoints.value("build_liveness_substrate", &substrate)?;
-    let mut screen_incapable = Vec::new();
-    let mut seen_screen_incapable = AHashSet::new();
-    for row in app_rows.iter().filter(|row| is_credit_session(row)) {
-        let incapable = substrate
-            .points
-            .get(&row.participant_id)
-            .is_none_or(Vec::is_empty)
-            || !substrate.capable.contains(&row.participant_id);
-        if incapable && seen_screen_incapable.insert(row.participant_id.clone()) {
-            screen_incapable.push(row.participant_id.clone());
-        }
-    }
+    let screen_incapable = incremental::screen_incapable_participants(&partition, &substrate);
     step_checkpoints.value("report_screen_incapable", &screen_incapable)?;
 
-    let mut day_apps: BTreeMap<(String, String), BTreeSet<String>> = BTreeMap::new();
-    for row in app_rows.iter().filter(|row| is_credit_session(row)) {
-        day_apps
-            .entry((row.participant_id.clone(), row.date.clone()))
-            .or_default()
-            .insert(row.app_package_name.clone());
-    }
+    let day_apps = incremental::count_day_apps(&partition);
     let day_app_checkpoint = day_apps
         .iter()
         .map(|((participant_id, date), packages)| {
@@ -4981,186 +4965,44 @@ fn apply_screen_gated_credit(
         })
         .collect::<Vec<_>>();
     step_checkpoints.value("count_day_apps", &day_app_checkpoint)?;
-    let tolerance_ns =
-        (opts.device_liveness_gap_tolerance_minutes * 60.0).round() as i64 * 1_000_000_000;
-    let cap_ns = (opts.credited_session_cap_minutes * 60.0).round() as i64 * 1_000_000_000;
-    let auto_lock_ns = opts.auto_lock_bridge_seconds.round() as i64 * 1_000_000_000;
-    let alive_spans = substrate
-        .all_timestamps
-        .iter()
-        .map(|(participant_id, timestamps)| {
-            let boots = substrate
-                .boots
-                .get(participant_id)
-                .map(Vec::as_slice)
-                .unwrap_or_default();
-            (
-                participant_id.as_str(),
-                build_alive_spans(timestamps, tolerance_ns, boots),
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
-    let mut decisions = Vec::with_capacity(session_count);
-    for row in app_rows.iter().filter(|row| is_credit_session(row)) {
-        let (Some(start), Some(raw_end)) = (row.start_timestamp_ns, row.stop_timestamp_ns) else {
-            decisions.push(CreditDecision::Passthrough);
-            continue;
-        };
-        if raw_end <= start {
-            decisions.push(CreditDecision::Passthrough);
-            continue;
-        }
-        let end = raw_end.min(start.saturating_add(cap_ns));
-        let points = substrate
-            .points
-            .get(&row.participant_id)
-            .map(Vec::as_slice)
-            .unwrap_or_default();
-        let (intervals, no_witness_fallback) =
-            if points.is_empty() || !substrate.capable.contains(&row.participant_id) {
-                (vec![(start, end)], false)
-            } else {
-                let participant_alive_spans = alive_spans
-                    .get(row.participant_id.as_str())
-                    .map(Vec::as_slice)
-                    .unwrap_or_default();
-                let alive = clip_alive_spans(participant_alive_spans, start, end);
-                let first_in_window = points.partition_point(|point| point.timestamp_ns < start);
-                let has_point = points
-                    .get(first_in_window)
-                    .is_some_and(|point| point.timestamp_ns <= end);
-                if screen_state_at(points, start).is_none() && !has_point {
-                    let app_count = day_apps
-                        .get(&(row.participant_id.clone(), row.date.clone()))
-                        .map(BTreeSet::len)
-                        .unwrap_or_default();
-                    if app_count >= opts.no_witness_min_day_apps as usize {
-                        (alive, true)
-                    } else {
-                        (Vec::new(), false)
-                    }
-                } else {
-                    let screen = creditable_intervals(points, start, end, auto_lock_ns);
-                    (intersect_intervals(&screen, &alive), false)
-                }
-            };
-        decisions.push(CreditDecision::Intervals {
-            intervals,
-            session_capped: end < raw_end,
-            no_witness_fallback,
-        });
-    }
+
+    let decisions = incremental::credit_sessions(
+        &partition,
+        &substrate,
+        &day_apps,
+        opts.credited_session_cap_minutes,
+        opts.device_liveness_gap_tolerance_minutes,
+        opts.auto_lock_bridge_seconds,
+        opts.no_witness_min_day_apps,
+    );
     step_checkpoints.value(
         "credit_sessions",
         &serde_json::json!({
-            "sessionRowsDigest": session_rows_digest,
             "decisions": decisions,
+            "toleranceMinutes": opts.device_liveness_gap_tolerance_minutes,
         }),
     )?;
-    let raw_session_minutes = app_rows
-        .iter()
-        .filter(|row| is_credit_session(row))
-        .map(|row| row.duration_minutes.unwrap_or(0.0))
-        .sum();
 
-    let mut credited = Vec::new();
-    let mut emission_counts = CreditEmissionCounts {
-        truncated_sessions: 0,
-        no_witness_fallbacks: 0,
-        fully_dead_sessions: 0,
-    };
-    for (row, decision) in app_rows
-        .iter()
-        .filter(|row| is_credit_session(row))
-        .zip(decisions)
-    {
-        let intervals = match decision {
-            CreditDecision::Passthrough => {
-                credited.push(row.clone());
-                continue;
-            }
-            CreditDecision::Intervals {
-                intervals,
-                session_capped,
-                no_witness_fallback,
-            } => {
-                if session_capped {
-                    emission_counts.truncated_sessions += 1;
-                }
-                if no_witness_fallback {
-                    emission_counts.no_witness_fallbacks += 1;
-                }
-                intervals
-            }
-        };
-        let before = credited.len();
-        let interval_count = intervals.len();
-        let mut original_row = Some(row.clone());
-        for (interval_index, (interval_start, interval_end)) in intervals.into_iter().enumerate() {
-            if interval_end <= interval_start {
-                continue;
-            }
-            let mut credited_row = if interval_index + 1 == interval_count {
-                original_row.take().expect("credit source row is available")
-            } else {
-                original_row
-                    .as_ref()
-                    .expect("credit source row is available")
-                    .clone()
-            };
-            let (contributors, search) = credit_lineage_contributors(
-                &substrate,
-                &credited_row.participant_id,
-                interval_start,
-                interval_end,
-                tolerance_ns,
-            );
-            credited_row.source_data_rows.merge(&contributors);
-            if let Some(search) = search {
-                credited_row.lineage_searches.push(search);
-            }
-            let duration_seconds = (interval_end - interval_start) as f64 / 1_000_000_000.0;
-            credited_row.start_timestamp_ns = Some(interval_start);
-            credited_row.stop_timestamp_ns = Some(interval_end);
-            credited_row.event_timestamp_ns = interval_start;
-            credited_row.duration_seconds = Some(duration_seconds);
-            credited_row.duration_minutes = Some(duration_seconds * (1.0 / 60.0));
-            let timezone: Tz = credited_row.timezone.parse().unwrap_or(chrono_tz::UTC);
-            populate_time_columns(&mut credited_row, timezone);
-            credited.push(credited_row);
-        }
-        if credited.len() == before {
-            emission_counts.fully_dead_sessions += 1;
-        }
-    }
-    let credited_references = credited.iter().collect::<Vec<_>>();
-    let credited_rows_digest = row_reference_sequence_digest(&credited_references);
+    let emission = incremental::emit_credited_rows(
+        &partition,
+        &decisions,
+        &substrate,
+        opts.device_liveness_gap_tolerance_minutes,
+    );
     step_checkpoints.value(
         "emit_credited_rows",
         &serde_json::json!({
-            "creditedRowsDigest": credited_rows_digest,
-            "emissionCounts": emission_counts,
+            "creditedRowsDigest": emission.credited_rows_digest,
+            "emissionCounts": emission.counts,
         }),
     )?;
-    let report = CreditReportCheckpoint {
-        sessions: session_count,
-        credited_rows: credited.len(),
-        credited_minutes: credited
-            .iter()
-            .map(|row| row.duration_minutes.unwrap_or(0.0))
-            .sum(),
-        raw_session_minutes,
-        truncated_sessions: emission_counts.truncated_sessions,
-        fully_dead_sessions: emission_counts.fully_dead_sessions,
-        no_witness_fallbacks: emission_counts.no_witness_fallbacks,
-        screen_incapable_participants: &screen_incapable,
-    };
+    let result = incremental::assemble_credit_result(&partition, &screen_incapable, &emission);
     step_checkpoints.value(
         "assemble_credit_result",
         &serde_json::json!({
-            "creditedRowsDigest": credited_rows_digest,
-            "restRowsDigest": rest_rows_digest,
-            "report": report,
+            "creditedRowsDigest": result.credited_rows_digest,
+            "restRowsDigest": result.rest_rows_digest,
+            "report": result.report,
         }),
     )?;
     let assemble_terminal_digest = step_checkpoints
@@ -5177,23 +5019,12 @@ fn apply_screen_gated_credit(
             assemble_terminal_digest.as_bytes(),
         )],
     );
-    let row_count = u32::try_from(credited.len() + rest_count)
+    let row_count = u32::try_from(result.rows.len())
         .map_err(|_| "credited app row count exceeds u32".to_string())?;
-    let csv_bytes = write_app_csv_from_iter(
-        credited
-            .iter()
-            .chain(app_rows.iter().filter(|row| !is_credit_session(row))),
-        row_count as usize,
-        opts,
-        include_aliases,
-    );
-    let row_lineage = build_row_lineage_from_iter(
-        "credited-app-csv",
-        "effective_usage",
-        credited
-            .iter()
-            .chain(app_rows.iter().filter(|row| !is_credit_session(row))),
-    );
+    let csv_bytes =
+        write_app_csv_from_iter(result.rows.iter(), result.rows.len(), opts, include_aliases);
+    let row_lineage =
+        build_row_lineage_from_iter("credited-app-csv", "effective_usage", result.rows.iter());
     Ok(ScreenCreditOutput {
         csv_bytes,
         row_count,
@@ -5204,24 +5035,24 @@ fn apply_screen_gated_credit(
 
 // ---- screen state machine ----------------------------------------------
 
-#[derive(Clone, serde::Serialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct ScreenState {
     start_index: usize,
     start_timestamp_ns: i64,
-    start_timezone: String,
+    start_timezone: SharedString,
     lock_screen_seen: bool,
     unlocked_seen: bool,
-    foreground_pkg: Option<String>,
+    foreground_pkg: Option<SharedString>,
     last_meaningful_ts_ns: Option<i64>,
-    last_meaningful_pkg: Option<String>,
+    last_meaningful_pkg: Option<SharedString>,
     source_data_rows: SourceDataRows,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct ScreenSessionClose {
     state: ScreenState,
     stop_timestamp_ns: Option<i64>,
-    stop_event_type: Option<String>,
+    stop_event_type: Option<SharedString>,
 }
 
 fn derive_screen_usage_sessions_full(
@@ -5230,209 +5061,22 @@ fn derive_screen_usage_sessions_full(
     apps_forcing: &HashMap<String, String>,
     step_checkpoints: &mut StepCheckpointRecorder<'_>,
 ) -> Result<Vec<Row>, String> {
-    let start_set: AHashSet<&str> = SCREEN_START_EVENTS.iter().copied().collect();
-    let stop_set: AHashSet<&str> = SCREEN_STOP_EVENTS.iter().copied().collect();
-    let lock_set: AHashSet<&str> = LOCK_SCREEN_EVENTS.iter().copied().collect();
-    let unlock_set: AHashSet<&str> = UNLOCK_EVENTS.iter().copied().collect();
-    let fg_set: AHashSet<&str> = FOREGROUND_EVENTS.iter().copied().collect();
-    let meaningful_set: AHashSet<&str> = MEANINGFUL_ACTIVITY_EVENTS.iter().copied().collect();
-
-    let mut keyguard_ts: Vec<i64> = rows
-        .iter()
-        .filter(|r| lock_set.contains(r.interaction_type.as_str()))
-        .map(|r| r.event_timestamp_ns)
-        .collect();
-    keyguard_ts.sort_unstable();
-    step_checkpoints.value("collect_keyguard_timestamps", &keyguard_ts)?;
-
-    if !rows
-        .iter()
-        .any(|r| start_set.contains(r.interaction_type.as_str()))
-    {
-        let closes: Vec<ScreenSessionClose> = Vec::new();
-        step_checkpoints.value("walk_screen_state_machine", &closes)?;
-        step_checkpoints.rows("build_classified_sessions", &[]);
-        return Ok(Vec::new());
-    }
-
-    let mut sessions: Vec<Row> = Vec::new();
-    let mut closes: Vec<ScreenSessionClose> = Vec::new();
-    let mut state: Option<ScreenState> = None;
-
-    let build = |st: &ScreenState,
-                 stop_ts: Option<i64>,
-                 stop_event: Option<&str>,
-                 sessions: &mut Vec<Row>| {
-        let start_row = &rows[st.start_index];
-        let mut sr = start_row.clone();
-        sr.source_data_rows = st.source_data_rows.clone();
-        sr.interaction_type = SCREEN_USAGE.to_string();
-        sr.start_timestamp_ns = Some(st.start_timestamp_ns);
-        sr.stop_timestamp_ns = stop_ts;
-        sr.duration_seconds = stop_ts.map(|s| (s - st.start_timestamp_ns) as f64 / 1e9);
-        sr.duration_minutes = sr.duration_seconds.map(|x| x / 60.0);
-        sr.application_label = String::new();
-        sr.app_package_name = st.foreground_pkg.clone().unwrap_or_default();
-        sr.screen_usage_foreground_app_package = st.foreground_pkg.clone();
-        sr.screen_usage_end_reason = None;
-        sr.screen_usage_end_reason_confidence = None;
-        sr.screen_usage_stop_event_type = stop_event.map(|s| s.to_string());
-        sr.screen_usage_last_activity_timestamp_ns = st.last_meaningful_ts_ns;
-        sr.screen_usage_tail_gap_seconds = None;
-        sr.screen_usage_apps_forcing_screen_open_label = None;
-        sr.screen_usage_lock_screen_only = Some(0);
-        sr.data_time_gap_hours = 0.0;
-        sr.event_timestamp_ns = st.start_timestamp_ns;
-        sr.timezone = st.start_timezone.clone();
-        sr.index = start_row.index + 1_000_000;
-        if let Ok(tz) = sr.timezone.parse::<Tz>() {
-            populate_time_columns(&mut sr, tz);
-        }
-
-        if stop_ts.is_none() {
-            sr.screen_usage_end_reason = Some("missing_stop".to_string());
-            sr.screen_usage_end_reason_confidence = Some(1.0);
-            sessions.push(sr);
-            return;
-        }
-        let stop_ns = stop_ts.unwrap();
-        let last_pkg = st
-            .last_meaningful_pkg
-            .clone()
-            .or_else(|| st.foreground_pkg.clone())
-            .unwrap_or_default();
-        let label = apps_forcing.get(&last_pkg).cloned().unwrap_or_default();
-        let tail_gap = st.last_meaningful_ts_ns.map(|t| (stop_ns - t) as f64 / 1e9);
-        sr.screen_usage_tail_gap_seconds = tail_gap;
-        sr.screen_usage_apps_forcing_screen_open_label = if label.is_empty() {
-            None
-        } else {
-            Some(label.clone())
-        };
-
-        if st.lock_screen_seen && !st.unlocked_seen && st.foreground_pkg.is_none() {
-            sr.screen_usage_end_reason = Some("lock_screen_only".to_string());
-            sr.screen_usage_end_reason_confidence = Some(0.95);
-            sr.screen_usage_lock_screen_only = Some(1);
-            sessions.push(sr);
-            return;
-        }
-        if let Some(tg) = tail_gap {
-            if !label.is_empty() && tg > opts.screen_auto_lock_timeout_seconds {
-                sr.screen_usage_end_reason = Some("app_kept_awake_or_extended".to_string());
-                sr.screen_usage_end_reason_confidence = Some(0.9);
-                sessions.push(sr);
-                return;
-            }
-            if tg <= opts.screen_manual_lock_max_tail_seconds {
-                sr.screen_usage_end_reason = Some("probable_manual_lock".to_string());
-                sr.screen_usage_end_reason_confidence = Some(0.85);
-                sessions.push(sr);
-                return;
-            }
-            if (tg - opts.screen_auto_lock_timeout_seconds).abs()
-                <= opts.screen_auto_lock_tolerance_seconds
-            {
-                sr.screen_usage_end_reason = Some("probable_auto_lock".to_string());
-                sr.screen_usage_end_reason_confidence = Some(0.9);
-                sessions.push(sr);
-                return;
-            }
-        }
-        if st.lock_screen_seen {
-            let search_radius_ns =
-                (opts.screen_keyguard_near_stop_seconds * 1_000_000_000.0).ceil() as i64;
-            let lower = keyguard_ts
-                .partition_point(|timestamp| *timestamp < stop_ns.saturating_sub(search_radius_ns));
-            let upper = keyguard_ts.partition_point(|timestamp| {
-                *timestamp <= stop_ns.saturating_add(search_radius_ns)
-            });
-            let near = keyguard_ts[lower..upper].iter().any(|&kg| {
-                ((stop_ns - kg) as f64 / 1e9).abs() <= opts.screen_keyguard_near_stop_seconds
-            });
-            if near {
-                sr.screen_usage_end_reason = Some("probable_manual_lock".to_string());
-                sr.screen_usage_end_reason_confidence = Some(0.7);
-                sessions.push(sr);
-                return;
-            }
-        }
-        if tail_gap.is_some() {
-            sr.screen_usage_end_reason = Some("extended_idle_or_unknown".to_string());
-            sr.screen_usage_end_reason_confidence = Some(0.5);
-            sessions.push(sr);
-            return;
-        }
-        sr.screen_usage_end_reason = Some("unknown".to_string());
-        sr.screen_usage_end_reason_confidence = Some(0.25);
-        sessions.push(sr);
-    };
-
-    for (i, row) in rows.iter().enumerate() {
-        let it = row.interaction_type.as_str();
-        let pkg = if row.app_package_name.is_empty() {
-            None
-        } else {
-            Some(row.app_package_name.clone())
-        };
-        if start_set.contains(it) {
-            if state.is_none() {
-                state = Some(ScreenState {
-                    start_index: i,
-                    start_timestamp_ns: row.event_timestamp_ns,
-                    start_timezone: row.timezone.clone(),
-                    lock_screen_seen: lock_set.contains(it),
-                    unlocked_seen: false,
-                    foreground_pkg: None,
-                    last_meaningful_ts_ns: None,
-                    last_meaningful_pkg: None,
-                    source_data_rows: row.source_data_rows.clone(),
-                });
-            } else if let Some(current) = state.as_mut() {
-                current.source_data_rows.merge(&row.source_data_rows);
-            }
-            continue;
-        }
-        let Some(s) = state.as_mut() else { continue };
-        s.source_data_rows.merge(&row.source_data_rows);
-        if lock_set.contains(it) {
-            s.lock_screen_seen = true;
-        }
-        if unlock_set.contains(it) {
-            s.unlocked_seen = true;
-        }
-        if fg_set.contains(it) {
-            s.foreground_pkg = pkg.clone();
-        }
-        if meaningful_set.contains(it) {
-            s.last_meaningful_ts_ns = Some(row.event_timestamp_ns);
-            s.last_meaningful_pkg = pkg.clone().or_else(|| s.foreground_pkg.clone());
-        }
-        if stop_set.contains(it) {
-            closes.push(ScreenSessionClose {
-                state: s.clone(),
-                stop_timestamp_ns: Some(row.event_timestamp_ns),
-                stop_event_type: Some(it.to_string()),
-            });
-            state = None;
-        }
-    }
-    if let Some(s) = state.take() {
-        closes.push(ScreenSessionClose {
-            state: s,
-            stop_timestamp_ns: None,
-            stop_event_type: None,
-        });
-    }
+    let keyguard_timestamps = incremental::collect_keyguard_timestamps(rows);
+    step_checkpoints.value("collect_keyguard_timestamps", &keyguard_timestamps)?;
+    let closes = incremental::walk_screen_state_machine(rows);
     step_checkpoints.value("walk_screen_state_machine", &closes)?;
-    for close in &closes {
-        build(
-            &close.state,
-            close.stop_timestamp_ns,
-            close.stop_event_type.as_deref(),
-            &mut sessions,
-        );
-    }
+    let sessions = incremental::build_classified_sessions(
+        rows,
+        &closes,
+        &keyguard_timestamps,
+        apps_forcing,
+        incremental::ScreenClassificationSettings {
+            auto_lock_timeout_seconds: opts.screen_auto_lock_timeout_seconds,
+            auto_lock_tolerance_seconds: opts.screen_auto_lock_tolerance_seconds,
+            manual_lock_max_tail_seconds: opts.screen_manual_lock_max_tail_seconds,
+            keyguard_near_stop_seconds: opts.screen_keyguard_near_stop_seconds,
+        },
+    );
     step_checkpoints.rows("build_classified_sessions", &sessions);
     Ok(sessions)
 }
@@ -5896,48 +5540,17 @@ pub fn run_pipeline_v2_with_supports(
     // 2. Resolve the product's four timezone policies in Rust. The primary
     // timezone is the most frequent non-empty input value; a tie keeps the
     // first timezone encountered, matching JavaScript Map insertion order.
-    let mut timezone_counts: HashMap<String, usize> = HashMap::new();
-    let mut primary_timezone = "UTC".to_string();
-    let mut primary_count = 0usize;
-    for row in &rows {
-        if row.timezone.is_empty() {
-            continue;
-        }
-        let count = timezone_counts.entry(row.timezone.clone()).or_default();
-        *count += 1;
-        if *count > primary_count {
-            primary_timezone = row.timezone.clone();
-            primary_count = *count;
-        }
-    }
+    let primary_timezone = incremental::compute_dominant_timezone(&rows);
     step_checkpoints.value("compute_dominant_timezone", &primary_timezone)?;
-    let (target_timezone, timezone_action) = match opts.timezone_handling.as_str() {
-        "selected-filter" => {
-            if opts.timezone.trim().is_empty() {
-                return Err("selected timezone is required for selected-filter".into());
-            }
-            rows.retain(|row| row.timezone == opts.timezone);
-            if rows.is_empty() {
-                return Err(format!(
-                    "selected timezone {} is not present in the input; filtering would remove all rows",
-                    opts.timezone
-                ));
-            }
-            (opts.timezone.clone(), "filtered_to_selected")
-        }
-        "selected-convert" => {
-            if opts.timezone.trim().is_empty() {
-                return Err("selected timezone is required for selected-convert".into());
-            }
-            (opts.timezone.clone(), "converted_to_selected")
-        }
-        "primary-filter" => {
-            rows.retain(|row| row.timezone == primary_timezone);
-            (primary_timezone, "filtered_to_primary")
-        }
-        "primary-convert" => (primary_timezone, "converted_to_primary"),
-        other => return Err(format!("unsupported timezone handling: {other}")),
-    };
+    let selection = incremental::select_timezone_strategy(
+        rows,
+        &opts.timezone,
+        &opts.timezone_handling,
+        &primary_timezone,
+    )?;
+    rows = selection.rows;
+    let target_timezone = selection.target_timezone;
+    let timezone_action = selection.action;
     step_checkpoints.rows_and_value(
         "select_timezone_strategy",
         &rows,
@@ -5947,27 +5560,17 @@ pub fn run_pipeline_v2_with_supports(
         }),
     )?;
     let rows_after_timezone_handling = rows.len() as u32;
-    let rows_removed_by_timezone =
-        rows_before_timezone_handling.saturating_sub(rows_after_timezone_handling);
+    let row_count_report =
+        incremental::row_count_report(rows_before_timezone_handling, rows_after_timezone_handling);
+    let rows_removed_by_timezone = row_count_report.removed;
     let timezone_retained_source_rows_digest = timezone_retained_source_rows_digest(&rows);
     let mut effective_opts = opts.clone();
     effective_opts.timezone = target_timezone;
     let opts = &effective_opts;
-    let tz: Tz = opts.timezone.parse().map_err(|e| format!("tz: {e}"))?;
-    for row in rows.iter_mut() {
-        row.timezone = opts.timezone.clone();
-        populate_time_columns(row, tz);
-    }
+    rows = incremental::restamp_rows(rows, &opts.timezone)?;
     step_checkpoints.rows("restamp_rows", &rows);
     let timezone_stage_digest = timezone_stage_digest(&rows);
-    step_checkpoints.value(
-        "row_count_report",
-        &serde_json::json!({
-            "before": rows_before_timezone_handling,
-            "after": rows_after_timezone_handling,
-            "removed": rows_removed_by_timezone,
-        }),
-    )?;
+    step_checkpoints.value("row_count_report", &row_count_report)?;
     record_logical_stage_checkpoint(
         &mut logical_stage_digests,
         &mut logical_stage_checkpoints,
@@ -5976,28 +5579,25 @@ pub fn run_pipeline_v2_with_supports(
 
     // 3. dedupe + (optional) unalign duplicate timestamps + mark gaps
     let rows_before_deduplication = rows.len();
-    let deduped = if opts.deduplicate_exact_rows {
-        dedupe_exact_rows(rows)
-    } else {
-        rows
-    };
+    let deduped = incremental::exact_dedupe(rows, opts.deduplicate_exact_rows);
     step_checkpoints.rows("exact_dedupe", &deduped);
     let exact_duplicate_rows_removed =
         rows_before_deduplication.saturating_sub(deduped.len()) as u32;
     let dupes_before = count_duplicate_groups(&deduped);
     step_checkpoints.value("count_dup_groups", &dupes_before)?;
-    let dupe_corrected = if opts.correct_duplicate_event_timestamps {
-        unalign_duplicate_timestamps(deduped, opts)
-    } else {
-        deduped
-    };
+    let dupe_corrected = incremental::nudge_duplicate_timestamps(
+        deduped,
+        opts.correct_duplicate_event_timestamps,
+        &opts.same_app_stop_types,
+        &opts.other_stop_types,
+    );
     step_checkpoints.rows("nudge_duplicate_timestamps", &dupe_corrected);
     let dupes_corrected = if opts.correct_duplicate_event_timestamps {
         dupes_before
     } else {
         0
     };
-    let mut rows = mark_data_time_gaps(dupe_corrected);
+    let mut rows = incremental::mark_gaps(dupe_corrected);
     step_checkpoints.rows("mark_data_time_gaps", &rows);
     record_logical_stage_checkpoint(
         &mut logical_stage_digests,
@@ -6177,20 +5777,24 @@ pub fn run_pipeline_v2_with_supports(
             !opts.use_app_codebook || codebook_map.is_empty() || opts.include_category_column;
 
         // 8. enrich
-        join_codebook(&mut rows, opts, &codebook_map);
+        join_codebook(&mut rows, opts.use_app_codebook, &codebook_map);
         step_checkpoints.rows("codebook_join", &rows);
-        derive_broad_category(&mut rows, opts);
+        derive_broad_category(&mut rows, opts.use_app_codebook);
         step_checkpoints.rows("derive_broad_category", &rows);
-        collapse_genre(&mut rows, opts);
+        collapse_genre(&mut rows, opts.use_app_codebook);
         step_checkpoints.rows("collapse_genre", &rows);
         record_logical_stage_checkpoint(
             &mut logical_stage_digests,
             &mut logical_stage_checkpoints,
             logical_stage_rows_checkpoint_reusing_last("categorize_apps", &rows, &step_checkpoints),
         );
-        add_app_usage_detail_columns(&mut rows, opts);
+        add_app_usage_detail_columns(&mut rows, opts.custom_app_engagement_duration);
         step_checkpoints.rows("engagement_walk", &rows);
-        mark_app_usage_flags(&mut rows, opts);
+        mark_app_usage_flags(
+            &mut rows,
+            &opts.long_data_time_gap_thresholds,
+            &opts.long_usage_duration_thresholds,
+        );
         step_checkpoints.rows("flag_and_retain", &rows);
         record_logical_stage_checkpoint(
             &mut logical_stage_digests,
@@ -6203,14 +5807,13 @@ pub fn run_pipeline_v2_with_supports(
         );
         clear_filtered_usage_timing(&mut rows);
         step_checkpoints.rows("blank_junk_timing", &rows);
-        rows = remove_selected_interaction_types(rows, opts);
+        rows = incremental::drop_selected_types(
+            rows,
+            &opts.interaction_types_to_remove,
+            &opts.long_data_time_gap_thresholds,
+        );
         step_checkpoints.rows("drop_selected_types", &rows);
-        if opts.filter_zero_duration_sessions {
-            rows.retain(|row| {
-                row.interaction_type != "App Usage"
-                    || row.duration_seconds.is_none_or(|duration| duration > 0.0)
-            });
-        }
+        rows = incremental::drop_zero_duration(rows, opts.filter_zero_duration_sessions);
         step_checkpoints.rows("drop_zero_duration", &rows);
         record_logical_stage_checkpoint(
             &mut logical_stage_digests,
@@ -6223,7 +5826,7 @@ pub fn run_pipeline_v2_with_supports(
         );
         let (credited_bytes, credited_count) = if opts.enable_screen_gated_crediting {
             let credit_input_parts = step_checkpoints.take_last_row_parts();
-            let credited = apply_screen_gated_credit(
+            let credited = apply_screen_gated_credit_incremental(
                 &rows,
                 &policy_rows,
                 opts,
@@ -6319,14 +5922,14 @@ pub fn run_pipeline_v2_with_supports(
             let survey = parse_survey_lookup(support.survey_attribution_csv)?;
             let mut statuses = BTreeMap::new();
             for participant_id in rows.iter().map(|row| &row.participant_id) {
-                if statuses.contains_key(participant_id) {
+                if statuses.contains_key(participant_id.as_str()) {
                     continue;
                 }
-                let status = sharing_status_for(participant_id, &sharing)?;
+                let status = sharing_status_for(participant_id.as_str(), &sharing)?;
                 if status == SharingStatus::Shared {
-                    shared_participants.insert(participant_id.clone());
+                    shared_participants.insert(participant_id.to_string());
                 }
-                statuses.insert(participant_id.clone(), status);
+                statuses.insert(participant_id.to_string(), status);
             }
             let resolution = SharingResolution {
                 shared_participants: statuses
@@ -6617,6 +6220,38 @@ pub fn run_pipeline_v2_with_supports(
 mod tests {
     use super::*;
 
+    #[test]
+    fn cached_row_layout_is_bounded() {
+        let bytes = std::mem::size_of::<Row>();
+        assert!(bytes <= 16, "cached Row layout regressed to {bytes} bytes");
+    }
+
+    #[test]
+    fn cached_row_checkpoint_is_cleared_before_mutation() {
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n"
+        );
+        let raw = incremental::csv_parse(csv.as_bytes());
+        let model = incremental::detect_device_model(&raw);
+        let mut row =
+            incremental::build_canonical_rows(raw, "America/Chicago", &BTreeMap::new(), &model)
+                .expect("canonical row")
+                .remove(0);
+        let mut scratch = RowCheckpointScratch::default();
+        let baseline = row_checkpoint_parts(&row, &mut scratch);
+        assert!(row.0.checkpoint_parts.get().is_some());
+
+        row.hour = row.hour.saturating_add(1);
+        assert!(
+            row.0.checkpoint_parts.get().is_none(),
+            "mutable row access must clear the derived checkpoint"
+        );
+        let changed = row_checkpoint_parts(&row, &mut scratch);
+        assert_eq!(baseline.identity, changed.identity);
+        assert_ne!(baseline.temporal, changed.temporal);
+    }
+
     fn test_options() -> PipelineV2Options {
         PipelineV2Options {
             study_name: "Shadow Study".into(),
@@ -6781,6 +6416,43 @@ mod tests {
             vec![SourceDataRowRange { first: 1, last: 2 }]
         );
         assert_eq!(without_newline.row_lineage[0].source_data_row_count, 2);
+    }
+
+    #[test]
+    fn duplicate_timestamp_nudging_reads_both_stop_type_lists() {
+        let run = |middle_interaction: &str, options: &PipelineV2Options| {
+            let csv = format!(
+                concat!(
+                    "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+                    "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+                    "Study,P01,Target Child,Chat,{},com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+                    "Study,P01,Target Child,Chat,User Interaction,com.example.chat,2026-03-07 10:00:00,America/Chicago\n"
+                ),
+                middle_interaction
+            );
+            run_pipeline_v2(csv.as_bytes(), options, &[], &[], &[])
+                .expect("duplicate-timestamp dependency fixture")
+                .pipeline_step_digests["nudge_duplicate_timestamps"]
+                .clone()
+        };
+
+        let with_same_stop = test_options();
+        let mut without_same_stop = with_same_stop.clone();
+        without_same_stop.same_app_stop_types.clear();
+        assert_ne!(
+            run("Activity Paused", &with_same_stop),
+            run("Activity Paused", &without_same_stop),
+            "same_app_stop_types changes the early duplicate-timestamp order"
+        );
+
+        let with_other_stop = test_options();
+        let mut without_other_stop = with_other_stop.clone();
+        without_other_stop.other_stop_types.clear();
+        assert_ne!(
+            run("Device Shutdown", &with_other_stop),
+            run("Device Shutdown", &without_other_stop),
+            "other_stop_types changes the early duplicate-timestamp order"
+        );
     }
 
     #[test]

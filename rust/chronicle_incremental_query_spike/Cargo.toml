@@ -12,7 +12,7 @@ crate-type = ["rlib", "cdylib"]
 chronicle_chrono_kernel_wasm = { path = "../chronicle_chrono_kernel_wasm" }
 chronicle_preprocessing_runtime_wasm = { path = "../chronicle_preprocessing_runtime_wasm" }
 chronicle_preprocessing_semantic_adapter = { path = "../chronicle_preprocessing_semantic_adapter" }
-salsa = { version = "=0.28.1", default-features = false, features = ["macros", "persistence"] }
+salsa = { version = "=0.28.1", path = "../vendor/salsa-0.28.1", default-features = false, features = ["macros", "persistence"] }
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 sha2 = "0.10"

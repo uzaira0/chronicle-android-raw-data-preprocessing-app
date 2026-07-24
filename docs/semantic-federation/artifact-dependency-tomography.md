@@ -61,8 +61,9 @@ changed input-key set must equal the predicted cluster derived from only:
 - upstream logical checkpoints that actually changed.
 
 This detects missing edges, stale cache reuse, and logical over-invalidation.
-The fused physical kernel remains the cold correctness backstop and is not
-claimed to execute partial physical stages.
+The fused kernel remains the independent cold correctness backstop. Warm
+execution now uses the Salsa query engine, and regenerated evidence must record
+the exact query bodies that executed for each artifact intervention.
 
 Every supplied root artifact also passes the product-local qualification
 solver. The runtime records one rule-by-rule trace proving candidate identity,

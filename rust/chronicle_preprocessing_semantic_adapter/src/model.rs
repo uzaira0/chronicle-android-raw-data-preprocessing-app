@@ -193,9 +193,32 @@ pub struct PlanStep {
     pub description: String,
     pub capability_id: String,
     pub input_steps: Vec<String>,
+    #[serde(default)]
+    pub request_fields: Vec<String>,
+    #[serde(default)]
+    pub source_role_bindings: Vec<PlanStepSourceRoleBinding>,
     pub applicability: Condition,
     pub can_bypass: bool,
     pub binding_set_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlanStepSourceRoleBinding {
+    pub role: String,
+    pub when_all: Vec<PlanStepSourceRolePredicate>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "operator", rename_all = "snake_case")]
+pub enum PlanStepSourceRolePredicate {
+    BooleanEquals {
+        request_field: String,
+        value: bool,
+    },
+    StringOneOf {
+        request_field: String,
+        values: Vec<String>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -260,13 +283,6 @@ pub struct StateReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NodeCacheEntry {
-    pub input_key: String,
-    pub output: ArtifactRef,
-    pub revision: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NodeExecution {
     pub node_id: String,
     pub capability_id: String,
@@ -278,18 +294,6 @@ pub struct NodeExecution {
 
 #[derive(Debug, thiserror::Error)]
 pub enum RuntimeError {
-    #[error("unknown role: {0}")]
-    UnknownRole(String),
-    #[error("role {role} does not accept media type {media_type}")]
-    InvalidMediaType { role: String, media_type: String },
-    #[error("role {0} exceeds its maximum cardinality")]
-    Cardinality(String),
-    #[error("missing required role: {0}")]
-    MissingRole(String),
-    #[error("unknown node capability: {0}")]
-    UnknownCapability(String),
-    #[error("capability {capability} failed: {message}")]
-    Capability { capability: String, message: String },
     #[error("artifact store error: {0}")]
     Storage(String),
     #[error("serialization error: {0}")]

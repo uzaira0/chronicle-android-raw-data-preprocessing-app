@@ -9,7 +9,7 @@ import backgroundCsv from "@/assets/defaults/Chronicle_Android_raw_data_preproce
 import codebookCsv from "@/assets/defaults/unified_app_codebook.csv?raw";
 import { COMPUTATIONAL_BROWSER_OPTION_KEYS } from "@/lib/generatedContract";
 import { GOLDEN_RUNTIME } from "@/lib/pipelineGraph/golden/goldenScenario";
-import { ALL_ON, byId, order } from "@/lib/pipelineGraph/validationHarness";
+import { ALL_ON } from "@/lib/pipelineGraph/validationHarness";
 import { buildRustV2Options } from "@/lib/rustPipelineRuntime";
 import type { BrowserProcessingOptions } from "@/lib/types";
 import {
@@ -30,6 +30,11 @@ import {
   generateSyntheticChronicleCorpus,
   SYNTHETIC_CORPUS_PROFILES,
 } from "@/testSupport/syntheticChronicleCorpus";
+import {
+  sourceRoleIsActive,
+  type RustStepContract,
+} from "@/testSupport/rustStepContract";
+import { dependencyCampaignRuntimeBytes } from "@/testSupport/dependencyCampaignRuntime";
 import * as runtime from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
 
 const EXPECTED_DIRECTORY = join(
@@ -54,12 +59,6 @@ if (MIXED_ROLE && !ROLE_IDS.includes(MIXED_ROLE)) {
   throw new Error(`unknown MIXED_ROLE: ${MIXED_ROLE}`);
 }
 
-type PlanNode = {
-  node_id: string;
-  input_nodes: string[];
-  support_roles: string[];
-};
-
 type RuntimeManifest = {
   implementation: string;
   implementationDigest: string;
@@ -73,12 +72,20 @@ type RuntimeManifest = {
   processingSummary: {
     logicalStageDigests: Record<string, string>;
     logicalStageCheckpoints: Record<string, Record<string, unknown>>;
+    pipelineStepDigests: Record<string, string>;
     [key: string]: unknown;
   };
   nodeExecutions: Array<{
     node_id: string;
     input_key: string;
     output: { digest: string } | null;
+    status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
+  }>;
+  stepExecutions: Array<{
+    step_id: string;
+    unit_id: string;
+    input_key: string;
+    output_digest: string;
     status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
   }>;
   artifacts: Array<{ kind: string; digest: string; size: number }>;
@@ -90,29 +97,32 @@ type AxisValue = { label: string; value: unknown };
 const plan = JSON.parse(readFileSync(PLAN_FILE, "utf8")) as {
   plan_id: string;
   revision: string;
-  nodes: PlanNode[];
 };
-const planByNode = new Map(plan.nodes.map((node) => [node.node_id, node]));
 const catalog = buildSyntheticCatalog({
   codebookCsv,
   filterCsv,
   backgroundCsv,
   forcingScreenOpenCsv: forcingCsv,
 });
+let stepContract: RustStepContract;
 
 beforeAll(() => {
-  const wasmBytes = readFileSync(
-    new URL(
-      "../../../wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm",
-      import.meta.url,
-    ),
+  runtime.initSync({ module: dependencyCampaignRuntimeBytes() });
+  stepContract = JSON.parse(
+    runtime.pipeline_step_contract_json(),
+  ) as RustStepContract;
+  expect(stepContract.protocolVersion).toBe(
+    "chronicle-preprocessing-step-contract/v3",
   );
-  runtime.initSync({ module: wasmBytes });
+  expect(stepContract.steps).toHaveLength(55);
 });
 
 async function sha256Uri(value: Uint8Array | string): Promise<string> {
   const bytes = typeof value === "string" ? encoder.encode(value) : value;
-  const digest = await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer);
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    Uint8Array.from(bytes).buffer,
+  );
   return `sha256:${Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("")}`;
@@ -200,15 +210,27 @@ function receipt(manifest: RuntimeManifest): Record<string, string> {
   };
 }
 
-function nodeInputKeys(manifest: RuntimeManifest): Record<string, string> {
+function stepStatuses(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
-    manifest.nodeExecutions.map(({ node_id, input_key }) => [node_id, input_key]),
+    manifest.stepExecutions.map(({ step_id, status }) => [step_id, status]),
   );
 }
 
-function nodeOutputDigests(manifest: RuntimeManifest): Record<string, string | null> {
+function executedStepIds(manifest: RuntimeManifest): string[] {
+  return manifest.stepExecutions
+    .filter(({ status }) => status === "recomputed")
+    .map(({ step_id }) => step_id)
+    .sort();
+}
+
+function nodeOutputDigests(
+  manifest: RuntimeManifest,
+): Record<string, string | null> {
   return Object.fromEntries(
-    manifest.nodeExecutions.map(({ node_id, output }) => [node_id, output?.digest ?? null]),
+    manifest.nodeExecutions.map(({ node_id, output }) => [
+      node_id,
+      output?.digest ?? null,
+    ]),
   );
 }
 
@@ -232,7 +254,9 @@ const OUTPUT_KINDS = new Set([
 function outputArtifacts(manifest: RuntimeManifest): Record<string, string> {
   return Object.fromEntries(
     manifest.artifacts
-      .filter(({ kind }) => OUTPUT_KINDS.has(kind) || kind.startsWith("aggregate-"))
+      .filter(
+        ({ kind }) => OUTPUT_KINDS.has(kind) || kind.startsWith("aggregate-"),
+      )
       .sort((left, right) => left.kind.localeCompare(right.kind))
       .map(({ kind, digest }) => [kind, digest]),
   );
@@ -246,7 +270,10 @@ function semanticOutcome(manifest: RuntimeManifest): Record<string, unknown> {
   };
 }
 
-function checkpointComponentSet(source: RuntimeManifest, target: RuntimeManifest): string[] {
+function checkpointComponentSet(
+  source: RuntimeManifest,
+  target: RuntimeManifest,
+): string[] {
   return Object.keys(source.processingSummary.logicalStageCheckpoints)
     .sort()
     .flatMap((nodeId) =>
@@ -259,55 +286,58 @@ function checkpointComponentSet(source: RuntimeManifest, target: RuntimeManifest
     );
 }
 
-function delta(left: string[], right: string[]): { introduced: string[]; masked: string[] } {
+function delta(
+  left: string[],
+  right: string[],
+): { introduced: string[]; masked: string[] } {
   return {
     introduced: right.filter((value) => !left.includes(value)),
     masked: left.filter((value) => !right.includes(value)),
   };
 }
 
-function predictedConfigurationCluster(
-  browserKey: string,
-  changedSemanticNodes: ReadonlySet<string>,
+function predictedExecutedSteps(
+  changedRequestFields: ReadonlySet<string>,
+  changedSourceRoles: ReadonlySet<string>,
+  changedStepOutputs: ReadonlySet<string>,
+  targetOptions: Record<string, unknown>,
+  source: RuntimeManifest,
+  target: RuntimeManifest,
 ): string[] {
-  const touched = new Set<string>();
-  for (const nodeId of order) {
-    const node = byId.get(nodeId)!;
-    if (
-      node.knobs.some(({ optionKey }) => optionKey === browserKey) ||
-      node.inputs.some((input) => changedSemanticNodes.has(input))
-    ) {
-      touched.add(nodeId);
-    }
-  }
-  return [...touched].sort();
-}
-
-function predictedArtifactCluster(
-  roleId: InterventionRoleId,
-  changedSemanticNodes: ReadonlySet<string>,
-): string[] {
-  const touched = new Set<string>();
-  for (const nodeId of order) {
-    const node = planByNode.get(nodeId)!;
-    if (
-      (roleId === "raw_chronicle_csv" && nodeId === "parse_events") ||
-      node.support_roles.includes(roleId) ||
-      node.input_nodes.some((input) => changedSemanticNodes.has(input))
-    ) {
-      touched.add(nodeId);
-    }
-  }
-  return [...touched].sort();
+  const sourceStatuses = stepStatuses(source);
+  const targetStatuses = stepStatuses(target);
+  return stepContract.steps
+    .filter((step) => {
+      const sourceApplicable = sourceStatuses[step.id] !== "bypassed";
+      const targetApplicable = targetStatuses[step.id] !== "bypassed";
+      return (
+        targetApplicable &&
+        (!sourceApplicable ||
+          step.requestFields.some((field) => changedRequestFields.has(field)) ||
+          step.sourceRoles.some(
+            (role) =>
+              changedSourceRoles.has(role) && sourceRoleIsActive(step, role, targetOptions),
+          ) ||
+          step.inputs.some((input) => changedStepOutputs.has(input)))
+      );
+    })
+    .map(({ id }) => id)
+    .sort();
 }
 
 describe("mixed artifact × configuration tomography", () => {
   if (!MIXED_ROLE) {
     it("binds the nine independently recycled role shards into one aggregate receipt", () => {
-      expect(existsSync(AGGREGATE_FILE), "missing mixed aggregate ledger").toBe(true);
+      expect(existsSync(AGGREGATE_FILE), "missing mixed aggregate ledger").toBe(
+        true,
+      );
       const aggregate = JSON.parse(readFileSync(AGGREGATE_FILE, "utf8")) as {
         protocolVersion: string;
-        roleShards: Array<{ roleId: string; path: string; contentDigest: string }>;
+        roleShards: Array<{
+          roleId: string;
+          path: string;
+          contentDigest: string;
+        }>;
       };
       expect(aggregate.protocolVersion).toBe(
         "chronicle-mixed-artifact-configuration-aggregate/v1",
@@ -317,9 +347,9 @@ describe("mixed artifact × configuration tomography", () => {
       );
       for (const shard of aggregate.roleShards) {
         const bytes = readFileSync(join(EXPECTED_DIRECTORY, shard.path));
-        expect(`sha256:${createHash("sha256").update(bytes).digest("hex")}`).toBe(
-          shard.contentDigest,
-        );
+        expect(
+          `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+        ).toBe(shard.contentDigest);
       }
     });
     return;
@@ -349,7 +379,10 @@ describe("mixed artifact × configuration tomography", () => {
     let activationProbeExecutions = 0;
     for (const roleId of [MIXED_ROLE]) {
       for (const profile of SYNTHETIC_CORPUS_PROFILES) {
-        const candidateCorpus = generateSyntheticChronicleCorpus(profile, catalog);
+        const candidateCorpus = generateSyntheticChronicleCorpus(
+          profile,
+          catalog,
+        );
         let fixture = fixtureBases.get(candidateCorpus.id);
         if (!fixture) {
           const source = buildArtifactFixtureState({
@@ -419,14 +452,18 @@ describe("mixed artifact × configuration tomography", () => {
       [...representatives.keys()].sort(),
       "each source role needs an empirically branch-activating representative",
     ).toEqual([MIXED_ROLE]);
-    const implementationReceipt = receipt(representatives.values().next().value!.coldBase);
+    const implementationReceipt = receipt(
+      representatives.values().next().value!.coldBase,
+    );
 
     const variants = COMPUTATIONAL_BROWSER_OPTION_KEYS.flatMap((key) =>
       configurationEquivalenceClasses(key)
         .filter(
           ({ value }) =>
             JSON.stringify(value) !==
-            JSON.stringify((baseOptions as unknown as Record<string, unknown>)[key]),
+            JSON.stringify(
+              (baseOptions as unknown as Record<string, unknown>)[key],
+            ),
         )
         .map((alternate) => ({ key, alternate })),
     );
@@ -438,7 +475,8 @@ describe("mixed artifact × configuration tomography", () => {
       if (!validConfiguration(options)) {
         invalidVariants.push({
           variantId,
-          reason: "selected timezone is required by a selected-* timezone policy",
+          reason:
+            "selected timezone is required by a selected-* timezone policy",
         });
         continue;
       }
@@ -464,9 +502,18 @@ describe("mixed artifact × configuration tomography", () => {
     for (const [roleId, representative] of representatives) {
       for (const { key, alternate } of variants) {
         const variantId = axisId(key, alternate);
-        const coldConfiguration = coldConfigurations.get(`${roleId}:${variantId}`);
+        const coldConfiguration = coldConfigurations.get(
+          `${roleId}:${variantId}`,
+        );
         if (!coldConfiguration) continue;
         const options = withValue(baseOptions, key, alternate.value);
+        const changedRustKeys = new Set(
+          changedFields(
+            buildRustV2Options(baseOptions, GOLDEN_RUNTIME),
+            buildRustV2Options(options, GOLDEN_RUNTIME),
+          ),
+        );
+        const exactTargetOptions = buildRustV2Options(options, GOLDEN_RUNTIME);
         const caseId = `${roleId}:${representative.intervention.id}×${variantId}`;
         const coldPair = await execute(
           representative.state,
@@ -531,17 +578,21 @@ describe("mixed artifact × configuration tomography", () => {
           configFirstSingle,
           configFirstPair,
         ]) {
-          expect(manifest.openObligations, `${caseId}: binding holes`).toEqual([]);
+          expect(manifest.openObligations, `${caseId}: binding holes`).toEqual(
+            [],
+          );
           expect(receipt(manifest), `${caseId}: authority drift`).toEqual(
             implementationReceipt,
           );
         }
-        expect(semanticOutcome(dataFirstBase), `${caseId}: data-first base`).toEqual(
-          semanticOutcome(representative.coldBase),
-        );
-        expect(semanticOutcome(configFirstBase), `${caseId}: config-first base`).toEqual(
-          semanticOutcome(representative.coldBase),
-        );
+        expect(
+          semanticOutcome(dataFirstBase),
+          `${caseId}: data-first base`,
+        ).toEqual(semanticOutcome(representative.coldBase));
+        expect(
+          semanticOutcome(configFirstBase),
+          `${caseId}: config-first base`,
+        ).toEqual(semanticOutcome(representative.coldBase));
         expect(
           semanticOutcome(dataFirstSingle),
           `${caseId}: data-first intermediate`,
@@ -550,56 +601,113 @@ describe("mixed artifact × configuration tomography", () => {
           semanticOutcome(configFirstSingle),
           `${caseId}: config-first intermediate`,
         ).toEqual(semanticOutcome(coldConfiguration));
-        expect(semanticOutcome(dataFirstPair), `${caseId}: data-first final`).toEqual(
-          semanticOutcome(coldPair),
-        );
-        expect(semanticOutcome(configFirstPair), `${caseId}: config-first final`).toEqual(
-          semanticOutcome(coldPair),
-        );
-        expect(dataFirstPair.outputCells, `${caseId}: data-first cells`).toEqual(
-          coldPair.outputCells,
-        );
-        expect(configFirstPair.outputCells, `${caseId}: config-first cells`).toEqual(
-          coldPair.outputCells,
-        );
+        expect(
+          semanticOutcome(dataFirstPair),
+          `${caseId}: data-first final`,
+        ).toEqual(semanticOutcome(coldPair));
+        expect(
+          semanticOutcome(configFirstPair),
+          `${caseId}: config-first final`,
+        ).toEqual(semanticOutcome(coldPair));
+        expect(
+          dataFirstPair.outputCells,
+          `${caseId}: data-first cells`,
+        ).toEqual(coldPair.outputCells);
+        expect(
+          configFirstPair.outputCells,
+          `${caseId}: config-first cells`,
+        ).toEqual(coldPair.outputCells);
         warmColdComparisons += 6;
 
-        const changedAfterData = changedFields(
-          representative.cold.processingSummary.logicalStageDigests,
-          coldPair.processingSummary.logicalStageDigests,
+        const changedStepsAfterData = changedFields(
+          representative.cold.processingSummary.pipelineStepDigests,
+          coldPair.processingSummary.pipelineStepDigests,
         );
-        const observedAfterData = changedFields(
-          nodeInputKeys(dataFirstSingle),
-          nodeInputKeys(dataFirstPair),
+        const predictedAfterData = predictedExecutedSteps(
+          changedRustKeys,
+          new Set(),
+          new Set(changedStepsAfterData),
+          exactTargetOptions,
+          representative.cold,
+          coldPair,
         );
-        expect(observedAfterData, `${caseId}: config-after-data cone`).toEqual(
-          predictedConfigurationCluster(key, new Set(changedAfterData)),
+        const actualAfterData = executedStepIds(dataFirstPair);
+        expect(
+          actualAfterData,
+          `${caseId}: config-after-data Salsa execution`,
+        ).toEqual(predictedAfterData);
+        const changedStepsAfterConfig = changedFields(
+          coldConfiguration.processingSummary.pipelineStepDigests,
+          coldPair.processingSummary.pipelineStepDigests,
         );
-        const changedAfterConfig = changedFields(
-          coldConfiguration.processingSummary.logicalStageDigests,
-          coldPair.processingSummary.logicalStageDigests,
+        const predictedAfterConfig = predictedExecutedSteps(
+          new Set(),
+          new Set([roleId]),
+          new Set(changedStepsAfterConfig),
+          exactTargetOptions,
+          coldConfiguration,
+          coldPair,
         );
-        const observedAfterConfig = changedFields(
-          nodeInputKeys(configFirstSingle),
-          nodeInputKeys(configFirstPair),
-        );
-        expect(observedAfterConfig, `${caseId}: data-after-config cone`).toEqual(
-          predictedArtifactCluster(roleId, new Set(changedAfterConfig)),
-        );
+        const actualAfterConfig = executedStepIds(configFirstPair);
+        expect(
+          actualAfterConfig,
+          `${caseId}: data-after-config Salsa execution`,
+        ).toEqual(predictedAfterConfig);
+        const dataFirstSourceStatuses = stepStatuses(representative.cold);
+        const pairStatuses = stepStatuses(coldPair);
+        const deactivatedAfterData = stepContract.steps
+          .filter(
+            ({ id }) =>
+              dataFirstSourceStatuses[id] !== "bypassed" &&
+              pairStatuses[id] === "bypassed",
+          )
+          .map(({ id }) => id)
+          .sort();
+        for (const stepId of deactivatedAfterData) {
+          expect(
+            stepStatuses(dataFirstPair)[stepId],
+            `${caseId}: deactivated config query must not execute`,
+          ).toBe("bypassed");
+        }
+        const configFirstSourceStatuses = stepStatuses(coldConfiguration);
+        const deactivatedAfterConfig = stepContract.steps
+          .filter(
+            ({ id }) =>
+              configFirstSourceStatuses[id] !== "bypassed" &&
+              pairStatuses[id] === "bypassed",
+          )
+          .map(({ id }) => id)
+          .sort();
+        expect(
+          deactivatedAfterConfig,
+          `${caseId}: artifact bytes cannot change applicability`,
+        ).toEqual([]);
         exactClusterComparisons += 2;
 
         const baseConfigComponents = checkpointComponentSet(
           representative.coldBase,
           coldConfiguration,
         );
-        const dataConfigComponents = checkpointComponentSet(representative.cold, coldPair);
+        const dataConfigComponents = checkpointComponentSet(
+          representative.cold,
+          coldPair,
+        );
         const baseDataComponents = checkpointComponentSet(
           representative.coldBase,
           representative.cold,
         );
-        const configDataComponents = checkpointComponentSet(coldConfiguration, coldPair);
-        const configConditioning = delta(baseConfigComponents, dataConfigComponents);
-        const dataConditioning = delta(baseDataComponents, configDataComponents);
+        const configDataComponents = checkpointComponentSet(
+          coldConfiguration,
+          coldPair,
+        );
+        const configConditioning = delta(
+          baseConfigComponents,
+          dataConfigComponents,
+        );
+        const dataConditioning = delta(
+          baseDataComponents,
+          configDataComponents,
+        );
         const baseConfigCells = changedCellAddresses(
           representative.coldBase.outputCells,
           coldConfiguration.outputCells,
@@ -624,21 +732,33 @@ describe("mixed artifact × configuration tomography", () => {
           interventionId: representative.intervention.id,
           optionKey: key,
           alternate,
-          configAfterDataNodes: observedAfterData,
-          dataAfterConfigNodes: observedAfterConfig,
+          configAfterDataPredictedSteps: predictedAfterData,
+          configAfterDataActualSteps: actualAfterData,
+          configAfterDataDeactivatedSteps: deactivatedAfterData,
+          dataAfterConfigPredictedSteps: predictedAfterConfig,
+          dataAfterConfigActualSteps: actualAfterConfig,
+          dataAfterConfigDeactivatedSteps: deactivatedAfterConfig,
           configConditioning,
           dataConditioning,
           configCellConditioning: {
             introducedCount: configCellConditioning.introduced.length,
             maskedCount: configCellConditioning.masked.length,
-            introducedDigest: await sha256Uri(configCellConditioning.introduced.join("\n")),
-            maskedDigest: await sha256Uri(configCellConditioning.masked.join("\n")),
+            introducedDigest: await sha256Uri(
+              configCellConditioning.introduced.join("\n"),
+            ),
+            maskedDigest: await sha256Uri(
+              configCellConditioning.masked.join("\n"),
+            ),
           },
           dataCellConditioning: {
             introducedCount: dataCellConditioning.introduced.length,
             maskedCount: dataCellConditioning.masked.length,
-            introducedDigest: await sha256Uri(dataCellConditioning.introduced.join("\n")),
-            maskedDigest: await sha256Uri(dataCellConditioning.masked.join("\n")),
+            introducedDigest: await sha256Uri(
+              dataCellConditioning.introduced.join("\n"),
+            ),
+            maskedDigest: await sha256Uri(
+              dataCellConditioning.masked.join("\n"),
+            ),
           },
         };
         if (
@@ -716,9 +836,10 @@ describe("mixed artifact × configuration tomography", () => {
       writeFileSync(expectedFile, serialized, "utf8");
       return;
     }
-    expect(existsSync(expectedFile), "missing mixed artifact/configuration ledger").toBe(
-      true,
-    );
+    expect(
+      existsSync(expectedFile),
+      "missing mixed artifact/configuration ledger",
+    ).toBe(true);
     expect(serialized).toBe(readFileSync(expectedFile, "utf8"));
   }, 240_000);
 });

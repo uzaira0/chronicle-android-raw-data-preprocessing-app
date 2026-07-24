@@ -59,12 +59,14 @@ if len(nodes) != 15 or len(steps) != 55:
     raise SystemExit("preprocessing plan must declare 15 groups and 55 steps")
 if plan["implementation_state"]["active_logical_authority"] != "rust-composed-runtime":
     raise SystemExit("plan does not select the composed Rust runtime")
-if plan["implementation_state"]["physical_execution"] != "fused-rust-pipeline-v2":
-    raise SystemExit("current plan must disclose the fused physical executor")
+if plan["implementation_state"]["physical_execution"] != "salsa-tracked-rust-pipeline-v2":
+    raise SystemExit("current plan must select the 55-query Salsa executor")
 if plan["implementation_state"]["generated_yaml_is_executable_authority"]:
     raise SystemExit("structural YAML cannot be executable authority")
-if any(node["implementation_status"] != "rust-wasm-active-logical-authority" for node in nodes):
-    raise SystemExit("a logical node is not bound to active Rust/WASM authority")
+if any(node["implementation_status"] != "rust-wasm-product-stage-projection" for node in nodes):
+    raise SystemExit("a logical node is not a Rust/WASM product-stage projection")
+if any(node.get("physical_execution_authority") is not False for node in nodes):
+    raise SystemExit("a 15-stage projection incorrectly claims physical execution authority")
 
 node_ids = [node["node_id"] for node in nodes]
 step_ids = [step["step_id"] for step in steps]
@@ -82,6 +84,13 @@ for step in steps:
         raise SystemExit(f"{step['step_id']}: unknown input steps {sorted(unknown)}")
     if step["binding_set_id"] != bindings["binding_set_id"]:
         raise SystemExit(f"{step['step_id']}: capability binding-set drift")
+    rust_source = step.get("rust_executable_source", {})
+    if rust_source != {
+        "path": "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
+        "entrypoint": step["step_id"],
+        "tracking": "salsa-query",
+    }:
+        raise SystemExit(f"{step['step_id']}: exact Rust query source drift")
 
 logical_capabilities = [node["capability_id"] for node in nodes] + [
     step["capability_id"] for step in steps
@@ -130,10 +139,20 @@ primary = next(
 )
 if not primary or primary["status"] != "active" or not primary["authority"]:
     raise SystemExit("Rust/WASM execute_workspace is not the selected production authority")
-if set(primary["capability_ids"]) != required:
-    raise SystemExit("Rust/WASM production binding does not cover the exact required closure")
+step_capabilities = {step["capability_id"] for step in steps}
+if set(primary["capability_ids"]) != required - step_capabilities:
+    raise SystemExit("Rust/WASM product-runtime binding does not cover its exact required capabilities")
 if primary["evidence_projection"]["loss"] != "lossless":
     raise SystemExit("selected logical execution/evidence projection is not lossless")
+for step in steps:
+    authority = active_authorities[step["capability_id"]][0]
+    implementation = authority["implementation"]
+    if authority["relationship"] != "one-to-one":
+        raise SystemExit(f"{step['step_id']}: production query binding is not one-to-one")
+    if implementation["entrypoint"] != step["step_id"]:
+        raise SystemExit(f"{step['step_id']}: production query entrypoint drift")
+    if implementation["source"] != "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs":
+        raise SystemExit(f"{step['step_id']}: production query source drift")
 
 native = next(
     binding
@@ -171,8 +190,9 @@ runtime = (REPOSITORY_ROOT / "rust/chronicle_preprocessing_runtime_wasm/src/lib.
 for source, required_symbol in (
     (worker, "processRawCsvWithRustAuthority"),
     (authority_adapter, "executeRustRuntime"),
-    (runtime, "Scheduler::new"),
-    (runtime, "run_pipeline_v2_with_supports"),
+    (runtime, "IncrementalPipelineV2Engine"),
+    (runtime, "state.incremental_engine.execute("),
+    (runtime, "project_product_stages"),
 ):
     if required_symbol not in source:
         raise SystemExit(f"selected production path omits {required_symbol}")
@@ -205,8 +225,8 @@ if '"properties": {"items":' in serialized_schema or '"properties": {"links":' i
 
 print(
     "preprocessing semantic contract valid: "
-    f"groups=15 declared_steps=55 fused_executors=1 "
-    f"independently_cached_steps=0 rust_authorities={len(required)} "
+    f"groups=15 declared_steps=55 tracked_executors=1 "
+    f"independently_cached_steps=55 rust_authorities={len(required)} "
     f"runtime_surfaces={len(runtime_capabilities)} typed_views=6 "
-    "physical_incrementality=release-blocked"
+    "physical_incrementality=runtime-cutover-active-release-blocked"
 )

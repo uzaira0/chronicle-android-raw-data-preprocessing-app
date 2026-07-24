@@ -122,11 +122,13 @@ output must equal an independent cold target, and the observed input-key set
 must equal that predicted percolation cluster exactly. This detects both
 under-invalidation (stale state) and logical over-invalidation.
 
-The fused Rust executor remains the physical correctness backstop. A cache miss
-still performs one complete fused Rust run to obtain checkpoints; the logical
-cache can then cut off downstream propagation. Thus logical recomputation is
-proved minimal, while partial physical-stage execution is explicitly not
-claimed.
+This paragraph records the checked pre-cutover scheduler proof. At that commit,
+a logical cache miss performed one complete fused Rust run and partial physical
+execution was not claimed. The current branch instead executes 55 Salsa-tracked
+Rust queries and derives physical status from their actual execution events.
+The fused executor is now an independent cold oracle. This configuration-family
+ledger must be regenerated before it proves exact physical work for the current
+implementation.
 
 ## Evidence and commands
 
@@ -306,8 +308,9 @@ The checked evidence is
 `web/src/lib/pipelineGraph/golden/family-expected/configuration-influence-ledger.json`.
 It claims exact logical-stage output correspondence and minimal percolation only
 inside its digest-bound implementation/domain/context/corpus scope. It does not
-claim that untested real-world inputs cannot reveal a new branch, nor that the
-fused physical kernel executes only the changed stages.
+claim that untested real-world inputs cannot reveal a new branch. Because the
+checked file predates the Salsa cutover, it must be regenerated before it proves
+current physical query execution.
 
 ## Exhaustive two-factor interaction tomography
 
