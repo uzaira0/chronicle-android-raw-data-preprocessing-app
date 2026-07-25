@@ -33,6 +33,7 @@ function parseArgs(argv: string[]) {
   let benchmarkCase = "unchanged";
   let materialization: "full" | "review" = "full";
   let changedOnly = false;
+  let reviewBase = false;
   let workspaceCount = 1;
   let workspaceOffset = 0;
   const benchmarkCases = new Set([
@@ -78,6 +79,8 @@ function parseArgs(argv: string[]) {
       index += 1;
     } else if (token === "--changed-only") {
       changedOnly = true;
+    } else if (token === "--review-base") {
+      reviewBase = true;
     } else if (token === "--workspace-count" && next) {
       workspaceCount = positiveInteger(token, next);
       index += 1;
@@ -92,6 +95,9 @@ function parseArgs(argv: string[]) {
     }
   }
   if (!raw) throw new Error("--raw <path> is required");
+  if (reviewBase && materialization !== "review") {
+    throw new Error("--review-base requires --materialization review");
+  }
   if (benchmarkCase !== "unchanged" && mode !== "warm" && !changedOnly) {
     throw new Error(
       "--case requires --mode warm so iteration 0 can seed the workspace",
@@ -112,6 +118,7 @@ function parseArgs(argv: string[]) {
     benchmarkCase,
     materialization,
     changedOnly,
+    reviewBase,
     workspaceCount,
     workspaceOffset,
   };
@@ -151,6 +158,69 @@ runtime.initSync({ module: wasmBytes });
 
 const inputSha256 = sha256(inputBytes);
 const supports = new runtime.RuntimeSupportFiles();
+const buildBrowserOptions = (changed: boolean) => ({
+  ...DEFAULT_BROWSER_OPTIONS,
+  selectedTimezone: "America/Chicago",
+  timezoneHandling: "selected-filter" as const,
+  useFilterFile: false,
+  useAppsForcingScreenOpenFile: false,
+  useBackgroundAppsFile: false,
+  useAppCodebook: false,
+  modelConcurrentUsage: args.fullOptions,
+  enableScreenGatedCrediting: args.fullOptions,
+  enableAggregates: args.fullOptions,
+  enableDayCoverage: false,
+  ...(changed && args.benchmarkCase === "upstream_timezone_policy"
+    ? { timezoneHandling: "primary-convert" as const }
+    : {}),
+  ...(changed && args.benchmarkCase === "middle_concurrent_usage"
+    ? { modelConcurrentUsage: false }
+    : {}),
+  ...(changed && args.benchmarkCase === "middle_minimum_usage_duration"
+    ? { minimumUsageDuration: 2 }
+    : {}),
+  ...(changed && args.benchmarkCase === "downstream_day_coverage"
+    ? { enableDayCoverage: true }
+    : {}),
+  ...(changed && args.benchmarkCase === "output_study_name"
+    ? { studyName: "Synthetic benchmark B" }
+    : {}),
+});
+let reviewBaseBytes: Uint8Array | undefined;
+let reviewBaseRoot: string | null = null;
+if (args.reviewBase) {
+  const seedOptions = buildBrowserOptions(false);
+  const seedWorkspaceId = sha256(`chronicle-review-base-seed:${inputSha256}`);
+  const seedRequest = JSON.stringify({
+    protocolVersion: "chronicle-preprocessing-runtime/v1",
+    requestId: "benchmark-review-base-seed",
+    command: "ExecuteWorkspace",
+    workspaceRootDigest: null,
+    workspaceId: seedWorkspaceId,
+    inputFileName: path.basename(args.raw),
+    inputSha256,
+    options: buildRustV2Options(seedOptions, {
+      datetimeOfPreprocessing: "2026-07-23 00:00:00 UTC",
+    }),
+  });
+  const seed = runtime.execute_workspace(seedRequest, inputBytes, supports);
+  try {
+    const manifest = JSON.parse(seed.manifest_json());
+    reviewBaseRoot = manifest.workspaceRootDigest;
+    for (let index = 0; index < seed.artifact_count; index += 1) {
+      const metadata = JSON.parse(seed.artifact_metadata_json(index));
+      if (metadata.kind === "review-base") {
+        reviewBaseBytes = seed.take_artifact_bytes(index);
+        break;
+      }
+    }
+    if (!reviewBaseBytes) {
+      throw new Error("seed execution omitted review-base");
+    }
+  } finally {
+    seed.free();
+  }
+}
 const results: unknown[] = [];
 try {
   for (
@@ -167,39 +237,13 @@ try {
     let previousRoot: string | null = null;
     for (let iteration = 0; iteration < args.iterations; iteration += 1) {
       const workspaceId =
-        args.mode === "warm"
+        args.reviewBase
+          ? sha256(`${stableWorkspaceId}:review-base:${iteration}`)
+          : args.mode === "warm"
           ? stableWorkspaceId
           : sha256(`${stableWorkspaceId}:${iteration}`);
       let handle: ReturnType<typeof runtime.execute_workspace> | undefined;
       try {
-        const buildBrowserOptions = (changed: boolean) => ({
-          ...DEFAULT_BROWSER_OPTIONS,
-          selectedTimezone: "America/Chicago",
-          timezoneHandling: "selected-filter" as const,
-          useFilterFile: false,
-          useAppsForcingScreenOpenFile: false,
-          useBackgroundAppsFile: false,
-          useAppCodebook: false,
-          modelConcurrentUsage: args.fullOptions,
-          enableScreenGatedCrediting: args.fullOptions,
-          enableAggregates: args.fullOptions,
-          enableDayCoverage: false,
-          ...(changed && args.benchmarkCase === "upstream_timezone_policy"
-            ? { timezoneHandling: "primary-convert" as const }
-            : {}),
-          ...(changed && args.benchmarkCase === "middle_concurrent_usage"
-            ? { modelConcurrentUsage: false }
-            : {}),
-          ...(changed && args.benchmarkCase === "middle_minimum_usage_duration"
-            ? { minimumUsageDuration: 2 }
-            : {}),
-          ...(changed && args.benchmarkCase === "downstream_day_coverage"
-            ? { enableDayCoverage: true }
-            : {}),
-          ...(changed && args.benchmarkCase === "output_study_name"
-            ? { studyName: "Synthetic benchmark B" }
-            : {}),
-        });
         const browserOptions = buildBrowserOptions(
           args.changedOnly || iteration > 0,
         );
@@ -216,7 +260,11 @@ try {
               args.materialization === "review"
                 ? "QueryReview"
                 : "ExecuteWorkspace",
-            workspaceRootDigest: args.mode === "warm" ? previousRoot : null,
+            workspaceRootDigest: args.reviewBase
+              ? reviewBaseRoot
+              : args.mode === "warm"
+                ? previousRoot
+                : null,
             workspaceId,
             inputFileName,
             inputSha256,
@@ -224,11 +272,18 @@ try {
               datetimeOfPreprocessing: "2026-07-23 00:00:00 UTC",
             }),
           });
-        handle = runtime.execute_workspace(
-          requestJson("single", browserOptions),
-          inputBytes,
-          supports,
-        );
+        handle = args.reviewBase
+          ? runtime.execute_workspace_with_review_base(
+              requestJson("single", browserOptions),
+              inputBytes,
+              reviewBaseBytes!,
+              supports,
+            )
+          : runtime.execute_workspace(
+              requestJson("single", browserOptions),
+              inputBytes,
+              supports,
+            );
         const executeElapsedMs = performance.now() - executeStarted;
         const manifest = JSON.parse(handle.manifest_json());
         previousRoot = manifest.workspaceRootDigest ?? previousRoot;
@@ -333,6 +388,8 @@ process.stdout.write(
     benchmarkCase: args.benchmarkCase,
     materialization: args.materialization,
     changedOnly: args.changedOnly,
+    reviewBase: args.reviewBase,
+    reviewBaseBytes: reviewBaseBytes?.byteLength ?? 0,
     fullOptions: args.fullOptions,
     iterations: args.iterations,
     workspaceCount: args.workspaceCount,

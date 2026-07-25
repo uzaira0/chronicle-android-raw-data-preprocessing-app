@@ -537,6 +537,22 @@ describe("Rust authority browser projection", () => {
       ]),
     );
     expect(result.timelineView?.app).toEqual([{ participantId: "included" }]);
+    expect(
+      result.outputs.find(({ outputFileName }) =>
+        outputFileName.endsWith("Automatically Preprocessed.csv"),
+      ),
+    ).toMatchObject({
+      blob: null,
+      persistedArtifact: {
+        workspaceId: `sha256:${"3".repeat(64)}`,
+        kind: "app-csv",
+      },
+    });
+    expect(
+      result.outputs.find(({ outputFileName }) =>
+        outputFileName.endsWith("App Usage Plot.png"),
+      )?.blob,
+    ).toBeInstanceOf(Blob);
     expect(result.rustRuntimeReceipt).toMatchObject({
       workspaceId: `sha256:${"3".repeat(64)}`,
       openObligationCount: 1,

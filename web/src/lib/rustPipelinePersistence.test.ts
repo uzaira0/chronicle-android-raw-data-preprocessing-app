@@ -246,6 +246,7 @@ const kernel = {
   inspect_raw_file_v1: () =>
     JSON.stringify({ fileName: "raw.csv", warnings: [], columns: [], timezones: [] }),
   execute_workspace: vi.fn(),
+  execute_workspace_with_review_base: vi.fn(),
   verify_evidence_journal_cbor: vi.fn(() => 1),
 };
 
@@ -335,6 +336,9 @@ describe("persisted Rust workspace boundary", () => {
     await expect(
       readPersistedRustArtifact(workspaceId, "semantic-index-source-json"),
     ).resolves.toEqual(bytesByDigest.get(payloadDigest));
+    await expect(
+      readPersistedRustArtifact(workspaceId, "artifact-closure-json"),
+    ).resolves.toEqual(bytesByDigest.get(closureDigest));
     await expect(garbageCollectPersistedRustWorkspace(workspaceId)).resolves.toBe(4);
     expect(workspaceLockRequest).toHaveBeenCalledWith(
       `chronicle-preprocessing:${workspaceId}`,

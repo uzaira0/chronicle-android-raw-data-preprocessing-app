@@ -230,6 +230,26 @@ describe("WorkerPool", () => {
     pool.terminate();
   });
 
+  it("does not dispatch work before the shared WASM module initializes", async () => {
+    const ready = deferred<void>();
+    let dispatched = false;
+    const pool = new WorkerPool(1, () => ({
+      api: {} as RemoteApi,
+      worker: { terminate: vi.fn() },
+      ready: ready.promise,
+    }));
+    const result = pool.submit(() => {
+      dispatched = true;
+      return Promise.resolve("ok");
+    });
+    await Promise.resolve();
+    expect(dispatched).toBe(false);
+    ready.resolve();
+    await expect(result).resolves.toBe("ok");
+    expect(dispatched).toBe(true);
+    pool.terminate();
+  });
+
   it("marks a faulted slot dead, keeps serving from live slots, and fails only when all are dead", async () => {
     const { spawn, faults } = stubSpawn();
     const pool = new WorkerPool(2, spawn);

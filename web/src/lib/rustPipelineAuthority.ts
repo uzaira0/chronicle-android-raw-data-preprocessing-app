@@ -88,6 +88,36 @@ function artifactBlobPart(bytes: Uint8Array): BlobPart {
   return bytes as Uint8Array<ArrayBuffer>;
 }
 
+function outputPayload(
+  execution: RustRuntimeExecution,
+  artifactKind: string,
+  mediaType: string,
+): Pick<ProcessedOutputFileResult, "blob" | "persistedArtifact"> {
+  const bytes = requiredArtifact(execution, artifactKind);
+  const metadata = execution.manifest.artifacts.find(
+    (artifact) => artifact.kind === artifactKind,
+  );
+  if (!metadata) {
+    throw new Error(`Rust runtime omitted required artifact: ${artifactKind}`);
+  }
+  if (execution.persistedWorkspace) {
+    return {
+      blob: null,
+      persistedArtifact: {
+        workspaceId: execution.workspaceId,
+        kind: artifactKind,
+        mediaType,
+        size: metadata.size,
+      },
+    };
+  }
+  return {
+    blob: new Blob([artifactBlobPart(bytes)], {
+      type: mediaType,
+    }),
+  };
+}
+
 function parseJsonArtifact<T>(
   execution: RustRuntimeExecution,
   kind: string,
@@ -106,7 +136,6 @@ function addCsvOutput(
   suffix: string,
   rowCount?: number,
 ): void {
-  const bytes = requiredArtifact(execution, artifactKind);
   const metadata = execution.manifest.artifacts.find(
     (artifact) => artifact.kind === artifactKind,
   );
@@ -119,7 +148,7 @@ function addCsvOutput(
   outputs.push({
     kind,
     outputFileName: deriveOutputFileName(inputFileName, suffix),
-    blob: new Blob([artifactBlobPart(bytes)], { type: CSV_MIME }),
+    ...outputPayload(execution, artifactKind, CSV_MIME),
     rowCount: exactRowCount,
     previewRows: metadata.previewRows,
   });
@@ -135,11 +164,10 @@ function addBinaryOutput(
   mediaType: string,
   rowCount: number,
 ): void {
-  const bytes = requiredArtifact(execution, artifactKind);
   outputs.push({
     kind,
     outputFileName: deriveOutputFileName(inputFileName, suffix),
-    blob: new Blob([artifactBlobPart(bytes)], { type: mediaType }),
+    ...outputPayload(execution, artifactKind, mediaType),
     rowCount,
     previewRows: [],
   });
@@ -147,15 +175,16 @@ function addBinaryOutput(
 
 function addEvidenceOutput(
   outputs: ProcessedOutputFileResult[],
+  execution: RustRuntimeExecution,
+  artifactKind: string,
   inputFileName: string,
   suffix: string,
   mediaType: string,
-  bytes: Uint8Array,
 ): void {
   outputs.push({
     kind: "lineage",
     outputFileName: deriveOutputFileName(inputFileName, suffix),
-    blob: new Blob([artifactBlobPart(bytes)], { type: mediaType }),
+    ...outputPayload(execution, artifactKind, mediaType),
     rowCount: 0,
     previewRows: [],
   });
@@ -572,19 +601,23 @@ export async function processRawCsvWithRustAuthority(
   ] as const) {
     addEvidenceOutput(
       outputs,
+      execution,
+      kind,
       inputFileName,
       suffix,
       mediaType,
-      requiredArtifact(execution, kind),
     );
   }
-  addEvidenceOutput(
-    outputs,
-    inputFileName,
-    " Runtime Manifest.json",
-    "application/json",
-    new TextEncoder().encode(execution.manifestJson),
-  );
+  outputs.push({
+    kind: "lineage",
+    outputFileName: deriveOutputFileName(
+      inputFileName,
+      " Runtime Manifest.json",
+    ),
+    blob: new Blob([execution.manifestJson], { type: "application/json" }),
+    rowCount: 0,
+    previewRows: [],
+  });
   const visualization = parseJsonArtifact<VisualizationData>(
     execution,
     "visualization-data-json",

@@ -10,6 +10,7 @@ import type {
   TimezoneAction,
 } from "@/lib/types";
 import { downloadBlob } from "@/lib/download";
+import { readPersistedRustArtifact } from "@/lib/rustPipelineRuntime";
 import type { FileProgress } from "@/components/ProgressList";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
 
@@ -110,7 +111,8 @@ function buildPerFileWarnings(
     ) {
       warnings.push(`${displayMasker.fileName(output.outputFileName)} contains zero data rows.`);
     }
-    if (output.blob.size === 0) {
+    const outputSize = output.blob?.size ?? output.persistedArtifact?.size;
+    if (outputSize === 0) {
       warnings.push(`${displayMasker.fileName(output.outputFileName)} is an empty file.`);
     }
   });
@@ -149,13 +151,33 @@ async function downloadZip(
   kind: "all" | OutputKind,
   outputs: BatchOutput[],
 ): Promise<void> {
-  const zip = await createZipBlob(
-    outputs.map(({ output }) => ({
+  const entries = await Promise.all(
+    outputs.map(async ({ output }) => ({
       fileName: output.outputFileName,
-      blob: output.blob,
+      blob: await resolveOutputBlob(output),
     })),
   );
+  const zip = await createZipBlob(entries);
   downloadBlob(zipName(kind), zip);
+}
+
+async function resolveOutputBlob(output: ProcessedOutputFileResult): Promise<Blob> {
+  if (output.blob) return output.blob;
+  const artifact = output.persistedArtifact;
+  if (!artifact) {
+    throw new Error(`Output bytes are unavailable: ${output.outputFileName}`);
+  }
+  const bytes = await readPersistedRustArtifact(
+    artifact.workspaceId,
+    artifact.kind,
+  );
+  return new Blob([bytes as Uint8Array<ArrayBuffer>], {
+    type: artifact.mediaType,
+  });
+}
+
+async function downloadOutput(output: ProcessedOutputFileResult): Promise<void> {
+  downloadBlob(output.outputFileName, await resolveOutputBlob(output));
 }
 
 export function ResultPanel({
@@ -286,8 +308,8 @@ export function ResultPanel({
               className="btn btn--secondary"
               data-testid="download-timeline-viewer"
               onClick={() => {
-                timelineOutputs.forEach(({ output }) =>
-                  downloadBlob(output.outputFileName, output.blob),
+                void Promise.all(
+                  timelineOutputs.map(({ output }) => downloadOutput(output)),
                 );
               }}
             >
@@ -478,7 +500,9 @@ export function ResultPanel({
                                   className="result-download-link"
                                   data-testid="download-single-output"
                                   title={`Download ${displayMasker.fileName(output.outputFileName)}`}
-                                  onClick={() => downloadBlob(output.outputFileName, output.blob)}
+                                  onClick={() => {
+                                    void downloadOutput(output);
+                                  }}
                                 >
                                   ⬇ {outputLabel(output)}
                                 </button>

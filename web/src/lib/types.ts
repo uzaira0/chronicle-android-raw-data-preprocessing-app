@@ -229,7 +229,15 @@ export type ProgressEvent =
 export type ProcessedOutputFileResult = {
   kind: OutputKind;
   outputFileName: string;
-  blob: Blob;
+  /** Present for generated browser-only files and non-persisted executions. */
+  blob: Blob | null;
+  /** Durable Rust outputs stay in OPFS and are loaded only when downloaded. */
+  persistedArtifact?: {
+    workspaceId: string;
+    kind: string;
+    mediaType: string;
+    size: number;
+  };
   rowCount: number;
   previewRows: string[][];
 };

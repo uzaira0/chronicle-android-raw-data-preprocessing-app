@@ -9,6 +9,7 @@ import type {
 } from "@/lib/types";
 import type { ChronicleWorkerApi } from "@/workers/chronicle-worker";
 import type { RawFileInspection } from "@/lib/fileInspection";
+import runtimeWasmUrl from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm?url";
 
 /**
  * Browser client for the authoritative Rust/WASM worker. This file owns worker
@@ -19,6 +20,8 @@ import type { RawFileInspection } from "@/lib/fileInspection";
 export type WorkerSpawn = () => {
   api: Comlink.Remote<ChronicleWorkerApi>;
   worker: { terminate: () => void };
+  /** Real workers receive one main-thread-compiled module before work starts. */
+  ready?: Promise<void>;
   /** Rejects if the worker fails to load or throws uncaught (optional for stubs). */
   fault?: Promise<never>;
 };
@@ -27,6 +30,7 @@ type WorkerSlot = {
   api: Comlink.Remote<ChronicleWorkerApi>;
   worker: { terminate: () => void };
   fault: Promise<never>;
+  ready: Promise<void>;
   busy: boolean;
   /** Set when this slot's worker has faulted; the pool stops handing it out. */
   dead: boolean;
@@ -34,11 +38,37 @@ type WorkerSlot = {
 
 /** Never settles — stand-in fault for spawns (e.g. test stubs) that provide none. */
 const NEVER_FAULT: Promise<never> = new Promise<never>(() => {});
+let compiledRuntimeModule: Promise<WebAssembly.Module> | undefined;
+
+function getCompiledRuntimeModule(): Promise<WebAssembly.Module> {
+  compiledRuntimeModule ??= (async () => {
+    const response = await fetch(
+      new URL(
+        runtimeWasmUrl,
+        typeof location === "undefined" ? "http://localhost/" : location.href,
+      ),
+    );
+    if (!response.ok) {
+      throw new Error(`Could not load the Rust runtime (${response.status}).`);
+    }
+    if (typeof WebAssembly.compileStreaming === "function") {
+      try {
+        return await WebAssembly.compileStreaming(response.clone());
+      } catch {
+        // Development servers with a wrong MIME type still get one compiled
+        // module; production serves application/wasm and stays on streaming.
+      }
+    }
+    return WebAssembly.compile(await response.arrayBuffer());
+  })();
+  return compiledRuntimeModule;
+}
 
 function spawnWorker(): {
   api: Comlink.Remote<ChronicleWorkerApi>;
   worker: Worker;
   fault: Promise<never>;
+  ready: Promise<void>;
 } {
   const worker = new Worker(
     new URL("../workers/chronicle-worker.ts", import.meta.url),
@@ -65,20 +95,30 @@ function spawnWorker(): {
   // Keep a handler attached so an un-raced fault never becomes an unhandled
   // rejection on the happy path; racing still observes the same rejection.
   fault.catch(() => {});
-  return { api: Comlink.wrap<ChronicleWorkerApi>(worker), worker, fault };
+  const api = Comlink.wrap<ChronicleWorkerApi>(worker);
+  const ready = getCompiledRuntimeModule().then((module) =>
+    api.initializeRuntime(module),
+  );
+  return { api, worker, fault, ready };
 }
 
 type SharedWorker = {
   api: Comlink.Remote<ChronicleWorkerApi>;
   worker: { terminate: () => void };
   fault: Promise<never>;
+  ready: Promise<void>;
 };
 let sharedWorker: SharedWorker | null = null;
 
 function getSharedWorker(): SharedWorker {
   if (!sharedWorker) {
-    const { api, worker, fault } = spawnWorker();
-    const entry: SharedWorker = { api, worker, fault: fault ?? NEVER_FAULT };
+    const { api, worker, fault, ready } = spawnWorker();
+    const entry: SharedWorker = {
+      api,
+      worker,
+      fault: fault ?? NEVER_FAULT,
+      ready: ready ?? Promise.resolve(),
+    };
     sharedWorker = entry;
     // If this worker dies, evict it from the singleton (and terminate it) so the
     // NEXT call re-spawns a fresh one instead of bricking the module forever on a
@@ -104,7 +144,8 @@ function getSharedWorker(): SharedWorker {
 async function onSharedWorker<T>(
   fn: (api: Comlink.Remote<ChronicleWorkerApi>) => Promise<T>,
 ): Promise<T> {
-  const { api, fault } = getSharedWorker();
+  const { api, fault, ready } = getSharedWorker();
+  await Promise.race([ready, fault]);
   return Promise.race([fn(api), fault]);
 }
 
@@ -126,11 +167,12 @@ export class WorkerPool {
   constructor(size: number, spawn: WorkerSpawn = spawnWorker) {
     const safeSize = Math.max(1, Math.floor(size));
     for (let index = 0; index < safeSize; index += 1) {
-      const { api, worker, fault } = spawn();
+      const { api, worker, fault, ready } = spawn();
       const slot: WorkerSlot = {
         api,
         worker,
         fault: fault ?? NEVER_FAULT,
+        ready: ready ?? Promise.resolve(),
         busy: false,
         dead: false,
       };
@@ -193,6 +235,7 @@ export class WorkerPool {
     const slot = await this.acquire();
     try {
       // Race the worker's fault so a dead worker rejects loudly, not silently.
+      await Promise.race([slot.ready, slot.fault]);
       return await Promise.race([action(slot.api), slot.fault]);
     } finally {
       this.release(slot);

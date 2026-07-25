@@ -228,6 +228,21 @@ try {
     "run",
     "build:wasm",
   ]);
+  // Workspace roots include the build-environment digest. The temporary
+  // campaign runtime deliberately enables a bootstrap feature, so its roots
+  // cannot be the checked expectation for the normal browser build. Refresh
+  // this result snapshot once with the final fail-closed WASM package.
+  await run(
+    "refresh final-runtime configuration-space snapshot",
+    "npm",
+    ["run", "test:configuration-space-covering"],
+    {
+      env: {
+        ...toolchainEnv,
+        UPDATE_CONFIGURATION_SPACE: "1",
+      },
+    },
+  );
 } catch (error) {
   restoreSnapshots();
   throw error;

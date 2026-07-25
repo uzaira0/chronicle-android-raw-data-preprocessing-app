@@ -6,6 +6,7 @@ import {
   garbageCollectPersistedRustWorkspace,
   importPersistedRustWorkspace,
   importPersistedRustWorkspaceArchive,
+  initializeRustRuntime,
   verifyPersistedRustWorkspace,
   getRustRuntimeVersion,
   getRustPlanStageView,
@@ -127,6 +128,9 @@ function effectiveRuntime(
 }
 
 const api = {
+  async initializeRuntime(compiledModule: WebAssembly.Module): Promise<void> {
+    await initializeRustRuntime(compiledModule);
+  },
   planStageView(options: BrowserProcessingOptions) {
     return getRustPlanStageView(options);
   },

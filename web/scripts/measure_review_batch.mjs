@@ -49,6 +49,7 @@ function runShard(index, count, offset) {
         "--summary",
         "--compact",
         "--changed-only",
+        "--review-base",
       ],
       { env: { ...process.env, FORCE_COLOR: "0" } },
     );

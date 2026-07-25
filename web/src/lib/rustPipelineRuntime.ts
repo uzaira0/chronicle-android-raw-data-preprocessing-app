@@ -48,7 +48,9 @@ type RuntimeSupportFilesHandle = {
 };
 
 type KernelModule = {
-  default(): Promise<unknown>;
+  default(input?: {
+    module_or_path: WebAssembly.Module;
+  }): Promise<unknown>;
   runtime_version(): string;
   implementation_build_digest(): string;
   build_environment_digest(): string;
@@ -65,6 +67,12 @@ type KernelModule = {
   execute_workspace(
     requestJson: string,
     csvBytes: Uint8Array,
+    supportFiles: RuntimeSupportFilesHandle,
+  ): KernelHandle;
+  execute_workspace_with_review_base(
+    requestJson: string,
+    csvBytes: Uint8Array,
+    reviewBaseBytes: Uint8Array,
     supportFiles: RuntimeSupportFilesHandle,
   ): KernelHandle;
   verify_evidence_journal_cbor(bytes: Uint8Array): number;
@@ -1163,22 +1171,67 @@ async function readArtifactFromWorkspaceSlot(
   root: FileSystemDirectoryHandle,
   slot: WorkspaceRootSlot,
   kind: string,
+  expected?: {
+    implementationDigest?: string;
+    workspaceId?: string;
+    inputDigest?: string;
+  },
 ): Promise<Uint8Array> {
-  const rootCommit = JSON.parse(
-    new TextDecoder().decode(
-      await readRuntimeObject(root, slot.workspaceRootDigest),
-    ),
-  ) as { artifactClosureDigest: string };
-  const closure = JSON.parse(
-    new TextDecoder().decode(
-      await readRuntimeObject(root, rootCommit.artifactClosureDigest),
-    ),
-  ) as { artifacts: Array<{ kind: string; digest: string }> };
+  const rootBytes = await readRuntimeObject(root, slot.workspaceRootDigest);
+  if (`sha256:${await sha256Hex(rootBytes)}` !== slot.workspaceRootDigest) {
+    throw new Error("persisted Rust workspace root digest mismatch");
+  }
+  const rootCommit = JSON.parse(new TextDecoder().decode(rootBytes)) as {
+    artifactClosureDigest: string;
+    implementationDigest: string;
+    workspaceId: string;
+    inputDigest: string;
+  };
+  if (
+    (expected?.implementationDigest !== undefined &&
+      rootCommit.implementationDigest !== expected.implementationDigest) ||
+    (expected?.workspaceId !== undefined &&
+      rootCommit.workspaceId !== expected.workspaceId) ||
+    (expected?.inputDigest !== undefined &&
+      rootCommit.inputDigest !== expected.inputDigest)
+  ) {
+    throw new Error("persisted Rust workspace identity mismatch");
+  }
+  const closureBytes = await readRuntimeObject(
+    root,
+    rootCommit.artifactClosureDigest,
+  );
+  if (
+    `sha256:${await sha256Hex(closureBytes)}` !==
+    rootCommit.artifactClosureDigest
+  ) {
+    throw new Error("persisted Rust artifact closure digest mismatch");
+  }
+  const closure = JSON.parse(new TextDecoder().decode(closureBytes)) as {
+    implementationDigest: string;
+    workspaceId: string;
+    inputDigest: string;
+    artifacts: Array<{ kind: string; digest: string; size: number }>;
+  };
+  if (
+    closure.implementationDigest !== rootCommit.implementationDigest ||
+    closure.workspaceId !== rootCommit.workspaceId ||
+    closure.inputDigest !== rootCommit.inputDigest
+  ) {
+    throw new Error("persisted Rust artifact closure identity mismatch");
+  }
   const artifact = closure.artifacts.find(
     (candidate) => candidate.kind === kind,
   );
   if (!artifact) throw new Error(`persisted Rust artifact is missing: ${kind}`);
-  return readRuntimeObject(root, artifact.digest);
+  const bytes = await readRuntimeObject(root, artifact.digest);
+  if (
+    bytes.byteLength !== artifact.size ||
+    `sha256:${await sha256Hex(bytes)}` !== artifact.digest
+  ) {
+    throw new Error(`persisted Rust artifact integrity mismatch: ${kind}`);
+  }
+  return bytes;
 }
 
 const defaultPersistenceAdapter: RustPersistenceAdapter = {
@@ -1579,6 +1632,22 @@ export function setRustRuntimeForTesting(module: KernelModule): void {
   initPromise = Promise.resolve(module);
 }
 
+/** Instantiate the generated bindings from a module compiled once by the main
+ * thread. Each worker still owns an independent WASM memory and Rust runtime. */
+export async function initializeRustRuntime(
+  compiledModule: WebAssembly.Module,
+): Promise<void> {
+  if (!initPromise) {
+    initPromise = (async () => {
+      const module =
+        (await import("@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js")) as unknown as KernelModule;
+      await module.default({ module_or_path: compiledModule });
+      return module;
+    })();
+  }
+  await initPromise;
+}
+
 export async function discoverRustTimezones(
   csvBytes: Uint8Array,
 ): Promise<string[]> {
@@ -1691,11 +1760,16 @@ export async function readPersistedRustArtifact(
       await readRuntimeObject(root, slot.workspaceRootDigest),
     ),
   ) as { artifactClosureDigest: string };
-  const closure = JSON.parse(
-    new TextDecoder().decode(
-      await readRuntimeObject(root, rootCommit.artifactClosureDigest),
-    ),
-  ) as { artifacts: Array<{ kind: string; digest: string }> };
+  const closureBytes = await readRuntimeObject(
+    root,
+    rootCommit.artifactClosureDigest,
+  );
+  // The closure cannot list itself without making its own digest recursive.
+  // Its exact bytes are nevertheless addressed by the verified root commit.
+  if (kind === "artifact-closure-json") return closureBytes;
+  const closure = JSON.parse(new TextDecoder().decode(closureBytes)) as {
+    artifacts: Array<{ kind: string; digest: string }>;
+  };
   const artifact = closure.artifacts.find(
     (candidate) => candidate.kind === kind,
   );
@@ -2102,21 +2176,55 @@ async function executeRustRuntimeUnlocked(
         ? ephemeralContinuation.workspaceRootDigest
         : null);
     const requestId = `${materialization === "review" ? "review" : "execute"}-${inputSha256.slice(0, 16)}`;
-    handle = kernel.execute_workspace(
-      JSON.stringify({
-        protocolVersion: "chronicle-preprocessing-runtime/v1",
-        requestId,
-        command:
-          materialization === "review" ? "QueryReview" : "ExecuteWorkspace",
-        workspaceRootDigest: previousWorkspaceRootDigest,
-        workspaceId,
-        inputFileName,
-        inputSha256: `sha256:${inputSha256}`,
-        options: buildRustV2Options(options, runtime),
-      }),
-      csvBytes,
-      runtimeSupportFiles,
-    );
+    let reviewBaseBytes: Uint8Array = new Uint8Array();
+    if (
+      materialization === "review" &&
+      opfsRoot &&
+      recoveredRoot &&
+      persistenceAdapter === defaultPersistenceAdapter
+    ) {
+      try {
+        reviewBaseBytes = await readArtifactFromWorkspaceSlot(
+          opfsRoot,
+          recoveredRoot,
+          "review-base",
+          {
+            implementationDigest: kernel.implementation_build_digest(),
+            workspaceId,
+            inputDigest: `sha256:${inputSha256}`,
+          },
+        );
+      } catch (error) {
+        if (
+          !(error instanceof Error) ||
+          !error.message.includes(
+            "persisted Rust artifact is missing: review-base",
+          )
+        ) {
+          throw error;
+        }
+      }
+    }
+    const requestJson = JSON.stringify({
+      protocolVersion: "chronicle-preprocessing-runtime/v1",
+      requestId,
+      command:
+        materialization === "review" ? "QueryReview" : "ExecuteWorkspace",
+      workspaceRootDigest: previousWorkspaceRootDigest,
+      workspaceId,
+      inputFileName,
+      inputSha256: `sha256:${inputSha256}`,
+      options: buildRustV2Options(options, runtime),
+    });
+    handle =
+      materialization === "review" && reviewBaseBytes.byteLength > 0
+        ? kernel.execute_workspace_with_review_base(
+            requestJson,
+            csvBytes,
+            reviewBaseBytes,
+            runtimeSupportFiles,
+          )
+        : kernel.execute_workspace(requestJson, csvBytes, runtimeSupportFiles);
     let manifestValue: unknown;
     let manifestJson: string;
     try {
