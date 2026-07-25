@@ -1,0 +1,13 @@
+captured_utc=2026-07-25T16:21:29Z
+commit=af41c2f0a56e85272b0aed3d4aab222031875543
+dirty=false
+rows=60624
+runs=5
+machine=arm64 macOS 26.2
+rustc=rustc 1.94.1 (e408947bf 2026-03-25) (Homebrew)
+cargo=cargo 1.94.1 (Homebrew)
+hyperfine=hyperfine 1.20.0
+cargo_flamegraph=flamegraph-flamegraph 0.6.13
+samply=samply 0.13.1
+profile_source_sha256=85c1fb8e9f5c896142a4b4aad9ad9321bb5ce3cd504e6264926229a14ae3f769
+incremental_source_sha256=46abb7d0fe350333836443074611b610e015c2b9e531330b342aa6f43eaa99e2

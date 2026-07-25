@@ -109,6 +109,32 @@ content hashing and all 55 step statuses; intermediate adjacent steps use
 Merkle-style dependency checkpoints so the same 100k rows are not re-hashed at
 every logical label.
 
+## Clean-commit native full-output profile
+
+Commit `af41c2f0a56e85272b0aed3d4aab222031875543` was profiled from a clean
+worktree with 60,624 generated rows. Every changed result matched a fresh cold
+Rust oracle. This harness deliberately materializes full outputs, so the
+upstream and middle figures include primary CSV assembly and are not the
+review-only View-tab latency above.
+
+| Change after a cold run | Median | Product queries run |
+|---|---:|---:|
+| No change | 0.161 ms | 0 |
+| Timezone policy | 795.181 ms | 4 |
+| Concurrent-usage model | 780.454 ms | 4 |
+| Day coverage | 251.762 ms | 1 |
+| Output study name | 699.193 ms | 1 |
+| Raw representation only | 44.668 ms | 1 |
+| Add an absent app to the filter support | 35.979 ms | 1 |
+
+Five independent cold process runs had a 2,565.5 ms median, 2,553.6–2,578.6
+ms range, and 9.1 ms standard deviation. Peak resident memory was 830,717,952
+bytes. Reproducible raw measurements, exact executed-step lists, environment
+metadata, a symbolized Samply capture, and the cold CPU flamegraph are in
+[`docs/perf/results`](results/). Python `cProfile` measured only the metadata
+checker: 0.565 seconds total, 0.465 seconds waiting for its two Rust
+subprocesses; it is not part of preprocessing latency.
+
 ## Historical pre-Salsa warm-path baseline
 
 A targeted 2026-07-23 diagnostic on the same 60,624-row fixture measured the

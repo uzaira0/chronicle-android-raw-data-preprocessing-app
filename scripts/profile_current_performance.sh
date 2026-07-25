@@ -13,6 +13,12 @@ executable="$target_dir/profiling/examples/profile_pipeline_v2"
 
 mkdir -p "$results_dir" "$work_dir"
 
+flamegraph_work_dir="$(mktemp -d "$work_dir/flamegraph.XXXXXX")"
+cleanup() {
+  rm -rf "$flamegraph_work_dir"
+}
+trap cleanup EXIT
+
 if [[ -n "$(git status --porcelain --untracked-files=normal)" && "${ALLOW_DIRTY_PROFILE:-0}" != "1" ]]; then
   printf 'refusing to record checked performance evidence from a dirty worktree; commit first or set ALLOW_DIRTY_PROFILE=1 for a local diagnostic\n' >&2
   exit 2
@@ -69,23 +75,26 @@ hyperfine \
   --warmup 1 \
   --runs "$runs" \
   --command-name "tracked Rust cold, ${rows} rows" \
-  --export-json "$results_dir/chronicle-55-step-hyperfine.json" \
+  --export-json "$results_dir/chronicle-55-step-after-hyperfine.json" \
   "$executable --rows $rows --mode incremental --case cold_benchmark"
 
 /usr/bin/time -l "$executable" --rows "$rows" --mode incremental --case cold_benchmark \
   > "$work_dir/cold-memory.stdout.txt" \
   2> "$results_dir/chronicle-55-step-native-memory.txt"
 
-CARGO_TARGET_DIR="$target_dir" cargo-flamegraph \
-  --manifest-path rust/chronicle_chrono_kernel_wasm/Cargo.toml \
-  --example profile_pipeline_v2 \
-  --features incremental-v2 \
-  --profile profiling \
-  --output "$results_dir/chronicle-55-step-after-cold.svg" \
-  -- \
-  --rows "$rows" \
-  --mode incremental \
-  --case cold_benchmark
+(
+  cd "$flamegraph_work_dir"
+  CARGO_TARGET_DIR="$target_dir" cargo flamegraph \
+    --manifest-path "$repository_root/rust/chronicle_chrono_kernel_wasm/Cargo.toml" \
+    --example profile_pipeline_v2 \
+    --features incremental-v2 \
+    --profile profiling \
+    --output "$results_dir/chronicle-55-step-after-cold.svg" \
+    -- \
+    --rows "$rows" \
+    --mode incremental \
+    --case cold_benchmark
+)
 
 samply record \
   --save-only \
