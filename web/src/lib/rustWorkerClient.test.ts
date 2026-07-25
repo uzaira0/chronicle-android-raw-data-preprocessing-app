@@ -10,6 +10,7 @@ import {
   inspectRawCsvBytes,
   processRawCsv,
   processRawCsvBytes,
+  processRawCsvReviewBytes,
   processRawCsvBytesViaPool,
   processRawCsvIsolated,
   processRawCsvViaPool,
@@ -39,7 +40,11 @@ function makeSpawn(): {
   return { spawn, apis, workers };
 }
 
-type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void; reject: (error: Error) => void };
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (error: Error) => void;
+};
 
 function deferred<T>(): Deferred<T> {
   let resolve!: (value: T) => void;
@@ -52,11 +57,15 @@ function deferred<T>(): Deferred<T> {
 }
 
 /** Stub spawn with canned api methods and a controllable per-slot fault. */
-function stubSpawn(overrides: Partial<Record<keyof ChronicleWorkerApi, unknown>> = {}) {
+function stubSpawn(
+  overrides: Partial<Record<keyof ChronicleWorkerApi, unknown>> = {},
+) {
   const terminated: boolean[] = [];
   const faults: Deferred<never>[] = [];
   const calls: string[] = [];
-  const result = { outputFileName: "out.csv" } as unknown as ProcessedFileResult;
+  const result = {
+    outputFileName: "out.csv",
+  } as unknown as ProcessedFileResult;
   const spawn: WorkerSpawn = () => {
     const fault = deferred<never>();
     faults.push(fault);
@@ -72,7 +81,9 @@ function stubSpawn(overrides: Partial<Record<keyof ChronicleWorkerApi, unknown>>
         return Promise.resolve(result);
       },
       processRawCsvBytes: (...args: unknown[]) => {
-        calls.push(`bytes:${String(args[0])}:${(args[1] as ArrayBuffer).byteLength}`);
+        calls.push(
+          `bytes:${String(args[0])}:${(args[1] as ArrayBuffer).byteLength}`,
+        );
         return Promise.resolve(result);
       },
       ...overrides,
@@ -97,7 +108,9 @@ describe("WorkerPool", () => {
     expect(workers).toHaveLength(3);
 
     const tasks = Array.from({ length: 50 }, (_, index) => index);
-    await Promise.all(tasks.map((value) => pool.submit(() => Promise.resolve(value))));
+    await Promise.all(
+      tasks.map((value) => pool.submit(() => Promise.resolve(value))),
+    );
 
     expect(workers).toHaveLength(3);
     pool.terminate();
@@ -168,7 +181,9 @@ describe("WorkerPool", () => {
     await blocker;
     await expect(queued).rejects.toThrow(/terminated/);
     // A terminated pool refuses new work outright.
-    await expect(pool.submit(() => Promise.resolve("late"))).rejects.toThrow(/terminated/);
+    await expect(pool.submit(() => Promise.resolve("late"))).rejects.toThrow(
+      /terminated/,
+    );
   });
 
   it("rounds non-integer or sub-1 sizes up to a single worker", () => {
@@ -182,7 +197,9 @@ describe("WorkerPool", () => {
   it("rejects (instead of hanging) when a worker faults mid-task", async () => {
     // A worker whose action never settles but whose `fault` rejects — models a
     // worker that failed to load / threw uncaught (e.g. offline cold start).
-    const fault = Promise.reject(new Error("Chronicle worker failed: could not load"));
+    const fault = Promise.reject(
+      new Error("Chronicle worker failed: could not load"),
+    );
     fault.catch(() => {}); // pre-handle so it isn't an unhandled rejection before it's raced
     const spawn: WorkerSpawn = () => ({
       api: {} as Comlink.Remote<ChronicleWorkerApi>,
@@ -208,12 +225,14 @@ describe("WorkerPool", () => {
     const pool = new WorkerPool(2, spawn);
     faults[0].reject(new Error("slot 0 died"));
     await Promise.resolve();
-    await expect(pool.submit(async (api) => api.runtimeVersion())).resolves.toBe("stub");
+    await expect(
+      pool.submit(async (api) => api.runtimeVersion()),
+    ).resolves.toBe("stub");
     faults[1].reject(new Error("slot 1 died"));
     await Promise.resolve();
-    await expect(pool.submit(async (api) => api.runtimeVersion())).rejects.toThrow(
-      "All Chronicle workers have failed.",
-    );
+    await expect(
+      pool.submit(async (api) => api.runtimeVersion()),
+    ).rejects.toThrow("All Chronicle workers have failed.");
     pool.terminate();
   });
 
@@ -236,9 +255,19 @@ describe("pool entry points", () => {
   it("processRawCsvViaPool picks the progress variant only when a callback is given", async () => {
     const { spawn, calls, result } = stubSpawn();
     const pool = new WorkerPool(1, spawn);
-    await expect(processRawCsvViaPool(pool, "plain.csv", "")).resolves.toBe(result);
+    await expect(processRawCsvViaPool(pool, "plain.csv", "")).resolves.toBe(
+      result,
+    );
     await expect(
-      processRawCsvViaPool(pool, "prog.csv", "", undefined, undefined, undefined, () => {}),
+      processRawCsvViaPool(
+        pool,
+        "prog.csv",
+        "",
+        undefined,
+        undefined,
+        undefined,
+        () => {},
+      ),
     ).resolves.toBe(result);
     expect(calls).toEqual(["plain:plain.csv", "progress:prog.csv"]);
     pool.terminate();
@@ -248,7 +277,9 @@ describe("pool entry points", () => {
     const { spawn, calls, result } = stubSpawn();
     const pool = new WorkerPool(1, spawn);
     const bytes = new TextEncoder().encode("study_id\nS").buffer;
-    await expect(processRawCsvBytesViaPool(pool, "b.csv", bytes)).resolves.toBe(result);
+    await expect(processRawCsvBytesViaPool(pool, "b.csv", bytes)).resolves.toBe(
+      result,
+    );
     expect(calls).toEqual([`bytes:b.csv:${bytes.byteLength}`]);
     pool.terminate();
   });
@@ -311,7 +342,9 @@ describe("shared worker fault handling (fake Worker global)", () => {
     expect(FakeWorker.instances.length).toBe(before + 2);
     expect(lastWorker()).not.toBe(first);
     lastWorker().fire("messageerror", {});
-    await expect(retry).rejects.toThrow("Chronicle worker sent an unreadable message.");
+    await expect(retry).rejects.toThrow(
+      "Chronicle worker sent an unreadable message.",
+    );
   });
 
   it("uses the fallback message when the error event carries none", async () => {
@@ -340,7 +373,9 @@ describe("shared worker fault handling (fake Worker global)", () => {
       () => {},
     );
     lastWorker().fire("error", { message: "dead again" });
-    await expect(withProgress).rejects.toThrow("Chronicle worker failed: dead again");
+    await expect(withProgress).rejects.toThrow(
+      "Chronicle worker failed: dead again",
+    );
   });
 
   it("routes workspace closure and pre-run view requests through the shared worker", async () => {
@@ -376,13 +411,22 @@ describe("shared worker fault handling (fake Worker global)", () => {
     );
     lastWorker().fire("error", { message: "byte processing failed" });
     await expect(processing).rejects.toThrow("byte processing failed");
+
+    const review = processRawCsvReviewBytes(
+      "raw.csv",
+      new Uint8Array([1, 2, 3]).buffer,
+    );
+    lastWorker().fire("error", { message: "review failed" });
+    await expect(review).rejects.toThrow("review failed");
   });
 
   it("processRawCsvIsolated tears its private one-shot pool down on fault", async () => {
     const pending = processRawCsvIsolated("a.csv", "study_id\nS");
     const worker = lastWorker();
     worker.fire("error", { message: "isolated crash" });
-    await expect(pending).rejects.toThrow("Chronicle worker failed: isolated crash");
+    await expect(pending).rejects.toThrow(
+      "Chronicle worker failed: isolated crash",
+    );
     expect(worker.terminated).toBe(true);
   });
 });

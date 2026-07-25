@@ -40,9 +40,12 @@ function spawnWorker(): {
   worker: Worker;
   fault: Promise<never>;
 } {
-  const worker = new Worker(new URL("../workers/chronicle-worker.ts", import.meta.url), {
-    type: "module",
-  });
+  const worker = new Worker(
+    new URL("../workers/chronicle-worker.ts", import.meta.url),
+    {
+      type: "module",
+    },
+  );
   // A worker that fails to load (e.g. an offline cold start before its chunk is
   // cached) or throws uncaught would otherwise leave every awaited Comlink call
   // hanging forever — a silent stall with no result and no error. Surface it as
@@ -124,7 +127,13 @@ export class WorkerPool {
     const safeSize = Math.max(1, Math.floor(size));
     for (let index = 0; index < safeSize; index += 1) {
       const { api, worker, fault } = spawn();
-      const slot: WorkerSlot = { api, worker, fault: fault ?? NEVER_FAULT, busy: false, dead: false };
+      const slot: WorkerSlot = {
+        api,
+        worker,
+        fault: fault ?? NEVER_FAULT,
+        busy: false,
+        dead: false,
+      };
       // A faulted worker must not keep getting handed queued work (which would
       // cascade-fail files a healthy slot could have processed). Mark it dead so
       // acquire/release skip it.
@@ -166,7 +175,9 @@ export class WorkerPool {
     }
     if (this.waiters.length && this.slots.every((slot) => slot.dead)) {
       while (this.waiters.length) {
-        this.waiters.shift()!.reject(new Error("All Chronicle workers have failed."));
+        this.waiters
+          .shift()!
+          .reject(new Error("All Chronicle workers have failed."));
       }
     }
   }
@@ -176,7 +187,9 @@ export class WorkerPool {
     this.pump();
   }
 
-  async submit<T>(action: (api: Comlink.Remote<ChronicleWorkerApi>) => Promise<T>): Promise<T> {
+  async submit<T>(
+    action: (api: Comlink.Remote<ChronicleWorkerApi>) => Promise<T>,
+  ): Promise<T> {
     const slot = await this.acquire();
     try {
       // Race the worker's fault so a dead worker rejects loudly, not silently.
@@ -213,7 +226,10 @@ export async function exportVerifiedWorkspaceClosure(
 
 export async function importVerifiedWorkspaceClosure(
   archive: Uint8Array,
-): Promise<{ workspaceId: string; slot: { generation: number; workspaceRootDigest: string } }> {
+): Promise<{
+  workspaceId: string;
+  slot: { generation: number; workspaceRootDigest: string };
+}> {
   const owned =
     archive.buffer instanceof ArrayBuffer &&
     archive.byteOffset === 0 &&
@@ -302,7 +318,13 @@ export async function processRawCsv(
         proxied,
       );
     }
-    return api.processRawCsv(inputFileName, csvText, options, supportFiles, runtime);
+    return api.processRawCsv(
+      inputFileName,
+      csvText,
+      options,
+      supportFiles,
+      runtime,
+    );
   });
 }
 
@@ -327,7 +349,13 @@ export async function processRawCsvViaPool(
         proxied,
       );
     }
-    return api.processRawCsv(inputFileName, csvText, options, supportFiles, runtime);
+    return api.processRawCsv(
+      inputFileName,
+      csvText,
+      options,
+      supportFiles,
+      runtime,
+    );
   });
 }
 
@@ -349,6 +377,25 @@ export async function processRawCsvBytes(
       supportFiles,
       runtime,
       onProgress ? Comlink.proxy(onProgress) : undefined,
+    ),
+  );
+}
+
+/** Execute the authoritative Rust graph but transfer back review metrics only. */
+export async function processRawCsvReviewBytes(
+  inputFileName: string,
+  csvBytes: ArrayBuffer,
+  options?: Partial<BrowserProcessingOptions>,
+  supportFiles?: BrowserSupportFiles,
+  runtime?: BrowserProcessingRuntime,
+): Promise<ProcessedFileResult> {
+  return onSharedWorker((api) =>
+    api.processReviewCsvBytes(
+      inputFileName,
+      Comlink.transfer(csvBytes, [csvBytes]),
+      options,
+      supportFiles,
+      runtime,
     ),
   );
 }

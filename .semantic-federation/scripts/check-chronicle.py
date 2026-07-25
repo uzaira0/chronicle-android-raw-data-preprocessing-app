@@ -190,7 +190,9 @@ for source, required_symbol in (
     (worker, "processRawCsvWithRustAuthority"),
     (authority_adapter, "executeRustRuntime"),
     (runtime, "IncrementalPipelineV2Engine"),
-    (runtime, "state.incremental_engine.execute("),
+    (runtime, "request.command == QUERY_REVIEW_COMMAND"),
+    (runtime, ".execute_review(csv_bytes, options, support_files)?"),
+    (runtime, ".execute(csv_bytes, options, support_files)?"),
     (runtime, "project_product_stages"),
 ):
     if required_symbol not in source:

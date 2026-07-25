@@ -58,7 +58,8 @@ Most npm scripts wrap the real command in `node scripts/run-clean-env.mjs` to st
   production runtime. It uses `chronicle_app_usage_matcher` directly and has
   no standalone browser entry point.
 - `chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs` — the physical
-  preprocessing engine: exactly 55 Salsa `0.28.1` tracked Rust computations.
+  preprocessing engine: exactly 55 Salsa `0.28.1` tracked Rust product computations;
+  internal derived caches are reported separately and are not product steps.
   Their actual reads control invalidation; Salsa execution events are the only
   source of physical cached/recomputed status. The complete sequential
   `run_pipeline_v2_with_supports()` path is an independent cold oracle and

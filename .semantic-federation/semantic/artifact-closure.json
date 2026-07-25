@@ -1,16 +1,16 @@
 {
   "protocol_version": "0.1",
-  "root_digest": "sha256:fe355ae1406da7753e539c2a768f363e9a5e9608f6c7abfc17118f869bb298b2",
+  "root_digest": "sha256:3f0fce911756a4a2a4b9e4da43c726541252bb3c2b3633ca41f7de2448904473",
   "artifacts": [
     {
       "artifact_id": "capability-bindings.json",
-      "digest": "sha256:3ebbe3ff7ad8a9b6fea73eb5a6dab936238ee2df109f111ecdd900641610b7f0",
+      "digest": "sha256:75777d6ec943162fe5aafb659ad646e4f07479970e230aca63ec9b371aae1449",
       "media_type": "application/json",
       "size": 82955
     },
     {
       "artifact_id": "conformance-report.json",
-      "digest": "sha256:8622d2711de37d4f0d84ba8379ff5772d936d1c45ab3829bba3caa1f70b7a1a4",
+      "digest": "sha256:35dda939ca41edcf2d384836b929c427b8113be6983dcc4563214d88f7ece7f5",
       "media_type": "application/json",
       "size": 630
     },
@@ -46,9 +46,9 @@
     },
     {
       "artifact_id": "resources/chronicle.plan.json",
-      "digest": "sha256:6de88ad84552191fb4cea4acda553006cddc096f20c24e2138954f1d4d48231c",
+      "digest": "sha256:7d57a41ec697dd873bf1d06137bc45d4f1de741dbc48b5e4ef72765a9e857257",
       "media_type": "application/json",
-      "size": 86223
+      "size": 85784
     },
     {
       "artifact_id": "resources/existing-ontology-sources.json",
@@ -76,16 +76,16 @@
     },
     {
       "artifact_id": "semantic-profile.json",
-      "digest": "sha256:e0a9b158df2bd2161d96905d67276aea0243cb239ef3dc4c5014932a48da9be0",
+      "digest": "sha256:7e5057b46bb078535918f0d0becda150bc642794ebaedc7c5d1fa371ca11bd58",
       "media_type": "application/json",
       "size": 4450
     },
     {
       "artifact_id": "semantic-profile.lock",
-      "digest": "sha256:1b81f4281935ba62b490c58f94c8f3f8cfae4c2a0ea1641a6b6a6e2d9b741a5e",
+      "digest": "sha256:a079759cab05c9cda9e496adfb9dd0c13f0cdd9595d8e6f8dd3a2c2c0be6ef13",
       "media_type": "application/octet-stream",
       "size": 3111
     }
   ],
-  "closure_digest": "sha256:fe4cbb7280f8e20cba5fe15d42d0d4420b3cb680529a201f77c666d6e5e43dc9"
+  "closure_digest": "sha256:31f630b483fe74f111839e3b311759b53cefc20f2ef2f404c00e42cacc11ba18"
 }

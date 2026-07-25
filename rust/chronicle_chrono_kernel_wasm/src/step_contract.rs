@@ -1106,7 +1106,9 @@ pub fn step_request_fields(step_id: &str) -> &'static [&'static str] {
             "no_witness_min_day_apps",
         ],
         "filter_rows_to_window" => &["enable_study_window_filter"],
-        "resolve_sharing_status" | "build_survey_lookup" => &["enable_person_attribution"],
+        "resolve_sharing_status" | "build_survey_lookup" | "attribute_rows" => {
+            &["enable_person_attribution"]
+        }
         "inject_placeholders" => &["add_no_activity_placeholder_days"],
         "score_days" => &["compliance_threshold_percent"],
         "assemble_result" => &[
@@ -1170,16 +1172,6 @@ const ENABLE_PERSON_ATTRIBUTION: &[PipelineSourceRolePredicate] =
         request_field: "enable_person_attribution",
         value: true,
     }];
-const APP_MODE_WITH_CODEBOOK: &[PipelineSourceRolePredicate] = &[
-    PipelineSourceRolePredicate::StringOneOf {
-        request_field: "usage_session_mode",
-        values: APP_USAGE_MODES,
-    },
-    PipelineSourceRolePredicate::BooleanEquals {
-        request_field: "use_app_codebook",
-        value: true,
-    },
-];
 const APP_MODE_WITH_COMPLIANCE: &[PipelineSourceRolePredicate] = &[
     PipelineSourceRolePredicate::StringOneOf {
         request_field: "usage_session_mode",
@@ -1208,7 +1200,7 @@ pub fn step_source_roles(step_id: &str) -> &'static [&'static str] {
         }
         "resolve_sharing_status" => &["device_sharing_file"],
         "build_survey_lookup" => &["survey_attribution_file"],
-        "assemble_result" => &["app_codebook_file", "enrolled_devices_file"],
+        "assemble_result" => &["enrolled_devices_file"],
         _ => &[],
     }
 }
@@ -1237,10 +1229,7 @@ pub fn step_source_role_bindings(step_id: &str) -> Vec<PipelineSourceRoleBinding
             "survey_attribution_file",
             ENABLE_PERSON_ATTRIBUTION,
         )],
-        "assemble_result" => vec![
-            binding("app_codebook_file", APP_MODE_WITH_CODEBOOK),
-            binding("enrolled_devices_file", APP_MODE_WITH_COMPLIANCE),
-        ],
+        "assemble_result" => vec![binding("enrolled_devices_file", APP_MODE_WITH_COMPLIANCE)],
         _ => Vec::new(),
     }
 }
@@ -1345,6 +1334,7 @@ mod tests {
             calls: BTreeMap<String, BTreeSet<String>>,
             method_reads: BTreeMap<String, BTreeSet<String>>,
             local_calls: BTreeMap<String, BTreeSet<String>>,
+            internal_queries: BTreeSet<String>,
         }
 
         impl<'ast> Visit<'ast> for Collector<'_> {
@@ -1382,6 +1372,9 @@ mod tests {
 
             fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
                 if let Some(current) = &self.current {
+                    if call.method == "record_internal_query_body" {
+                        self.internal_queries.insert(current.clone());
+                    }
                     self.method_reads
                         .entry(current.clone())
                         .or_default()
@@ -1403,6 +1396,7 @@ mod tests {
             calls: BTreeMap::new(),
             method_reads: BTreeMap::new(),
             local_calls: BTreeMap::new(),
+            internal_queries: BTreeSet::new(),
         };
         let tracked_module = syntax
             .items
@@ -1438,7 +1432,7 @@ mod tests {
 
         fn collect_option_reads(
             function: &str,
-            step_ids: &BTreeSet<&str>,
+            query_boundaries: &BTreeSet<&str>,
             field_universe: &BTreeSet<&str>,
             method_reads: &BTreeMap<String, BTreeSet<String>>,
             local_calls: &BTreeMap<String, BTreeSet<String>>,
@@ -1455,12 +1449,12 @@ mod tests {
                 .cloned()
                 .collect::<BTreeSet<_>>();
             for called in local_calls.get(function).into_iter().flatten() {
-                if step_ids.contains(called.as_str()) {
+                if query_boundaries.contains(called.as_str()) {
                     continue;
                 }
                 fields.extend(collect_option_reads(
                     called,
-                    step_ids,
+                    query_boundaries,
                     field_universe,
                     method_reads,
                     local_calls,
@@ -1474,6 +1468,11 @@ mod tests {
             .iter()
             .flat_map(|step| step_request_fields(step.id).iter().copied())
             .collect::<BTreeSet<_>>();
+        let query_boundaries = step_ids
+            .iter()
+            .copied()
+            .chain(collector.internal_queries.iter().map(String::as_str))
+            .collect::<BTreeSet<_>>();
         let mut field_mismatches = Vec::new();
         for step in PIPELINE_STEPS {
             let declared = step_request_fields(step.id)
@@ -1482,7 +1481,7 @@ mod tests {
                 .collect::<BTreeSet<_>>();
             let observed = collect_option_reads(
                 step.id,
-                &step_ids,
+                &query_boundaries,
                 &field_universe,
                 &collector.method_reads,
                 &collector.local_calls,
@@ -1529,7 +1528,7 @@ mod tests {
                 .collect::<BTreeSet<_>>();
             let observed_accessors = collect_option_reads(
                 step.id,
-                &step_ids,
+                &query_boundaries,
                 &source_accessor_universe,
                 &collector.method_reads,
                 &collector.local_calls,

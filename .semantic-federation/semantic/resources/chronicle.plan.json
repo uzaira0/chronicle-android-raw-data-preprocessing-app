@@ -2220,7 +2220,9 @@
         "resolve_sharing_status",
         "build_survey_lookup"
       ],
-      "request_fields": [],
+      "request_fields": [
+        "enable_person_attribution"
+      ],
       "source_role_bindings": [],
       "applicability": {
         "kind": "option-true",
@@ -2472,24 +2474,6 @@
         "aggregate_shape"
       ],
       "source_role_bindings": [
-        {
-          "role": "app_codebook_file",
-          "when_all": [
-            {
-              "operator": "string_one_of",
-              "request_field": "usage_session_mode",
-              "values": [
-                "app_usage",
-                "app_and_screen_usage"
-              ]
-            },
-            {
-              "operator": "boolean_equals",
-              "request_field": "use_app_codebook",
-              "value": true
-            }
-          ]
-        },
         {
           "role": "enrolled_devices_file",
           "when_all": [

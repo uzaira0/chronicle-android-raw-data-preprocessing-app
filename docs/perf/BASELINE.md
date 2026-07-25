@@ -66,6 +66,49 @@ All five Hyperfine measurements landed within 29 milliseconds. The median is
 the tracked comparison value. This is a machine-specific regression baseline,
 not a portable latency promise.
 
+## Interactive View comparison baseline
+
+The View tab now requests only the Rust-produced review metrics, executes the
+affected part of the same 55-step Salsa graph, and does not build CSV exports,
+timeline geometry, lineage tables, workspace roots, or evidence closures. The
+shared comparison worker begins loading Arm A as soon as the comparison drawer
+opens; Arm B then reuses that exact parsed workspace.
+
+- Captured: 2026-07-25
+- Runtime: Node 22.23.1 loading the release browser WASM on Apple M3 Ultra
+- Fixture: deterministic generated weird-case Chronicle CSV, 100,004 accepted
+  raw rows, 19,018,650 bytes,
+  `sha256:6c4bca2853bd7ef10df31dbe2f4c7e3e4c7e4f5da3e96b82e0175d0b5513a95f`
+- Change: `modelConcurrentUsage: true` to `false`, with the other browser
+  options held constant
+- Scale: 100 separately named synthetic workspaces, executed by eight parallel
+  worker processes
+- Command: `npm exec vite-node scripts/benchmark_runtime_wasm.mts -- --raw
+  <fixture> --mode warm --iterations 2 --case middle_concurrent_usage
+  --materialization review --workspace-count <shard> --full-options --summary
+  --compact`
+
+| Measurement across 100 files | Result |
+|---|---:|
+| Warm changed-file execute median | 656.1 ms |
+| Warm changed-file execute p90 | 668.2 ms |
+| Warm changed-file execute p95 | 1,243.1 ms |
+| Warm changed-file execute maximum | 1,337.7 ms |
+| Warm changed-file total median, including artifact transfer/hash | 657.2 ms |
+| Cold preparation median | 2,733.9 ms |
+| Cold preparation p95 | 4,483.7 ms |
+| Runtime WASM | 5,810,920 bytes |
+| Runtime WASM digest | `sha256:ed6b2939ec5e31776f79cc10436b744b09b7fff13d1aed11dacdacb480bd4627` |
+
+The eight first-change measurements—one per fresh worker process—paid JIT and
+allocator warmup and account for the p95 tail. The other 92 changed files were
+tightly grouped around 644–669 ms. A single-process three-file check measured
+630–633 ms after warmup and 805 ms for its first changed file. The equivalent
+native query-timed run measured 357–471 ms. These values include exact final-row
+content hashing and all 55 step statuses; intermediate adjacent steps use
+Merkle-style dependency checkpoints so the same 100k rows are not re-hashed at
+every logical label.
+
 ## Historical pre-Salsa warm-path baseline
 
 A targeted 2026-07-23 diagnostic on the same 60,624-row fixture measured the

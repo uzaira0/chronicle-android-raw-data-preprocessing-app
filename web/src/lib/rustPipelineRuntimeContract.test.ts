@@ -1,10 +1,12 @@
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import {
   decodeRuntimeManifest,
   executeRustRuntime,
+  queryRustReview,
   setRustRuntimeForTesting,
   verifyRuntimeArtifactCatalog,
   type RuntimeManifest,
@@ -39,7 +41,8 @@ function representativeSourceFixture(): Uint8Array {
   for (let index = 0; index < 600; index += 1) {
     const hour = Math.floor(index / 60);
     const minute = index % 60;
-    const interaction = index % 2 === 0 ? "Activity Resumed" : "Activity Paused";
+    const interaction =
+      index % 2 === 0 ? "Activity Resumed" : "Activity Paused";
     rows.push(
       `Study,P01,Target Child,Chat,${interaction},com.example.chat,2026-03-07 ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00,America/Chicago`,
     );
@@ -150,9 +153,8 @@ const INVALID_CASES: Array<
   [
     "artifact reference has a non-string ancestor",
     (candidate) => {
-      record(firstRecord(candidate, "roleAssignments").artifact).derived_from = [
-        7,
-      ];
+      record(firstRecord(candidate, "roleAssignments").artifact).derived_from =
+        [7];
     },
     /derived_from\[0\].*non-empty string/,
   ],
@@ -196,8 +198,7 @@ const INVALID_CASES: Array<
     "timezone accounting drift",
     (candidate) => {
       const summary = record(candidate.processingSummary);
-      summary.rowsRemovedByTimezone =
-        Number(summary.rowsRemovedByTimezone) + 1;
+      summary.rowsRemovedByTimezone = Number(summary.rowsRemovedByTimezone) + 1;
     },
     /row accounting is inconsistent/,
   ],
@@ -301,7 +302,8 @@ const INVALID_CASES: Array<
   [
     "step execution output disagrees with its Rust checkpoint",
     (candidate) => {
-      firstRecord(candidate, "stepExecutions").output_digest = `sha256:${"a".repeat(64)}`;
+      firstRecord(candidate, "stepExecutions").output_digest =
+        `sha256:${"a".repeat(64)}`;
     },
     /step execution output does not match its Rust checkpoint/,
   ],
@@ -353,11 +355,17 @@ const INVALID_CASES: Array<
 ];
 
 beforeAll(async () => {
+  const campaignPackage = process.env.CHRONICLE_DEPENDENCY_CAMPAIGN_WASM_DIR;
   const runtimeBytes = await readFile(
-    new URL(
-      "../wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm",
-      import.meta.url,
-    ),
+    campaignPackage
+      ? path.join(
+          campaignPackage,
+          "chronicle_preprocessing_runtime_wasm_bg.wasm",
+        )
+      : new URL(
+          "../wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm",
+          import.meta.url,
+        ),
   );
   runtimeWasm.initSync({ module: runtimeBytes });
   setRustRuntimeForTesting(runtimeWasm);
@@ -401,7 +409,10 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
       empirical_evidence_current: true,
     });
     expect(() =>
-      verifyRuntimeArtifactCatalog(manifest, structuredClone(manifest.artifacts)),
+      verifyRuntimeArtifactCatalog(
+        manifest,
+        structuredClone(manifest.artifacts),
+      ),
     ).not.toThrow();
   });
 
@@ -473,8 +484,75 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
         .sort(),
     ).toEqual(stableKinds);
     for (const kind of stableKinds) {
-      expect(second.artifacts.get(kind), kind).toEqual(first.artifacts.get(kind));
+      expect(second.artifacts.get(kind), kind).toEqual(
+        first.artifacts.get(kind),
+      );
     }
+  });
+
+  it("returns byte-identical review metrics without materializing full exports", async () => {
+    const raw = representativeSourceFixture();
+    const options = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      studyName: "Selective review proof",
+      selectedTimezone: "America/Chicago",
+      timezoneHandling: "selected-convert" as const,
+      useFilterFile: false,
+      useAppsForcingScreenOpenFile: false,
+      useBackgroundAppsFile: false,
+      useAppCodebook: false,
+      processScreenUsage: false,
+      enablePlotting: false,
+    };
+    const runtime = {
+      datetimeOfPreprocessing: "2026-07-25 00:00:00 UTC",
+      persistRustWorkspace: false,
+    };
+    const full = await executeRustRuntime(
+      raw,
+      "selective-review-proof.csv",
+      options,
+      undefined,
+      runtime,
+    );
+    const review = await queryRustReview(
+      raw,
+      "selective-review-proof.csv",
+      options,
+      undefined,
+      runtime,
+    );
+    const expected = JSON.parse(
+      new TextDecoder().decode(full.artifacts.get("review-summary-json")),
+    );
+
+    expect(review.reviewSummary).toEqual(expected);
+    expect(review.cachedStepIds).toHaveLength(22);
+    expect(review.recomputedStepIds).toEqual([
+      "apply_matcher_output",
+      "relabel_usage_with_floor",
+      "junk_downstream_mark",
+      "sort_episodes",
+      "split_concurrent",
+      "codebook_join",
+      "derive_broad_category",
+      "collapse_genre",
+      "engagement_walk",
+      "flag_and_retain",
+      "blank_junk_timing",
+      "drop_selected_types",
+      "drop_zero_duration",
+      "resolve_participant_windows",
+      "filter_rows_to_window",
+      "resolve_sharing_status",
+      "attribute_rows",
+      "inject_placeholders",
+      "assemble_result",
+    ]);
+    expect(review.bypassedStepIds).toHaveLength(13);
+    expect(review.skippedStepIds).toEqual(["build_raw_date_index"]);
+    expect(review.errorStepIds).toEqual([]);
+    expect(review.comparisonDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
   });
 
   it("forces conservative recomputation when empirical release evidence is stale", () => {
@@ -526,7 +604,9 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
     const candidate = cloneManifest();
     candidate.nodeExecutions[0].output = null;
 
-    expect(decodeRuntimeManifest(candidate).nodeExecutions[0].output).toBeNull();
+    expect(
+      decodeRuntimeManifest(candidate).nodeExecutions[0].output,
+    ).toBeNull();
   });
 
   it("rejects an ineligible selected-timezone request before entering WASM", async () => {

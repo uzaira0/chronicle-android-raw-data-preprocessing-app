@@ -44,6 +44,7 @@ use wasm_bindgen::prelude::*;
 
 pub const RUNTIME_PROTOCOL_VERSION: &str = "chronicle-preprocessing-runtime/v1";
 pub const EXECUTE_WORKSPACE_COMMAND: &str = "ExecuteWorkspace";
+pub const QUERY_REVIEW_COMMAND: &str = "QueryReview";
 pub const IMPLEMENTATION_BUILD_DIGEST: &str = env!("CHRONICLE_IMPLEMENTATION_BUILD_DIGEST");
 pub const BUILD_ENVIRONMENT_DIGEST: &str = env!("CHRONICLE_BUILD_ENVIRONMENT_DIGEST");
 const REQUIRED_VIEWS: [(&str, &str, &str); 4] = [
@@ -462,7 +463,7 @@ impl RuntimeRequest {
                 self.protocol_version
             ));
         }
-        if self.command != EXECUTE_WORKSPACE_COMMAND {
+        if self.command != EXECUTE_WORKSPACE_COMMAND && self.command != QUERY_REVIEW_COMMAND {
             return Err(format!("unsupported command: {}", self.command));
         }
         if self.request_id.trim().is_empty() {
@@ -574,6 +575,40 @@ pub struct RuntimeManifest {
     pub counts: RuntimeCounts,
     pub processing_summary: RuntimeProcessingSummary,
     pub journal_digest: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewRuntimeManifest {
+    pub protocol_version: String,
+    pub preprocessor_version: String,
+    pub request_id: String,
+    pub command: String,
+    pub workspace_id: String,
+    pub previous_workspace_root_digest: Option<String>,
+    pub input_digest: String,
+    pub options_digest: String,
+    pub implementation_digest: String,
+    pub build_environment_digest: String,
+    pub plan_digest: String,
+    pub profile_digest: String,
+    pub profile_lock_digest: String,
+    pub product_contract_digest: String,
+    pub dependency_certificate_digest: String,
+    pub dependency_cache_decision: DependencyCacheDecision,
+    pub counts: RuntimeCounts,
+    pub available_timezones: Vec<String>,
+    pub timezone: String,
+    pub timezone_action: String,
+    pub rows_before_timezone_handling: u32,
+    pub rows_after_timezone_handling: u32,
+    pub rows_removed_by_timezone: u32,
+    pub duplicate_timestamps_corrected: u32,
+    pub exact_duplicate_rows_removed: u32,
+    pub node_executions: Vec<NodeExecution>,
+    pub step_executions: Vec<RuntimeStepExecution>,
+    pub review_summary_digest: String,
+    pub comparison_digest: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1215,6 +1250,51 @@ struct RuntimeStepKeyMaterial {
     upstream: BTreeMap<String, String>,
     request_fields: BTreeMap<String, Value>,
     source_roles: BTreeMap<String, Option<String>>,
+    output_mode: Option<&'static str>,
+}
+
+fn review_excludes_step(step_id: &str) -> bool {
+    matches!(
+        step_id,
+        "partition_credit_sessions"
+            | "build_liveness_substrate"
+            | "report_screen_incapable"
+            | "count_day_apps"
+            | "credit_sessions"
+            | "emit_credited_rows"
+            | "assemble_credit_result"
+            | "build_raw_date_index"
+            | "build_coverage_table"
+            | "accumulate_attribution_minutes"
+            | "score_days"
+    )
+}
+
+fn review_uses_passthrough_checkpoint(step_id: &str) -> bool {
+    matches!(
+        step_id,
+        "apply_matcher_output"
+            | "relabel_usage_with_floor"
+            | "junk_downstream_mark"
+            | "sort_episodes"
+            | "codebook_join"
+            | "derive_broad_category"
+            | "collapse_genre"
+            | "engagement_walk"
+            | "flag_and_retain"
+            | "blank_junk_timing"
+            | "drop_selected_types"
+            | "drop_zero_duration"
+            | "filter_rows_to_window"
+            | "attribute_rows"
+            | "inject_placeholders"
+    )
+}
+
+struct RuntimeStepExecutionState<'a> {
+    executed_steps: &'a [String],
+    materialize_full_outputs: bool,
+    previous_observations: &'a mut BTreeMap<String, PreviousStepObservation>,
 }
 
 fn build_runtime_step_executions(
@@ -1223,8 +1303,7 @@ fn build_runtime_step_executions(
     exact_options: &Value,
     assignments: &BTreeMap<String, RoleAssignment>,
     result: &PipelineV2Result,
-    executed_steps: &[String],
-    previous_observations: &mut BTreeMap<String, PreviousStepObservation>,
+    state: &mut RuntimeStepExecutionState<'_>,
 ) -> Result<Vec<RuntimeStepExecution>, String> {
     let plan_steps = plan
         .steps
@@ -1247,7 +1326,8 @@ fn build_runtime_step_executions(
     let exact_object = exact_options
         .as_object()
         .ok_or_else(|| "exact Rust options must serialize as an object".to_string())?;
-    let executed_steps = executed_steps
+    let executed_steps = state
+        .executed_steps
         .iter()
         .map(String::as_str)
         .collect::<BTreeSet<_>>();
@@ -1337,10 +1417,18 @@ fn build_runtime_step_executions(
                 upstream,
                 request_fields,
                 source_roles,
+                output_mode: (definition.id == "assemble_result"
+                    || review_excludes_step(definition.id)
+                    || review_uses_passthrough_checkpoint(definition.id))
+                .then_some(if state.materialize_full_outputs {
+                    "full"
+                } else {
+                    "review"
+                }),
             })
             .map_err(|error| format!("canonicalize {} input key: {error}", definition.id))?,
         );
-        let previous = previous_observations.get(definition.id);
+        let previous = state.previous_observations.get(definition.id);
         if previous.is_some_and(|entry| {
             entry.input_key == input_key && entry.output_digest != output_digest
         }) {
@@ -1348,6 +1436,8 @@ fn build_runtime_step_executions(
         }
         let status = if !applicable && plan_step.can_bypass {
             ExecutionStatus::Bypassed
+        } else if !state.materialize_full_outputs && review_excludes_step(definition.id) {
+            ExecutionStatus::Skipped
         } else if executed_steps.contains(definition.id) {
             ExecutionStatus::Recomputed
         } else {
@@ -1393,7 +1483,7 @@ fn build_runtime_step_executions(
             binding_gaps.join(",")
         ));
     }
-    *previous_observations = next_observations;
+    *state.previous_observations = next_observations;
     Ok(executions)
 }
 
@@ -1591,20 +1681,25 @@ fn execute_incremental_pipeline(
             state.stable_artifact_bundle = None;
         }
 
-        let tracked_execution = state.incremental_engine.execute(
-            csv_bytes,
-            options,
-            PipelineV2SupportFiles {
-                filter_csv: support.get("filter_file"),
-                apps_forcing_csv: support.get("apps_forcing_screen_open_file"),
-                background_apps_csv: support.get("background_apps_file"),
-                codebook_csv: support.get("app_codebook_file"),
-                study_dates_csv: support.get("study_dates_file"),
-                device_sharing_csv: support.get("device_sharing_file"),
-                survey_attribution_csv: support.get("survey_attribution_file"),
-                enrolled_devices_csv: support.get("enrolled_devices_file"),
-            },
-        )?;
+        let support_files = PipelineV2SupportFiles {
+            filter_csv: support.get("filter_file"),
+            apps_forcing_csv: support.get("apps_forcing_screen_open_file"),
+            background_apps_csv: support.get("background_apps_file"),
+            codebook_csv: support.get("app_codebook_file"),
+            study_dates_csv: support.get("study_dates_file"),
+            device_sharing_csv: support.get("device_sharing_file"),
+            survey_attribution_csv: support.get("survey_attribution_file"),
+            enrolled_devices_csv: support.get("enrolled_devices_file"),
+        };
+        let tracked_execution = if request.command == QUERY_REVIEW_COMMAND {
+            state
+                .incremental_engine
+                .execute_review(csv_bytes, options, support_files)?
+        } else {
+            state
+                .incremental_engine
+                .execute(csv_bytes, options, support_files)?
+        };
         let executed_steps = tracked_execution.executed_steps;
         #[cfg(test)]
         if !executed_steps.is_empty() {
@@ -1619,8 +1714,11 @@ fn execute_incremental_pipeline(
             &exact_options,
             ingress_assignments,
             &tracked_execution.result,
-            &executed_steps,
-            &mut state.previous_step_observations,
+            &mut RuntimeStepExecutionState {
+                executed_steps: &executed_steps,
+                materialize_full_outputs: request.command != QUERY_REVIEW_COMMAND,
+                previous_observations: &mut state.previous_step_observations,
+            },
         )?;
         let deactivated_groups = step_executions
             .iter()
@@ -1893,6 +1991,72 @@ pub fn execute_workspace_native(
         .values()
         .map(|assignment| assignment.artifact.digest.clone())
         .collect::<Vec<_>>();
+    if request.command == QUERY_REVIEW_COMMAND {
+        let review_summary_digest = sha256(&result.review_summary_json_bytes);
+        let comparison_digest = sha256(
+            &serde_jcs::to_vec(&serde_json::json!({
+                "protocolVersion": RUNTIME_PROTOCOL_VERSION,
+                "command": QUERY_REVIEW_COMMAND,
+                "workspaceId": request.workspace_id,
+                "inputDigest": ingress.input.digest,
+                "optionsDigest": options_digest,
+                "assignmentDigests": assignment_digests,
+                "implementationDigest": IMPLEMENTATION_BUILD_DIGEST,
+                "planDigest": EMBEDDED_PLAN_SHA256,
+                "reviewSummaryDigest": review_summary_digest,
+            }))
+            .map_err(|error| format!("canonicalize review comparison digest: {error}"))?,
+        );
+        let review_artifact = shared_pipeline_artifact(
+            Arc::clone(&result),
+            "review-summary-json",
+            "application/json",
+            assignment_digests,
+            review_summary_digest.clone(),
+        );
+        let manifest = ReviewRuntimeManifest {
+            protocol_version: RUNTIME_PROTOCOL_VERSION.into(),
+            preprocessor_version: chronicle_chrono_kernel_wasm::pipeline_v2::PREPROCESSOR_VERSION
+                .into(),
+            request_id: request.request_id,
+            command: QUERY_REVIEW_COMMAND.into(),
+            workspace_id: request.workspace_id,
+            previous_workspace_root_digest: request.workspace_root_digest,
+            input_digest: ingress.input.digest,
+            options_digest,
+            implementation_digest: IMPLEMENTATION_BUILD_DIGEST.into(),
+            build_environment_digest: BUILD_ENVIRONMENT_DIGEST.into(),
+            plan_digest: EMBEDDED_PLAN_SHA256.into(),
+            profile_digest: EMBEDDED_PROFILE_SHA256.into(),
+            profile_lock_digest: EMBEDDED_PROFILE_LOCK_SHA256.into(),
+            product_contract_digest: EMBEDDED_PRODUCT_CONTRACT_SHA256.into(),
+            dependency_certificate_digest: EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256.into(),
+            dependency_cache_decision,
+            counts: RuntimeCounts {
+                original: result.original_row_count,
+                processed: result.processed_row_count,
+                app: result.app_row_count,
+                screen: result.screen_row_count,
+            },
+            available_timezones: result.available_timezones.clone(),
+            timezone: result.timezone.clone(),
+            timezone_action: result.timezone_action.clone(),
+            rows_before_timezone_handling: result.rows_before_timezone_handling,
+            rows_after_timezone_handling: result.rows_after_timezone_handling,
+            rows_removed_by_timezone: result.rows_removed_by_timezone,
+            duplicate_timestamps_corrected: result.duplicate_timestamps_corrected,
+            exact_duplicate_rows_removed: result.exact_duplicate_rows_removed,
+            node_executions,
+            step_executions,
+            review_summary_digest,
+            comparison_digest,
+        };
+        return Ok(RuntimeHandle {
+            manifest_json: serde_json::to_string(&manifest)
+                .map_err(|error| format!("serialize review runtime manifest: {error}"))?,
+            artifacts: vec![review_artifact],
+        });
+    }
     let stable_key = stable_artifact_key(
         &request.workspace_id,
         &ingress.input.digest,
@@ -3075,7 +3239,7 @@ fn output_artifacts(
             digest_for("credited-app-csv"),
         ));
     }
-    for aggregate in &result.aggregate_csv_outputs {
+    for aggregate in result.aggregate_csv_outputs.iter() {
         artifacts.push(shared_pipeline_aggregate_artifact(
             Arc::clone(&result),
             &aggregate.kind,
@@ -3867,11 +4031,14 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             &exact_options,
             &BTreeMap::new(),
             &result,
-            &PIPELINE_STEPS
-                .iter()
-                .map(|step| step.id.to_string())
-                .collect::<Vec<_>>(),
-            &mut cache,
+            &mut RuntimeStepExecutionState {
+                executed_steps: &PIPELINE_STEPS
+                    .iter()
+                    .map(|step| step.id.to_string())
+                    .collect::<Vec<_>>(),
+                materialize_full_outputs: true,
+                previous_observations: &mut cache,
+            },
         )
         .unwrap();
         assert!(cold
@@ -3890,11 +4057,14 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             &exact_options,
             &BTreeMap::new(),
             &result,
-            &PIPELINE_STEPS
-                .iter()
-                .map(|step| step.id.to_string())
-                .collect::<Vec<_>>(),
-            &mut cache,
+            &mut RuntimeStepExecutionState {
+                executed_steps: &PIPELINE_STEPS
+                    .iter()
+                    .map(|step| step.id.to_string())
+                    .collect::<Vec<_>>(),
+                materialize_full_outputs: true,
+                previous_observations: &mut cache,
+            },
         )
         .unwrap_err();
         assert!(error.contains("tracked step output changed without a changed bound input"));
@@ -4007,6 +4177,49 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         let mut value: Value = serde_json::from_str(&request(csv)).unwrap();
         value["workspaceId"] = Value::String(format!("sha256:{}", marker.to_string().repeat(64)));
         value
+    }
+
+    #[test]
+    fn review_query_returns_only_review_bytes_and_matches_full_execution() {
+        reset_tracked_execution_count();
+        let csv = csv();
+        let mut review_request = request_for_workspace(&csv, 'b');
+        review_request["command"] = Value::String(QUERY_REVIEW_COMMAND.into());
+        let mut review = execute_workspace_native(
+            &review_request.to_string(),
+            &csv,
+            &RuntimeSupportFiles::default(),
+        )
+        .unwrap();
+        let review_manifest: ReviewRuntimeManifest =
+            serde_json::from_str(&review.manifest_json).unwrap();
+        assert_eq!(review_manifest.command, QUERY_REVIEW_COMMAND);
+        assert_eq!(review_manifest.step_executions.len(), 55);
+        assert_eq!(review.artifact_count(), 1);
+        let metadata: RuntimeArtifactMetadata =
+            serde_json::from_str(&review.artifact_metadata_json(0).unwrap()).unwrap();
+        assert_eq!(metadata.kind, "review-summary-json");
+        let review_bytes = review.take_artifact_bytes(0).unwrap();
+        assert_eq!(sha256(&review_bytes), review_manifest.review_summary_digest);
+        assert_eq!(stable_artifact_generation_count(), 0);
+
+        let full_request = request_for_workspace(&csv, 'f');
+        let mut full = execute_workspace_native(
+            &full_request.to_string(),
+            &csv,
+            &RuntimeSupportFiles::default(),
+        )
+        .unwrap();
+        let full_review_bytes = (0..full.artifact_count())
+            .find_map(|index| {
+                let metadata: RuntimeArtifactMetadata =
+                    serde_json::from_str(&full.artifact_metadata_json(index).unwrap()).unwrap();
+                (metadata.kind == "review-summary-json")
+                    .then(|| full.take_artifact_bytes(index).unwrap())
+            })
+            .expect("full execution review summary");
+        assert_eq!(review_bytes, full_review_bytes);
+        assert_eq!(stable_artifact_generation_count(), 1);
     }
 
     #[test]

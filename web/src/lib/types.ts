@@ -1,5 +1,12 @@
-export type { BrowserProcessingOptions, BrowserTimezoneHandling, OutputKind } from "@/lib/generatedContract";
-import type { OutputKind, RAW_CHRONICLE_COLUMNS } from "@/lib/generatedContract";
+export type {
+  BrowserProcessingOptions,
+  BrowserTimezoneHandling,
+  OutputKind,
+} from "@/lib/generatedContract";
+import type {
+  OutputKind,
+  RAW_CHRONICLE_COLUMNS,
+} from "@/lib/generatedContract";
 import type {
   RustExecutionLedger,
   RustExecutionStatus,
@@ -164,6 +171,27 @@ export type RustRuntimeReceipt = {
   persistedGeneration?: number;
 };
 
+/** Exact identities for a fast, non-persisted A/B review calculation. */
+export type RustReviewReceipt = {
+  protocolVersion: "chronicle-preprocessing-runtime/v1";
+  workspaceId: string;
+  previousWorkspaceRootDigest: string | null;
+  inputDigest: string;
+  optionsDigest: string;
+  implementationDigest: string;
+  planDigest: string;
+  profileDigest: string;
+  profileLockDigest: string;
+  productContractDigest: string;
+  dependencyCertificateDigest: string;
+  reviewSummaryDigest: string;
+  comparisonDigest: string;
+  recomputedStepIds: string[];
+  cachedStepIds: string[];
+  bypassedStepIds: string[];
+  skippedStepIds: string[];
+  errorStepIds: string[];
+};
 
 export type ProgressStepKind =
   | "parse"
@@ -177,8 +205,18 @@ export type ProgressStepKind =
 
 export type ProgressEvent =
   | { type: "file-start"; fileName: string }
-  | { type: "step"; fileName: string; stepKind: ProgressStepKind; percent: number }
-  | { type: "file-complete"; fileName: string; result?: ProcessedFileResult; error?: string };
+  | {
+      type: "step";
+      fileName: string;
+      stepKind: ProgressStepKind;
+      percent: number;
+    }
+  | {
+      type: "file-complete";
+      fileName: string;
+      result?: ProcessedFileResult;
+      error?: string;
+    };
 
 /**
  * One generated output file (app or screen). The CSV bytes live in `blob`
@@ -283,6 +321,10 @@ export type ProcessedFileResult = {
   inputSha256?: string;
   /** Rust/WASM authority and content-addressed workspace receipt. */
   rustRuntimeReceipt?: RustRuntimeReceipt;
+  /** Exact Rust identities for a fast View-tab comparison calculation. */
+  rustReviewReceipt?: RustReviewReceipt;
+  /** True when only review metrics were requested, so export/timeline bytes are absent. */
+  reviewOnly?: boolean;
   /**
    * Interactive timeline payload for the in-app View tab (#18). Present only
    * when `enableInteractiveTimeline` is on (it carries per-session geometry, so

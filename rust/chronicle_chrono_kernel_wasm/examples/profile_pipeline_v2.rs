@@ -22,6 +22,8 @@ struct Args {
     iterations: usize,
     mode: Mode,
     case: Option<String>,
+    raw: Option<String>,
+    browser_review_options: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,7 +33,7 @@ enum Mode {
 }
 
 fn usage() -> &'static str {
-    "usage: profile_pipeline_v2 [--rows N] [--iterations N] [--mode sequential|incremental] [--case NAME]"
+    "usage: profile_pipeline_v2 [--rows N] [--raw PATH] [--iterations N] [--mode sequential|incremental] [--case NAME] [--browser-review-options]"
 }
 
 fn positive_usize(flag: &str, value: Option<String>) -> Result<usize, String> {
@@ -50,6 +52,8 @@ fn parse_args() -> Result<Args, String> {
     let mut iterations = 1;
     let mut mode = Mode::Sequential;
     let mut case = None;
+    let mut raw = None;
+    let mut browser_review_options = false;
     let mut args = std::env::args().skip(1);
     while let Some(flag) = args.next() {
         match flag.as_str() {
@@ -72,6 +76,13 @@ fn parse_args() -> Result<Args, String> {
                         .ok_or_else(|| "--case requires a value".to_string())?,
                 );
             }
+            "--raw" => {
+                raw = Some(
+                    args.next()
+                        .ok_or_else(|| "--raw requires a path".to_string())?,
+                );
+            }
+            "--browser-review-options" => browser_review_options = true,
             "--help" | "-h" => {
                 println!("{}", usage());
                 std::process::exit(0);
@@ -84,6 +95,8 @@ fn parse_args() -> Result<Args, String> {
         iterations,
         mode,
         case,
+        raw,
+        browser_review_options,
     })
 }
 
@@ -211,7 +224,7 @@ fn result_digest(result: &PipelineV2Result) -> String {
         &result.visualization_data_json_bytes,
     ] {
         digest.update((bytes.len() as u64).to_le_bytes());
-        digest.update(bytes);
+        digest.update(bytes.as_slice());
     }
     digest.update(
         serde_json::to_vec(&result.pipeline_step_checkpoints).expect("serialize step checkpoints"),
@@ -220,7 +233,7 @@ fn result_digest(result: &PipelineV2Result) -> String {
         serde_json::to_vec(&result.logical_stage_checkpoints).expect("serialize stage checkpoints"),
     );
     digest.update(serde_json::to_vec(&result.row_lineage).expect("serialize row lineage"));
-    for aggregate in &result.aggregate_csv_outputs {
+    for aggregate in result.aggregate_csv_outputs.iter() {
         digest.update(aggregate.kind.as_bytes());
         digest.update(aggregate.row_count.to_le_bytes());
         digest.update(&aggregate.bytes);
@@ -321,11 +334,13 @@ fn measure_incremental_case(
         ));
     }
     println!(
-        "case={label} elapsed_ns={} elapsed_ms={:.3} executed_count={} executed_steps={} result_digest={actual_digest}",
+        "case={label} elapsed_ns={} elapsed_ms={:.3} executed_count={} executed_steps={} internal_executed_count={} internal_executed_queries={} result_digest={actual_digest}",
         elapsed.as_nanos(),
         elapsed.as_secs_f64() * 1_000.0,
         execution.executed_steps.len(),
         execution.executed_steps.join(","),
+        execution.internal_executed_queries.len(),
+        execution.internal_executed_queries.join(","),
     );
     Ok(())
 }
@@ -333,6 +348,7 @@ fn measure_incremental_case(
 #[cfg(feature = "incremental-v2")]
 fn profile_incremental(
     rows: usize,
+    iterations: usize,
     raw_csv: &[u8],
     codebook_csv: &[u8],
     baseline_options: &PipelineV2Options,
@@ -345,11 +361,54 @@ fn profile_incremental(
     if selected_case == Some("cold_benchmark") {
         let cold_digest = result_digest(&cold.result);
         println!(
-            "case=cold_benchmark rows={rows} input_bytes={} elapsed_ns={} elapsed_ms={:.3} executed_count={} result_digest={cold_digest}",
+            "case=cold_benchmark rows={rows} input_bytes={} elapsed_ns={} elapsed_ms={:.3} executed_count={} internal_executed_count={} internal_executed_queries={} result_digest={cold_digest}",
             raw_csv.len(),
             cold_elapsed.as_nanos(),
             cold_elapsed.as_secs_f64() * 1_000.0,
             cold.executed_steps.len(),
+            cold.internal_executed_queries.len(),
+            cold.internal_executed_queries.join(","),
+        );
+        return Ok(());
+    }
+    if matches!(
+        selected_case,
+        Some("middle_profile_loop" | "middle_review_profile_loop")
+    ) {
+        let review_only = selected_case == Some("middle_review_profile_loop");
+        if review_only {
+            cold_engine = IncrementalPipelineV2Engine::default();
+            cold_engine.execute_review(
+                raw_csv,
+                baseline_options,
+                support(codebook_csv, FILTER_CSV),
+            )?;
+        }
+        let mut changed = baseline_options.clone();
+        changed.model_concurrent_usage = false;
+        let started = Instant::now();
+        let mut executed = 0_usize;
+        for iteration in 0..iterations {
+            let options = if iteration % 2 == 0 {
+                &changed
+            } else {
+                baseline_options
+            };
+            let execution = if review_only {
+                cold_engine.execute_review(raw_csv, options, support(codebook_csv, FILTER_CSV))?
+            } else {
+                cold_engine.execute(raw_csv, options, support(codebook_csv, FILTER_CSV))?
+            };
+            executed += execution.executed_steps.len();
+            black_box(execution);
+        }
+        let elapsed = started.elapsed();
+        println!(
+            "case={} rows={rows} iterations={iterations} elapsed_ns={} elapsed_ms={:.3} average_ms={:.3} executed_count={executed}",
+            selected_case.unwrap_or("middle_profile_loop"),
+            elapsed.as_nanos(),
+            elapsed.as_secs_f64() * 1_000.0,
+            elapsed.as_secs_f64() * 1_000.0 / iterations as f64,
         );
         return Ok(());
     }
@@ -364,12 +423,14 @@ fn profile_incremental(
     }
     drop(cold_oracle);
     println!(
-        "case=cold rows={rows} input_bytes={} elapsed_ns={} elapsed_ms={:.3} executed_count={} executed_steps={} result_digest={cold_digest}",
+        "case=cold rows={rows} input_bytes={} elapsed_ns={} elapsed_ms={:.3} executed_count={} executed_steps={} internal_executed_count={} internal_executed_queries={} result_digest={cold_digest}",
         raw_csv.len(),
         cold_elapsed.as_nanos(),
         cold_elapsed.as_secs_f64() * 1_000.0,
         cold.executed_steps.len(),
         cold.executed_steps.join(","),
+        cold.internal_executed_queries.len(),
+        cold.internal_executed_queries.join(","),
     );
     if selected_case == Some("cold") {
         return Ok(());
@@ -477,14 +538,41 @@ fn profile_incremental(
 
 fn main() -> Result<(), String> {
     let args = parse_args()?;
-    let raw_csv = synthetic_raw_csv(args.rows);
+    let raw_csv = match &args.raw {
+        Some(raw) => std::fs::read(raw).map_err(|error| format!("read {raw}: {error}"))?,
+        None => synthetic_raw_csv(args.rows),
+    };
+    let rows = if args.raw.is_some() {
+        raw_csv
+            .iter()
+            .filter(|byte| **byte == b'\n')
+            .count()
+            .saturating_sub(1)
+    } else {
+        args.rows
+    };
     let codebook_csv = synthetic_codebook_csv();
-    let options = options();
+    let mut options = options();
+    if args.browser_review_options {
+        options.study_name = "Synthetic benchmark".into();
+        options.timezone = "America/Chicago".into();
+        options.timezone_handling = "selected-filter".into();
+        options.use_filter_file = false;
+        options.use_apps_forcing_screen_open = false;
+        options.use_background_apps_file = false;
+        options.use_app_codebook = false;
+        options.include_category_column = false;
+        options.enable_day_coverage = false;
+        options.enable_compliance_scoring = false;
+        options.enable_screen_gated_crediting = true;
+        options.enable_aggregates = true;
+    }
     if args.mode == Mode::Incremental {
         #[cfg(feature = "incremental-v2")]
         {
             return profile_incremental(
-                args.rows,
+                rows,
+                args.iterations,
                 &raw_csv,
                 &codebook_csv,
                 &options,
@@ -507,20 +595,20 @@ fn main() -> Result<(), String> {
             run_pipeline_v2_with_supports(black_box(&raw_csv), black_box(&options), support)?;
         app_rows = result.app_row_count;
         screen_rows = result.screen_row_count;
-        checksum.update(&result.app_csv_bytes);
-        checksum.update(&result.screen_csv_bytes);
-        checksum.update(&result.review_summary_json_bytes);
+        checksum.update(result.app_csv_bytes.as_slice());
+        checksum.update(result.screen_csv_bytes.as_slice());
+        checksum.update(result.review_summary_json_bytes.as_slice());
         for digest in result.pipeline_step_digests.values() {
             checksum.update(digest.as_bytes());
         }
         black_box(&result);
     }
     let elapsed = started.elapsed();
-    let processed_rows = args.rows.saturating_mul(args.iterations);
+    let processed_rows = rows.saturating_mul(args.iterations);
     let rows_per_second = processed_rows as f64 / elapsed.as_secs_f64();
     println!(
         "rows={} iterations={} input_bytes={} elapsed_ns={} elapsed_ms={:.3} rows_per_second={:.3} app_rows={} screen_rows={} checksum={}",
-        args.rows,
+        rows,
         args.iterations,
         raw_csv.len(),
         elapsed.as_nanos(),

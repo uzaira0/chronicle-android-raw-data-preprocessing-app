@@ -7,6 +7,8 @@ import type {
   BrowserProcessingRuntime,
   BrowserSupportFile,
   BrowserSupportFiles,
+  ReviewSummary,
+  TimezoneAction,
 } from "@/lib/types";
 import type { RawFileInspection } from "@/lib/fileInspection";
 import defaultAppCodebookUrl from "@/assets/defaults/unified_app_codebook.csv?url";
@@ -55,7 +57,11 @@ type KernelModule = {
   plan_stage_view_json(optionsJson: string): string;
   RuntimeSupportFiles: new () => RuntimeSupportFilesHandle;
   discover_timezones_v2(csvBytes: Uint8Array): string[];
-  inspect_raw_file_v1(csvBytes: Uint8Array, fileName: string, sizeBytes: number): string;
+  inspect_raw_file_v1(
+    csvBytes: Uint8Array,
+    fileName: string,
+    sizeBytes: number,
+  ): string;
   execute_workspace(
     requestJson: string,
     csvBytes: Uint8Array,
@@ -88,12 +94,7 @@ type RuntimeCheckpoint = {
 };
 
 type RuntimeMaterializationState =
-  | "open"
-  | "ready"
-  | "satisfied"
-  | "blocked"
-  | "invalid"
-  | "not_applicable";
+  "open" | "ready" | "satisfied" | "blocked" | "invalid" | "not_applicable";
 
 type RuntimeQualificationTrace = {
   trace_id: string;
@@ -258,7 +259,9 @@ const MATERIALIZATION_STATES = new Set([
 ]);
 
 function contractError(path: string, expectation: string): never {
-  throw new Error(`runtime manifest contract violation at ${path}: ${expectation}`);
+  throw new Error(
+    `runtime manifest contract violation at ${path}: ${expectation}`,
+  );
 }
 
 function objectAt(value: unknown, path: string): JsonObject {
@@ -330,66 +333,67 @@ function checkpointDomainAt(
   checkpoints: Record<string, RuntimeCheckpoint>;
 } {
   const digests = Object.fromEntries(
-    Object.entries(objectAt(digestsValue, `${path}Digests`)).map(([id, digest]) => [
-      id,
-      digestAt(digest, `${path}Digests.${id}`),
-    ]),
+    Object.entries(objectAt(digestsValue, `${path}Digests`)).map(
+      ([id, digest]) => [id, digestAt(digest, `${path}Digests.${id}`)],
+    ),
   );
   const checkpoints = Object.fromEntries(
-    Object.entries(objectAt(checkpointsValue, `${path}Checkpoints`)).map(([id, value]) => {
-      const checkpointPath = `${path}Checkpoints.${id}`;
-      const checkpoint = objectAt(value, checkpointPath);
-      const decoded: RuntimeCheckpoint = {
-        protocolVersion: stringAt(
-          checkpoint.protocolVersion,
-          `${checkpointPath}.protocolVersion`,
-        ),
-        nodeId: stringAt(checkpoint.nodeId, `${checkpointPath}.nodeId`),
-        rowMembershipDigest: checkpointComponentDigestAt(
-          checkpoint.rowMembershipDigest,
-          `${checkpointPath}.rowMembershipDigest`,
-        ),
-        rowOrderDigest: checkpointComponentDigestAt(
-          checkpoint.rowOrderDigest,
-          `${checkpointPath}.rowOrderDigest`,
-        ),
-        temporalStateDigest: checkpointComponentDigestAt(
-          checkpoint.temporalStateDigest,
-          `${checkpointPath}.temporalStateDigest`,
-        ),
-        classificationDigest: checkpointComponentDigestAt(
-          checkpoint.classificationDigest,
-          `${checkpointPath}.classificationDigest`,
-        ),
-        payloadDigest: checkpointComponentDigestAt(
-          checkpoint.payloadDigest,
-          `${checkpointPath}.payloadDigest`,
-        ),
-        schemaDigest: checkpointComponentDigestAt(
-          checkpoint.schemaDigest,
-          `${checkpointPath}.schemaDigest`,
-        ),
-        terminalDigest: digestAt(
-          checkpoint.terminalDigest,
-          `${checkpointPath}.terminalDigest`,
-        ),
-      };
-      if (
-        decoded.protocolVersion !== "chronicle-logical-stage-checkpoint/v3"
-      ) {
-        contractError(
-          `${checkpointPath}.protocolVersion`,
-          "unsupported checkpoint protocol",
-        );
-      }
-      if (decoded.nodeId !== id || decoded.terminalDigest !== digests[id]) {
-        contractError(
-          checkpointPath,
-          "checkpoint identity or terminal digest does not match its domain",
-        );
-      }
-      return [id, decoded];
-    }),
+    Object.entries(objectAt(checkpointsValue, `${path}Checkpoints`)).map(
+      ([id, value]) => {
+        const checkpointPath = `${path}Checkpoints.${id}`;
+        const checkpoint = objectAt(value, checkpointPath);
+        const decoded: RuntimeCheckpoint = {
+          protocolVersion: stringAt(
+            checkpoint.protocolVersion,
+            `${checkpointPath}.protocolVersion`,
+          ),
+          nodeId: stringAt(checkpoint.nodeId, `${checkpointPath}.nodeId`),
+          rowMembershipDigest: checkpointComponentDigestAt(
+            checkpoint.rowMembershipDigest,
+            `${checkpointPath}.rowMembershipDigest`,
+          ),
+          rowOrderDigest: checkpointComponentDigestAt(
+            checkpoint.rowOrderDigest,
+            `${checkpointPath}.rowOrderDigest`,
+          ),
+          temporalStateDigest: checkpointComponentDigestAt(
+            checkpoint.temporalStateDigest,
+            `${checkpointPath}.temporalStateDigest`,
+          ),
+          classificationDigest: checkpointComponentDigestAt(
+            checkpoint.classificationDigest,
+            `${checkpointPath}.classificationDigest`,
+          ),
+          payloadDigest: checkpointComponentDigestAt(
+            checkpoint.payloadDigest,
+            `${checkpointPath}.payloadDigest`,
+          ),
+          schemaDigest: checkpointComponentDigestAt(
+            checkpoint.schemaDigest,
+            `${checkpointPath}.schemaDigest`,
+          ),
+          terminalDigest: digestAt(
+            checkpoint.terminalDigest,
+            `${checkpointPath}.terminalDigest`,
+          ),
+        };
+        if (
+          decoded.protocolVersion !== "chronicle-logical-stage-checkpoint/v3"
+        ) {
+          contractError(
+            `${checkpointPath}.protocolVersion`,
+            "unsupported checkpoint protocol",
+          );
+        }
+        if (decoded.nodeId !== id || decoded.terminalDigest !== digests[id]) {
+          contractError(
+            checkpointPath,
+            "checkpoint identity or terminal digest does not match its domain",
+          );
+        }
+        return [id, decoded];
+      },
+    ),
   );
   const digestIds = Object.keys(digests).sort();
   const checkpointIds = Object.keys(checkpoints).sort();
@@ -433,7 +437,10 @@ function artifactRefAt(value: unknown, path: string): RuntimeManifest["input"] {
   };
 }
 
-function artifactMetadataAt(value: unknown, path: string): RuntimeArtifactMetadata {
+function artifactMetadataAt(
+  value: unknown,
+  path: string,
+): RuntimeArtifactMetadata {
   const artifact = objectAt(value, path);
   const rowCount = artifact.rowCount;
   const previewRows = artifact.previewRows;
@@ -450,16 +457,19 @@ function artifactMetadataAt(value: unknown, path: string): RuntimeArtifactMetada
     ...(previewRows === undefined
       ? {}
       : {
-          previewRows: arrayAt(previewRows, `${path}.previewRows`).map((row, index) =>
-            arrayAt(row, `${path}.previewRows[${index}]`).map((cell, cellIndex) => {
-              if (typeof cell !== "string") {
-                contractError(
-                  `${path}.previewRows[${index}][${cellIndex}]`,
-                  "expected a string",
-                );
-              }
-              return cell;
-            }),
+          previewRows: arrayAt(previewRows, `${path}.previewRows`).map(
+            (row, index) =>
+              arrayAt(row, `${path}.previewRows[${index}]`).map(
+                (cell, cellIndex) => {
+                  if (typeof cell !== "string") {
+                    contractError(
+                      `${path}.previewRows[${index}][${cellIndex}]`,
+                      "expected a string",
+                    );
+                  }
+                  return cell;
+                },
+              ),
           ),
         }),
   };
@@ -618,8 +628,7 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
   } satisfies RuntimeManifest["dependencyCacheDecision"];
   if (
     mode === "certified_narrow" &&
-    (!cacheDecision.certificate_digest ||
-      !cacheDecision.binding_surface_digest)
+    (!cacheDecision.certificate_digest || !cacheDecision.binding_surface_digest)
   ) {
     contractError(
       "manifest.dependencyCacheDecision",
@@ -657,10 +666,7 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
     }
     return {
       node_id: stringAt(execution.node_id, `${path}.node_id`),
-      capability_id: stringAt(
-        execution.capability_id,
-        `${path}.capability_id`,
-      ),
+      capability_id: stringAt(execution.capability_id, `${path}.capability_id`),
       status: status as RuntimeManifest["nodeExecutions"][number]["status"],
       input_key: digestAt(execution.input_key, `${path}.input_key`),
       output:
@@ -752,7 +758,10 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
     summary.rowsRemovedByTimezone,
     "manifest.processingSummary.rowsRemovedByTimezone",
   );
-  if (rowsBeforeTimezoneHandling - rowsRemovedByTimezone !== rowsAfterTimezoneHandling) {
+  if (
+    rowsBeforeTimezoneHandling - rowsRemovedByTimezone !==
+    rowsAfterTimezoneHandling
+  ) {
     contractError(
       "manifest.processingSummary",
       "timezone row accounting is inconsistent",
@@ -760,8 +769,7 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
   }
 
   const artifacts = arrayAt(manifest.artifacts, "manifest.artifacts").map(
-    (value, index) =>
-      artifactMetadataAt(value, `manifest.artifacts[${index}]`),
+    (value, index) => artifactMetadataAt(value, `manifest.artifacts[${index}]`),
   );
   for (const [field, values] of [
     ["artifact kind", artifacts.map(({ kind }) => kind)],
@@ -796,7 +804,10 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
     ),
     requestId: stringAt(manifest.requestId, "manifest.requestId"),
     command: "ExecuteWorkspace",
-    implementation: stringAt(manifest.implementation, "manifest.implementation"),
+    implementation: stringAt(
+      manifest.implementation,
+      "manifest.implementation",
+    ),
     scope: stringAt(manifest.scope, "manifest.scope"),
     counts,
     input: artifactRefAt(manifest.input, "manifest.input"),
@@ -847,11 +858,8 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
     ).map((value, index) =>
       openObligationAt(value, `manifest.openObligations[${index}]`),
     ),
-    stateReasons: arrayAt(
-      manifest.stateReasons,
-      "manifest.stateReasons",
-    ).map((value, index) =>
-      stateReasonAt(value, `manifest.stateReasons[${index}]`),
+    stateReasons: arrayAt(manifest.stateReasons, "manifest.stateReasons").map(
+      (value, index) => stateReasonAt(value, `manifest.stateReasons[${index}]`),
     ),
     journalDigest: digestAt(manifest.journalDigest, "manifest.journalDigest"),
     artifacts,
@@ -867,8 +875,12 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
         summary.availableTimezones,
         "manifest.processingSummary.availableTimezones",
       ),
-      timezone: stringAt(summary.timezone, "manifest.processingSummary.timezone"),
-      timezoneAction: timezoneAction as RuntimeManifest["processingSummary"]["timezoneAction"],
+      timezone: stringAt(
+        summary.timezone,
+        "manifest.processingSummary.timezone",
+      ),
+      timezoneAction:
+        timezoneAction as RuntimeManifest["processingSummary"]["timezoneAction"],
       rowsBeforeTimezoneHandling,
       rowsAfterTimezoneHandling,
       rowsRemovedByTimezone,
@@ -946,14 +958,184 @@ export type RustRuntimeExecution = {
   persistedWorkspace?: WorkspaceRootSlot;
 };
 
+export type RustReviewExecution = {
+  workspaceId: string;
+  previousWorkspaceRootDigest: string | null;
+  manifestJson: string;
+  inputDigest: string;
+  optionsDigest: string;
+  implementationDigest: string;
+  buildEnvironmentDigest: string;
+  planDigest: string;
+  profileDigest: string;
+  profileLockDigest: string;
+  productContractDigest: string;
+  dependencyCertificateDigest: string;
+  comparisonDigest: string;
+  reviewSummaryDigest: string;
+  counts: { original: number; processed: number; app: number; screen: number };
+  availableTimezones: string[];
+  timezone: string;
+  timezoneAction: TimezoneAction;
+  rowsBeforeTimezoneHandling: number;
+  rowsAfterTimezoneHandling: number;
+  rowsRemovedByTimezone: number;
+  duplicateTimestampsCorrected: number;
+  exactDuplicateRowsRemoved: number;
+  recomputedStepIds: string[];
+  cachedStepIds: string[];
+  bypassedStepIds: string[];
+  skippedStepIds: string[];
+  errorStepIds: string[];
+  reviewSummary: ReviewSummary;
+};
+
+function decodeReviewRuntimeManifest(
+  value: unknown,
+): Omit<RustReviewExecution, "manifestJson" | "reviewSummary"> {
+  const manifest = objectAt(value, "reviewManifest");
+  if (manifest.protocolVersion !== "chronicle-preprocessing-runtime/v1") {
+    contractError(
+      "reviewManifest.protocolVersion",
+      "unsupported protocol version",
+    );
+  }
+  if (manifest.command !== "QueryReview") {
+    contractError("reviewManifest.command", "expected QueryReview");
+  }
+  const timezoneAction = stringAt(
+    manifest.timezoneAction,
+    "reviewManifest.timezoneAction",
+  );
+  if (!TIMEZONE_ACTIONS.has(timezoneAction)) {
+    contractError("reviewManifest.timezoneAction", "unknown timezone action");
+  }
+  const countsValue = objectAt(manifest.counts, "reviewManifest.counts");
+  const steps = arrayAt(
+    manifest.stepExecutions,
+    "reviewManifest.stepExecutions",
+  ).map((value, index) => {
+    const path = `reviewManifest.stepExecutions[${index}]`;
+    const step = objectAt(value, path);
+    const status = stringAt(step.status, `${path}.status`);
+    if (!EXECUTION_STATUSES.has(status)) {
+      contractError(`${path}.status`, "unknown execution status");
+    }
+    return { id: stringAt(step.step_id, `${path}.step_id`), status };
+  });
+  if (steps.length !== 55 || new Set(steps.map(({ id }) => id)).size !== 55) {
+    contractError(
+      "reviewManifest.stepExecutions",
+      "expected exactly 55 unique Rust step executions",
+    );
+  }
+  return {
+    workspaceId: digestAt(manifest.workspaceId, "reviewManifest.workspaceId"),
+    previousWorkspaceRootDigest: nullableDigestAt(
+      manifest.previousWorkspaceRootDigest,
+      "reviewManifest.previousWorkspaceRootDigest",
+    ),
+    inputDigest: digestAt(manifest.inputDigest, "reviewManifest.inputDigest"),
+    optionsDigest: digestAt(
+      manifest.optionsDigest,
+      "reviewManifest.optionsDigest",
+    ),
+    implementationDigest: digestAt(
+      manifest.implementationDigest,
+      "reviewManifest.implementationDigest",
+    ),
+    buildEnvironmentDigest: digestAt(
+      manifest.buildEnvironmentDigest,
+      "reviewManifest.buildEnvironmentDigest",
+    ),
+    planDigest: digestAt(manifest.planDigest, "reviewManifest.planDigest"),
+    profileDigest: digestAt(
+      manifest.profileDigest,
+      "reviewManifest.profileDigest",
+    ),
+    profileLockDigest: digestAt(
+      manifest.profileLockDigest,
+      "reviewManifest.profileLockDigest",
+    ),
+    productContractDigest: digestAt(
+      manifest.productContractDigest,
+      "reviewManifest.productContractDigest",
+    ),
+    dependencyCertificateDigest: digestAt(
+      manifest.dependencyCertificateDigest,
+      "reviewManifest.dependencyCertificateDigest",
+    ),
+    comparisonDigest: digestAt(
+      manifest.comparisonDigest,
+      "reviewManifest.comparisonDigest",
+    ),
+    reviewSummaryDigest: digestAt(
+      manifest.reviewSummaryDigest,
+      "reviewManifest.reviewSummaryDigest",
+    ),
+    counts: {
+      original: integerAt(
+        countsValue.original,
+        "reviewManifest.counts.original",
+      ),
+      processed: integerAt(
+        countsValue.processed,
+        "reviewManifest.counts.processed",
+      ),
+      app: integerAt(countsValue.app, "reviewManifest.counts.app"),
+      screen: integerAt(countsValue.screen, "reviewManifest.counts.screen"),
+    },
+    availableTimezones: stringArrayAt(
+      manifest.availableTimezones,
+      "reviewManifest.availableTimezones",
+    ),
+    timezone: stringAt(manifest.timezone, "reviewManifest.timezone"),
+    timezoneAction: timezoneAction as TimezoneAction,
+    rowsBeforeTimezoneHandling: integerAt(
+      manifest.rowsBeforeTimezoneHandling,
+      "reviewManifest.rowsBeforeTimezoneHandling",
+    ),
+    rowsAfterTimezoneHandling: integerAt(
+      manifest.rowsAfterTimezoneHandling,
+      "reviewManifest.rowsAfterTimezoneHandling",
+    ),
+    rowsRemovedByTimezone: integerAt(
+      manifest.rowsRemovedByTimezone,
+      "reviewManifest.rowsRemovedByTimezone",
+    ),
+    duplicateTimestampsCorrected: integerAt(
+      manifest.duplicateTimestampsCorrected,
+      "reviewManifest.duplicateTimestampsCorrected",
+    ),
+    exactDuplicateRowsRemoved: integerAt(
+      manifest.exactDuplicateRowsRemoved,
+      "reviewManifest.exactDuplicateRowsRemoved",
+    ),
+    recomputedStepIds: steps
+      .filter(({ status }) => status === "recomputed")
+      .map(({ id }) => id),
+    cachedStepIds: steps
+      .filter(({ status }) => status === "cached")
+      .map(({ id }) => id),
+    bypassedStepIds: steps
+      .filter(({ status }) => status === "bypassed")
+      .map(({ id }) => id),
+    skippedStepIds: steps
+      .filter(({ status }) => status === "skipped")
+      .map(({ id }) => id),
+    errorStepIds: steps
+      .filter(({ status }) => status === "error")
+      .map(({ id }) => id),
+  };
+}
+
 let initPromise: Promise<KernelModule> | null = null;
 
 // The Rust worker retains exactly one live Salsa database. Keep the matching
 // root token here when OPFS persistence is disabled so repeated calls still
 // continue that database instead of accidentally forcing a cold reset.
 let ephemeralContinuation:
-  | { workspaceId: string; workspaceRootDigest: string }
-  | undefined;
+  { workspaceId: string; workspaceRootDigest: string } | undefined;
 
 export type RustPersistenceAdapter = {
   openRoot(workspaceId: string): Promise<FileSystemDirectoryHandle>;
@@ -992,7 +1174,9 @@ async function readArtifactFromWorkspaceSlot(
       await readRuntimeObject(root, rootCommit.artifactClosureDigest),
     ),
   ) as { artifacts: Array<{ kind: string; digest: string }> };
-  const artifact = closure.artifacts.find((candidate) => candidate.kind === kind);
+  const artifact = closure.artifacts.find(
+    (candidate) => candidate.kind === kind,
+  );
   if (!artifact) throw new Error(`persisted Rust artifact is missing: ${kind}`);
   return readRuntimeObject(root, artifact.digest);
 }
@@ -1043,30 +1227,50 @@ async function verifyRootClosure(
     "runtimeAuthorityDigest",
     "dependencyCertificateDigest",
   ] as const;
-  if (currentIdentity.protocolVersion !== "chronicle-preprocessing-runtime/v1") {
+  if (
+    currentIdentity.protocolVersion !== "chronicle-preprocessing-runtime/v1"
+  ) {
     throw new Error("loaded runtime identity protocol is invalid");
   }
-  for (const field of identityFields) digestAt(currentIdentity[field], `runtimeIdentity.${field}`);
+  for (const field of identityFields)
+    digestAt(currentIdentity[field], `runtimeIdentity.${field}`);
   const requiredViews = new Map([
     [
       "chronicle.stage.v1",
-      { artifactKind: "stage-view-json", schemaId: "urn:chronicle:view:stage:v1" },
+      {
+        artifactKind: "stage-view-json",
+        schemaId: "urn:chronicle:view:stage:v1",
+      },
     ],
     [
       "chronicle.artifact.v1",
-      { artifactKind: "artifact-view-json", schemaId: "urn:chronicle:view:artifact:v1" },
+      {
+        artifactKind: "artifact-view-json",
+        schemaId: "urn:chronicle:view:artifact:v1",
+      },
     ],
     [
       "chronicle.obligation.v1",
-      { artifactKind: "obligation-view-json", schemaId: "urn:chronicle:view:obligation:v1" },
+      {
+        artifactKind: "obligation-view-json",
+        schemaId: "urn:chronicle:view:obligation:v1",
+      },
     ],
     [
       "chronicle.explanation.v1",
-      { artifactKind: "explanation-view-json", schemaId: "urn:chronicle:view:explanation:v1" },
+      {
+        artifactKind: "explanation-view-json",
+        schemaId: "urn:chronicle:view:explanation:v1",
+      },
     ],
   ]);
-  const retained = new Set(retainedDigests.map((digest) => digestAt(digest, "retainedDigest")));
-  if (retained.size !== retainedDigests.length || !retained.has(expectedWorkspaceRootDigest)) {
+  const retained = new Set(
+    retainedDigests.map((digest) => digestAt(digest, "retainedDigest")),
+  );
+  if (
+    retained.size !== retainedDigests.length ||
+    !retained.has(expectedWorkspaceRootDigest)
+  ) {
     throw new Error("recovered workspace retained-object table is invalid");
   }
   const bytesByDigest = new Map<string, Uint8Array>([
@@ -1113,7 +1317,9 @@ async function verifyRootClosure(
     if (
       root.protocolVersion !== "chronicle-preprocessing-runtime/v1" ||
       root.command !== "ExecuteWorkspace" ||
-      !["certified_narrow", "conservative_full"].includes(root.dependencyCacheMode) ||
+      !["certified_narrow", "conservative_full"].includes(
+        root.dependencyCacheMode,
+      ) ||
       !Array.isArray(root.artifactDigests) ||
       new Set(root.artifactDigests).size !== root.artifactDigests.length ||
       !Array.isArray(root.requiredViews) ||
@@ -1141,9 +1347,13 @@ async function verifyRootClosure(
       root.artifactClosureDigest,
       ...root.artifactDigests,
       ...Object.values(root.assignmentDigests),
-    ]) digestAt(digest, "root digest");
+    ])
+      digestAt(digest, "root digest");
     if (root.previousWorkspaceRootDigest !== null) {
-      digestAt(root.previousWorkspaceRootDigest, "root.previousWorkspaceRootDigest");
+      digestAt(
+        root.previousWorkspaceRootDigest,
+        "root.previousWorkspaceRootDigest",
+      );
     }
     return root;
   };
@@ -1162,7 +1372,9 @@ async function verifyRootClosure(
       head &&
       identityFields.some((field) => commit[field] !== currentIdentity[field])
     ) {
-      throw new Error("recovered workspace head was produced by a different runtime identity");
+      throw new Error(
+        "recovered workspace head was produced by a different runtime identity",
+      );
     }
     if (
       commit.workspaceId !== expectedWorkspaceId ||
@@ -1178,7 +1390,8 @@ async function verifyRootClosure(
       commit.optionsDigest,
       ...assignmentDigests,
       ...commit.artifactDigests,
-    ]) allowed.add(digest);
+    ])
+      allowed.add(digest);
     if (
       !commit.artifactDigests.includes(commit.dependencyCertificateDigest) ||
       !commit.artifactDigests.includes(commit.executionStateDigest) ||
@@ -1213,20 +1426,26 @@ async function verifyRootClosure(
     const stateArtifacts = arrayAt(
       state.computationalArtifactDigests,
       "executionState.computationalArtifactDigests",
-    ).map((digest, index) => digestAt(digest, `executionState.artifacts[${index}]`));
+    ).map((digest, index) =>
+      digestAt(digest, `executionState.artifacts[${index}]`),
+    );
     const expectedStateArtifacts = commit.artifactDigests.filter(
       (digest) =>
         digest !== commit.executionStateDigest &&
         digest !== commit.artifactClosureDigest &&
-        ![...bindings.values()].some((binding) => binding.artifactDigest === digest),
+        ![...bindings.values()].some(
+          (binding) => binding.artifactDigest === digest,
+        ),
     );
     if (
       state.protocolVersion !== "chronicle-execution-state/v1" ||
       state.workspaceId !== commit.workspaceId ||
-      state.previousWorkspaceRootDigest !== commit.previousWorkspaceRootDigest ||
+      state.previousWorkspaceRootDigest !==
+        commit.previousWorkspaceRootDigest ||
       state.inputDigest !== commit.inputDigest ||
       state.optionsDigest !== commit.optionsDigest ||
-      canonicalJson(state.assignmentDigests) !== canonicalJson(commit.assignmentDigests) ||
+      canonicalJson(state.assignmentDigests) !==
+        canonicalJson(commit.assignmentDigests) ||
       state.journalDigest !== commit.journalDigest ||
       state.dependencyCacheMode !== commit.dependencyCacheMode ||
       canonicalJson([...stateArtifacts].sort()) !==
@@ -1245,7 +1464,9 @@ async function verifyRootClosure(
       "dependencyCertificateDigest",
     ] as const) {
       if (state[field] !== commit[field]) {
-        throw new Error(`recovered execution state identity mismatch: ${field}`);
+        throw new Error(
+          `recovered execution state identity mismatch: ${field}`,
+        );
       }
     }
 
@@ -1253,8 +1474,11 @@ async function verifyRootClosure(
     const closure = JSON.parse(
       new TextDecoder().decode(await readObject(commit.artifactClosureDigest)),
     ) as Record<string, unknown>;
-    const closureArtifacts = arrayAt(closure.artifacts, "closure.artifacts").map(
-      (value, index) => artifactMetadataAt(value, `closure.artifacts[${index}]`),
+    const closureArtifacts = arrayAt(
+      closure.artifacts,
+      "closure.artifacts",
+    ).map((value, index) =>
+      artifactMetadataAt(value, `closure.artifacts[${index}]`),
     );
     const closureKinds = closureArtifacts.map(({ kind }) => kind);
     const closureDigests = closureArtifacts.map(({ digest }) => digest);
@@ -1290,7 +1514,9 @@ async function verifyRootClosure(
       "journalDigest",
     ] as const) {
       if (canonicalJson(closure[field]) !== canonicalJson(commit[field])) {
-        throw new Error(`recovered artifact closure identity mismatch: ${field}`);
+        throw new Error(
+          `recovered artifact closure identity mismatch: ${field}`,
+        );
       }
     }
     for (const metadata of closureArtifacts) {
@@ -1324,7 +1550,9 @@ async function verifyRootClosure(
     allowed.size !== retained.size ||
     [...allowed].some((digest) => !retained.has(digest))
   ) {
-    throw new Error("recovered workspace closure has missing or unbound objects");
+    throw new Error(
+      "recovered workspace closure has missing or unbound objects",
+    );
   }
 }
 
@@ -1364,7 +1592,9 @@ export async function inspectRustRawFile(
   sizeBytes: number,
 ): Promise<RawFileInspection> {
   const kernel = await loadKernel();
-  const parsed: unknown = JSON.parse(kernel.inspect_raw_file_v1(csvBytes, fileName, sizeBytes));
+  const parsed: unknown = JSON.parse(
+    kernel.inspect_raw_file_v1(csvBytes, fileName, sizeBytes),
+  );
   if (
     !parsed ||
     typeof parsed !== "object" ||
@@ -1380,9 +1610,7 @@ export async function inspectRustRawFile(
 
 export async function verifyPersistedRustWorkspace(
   workspaceId: string,
-): Promise<
-  WorkspaceRootSlot | undefined
-> {
+): Promise<WorkspaceRootSlot | undefined> {
   const [kernel, root] = await Promise.all([
     loadKernel(),
     openOpfsWorkspace(workspaceId),
@@ -1412,7 +1640,9 @@ export async function importPersistedRustWorkspace(
   archive: Uint8Array,
 ): Promise<WorkspaceRootSlot> {
   if (runtimeClosureWorkspaceId(archive) !== workspaceId) {
-    throw new Error("runtime closure workspace identity does not match the import target");
+    throw new Error(
+      "runtime closure workspace identity does not match the import target",
+    );
   }
   return withWorkspaceLock(workspaceId, async () => {
     const [kernel, root] = await Promise.all([
@@ -1466,7 +1696,9 @@ export async function readPersistedRustArtifact(
       await readRuntimeObject(root, rootCommit.artifactClosureDigest),
     ),
   ) as { artifacts: Array<{ kind: string; digest: string }> };
-  const artifact = closure.artifacts.find((candidate) => candidate.kind === kind);
+  const artifact = closure.artifacts.find(
+    (candidate) => candidate.kind === kind,
+  );
   if (!artifact) throw new Error(`persisted Rust artifact is missing: ${kind}`);
   return readRuntimeObject(root, artifact.digest);
 }
@@ -1474,23 +1706,27 @@ export async function readPersistedRustArtifact(
 export async function readVerifiedSemanticIndexSnapshot(
   workspaceId: string,
 ): Promise<{ workspaceRootDigest: string; source: Uint8Array }> {
-  return withWorkspaceLock(workspaceId, async () => {
-    const [kernel, root] = await Promise.all([
-      loadKernel(),
-      openOpfsWorkspace(workspaceId),
-    ]);
-    const slot = await recoverRuntimeWorkspace(root);
-    if (!slot) throw new Error("no persisted Rust workspace exists");
-    await defaultPersistenceAdapter.verify?.(root, slot, kernel, workspaceId);
-    return {
-      workspaceRootDigest: slot.workspaceRootDigest,
-      source: await readArtifactFromWorkspaceSlot(
-        root,
-        slot,
-        "semantic-index-source-json",
-      ),
-    };
-  }, "shared");
+  return withWorkspaceLock(
+    workspaceId,
+    async () => {
+      const [kernel, root] = await Promise.all([
+        loadKernel(),
+        openOpfsWorkspace(workspaceId),
+      ]);
+      const slot = await recoverRuntimeWorkspace(root);
+      if (!slot) throw new Error("no persisted Rust workspace exists");
+      await defaultPersistenceAdapter.verify?.(root, slot, kernel, workspaceId);
+      return {
+        workspaceRootDigest: slot.workspaceRootDigest,
+        source: await readArtifactFromWorkspaceSlot(
+          root,
+          slot,
+          "semantic-index-source-json",
+        ),
+      };
+    },
+    "shared",
+  );
 }
 
 /**
@@ -1546,7 +1782,8 @@ export async function getRustPlanStageView(
   // evaluates all topology and applicability, and the actual run separately
   // resolves or rejects the selected timezone before ingestion.
   const projectionOptions =
-    options.timezoneHandling.startsWith("selected-") && !options.selectedTimezone?.trim()
+    options.timezoneHandling.startsWith("selected-") &&
+    !options.selectedTimezone?.trim()
       ? { ...options, selectedTimezone: "UTC" }
       : options;
   return JSON.parse(
@@ -1714,7 +1951,28 @@ async function executeRustRuntimeUnlocked(
   supportFiles: BrowserSupportFiles | undefined,
   runtime: BrowserProcessingRuntime,
   inputSha256: string,
-): Promise<RustRuntimeExecution> {
+  materialization: "full",
+): Promise<RustRuntimeExecution>;
+async function executeRustRuntimeUnlocked(
+  workspaceId: string,
+  csvBytes: Uint8Array,
+  inputFileName: string,
+  options: BrowserProcessingOptions,
+  supportFiles: BrowserSupportFiles | undefined,
+  runtime: BrowserProcessingRuntime,
+  inputSha256: string,
+  materialization: "review",
+): Promise<RustReviewExecution>;
+async function executeRustRuntimeUnlocked(
+  workspaceId: string,
+  csvBytes: Uint8Array,
+  inputFileName: string,
+  options: BrowserProcessingOptions,
+  supportFiles: BrowserSupportFiles | undefined,
+  runtime: BrowserProcessingRuntime,
+  inputSha256: string,
+  materialization: "full" | "review",
+): Promise<RustRuntimeExecution | RustReviewExecution> {
   const reasons = rustRuntimeIneligibilityReasons(options);
   if (reasons.length > 0) {
     throw new Error(`Rust runtime is ineligible: ${reasons.join("; ")}`);
@@ -1795,7 +2053,10 @@ async function executeRustRuntimeUnlocked(
         "app_codebook_file",
         supportFiles?.appCodebookFile?.name ?? "unified_app_codebook.csv",
       ],
-      ["study_dates_file", supportFiles?.studyDatesFile?.name ?? "study_dates.csv"],
+      [
+        "study_dates_file",
+        supportFiles?.studyDatesFile?.name ?? "study_dates.csv",
+      ],
       [
         "device_sharing_file",
         supportFiles?.deviceSharingFile?.name ?? "device_sharing.csv",
@@ -1825,7 +2086,7 @@ async function executeRustRuntimeUnlocked(
     if (runtime.persistRustWorkspace) {
       opfsRoot = await persistenceAdapter.openRoot(workspaceId);
       recoveredRoot = await persistenceAdapter.recover(opfsRoot);
-      if (recoveredRoot) {
+      if (recoveredRoot && materialization === "full") {
         await persistenceAdapter.verify?.(
           opfsRoot,
           recoveredRoot,
@@ -1840,12 +2101,13 @@ async function executeRustRuntimeUnlocked(
       ephemeralContinuation?.workspaceId === workspaceId
         ? ephemeralContinuation.workspaceRootDigest
         : null);
-    const requestId = `execute-${inputSha256.slice(0, 16)}`;
+    const requestId = `${materialization === "review" ? "review" : "execute"}-${inputSha256.slice(0, 16)}`;
     handle = kernel.execute_workspace(
       JSON.stringify({
         protocolVersion: "chronicle-preprocessing-runtime/v1",
         requestId,
-        command: "ExecuteWorkspace",
+        command:
+          materialization === "review" ? "QueryReview" : "ExecuteWorkspace",
         workspaceRootDigest: previousWorkspaceRootDigest,
         workspaceId,
         inputFileName,
@@ -1865,6 +2127,63 @@ async function executeRustRuntimeUnlocked(
         `runtime manifest is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+    if (materialization === "review") {
+      const manifest = decodeReviewRuntimeManifest(manifestValue);
+      if (manifest.workspaceId !== workspaceId) {
+        throw new Error("review manifest workspace identity mismatch");
+      }
+      if (manifest.inputDigest !== `sha256:${inputSha256}`) {
+        throw new Error("review manifest input identity mismatch");
+      }
+      if (
+        manifest.previousWorkspaceRootDigest !== previousWorkspaceRootDigest
+      ) {
+        throw new Error("review manifest previous-root identity mismatch");
+      }
+      if (
+        manifest.implementationDigest !== kernel.implementation_build_digest()
+      ) {
+        throw new Error("review manifest implementation identity mismatch");
+      }
+      if (
+        manifest.buildEnvironmentDigest !== kernel.build_environment_digest()
+      ) {
+        throw new Error("review manifest build-environment identity mismatch");
+      }
+      if (handle.artifact_count !== 1) {
+        throw new Error(
+          "review query must expose exactly one compact artifact",
+        );
+      }
+      const metadata = artifactMetadataAt(
+        JSON.parse(handle.artifact_metadata_json(0)),
+        "reviewArtifact",
+      );
+      if (
+        metadata.kind !== "review-summary-json" ||
+        metadata.digest !== manifest.reviewSummaryDigest
+      ) {
+        throw new Error("review artifact identity mismatch");
+      }
+      const reviewBytes = handle.take_artifact_bytes(0);
+      if (
+        metadata.size !== reviewBytes.byteLength ||
+        metadata.digest !== `sha256:${await sha256Hex(reviewBytes)}`
+      ) {
+        throw new Error("review artifact integrity mismatch");
+      }
+      let reviewSummary: ReviewSummary;
+      try {
+        reviewSummary = JSON.parse(
+          new TextDecoder().decode(reviewBytes),
+        ) as ReviewSummary;
+      } catch (error) {
+        throw new Error(
+          `review summary is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      return { ...manifest, manifestJson, reviewSummary };
+    }
     const manifest = decodeRuntimeManifest(manifestValue);
     if (manifest.requestId !== requestId) {
       throw new Error("runtime manifest request identity mismatch");
@@ -1872,7 +2191,9 @@ async function executeRustRuntimeUnlocked(
     if (manifest.workspaceId !== workspaceId) {
       throw new Error("runtime manifest workspace identity mismatch");
     }
-    if (manifest.implementationDigest !== kernel.implementation_build_digest()) {
+    if (
+      manifest.implementationDigest !== kernel.implementation_build_digest()
+    ) {
       throw new Error("runtime manifest implementation identity mismatch");
     }
     if (manifest.buildEnvironmentDigest !== kernel.build_environment_digest()) {
@@ -1884,10 +2205,7 @@ async function executeRustRuntimeUnlocked(
     ) {
       throw new Error("runtime manifest input identity mismatch");
     }
-    if (
-      manifest.previousWorkspaceRootDigest !==
-      previousWorkspaceRootDigest
-    ) {
+    if (manifest.previousWorkspaceRootDigest !== previousWorkspaceRootDigest) {
       throw new Error("runtime manifest previous-root identity mismatch");
     }
     const artifacts = new Map<string, Uint8Array>();
@@ -1956,9 +2274,7 @@ async function executeRustRuntimeUnlocked(
           `runtime declared an unknown ingress role: ${assignment.role_id}`,
         );
       }
-      if (
-        assignment.artifact.size !== bytes.byteLength
-      ) {
+      if (assignment.artifact.size !== bytes.byteLength) {
         throw new Error(
           `runtime ingress assignment size mismatch: ${assignment.role_id}`,
         );
@@ -1982,7 +2298,8 @@ async function executeRustRuntimeUnlocked(
       rootBytes,
       (digest) => {
         const bytes = persistedByDigest.get(digest);
-        if (!bytes) throw new Error(`runtime artifact set is missing ${digest}`);
+        if (!bytes)
+          throw new Error(`runtime artifact set is missing ${digest}`);
         return bytes;
       },
       [...persistedByDigest.keys()],
@@ -1996,8 +2313,7 @@ async function executeRustRuntimeUnlocked(
       runtime.persistRustWorkspace && opfsRoot
         ? await persistenceAdapter.persist(opfsRoot, {
             workspaceRootDigest: manifest.workspaceRootDigest,
-            previousWorkspaceRootDigest:
-              manifest.previousWorkspaceRootDigest,
+            previousWorkspaceRootDigest: manifest.previousWorkspaceRootDigest,
             artifacts: persistedArtifacts,
             recoveredSlot: recoveredRoot,
           })
@@ -2014,7 +2330,10 @@ async function executeRustRuntimeUnlocked(
           recoveredRoot,
         ]);
       } catch (error) {
-        console.warn("Committed Rust workspace but could not reclaim stale OPFS objects", error);
+        console.warn(
+          "Committed Rust workspace but could not reclaim stale OPFS objects",
+          error,
+        );
       }
     }
     if (runtime.persistRustWorkspace) {
@@ -2025,7 +2344,13 @@ async function executeRustRuntimeUnlocked(
         workspaceRootDigest: manifest.workspaceRootDigest,
       };
     }
-    return { workspaceId, manifestJson, manifest, artifacts, persistedWorkspace };
+    return {
+      workspaceId,
+      manifestJson,
+      manifest,
+      artifacts,
+      persistedWorkspace,
+    };
   } finally {
     // A trapped WASM call can leave wasm-bindgen's internal borrow flag set.
     // Cleanup must not replace the primary execution error with a secondary
@@ -2050,7 +2375,9 @@ export async function runtimeWorkspaceId(
 ): Promise<string> {
   const inputDigest = verifiedInputSha256 ?? (await sha256Hex(csvBytes));
   if (!/^[0-9a-f]{64}$/.test(inputDigest)) {
-    throw new Error("verified input digest must be 64 lowercase hexadecimal characters");
+    throw new Error(
+      "verified input digest must be 64 lowercase hexadecimal characters",
+    );
   }
   return `sha256:${await sha256Hex(
     new TextEncoder().encode(
@@ -2099,12 +2426,56 @@ export async function executeRustRuntime(
       supportFiles,
       runtime,
       inputSha256,
+      "full",
     );
   if (!runtime.persistRustWorkspace) return execute();
   if (typeof navigator === "undefined" || !navigator.locks?.request) {
     if (persistenceAdapter === defaultPersistenceAdapter) {
       throw new Error(
         "Durable processing requires the browser Web Locks API to serialize workspace commits",
+      );
+    }
+    return execute();
+  }
+  return withWorkspaceLock(workspaceId, execute);
+}
+
+/**
+ * Re-evaluate the authoritative Rust graph for interactive A/B review without
+ * serializing downloadable exports, timeline geometry, or a new OPFS root.
+ * The returned comparison digest commits to the exact input, options, plan,
+ * implementation, and review bytes used by the UI.
+ */
+export async function queryRustReview(
+  csvBytes: Uint8Array,
+  inputFileName: string,
+  options: BrowserProcessingOptions,
+  supportFiles: BrowserSupportFiles | undefined,
+  runtime: BrowserProcessingRuntime,
+  verifiedInputSha256?: string,
+): Promise<RustReviewExecution> {
+  const inputSha256 = verifiedInputSha256 ?? (await sha256Hex(csvBytes));
+  const workspaceId = await runtimeWorkspaceId(
+    inputFileName,
+    csvBytes,
+    inputSha256,
+  );
+  const execute = () =>
+    executeRustRuntimeUnlocked(
+      workspaceId,
+      csvBytes,
+      inputFileName,
+      options,
+      supportFiles,
+      runtime,
+      inputSha256,
+      "review",
+    );
+  if (!runtime.persistRustWorkspace) return execute();
+  if (typeof navigator === "undefined" || !navigator.locks?.request) {
+    if (persistenceAdapter === defaultPersistenceAdapter) {
+      throw new Error(
+        "Durable comparison requires the browser Web Locks API to serialize access to the Rust workspace",
       );
     }
     return execute();

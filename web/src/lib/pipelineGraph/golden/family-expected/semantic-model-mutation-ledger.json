@@ -7,16 +7,16 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:9fb3dfd88ebb2edad1e62f082cc055ac0b3605a46a4cd9fbf31a4cc4344d490f",
-    "planDigest": "sha256:6de88ad84552191fb4cea4acda553006cddc096f20c24e2138954f1d4d48231c",
-    "profileDigest": "sha256:e0a9b158df2bd2161d96905d67276aea0243cb239ef3dc4c5014932a48da9be0",
-    "profileLockDigest": "sha256:1b81f4281935ba62b490c58f94c8f3f8cfae4c2a0ea1641a6b6a6e2d9b741a5e",
+    "implementationDigest": "sha256:794915a71ff0b9414150be902d04ce36e9b181f37325d0ccbb91c748aeffdfd5",
+    "planDigest": "sha256:7d57a41ec697dd873bf1d06137bc45d4f1de741dbc48b5e4ef72765a9e857257",
+    "profileDigest": "sha256:7e5057b46bb078535918f0d0becda150bc642794ebaedc7c5d1fa371ca11bd58",
+    "profileLockDigest": "sha256:a079759cab05c9cda9e496adfb9dd0c13f0cdd9595d8e6f8dd3a2c2c0be6ef13",
     "runtimeAuthorityDigest": "sha256:bb2e2d109a81098514ba9a86344da6edc033cd305e6d6c4832c9dfd1ce81b2f9",
-    "productContractDigest": "sha256:ab8abd56da309c22855b64a8772c48e2204eb87246643e2fff612f4d84e0155a"
+    "productContractDigest": "sha256:65437936a927735c56f728f5e6ba4e2cbedfa8382ddb48d6458b07b3dee13173"
   },
   "sourceLedgers": {
-    "configurationCaseSetDigest": "sha256:f3385953494815b7eba47728b952f7b8517e678ea0f6f8dc8697a1ceff66e407",
-    "artifactCaseSetDigest": "sha256:d7cbca9f88e8cf8ffdf1641b2ad2571a9e566d1280ae1ae82b26c08c82d67fbf",
+    "configurationCaseSetDigest": "sha256:cdb5c5794c3a81f83853f0fa138b66aeca5585151ecbcfc12b02d6dcf8d68a8e",
+    "artifactCaseSetDigest": "sha256:a0c9d75c92e64df3ffabd1daefb26239fcce9fccafb320ab40f173bc22fe00ed",
     "rawBoundaryCaseSetDigest": "sha256:5af80b920feee505865782a6a10aedc83a16e1ac012b9250e4ec29f30401a532"
   },
   "observationCount": 1734,
@@ -27,13 +27,13 @@
     "byClass": {
       "remove-edge": 128,
       "reverse-edge": 128,
-      "remove-option-binding": 73,
-      "remove-role-binding": 14
+      "remove-option-binding": 74,
+      "remove-role-binding": 13
     },
     "structuralCycles": 62,
     "structuralConditionBindings": 6,
     "structuralStepBindings": 77,
-    "rustRequestReadBindings": 10
+    "rustRequestReadBindings": 11
   },
   "structuralProofs": {
     "rustSource": "rust/chronicle_chrono_kernel_wasm/src/step_contract.rs::tests::declared_step_edges_equal_direct_salsa_query_calls",
@@ -2948,6 +2948,15 @@
       "witnessId": "configuration:enablePersonAttribution:active:true:false:catalog-random"
     },
     {
+      "mutantId": "remove-option-binding:enablePersonAttribution->attribute_rows",
+      "mutantClass": "remove-option-binding",
+      "sourceId": "enablePersonAttribution",
+      "targetId": "attribute_rows",
+      "killed": true,
+      "killKind": "rust-request-read-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
       "mutantId": "remove-option-binding:enableComplianceScoring->accumulate_attribution_minutes",
       "mutantClass": "remove-option-binding",
       "sourceId": "enableComplianceScoring",
@@ -3063,15 +3072,6 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "artifact:support:codebook-edit-category"
-    },
-    {
-      "mutantId": "remove-role-binding:app_codebook_file->assemble_result",
-      "mutantClass": "remove-role-binding",
-      "sourceId": "app_codebook_file",
-      "targetId": "assemble_result",
-      "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "artifact:support-representation:app_codebook_file:crlf"
     },
     {
       "mutantId": "remove-role-binding:study_dates_file->resolve_participant_windows",

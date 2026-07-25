@@ -32,8 +32,11 @@ Six different things exist today and must not be confused:
 1. `PIPELINE_STEPS` declares 55 transformation identities and their intended
    dependencies.
 2. `chronicle.plan.json` groups those steps into 15 reporting checkpoints.
-3. `pipeline_v2_incremental.rs` contains exactly 55 `#[salsa::tracked]`
+3. `pipeline_v2_incremental.rs` contains exactly 55 tracked product-step
    computations, one for every step ID and in the same topological order.
+   Two separately reported internal queries cache normalized codebook state and
+   expensive primary output assembly; neither is presented as a 56th product
+   transformation.
 4. `IncrementalPipelineV2Engine` retains one Salsa database across calls and
    updates individual source, support-file, and option inputs only when their
    values change.
@@ -52,7 +55,7 @@ Therefore the current state is:
 | Is browser preprocessing primarily Rust/WASM? | Yes. |
 | Are all 55 transformations named in Rust? | Yes. |
 | Are their intended data/config/support dependencies recorded? | Yes. |
-| Are there 55 separately callable Rust tracked computations? | Yes; exactly 55, and the production runtime calls the stateful engine. |
+| Are there 55 separately callable Rust product computations? | Yes; exactly 55, and the production runtime calls the stateful engine. Internal derived caches are counted separately. |
 | Do all four usage modes match the complete Rust oracle? | Yes in the kernel parity test. |
 | Can one output-only change skip all unrelated physical work? | Yes in the stateful engine test: only `assemble_result` runs. |
 | Does an unchanged second call execute a step body? | No in the stateful engine test. |
@@ -140,6 +143,9 @@ Rules:
   dependency.
 - The runtime records actual query execution events. It does not infer them
   afterward from changed hashes.
+- Product-step events and internal derived-cache events remain separate. This
+  lets performance tests prove that output assembly stayed cached without
+  inventing extra product steps.
 - If a changed input is read but produces the same derived value, downstream
   work stops at that point.
 - If the declared plan and observed query dependencies differ, the check fails.
@@ -510,11 +516,11 @@ named command or file proving it.
 | Extract steps 17–32 | done | Full 38-test kernel run includes reconstruction, codebook, and annotation query parity. |
 | Extract steps 33–44 | done | Full kernel run includes annotation, cleaning, and screen-credit query parity. |
 | Extract steps 45–55 | done | `late_queries_match_the_fused_oracle_and_reuse_exactly` plus all-mode complete-result parity pass. |
-| Generate 55 callable bindings | active | Source scan proves 55 unique `#[salsa::tracked]` functions in contract order; generated capability bindings still need regeneration after runtime evidence is current. |
-| Cache typed intermediates without large copies | active | The Salsa database reuses typed `Arc` results in one worker; allocation, retained-result, and large-fixture memory profiles remain. |
+| Generate 55 callable bindings | done | Source and generated checks prove 55 unique tracked product functions in contract order; internal derived caches are classified separately and cannot become product bindings. |
+| Cache typed intermediates without large copies | active | The Salsa database reuses typed `Arc` results and memoized logical checkpoints in one worker. Primary output assembly is independently cached; allocation, retained-result, and large-batch memory profiles remain. |
 | Split terminal outputs and derived views into queries | active | `assemble_result` is a tracked terminal query and output-only reuse is proven; independently reusable artifact/view queries remain. |
 | Handle worker replacement | done | Opaque query snapshots and cache roots were deleted. Verified OPFS inputs/history survive; a replacement worker deliberately runs cold. |
-| Replace inferred statuses with real events | active | Runtime step status consumes `IncrementalPipelineV2Execution.executed_steps`; dependency evidence still needs regeneration after the final source change. |
+| Replace inferred statuses with real events | done | Runtime step status consumes `IncrementalPipelineV2Execution.executed_steps`; regenerated dependency evidence and the normal WASM package carry the same implementation identity. |
 | Run all existing empirical campaigns on physical events | pending | Updated ledgers with cold parity and actual event sets. |
 | Enforce TypeScript boundary | done | `check_no_typescript_authority.mts`, its seeded-failure gate, typecheck, and production bundle search reject a second engine. |
 | Remove superseded scheduler/status code | done | TypeScript pipeline, graph engine, 55-step mirror, shadow runner, duplicate reports/exporters, obsolete benchmarks, and their static-analysis rules are deleted. |
@@ -532,14 +538,14 @@ named command or file proving it.
 | Documentation/current-state check | Count/state/forbidden-claim cases and a seeded false claim | semantic federation check | checker derives 55 declared / 55 feature-gated tracked / runtime cutover active / fused cold oracle | Generated current state must match tracked Rust query symbols | check must fail on a seeded contradiction | active; source count is verified, generated refresh follows current empirical evidence regeneration |
 | Salsa product trial | early/middle/output/binding query tests | native and WASM Cargo checks | real Chronicle calls in native and headless Chrome | no default Rayon/thread/network requirement | event log, early cutoff, size/memory benchmark | done; upstream Salsa selected, trial and failed snapshot approach removed |
 | Tracked inputs | every option/source/qualification accessor | Rust unit and contract tests | construct database from one complete fixture | unknown and untracked reads fail | property and mutation tests over access sets | pending |
-| 55 query registry | missing/duplicate/cycle/type cases | registry and build drift checks | resolve and call every applicable query | exactly 55 callable bindings | semantic-model mutation of every edge and binding | active; 55 unique functions verified, generated binding and negative drift cases remain |
+| 55 query registry | missing/duplicate/cycle/type cases | registry and build drift checks | resolve and call every applicable query | exactly 55 callable bindings | semantic-model mutation of every edge and binding | done; 55 product functions, generated bindings, internal-query classification, and negative drift cases are checked |
 | Step extraction | nearest behavior tests per group | existing Rust/golden suites | cold run on smallest fixture | malformed/empty/boundary inputs | fused parity, fuzz, property, mutation | active; complete four-mode checkpoint/output parity passes, broad fuzz/mutation remains |
 | Incremental execution | unchanged/upstream/middle/downstream/binding changes | all controlled-change campaigns | warm call after cold call | both under-invalidation and over-invalidation fail | random sequences, inverse, commutativity, early cutoff | active; unchanged and output-only exact execution pass, empirical campaigns remain |
 | Query persistence | save/reload/version/corruption cases | OPFS integration and browser E2E | reload one workspace offline | partial writes, wrong digest/build/schema | crash injection at every commit point | pending |
 | Provenance and explanations | real event/reason mapping | journal, index, registered-query tests | request stage and explanation views | no inferred cached/recomputed status | replay and root equality | pending |
 | Terminal results/views | independent output and view query tests | native/WASM and browser tests | render complete result offline | no unchanged artifact regeneration | exact bytes, lineage/correspondence parity | pending |
 | TypeScript boundary | forbidden import/symbol cases | typecheck, authority check, production build | worker starts and processes through Rust | no TS computation or semantic authority | seeded attempt to restore a retired symbol must fail | active; source/type checks pass, final E2E/build pending |
-| Performance | committed benchmark cases and thresholds | Hyperfine, browser profile, native flamegraph | benchmark fixture hash and output hash | fail on false cached claim | repeated distributions, memory, bundle size | pending |
+| Performance | committed benchmark cases and thresholds | Hyperfine, browser profile, native flamegraph | benchmark fixture hash and output hash | fail on false cached claim | repeated distributions, memory, bundle size | active; the compact review target, fused physical row stages, exact 55-step status projection, background Arm-A warmup, and final 100-file × 100k-row browser campaign are measured in `docs/perf/BASELINE.md` (656 ms changed-file median, 1.243 s p95); Chromium peak memory remains |
 | Security/supply chain | malformed cache/profile/artifact cases | cargo audit/deny, Semgrep, ast-grep, Trivy, gitleaks | offline execution | profiles cannot inject code; cache cannot bypass verification | fuzz parsers and import paths | pending |
 | Release/rollback | query-runtime and cold-oracle switches | complete `make all` plus new gates | preview loads offline | no production/main/research-pipeline changes | rollback rehearsal and preview hash | pending |
 
@@ -598,11 +604,14 @@ and no production deployment change is allowed.
 - Current state: the verified 55-query engine has replaced the old physical
   runtime gate. The 15-group scheduler builds compatibility artifacts and views
   after tracked execution and cannot suppress a required Salsa query.
-- Last evidence: exactly 55 unique tracked functions exist in contract order;
-  38 kernel tests pass; all four usage modes match every fused step checkpoint,
+- Last evidence: exactly 55 unique tracked product functions exist in contract
+  order, with two separately observable internal derived caches; 41 kernel
+  tests pass; all four usage modes match every fused step checkpoint,
   grouped checkpoint, output byte sequence, count, timezone result, aggregate,
   and lineage; an unchanged call executes no body; an output-only `study_name`
-  change executes only `assemble_result`; Clippy and the browser-WASM build pass.
+  change executes only `assemble_result` plus primary-output assembly; a
+  day-coverage-only change leaves primary-output assembly cached; Clippy and
+  the browser-WASM build pass.
 - Local Rust setup: `/opt/homebrew/bin/cargo` uses the Homebrew compiler, which
   does not see rustup-installed targets. WASM checks therefore use
   `rustup run stable cargo ... --target wasm32-unknown-unknown`; a plain

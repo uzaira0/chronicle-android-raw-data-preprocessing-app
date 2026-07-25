@@ -11,28 +11,49 @@ import {
 import type { BrowserProcessingOptions } from "@/lib/types";
 import type {
   RuntimeManifest,
+  RustReviewExecution,
   RustRuntimeExecution,
 } from "@/lib/rustPipelineRuntime";
 import { buildRustV2Options } from "@/lib/rustPipelineRuntime";
 
 const mocks = vi.hoisted(() => ({
   executeRustRuntime: vi.fn(),
+  queryRustReview: vi.fn(),
   buildAppTimelineViews: vi.fn(
-    (_rows: unknown, _timezone: string, _options: unknown, _version: string, _events: unknown, include: boolean) =>
-      [{ participantId: include ? "included" : "excluded" }],
+    (
+      _rows: unknown,
+      _timezone: string,
+      _options: unknown,
+      _version: string,
+      _events: unknown,
+      include: boolean,
+    ) => [{ participantId: include ? "included" : "excluded" }],
   ),
   buildScreenTimelineViews: vi.fn(() => [{ participantId: "screen" }]),
-  generateAllPlots: vi.fn(() => Promise.resolve(new Map([["P01", new Blob(["app-png"])]]))),
-  generateAllPlotSvgs: vi.fn(() => Promise.resolve(new Map([["P01", new Blob(["app-svg"])]]))),
-  generateAllHeatmaps: vi.fn(() => Promise.resolve(new Map([["P01", new Blob(["heat-png"])]]))),
-  generateAllHeatmapSvgs: vi.fn(() => Promise.resolve(new Map([["P01", new Blob(["heat-svg"])]]))),
-  generateAllScreenPlots: vi.fn(() => Promise.resolve(new Map([["P01", new Blob(["screen-png"])]]))),
-  generateAllScreenPlotSvgs: vi.fn(() => Promise.resolve(new Map([["P01", new Blob(["screen-svg"])]]))),
+  generateAllPlots: vi.fn(() =>
+    Promise.resolve(new Map([["P01", new Blob(["app-png"])]])),
+  ),
+  generateAllPlotSvgs: vi.fn(() =>
+    Promise.resolve(new Map([["P01", new Blob(["app-svg"])]])),
+  ),
+  generateAllHeatmaps: vi.fn(() =>
+    Promise.resolve(new Map([["P01", new Blob(["heat-png"])]])),
+  ),
+  generateAllHeatmapSvgs: vi.fn(() =>
+    Promise.resolve(new Map([["P01", new Blob(["heat-svg"])]])),
+  ),
+  generateAllScreenPlots: vi.fn(() =>
+    Promise.resolve(new Map([["P01", new Blob(["screen-png"])]])),
+  ),
+  generateAllScreenPlotSvgs: vi.fn(() =>
+    Promise.resolve(new Map([["P01", new Blob(["screen-svg"])]])),
+  ),
 }));
 
 vi.mock("@/lib/rustPipelineRuntime", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/rustPipelineRuntime")>()),
   executeRustRuntime: mocks.executeRustRuntime,
+  queryRustReview: mocks.queryRustReview,
 }));
 
 vi.mock("@/lib/plotGenerator", async (importOriginal) => ({
@@ -47,7 +68,10 @@ vi.mock("@/lib/plotGenerator", async (importOriginal) => ({
   generateAllScreenPlotSvgs: mocks.generateAllScreenPlotSvgs,
 }));
 
-import { processRawCsvWithRustAuthority } from "@/lib/rustPipelineAuthority";
+import {
+  processRawCsvReviewWithRustAuthority,
+  processRawCsvWithRustAuthority,
+} from "@/lib/rustPipelineAuthority";
 
 const enc = new TextEncoder();
 const json = (value: unknown) => enc.encode(JSON.stringify(value));
@@ -282,7 +306,10 @@ function fullExecution(): RustRuntimeExecution {
         ? 7
         : undefined,
     previewRows: kind.endsWith("-csv")
-      ? [["name", "value"], ["example", "1"]]
+      ? [
+          ["name", "value"],
+          ["example", "1"],
+        ]
       : undefined,
   }));
   return {
@@ -301,9 +328,79 @@ function fullExecution(): RustRuntimeExecution {
   };
 }
 
+function reviewExecution(): RustReviewExecution {
+  return {
+    workspaceId: `sha256:${"3".repeat(64)}`,
+    previousWorkspaceRootDigest: `sha256:${"2".repeat(64)}`,
+    manifestJson: "{}",
+    inputDigest: `sha256:${"1".repeat(64)}`,
+    optionsDigest: `sha256:${"4".repeat(64)}`,
+    implementationDigest: `sha256:${"5".repeat(64)}`,
+    buildEnvironmentDigest: `sha256:${"6".repeat(64)}`,
+    planDigest: `sha256:${"7".repeat(64)}`,
+    profileDigest: `sha256:${"8".repeat(64)}`,
+    profileLockDigest: `sha256:${"9".repeat(64)}`,
+    productContractDigest: `sha256:${"a".repeat(64)}`,
+    dependencyCertificateDigest: `sha256:${"b".repeat(64)}`,
+    comparisonDigest: `sha256:${"c".repeat(64)}`,
+    reviewSummaryDigest: `sha256:${"d".repeat(64)}`,
+    counts: { original: 4, processed: 3, app: 2, screen: 1 },
+    availableTimezones: ["America/Chicago"],
+    timezone: "America/Chicago",
+    timezoneAction: "none",
+    rowsBeforeTimezoneHandling: 4,
+    rowsAfterTimezoneHandling: 4,
+    rowsRemovedByTimezone: 0,
+    duplicateTimestampsCorrected: 0,
+    exactDuplicateRowsRemoved: 1,
+    recomputedStepIds: ["build_coverage_table", "assemble_result"],
+    cachedStepIds: Array.from({ length: 53 }, (_, index) => `cached-${index}`),
+    bypassedStepIds: [],
+    skippedStepIds: [],
+    errorStepIds: [],
+    reviewSummary: { participants: [] },
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.executeRustRuntime.mockResolvedValue(fullExecution());
+  mocks.queryRustReview.mockResolvedValue(reviewExecution());
+});
+
+describe("fast Rust review authority", () => {
+  it("returns only review data and keeps exact input/config/build identities", async () => {
+    const options = { ...DEFAULT_BROWSER_OPTIONS };
+    const result = await processRawCsvReviewWithRustAuthority(
+      "Raw P01.csv",
+      enc.encode("raw"),
+      options,
+      undefined,
+      { datetimeOfPreprocessing: "2026-07-25 00:00:00 UTC" },
+      "1".repeat(64),
+    );
+
+    expect(mocks.queryRustReview).toHaveBeenCalledWith(
+      expect.any(Uint8Array),
+      "Raw P01.csv",
+      options,
+      undefined,
+      expect.objectContaining({ persistRustWorkspace: true }),
+      "1".repeat(64),
+    );
+    expect(result).toMatchObject({
+      reviewOnly: true,
+      outputs: [],
+      originalRowCount: 4,
+      processedRowCount: 3,
+      rustReviewReceipt: {
+        optionsDigest: `sha256:${"4".repeat(64)}`,
+        comparisonDigest: `sha256:${"c".repeat(64)}`,
+        recomputedStepIds: ["build_coverage_table", "assemble_result"],
+      },
+    });
+    expect(result.rustRuntimeReceipt).toBeUndefined();
+  });
 });
 
 describe("configuration-axis authority", () => {
@@ -329,11 +426,15 @@ describe("configuration-axis authority", () => {
       ...EXECUTION_BROWSER_OPTION_KEYS,
     ];
     expect(new Set(partition).size).toBe(BROWSER_PROCESSING_OPTION_KEYS.length);
-    expect([...partition].sort()).toEqual([...BROWSER_PROCESSING_OPTION_KEYS].sort());
+    expect([...partition].sort()).toEqual(
+      [...BROWSER_PROCESSING_OPTION_KEYS].sort(),
+    );
   });
 
   it("keeps view/execution axes out of Rust while projecting studyName only as annotation", () => {
-    const runtimeOptions = { datetimeOfPreprocessing: "2026-07-21 00:00:00 UTC" };
+    const runtimeOptions = {
+      datetimeOfPreprocessing: "2026-07-21 00:00:00 UTC",
+    };
     const baselineOptions: BrowserProcessingOptions = {
       ...DEFAULT_BROWSER_OPTIONS,
       selectedTimezone: "UTC",
@@ -345,7 +446,8 @@ describe("configuration-axis authority", () => {
         !DEFAULT_BROWSER_OPTIONS.includeFilteredAppUsageInPlots,
       enableActivityHeatmap: !DEFAULT_BROWSER_OPTIONS.enableActivityHeatmap,
       exportPlotsAsSvg: !DEFAULT_BROWSER_OPTIONS.exportPlotsAsSvg,
-      enableInteractiveTimeline: !DEFAULT_BROWSER_OPTIONS.enableInteractiveTimeline,
+      enableInteractiveTimeline:
+        !DEFAULT_BROWSER_OPTIONS.enableInteractiveTimeline,
       parallelProcessing: !DEFAULT_BROWSER_OPTIONS.parallelProcessing,
       parallelMaxWorkers: 2,
     };
@@ -461,7 +563,11 @@ describe("Rust authority browser projection", () => {
       processRawCsvWithRustAuthority(
         "Raw.csv",
         enc.encode("raw"),
-        { ...DEFAULT_BROWSER_OPTIONS, selectedTimezone: "UTC", processScreenUsage: false },
+        {
+          ...DEFAULT_BROWSER_OPTIONS,
+          selectedTimezone: "UTC",
+          processScreenUsage: false,
+        },
         {},
         { persistRustWorkspace: false },
       ),
@@ -469,16 +575,21 @@ describe("Rust authority browser projection", () => {
 
     const missingMetadata = fullExecution();
     missingMetadata.manifest.artifacts = missingMetadata.manifest.artifacts.map(
-      (artifact) => artifact.kind === "app-csv"
-        ? { ...artifact, previewRows: undefined }
-        : artifact,
+      (artifact) =>
+        artifact.kind === "app-csv"
+          ? { ...artifact, previewRows: undefined }
+          : artifact,
     );
     mocks.executeRustRuntime.mockResolvedValueOnce(missingMetadata);
     await expect(
       processRawCsvWithRustAuthority(
         "Raw.csv",
         enc.encode("raw"),
-        { ...DEFAULT_BROWSER_OPTIONS, selectedTimezone: "UTC", processScreenUsage: false },
+        {
+          ...DEFAULT_BROWSER_OPTIONS,
+          selectedTimezone: "UTC",
+          processScreenUsage: false,
+        },
         {},
         { persistRustWorkspace: false },
       ),
@@ -487,10 +598,11 @@ describe("Rust authority browser projection", () => {
 
   it("requires Rust to provide exact aggregate row counts", async () => {
     const execution = fullExecution();
-    execution.manifest.artifacts = execution.manifest.artifacts.map((artifact) =>
-      artifact.kind === "aggregate-daily-summary-csv"
-        ? { ...artifact, rowCount: undefined }
-        : artifact,
+    execution.manifest.artifacts = execution.manifest.artifacts.map(
+      (artifact) =>
+        artifact.kind === "aggregate-daily-summary-csv"
+          ? { ...artifact, rowCount: undefined }
+          : artifact,
     );
     mocks.executeRustRuntime.mockResolvedValueOnce(execution);
     await expect(
@@ -507,7 +619,9 @@ describe("Rust authority browser projection", () => {
         {},
         { persistRustWorkspace: false },
       ),
-    ).rejects.toThrow(/omitted CSV display metadata: aggregate-daily-summary-csv/);
+    ).rejects.toThrow(
+      /omitted CSV display metadata: aggregate-daily-summary-csv/,
+    );
   });
 
   it("does not project disabled app/screen or binary families", async () => {
@@ -532,28 +646,44 @@ describe("Rust authority browser projection", () => {
       { persistRustWorkspace: false },
     );
     expect(result.outputs).toHaveLength(11);
-    expect(result.outputs).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        kind: "lineage",
-        outputFileName: "Raw Row Lineage.arrow",
-      }),
-      expect.objectContaining({
-        kind: "lineage",
-        outputFileName: "Raw Source Coordinate Index.arrow",
-      }),
-      expect.objectContaining({
-        kind: "lineage",
-        outputFileName: "Raw Result Cell Correspondence.arrow",
-      }),
-      expect.objectContaining({ outputFileName: "Raw Evidence Journal.cbor" }),
-      expect.objectContaining({ outputFileName: "Raw Artifact Closure.json" }),
-      expect.objectContaining({ outputFileName: "Raw Dependency Certificate.json" }),
-      expect.objectContaining({ outputFileName: "Raw Correspondence Index.json" }),
-      expect.objectContaining({ outputFileName: "Raw Execution Ledger.json" }),
-      expect.objectContaining({ outputFileName: "Raw Stage View.json" }),
-      expect.objectContaining({ outputFileName: "Raw Semantic Index Source.json" }),
-      expect.objectContaining({ outputFileName: "Raw Runtime Manifest.json" }),
-    ]));
+    expect(result.outputs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "lineage",
+          outputFileName: "Raw Row Lineage.arrow",
+        }),
+        expect.objectContaining({
+          kind: "lineage",
+          outputFileName: "Raw Source Coordinate Index.arrow",
+        }),
+        expect.objectContaining({
+          kind: "lineage",
+          outputFileName: "Raw Result Cell Correspondence.arrow",
+        }),
+        expect.objectContaining({
+          outputFileName: "Raw Evidence Journal.cbor",
+        }),
+        expect.objectContaining({
+          outputFileName: "Raw Artifact Closure.json",
+        }),
+        expect.objectContaining({
+          outputFileName: "Raw Dependency Certificate.json",
+        }),
+        expect.objectContaining({
+          outputFileName: "Raw Correspondence Index.json",
+        }),
+        expect.objectContaining({
+          outputFileName: "Raw Execution Ledger.json",
+        }),
+        expect.objectContaining({ outputFileName: "Raw Stage View.json" }),
+        expect.objectContaining({
+          outputFileName: "Raw Semantic Index Source.json",
+        }),
+        expect.objectContaining({
+          outputFileName: "Raw Runtime Manifest.json",
+        }),
+      ]),
+    );
     expect(result.timelineView).toMatchObject({ app: [], screen: [] });
   });
 });

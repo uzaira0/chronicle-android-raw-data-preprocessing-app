@@ -11,6 +11,8 @@ import {
 import { buildTimelineViewerHtml } from "@/lib/timelineViewer";
 import {
   executeRustRuntime,
+  queryRustReview,
+  type RustReviewExecution,
   type RustRuntimeExecution,
 } from "@/lib/rustPipelineRuntime";
 import type {
@@ -74,7 +76,8 @@ function requiredArtifact(
   kind: string,
 ): Uint8Array {
   const bytes = execution.artifacts.get(kind);
-  if (!bytes) throw new Error(`Rust runtime omitted required artifact: ${kind}`);
+  if (!bytes)
+    throw new Error(`Rust runtime omitted required artifact: ${kind}`);
   return bytes;
 }
 
@@ -89,7 +92,9 @@ function parseJsonArtifact<T>(
   execution: RustRuntimeExecution,
   kind: string,
 ): T {
-  return JSON.parse(new TextDecoder().decode(requiredArtifact(execution, kind))) as T;
+  return JSON.parse(
+    new TextDecoder().decode(requiredArtifact(execution, kind)),
+  ) as T;
 }
 
 function addCsvOutput(
@@ -107,7 +112,9 @@ function addCsvOutput(
   );
   const exactRowCount = rowCount ?? metadata?.rowCount;
   if (exactRowCount === undefined || !metadata?.previewRows) {
-    throw new Error(`Rust runtime omitted CSV display metadata: ${artifactKind}`);
+    throw new Error(
+      `Rust runtime omitted CSV display metadata: ${artifactKind}`,
+    );
   }
   outputs.push({
     kind,
@@ -154,7 +161,9 @@ function addEvidenceOutput(
   });
 }
 
-function hydrateVisualizationRow(row: SerializedVisualizationRow): VisualizationRow {
+function hydrateVisualizationRow(
+  row: SerializedVisualizationRow,
+): VisualizationRow {
   return {
     participant_id: row.participantId,
     date: row.date,
@@ -543,11 +552,23 @@ export async function processRawCsvWithRustAuthority(
   for (const [kind, suffix, mediaType] of [
     ["evidence-journal", " Evidence Journal.cbor", "application/cbor"],
     ["artifact-closure-json", " Artifact Closure.json", "application/json"],
-    ["dependency-certificate-json", " Dependency Certificate.json", "application/json"],
-    ["correspondence-index-json", " Correspondence Index.json", "application/json"],
+    [
+      "dependency-certificate-json",
+      " Dependency Certificate.json",
+      "application/json",
+    ],
+    [
+      "correspondence-index-json",
+      " Correspondence Index.json",
+      "application/json",
+    ],
     ["execution-ledger-json", " Execution Ledger.json", "application/json"],
     ["stage-view-json", " Stage View.json", "application/json"],
-    ["semantic-index-source-json", " Semantic Index Source.json", "application/json"],
+    [
+      "semantic-index-source-json",
+      " Semantic Index Source.json",
+      "application/json",
+    ],
   ] as const) {
     addEvidenceOutput(
       outputs,
@@ -644,6 +665,67 @@ export async function processRawCsvWithRustAuthority(
       ...(execution.persistedWorkspace
         ? { persistedGeneration: execution.persistedWorkspace.generation }
         : {}),
+    },
+  };
+}
+
+/**
+ * Run the same authoritative Rust graph as a full preprocessing run, but ask
+ * it to materialize only the compact review metrics needed by View-tab A/B.
+ */
+export async function processRawCsvReviewWithRustAuthority(
+  inputFileName: string,
+  csvBytes: Uint8Array,
+  options: BrowserProcessingOptions,
+  supportFiles: BrowserSupportFiles | undefined,
+  runtime: BrowserProcessingRuntime,
+  verifiedInputSha256?: string,
+): Promise<ProcessedFileResult> {
+  const execution: RustReviewExecution = await queryRustReview(
+    csvBytes,
+    inputFileName,
+    options,
+    supportFiles,
+    { ...runtime, persistRustWorkspace: runtime.persistRustWorkspace ?? true },
+    verifiedInputSha256,
+  );
+  return {
+    inputFileName,
+    inputSha256: execution.inputDigest.replace(/^sha256:/, ""),
+    outputs: [],
+    originalRowCount: execution.counts.original,
+    processedRowCount: execution.counts.processed,
+    availableTimezones: execution.availableTimezones,
+    timezone: execution.timezone,
+    appRowCount: execution.counts.app,
+    screenRowCount: execution.counts.screen,
+    timezoneAction: execution.timezoneAction,
+    rowsBeforeTimezoneHandling: execution.rowsBeforeTimezoneHandling,
+    rowsAfterTimezoneHandling: execution.rowsAfterTimezoneHandling,
+    rowsRemovedByTimezone: execution.rowsRemovedByTimezone,
+    duplicateTimestampsCorrected: execution.duplicateTimestampsCorrected,
+    exactDuplicateRowsRemoved: execution.exactDuplicateRowsRemoved,
+    reviewSummary: execution.reviewSummary,
+    reviewOnly: true,
+    rustReviewReceipt: {
+      protocolVersion: "chronicle-preprocessing-runtime/v1",
+      workspaceId: execution.workspaceId,
+      previousWorkspaceRootDigest: execution.previousWorkspaceRootDigest,
+      inputDigest: execution.inputDigest,
+      optionsDigest: execution.optionsDigest,
+      implementationDigest: execution.implementationDigest,
+      planDigest: execution.planDigest,
+      profileDigest: execution.profileDigest,
+      profileLockDigest: execution.profileLockDigest,
+      productContractDigest: execution.productContractDigest,
+      dependencyCertificateDigest: execution.dependencyCertificateDigest,
+      reviewSummaryDigest: execution.reviewSummaryDigest,
+      comparisonDigest: execution.comparisonDigest,
+      recomputedStepIds: execution.recomputedStepIds,
+      cachedStepIds: execution.cachedStepIds,
+      bypassedStepIds: execution.bypassedStepIds,
+      skippedStepIds: execution.skippedStepIds,
+      errorStepIds: execution.errorStepIds,
     },
   };
 }

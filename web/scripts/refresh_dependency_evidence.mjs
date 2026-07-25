@@ -107,6 +107,12 @@ try {
     { cwd: repositoryRoot },
   );
   await run(
+    "refresh structural dependency certificate",
+    path.join(repositoryRoot, "scripts/generate_semantic_behavior_inventory.py"),
+    ["--certificate-only"],
+    { cwd: repositoryRoot },
+  );
+  await run(
     "regenerate semantic profile",
     semprofBin,
     [
@@ -167,6 +173,12 @@ try {
     UPDATE_SEMANTIC_MUTATIONS: "1",
   };
   await runAll([
+    run(
+      "configuration-space covering array",
+      "npm",
+      ["run", "test:configuration-space-covering"],
+      { env: campaignEnv },
+    ),
     run(
       "configuration interventions",
       "npm",

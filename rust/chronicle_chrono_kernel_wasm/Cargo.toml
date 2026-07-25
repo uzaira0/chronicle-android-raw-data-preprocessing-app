@@ -8,6 +8,8 @@ publish = false
 [features]
 default = []
 incremental-v2 = ["dep:salsa"]
+# Native profiling only; normal and browser builds compile the timer away.
+query-timing = []
 
 [lib]
 crate-type = ["rlib"]

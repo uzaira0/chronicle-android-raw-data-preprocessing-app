@@ -420,10 +420,6 @@ pub(super) fn build_matcher_input(
     }) {
         return Err("No valid app usage data during the study period".to_string());
     }
-    let packages = rows
-        .iter()
-        .map(|row| row.app_package_name.to_string())
-        .collect::<Vec<_>>();
     let same_stop_types = same_stop_types
         .iter()
         .map(String::as_str)
@@ -451,7 +447,7 @@ pub(super) fn build_matcher_input(
         background.push(is_background);
     }
     Ok(MatcherInput {
-        app_codes: factorize(&packages),
+        app_codes: factorize(rows.iter().map(|row| row.app_package_name.as_str())),
         timestamps: rows.iter().map(|row| row.event_timestamp_ns).collect(),
         resumed,
         same_stop,
@@ -509,10 +505,10 @@ pub(super) fn apply_matcher_output(
     result: &MatcherOutput,
     filtered_packages: &BTreeSet<String>,
 ) -> Vec<Row> {
-    let mut search_suffix_digests = vec![String::new(); rows.len() + 1];
-    search_suffix_digests[rows.len()] = empty_lineage_search_suffix_digest(rows.len() as u32);
+    let empty_suffix = empty_inline_lineage_search_suffix_digest(rows.len() as u32);
+    let mut search_suffix_digests = vec![empty_suffix; rows.len() + 1];
     for index in (0..rows.len()).rev() {
-        search_suffix_digests[index] = lineage_search_suffix_digest(
+        search_suffix_digests[index] = inline_lineage_search_suffix_digest(
             &rows[index],
             index,
             Some(&search_suffix_digests[index + 1]),
@@ -539,7 +535,7 @@ pub(super) fn apply_matcher_output(
             end_event_index_exclusive: search_end_event_index_exclusive,
             candidate_event_count: search_end_event_index_exclusive
                 .saturating_sub(search_start_event_index),
-            candidate_chain_digest: lineage_search_range_digest(
+            candidate_chain_digest: inline_lineage_search_range_digest(
                 &search_suffix_digests,
                 search_start_event_index,
                 search_end_event_index_exclusive,
@@ -568,7 +564,7 @@ pub(super) fn apply_matcher_output(
             end_event_index_exclusive: search_end_event_index_exclusive,
             candidate_event_count: search_end_event_index_exclusive
                 .saturating_sub(search_start_event_index),
-            candidate_chain_digest: lineage_search_range_digest(
+            candidate_chain_digest: inline_lineage_search_range_digest(
                 &search_suffix_digests,
                 search_start_event_index,
                 search_end_event_index_exclusive,
@@ -1707,6 +1703,44 @@ pub(super) fn build_classified_sessions(
 #[cfg(feature = "incremental-v2")]
 mod tracked {
     use super::*;
+
+    #[cfg(feature = "query-timing")]
+    struct QueryTimer {
+        label: &'static str,
+        started: std::time::Instant,
+    }
+
+    #[cfg(feature = "query-timing")]
+    impl QueryTimer {
+        fn start(label: &'static str) -> Self {
+            Self {
+                label,
+                started: std::time::Instant::now(),
+            }
+        }
+    }
+
+    #[cfg(feature = "query-timing")]
+    impl Drop for QueryTimer {
+        fn drop(&mut self) {
+            eprintln!(
+                "query_timing label={} elapsed_ms={:.3}",
+                self.label,
+                self.started.elapsed().as_secs_f64() * 1_000.0,
+            );
+        }
+    }
+
+    #[cfg(not(feature = "query-timing"))]
+    struct QueryTimer;
+
+    #[cfg(not(feature = "query-timing"))]
+    impl QueryTimer {
+        #[inline(always)]
+        fn start(_label: &'static str) -> Self {
+            Self
+        }
+    }
     use salsa::Setter;
     use std::fmt;
     use std::sync::{Arc, Mutex};
@@ -1715,6 +1749,10 @@ mod tracked {
     struct StepValue<T> {
         value: Arc<T>,
         checkpoint: LogicalStageCheckpoint,
+        /// The product DAG checkpoint emitted at this step boundary. Keeping
+        /// it with Salsa's memoized step result avoids re-hashing an unchanged
+        /// row table every time only a later option changes.
+        logical_checkpoint: Option<LogicalStageCheckpoint>,
     }
 
     impl<T> PartialEq for StepValue<T> {
@@ -1741,6 +1779,7 @@ mod tracked {
         Ok(StepValue {
             value: Arc::new(value),
             checkpoint: logical_stage_checkpoint(step, &[], &[("value", &bytes)]),
+            logical_checkpoint: None,
         })
     }
 
@@ -1749,6 +1788,7 @@ mod tracked {
         StepValue {
             value: Arc::new(rows),
             checkpoint,
+            logical_checkpoint: None,
         }
     }
 
@@ -1775,7 +1815,11 @@ mod tracked {
         } else {
             Arc::new(rows)
         };
-        StepValue { value, checkpoint }
+        StepValue {
+            value,
+            checkpoint,
+            logical_checkpoint: None,
+        }
     }
 
     fn value_payload_step<T, P: serde::Serialize>(
@@ -1787,6 +1831,7 @@ mod tracked {
         Ok(StepValue {
             value: Arc::new(value),
             checkpoint,
+            logical_checkpoint: None,
         })
     }
 
@@ -1811,6 +1856,74 @@ mod tracked {
             &[("rows", rows)],
             &[("value", &bytes)],
         ))
+    }
+
+    fn review_passthrough_checkpoint<P: serde::Serialize>(
+        step: &str,
+        upstream: &LogicalStageCheckpoint,
+        payload: &P,
+    ) -> Result<LogicalStageCheckpoint, String> {
+        let bytes = serde_json::to_vec(payload)
+            .map_err(|error| format!("serialize {step} review checkpoint: {error}"))?;
+        Ok(logical_stage_checkpoint(
+            step,
+            &[],
+            &[
+                ("review_passthrough", upstream.terminal_digest.as_bytes()),
+                ("value", &bytes),
+            ],
+        ))
+    }
+
+    /// A cheap Merkle-style checkpoint for an intermediate review step. Its
+    /// identity is derived from exact upstream checkpoints and the step's own
+    /// semantic parameters. The final row-producing boundary is still hashed
+    /// from its actual rows, so review mode does not repeatedly hash the same
+    /// 100k-row table at every adjacent logical boundary.
+    fn review_derived_checkpoint<P: serde::Serialize>(
+        step: &str,
+        dependencies: &[(&str, &LogicalStageCheckpoint)],
+        parameters: &P,
+    ) -> Result<LogicalStageCheckpoint, String> {
+        let dependencies = dependencies
+            .iter()
+            .map(|(role, checkpoint)| {
+                serde_json::json!({
+                    "role": role,
+                    "nodeId": checkpoint.node_id,
+                    "terminalDigest": checkpoint.terminal_digest,
+                })
+            })
+            .collect::<Vec<_>>();
+        value_payload_checkpoint(
+            step,
+            &serde_json::json!({
+                "checkpointMode": "review-derived-v1",
+                "dependencies": dependencies,
+                "parameters": parameters,
+            }),
+        )
+    }
+
+    fn review_passthrough_rows<P: serde::Serialize>(
+        step: &str,
+        upstream: &StepValue<Vec<Row>>,
+        payload: &P,
+        logical_node: Option<&str>,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        let checkpoint = review_passthrough_checkpoint(step, &upstream.checkpoint, payload)?;
+        let logical_checkpoint = logical_node.map(|node| {
+            logical_stage_checkpoint(
+                node,
+                &[],
+                &[("review_passthrough", checkpoint.terminal_digest.as_bytes())],
+            )
+        });
+        Ok(StepValue {
+            value: Arc::clone(&upstream.value),
+            checkpoint,
+            logical_checkpoint,
+        })
     }
 
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -1839,12 +1952,45 @@ mod tracked {
                 action: selected.action.to_string(),
             }),
             checkpoint,
+            logical_checkpoint: None,
         })
+    }
+
+    fn with_logical_rows(
+        mut step: StepValue<Vec<Row>>,
+        logical_node_id: &str,
+    ) -> StepValue<Vec<Row>> {
+        step.logical_checkpoint = Some(logical_stage_rows_checkpoint(
+            logical_node_id,
+            step.value.as_ref(),
+        ));
+        step
+    }
+
+    fn required_logical_checkpoint<T>(
+        step: &StepValue<T>,
+        logical_node_id: &str,
+    ) -> Result<LogicalStageCheckpoint, String> {
+        let checkpoint = step.logical_checkpoint.clone().ok_or_else(|| {
+            format!(
+                "{} did not retain the required {logical_node_id} logical checkpoint",
+                step.checkpoint.node_id
+            )
+        })?;
+        if checkpoint.node_id != logical_node_id {
+            return Err(format!(
+                "{} retained logical checkpoint {} instead of {logical_node_id}",
+                step.checkpoint.node_id, checkpoint.node_id
+            ));
+        }
+        Ok(checkpoint)
     }
 
     #[salsa::db]
     trait EarlyStepDb: salsa::Database {
         fn record_query_body(&self, step: &'static str);
+        fn record_internal_query_body(&self, query: &'static str);
+        fn record_fused_product_step(&self, step: &'static str);
     }
 
     #[salsa::input(singleton)]
@@ -1903,6 +2049,10 @@ mod tracked {
         interaction_types_to_remove: Arc<Vec<String>>,
         #[returns(copy)]
         filter_zero_duration_sessions: bool,
+        /// Internal target selector. It enables cheaper, content-committing
+        /// checkpoints for transformations proven to be no-ops in review mode.
+        #[returns(copy)]
+        review_only: bool,
     }
 
     #[salsa::input(singleton)]
@@ -1985,6 +2135,10 @@ mod tracked {
         enable_aggregates: bool,
         #[returns(clone)]
         aggregate_shape: String,
+        /// Execution concern, not a researcher option. Review queries use the
+        /// same 55 product computations but defer large serialized outputs.
+        #[returns(copy)]
+        materialize_full_outputs: bool,
     }
 
     #[salsa::tracked(returns(clone))]
@@ -2073,10 +2227,13 @@ mod tracked {
     ) -> Result<StepValue<Vec<Row>>, String> {
         db.record_query_body("stable_sort");
         let rows = build_canonical_rows(db, raw, config)?;
-        Ok(rows_step_reusing(
-            "stable_sort",
-            &rows,
-            super::stable_sort((*rows.value).clone()),
+        Ok(with_logical_rows(
+            rows_step_reusing(
+                "stable_sort",
+                &rows,
+                super::stable_sort((*rows.value).clone()),
+            ),
+            "parse_events",
         ))
     }
 
@@ -2135,7 +2292,10 @@ mod tracked {
         let selected = select_timezone_strategy(db, raw, config)?;
         let rows =
             super::restamp_rows(selected.value.rows.clone(), &selected.value.target_timezone)?;
-        Ok(rows_step("restamp_rows", rows))
+        Ok(with_logical_rows(
+            rows_step("restamp_rows", rows),
+            "normalize_timezones",
+        ))
     }
 
     #[salsa::tracked(returns(clone))]
@@ -2205,10 +2365,13 @@ mod tracked {
     ) -> Result<StepValue<Vec<Row>>, String> {
         db.record_query_body("mark_data_time_gaps");
         let rows = nudge_duplicate_timestamps(db, raw, config)?;
-        Ok(rows_step_reusing(
-            "mark_data_time_gaps",
-            &rows,
-            super::mark_gaps((*rows.value).clone()),
+        Ok(with_logical_rows(
+            rows_step_reusing(
+                "mark_data_time_gaps",
+                &rows,
+                super::mark_gaps((*rows.value).clone()),
+            ),
+            "dedup_and_order",
         ))
     }
 
@@ -2240,10 +2403,13 @@ mod tracked {
         } else {
             Arc::default()
         };
-        Ok(rows_step_reusing(
-            "tag_filtered_packages",
-            &rows,
-            super::tag_filtered_packages((*rows.value).clone(), enabled, &filter_csv),
+        Ok(with_logical_rows(
+            rows_step_reusing(
+                "tag_filtered_packages",
+                &rows,
+                super::tag_filtered_packages((*rows.value).clone(), enabled, &filter_csv),
+            ),
+            "app_policy",
         ))
     }
 
@@ -2291,7 +2457,10 @@ mod tracked {
         let rows = tag_filtered_packages(db, raw, early, config, support)?;
         let closes = walk_screen_state_machine(db, raw, early, config, support)?;
         if closes.value.is_empty() {
-            return Ok(rows_step("build_classified_sessions", Vec::new()));
+            return Ok(with_logical_rows(
+                rows_step("build_classified_sessions", Vec::new()),
+                "device_state_timeline",
+            ));
         }
         let keyguard = collect_keyguard_timestamps(db, raw, early, config, support)?;
         let forcing = if support.use_apps_forcing_screen_open(db) {
@@ -2299,20 +2468,24 @@ mod tracked {
         } else {
             HashMap::new()
         };
-        Ok(rows_step(
-            "build_classified_sessions",
-            super::build_classified_sessions(
-                &rows.value,
-                &closes.value,
-                &keyguard.value,
-                &forcing,
-                ScreenClassificationSettings {
-                    auto_lock_timeout_seconds: support.screen_auto_lock_timeout_seconds(db),
-                    auto_lock_tolerance_seconds: support.screen_auto_lock_tolerance_seconds(db),
-                    manual_lock_max_tail_seconds: support.screen_manual_lock_max_tail_seconds(db),
-                    keyguard_near_stop_seconds: support.screen_keyguard_near_stop_seconds(db),
-                },
+        Ok(with_logical_rows(
+            rows_step(
+                "build_classified_sessions",
+                super::build_classified_sessions(
+                    &rows.value,
+                    &closes.value,
+                    &keyguard.value,
+                    &forcing,
+                    ScreenClassificationSettings {
+                        auto_lock_timeout_seconds: support.screen_auto_lock_timeout_seconds(db),
+                        auto_lock_tolerance_seconds: support.screen_auto_lock_tolerance_seconds(db),
+                        manual_lock_max_tail_seconds: support
+                            .screen_manual_lock_max_tail_seconds(db),
+                        keyguard_near_stop_seconds: support.screen_keyguard_near_stop_seconds(db),
+                    },
+                ),
             ),
+            "device_state_timeline",
         ))
     }
 
@@ -2357,6 +2530,7 @@ mod tracked {
         config: UsageConfigInput,
         support: UsageSupportInput,
     ) -> Result<StepValue<MatcherInput>, String> {
+        let _timer = QueryTimer::start("build_matcher_input");
         db.record_query_body("build_matcher_input");
         let rows = junk_blind_fold(db, raw, early, config, support)?;
         let input = super::build_matcher_input(
@@ -2377,6 +2551,7 @@ mod tracked {
         config: UsageConfigInput,
         support: UsageSupportInput,
     ) -> Result<StepValue<MatcherOutput>, String> {
+        let _timer = QueryTimer::start("run_matcher");
         db.record_query_body("run_matcher");
         let input = build_matcher_input(db, raw, early, config, support)?;
         value_step(
@@ -2392,6 +2567,133 @@ mod tracked {
         )
     }
 
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct ReviewReconstruction {
+        rows: Arc<Vec<Row>>,
+        apply_matcher_output: LogicalStageCheckpoint,
+        relabel_usage_with_floor: LogicalStageCheckpoint,
+        junk_downstream_mark: LogicalStageCheckpoint,
+        sort_episodes: LogicalStageCheckpoint,
+        split_concurrent: LogicalStageCheckpoint,
+        reconstruct_episodes: LogicalStageCheckpoint,
+    }
+
+    impl PartialEq for ReviewReconstruction {
+        fn eq(&self, other: &Self) -> bool {
+            self.split_concurrent == other.split_concurrent
+                && self.reconstruct_episodes == other.reconstruct_episodes
+        }
+    }
+
+    impl Eq for ReviewReconstruction {}
+
+    /// Execute adjacent row-mutating reconstruction steps on one owned buffer.
+    /// The review result still retains every logical step and exact checkpoint;
+    /// this only removes repeated Arc<Row> copy-on-write churn between steps.
+    #[salsa::tracked(returns(clone))]
+    fn review_reconstruction_fused(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<ReviewReconstruction, String> {
+        let _timer = QueryTimer::start("review_reconstruction_fused");
+        db.record_internal_query_body("review_reconstruction_fused");
+
+        let upstream = junk_blind_fold(db, raw, early, config, support)?;
+        let matcher = run_matcher(db, raw, early, config, support)?;
+        let filtered = compute_junk_packages(db, raw, early, config, support)?;
+        let background = background_apps(db, config, support);
+        let background_checkpoint_value = background.iter().cloned().collect::<BTreeSet<_>>();
+
+        let mut rows = super::apply_matcher_output(
+            (*upstream.value).clone(),
+            &matcher.value,
+            &filtered.value,
+        );
+        let apply_matcher_output = review_derived_checkpoint(
+            "apply_matcher_output",
+            &[
+                ("rows", &upstream.checkpoint),
+                ("matcher", &matcher.checkpoint),
+                ("filteredPackages", &filtered.checkpoint),
+            ],
+            &serde_json::json!({}),
+        )?;
+        db.record_fused_product_step("apply_matcher_output");
+
+        rows = super::relabel_usage_with_floor(
+            rows,
+            &filtered.value,
+            config.minimum_usage_duration(db),
+        );
+        let relabel_usage_with_floor = review_derived_checkpoint(
+            "relabel_usage_with_floor",
+            &[
+                ("rows", &apply_matcher_output),
+                ("filteredPackages", &filtered.checkpoint),
+            ],
+            &serde_json::json!({
+                "minimumUsageDuration": config.minimum_usage_duration(db),
+            }),
+        )?;
+        db.record_fused_product_step("relabel_usage_with_floor");
+
+        if !filtered.value.is_empty() {
+            rows = super::junk_downstream_mark(rows, &filtered.value, &background);
+        }
+        let junk_downstream_mark = review_derived_checkpoint(
+            "junk_downstream_mark",
+            &[
+                ("rows", &relabel_usage_with_floor),
+                ("filteredPackages", &filtered.checkpoint),
+            ],
+            &serde_json::json!({
+                "backgroundApps": background_checkpoint_value,
+            }),
+        )?;
+        db.record_fused_product_step("junk_downstream_mark");
+
+        rows = super::sort_episodes(rows);
+        let sort_episodes = review_derived_checkpoint(
+            "sort_episodes",
+            &[("rows", &junk_downstream_mark)],
+            &serde_json::json!({"order": "event_timestamp_ns,index"}),
+        )?;
+        db.record_fused_product_step("sort_episodes");
+
+        rows = if !config.model_concurrent_usage(db) && background.is_empty() {
+            // sort_episodes already established the exact order required here.
+            rows
+        } else {
+            super::split_concurrent(
+                rows,
+                &filtered.value,
+                &background,
+                config.model_concurrent_usage(db),
+                config.minimum_usage_duration(db),
+                config.apply_minimum_usage_duration_to_concurrent_subintervals(db),
+            )?
+        };
+        let split_concurrent = logical_stage_rows_checkpoint("split_concurrent", &rows);
+        let reconstruct_episodes = logical_stage_checkpoint(
+            "reconstruct_episodes",
+            &[],
+            &[("rows", split_concurrent.terminal_digest.as_bytes())],
+        );
+
+        Ok(ReviewReconstruction {
+            rows: Arc::new(rows),
+            apply_matcher_output,
+            relabel_usage_with_floor,
+            junk_downstream_mark,
+            sort_episodes,
+            split_concurrent,
+            reconstruct_episodes,
+        })
+    }
+
     #[salsa::tracked(returns(clone))]
     fn apply_matcher_output(
         db: &dyn EarlyStepDb,
@@ -2400,6 +2702,7 @@ mod tracked {
         config: UsageConfigInput,
         support: UsageSupportInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("apply_matcher_output");
         db.record_query_body("apply_matcher_output");
         let rows = junk_blind_fold(db, raw, early, config, support)?;
         let matcher = run_matcher(db, raw, early, config, support)?;
@@ -2419,6 +2722,7 @@ mod tracked {
         config: UsageConfigInput,
         support: UsageSupportInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("relabel_usage_with_floor");
         db.record_query_body("relabel_usage_with_floor");
         let rows = apply_matcher_output(db, raw, early, config, support)?;
         let filtered = compute_junk_packages(db, raw, early, config, support)?;
@@ -2441,6 +2745,7 @@ mod tracked {
         config: UsageConfigInput,
         support: UsageSupportInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("junk_downstream_mark");
         db.record_query_body("junk_downstream_mark");
         let rows = relabel_usage_with_floor(db, raw, early, config, support)?;
         let filtered = compute_junk_packages(db, raw, early, config, support)?;
@@ -2463,6 +2768,7 @@ mod tracked {
         config: UsageConfigInput,
         support: UsageSupportInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("sort_episodes");
         db.record_query_body("sort_episodes");
         let rows = junk_downstream_mark(db, raw, early, config, support)?;
         Ok(rows_step_reusing(
@@ -2480,20 +2786,32 @@ mod tracked {
         config: UsageConfigInput,
         support: UsageSupportInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("split_concurrent");
         db.record_query_body("split_concurrent");
+        if config.review_only(db) {
+            let fused = review_reconstruction_fused(db, raw, early, config, support)?;
+            return Ok(StepValue {
+                value: Arc::clone(&fused.rows),
+                checkpoint: fused.split_concurrent.clone(),
+                logical_checkpoint: Some(fused.reconstruct_episodes.clone()),
+            });
+        }
         let rows = sort_episodes(db, raw, early, config, support)?;
         let filtered = compute_junk_packages(db, raw, early, config, support)?;
-        Ok(rows_step_reusing(
-            "split_concurrent",
-            &rows,
-            super::split_concurrent(
-                (*rows.value).clone(),
-                &filtered.value,
-                &background_apps(db, config, support),
-                config.model_concurrent_usage(db),
-                config.minimum_usage_duration(db),
-                config.apply_minimum_usage_duration_to_concurrent_subintervals(db),
-            )?,
+        Ok(with_logical_rows(
+            rows_step_reusing(
+                "split_concurrent",
+                &rows,
+                super::split_concurrent(
+                    (*rows.value).clone(),
+                    &filtered.value,
+                    &background_apps(db, config, support),
+                    config.model_concurrent_usage(db),
+                    config.minimum_usage_duration(db),
+                    config.apply_minimum_usage_duration_to_concurrent_subintervals(db),
+                )?,
+            ),
+            "reconstruct_episodes",
         ))
     }
 
@@ -2505,19 +2823,41 @@ mod tracked {
         config: UsageConfigInput,
         support: UsageSupportInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("codebook_join");
         db.record_query_body("codebook_join");
         let rows = split_concurrent(db, raw, early, config, support)?;
         let enabled = support.use_app_codebook(db);
+        if config.review_only(db) && !enabled {
+            return review_passthrough_rows(
+                "codebook_join",
+                &rows,
+                &serde_json::json!({"codebookIsEmpty": true}),
+                None,
+            );
+        }
         let codebook_csv = if enabled {
             support.codebook_csv(db)
         } else {
             Arc::default()
         };
-        Ok(rows_step_reusing(
+        let codebook_is_empty = parse_codebook_csv(&codebook_csv).is_empty();
+        let next_rows = super::codebook_join((*rows.value).clone(), enabled, &codebook_csv);
+        let row_checkpoint = logical_stage_rows_checkpoint("codebook_join", &next_rows);
+        let value = if same_row_state(&rows.checkpoint, &row_checkpoint) {
+            Arc::clone(&rows.value)
+        } else {
+            Arc::new(next_rows)
+        };
+        let checkpoint = rows_and_value_checkpoint(
             "codebook_join",
-            &rows,
-            super::codebook_join((*rows.value).clone(), enabled, &codebook_csv),
-        ))
+            &value,
+            &serde_json::json!({"codebookIsEmpty": codebook_is_empty}),
+        )?;
+        Ok(StepValue {
+            value,
+            checkpoint,
+            logical_checkpoint: None,
+        })
     }
 
     #[salsa::tracked(returns(clone))]
@@ -2528,8 +2868,17 @@ mod tracked {
         config: UsageConfigInput,
         support: UsageSupportInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("derive_broad_category");
         db.record_query_body("derive_broad_category");
         let rows = codebook_join(db, raw, early, config, support)?;
+        if config.review_only(db) && !support.use_app_codebook(db) {
+            return review_passthrough_rows(
+                "derive_broad_category",
+                &rows,
+                &serde_json::json!({"enabled": false}),
+                None,
+            );
+        }
         Ok(rows_step_reusing(
             "derive_broad_category",
             &rows,
@@ -2545,13 +2894,151 @@ mod tracked {
         config: UsageConfigInput,
         support: UsageSupportInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("collapse_genre");
         db.record_query_body("collapse_genre");
         let rows = derive_broad_category(db, raw, early, config, support)?;
-        Ok(rows_step_reusing(
-            "collapse_genre",
-            &rows,
-            super::collapse_genre_step((*rows.value).clone(), support.use_app_codebook(db)),
+        if config.review_only(db) && !support.use_app_codebook(db) {
+            return review_passthrough_rows(
+                "collapse_genre",
+                &rows,
+                &serde_json::json!({"enabled": false}),
+                Some("categorize_apps"),
+            );
+        }
+        Ok(with_logical_rows(
+            rows_step_reusing(
+                "collapse_genre",
+                &rows,
+                super::collapse_genre_step((*rows.value).clone(), support.use_app_codebook(db)),
+            ),
+            "categorize_apps",
         ))
+    }
+
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct ReviewAnnotations {
+        rows: Arc<Vec<Row>>,
+        engagement_walk: LogicalStageCheckpoint,
+        flag_and_retain: LogicalStageCheckpoint,
+        episode_annotations: LogicalStageCheckpoint,
+        blank_junk_timing: LogicalStageCheckpoint,
+        drop_selected_types: LogicalStageCheckpoint,
+        drop_zero_duration: LogicalStageCheckpoint,
+        interval_cleaning: LogicalStageCheckpoint,
+    }
+
+    impl PartialEq for ReviewAnnotations {
+        fn eq(&self, other: &Self) -> bool {
+            self.drop_zero_duration == other.drop_zero_duration
+                && self.interval_cleaning == other.interval_cleaning
+        }
+    }
+
+    impl Eq for ReviewAnnotations {}
+
+    /// Keep the interactive annotation/cleaning chain on one row allocation
+    /// while retaining the same per-step checkpoints exposed by the 55-step DAG.
+    #[salsa::tracked(returns(clone))]
+    fn review_annotations_fused(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<ReviewAnnotations, String> {
+        let _timer = QueryTimer::start("review_annotations_fused");
+        db.record_internal_query_body("review_annotations_fused");
+        let upstream = collapse_genre(db, raw, early, config, support)?;
+
+        let mut rows = super::engagement_walk(
+            (*upstream.value).clone(),
+            config.custom_app_engagement_duration(db),
+        );
+        let engagement_walk = review_derived_checkpoint(
+            "engagement_walk",
+            &[("rows", &upstream.checkpoint)],
+            &serde_json::json!({
+                "customAppEngagementDuration": config.custom_app_engagement_duration(db),
+            }),
+        )?;
+        db.record_fused_product_step("engagement_walk");
+
+        let long_gap_thresholds = config.long_data_time_gap_thresholds(db);
+        let long_usage_thresholds = config.long_usage_duration_thresholds(db);
+        rows = super::flag_and_retain(
+            rows,
+            &long_gap_thresholds,
+            &long_usage_thresholds,
+        );
+        let flag_and_retain = review_derived_checkpoint(
+            "flag_and_retain",
+            &[("rows", &engagement_walk)],
+            &serde_json::json!({
+                "longDataTimeGapThresholds": long_gap_thresholds,
+                "longUsageDurationThresholds": long_usage_thresholds,
+            }),
+        );
+        let flag_and_retain = flag_and_retain?;
+        let episode_annotations = logical_stage_checkpoint(
+            "episode_annotations",
+            &[],
+            &[("rows", flag_and_retain.terminal_digest.as_bytes())],
+        );
+        db.record_fused_product_step("flag_and_retain");
+
+        rows = super::blank_junk_timing(rows);
+        let blank_junk_timing = review_derived_checkpoint(
+            "blank_junk_timing",
+            &[("rows", &flag_and_retain)],
+            &serde_json::json!({}),
+        )?;
+        db.record_fused_product_step("blank_junk_timing");
+
+        let removed_types = config.interaction_types_to_remove(db);
+        if !removed_types.is_empty() {
+            rows = super::drop_selected_types(
+                rows,
+                &removed_types,
+                &long_gap_thresholds,
+            );
+        }
+        let drop_selected_types = review_derived_checkpoint(
+            "drop_selected_types",
+            &[("rows", &blank_junk_timing)],
+            &serde_json::json!({
+                "removedTypes": removed_types,
+                "longDataTimeGapThresholds": long_gap_thresholds,
+            }),
+        )?;
+        db.record_fused_product_step("drop_selected_types");
+
+        if config.filter_zero_duration_sessions(db) {
+            rows = super::drop_zero_duration(rows, true);
+        }
+        let drop_zero_duration = rows_and_value_checkpoint(
+            "drop_zero_duration",
+            &rows,
+            &serde_json::json!({
+                "enabled": config.filter_zero_duration_sessions(db),
+                "upstreamDigest": drop_selected_types.terminal_digest,
+            }),
+        )?;
+        let interval_cleaning = logical_stage_checkpoint(
+            "interval_cleaning",
+            &[],
+            &[("rows", drop_zero_duration.terminal_digest.as_bytes())],
+        );
+
+        Ok(ReviewAnnotations {
+            rows: Arc::new(rows),
+            engagement_walk,
+            flag_and_retain,
+            episode_annotations,
+            blank_junk_timing,
+            drop_selected_types,
+            drop_zero_duration,
+            interval_cleaning,
+        })
     }
 
     #[salsa::tracked(returns(clone))]
@@ -2562,6 +3049,7 @@ mod tracked {
         config: UsageConfigInput,
         support: UsageSupportInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("engagement_walk");
         db.record_query_body("engagement_walk");
         let rows = collapse_genre(db, raw, early, config, support)?;
         Ok(rows_step_reusing(
@@ -2582,16 +3070,20 @@ mod tracked {
         config: UsageConfigInput,
         support: UsageSupportInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("flag_and_retain");
         db.record_query_body("flag_and_retain");
         let rows = engagement_walk(db, raw, early, config, support)?;
-        Ok(rows_step_reusing(
-            "flag_and_retain",
-            &rows,
-            super::flag_and_retain(
-                (*rows.value).clone(),
-                &config.long_data_time_gap_thresholds(db),
-                &config.long_usage_duration_thresholds(db),
+        Ok(with_logical_rows(
+            rows_step_reusing(
+                "flag_and_retain",
+                &rows,
+                super::flag_and_retain(
+                    (*rows.value).clone(),
+                    &config.long_data_time_gap_thresholds(db),
+                    &config.long_usage_duration_thresholds(db),
+                ),
             ),
+            "episode_annotations",
         ))
     }
 
@@ -2603,6 +3095,7 @@ mod tracked {
         config: UsageConfigInput,
         support: UsageSupportInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("blank_junk_timing");
         db.record_query_body("blank_junk_timing");
         let rows = flag_and_retain(db, raw, early, config, support)?;
         Ok(rows_step_reusing(
@@ -2620,14 +3113,24 @@ mod tracked {
         config: UsageConfigInput,
         support: UsageSupportInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("drop_selected_types");
         db.record_query_body("drop_selected_types");
         let rows = blank_junk_timing(db, raw, early, config, support)?;
+        let removed_types = config.interaction_types_to_remove(db);
+        if config.review_only(db) && removed_types.is_empty() {
+            return review_passthrough_rows(
+                "drop_selected_types",
+                &rows,
+                &serde_json::json!({"removedTypes": []}),
+                None,
+            );
+        }
         Ok(rows_step_reusing(
             "drop_selected_types",
             &rows,
             super::drop_selected_types(
                 (*rows.value).clone(),
-                &config.interaction_types_to_remove(db),
+                &removed_types,
                 &config.long_data_time_gap_thresholds(db),
             ),
         ))
@@ -2641,15 +3144,35 @@ mod tracked {
         config: UsageConfigInput,
         support: UsageSupportInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("drop_zero_duration");
         db.record_query_body("drop_zero_duration");
+        if config.review_only(db) {
+            let fused = review_annotations_fused(db, raw, early, config, support)?;
+            return Ok(StepValue {
+                value: Arc::clone(&fused.rows),
+                checkpoint: fused.drop_zero_duration.clone(),
+                logical_checkpoint: Some(fused.interval_cleaning.clone()),
+            });
+        }
         let rows = drop_selected_types(db, raw, early, config, support)?;
-        Ok(rows_step_reusing(
-            "drop_zero_duration",
-            &rows,
-            super::drop_zero_duration(
-                (*rows.value).clone(),
-                config.filter_zero_duration_sessions(db),
+        if config.review_only(db) && !config.filter_zero_duration_sessions(db) {
+            return review_passthrough_rows(
+                "drop_zero_duration",
+                &rows,
+                &serde_json::json!({"enabled": false}),
+                Some("interval_cleaning"),
+            );
+        }
+        Ok(with_logical_rows(
+            rows_step_reusing(
+                "drop_zero_duration",
+                &rows,
+                super::drop_zero_duration(
+                    (*rows.value).clone(),
+                    config.filter_zero_duration_sessions(db),
+                ),
             ),
+            "interval_cleaning",
         ))
     }
 
@@ -2674,6 +3197,7 @@ mod tracked {
         Ok(StepValue {
             value: Arc::new(partition),
             checkpoint,
+            logical_checkpoint: None,
         })
     }
 
@@ -2847,6 +3371,7 @@ mod tracked {
         support: UsageSupportInput,
         late_support: LateSupportInput,
     ) -> Result<StepValue<Vec<ResolvedParticipantWindow>>, String> {
+        let _timer = QueryTimer::start("resolve_participant_windows");
         db.record_query_body("resolve_participant_windows");
         let rows = drop_zero_duration(db, raw, early, config, support)?;
         value_step(
@@ -2865,6 +3390,7 @@ mod tracked {
         late: LateConfigInput,
         late_support: LateSupportInput,
     ) -> Result<StepValue<WindowedRows>, String> {
+        let _timer = QueryTimer::start("filter_rows_to_window");
         db.record_query_body("filter_rows_to_window");
         let rows = drop_zero_duration(db, raw, early, config, support)?;
         let resolved = resolve_participant_windows(db, raw, early, config, support, late_support)?;
@@ -2874,6 +3400,41 @@ mod tracked {
         } else {
             Arc::default()
         };
+        if config.review_only(db) && !enabled {
+            let mut participants_without_window = resolved
+                .value
+                .iter()
+                .filter_map(|entry| {
+                    entry
+                        .window
+                        .is_none()
+                        .then_some(entry.participant_id.clone())
+                })
+                .collect::<Vec<_>>();
+            participants_without_window.sort();
+            let payload = serde_json::json!({
+                "applied": false,
+                "droppedRows": 0,
+                "participantsWithoutWindow": participants_without_window,
+            });
+            let checkpoint =
+                review_passthrough_checkpoint("filter_rows_to_window", &rows.checkpoint, &payload)?;
+            let logical_checkpoint = logical_stage_checkpoint(
+                "observation_window",
+                &[],
+                &[("review_passthrough", checkpoint.terminal_digest.as_bytes())],
+            );
+            return Ok(StepValue {
+                value: Arc::new(WindowedRows {
+                    rows: rows.value.as_ref().clone(),
+                    dropped_rows: 0,
+                    participants_without_window,
+                    applied: false,
+                }),
+                checkpoint,
+                logical_checkpoint: Some(logical_checkpoint),
+            });
+        }
         let value = super::filter_to_window(
             (*rows.value).clone(),
             &resolved.value,
@@ -2886,9 +3447,11 @@ mod tracked {
             "participantsWithoutWindow": value.participants_without_window,
         });
         let checkpoint = rows_and_value_checkpoint("filter_rows_to_window", &value.rows, &payload)?;
+        let logical_checkpoint = logical_stage_rows_checkpoint("observation_window", &value.rows);
         Ok(StepValue {
             value: Arc::new(value),
             checkpoint,
+            logical_checkpoint: Some(logical_checkpoint),
         })
     }
 
@@ -2902,6 +3465,7 @@ mod tracked {
         late: LateConfigInput,
         late_support: LateSupportInput,
     ) -> Result<StepValue<SharingResolutionValue>, String> {
+        let _timer = QueryTimer::start("resolve_sharing_status");
         db.record_query_body("resolve_sharing_status");
         let windowed = filter_rows_to_window(db, raw, early, config, support, late, late_support)?;
         let enabled = late.enable_person_attribution(db);
@@ -2922,6 +3486,7 @@ mod tracked {
                 Ok(StepValue {
                     value: Arc::new(value),
                     checkpoint,
+                    logical_checkpoint: None,
                 })
             }
         }
@@ -2966,8 +3531,28 @@ mod tracked {
         late: LateConfigInput,
         late_support: LateSupportInput,
     ) -> Result<StepValue<AttributedRows>, String> {
+        let _timer = QueryTimer::start("attribute_rows");
         db.record_query_body("attribute_rows");
         let windowed = filter_rows_to_window(db, raw, early, config, support, late, late_support)?;
+        if config.review_only(db) && !late.enable_person_attribution(db) {
+            let payload = serde_json::json!({"applied": false});
+            let checkpoint =
+                review_passthrough_checkpoint("attribute_rows", &windowed.checkpoint, &payload)?;
+            let logical_checkpoint = logical_stage_checkpoint(
+                "attribute_person",
+                &[],
+                &[("review_passthrough", checkpoint.terminal_digest.as_bytes())],
+            );
+            return Ok(StepValue {
+                value: Arc::new(AttributedRows {
+                    rows: windowed.value.rows.clone(),
+                    report: None,
+                    shared_participants: BTreeSet::new(),
+                }),
+                checkpoint,
+                logical_checkpoint: Some(logical_checkpoint),
+            });
+        }
         let sharing = resolve_sharing_status(db, raw, early, config, support, late, late_support)?;
         let survey = build_survey_lookup(db, late, late_support)?;
         let value =
@@ -2977,9 +3562,17 @@ mod tracked {
             None => serde_json::json!({"applied": false}),
         };
         let checkpoint = rows_and_value_checkpoint("attribute_rows", &value.rows, &payload)?;
+        let shared_bytes = serde_json::to_vec(&value.shared_participants)
+            .map_err(|error| format!("serialize shared-participant checkpoint: {error}"))?;
+        let logical_checkpoint = logical_stage_checkpoint(
+            "attribute_person",
+            &[("rows", &value.rows)],
+            &[("shared_participants", &shared_bytes)],
+        );
         Ok(StepValue {
             value: Arc::new(value),
             checkpoint,
+            logical_checkpoint: Some(logical_checkpoint),
         })
     }
 
@@ -2993,10 +3586,23 @@ mod tracked {
         late: LateConfigInput,
         late_support: LateSupportInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("inject_placeholders");
         db.record_query_body("inject_placeholders");
         let attributed = attribute_rows(db, raw, early, config, support, late, late_support)?;
-        let policy_rows = tag_filtered_packages(db, raw, early, config, support)?;
         let applied = late.add_no_activity_placeholder_days(db);
+        if config.review_only(db) && !applied {
+            let checkpoint = review_passthrough_checkpoint(
+                "inject_placeholders",
+                &attributed.checkpoint,
+                &serde_json::json!({"applied": false}),
+            )?;
+            return Ok(StepValue {
+                value: Arc::new(attributed.value.rows.clone()),
+                checkpoint,
+                logical_checkpoint: None,
+            });
+        }
+        let policy_rows = tag_filtered_packages(db, raw, early, config, support)?;
         let rows =
             super::inject_placeholders(attributed.value.rows.clone(), &policy_rows.value, applied);
         let checkpoint = rows_and_value_checkpoint(
@@ -3007,6 +3613,7 @@ mod tracked {
         Ok(StepValue {
             value: Arc::new(rows),
             checkpoint,
+            logical_checkpoint: None,
         })
     }
 
@@ -3045,9 +3652,15 @@ mod tracked {
             &late_support.study_dates_csv(db),
         )?;
         let checkpoint = value_payload_checkpoint("build_coverage_table", &output.report)?;
+        let logical_checkpoint = logical_stage_checkpoint(
+            "day_coverage",
+            &[("rows", rows.value.as_ref())],
+            &[("day_coverage_csv", &output.csv_bytes)],
+        );
         Ok(StepValue {
             value: Arc::new(output),
             checkpoint,
+            logical_checkpoint: Some(logical_checkpoint),
         })
     }
 
@@ -3111,15 +3724,38 @@ mod tracked {
 
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
     struct AssembledOutputs {
-        app_csv_bytes: Vec<u8>,
-        screen_csv_bytes: Vec<u8>,
-        day_coverage_csv_bytes: Vec<u8>,
-        compliance_csv_bytes: Vec<u8>,
-        credited_app_csv_bytes: Vec<u8>,
-        review_summary_json_bytes: Vec<u8>,
-        visualization_data_json_bytes: Vec<u8>,
-        aggregate_csv_outputs: Vec<aggregates::AggregateCsvOutput>,
-        row_lineage: Vec<PipelineRowLineage>,
+        app_csv_bytes: Arc<Vec<u8>>,
+        screen_csv_bytes: Arc<Vec<u8>>,
+        day_coverage_csv_bytes: Arc<Vec<u8>>,
+        compliance_csv_bytes: Arc<Vec<u8>>,
+        credited_app_csv_bytes: Arc<Vec<u8>>,
+        review_summary_json_bytes: Arc<Vec<u8>>,
+        visualization_data_json_bytes: Arc<Vec<u8>>,
+        aggregate_csv_outputs: Arc<Vec<aggregates::AggregateCsvOutput>>,
+        row_lineage: Arc<Vec<PipelineRowLineage>>,
+    }
+
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct PrimaryOutputs {
+        app_csv_bytes: Arc<Vec<u8>>,
+        screen_csv_bytes: Arc<Vec<u8>>,
+        credited_app_csv_bytes: Arc<Vec<u8>>,
+        review_summary_json_bytes: Arc<Vec<u8>>,
+        visualization_data_json_bytes: Arc<Vec<u8>>,
+        aggregate_csv_outputs: Arc<Vec<aggregates::AggregateCsvOutput>>,
+        row_lineage: Arc<Vec<PipelineRowLineage>>,
+    }
+
+    #[salsa::tracked(returns(clone))]
+    fn codebook_is_empty(
+        db: &dyn EarlyStepDb,
+        support: UsageSupportInput,
+    ) -> Result<StepValue<bool>, String> {
+        db.record_internal_query_body("codebook_is_empty");
+        value_step(
+            "codebook_is_empty",
+            parse_codebook_csv(&support.codebook_csv(db)).is_empty(),
+        )
     }
 
     fn assembled_checkpoint(
@@ -3165,6 +3801,25 @@ mod tracked {
         ))
     }
 
+    fn primary_outputs_checkpoint(
+        outputs: &PrimaryOutputs,
+    ) -> Result<LogicalStageCheckpoint, String> {
+        assembled_checkpoint(
+            "primary_outputs",
+            &AssembledOutputs {
+                app_csv_bytes: Arc::clone(&outputs.app_csv_bytes),
+                screen_csv_bytes: Arc::clone(&outputs.screen_csv_bytes),
+                day_coverage_csv_bytes: Arc::default(),
+                compliance_csv_bytes: Arc::default(),
+                credited_app_csv_bytes: Arc::clone(&outputs.credited_app_csv_bytes),
+                review_summary_json_bytes: Arc::clone(&outputs.review_summary_json_bytes),
+                visualization_data_json_bytes: Arc::clone(&outputs.visualization_data_json_bytes),
+                aggregate_csv_outputs: Arc::clone(&outputs.aggregate_csv_outputs),
+                row_lineage: Arc::clone(&outputs.row_lineage),
+            },
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn output_options(
         db: &dyn EarlyStepDb,
@@ -3173,6 +3828,7 @@ mod tracked {
         support: UsageSupportInput,
         late: LateConfigInput,
         output: OutputConfigInput,
+        include_late_outputs: bool,
     ) -> PipelineV2Options {
         PipelineV2Options {
             study_name: output.study_name(db),
@@ -3212,8 +3868,8 @@ mod tracked {
             add_no_activity_placeholder_days: false,
             enable_study_window_filter: false,
             enable_person_attribution: false,
-            enable_day_coverage: late.enable_day_coverage(db),
-            enable_compliance_scoring: late.enable_compliance_scoring(db),
+            enable_day_coverage: include_late_outputs && late.enable_day_coverage(db),
+            enable_compliance_scoring: include_late_outputs && late.enable_compliance_scoring(db),
             compliance_threshold_percent: 0.0,
             enable_screen_gated_crediting: late.enable_screen_gated_crediting(db),
             enable_aggregates: output.enable_aggregates(db),
@@ -3226,7 +3882,8 @@ mod tracked {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn assemble_outputs(
+    #[salsa::tracked(returns(clone))]
+    fn assemble_primary_outputs(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
         early: EarlyConfigInput,
@@ -3235,9 +3892,16 @@ mod tracked {
         late: LateConfigInput,
         late_support: LateSupportInput,
         output: OutputConfigInput,
-    ) -> Result<StepValue<AssembledOutputs>, String> {
-        let options = output_options(db, early, config, support, late, output);
-        let policy_rows = tag_filtered_packages(db, raw, early, config, support)?;
+    ) -> Result<StepValue<PrimaryOutputs>, String> {
+        let _timer = QueryTimer::start("assemble_primary_outputs");
+        db.record_internal_query_body("assemble_primary_outputs");
+        let options = output_options(db, early, config, support, late, output, false);
+        let materialize_full_outputs = output.materialize_full_outputs(db);
+        // This second reference exists only for visualization geometry. The
+        // app-row path resolves its own memoized policy input when needed.
+        let policy_rows = materialize_full_outputs
+            .then(|| tag_filtered_packages(db, raw, early, config, support))
+            .transpose()?;
         let screen_rows = if matches!(
             options.usage_session_mode,
             UsageSessionMode::ScreenUsage | UsageSessionMode::AppAndScreenUsage
@@ -3254,26 +3918,30 @@ mod tracked {
             options.usage_session_mode,
             UsageSessionMode::AppUsage | UsageSessionMode::AppAndScreenUsage
         );
-        let app_rows = if app_mode {
-            inject_placeholders(db, raw, early, config, support, late, late_support)?
-                .value
-                .as_ref()
-                .clone()
-        } else {
-            Vec::new()
+        let app_rows = {
+            let _timer = QueryTimer::start("resolve_review_app_rows");
+            if app_mode {
+                inject_placeholders(db, raw, early, config, support, late, late_support)?
+                    .value
+                    .as_ref()
+                    .clone()
+            } else {
+                Vec::new()
+            }
         };
-        let include_aliases = if !app_mode || !options.use_app_codebook {
+        let include_aliases = if !materialize_full_outputs || !app_mode || !options.use_app_codebook
+        {
             true
         } else {
-            parse_codebook_csv(&support.codebook_csv(db)).is_empty()
-                || options.include_category_column
+            *codebook_is_empty(db, support)?.value || options.include_category_column
         };
-        let app_csv_bytes = if app_mode && options.include_app_output {
+        let app_csv_bytes = if materialize_full_outputs && app_mode && options.include_app_output {
             write_app_csv(&app_rows, &options, include_aliases)
         } else {
             Vec::new()
         };
-        let screen_csv_bytes = if options.include_screen_output
+        let screen_csv_bytes = if materialize_full_outputs
+            && options.include_screen_output
             && !matches!(options.usage_session_mode, UsageSessionMode::AppUsage)
         {
             write_screen_csv(&screen_rows, &options)
@@ -3281,80 +3949,141 @@ mod tracked {
             Vec::new()
         };
 
-        let (day_coverage_csv_bytes, _) = if app_mode && late.enable_day_coverage(db) {
-            let coverage =
-                build_coverage_table(db, raw, early, config, support, late, late_support)?;
-            (
-                coverage.value.csv_bytes.clone(),
-                coverage.value.report.coverage.len() as u32,
-            )
-        } else {
-            (Vec::new(), 0)
-        };
-        let compliance_csv_bytes = if app_mode && late.enable_compliance_scoring(db) {
-            let scored = score_days(db, raw, early, config, support, late, late_support)?;
-            super::compliance_csv(&scored.value, &late_support.enrolled_devices_csv(db))?
-        } else {
-            Vec::new()
-        };
-        let credited_rows = if app_mode && late.enable_screen_gated_crediting(db) {
-            Some(assemble_credit_result(
-                db, raw, early, config, support, late,
-            )?)
-        } else {
-            None
-        };
-        let credited_app_csv_bytes = if let Some(credited) = &credited_rows {
-            write_app_csv_from_iter(
-                credited.value.rows.iter(),
-                credited.value.rows.len(),
-                &options,
-                include_aliases,
-            )
+        let credited_rows =
+            if materialize_full_outputs && app_mode && late.enable_screen_gated_crediting(db) {
+                Some(assemble_credit_result(
+                    db, raw, early, config, support, late,
+                )?)
+            } else {
+                None
+            };
+        let credited_app_csv_bytes = if materialize_full_outputs {
+            if let Some(credited) = &credited_rows {
+                write_app_csv_from_iter(
+                    credited.value.rows.iter(),
+                    credited.value.rows.len(),
+                    &options,
+                    include_aliases,
+                )
+            } else {
+                Vec::new()
+            }
         } else {
             Vec::new()
         };
 
-        let review_summary_json_bytes =
+        let review_summary_json_bytes = {
+            let _timer = QueryTimer::start("build_and_serialize_review_summary");
             serde_json::to_vec(&build_review_summary(&app_rows, &screen_rows))
-                .map_err(|error| format!("serialize review summary: {error}"))?;
-        let visualization_data_json_bytes = serde_json::to_vec(&build_visualization_data(
-            &app_rows,
-            &screen_rows,
-            &policy_rows.value,
-        ))
-        .map_err(|error| format!("serialize visualization data: {error}"))?;
-        let aggregate_csv_outputs =
-            aggregates::build_aggregate_outputs(&app_rows, &screen_rows, &options);
+                .map_err(|error| format!("serialize review summary: {error}"))?
+        };
+        let visualization_data_json_bytes = if materialize_full_outputs {
+            serde_json::to_vec(&build_visualization_data(
+                &app_rows,
+                &screen_rows,
+                &policy_rows
+                    .as_ref()
+                    .expect("full materialization always resolves policy rows")
+                    .value,
+            ))
+            .map_err(|error| format!("serialize visualization data: {error}"))?
+        } else {
+            Vec::new()
+        };
+        let aggregate_csv_outputs = if materialize_full_outputs {
+            aggregates::build_aggregate_outputs(&app_rows, &screen_rows, &options)
+        } else {
+            Vec::new()
+        };
         let mut row_lineage = Vec::new();
-        if !app_csv_bytes.is_empty() {
+        if materialize_full_outputs && !app_csv_bytes.is_empty() {
             row_lineage.extend(build_row_lineage("app-csv", "outputs", &app_rows));
         }
-        if !screen_csv_bytes.is_empty() {
+        if materialize_full_outputs && !screen_csv_bytes.is_empty() {
             row_lineage.extend(build_row_lineage("screen-csv", "outputs", &screen_rows));
         }
-        if let Some(credited) = &credited_rows {
-            row_lineage.extend(build_row_lineage_from_iter(
-                "credited-app-csv",
-                "effective_usage",
-                credited.value.rows.iter(),
-            ));
+        if materialize_full_outputs {
+            if let Some(credited) = &credited_rows {
+                row_lineage.extend(build_row_lineage_from_iter(
+                    "credited-app-csv",
+                    "effective_usage",
+                    credited.value.rows.iter(),
+                ));
+            }
         }
-        let outputs = AssembledOutputs {
-            app_csv_bytes,
-            screen_csv_bytes,
-            day_coverage_csv_bytes,
-            compliance_csv_bytes,
-            credited_app_csv_bytes,
-            review_summary_json_bytes,
-            visualization_data_json_bytes,
-            aggregate_csv_outputs,
-            row_lineage,
+        let outputs = PrimaryOutputs {
+            app_csv_bytes: Arc::new(app_csv_bytes),
+            screen_csv_bytes: Arc::new(screen_csv_bytes),
+            credited_app_csv_bytes: Arc::new(credited_app_csv_bytes),
+            review_summary_json_bytes: Arc::new(review_summary_json_bytes),
+            visualization_data_json_bytes: Arc::new(visualization_data_json_bytes),
+            aggregate_csv_outputs: Arc::new(aggregate_csv_outputs),
+            row_lineage: Arc::new(row_lineage),
         };
-        let checkpoint = assembled_checkpoint("assemble_result", &outputs)?;
+        let checkpoint = primary_outputs_checkpoint(&outputs)?;
         Ok(StepValue {
             value: Arc::new(outputs),
             checkpoint,
+            logical_checkpoint: None,
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn assemble_outputs(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+        late: LateConfigInput,
+        late_support: LateSupportInput,
+        output: OutputConfigInput,
+    ) -> Result<StepValue<AssembledOutputs>, String> {
+        let primary =
+            assemble_primary_outputs(db, raw, early, config, support, late, late_support, output)?;
+        let app_mode = matches!(
+            config.usage_session_mode(db),
+            UsageSessionMode::AppUsage | UsageSessionMode::AppAndScreenUsage
+        );
+        let materialize_full_outputs = output.materialize_full_outputs(db);
+        let day_coverage_csv_bytes =
+            if materialize_full_outputs && app_mode && late.enable_day_coverage(db) {
+                Arc::new(
+                    build_coverage_table(db, raw, early, config, support, late, late_support)?
+                        .value
+                        .csv_bytes
+                        .clone(),
+                )
+            } else {
+                Arc::default()
+            };
+        let compliance_csv_bytes =
+            if materialize_full_outputs && app_mode && late.enable_compliance_scoring(db) {
+                let scored = score_days(db, raw, early, config, support, late, late_support)?;
+                Arc::new(super::compliance_csv(
+                    &scored.value,
+                    &late_support.enrolled_devices_csv(db),
+                )?)
+            } else {
+                Arc::default()
+            };
+        let outputs = AssembledOutputs {
+            app_csv_bytes: Arc::clone(&primary.value.app_csv_bytes),
+            screen_csv_bytes: Arc::clone(&primary.value.screen_csv_bytes),
+            day_coverage_csv_bytes,
+            compliance_csv_bytes,
+            credited_app_csv_bytes: Arc::clone(&primary.value.credited_app_csv_bytes),
+            review_summary_json_bytes: Arc::clone(&primary.value.review_summary_json_bytes),
+            visualization_data_json_bytes: Arc::clone(&primary.value.visualization_data_json_bytes),
+            aggregate_csv_outputs: Arc::clone(&primary.value.aggregate_csv_outputs),
+            row_lineage: Arc::clone(&primary.value.row_lineage),
+        };
+        let checkpoint = assembled_checkpoint("assemble_result", &outputs)?;
+        let logical_checkpoint = assembled_checkpoint("outputs", &outputs)?;
+        Ok(StepValue {
+            value: Arc::new(outputs),
+            checkpoint,
+            logical_checkpoint: Some(logical_checkpoint),
         })
     }
 
@@ -3375,6 +4104,7 @@ mod tracked {
             csv_bytes: &[u8],
             options: &PipelineV2Options,
             support: PipelineV2SupportFiles<'_>,
+            materialize_full_outputs: bool,
         ) -> Self {
             Self {
                 raw: EarlyRawInput::new(db, Arc::new(csv_bytes.to_vec())),
@@ -3405,6 +4135,7 @@ mod tracked {
                     Arc::new(options.long_usage_duration_thresholds.clone()),
                     Arc::new(options.interaction_types_to_remove.clone()),
                     options.filter_zero_duration_sessions,
+                    !materialize_full_outputs,
                 ),
                 usage_support: UsageSupportInput::new(
                     db,
@@ -3450,6 +4181,7 @@ mod tracked {
                     options.include_category_column,
                     options.enable_aggregates,
                     options.aggregate_shape.clone(),
+                    materialize_full_outputs,
                 ),
             }
         }
@@ -3460,6 +4192,7 @@ mod tracked {
             csv_bytes: &[u8],
             options: &PipelineV2Options,
             support: PipelineV2SupportFiles<'_>,
+            materialize_full_outputs: bool,
         ) {
             macro_rules! set_if_changed {
                 ($input:expr, $getter:ident, $setter:ident, $value:expr) => {{
@@ -3660,6 +4393,12 @@ mod tracked {
                 set_filter_zero_duration_sessions,
                 options.filter_zero_duration_sessions
             );
+            set_if_changed!(
+                self.usage,
+                review_only,
+                set_review_only,
+                !materialize_full_outputs
+            );
 
             set_arc_vec_if_changed!(
                 self.usage_support,
@@ -3821,12 +4560,19 @@ mod tracked {
                 set_aggregate_shape,
                 options.aggregate_shape.clone()
             );
+            set_if_changed!(
+                self.output,
+                materialize_full_outputs,
+                set_materialize_full_outputs,
+                materialize_full_outputs
+            );
         }
     }
 
     pub(super) struct TrackedExecution {
         pub result: Arc<PipelineV2Result>,
         pub executed_steps: Vec<String>,
+        pub internal_executed_queries: Vec<String>,
     }
 
     #[derive(Default)]
@@ -3841,19 +4587,34 @@ mod tracked {
             csv_bytes: &[u8],
             options: &PipelineV2Options,
             support: PipelineV2SupportFiles<'_>,
+            materialize_full_outputs: bool,
         ) -> Result<TrackedExecution, String> {
             let inputs = match self.inputs {
                 Some(inputs) => {
-                    inputs.update(&mut self.db, csv_bytes, options, support);
+                    inputs.update(
+                        &mut self.db,
+                        csv_bytes,
+                        options,
+                        support,
+                        materialize_full_outputs,
+                    );
                     inputs
                 }
                 None => {
-                    let inputs = TrackedInputs::new(&self.db, csv_bytes, options, support);
+                    let inputs = TrackedInputs::new(
+                        &self.db,
+                        csv_bytes,
+                        options,
+                        support,
+                        materialize_full_outputs,
+                    );
                     self.inputs = Some(inputs);
                     inputs
                 }
             };
             self.db.take_query_bodies();
+            self.db.take_internal_query_bodies();
+            self.db.take_fused_product_steps();
             self.db.take_will_execute();
             let result = assemble_result(
                 &self.db,
@@ -3867,21 +4628,37 @@ mod tracked {
             )?
             .value;
             let query_bodies = self.db.take_query_bodies();
+            let internal_query_bodies = self.db.take_internal_query_bodies();
+            let fused_product_steps = self.db.take_fused_product_steps();
             let will_execute = self.db.take_will_execute();
-            if query_bodies.len() != will_execute.len() {
+            if query_bodies.len() + internal_query_bodies.len() != will_execute.len() {
                 return Err(format!(
-                    "Salsa execution-event mismatch: {} query bodies but {} WillExecute events: {will_execute:?}",
+                    "Salsa execution-event mismatch: {} product query bodies plus {} internal derived query bodies but {} WillExecute events: product={query_bodies:?} internal={internal_query_bodies:?} events={will_execute:?}",
                     query_bodies.len(),
+                    internal_query_bodies.len(),
                     will_execute.len(),
                 ));
             }
-            let executed_steps = query_bodies
+            let mut executed_steps = query_bodies
+                .into_iter()
+                .chain(fused_product_steps)
+                .map(str::to_string)
+                .collect::<Vec<_>>();
+            executed_steps.sort_by_key(|step| {
+                crate::step_contract::PIPELINE_STEPS
+                    .iter()
+                    .position(|definition| definition.id == step)
+                    .unwrap_or(usize::MAX)
+            });
+            executed_steps.dedup();
+            let internal_executed_queries = internal_query_bodies
                 .into_iter()
                 .map(str::to_string)
                 .collect::<Vec<_>>();
             Ok(TrackedExecution {
                 result,
                 executed_steps,
+                internal_executed_queries,
             })
         }
     }
@@ -3909,8 +4686,10 @@ mod tracked {
         late_support: LateSupportInput,
         output: OutputConfigInput,
     ) -> Result<StepValue<PipelineV2Result>, String> {
+        let _timer = QueryTimer::start("assemble_result");
         db.record_query_body("assemble_result");
-        let options = output_options(db, early, usage, usage_support, late, output);
+        let options = output_options(db, early, usage, usage_support, late, output, true);
+        let materialize_full_outputs = output.materialize_full_outputs(db);
         let mut step_checkpoints = BTreeMap::new();
 
         let remap = parse_remap_config(db, early)?;
@@ -3975,12 +4754,15 @@ mod tracked {
             options.usage_session_mode,
             UsageSessionMode::AppUsage | UsageSessionMode::AppAndScreenUsage
         );
-        let mut reconstruct_rows = Vec::new();
-        let mut categorized_rows = Vec::new();
-        let mut annotated_rows = Vec::new();
-        let mut cleaned_rows = Vec::new();
+        let mut reconstruct_checkpoint =
+            logical_stage_state_checkpoint("reconstruct_episodes", "not_applicable");
+        let mut categorize_checkpoint =
+            logical_stage_state_checkpoint("categorize_apps", "not_applicable");
+        let mut annotation_checkpoint =
+            logical_stage_state_checkpoint("episode_annotations", "not_applicable");
+        let mut cleaning_checkpoint =
+            logical_stage_state_checkpoint("interval_cleaning", "not_applicable");
         let mut app_rows = Vec::new();
-        let mut day_coverage_bytes = Vec::new();
         let mut compliance_bytes = Vec::new();
         let mut credited_count = 0;
         let mut day_coverage_count = 0;
@@ -4001,38 +4783,66 @@ mod tracked {
             insert_checkpoint(&mut step_checkpoints, &matcher_input.checkpoint);
             let matcher = run_matcher(db, raw, early, usage, usage_support)?;
             insert_checkpoint(&mut step_checkpoints, &matcher.checkpoint);
-            let applied = apply_matcher_output(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &applied.checkpoint);
-            let relabeled = relabel_usage_with_floor(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &relabeled.checkpoint);
-            let downstream = junk_downstream_mark(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &downstream.checkpoint);
-            let sorted_episodes = sort_episodes(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &sorted_episodes.checkpoint);
             let split = split_concurrent(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &split.checkpoint);
-            reconstruct_rows = split.value.as_ref().clone();
+            if usage.review_only(db) {
+                let fused = review_reconstruction_fused(db, raw, early, usage, usage_support)?;
+                for checkpoint in [
+                    &fused.apply_matcher_output,
+                    &fused.relabel_usage_with_floor,
+                    &fused.junk_downstream_mark,
+                    &fused.sort_episodes,
+                    &fused.split_concurrent,
+                ] {
+                    insert_checkpoint(&mut step_checkpoints, checkpoint);
+                }
+            } else {
+                let applied = apply_matcher_output(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &applied.checkpoint);
+                let relabeled = relabel_usage_with_floor(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &relabeled.checkpoint);
+                let downstream = junk_downstream_mark(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &downstream.checkpoint);
+                let sorted_episodes = sort_episodes(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &sorted_episodes.checkpoint);
+                insert_checkpoint(&mut step_checkpoints, &split.checkpoint);
+            }
+            reconstruct_checkpoint = required_logical_checkpoint(&split, "reconstruct_episodes")?;
             let joined = codebook_join(db, raw, early, usage, usage_support)?;
             insert_checkpoint(&mut step_checkpoints, &joined.checkpoint);
             let broad = derive_broad_category(db, raw, early, usage, usage_support)?;
             insert_checkpoint(&mut step_checkpoints, &broad.checkpoint);
             let collapsed = collapse_genre(db, raw, early, usage, usage_support)?;
             insert_checkpoint(&mut step_checkpoints, &collapsed.checkpoint);
-            categorized_rows = collapsed.value.as_ref().clone();
-            let engagement = engagement_walk(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &engagement.checkpoint);
-            let flagged = flag_and_retain(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &flagged.checkpoint);
-            annotated_rows = flagged.value.as_ref().clone();
-            let blanked = blank_junk_timing(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &blanked.checkpoint);
-            let selected_types = drop_selected_types(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &selected_types.checkpoint);
+            categorize_checkpoint = required_logical_checkpoint(&collapsed, "categorize_apps")?;
             let zero_filtered = drop_zero_duration(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &zero_filtered.checkpoint);
-            cleaned_rows = zero_filtered.value.as_ref().clone();
+            if usage.review_only(db) {
+                let fused = review_annotations_fused(db, raw, early, usage, usage_support)?;
+                for checkpoint in [
+                    &fused.engagement_walk,
+                    &fused.flag_and_retain,
+                    &fused.blank_junk_timing,
+                    &fused.drop_selected_types,
+                    &fused.drop_zero_duration,
+                ] {
+                    insert_checkpoint(&mut step_checkpoints, checkpoint);
+                }
+                annotation_checkpoint = fused.episode_annotations.clone();
+            } else {
+                let engagement = engagement_walk(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &engagement.checkpoint);
+                let flagged = flag_and_retain(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &flagged.checkpoint);
+                annotation_checkpoint =
+                    required_logical_checkpoint(&flagged, "episode_annotations")?;
+                let blanked = blank_junk_timing(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &blanked.checkpoint);
+                let selected_types = drop_selected_types(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &selected_types.checkpoint);
+                insert_checkpoint(&mut step_checkpoints, &zero_filtered.checkpoint);
+            }
+            cleaning_checkpoint = required_logical_checkpoint(&zero_filtered, "interval_cleaning")?;
 
-            let effective = if options.enable_screen_gated_crediting {
+            let effective = if materialize_full_outputs && options.enable_screen_gated_crediting {
                 let partition = partition_credit_sessions(db, raw, early, usage, usage_support)?;
                 insert_checkpoint(&mut step_checkpoints, &partition.checkpoint);
                 let substrate = build_liveness_substrate(db, raw, early, usage, usage_support)?;
@@ -4066,9 +4876,26 @@ mod tracked {
                     "emit_credited_rows",
                     "assemble_credit_result",
                 ] {
-                    step_checkpoints.insert(step.into(), not_applicable(step));
+                    step_checkpoints.insert(
+                        step.into(),
+                        logical_stage_state_checkpoint(
+                            step,
+                            if materialize_full_outputs {
+                                "not_applicable"
+                            } else {
+                                "not_requested"
+                            },
+                        ),
+                    );
                 }
-                logical_stage_state_checkpoint("effective_usage", "not_applicable")
+                logical_stage_state_checkpoint(
+                    "effective_usage",
+                    if materialize_full_outputs {
+                        "not_applicable"
+                    } else {
+                        "not_requested"
+                    },
+                )
             };
 
             let windows =
@@ -4077,8 +4904,7 @@ mod tracked {
             let windowed =
                 filter_rows_to_window(db, raw, early, usage, usage_support, late, late_support)?;
             insert_checkpoint(&mut step_checkpoints, &windowed.checkpoint);
-            let windowed_rows = windowed.value.rows.clone();
-            let observation = logical_stage_rows_checkpoint("observation_window", &windowed_rows);
+            let observation = required_logical_checkpoint(&windowed, "observation_window")?;
 
             let sharing =
                 resolve_sharing_status(db, raw, early, usage, usage_support, late, late_support)?;
@@ -4088,41 +4914,51 @@ mod tracked {
             let attributed =
                 attribute_rows(db, raw, early, usage, usage_support, late, late_support)?;
             insert_checkpoint(&mut step_checkpoints, &attributed.checkpoint);
-            let attributed_rows_value = attributed.value.rows.clone();
-            let shared_participants = attributed.value.shared_participants.clone();
-            let shared_bytes = serde_json::to_vec(&shared_participants)
-                .map_err(|error| format!("serialize shared-participant checkpoint: {error}"))?;
-            let attribution = logical_stage_checkpoint(
-                "attribute_person",
-                &[("rows", &attributed_rows_value)],
-                &[("shared_participants", &shared_bytes)],
-            );
+            let attribution = required_logical_checkpoint(&attributed, "attribute_person")?;
 
             let placeholders =
                 inject_placeholders(db, raw, early, usage, usage_support, late, late_support)?;
             insert_checkpoint(&mut step_checkpoints, &placeholders.checkpoint);
             app_rows = placeholders.value.as_ref().clone();
-            let raw_dates = build_raw_date_index(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &raw_dates.checkpoint);
-            if options.enable_day_coverage {
+            if materialize_full_outputs {
+                let raw_dates = build_raw_date_index(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &raw_dates.checkpoint);
+            } else {
+                step_checkpoints.insert(
+                    "build_raw_date_index".into(),
+                    logical_stage_state_checkpoint("build_raw_date_index", "not_requested"),
+                );
+            }
+            let day_coverage = if materialize_full_outputs && options.enable_day_coverage {
                 let coverage =
                     build_coverage_table(db, raw, early, usage, usage_support, late, late_support)?;
                 insert_checkpoint(&mut step_checkpoints, &coverage.checkpoint);
-                day_coverage_bytes = coverage.value.csv_bytes.clone();
                 day_coverage_count = coverage.value.report.coverage.len() as u32;
+                required_logical_checkpoint(&coverage, "day_coverage")?
             } else {
                 step_checkpoints.insert(
                     "build_coverage_table".into(),
-                    not_applicable("build_coverage_table"),
+                    logical_stage_state_checkpoint(
+                        "build_coverage_table",
+                        if materialize_full_outputs {
+                            "not_applicable"
+                        } else {
+                            "not_requested"
+                        },
+                    ),
                 );
-            }
-            let day_coverage = logical_stage_checkpoint(
-                "day_coverage",
-                &[("rows", &app_rows)],
-                &[("day_coverage_csv", &day_coverage_bytes)],
-            );
+                if materialize_full_outputs {
+                    logical_stage_checkpoint(
+                        "day_coverage",
+                        &[("rows", &app_rows)],
+                        &[("day_coverage_csv", &[])],
+                    )
+                } else {
+                    logical_stage_state_checkpoint("day_coverage", "not_requested")
+                }
+            };
 
-            if options.enable_compliance_scoring {
+            if materialize_full_outputs && options.enable_compliance_scoring {
                 let minutes = accumulate_attribution_minutes(
                     db,
                     raw,
@@ -4140,14 +4976,28 @@ mod tracked {
                     super::compliance_csv(&scored.value, &late_support.enrolled_devices_csv(db))?;
             } else {
                 for step in ["accumulate_attribution_minutes", "score_days"] {
-                    step_checkpoints.insert(step.into(), not_applicable(step));
+                    step_checkpoints.insert(
+                        step.into(),
+                        logical_stage_state_checkpoint(
+                            step,
+                            if materialize_full_outputs {
+                                "not_applicable"
+                            } else {
+                                "not_requested"
+                            },
+                        ),
+                    );
                 }
             }
-            let compliance = logical_stage_checkpoint(
-                "score_compliance",
-                &[],
-                &[("compliance_csv", &compliance_bytes)],
-            );
+            let compliance = if materialize_full_outputs {
+                logical_stage_checkpoint(
+                    "score_compliance",
+                    &[],
+                    &[("compliance_csv", &compliance_bytes)],
+                )
+            } else {
+                logical_stage_state_checkpoint("score_compliance", "not_requested")
+            };
             (
                 effective,
                 observation,
@@ -4186,33 +5036,22 @@ mod tracked {
             ));
         }
 
-        let outputs_checkpoint = assembled_checkpoint("outputs", &assembled.value)?;
+        let outputs_checkpoint = required_logical_checkpoint(&assembled, "outputs")?;
         let logical_checkpoints = [
-            logical_stage_rows_checkpoint("parse_events", &sorted.value),
-            logical_stage_rows_checkpoint("normalize_timezones", &restamped.value),
-            logical_stage_rows_checkpoint("dedup_and_order", &gaps.value),
-            logical_stage_rows_checkpoint("app_policy", &policy.value),
-            logical_stage_rows_checkpoint("device_state_timeline", &screen_rows),
-            if app_mode {
-                logical_stage_rows_checkpoint("reconstruct_episodes", &reconstruct_rows)
+            required_logical_checkpoint(&sorted, "parse_events")?,
+            required_logical_checkpoint(&restamped, "normalize_timezones")?,
+            required_logical_checkpoint(&gaps, "dedup_and_order")?,
+            required_logical_checkpoint(&policy, "app_policy")?,
+            if screen_mode {
+                let built = build_classified_sessions(db, raw, early, usage, usage_support)?;
+                required_logical_checkpoint(&built, "device_state_timeline")?
             } else {
-                logical_stage_state_checkpoint("reconstruct_episodes", "not_applicable")
+                logical_stage_rows_checkpoint("device_state_timeline", &[])
             },
-            if app_mode {
-                logical_stage_rows_checkpoint("categorize_apps", &categorized_rows)
-            } else {
-                logical_stage_state_checkpoint("categorize_apps", "not_applicable")
-            },
-            if app_mode {
-                logical_stage_rows_checkpoint("episode_annotations", &annotated_rows)
-            } else {
-                logical_stage_state_checkpoint("episode_annotations", "not_applicable")
-            },
-            if app_mode {
-                logical_stage_rows_checkpoint("interval_cleaning", &cleaned_rows)
-            } else {
-                logical_stage_state_checkpoint("interval_cleaning", "not_applicable")
-            },
+            reconstruct_checkpoint,
+            categorize_checkpoint,
+            annotation_checkpoint,
+            cleaning_checkpoint,
             effective_checkpoint,
             observation_checkpoint,
             attribution_checkpoint,
@@ -4279,6 +5118,7 @@ mod tracked {
         Ok(StepValue {
             value: Arc::new(result),
             checkpoint: assembled.checkpoint,
+            logical_checkpoint: None,
         })
     }
 
@@ -4287,6 +5127,8 @@ mod tracked {
     struct EarlyDatabase {
         storage: salsa::Storage<Self>,
         query_bodies: Arc<Mutex<Vec<&'static str>>>,
+        internal_query_bodies: Arc<Mutex<Vec<&'static str>>>,
+        fused_product_steps: Arc<Mutex<Vec<&'static str>>>,
         will_execute: Arc<Mutex<Vec<String>>>,
     }
 
@@ -4337,6 +5179,7 @@ mod tracked {
                     .ingredient::<junk_blind_fold>()
                     .ingredient::<build_matcher_input>()
                     .ingredient::<run_matcher>()
+                    .ingredient::<review_reconstruction_fused>()
                     .ingredient::<apply_matcher_output>()
                     .ingredient::<relabel_usage_with_floor>()
                     .ingredient::<junk_downstream_mark>()
@@ -4345,6 +5188,7 @@ mod tracked {
                     .ingredient::<codebook_join>()
                     .ingredient::<derive_broad_category>()
                     .ingredient::<collapse_genre>()
+                    .ingredient::<review_annotations_fused>()
                     .ingredient::<engagement_walk>()
                     .ingredient::<flag_and_retain>()
                     .ingredient::<blank_junk_timing>()
@@ -4367,9 +5211,13 @@ mod tracked {
                     .ingredient::<build_coverage_table>()
                     .ingredient::<accumulate_attribution_minutes>()
                     .ingredient::<score_days>()
+                    .ingredient::<codebook_is_empty>()
+                    .ingredient::<assemble_primary_outputs>()
                     .ingredient::<assemble_result>()
                     .build(),
                 query_bodies: Arc::default(),
+                internal_query_bodies: Arc::default(),
+                fused_product_steps: Arc::default(),
                 will_execute,
             }
         }
@@ -4383,11 +5231,43 @@ mod tracked {
         fn record_query_body(&self, step: &'static str) {
             self.query_bodies.lock().expect("query body log").push(step);
         }
+
+        fn record_internal_query_body(&self, query: &'static str) {
+            self.internal_query_bodies
+                .lock()
+                .expect("internal query body log")
+                .push(query);
+        }
+
+        fn record_fused_product_step(&self, step: &'static str) {
+            self.fused_product_steps
+                .lock()
+                .expect("fused product step log")
+                .push(step);
+        }
     }
 
     impl EarlyDatabase {
         fn take_query_bodies(&self) -> Vec<&'static str> {
             std::mem::take(&mut *self.query_bodies.lock().expect("query body log"))
+        }
+
+        fn take_internal_query_bodies(&self) -> Vec<&'static str> {
+            std::mem::take(
+                &mut *self
+                    .internal_query_bodies
+                    .lock()
+                    .expect("internal query body log"),
+            )
+        }
+
+        fn take_fused_product_steps(&self) -> Vec<&'static str> {
+            std::mem::take(
+                &mut *self
+                    .fused_product_steps
+                    .lock()
+                    .expect("fused product step log"),
+            )
         }
 
         fn take_will_execute(&self) -> Vec<String> {
@@ -4450,6 +5330,7 @@ mod tracked {
                     Arc::new(vec![1.0]),
                     Arc::new(Vec::new()),
                     false,
+                    false,
                 ),
                 UsageSupportInput::new(
                     db,
@@ -4495,6 +5376,7 @@ mod tracked {
                 false,
                 false,
                 "wide".into(),
+                true,
             )
         }
 
@@ -4927,11 +5809,15 @@ mod tracked {
             };
             let oracle = run_pipeline_v2_with_supports(&csv(), &options, support).unwrap();
             let mut engine = TrackedEngine::default();
-            let tracked = engine.execute(&csv(), &options, support).unwrap();
+            let tracked = engine.execute(&csv(), &options, support, true).unwrap();
             assert_eq!(tracked.executed_steps.len(), 55);
             assert_eq!(
                 tracked.executed_steps.iter().collect::<BTreeSet<_>>().len(),
                 55
+            );
+            assert_eq!(
+                tracked.internal_executed_queries,
+                ["assemble_primary_outputs"]
             );
             assert_eq!(
                 tracked.result.pipeline_step_checkpoints,
@@ -4995,12 +5881,13 @@ mod tracked {
                 )
             );
 
-            let warm = engine.execute(&csv(), &options, support).unwrap();
+            let warm = engine.execute(&csv(), &options, support, true).unwrap();
             assert!(
                 warm.executed_steps.is_empty(),
                 "warm execution reran {:?}",
                 warm.executed_steps
             );
+            assert!(warm.internal_executed_queries.is_empty());
             assert_eq!(
                 warm.result.pipeline_step_checkpoints,
                 tracked.result.pipeline_step_checkpoints
@@ -5008,8 +5895,74 @@ mod tracked {
 
             let mut output_only = options.clone();
             output_only.study_name = "Output-only change".into();
-            let changed = engine.execute(&csv(), &output_only, support).unwrap();
+            let changed = engine.execute(&csv(), &output_only, support, true).unwrap();
             assert_eq!(changed.executed_steps, ["assemble_result"]);
+            assert_eq!(
+                changed.internal_executed_queries,
+                ["assemble_primary_outputs"]
+            );
+            let output_oracle =
+                run_pipeline_v2_with_supports(&csv(), &output_only, support).unwrap();
+            assert_result_parity(
+                &changed.result,
+                &output_oracle,
+                output_only.usage_session_mode,
+            );
+
+            let mut downstream_engine = TrackedEngine::default();
+            downstream_engine
+                .execute(&csv(), &options, support, true)
+                .unwrap();
+            let mut coverage_off = options.clone();
+            coverage_off.enable_day_coverage = false;
+            let downstream = downstream_engine
+                .execute(&csv(), &coverage_off, support, true)
+                .unwrap();
+            assert_eq!(downstream.executed_steps, ["assemble_result"]);
+            assert!(downstream.internal_executed_queries.is_empty());
+            let downstream_oracle =
+                run_pipeline_v2_with_supports(&csv(), &coverage_off, support).unwrap();
+            assert_result_parity(
+                &downstream.result,
+                &downstream_oracle,
+                coverage_off.usage_session_mode,
+            );
+
+            let codebook_lf = b"app_package_name,application_label,bcm_play_store_genreId,bcm_play_store_broad_app_category,dataset\ncom.example.chat,Chat,Social,Communication,test\n".to_vec();
+            let codebook_crlf = String::from_utf8(codebook_lf.clone())
+                .unwrap()
+                .replace('\n', "\r\n")
+                .into_bytes();
+            let mut codebook_options = options.clone();
+            codebook_options.use_app_codebook = true;
+            let codebook_support_lf = PipelineV2SupportFiles {
+                codebook_csv: &codebook_lf,
+                ..support
+            };
+            let codebook_support_crlf = PipelineV2SupportFiles {
+                codebook_csv: &codebook_crlf,
+                ..support
+            };
+            let mut codebook_engine = TrackedEngine::default();
+            codebook_engine
+                .execute(&csv(), &codebook_options, codebook_support_lf, true)
+                .unwrap();
+            let representation_only = codebook_engine
+                .execute(&csv(), &codebook_options, codebook_support_crlf, true)
+                .unwrap();
+            assert_eq!(representation_only.executed_steps, ["codebook_join"]);
+            assert_eq!(
+                representation_only.internal_executed_queries,
+                ["codebook_is_empty"]
+            );
+            let representation_oracle =
+                run_pipeline_v2_with_supports(&csv(), &codebook_options, codebook_support_crlf)
+                    .unwrap();
+            assert_result_parity(
+                &representation_only.result,
+                &representation_oracle,
+                codebook_options.usage_session_mode,
+            );
         }
 
         fn assert_checkpoint_parity(
@@ -5205,7 +6158,7 @@ mod tracked {
                 let support = PipelineV2SupportFiles::default();
                 let expected = run_pipeline_v2_with_supports(&csv(), &options, support).unwrap();
                 let mut engine = TrackedEngine::default();
-                let actual = engine.execute(&csv(), &options, support).unwrap();
+                let actual = engine.execute(&csv(), &options, support, true).unwrap();
                 assert_result_parity(&actual.result, &expected, mode);
             }
         }
@@ -5222,6 +6175,10 @@ pub struct IncrementalPipelineV2Engine {
 pub struct IncrementalPipelineV2Execution {
     pub result: Arc<PipelineV2Result>,
     pub executed_steps: Vec<String>,
+    /// Derived cache queries that are not product steps. Exposed separately so
+    /// performance tests can prove expensive terminal work stayed cached
+    /// without pretending the product has more than 55 transformations.
+    pub internal_executed_queries: Vec<String>,
 }
 
 #[cfg(feature = "incremental-v2")]
@@ -5232,10 +6189,35 @@ impl IncrementalPipelineV2Engine {
         options: &PipelineV2Options,
         support: PipelineV2SupportFiles<'_>,
     ) -> Result<IncrementalPipelineV2Execution, String> {
-        let execution = self.inner.execute(csv_bytes, options, support)?;
+        self.execute_with_materialization(csv_bytes, options, support, true)
+    }
+
+    /// Run the same tracked product DAG while returning only the compact
+    /// review summary. Large CSV, visualization, aggregate, and lineage bytes
+    /// remain unmaterialized until a full execution is explicitly requested.
+    pub fn execute_review(
+        &mut self,
+        csv_bytes: &[u8],
+        options: &PipelineV2Options,
+        support: PipelineV2SupportFiles<'_>,
+    ) -> Result<IncrementalPipelineV2Execution, String> {
+        self.execute_with_materialization(csv_bytes, options, support, false)
+    }
+
+    fn execute_with_materialization(
+        &mut self,
+        csv_bytes: &[u8],
+        options: &PipelineV2Options,
+        support: PipelineV2SupportFiles<'_>,
+        materialize_full_outputs: bool,
+    ) -> Result<IncrementalPipelineV2Execution, String> {
+        let execution =
+            self.inner
+                .execute(csv_bytes, options, support, materialize_full_outputs)?;
         Ok(IncrementalPipelineV2Execution {
             result: execution.result,
             executed_steps: execution.executed_steps,
+            internal_executed_queries: execution.internal_executed_queries,
         })
     }
 }

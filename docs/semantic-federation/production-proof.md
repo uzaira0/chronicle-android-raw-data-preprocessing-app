@@ -9,9 +9,10 @@ modes. It does **not** yet prove the full production requirement across browser
 reload, every configuration/support/binding intervention, runtime provenance,
 and the existing large empirical campaigns.
 
-The current branch contains 55 Salsa-tracked Rust computations and a stateful
-engine that produces complete `PipelineV2Result` values. Runtime computation
-and step reporting consume actual executed-step IDs. There is no second
+The current branch contains 55 Salsa-tracked Rust product computations and a
+stateful engine that produces complete `PipelineV2Result` values. Two internal
+derived-cache queries are observable separately and are not product steps.
+Runtime computation and step reporting consume actual executed-step IDs. There is no second
 TypeScript scheduler: Rust groups the 55 step events into 15 readable UI
 sections after execution. The generated empirical evidence is still
 stale and must be rebuilt. The authoritative live status and remaining checks are in the

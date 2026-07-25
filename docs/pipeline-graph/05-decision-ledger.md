@@ -4,7 +4,8 @@
 > TypeScript/15-stage physical engine. They are retained to explain how the
 > current contract and tests evolved, but they no longer authorize production
 > execution. The current decision is Salsa `0.28.1` with exactly 55 tracked
-> Rust/WASM computations; see the
+> Rust/WASM product computations; internal derived caches are reported
+> separately and do not add product steps. See the
 > [authoritative plan](../semantic-federation/55-step-incremental-rust-plan.md#existing-software-decision).
 
 ## Decisions made (2026-07-14, with the project owner)

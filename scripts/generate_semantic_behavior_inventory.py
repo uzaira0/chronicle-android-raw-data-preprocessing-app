@@ -479,10 +479,25 @@ def independently_callable_rust_steps(step_ids: list[str]) -> list[str]:
             source,
         )
     )
-    unknown = sorted(tracked_functions - set(step_ids))
+    product_queries = {
+        name
+        for name in tracked_functions
+        if f'record_query_body("{name}")' in source
+    }
+    derived_queries = {
+        name
+        for name in tracked_functions
+        if f'record_internal_query_body("{name}")' in source
+    }
+    unclassified = sorted(tracked_functions - product_queries - derived_queries)
+    if unclassified:
+        raise RuntimeError(
+            f"Salsa queries lack a product-step or derived-cache classification: {unclassified}"
+        )
+    unknown = sorted(product_queries - set(step_ids))
     if unknown:
-        raise RuntimeError(f"tracked Rust queries are absent from the 55-step contract: {unknown}")
-    return [step_id for step_id in step_ids if step_id in tracked_functions]
+        raise RuntimeError(f"tracked Rust product queries are absent from the 55-step contract: {unknown}")
+    return [step_id for step_id in step_ids if step_id in product_queries]
 
 
 def rust_step_contract() -> dict:
@@ -956,9 +971,27 @@ def main() -> int:
             "WASM and regenerating evidence after a contract change"
         ),
     )
+    parser.add_argument(
+        "--certificate-only",
+        action="store_true",
+        help=(
+            "refresh only the structural dependency certificate from the "
+            "current plan and existing empirical ledgers; this breaks the "
+            "intentional build-time stale-certificate cycle before a full "
+            "dependency-evidence campaign"
+        ),
+    )
     args = parser.parse_args()
     projection = load_and_verify()
     plan = build_plan(projection)
+    if args.certificate_only:
+        dependency_certificate = build_dependency_certificate(plan)
+        write_or_check(
+            DEPENDENCY_CERTIFICATE_OUTPUT, dependency_certificate, args.check
+        )
+        mode = "checked" if args.check else "generated"
+        print(f"dependency_certificate={mode} groups=15 declared_steps=55")
+        return 0
     runtime_authority = build_runtime_authority(plan)
     bindings = build_bindings(plan, runtime_authority)
     if args.contracts_only:

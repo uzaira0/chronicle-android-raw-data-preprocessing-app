@@ -27,7 +27,7 @@ REQUIRED_DOCUMENT_TEXT = {
         "55 callable Rust queries",
     ],
     REPOSITORY_ROOT / "docs/semantic-federation/production-proof.md": [
-        "55 Salsa-tracked Rust computations",
+        "55 Salsa-tracked Rust product computations",
         "actual executed-step IDs",
     ],
     REPOSITORY_ROOT / "docs/semantic-federation/final-review-matrix.md": [
@@ -147,7 +147,9 @@ def check_source_shape() -> None:
     for symbol in (
         "IncrementalPipelineV2Engine",
         "evaluate_dependency_cache_decision(",
-        "state.incremental_engine.execute(",
+        "request.command == QUERY_REVIEW_COMMAND",
+        ".execute_review(csv_bytes, options, support_files)?",
+        ".execute(csv_bytes, options, support_files)?",
         "fn build_runtime_step_executions(",
         "fn project_product_stages(",
         "fn execute_incremental_pipeline(",
@@ -165,10 +167,25 @@ def check_source_shape() -> None:
             fail(f"retired second-scheduler production path remains: {retired}")
     execute_body = runtime[runtime.index("fn execute_incremental_pipeline(") :]
     cache_decision = execute_body.index("evaluate_dependency_cache_decision(")
-    tracked_execution = execute_body.index("state.incremental_engine.execute(")
+    tracked_execution = execute_body.index(
+        "let tracked_execution = if request.command == QUERY_REVIEW_COMMAND"
+    )
+    review_execution = execute_body.index(
+        ".execute_review(csv_bytes, options, support_files)?"
+    )
+    full_execution = execute_body.index(
+        ".execute(csv_bytes, options, support_files)?"
+    )
     projected_status = execute_body.index("build_runtime_step_executions(")
     product_projection = execute_body.index("project_product_stages(")
-    if not cache_decision < tracked_execution < projected_status < product_projection:
+    if not (
+        cache_decision
+        < tracked_execution
+        < review_execution
+        < full_execution
+        < projected_status
+        < product_projection
+    ):
         fail("cache validation, tracked execution, exact step reporting, and product-stage projection are out of order")
 
     incremental_path = (
@@ -182,8 +199,28 @@ def check_source_shape() -> None:
         r"#\[salsa::tracked\([^\]]*\)\]\s*fn\s+([a-z0-9_]+)\s*\(",
         incremental,
     )
-    if len(tracked_functions) != 55 or len(set(tracked_functions)) != 55:
-        fail(f"expected 55 unique Salsa queries, found {len(tracked_functions)}/{len(set(tracked_functions))}")
+    product_queries = {
+        name
+        for name in tracked_functions
+        if f'record_query_body("{name}")' in incremental
+    }
+    derived_queries = {
+        name
+        for name in tracked_functions
+        if f'record_internal_query_body("{name}")' in incremental
+    }
+    unclassified = set(tracked_functions) - product_queries - derived_queries
+    if unclassified:
+        fail(f"unclassified Salsa queries: {sorted(unclassified)}")
+    if len(product_queries) != 55:
+        fail(f"expected 55 unique Salsa product queries, found {len(product_queries)}")
+    if derived_queries != {
+        "assemble_primary_outputs",
+        "codebook_is_empty",
+        "review_annotations_fused",
+        "review_reconstruction_fused",
+    }:
+        fail(f"unexpected derived Salsa cache queries: {sorted(derived_queries)}")
 
     oracle = (
         REPOSITORY_ROOT / "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2.rs"

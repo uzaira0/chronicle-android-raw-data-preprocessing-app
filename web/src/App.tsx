@@ -17,11 +17,15 @@ import {
   discoverTimezonesBytes,
   getPlanStageView,
   processRawCsvBytes,
+  processRawCsvReviewBytes,
   processRawCsvBytesViaPool,
   warmRuntime,
 } from "@/lib/rustWorkerClient";
 import { BUILD_DATE, BUILD_SHA } from "@/lib/buildInfo";
-import { ensureNotificationPermission, sendNotification } from "@/lib/notification";
+import {
+  ensureNotificationPermission,
+  sendNotification,
+} from "@/lib/notification";
 import { clearLastRun, loadLastRun, saveLastRun } from "@/lib/lastRunStore";
 import { computeSafeConcurrency, readDeviceMemory } from "@/lib/concurrency";
 import { clearCachedRun as clearCachedRunData } from "@/lib/localDataReset";
@@ -155,7 +159,8 @@ function estimatedFilePercent(current: FileProgress): number {
     (acc, kind) => acc + STEP_WEIGHTS[kind],
     0,
   );
-  const currentContribution = STEP_WEIGHTS[current.stepKind] * (current.percent ?? 0);
+  const currentContribution =
+    STEP_WEIGHTS[current.stepKind] * (current.percent ?? 0);
   return completedBefore + currentContribution;
 }
 
@@ -164,16 +169,24 @@ export default function App(): ReactElement {
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState<ProcessedFileResult[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const [fileInspections, setFileInspections] = useState<RawFileInspection[]>([]);
+  const [fileInspections, setFileInspections] = useState<RawFileInspection[]>(
+    [],
+  );
   const [isInspectingFiles, setIsInspectingFiles] = useState(false);
   const [filterFile, setFilterFile] = useState<File | null>(null);
-  const [appsForcingScreenOpenFile, setAppsForcingScreenOpenFile] = useState<File | null>(null);
-  const [backgroundAppsFile, setBackgroundAppsFile] = useState<File | null>(null);
+  const [appsForcingScreenOpenFile, setAppsForcingScreenOpenFile] =
+    useState<File | null>(null);
+  const [backgroundAppsFile, setBackgroundAppsFile] = useState<File | null>(
+    null,
+  );
   const [appCodebookFile, setAppCodebookFile] = useState<File | null>(null);
   const [studyDatesFile, setStudyDatesFile] = useState<File | null>(null);
   const [deviceSharingFile, setDeviceSharingFile] = useState<File | null>(null);
-  const [surveyAttributionFile, setSurveyAttributionFile] = useState<File | null>(null);
-  const [enrolledDevicesFile, setEnrolledDevicesFile] = useState<File | null>(null);
+  const [surveyAttributionFile, setSurveyAttributionFile] =
+    useState<File | null>(null);
+  const [enrolledDevicesFile, setEnrolledDevicesFile] = useState<File | null>(
+    null,
+  );
   const [discoveredTimezones, setDiscoveredTimezones] = useState<string[]>([]);
   // When options are seeded from a shared link we skip the very first persist so
   // that merely *opening* someone's link does not silently overwrite the
@@ -183,13 +196,21 @@ export default function App(): ReactElement {
   // URL-strip effect below.
   const skipNextPersist = useRef(false);
   const [options, setOptions] = useState<BrowserProcessingOptions>(() => {
-    const shared = typeof window === "undefined" ? null : readSharedConfig(window.location.search);
+    const shared =
+      typeof window === "undefined"
+        ? null
+        : readSharedConfig(window.location.search);
     if (shared) skipNextPersist.current = true;
     return shared ?? readPersistedOptions();
   });
-  const [progressByFile, setProgressByFile] = useState<Record<string, FileProgress>>({});
+  const [progressByFile, setProgressByFile] = useState<
+    Record<string, FileProgress>
+  >({});
   const [progressOrder, setProgressOrder] = useState<string[]>([]);
-  const [toast, setToast] = useState<{ message: string; isError: boolean } | null>(null);
+  const [toast, setToast] = useState<{
+    message: string;
+    isError: boolean;
+  } | null>(null);
   const [settingsQuery, setSettingsQuery] = useState("");
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowTab>(() => {
     if (typeof window === "undefined") return "settings";
@@ -197,20 +218,25 @@ export default function App(): ReactElement {
     return isWorkflowTab(stored) ? stored : "settings";
   });
   const [processExpanded, setProcessExpanded] = useState(true);
-  const [hideDemoMetadata, setHideDemoMetadata] = useState(() => readDemoDisplayEnabled());
-  const [storagePressure, setStoragePressure] = useState<StoragePressure | null>(null);
+  const [hideDemoMetadata, setHideDemoMetadata] = useState(() =>
+    readDemoDisplayEnabled(),
+  );
+  const [storagePressure, setStoragePressure] =
+    useState<StoragePressure | null>(null);
   const [workspaceCapability, setWorkspaceCapability] =
     useState<OpfsCapability | null>(null);
   const [planStageView, setPlanStageView] = useState<
     ProcessedFileResult["rustStageView"] | null
   >(null);
-  const [storagePressureDismissed, setStoragePressureDismissed] = useState(false);
+  const [storagePressureDismissed, setStoragePressureDismissed] =
+    useState(false);
   const [retryingFile, setRetryingFile] = useState<string | null>(null);
   const [updateReady, setUpdateReady] = useState(false);
   const baseTitleRef = useRef<string | null>(null);
   // Snapshot of the options that produced `results`, so the Result panel can warn
   // when the live settings have since drifted (out-of-date outputs).
-  const [resultsOptions, setResultsOptions] = useState<BrowserProcessingOptions | null>(null);
+  const [resultsOptions, setResultsOptions] =
+    useState<BrowserProcessingOptions | null>(null);
   const startTimeRef = useRef<number>(0);
   // A run can be cancelled mid-flight: the flag stops the runner from claiming the
   // next file, and the pool ref lets us terminate in-flight workers immediately.
@@ -221,13 +247,20 @@ export default function App(): ReactElement {
   // state-driven `disabled` attributes re-render.
   const processingRef = useRef(false);
   const retryingFileRef = useRef<string | null>(null);
+  const comparisonWarmupRef = useRef<{
+    fileName: string;
+    promise: Promise<void>;
+  } | null>(null);
   // Holds the pending "flash the jumped-to setting" timer so a rapid second jump
   // to the same card cancels the first timer instead of cutting its flash short.
   const flashTimerRef = useRef<number | null>(null);
   // Memoized so the masker's internal label maps persist across renders (stable
   // File 01/Participant 01 numbering) and its identity stays stable for memoized
   // children — a fresh instance each render would reset numbering and churn props.
-  const demoDisplay = useMemo(() => createDemoDisplayMasker(hideDemoMetadata), [hideDemoMetadata]);
+  const demoDisplay = useMemo(
+    () => createDemoDisplayMasker(hideDemoMetadata),
+    [hideDemoMetadata],
+  );
 
   const resultsStale =
     results.length > 0 &&
@@ -283,7 +316,8 @@ export default function App(): ReactElement {
       // Settings already initialized from the shared link; announce it and
       // strip the param so a reload/bookmark doesn't keep re-applying it.
       setToast({
-        message: "Settings loaded from shared link. Your saved settings are kept until you change one.",
+        message:
+          "Settings loaded from shared link. Your saved settings are kept until you change one.",
         isError: false,
       });
       params.delete(SHARED_CONFIG_PARAM);
@@ -291,7 +325,9 @@ export default function App(): ReactElement {
       window.history.replaceState(
         null,
         "",
-        window.location.pathname + (query ? `?${query}` : "") + window.location.hash,
+        window.location.pathname +
+          (query ? `?${query}` : "") +
+          window.location.hash,
       );
       return;
     }
@@ -316,9 +352,11 @@ export default function App(): ReactElement {
         setResults(record.results);
         const timezones = record.discoveredTimezones.length
           ? record.discoveredTimezones
-          : Array.from(new Set(record.results.flatMap((result) => result.availableTimezones))).sort(
-              (left, right) => left.localeCompare(right),
-            );
+          : Array.from(
+              new Set(
+                record.results.flatMap((result) => result.availableTimezones),
+              ),
+            ).sort((left, right) => left.localeCompare(right));
         setDiscoveredTimezones(timezones);
         const completed = Object.fromEntries(
           record.results.map((result) => [
@@ -374,7 +412,10 @@ export default function App(): ReactElement {
     };
   }, [options]);
 
-  const onFilesChange = (files: File[], input: { clearCachedRun?: boolean } = {}) => {
+  const onFilesChange = (
+    files: File[],
+    input: { clearCachedRun?: boolean } = {},
+  ) => {
     const { clearCachedRun = true } = input;
     setUploadedFiles(files);
     setFileInspections([]);
@@ -431,25 +472,47 @@ export default function App(): ReactElement {
     // stale/other filter still loaded). `supportFiles` is empty for a config-only
     // project, so every slot clears; bundled projects rehydrate their blobs.
     const support = record.supportFiles;
-    setFilterFile(support.filterFile ? storedFileToFile(support.filterFile) : null);
-    setAppsForcingScreenOpenFile(
-      support.appsForcingScreenOpenFile ? storedFileToFile(support.appsForcingScreenOpenFile) : null,
+    setFilterFile(
+      support.filterFile ? storedFileToFile(support.filterFile) : null,
     );
-    setBackgroundAppsFile(support.backgroundAppsFile ? storedFileToFile(support.backgroundAppsFile) : null);
-    setAppCodebookFile(support.appCodebookFile ? storedFileToFile(support.appCodebookFile) : null);
-    setStudyDatesFile(support.studyDatesFile ? storedFileToFile(support.studyDatesFile) : null);
+    setAppsForcingScreenOpenFile(
+      support.appsForcingScreenOpenFile
+        ? storedFileToFile(support.appsForcingScreenOpenFile)
+        : null,
+    );
+    setBackgroundAppsFile(
+      support.backgroundAppsFile
+        ? storedFileToFile(support.backgroundAppsFile)
+        : null,
+    );
+    setAppCodebookFile(
+      support.appCodebookFile
+        ? storedFileToFile(support.appCodebookFile)
+        : null,
+    );
+    setStudyDatesFile(
+      support.studyDatesFile ? storedFileToFile(support.studyDatesFile) : null,
+    );
     setDeviceSharingFile(
-      support.deviceSharingFile ? storedFileToFile(support.deviceSharingFile) : null,
+      support.deviceSharingFile
+        ? storedFileToFile(support.deviceSharingFile)
+        : null,
     );
     setSurveyAttributionFile(
-      support.surveyAttributionFile ? storedFileToFile(support.surveyAttributionFile) : null,
+      support.surveyAttributionFile
+        ? storedFileToFile(support.surveyAttributionFile)
+        : null,
     );
     setEnrolledDevicesFile(
-      support.enrolledDevicesFile ? storedFileToFile(support.enrolledDevicesFile) : null,
+      support.enrolledDevicesFile
+        ? storedFileToFile(support.enrolledDevicesFile)
+        : null,
     );
     // Reuse the upload path so restored files are inspected like fresh uploads;
     // a config-only project clears the raw files to a clean slate.
-    onFilesChange(record.includesFiles ? record.rawFiles.map(storedFileToFile) : []);
+    onFilesChange(
+      record.includesFiles ? record.rawFiles.map(storedFileToFile) : [],
+    );
   };
 
   const buildSupportFilesForOptions = async (
@@ -459,7 +522,11 @@ export default function App(): ReactElement {
       ? { filterFile: await readSupportFile(filterFile) }
       : {}),
     ...(forOptions.useAppsForcingScreenOpenFile && appsForcingScreenOpenFile
-      ? { appsForcingScreenOpenFile: await readSupportFile(appsForcingScreenOpenFile) }
+      ? {
+          appsForcingScreenOpenFile: await readSupportFile(
+            appsForcingScreenOpenFile,
+          ),
+        }
       : {}),
     ...(forOptions.useBackgroundAppsFile && backgroundAppsFile
       ? { backgroundAppsFile: await readSupportFile(backgroundAppsFile) }
@@ -468,10 +535,12 @@ export default function App(): ReactElement {
       ? { appCodebookFile: await readSupportFile(appCodebookFile) }
       : {}),
     // Study Inputs: sent along whenever any enabled analyze step consumes them.
-    ...((forOptions.enableStudyWindowFilter || forOptions.enableDayCoverage) && studyDatesFile
+    ...((forOptions.enableStudyWindowFilter || forOptions.enableDayCoverage) &&
+    studyDatesFile
       ? { studyDatesFile: await readSupportFile(studyDatesFile) }
       : {}),
-    ...((forOptions.enablePersonAttribution || forOptions.enableComplianceScoring) &&
+    ...((forOptions.enablePersonAttribution ||
+      forOptions.enableComplianceScoring) &&
     deviceSharingFile
       ? { deviceSharingFile: await readSupportFile(deviceSharingFile) }
       : {}),
@@ -500,7 +569,10 @@ export default function App(): ReactElement {
     files: File[],
   ): Promise<BrowserProcessingOptions> => {
     const selectedTimezone = requested.selectedTimezone?.trim();
-    if (!requested.timezoneHandling.startsWith("selected-") || selectedTimezone) {
+    if (
+      !requested.timezoneHandling.startsWith("selected-") ||
+      selectedTimezone
+    ) {
       return selectedTimezone === requested.selectedTimezone
         ? requested
         : { ...requested, selectedTimezone };
@@ -517,7 +589,9 @@ export default function App(): ReactElement {
         if (normalized) discovered.add(normalized);
       });
     }
-    const ordered = Array.from(discovered).sort((left, right) => left.localeCompare(right));
+    const ordered = Array.from(discovered).sort((left, right) =>
+      left.localeCompare(right),
+    );
     if (ordered.length === 0) {
       throw new Error(
         "The selected timezone policy requires a timezone, but Rust could not discover one in the selected raw files. Choose a timezone in Settings or use a primary-timezone policy.",
@@ -535,29 +609,33 @@ export default function App(): ReactElement {
   /**
    * Re-process a single already-uploaded file under a different config (the
    * View tab's "Arm B"), reusing the same support-file resolution as a normal
-   * run. Returns the fresh result (with its own reviewSummary + timeline); the
-   * caller diffs it against the current run. Throws if the file is no longer
+   * run. Returns fresh review metrics from the same 55-step Rust graph without
+   * materializing exports or timeline geometry. Throws if the file is no longer
    * loaded so the View tab can prompt the user to re-add it.
    */
-  const runComparison = useCallback(
+  const executeComparisonReview = useCallback(
     async (
       fileName: string,
-      overrides: Partial<BrowserProcessingOptions>,
+      reviewOptions: BrowserProcessingOptions,
     ): Promise<ProcessedFileResult> => {
-      const file = uploadedFiles.find((candidate) => candidate.name === fileName);
+      const file = uploadedFiles.find(
+        (candidate) => candidate.name === fileName,
+      );
       if (!file) {
         throw new Error(
           "The raw file for this run is no longer loaded. Re-add it in the Files tab to compare.",
         );
       }
-      const armBOptions = sanitizeOptions({ ...options, ...overrides });
-      const userSupportFiles = await buildSupportFilesForOptions(armBOptions);
-      const supportFiles = await resolveDefaultSupportFiles(armBOptions, userSupportFiles);
+      const userSupportFiles = await buildSupportFilesForOptions(reviewOptions);
+      const supportFiles = await resolveDefaultSupportFiles(
+        reviewOptions,
+        userSupportFiles,
+      );
       const bytes = await file.arrayBuffer();
-      return processRawCsvBytes(
+      return processRawCsvReviewBytes(
         file.name,
         bytes,
-        armBOptions,
+        reviewOptions,
         supportFiles,
         getInjectedRuntime(),
       );
@@ -576,6 +654,44 @@ export default function App(): ReactElement {
     ],
   );
 
+  /**
+   * Seed the shared comparison worker with Arm A while the user edits Arm B.
+   * Batch processing uses disposable pool workers, so without this warmup the
+   * first comparison would pay the entire cold parse/normalization cost again.
+   */
+  const prepareComparison = useCallback(
+    (fileName: string): Promise<void> => {
+      if (comparisonWarmupRef.current?.fileName === fileName) {
+        return comparisonWarmupRef.current.promise;
+      }
+      const promise = executeComparisonReview(fileName, options)
+        .then(() => undefined)
+        .catch((error) => {
+          if (comparisonWarmupRef.current?.promise === promise) {
+            comparisonWarmupRef.current = null;
+          }
+          throw error;
+        });
+      comparisonWarmupRef.current = { fileName, promise };
+      return promise;
+    },
+    [executeComparisonReview, options],
+  );
+
+  const runComparison = useCallback(
+    async (
+      fileName: string,
+      overrides: Partial<BrowserProcessingOptions>,
+    ): Promise<ProcessedFileResult> => {
+      // Await the exact Arm-A warmup already started when the drawer opened.
+      // The following Arm-B call then changes only the affected Rust queries.
+      await prepareComparison(fileName);
+      const armBOptions = sanitizeOptions({ ...options, ...overrides });
+      return executeComparisonReview(fileName, armBOptions);
+    },
+    [executeComparisonReview, options, prepareComparison],
+  );
+
   const discoverAvailableTimezones = async () => {
     if (!uploadedFiles.length) {
       setError("Choose one or more raw Chronicle CSV files first.");
@@ -590,7 +706,9 @@ export default function App(): ReactElement {
       );
       timezones.forEach((timezone) => discovered.add(timezone));
     }
-    const next = Array.from(discovered).sort((left, right) => left.localeCompare(right));
+    const next = Array.from(discovered).sort((left, right) =>
+      left.localeCompare(right),
+    );
     setDiscoveredTimezones(next);
     if (!options.selectedTimezone && next.length === 1) {
       setOptions((current) => ({ ...current, selectedTimezone: next[0] }));
@@ -618,7 +736,9 @@ export default function App(): ReactElement {
       if (runOptions !== options) setOptions(runOptions);
     } catch (resolutionError) {
       const message =
-        resolutionError instanceof Error ? resolutionError.message : String(resolutionError);
+        resolutionError instanceof Error
+          ? resolutionError.message
+          : String(resolutionError);
       setError(message);
       setToast({ message, isError: true });
       setActiveWorkflow("process");
@@ -643,7 +763,9 @@ export default function App(): ReactElement {
     const order = uploadedFiles.map((file) => file.name);
     setProgressOrder(order);
     setProgressByFile(
-      Object.fromEntries(order.map((name) => [name, { fileName: name, status: "pending" }])),
+      Object.fromEntries(
+        order.map((name) => [name, { fileName: name, status: "pending" }]),
+      ),
     );
     setToast(null);
 
@@ -655,22 +777,34 @@ export default function App(): ReactElement {
     let keepDetailsOpen = false;
     try {
       const userSupportFiles = await buildSupportFilesForOptions(runOptions);
-      const nextResults: Array<ProcessedFileResult | undefined> = Array.from({ length: uploadedFiles.length }, () => undefined);
-      const totalInputBytes = uploadedFiles.reduce((sum, file) => sum + file.size, 0);
+      const nextResults: Array<ProcessedFileResult | undefined> = Array.from(
+        { length: uploadedFiles.length },
+        () => undefined,
+      );
+      const totalInputBytes = uploadedFiles.reduce(
+        (sum, file) => sum + file.size,
+        0,
+      );
       const concurrency = runOptions.parallelProcessing
         ? computeSafeConcurrency({
             fileCount: uploadedFiles.length,
             totalInputBytes,
             fileSizes: uploadedFiles.map((file) => file.size),
             userCap: runOptions.parallelMaxWorkers,
-            hardwareConcurrency: typeof navigator !== "undefined" ? navigator.hardwareConcurrency : undefined,
+            hardwareConcurrency:
+              typeof navigator !== "undefined"
+                ? navigator.hardwareConcurrency
+                : undefined,
             deviceMemory: readDeviceMemory(),
           })
         : 1;
       // Resolve bundled-default support files once on the main thread so
       // every worker uses identical bytes (no per-worker fetches), and so
       // the user's uploads win over defaults.
-      const supportFiles = await resolveDefaultSupportFiles(runOptions, userSupportFiles);
+      const supportFiles = await resolveDefaultSupportFiles(
+        runOptions,
+        userSupportFiles,
+      );
       pool = concurrency > 1 ? new WorkerPool(concurrency) : null;
       poolRef.current = pool;
       // Longest-processing-time first keeps one large export from becoming a
@@ -678,7 +812,9 @@ export default function App(): ReactElement {
       // their original indexes, so display/download order remains unchanged.
       const schedule = uploadedFiles
         .map((file, index) => ({ index, size: file.size }))
-        .sort((left, right) => right.size - left.size || left.index - right.index)
+        .sort(
+          (left, right) => right.size - left.size || left.index - right.index,
+        )
         .map(({ index }) => index);
       let cursor = 0;
       const failures: string[] = [];
@@ -720,14 +856,25 @@ export default function App(): ReactElement {
             // can't terminate an in-flight worker) consistent with the pool path.
             if (cancelRequestedRef.current) return;
             nextResults[index] = result;
-            handleProgressEvent({ type: "file-complete", fileName: file.name, result });
+            handleProgressEvent({
+              type: "file-complete",
+              fileName: file.name,
+              result,
+            });
           } catch (fileError) {
             // A terminate() during cancel rejects the in-flight file; don't count
             // that as a real failure — the finally block marks it cancelled.
             if (cancelRequestedRef.current) return;
-            const message = fileError instanceof Error ? fileError.message : String(fileError);
+            const message =
+              fileError instanceof Error
+                ? fileError.message
+                : String(fileError);
             failures.push(message);
-            handleProgressEvent({ type: "file-complete", fileName: file.name, error: message });
+            handleProgressEvent({
+              type: "file-complete",
+              fileName: file.name,
+              error: message,
+            });
           }
         }
       };
@@ -777,17 +924,22 @@ export default function App(): ReactElement {
         ? `Cancelled. Processed ${successful.length}/${uploadedFiles.length} files`
         : `Processed ${successful.length}/${uploadedFiles.length} files in ${Math.round(elapsedMs / 1000)}s`;
       const message =
-        !cancelled && failures.length ? `${summary} (${failures.length} failed)` : summary;
+        !cancelled && failures.length
+          ? `${summary} (${failures.length} failed)`
+          : summary;
       setToast({ message, isError: failures.length > 0 && !cancelled });
 
       if (!cancelled && typeof document !== "undefined" && document.hidden) {
         sendNotification(
-          failures.length ? "Chronicle: some files failed" : "Chronicle: processing complete",
+          failures.length
+            ? "Chronicle: some files failed"
+            : "Chronicle: processing complete",
           message,
         );
       }
     } catch (runError) {
-      const message = runError instanceof Error ? runError.message : String(runError);
+      const message =
+        runError instanceof Error ? runError.message : String(runError);
       setError(message);
       setToast({ message, isError: true });
     } finally {
@@ -829,10 +981,13 @@ export default function App(): ReactElement {
   const retryFile = useCallback(
     async (fileName: string) => {
       if (processingRef.current || retryingFileRef.current) return;
-      const file = uploadedFiles.find((candidate) => candidate.name === fileName);
+      const file = uploadedFiles.find(
+        (candidate) => candidate.name === fileName,
+      );
       if (!file) {
         setToast({
-          message: "That file is no longer loaded. Re-add it in the Files tab to retry.",
+          message:
+            "That file is no longer loaded. Re-add it in the Files tab to retry.",
           isError: true,
         });
         return;
@@ -846,7 +1001,12 @@ export default function App(): ReactElement {
       // through normally.
       setProgressByFile((current) => ({
         ...current,
-        [fileName]: { fileName, status: "running", stepKind: "parse", percent: 0 },
+        [fileName]: {
+          fileName,
+          status: "running",
+          stepKind: "parse",
+          percent: 0,
+        },
       }));
       try {
         const capability = await probeOpfsCapability();
@@ -857,8 +1017,14 @@ export default function App(): ReactElement {
           );
         }
         const userSupportFiles = await buildSupportFiles();
-        const supportFiles = await resolveDefaultSupportFiles(options, userSupportFiles);
+        const supportFiles = await resolveDefaultSupportFiles(
+          options,
+          userSupportFiles,
+        );
         const bytes = await file.arrayBuffer();
+        // This full execution uses the same singleton worker as View comparisons
+        // and therefore replaces its one retained incremental workspace.
+        comparisonWarmupRef.current = null;
         const result = await processRawCsvBytes(
           file.name,
           bytes,
@@ -869,7 +1035,9 @@ export default function App(): ReactElement {
         );
         handleProgressEvent({ type: "file-complete", fileName, result });
         const merged = (() => {
-          const byName = new Map(results.map((entry) => [entry.inputFileName, entry]));
+          const byName = new Map(
+            results.map((entry) => [entry.inputFileName, entry]),
+          );
           byName.set(fileName, result);
           // Preserve the original queue order so the table doesn't reshuffle.
           return progressOrder
@@ -882,13 +1050,25 @@ export default function App(): ReactElement {
           new Set(merged.flatMap((entry) => entry.availableTimezones)),
         ).sort((left, right) => left.localeCompare(right));
         setDiscoveredTimezones(nextTimezones);
-        void saveLastRun({ options, results: merged, discoveredTimezones: nextTimezones })
+        void saveLastRun({
+          options,
+          results: merged,
+          discoveredTimezones: nextTimezones,
+        })
           .catch(() => {})
           .finally(() => void refreshStoragePressure());
-        setToast({ message: `Reprocessed ${demoDisplay.fileName(fileName)}.`, isError: false });
+        setToast({
+          message: `Reprocessed ${demoDisplay.fileName(fileName)}.`,
+          isError: false,
+        });
       } catch (retryError) {
-        const message = retryError instanceof Error ? retryError.message : String(retryError);
-        handleProgressEvent({ type: "file-complete", fileName, error: message });
+        const message =
+          retryError instanceof Error ? retryError.message : String(retryError);
+        handleProgressEvent({
+          type: "file-complete",
+          fileName,
+          error: message,
+        });
         setToast({ message, isError: true });
       } finally {
         retryingFileRef.current = null;
@@ -917,7 +1097,9 @@ export default function App(): ReactElement {
       : progressOrder.reduce(
           (total, name) =>
             total +
-            estimatedFilePercent(progressByFile[name] ?? { fileName: name, status: "pending" }),
+            estimatedFilePercent(
+              progressByFile[name] ?? { fileName: name, status: "pending" },
+            ),
           0,
         ) / progressOrder.length;
 
@@ -926,7 +1108,8 @@ export default function App(): ReactElement {
   useEffect(() => {
     if (typeof document === "undefined") return;
     if (baseTitleRef.current === null) baseTitleRef.current = document.title;
-    const base = baseTitleRef.current || "Chronicle Android Raw Data Preprocessor";
+    const base =
+      baseTitleRef.current || "Chronicle Android Raw Data Preprocessor";
     document.title = isRunning
       ? `(${Math.round(overallPercent * 100)}%) Processing… · ${base}`
       : base;
@@ -941,7 +1124,8 @@ export default function App(): ReactElement {
   }, []);
   const normalizedSettingsQuery = settingsQuery.trim().toLowerCase();
   const shows = (text: string) =>
-    !normalizedSettingsQuery || text.toLowerCase().includes(normalizedSettingsQuery);
+    !normalizedSettingsQuery ||
+    text.toLowerCase().includes(normalizedSettingsQuery);
   const navigateToSetting = useCallback((selector: string) => {
     setActiveWorkflow("settings");
     // Clear the live filter so the target card isn't filtered out of the page,
@@ -957,7 +1141,8 @@ export default function App(): ReactElement {
       target.classList.add("settings-flash");
       // Cancel a still-pending removal so a rapid second jump to the same card
       // doesn't get its flash cut short by the first jump's timer.
-      if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current);
+      if (flashTimerRef.current !== null)
+        window.clearTimeout(flashTimerRef.current);
       flashTimerRef.current = window.setTimeout(() => {
         target.classList.remove("settings-flash");
         flashTimerRef.current = null;
@@ -967,22 +1152,30 @@ export default function App(): ReactElement {
 
   return (
     <>
-      <a className="skip-link" href="#workflow-panels">Skip to workflow tabs</a>
-      <main className={`app-shell ${activeWorkflow === "view" ? "app-shell--wide" : ""}`}>
+      <a className="skip-link" href="#workflow-panels">
+        Skip to workflow tabs
+      </a>
+      <main
+        className={`app-shell ${activeWorkflow === "view" ? "app-shell--wide" : ""}`}
+      >
         <header className="hero">
           <div className="hero__copy">
             <h1>Chronicle Android Raw Data Preprocessor</h1>
             <p className="lede">
-              Drop one or more raw Chronicle CSVs to generate the preprocessed app usage and
-              screen usage outputs. This app runs entirely in your browser. Your data never
-              leaves your device.
+              Drop one or more raw Chronicle CSVs to generate the preprocessed
+              app usage and screen usage outputs. This app runs entirely in your
+              browser. Your data never leaves your device.
             </p>
           </div>
           <ThemeToggle />
         </header>
 
         {updateReady ? (
-          <div className="update-banner" role="status" data-testid="update-banner">
+          <div
+            className="update-banner"
+            role="status"
+            data-testid="update-banner"
+          >
             <span className="update-banner__text">
               A new version of the app is available.
             </span>
@@ -998,24 +1191,37 @@ export default function App(): ReactElement {
         ) : null}
 
         {workspaceCapability?.status === "unavailable" ? (
-          <div className="storage-pressure" role="alert" data-testid="workspace-unavailable">
+          <div
+            className="storage-pressure"
+            role="alert"
+            data-testid="workspace-unavailable"
+          >
             <span className="storage-pressure__text">
               <strong>Durable local processing is unavailable.</strong>{" "}
-              {workspaceCapability.reason} Processing is disabled because this app will not
-              silently run without a recoverable, verified workspace.
+              {workspaceCapability.reason} Processing is disabled because this
+              app will not silently run without a recoverable, verified
+              workspace.
             </span>
           </div>
         ) : null}
 
-        {storagePressure && isStoragePressureHigh(storagePressure) && !storagePressureDismissed ? (
-          <div className="storage-pressure" role="status" data-testid="storage-pressure">
+        {storagePressure &&
+        isStoragePressureHigh(storagePressure) &&
+        !storagePressureDismissed ? (
+          <div
+            className="storage-pressure"
+            role="status"
+            data-testid="storage-pressure"
+          >
             <span className="storage-pressure__text">
               <strong>
-                Browser storage is {Math.round(storagePressure.ratio * 100)}% full
+                Browser storage is {Math.round(storagePressure.ratio * 100)}%
+                full
               </strong>{" "}
-              ({formatBytes(storagePressure.usage)} of {formatBytes(storagePressure.quota)}).
-              Export a backup of anything you need, then clear the cached last run to free space —
-              otherwise saving a large run may fail.
+              ({formatBytes(storagePressure.usage)} of{" "}
+              {formatBytes(storagePressure.quota)}). Export a backup of anything
+              you need, then clear the cached last run to free space — otherwise
+              saving a large run may fail.
             </span>
             <span className="storage-pressure__actions">
               <button
@@ -1025,7 +1231,10 @@ export default function App(): ReactElement {
                 onClick={() => {
                   void clearCachedRunData()
                     .then(() => {
-                      setToast({ message: "Cleared the cached last run.", isError: false });
+                      setToast({
+                        message: "Cleared the cached last run.",
+                        isError: false,
+                      });
                     })
                     .finally(() => {
                       void refreshStoragePressure();
@@ -1055,16 +1264,26 @@ export default function App(): ReactElement {
             aria-labelledby="settings-tab"
             hidden={activeWorkflow !== "settings"}
           >
-            <section id="settings" className="workflow-section" aria-labelledby="settings-title">
+            <section
+              id="settings"
+              className="workflow-section"
+              aria-labelledby="settings-title"
+            >
               <div className="settings-command workflow-section__header">
                 <div>
-                  <h2 id="settings-title" className="workflow-section__title">Settings</h2>
+                  <h2 id="settings-title" className="workflow-section__title">
+                    Settings
+                  </h2>
                   <p className="workflow-section__intro">
-                    Search every option, then save custom presets once the settings are right.
+                    Search every option, then save custom presets once the
+                    settings are right.
                   </p>
                 </div>
                 <div className="settings-search settings-search--command">
-                  <label className="settings-search__eyebrow" htmlFor="settings-search-input">
+                  <label
+                    className="settings-search__eyebrow"
+                    htmlFor="settings-search-input"
+                  >
                     Full Settings Search
                   </label>
                   <input
@@ -1075,7 +1294,10 @@ export default function App(): ReactElement {
                     data-testid="settings-search-input"
                     onChange={(event) => setSettingsQuery(event.target.value)}
                   />
-                  <SettingsSearchResults query={settingsQuery} onNavigate={navigateToSetting} />
+                  <SettingsSearchResults
+                    query={settingsQuery}
+                    onNavigate={navigateToSetting}
+                  />
                 </div>
               </div>
               <SettingsManagementCard
@@ -1083,7 +1305,9 @@ export default function App(): ReactElement {
                 setOptions={setOptions}
                 hideDemoMetadata={hideDemoMetadata}
                 onHideDemoMetadataChange={setHideDemoMetadata}
-                onStatus={(message, isError = false) => setToast({ message, isError })}
+                onStatus={(message, isError = false) =>
+                  setToast({ message, isError })
+                }
               />
               <ProjectsCard
                 options={options}
@@ -1099,11 +1323,15 @@ export default function App(): ReactElement {
                   enrolledDevicesFile,
                 }}
                 onApplyProject={applyProject}
-                onStatus={(message, isError = false) => setToast({ message, isError })}
+                onStatus={(message, isError = false) =>
+                  setToast({ message, isError })
+                }
               />
               <SettingsOverviewCard options={options} setOptions={setOptions} />
               <div className="settings-stack">
-                {shows("support files filter keep awake prevent screen sleep codebook") ? (
+                {shows(
+                  "support files filter keep awake prevent screen sleep codebook",
+                ) ? (
                   <FilesAndInputsCard
                     options={options}
                     setOptions={setOptions}
@@ -1129,14 +1357,25 @@ export default function App(): ReactElement {
                     }}
                   />
                 ) : null}
-                {shows("session detection duration thresholds duplicate fallback stop") ? (
-                  <SessionDetectionCard options={options} setOptions={setOptions} />
+                {shows(
+                  "session detection duration thresholds duplicate fallback stop",
+                ) ? (
+                  <SessionDetectionCard
+                    options={options}
+                    setOptions={setOptions}
+                  />
                 ) : null}
                 {shows("screen detection autolock keyguard manual") ? (
-                  <ScreenDetectionCard options={options} setOptions={setOptions} />
+                  <ScreenDetectionCard
+                    options={options}
+                    setOptions={setOptions}
+                  />
                 ) : null}
                 {shows("interaction semantics remove stop usage") ? (
-                  <InteractionSemanticsCard options={options} setOptions={setOptions} />
+                  <InteractionSemanticsCard
+                    options={options}
+                    setOptions={setOptions}
+                  />
                 ) : null}
                 {shows("performance parallel workers") ? (
                   <PerformanceCard options={options} setOptions={setOptions} />
@@ -1238,7 +1477,10 @@ export default function App(): ReactElement {
                   void clearLastRun()
                     .then(() => refreshStoragePressure())
                     .catch(() => {});
-                  setToast({ message: "Deleted the processed results.", isError: false });
+                  setToast({
+                    message: "Deleted the processed results.",
+                    isError: false,
+                  });
                 }}
               />
             </div>
@@ -1250,7 +1492,9 @@ export default function App(): ReactElement {
             aria-labelledby="guide-tab"
             hidden={activeWorkflow !== "guide"}
           >
-            {activeWorkflow === "guide" ? <GuidePanel onNavigate={setActiveWorkflow} /> : null}
+            {activeWorkflow === "guide" ? (
+              <GuidePanel onNavigate={setActiveWorkflow} />
+            ) : null}
           </div>
 
           <div
@@ -1260,7 +1504,11 @@ export default function App(): ReactElement {
             hidden={activeWorkflow !== "graph"}
           >
             {activeWorkflow === "graph" ? (
-              <Suspense fallback={<p className="empty-state">Loading the pipeline graph…</p>}>
+              <Suspense
+                fallback={
+                  <p className="empty-state">Loading the pipeline graph…</p>
+                }
+              >
                 <GraphPanel
                   results={results}
                   planStageView={planStageView}
@@ -1281,16 +1529,21 @@ export default function App(): ReactElement {
               results={results}
               options={options}
               uploadedFileNames={uploadedFiles.map((file) => file.name)}
+              onPrepareComparison={prepareComparison}
               onRunComparison={runComparison}
               displayMasker={demoDisplay}
-              includeFilteredAppUsageInPlots={options.includeFilteredAppUsageInPlots}
+              includeFilteredAppUsageInPlots={
+                options.includeFilteredAppUsageInPlots
+              }
             />
           </div>
         </div>
 
         <footer className="app-footer" data-testid="app-footer">
           <div className="app-footer__about" aria-label="App info">
-            <span>Version {PREPROCESSOR_VERSION}+{BUILD_SHA}</span>
+            <span>
+              Version {PREPROCESSOR_VERSION}+{BUILD_SHA}
+            </span>
             <span aria-hidden="true">·</span>
             <span>Build {BUILD_DATE || BUILD_SHA}</span>
             <span aria-hidden="true">·</span>

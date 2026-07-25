@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 
 import { Combobox } from "@/components/Combobox";
-import { InteractiveScene, sanitizeDemoView } from "@/components/review/InteractiveScene";
+import {
+  InteractiveScene,
+  sanitizeDemoView,
+} from "@/components/review/InteractiveScene";
 import { ReviewParticipantRail } from "@/components/review/ReviewParticipantRail";
 import { ReviewMetricsPanel } from "@/components/review/ReviewMetricsPanel";
 import { ReviewSettingsSummary } from "@/components/review/ReviewSettingsSummary";
@@ -24,6 +27,9 @@ type Props = {
   /** Names of files still loaded in the Files tab — a comparison can only
    * re-run files whose bytes are still available. */
   uploadedFileNames?: string[];
+  /** Start loading Arm A into the persistent comparison worker while the
+   * researcher edits Arm B, so Run pays only the affected Rust queries. */
+  onPrepareComparison?: (fileName: string) => Promise<void>;
   /** Re-process one file under Arm-B options; resolves to the fresh result. */
   onRunComparison?: (
     fileName: string,
@@ -36,7 +42,8 @@ type Props = {
 type ViewType = "app" | "screen";
 type SubView = "timeline" | "applists";
 
-const HINT = "Shift scroll a row to zoom · drag zoomed rows · double click to reset";
+const HINT =
+  "Shift scroll a row to zoom · drag zoomed rows · double click to reset";
 
 function appViewsFor(
   data: TimelineViewData,
@@ -57,7 +64,9 @@ function hasAppViews(data: TimelineViewData): boolean {
 /** A run is reviewable if it carries the per-participant review summary. */
 function isReviewable(
   result: ProcessedFileResult,
-): result is ProcessedFileResult & { reviewSummary: NonNullable<ProcessedFileResult["reviewSummary"]> } {
+): result is ProcessedFileResult & {
+  reviewSummary: NonNullable<ProcessedFileResult["reviewSummary"]>;
+} {
   return !!result.reviewSummary && result.reviewSummary.participants.length > 0;
 }
 
@@ -65,6 +74,7 @@ export function ViewPanel({
   results,
   options,
   uploadedFileNames = [],
+  onPrepareComparison,
   onRunComparison,
   displayMasker,
   includeFilteredAppUsageInPlots,
@@ -73,11 +83,15 @@ export function ViewPanel({
 
   const [selectedFile, setSelectedFile] = useState<string>("");
   const [fileQuery, setFileQuery] = useState<string | null>(null);
-  const [selectedParticipant, setSelectedParticipant] = useState<string | null>(null);
+  const [selectedParticipant, setSelectedParticipant] = useState<string | null>(
+    null,
+  );
   const [selectedType, setSelectedType] = useState<ViewType>("app");
   const [focusedDate, setFocusedDate] = useState<string | null>(null);
   const [subView, setSubView] = useState<SubView>("timeline");
-  const [showFilteredUsage, setShowFilteredUsage] = useState(includeFilteredAppUsageInPlots);
+  const [showFilteredUsage, setShowFilteredUsage] = useState(
+    includeFilteredAppUsageInPlots,
+  );
   // Free-text app-name filter that spotlights matching sessions across the
   // whole timeline (#20).
   const [highlightQuery, setHighlightQuery] = useState("");
@@ -85,8 +99,11 @@ export function ViewPanel({
   // Arm-B comparison state. `armBResult` is scoped to the file it was run on;
   // switching files clears it.
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [compareOptions, setCompareOptions] = useState<BrowserProcessingOptions>(options);
-  const [armBResult, setArmBResult] = useState<ProcessedFileResult | null>(null);
+  const [compareOptions, setCompareOptions] =
+    useState<BrowserProcessingOptions>(options);
+  const [armBResult, setArmBResult] = useState<ProcessedFileResult | null>(
+    null,
+  );
   const [running, setRunning] = useState(false);
   const [compareError, setCompareError] = useState<string | null>(null);
 
@@ -96,20 +113,27 @@ export function ViewPanel({
 
   if (reviewableFiles.length === 0) {
     return (
-      <section className="timeline-view" aria-label="Review" data-testid="timeline-view">
+      <section
+        className="timeline-view"
+        aria-label="Review"
+        data-testid="timeline-view"
+      >
         <p className="timeline-view__empty" data-testid="timeline-view-empty">
-          Nothing to review yet. Process a file and its review — participants, timeline, and
-          per-day metrics — appears here.
+          Nothing to review yet. Process a file and its review — participants,
+          timeline, and per-day metrics — appears here.
         </p>
       </section>
     );
   }
 
   const activeFile =
-    reviewableFiles.find((r) => r.inputFileName === selectedFile) ?? reviewableFiles[0];
-  const participants: ReviewParticipantSummary[] = activeFile.reviewSummary.participants;
+    reviewableFiles.find((r) => r.inputFileName === selectedFile) ??
+    reviewableFiles[0];
+  const participants: ReviewParticipantSummary[] =
+    activeFile.reviewSummary.participants;
   const activeParticipant =
-    participants.find((p) => p.participantId === selectedParticipant) ?? participants[0];
+    participants.find((p) => p.participantId === selectedParticipant) ??
+    participants[0];
 
   // Reset the focused day whenever the participant or file context changes.
   const participantKey = `${activeFile.inputFileName}:${activeParticipant.participantId}`;
@@ -121,8 +145,9 @@ export function ViewPanel({
         ...(timeline.screen.length > 0 ? (["screen"] as const) : []),
       ]
     : [];
-  const activeType: ViewType =
-    availableTypes.includes(selectedType) ? selectedType : (availableTypes[0] ?? "app");
+  const activeType: ViewType = availableTypes.includes(selectedType)
+    ? selectedType
+    : (availableTypes[0] ?? "app");
 
   const participantViews: TimelineParticipantView[] = !timeline
     ? []
@@ -144,8 +169,13 @@ export function ViewPanel({
       .map((day) => displayMasker.text(day.date)),
   );
 
-  const typeLabel: Record<ViewType, string> = { app: "App usage", screen: "Screen usage" };
-  const filteredUsageLabel = showFilteredUsage ? "Filtered usage included" : "Filtered usage excluded";
+  const typeLabel: Record<ViewType, string> = {
+    app: "App usage",
+    screen: "Screen usage",
+  };
+  const filteredUsageLabel = showFilteredUsage
+    ? "Filtered usage included"
+    : "Filtered usage excluded";
   const contextLine = timeline
     ? `${typeLabel[activeType]} · ${filteredUsageLabel} · ${displayMasker.timezone(timeline.timezone)}`
     : "";
@@ -153,7 +183,9 @@ export function ViewPanel({
   // Arm B: only honoured for the file it was run on. Switching files (which
   // clears armBResult) or to a non-matching result hides the comparison.
   const armB =
-    armBResult && armBResult.inputFileName === activeFile.inputFileName ? armBResult : null;
+    armBResult && armBResult.inputFileName === activeFile.inputFileName
+      ? armBResult
+      : null;
   const compareParticipant: ReviewParticipantSummary | null =
     armB?.reviewSummary?.participants.find(
       (p) => p.participantId === activeParticipant.participantId,
@@ -177,7 +209,10 @@ export function ViewPanel({
   ): Map<string, number> => {
     const map = new Map<string, number>();
     for (const day of summary?.perDay ?? []) {
-      map.set(day.date, type === "screen" ? day.screenUsageMinutes : day.appUsageMinutes);
+      map.set(
+        day.date,
+        type === "screen" ? day.screenUsageMinutes : day.appUsageMinutes,
+      );
     }
     return map;
   };
@@ -214,13 +249,21 @@ export function ViewPanel({
     if (!armB) setCompareOptions(options);
     setCompareError(null);
     setDrawerOpen(true);
+    if (onPrepareComparison) {
+      void onPrepareComparison(activeFile.inputFileName).catch((error) => {
+        setCompareError(error instanceof Error ? error.message : String(error));
+      });
+    }
   };
   const runComparison = async (): Promise<void> => {
     if (!onRunComparison) return;
     setRunning(true);
     setCompareError(null);
     try {
-      const result = await onRunComparison(activeFile.inputFileName, compareOptions);
+      const result = await onRunComparison(
+        activeFile.inputFileName,
+        compareOptions,
+      );
       setArmBResult(result);
       setDrawerOpen(false);
     } catch (error) {
@@ -257,7 +300,11 @@ export function ViewPanel({
   };
 
   return (
-    <section className="timeline-view review-view" aria-label="Review" data-testid="timeline-view">
+    <section
+      className="timeline-view review-view"
+      aria-label="Review"
+      data-testid="timeline-view"
+    >
       <div className="timeline-view__toolbar review-view__toolbar">
         <div className="timeline-view__controls review-view__controls">
           <label className="timeline-view__field timeline-view__field--file">
@@ -278,7 +325,9 @@ export function ViewPanel({
             <select
               data-testid="timeline-view-type"
               value={activeType}
-              onChange={(event) => setSelectedType(event.target.value as ViewType)}
+              onChange={(event) =>
+                setSelectedType(event.target.value as ViewType)
+              }
               disabled={availableTypes.length === 0}
             >
               {availableTypes.map((type) => (
@@ -296,7 +345,9 @@ export function ViewPanel({
                   type="checkbox"
                   data-testid="timeline-view-filtered-toggle"
                   checked={showFilteredUsage}
-                  onChange={(event) => setShowFilteredUsage(event.target.checked)}
+                  onChange={(event) =>
+                    setShowFilteredUsage(event.target.checked)
+                  }
                 />
                 <span>{showFilteredUsage ? "Shown" : "Hidden"}</span>
               </span>
@@ -315,7 +366,11 @@ export function ViewPanel({
               />
             </label>
           ) : null}
-          <div className="review-view__subtabs" role="group" aria-label="Review view">
+          <div
+            className="review-view__subtabs"
+            role="group"
+            aria-label="Review view"
+          >
             <button
               type="button"
               className={`review-view__subtab${subView === "timeline" ? " is-active" : ""}`}
@@ -382,14 +437,17 @@ export function ViewPanel({
           />
           <div className="review-view__center">
             {comparisonView ? (
-              <div className="review-compare-legend" data-testid="review-compare-legend">
+              <div
+                className="review-compare-legend"
+                data-testid="review-compare-legend"
+              >
                 <span className="review-compare-legend__item">
-                  <span className="review-compare-legend__tick review-compare-legend__tick--a" />A
-                  · current run
+                  <span className="review-compare-legend__tick review-compare-legend__tick--a" />
+                  A · current run
                 </span>
                 <span className="review-compare-legend__item">
-                  <span className="review-compare-legend__tick review-compare-legend__tick--b" />B
-                  · compared run
+                  <span className="review-compare-legend__tick review-compare-legend__tick--b" />
+                  B · compared run
                 </span>
                 <span className="review-compare-legend__item">
                   <span className="review-compare-legend__bar review-compare-legend__bar--pos" />
@@ -417,13 +475,18 @@ export function ViewPanel({
               />
             ) : (
               <p className="timeline-view__empty">
-                No {typeLabel[activeType].toLowerCase()} timeline for this participant.
+                No {typeLabel[activeType].toLowerCase()} timeline for this
+                participant.
               </p>
             )}
             {armB && !comparisonView ? (
-              <p className="timeline-view__empty" data-testid="review-compare-no-overlap">
-                No overlapping {typeLabel[activeType].toLowerCase()} timeline to interleave for this
-                participant — see the Δ metrics at right.
+              <p
+                className="timeline-view__empty"
+                data-testid="review-compare-no-overlap"
+              >
+                {armB.reviewOnly
+                  ? "The fast comparison updated the Δ metrics at right. Detailed B timeline geometry was not generated."
+                  : `No overlapping ${typeLabel[activeType].toLowerCase()} timeline to interleave for this participant — see the Δ metrics at right.`}
               </p>
             ) : null}
             <ReviewSettingsSummary
@@ -437,7 +500,9 @@ export function ViewPanel({
             compare={compareParticipant}
             activeType={activeType}
             focusedDate={focusedDate}
-            onFocusDate={(date) => setFocusedDate((current) => (current === date ? null : date))}
+            onFocusDate={(date) =>
+              setFocusedDate((current) => (current === date ? null : date))
+            }
             masker={displayMasker}
           />
         </div>

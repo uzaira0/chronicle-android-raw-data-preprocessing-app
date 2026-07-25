@@ -9,7 +9,7 @@ computations that match the complete Rust oracle in every usage mode. The
 stateful kernel skips every step on an unchanged call and runs only
 `assemble_result` for an output-only study-name change.
 
-The runtime computes through the 55 tracked queries and reports their actual
+The runtime computes through the 55 tracked product queries and reports their actual
 execution events. The 15 groups are display summaries, not another scheduler.
 Persisted Salsa snapshots were removed after profiling showed that restoring
 one was slower and much larger than recalculating from the verified inputs.

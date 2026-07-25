@@ -1331,15 +1331,15 @@ fn format_csv_int(v: i32) -> String {
 /// Internal Rust-side result; not directly returned across the boundary.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct PipelineV2Result {
-    pub app_csv_bytes: Vec<u8>,
-    pub screen_csv_bytes: Vec<u8>,
-    pub day_coverage_csv_bytes: Vec<u8>,
-    pub compliance_csv_bytes: Vec<u8>,
-    pub credited_app_csv_bytes: Vec<u8>,
-    pub review_summary_json_bytes: Vec<u8>,
-    pub visualization_data_json_bytes: Vec<u8>,
-    pub aggregate_csv_outputs: Vec<aggregates::AggregateCsvOutput>,
-    pub row_lineage: Vec<PipelineRowLineage>,
+    pub app_csv_bytes: Arc<Vec<u8>>,
+    pub screen_csv_bytes: Arc<Vec<u8>>,
+    pub day_coverage_csv_bytes: Arc<Vec<u8>>,
+    pub compliance_csv_bytes: Arc<Vec<u8>>,
+    pub credited_app_csv_bytes: Arc<Vec<u8>>,
+    pub review_summary_json_bytes: Arc<Vec<u8>>,
+    pub visualization_data_json_bytes: Arc<Vec<u8>>,
+    pub aggregate_csv_outputs: Arc<Vec<aggregates::AggregateCsvOutput>>,
+    pub row_lineage: Arc<Vec<PipelineRowLineage>>,
     pub original_row_count: u32,
     pub processed_row_count: u32,
     pub app_row_count: u32,
@@ -2249,6 +2249,12 @@ struct ReviewDayAccumulator {
     screen_session_count: usize,
 }
 
+struct ReviewTopAppAccumulator {
+    application_label: SharedString,
+    category: Option<SharedString>,
+    minutes: f64,
+}
+
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct VisualizationData {
@@ -2338,22 +2344,38 @@ fn review_minutes(ns: i128) -> f64 {
 }
 
 fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary {
-    type ParticipantKey = (String, String);
-    type DayKey = (String, String, String);
+    type ParticipantKey = (SharedString, SharedString);
+    type DayKey = (SharedString, SharedString, SharedString);
     let mut days = BTreeMap::<DayKey, ReviewDayAccumulator>::new();
-    let mut apps_by_day = BTreeMap::<DayKey, Vec<&Row>>::new();
+    let mut apps_by_participant = BTreeMap::<
+        ParticipantKey,
+        BTreeMap<SharedString, BTreeMap<SharedString, ReviewTopAppAccumulator>>,
+    >::new();
 
     for row in app_rows {
         let key = (
-            row.study_id.to_string(),
-            row.participant_id.to_string(),
-            row.date.to_string(),
+            row.study_id.clone(),
+            row.participant_id.clone(),
+            row.date.clone(),
         );
         // The review day-detail intentionally includes any emitted app row
         // with a measured duration (including explicitly labeled filtered or
         // non-target rows), even though headline usage totals remain limited
         // to App Usage sessions.
-        apps_by_day.entry(key.clone()).or_default().push(row);
+        if let Some(minutes) = row.duration_minutes {
+            let entry = apps_by_participant
+                .entry((key.0.clone(), key.1.clone()))
+                .or_default()
+                .entry(key.2.clone())
+                .or_default()
+                .entry(row.app_package_name.clone())
+                .or_insert_with(|| ReviewTopAppAccumulator {
+                    application_label: row.application_label.clone(),
+                    category: row.broad_app_category.clone(),
+                    minutes: 0.0,
+                });
+            entry.minutes += minutes;
+        }
         if !complete_session(row, APP_USAGE) {
             continue;
         }
@@ -2370,16 +2392,16 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
             continue;
         }
         let key = (
-            row.study_id.to_string(),
-            row.participant_id.to_string(),
-            row.date.to_string(),
+            row.study_id.clone(),
+            row.participant_id.clone(),
+            row.date.clone(),
         );
         let day = days.entry(key).or_default();
         day.screen_ns += review_duration_ns(row);
         day.screen_session_count += 1;
     }
 
-    let mut observed = BTreeMap::<ParticipantKey, BTreeMap<String, ReviewDayMetrics>>::new();
+    let mut observed = BTreeMap::<ParticipantKey, BTreeMap<SharedString, ReviewDayMetrics>>::new();
     for ((study_id, participant_id, date), day) in days {
         observed
             .entry((study_id, participant_id))
@@ -2387,7 +2409,7 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
             .insert(
                 date.clone(),
                 ReviewDayMetrics {
-                    date,
+                    date: date.to_string(),
                     app_usage_minutes: review_minutes(day.app_ns),
                     background_app_usage_minutes: review_minutes(day.background_ns),
                     screen_usage_minutes: review_minutes(day.screen_ns),
@@ -2400,11 +2422,15 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
 
     let mut participants = Vec::new();
     for ((study_id, participant_id), observed_days) in observed {
-        let first = observed_days.keys().next().cloned().unwrap_or_default();
+        let first = observed_days
+            .keys()
+            .next()
+            .map(ToString::to_string)
+            .unwrap_or_default();
         let last = observed_days
             .keys()
             .next_back()
-            .cloned()
+            .map(ToString::to_string)
             .unwrap_or_default();
         let mut per_day = Vec::new();
         if let (Ok(mut cursor), Ok(end)) = (
@@ -2415,7 +2441,7 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
                 let date = cursor.format("%Y-%m-%d").to_string();
                 per_day.push(
                     observed_days
-                        .get(&date)
+                        .get(date.as_str())
                         .cloned()
                         .unwrap_or(ReviewDayMetrics {
                             date,
@@ -2458,33 +2484,20 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
 
         let mut top_apps_by_date = BTreeMap::new();
         for date in observed_days.keys() {
-            let key = (study_id.clone(), participant_id.clone(), date.clone());
-            let Some(rows) = apps_by_day.get(&key) else {
+            let Some(by_package) = apps_by_participant
+                .get(&(study_id.clone(), participant_id.clone()))
+                .and_then(|days| days.get(date))
+            else {
                 continue;
             };
-            let mut by_package = BTreeMap::<String, Vec<&Row>>::new();
-            for row in rows {
-                if row.duration_minutes.is_none() {
-                    continue;
-                }
-                by_package
-                    .entry(row.app_package_name.to_string())
-                    .or_default()
-                    .push(*row);
-            }
             let mut top_apps: Vec<_> = by_package
-                .into_iter()
-                .map(|(app_package_name, rows)| {
-                    let sample = rows[0];
-                    let minutes = rows
-                        .iter()
-                        .filter_map(|row| row.duration_minutes)
-                        .sum::<f64>();
+                .iter()
+                .map(|(app_package_name, accumulated)| {
                     ReviewTopApp {
-                        app_package_name,
-                        application_label: sample.application_label.to_string(),
-                        category: sample.broad_app_category.as_ref().map(ToString::to_string),
-                        minutes: review_round4(minutes),
+                        app_package_name: app_package_name.to_string(),
+                        application_label: accumulated.application_label.to_string(),
+                        category: accumulated.category.as_ref().map(ToString::to_string),
+                        minutes: review_round4(accumulated.minutes),
                     }
                 })
                 .collect();
@@ -2496,13 +2509,13 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
             });
             top_apps.truncate(12);
             if !top_apps.is_empty() {
-                top_apps_by_date.insert(date.clone(), top_apps);
+                top_apps_by_date.insert(date.to_string(), top_apps);
             }
         }
 
         participants.push(ReviewParticipantSummary {
-            participant_id,
-            study_id,
+            participant_id: participant_id.to_string(),
+            study_id: study_id.to_string(),
             totals,
             per_day,
             top_apps_by_date,
@@ -3070,22 +3083,46 @@ fn label_filtered_apps(
     rows
 }
 
-fn factorize(values: &[String]) -> Vec<i32> {
+fn factorize<'a>(values: impl IntoIterator<Item = &'a str>) -> Vec<i32> {
     let mut lookup: HashMap<&str, i32> = HashMap::new();
-    let mut codes = Vec::with_capacity(values.len());
-    for v in values {
+    let iterator = values.into_iter();
+    let mut codes = Vec::with_capacity(iterator.size_hint().0);
+    for v in iterator {
         let next = lookup.len() as i32;
-        let code = *lookup.entry(v.as_str()).or_insert(next);
+        let code = *lookup.entry(v).or_insert(next);
         codes.push(code);
     }
     codes
 }
 
-fn lineage_search_suffix_digest(
+/// The exact ASCII representation used by the v1 lineage protocol, stored
+/// inline so a 100k-row suffix chain does not allocate 100k heap Strings.
+#[derive(Clone, Copy)]
+struct InlineLineageDigest([u8; 71]);
+
+impl InlineLineageDigest {
+    fn from_hasher(hasher: CheckpointHasher) -> Self {
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        let hash = hasher.finalize();
+        let mut encoded = [0_u8; 71];
+        encoded[..7].copy_from_slice(b"blake3:");
+        for (index, byte) in hash.as_bytes().iter().copied().enumerate() {
+            encoded[7 + index * 2] = HEX[(byte >> 4) as usize];
+            encoded[8 + index * 2] = HEX[(byte & 0x0f) as usize];
+        }
+        Self(encoded)
+    }
+
+    fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+fn inline_lineage_search_suffix_digest(
     row: &Row,
     event_index: usize,
-    next_digest: Option<&str>,
-) -> String {
+    next_digest: Option<&InlineLineageDigest>,
+) -> InlineLineageDigest {
     let mut hasher = CheckpointHasher::new();
     checkpoint_digest_field(&mut hasher, b"chronicle-lineage-search-chain/v1");
     hasher.update(&(event_index as u64).to_le_bytes());
@@ -3107,7 +3144,7 @@ fn lineage_search_suffix_digest(
             hasher.update(&[0]);
         }
     }
-    format!("blake3:{}", hasher.finalize().to_hex())
+    InlineLineageDigest::from_hasher(hasher)
 }
 
 fn empty_lineage_search_suffix_digest(event_index: u32) -> String {
@@ -3118,8 +3155,36 @@ fn empty_lineage_search_suffix_digest(event_index: u32) -> String {
     format!("blake3:{}", hasher.finalize().to_hex())
 }
 
+fn empty_inline_lineage_search_suffix_digest(event_index: u32) -> InlineLineageDigest {
+    let mut hasher = CheckpointHasher::new();
+    checkpoint_digest_field(&mut hasher, b"chronicle-lineage-search-chain/v1");
+    hasher.update(&event_index.to_le_bytes());
+    hasher.update(&0_u32.to_le_bytes());
+    InlineLineageDigest::from_hasher(hasher)
+}
+
 fn lineage_search_range_digest(
     suffix_digests: &[String],
+    start_event_index: u32,
+    end_event_index_exclusive: u32,
+) -> String {
+    let mut hasher = CheckpointHasher::new();
+    checkpoint_digest_field(&mut hasher, b"chronicle-lineage-search-range/v1");
+    hasher.update(&start_event_index.to_le_bytes());
+    hasher.update(&end_event_index_exclusive.to_le_bytes());
+    checkpoint_digest_field(
+        &mut hasher,
+        suffix_digests[start_event_index as usize].as_bytes(),
+    );
+    checkpoint_digest_field(
+        &mut hasher,
+        suffix_digests[end_event_index_exclusive as usize].as_bytes(),
+    );
+    format!("blake3:{}", hasher.finalize().to_hex())
+}
+
+fn inline_lineage_search_range_digest(
+    suffix_digests: &[InlineLineageDigest],
     start_event_index: u32,
     end_event_index_exclusive: u32,
 ) -> String {
@@ -3286,88 +3351,67 @@ fn collapse_genre(rows: &mut [Row], enabled: bool) {
 }
 
 fn add_app_usage_detail_columns(rows: &mut [Row], custom_app_engagement_duration: f64) {
-    let any_indices: Vec<usize> = rows
-        .iter()
-        .enumerate()
-        .filter_map(|(i, r)| {
-            if (r.interaction_type == APP_USAGE || r.interaction_type == FILTERED_APP_USAGE)
-                && r.usage_layer.as_deref() != Some("secondary")
-            {
-                Some(i)
-            } else {
-                None
-            }
-        })
-        .collect();
-    let valid_indices: Vec<usize> = rows
-        .iter()
-        .enumerate()
-        .filter_map(|(i, r)| {
-            if r.interaction_type == APP_USAGE && r.usage_layer.as_deref() != Some("secondary") {
-                Some(i)
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    fn apply_metrics(
-        rows: &mut [Row],
-        indices: &[usize],
-        custom_dur: f64,
-        update: fn(&mut Row, i32, i32, i32, f64),
-    ) {
-        if indices.is_empty() {
-            return;
-        }
-        update(&mut rows[indices[0]], 1, 1, 0, 0.0);
-        for k in 1..indices.len() {
-            let cur_idx = indices[k];
-            let prev_idx = indices[k - 1];
-            let cur_start = rows[cur_idx].start_timestamp_ns.unwrap_or(i64::MIN);
-            let prev_stop = rows[prev_idx].stop_timestamp_ns.unwrap_or(i64::MIN);
-            // Match JS BigInt.asIntN(64, ...) — this is just i64 wrapping, no special handling needed
-            // since we already operate in i64; subtraction wraps modulo 2^64 in i64 arithmetic via wrapping_sub.
-            let gap_delta_ns = cur_start.wrapping_sub(prev_stop);
-            let gap_secs = gap_delta_ns as f64 / 1_000_000_000.0;
-            let cur_pkg = rows[cur_idx].app_package_name.clone();
-            let prev_pkg = rows[prev_idx].app_package_name.clone();
-            let switched = if cur_pkg != prev_pkg { 1 } else { 0 };
-            let engage30 = if gap_secs > 30.0 { 1 } else { 0 };
-            let engage_custom = if gap_secs > custom_dur { 1 } else { 0 };
-            let gap_hours = gap_secs / 3600.0;
-            update(
-                &mut rows[cur_idx],
-                engage30,
-                engage_custom,
-                switched,
-                gap_hours,
-            );
-        }
+    fn metrics(
+        previous: Option<(i64, &SharedString)>,
+        start: i64,
+        package: &SharedString,
+        custom_duration: f64,
+    ) -> (i32, i32, i32, f64) {
+        let Some((previous_stop, previous_package)) = previous else {
+            return (1, 1, 0, 0.0);
+        };
+        // Match JS BigInt.asIntN(64, ...) with explicit wrapping subtraction.
+        let gap_seconds = start.wrapping_sub(previous_stop) as f64 / 1_000_000_000.0;
+        (
+            i32::from(gap_seconds > 30.0),
+            i32::from(gap_seconds > custom_duration),
+            i32::from(package != previous_package),
+            gap_seconds / 3600.0,
+        )
     }
 
-    apply_metrics(
-        rows,
-        &any_indices,
-        custom_app_engagement_duration,
-        |row, e30, ec, sw, gh| {
-            row.any_app_new_engage_30s = e30;
-            row.any_app_new_engage_custom = ec;
-            row.any_app_switched_app = sw;
-            row.any_app_usage_time_gap_hours = gh;
-        },
-    );
-    apply_metrics(
-        rows,
-        &valid_indices,
-        custom_app_engagement_duration,
-        |row, e30, ec, sw, gh| {
-            row.valid_app_new_engage_30s = e30;
-            row.valid_app_new_engage_custom = ec;
-            row.valid_app_switched_app = sw;
-            row.valid_app_usage_time_gap_hours = gh;
-        },
-    );
+    let mut previous_any: Option<(i64, SharedString)> = None;
+    let mut previous_valid: Option<(i64, SharedString)> = None;
+    for row in rows {
+        let is_primary = row.usage_layer.as_deref() != Some("secondary");
+        let is_valid = is_primary && row.interaction_type == APP_USAGE;
+        let is_any = is_valid || (is_primary && row.interaction_type == FILTERED_APP_USAGE);
+        if !is_any {
+            continue;
+        }
+        let start = row.start_timestamp_ns.unwrap_or(i64::MIN);
+        let stop = row.stop_timestamp_ns.unwrap_or(i64::MIN);
+        let package = row.app_package_name.clone();
+        let (engage_30, engage_custom, switched, gap_hours) = metrics(
+            previous_any
+                .as_ref()
+                .map(|(previous_stop, previous_package)| (*previous_stop, previous_package)),
+            start,
+            &package,
+            custom_app_engagement_duration,
+        );
+        row.any_app_new_engage_30s = engage_30;
+        row.any_app_new_engage_custom = engage_custom;
+        row.any_app_switched_app = switched;
+        row.any_app_usage_time_gap_hours = gap_hours;
+        previous_any = Some((stop, package.clone()));
+
+        if is_valid {
+            let (engage_30, engage_custom, switched, gap_hours) = metrics(
+                previous_valid
+                    .as_ref()
+                    .map(|(previous_stop, previous_package)| (*previous_stop, previous_package)),
+                start,
+                &package,
+                custom_app_engagement_duration,
+            );
+            row.valid_app_new_engage_30s = engage_30;
+            row.valid_app_new_engage_custom = engage_custom;
+            row.valid_app_switched_app = switched;
+            row.valid_app_usage_time_gap_hours = gap_hours;
+            previous_valid = Some((stop, package));
+        }
+    }
 }
 
 fn mark_app_usage_flags(
@@ -3391,11 +3435,16 @@ fn mark_app_usage_flags(
         if let Some(&t) = dur_thresholds.iter().find(|&&t| dur_hours >= t) {
             flags.push(format!(">{}-HR APP USAGE", format_threshold(t)));
         }
-        row.any_app_usage_flags = if flags.is_empty() {
-            "[]".into()
+        if flags.is_empty() {
+            if row.any_app_usage_flags != "[]" {
+                row.any_app_usage_flags = "[]".into();
+            }
         } else {
-            format!("['{}']", flags.join("', '")).into()
-        };
+            let value = format!("['{}']", flags.join("', '"));
+            if row.any_app_usage_flags.as_str() != value {
+                row.any_app_usage_flags = value.into();
+            }
+        }
     }
 }
 
@@ -5364,7 +5413,11 @@ pub fn run_pipeline_v2_with_supports(
 
         // 8. enrich
         join_codebook(&mut rows, opts.use_app_codebook, &codebook_map);
-        step_checkpoints.rows("codebook_join", &rows);
+        step_checkpoints.rows_and_value(
+            "codebook_join",
+            &rows,
+            &serde_json::json!({"codebookIsEmpty": codebook_map.is_empty()}),
+        )?;
         derive_broad_category(&mut rows, opts.use_app_codebook);
         step_checkpoints.rows("derive_broad_category", &rows);
         collapse_genre(&mut rows, opts.use_app_codebook);
@@ -5767,15 +5820,15 @@ pub fn run_pipeline_v2_with_supports(
     debug_assert_eq!(pipeline_step_checkpoints.len(), 55);
 
     Ok(PipelineV2Result {
-        app_csv_bytes,
-        screen_csv_bytes,
-        day_coverage_csv_bytes,
-        compliance_csv_bytes,
-        credited_app_csv_bytes,
-        review_summary_json_bytes,
-        visualization_data_json_bytes,
-        aggregate_csv_outputs,
-        row_lineage,
+        app_csv_bytes: Arc::new(app_csv_bytes),
+        screen_csv_bytes: Arc::new(screen_csv_bytes),
+        day_coverage_csv_bytes: Arc::new(day_coverage_csv_bytes),
+        compliance_csv_bytes: Arc::new(compliance_csv_bytes),
+        credited_app_csv_bytes: Arc::new(credited_app_csv_bytes),
+        review_summary_json_bytes: Arc::new(review_summary_json_bytes),
+        visualization_data_json_bytes: Arc::new(visualization_data_json_bytes),
+        aggregate_csv_outputs: Arc::new(aggregate_csv_outputs),
+        row_lineage: Arc::new(row_lineage),
         original_row_count: original_count,
         processed_row_count: processed_count,
         app_row_count,
@@ -6457,7 +6510,7 @@ mod tests {
         options.interaction_type_remap = vec!["Unknown importance: 1 => Vendor Resume".into()];
         let result =
             run_pipeline_v2(csv.as_bytes(), &options, &[], &[], &[]).expect("remapped run");
-        let output = String::from_utf8(result.app_csv_bytes).expect("UTF-8 CSV");
+        let output = String::from_utf8(result.app_csv_bytes.as_ref().clone()).expect("UTF-8 CSV");
         assert!(output.contains("Vendor Resume"));
         assert!(!output.contains("App Usage"));
     }
@@ -6541,7 +6594,7 @@ mod tests {
             },
         )
         .expect("attribution run");
-        let output = String::from_utf8(result.app_csv_bytes).unwrap();
+        let output = String::from_utf8(result.app_csv_bytes.as_ref().clone()).unwrap();
         assert!(output.contains("Other (From Survey)"));
         assert!(output.contains(NON_TARGET_CHILD_APP_USAGE));
         assert!(output.contains("Target Child"));
@@ -6678,6 +6731,25 @@ mod tests {
         assert!(
             !contributors.contains(4),
             "future events must not be attributed"
+        );
+    }
+
+    #[test]
+    fn inline_lineage_digests_are_byte_exact_with_the_v1_string_protocol() {
+        let inline = [
+            empty_inline_lineage_search_suffix_digest(0),
+            empty_inline_lineage_search_suffix_digest(1),
+        ];
+        let strings = [
+            empty_lineage_search_suffix_digest(0),
+            empty_lineage_search_suffix_digest(1),
+        ];
+        for (compact, string) in inline.iter().zip(&strings) {
+            assert_eq!(compact.as_bytes(), string.as_bytes());
+        }
+        assert_eq!(
+            inline_lineage_search_range_digest(&inline, 0, 1),
+            lineage_search_range_digest(&strings, 0, 1),
         );
     }
 }

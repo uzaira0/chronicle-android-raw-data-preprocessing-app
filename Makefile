@@ -19,14 +19,15 @@ CHRONO_KERNEL := rust/chronicle_chrono_kernel_wasm/Cargo.toml
 SEMANTIC_RUNTIME := rust/chronicle_preprocessing_semantic_adapter/Cargo.toml
 PRODUCT_RUNTIME := rust/chronicle_preprocessing_runtime_wasm/Cargo.toml
 SEMANTIC_INDEX := rust/chronicle_semantic_index_wasm/Cargo.toml
-SEM_PROF_BIN ?= semprof
+LOCAL_SEM_PROF_BIN := $(HOME)/semantic-profile-toolchain/target/debug/semprof
+SEM_PROF_BIN ?= $(if $(wildcard $(LOCAL_SEM_PROF_BIN)),$(LOCAL_SEM_PROF_BIN),semprof)
 
 .PHONY: help ci all security web \
         rust \
         semgrep ast-grep cargo-audit cargo-deny trivy gitleaks \
         typecheck web-test contract semantic-federation combinatorial gate-truth \
         mutation mutation-web mutation-rust coverage coverage-rust coverage-all \
-        knip profile e2e deploy-artifact dependency-evidence
+        knip profile profile-current profile-many e2e deploy-artifact dependency-evidence
 
 help:
 	@echo 'Local CI (GitHub Actions carries CD only):'
@@ -39,7 +40,7 @@ help:
 	@echo '  Individual:  rust semgrep ast-grep cargo-audit cargo-deny trivy gitleaks'
 	@echo '               typecheck web-test contract e2e gate-truth mutation'
 	@echo '               mutation-web mutation-rust coverage coverage-rust coverage-all'
-	@echo '               knip profile combinatorial deploy-artifact dependency-evidence'
+	@echo '               knip profile profile-current profile-many combinatorial deploy-artifact dependency-evidence'
 
 # ---------- aggregates ----------
 ci: rust security
@@ -162,6 +163,18 @@ mutation-rust:
 profile:
 	@test -n "$(CSV)" || (echo "usage: make profile CSV=/path/to/raw.csv" >&2; exit 2)
 	cd web && npm run build && npm run benchmark:browser -- --raw "$(CSV)"
+
+# Reproduce the current 55-step native timing matrix, cold-run Hyperfine
+# distribution, peak RSS, flamegraph, Samply profile, and metadata-generator
+# cProfile. Override PROFILE_ROWS or PROFILE_RUNS when doing a quick diagnostic.
+profile-current:
+	PROFILE_ROWS="$${PROFILE_ROWS:-60624}" PROFILE_RUNS="$${PROFILE_RUNS:-5}" scripts/profile_current_performance.sh
+
+# Real browser batch test. Start `npm run preview` in web/ first. The fixture is
+# duplicated under unique browser filenames without writing hundreds of copies.
+profile-many:
+	@test -n "$(CSV)" || (echo "usage: make profile-many CSV=/path/to/100k.csv FILES=100 WORKERS=4" >&2; exit 2)
+	cd web && npm run benchmark:many-files -- http://127.0.0.1:4173/ "$${FILES:-100}" "$${WORKERS:-4}" "$${TIMEOUT_MS:-1800000}" "$(CSV)"
 
 # Vitest v8 line/branch coverage with ratcheted floors (vitest.config.ts).
 coverage:

@@ -14,7 +14,10 @@ import {
   readVerifiedSemanticIndexSnapshot,
 } from "@/lib/rustPipelineRuntime";
 import type { RawFileInspection } from "@/lib/fileInspection";
-import { processRawCsvWithRustAuthority } from "@/lib/rustPipelineAuthority";
+import {
+  processRawCsvReviewWithRustAuthority,
+  processRawCsvWithRustAuthority,
+} from "@/lib/rustPipelineAuthority";
 import {
   queryRegisteredSemanticIndex,
   rebuildSemanticIndex,
@@ -34,7 +37,9 @@ import type {
  */
 async function computeSha256Hex(data: BufferSource): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
 }
 
 const sessionDatetimes = new Map<
@@ -81,19 +86,13 @@ async function getSemanticIndex(
     return cached;
   }
   const snapshot = await readVerifiedSemanticIndexSnapshot(workspaceId);
-  return cacheSemanticIndex(
-    workspaceId,
-    {
-      workspaceRootDigest: snapshot.workspaceRootDigest,
-      index: await rebuildSemanticIndex(snapshot.source),
-    },
-  );
+  return cacheSemanticIndex(workspaceId, {
+    workspaceRootDigest: snapshot.workspaceRootDigest,
+    index: await rebuildSemanticIndex(snapshot.source),
+  });
 }
 
-function resolveSessionDatetime(
-  fileName: string,
-  inputSha256: string,
-): string {
+function resolveSessionDatetime(fileName: string, inputSha256: string): string {
   const existing = sessionDatetimes.get(fileName);
   if (existing?.inputSha256 === inputSha256) {
     sessionDatetimes.delete(fileName);
@@ -101,7 +100,10 @@ function resolveSessionDatetime(
     return existing.datetime;
   }
   const datetime = `${new Date().toISOString().slice(0, 19).replace("T", " ")} UTC`;
-  if (!sessionDatetimes.has(fileName) && sessionDatetimes.size >= MAX_SESSION_DATETIMES) {
+  if (
+    !sessionDatetimes.has(fileName) &&
+    sessionDatetimes.size >= MAX_SESSION_DATETIMES
+  ) {
     const oldest = sessionDatetimes.keys().next().value;
     if (oldest !== undefined) sessionDatetimes.delete(oldest);
   }
@@ -148,7 +150,8 @@ const api = {
   async garbageCollectWorkspace(
     workspaceId: string,
   ): Promise<{ removedObjects: number }> {
-    const removedObjects = await garbageCollectPersistedRustWorkspace(workspaceId);
+    const removedObjects =
+      await garbageCollectPersistedRustWorkspace(workspaceId);
     invalidateSemanticIndex(workspaceId);
     return { removedObjects };
   },
@@ -190,10 +193,17 @@ const api = {
     supportFiles?: BrowserSupportFiles,
     runtime?: BrowserProcessingRuntime,
   ): Promise<ProcessedFileResult> {
-    const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
+    const options: BrowserProcessingOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      ...incomingOptions,
+    };
     const bytes = new TextEncoder().encode(csvText);
     const inputSha256 = await computeSha256Hex(bytes);
-    const resolvedRuntime = effectiveRuntime(runtime, inputFileName, inputSha256);
+    const resolvedRuntime = effectiveRuntime(
+      runtime,
+      inputFileName,
+      inputSha256,
+    );
     const result = await processRawCsvWithRustAuthority(
       inputFileName,
       bytes,
@@ -203,7 +213,8 @@ const api = {
       undefined,
       inputSha256,
     );
-    if (result.rustRuntimeReceipt) invalidateSemanticIndex(result.rustRuntimeReceipt.workspaceId);
+    if (result.rustRuntimeReceipt)
+      invalidateSemanticIndex(result.rustRuntimeReceipt.workspaceId);
     return result;
   },
   async processRawCsvWithProgress(
@@ -214,10 +225,17 @@ const api = {
     runtime?: BrowserProcessingRuntime,
     onProgress?: (event: ProgressEvent) => void,
   ): Promise<ProcessedFileResult> {
-    const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
+    const options: BrowserProcessingOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      ...incomingOptions,
+    };
     const bytes = new TextEncoder().encode(csvText);
     const inputSha256 = await computeSha256Hex(bytes);
-    const resolvedRuntime = effectiveRuntime(runtime, inputFileName, inputSha256);
+    const resolvedRuntime = effectiveRuntime(
+      runtime,
+      inputFileName,
+      inputSha256,
+    );
     const forward = onProgress
       ? (event: ProgressEvent) => {
           try {
@@ -236,7 +254,8 @@ const api = {
       forward,
       inputSha256,
     );
-    if (result.rustRuntimeReceipt) invalidateSemanticIndex(result.rustRuntimeReceipt.workspaceId);
+    if (result.rustRuntimeReceipt)
+      invalidateSemanticIndex(result.rustRuntimeReceipt.workspaceId);
     return result;
   },
   /**
@@ -252,11 +271,18 @@ const api = {
     runtime?: BrowserProcessingRuntime,
     onProgress?: (event: ProgressEvent) => void,
   ): Promise<ProcessedFileResult> {
-    const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
+    const options: BrowserProcessingOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      ...incomingOptions,
+    };
     // Hash the raw bytes before decoding (and before the buffer is dropped).
     const inputBytes = new Uint8Array(csvBytes);
     const inputSha256 = await computeSha256Hex(csvBytes);
-    const resolvedRuntime = effectiveRuntime(runtime, inputFileName, inputSha256);
+    const resolvedRuntime = effectiveRuntime(
+      runtime,
+      inputFileName,
+      inputSha256,
+    );
     const forward = onProgress
       ? (event: ProgressEvent) => {
           try {
@@ -276,8 +302,37 @@ const api = {
       inputSha256,
     );
     result.inputSha256 = inputSha256;
-    if (result.rustRuntimeReceipt) invalidateSemanticIndex(result.rustRuntimeReceipt.workspaceId);
+    if (result.rustRuntimeReceipt)
+      invalidateSemanticIndex(result.rustRuntimeReceipt.workspaceId);
     return result;
+  },
+  /** Fast A/B path: execute the same Rust graph and return review metrics only. */
+  async processReviewCsvBytes(
+    inputFileName: string,
+    csvBytes: ArrayBuffer,
+    incomingOptions?: Partial<BrowserProcessingOptions>,
+    supportFiles?: BrowserSupportFiles,
+    runtime?: BrowserProcessingRuntime,
+  ): Promise<ProcessedFileResult> {
+    const options: BrowserProcessingOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      ...incomingOptions,
+    };
+    const inputBytes = new Uint8Array(csvBytes);
+    const inputSha256 = await computeSha256Hex(csvBytes);
+    const resolvedRuntime = effectiveRuntime(
+      runtime,
+      inputFileName,
+      inputSha256,
+    );
+    return processRawCsvReviewWithRustAuthority(
+      inputFileName,
+      inputBytes,
+      options,
+      supportFiles,
+      resolvedRuntime,
+      inputSha256,
+    );
   },
 };
 
