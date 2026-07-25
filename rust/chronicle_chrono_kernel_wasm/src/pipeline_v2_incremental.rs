@@ -384,7 +384,7 @@ pub(super) fn compute_junk_packages(rows: &[Row]) -> BTreeSet<String> {
 
 pub(super) fn junk_blind_fold(mut rows: Vec<Row>) -> Vec<Row> {
     for row in &mut rows {
-        row.interaction_type = match row.interaction_type.as_str() {
+        let interaction_type = match row.interaction_type.as_str() {
             FILTERED_RESUMED => ACTIVITY_RESUMED,
             FILTERED_PAUSED => ACTIVITY_PAUSED,
             FILTERED_STOPPED => ACTIVITY_STOPPED,
@@ -392,6 +392,7 @@ pub(super) fn junk_blind_fold(mut rows: Vec<Row>) -> Vec<Row> {
             other => other,
         }
         .into();
+        row.edit_classification().interaction_type = interaction_type;
     }
     rows
 }
@@ -515,33 +516,40 @@ pub(super) fn apply_matcher_output(
         );
     }
     for &start_index in &result.start_indices {
-        rows[start_index].start_timestamp_ns = Some(rows[start_index].event_timestamp_ns);
+        let event_timestamp_ns = rows[start_index].event_timestamp_ns;
+        rows[start_index].edit_temporal().start_timestamp_ns = Some(event_timestamp_ns);
     }
     for (position, &start_index) in result.stop_start_indices.iter().enumerate() {
         let stop_index = result.stop_event_indices[position];
         let lower = start_index.min(stop_index);
         let upper = start_index.max(stop_index);
         let stop_source_rows = rows[stop_index].source_data_rows.clone();
-        rows[start_index].source_data_rows.merge(&stop_source_rows);
+        rows[start_index]
+            .edit_identity()
+            .source_data_rows
+            .merge(&stop_source_rows);
         let search_start_event_index = (lower + 1) as u32;
         let search_end_event_index_exclusive = (upper + 1) as u32;
         let start_participant_id = rows[start_index].participant_id.to_string();
-        Arc::make_mut(&mut rows[start_index].lineage_searches).push(LineageSearchEvidence {
-            protocol_version: "chronicle-lineage-search/v1".to_string(),
-            reason: "selected-qualifying-stop".to_string(),
-            index_space: "pipeline-event-order".to_string(),
-            start_participant_id,
-            start_event_index: search_start_event_index,
-            end_event_index_exclusive: search_end_event_index_exclusive,
-            candidate_event_count: search_end_event_index_exclusive
-                .saturating_sub(search_start_event_index),
-            candidate_chain_digest: inline_lineage_search_range_digest(
-                &search_suffix_digests,
-                search_start_event_index,
-                search_end_event_index_exclusive,
-            ),
-        });
-        rows[start_index].stop_timestamp_ns = Some(rows[stop_index].event_timestamp_ns);
+        Arc::make_mut(&mut rows[start_index].edit_identity().lineage_searches).push(
+            LineageSearchEvidence {
+                protocol_version: "chronicle-lineage-search/v1".to_string(),
+                reason: "selected-qualifying-stop".to_string(),
+                index_space: "pipeline-event-order".to_string(),
+                start_participant_id,
+                start_event_index: search_start_event_index,
+                end_event_index_exclusive: search_end_event_index_exclusive,
+                candidate_event_count: search_end_event_index_exclusive
+                    .saturating_sub(search_start_event_index),
+                candidate_chain_digest: inline_lineage_search_range_digest(
+                    &search_suffix_digests,
+                    search_start_event_index,
+                    search_end_event_index_exclusive,
+                ),
+            },
+        );
+        let stop_timestamp_ns = rows[stop_index].event_timestamp_ns;
+        rows[start_index].edit_temporal().stop_timestamp_ns = Some(stop_timestamp_ns);
     }
     let missing_indices = result
         .missing_indices
@@ -555,7 +563,7 @@ pub(super) fn apply_matcher_output(
         }
         let search_start_event_index = (index + 1) as u32;
         let start_participant_id = row.participant_id.to_string();
-        Arc::make_mut(&mut row.lineage_searches).push(LineageSearchEvidence {
+        Arc::make_mut(&mut row.edit_identity().lineage_searches).push(LineageSearchEvidence {
             protocol_version: "chronicle-lineage-search/v1".to_string(),
             reason: "no-qualifying-stop".to_string(),
             index_space: "pipeline-event-order".to_string(),
@@ -570,12 +578,13 @@ pub(super) fn apply_matcher_output(
                 search_end_event_index_exclusive,
             ),
         });
-        row.interaction_type = END_OF_USAGE_MISSING.into();
-        row.stop_timestamp_ns = None;
-        row.duration_seconds = None;
-        row.duration_minutes = None;
+        row.edit_classification().interaction_type = END_OF_USAGE_MISSING.into();
+        let temporal = row.edit_temporal();
+        temporal.stop_timestamp_ns = None;
+        temporal.duration_seconds = None;
+        temporal.duration_minutes = None;
         if filtered_packages.contains(row.app_package_name.as_str()) {
-            row.start_timestamp_ns = None;
+            row.edit_temporal().start_timestamp_ns = None;
         }
     }
     rows
@@ -595,27 +604,30 @@ pub(super) fn relabel_usage_with_floor(
         .map(|mut row| {
             if row.interaction_type == ACTIVITY_RESUMED {
                 let is_filtered = filtered_packages.contains(row.app_package_name.as_str());
-                row.interaction_type = if is_filtered {
+                let interaction_type = if is_filtered {
                     FILTERED_APP_USAGE
                 } else {
                     APP_USAGE
                 }
                 .into();
+                row.edit_classification().interaction_type = interaction_type;
                 if is_filtered {
-                    row.start_timestamp_ns = None;
-                    row.stop_timestamp_ns = None;
-                    row.duration_seconds = None;
-                    row.duration_minutes = None;
+                    let temporal = row.edit_temporal();
+                    temporal.start_timestamp_ns = None;
+                    temporal.stop_timestamp_ns = None;
+                    temporal.duration_seconds = None;
+                    temporal.duration_minutes = None;
                 } else {
                     let start = row.start_timestamp_ns.expect("paired usage start");
                     let stop = row.stop_timestamp_ns.expect("paired usage stop");
                     let duration_seconds = (stop - start) as f64 / 1_000_000_000.0;
+                    let temporal = row.edit_temporal();
                     if minimum_usage_duration > 0.0 && duration_seconds < minimum_usage_duration {
-                        row.duration_seconds = None;
-                        row.duration_minutes = None;
+                        temporal.duration_seconds = None;
+                        temporal.duration_minutes = None;
                     } else {
-                        row.duration_seconds = Some(duration_seconds);
-                        row.duration_minutes = Some(duration_seconds / 60.0);
+                        temporal.duration_seconds = Some(duration_seconds);
+                        temporal.duration_minutes = Some(duration_seconds / 60.0);
                     }
                 }
             }
@@ -636,22 +648,24 @@ pub(super) fn junk_downstream_mark(
         if row.interaction_type == APP_USAGE
             && background_apps.contains(row.app_package_name.as_str())
         {
-            row.interaction_type = FILTERED_APP_BACKGROUND_USAGE.into();
+            row.edit_classification().interaction_type = FILTERED_APP_BACKGROUND_USAGE.into();
             continue;
         }
         if row.interaction_type == APP_USAGE {
-            row.interaction_type = FILTERED_APP_USAGE.into();
-            row.duration_seconds = None;
-            row.duration_minutes = None;
+            row.edit_classification().interaction_type = FILTERED_APP_USAGE.into();
+            let temporal = row.edit_temporal();
+            temporal.duration_seconds = None;
+            temporal.duration_minutes = None;
             continue;
         }
         if row.interaction_type == ACTIVITY_STOPPED {
-            row.interaction_type = FILTERED_STOPPED.into();
+            row.edit_classification().interaction_type = FILTERED_STOPPED.into();
         }
-        row.start_timestamp_ns = None;
-        row.stop_timestamp_ns = None;
-        row.duration_seconds = None;
-        row.duration_minutes = None;
+        let temporal = row.edit_temporal();
+        temporal.start_timestamp_ns = None;
+        temporal.stop_timestamp_ns = None;
+        temporal.duration_seconds = None;
+        temporal.duration_minutes = None;
     }
     rows
 }
@@ -708,19 +722,20 @@ pub(super) fn split_concurrent(
         let mut row = rows[source_index].clone();
         let duration_seconds =
             (layered_session.stop_ns - layered_session.start_ns) as f64 / 1_000_000_000.0;
-        row.start_timestamp_ns = Some(layered_session.start_ns);
-        row.stop_timestamp_ns = Some(layered_session.stop_ns);
+        let temporal = row.edit_temporal();
+        temporal.start_timestamp_ns = Some(layered_session.start_ns);
+        temporal.stop_timestamp_ns = Some(layered_session.stop_ns);
         if apply_minimum_to_subintervals
             && minimum_usage_duration > 0.0
             && duration_seconds < minimum_usage_duration
         {
-            row.duration_seconds = None;
-            row.duration_minutes = None;
+            temporal.duration_seconds = None;
+            temporal.duration_minutes = None;
         } else {
-            row.duration_seconds = Some(duration_seconds);
-            row.duration_minutes = Some(duration_seconds / 60.0);
+            temporal.duration_seconds = Some(duration_seconds);
+            temporal.duration_minutes = Some(duration_seconds / 60.0);
         }
-        row.usage_layer = Some(match layered_session.layer {
+        row.edit_classification().usage_layer = Some(match layered_session.layer {
             UsageLayer::Primary => "primary".into(),
             UsageLayer::Secondary => "secondary".into(),
         });
@@ -1718,6 +1733,10 @@ mod tracked {
                 started: std::time::Instant::now(),
             }
         }
+
+        fn finish(self) {
+            drop(self);
+        }
     }
 
     #[cfg(feature = "query-timing")]
@@ -1740,6 +1759,9 @@ mod tracked {
         fn start(_label: &'static str) -> Self {
             Self
         }
+
+        #[inline(always)]
+        fn finish(self) {}
     }
     use salsa::Setter;
     use std::fmt;
@@ -2601,33 +2623,23 @@ mod tracked {
         let _timer = QueryTimer::start("review_reconstruction_fused");
         db.record_internal_query_body("review_reconstruction_fused");
 
-        let upstream = junk_blind_fold(db, raw, early, config, support)?;
-        let matcher = run_matcher(db, raw, early, config, support)?;
+        let applied = apply_matcher_output(db, raw, early, config, support)?;
         let filtered = compute_junk_packages(db, raw, early, config, support)?;
         let background = background_apps(db, config, support);
         let background_checkpoint_value = background.iter().cloned().collect::<BTreeSet<_>>();
 
-        let mut rows = super::apply_matcher_output(
-            (*upstream.value).clone(),
-            &matcher.value,
-            &filtered.value,
-        );
-        let apply_matcher_output = review_derived_checkpoint(
-            "apply_matcher_output",
-            &[
-                ("rows", &upstream.checkpoint),
-                ("matcher", &matcher.checkpoint),
-                ("filteredPackages", &filtered.checkpoint),
-            ],
-            &serde_json::json!({}),
-        )?;
-        db.record_fused_product_step("apply_matcher_output");
+        let section_timer = QueryTimer::start("review_reconstruction_apply_matcher_output");
+        let mut rows = (*applied.value).clone();
+        section_timer.finish();
+        let apply_matcher_output = applied.checkpoint.clone();
 
+        let section_timer = QueryTimer::start("review_reconstruction_relabel_usage_with_floor");
         rows = super::relabel_usage_with_floor(
             rows,
             &filtered.value,
             config.minimum_usage_duration(db),
         );
+        section_timer.finish();
         let relabel_usage_with_floor = review_derived_checkpoint(
             "relabel_usage_with_floor",
             &[
@@ -2640,9 +2652,11 @@ mod tracked {
         )?;
         db.record_fused_product_step("relabel_usage_with_floor");
 
+        let section_timer = QueryTimer::start("review_reconstruction_junk_downstream_mark");
         if !filtered.value.is_empty() {
             rows = super::junk_downstream_mark(rows, &filtered.value, &background);
         }
+        section_timer.finish();
         let junk_downstream_mark = review_derived_checkpoint(
             "junk_downstream_mark",
             &[
@@ -2655,7 +2669,9 @@ mod tracked {
         )?;
         db.record_fused_product_step("junk_downstream_mark");
 
+        let section_timer = QueryTimer::start("review_reconstruction_sort_episodes");
         rows = super::sort_episodes(rows);
+        section_timer.finish();
         let sort_episodes = review_derived_checkpoint(
             "sort_episodes",
             &[("rows", &junk_downstream_mark)],
@@ -2663,6 +2679,7 @@ mod tracked {
         )?;
         db.record_fused_product_step("sort_episodes");
 
+        let section_timer = QueryTimer::start("review_reconstruction_split_concurrent");
         rows = if !config.model_concurrent_usage(db) && background.is_empty() {
             // sort_episodes already established the exact order required here.
             rows
@@ -2676,7 +2693,10 @@ mod tracked {
                 config.apply_minimum_usage_duration_to_concurrent_subintervals(db),
             )?
         };
+        section_timer.finish();
+        let section_timer = QueryTimer::start("review_reconstruction_checkpoint");
         let split_concurrent = logical_stage_rows_checkpoint("split_concurrent", &rows);
+        section_timer.finish();
         let reconstruct_episodes = logical_stage_checkpoint(
             "reconstruct_episodes",
             &[],
@@ -2965,11 +2985,7 @@ mod tracked {
 
         let long_gap_thresholds = config.long_data_time_gap_thresholds(db);
         let long_usage_thresholds = config.long_usage_duration_thresholds(db);
-        rows = super::flag_and_retain(
-            rows,
-            &long_gap_thresholds,
-            &long_usage_thresholds,
-        );
+        rows = super::flag_and_retain(rows, &long_gap_thresholds, &long_usage_thresholds);
         let flag_and_retain = review_derived_checkpoint(
             "flag_and_retain",
             &[("rows", &engagement_walk)],
@@ -2996,11 +3012,7 @@ mod tracked {
 
         let removed_types = config.interaction_types_to_remove(db);
         if !removed_types.is_empty() {
-            rows = super::drop_selected_types(
-                rows,
-                &removed_types,
-                &long_gap_thresholds,
-            );
+            rows = super::drop_selected_types(rows, &removed_types, &long_gap_thresholds);
         }
         let drop_selected_types = review_derived_checkpoint(
             "drop_selected_types",

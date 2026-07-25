@@ -59,7 +59,7 @@ Therefore the current state is:
 | Do all four usage modes match the complete Rust oracle? | Yes in the kernel parity test. |
 | Can one output-only change skip all unrelated physical work? | Yes in the stateful engine test: only `assemble_result` runs. |
 | Does an unchanged second call execute a step body? | No in the stateful engine test. |
-| Does that warm cache survive reload or worker replacement? | Deliberately no. The verified OPFS inputs survive, and a new worker recalculates. Snapshot restore was measured slower than a cold run and was removed. |
+| Does that warm cache survive reload or worker replacement? | Salsa's database does not. Verified OPFS inputs and outputs survive. A typed step-output cache is now planned for the expensive boundaries proven below; it is not a serialized Salsa database. |
 | Do runtime `cached`/`recomputed` step labels use actual query execution? | Yes. Exact step labels use Salsa events and the 15 product groups are derived from those step IDs. The empirical receipts are still stale. |
 | Is the tracked runtime production-ready? | No. Runtime, durability, empirical campaigns, performance, and full browser gates remain. |
 
@@ -176,6 +176,100 @@ This decision uses the existing research rather than repeating it. The product
 does not add a generic scheduler, a second dependency graph, or post-hoc cache
 labels. The existing 55-step product contract plus the actual Rust query calls
 are the model.
+
+## Durable performance cache decision — 2026-07-25
+
+The browser keeps at most one live Salsa workspace per worker, and the batch
+workers are destroyed after a full processing run. Therefore a later
+comparison over hundreds of files cannot depend on every file still being in
+memory.
+
+The measured 100,004-row comparison costs are:
+
+The repeatable batch command is `npm run measure:review-batch -- <fixture> 100 8`.
+
+| Case | Time |
+|---|---:|
+| Cold worker computes Arm B once | 3.01 seconds in the single-file check |
+| Cold worker computes Arm A and then Arm B | 4.11 seconds |
+| 100 cold Arm-B files across eight processes | 33.07 seconds wall time |
+| Per-file distribution in that 100-file run | 2.35 seconds median, 2.41 seconds p90, 4.42 seconds p95 |
+| Same-file warm Rust A-to-B computation | about 0.40 seconds native with query timing enabled |
+
+The discarded paired implementation proved that rerunning Arm A in a fresh
+worker costs more than computing Arm B cold. It was removed. The browser now
+uses Arm A's already stored review summary and raw-input digest, computes only
+Arm B in background workers, and still requires Rust to verify the raw bytes
+against that digest.
+
+The remaining gap is repeated work before the changed step. For the measured
+`modelConcurrentUsage` change, the first affected step is 29,
+`split_concurrent`; steps 1–28 are unchanged. The first durable cache proof will
+therefore store the typed output of step 28, `sort_episodes`, and resume the
+same Rust pipeline at step 29.
+
+This follows the established action-cache pattern:
+
+- an exact action key identifies the implementation, contract, step, schema,
+  and every declared input to that step;
+- a content-addressed object stores the typed output bytes;
+- a cache hit is accepted only when the key, object digest, schema, row count,
+  and implementation identity all verify;
+- a miss, corrupt object, unknown field, or identity mismatch runs the normal
+  cold Rust path.
+
+[Bazel's official cache design](https://bazel.build/remote/caching) separates
+an action-key map from a content-addressed store of declared outputs. That is
+the pattern used here with the existing OPFS store. It does not imply Bazel as
+a browser dependency. [Salsa's own documentation](https://salsa-rs.github.io/salsa/plumbing/database_and_runtime.html)
+describes memoized values as part of its live database; this is why an opaque
+Salsa snapshot is not the durable interface. [Apache Arrow IPC](https://arrow.apache.org/docs/cpp/ipc.html)
+provides the typed columnar representation to test for the row boundary, and
+[OPFS worker access](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system)
+provides the local storage substrate already used by the app.
+
+Implementation order:
+
+1. Add a versioned Rust schema for the `sort_episodes` rows and its exact
+   action-cache key.
+2. Write that value once during the successful full run into the existing OPFS
+   content-addressed store.
+3. On review, verify the stored key and bytes in Rust, then execute steps 29–55
+   through the existing tracked functions.
+4. Compare every resumed result, all 55 checkpoints, review bytes, and output
+   digests with an independent cold run.
+5. Keep the boundary only if load + verification + resumed execution is faster
+   than cold execution on the 100k fixture.
+6. Consider later boundaries such as `collapse_genre` or
+   `drop_zero_duration` only after a measured configuration change proves they
+   save enough time to justify another stored value.
+
+Mandatory gates for the first boundary:
+
+- zero output, checkpoint, lineage, status, or explanation differences from a
+  cold Rust run across the existing configuration, artifact, raw-boundary,
+  interaction, mixed, and mutation campaigns;
+- corruption, truncation, wrong schema, wrong step, wrong build, wrong input,
+  and wrong option each produce a cache miss or loud failure, never reuse;
+- the 100-file/eight-worker 100k-row comparison finishes in at most 15 seconds
+  wall time, with per-file median below 1 second and p95 below 2 seconds;
+- stored bytes and load memory are measured and bounded before the cache is
+  enabled by default;
+- runtime records distinguish `salsa-memory-hit`, `verified-step-cache-hit`,
+  and physical recomputation instead of reporting all three as generic
+  `cached`.
+
+Hashing stays cryptographic. The pinned BLAKE3 implementation keeps its WASM
+SIMD path, but its public API does not expose supported multi-message SIMD for
+many independent short values; the upstream discussions are
+[#386](https://github.com/BLAKE3-team/BLAKE3/issues/386) and
+[#478](https://github.com/BLAKE3-team/BLAKE3/issues/478). The implemented
+optimization batches the same checkpoint byte stream into bounded 16 KiB
+updates without changing a digest. Per-row identity, time, and classification
+components are cached separately, and the browser reuses the saved raw SHA-256
+while Rust verifies it once. Private hashing internals, weaker hashes, and
+hashing a different byte protocol are rejected because a collision or drift
+could incorrectly reuse stale scientific output.
 
 The trial uses a pinned Salsa release with default features disabled and only
 the features required by the product. The browser build does not assume Rayon
@@ -349,7 +443,7 @@ WASM size, query execution events, and output hashes.
 | Middle option change | Only its reader queries and changed descendants run. | Materially faster than cold on an activating fixture. |
 | Output-only change such as `study_name` | Only result/output metadata and dependent views run. | At most 25% of cold wall time. |
 | Binding/qualification change | Re-evaluate qualification and only affected consumers. | No unrelated preprocessing query executes. |
-| Cache reload | Restore verified compatible query state or explicitly run cold. | Never report a cached step that physically ran. |
+| Cache reload | Restore a verified typed step output when its exact action key matches, otherwise run cold. Never deserialize an opaque Salsa database. | Never report a cached step that physically ran. |
 
 The current large-fixture baseline is about 8.37 seconds inside
 `execute_workspace`, 945 MiB maximum process RSS, 143 MB of produced artifacts,
@@ -428,14 +522,20 @@ coverage, and no duplicated algorithm implementation.
 
 - Store large immutable intermediate values once and pass typed handles when a
   direct value would cause large copies.
+- First implement and measure a versioned typed cache for the step-28
+  `sort_episodes` output. Use the existing step input key and OPFS
+  content-addressed objects; do not add another dependency graph.
 - Make exports, aggregates, lineage, source/result correspondence, semantic
   index input, provenance, and each typed view independent terminal queries.
 - Keep the Salsa database and stable terminal artifacts only in the current
-  worker. Do not persist opaque query state.
-- After worker replacement, verify the OPFS inputs and history and run cold.
+  worker. Do not persist opaque query state. Persist only explicitly versioned
+  product-step values that pass the size, load-time, and cold-oracle gates.
+- After worker replacement, verify the OPFS inputs, history, action key, schema,
+  and object digest. Resume at the verified boundary or run cold.
 
-Proof: no-change event log, worker-replacement cold equality, crash at every
-OPFS commit point, garbage collection, and output equality.
+Proof: no-change event log, worker-replacement cached-versus-cold equality,
+wrong-key/corruption tests, crash at every OPFS commit point, garbage
+collection, output equality, and the 100-file performance gates above.
 
 ### Phase 5 — connect execution facts to provenance and views (runtime events complete; saved-view proof pending)
 
@@ -519,7 +619,7 @@ named command or file proving it.
 | Generate 55 callable bindings | done | Source and generated checks prove 55 unique tracked product functions in contract order; internal derived caches are classified separately and cannot become product bindings. |
 | Cache typed intermediates without large copies | active | The Salsa database reuses typed `Arc` results and memoized logical checkpoints in one worker. Primary output assembly is independently cached; allocation, retained-result, and large-batch memory profiles remain. |
 | Split terminal outputs and derived views into queries | active | `assemble_result` is a tracked terminal query and output-only reuse is proven; independently reusable artifact/view queries remain. |
-| Handle worker replacement | done | Opaque query snapshots and cache roots were deleted. Verified OPFS inputs/history survive; a replacement worker deliberately runs cold. |
+| Handle worker replacement | active | Opaque Salsa snapshots remain deleted. Verified OPFS inputs/history survive; the next proof adds a verified typed `sort_episodes` action-cache value so replacement workers can skip unchanged steps 1–28. |
 | Replace inferred statuses with real events | done | Runtime step status consumes `IncrementalPipelineV2Execution.executed_steps`; regenerated dependency evidence and the normal WASM package carry the same implementation identity. |
 | Run all existing empirical campaigns on physical events | pending | Updated ledgers with cold parity and actual event sets. |
 | Enforce TypeScript boundary | done | `check_no_typescript_authority.mts`, its seeded-failure gate, typecheck, and production bundle search reject a second engine. |
@@ -545,7 +645,7 @@ named command or file proving it.
 | Provenance and explanations | real event/reason mapping | journal, index, registered-query tests | request stage and explanation views | no inferred cached/recomputed status | replay and root equality | pending |
 | Terminal results/views | independent output and view query tests | native/WASM and browser tests | render complete result offline | no unchanged artifact regeneration | exact bytes, lineage/correspondence parity | pending |
 | TypeScript boundary | forbidden import/symbol cases | typecheck, authority check, production build | worker starts and processes through Rust | no TS computation or semantic authority | seeded attempt to restore a retired symbol must fail | active; source/type checks pass, final E2E/build pending |
-| Performance | committed benchmark cases and thresholds | Hyperfine, browser profile, native flamegraph | benchmark fixture hash and output hash | fail on false cached claim | repeated distributions, memory, bundle size | active; the compact review target, fused physical row stages, exact 55-step status projection, background Arm-A warmup, and final 100-file × 100k-row browser campaign are measured in `docs/perf/BASELINE.md` (656 ms changed-file median, 1.243 s p95); Chromium peak memory remains |
+| Performance | committed benchmark cases and thresholds | Hyperfine, browser profile, native flamegraph | benchmark fixture hash and output hash | fail on false cached claim | repeated distributions, memory, bundle size | active; warm same-workspace reuse is fast, but replacement workers are not. The corrected cold Arm-B-only 100-file × 100k-row run took 33.07 s across eight processes (2.35 s per-file median, 4.42 s p95). The typed step-28 cache proof above must reach the stated 15 s / 1 s / 2 s gates. A browser run that retained 100 full export sets exceeded 7 GB and closed before completion, so full-result UI memory remains a separate blocker. |
 | Security/supply chain | malformed cache/profile/artifact cases | cargo audit/deny, Semgrep, ast-grep, Trivy, gitleaks | offline execution | profiles cannot inject code; cache cannot bypass verification | fuzz parsers and import paths | pending |
 | Release/rollback | query-runtime and cold-oracle switches | complete `make all` plus new gates | preview loads offline | no production/main/research-pipeline changes | rollback rehearsal and preview hash | pending |
 

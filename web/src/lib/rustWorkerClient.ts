@@ -401,6 +401,32 @@ export async function processRawCsvReviewBytes(
 }
 
 /**
+ * Transfer one raw file to a pool slot and compute Arm B. Arm A's review
+ * summary and input digest already belong to the completed result, so a fresh
+ * comparison worker must not rerun Arm A merely to warm an in-memory cache.
+ */
+export async function processRawCsvChangedReviewBytesViaPool(
+  pool: WorkerPool,
+  inputFileName: string,
+  csvBytes: ArrayBuffer,
+  changedOptions: BrowserProcessingOptions,
+  changedSupportFiles?: BrowserSupportFiles,
+  runtime?: BrowserProcessingRuntime,
+  verifiedInputSha256?: string,
+): Promise<ProcessedFileResult> {
+  return pool.submit((api) =>
+    api.processChangedReviewCsvBytes(
+      inputFileName,
+      Comlink.transfer(csvBytes, [csvBytes]),
+      changedOptions,
+      changedSupportFiles,
+      runtime,
+      verifiedInputSha256,
+    ),
+  );
+}
+
+/**
  * Zero-copy variant: pass the raw bytes (typically `await file.arrayBuffer()`)
  * and ownership transfers to the worker. The main thread no longer holds the
  * file's byte content, halving peak memory under parallel processing of

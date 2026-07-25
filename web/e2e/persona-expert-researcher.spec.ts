@@ -172,7 +172,8 @@ test("drives the full review + A/B comparison workflow in the View tab", async (
   await dayRows.first().click();
   await expect(page.getByTestId("review-day-detail")).toBeVisible();
 
-  // Run an Arm-B comparison and confirm the single interleaved waterfall.
+  // Run an Arm-B comparison and confirm the compact Rust result updates the
+  // chart metrics without materializing a second full timeline.
   await page.getByTestId("review-compare-toggle").click();
   const drawer = page.getByTestId("review-compare-drawer");
   await expect(drawer).toBeVisible();
@@ -180,7 +181,9 @@ test("drives the full review + A/B comparison workflow in the View tab", async (
   await page.getByTestId("review-run-comparison").click();
   await expect(page.getByTestId("review-mcard-b")).toBeVisible();
   await expect(page.getByTestId("review-mcard-delta")).toBeVisible();
-  await expect(page.getByTestId("review-compare-legend")).toBeVisible();
+  await expect(page.getByTestId("review-compare-no-overlap")).toContainText(
+    "fast comparison updated the Δ metrics",
+  );
   await expect(page.getByTestId("timeline-view-participant-title")).toHaveCount(1);
   assertNoExternalRequests(requestTracker);
 });

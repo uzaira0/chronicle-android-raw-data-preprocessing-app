@@ -522,14 +522,13 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
       undefined,
       runtime,
     );
-    const expected = JSON.parse(
+    const expected: unknown = JSON.parse(
       new TextDecoder().decode(full.artifacts.get("review-summary-json")),
     );
 
     expect(review.reviewSummary).toEqual(expected);
-    expect(review.cachedStepIds).toHaveLength(22);
+    expect(review.cachedStepIds).toHaveLength(23);
     expect(review.recomputedStepIds).toEqual([
-      "apply_matcher_output",
       "relabel_usage_with_floor",
       "junk_downstream_mark",
       "sort_episodes",

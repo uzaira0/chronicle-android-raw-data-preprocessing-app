@@ -27,14 +27,15 @@ type Props = {
   /** Names of files still loaded in the Files tab — a comparison can only
    * re-run files whose bytes are still available. */
   uploadedFileNames?: string[];
-  /** Start loading Arm A into the persistent comparison worker while the
-   * researcher edits Arm B, so Run pays only the affected Rust queries. */
+  /** Warm the selected file while the researcher edits Arm B. */
   onPrepareComparison?: (fileName: string) => Promise<void>;
-  /** Re-process one file under Arm-B options; resolves to the fresh result. */
+  /** Re-process every loaded review file under Arm-B options. The selected file
+   * is prioritized, and completed files are reported as soon as they finish. */
   onRunComparison?: (
     fileName: string,
     overrides: Partial<BrowserProcessingOptions>,
-  ) => Promise<ProcessedFileResult>;
+    onResult?: (result: ProcessedFileResult) => void,
+  ) => Promise<ProcessedFileResult[]>;
   displayMasker: DemoDisplayMasker;
   includeFilteredAppUsageInPlots: boolean;
 };
@@ -96,20 +97,24 @@ export function ViewPanel({
   // whole timeline (#20).
   const [highlightQuery, setHighlightQuery] = useState("");
 
-  // Arm-B comparison state. `armBResult` is scoped to the file it was run on;
-  // switching files clears it.
+  // Arm-B results cover the loaded batch. As each worker finishes, its result
+  // becomes available immediately; switching files does not discard the rest.
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [compareOptions, setCompareOptions] =
     useState<BrowserProcessingOptions>(options);
-  const [armBResult, setArmBResult] = useState<ProcessedFileResult | null>(
-    null,
-  );
+  const [armBResults, setArmBResults] = useState<ProcessedFileResult[]>([]);
   const [running, setRunning] = useState(false);
   const [compareError, setCompareError] = useState<string | null>(null);
 
   useEffect(() => {
     setShowFilteredUsage(includeFilteredAppUsageInPlots);
   }, [includeFilteredAppUsageInPlots]);
+
+  useEffect(() => {
+    setArmBResults([]);
+    setCompareOptions(options);
+    setCompareError(null);
+  }, [results, options]);
 
   if (reviewableFiles.length === 0) {
     return (
@@ -180,12 +185,10 @@ export function ViewPanel({
     ? `${typeLabel[activeType]} · ${filteredUsageLabel} · ${displayMasker.timezone(timeline.timezone)}`
     : "";
 
-  // Arm B: only honoured for the file it was run on. Switching files (which
-  // clears armBResult) or to a non-matching result hides the comparison.
   const armB =
-    armBResult && armBResult.inputFileName === activeFile.inputFileName
-      ? armBResult
-      : null;
+    armBResults.find(
+      (result) => result.inputFileName === activeFile.inputFileName,
+    ) ?? null;
   const compareParticipant: ReviewParticipantSummary | null =
     armB?.reviewSummary?.participants.find(
       (p) => p.participantId === activeParticipant.participantId,
@@ -259,12 +262,23 @@ export function ViewPanel({
     if (!onRunComparison) return;
     setRunning(true);
     setCompareError(null);
+    setArmBResults([]);
     try {
-      const result = await onRunComparison(
+      const replaceResult = (result: ProcessedFileResult): void => {
+        setArmBResults((current) => {
+          const byName = new Map(
+            current.map((entry) => [entry.inputFileName, entry]),
+          );
+          byName.set(result.inputFileName, result);
+          return Array.from(byName.values());
+        });
+      };
+      const compared = await onRunComparison(
         activeFile.inputFileName,
         compareOptions,
+        replaceResult,
       );
-      setArmBResult(result);
+      setArmBResults(compared);
       setDrawerOpen(false);
     } catch (error) {
       setCompareError(error instanceof Error ? error.message : String(error));
@@ -274,7 +288,7 @@ export function ViewPanel({
   };
   const resetToA = (): void => {
     setCompareOptions(options);
-    setArmBResult(null);
+    setArmBResults([]);
     setCompareError(null);
   };
 
@@ -292,8 +306,6 @@ export function ViewPanel({
       setFileQuery(null);
       setSelectedParticipant(null);
       setFocusedDate(null);
-      // Arm B was run against the previous file — drop it on a file switch.
-      setArmBResult(null);
       setDrawerOpen(false);
       setCompareError(null);
     }
@@ -403,7 +415,7 @@ export function ViewPanel({
               }
               data-testid="review-compare-toggle"
             >
-              {armB ? "Edit comparison" : "Compare ▾"}
+              {armBResults.length ? "Edit comparison" : "Compare ▾"}
             </button>
           ) : null}
         </div>
@@ -419,6 +431,10 @@ export function ViewPanel({
           onClose={() => setDrawerOpen(false)}
           running={running}
           error={compareError}
+          completedCount={armBResults.length}
+          fileCount={reviewableFiles.filter((result) =>
+            uploadedFileNames.includes(result.inputFileName),
+          ).length}
         />
       ) : null}
 

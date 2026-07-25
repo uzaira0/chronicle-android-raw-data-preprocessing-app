@@ -71,8 +71,10 @@ not a portable latency promise.
 The View tab now requests only the Rust-produced review metrics, executes the
 affected part of the same 55-step Salsa graph, and does not build CSV exports,
 timeline geometry, lineage tables, workspace roots, or evidence closures. The
-shared comparison worker begins loading Arm A as soon as the comparison drawer
-opens; Arm B then reuses that exact parsed workspace.
+selected file stays in its existing worker and can use exact in-memory query
+reuse. For every other file, the saved result already is Arm A, so an eight-way
+worker pool computes Arm B only. It no longer repeats the old configuration
+just to warm each replacement worker.
 
 - Captured: 2026-07-25
 - Runtime: Node 22.23.1 loading the release browser WASM on Apple M3 Ultra
@@ -81,33 +83,39 @@ opens; Arm B then reuses that exact parsed workspace.
   `sha256:6c4bca2853bd7ef10df31dbe2f4c7e3e4c7e4f5da3e96b82e0175d0b5513a95f`
 - Change: `modelConcurrentUsage: true` to `false`, with the other browser
   options held constant
-- Scale: 100 separately named synthetic workspaces, executed by eight parallel
-  worker processes
-- Command: `npm exec vite-node scripts/benchmark_runtime_wasm.mts -- --raw
-  <fixture> --mode warm --iterations 2 --case middle_concurrent_usage
-  --materialization review --workspace-count <shard> --full-options --summary
-  --compact`
+- Scale: 100 copies of the synthetic input, executed as independent cold Arm B
+  computations by eight parallel worker processes
+- Command: `npm run measure:review-batch --
+  ../.tmp-benchmark/chronicle-synthetic-100000.csv 100 8`
 
 | Measurement across 100 files | Result |
 |---|---:|
-| Warm changed-file execute median | 656.1 ms |
-| Warm changed-file execute p90 | 668.2 ms |
-| Warm changed-file execute p95 | 1,243.1 ms |
-| Warm changed-file execute maximum | 1,337.7 ms |
-| Warm changed-file total median, including artifact transfer/hash | 657.2 ms |
-| Cold preparation median | 2,733.9 ms |
-| Cold preparation p95 | 4,483.7 ms |
-| Runtime WASM | 5,810,920 bytes |
-| Runtime WASM digest | `sha256:ed6b2939ec5e31776f79cc10436b744b09b7fff13d1aed11dacdacb480bd4627` |
+| Whole 100-file wall time | 33.046 s |
+| Cold Arm B execute minimum | 2,286.8 ms |
+| Cold Arm B execute median | 2,338.6 ms |
+| Cold Arm B execute p90 | 2,422.0 ms |
+| Cold Arm B execute p95 | 4,501.5 ms |
+| Cold Arm B execute maximum | 4,514.7 ms |
+| Cold Arm B execute mean | 2,513.5 ms |
+| Runtime WASM | 5,828,774 bytes |
+| Runtime WASM digest | `sha256:ffe78cfd7cd1f26454ccc0350b17308f15faf0f3ef2e9acfce4401da3d84e7fc` |
 
-The eight first-change measurements—one per fresh worker process—paid JIT and
-allocator warmup and account for the p95 tail. The other 92 changed files were
-tightly grouped around 644–669 ms. A single-process three-file check measured
-630–633 ms after warmup and 805 ms for its first changed file. The equivalent
-native query-timed run measured 357–471 ms. These values include exact final-row
-content hashing and all 55 step statuses; intermediate adjacent steps use
-Merkle-style dependency checkpoints so the same 100k rows are not re-hashed at
-every logical label.
+This is the honest replacement-worker cost, not the selected-file warm path.
+It measures the normal fail-closed WASM package after a one-process bootstrap;
+no test-only evidence bypass is present. A direct full browser attempt with 100
+simultaneously loaded 19 MB files remained active but the target page closed
+after the browser process tree reached roughly 7 GB. That is a separate
+full-result retention and rendering-memory problem; this benchmark isolates the
+review computation distribution without claiming the current UI can safely
+retain all 100 full results.
+
+The next clean latency step is a durable typed cache at logical step 28
+(`sort_episodes`). It will store a versioned, checksummed Rust-owned stage value
+under the existing exact action key in OPFS. A replacement worker can then
+verify that value and resume the same Rust pipeline at step 29. This is not a
+second engine or an opaque Salsa snapshot. Until that cache passes cold-oracle,
+tamper, schema-version, and exact-invalidation tests, the numbers above remain
+the production baseline.
 
 ## Clean-commit native full-output profile
 

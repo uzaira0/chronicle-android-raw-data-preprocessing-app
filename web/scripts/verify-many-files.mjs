@@ -17,6 +17,8 @@ const fileCount = Number(process.argv[3] ?? "50");
 const workerCount = Number(process.argv[4] ?? "4");
 const timeoutMs = Number(process.argv[5] ?? "180000");
 const fixturePath = process.argv[6] ? path.resolve(process.argv[6]) : null;
+const runComparison = process.argv[7] === "compare";
+const comparisonWarmupMs = Number(process.argv[8] ?? "0");
 
 /** @param {number} rootPid */
 function processTreeRssBytes(rootPid) {
@@ -207,6 +209,24 @@ await Promise.race([
 const elapsed = performance.now() - started;
 const resultCount = await page.locator('[data-testid="result-row"]').count();
 console.log(`Completed ${resultCount}/${fileCount} in ${(elapsed / 1000).toFixed(1)}s`);
+let comparisonElapsedMs = null;
+if (runComparison && resultCount === fileCount) {
+  await page.getByRole("tab", { name: /View/i }).click();
+  await page.getByTestId("review-compare-toggle").click();
+  const drawer = page.getByTestId("review-compare-drawer");
+  await drawer.getByTestId("minimum-usage-duration-input").fill("2");
+  if (comparisonWarmupMs > 0) {
+    await page.waitForTimeout(comparisonWarmupMs);
+  }
+  const comparisonStarted = performance.now();
+  await drawer.getByTestId("review-run-comparison").click();
+  await drawer.waitFor({ state: "hidden", timeout: timeoutMs });
+  comparisonElapsedMs = performance.now() - comparisonStarted;
+  await page.getByTestId("review-mcard-b").waitFor({ timeout: timeoutMs });
+  console.log(
+    `Compared ${fileCount} files with the 8-worker A/B path in ${(comparisonElapsedMs / 1000).toFixed(1)}s`,
+  );
+}
 if (errors.length) {
   console.log("PAGE ERRORS:", errors);
 }
@@ -224,6 +244,8 @@ console.log(
       totalInputBytes: bytesPerFile * fileCount,
       elapsedMs: elapsed,
       resultCount,
+      comparisonElapsedMs,
+      comparisonWarmupMs,
       peakProcessTreeRssBytes,
       pageErrors: errors,
     },

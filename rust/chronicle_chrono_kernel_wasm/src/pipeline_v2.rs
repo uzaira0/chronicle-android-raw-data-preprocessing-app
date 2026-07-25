@@ -610,29 +610,54 @@ impl<'de> serde::Deserialize<'de> for SharedString {
 #[derive(Clone)]
 struct Row(Arc<RowInner>);
 
-/// The derived checkpoint parts travel with the immutable row value. Most
-/// pipeline steps clone a `Row` without changing it, so hashing that row again
-/// at every later checkpoint is redundant. Any mutable access below clears
-/// the cached parts before exposing `RowData`.
+/// The derived checkpoint parts travel with the immutable row value. Each
+/// semantic component is cached separately so a classification-only edit does
+/// not force the identity and temporal bytes through the hash function again.
 struct RowInner {
     data: RowData,
-    checkpoint_parts: OnceLock<RowCheckpointParts>,
+    checkpoint_parts: RowCheckpointCache,
+}
+
+#[derive(Default)]
+struct RowCheckpointCache {
+    identity: OnceLock<[u8; 32]>,
+    temporal: OnceLock<[u8; 32]>,
+    classification: OnceLock<[u8; 32]>,
+}
+
+impl Clone for RowCheckpointCache {
+    fn clone(&self) -> Self {
+        fn copy_lock(source: &OnceLock<[u8; 32]>) -> OnceLock<[u8; 32]> {
+            let copy = OnceLock::new();
+            if let Some(value) = source.get() {
+                copy.set(*value).expect("fresh checkpoint lock");
+            }
+            copy
+        }
+
+        Self {
+            identity: copy_lock(&self.identity),
+            temporal: copy_lock(&self.temporal),
+            classification: copy_lock(&self.classification),
+        }
+    }
 }
 
 impl RowInner {
     fn new(data: RowData) -> Self {
         Self {
             data,
-            checkpoint_parts: OnceLock::new(),
+            checkpoint_parts: RowCheckpointCache::default(),
         }
     }
 }
 
 impl Clone for RowInner {
     fn clone(&self) -> Self {
-        // A clone is created specifically so its data can be changed through
-        // `Arc::make_mut`; retaining a prior digest would make it stale.
-        Self::new(self.data.clone())
+        Self {
+            data: self.data.clone(),
+            checkpoint_parts: self.checkpoint_parts.clone(),
+        }
     }
 }
 
@@ -763,6 +788,41 @@ impl Row {
     fn new(data: RowData) -> Self {
         Self(Arc::new(RowInner::new(data)))
     }
+
+    fn edit_components(
+        &mut self,
+        identity: bool,
+        temporal: bool,
+        classification: bool,
+    ) -> &mut RowData {
+        let inner = Arc::make_mut(&mut self.0);
+        if identity {
+            inner.checkpoint_parts.identity = OnceLock::new();
+        }
+        if temporal {
+            inner.checkpoint_parts.temporal = OnceLock::new();
+        }
+        if classification {
+            inner.checkpoint_parts.classification = OnceLock::new();
+        }
+        &mut inner.data
+    }
+
+    fn edit_identity(&mut self) -> &mut RowData {
+        self.edit_components(true, false, false)
+    }
+
+    fn edit_temporal(&mut self) -> &mut RowData {
+        self.edit_components(false, true, false)
+    }
+
+    fn edit_classification(&mut self) -> &mut RowData {
+        self.edit_components(false, false, true)
+    }
+
+    fn edit_all(&mut self) -> &mut RowData {
+        self.edit_components(true, true, true)
+    }
 }
 
 impl std::ops::Deref for Row {
@@ -775,9 +835,7 @@ impl std::ops::Deref for Row {
 
 impl std::ops::DerefMut for Row {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        let inner = Arc::make_mut(&mut self.0);
-        inner.checkpoint_parts = OnceLock::new();
-        &mut inner.data
+        self.edit_all()
     }
 }
 
@@ -1431,6 +1489,59 @@ trait CheckpointSink {
     fn checkpoint_update(&mut self, bytes: &[u8]);
 }
 
+// BLAKE3's public streaming API parallelizes large updates internally, but a
+// logical checkpoint previously fed it one 40-128 byte row encoding per call.
+// Keep a small bounded buffer so the exact same protocol bytes reach BLAKE3 in
+// larger updates. This is deliberately not a second hash or a cache shortcut.
+const CHECKPOINT_HASH_BUFFER_BYTES: usize = 16 * 1024;
+
+struct BufferedCheckpointHasher {
+    hasher: CheckpointHasher,
+    pending: Vec<u8>,
+}
+
+impl BufferedCheckpointHasher {
+    fn new() -> Self {
+        Self {
+            hasher: CheckpointHasher::new(),
+            pending: Vec::with_capacity(CHECKPOINT_HASH_BUFFER_BYTES),
+        }
+    }
+
+    #[inline]
+    fn update(&mut self, bytes: &[u8]) {
+        self.checkpoint_update(bytes);
+    }
+
+    #[inline]
+    fn flush(&mut self) {
+        if !self.pending.is_empty() {
+            self.hasher.update(&self.pending);
+            self.pending.clear();
+        }
+    }
+
+    fn finalize(mut self) -> blake3::Hash {
+        self.flush();
+        self.hasher.finalize()
+    }
+}
+
+impl CheckpointSink for BufferedCheckpointHasher {
+    #[inline]
+    fn checkpoint_update(&mut self, bytes: &[u8]) {
+        if bytes.len() >= CHECKPOINT_HASH_BUFFER_BYTES {
+            self.flush();
+            self.hasher.update(bytes);
+            return;
+        }
+        if self.pending.len() + bytes.len() > CHECKPOINT_HASH_BUFFER_BYTES {
+            self.flush();
+        }
+        self.pending.extend_from_slice(bytes);
+    }
+}
+
 impl CheckpointSink for CheckpointHasher {
     fn checkpoint_update(&mut self, bytes: &[u8]) {
         self.update(bytes);
@@ -1443,6 +1554,13 @@ impl CheckpointSink for Vec<u8> {
     }
 }
 
+struct DiscardCheckpointSink;
+
+impl CheckpointSink for DiscardCheckpointSink {
+    #[inline(always)]
+    fn checkpoint_update(&mut self, _bytes: &[u8]) {}
+}
+
 fn checkpoint_update(sink: &mut impl CheckpointSink, bytes: &[u8]) {
     sink.checkpoint_update(bytes);
 }
@@ -1452,15 +1570,15 @@ fn checkpoint_digest_field(sink: &mut impl CheckpointSink, bytes: &[u8]) {
     sink.checkpoint_update(bytes);
 }
 
-fn checkpoint_digest_fixed32(hasher: &mut CheckpointHasher, value: &[u8; 32]) {
+fn checkpoint_digest_fixed32(hasher: &mut impl CheckpointSink, value: &[u8; 32]) {
     let mut encoded = [0_u8; 40];
     encoded[..8].copy_from_slice(&32_u64.to_le_bytes());
     encoded[8..].copy_from_slice(value);
-    hasher.update(&encoded);
+    hasher.checkpoint_update(&encoded);
 }
 
 fn checkpoint_digest_fixed32_pair(
-    hasher: &mut CheckpointHasher,
+    hasher: &mut impl CheckpointSink,
     first: &[u8; 32],
     second: &[u8; 32],
 ) {
@@ -1469,11 +1587,11 @@ fn checkpoint_digest_fixed32_pair(
     encoded[8..40].copy_from_slice(first);
     encoded[40..48].copy_from_slice(&32_u64.to_le_bytes());
     encoded[48..].copy_from_slice(second);
-    hasher.update(&encoded);
+    hasher.checkpoint_update(&encoded);
 }
 
 fn checkpoint_digest_positioned_fixed32(
-    hasher: &mut CheckpointHasher,
+    hasher: &mut impl CheckpointSink,
     position: usize,
     value: &[u8; 32],
 ) {
@@ -1481,11 +1599,11 @@ fn checkpoint_digest_positioned_fixed32(
     encoded[..8].copy_from_slice(&(position as u64).to_le_bytes());
     encoded[8..16].copy_from_slice(&32_u64.to_le_bytes());
     encoded[16..].copy_from_slice(value);
-    hasher.update(&encoded);
+    hasher.checkpoint_update(&encoded);
 }
 
 fn checkpoint_digest_positioned_fixed32_triple(
-    hasher: &mut CheckpointHasher,
+    hasher: &mut impl CheckpointSink,
     position: usize,
     first: &[u8; 32],
     second: &[u8; 32],
@@ -1499,7 +1617,7 @@ fn checkpoint_digest_positioned_fixed32_triple(
     encoded[56..88].copy_from_slice(second);
     encoded[88..96].copy_from_slice(&32_u64.to_le_bytes());
     encoded[96..].copy_from_slice(third);
-    hasher.update(&encoded);
+    hasher.checkpoint_update(&encoded);
 }
 
 fn checkpoint_digest_optional_string(sink: &mut impl CheckpointSink, value: Option<&str>) {
@@ -1558,15 +1676,15 @@ const LOGICAL_STAGE_ROW_SCHEMA: &str = concat!(
     "broad_app_category,codebook_fields,usage_layer"
 );
 
-fn checkpoint_hasher(node_id: &str, component: &str) -> CheckpointHasher {
-    let mut hasher = CheckpointHasher::new();
+fn checkpoint_hasher(node_id: &str, component: &str) -> BufferedCheckpointHasher {
+    let mut hasher = BufferedCheckpointHasher::new();
     checkpoint_digest_field(&mut hasher, LOGICAL_STAGE_CHECKPOINT_PROTOCOL.as_bytes());
     checkpoint_digest_field(&mut hasher, node_id.as_bytes());
     checkpoint_digest_field(&mut hasher, component.as_bytes());
     hasher
 }
 
-fn finish_checkpoint_digest(hasher: CheckpointHasher) -> String {
+fn finish_checkpoint_digest(hasher: BufferedCheckpointHasher) -> String {
     format!("blake3:{}", hasher.finalize().to_hex())
 }
 
@@ -1610,11 +1728,11 @@ impl Default for RowCheckpointScratch {
 }
 
 #[deny(unused_variables)]
-fn encode_row_checkpoint_parts<S: CheckpointSink>(
+fn encode_row_checkpoint_parts<I: CheckpointSink, T: CheckpointSink, C: CheckpointSink>(
     row: &Row,
-    identity: &mut S,
-    temporal: &mut S,
-    classification: &mut S,
+    identity: &mut I,
+    temporal: &mut T,
+    classification: &mut C,
 ) {
     // Every field is deliberately bound and hashed. Adding a Row field makes
     // this exhaustive pattern fail; binding one without hashing it makes the
@@ -1787,43 +1905,115 @@ fn encode_row_checkpoint_parts<S: CheckpointSink>(
 
 impl RowCheckpointScratch {
     fn compute_parts(&mut self, row: &Row) -> RowCheckpointParts {
+        let cache = &row.0.checkpoint_parts;
+        let missing_identity = cache.identity.get().is_none();
+        let missing_temporal = cache.temporal.get().is_none();
+        let missing_classification = cache.classification.get().is_none();
+        if !missing_identity && !missing_temporal && !missing_classification {
+            return RowCheckpointParts {
+                identity: *cache.identity.get().expect("checked identity checkpoint"),
+                temporal: *cache.temporal.get().expect("checked temporal checkpoint"),
+                classification: *cache
+                    .classification
+                    .get()
+                    .expect("checked classification checkpoint"),
+            };
+        }
+
         self.identity.clear();
         self.temporal.clear();
         self.classification.clear();
-        encode_row_checkpoint_parts(
-            row,
-            &mut self.identity,
-            &mut self.temporal,
-            &mut self.classification,
-        );
-        let parts = RowCheckpointParts {
-            identity: *blake3::hash(&self.identity).as_bytes(),
-            temporal: *blake3::hash(&self.temporal).as_bytes(),
-            classification: *blake3::hash(&self.classification).as_bytes(),
-        };
-
-        #[cfg(debug_assertions)]
-        {
-            let mut identity = CheckpointHasher::new();
-            let mut temporal = CheckpointHasher::new();
-            let mut classification = CheckpointHasher::new();
-            encode_row_checkpoint_parts(row, &mut identity, &mut temporal, &mut classification);
-            assert_eq!(parts.identity, *identity.finalize().as_bytes());
-            assert_eq!(parts.temporal, *temporal.finalize().as_bytes());
-            assert_eq!(parts.classification, *classification.finalize().as_bytes());
+        let mut discard_identity = DiscardCheckpointSink;
+        let mut discard_temporal = DiscardCheckpointSink;
+        let mut discard_classification = DiscardCheckpointSink;
+        match (missing_identity, missing_temporal, missing_classification) {
+            (true, true, true) => encode_row_checkpoint_parts(
+                row,
+                &mut self.identity,
+                &mut self.temporal,
+                &mut self.classification,
+            ),
+            (true, true, false) => encode_row_checkpoint_parts(
+                row,
+                &mut self.identity,
+                &mut self.temporal,
+                &mut discard_classification,
+            ),
+            (true, false, true) => encode_row_checkpoint_parts(
+                row,
+                &mut self.identity,
+                &mut discard_temporal,
+                &mut self.classification,
+            ),
+            (false, true, true) => encode_row_checkpoint_parts(
+                row,
+                &mut discard_identity,
+                &mut self.temporal,
+                &mut self.classification,
+            ),
+            (true, false, false) => encode_row_checkpoint_parts(
+                row,
+                &mut self.identity,
+                &mut discard_temporal,
+                &mut discard_classification,
+            ),
+            (false, true, false) => encode_row_checkpoint_parts(
+                row,
+                &mut discard_identity,
+                &mut self.temporal,
+                &mut discard_classification,
+            ),
+            (false, false, true) => encode_row_checkpoint_parts(
+                row,
+                &mut discard_identity,
+                &mut discard_temporal,
+                &mut self.classification,
+            ),
+            (false, false, false) => unreachable!("handled above"),
         }
 
-        parts
+        let identity = missing_identity.then(|| *blake3::hash(&self.identity).as_bytes());
+        let temporal = missing_temporal.then(|| *blake3::hash(&self.temporal).as_bytes());
+        let classification =
+            missing_classification.then(|| *blake3::hash(&self.classification).as_bytes());
+        RowCheckpointParts {
+            identity: *cache
+                .identity
+                .get_or_init(|| identity.expect("identity computed")),
+            temporal: *cache
+                .temporal
+                .get_or_init(|| temporal.expect("temporal computed")),
+            classification: *cache
+                .classification
+                .get_or_init(|| classification.expect("classification computed")),
+        }
     }
 }
 
 fn row_checkpoint_parts(row: &Row, scratch: &mut RowCheckpointScratch) -> RowCheckpointParts {
-    *row.0
-        .checkpoint_parts
-        .get_or_init(|| scratch.compute_parts(row))
+    scratch.compute_parts(row)
 }
 
 fn row_checkpoint_parts_for_rows(rows: &[Row]) -> Vec<RowCheckpointParts> {
+    #[cfg(feature = "query-timing")]
+    {
+        let missing_identity = rows
+            .iter()
+            .filter(|row| row.0.checkpoint_parts.identity.get().is_none())
+            .count();
+        let missing_temporal = rows
+            .iter()
+            .filter(|row| row.0.checkpoint_parts.temporal.get().is_none())
+            .count();
+        let missing_classification = rows
+            .iter()
+            .filter(|row| row.0.checkpoint_parts.classification.get().is_none())
+            .count();
+        eprintln!(
+            "checkpoint_cache rows={} missing_identity={} missing_temporal={} missing_classification={}",
+            rows.len(), missing_identity, missing_temporal, missing_classification
+        );
+    }
     let mut scratch = RowCheckpointScratch::default();
     rows.iter()
         .map(|row| row_checkpoint_parts(row, &mut scratch))
@@ -2439,20 +2629,17 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
         ) {
             while cursor <= end {
                 let date = cursor.format("%Y-%m-%d").to_string();
-                per_day.push(
-                    observed_days
-                        .get(date.as_str())
-                        .cloned()
-                        .unwrap_or(ReviewDayMetrics {
-                            date,
-                            app_usage_minutes: 0.0,
-                            background_app_usage_minutes: 0.0,
-                            screen_usage_minutes: 0.0,
-                            app_session_count: 0,
-                            screen_session_count: 0,
-                            flags: vec!["no_usage_day".into()],
-                        }),
-                );
+                per_day.push(observed_days.get(date.as_str()).cloned().unwrap_or(
+                    ReviewDayMetrics {
+                        date,
+                        app_usage_minutes: 0.0,
+                        background_app_usage_minutes: 0.0,
+                        screen_usage_minutes: 0.0,
+                        app_session_count: 0,
+                        screen_session_count: 0,
+                        flags: vec!["no_usage_day".into()],
+                    },
+                ));
                 cursor += Duration::days(1);
             }
         }
@@ -2492,13 +2679,11 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
             };
             let mut top_apps: Vec<_> = by_package
                 .iter()
-                .map(|(app_package_name, accumulated)| {
-                    ReviewTopApp {
-                        app_package_name: app_package_name.to_string(),
-                        application_label: accumulated.application_label.to_string(),
-                        category: accumulated.category.as_ref().map(ToString::to_string),
-                        minutes: review_round4(accumulated.minutes),
-                    }
+                .map(|(app_package_name, accumulated)| ReviewTopApp {
+                    app_package_name: app_package_name.to_string(),
+                    application_label: accumulated.application_label.to_string(),
+                    category: accumulated.category.as_ref().map(ToString::to_string),
+                    minutes: review_round4(accumulated.minutes),
                 })
                 .collect();
             top_apps.sort_by(|left, right| {
@@ -5904,7 +6089,7 @@ mod tests {
     }
 
     #[test]
-    fn cached_row_checkpoint_is_cleared_before_mutation() {
+    fn cached_row_checkpoint_invalidates_only_the_edited_component() {
         let csv = concat!(
             "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
             "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n"
@@ -5917,16 +6102,40 @@ mod tests {
                 .remove(0);
         let mut scratch = RowCheckpointScratch::default();
         let baseline = row_checkpoint_parts(&row, &mut scratch);
-        assert!(row.0.checkpoint_parts.get().is_some());
+        assert!(row.0.checkpoint_parts.identity.get().is_some());
+        assert!(row.0.checkpoint_parts.temporal.get().is_some());
+        assert!(row.0.checkpoint_parts.classification.get().is_some());
 
-        row.hour = row.hour.saturating_add(1);
-        assert!(
-            row.0.checkpoint_parts.get().is_none(),
-            "mutable row access must clear the derived checkpoint"
-        );
+        let hour = row.hour.saturating_add(1);
+        row.edit_temporal().hour = hour;
+        assert!(row.0.checkpoint_parts.identity.get().is_some());
+        assert!(row.0.checkpoint_parts.temporal.get().is_none());
+        assert!(row.0.checkpoint_parts.classification.get().is_some());
         let changed = row_checkpoint_parts(&row, &mut scratch);
         assert_eq!(baseline.identity, changed.identity);
         assert_ne!(baseline.temporal, changed.temporal);
+        assert_eq!(baseline.classification, changed.classification);
+
+        let fresh = Row::new(row.0.data.clone());
+        let fresh_parts = row_checkpoint_parts(&fresh, &mut scratch);
+        assert_eq!(
+            changed, fresh_parts,
+            "component cache must match a cold hash"
+        );
+
+        row.edit_classification().application_label = "Changed".into();
+        assert!(row.0.checkpoint_parts.identity.get().is_some());
+        assert!(row.0.checkpoint_parts.temporal.get().is_some());
+        assert!(row.0.checkpoint_parts.classification.get().is_none());
+        let changed_again = row_checkpoint_parts(&row, &mut scratch);
+        assert_eq!(changed.identity, changed_again.identity);
+        assert_eq!(changed.temporal, changed_again.temporal);
+        assert_ne!(changed.classification, changed_again.classification);
+
+        row.index += 1;
+        assert!(row.0.checkpoint_parts.identity.get().is_none());
+        assert!(row.0.checkpoint_parts.temporal.get().is_none());
+        assert!(row.0.checkpoint_parts.classification.get().is_none());
     }
 
     fn test_options() -> PipelineV2Options {
@@ -6356,6 +6565,19 @@ mod tests {
         let mut batched = CheckpointHasher::new();
         checkpoint_digest_positioned_fixed32_triple(&mut batched, 7, &first, &second, &third);
         assert_eq!(reference.finalize(), batched.finalize());
+    }
+
+    #[test]
+    fn buffered_checkpoint_hasher_matches_streaming_across_flush_boundaries() {
+        let mut reference = CheckpointHasher::new();
+        let mut buffered = BufferedCheckpointHasher::new();
+        for index in 0..1_000_usize {
+            let first = blake3::hash(&(index as u64).to_le_bytes());
+            let second = blake3::hash(&((index as u64) + 1).to_le_bytes());
+            checkpoint_digest_fixed32_pair(&mut reference, first.as_bytes(), second.as_bytes());
+            checkpoint_digest_fixed32_pair(&mut buffered, first.as_bytes(), second.as_bytes());
+        }
+        assert_eq!(reference.finalize(), buffered.finalize());
     }
 
     #[test]

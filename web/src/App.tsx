@@ -17,6 +17,7 @@ import {
   discoverTimezonesBytes,
   getPlanStageView,
   processRawCsvBytes,
+  processRawCsvChangedReviewBytesViaPool,
   processRawCsvReviewBytes,
   processRawCsvBytesViaPool,
   warmRuntime,
@@ -76,6 +77,8 @@ const GraphPanel = lazy(() =>
     default: module.GraphPanel,
   })),
 );
+
+const COMPARISON_WORKER_LIMIT = 8;
 import { TimezoneCard } from "@/components/TimezoneCard";
 import { SessionDetectionCard } from "@/components/SessionDetectionCard";
 import { ScreenDetectionCard } from "@/components/ScreenDetectionCard";
@@ -248,7 +251,7 @@ export default function App(): ReactElement {
   const processingRef = useRef(false);
   const retryingFileRef = useRef<string | null>(null);
   const comparisonWarmupRef = useRef<{
-    fileName: string;
+    key: string;
     promise: Promise<void>;
   } | null>(null);
   // Holds the pending "flash the jumped-to setting" timer so a rapid second jump
@@ -606,17 +609,11 @@ export default function App(): ReactElement {
     return { ...requested, selectedTimezone: ordered[0] };
   };
 
-  /**
-   * Re-process a single already-uploaded file under a different config (the
-   * View tab's "Arm B"), reusing the same support-file resolution as a normal
-   * run. Returns fresh review metrics from the same 55-step Rust graph without
-   * materializing exports or timeline geometry. Throws if the file is no longer
-   * loaded so the View tab can prompt the user to re-add it.
-   */
   const executeComparisonReview = useCallback(
     async (
       fileName: string,
       reviewOptions: BrowserProcessingOptions,
+      supportFiles?: BrowserSupportFiles,
     ): Promise<ProcessedFileResult> => {
       const file = uploadedFiles.find(
         (candidate) => candidate.name === fileName,
@@ -626,23 +623,22 @@ export default function App(): ReactElement {
           "The raw file for this run is no longer loaded. Re-add it in the Files tab to compare.",
         );
       }
-      const userSupportFiles = await buildSupportFilesForOptions(reviewOptions);
-      const supportFiles = await resolveDefaultSupportFiles(
-        reviewOptions,
-        userSupportFiles,
-      );
-      const bytes = await file.arrayBuffer();
+      const resolvedSupportFiles =
+        supportFiles ??
+        (await resolveDefaultSupportFiles(
+          reviewOptions,
+          await buildSupportFilesForOptions(reviewOptions),
+        ));
       return processRawCsvReviewBytes(
         file.name,
-        bytes,
+        await file.arrayBuffer(),
         reviewOptions,
-        supportFiles,
+        resolvedSupportFiles,
         getInjectedRuntime(),
       );
     },
     [
       uploadedFiles,
-      options,
       filterFile,
       appsForcingScreenOpenFile,
       backgroundAppsFile,
@@ -654,17 +650,17 @@ export default function App(): ReactElement {
     ],
   );
 
-  /**
-   * Seed the shared comparison worker with Arm A while the user edits Arm B.
-   * Batch processing uses disposable pool workers, so without this warmup the
-   * first comparison would pay the entire cold parse/normalization cost again.
-   */
+  /** Warm the selected file while the researcher edits Arm B. This worker is
+   * one of the eight assumed comparison workers; the other seven handle the
+   * remaining files when Run is pressed. */
   const prepareComparison = useCallback(
     (fileName: string): Promise<void> => {
-      if (comparisonWarmupRef.current?.fileName === fileName) {
+      const baselineOptions = resultsOptions ?? options;
+      const key = `${fileName}:${JSON.stringify(baselineOptions)}`;
+      if (comparisonWarmupRef.current?.key === key) {
         return comparisonWarmupRef.current.promise;
       }
-      const promise = executeComparisonReview(fileName, options)
+      const promise = executeComparisonReview(fileName, baselineOptions)
         .then(() => undefined)
         .catch((error) => {
           if (comparisonWarmupRef.current?.promise === promise) {
@@ -672,24 +668,158 @@ export default function App(): ReactElement {
           }
           throw error;
         });
-      comparisonWarmupRef.current = { fileName, promise };
+      comparisonWarmupRef.current = { key, promise };
       return promise;
     },
-    [executeComparisonReview, options],
+    [executeComparisonReview, options, resultsOptions],
   );
 
+  /** Re-run every loaded review file under Arm B. The selected file uses the
+   * worker warmed while the drawer was open, so its chart can update first;
+   * seven pool workers process the remaining files concurrently. */
   const runComparison = useCallback(
     async (
-      fileName: string,
+      priorityFileName: string,
       overrides: Partial<BrowserProcessingOptions>,
-    ): Promise<ProcessedFileResult> => {
-      // Await the exact Arm-A warmup already started when the drawer opened.
-      // The following Arm-B call then changes only the affected Rust queries.
-      await prepareComparison(fileName);
-      const armBOptions = sanitizeOptions({ ...options, ...overrides });
-      return executeComparisonReview(fileName, armBOptions);
+      onResult?: (result: ProcessedFileResult) => void,
+    ): Promise<ProcessedFileResult[]> => {
+      const reviewableNames = new Set(
+        results
+          .filter((result) => !!result.reviewSummary)
+          .map((result) => result.inputFileName),
+      );
+      const files = uploadedFiles.filter((file) =>
+        reviewableNames.has(file.name),
+      );
+      if (!files.some((file) => file.name === priorityFileName)) {
+        throw new Error(
+          "The raw file for this run is no longer loaded. Re-add it in the Files tab to compare.",
+        );
+      }
+
+      // Arm A is the configuration that actually produced `results`, not the
+      // possibly edited live Settings state.
+      const baselineOptions = resultsOptions ?? options;
+      const requestedArmB = sanitizeOptions({
+        ...baselineOptions,
+        ...overrides,
+      });
+      const armBOptions = await resolveRunOptions(requestedArmB, files);
+      const changedUploads = await buildSupportFilesForOptions(armBOptions);
+      const changedSupportFiles = await resolveDefaultSupportFiles(
+        armBOptions,
+        changedUploads,
+      );
+      const inputDigestByName = new Map(
+        results.map((result) => [result.inputFileName, result.inputSha256]),
+      );
+
+      const activeIndex = files.findIndex(
+        (file) => file.name === priorityFileName,
+      );
+      const schedule = files
+        .map((file, index) => ({ file, index }))
+        .filter((item) => item.index !== activeIndex)
+        .sort((left, right) => {
+          return right.file.size - left.file.size || left.index - right.index;
+        });
+      const completed: Array<ProcessedFileResult | undefined> = Array.from(
+        { length: files.length },
+        () => undefined,
+      );
+      const failures: string[] = [];
+      const backgroundWorkerCount = Math.min(
+        COMPARISON_WORKER_LIMIT - 1,
+        schedule.length,
+      );
+      const pool = backgroundWorkerCount
+        ? new WorkerPool(backgroundWorkerCount)
+        : null;
+      let cursor = 0;
+      const runner = async (): Promise<void> => {
+        for (;;) {
+          const item = schedule[cursor];
+          cursor += 1;
+          if (!item) return;
+          try {
+            const inputSha256 = inputDigestByName.get(item.file.name);
+            if (!inputSha256) {
+              throw new Error(
+                "completed result is missing its raw input digest",
+              );
+            }
+            const result = await processRawCsvChangedReviewBytesViaPool(
+              pool!,
+              item.file.name,
+              await item.file.arrayBuffer(),
+              armBOptions,
+              changedSupportFiles,
+              getInjectedRuntime(),
+              inputSha256,
+            );
+            completed[item.index] = result;
+            onResult?.(result);
+          } catch (error) {
+            failures.push(
+              `${item.file.name}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+        }
+      };
+      const activeTask = (async (): Promise<void> => {
+        try {
+          await prepareComparison(priorityFileName);
+          const result = await executeComparisonReview(
+            priorityFileName,
+            armBOptions,
+            changedSupportFiles,
+          );
+          completed[activeIndex] = result;
+          onResult?.(result);
+        } catch (error) {
+          failures.push(
+            `${priorityFileName}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      })();
+      try {
+        await Promise.all([
+          activeTask,
+          ...Array.from({ length: backgroundWorkerCount }, () => runner()),
+        ]);
+      } finally {
+        pool?.terminate();
+      }
+      const successful = completed.filter(
+        (result): result is ProcessedFileResult => !!result,
+      );
+      if (failures.length) {
+        setToast({
+          message: `Compared ${successful.length}/${files.length} files. ${failures[0]}`,
+          isError: true,
+        });
+      }
+      if (!successful.length) {
+        throw new Error(failures[0] ?? "No files could be compared.");
+      }
+      return successful;
     },
-    [executeComparisonReview, options, prepareComparison],
+    [
+      uploadedFiles,
+      results,
+      resultsOptions,
+      options,
+      filterFile,
+      appsForcingScreenOpenFile,
+      backgroundAppsFile,
+      appCodebookFile,
+      studyDatesFile,
+      deviceSharingFile,
+      surveyAttributionFile,
+      enrolledDevicesFile,
+      executeComparisonReview,
+      prepareComparison,
+    ],
   );
 
   const discoverAvailableTimezones = async () => {
@@ -1022,8 +1152,6 @@ export default function App(): ReactElement {
           userSupportFiles,
         );
         const bytes = await file.arrayBuffer();
-        // This full execution uses the same singleton worker as View comparisons
-        // and therefore replaces its one retained incremental workspace.
         comparisonWarmupRef.current = null;
         const result = await processRawCsvBytes(
           file.name,
@@ -1527,7 +1655,7 @@ export default function App(): ReactElement {
           >
             <ViewPanel
               results={results}
-              options={options}
+              options={resultsOptions ?? options}
               uploadedFileNames={uploadedFiles.map((file) => file.name)}
               onPrepareComparison={prepareComparison}
               onRunComparison={runComparison}

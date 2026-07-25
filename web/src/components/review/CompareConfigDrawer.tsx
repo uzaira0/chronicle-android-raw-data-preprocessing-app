@@ -14,6 +14,8 @@ type Props = {
   onClose: () => void;
   running: boolean;
   error: string | null;
+  completedCount: number;
+  fileCount: number;
 };
 
 /**
@@ -29,11 +31,16 @@ export function CompareConfigDrawer({
   onClose,
   running,
   error,
+  completedCount,
+  fileCount,
 }: Props): ReactElement {
   return (
     <div className="review-drawer" data-testid="review-compare-drawer">
       <div className="review-drawer__head">
-        <span>Arm B config — re-processes the selected file, applied on run</span>
+        <span>
+          Arm B config — re-processes {fileCount} loaded review{" "}
+          {fileCount === 1 ? "file" : "files"} with up to 8 workers
+        </span>
         <button type="button" className="review-drawer__close" onClick={onClose} aria-label="Close">
           ✕
         </button>
@@ -62,7 +69,9 @@ export function CompareConfigDrawer({
           disabled={running}
           data-testid="review-run-comparison"
         >
-          {running ? "Running…" : "Run comparison"}
+          {running
+            ? `Running… ${completedCount}/${fileCount}`
+            : "Run comparison"}
         </button>
       </div>
     </div>

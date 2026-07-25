@@ -772,9 +772,11 @@ test("View tab compares the run against a second config (Arm B) in-browser", asy
     "Δ",
   ]);
 
-  // The timeline interleaves into ONE combined A/B waterfall (legend + a single
-  // scene), not two stacked timelines.
-  await expect(page.getByTestId("review-compare-legend")).toBeVisible();
+  // The fast comparison deliberately returns compact Rust metrics rather than
+  // rebuilding Arm-B timeline geometry.
+  await expect(page.getByTestId("review-compare-no-overlap")).toContainText(
+    "fast comparison updated the Δ metrics",
+  );
   await expect(page.getByTestId("timeline-view-participant-title")).toHaveCount(1);
 
   assertNoExternalRequests(requestTracker);

@@ -1661,6 +1661,12 @@ fn execute_incremental_pipeline(
         let state = states.state_for(&request.workspace_id);
         if request.workspace_root_digest != state.last_workspace_root {
             *state = IncrementalRuntimeState::default();
+            // A fresh worker has no opaque Salsa snapshot, but the caller may
+            // still be continuing from a verified OPFS root. Adopt that root
+            // as the base for this disposable in-memory engine after the
+            // required cold rebuild. Review requests do not create a new root,
+            // so without this assignment the next review reset again.
+            state.last_workspace_root = request.workspace_root_digest.clone();
         }
         let certificate = embedded_dependency_certificate();
         let empirical_evidence_current = dependency_evidence_current(&certificate);
@@ -5101,6 +5107,46 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             .node_executions
             .iter()
             .any(|execution| execution.status == ExecutionStatus::Recomputed));
+    }
+
+    #[test]
+    fn repeated_review_reuses_cold_rebuild_based_on_a_verified_existing_root() {
+        reset_tracked_execution_count();
+        let csv = csv();
+        let mut request_value = request_for_workspace(&csv, 'b');
+        request_value["command"] = Value::String(QUERY_REVIEW_COMMAND.into());
+        request_value["workspaceRootDigest"] = Value::String(format!("sha256:{}", "a".repeat(64)));
+
+        let first = execute_workspace_native(
+            &request_value.to_string(),
+            &csv,
+            &RuntimeSupportFiles::default(),
+        )
+        .unwrap();
+        let first: ReviewRuntimeManifest = serde_json::from_str(&first.manifest_json).unwrap();
+        assert_eq!(tracked_execution_count(), 1);
+        assert!(first
+            .step_executions
+            .iter()
+            .any(|execution| execution.status == ExecutionStatus::Recomputed));
+
+        request_value["requestId"] = Value::String("same-root-review-b".into());
+        let second = execute_workspace_native(
+            &request_value.to_string(),
+            &csv,
+            &RuntimeSupportFiles::default(),
+        )
+        .unwrap();
+        let second: ReviewRuntimeManifest = serde_json::from_str(&second.manifest_json).unwrap();
+        assert_eq!(
+            tracked_execution_count(),
+            1,
+            "the second review arm must reuse the first arm's cold rebuild"
+        );
+        assert!(second.step_executions.iter().all(|execution| matches!(
+            execution.status,
+            ExecutionStatus::Cached | ExecutionStatus::Bypassed | ExecutionStatus::Skipped
+        )));
     }
 
     #[test]

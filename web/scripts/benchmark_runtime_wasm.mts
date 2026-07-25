@@ -32,12 +32,14 @@ function parseArgs(argv: string[]) {
   let compact = false;
   let benchmarkCase = "unchanged";
   let materialization: "full" | "review" = "full";
+  let changedOnly = false;
   let workspaceCount = 1;
   let workspaceOffset = 0;
   const benchmarkCases = new Set([
     "unchanged",
     "upstream_timezone_policy",
     "middle_concurrent_usage",
+    "middle_minimum_usage_duration",
     "downstream_day_coverage",
     "output_study_name",
   ]);
@@ -74,6 +76,8 @@ function parseArgs(argv: string[]) {
     ) {
       materialization = next;
       index += 1;
+    } else if (token === "--changed-only") {
+      changedOnly = true;
     } else if (token === "--workspace-count" && next) {
       workspaceCount = positiveInteger(token, next);
       index += 1;
@@ -88,12 +92,12 @@ function parseArgs(argv: string[]) {
     }
   }
   if (!raw) throw new Error("--raw <path> is required");
-  if (benchmarkCase !== "unchanged" && mode !== "warm") {
+  if (benchmarkCase !== "unchanged" && mode !== "warm" && !changedOnly) {
     throw new Error(
       "--case requires --mode warm so iteration 0 can seed the workspace",
     );
   }
-  if (benchmarkCase !== "unchanged" && iterations < 2) {
+  if (benchmarkCase !== "unchanged" && iterations < 2 && !changedOnly) {
     throw new Error("--case requires at least 2 iterations");
   }
   return {
@@ -107,6 +111,7 @@ function parseArgs(argv: string[]) {
     compact,
     benchmarkCase,
     materialization,
+    changedOnly,
     workspaceCount,
     workspaceOffset,
   };
@@ -167,8 +172,7 @@ try {
           : sha256(`${stableWorkspaceId}:${iteration}`);
       let handle: ReturnType<typeof runtime.execute_workspace> | undefined;
       try {
-        const changed = iteration > 0;
-        const browserOptions = {
+        const buildBrowserOptions = (changed: boolean) => ({
           ...DEFAULT_BROWSER_OPTIONS,
           selectedTimezone: "America/Chicago",
           timezoneHandling: "selected-filter" as const,
@@ -186,19 +190,28 @@ try {
           ...(changed && args.benchmarkCase === "middle_concurrent_usage"
             ? { modelConcurrentUsage: false }
             : {}),
+          ...(changed && args.benchmarkCase === "middle_minimum_usage_duration"
+            ? { minimumUsageDuration: 2 }
+            : {}),
           ...(changed && args.benchmarkCase === "downstream_day_coverage"
             ? { enableDayCoverage: true }
             : {}),
           ...(changed && args.benchmarkCase === "output_study_name"
             ? { studyName: "Synthetic benchmark B" }
             : {}),
-        };
+        });
+        const browserOptions = buildBrowserOptions(
+          args.changedOnly || iteration > 0,
+        );
         const totalStarted = performance.now();
         const executeStarted = performance.now();
-        handle = runtime.execute_workspace(
+        const requestJson = (
+          arm: string,
+          requestOptions: typeof browserOptions,
+        ) =>
           JSON.stringify({
             protocolVersion: "chronicle-preprocessing-runtime/v1",
-            requestId: `benchmark-${args.mode}-${args.benchmarkCase}-${syntheticIndex}-${iteration}`,
+            requestId: `benchmark-${args.mode}-${args.benchmarkCase}-${syntheticIndex}-${iteration}-${arm}`,
             command:
               args.materialization === "review"
                 ? "QueryReview"
@@ -207,10 +220,12 @@ try {
             workspaceId,
             inputFileName,
             inputSha256,
-            options: buildRustV2Options(browserOptions, {
+            options: buildRustV2Options(requestOptions, {
               datetimeOfPreprocessing: "2026-07-23 00:00:00 UTC",
             }),
-          }),
+          });
+        handle = runtime.execute_workspace(
+          requestJson("single", browserOptions),
           inputBytes,
           supports,
         );
@@ -297,12 +312,8 @@ try {
   } catch {}
 }
 
-const coldResults = results.filter(
-  (result: any) => result.iteration === 0,
-);
-const changedResults = results.filter(
-  (result: any) => result.iteration > 0,
-);
+const coldResults = results.filter((result: any) => result.iteration === 0);
+const changedResults = results.filter((result: any) => result.iteration > 0);
 process.stdout.write(
   `${JSON.stringify({
     input: {
@@ -321,6 +332,7 @@ process.stdout.write(
     mode: args.mode,
     benchmarkCase: args.benchmarkCase,
     materialization: args.materialization,
+    changedOnly: args.changedOnly,
     fullOptions: args.fullOptions,
     iterations: args.iterations,
     workspaceCount: args.workspaceCount,

@@ -10,6 +10,7 @@ import {
   inspectRawCsvBytes,
   processRawCsv,
   processRawCsvBytes,
+  processRawCsvChangedReviewBytesViaPool,
   processRawCsvReviewBytes,
   processRawCsvBytesViaPool,
   processRawCsvIsolated,
@@ -19,7 +20,10 @@ import {
   type WorkerSpawn,
 } from "@/lib/rustWorkerClient";
 import type { ChronicleWorkerApi } from "@/workers/chronicle-worker";
-import type { ProcessedFileResult } from "@/lib/types";
+import type {
+  BrowserProcessingOptions,
+  ProcessedFileResult,
+} from "@/lib/types";
 
 type RemoteApi = Comlink.Remote<ChronicleWorkerApi>;
 
@@ -83,6 +87,12 @@ function stubSpawn(
       processRawCsvBytes: (...args: unknown[]) => {
         calls.push(
           `bytes:${String(args[0])}:${(args[1] as ArrayBuffer).byteLength}`,
+        );
+        return Promise.resolve(result);
+      },
+      processChangedReviewCsvBytes: (...args: unknown[]) => {
+        calls.push(
+          `changed:${String(args[0])}:${(args[1] as ArrayBuffer).byteLength}:${String(args[5])}`,
         );
         return Promise.resolve(result);
       },
@@ -281,6 +291,27 @@ describe("pool entry points", () => {
       result,
     );
     expect(calls).toEqual([`bytes:b.csv:${bytes.byteLength}`]);
+    pool.terminate();
+  });
+
+  it("computes only Arm B and reuses the verified digest from Arm A", async () => {
+    const { spawn, calls, result } = stubSpawn();
+    const pool = new WorkerPool(8, spawn);
+    const bytes = new TextEncoder().encode("study_id\nS").buffer;
+    await expect(
+      processRawCsvChangedReviewBytesViaPool(
+        pool,
+        "pair.csv",
+        bytes,
+        {} as BrowserProcessingOptions,
+        undefined,
+        undefined,
+        "1".repeat(64),
+      ),
+    ).resolves.toBe(result);
+    expect(calls).toEqual([
+      `changed:pair.csv:${bytes.byteLength}:${"1".repeat(64)}`,
+    ]);
     pool.terminate();
   });
 });

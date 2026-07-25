@@ -6,8 +6,8 @@ This file preserves the results of the deleted bounded dependency trial. The
 decision is no longer open: upstream Salsa `0.28.1` is selected and all 55
 transformations are real tracked computations in the production kernel. The
 trial crate, local Salsa patch, and snapshot code were removed after profiling
-showed snapshot restore was slower and much larger than cold recalculation. The current implementation,
-remaining acceptance checks, and complete comparison with `incremental-rs`,
+showed snapshot restore was slower and much larger than cold recalculation. The
+current implementation, remaining acceptance checks, and complete comparison with `incremental-rs`,
 `depends`, `comemo`, `incremental-query`, and the bounded fallback are in the
 [authoritative 55-step plan](../semantic-federation/55-step-incremental-rust-plan.md#existing-software-decision).
 
@@ -60,6 +60,13 @@ The verified Salsa snapshot is bound to a supplied implementation/contract/
 profile identity and a SHA-256 payload digest. An identical restored database
 reused all six results without executing a body. Wrong identity and corrupted
 payload tests both failed closed.
+
+That snapshot result is historical proof, not the current storage design. The
+production performance follow-up stores only explicitly versioned typed product
+step outputs whose exact action keys already exist in the 55-step contract. The
+first candidate is step 28, `sort_episodes`. It uses the existing OPFS
+content-addressed store and must beat cold recalculation; Salsa's database and
+internal IDs are never serialized.
 
 The browser test used Chrome `150.0.7871.130` with ChromeDriver
 `150.0.7871.129`. `wasm-pack test` had selected an incompatible cached version
@@ -136,8 +143,8 @@ selected production implementation. These product-release checks remain:
   support, qualification, binding, and semantic-model changes;
 - byte-for-byte fused-oracle equality for every campaign result, state,
   lineage, and correspondence value;
-- persistence through the existing alternating OPFS roots, including crash
-  injection;
+- typed step-output caching through the existing alternating OPFS roots,
+  including wrong-key, corruption, and crash injection;
 - an apples-to-apples integrated WASM size and incremental-memory comparison.
 
 The tracked engine is the implementation under test; the fused pipeline remains

@@ -373,9 +373,16 @@ fn profile_incremental(
     }
     if matches!(
         selected_case,
-        Some("middle_profile_loop" | "middle_review_profile_loop")
+        Some(
+            "middle_profile_loop"
+                | "middle_review_profile_loop"
+                | "middle_minimum_review_profile_loop"
+        )
     ) {
-        let review_only = selected_case == Some("middle_review_profile_loop");
+        let review_only = matches!(
+            selected_case,
+            Some("middle_review_profile_loop" | "middle_minimum_review_profile_loop")
+        );
         if review_only {
             cold_engine = IncrementalPipelineV2Engine::default();
             cold_engine.execute_review(
@@ -385,7 +392,11 @@ fn profile_incremental(
             )?;
         }
         let mut changed = baseline_options.clone();
-        changed.model_concurrent_usage = false;
+        if selected_case == Some("middle_minimum_review_profile_loop") {
+            changed.minimum_usage_duration = 2.0;
+        } else {
+            changed.model_concurrent_usage = false;
+        }
         let started = Instant::now();
         let mut executed = 0_usize;
         for iteration in 0..iterations {

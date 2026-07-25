@@ -334,6 +334,41 @@ const api = {
       inputSha256,
     );
   },
+  /** Compute Arm B once; the completed run already stores Arm A's metrics. */
+  async processChangedReviewCsvBytes(
+    inputFileName: string,
+    csvBytes: ArrayBuffer,
+    incomingChangedOptions: Partial<BrowserProcessingOptions>,
+    changedSupportFiles?: BrowserSupportFiles,
+    runtime?: BrowserProcessingRuntime,
+    verifiedInputSha256?: string,
+  ): Promise<ProcessedFileResult> {
+    const changedOptions: BrowserProcessingOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      ...incomingChangedOptions,
+    };
+    const inputBytes = new Uint8Array(csvBytes);
+    const inputSha256 =
+      verifiedInputSha256 ?? (await computeSha256Hex(csvBytes));
+    if (!/^[0-9a-f]{64}$/.test(inputSha256)) {
+      throw new Error(
+        "verified input digest must be 64 lowercase hexadecimal characters",
+      );
+    }
+    const resolvedRuntime = effectiveRuntime(
+      runtime,
+      inputFileName,
+      inputSha256,
+    );
+    return processRawCsvReviewWithRustAuthority(
+      inputFileName,
+      inputBytes,
+      changedOptions,
+      changedSupportFiles,
+      resolvedRuntime,
+      inputSha256,
+    );
+  },
 };
 
 export type ChronicleWorkerApi = typeof api;
