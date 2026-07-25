@@ -191,7 +191,8 @@ for source, required_symbol in (
     (authority_adapter, "executeRustRuntime"),
     (runtime, "IncrementalPipelineV2Engine"),
     (runtime, "request.command == QUERY_REVIEW_COMMAND"),
-    (runtime, ".execute_review(csv_bytes, options, support_files)?"),
+    (runtime, ".execute_review_with_base("),
+    (runtime, "review_base_bytes,"),
     (runtime, ".execute(csv_bytes, options, support_files)?"),
     (runtime, "project_product_stages"),
 ):

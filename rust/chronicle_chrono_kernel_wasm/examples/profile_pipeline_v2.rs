@@ -373,6 +373,64 @@ fn profile_incremental(
     }
     if matches!(
         selected_case,
+        Some("cached_review_profile" | "cached_minimum_review_profile")
+    ) {
+        let export_started = Instant::now();
+        let review_base = cold_engine.export_review_base()?;
+        let export_elapsed = export_started.elapsed();
+        drop(cold);
+        drop(cold_engine);
+
+        let mut changed = baseline_options.clone();
+        if selected_case == Some("cached_minimum_review_profile") {
+            changed.minimum_usage_duration = 2.0;
+        } else {
+            changed.model_concurrent_usage = false;
+        }
+        let mut oracle_engine = IncrementalPipelineV2Engine::default();
+        let oracle =
+            oracle_engine.execute_review(raw_csv, &changed, support(codebook_csv, FILTER_CSV))?;
+        let oracle_digest = result_digest(&oracle.result);
+        drop(oracle);
+        drop(oracle_engine);
+
+        let started = Instant::now();
+        let mut executed = 0_usize;
+        let mut internal_executed = 0_usize;
+        for _ in 0..iterations {
+            let mut engine = IncrementalPipelineV2Engine::default();
+            let execution = engine.execute_review_with_base(
+                raw_csv,
+                &review_base,
+                &changed,
+                support(codebook_csv, FILTER_CSV),
+            )?;
+            let actual_digest = result_digest(&execution.result);
+            if actual_digest != oracle_digest {
+                return Err(format!(
+                    "cached review differs from cold review: actual={actual_digest} oracle={oracle_digest}"
+                ));
+            }
+            executed += execution.executed_steps.len();
+            internal_executed += execution.internal_executed_queries.len();
+            black_box(execution);
+        }
+        let elapsed = started.elapsed();
+        println!(
+            "case={} rows={rows} iterations={iterations} review_base_bytes={} export_ms={:.3} elapsed_ns={} elapsed_ms={:.3} average_ms={:.3} average_executed_count={:.1} average_internal_executed_count={:.1} result_digest={oracle_digest}",
+            selected_case.expect("cached review case"),
+            review_base.len(),
+            export_elapsed.as_secs_f64() * 1_000.0,
+            elapsed.as_nanos(),
+            elapsed.as_secs_f64() * 1_000.0,
+            elapsed.as_secs_f64() * 1_000.0 / iterations as f64,
+            executed as f64 / iterations as f64,
+            internal_executed as f64 / iterations as f64,
+        );
+        return Ok(());
+    }
+    if matches!(
+        selected_case,
         Some(
             "middle_profile_loop"
                 | "middle_review_profile_loop"

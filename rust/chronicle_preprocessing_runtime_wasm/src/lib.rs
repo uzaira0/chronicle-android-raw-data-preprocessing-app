@@ -752,6 +752,7 @@ enum RuntimeArtifactBytes {
 
 struct IncrementalPipelineExecution {
     result: Arc<PipelineV2Result>,
+    review_base: Option<Vec<u8>>,
     node_executions: Vec<NodeExecution>,
     step_executions: Vec<RuntimeStepExecution>,
     cache_decision: DependencyCacheDecision,
@@ -1651,6 +1652,7 @@ fn execute_incremental_pipeline(
     request: &RuntimeRequest,
     ingress_assignments: &BTreeMap<String, RoleAssignment>,
     csv_bytes: &[u8],
+    review_base_bytes: &[u8],
     options_value: &Value,
     options: &PipelineV2Options,
     support: &ResolvedSupportFiles,
@@ -1698,13 +1700,21 @@ fn execute_incremental_pipeline(
             enrolled_devices_csv: support.get("enrolled_devices_file"),
         };
         let tracked_execution = if request.command == QUERY_REVIEW_COMMAND {
-            state
-                .incremental_engine
-                .execute_review(csv_bytes, options, support_files)?
+            state.incremental_engine.execute_review_with_base(
+                csv_bytes,
+                review_base_bytes,
+                options,
+                support_files,
+            )?
         } else {
             state
                 .incremental_engine
                 .execute(csv_bytes, options, support_files)?
+        };
+        let review_base = if request.command == QUERY_REVIEW_COMMAND {
+            None
+        } else {
+            Some(state.incremental_engine.export_review_base()?)
         };
         let executed_steps = tracked_execution.executed_steps;
         #[cfg(test)]
@@ -1747,6 +1757,7 @@ fn execute_incremental_pipeline(
         )?;
         Ok(IncrementalPipelineExecution {
             result,
+            review_base,
             node_executions: executions,
             step_executions,
             cache_decision,
@@ -1875,6 +1886,26 @@ pub fn execute_workspace(
         .map_err(|error| JsValue::from_str(&error))
 }
 
+/// Execute an interactive review with an optional verified early-row cache.
+/// The Rust kernel rechecks the cache key against the raw input and all
+/// options/support files that can affect those rows; a mismatch is a normal
+/// cache miss and runs the raw path.
+#[wasm_bindgen]
+pub fn execute_workspace_with_review_base(
+    request_json: &str,
+    csv_bytes: &[u8],
+    review_base_bytes: &[u8],
+    support_files: &RuntimeSupportFiles,
+) -> Result<RuntimeHandle, JsValue> {
+    execute_workspace_native_with_review_base(
+        request_json,
+        csv_bytes,
+        review_base_bytes,
+        support_files,
+    )
+    .map_err(|error| JsValue::from_str(&error))
+}
+
 /// Resolve product-owned role requirements without executing computation.
 /// The browser can render binding holes from this report; ExecuteWorkspace
 /// independently enforces the same report and fails closed when it is not
@@ -1959,6 +1990,15 @@ pub fn execute_workspace_native(
     csv_bytes: &[u8],
     support_files: &RuntimeSupportFiles,
 ) -> Result<RuntimeHandle, String> {
+    execute_workspace_native_with_review_base(request_json, csv_bytes, &[], support_files)
+}
+
+pub fn execute_workspace_native_with_review_base(
+    request_json: &str,
+    csv_bytes: &[u8],
+    review_base_bytes: &[u8],
+    support_files: &RuntimeSupportFiles,
+) -> Result<RuntimeHandle, String> {
     let request: RuntimeRequest =
         serde_json::from_str(request_json).map_err(|error| format!("invalid request: {error}"))?;
     let verified_input_digest = request.validate(csv_bytes)?;
@@ -1980,6 +2020,7 @@ pub fn execute_workspace_native(
     reject_open_binding_holes(&ingress.materialization)?;
     let IncrementalPipelineExecution {
         result,
+        review_base,
         node_executions,
         step_executions,
         cache_decision: dependency_cache_decision,
@@ -1988,6 +2029,7 @@ pub fn execute_workspace_native(
         &request,
         &ingress.assignments,
         csv_bytes,
+        review_base_bytes,
         &options_value,
         &pipeline_options,
         &resolved_support,
@@ -2152,6 +2194,14 @@ pub fn execute_workspace_native(
         "application/json",
         options_bytes.clone(),
         Vec::new(),
+    ));
+    let mut review_base_dependencies = assignment_digests.clone();
+    review_base_dependencies.push(options_digest.clone());
+    artifacts.push(runtime_artifact(
+        "review-base",
+        "application/vnd.chronicle.review-base+postcard+lz4",
+        review_base.ok_or_else(|| "full execution omitted its review base".to_string())?,
+        review_base_dependencies,
     ));
     artifacts.push(source_coordinate_artifact);
     let plan = embedded_plan();
@@ -5147,6 +5197,103 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             execution.status,
             ExecutionStatus::Cached | ExecutionStatus::Bypassed | ExecutionStatus::Skipped
         )));
+    }
+
+    #[test]
+    fn persisted_review_base_reenters_a_fresh_runtime_without_result_drift() {
+        reset_tracked_execution_count();
+        let csv = csv();
+        let full_request = request_for_workspace(&csv, '9');
+        let mut full = execute_workspace_native(
+            &full_request.to_string(),
+            &csv,
+            &RuntimeSupportFiles::default(),
+        )
+        .unwrap();
+        let full_manifest: RuntimeManifest = serde_json::from_str(&full.manifest_json).unwrap();
+        let review_base_index = (0..full.artifact_count())
+            .find(|index| {
+                let metadata: RuntimeArtifactMetadata =
+                    serde_json::from_str(&full.artifact_metadata_json(*index).unwrap()).unwrap();
+                metadata.kind == "review-base"
+                    && metadata.media_type == "application/vnd.chronicle.review-base+postcard+lz4"
+            })
+            .expect("full execution review base");
+        let review_base = full.take_artifact_bytes(review_base_index).unwrap();
+        assert!(!review_base.is_empty());
+
+        let mut review_request = full_request;
+        review_request["requestId"] = Value::String("cached-review".into());
+        review_request["command"] = Value::String(QUERY_REVIEW_COMMAND.into());
+        review_request["workspaceRootDigest"] =
+            Value::String(full_manifest.workspace_root_digest.clone());
+        review_request["options"]["model_concurrent_usage"] = Value::Bool(false);
+
+        reset_tracked_execution_count();
+        let cached = execute_workspace_native_with_review_base(
+            &review_request.to_string(),
+            &csv,
+            &review_base,
+            &RuntimeSupportFiles::default(),
+        )
+        .unwrap();
+        let cached: ReviewRuntimeManifest = serde_json::from_str(&cached.manifest_json).unwrap();
+        assert_eq!(tracked_execution_count(), 1);
+        assert_eq!(
+            cached
+                .step_executions
+                .iter()
+                .find(|execution| execution.step_id == "csv_parse")
+                .unwrap()
+                .status,
+            ExecutionStatus::Cached
+        );
+
+        reset_tracked_execution_count();
+        review_request["requestId"] = Value::String("cold-review".into());
+        let cold = execute_workspace_native(
+            &review_request.to_string(),
+            &csv,
+            &RuntimeSupportFiles::default(),
+        )
+        .unwrap();
+        let cold: ReviewRuntimeManifest = serde_json::from_str(&cold.manifest_json).unwrap();
+        assert_eq!(cached.review_summary_digest, cold.review_summary_digest);
+        assert_eq!(cached.comparison_digest, cold.comparison_digest);
+        assert_eq!(
+            (
+                cached.counts.original,
+                cached.counts.processed,
+                cached.counts.app,
+                cached.counts.screen,
+            ),
+            (
+                cold.counts.original,
+                cold.counts.processed,
+                cold.counts.app,
+                cold.counts.screen,
+            )
+        );
+        assert_eq!(cached.timezone, cold.timezone);
+        assert_eq!(cached.timezone_action, cold.timezone_action);
+
+        let mut corrupt = review_base;
+        let last = corrupt.len() - 1;
+        corrupt[last] ^= 0xff;
+        reset_tracked_execution_count();
+        let error = match execute_workspace_native_with_review_base(
+            &review_request.to_string(),
+            &csv,
+            &corrupt,
+            &RuntimeSupportFiles::default(),
+        ) {
+            Ok(_) => panic!("corrupt review base was accepted"),
+            Err(error) => error,
+        };
+        assert!(
+            error.contains("review base") || error.contains("decompress"),
+            "unexpected corrupt review-base error: {error}"
+        );
     }
 
     #[test]
