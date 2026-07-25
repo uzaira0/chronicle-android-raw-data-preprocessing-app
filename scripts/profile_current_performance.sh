@@ -19,9 +19,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ -n "$(git status --porcelain --untracked-files=normal)" && "${ALLOW_DIRTY_PROFILE:-0}" != "1" ]]; then
-  printf 'refusing to record checked performance evidence from a dirty worktree; commit first or set ALLOW_DIRTY_PROFILE=1 for a local diagnostic\n' >&2
-  exit 2
+profile_dirty=false
+if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+  if [[ "${ALLOW_DIRTY_PROFILE:-0}" != "1" ]]; then
+    printf 'refusing to record checked performance evidence from a dirty worktree; commit first or set ALLOW_DIRTY_PROFILE=1 for a local diagnostic\n' >&2
+    exit 2
+  fi
+  profile_dirty=true
 fi
 
 for command in hyperfine samply cargo-flamegraph; do
@@ -42,7 +46,7 @@ metadata="$results_dir/chronicle-55-step-profile-metadata.txt"
 {
   printf 'captured_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf 'commit=%s\n' "$(git rev-parse HEAD)"
-  printf 'dirty=%s\n' "$(if git diff --quiet && git diff --cached --quiet; then printf false; else printf true; fi)"
+  printf 'dirty=%s\n' "$profile_dirty"
   printf 'rows=%s\n' "$rows"
   printf 'runs=%s\n' "$runs"
   printf 'machine=%s\n' "$(uname -m) $(sw_vers -productName) $(sw_vers -productVersion)"
