@@ -169,9 +169,10 @@ async function putObject(
 async function readVerifiedObject(
   objects: FileSystemDirectoryHandle,
   digest: string,
+  maxBytes?: number,
 ): Promise<Uint8Array> {
   const { directory, name } = await objectDirectory(objects, digest, false);
-  const bytes = await readFile(directory, name);
+  const bytes = await readFile(directory, name, maxBytes);
   if ((await sha256(bytes)) !== digest) {
     throw new Error(`corrupt OPFS object: ${digest}`);
   }
@@ -316,6 +317,48 @@ async function recoverFromDirectories(
     throw new Error(
       "OPFS workspace roots exist, but no valid artifact closure can be recovered",
     );
+  }
+  return undefined;
+}
+
+async function recoverHeadFromDirectories(
+  objects: FileSystemDirectoryHandle,
+  roots: FileSystemDirectoryHandle,
+): Promise<WorkspaceRootSlot | undefined> {
+  const { candidates, rootSlotObserved } = await rootSlotCandidates(roots);
+  const verifyObject = cachedObjectVerifier(objects);
+  for (const candidate of candidates) {
+    try {
+      // Interactive review needs the signed slot and its root commit, then it
+      // verifies the requested closure objects directly. Do not hash every
+      // unrelated exported artifact just to locate those two cache objects.
+      const rootBytes = await readVerifiedObject(
+        objects,
+        candidate.workspaceRootDigest,
+      );
+      const rootCommit = JSON.parse(new TextDecoder().decode(rootBytes)) as {
+        artifactClosureDigest?: unknown;
+      };
+      if (typeof rootCommit.artifactClosureDigest !== "string") {
+        throw new Error("invalid OPFS review head");
+      }
+      digestHex(rootCommit.artifactClosureDigest);
+      await verifyObject(rootCommit.artifactClosureDigest);
+      return candidate;
+    } catch (error) {
+      if (
+        !isRecoverableClosureObjectError(error) &&
+        !(error instanceof SyntaxError) &&
+        !(error instanceof Error &&
+          (error.message === "invalid OPFS review head" ||
+            error.message.startsWith("invalid SHA-256 digest:")))
+      ) {
+        throw error;
+      }
+    }
+  }
+  if (rootSlotObserved) {
+    throw new Error("OPFS workspace roots exist, but no valid head can be recovered");
   }
   return undefined;
 }
@@ -496,6 +539,18 @@ export async function recoverRuntimeWorkspace(
   return recoverFromDirectories(objects, roots);
 }
 
+/**
+ * Recover only a checksum-valid root slot whose root object is intact.
+ * Requested artifacts must still be verified individually before use. Full
+ * closure recovery remains `recoverRuntimeWorkspace`.
+ */
+export async function recoverRuntimeWorkspaceHead(
+  root: FileSystemDirectoryHandle,
+): Promise<WorkspaceRootSlot | undefined> {
+  const { objects, roots } = await storeDirectories(root);
+  return recoverHeadFromDirectories(objects, roots);
+}
+
 /** All independently recoverable alternating roots, newest first. */
 export async function recoverRuntimeWorkspaceRoots(
   root: FileSystemDirectoryHandle,
@@ -507,9 +562,10 @@ export async function recoverRuntimeWorkspaceRoots(
 export async function readRuntimeObject(
   root: FileSystemDirectoryHandle,
   digest: string,
+  maxBytes?: number,
 ): Promise<Uint8Array> {
   const { objects } = await storeDirectories(root);
-  return readVerifiedObject(objects, digest);
+  return readVerifiedObject(objects, digest, maxBytes);
 }
 
 type HistoryRootCommit = {

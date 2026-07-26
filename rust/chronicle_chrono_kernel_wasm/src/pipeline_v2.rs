@@ -2128,15 +2128,14 @@ fn logical_stage_checkpoint_with_group_parts(
             computed_parts = row_checkpoint_parts_for_rows(rows);
             &computed_parts
         };
-        let mut identity_order: Vec<usize> = (0..rows.len()).collect();
-        identity_order.sort_by(|left, right| {
-            rows[*left]
+        let identity_is_already_sorted = rows.windows(2).all(|pair| {
+            pair[0]
                 .source_data_rows
-                .cmp_expanded(&rows[*right].source_data_rows)
-                .then(rows[*left].index.cmp(&rows[*right].index))
+                .cmp_expanded(&pair[1].source_data_rows)
+                .then(pair[0].index.cmp(&pair[1].index))
+                .is_le()
         });
-        for row_index in identity_order {
-            let parts = &row_parts[row_index];
+        let mut record_canonical_parts = |parts: &RowCheckpointParts| {
             checkpoint_digest_fixed32(&mut membership, &parts.identity);
             checkpoint_digest_fixed32_pair(&mut temporal, &parts.identity, &parts.temporal);
             checkpoint_digest_fixed32_pair(
@@ -2144,6 +2143,22 @@ fn logical_stage_checkpoint_with_group_parts(
                 &parts.identity,
                 &parts.classification,
             );
+        };
+        if identity_is_already_sorted {
+            for parts in row_parts {
+                record_canonical_parts(parts);
+            }
+        } else {
+            let mut identity_order: Vec<usize> = (0..rows.len()).collect();
+            identity_order.sort_by(|left, right| {
+                rows[*left]
+                    .source_data_rows
+                    .cmp_expanded(&rows[*right].source_data_rows)
+                    .then(rows[*left].index.cmp(&rows[*right].index))
+            });
+            for row_index in identity_order {
+                record_canonical_parts(&row_parts[row_index]);
+            }
         }
         // Order remains deliberately sequence-sensitive and associates every
         // position with the same stable row identity used above.
@@ -3464,11 +3479,15 @@ fn join_codebook(rows: &mut [Row], enabled: bool, codebook_map: &HashMap<String,
         return;
     }
     for row in rows.iter_mut() {
-        row.codebook_fields = codebook_map
-            .get(row.app_package_name.as_str())
-            .map(|entry| entry.fields.clone())
-            .unwrap_or_else(empty_codebook_fields);
+        join_codebook_row(row, codebook_map);
     }
+}
+
+fn join_codebook_row(row: &mut Row, codebook_map: &HashMap<String, CodebookEntry>) {
+    row.codebook_fields = codebook_map
+        .get(row.app_package_name.as_str())
+        .map(|entry| entry.fields.clone())
+        .unwrap_or_else(empty_codebook_fields);
 }
 
 fn derive_broad_category(rows: &mut [Row], enabled: bool) {
@@ -3480,20 +3499,30 @@ fn derive_broad_category(rows: &mut [Row], enabled: bool) {
     let babyemu_broad_idx = codebook_col_index("babyemu_broad_app_category").unwrap();
     let bcm_broad_idx = codebook_col_index("bcm_cnrc_heuristic_category").unwrap();
 
+    let indices = [
+        bcm_play_store_broad_idx,
+        usc_broad_idx,
+        babyemu_broad_idx,
+        bcm_broad_idx,
+    ];
     for row in rows.iter_mut() {
-        let candidates = [
-            row.codebook_fields[bcm_play_store_broad_idx].as_deref(),
-            row.codebook_fields[usc_broad_idx].as_deref(),
-            row.codebook_fields[babyemu_broad_idx].as_deref(),
-            row.codebook_fields[bcm_broad_idx].as_deref(),
-            row.broad_app_category.as_deref(),
-        ];
-        let chosen = candidates
-            .iter()
-            .find_map(|candidate| candidate.filter(|value| !value.trim().is_empty()))
-            .map(String::from);
-        row.broad_app_category = Some(chosen.unwrap_or_else(|| "Unknown".to_string()).into());
+        derive_broad_category_row(row, indices);
     }
+}
+
+fn derive_broad_category_row(row: &mut Row, indices: [usize; 4]) {
+    let candidates = [
+        row.codebook_fields[indices[0]].as_deref(),
+        row.codebook_fields[indices[1]].as_deref(),
+        row.codebook_fields[indices[2]].as_deref(),
+        row.codebook_fields[indices[3]].as_deref(),
+        row.broad_app_category.as_deref(),
+    ];
+    let chosen = candidates
+        .iter()
+        .find_map(|candidate| candidate.filter(|value| !value.trim().is_empty()))
+        .map(String::from);
+    row.broad_app_category = Some(chosen.unwrap_or_else(|| "Unknown".to_string()).into());
 }
 
 fn collapse_genre(rows: &mut [Row], enabled: bool) {
@@ -3505,33 +3534,65 @@ fn collapse_genre(rows: &mut [Row], enabled: bool) {
     let bcm_play_store_genre_idx = codebook_col_index("bcm_play_store_genreId").unwrap();
     let usc_genre_idx = codebook_col_index("usc_genreId").unwrap();
 
+    let indices = [
+        babyemu_scraped_idx,
+        babyemu_manual_idx,
+        bcm_play_store_genre_idx,
+        usc_genre_idx,
+    ];
     for row in rows.iter_mut() {
-        let genre_values = [
-            babyemu_scraped_idx,
-            babyemu_manual_idx,
-            bcm_play_store_genre_idx,
-            usc_genre_idx,
-        ]
+        collapse_genre_row(row, indices);
+    }
+}
+
+fn collapse_genre_row(row: &mut Row, indices: [usize; 4]) {
+    let genre_values = indices
         .into_iter()
         .filter_map(|index| row.codebook_fields[index].as_ref())
         .filter(|value| !value.trim().is_empty())
         .cloned()
         .collect::<Vec<_>>();
-        if genre_values.is_empty() {
-            row.genre_id_scraped = Some("Unknown".into());
-            continue;
-        }
-        let unique = genre_values
-            .iter()
-            .map(String::as_str)
-            .collect::<AHashSet<_>>();
-        if unique.len() == 1 {
-            row.genre_id_scraped = Some(genre_values[0].clone().into());
-            row.codebook_genre_fields_cleared = true;
-        } else {
-            row.genre_id_scraped = None;
-            row.codebook_genre_fields_cleared = false;
-        }
+    if genre_values.is_empty() {
+        row.genre_id_scraped = Some("Unknown".into());
+        return;
+    }
+    let unique = genre_values
+        .iter()
+        .map(String::as_str)
+        .collect::<AHashSet<_>>();
+    if unique.len() == 1 {
+        row.genre_id_scraped = Some(genre_values[0].clone().into());
+        row.codebook_genre_fields_cleared = true;
+    } else {
+        row.genre_id_scraped = None;
+        row.codebook_genre_fields_cleared = false;
+    }
+}
+
+fn apply_codebook_annotations(
+    rows: &mut [Row],
+    enabled: bool,
+    codebook_map: &HashMap<String, CodebookEntry>,
+) {
+    if !enabled {
+        return;
+    }
+    let broad_indices = [
+        codebook_col_index("bcm_play_store_broad_app_category").unwrap(),
+        codebook_col_index("usc_broad_app_category").unwrap(),
+        codebook_col_index("babyemu_broad_app_category").unwrap(),
+        codebook_col_index("bcm_cnrc_heuristic_category").unwrap(),
+    ];
+    let genre_indices = [
+        codebook_col_index("babyemu_genreId_scraped").unwrap(),
+        codebook_col_index("babyemu_genreId_manual").unwrap(),
+        codebook_col_index("bcm_play_store_genreId").unwrap(),
+        codebook_col_index("usc_genreId").unwrap(),
+    ];
+    for row in rows {
+        join_codebook_row(row, codebook_map);
+        derive_broad_category_row(row, broad_indices);
+        collapse_genre_row(row, genre_indices);
     }
 }
 
@@ -6136,6 +6197,57 @@ mod tests {
         assert!(row.0.checkpoint_parts.identity.get().is_none());
         assert!(row.0.checkpoint_parts.temporal.get().is_none());
         assert!(row.0.checkpoint_parts.classification.get().is_none());
+    }
+
+    #[test]
+    fn canonical_checkpoint_fast_path_matches_unsorted_fallback() {
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,A,Activity Resumed,a,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Child,B,Activity Resumed,b,2026-03-07 10:01:00,UTC\n",
+            "Study,P01,Child,C,Activity Resumed,c,2026-03-07 10:02:00,UTC\n",
+            "Study,P01,Child,D,Activity Resumed,d,2026-03-07 10:03:00,UTC\n",
+        );
+        let raw = incremental::csv_parse(csv.as_bytes());
+        let model = incremental::detect_device_model(&raw);
+        let rows = incremental::build_canonical_rows(raw, "UTC", &BTreeMap::new(), &model)
+            .expect("canonical rows");
+
+        let compare_order_independent_components = |left: &[Row], right: &[Row]| {
+            let left = logical_stage_checkpoint("fast-path-proof", &[("rows", left)], &[]);
+            let right = logical_stage_checkpoint("fast-path-proof", &[("rows", right)], &[]);
+            assert_eq!(left.row_membership_digest, right.row_membership_digest);
+            assert_eq!(left.temporal_state_digest, right.temporal_state_digest);
+            assert_eq!(left.classification_digest, right.classification_digest);
+            assert_eq!(left.payload_digest, right.payload_digest);
+            assert_eq!(left.schema_digest, right.schema_digest);
+        };
+
+        compare_order_independent_components(&[], &[]);
+        compare_order_independent_components(&rows[..1], &rows[..1]);
+
+        let mut reversed = rows.clone();
+        reversed.reverse();
+        compare_order_independent_components(&rows, &reversed);
+
+        let mut duplicate_identity = vec![rows[0].clone(), rows[0].clone()];
+        duplicate_identity[0].index = 11;
+        duplicate_identity[1].index = 12;
+        let mut duplicate_reversed = duplicate_identity.clone();
+        duplicate_reversed.reverse();
+        compare_order_independent_components(&duplicate_identity, &duplicate_reversed);
+
+        let mut state = 0x4d59_5df4_d0f3_3173_u64;
+        for _ in 0..64 {
+            let mut shuffled = rows.clone();
+            for index in (1..shuffled.len()).rev() {
+                state = state
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
+                shuffled.swap(index, (state as usize) % (index + 1));
+            }
+            compare_order_independent_components(&rows, &shuffled);
+        }
     }
 
     fn test_options() -> PipelineV2Options {

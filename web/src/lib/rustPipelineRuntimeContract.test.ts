@@ -527,12 +527,11 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
     );
 
     expect(review.reviewSummary).toEqual(expected);
-    expect(review.cachedStepIds).toHaveLength(23);
+    expect(review.cachedStepIds).toHaveLength(24);
     expect(review.recomputedStepIds).toEqual([
       "relabel_usage_with_floor",
       "junk_downstream_mark",
       "sort_episodes",
-      "split_concurrent",
       "codebook_join",
       "derive_broad_category",
       "collapse_genre",

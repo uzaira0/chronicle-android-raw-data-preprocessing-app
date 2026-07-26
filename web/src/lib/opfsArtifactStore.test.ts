@@ -10,6 +10,7 @@ import {
   probeOpfsCapability,
   readRuntimeObject,
   recoverRuntimeWorkspace,
+  recoverRuntimeWorkspaceHead,
   recoverRuntimeWorkspaceRoots,
   runtimeClosureWorkspaceId,
   type PersistedRuntimeArtifact,
@@ -281,6 +282,84 @@ describe("OPFS content-addressed runtime workspace", () => {
     expect(objectFile(root, firstPayload.digest).reads).toBe(0);
     expect(objectFile(root, secondRoot.digest).reads).toBeGreaterThan(0);
     expect(objectFile(root, secondPayload.digest).reads).toBeGreaterThan(0);
+  });
+
+  it("recovers a review head without hashing unrelated exported artifacts", async () => {
+    const root = new MemoryDirectoryHandle();
+    const closure = await artifact("artifact-closure-json", "closure");
+    const rootArtifact = await artifact(
+      "workspace-root-json",
+      JSON.stringify({ artifactClosureDigest: closure.digest }),
+    );
+    const unrelatedExport = await artifact("parquet-export", "large-output");
+    await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: rootArtifact.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [rootArtifact, closure, unrelatedExport],
+    });
+    objectFile(root, rootArtifact.digest).reads = 0;
+    objectFile(root, unrelatedExport.digest).reads = 0;
+    objectFile(root, unrelatedExport.digest).bytes = new TextEncoder().encode(
+      "corrupt-unrelated-output",
+    );
+
+    await expect(
+      recoverRuntimeWorkspaceHead(rootHandle(root)),
+    ).resolves.toMatchObject({ workspaceRootDigest: rootArtifact.digest });
+    expect(objectFile(root, rootArtifact.digest).reads).toBeGreaterThan(0);
+    expect(objectFile(root, closure.digest).reads).toBeGreaterThan(0);
+    expect(objectFile(root, unrelatedExport.digest).reads).toBe(0);
+    await expect(recoverRuntimeWorkspace(rootHandle(root))).rejects.toThrow(
+      /no valid artifact closure/,
+    );
+  });
+
+  it("falls back to the older review head when the newest closure is corrupt", async () => {
+    const root = new MemoryDirectoryHandle();
+    const firstClosure = await artifact("artifact-closure-json", "closure-one");
+    const firstRoot = await artifact(
+      "workspace-root-json",
+      JSON.stringify({
+        workspaceId: `sha256:${"1".repeat(64)}`,
+        previousWorkspaceRootDigest: null,
+        artifactDigests: [firstClosure.digest],
+        artifactClosureDigest: firstClosure.digest,
+      }),
+    );
+    const first = await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: firstRoot.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [firstRoot, firstClosure],
+    });
+    const secondClosure = await artifact("artifact-closure-json", "closure-two");
+    const secondRoot = await artifact(
+      "workspace-root-json",
+      JSON.stringify({
+        workspaceId: `sha256:${"1".repeat(64)}`,
+        previousWorkspaceRootDigest: firstRoot.digest,
+        artifactDigests: [secondClosure.digest],
+        artifactClosureDigest: secondClosure.digest,
+      }),
+    );
+    await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: secondRoot.digest,
+      previousWorkspaceRootDigest: first.workspaceRootDigest,
+      recoveredSlot: first,
+      artifacts: [secondRoot, secondClosure],
+    });
+    objectFile(root, secondClosure.digest).bytes = new TextEncoder().encode(
+      "corrupt-newest-closure",
+    );
+
+    await expect(
+      recoverRuntimeWorkspaceHead(rootHandle(root)),
+    ).resolves.toMatchObject({ workspaceRootDigest: firstRoot.digest });
+    objectFile(root, firstClosure.digest).bytes = new TextEncoder().encode(
+      "corrupt-older-closure",
+    );
+    await expect(recoverRuntimeWorkspaceHead(rootHandle(root))).rejects.toThrow(
+      /no valid head/,
+    );
   });
 
   it("exports and imports a self-verifying portable artifact closure", async () => {

@@ -148,8 +148,9 @@ def check_source_shape() -> None:
         "IncrementalPipelineV2Engine",
         "evaluate_dependency_cache_decision(",
         "request.command == QUERY_REVIEW_COMMAND",
-        ".execute_review_with_base(",
+        ".execute_review_with_bases(",
         "review_base_bytes,",
+        "reconstruction_base_bytes,",
         ".execute(csv_bytes, options, support_files)?",
         "fn build_runtime_step_executions(",
         "fn project_product_stages(",
@@ -171,9 +172,7 @@ def check_source_shape() -> None:
     tracked_execution = execute_body.index(
         "let tracked_execution = if request.command == QUERY_REVIEW_COMMAND"
     )
-    review_execution = execute_body.index(
-        ".execute_review_with_base("
-    )
+    review_execution = execute_body.index(".execute_review_with_bases(")
     full_execution = execute_body.index(
         ".execute(csv_bytes, options, support_files)?"
     )
@@ -219,10 +218,12 @@ def check_source_shape() -> None:
         "assemble_primary_outputs",
         "codebook_is_empty",
         "decoded_review_base",
+        "matching_reconstruction_base",
         "matching_review_base",
         "review_annotations_fused",
         "review_reconstructed_rows",
         "review_reconstruction_fused",
+        "screen_base_input_key",
     }:
         fail(f"unexpected derived Salsa cache queries: {sorted(derived_queries)}")
 

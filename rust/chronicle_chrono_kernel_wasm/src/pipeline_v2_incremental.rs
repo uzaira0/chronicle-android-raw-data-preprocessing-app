@@ -551,14 +551,13 @@ pub(super) fn apply_matcher_output(
         let stop_timestamp_ns = rows[stop_index].event_timestamp_ns;
         rows[start_index].edit_temporal().stop_timestamp_ns = Some(stop_timestamp_ns);
     }
-    let missing_indices = result
-        .missing_indices
-        .iter()
-        .copied()
-        .collect::<BTreeSet<_>>();
+    let mut missing_indices = vec![false; rows.len()];
+    for &index in &result.missing_indices {
+        missing_indices[index] = true;
+    }
     let search_end_event_index_exclusive = rows.len() as u32;
     for (index, row) in rows.iter_mut().enumerate() {
-        if !missing_indices.contains(&index) {
+        if !missing_indices[index] {
             continue;
         }
         let search_start_event_index = (index + 1) as u32;
@@ -1785,16 +1784,20 @@ mod tracked {
 
     impl<T> Eq for StepValue<T> {}
 
-    const REVIEW_BASE_PROTOCOL: &str = "chronicle-review-base/v1";
-    const REVIEW_BASE_MAGIC: &[u8; 8] = b"CHRRB001";
-    const REVIEW_BASE_HEADER_BYTES: usize = REVIEW_BASE_MAGIC.len() + 4 + 32;
-    const MAX_REVIEW_BASE_UNCOMPRESSED_BYTES: usize = 512 * 1024 * 1024;
+    const REVIEW_BASE_PROTOCOL: &str = "chronicle-review-base/v3";
+    const REVIEW_BASE_MAGIC: &[u8; 8] = b"CHRRB003";
+    const REVIEW_BASE_HEADER_BYTES: usize = REVIEW_BASE_MAGIC.len() + 4 + 32 + 32 + 32;
+    // The 100k-row production fixture currently needs about 25 MiB decoded.
+    // Four-to-six times that measured size supports much larger individual
+    // files without permitting two cache blobs to reserve over a GiB.
+    const MAX_REVIEW_BASE_UNCOMPRESSED_BYTES: usize = 128 * 1024 * 1024;
+    const MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES: usize = 192 * 1024 * 1024;
+    const RECONSTRUCTION_BASE_PROTOCOL: &str = "chronicle-reconstruction-base/v2";
+    const RECONSTRUCTION_BASE_MAGIC: &[u8; 8] = b"CHRRX002";
+    const RECONSTRUCTION_BASE_HEADER_BYTES: usize = RECONSTRUCTION_BASE_MAGIC.len() + 4 + 32 + 32;
 
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
-    struct ReviewBase {
-        protocol_version: String,
-        input_key: String,
-        rows: Arc<Vec<Row>>,
+    struct ReviewBaseMetadata {
         step_checkpoints: BTreeMap<String, LogicalStageCheckpoint>,
         logical_checkpoints: BTreeMap<String, LogicalStageCheckpoint>,
         original_row_count: u32,
@@ -1810,6 +1813,15 @@ mod tracked {
         timezone_stage_digest: String,
     }
 
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct ReviewBase {
+        protocol_version: String,
+        input_key: String,
+        rows: Arc<Vec<Row>>,
+        metadata: ReviewBaseMetadata,
+        screen: Option<ScreenBase>,
+    }
+
     #[derive(Clone)]
     struct DecodedReviewBase {
         encoded_digest: [u8; 32],
@@ -1823,6 +1835,62 @@ mod tracked {
     }
 
     impl Eq for DecodedReviewBase {}
+
+    struct ReviewBaseHeader {
+        input_key: [u8; 32],
+        app_policy_checkpoint: [u8; 32],
+    }
+
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct ReconstructionBase {
+        protocol_version: String,
+        input_key: String,
+        rows: Arc<Vec<Row>>,
+        compute_junk_packages: LogicalStageCheckpoint,
+        junk_blind_fold: LogicalStageCheckpoint,
+        build_matcher_input: LogicalStageCheckpoint,
+        run_matcher: LogicalStageCheckpoint,
+        apply_matcher_output: LogicalStageCheckpoint,
+        split_concurrent: LogicalStageCheckpoint,
+        reconstruct_episodes: LogicalStageCheckpoint,
+        early_metadata: ReviewBaseMetadata,
+        screen: Option<ScreenBase>,
+    }
+
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct ScreenBase {
+        input_key: String,
+        rows: Arc<Vec<Row>>,
+        collect_keyguard_timestamps: LogicalStageCheckpoint,
+        walk_screen_state_machine: LogicalStageCheckpoint,
+        build_classified_sessions: LogicalStageCheckpoint,
+        device_state_timeline: LogicalStageCheckpoint,
+    }
+
+    #[derive(Clone)]
+    struct DecodedReconstructionBase {
+        encoded_digest: [u8; 32],
+        value: Arc<ReconstructionBase>,
+    }
+
+    impl PartialEq for DecodedReconstructionBase {
+        fn eq(&self, other: &Self) -> bool {
+            self.encoded_digest == other.encoded_digest
+        }
+    }
+
+    impl Eq for DecodedReconstructionBase {}
+
+    impl fmt::Debug for DecodedReconstructionBase {
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter
+                .debug_struct("DecodedReconstructionBase")
+                .field("encoded_digest", &hex::encode(self.encoded_digest))
+                .field("input_key", &self.value.input_key)
+                .field("rows", &self.value.rows.len())
+                .finish()
+        }
+    }
 
     impl fmt::Debug for DecodedReviewBase {
         fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1840,6 +1908,8 @@ mod tracked {
         protocol_version: &'static str,
         raw_digest: String,
         interaction_type_remap: &'a [String],
+        same_app_stop_types: &'a [String],
+        other_stop_types: &'a [String],
         timezone: String,
         timezone_handling: String,
         datetime_of_preprocessing: String,
@@ -1847,6 +1917,35 @@ mod tracked {
         correct_duplicate_event_timestamps: bool,
         use_filter_file: bool,
         filter_digest: String,
+    }
+
+    #[derive(serde::Serialize)]
+    struct ReconstructionBaseInputKey<'a> {
+        protocol_version: &'static str,
+        app_policy_checkpoint: &'a str,
+        same_app_stop_types: &'a [String],
+        other_stop_types: &'a [String],
+        background_apps: BTreeSet<String>,
+        model_concurrent_usage: bool,
+        allow_stop_event_reuse: bool,
+        use_activity_stopped_as_fallback: bool,
+        apply_threshold_to_fallback: bool,
+        long_duration_threshold_ns: i64,
+        proximity_interval_ns: i64,
+        effective_minimum_usage_duration_bits: Option<u64>,
+        apply_minimum_to_concurrent_subintervals: bool,
+    }
+
+    #[derive(serde::Serialize)]
+    struct ScreenBaseInputKey<'a> {
+        protocol_version: &'static str,
+        app_policy_checkpoint: &'a str,
+        use_apps_forcing_screen_open: bool,
+        apps_forcing_digest: String,
+        screen_auto_lock_timeout_bits: u64,
+        screen_auto_lock_tolerance_bits: u64,
+        screen_manual_lock_max_tail_bits: u64,
+        screen_keyguard_near_stop_bits: u64,
     }
 
     fn digest_bytes(bytes: &[u8]) -> String {
@@ -1861,10 +1960,14 @@ mod tracked {
     ) -> Result<String, String> {
         let filter_csv = support.filter_csv(db);
         let interaction_type_remap = early.interaction_type_remap(db);
+        let same_app_stop_types = early.same_app_stop_types(db);
+        let other_stop_types = early.other_stop_types(db);
         let material = ReviewBaseInputKey {
             protocol_version: REVIEW_BASE_PROTOCOL,
             raw_digest: digest_bytes(&raw.bytes(db)),
             interaction_type_remap: interaction_type_remap.as_slice(),
+            same_app_stop_types: same_app_stop_types.as_slice(),
+            other_stop_types: other_stop_types.as_slice(),
             timezone: early.timezone(db),
             timezone_handling: early.timezone_handling(db),
             datetime_of_preprocessing: early.datetime_of_preprocessing(db),
@@ -1878,6 +1981,108 @@ mod tracked {
         Ok(digest_bytes(&bytes))
     }
 
+    fn reconstruction_base_input_key(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<String, String> {
+        let app_policy_checkpoint =
+            review_base_app_policy_checkpoint(db, raw, early, config, support)?;
+        let background_apps = background_apps(db, config, support)
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+        let rebuilds_usage_intervals =
+            config.model_concurrent_usage(db) || !background_apps.is_empty();
+        let apply_minimum_to_subintervals =
+            config.apply_minimum_usage_duration_to_concurrent_subintervals(db);
+        let effective_minimum_usage_duration_bits = (!rebuilds_usage_intervals
+            || apply_minimum_to_subintervals)
+            .then(|| config.minimum_usage_duration(db).to_bits());
+        let same_app_stop_types = early.same_app_stop_types(db);
+        let other_stop_types = early.other_stop_types(db);
+        let material = ReconstructionBaseInputKey {
+            protocol_version: RECONSTRUCTION_BASE_PROTOCOL,
+            app_policy_checkpoint: &app_policy_checkpoint,
+            same_app_stop_types: same_app_stop_types.as_slice(),
+            other_stop_types: other_stop_types.as_slice(),
+            background_apps,
+            model_concurrent_usage: config.model_concurrent_usage(db),
+            allow_stop_event_reuse: config.allow_stop_event_reuse(db),
+            use_activity_stopped_as_fallback: config.use_activity_stopped_as_fallback(db),
+            apply_threshold_to_fallback: config.apply_threshold_to_fallback(db),
+            long_duration_threshold_ns: config.long_duration_threshold_ns(db),
+            proximity_interval_ns: config.proximity_interval_ns(db),
+            effective_minimum_usage_duration_bits,
+            apply_minimum_to_concurrent_subintervals: apply_minimum_to_subintervals,
+        };
+        let bytes = serde_json::to_vec(&material)
+            .map_err(|error| format!("serialize reconstruction-base input key: {error}"))?;
+        Ok(digest_bytes(&bytes))
+    }
+
+    #[salsa::tracked(returns(clone))]
+    fn screen_base_input_key(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<String, String> {
+        db.record_internal_query_body("screen_base_input_key");
+        let app_policy_checkpoint =
+            review_base_app_policy_checkpoint(db, raw, early, config, support)?;
+        let use_apps_forcing_screen_open = support.use_apps_forcing_screen_open(db);
+        let apps_forcing_digest = if use_apps_forcing_screen_open {
+            digest_bytes(&support.apps_forcing_csv(db))
+        } else {
+            String::new()
+        };
+        let material = ScreenBaseInputKey {
+            protocol_version: "chronicle-screen-base/v1",
+            app_policy_checkpoint: &app_policy_checkpoint,
+            use_apps_forcing_screen_open,
+            apps_forcing_digest,
+            screen_auto_lock_timeout_bits: support.screen_auto_lock_timeout_seconds(db).to_bits(),
+            screen_auto_lock_tolerance_bits: support
+                .screen_auto_lock_tolerance_seconds(db)
+                .to_bits(),
+            screen_manual_lock_max_tail_bits: support
+                .screen_manual_lock_max_tail_seconds(db)
+                .to_bits(),
+            screen_keyguard_near_stop_bits: support.screen_keyguard_near_stop_seconds(db).to_bits(),
+        };
+        let bytes = serde_json::to_vec(&material)
+            .map_err(|error| format!("serialize screen-base input key: {error}"))?;
+        Ok(digest_bytes(&bytes))
+    }
+
+    fn review_base_app_policy_checkpoint(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<String, String> {
+        let review_base = raw.review_base_bytes(db);
+        if !review_base.is_empty() {
+            let header = review_base_header(&review_base)?;
+            let expected_key = review_base_input_key(db, raw, early, support)?;
+            if header.input_key
+                == parse_blake3_key(&expected_key, "expected review-base input key")?
+            {
+                return Ok(format!(
+                    "sha256:{}",
+                    hex::encode(header.app_policy_checkpoint)
+                ));
+            }
+        }
+        Ok(tag_filtered_packages(db, raw, early, config, support)?
+            .checkpoint
+            .terminal_digest)
+    }
+
     fn encode_review_base(base: &ReviewBase) -> Result<Vec<u8>, String> {
         let bytes =
             postcard::to_allocvec(base).map_err(|error| format!("encode review base: {error}"))?;
@@ -1889,24 +2094,50 @@ mod tracked {
             ));
         }
         let compressed = lz4_flex::block::compress(&bytes);
+        let input_key_digest = parse_blake3_key(&base.input_key, "review-base input key")?;
+        let app_policy_checkpoint = base
+            .metadata
+            .step_checkpoints
+            .get("tag_filtered_packages")
+            .ok_or_else(|| "review base is missing its app-policy checkpoint".to_string())?;
+        let app_policy_digest = parse_sha256_digest(
+            &app_policy_checkpoint.terminal_digest,
+            "review-base app-policy checkpoint",
+        )?;
         let mut encoded = Vec::with_capacity(REVIEW_BASE_HEADER_BYTES + compressed.len());
         encoded.extend_from_slice(REVIEW_BASE_MAGIC);
         encoded.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
         encoded.extend_from_slice(blake3::hash(&bytes).as_bytes());
+        encoded.extend_from_slice(&input_key_digest);
+        encoded.extend_from_slice(&app_policy_digest);
         encoded.extend_from_slice(&compressed);
         Ok(encoded)
     }
 
-    fn decode_review_base_bytes(bytes: &[u8]) -> Result<ReviewBase, String> {
+    fn review_base_header(bytes: &[u8]) -> Result<ReviewBaseHeader, String> {
         if bytes.len() < REVIEW_BASE_HEADER_BYTES {
             return Err("review base is truncated".into());
         }
         if &bytes[..REVIEW_BASE_MAGIC.len()] != REVIEW_BASE_MAGIC {
             return Err("review base has an invalid header".into());
         }
+        let input_key_offset = REVIEW_BASE_MAGIC.len() + 4 + 32;
+        let app_policy_offset = input_key_offset + 32;
+        Ok(ReviewBaseHeader {
+            input_key: bytes[input_key_offset..app_policy_offset]
+                .try_into()
+                .expect("32-byte review-base input key"),
+            app_policy_checkpoint: bytes[app_policy_offset..app_policy_offset + 32]
+                .try_into()
+                .expect("32-byte review-base app-policy checkpoint"),
+        })
+    }
+
+    fn decode_review_base_bytes(bytes: &[u8]) -> Result<ReviewBase, String> {
+        review_base_header(bytes)?;
         let size_offset = REVIEW_BASE_MAGIC.len();
         let digest_offset = size_offset + 4;
-        let payload_offset = digest_offset + 32;
+        let payload_offset = REVIEW_BASE_HEADER_BYTES;
         let declared = u32::from_le_bytes(
             bytes[size_offset..digest_offset]
                 .try_into()
@@ -1920,7 +2151,7 @@ mod tracked {
         }
         let decoded = lz4_flex::block::decompress(&bytes[payload_offset..], declared as usize)
             .map_err(|error| format!("decompress review base: {error}"))?;
-        if blake3::hash(&decoded).as_bytes() != &bytes[digest_offset..payload_offset] {
+        if blake3::hash(&decoded).as_bytes() != &bytes[digest_offset..digest_offset + 32] {
             return Err("review base payload digest mismatch".into());
         }
         let base: ReviewBase = postcard::from_bytes(&decoded)
@@ -1930,6 +2161,97 @@ mod tracked {
                 "unsupported review-base protocol: {}",
                 base.protocol_version
             ));
+        }
+        Ok(base)
+    }
+
+    fn encode_reconstruction_base(base: &ReconstructionBase) -> Result<Vec<u8>, String> {
+        let bytes = postcard::to_allocvec(base)
+            .map_err(|error| format!("encode reconstruction base: {error}"))?;
+        if bytes.len() > MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES {
+            return Err(format!(
+                "reconstruction base is too large: {} bytes exceeds {}",
+                bytes.len(),
+                MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES
+            ));
+        }
+        let compressed = lz4_flex::block::compress(&bytes);
+        let input_key_digest = parse_blake3_key(&base.input_key, "reconstruction-base input key")?;
+        let mut encoded = Vec::with_capacity(RECONSTRUCTION_BASE_HEADER_BYTES + compressed.len());
+        encoded.extend_from_slice(RECONSTRUCTION_BASE_MAGIC);
+        encoded.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
+        encoded.extend_from_slice(blake3::hash(&bytes).as_bytes());
+        encoded.extend_from_slice(&input_key_digest);
+        encoded.extend_from_slice(&compressed);
+        Ok(encoded)
+    }
+
+    fn parse_blake3_key(value: &str, label: &str) -> Result<[u8; 32], String> {
+        let encoded = value
+            .strip_prefix("blake3:")
+            .ok_or_else(|| format!("{label} does not use blake3"))?;
+        let mut digest = [0_u8; 32];
+        hex::decode_to_slice(encoded, &mut digest)
+            .map_err(|error| format!("decode {label}: {error}"))?;
+        Ok(digest)
+    }
+
+    fn parse_sha256_digest(value: &str, label: &str) -> Result<[u8; 32], String> {
+        let encoded = value
+            .strip_prefix("sha256:")
+            .ok_or_else(|| format!("{label} does not use sha256"))?;
+        let mut digest = [0_u8; 32];
+        hex::decode_to_slice(encoded, &mut digest)
+            .map_err(|error| format!("decode {label}: {error}"))?;
+        Ok(digest)
+    }
+
+    fn reconstruction_base_header_input_key(bytes: &[u8]) -> Result<[u8; 32], String> {
+        if bytes.len() < RECONSTRUCTION_BASE_HEADER_BYTES {
+            return Err("reconstruction base is truncated".into());
+        }
+        if &bytes[..RECONSTRUCTION_BASE_MAGIC.len()] != RECONSTRUCTION_BASE_MAGIC {
+            return Err("reconstruction base has an invalid header".into());
+        }
+        let input_key_offset = RECONSTRUCTION_BASE_MAGIC.len() + 4 + 32;
+        Ok(bytes[input_key_offset..input_key_offset + 32]
+            .try_into()
+            .expect("32-byte reconstruction-base input key"))
+    }
+
+    fn decode_reconstruction_base_bytes(bytes: &[u8]) -> Result<ReconstructionBase, String> {
+        let header_input_key = reconstruction_base_header_input_key(bytes)?;
+        let size_offset = RECONSTRUCTION_BASE_MAGIC.len();
+        let digest_offset = size_offset + 4;
+        let payload_offset = RECONSTRUCTION_BASE_HEADER_BYTES;
+        let declared = u32::from_le_bytes(
+            bytes[size_offset..digest_offset]
+                .try_into()
+                .expect("four-byte reconstruction-base size"),
+        );
+        if declared as usize > MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES {
+            return Err(format!(
+                "reconstruction base declares {} bytes, exceeding {}",
+                declared, MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES
+            ));
+        }
+        let decoded = lz4_flex::block::decompress(&bytes[payload_offset..], declared as usize)
+            .map_err(|error| format!("decompress reconstruction base: {error}"))?;
+        if blake3::hash(&decoded).as_bytes() != &bytes[digest_offset..digest_offset + 32] {
+            return Err("reconstruction base payload digest mismatch".into());
+        }
+        let base: ReconstructionBase = postcard::from_bytes(&decoded)
+            .map_err(|error| format!("decode reconstruction base: {error}"))?;
+        if base.protocol_version != RECONSTRUCTION_BASE_PROTOCOL {
+            return Err(format!(
+                "unsupported reconstruction-base protocol: {}",
+                base.protocol_version
+            ));
+        }
+        if parse_blake3_key(&base.input_key, "reconstruction-base payload input key")?
+            != header_input_key
+        {
+            return Err("reconstruction base header input key mismatch".into());
         }
         Ok(base)
     }
@@ -2172,6 +2494,10 @@ mod tracked {
         /// Empty means the existing raw-input path is authoritative.
         #[returns(clone)]
         review_base_bytes: Arc<Vec<u8>>,
+        /// Optional step-29 checkpoint stored separately so a cache miss does
+        /// not make the smaller step-17 review base more expensive to decode.
+        #[returns(clone)]
+        reconstruction_base_bytes: Arc<Vec<u8>>,
     }
 
     #[salsa::input(singleton)]
@@ -2343,20 +2669,62 @@ mod tracked {
         support: UsageSupportInput,
     ) -> Result<Option<DecodedReviewBase>, String> {
         db.record_internal_query_body("matching_review_base");
+        let bytes = raw.review_base_bytes(db);
+        if bytes.is_empty() {
+            return Ok(None);
+        }
+        let expected_key = review_base_input_key(db, raw, early, support)?;
+        if review_base_header(&bytes)?.input_key
+            != parse_blake3_key(&expected_key, "expected review-base input key")?
+        {
+            return Ok(None);
+        }
         let Some(decoded) = decoded_review_base(db, raw)? else {
             return Ok(None);
         };
-        let expected_key = review_base_input_key(db, raw, early, support)?;
-        Ok((decoded.value.input_key == expected_key).then_some(decoded))
+        if decoded.value.input_key != expected_key {
+            return Err("review base header matched but payload key differed".into());
+        }
+        Ok(Some(decoded))
     }
 
-    fn build_review_base(
+    #[salsa::tracked(returns(clone))]
+    fn matching_reconstruction_base(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
         early: EarlyConfigInput,
         config: UsageConfigInput,
         support: UsageSupportInput,
-    ) -> Result<Vec<u8>, String> {
+    ) -> Result<Option<DecodedReconstructionBase>, String> {
+        db.record_internal_query_body("matching_reconstruction_base");
+        let bytes = raw.reconstruction_base_bytes(db);
+        if bytes.is_empty() {
+            return Ok(None);
+        }
+        let expected_key = reconstruction_base_input_key(db, raw, early, config, support)?;
+        if reconstruction_base_header_input_key(&bytes)?
+            != parse_blake3_key(&expected_key, "expected reconstruction-base input key")?
+        {
+            return Ok(None);
+        }
+        let value = decode_reconstruction_base_bytes(&bytes)?;
+        if value.input_key != expected_key {
+            return Err("reconstruction base header matched but payload key differed".into());
+        }
+        let encoded_digest = *blake3::hash(&bytes[..RECONSTRUCTION_BASE_HEADER_BYTES]).as_bytes();
+        Ok(Some(DecodedReconstructionBase {
+            encoded_digest,
+            value: Arc::new(value),
+        }))
+    }
+
+    fn build_review_base_metadata(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<ReviewBaseMetadata, String> {
         let values = [
             parse_remap_config(db, early)?.checkpoint,
             csv_parse(db, raw)?.checkpoint,
@@ -2399,10 +2767,7 @@ mod tracked {
         .map(|checkpoint| (checkpoint.node_id.clone(), checkpoint))
         .collect();
 
-        let base = ReviewBase {
-            protocol_version: REVIEW_BASE_PROTOCOL.into(),
-            input_key: review_base_input_key(db, raw, early, support)?,
-            rows: Arc::clone(&policy.value),
+        Ok(ReviewBaseMetadata {
             step_checkpoints,
             logical_checkpoints,
             original_row_count: sorted.value.len() as u32,
@@ -2423,8 +2788,82 @@ mod tracked {
                 &selected.value.rows,
             ),
             timezone_stage_digest: timezone_stage_digest(&restamped.value),
+        })
+    }
+
+    fn build_review_base(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<Vec<u8>, String> {
+        let policy = tag_filtered_packages(db, raw, early, config, support)?;
+        let base = ReviewBase {
+            protocol_version: REVIEW_BASE_PROTOCOL.into(),
+            input_key: review_base_input_key(db, raw, early, support)?,
+            rows: Arc::clone(&policy.value),
+            metadata: build_review_base_metadata(db, raw, early, config, support)?,
+            screen: build_screen_base(db, raw, early, config, support)?,
         };
         encode_review_base(&base)
+    }
+
+    fn build_screen_base(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<Option<ScreenBase>, String> {
+        if !matches!(
+            config.usage_session_mode(db),
+            UsageSessionMode::ScreenUsage | UsageSessionMode::AppAndScreenUsage
+        ) {
+            return Ok(None);
+        }
+        let keyguard = collect_keyguard_timestamps(db, raw, early, config, support)?;
+        let walked = walk_screen_state_machine(db, raw, early, config, support)?;
+        let built = build_classified_sessions(db, raw, early, config, support)?;
+        Ok(Some(ScreenBase {
+            input_key: screen_base_input_key(db, raw, early, config, support)?,
+            rows: Arc::clone(&built.value),
+            collect_keyguard_timestamps: keyguard.checkpoint.clone(),
+            walk_screen_state_machine: walked.checkpoint.clone(),
+            build_classified_sessions: built.checkpoint.clone(),
+            device_state_timeline: required_logical_checkpoint(&built, "device_state_timeline")?,
+        }))
+    }
+
+    fn build_reconstruction_base(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<Vec<u8>, String> {
+        let applied = apply_matcher_output(db, raw, early, config, support)?;
+        let split = split_concurrent(db, raw, early, config, support)?;
+        let junk = compute_junk_packages(db, raw, early, config, support)?;
+        let blind = junk_blind_fold(db, raw, early, config, support)?;
+        let matcher_input = build_matcher_input(db, raw, early, config, support)?;
+        let matcher = run_matcher(db, raw, early, config, support)?;
+        let screen = build_screen_base(db, raw, early, config, support)?;
+        let base = ReconstructionBase {
+            protocol_version: RECONSTRUCTION_BASE_PROTOCOL.into(),
+            input_key: reconstruction_base_input_key(db, raw, early, config, support)?,
+            rows: Arc::clone(&split.value),
+            compute_junk_packages: junk.checkpoint.clone(),
+            junk_blind_fold: blind.checkpoint.clone(),
+            build_matcher_input: matcher_input.checkpoint.clone(),
+            run_matcher: matcher.checkpoint.clone(),
+            apply_matcher_output: applied.checkpoint.clone(),
+            split_concurrent: split.checkpoint.clone(),
+            reconstruct_episodes: required_logical_checkpoint(&split, "reconstruct_episodes")?,
+            early_metadata: build_review_base_metadata(db, raw, early, config, support)?,
+            screen,
+        };
+        encode_reconstruction_base(&base)
     }
 
     #[salsa::tracked(returns(clone))]
@@ -2690,6 +3129,7 @@ mod tracked {
                 db.record_internal_query_body("restore_review_base");
                 let base = base.value;
                 let checkpoint = base
+                    .metadata
                     .step_checkpoints
                     .get("tag_filtered_packages")
                     .cloned()
@@ -2697,6 +3137,7 @@ mod tracked {
                         "review base is missing tag_filtered_packages checkpoint".to_string()
                     })?;
                 let logical_checkpoint = base
+                    .metadata
                     .logical_checkpoints
                     .get("app_policy")
                     .cloned()
@@ -2766,6 +3207,38 @@ mod tracked {
         config: UsageConfigInput,
         support: UsageSupportInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        if !raw.reconstruction_base_bytes(db).is_empty() {
+            if let Some(cached) = matching_reconstruction_base(db, raw, early, config, support)? {
+                if let Some(screen) = cached.value.screen.as_ref() {
+                    let expected_screen_key =
+                        screen_base_input_key(db, raw, early, config, support)?;
+                    if screen.input_key == expected_screen_key {
+                        db.record_internal_query_body("restore_reconstruction_screen");
+                        return Ok(StepValue {
+                            value: Arc::clone(&screen.rows),
+                            checkpoint: screen.build_classified_sessions.clone(),
+                            logical_checkpoint: Some(screen.device_state_timeline.clone()),
+                        });
+                    }
+                }
+            }
+        }
+        if !raw.review_base_bytes(db).is_empty() {
+            if let Some(cached) = matching_review_base(db, raw, early, support)? {
+                if let Some(screen) = cached.value.screen.as_ref() {
+                    let expected_screen_key =
+                        screen_base_input_key(db, raw, early, config, support)?;
+                    if screen.input_key == expected_screen_key {
+                        db.record_internal_query_body("restore_review_screen");
+                        return Ok(StepValue {
+                            value: Arc::clone(&screen.rows),
+                            checkpoint: screen.build_classified_sessions.clone(),
+                            logical_checkpoint: Some(screen.device_state_timeline.clone()),
+                        });
+                    }
+                }
+            }
+        }
         db.record_query_body("build_classified_sessions");
         let rows = tag_filtered_packages(db, raw, early, config, support)?;
         let closes = walk_screen_state_machine(db, raw, early, config, support)?;
@@ -2883,6 +3356,10 @@ mod tracked {
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
     struct ReviewReconstruction {
         rows: Arc<Vec<Row>>,
+        compute_junk_packages: LogicalStageCheckpoint,
+        junk_blind_fold: LogicalStageCheckpoint,
+        build_matcher_input: LogicalStageCheckpoint,
+        run_matcher: LogicalStageCheckpoint,
         apply_matcher_output: LogicalStageCheckpoint,
         relabel_usage_with_floor: LogicalStageCheckpoint,
         junk_downstream_mark: LogicalStageCheckpoint,
@@ -2893,7 +3370,11 @@ mod tracked {
 
     impl PartialEq for ReviewReconstruction {
         fn eq(&self, other: &Self) -> bool {
-            self.apply_matcher_output == other.apply_matcher_output
+            self.compute_junk_packages == other.compute_junk_packages
+                && self.junk_blind_fold == other.junk_blind_fold
+                && self.build_matcher_input == other.build_matcher_input
+                && self.run_matcher == other.run_matcher
+                && self.apply_matcher_output == other.apply_matcher_output
                 && self.relabel_usage_with_floor == other.relabel_usage_with_floor
                 && self.junk_downstream_mark == other.junk_downstream_mark
                 && self.sort_episodes == other.sort_episodes
@@ -2903,6 +3384,32 @@ mod tracked {
     }
 
     impl Eq for ReviewReconstruction {}
+
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct ReviewReconstructedRows {
+        rows: Arc<Vec<Row>>,
+        compute_junk_packages: LogicalStageCheckpoint,
+        junk_blind_fold: LogicalStageCheckpoint,
+        build_matcher_input: LogicalStageCheckpoint,
+        run_matcher: LogicalStageCheckpoint,
+        apply_matcher_output: LogicalStageCheckpoint,
+        split_concurrent: LogicalStageCheckpoint,
+        reconstruct_episodes: LogicalStageCheckpoint,
+    }
+
+    impl PartialEq for ReviewReconstructedRows {
+        fn eq(&self, other: &Self) -> bool {
+            self.compute_junk_packages == other.compute_junk_packages
+                && self.junk_blind_fold == other.junk_blind_fold
+                && self.build_matcher_input == other.build_matcher_input
+                && self.run_matcher == other.run_matcher
+                && self.apply_matcher_output == other.apply_matcher_output
+                && self.split_concurrent == other.split_concurrent
+                && self.reconstruct_episodes == other.reconstruct_episodes
+        }
+    }
+
+    impl Eq for ReviewReconstructedRows {}
 
     /// Materialize the row table produced by the reconstruction section.
     ///
@@ -2920,12 +3427,32 @@ mod tracked {
         early: EarlyConfigInput,
         config: UsageConfigInput,
         support: UsageSupportInput,
-    ) -> Result<StepValue<Vec<Row>>, String> {
+    ) -> Result<ReviewReconstructedRows, String> {
         let _timer = QueryTimer::start("review_reconstructed_rows");
+
+        if !raw.reconstruction_base_bytes(db).is_empty() {
+            if let Some(cached) = matching_reconstruction_base(db, raw, early, config, support)? {
+                db.record_internal_query_body("restore_reconstruction_base");
+                let cached = cached.value;
+                return Ok(ReviewReconstructedRows {
+                    rows: Arc::clone(&cached.rows),
+                    compute_junk_packages: cached.compute_junk_packages.clone(),
+                    junk_blind_fold: cached.junk_blind_fold.clone(),
+                    build_matcher_input: cached.build_matcher_input.clone(),
+                    run_matcher: cached.run_matcher.clone(),
+                    apply_matcher_output: cached.apply_matcher_output.clone(),
+                    split_concurrent: cached.split_concurrent.clone(),
+                    reconstruct_episodes: cached.reconstruct_episodes.clone(),
+                });
+            }
+        }
         db.record_internal_query_body("review_reconstructed_rows");
 
-        let applied = apply_matcher_output(db, raw, early, config, support)?;
         let filtered = compute_junk_packages(db, raw, early, config, support)?;
+        let blind = junk_blind_fold(db, raw, early, config, support)?;
+        let matcher_input = build_matcher_input(db, raw, early, config, support)?;
+        let matcher = run_matcher(db, raw, early, config, support)?;
+        let applied = apply_matcher_output(db, raw, early, config, support)?;
         let background = background_apps(db, config, support);
         let rebuilds_usage_intervals = config.model_concurrent_usage(db) || !background.is_empty();
         let apply_minimum_to_subintervals =
@@ -2959,10 +3486,17 @@ mod tracked {
                 apply_minimum_to_subintervals,
             )?;
         }
-        Ok(with_logical_rows(
-            rows_step("split_concurrent", rows),
-            "reconstruct_episodes",
-        ))
+        let split = with_logical_rows(rows_step("split_concurrent", rows), "reconstruct_episodes");
+        Ok(ReviewReconstructedRows {
+            rows: Arc::clone(&split.value),
+            compute_junk_packages: filtered.checkpoint.clone(),
+            junk_blind_fold: blind.checkpoint.clone(),
+            build_matcher_input: matcher_input.checkpoint.clone(),
+            run_matcher: matcher.checkpoint.clone(),
+            apply_matcher_output: applied.checkpoint.clone(),
+            split_concurrent: split.checkpoint.clone(),
+            reconstruct_episodes: required_logical_checkpoint(&split, "reconstruct_episodes")?,
+        })
     }
 
     /// Execute adjacent row-mutating reconstruction steps on one owned buffer.
@@ -2979,15 +3513,13 @@ mod tracked {
         let _timer = QueryTimer::start("review_reconstruction_fused");
         db.record_internal_query_body("review_reconstruction_fused");
 
-        let applied = apply_matcher_output(db, raw, early, config, support)?;
-        let filtered = compute_junk_packages(db, raw, early, config, support)?;
         let background = background_apps(db, config, support);
         let background_checkpoint_value = background.iter().cloned().collect::<BTreeSet<_>>();
         let reconstructed = review_reconstructed_rows(db, raw, early, config, support)?;
 
         let section_timer = QueryTimer::start("review_reconstruction_apply_matcher_output");
         section_timer.finish();
-        let apply_matcher_output = applied.checkpoint.clone();
+        let apply_matcher_output = reconstructed.apply_matcher_output.clone();
 
         let section_timer = QueryTimer::start("review_reconstruction_relabel_usage_with_floor");
         section_timer.finish();
@@ -2995,7 +3527,7 @@ mod tracked {
             "relabel_usage_with_floor",
             &[
                 ("rows", &apply_matcher_output),
-                ("filteredPackages", &filtered.checkpoint),
+                ("filteredPackages", &reconstructed.compute_junk_packages),
             ],
             &serde_json::json!({
                 "minimumUsageDuration": config.minimum_usage_duration(db),
@@ -3009,7 +3541,7 @@ mod tracked {
             "junk_downstream_mark",
             &[
                 ("rows", &relabel_usage_with_floor),
-                ("filteredPackages", &filtered.checkpoint),
+                ("filteredPackages", &reconstructed.compute_junk_packages),
             ],
             &serde_json::json!({
                 "backgroundApps": background_checkpoint_value,
@@ -3029,13 +3561,16 @@ mod tracked {
         let section_timer = QueryTimer::start("review_reconstruction_split_concurrent");
         section_timer.finish();
         let section_timer = QueryTimer::start("review_reconstruction_checkpoint");
-        let split_concurrent = reconstructed.checkpoint.clone();
+        let split_concurrent = reconstructed.split_concurrent.clone();
         section_timer.finish();
-        let reconstruct_episodes =
-            required_logical_checkpoint(&reconstructed, "reconstruct_episodes")?;
+        let reconstruct_episodes = reconstructed.reconstruct_episodes.clone();
 
         Ok(ReviewReconstruction {
-            rows: Arc::clone(&reconstructed.value),
+            rows: Arc::clone(&reconstructed.rows),
+            compute_junk_packages: reconstructed.compute_junk_packages.clone(),
+            junk_blind_fold: reconstructed.junk_blind_fold.clone(),
+            build_matcher_input: reconstructed.build_matcher_input.clone(),
+            run_matcher: reconstructed.run_matcher.clone(),
             apply_matcher_output,
             relabel_usage_with_floor,
             junk_downstream_mark,
@@ -3307,7 +3842,7 @@ mod tracked {
     ) -> Result<ReviewAnnotations, String> {
         let _timer = QueryTimer::start("review_annotations_fused");
         db.record_internal_query_body("review_annotations_fused");
-        let upstream = split_concurrent(db, raw, early, config, support)?;
+        let upstream = review_reconstruction_fused(db, raw, early, config, support)?;
         let enabled = support.use_app_codebook(db);
         let codebook_csv = if enabled {
             support.codebook_csv(db)
@@ -3319,11 +3854,11 @@ mod tracked {
         } else {
             HashMap::new()
         };
-        let mut rows = (*upstream.value).clone();
-        join_codebook(&mut rows, enabled, &codebook);
+        let mut rows = (*upstream.rows).clone();
+        super::apply_codebook_annotations(&mut rows, enabled, &codebook);
         let codebook_join = review_derived_checkpoint(
             "codebook_join",
-            &[("rows", &upstream.checkpoint)],
+            &[("rows", &upstream.split_concurrent)],
             &serde_json::json!({
                 "enabled": enabled,
                 "codebookDigest": digest_bytes(&codebook_csv),
@@ -3332,7 +3867,6 @@ mod tracked {
         )?;
         db.record_fused_product_step("codebook_join");
 
-        rows = super::derive_broad_category_step(rows, enabled);
         let derive_broad_category = review_derived_checkpoint(
             "derive_broad_category",
             &[("rows", &codebook_join)],
@@ -3340,7 +3874,6 @@ mod tracked {
         )?;
         db.record_fused_product_step("derive_broad_category");
 
-        rows = super::collapse_genre_step(rows, enabled);
         let collapse_genre = review_derived_checkpoint(
             "collapse_genre",
             &[("rows", &derive_broad_category)],
@@ -4499,6 +5032,7 @@ mod tracked {
             db: &EarlyDatabase,
             csv_bytes: &[u8],
             review_base_bytes: &[u8],
+            reconstruction_base_bytes: &[u8],
             options: &PipelineV2Options,
             support: PipelineV2SupportFiles<'_>,
             materialize_full_outputs: bool,
@@ -4508,6 +5042,7 @@ mod tracked {
                     db,
                     Arc::new(csv_bytes.to_vec()),
                     Arc::new(review_base_bytes.to_vec()),
+                    Arc::new(reconstruction_base_bytes.to_vec()),
                 ),
                 early: EarlyConfigInput::new(
                     db,
@@ -4587,11 +5122,13 @@ mod tracked {
             }
         }
 
+        #[allow(clippy::too_many_arguments)]
         fn update(
             self,
             db: &mut EarlyDatabase,
             csv_bytes: &[u8],
             review_base_bytes: &[u8],
+            reconstruction_base_bytes: &[u8],
             options: &PipelineV2Options,
             support: PipelineV2SupportFiles<'_>,
             materialize_full_outputs: bool,
@@ -4619,6 +5156,13 @@ mod tracked {
                 set_review_base_bytes,
                 review_base_bytes,
                 review_base_bytes.to_vec()
+            );
+            set_arc_vec_if_changed!(
+                self.raw,
+                reconstruction_base_bytes,
+                set_reconstruction_base_bytes,
+                reconstruction_base_bytes,
+                reconstruction_base_bytes.to_vec()
             );
             set_arc_vec_if_changed!(
                 self.early,
@@ -4998,8 +5542,9 @@ mod tracked {
             support: PipelineV2SupportFiles<'_>,
             materialize_full_outputs: bool,
         ) -> Result<TrackedExecution, String> {
-            self.execute_with_review_base(
+            self.execute_with_review_bases(
                 csv_bytes,
+                &[],
                 &[],
                 options,
                 support,
@@ -5007,10 +5552,30 @@ mod tracked {
             )
         }
 
+        #[cfg(test)]
         pub fn execute_with_review_base(
             &mut self,
             csv_bytes: &[u8],
             review_base_bytes: &[u8],
+            options: &PipelineV2Options,
+            support: PipelineV2SupportFiles<'_>,
+            materialize_full_outputs: bool,
+        ) -> Result<TrackedExecution, String> {
+            self.execute_with_review_bases(
+                csv_bytes,
+                review_base_bytes,
+                &[],
+                options,
+                support,
+                materialize_full_outputs,
+            )
+        }
+
+        pub fn execute_with_review_bases(
+            &mut self,
+            csv_bytes: &[u8],
+            review_base_bytes: &[u8],
+            reconstruction_base_bytes: &[u8],
             options: &PipelineV2Options,
             support: PipelineV2SupportFiles<'_>,
             materialize_full_outputs: bool,
@@ -5021,6 +5586,7 @@ mod tracked {
                         &mut self.db,
                         csv_bytes,
                         review_base_bytes,
+                        reconstruction_base_bytes,
                         options,
                         support,
                         materialize_full_outputs,
@@ -5032,6 +5598,7 @@ mod tracked {
                         &self.db,
                         csv_bytes,
                         review_base_bytes,
+                        reconstruction_base_bytes,
                         options,
                         support,
                         materialize_full_outputs,
@@ -5107,6 +5674,24 @@ mod tracked {
             self.db.take_will_execute();
             Ok(bytes)
         }
+
+        pub fn export_reconstruction_base(&mut self) -> Result<Vec<u8>, String> {
+            let inputs = self.inputs.ok_or_else(|| {
+                "reconstruction base requires a completed pipeline execution".to_string()
+            })?;
+            let bytes = build_reconstruction_base(
+                &self.db,
+                inputs.raw,
+                inputs.early,
+                inputs.usage,
+                inputs.usage_support,
+            )?;
+            self.db.take_query_bodies();
+            self.db.take_internal_query_bodies();
+            self.db.take_fused_product_steps();
+            self.db.take_will_execute();
+            Ok(bytes)
+        }
     }
 
     fn not_applicable(step: &str) -> LogicalStageCheckpoint {
@@ -5156,49 +5741,61 @@ mod tracked {
             timezone_stage_digest: String,
         }
 
-        let restored_base = if usage.review_only(db) {
-            matching_review_base(db, raw, early, usage_support)?
+        let restored_reconstruction_base = if usage.review_only(db) {
+            matching_reconstruction_base(db, raw, early, usage, usage_support)?
         } else {
             None
         };
-        let early_state = if let Some(base) = restored_base {
-            let base = base.value;
-            step_checkpoints.extend(base.step_checkpoints.clone());
-            tag_filtered_packages(db, raw, early, usage, usage_support)?;
+        let restored_review_base =
+            if restored_reconstruction_base.is_none() && usage.review_only(db) {
+                matching_review_base(db, raw, early, usage_support)?
+            } else {
+                None
+            };
+        let restored_metadata = restored_reconstruction_base
+            .as_ref()
+            .map(|base| &base.value.early_metadata)
+            .or_else(|| {
+                restored_review_base
+                    .as_ref()
+                    .map(|base| &base.value.metadata)
+            });
+        let early_state = if let Some(metadata) = restored_metadata {
+            step_checkpoints.extend(metadata.step_checkpoints.clone());
             EarlyAssembly {
-                parse_events: base
+                parse_events: metadata
                     .logical_checkpoints
                     .get("parse_events")
                     .cloned()
                     .ok_or_else(|| "review base is missing parse_events".to_string())?,
-                normalize_timezones: base
+                normalize_timezones: metadata
                     .logical_checkpoints
                     .get("normalize_timezones")
                     .cloned()
                     .ok_or_else(|| "review base is missing normalize_timezones".to_string())?,
-                dedup_and_order: base
+                dedup_and_order: metadata
                     .logical_checkpoints
                     .get("dedup_and_order")
                     .cloned()
                     .ok_or_else(|| "review base is missing dedup_and_order".to_string())?,
-                app_policy: base
+                app_policy: metadata
                     .logical_checkpoints
                     .get("app_policy")
                     .cloned()
                     .ok_or_else(|| "review base is missing app_policy".to_string())?,
-                original_row_count: base.original_row_count,
-                processed_row_count: base.processed_row_count,
-                rows_before_timezone_handling: base.rows_before_timezone_handling,
-                rows_after_timezone_handling: base.rows_after_timezone_handling,
-                duplicate_timestamps_corrected: base.duplicate_timestamps_corrected,
-                exact_duplicate_rows_removed: base.exact_duplicate_rows_removed,
-                available_timezones: base.available_timezones.clone(),
-                timezone: base.timezone.clone(),
-                timezone_action: base.timezone_action.clone(),
-                timezone_retained_source_rows_digest: base
+                original_row_count: metadata.original_row_count,
+                processed_row_count: metadata.processed_row_count,
+                rows_before_timezone_handling: metadata.rows_before_timezone_handling,
+                rows_after_timezone_handling: metadata.rows_after_timezone_handling,
+                duplicate_timestamps_corrected: metadata.duplicate_timestamps_corrected,
+                exact_duplicate_rows_removed: metadata.exact_duplicate_rows_removed,
+                available_timezones: metadata.available_timezones.clone(),
+                timezone: metadata.timezone.clone(),
+                timezone_action: metadata.timezone_action.clone(),
+                timezone_retained_source_rows_digest: metadata
                     .timezone_retained_source_rows_digest
                     .clone(),
-                timezone_stage_digest: base.timezone_stage_digest.clone(),
+                timezone_stage_digest: metadata.timezone_stage_digest.clone(),
             }
         } else {
             let remap = parse_remap_config(db, early)?;
@@ -5273,13 +5870,35 @@ mod tracked {
             UsageSessionMode::ScreenUsage | UsageSessionMode::AppAndScreenUsage
         );
         let screen_rows = if screen_mode {
-            let keyguard = collect_keyguard_timestamps(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &keyguard.checkpoint);
-            let walked = walk_screen_state_machine(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &walked.checkpoint);
-            let built = build_classified_sessions(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &built.checkpoint);
-            built.value.as_ref().clone()
+            let cached_screen_candidate = restored_reconstruction_base
+                .as_ref()
+                .and_then(|base| base.value.screen.as_ref())
+                .or_else(|| {
+                    restored_review_base
+                        .as_ref()
+                        .and_then(|base| base.value.screen.as_ref())
+                });
+            let cached_screen = if let Some(screen) = cached_screen_candidate {
+                let expected_screen_key =
+                    screen_base_input_key(db, raw, early, usage, usage_support)?;
+                (screen.input_key == expected_screen_key).then_some(screen)
+            } else {
+                None
+            };
+            if let Some(screen) = cached_screen {
+                insert_checkpoint(&mut step_checkpoints, &screen.collect_keyguard_timestamps);
+                insert_checkpoint(&mut step_checkpoints, &screen.walk_screen_state_machine);
+                insert_checkpoint(&mut step_checkpoints, &screen.build_classified_sessions);
+                screen.rows.as_ref().clone()
+            } else {
+                let keyguard = collect_keyguard_timestamps(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &keyguard.checkpoint);
+                let walked = walk_screen_state_machine(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &walked.checkpoint);
+                let built = build_classified_sessions(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &built.checkpoint);
+                built.value.as_ref().clone()
+            }
         } else {
             for step in [
                 "collect_keyguard_timestamps",
@@ -5316,40 +5935,24 @@ mod tracked {
             day_coverage_checkpoint,
             compliance_checkpoint,
         ) = if app_mode {
-            let junk = compute_junk_packages(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &junk.checkpoint);
-            let blind = junk_blind_fold(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &blind.checkpoint);
-            let matcher_input = build_matcher_input(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &matcher_input.checkpoint);
-            let matcher = run_matcher(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &matcher.checkpoint);
-            let split = split_concurrent(db, raw, early, usage, usage_support)?;
-            if usage.review_only(db) {
-                let fused = review_reconstruction_fused(db, raw, early, usage, usage_support)?;
+            let zero_filtered = if usage.review_only(db) {
+                let reconstruction =
+                    review_reconstruction_fused(db, raw, early, usage, usage_support)?;
                 for checkpoint in [
-                    &fused.apply_matcher_output,
-                    &fused.relabel_usage_with_floor,
-                    &fused.junk_downstream_mark,
-                    &fused.sort_episodes,
-                    &fused.split_concurrent,
+                    &reconstruction.compute_junk_packages,
+                    &reconstruction.junk_blind_fold,
+                    &reconstruction.build_matcher_input,
+                    &reconstruction.run_matcher,
+                    &reconstruction.apply_matcher_output,
+                    &reconstruction.relabel_usage_with_floor,
+                    &reconstruction.junk_downstream_mark,
+                    &reconstruction.sort_episodes,
+                    &reconstruction.split_concurrent,
                 ] {
                     insert_checkpoint(&mut step_checkpoints, checkpoint);
                 }
-            } else {
-                let applied = apply_matcher_output(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &applied.checkpoint);
-                let relabeled = relabel_usage_with_floor(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &relabeled.checkpoint);
-                let downstream = junk_downstream_mark(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &downstream.checkpoint);
-                let sorted_episodes = sort_episodes(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &sorted_episodes.checkpoint);
-                insert_checkpoint(&mut step_checkpoints, &split.checkpoint);
-            }
-            reconstruct_checkpoint = required_logical_checkpoint(&split, "reconstruct_episodes")?;
-            let zero_filtered = if usage.review_only(db) {
-                let zero_filtered = drop_zero_duration(db, raw, early, usage, usage_support)?;
+                reconstruct_checkpoint = reconstruction.reconstruct_episodes.clone();
+
                 let fused = review_annotations_fused(db, raw, early, usage, usage_support)?;
                 for checkpoint in [
                     &fused.codebook_join,
@@ -5365,8 +5968,32 @@ mod tracked {
                 }
                 categorize_checkpoint = fused.categorize_apps.clone();
                 annotation_checkpoint = fused.episode_annotations.clone();
-                zero_filtered
+                StepValue {
+                    value: Arc::clone(&fused.rows),
+                    checkpoint: fused.drop_zero_duration.clone(),
+                    logical_checkpoint: Some(fused.interval_cleaning.clone()),
+                }
             } else {
+                let junk = compute_junk_packages(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &junk.checkpoint);
+                let blind = junk_blind_fold(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &blind.checkpoint);
+                let matcher_input = build_matcher_input(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &matcher_input.checkpoint);
+                let matcher = run_matcher(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &matcher.checkpoint);
+                let applied = apply_matcher_output(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &applied.checkpoint);
+                let relabeled = relabel_usage_with_floor(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &relabeled.checkpoint);
+                let downstream = junk_downstream_mark(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &downstream.checkpoint);
+                let sorted_episodes = sort_episodes(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &sorted_episodes.checkpoint);
+                let split = split_concurrent(db, raw, early, usage, usage_support)?;
+                insert_checkpoint(&mut step_checkpoints, &split.checkpoint);
+                reconstruct_checkpoint =
+                    required_logical_checkpoint(&split, "reconstruct_episodes")?;
                 let joined = codebook_join(db, raw, early, usage, usage_support)?;
                 insert_checkpoint(&mut step_checkpoints, &joined.checkpoint);
                 let broad = derive_broad_category(db, raw, early, usage, usage_support)?;
@@ -5697,6 +6324,8 @@ mod tracked {
                     .ingredient::<OutputConfigInput>()
                     .ingredient::<decoded_review_base>()
                     .ingredient::<matching_review_base>()
+                    .ingredient::<matching_reconstruction_base>()
+                    .ingredient::<screen_base_input_key>()
                     .ingredient::<parse_remap_config>()
                     .ingredient::<csv_parse>()
                     .ingredient::<drop_empty_timestamp>()
@@ -5840,7 +6469,7 @@ mod tracked {
 
         fn inputs(db: &EarlyDatabase) -> (EarlyRawInput, EarlyConfigInput) {
             (
-                EarlyRawInput::new(db, csv(), Arc::new(Vec::new())),
+                EarlyRawInput::new(db, csv(), Arc::new(Vec::new()), Arc::new(Vec::new())),
                 EarlyConfigInput::new(
                     db,
                     Arc::new(Vec::new()),
@@ -6577,7 +7206,7 @@ mod tracked {
             producer.execute(&csv(), &baseline, support, true).unwrap();
             let review_base = producer.export_review_base().unwrap();
             let decoded = decode_review_base_bytes(&review_base).unwrap();
-            assert_eq!(decoded.step_checkpoints.len(), 17);
+            assert_eq!(decoded.metadata.step_checkpoints.len(), 17);
             assert_eq!(decoded.rows.len(), 5);
 
             let mut changed = baseline.clone();
@@ -6595,7 +7224,7 @@ mod tracked {
                 "review base was not restored: {:?}",
                 cached.internal_executed_queries
             );
-            for early_step in decoded.step_checkpoints.keys() {
+            for early_step in decoded.metadata.step_checkpoints.keys() {
                 assert!(
                     !cached.executed_steps.contains(early_step),
                     "cached review reran early step {early_step}: {:?}",
@@ -6622,9 +7251,26 @@ mod tracked {
                 Err(error) => error,
             };
             assert!(
-                error.contains("decompress review base") || error.contains("decode review base"),
+                error.contains("decompress review base")
+                    || error.contains("decode review base")
+                    || error.contains("payload digest mismatch"),
                 "unexpected corrupt review-base error: {error}"
             );
+            let mut oversized = review_base.clone();
+            oversized[REVIEW_BASE_MAGIC.len()..REVIEW_BASE_MAGIC.len() + 4]
+                .copy_from_slice(&((MAX_REVIEW_BASE_UNCOMPRESSED_BYTES + 1) as u32).to_le_bytes());
+            let mut oversized_engine = TrackedEngine::default();
+            let error = match oversized_engine.execute_with_review_base(
+                &csv(),
+                &oversized,
+                &changed,
+                support,
+                false,
+            ) {
+                Ok(_) => panic!("oversized review base was accepted"),
+                Err(error) => error,
+            };
+            assert!(error.contains("review base declares"), "{error}");
 
             let mut changed_upstream = changed.clone();
             changed_upstream.deduplicate_exact_rows = !baseline.deduplicate_exact_rows;
@@ -6644,6 +7290,481 @@ mod tracked {
                     .any(|query| query == "restore_review_base"),
                 "mismatched review base was restored"
             );
+
+            for (label, changed_stops) in [
+                ("same-app", {
+                    let mut options = baseline.clone();
+                    options.same_app_stop_types.push("CUSTOM_SAME_STOP".into());
+                    options
+                }),
+                ("other-app", {
+                    let mut options = baseline.clone();
+                    options.other_stop_types.push("CUSTOM_OTHER_STOP".into());
+                    options
+                }),
+            ] {
+                let mut changed_engine = TrackedEngine::default();
+                let changed_result = changed_engine
+                    .execute_with_review_base(&csv(), &review_base, &changed_stops, support, false)
+                    .unwrap();
+                assert!(
+                    !changed_result
+                        .internal_executed_queries
+                        .iter()
+                        .any(|query| query == "restore_review_base"),
+                    "{label} stop-type change restored a stale review base"
+                );
+                assert!(
+                    changed_result
+                        .executed_steps
+                        .iter()
+                        .any(|step| step == "nudge_duplicate_timestamps"),
+                    "{label} stop-type change did not rebuild its early dependency cone: {:?}",
+                    changed_result.executed_steps
+                );
+                let mut cold_engine = TrackedEngine::default();
+                let cold_result = cold_engine
+                    .execute(&csv(), &changed_stops, support, false)
+                    .unwrap();
+                assert_result_parity(
+                    &changed_result.result,
+                    &cold_result.result,
+                    changed_stops.usage_session_mode,
+                );
+            }
+        }
+
+        #[test]
+        fn reconstruction_base_skips_exact_reconstruction_cone_and_rejects_wrong_keys() {
+            let mut baseline = pipeline_options();
+            baseline.model_concurrent_usage = true;
+            baseline.apply_minimum_usage_duration_to_concurrent_subintervals = false;
+            let support = PipelineV2SupportFiles::default();
+
+            let mut producer = TrackedEngine::default();
+            producer.execute(&csv(), &baseline, support, true).unwrap();
+            let review_base = producer.export_review_base().unwrap();
+            let reconstruction_base = producer.export_reconstruction_base().unwrap();
+            let decoded = decode_reconstruction_base_bytes(&reconstruction_base).unwrap();
+            assert_eq!(decoded.rows.len(), 5);
+
+            let mut changed = baseline.clone();
+            changed.minimum_usage_duration = 60.0;
+            let mut cached_engine = TrackedEngine::default();
+            let cached = cached_engine
+                .execute_with_review_bases(
+                    &csv(),
+                    &review_base,
+                    &reconstruction_base,
+                    &changed,
+                    support,
+                    false,
+                )
+                .unwrap();
+            assert!(
+                cached
+                    .internal_executed_queries
+                    .iter()
+                    .any(|query| query == "restore_reconstruction_base"),
+                "reconstruction base was not restored: {:?}",
+                cached.internal_executed_queries
+            );
+            assert!(
+                !cached
+                    .internal_executed_queries
+                    .iter()
+                    .any(|query| query == "restore_review_base"),
+                "deep cache hit unnecessarily decoded the early row table: {:?}",
+                cached.internal_executed_queries
+            );
+            for skipped in [
+                "run_matcher",
+                "apply_matcher_output",
+                "split_concurrent",
+                "reconstruct_episodes",
+            ] {
+                assert!(
+                    !cached.executed_steps.iter().any(|step| step == skipped),
+                    "cached review reran {skipped}: {:?}",
+                    cached.executed_steps
+                );
+            }
+
+            let mut cold_engine = TrackedEngine::default();
+            let cold = cold_engine
+                .execute(&csv(), &changed, support, false)
+                .unwrap();
+            assert_result_parity(&cached.result, &cold.result, changed.usage_session_mode);
+
+            let mut wrong_key = changed.clone();
+            wrong_key.model_concurrent_usage = false;
+            let mut miss_engine = TrackedEngine::default();
+            let miss = miss_engine
+                .execute_with_review_bases(
+                    &csv(),
+                    &review_base,
+                    &reconstruction_base,
+                    &wrong_key,
+                    support,
+                    false,
+                )
+                .unwrap();
+            assert!(
+                !miss
+                    .internal_executed_queries
+                    .iter()
+                    .any(|query| query == "restore_reconstruction_base"),
+                "mismatched reconstruction base was restored"
+            );
+            assert!(
+                miss.executed_steps.iter().any(|step| step == "run_matcher"),
+                "mismatched reconstruction base did not run its affected cone: {:?}",
+                miss.executed_steps
+            );
+
+            let mut key_changes = Vec::new();
+            type OptionMutation = (&'static str, fn(&mut PipelineV2Options));
+            let mutations: [OptionMutation; 8] = [
+                ("same stop types", |options: &mut PipelineV2Options| {
+                    options.same_app_stop_types.push("CUSTOM_SAME".into())
+                }),
+                ("other stop types", |options: &mut PipelineV2Options| {
+                    options.other_stop_types.push("CUSTOM_OTHER".into())
+                }),
+                ("stop reuse", |options: &mut PipelineV2Options| {
+                    options.allow_stop_event_reuse = !options.allow_stop_event_reuse
+                }),
+                ("stopped fallback", |options: &mut PipelineV2Options| {
+                    options.use_activity_stopped_as_fallback =
+                        !options.use_activity_stopped_as_fallback
+                }),
+                ("fallback threshold", |options: &mut PipelineV2Options| {
+                    options.apply_threshold_to_fallback = !options.apply_threshold_to_fallback
+                }),
+                ("long threshold", |options: &mut PipelineV2Options| {
+                    options.long_duration_threshold_ns += 1
+                }),
+                ("proximity", |options: &mut PipelineV2Options| {
+                    options.proximity_interval_ns += 1
+                }),
+                ("subinterval floor", |options: &mut PipelineV2Options| {
+                    options.apply_minimum_usage_duration_to_concurrent_subintervals = true
+                }),
+            ];
+            for (label, mutate) in mutations {
+                let mut options = baseline.clone();
+                mutate(&mut options);
+                key_changes.push((label, options));
+            }
+            for (label, options) in key_changes {
+                let mut changed_engine = TrackedEngine::default();
+                let changed_result = changed_engine
+                    .execute_with_review_bases(
+                        &csv(),
+                        &review_base,
+                        &reconstruction_base,
+                        &options,
+                        support,
+                        false,
+                    )
+                    .unwrap();
+                assert!(
+                    !changed_result
+                        .internal_executed_queries
+                        .iter()
+                        .any(|query| query == "restore_reconstruction_base"),
+                    "{label} change restored a stale reconstruction base"
+                );
+                let mut cold_engine = TrackedEngine::default();
+                let cold_result = cold_engine
+                    .execute(&csv(), &options, support, false)
+                    .unwrap();
+                assert_result_parity(
+                    &changed_result.result,
+                    &cold_result.result,
+                    options.usage_session_mode,
+                );
+            }
+
+            let screen_mutations: [OptionMutation; 4] = [
+                (
+                    "screen auto-lock timeout",
+                    |options: &mut PipelineV2Options| {
+                        options.screen_auto_lock_timeout_seconds += 1.0
+                    },
+                ),
+                (
+                    "screen auto-lock tolerance",
+                    |options: &mut PipelineV2Options| {
+                        options.screen_auto_lock_tolerance_seconds += 1.0
+                    },
+                ),
+                (
+                    "screen manual-lock tail",
+                    |options: &mut PipelineV2Options| {
+                        options.screen_manual_lock_max_tail_seconds += 1.0
+                    },
+                ),
+                (
+                    "screen keyguard proximity",
+                    |options: &mut PipelineV2Options| {
+                        options.screen_keyguard_near_stop_seconds += 1.0
+                    },
+                ),
+            ];
+            for (label, mutate) in screen_mutations {
+                let mut options = baseline.clone();
+                mutate(&mut options);
+                let mut changed_engine = TrackedEngine::default();
+                let changed_result = changed_engine
+                    .execute_with_review_bases(
+                        &csv(),
+                        &review_base,
+                        &reconstruction_base,
+                        &options,
+                        support,
+                        false,
+                    )
+                    .unwrap();
+                assert!(
+                    changed_result
+                        .internal_executed_queries
+                        .iter()
+                        .any(|query| query == "restore_reconstruction_base"),
+                    "{label} change failed to reuse unrelated app reconstruction"
+                );
+                assert!(
+                    changed_result
+                        .executed_steps
+                        .iter()
+                        .any(|step| step == "build_classified_sessions"),
+                    "{label} change reused a stale screen result"
+                );
+                let mut cold_engine = TrackedEngine::default();
+                let cold_result = cold_engine
+                    .execute(&csv(), &options, support, false)
+                    .unwrap();
+                assert_result_parity(
+                    &changed_result.result,
+                    &cold_result.result,
+                    options.usage_session_mode,
+                );
+            }
+
+            let mut app_only = baseline.clone();
+            app_only.usage_session_mode = UsageSessionMode::AppUsage;
+            let mut app_only_engine = TrackedEngine::default();
+            let app_only_result = app_only_engine
+                .execute_with_review_bases(
+                    &csv(),
+                    &review_base,
+                    &reconstruction_base,
+                    &app_only,
+                    support,
+                    false,
+                )
+                .unwrap();
+            assert!(
+                app_only_result
+                    .internal_executed_queries
+                    .iter()
+                    .any(|query| query == "restore_reconstruction_base"),
+                "screen applicability change failed to reuse app reconstruction"
+            );
+            for screen_step in [
+                "collect_keyguard_timestamps",
+                "walk_screen_state_machine",
+                "build_classified_sessions",
+            ] {
+                assert!(!app_only_result
+                    .executed_steps
+                    .iter()
+                    .any(|step| step == screen_step));
+            }
+
+            let background_csv = b"app_package_name\ncom.example.chat\n";
+            let background_support = PipelineV2SupportFiles {
+                background_apps_csv: background_csv,
+                ..support
+            };
+            let mut background_options = baseline.clone();
+            background_options.use_background_apps_file = true;
+            let mut background_engine = TrackedEngine::default();
+            let background_result = background_engine
+                .execute_with_review_bases(
+                    &csv(),
+                    &review_base,
+                    &reconstruction_base,
+                    &background_options,
+                    background_support,
+                    false,
+                )
+                .unwrap();
+            assert!(
+                !background_result
+                    .internal_executed_queries
+                    .iter()
+                    .any(|query| query == "restore_reconstruction_base"),
+                "background-app change restored a stale reconstruction base"
+            );
+            let mut background_cold_engine = TrackedEngine::default();
+            let background_cold = background_cold_engine
+                .execute(&csv(), &background_options, background_support, false)
+                .unwrap();
+            assert_result_parity(
+                &background_result.result,
+                &background_cold.result,
+                background_options.usage_session_mode,
+            );
+
+            let filter_csv = b"app_package_name\ncom.example.chat\n";
+            let filter_support = PipelineV2SupportFiles {
+                filter_csv,
+                ..support
+            };
+            let mut filter_options = baseline.clone();
+            filter_options.use_filter_file = true;
+            let mut filter_engine = TrackedEngine::default();
+            let filter_result = filter_engine
+                .execute_with_review_bases(
+                    &csv(),
+                    &review_base,
+                    &reconstruction_base,
+                    &filter_options,
+                    filter_support,
+                    false,
+                )
+                .unwrap();
+            assert!(
+                !filter_result
+                    .internal_executed_queries
+                    .iter()
+                    .any(|query| query == "restore_reconstruction_base"),
+                "filter-policy change restored a stale reconstruction base"
+            );
+            let mut filter_cold_engine = TrackedEngine::default();
+            let filter_cold = filter_cold_engine
+                .execute(&csv(), &filter_options, filter_support, false)
+                .unwrap();
+            assert_result_parity(
+                &filter_result.result,
+                &filter_cold.result,
+                filter_options.usage_session_mode,
+            );
+
+            let forcing_csv = b"app_package_name,force_screen_open\ncom.example.chat,true\n";
+            let forcing_support = PipelineV2SupportFiles {
+                apps_forcing_csv: forcing_csv,
+                ..support
+            };
+            let mut forcing_options = baseline.clone();
+            forcing_options.use_apps_forcing_screen_open = true;
+            let mut forcing_engine = TrackedEngine::default();
+            let forcing_result = forcing_engine
+                .execute_with_review_bases(
+                    &csv(),
+                    &review_base,
+                    &reconstruction_base,
+                    &forcing_options,
+                    forcing_support,
+                    false,
+                )
+                .unwrap();
+            assert!(
+                forcing_result
+                    .internal_executed_queries
+                    .iter()
+                    .any(|query| query == "restore_reconstruction_base"),
+                "apps-forcing change failed to reuse unrelated app reconstruction"
+            );
+            assert!(
+                forcing_result
+                    .executed_steps
+                    .iter()
+                    .any(|step| step == "build_classified_sessions"),
+                "apps-forcing change reused a stale screen result"
+            );
+            let mut forcing_cold_engine = TrackedEngine::default();
+            let forcing_cold = forcing_cold_engine
+                .execute(&csv(), &forcing_options, forcing_support, false)
+                .unwrap();
+            assert_result_parity(
+                &forcing_result.result,
+                &forcing_cold.result,
+                forcing_options.usage_session_mode,
+            );
+
+            let mut changed_csv = (*csv()).clone();
+            changed_csv.extend_from_slice(
+                b"Study,P02,Other,Chat,Activity Resumed,com.other,2026-03-07 11:00:00,UTC\n",
+            );
+            let mut raw_engine = TrackedEngine::default();
+            let raw_result = raw_engine
+                .execute_with_review_bases(
+                    &changed_csv,
+                    &review_base,
+                    &reconstruction_base,
+                    &baseline,
+                    support,
+                    false,
+                )
+                .unwrap();
+            assert!(
+                !raw_result
+                    .internal_executed_queries
+                    .iter()
+                    .any(|query| query == "restore_reconstruction_base"),
+                "raw policy change restored a stale reconstruction base"
+            );
+            let mut raw_cold_engine = TrackedEngine::default();
+            let raw_cold = raw_cold_engine
+                .execute(&changed_csv, &baseline, support, false)
+                .unwrap();
+            assert_result_parity(
+                &raw_result.result,
+                &raw_cold.result,
+                baseline.usage_session_mode,
+            );
+
+            let mut corrupt = reconstruction_base.clone();
+            let last = corrupt.len() - 1;
+            corrupt[last] ^= 0xff;
+            let mut corrupt_engine = TrackedEngine::default();
+            let error = match corrupt_engine.execute_with_review_bases(
+                &csv(),
+                &review_base,
+                &corrupt,
+                &changed,
+                support,
+                false,
+            ) {
+                Ok(_) => panic!("corrupt reconstruction base was accepted"),
+                Err(error) => error,
+            };
+            assert!(
+                error.contains("decompress reconstruction base")
+                    || error.contains("payload digest mismatch"),
+                "unexpected corrupt reconstruction-base error: {error}"
+            );
+
+            let mut oversized = reconstruction_base;
+            oversized[RECONSTRUCTION_BASE_MAGIC.len()..RECONSTRUCTION_BASE_MAGIC.len() + 4]
+                .copy_from_slice(
+                    &((MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES + 1) as u32).to_le_bytes(),
+                );
+            let mut oversized_engine = TrackedEngine::default();
+            let error = match oversized_engine.execute_with_review_bases(
+                &csv(),
+                &review_base,
+                &oversized,
+                &changed,
+                support,
+                false,
+            ) {
+                Ok(_) => panic!("oversized reconstruction base was accepted"),
+                Err(error) => error,
+            };
+            assert!(error.contains("reconstruction base declares"), "{error}");
         }
 
         #[test]
@@ -6928,9 +8049,23 @@ impl IncrementalPipelineV2Engine {
         options: &PipelineV2Options,
         support: PipelineV2SupportFiles<'_>,
     ) -> Result<IncrementalPipelineV2Execution, String> {
-        let execution = self.inner.execute_with_review_base(
+        self.execute_review_with_bases(csv_bytes, review_base_bytes, &[], options, support)
+    }
+
+    /// Re-enter from the verified step-17 and step-29 checkpoints. Either
+    /// checkpoint may be empty; exact key mismatches are cache misses.
+    pub fn execute_review_with_bases(
+        &mut self,
+        csv_bytes: &[u8],
+        review_base_bytes: &[u8],
+        reconstruction_base_bytes: &[u8],
+        options: &PipelineV2Options,
+        support: PipelineV2SupportFiles<'_>,
+    ) -> Result<IncrementalPipelineV2Execution, String> {
+        let execution = self.inner.execute_with_review_bases(
             csv_bytes,
             review_base_bytes,
+            reconstruction_base_bytes,
             options,
             support,
             false,
@@ -6947,6 +8082,13 @@ impl IncrementalPipelineV2Engine {
     /// current Rust implementation and is always revalidated before reuse.
     pub fn export_review_base(&mut self) -> Result<Vec<u8>, String> {
         self.inner.export_review_base()
+    }
+
+    /// Serialize the exact reconstructed row table and step 25/28/29
+    /// checkpoints after a completed execution. It is independently keyed and
+    /// validated, so upstream changes cannot reuse stale rows.
+    pub fn export_reconstruction_base(&mut self) -> Result<Vec<u8>, String> {
+        self.inner.export_reconstruction_base()
     }
 
     fn execute_with_materialization(

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { cpus, totalmem } from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
@@ -34,6 +34,10 @@ function parseArgs(argv: string[]) {
   let materialization: "full" | "review" = "full";
   let changedOnly = false;
   let reviewBase = false;
+  let reviewBasesDir: string | null = null;
+  let exportReviewBasesDir: string | null = null;
+  let waitForStart = false;
+  let warmRuntime = false;
   let workspaceCount = 1;
   let workspaceOffset = 0;
   const benchmarkCases = new Set([
@@ -81,6 +85,18 @@ function parseArgs(argv: string[]) {
       changedOnly = true;
     } else if (token === "--review-base") {
       reviewBase = true;
+    } else if (token === "--review-bases-dir" && next) {
+      reviewBasesDir = path.resolve(next);
+      reviewBase = true;
+      index += 1;
+    } else if (token === "--export-review-bases-dir" && next) {
+      exportReviewBasesDir = path.resolve(next);
+      reviewBase = true;
+      index += 1;
+    } else if (token === "--wait-for-start") {
+      waitForStart = true;
+    } else if (token === "--warm-runtime") {
+      warmRuntime = true;
     } else if (token === "--workspace-count" && next) {
       workspaceCount = positiveInteger(token, next);
       index += 1;
@@ -97,6 +113,11 @@ function parseArgs(argv: string[]) {
   if (!raw) throw new Error("--raw <path> is required");
   if (reviewBase && materialization !== "review") {
     throw new Error("--review-base requires --materialization review");
+  }
+  if (reviewBasesDir && exportReviewBasesDir) {
+    throw new Error(
+      "--review-bases-dir and --export-review-bases-dir are mutually exclusive",
+    );
   }
   if (benchmarkCase !== "unchanged" && mode !== "warm" && !changedOnly) {
     throw new Error(
@@ -119,6 +140,10 @@ function parseArgs(argv: string[]) {
     materialization,
     changedOnly,
     reviewBase,
+    reviewBasesDir,
+    exportReviewBasesDir,
+    waitForStart,
+    warmRuntime,
     workspaceCount,
     workspaceOffset,
   };
@@ -187,8 +212,35 @@ const buildBrowserOptions = (changed: boolean) => ({
     : {}),
 });
 let reviewBaseBytes: Uint8Array | undefined;
+let reconstructionBaseBytes: Uint8Array | undefined;
 let reviewBaseRoot: string | null = null;
-if (args.reviewBase) {
+let reviewBasePreparationElapsedMs = 0;
+if (args.reviewBasesDir) {
+  const loadStarted = performance.now();
+  const metadata = JSON.parse(
+    await readFile(path.join(args.reviewBasesDir, "metadata.json"), "utf8"),
+  );
+  if (metadata.inputSha256 !== inputSha256) {
+    throw new Error(
+      `persisted benchmark base input mismatch: ${metadata.inputSha256} != ${inputSha256}`,
+    );
+  }
+  reviewBaseBytes = new Uint8Array(
+    await readFile(path.join(args.reviewBasesDir, "review-base.bin")),
+  );
+  reconstructionBaseBytes = new Uint8Array(
+    await readFile(path.join(args.reviewBasesDir, "reconstruction-base.bin")),
+  );
+  if (
+    metadata.reviewBaseSha256 !== sha256(reviewBaseBytes) ||
+    metadata.reconstructionBaseSha256 !== sha256(reconstructionBaseBytes)
+  ) {
+    throw new Error("persisted benchmark base digest mismatch");
+  }
+  reviewBaseRoot = metadata.workspaceRootDigest;
+  reviewBasePreparationElapsedMs = performance.now() - loadStarted;
+} else if (args.reviewBase) {
+  const seedStarted = performance.now();
   const seedOptions = buildBrowserOptions(false);
   const seedWorkspaceId = sha256(`chronicle-review-base-seed:${inputSha256}`);
   const seedRequest = JSON.stringify({
@@ -211,15 +263,122 @@ if (args.reviewBase) {
       const metadata = JSON.parse(seed.artifact_metadata_json(index));
       if (metadata.kind === "review-base") {
         reviewBaseBytes = seed.take_artifact_bytes(index);
-        break;
+      } else if (metadata.kind === "reconstruction-base") {
+        reconstructionBaseBytes = seed.take_artifact_bytes(index);
       }
     }
-    if (!reviewBaseBytes) {
-      throw new Error("seed execution omitted review-base");
+    if (!reviewBaseBytes || !reconstructionBaseBytes) {
+      throw new Error("seed execution omitted a persisted review checkpoint");
     }
   } finally {
     seed.free();
   }
+  reviewBasePreparationElapsedMs = performance.now() - seedStarted;
+}
+if (args.exportReviewBasesDir) {
+  await mkdir(args.exportReviewBasesDir, { recursive: true });
+  await Promise.all([
+    writeFile(
+      path.join(args.exportReviewBasesDir, "review-base.bin"),
+      reviewBaseBytes!,
+    ),
+    writeFile(
+      path.join(args.exportReviewBasesDir, "reconstruction-base.bin"),
+      reconstructionBaseBytes!,
+    ),
+    writeFile(
+      path.join(args.exportReviewBasesDir, "metadata.json"),
+      `${JSON.stringify(
+        {
+          inputSha256,
+          workspaceRootDigest: reviewBaseRoot,
+          reviewBaseBytes: reviewBaseBytes!.byteLength,
+          reviewBaseSha256: sha256(reviewBaseBytes!),
+          reconstructionBaseBytes: reconstructionBaseBytes!.byteLength,
+          reconstructionBaseSha256: sha256(reconstructionBaseBytes!),
+          preparationElapsedMs: reviewBasePreparationElapsedMs,
+        },
+        null,
+        2,
+      )}\n`,
+    ),
+  ]);
+  process.stdout.write(
+    `${JSON.stringify({
+      exportedReviewBasesDir: args.exportReviewBasesDir,
+      reviewBasePreparationElapsedMs,
+    })}\n`,
+  );
+  supports.free();
+  process.exit(0);
+}
+if (args.warmRuntime) {
+  if (!reviewBaseBytes || !reconstructionBaseBytes) {
+    throw new Error("--warm-runtime requires persisted review bases");
+  }
+  const warmOptions = buildBrowserOptions(true);
+  const warmRequest = JSON.stringify({
+    protocolVersion: "chronicle-preprocessing-runtime/v1",
+    requestId: "benchmark-worker-warmup",
+    command: "QueryReview",
+    workspaceRootDigest: null,
+    workspaceId: sha256(`benchmark-worker-warmup:${process.pid}`),
+    inputFileName: path.basename(args.raw),
+    inputSha256,
+    options: buildRustV2Options(warmOptions, {
+      datetimeOfPreprocessing: "2026-07-23 00:00:00 UTC",
+    }),
+  });
+  const warmHandle = runtime.execute_workspace_with_review_bases(
+    warmRequest,
+    inputBytes,
+    reviewBaseBytes,
+    reconstructionBaseBytes,
+    supports,
+  );
+  try {
+    const manifest = JSON.parse(warmHandle.manifest_json());
+    if (!Array.isArray(manifest.cacheSources) || manifest.cacheSources.length === 0) {
+      throw new Error("worker warmup did not restore a verified cache");
+    }
+  } finally {
+    warmHandle.free();
+  }
+}
+if (args.waitForStart) {
+  if (typeof process.send !== "function") {
+    throw new Error("--wait-for-start requires a Node IPC parent");
+  }
+  process.send({ type: "ready", reviewBasePreparationElapsedMs });
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error("timed out waiting for benchmark start")),
+      120_000,
+    );
+    process.once("message", (message) => {
+      clearTimeout(timeout);
+      if (
+        typeof message !== "object" ||
+        message === null ||
+        (message as { type?: unknown }).type !== "start"
+      ) {
+        reject(new Error("invalid benchmark start message"));
+        return;
+      }
+      resolve();
+    });
+  });
+}
+let peakMemory = process.memoryUsage();
+function sampleMemory(): void {
+  const current = process.memoryUsage();
+  peakMemory = {
+    rss: Math.max(peakMemory.rss, current.rss),
+    heapTotal: Math.max(peakMemory.heapTotal, current.heapTotal),
+    heapUsed: Math.max(peakMemory.heapUsed, current.heapUsed),
+    external: Math.max(peakMemory.external, current.external),
+    arrayBuffers: Math.max(peakMemory.arrayBuffers, current.arrayBuffers),
+  };
 }
 const results: unknown[] = [];
 try {
@@ -260,8 +419,10 @@ try {
               args.materialization === "review"
                 ? "QueryReview"
                 : "ExecuteWorkspace",
+            // The persisted bases are content-addressed inputs, not ancestry.
+            // Synthetic workspaces must never claim the seed workspace root.
             workspaceRootDigest: args.reviewBase
-              ? reviewBaseRoot
+              ? null
               : args.mode === "warm"
                 ? previousRoot
                 : null,
@@ -273,10 +434,11 @@ try {
             }),
           });
         handle = args.reviewBase
-          ? runtime.execute_workspace_with_review_base(
+          ? runtime.execute_workspace_with_review_bases(
               requestJson("single", browserOptions),
               inputBytes,
               reviewBaseBytes!,
+              reconstructionBaseBytes!,
               supports,
             )
           : runtime.execute_workspace(
@@ -285,6 +447,7 @@ try {
               supports,
             );
         const executeElapsedMs = performance.now() - executeStarted;
+        sampleMemory();
         const manifest = JSON.parse(handle.manifest_json());
         previousRoot = manifest.workspaceRootDigest ?? previousRoot;
         const artifacts = [];
@@ -327,6 +490,8 @@ try {
           totalElapsedMs,
           workspaceRootDigest: manifest.workspaceRootDigest ?? null,
           comparisonDigest: manifest.comparisonDigest ?? null,
+          reviewSummaryDigest: manifest.reviewSummaryDigest ?? null,
+          cacheSources: manifest.cacheSources ?? [],
           implementationDigest: manifest.implementationDigest,
           planDigest: manifest.planDigest,
           profileDigest: manifest.profileDigest,
@@ -358,6 +523,7 @@ try {
         try {
           handle?.free();
         } catch {}
+        sampleMemory();
       }
     }
   }
@@ -369,6 +535,9 @@ try {
 
 const coldResults = results.filter((result: any) => result.iteration === 0);
 const changedResults = results.filter((result: any) => result.iteration > 0);
+if (typeof process.send === "function") {
+  process.send({ type: "work-complete" });
+}
 process.stdout.write(
   `${JSON.stringify({
     input: {
@@ -383,13 +552,16 @@ process.stdout.write(
       architecture: process.arch,
       logicalCpus: cpus().length,
       totalMemoryBytes: totalmem(),
+      peakProcessMemoryBytes: peakMemory,
     },
     mode: args.mode,
     benchmarkCase: args.benchmarkCase,
     materialization: args.materialization,
     changedOnly: args.changedOnly,
     reviewBase: args.reviewBase,
+    reviewBasePreparationElapsedMs,
     reviewBaseBytes: reviewBaseBytes?.byteLength ?? 0,
+    reconstructionBaseBytes: reconstructionBaseBytes?.byteLength ?? 0,
     fullOptions: args.fullOptions,
     iterations: args.iterations,
     workspaceCount: args.workspaceCount,
@@ -416,6 +588,25 @@ process.stdout.write(
           changedTotalMs: changedResults.map(
             (result: any) => result.totalElapsedMs,
           ),
+          coldStepStatuses: coldResults.map(
+            (result: any) => result.stepStatuses,
+          ),
+          coldReviewSummaryDigests: coldResults.map(
+            (result: any) => result.reviewSummaryDigest,
+          ),
+          coldCacheSources: coldResults.map(
+            (result: any) => result.cacheSources,
+          ),
+          coldCounts: coldResults.map((result: any) => result.counts),
+          coldIdentities: coldResults.map((result: any) => ({
+            implementationDigest: result.implementationDigest,
+            planDigest: result.planDigest,
+            profileDigest: result.profileDigest,
+            profileLockDigest: result.profileLockDigest,
+            runtimeAuthorityDigest: result.runtimeAuthorityDigest,
+            productContractDigest: result.productContractDigest,
+            dependencyCertificateDigest: result.dependencyCertificateDigest,
+          })),
         }
       : undefined,
     results: args.compact ? undefined : results,

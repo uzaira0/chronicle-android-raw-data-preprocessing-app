@@ -162,6 +162,7 @@ export type RustRuntimeReceipt = {
   workspaceRootDigest: string;
   previousWorkspaceRootDigest: string | null;
   implementationDigest: string;
+  buildEnvironmentDigest: string;
   planDigest: string;
   profileDigest: string;
   profileLockDigest: string;
@@ -179,6 +180,7 @@ export type RustReviewReceipt = {
   inputDigest: string;
   optionsDigest: string;
   implementationDigest: string;
+  buildEnvironmentDigest: string;
   planDigest: string;
   profileDigest: string;
   profileLockDigest: string;
@@ -186,6 +188,11 @@ export type RustReviewReceipt = {
   dependencyCertificateDigest: string;
   reviewSummaryDigest: string;
   comparisonDigest: string;
+  cacheSources: Array<
+    | "salsa-memory"
+    | "verified-review-base"
+    | "verified-reconstruction-base"
+  >;
   recomputedStepIds: string[];
   cachedStepIds: string[];
   bypassedStepIds: string[];

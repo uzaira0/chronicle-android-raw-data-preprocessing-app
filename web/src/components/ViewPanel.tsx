@@ -242,6 +242,7 @@ export function ViewPanel({
   const compareContextLine = `A vs B · ${typeLabel[activeType]} · ${filteredUsageLabel}${
     timeline ? ` · ${displayMasker.timezone(timeline.timezone)}` : ""
   }`;
+  const comparisonReceipt = armB?.rustReviewReceipt;
 
   const canCompare =
     !!onRunComparison && uploadedFileNames.includes(activeFile.inputFileName);
@@ -316,6 +317,20 @@ export function ViewPanel({
       className="timeline-view review-view"
       aria-label="Review"
       data-testid="timeline-view"
+      data-comparison-cache-sources={comparisonReceipt?.cacheSources.join(",")}
+      data-comparison-build-environment-digest={
+        comparisonReceipt?.buildEnvironmentDigest
+      }
+      data-comparison-digest={comparisonReceipt?.comparisonDigest}
+      data-comparison-previous-root={
+        comparisonReceipt?.previousWorkspaceRootDigest ?? undefined
+      }
+      data-comparison-recomputed-steps={
+        comparisonReceipt?.recomputedStepIds.join(",")
+      }
+      data-comparison-cached-step-count={
+        comparisonReceipt?.cachedStepIds.length
+      }
     >
       <div className="timeline-view__toolbar review-view__toolbar">
         <div className="timeline-view__controls review-view__controls">

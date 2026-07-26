@@ -47,6 +47,12 @@ pub const EXECUTE_WORKSPACE_COMMAND: &str = "ExecuteWorkspace";
 pub const QUERY_REVIEW_COMMAND: &str = "QueryReview";
 pub const IMPLEMENTATION_BUILD_DIGEST: &str = env!("CHRONICLE_IMPLEMENTATION_BUILD_DIGEST");
 pub const BUILD_ENVIRONMENT_DIGEST: &str = env!("CHRONICLE_BUILD_ENVIRONMENT_DIGEST");
+const REVIEW_BASE_RUNTIME_MAGIC: &[u8; 8] = b"CHRRVR01";
+const RECONSTRUCTION_BASE_RUNTIME_MAGIC: &[u8; 8] = b"CHRRXR01";
+const PERSISTED_BASE_RUNTIME_HEADER_BYTES: usize = 8 + 32;
+const MAX_REVIEW_BASE_ENCODED_BYTES: usize = 64 * 1024 * 1024;
+const MAX_RECONSTRUCTION_BASE_ENCODED_BYTES: usize = 96 * 1024 * 1024;
+const MAX_COMBINED_PERSISTED_BASE_ENCODED_BYTES: usize = 128 * 1024 * 1024;
 const REQUIRED_VIEWS: [(&str, &str, &str); 4] = [
     (
         "stage-view-json",
@@ -79,6 +85,85 @@ const SUPPORT_ROLES: &[&str] = &[
     "survey_attribution_file",
     "enrolled_devices_file",
 ];
+
+fn persisted_base_runtime_identity() -> [u8; 32] {
+    let mut digest = Sha256::new();
+    for value in [
+        IMPLEMENTATION_BUILD_DIGEST,
+        BUILD_ENVIRONMENT_DIGEST,
+        EMBEDDED_PRODUCT_CONTRACT_SHA256,
+        EMBEDDED_RUNTIME_AUTHORITY_SHA256,
+        EMBEDDED_PLAN_SHA256,
+        EMBEDDED_PROFILE_LOCK_SHA256,
+        EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256,
+    ] {
+        digest.update((value.len() as u64).to_le_bytes());
+        digest.update(value.as_bytes());
+    }
+    digest.finalize().into()
+}
+
+fn wrap_persisted_base(payload: Vec<u8>, magic: &[u8; 8]) -> Vec<u8> {
+    let mut encoded = Vec::with_capacity(PERSISTED_BASE_RUNTIME_HEADER_BYTES + payload.len());
+    encoded.extend_from_slice(magic);
+    encoded.extend_from_slice(&persisted_base_runtime_identity());
+    encoded.extend_from_slice(&payload);
+    encoded
+}
+
+fn validate_persisted_base_encoded_lengths(
+    review_bytes: usize,
+    reconstruction_bytes: usize,
+    cache_mode: DependencyCacheMode,
+) -> Result<(), String> {
+    if cache_mode != DependencyCacheMode::CertifiedNarrow {
+        return Ok(());
+    }
+    if review_bytes > MAX_REVIEW_BASE_ENCODED_BYTES {
+        return Err(format!(
+            "review base is too large: {review_bytes} bytes exceeds {MAX_REVIEW_BASE_ENCODED_BYTES}"
+        ));
+    }
+    if reconstruction_bytes > MAX_RECONSTRUCTION_BASE_ENCODED_BYTES {
+        return Err(format!(
+            "reconstruction base is too large: {reconstruction_bytes} bytes exceeds {MAX_RECONSTRUCTION_BASE_ENCODED_BYTES}"
+        ));
+    }
+    let combined = review_bytes
+        .checked_add(reconstruction_bytes)
+        .ok_or_else(|| "combined persisted-base size overflow".to_string())?;
+    if combined > MAX_COMBINED_PERSISTED_BASE_ENCODED_BYTES {
+        return Err(format!(
+            "combined persisted bases are too large: {combined} bytes exceeds {MAX_COMBINED_PERSISTED_BASE_ENCODED_BYTES}"
+        ));
+    }
+    Ok(())
+}
+
+fn verified_persisted_base_payload<'a>(
+    encoded: &'a [u8],
+    magic: &[u8; 8],
+    label: &str,
+    cache_mode: DependencyCacheMode,
+) -> Result<&'a [u8], String> {
+    if cache_mode != DependencyCacheMode::CertifiedNarrow || encoded.is_empty() {
+        return Ok(&[]);
+    }
+    if encoded.len() < PERSISTED_BASE_RUNTIME_HEADER_BYTES {
+        return Err(format!("{label} runtime envelope is truncated"));
+    }
+    if &encoded[..magic.len()] != magic {
+        return Err(format!("{label} runtime envelope has the wrong format"));
+    }
+    if encoded[magic.len()..PERSISTED_BASE_RUNTIME_HEADER_BYTES]
+        != persisted_base_runtime_identity()
+    {
+        // A cache written by different code or contracts is simply stale. It
+        // must not become input to the current Rust kernel.
+        return Ok(&[]);
+    }
+    Ok(&encoded[PERSISTED_BASE_RUNTIME_HEADER_BYTES..])
+}
 
 #[wasm_bindgen]
 pub fn runtime_version() -> String {
@@ -607,6 +692,7 @@ pub struct ReviewRuntimeManifest {
     pub exact_duplicate_rows_removed: u32,
     pub node_executions: Vec<NodeExecution>,
     pub step_executions: Vec<RuntimeStepExecution>,
+    pub cache_sources: Vec<String>,
     pub review_summary_digest: String,
     pub comparison_digest: String,
 }
@@ -753,10 +839,17 @@ enum RuntimeArtifactBytes {
 struct IncrementalPipelineExecution {
     result: Arc<PipelineV2Result>,
     review_base: Option<Vec<u8>>,
+    reconstruction_base: Option<Vec<u8>>,
     node_executions: Vec<NodeExecution>,
     step_executions: Vec<RuntimeStepExecution>,
+    cache_sources: Vec<String>,
     cache_decision: DependencyCacheDecision,
     node_artifacts: Vec<RuntimeArtifact>,
+}
+
+struct PersistedReviewBases<'a> {
+    review: &'a [u8],
+    reconstruction: &'a [u8],
 }
 
 struct CorrespondenceIndexInputs<'a> {
@@ -1652,7 +1745,7 @@ fn execute_incremental_pipeline(
     request: &RuntimeRequest,
     ingress_assignments: &BTreeMap<String, RoleAssignment>,
     csv_bytes: &[u8],
-    review_base_bytes: &[u8],
+    persisted_bases: PersistedReviewBases<'_>,
     options_value: &Value,
     options: &PipelineV2Options,
     support: &ResolvedSupportFiles,
@@ -1688,6 +1781,26 @@ fn execute_incremental_pipeline(
             state.previous_stage_inputs.clear();
             state.stable_artifact_bundle = None;
         }
+        let had_previous_step_observations = !state.previous_step_observations.is_empty();
+
+        validate_persisted_base_encoded_lengths(
+            persisted_bases.review.len(),
+            persisted_bases.reconstruction.len(),
+            cache_decision.mode,
+        )?;
+
+        let verified_review_base = verified_persisted_base_payload(
+            persisted_bases.review,
+            REVIEW_BASE_RUNTIME_MAGIC,
+            "review base",
+            cache_decision.mode,
+        )?;
+        let verified_reconstruction_base = verified_persisted_base_payload(
+            persisted_bases.reconstruction,
+            RECONSTRUCTION_BASE_RUNTIME_MAGIC,
+            "reconstruction base",
+            cache_decision.mode,
+        )?;
 
         let support_files = PipelineV2SupportFiles {
             filter_csv: support.get("filter_file"),
@@ -1700,9 +1813,10 @@ fn execute_incremental_pipeline(
             enrolled_devices_csv: support.get("enrolled_devices_file"),
         };
         let tracked_execution = if request.command == QUERY_REVIEW_COMMAND {
-            state.incremental_engine.execute_review_with_base(
+            state.incremental_engine.execute_review_with_bases(
                 csv_bytes,
-                review_base_bytes,
+                verified_review_base,
+                verified_reconstruction_base,
                 options,
                 support_files,
             )?
@@ -1714,8 +1828,36 @@ fn execute_incremental_pipeline(
         let review_base = if request.command == QUERY_REVIEW_COMMAND {
             None
         } else {
-            Some(state.incremental_engine.export_review_base()?)
+            Some(wrap_persisted_base(
+                state.incremental_engine.export_review_base()?,
+                REVIEW_BASE_RUNTIME_MAGIC,
+            ))
         };
+        let reconstruction_base = if request.command != QUERY_REVIEW_COMMAND
+            && matches!(
+                options.usage_session_mode,
+                chronicle_chrono_kernel_wasm::pipeline_v2::UsageSessionMode::AppUsage
+                    | chronicle_chrono_kernel_wasm::pipeline_v2::UsageSessionMode::AppAndScreenUsage
+            ) {
+            Some(wrap_persisted_base(
+                state.incremental_engine.export_reconstruction_base()?,
+                RECONSTRUCTION_BASE_RUNTIME_MAGIC,
+            ))
+        } else {
+            None
+        };
+        let restored_review_base = tracked_execution
+            .internal_executed_queries
+            .iter()
+            .any(|query| query == "restore_review_base" || query == "restore_review_screen");
+        let restored_reconstruction_base =
+            tracked_execution
+                .internal_executed_queries
+                .iter()
+                .any(|query| {
+                    query == "restore_reconstruction_base"
+                        || query == "restore_reconstruction_screen"
+                });
         let executed_steps = tracked_execution.executed_steps;
         #[cfg(test)]
         if !executed_steps.is_empty() {
@@ -1736,6 +1878,21 @@ fn execute_incremental_pipeline(
                 previous_observations: &mut state.previous_step_observations,
             },
         )?;
+        let mut cache_sources = Vec::new();
+        if restored_review_base {
+            cache_sources.push("verified-review-base".to_string());
+        }
+        if restored_reconstruction_base {
+            cache_sources.push("verified-reconstruction-base".to_string());
+        }
+        if cache_sources.is_empty()
+            && had_previous_step_observations
+            && step_executions
+                .iter()
+                .any(|execution| execution.status == ExecutionStatus::Cached)
+        {
+            cache_sources.push("salsa-memory".to_string());
+        }
         let deactivated_groups = step_executions
             .iter()
             .filter(|execution| {
@@ -1758,8 +1915,10 @@ fn execute_incremental_pipeline(
         Ok(IncrementalPipelineExecution {
             result,
             review_base,
+            reconstruction_base,
             node_executions: executions,
             step_executions,
+            cache_sources,
             cache_decision,
             node_artifacts,
         })
@@ -1897,10 +2056,32 @@ pub fn execute_workspace_with_review_base(
     review_base_bytes: &[u8],
     support_files: &RuntimeSupportFiles,
 ) -> Result<RuntimeHandle, JsValue> {
-    execute_workspace_native_with_review_base(
+    execute_workspace_native_with_review_bases(
         request_json,
         csv_bytes,
         review_base_bytes,
+        &[],
+        support_files,
+    )
+    .map_err(|error| JsValue::from_str(&error))
+}
+
+/// Execute an interactive review with independently verified step-17 and
+/// step-29 checkpoints. The reconstruction header is rejected before payload
+/// decompression when any semantic input to reconstruction changed.
+#[wasm_bindgen]
+pub fn execute_workspace_with_review_bases(
+    request_json: &str,
+    csv_bytes: &[u8],
+    review_base_bytes: &[u8],
+    reconstruction_base_bytes: &[u8],
+    support_files: &RuntimeSupportFiles,
+) -> Result<RuntimeHandle, JsValue> {
+    execute_workspace_native_with_review_bases(
+        request_json,
+        csv_bytes,
+        review_base_bytes,
+        reconstruction_base_bytes,
         support_files,
     )
     .map_err(|error| JsValue::from_str(&error))
@@ -1990,13 +2171,29 @@ pub fn execute_workspace_native(
     csv_bytes: &[u8],
     support_files: &RuntimeSupportFiles,
 ) -> Result<RuntimeHandle, String> {
-    execute_workspace_native_with_review_base(request_json, csv_bytes, &[], support_files)
+    execute_workspace_native_with_review_bases(request_json, csv_bytes, &[], &[], support_files)
 }
 
 pub fn execute_workspace_native_with_review_base(
     request_json: &str,
     csv_bytes: &[u8],
     review_base_bytes: &[u8],
+    support_files: &RuntimeSupportFiles,
+) -> Result<RuntimeHandle, String> {
+    execute_workspace_native_with_review_bases(
+        request_json,
+        csv_bytes,
+        review_base_bytes,
+        &[],
+        support_files,
+    )
+}
+
+pub fn execute_workspace_native_with_review_bases(
+    request_json: &str,
+    csv_bytes: &[u8],
+    review_base_bytes: &[u8],
+    reconstruction_base_bytes: &[u8],
     support_files: &RuntimeSupportFiles,
 ) -> Result<RuntimeHandle, String> {
     let request: RuntimeRequest =
@@ -2021,15 +2218,20 @@ pub fn execute_workspace_native_with_review_base(
     let IncrementalPipelineExecution {
         result,
         review_base,
+        reconstruction_base,
         node_executions,
         step_executions,
+        cache_sources,
         cache_decision: dependency_cache_decision,
         node_artifacts,
     } = execute_incremental_pipeline(
         &request,
         &ingress.assignments,
         csv_bytes,
-        review_base_bytes,
+        PersistedReviewBases {
+            review: review_base_bytes,
+            reconstruction: reconstruction_base_bytes,
+        },
         &options_value,
         &pipeline_options,
         &resolved_support,
@@ -2096,6 +2298,7 @@ pub fn execute_workspace_native_with_review_base(
             exact_duplicate_rows_removed: result.exact_duplicate_rows_removed,
             node_executions,
             step_executions,
+            cache_sources,
             review_summary_digest,
             comparison_digest,
         };
@@ -2203,6 +2406,18 @@ pub fn execute_workspace_native_with_review_base(
         review_base.ok_or_else(|| "full execution omitted its review base".to_string())?,
         review_base_dependencies,
     ));
+    if let Some(reconstruction_base) = reconstruction_base {
+        artifacts.push(runtime_artifact(
+            "reconstruction-base",
+            "application/vnd.chronicle.reconstruction-base+postcard+lz4",
+            reconstruction_base,
+            assignment_digests
+                .iter()
+                .cloned()
+                .chain(std::iter::once(options_digest.clone()))
+                .collect(),
+        ));
+    }
     artifacts.push(source_coordinate_artifact);
     let plan = embedded_plan();
     let satisfied_nodes: BTreeSet<_> = node_executions
@@ -3776,6 +3991,82 @@ mod tests {
     use super::*;
 
     #[test]
+    fn persisted_bases_are_bound_to_runtime_identity_and_certified_cache_mode() {
+        let payload = b"typed-kernel-cache".to_vec();
+        let encoded = wrap_persisted_base(payload.clone(), REVIEW_BASE_RUNTIME_MAGIC);
+        assert_eq!(
+            verified_persisted_base_payload(
+                &encoded,
+                REVIEW_BASE_RUNTIME_MAGIC,
+                "review base",
+                DependencyCacheMode::CertifiedNarrow,
+            )
+            .unwrap(),
+            payload
+        );
+
+        let mut stale_identity = encoded.clone();
+        stale_identity[REVIEW_BASE_RUNTIME_MAGIC.len()] ^= 0xff;
+        assert!(verified_persisted_base_payload(
+            &stale_identity,
+            REVIEW_BASE_RUNTIME_MAGIC,
+            "review base",
+            DependencyCacheMode::CertifiedNarrow,
+        )
+        .unwrap()
+        .is_empty());
+
+        assert!(verified_persisted_base_payload(
+            &encoded,
+            REVIEW_BASE_RUNTIME_MAGIC,
+            "review base",
+            DependencyCacheMode::ConservativeFull,
+        )
+        .unwrap()
+        .is_empty());
+        assert!(verified_persisted_base_payload(
+            b"malformed-but-ignored",
+            REVIEW_BASE_RUNTIME_MAGIC,
+            "review base",
+            DependencyCacheMode::ConservativeFull,
+        )
+        .unwrap()
+        .is_empty());
+        assert!(verified_persisted_base_payload(
+            &encoded,
+            RECONSTRUCTION_BASE_RUNTIME_MAGIC,
+            "reconstruction base",
+            DependencyCacheMode::CertifiedNarrow,
+        )
+        .is_err());
+
+        assert!(validate_persisted_base_encoded_lengths(
+            MAX_REVIEW_BASE_ENCODED_BYTES + 1,
+            0,
+            DependencyCacheMode::CertifiedNarrow,
+        )
+        .is_err());
+        assert!(validate_persisted_base_encoded_lengths(
+            0,
+            MAX_RECONSTRUCTION_BASE_ENCODED_BYTES + 1,
+            DependencyCacheMode::CertifiedNarrow,
+        )
+        .is_err());
+        assert!(validate_persisted_base_encoded_lengths(
+            MAX_REVIEW_BASE_ENCODED_BYTES,
+            MAX_COMBINED_PERSISTED_BASE_ENCODED_BYTES - MAX_REVIEW_BASE_ENCODED_BYTES + 1,
+            DependencyCacheMode::CertifiedNarrow,
+        )
+        .is_err());
+        assert!(validate_persisted_base_encoded_lengths(
+            usize::MAX,
+            usize::MAX,
+            DependencyCacheMode::ConservativeFull,
+        )
+        .is_ok());
+    }
+
+    #[test]
     fn raw_file_inspection_uses_runtime_semantics_without_throwing() {
         let csv = b"study_id,participant_id,application_label,interaction_type,app_package_name,event_timestamp,timezone,timezone\n\
 Study,P01,Chat,Unknown importance: 1,com.example,2026-03-07 12:00:00,America/Chicago,America/Chicago\n\
@@ -5203,7 +5494,8 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
     fn persisted_review_base_reenters_a_fresh_runtime_without_result_drift() {
         reset_tracked_execution_count();
         let csv = csv();
-        let full_request = request_for_workspace(&csv, '9');
+        let mut full_request = request_for_workspace(&csv, '9');
+        full_request["options"]["model_concurrent_usage"] = Value::Bool(true);
         let mut full = execute_workspace_native(
             &full_request.to_string(),
             &csv,
@@ -5221,24 +5513,37 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             .expect("full execution review base");
         let review_base = full.take_artifact_bytes(review_base_index).unwrap();
         assert!(!review_base.is_empty());
+        let reconstruction_base_index = (0..full.artifact_count())
+            .find(|index| {
+                let metadata: RuntimeArtifactMetadata =
+                    serde_json::from_str(&full.artifact_metadata_json(*index).unwrap()).unwrap();
+                metadata.kind == "reconstruction-base"
+                    && metadata.media_type
+                        == "application/vnd.chronicle.reconstruction-base+postcard+lz4"
+            })
+            .expect("full execution reconstruction base");
+        let reconstruction_base = full.take_artifact_bytes(reconstruction_base_index).unwrap();
+        assert!(!reconstruction_base.is_empty());
 
         let mut review_request = full_request;
         review_request["requestId"] = Value::String("cached-review".into());
         review_request["command"] = Value::String(QUERY_REVIEW_COMMAND.into());
         review_request["workspaceRootDigest"] =
             Value::String(full_manifest.workspace_root_digest.clone());
-        review_request["options"]["model_concurrent_usage"] = Value::Bool(false);
+        review_request["options"]["minimum_usage_duration"] = Value::from(120.0);
 
         reset_tracked_execution_count();
-        let cached = execute_workspace_native_with_review_base(
+        let cached = execute_workspace_native_with_review_bases(
             &review_request.to_string(),
             &csv,
             &review_base,
+            &reconstruction_base,
             &RuntimeSupportFiles::default(),
         )
         .unwrap();
         let cached: ReviewRuntimeManifest = serde_json::from_str(&cached.manifest_json).unwrap();
         assert_eq!(tracked_execution_count(), 1);
+        assert_eq!(cached.cache_sources, ["verified-reconstruction-base"]);
         assert_eq!(
             cached
                 .step_executions
@@ -5248,6 +5553,18 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                 .status,
             ExecutionStatus::Cached
         );
+        for step_id in ["run_matcher", "apply_matcher_output", "split_concurrent"] {
+            assert_eq!(
+                cached
+                    .step_executions
+                    .iter()
+                    .find(|execution| execution.step_id == step_id)
+                    .unwrap()
+                    .status,
+                ExecutionStatus::Cached,
+                "persisted reconstruction did not reuse {step_id}"
+            );
+        }
 
         reset_tracked_execution_count();
         review_request["requestId"] = Value::String("cold-review".into());
@@ -5258,6 +5575,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         )
         .unwrap();
         let cold: ReviewRuntimeManifest = serde_json::from_str(&cold.manifest_json).unwrap();
+        assert!(cold.cache_sources.is_empty());
         assert_eq!(cached.review_summary_digest, cold.review_summary_digest);
         assert_eq!(cached.comparison_digest, cold.comparison_digest);
         assert_eq!(

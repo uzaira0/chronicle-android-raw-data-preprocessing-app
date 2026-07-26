@@ -665,7 +665,7 @@ describe("two-factor interaction tomography", () => {
     const evidence = {
       protocolVersion: "chronicle-interaction-influence-ledger/v1",
       claimBoundary:
-        "Exhaustive two-factor structural interaction and exact 55-query plus 15-display-group warm/cold execution proof across every valid pair of non-baseline declared equivalence-class values for all 46 computational browser axes, on the deterministic configuration-influence-probes corpus. Invalid selected-timezone combinations are enumerated with their qualification reason. This does not claim numeric statistical additivity or exhaust interactions of arity three and above. Step execution is taken from actual Salsa query events; the fused Rust path is an independent cold oracle only.",
+        "Exhaustive two-factor structural interaction and exact 55-step plus 15-display-group warm/cold execution proof across every valid pair of non-baseline declared equivalence-class values for all 46 computational browser axes, on the deterministic configuration-influence-probes corpus. Invalid selected-timezone combinations are enumerated with their qualification reason. This does not claim numeric statistical additivity or exhaust interactions of arity three and above. Step recomputation is taken from actual Salsa query bodies plus explicitly instrumented product-step evaluations inside review-only fused queries. The separate sequential Rust path remains the independent cold oracle.",
       plan: { id: plan.plan_id, revision: plan.revision },
       implementationReceipt,
       fixture: {

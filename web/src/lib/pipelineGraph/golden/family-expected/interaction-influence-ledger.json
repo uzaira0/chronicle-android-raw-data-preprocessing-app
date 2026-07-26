@@ -1,16 +1,16 @@
 {
   "protocolVersion": "chronicle-interaction-influence-ledger/v1",
-  "claimBoundary": "Exhaustive two-factor structural interaction and exact 55-query plus 15-display-group warm/cold execution proof across every valid pair of non-baseline declared equivalence-class values for all 46 computational browser axes, on the deterministic configuration-influence-probes corpus. Invalid selected-timezone combinations are enumerated with their qualification reason. This does not claim numeric statistical additivity or exhaust interactions of arity three and above. Step execution is taken from actual Salsa query events; the fused Rust path is an independent cold oracle only.",
+  "claimBoundary": "Exhaustive two-factor structural interaction and exact 55-step plus 15-display-group warm/cold execution proof across every valid pair of non-baseline declared equivalence-class values for all 46 computational browser axes, on the deterministic configuration-influence-probes corpus. Invalid selected-timezone combinations are enumerated with their qualification reason. This does not claim numeric statistical additivity or exhaust interactions of arity three and above. Step recomputation is taken from actual Salsa query bodies plus explicitly instrumented product-step evaluations inside review-only fused queries. The separate sequential Rust path remains the independent cold oracle.",
   "plan": {
     "id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:plan/raw-data/v1",
     "revision": "0.1.0"
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:f4c2df7b33a820609c6c7bd1c7985babf78523430cc7c8edef16ac2b62546057",
+    "implementationDigest": "sha256:dbec83326b481f396c5f820eeb502699085fb514d37683e4d42d4694eaf99acb",
     "planDigest": "sha256:7d57a41ec697dd873bf1d06137bc45d4f1de741dbc48b5e4ef72765a9e857257",
-    "profileDigest": "sha256:a55403c67391305aef0ffece38ad707ab99948d7b17af49e7508a57e0f6baf99",
-    "profileLockDigest": "sha256:fe529dce9c5fa050bc404caeab21c7e93c0c08f2a5c8363d4a4f6df56c873fb5",
+    "profileDigest": "sha256:cf05a67af4a96dff2ae5c8fbc6fd68a66d86fa45217bb8661e75ece247886991",
+    "profileLockDigest": "sha256:681328e9215f00410ea98478bf3ecc25d8b1b94ff066151e98d29f16c076aa98",
     "runtimeAuthorityDigest": "sha256:bb2e2d109a81098514ba9a86344da6edc033cd305e6d6c4832c9dfd1ce81b2f9",
     "productContractDigest": "sha256:65437936a927735c56f728f5e6ba4e2cbedfa8382ddb48d6458b07b3dee13173"
   },

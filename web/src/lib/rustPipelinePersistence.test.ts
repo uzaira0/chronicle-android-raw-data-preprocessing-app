@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
@@ -30,6 +31,7 @@ import {
   importPersistedRustWorkspace,
   importPersistedRustWorkspaceArchive,
   readPersistedRustArtifact,
+  readPersistedRustReviewBases,
   readPersistedRustWorkspaceHead,
   runtimeWorkspaceId,
   setRustRuntimeForTesting,
@@ -58,6 +60,70 @@ const viewDigests = ["a", "b", "c", "d"].map(
 const root = {} as FileSystemDirectoryHandle;
 const archive = enc.encode("archive");
 const workspaceLockRequest = vi.fn();
+
+function digestBytes(bytes: Uint8Array): string {
+  return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+}
+
+function reviewCacheWorkspace(input: {
+  review?: Uint8Array;
+  reconstruction?: Uint8Array;
+  reviewDeclaredSize?: number;
+  reconstructionDeclaredSize?: number;
+  rootBuildEnvironmentDigest?: string;
+}) {
+  const artifacts: Array<{
+    kind: string;
+    digest: string;
+    size: number;
+  }> = [];
+  const objects = new Map<string, Uint8Array>();
+  for (const [kind, bytes] of [
+    ["review-base", input.review],
+    ["reconstruction-base", input.reconstruction],
+  ] as const) {
+    if (!bytes) continue;
+    const digest = digestBytes(bytes);
+    const declaredSize =
+      kind === "review-base"
+        ? input.reviewDeclaredSize
+        : input.reconstructionDeclaredSize;
+    artifacts.push({ kind, digest, size: declaredSize ?? bytes.byteLength });
+    objects.set(digest, bytes);
+  }
+  const rootBuildEnvironmentDigest =
+    input.rootBuildEnvironmentDigest ?? buildEnvironmentDigest;
+  const closureBytes = enc.encode(
+    JSON.stringify({
+      implementationDigest,
+      buildEnvironmentDigest: rootBuildEnvironmentDigest,
+      workspaceId,
+      inputDigest: payloadDigest,
+      artifacts,
+    }),
+  );
+  const artifactClosureDigest = digestBytes(closureBytes);
+  objects.set(artifactClosureDigest, closureBytes);
+  const rootBytes = enc.encode(
+    JSON.stringify({
+      artifactClosureDigest,
+      implementationDigest,
+      buildEnvironmentDigest: rootBuildEnvironmentDigest,
+      workspaceId,
+      inputDigest: payloadDigest,
+    }),
+  );
+  const cacheRootDigest = digestBytes(rootBytes);
+  objects.set(cacheRootDigest, rootBytes);
+  return {
+    objects,
+    slot: {
+      ...slot,
+      workspaceRootDigest: cacheRootDigest,
+      artifactDigests: [cacheRootDigest, artifactClosureDigest],
+    },
+  };
+}
 
 const slot: WorkspaceRootSlot = {
   protocolVersion: "chronicle-opfs-root/v1",
@@ -247,6 +313,7 @@ const kernel = {
     JSON.stringify({ fileName: "raw.csv", warnings: [], columns: [], timezones: [] }),
   execute_workspace: vi.fn(),
   execute_workspace_with_review_base: vi.fn(),
+  execute_workspace_with_review_bases: vi.fn(),
   verify_evidence_journal_cbor: vi.fn(() => 1),
 };
 
@@ -307,6 +374,132 @@ beforeEach(() => {
 });
 
 describe("persisted Rust workspace boundary", () => {
+  it("loads both typed review caches in one verified closure lookup", async () => {
+    const review = enc.encode("review-cache");
+    const reconstruction = enc.encode("reconstruction-cache");
+    const cached = reviewCacheWorkspace({ review, reconstruction });
+    opfs.readRuntimeObject.mockImplementation(
+      (_root: FileSystemDirectoryHandle, digest: string) =>
+        Promise.resolve(cached.objects.get(digest) ?? enc.encode("missing")),
+    );
+
+    await expect(
+      readPersistedRustReviewBases(root, cached.slot, {
+        implementationDigest,
+        buildEnvironmentDigest,
+        workspaceId,
+        inputDigest: payloadDigest,
+      }),
+    ).resolves.toEqual({
+      reviewBaseBytes: review,
+      reconstructionBaseBytes: reconstruction,
+    });
+    expect(opfs.readRuntimeObject).toHaveBeenCalledTimes(4);
+  });
+
+  it("treats either or both missing review caches as a normal cold fallback", async () => {
+    for (const fixture of [
+      reviewCacheWorkspace({ review: enc.encode("review-only") }),
+      reviewCacheWorkspace({ reconstruction: enc.encode("reconstruction-only") }),
+      reviewCacheWorkspace({}),
+    ]) {
+      opfs.readRuntimeObject.mockClear();
+      opfs.readRuntimeObject.mockImplementation(
+        (_root: FileSystemDirectoryHandle, digest: string) =>
+          Promise.resolve(fixture.objects.get(digest) ?? enc.encode("missing")),
+      );
+      const bases = await readPersistedRustReviewBases(root, fixture.slot, {
+        implementationDigest,
+        buildEnvironmentDigest,
+        workspaceId,
+        inputDigest: payloadDigest,
+      });
+      expect(
+        Number(bases.reviewBaseBytes.byteLength > 0) +
+          Number(bases.reconstructionBaseBytes.byteLength > 0),
+      ).toBe(fixture.objects.size - 2);
+    }
+  });
+
+  it("rejects corrupt cache bytes and runtime identity drift", async () => {
+    const review = enc.encode("review-cache");
+    const cached = reviewCacheWorkspace({ review });
+    const reviewDigest = digestBytes(review);
+    opfs.readRuntimeObject.mockImplementation(
+      (_root: FileSystemDirectoryHandle, digest: string) =>
+        digest === reviewDigest
+          ? Promise.reject(new Error(`corrupt OPFS object: ${digest}`))
+          : Promise.resolve(cached.objects.get(digest) ?? enc.encode("missing")),
+    );
+    await expect(
+      readPersistedRustReviewBases(root, cached.slot, {
+        implementationDigest,
+        buildEnvironmentDigest,
+        workspaceId,
+        inputDigest: payloadDigest,
+      }),
+    ).rejects.toThrow(/corrupt OPFS object/);
+
+    const stale = reviewCacheWorkspace({
+      review,
+      rootBuildEnvironmentDigest: `sha256:${"4".repeat(64)}`,
+    });
+    opfs.readRuntimeObject.mockImplementation(
+      (_root: FileSystemDirectoryHandle, digest: string) =>
+        Promise.resolve(stale.objects.get(digest) ?? enc.encode("missing")),
+    );
+    await expect(
+      readPersistedRustReviewBases(root, stale.slot, {
+        implementationDigest,
+        buildEnvironmentDigest,
+        workspaceId,
+        inputDigest: payloadDigest,
+      }),
+    ).rejects.toThrow(/workspace identity mismatch/);
+  });
+
+  it("rejects oversized persisted bases before reading their payloads", async () => {
+    const oversized = reviewCacheWorkspace({
+      review: enc.encode("review-cache"),
+      reviewDeclaredSize: 64 * 1024 * 1024 + 1,
+    });
+    opfs.readRuntimeObject.mockImplementation(
+      (_root: FileSystemDirectoryHandle, digest: string) =>
+        Promise.resolve(oversized.objects.get(digest) ?? enc.encode("missing")),
+    );
+
+    await expect(
+      readPersistedRustReviewBases(root, oversized.slot, {
+        implementationDigest,
+        buildEnvironmentDigest,
+        workspaceId,
+        inputDigest: payloadDigest,
+      }),
+    ).rejects.toThrow(/artifact exceeds size limit: review-base/);
+    expect(opfs.readRuntimeObject).toHaveBeenCalledTimes(2);
+
+    const combined = reviewCacheWorkspace({
+      review: enc.encode("review-cache"),
+      reconstruction: enc.encode("reconstruction-cache"),
+      reviewDeclaredSize: 64 * 1024 * 1024,
+      reconstructionDeclaredSize: 64 * 1024 * 1024 + 1,
+    });
+    opfs.readRuntimeObject.mockClear();
+    opfs.readRuntimeObject.mockImplementation(
+      (_root: FileSystemDirectoryHandle, digest: string) =>
+        Promise.resolve(combined.objects.get(digest) ?? enc.encode("missing")),
+    );
+    await expect(
+      readPersistedRustReviewBases(root, combined.slot, {
+        implementationDigest,
+        buildEnvironmentDigest,
+        workspaceId,
+        inputDigest: payloadDigest,
+      }),
+    ).rejects.toThrow(/combined persisted Rust bases exceed size limit/);
+    expect(opfs.readRuntimeObject).toHaveBeenCalledTimes(2);
+  });
+
   it("separates same-named inputs when their raw bytes differ", async () => {
     const first = await runtimeWorkspaceId("Raw.csv", enc.encode("first"));
     const preverified = await runtimeWorkspaceId(

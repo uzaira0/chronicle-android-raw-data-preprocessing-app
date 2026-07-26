@@ -26,6 +26,7 @@ import {
   persistRuntimeWorkspace,
   readRuntimeObject,
   recoverRuntimeWorkspace,
+  recoverRuntimeWorkspaceHead,
   recoverRuntimeWorkspaceRoots,
   runtimeClosureWorkspaceId,
   type PersistedRuntimeArtifact,
@@ -73,6 +74,13 @@ type KernelModule = {
     requestJson: string,
     csvBytes: Uint8Array,
     reviewBaseBytes: Uint8Array,
+    supportFiles: RuntimeSupportFilesHandle,
+  ): KernelHandle;
+  execute_workspace_with_review_bases(
+    requestJson: string,
+    csvBytes: Uint8Array,
+    reviewBaseBytes: Uint8Array,
+    reconstructionBaseBytes: Uint8Array,
     supportFiles: RuntimeSupportFilesHandle,
   ): KernelHandle;
   verify_evidence_journal_cbor(bytes: Uint8Array): number;
@@ -990,6 +998,11 @@ export type RustReviewExecution = {
   rowsRemovedByTimezone: number;
   duplicateTimestampsCorrected: number;
   exactDuplicateRowsRemoved: number;
+  cacheSources: Array<
+    | "salsa-memory"
+    | "verified-review-base"
+    | "verified-reconstruction-base"
+  >;
   recomputedStepIds: string[];
   cachedStepIds: string[];
   bypassedStepIds: string[];
@@ -1035,6 +1048,24 @@ function decodeReviewRuntimeManifest(
     contractError(
       "reviewManifest.stepExecutions",
       "expected exactly 55 unique Rust step executions",
+    );
+  }
+  const cacheSources = stringArrayAt(
+    manifest.cacheSources,
+    "reviewManifest.cacheSources",
+  );
+  const supportedCacheSources = new Set([
+    "salsa-memory",
+    "verified-review-base",
+    "verified-reconstruction-base",
+  ]);
+  if (
+    new Set(cacheSources).size !== cacheSources.length ||
+    cacheSources.some((source) => !supportedCacheSources.has(source))
+  ) {
+    contractError(
+      "reviewManifest.cacheSources",
+      "unknown or duplicate cache source",
     );
   }
   return {
@@ -1119,6 +1150,7 @@ function decodeReviewRuntimeManifest(
       manifest.exactDuplicateRowsRemoved,
       "reviewManifest.exactDuplicateRowsRemoved",
     ),
+    cacheSources: cacheSources as RustReviewExecution["cacheSources"],
     recomputedStepIds: steps
       .filter(({ status }) => status === "recomputed")
       .map(({ id }) => id),
@@ -1145,9 +1177,19 @@ let initPromise: Promise<KernelModule> | null = null;
 let ephemeralContinuation:
   { workspaceId: string; workspaceRootDigest: string } | undefined;
 
+// These encoded-size limits mirror the Rust runtime's pre-decode limits. OPFS
+// checks them before File.arrayBuffer() so a bad closure cannot allocate an
+// oversized cache merely to have Rust reject it afterward.
+const MAX_REVIEW_BASE_ENCODED_BYTES = 64 * 1024 * 1024;
+const MAX_RECONSTRUCTION_BASE_ENCODED_BYTES = 96 * 1024 * 1024;
+const MAX_COMBINED_PERSISTED_BASE_ENCODED_BYTES = 128 * 1024 * 1024;
+
 export type RustPersistenceAdapter = {
   openRoot(workspaceId: string): Promise<FileSystemDirectoryHandle>;
   recover(
+    root: FileSystemDirectoryHandle,
+  ): Promise<WorkspaceRootSlot | undefined>;
+  recoverHead?(
     root: FileSystemDirectoryHandle,
   ): Promise<WorkspaceRootSlot | undefined>;
   verify?(
@@ -1167,29 +1209,30 @@ export type RustPersistenceAdapter = {
   ): Promise<WorkspaceRootSlot>;
 };
 
-async function readArtifactFromWorkspaceSlot(
+async function readArtifactsFromWorkspaceSlot(
   root: FileSystemDirectoryHandle,
   slot: WorkspaceRootSlot,
-  kind: string,
+  kinds: readonly string[],
   expected?: {
     implementationDigest?: string;
+    buildEnvironmentDigest?: string;
     workspaceId?: string;
     inputDigest?: string;
   },
-): Promise<Uint8Array> {
+): Promise<Map<string, Uint8Array>> {
   const rootBytes = await readRuntimeObject(root, slot.workspaceRootDigest);
-  if (`sha256:${await sha256Hex(rootBytes)}` !== slot.workspaceRootDigest) {
-    throw new Error("persisted Rust workspace root digest mismatch");
-  }
   const rootCommit = JSON.parse(new TextDecoder().decode(rootBytes)) as {
     artifactClosureDigest: string;
     implementationDigest: string;
+    buildEnvironmentDigest: string;
     workspaceId: string;
     inputDigest: string;
   };
   if (
     (expected?.implementationDigest !== undefined &&
       rootCommit.implementationDigest !== expected.implementationDigest) ||
+    (expected?.buildEnvironmentDigest !== undefined &&
+      rootCommit.buildEnvironmentDigest !== expected.buildEnvironmentDigest) ||
     (expected?.workspaceId !== undefined &&
       rootCommit.workspaceId !== expected.workspaceId) ||
     (expected?.inputDigest !== undefined &&
@@ -1201,42 +1244,94 @@ async function readArtifactFromWorkspaceSlot(
     root,
     rootCommit.artifactClosureDigest,
   );
-  if (
-    `sha256:${await sha256Hex(closureBytes)}` !==
-    rootCommit.artifactClosureDigest
-  ) {
-    throw new Error("persisted Rust artifact closure digest mismatch");
-  }
   const closure = JSON.parse(new TextDecoder().decode(closureBytes)) as {
     implementationDigest: string;
+    buildEnvironmentDigest: string;
     workspaceId: string;
     inputDigest: string;
     artifacts: Array<{ kind: string; digest: string; size: number }>;
   };
   if (
     closure.implementationDigest !== rootCommit.implementationDigest ||
+    closure.buildEnvironmentDigest !== rootCommit.buildEnvironmentDigest ||
     closure.workspaceId !== rootCommit.workspaceId ||
     closure.inputDigest !== rootCommit.inputDigest
   ) {
     throw new Error("persisted Rust artifact closure identity mismatch");
   }
-  const artifact = closure.artifacts.find(
-    (candidate) => candidate.kind === kind,
-  );
-  if (!artifact) throw new Error(`persisted Rust artifact is missing: ${kind}`);
-  const bytes = await readRuntimeObject(root, artifact.digest);
-  if (
-    bytes.byteLength !== artifact.size ||
-    `sha256:${await sha256Hex(bytes)}` !== artifact.digest
-  ) {
-    throw new Error(`persisted Rust artifact integrity mismatch: ${kind}`);
+  const selected = kinds.flatMap((kind) => {
+    const artifact = closure.artifacts.find(
+      (candidate) => candidate.kind === kind,
+    );
+    const limit =
+      kind === "review-base"
+        ? MAX_REVIEW_BASE_ENCODED_BYTES
+        : kind === "reconstruction-base"
+          ? MAX_RECONSTRUCTION_BASE_ENCODED_BYTES
+          : undefined;
+    return artifact ? [{ kind, artifact, limit }] : [];
+  });
+  let combinedBaseBytes = 0;
+  for (const { kind, artifact, limit } of selected) {
+    if (!Number.isSafeInteger(artifact.size) || artifact.size < 0) {
+      throw new Error(`persisted Rust artifact size is invalid: ${kind}`);
+    }
+    if (limit !== undefined && artifact.size > limit) {
+      throw new Error(`persisted Rust artifact exceeds size limit: ${kind}`);
+    }
+    if (limit !== undefined) combinedBaseBytes += artifact.size;
   }
-  return bytes;
+  if (combinedBaseBytes > MAX_COMBINED_PERSISTED_BASE_ENCODED_BYTES) {
+    throw new Error("combined persisted Rust bases exceed size limit");
+  }
+  const entries = await Promise.all(
+    selected.map(async ({ kind, artifact, limit }) => {
+      const bytes = await readRuntimeObject(root, artifact.digest, limit);
+      return { kind, artifact, bytes };
+    }),
+  );
+  const requested = new Map<string, Uint8Array>();
+  for (const { kind, artifact, bytes } of entries) {
+    // readRuntimeObject already verifies the content digest. Keep the closure's
+    // declared-size check here without hashing every multi-megabyte base twice.
+    if (bytes.byteLength !== artifact.size) {
+      throw new Error(`persisted Rust artifact integrity mismatch: ${kind}`);
+    }
+    requested.set(kind, bytes);
+  }
+  return requested;
+}
+
+export async function readPersistedRustReviewBases(
+  root: FileSystemDirectoryHandle,
+  slot: WorkspaceRootSlot,
+  expected: {
+    implementationDigest: string;
+    buildEnvironmentDigest: string;
+    workspaceId: string;
+    inputDigest: string;
+  },
+): Promise<{
+  reviewBaseBytes: Uint8Array;
+  reconstructionBaseBytes: Uint8Array;
+}> {
+  const artifacts = await readArtifactsFromWorkspaceSlot(
+    root,
+    slot,
+    ["review-base", "reconstruction-base"],
+    expected,
+  );
+  return {
+    reviewBaseBytes: artifacts.get("review-base") ?? new Uint8Array(),
+    reconstructionBaseBytes:
+      artifacts.get("reconstruction-base") ?? new Uint8Array(),
+  };
 }
 
 const defaultPersistenceAdapter: RustPersistenceAdapter = {
   openRoot: openOpfsWorkspace,
   recover: recoverRuntimeWorkspace,
+  recoverHead: recoverRuntimeWorkspaceHead,
   async verify(root, slot, kernel, workspaceId) {
     const rootBytes = await readRuntimeObject(root, slot.workspaceRootDigest);
     const historyDigests = await collectRuntimeHistoryDigests(
@@ -1790,14 +1885,16 @@ export async function readVerifiedSemanticIndexSnapshot(
       const slot = await recoverRuntimeWorkspace(root);
       if (!slot) throw new Error("no persisted Rust workspace exists");
       await defaultPersistenceAdapter.verify?.(root, slot, kernel, workspaceId);
-      return {
-        workspaceRootDigest: slot.workspaceRootDigest,
-        source: await readArtifactFromWorkspaceSlot(
-          root,
-          slot,
-          "semantic-index-source-json",
-        ),
-      };
+      const artifacts = await readArtifactsFromWorkspaceSlot(root, slot, [
+        "semantic-index-source-json",
+      ]);
+      const source = artifacts.get("semantic-index-source-json");
+      if (!source) {
+        throw new Error(
+          "persisted Rust artifact is missing: semantic-index-source-json",
+        );
+      }
+      return { workspaceRootDigest: slot.workspaceRootDigest, source };
     },
     "shared",
   );
@@ -2159,7 +2256,12 @@ async function executeRustRuntimeUnlocked(
     let recoveredRoot: WorkspaceRootSlot | undefined;
     if (runtime.persistRustWorkspace) {
       opfsRoot = await persistenceAdapter.openRoot(workspaceId);
-      recoveredRoot = await persistenceAdapter.recover(opfsRoot);
+      recoveredRoot =
+        materialization === "review"
+          ? await (persistenceAdapter.recoverHead ?? persistenceAdapter.recover)(
+              opfsRoot,
+            )
+          : await persistenceAdapter.recover(opfsRoot);
       if (recoveredRoot && materialization === "full") {
         await persistenceAdapter.verify?.(
           opfsRoot,
@@ -2177,33 +2279,20 @@ async function executeRustRuntimeUnlocked(
         : null);
     const requestId = `${materialization === "review" ? "review" : "execute"}-${inputSha256.slice(0, 16)}`;
     let reviewBaseBytes: Uint8Array = new Uint8Array();
+    let reconstructionBaseBytes: Uint8Array = new Uint8Array();
     if (
       materialization === "review" &&
       opfsRoot &&
       recoveredRoot &&
       persistenceAdapter === defaultPersistenceAdapter
     ) {
-      try {
-        reviewBaseBytes = await readArtifactFromWorkspaceSlot(
-          opfsRoot,
-          recoveredRoot,
-          "review-base",
-          {
-            implementationDigest: kernel.implementation_build_digest(),
-            workspaceId,
-            inputDigest: `sha256:${inputSha256}`,
-          },
-        );
-      } catch (error) {
-        if (
-          !(error instanceof Error) ||
-          !error.message.includes(
-            "persisted Rust artifact is missing: review-base",
-          )
-        ) {
-          throw error;
-        }
-      }
+      ({ reviewBaseBytes, reconstructionBaseBytes } =
+        await readPersistedRustReviewBases(opfsRoot, recoveredRoot, {
+          implementationDigest: kernel.implementation_build_digest(),
+          buildEnvironmentDigest: kernel.build_environment_digest(),
+          workspaceId,
+          inputDigest: `sha256:${inputSha256}`,
+        }));
     }
     const requestJson = JSON.stringify({
       protocolVersion: "chronicle-preprocessing-runtime/v1",
@@ -2217,11 +2306,13 @@ async function executeRustRuntimeUnlocked(
       options: buildRustV2Options(options, runtime),
     });
     handle =
-      materialization === "review" && reviewBaseBytes.byteLength > 0
-        ? kernel.execute_workspace_with_review_base(
+      materialization === "review" &&
+      (reviewBaseBytes.byteLength > 0 || reconstructionBaseBytes.byteLength > 0)
+        ? kernel.execute_workspace_with_review_bases(
             requestJson,
             csvBytes,
             reviewBaseBytes,
+            reconstructionBaseBytes,
             runtimeSupportFiles,
           )
         : kernel.execute_workspace(requestJson, csvBytes, runtimeSupportFiles);

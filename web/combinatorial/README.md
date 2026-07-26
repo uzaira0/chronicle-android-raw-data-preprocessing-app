@@ -85,8 +85,9 @@ Notes:
   corpus makes every one of the 46 computational axes produce at least one
   substantive witness. This checked ledger predates the 55-query Salsa cutover
   and must be regenerated before it proves current physical work. Current
-  physical status comes from actual Salsa query events; the fused Rust run is
-  an independent cold oracle rather than the warm path.
+  recomputation status comes from actual Salsa query bodies plus explicitly
+  instrumented product-step evaluations inside review-only fused queries. The
+  separate sequential Rust run is the independent cold oracle.
 - The artifact dependency tomography ledger then holds the full configuration
   constant across all eleven raw columns, four raw-row mutation classes, eight
   substantive support-role mutations, and nine byte-different representation

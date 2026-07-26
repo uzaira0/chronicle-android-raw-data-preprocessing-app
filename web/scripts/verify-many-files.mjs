@@ -210,6 +210,7 @@ const elapsed = performance.now() - started;
 const resultCount = await page.locator('[data-testid="result-row"]').count();
 console.log(`Completed ${resultCount}/${fileCount} in ${(elapsed / 1000).toFixed(1)}s`);
 let comparisonElapsedMs = null;
+let backgroundComparisonEvidence = null;
 if (runComparison && resultCount === fileCount) {
   await page.getByRole("tab", { name: /View/i }).click();
   await page.getByTestId("review-compare-toggle").click();
@@ -223,6 +224,43 @@ if (runComparison && resultCount === fileCount) {
   await drawer.waitFor({ state: "hidden", timeout: timeoutMs });
   comparisonElapsedMs = performance.now() - comparisonStarted;
   await page.getByTestId("review-mcard-b").waitFor({ timeout: timeoutMs });
+  if (fileCount > 1) {
+    const backgroundFileName = `Raw P${String(2).padStart(3, "0")}.csv`;
+    const fileSearch = page.getByTestId("timeline-view-file");
+    await fileSearch.fill(backgroundFileName);
+    await page.getByRole("option", { name: backgroundFileName }).click();
+    const timeline = page.getByTestId("timeline-view");
+    await timeline.waitFor({ state: "visible", timeout: timeoutMs });
+    backgroundComparisonEvidence = await timeline.evaluate((element) => ({
+      cacheSources: element.getAttribute("data-comparison-cache-sources"),
+      buildEnvironmentDigest: element.getAttribute(
+        "data-comparison-build-environment-digest",
+      ),
+      comparisonDigest: element.getAttribute("data-comparison-digest"),
+      previousRoot: element.getAttribute("data-comparison-previous-root"),
+      recomputedSteps: element.getAttribute(
+        "data-comparison-recomputed-steps",
+      ),
+      cachedStepCount: Number(
+        element.getAttribute("data-comparison-cached-step-count"),
+      ),
+    }));
+    if (
+      backgroundComparisonEvidence.cacheSources !==
+        "verified-reconstruction-base" ||
+      !/^sha256:[0-9a-f]{64}$/.test(
+        backgroundComparisonEvidence.buildEnvironmentDigest ?? "",
+      ) ||
+      !/^sha256:[0-9a-f]{64}$/.test(
+        backgroundComparisonEvidence.comparisonDigest ?? "",
+      ) ||
+      backgroundComparisonEvidence.cachedStepCount <= 0
+    ) {
+      throw new Error(
+        `background comparison did not prove verified OPFS reconstruction reuse: ${JSON.stringify(backgroundComparisonEvidence)}`,
+      );
+    }
+  }
   console.log(
     `Compared ${fileCount} files with the 8-worker A/B path in ${(comparisonElapsedMs / 1000).toFixed(1)}s`,
   );
@@ -246,6 +284,7 @@ console.log(
       resultCount,
       comparisonElapsedMs,
       comparisonWarmupMs,
+      backgroundComparisonEvidence,
       peakProcessTreeRssBytes,
       pageErrors: errors,
     },

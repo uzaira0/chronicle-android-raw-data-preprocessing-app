@@ -15,6 +15,7 @@ const packages = [
       "function:evaluate_workspace_requirements",
       "function:execute_workspace",
       "function:execute_workspace_with_review_base",
+      "function:execute_workspace_with_review_bases",
       "function:implementation_build_digest",
       "function:initSync",
       "function:inspect_raw_file_v1",

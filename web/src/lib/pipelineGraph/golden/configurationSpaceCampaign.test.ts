@@ -1690,7 +1690,7 @@ describe("Rust/WASM configuration-space campaign", () => {
       protocolVersion: "chronicle-configuration-influence-ledger/v1",
       logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v3",
       claimBoundary:
-        "Exact 55-query and 15-display-group execution plus warm/cold equality for the recorded Rust/WASM implementation, equivalence classes, contexts, support bindings, and synthetic corpora. Absence of an observed effect remains bounded to this declared test scope. Step execution is taken from actual Salsa query events; the fused Rust path is an independent cold oracle only.",
+        "Exact 55-step and 15-display-group execution plus warm/cold equality for the recorded Rust/WASM implementation, equivalence classes, contexts, support bindings, and synthetic corpora. Absence of an observed effect remains bounded to this declared test scope. Step recomputation is taken from actual Salsa query bodies plus explicitly instrumented product-step evaluations inside review-only fused queries. The separate sequential Rust path remains the independent cold oracle.",
       contractAuthority: "web/schema/chronicle-local-contract.linkml.yaml",
       planAuthority:
         ".semantic-federation/semantic/resources/chronicle.plan.json",
@@ -1730,7 +1730,7 @@ describe("Rust/WASM configuration-space campaign", () => {
         stepClusterMismatchCases: stepPercolationClusterMismatchCases.length,
       },
       physicalExecutionBoundary:
-        "The production runtime executes and reuses 55 Salsa-tracked Rust queries. The recorded executed-step set comes from actual query bodies, and the 15 display groups are derived from those IDs. The fused Rust path is used only as an independent cold oracle.",
+        "The production runtime executes and reuses 55 Rust product steps through Salsa-tracked queries. The recorded recomputed-step set comes from actual query bodies plus explicitly instrumented product-step evaluations inside review-only fused queries; a restored row transform is not recorded as physically rerun. The 15 display groups are derived from those step IDs. The separate sequential Rust path is used only as an independent cold oracle.",
       axesWithSubstantiveObservedEffects: [
         ...axesWithSubstantiveObservedEffects,
       ].sort(),

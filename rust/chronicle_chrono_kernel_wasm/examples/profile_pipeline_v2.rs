@@ -377,6 +377,7 @@ fn profile_incremental(
     ) {
         let export_started = Instant::now();
         let review_base = cold_engine.export_review_base()?;
+        let reconstruction_base = cold_engine.export_reconstruction_base()?;
         let export_elapsed = export_started.elapsed();
         drop(cold);
         drop(cold_engine);
@@ -399,9 +400,10 @@ fn profile_incremental(
         let mut internal_executed = 0_usize;
         for _ in 0..iterations {
             let mut engine = IncrementalPipelineV2Engine::default();
-            let execution = engine.execute_review_with_base(
+            let execution = engine.execute_review_with_bases(
                 raw_csv,
                 &review_base,
+                &reconstruction_base,
                 &changed,
                 support(codebook_csv, FILTER_CSV),
             )?;
@@ -417,9 +419,10 @@ fn profile_incremental(
         }
         let elapsed = started.elapsed();
         println!(
-            "case={} rows={rows} iterations={iterations} review_base_bytes={} export_ms={:.3} elapsed_ns={} elapsed_ms={:.3} average_ms={:.3} average_executed_count={:.1} average_internal_executed_count={:.1} result_digest={oracle_digest}",
+            "case={} rows={rows} iterations={iterations} review_base_bytes={} reconstruction_base_bytes={} export_ms={:.3} elapsed_ns={} elapsed_ms={:.3} average_ms={:.3} average_executed_count={:.1} average_internal_executed_count={:.1} result_digest={oracle_digest}",
             selected_case.expect("cached review case"),
             review_base.len(),
+            reconstruction_base.len(),
             export_elapsed.as_secs_f64() * 1_000.0,
             elapsed.as_nanos(),
             elapsed.as_secs_f64() * 1_000.0,

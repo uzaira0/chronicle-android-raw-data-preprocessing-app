@@ -353,6 +353,7 @@ function reviewExecution(): RustReviewExecution {
     rowsRemovedByTimezone: 0,
     duplicateTimestampsCorrected: 0,
     exactDuplicateRowsRemoved: 1,
+    cacheSources: ["verified-review-base"],
     recomputedStepIds: ["build_coverage_table", "assemble_result"],
     cachedStepIds: Array.from({ length: 53 }, (_, index) => `cached-${index}`),
     bypassedStepIds: [],
@@ -395,7 +396,9 @@ describe("fast Rust review authority", () => {
       processedRowCount: 3,
       rustReviewReceipt: {
         optionsDigest: `sha256:${"4".repeat(64)}`,
+        buildEnvironmentDigest: `sha256:${"6".repeat(64)}`,
         comparisonDigest: `sha256:${"c".repeat(64)}`,
+        cacheSources: ["verified-review-base"],
         recomputedStepIds: ["build_coverage_table", "assemble_result"],
       },
     });

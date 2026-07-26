@@ -14,6 +14,9 @@ wasm-opt = [
     '--enable-mutable-globals',
     '--enable-sign-ext',
     '--enable-reference-types',
+    '--merge-similar-functions',
+    '--vacuum',
+    '--strip-producers',
 ]
 
 [lib]
