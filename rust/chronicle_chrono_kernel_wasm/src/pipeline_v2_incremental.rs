@@ -4382,6 +4382,27 @@ mod tracked {
         ))
     }
 
+    /// Suffix digest chain over the blind (pre-matcher) rows. Memoized
+    /// separately from review_usage_rows_before_floor so a matcher-config
+    /// edit (e.g. the model_concurrent_usage toggle) does not recompute the
+    /// full-table digest chain: the blind rows it hashes are unchanged by
+    /// matcher settings.
+    #[salsa::tracked(returns(clone))]
+    fn blind_lineage_suffix_digests(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<Arc<Vec<super::InlineLineageDigest>>, String> {
+        let _timer = QueryTimer::start("blind_lineage_suffix_digests");
+        db.record_internal_query_body("blind_lineage_suffix_digests");
+        let rows = junk_blind_fold(db, raw, early, config, support)?;
+        Ok(Arc::new(super::inline_lineage_search_suffix_digests(
+            &rows.value,
+        )))
+    }
+
     #[salsa::tracked(returns(clone))]
     fn build_matcher_input(
         db: &dyn EarlyStepDb,
@@ -4587,13 +4608,17 @@ mod tracked {
                     .map(Arc::clone)
             })
         };
+        let suffix_digests = match persisted_suffix_digests {
+            Some(digests) => digests,
+            None => blind_lineage_suffix_digests(db, raw, early, config, support)?,
+        };
         let mut rows = (*blind.value).clone();
         let apply_timer = QueryTimer::start("review_reconstruction_apply_matcher_rows");
         super::apply_matcher_output_in_place(
             &mut rows,
             &matcher.value,
             &applied.filtered_packages,
-            persisted_suffix_digests.as_deref().map(Vec::as_slice),
+            Some(suffix_digests.as_slice()),
         );
         apply_timer.finish();
         let mut floor_candidate_row_ids = AHashSet::new();
@@ -8377,6 +8402,7 @@ mod tracked {
                     .ingredient::<build_classified_sessions>()
                     .ingredient::<compute_junk_packages>()
                     .ingredient::<junk_blind_fold>()
+                    .ingredient::<blind_lineage_suffix_digests>()
                     .ingredient::<build_matcher_input>()
                     .ingredient::<run_matcher>()
                     .ingredient::<review_applied_rows>()

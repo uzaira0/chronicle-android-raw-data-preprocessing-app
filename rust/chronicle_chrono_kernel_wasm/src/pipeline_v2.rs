@@ -4732,7 +4732,7 @@ fn label_filtered_apps(
 /// Raw BLAKE3 output for a lineage suffix. Persisting 32-byte hashes avoids
 /// storing the 71-byte ASCII form for every event; the protocol spelling is
 /// reconstructed on the stack only when another hash consumes it.
-#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 struct InlineLineageDigest([u8; 32]);
 
 impl InlineLineageDigest {
