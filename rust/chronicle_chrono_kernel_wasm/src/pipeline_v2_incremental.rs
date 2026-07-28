@@ -2055,6 +2055,18 @@ mod tracked {
         static ANNOTATIONS_FUSED_ALTERNATION_CACHE:
             RefCell<AlternationSlots<ReviewAnnotations>> =
             RefCell::new(AlternationSlots::default());
+        static MATCHER_INPUT_ALTERNATION_CACHE:
+            RefCell<AlternationSlots<StepValue<MatcherInput>>> =
+            RefCell::new(AlternationSlots::default());
+        static MATCHER_OUTPUT_ALTERNATION_CACHE:
+            RefCell<AlternationSlots<StepValue<MatcherOutput>>> =
+            RefCell::new(AlternationSlots::default());
+        static PRIMARY_OUTPUTS_ALTERNATION_CACHE:
+            RefCell<AlternationSlots<StepValue<PrimaryOutputs>>> =
+            RefCell::new(AlternationSlots::default());
+        static PARTICIPANT_WINDOWS_ALTERNATION_CACHE:
+            RefCell<AlternationSlots<StepValue<Vec<ResolvedParticipantWindow>>>> =
+            RefCell::new(AlternationSlots::default());
     }
 
     // A batch worker processes different workspaces serially and retains only
@@ -4465,14 +4477,38 @@ mod tracked {
         let _timer = QueryTimer::start("build_matcher_input");
         db.record_query_body("build_matcher_input");
         let rows = junk_blind_fold(db, raw, early, config, support)?;
+        let same_app_stop_types = early.same_app_stop_types(db);
+        let other_stop_types = early.other_stop_types(db);
+        let background = background_apps(db, config, support);
+        let model_concurrent_usage = config.model_concurrent_usage(db);
+        // AHashSet iteration order is not deterministic; sort before keying.
+        let mut background_sorted = background.iter().map(String::as_str).collect::<Vec<_>>();
+        background_sorted.sort_unstable();
+        let cache_key = format!(
+            "{}|{:?}|{:?}|{:?}|{model_concurrent_usage}",
+            rows.checkpoint.terminal_digest,
+            same_app_stop_types,
+            other_stop_types,
+            background_sorted,
+        );
+        if let Some(cached) = MATCHER_INPUT_ALTERNATION_CACHE
+            .with(|cache| cache.borrow_mut().lookup(&cache_key))
+        {
+            #[cfg(feature = "query-timing")]
+            eprintln!("alternation_cache hit=build_matcher_input");
+            return Ok(cached);
+        }
         let input = super::build_matcher_input(
             &rows.value,
-            &early.same_app_stop_types(db),
-            &early.other_stop_types(db),
-            &background_apps(db, config, support),
-            config.model_concurrent_usage(db),
+            &same_app_stop_types,
+            &other_stop_types,
+            &background,
+            model_concurrent_usage,
         )?;
-        value_step("build_matcher_input", input)
+        let result = value_step("build_matcher_input", input)?;
+        MATCHER_INPUT_ALTERNATION_CACHE
+            .with(|cache| cache.borrow_mut().store(cache_key, result.clone()));
+        Ok(result)
     }
 
     #[salsa::tracked(returns(clone))]
@@ -4486,17 +4522,37 @@ mod tracked {
         let _timer = QueryTimer::start("run_matcher");
         db.record_query_body("run_matcher");
         let input = build_matcher_input(db, raw, early, config, support)?;
-        value_step(
+        let allow_stop_event_reuse = config.allow_stop_event_reuse(db);
+        let use_activity_stopped_as_fallback = config.use_activity_stopped_as_fallback(db);
+        let apply_threshold_to_fallback = config.apply_threshold_to_fallback(db);
+        let long_duration_threshold_ns = config.long_duration_threshold_ns(db);
+        let proximity_interval_ns = config.proximity_interval_ns(db);
+        let cache_key = format!(
+            "{}|{allow_stop_event_reuse}|{use_activity_stopped_as_fallback}|\
+             {apply_threshold_to_fallback}|{long_duration_threshold_ns}|{proximity_interval_ns}",
+            input.checkpoint.terminal_digest,
+        );
+        if let Some(cached) = MATCHER_OUTPUT_ALTERNATION_CACHE
+            .with(|cache| cache.borrow_mut().lookup(&cache_key))
+        {
+            #[cfg(feature = "query-timing")]
+            eprintln!("alternation_cache hit=run_matcher");
+            return Ok(cached);
+        }
+        let result = value_step(
             "run_matcher",
             super::run_matcher(
                 &input.value,
-                config.allow_stop_event_reuse(db),
-                config.use_activity_stopped_as_fallback(db),
-                config.apply_threshold_to_fallback(db),
-                config.long_duration_threshold_ns(db),
-                config.proximity_interval_ns(db),
+                allow_stop_event_reuse,
+                use_activity_stopped_as_fallback,
+                apply_threshold_to_fallback,
+                long_duration_threshold_ns,
+                proximity_interval_ns,
             )?,
-        )
+        )?;
+        MATCHER_OUTPUT_ALTERNATION_CACHE
+            .with(|cache| cache.borrow_mut().store(cache_key, result.clone()));
+        Ok(result)
     }
 
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -6228,10 +6284,21 @@ mod tracked {
         db.record_query_body("resolve_participant_windows");
         let rows = drop_zero_duration(db, raw, early, config, support)?;
         let windows = parsed_study_windows(db, late_support)?;
-        value_step(
+        let cache_key = format!("{}|{:?}", rows.checkpoint.terminal_digest, windows);
+        if let Some(cached) = PARTICIPANT_WINDOWS_ALTERNATION_CACHE
+            .with(|cache| cache.borrow_mut().lookup(&cache_key))
+        {
+            #[cfg(feature = "query-timing")]
+            eprintln!("alternation_cache hit=resolve_participant_windows");
+            return Ok(cached);
+        }
+        let result = value_step(
             "resolve_participant_windows",
             super::resolve_windows(&rows.value, &windows),
-        )
+        )?;
+        PARTICIPANT_WINDOWS_ALTERNATION_CACHE
+            .with(|cache| cache.borrow_mut().store(cache_key, result.clone()));
+        Ok(result)
     }
 
     #[salsa::tracked(returns(clone))]
@@ -6808,33 +6875,81 @@ mod tracked {
         let policy_rows = materialize_visualization_data
             .then(|| tag_filtered_packages(db, raw, early, config, support))
             .transpose()?;
-        let screen_rows = if matches!(
+        let screen_step = if matches!(
             options.usage_session_mode,
             UsageSessionMode::ScreenUsage | UsageSessionMode::AppAndScreenUsage
         ) {
-            build_classified_sessions(db, raw, early, config, support)?.value
+            Some(build_classified_sessions(db, raw, early, config, support)?)
         } else {
-            Arc::new(Vec::new())
+            None
         };
+        let screen_rows = screen_step
+            .as_ref()
+            .map(|step| Arc::clone(&step.value))
+            .unwrap_or_default();
 
         let app_mode = matches!(
             options.usage_session_mode,
             UsageSessionMode::AppUsage | UsageSessionMode::AppAndScreenUsage
         );
-        let app_rows = {
+        let app_step = {
             let _timer = QueryTimer::start("resolve_review_app_rows");
             if app_mode {
-                inject_placeholders(db, raw, early, config, support, late, late_support)?.value
+                Some(inject_placeholders(
+                    db,
+                    raw,
+                    early,
+                    config,
+                    support,
+                    late,
+                    late_support,
+                )?)
             } else {
-                Arc::new(Vec::new())
+                None
             }
         };
+        let app_rows = app_step
+            .as_ref()
+            .map(|step| Arc::clone(&step.value))
+            .unwrap_or_default();
         let include_aliases = if !materialize_full_outputs || !app_mode || !options.use_app_codebook
         {
             true
         } else {
             *codebook_is_empty(db, support)?.value || options.include_category_column
         };
+        let credited_rows =
+            if materialize_full_outputs && app_mode && late.enable_screen_gated_crediting(db) {
+                Some(assemble_credit_result(
+                    db, raw, early, config, support, late,
+                )?)
+            } else {
+                None
+            };
+
+        // Every salsa read above is also a cache-key component, so a hit and
+        // a miss register the identical dependency set for this memo. The
+        // remaining work below is pure serialization of those inputs.
+        fn step_digest<T>(step: &Option<StepValue<T>>) -> &str {
+            step.as_ref()
+                .map(|step| step.checkpoint.terminal_digest.as_str())
+                .unwrap_or("none")
+        }
+        let cache_key = format!(
+            "{options:?}|full={materialize_full_outputs}|aliases={include_aliases}|app={}|screen={}|credited={}|policy={}",
+            step_digest(&app_step),
+            step_digest(&screen_step),
+            step_digest(&credited_rows),
+            step_digest(&policy_rows),
+        );
+        if let Some(cached) = PRIMARY_OUTPUTS_ALTERNATION_CACHE
+            .with(|cache| cache.borrow_mut().lookup(&cache_key))
+        {
+            #[cfg(feature = "query-timing")]
+            eprintln!("alternation_cache hit=assemble_primary_outputs");
+            return Ok(cached);
+        }
+
         let app_csv_bytes = if materialize_full_outputs && app_mode && options.include_app_output {
             write_app_csv(&app_rows, &options, include_aliases)
         } else {
@@ -6848,15 +6963,6 @@ mod tracked {
         } else {
             Vec::new()
         };
-
-        let credited_rows =
-            if materialize_full_outputs && app_mode && late.enable_screen_gated_crediting(db) {
-                Some(assemble_credit_result(
-                    db, raw, early, config, support, late,
-                )?)
-            } else {
-                None
-            };
         let credited_app_csv_bytes = if materialize_full_outputs {
             if let Some(credited) = &credited_rows {
                 write_app_csv_from_iter(
@@ -6921,11 +7027,14 @@ mod tracked {
             row_lineage: Arc::new(row_lineage),
         };
         let checkpoint = primary_outputs_checkpoint(&outputs)?;
-        Ok(StepValue {
+        let result = StepValue {
             value: Arc::new(outputs),
             checkpoint,
             logical_checkpoint: None,
-        })
+        };
+        PRIMARY_OUTPUTS_ALTERNATION_CACHE
+            .with(|cache| cache.borrow_mut().store(cache_key, result.clone()));
+        Ok(result)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -7600,7 +7709,15 @@ mod tracked {
             support: PipelineV2SupportFiles<'_>,
             materialize_full_outputs: bool,
         ) -> Result<TrackedExecution, String> {
-            let input_sha256 = sha256_bytes(csv_bytes);
+            // The live database already binds a verified digest to its raw
+            // bytes; a byte compare is an order of magnitude cheaper than
+            // re-hashing the full raw input on every warm review.
+            let input_sha256 = match self.inputs {
+                Some(inputs) if inputs.raw.bytes(&self.db).as_slice() == csv_bytes => {
+                    inputs.raw.input_sha256(&self.db)
+                }
+                _ => sha256_bytes(csv_bytes),
+            };
             let (review_base_bytes, reconstruction_base_bytes) = select_persisted_bases(
                 &input_sha256,
                 review_base_bytes,

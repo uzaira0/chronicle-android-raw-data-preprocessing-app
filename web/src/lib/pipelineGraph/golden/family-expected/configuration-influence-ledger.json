@@ -7,10 +7,10 @@
   "equivalenceClassAuthority": "web/scripts/generate_combinatorial_model.mts",
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:b891cfaa8645be72f7772a400a4bb1cd93e9b5412e739cf4ec2f45c76ef484a6",
+    "implementationDigest": "sha256:602cdbff6d85a374837ee5a0a3121b66c04816365d626b130d8807a7666690ab",
     "planDigest": "sha256:7ee296d46b121e019ec0f43026fd91ff143efb1d33263ec95c19a92be7512ad7",
-    "profileDigest": "sha256:2ee3a822a7a55e8ec9e8e0e23b5a49b0be078d9a5761a45bfa13534e41cd3960",
-    "profileLockDigest": "sha256:ad0b58d480e99d21cb5d784f3dcc10099ecacbf2a39c8eacedec85cfd68e8205",
+    "profileDigest": "sha256:64274ea6ec9912ef2cf95ef13467cf5effca4a275ed3d44236dfe09865cde790",
+    "profileLockDigest": "sha256:f4175800836b0008c222742753e94633b735cc82f36103c2203cd0b0d645cacb",
     "runtimeAuthorityDigest": "sha256:bb2e2d109a81098514ba9a86344da6edc033cd305e6d6c4832c9dfd1ce81b2f9",
     "productContractDigest": "sha256:c89ad3e6efaa2394a5cb5f321cf1758b4c3703659093999b0e0161f210c16a4c"
   },
