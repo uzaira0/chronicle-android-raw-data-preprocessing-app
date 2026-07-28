@@ -2907,11 +2907,11 @@ mod tracked {
     }
 
     fn value_step<T: serde::Serialize>(step: &str, value: T) -> Result<StepValue<T>, String> {
-        let bytes = serde_json::to_vec(&value)
+        let fingerprint = super::value_fingerprint(&value)
             .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
         Ok(StepValue {
             value: Arc::new(value),
-            checkpoint: logical_stage_checkpoint(step, &[], &[("value", &bytes)]),
+            checkpoint: logical_stage_checkpoint(step, &[], &[("value", &fingerprint)]),
             logical_checkpoint: None,
         })
     }
@@ -2993,14 +2993,14 @@ mod tracked {
         upstream: &StepValue<Vec<Row>>,
         payload: &P,
     ) -> Result<StepValue<Vec<Row>>, String> {
-        let bytes = serde_json::to_vec(payload)
+        let fingerprint = super::value_fingerprint(payload)
             .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
         Ok(StepValue {
             value: Arc::clone(&upstream.value),
             checkpoint: checkpoint_for_exact_row_state(
                 step,
                 &upstream.checkpoint,
-                &[("value", &bytes)],
+                &[("value", &fingerprint)],
             ),
             logical_checkpoint: None,
         })
@@ -3023,9 +3023,9 @@ mod tracked {
         step: &str,
         payload: &P,
     ) -> Result<LogicalStageCheckpoint, String> {
-        let bytes = serde_json::to_vec(payload)
+        let fingerprint = super::value_fingerprint(payload)
             .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
-        Ok(logical_stage_checkpoint(step, &[], &[("value", &bytes)]))
+        Ok(logical_stage_checkpoint(step, &[], &[("value", &fingerprint)]))
     }
 
     fn rows_and_value_checkpoint<P: serde::Serialize>(
@@ -3033,12 +3033,12 @@ mod tracked {
         rows: &[Row],
         payload: &P,
     ) -> Result<LogicalStageCheckpoint, String> {
-        let bytes = serde_json::to_vec(payload)
+        let fingerprint = super::value_fingerprint(payload)
             .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
         Ok(logical_stage_checkpoint(
             step,
             &[("rows", rows)],
-            &[("value", &bytes)],
+            &[("value", &fingerprint)],
         ))
     }
 
@@ -3049,13 +3049,13 @@ mod tracked {
         previous_checkpoint: &LogicalStageCheckpoint,
         payload: &P,
     ) -> Result<LogicalStageCheckpoint, String> {
-        let bytes = serde_json::to_vec(payload)
+        let fingerprint = super::value_fingerprint(payload)
             .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
         let parts = row_checkpoint_parts_for_rows(rows);
         Ok(logical_stage_checkpoint_with_reusable_rows(
             step,
             rows,
-            &[("value", &bytes)],
+            &[("value", &fingerprint)],
             &parts,
             previous_rows,
             previous_checkpoint,
@@ -3069,12 +3069,12 @@ mod tracked {
         previous_checkpoint: &LogicalStageCheckpoint,
         payload: &P,
     ) -> Result<LogicalStageCheckpoint, String> {
-        let bytes = serde_json::to_vec(payload)
+        let fingerprint = super::value_fingerprint(payload)
             .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
         Ok(logical_stage_checkpoint_with_known_membership_and_order(
             step,
             rows,
-            &[("value", &bytes)],
+            &[("value", &fingerprint)],
             previous_rows,
             previous_checkpoint,
         ))
@@ -3168,13 +3168,13 @@ mod tracked {
         temporal_state_digest: String,
         payload: &P,
     ) -> Result<LogicalStageCheckpoint, String> {
-        let bytes = serde_json::to_vec(payload)
+        let fingerprint = super::value_fingerprint(payload)
             .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
         Ok(checkpoint_with_known_row_component_payloads(
             step,
             previous,
             temporal_state_digest,
-            &[("value", &bytes)],
+            &[("value", &fingerprint)],
         ))
     }
 
@@ -3227,14 +3227,14 @@ mod tracked {
         upstream: &LogicalStageCheckpoint,
         payload: &P,
     ) -> Result<LogicalStageCheckpoint, String> {
-        let bytes = serde_json::to_vec(payload)
+        let fingerprint = super::value_fingerprint(payload)
             .map_err(|error| format!("serialize {step} review checkpoint: {error}"))?;
         Ok(logical_stage_checkpoint(
             step,
             &[],
             &[
                 ("review_passthrough", upstream.terminal_digest.as_bytes()),
-                ("value", &bytes),
+                ("value", &fingerprint),
             ],
         ))
     }
@@ -3306,13 +3306,13 @@ mod tracked {
             "targetTimezone": &selected.target_timezone,
             "action": selected.action,
         });
-        let bytes = serde_json::to_vec(&metadata)
+        let fingerprint = super::value_fingerprint(&metadata)
             .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
         let exact_same_rows = Arc::ptr_eq(&selected.rows, &upstream.value);
         let checkpoint = if exact_same_rows {
-            checkpoint_for_exact_row_state(step, &upstream.checkpoint, &[("value", &bytes)])
+            checkpoint_for_exact_row_state(step, &upstream.checkpoint, &[("value", &fingerprint)])
         } else {
-            logical_stage_checkpoint(step, &[("rows", &selected.rows)], &[("value", &bytes)])
+            logical_stage_checkpoint(step, &[("rows", &selected.rows)], &[("value", &fingerprint)])
         };
         Ok(StepValue {
             value: Arc::new(SelectedTimezone {
@@ -5625,12 +5625,12 @@ mod tracked {
             let (_, static_checkpoint) = static_checkpoint
                 .as_ref()
                 .expect("checked static checkpoint");
-            let bytes = serde_json::to_vec(&checkpoint_payload)
+            let fingerprint = super::value_fingerprint(&checkpoint_payload)
                 .map_err(|error| format!("serialize drop_zero_duration checkpoint: {error}"))?;
             checkpoint_for_exact_row_state(
                 "drop_zero_duration",
                 static_checkpoint,
-                &[("value", &bytes)],
+                &[("value", &fingerprint)],
             )
         } else if removed_types.is_empty()
             && !config.filter_zero_duration_sessions(db)
@@ -6096,12 +6096,12 @@ mod tracked {
             "participantsWithoutWindow": value.participants_without_window,
         });
         let checkpoint = if Arc::ptr_eq(&value.rows, &rows.value) {
-            let bytes = serde_json::to_vec(&payload)
+            let fingerprint = super::value_fingerprint(&payload)
                 .map_err(|error| format!("serialize filter_rows_to_window checkpoint: {error}"))?;
             checkpoint_for_exact_row_state(
                 "filter_rows_to_window",
                 &rows.checkpoint,
-                &[("value", &bytes)],
+                &[("value", &fingerprint)],
             )
         } else {
             rows_and_value_checkpoint_reusing(
@@ -6234,12 +6234,12 @@ mod tracked {
             None => serde_json::json!({"applied": false}),
         };
         let checkpoint = if Arc::ptr_eq(&value.rows, &windowed.value.rows) {
-            let bytes = serde_json::to_vec(&payload)
+            let fingerprint = super::value_fingerprint(&payload)
                 .map_err(|error| format!("serialize attribute_rows checkpoint: {error}"))?;
             checkpoint_for_exact_row_state(
                 "attribute_rows",
                 &windowed.checkpoint,
-                &[("value", &bytes)],
+                &[("value", &fingerprint)],
             )
         } else {
             rows_and_value_checkpoint_reusing(
@@ -6250,19 +6250,19 @@ mod tracked {
                 &payload,
             )?
         };
-        let shared_bytes = serde_json::to_vec(&value.shared_participants)
+        let shared_fingerprint = super::value_fingerprint(&value.shared_participants)
             .map_err(|error| format!("serialize shared-participant checkpoint: {error}"))?;
         let logical_checkpoint = if Arc::ptr_eq(&value.rows, &windowed.value.rows) {
             checkpoint_for_exact_row_state(
                 "attribute_person",
                 &checkpoint,
-                &[("shared_participants", &shared_bytes)],
+                &[("shared_participants", &shared_fingerprint)],
             )
         } else {
             logical_stage_checkpoint(
                 "attribute_person",
                 &[("rows", &value.rows)],
-                &[("shared_participants", &shared_bytes)],
+                &[("shared_participants", &shared_fingerprint)],
             )
         };
         Ok(StepValue {
@@ -6299,14 +6299,14 @@ mod tracked {
             });
         }
         if !applied {
-            let bytes = serde_json::to_vec(&serde_json::json!({"applied": false}))
+            let fingerprint = super::value_fingerprint(&serde_json::json!({"applied": false}))
                 .map_err(|error| format!("serialize inject_placeholders checkpoint: {error}"))?;
             return Ok(StepValue {
                 value: Arc::clone(&attributed.value.rows),
                 checkpoint: checkpoint_for_exact_row_state(
                     "inject_placeholders",
                     &attributed.checkpoint,
-                    &[("value", &bytes)],
+                    &[("value", &fingerprint)],
                 ),
                 logical_checkpoint: None,
             });
@@ -6468,7 +6468,7 @@ mod tracked {
         node_id: &str,
         outputs: &AssembledOutputs,
     ) -> Result<LogicalStageCheckpoint, String> {
-        let row_lineage_bytes = serde_json::to_vec(&outputs.row_lineage)
+        let row_lineage_fingerprint = super::value_fingerprint(&outputs.row_lineage)
             .map_err(|error| format!("serialize row lineage checkpoint: {error}"))?;
         let aggregate_checkpoint_bytes = serde_json::to_vec(
             &outputs
@@ -6502,7 +6502,7 @@ mod tracked {
                     &outputs.visualization_data_json_bytes,
                 ),
                 ("aggregates", &aggregate_checkpoint_bytes),
-                ("row_lineage", &row_lineage_bytes),
+                ("row_lineage", &row_lineage_fingerprint),
             ],
         ))
     }
@@ -10366,6 +10366,94 @@ mod tracked {
                 "floor edit did not exercise the incremental review path: {:?}",
                 cached.executed_steps
             );
+        }
+
+        /// Changed-review attribution over a real raw export supplied via
+        /// `CHRONICLE_ATTR_CSV`, mirroring the wasm benchmark's narrow
+        /// (minimum_usage_duration=2) and heavy (model_concurrent_usage off)
+        /// edits against the full-options baseline. Measures both the
+        /// restored-persisted-base path (the A/B comparison worker) and the
+        /// warm same-engine repeated-edit path (the interactive view loop):
+        ///   CHRONICLE_ATTR_CSV=/path/to/raw.csv \
+        ///   cargo test --release --no-default-features \
+        ///     --features "incremental-v2 query-timing" \
+        ///     review_attribution_from_csv -- --ignored --nocapture
+        #[cfg(feature = "query-timing")]
+        #[test]
+        #[ignore]
+        fn review_attribution_from_csv() {
+            let path = std::env::var("CHRONICLE_ATTR_CSV")
+                .expect("set CHRONICLE_ATTR_CSV to a raw Chronicle export");
+            let raw = std::fs::read(&path).expect("read CHRONICLE_ATTR_CSV");
+            let mut baseline = pipeline_options();
+            baseline.model_concurrent_usage = true;
+            baseline.enable_screen_gated_crediting = true;
+            baseline.enable_aggregates = true;
+            let support = PipelineV2SupportFiles::default();
+            let mut producer = TrackedEngine::default();
+            eprintln!(
+                "attribution_phase=base_full_execute file={path} bytes={}",
+                raw.len()
+            );
+            producer.execute(&raw, &baseline, support, true).unwrap();
+            let review_base = producer.export_review_base().unwrap();
+            let reconstruction_base = producer.export_reconstruction_base().unwrap();
+
+            for (case, edit) in [
+                ("narrow_minimum_usage_duration", {
+                    let mut changed = baseline.clone();
+                    changed.minimum_usage_duration = 2.0;
+                    changed
+                }),
+                ("heavy_concurrent_usage_off", {
+                    let mut changed = baseline.clone();
+                    changed.model_concurrent_usage = false;
+                    changed
+                }),
+            ] {
+                let mut consumer = TrackedEngine::default();
+                eprintln!("attribution_phase=restored_base_changed_review case={case}");
+                let started = std::time::Instant::now();
+                let restored = consumer
+                    .execute_with_review_bases(
+                        &raw,
+                        &review_base,
+                        &reconstruction_base,
+                        &edit,
+                        support,
+                        false,
+                    )
+                    .unwrap();
+                eprintln!(
+                    "attribution_total case={case} restored_review_ms={:.1} executed={:?}",
+                    started.elapsed().as_secs_f64() * 1000.0,
+                    restored.executed_steps
+                );
+
+                // Interactive view loop: same engine, repeated small edits.
+                for step in 0..3u32 {
+                    let mut repeat = edit.clone();
+                    match case {
+                        "narrow_minimum_usage_duration" => {
+                            repeat.minimum_usage_duration = 3.0 + f64::from(step);
+                        }
+                        _ => {
+                            // Alternate the toggle so every iteration is a
+                            // real change on the warm engine.
+                            repeat.model_concurrent_usage = step % 2 == 0;
+                        }
+                    }
+                    eprintln!("attribution_phase=warm_repeat_edit case={case} step={step}");
+                    let started = std::time::Instant::now();
+                    consumer
+                        .execute_with_review_bases(&raw, &[], &[], &repeat, support, false)
+                        .unwrap();
+                    eprintln!(
+                        "attribution_total case={case} warm_repeat_step={step} review_ms={:.1}",
+                        started.elapsed().as_secs_f64() * 1000.0
+                    );
+                }
+            }
         }
 
         /// Cold full-execute attribution over a real raw export supplied via

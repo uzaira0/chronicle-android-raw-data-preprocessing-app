@@ -723,7 +723,7 @@ pub fn rebuild_semantic_index_native(source_json: &[u8]) -> Result<Vec<u8>, Stri
             &checkpoint.payload_digest,
             &checkpoint.schema_digest,
         ];
-        if checkpoint.protocol_version != "chronicle-logical-stage-checkpoint/v6"
+        if checkpoint.protocol_version != "chronicle-logical-stage-checkpoint/v7"
             || checkpoint.node_id != *step_id
             || source.pipeline_step_digests.get(step_id) != Some(&checkpoint.terminal_digest)
             || component_digests
@@ -793,7 +793,7 @@ mod tests {
                 (
                     step_id.clone(),
                     json!({
-                        "protocolVersion": "chronicle-logical-stage-checkpoint/v6",
+                        "protocolVersion": "chronicle-logical-stage-checkpoint/v7",
                         "nodeId": step_id,
                         "rowMembershipDigest": component_digest,
                         "rowOrderDigest": component_digest,

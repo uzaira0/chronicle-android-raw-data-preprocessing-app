@@ -2074,6 +2074,425 @@ impl CheckpointSink for Vec<u8> {
     }
 }
 
+/// Streaming serde→xxh3 sink for checkpoint value payloads. Every serde event
+/// is framed with a tag byte (plus lengths where content follows) and fed to
+/// the hasher through a small buffer, so a large step value is fingerprinted
+/// without materializing an encoded copy (the serde_json path this replaced
+/// inflated a 19 MB parse into 33.6 MB of text before hashing). Unlike
+/// postcard, this supports `collect_str` (chrono) and unknown-length
+/// sequences, and it never changes any type's persisted serialization.
+struct FingerprintSink {
+    hasher: Xxh3,
+    buffer: [u8; 4096],
+    len: usize,
+}
+
+impl FingerprintSink {
+    fn new() -> Self {
+        Self {
+            hasher: Xxh3::new(),
+            buffer: [0_u8; 4096],
+            len: 0,
+        }
+    }
+
+    fn write(&mut self, data: &[u8]) {
+        if data.len() >= self.buffer.len() {
+            self.flush();
+            self.hasher.update(data);
+        } else {
+            if self.len + data.len() > self.buffer.len() {
+                self.flush();
+            }
+            self.buffer[self.len..self.len + data.len()].copy_from_slice(data);
+            self.len += data.len();
+        }
+    }
+
+    fn tag(&mut self, tag: u8) {
+        if self.len == self.buffer.len() {
+            self.flush();
+        }
+        self.buffer[self.len] = tag;
+        self.len += 1;
+    }
+
+    fn frame(&mut self, tag: u8, data: &[u8]) {
+        self.tag(tag);
+        self.write(&(data.len() as u64).to_le_bytes());
+        self.write(data);
+    }
+
+    fn flush(&mut self) {
+        if self.len > 0 {
+            self.hasher.update(&self.buffer[..self.len]);
+            self.len = 0;
+        }
+    }
+
+    fn finish(mut self) -> u128 {
+        self.flush();
+        self.hasher.digest128()
+    }
+}
+
+#[derive(Debug)]
+struct FingerprintError(String);
+
+impl std::fmt::Display for FingerprintError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for FingerprintError {}
+
+impl serde::ser::Error for FingerprintError {
+    fn custom<T: std::fmt::Display>(message: T) -> Self {
+        Self(message.to_string())
+    }
+}
+
+struct FingerprintSerializer<'a> {
+    sink: &'a mut FingerprintSink,
+}
+
+impl FingerprintSerializer<'_> {
+    fn scalar(self, tag: u8, bytes: &[u8]) -> Result<(), FingerprintError> {
+        self.sink.tag(tag);
+        self.sink.write(bytes);
+        Ok(())
+    }
+}
+
+/// Compound serializer used for every seq/tuple/map/struct shape. Each
+/// element is preceded by a 1 marker and the compound ends with a 0 marker,
+/// so unknown-length sequences hash injectively without a length prefix.
+struct FingerprintCompound<'a> {
+    sink: &'a mut FingerprintSink,
+}
+
+impl FingerprintCompound<'_> {
+    fn element<T: serde::Serialize + ?Sized>(&mut self, value: &T) -> Result<(), FingerprintError> {
+        self.sink.tag(1);
+        value.serialize(FingerprintSerializer { sink: self.sink })
+    }
+
+    fn finish(self) -> Result<(), FingerprintError> {
+        self.sink.tag(0);
+        Ok(())
+    }
+}
+
+macro_rules! fingerprint_compound_impl {
+    ($trait:path, $serialize:ident $(, $key:ident)?) => {
+        impl $trait for FingerprintCompound<'_> {
+            type Ok = ();
+            type Error = FingerprintError;
+
+            fn $serialize<T: serde::Serialize + ?Sized>(
+                &mut self,
+                value: &T,
+            ) -> Result<(), FingerprintError> {
+                self.element(value)
+            }
+
+            $(fn $key<T: serde::Serialize + ?Sized>(
+                &mut self,
+                key: &T,
+            ) -> Result<(), FingerprintError> {
+                self.element(key)
+            })?
+
+            fn end(self) -> Result<(), FingerprintError> {
+                self.finish()
+            }
+        }
+    };
+}
+
+fingerprint_compound_impl!(serde::ser::SerializeSeq, serialize_element);
+fingerprint_compound_impl!(serde::ser::SerializeTuple, serialize_element);
+fingerprint_compound_impl!(serde::ser::SerializeTupleStruct, serialize_field);
+fingerprint_compound_impl!(serde::ser::SerializeTupleVariant, serialize_field);
+fingerprint_compound_impl!(serde::ser::SerializeMap, serialize_value, serialize_key);
+
+macro_rules! fingerprint_struct_impl {
+    ($trait:path) => {
+        impl $trait for FingerprintCompound<'_> {
+            type Ok = ();
+            type Error = FingerprintError;
+
+            fn serialize_field<T: serde::Serialize + ?Sized>(
+                &mut self,
+                key: &'static str,
+                value: &T,
+            ) -> Result<(), FingerprintError> {
+                self.sink.frame(1, key.as_bytes());
+                value.serialize(FingerprintSerializer { sink: self.sink })
+            }
+
+            fn end(self) -> Result<(), FingerprintError> {
+                self.finish()
+            }
+        }
+    };
+}
+
+fingerprint_struct_impl!(serde::ser::SerializeStruct);
+fingerprint_struct_impl!(serde::ser::SerializeStructVariant);
+
+impl<'a> serde::Serializer for FingerprintSerializer<'a> {
+    type Ok = ();
+    type Error = FingerprintError;
+    type SerializeSeq = FingerprintCompound<'a>;
+    type SerializeTuple = FingerprintCompound<'a>;
+    type SerializeTupleStruct = FingerprintCompound<'a>;
+    type SerializeTupleVariant = FingerprintCompound<'a>;
+    type SerializeMap = FingerprintCompound<'a>;
+    type SerializeStruct = FingerprintCompound<'a>;
+    type SerializeStructVariant = FingerprintCompound<'a>;
+
+    fn serialize_bool(self, value: bool) -> Result<(), FingerprintError> {
+        self.scalar(2, &[u8::from(value)])
+    }
+
+    fn serialize_i8(self, value: i8) -> Result<(), FingerprintError> {
+        self.scalar(3, &value.to_le_bytes())
+    }
+
+    fn serialize_i16(self, value: i16) -> Result<(), FingerprintError> {
+        self.scalar(4, &value.to_le_bytes())
+    }
+
+    fn serialize_i32(self, value: i32) -> Result<(), FingerprintError> {
+        self.scalar(5, &value.to_le_bytes())
+    }
+
+    fn serialize_i64(self, value: i64) -> Result<(), FingerprintError> {
+        self.scalar(6, &value.to_le_bytes())
+    }
+
+    fn serialize_i128(self, value: i128) -> Result<(), FingerprintError> {
+        self.scalar(7, &value.to_le_bytes())
+    }
+
+    fn serialize_u8(self, value: u8) -> Result<(), FingerprintError> {
+        self.scalar(8, &value.to_le_bytes())
+    }
+
+    fn serialize_u16(self, value: u16) -> Result<(), FingerprintError> {
+        self.scalar(9, &value.to_le_bytes())
+    }
+
+    fn serialize_u32(self, value: u32) -> Result<(), FingerprintError> {
+        self.scalar(10, &value.to_le_bytes())
+    }
+
+    fn serialize_u64(self, value: u64) -> Result<(), FingerprintError> {
+        self.scalar(11, &value.to_le_bytes())
+    }
+
+    fn serialize_u128(self, value: u128) -> Result<(), FingerprintError> {
+        self.scalar(12, &value.to_le_bytes())
+    }
+
+    fn serialize_f32(self, value: f32) -> Result<(), FingerprintError> {
+        self.scalar(13, &value.to_bits().to_le_bytes())
+    }
+
+    fn serialize_f64(self, value: f64) -> Result<(), FingerprintError> {
+        self.scalar(14, &value.to_bits().to_le_bytes())
+    }
+
+    fn serialize_char(self, value: char) -> Result<(), FingerprintError> {
+        self.scalar(15, &(value as u32).to_le_bytes())
+    }
+
+    fn serialize_str(self, value: &str) -> Result<(), FingerprintError> {
+        self.sink.frame(16, value.as_bytes());
+        Ok(())
+    }
+
+    fn serialize_bytes(self, value: &[u8]) -> Result<(), FingerprintError> {
+        self.sink.frame(17, value);
+        Ok(())
+    }
+
+    fn serialize_none(self) -> Result<(), FingerprintError> {
+        self.sink.tag(18);
+        Ok(())
+    }
+
+    fn serialize_some<T: serde::Serialize + ?Sized>(
+        self,
+        value: &T,
+    ) -> Result<(), FingerprintError> {
+        self.sink.tag(19);
+        value.serialize(self)
+    }
+
+    fn serialize_unit(self) -> Result<(), FingerprintError> {
+        self.sink.tag(20);
+        Ok(())
+    }
+
+    fn serialize_unit_struct(self, name: &'static str) -> Result<(), FingerprintError> {
+        self.sink.frame(21, name.as_bytes());
+        Ok(())
+    }
+
+    fn serialize_unit_variant(
+        self,
+        name: &'static str,
+        variant_index: u32,
+        _variant: &'static str,
+    ) -> Result<(), FingerprintError> {
+        self.sink.frame(22, name.as_bytes());
+        self.sink.write(&variant_index.to_le_bytes());
+        Ok(())
+    }
+
+    fn serialize_newtype_struct<T: serde::Serialize + ?Sized>(
+        self,
+        name: &'static str,
+        value: &T,
+    ) -> Result<(), FingerprintError> {
+        self.sink.frame(23, name.as_bytes());
+        value.serialize(self)
+    }
+
+    fn serialize_newtype_variant<T: serde::Serialize + ?Sized>(
+        self,
+        name: &'static str,
+        variant_index: u32,
+        _variant: &'static str,
+        value: &T,
+    ) -> Result<(), FingerprintError> {
+        self.sink.frame(24, name.as_bytes());
+        self.sink.write(&variant_index.to_le_bytes());
+        value.serialize(self)
+    }
+
+    fn serialize_seq(self, _len: Option<usize>) -> Result<FingerprintCompound<'a>, FingerprintError> {
+        self.sink.tag(25);
+        Ok(FingerprintCompound { sink: self.sink })
+    }
+
+    fn serialize_tuple(self, _len: usize) -> Result<FingerprintCompound<'a>, FingerprintError> {
+        self.sink.tag(26);
+        Ok(FingerprintCompound { sink: self.sink })
+    }
+
+    fn serialize_tuple_struct(
+        self,
+        name: &'static str,
+        _len: usize,
+    ) -> Result<FingerprintCompound<'a>, FingerprintError> {
+        self.sink.frame(27, name.as_bytes());
+        Ok(FingerprintCompound { sink: self.sink })
+    }
+
+    fn serialize_tuple_variant(
+        self,
+        name: &'static str,
+        variant_index: u32,
+        _variant: &'static str,
+        _len: usize,
+    ) -> Result<FingerprintCompound<'a>, FingerprintError> {
+        self.sink.frame(28, name.as_bytes());
+        self.sink.write(&variant_index.to_le_bytes());
+        Ok(FingerprintCompound { sink: self.sink })
+    }
+
+    fn serialize_map(self, _len: Option<usize>) -> Result<FingerprintCompound<'a>, FingerprintError> {
+        self.sink.tag(29);
+        Ok(FingerprintCompound { sink: self.sink })
+    }
+
+    fn serialize_struct(
+        self,
+        name: &'static str,
+        _len: usize,
+    ) -> Result<FingerprintCompound<'a>, FingerprintError> {
+        self.sink.frame(30, name.as_bytes());
+        Ok(FingerprintCompound { sink: self.sink })
+    }
+
+    fn serialize_struct_variant(
+        self,
+        name: &'static str,
+        variant_index: u32,
+        _variant: &'static str,
+        _len: usize,
+    ) -> Result<FingerprintCompound<'a>, FingerprintError> {
+        self.sink.frame(31, name.as_bytes());
+        self.sink.write(&variant_index.to_le_bytes());
+        Ok(FingerprintCompound { sink: self.sink })
+    }
+
+    fn collect_str<T: std::fmt::Display + ?Sized>(self, value: &T) -> Result<(), FingerprintError> {
+        // chrono and friends serialize through Display. Format into a stack
+        // buffer when it fits (timestamps always do), falling back to a heap
+        // string only for oversized values.
+        struct StackWriter {
+            buffer: [u8; 64],
+            len: usize,
+            overflow: Option<String>,
+        }
+        impl std::fmt::Write for StackWriter {
+            fn write_str(&mut self, text: &str) -> std::fmt::Result {
+                if let Some(overflow) = &mut self.overflow {
+                    overflow.push_str(text);
+                } else if self.len + text.len() <= self.buffer.len() {
+                    self.buffer[self.len..self.len + text.len()]
+                        .copy_from_slice(text.as_bytes());
+                    self.len += text.len();
+                } else {
+                    let mut overflow =
+                        String::from(std::str::from_utf8(&self.buffer[..self.len]).unwrap());
+                    overflow.push_str(text);
+                    self.overflow = Some(overflow);
+                }
+                Ok(())
+            }
+        }
+        let mut writer = StackWriter {
+            buffer: [0_u8; 64],
+            len: 0,
+            overflow: None,
+        };
+        use std::fmt::Write as _;
+        write!(writer, "{value}")
+            .map_err(|error| FingerprintError(format!("collect_str fingerprint: {error}")))?;
+        let bytes = writer
+            .overflow
+            .as_ref()
+            .map_or(&writer.buffer[..writer.len], String::as_bytes);
+        self.sink.frame(16, bytes);
+        Ok(())
+    }
+
+    fn is_human_readable(&self) -> bool {
+        // Match serde_json so types with dual representations (e.g. chrono)
+        // keep hashing their human-readable form across the v6→v7 migration.
+        true
+    }
+}
+
+/// 128-bit fingerprint of a checkpoint value payload (serde events streamed
+/// straight into xxh3-128). Used only for in-protocol component digests;
+/// every durable boundary keeps its cryptographic digest.
+pub(crate) fn value_fingerprint<T: serde::Serialize + ?Sized>(
+    value: &T,
+) -> Result<[u8; 16], String> {
+    let mut sink = FingerprintSink::new();
+    value
+        .serialize(FingerprintSerializer { sink: &mut sink })
+        .map_err(|error| format!("fingerprint checkpoint value: {error}"))?;
+    Ok(sink.finish().to_le_bytes())
+}
+
 struct DiscardCheckpointSink;
 
 impl CheckpointSink for DiscardCheckpointSink {
@@ -2163,7 +2582,7 @@ fn checkpoint_digest_optional_f64(sink: &mut impl CheckpointSink, value: Option<
     }
 }
 
-const LOGICAL_STAGE_CHECKPOINT_PROTOCOL: &str = "chronicle-logical-stage-checkpoint/v6";
+const LOGICAL_STAGE_CHECKPOINT_PROTOCOL: &str = "chronicle-logical-stage-checkpoint/v7";
 const LOGICAL_STAGE_ROW_SCHEMA: &str = concat!(
     "association:source_data_rows,index;",
     "membership:source_data_rows;",
@@ -3168,9 +3587,9 @@ impl StepCheckpointRecorder<'_> {
     }
 
     fn value<T: serde::Serialize>(&mut self, step_id: &str, value: &T) -> Result<(), String> {
-        let bytes = serde_json::to_vec(value)
+        let fingerprint = value_fingerprint(value)
             .map_err(|error| format!("serialize {step_id} checkpoint: {error}"))?;
-        self.record(logical_stage_checkpoint(step_id, &[], &[("value", &bytes)]));
+        self.record(logical_stage_checkpoint(step_id, &[], &[("value", &fingerprint)]));
         Ok(())
     }
 
@@ -3180,10 +3599,10 @@ impl StepCheckpointRecorder<'_> {
         rows: &[Row],
         value: &T,
     ) -> Result<(), String> {
-        let bytes = serde_json::to_vec(value)
+        let fingerprint = value_fingerprint(value)
             .map_err(|error| format!("serialize {step_id} checkpoint: {error}"))?;
         let parts = row_checkpoint_parts_for_rows(rows);
-        let payloads = [("value", bytes.as_slice())];
+        let payloads = [("value", fingerprint.as_slice())];
         let checkpoint = if let (Some(previous_parts), Some(previous_checkpoint)) = (
             self.last_row_parts.as_deref(),
             self.last_row_checkpoint.as_ref(),
@@ -6996,7 +7415,7 @@ pub fn run_pipeline_v2_with_supports(
                 &serde_json::json!({"applied": false}),
             )?;
         }
-        let shared_participants_checkpoint = serde_json::to_vec(&shared_participants)
+        let shared_participants_checkpoint = value_fingerprint(&shared_participants)
             .map_err(|error| format!("serialize shared-participant checkpoint: {error}"))?;
         record_logical_stage_checkpoint(
             &mut logical_stage_digests,
@@ -7114,7 +7533,7 @@ pub fn run_pipeline_v2_with_supports(
         row_lineage.append(&mut credited_app_row_lineage);
     }
 
-    let row_lineage_bytes = serde_json::to_vec(&row_lineage)
+    let row_lineage_fingerprint = value_fingerprint(&row_lineage)
         .map_err(|error| format!("serialize row lineage checkpoint: {error}"))?;
     let aggregate_checkpoint_bytes = serde_json::to_vec(
         &aggregate_csv_outputs
@@ -7144,7 +7563,7 @@ pub fn run_pipeline_v2_with_supports(
             ("review_summary_json", &review_summary_json_bytes),
             ("visualization_data_json", &visualization_data_json_bytes),
             ("aggregates", &aggregate_checkpoint_bytes),
-            ("row_lineage", &row_lineage_bytes),
+            ("row_lineage", &row_lineage_fingerprint),
         ],
     ));
     record_logical_stage_checkpoint(
@@ -7162,7 +7581,7 @@ pub fn run_pipeline_v2_with_supports(
                 ("review_summary_json", &review_summary_json_bytes),
                 ("visualization_data_json", &visualization_data_json_bytes),
                 ("aggregates", &aggregate_checkpoint_bytes),
-                ("row_lineage", &row_lineage_bytes),
+                ("row_lineage", &row_lineage_fingerprint),
             ],
         ),
     );
@@ -7915,7 +8334,7 @@ mod tests {
         for (node_id, checkpoint) in &first.logical_stage_checkpoints {
             assert_eq!(
                 checkpoint.protocol_version,
-                "chronicle-logical-stage-checkpoint/v6"
+                "chronicle-logical-stage-checkpoint/v7"
             );
             assert_eq!(&checkpoint.node_id, node_id);
             assert_eq!(
