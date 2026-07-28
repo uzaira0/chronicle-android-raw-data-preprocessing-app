@@ -7,7 +7,6 @@ import type {
   BrowserProcessingRuntime,
   BrowserSupportFile,
   BrowserSupportFiles,
-  ReviewSummary,
   TimezoneAction,
 } from "@/lib/types";
 import type { RawFileInspection } from "@/lib/fileInspection";
@@ -19,17 +18,21 @@ import { fetchBundledAssetBytes } from "@/lib/bundledAssetLoader";
 import { canonicalJson } from "@/lib/canonicalJson";
 import {
   collectRuntimeHistoryDigests,
+  commitPersistedRuntimeWorkspace,
   exportRuntimeClosure,
   garbageCollectRuntimeObjects,
   importRuntimeClosure,
   openOpfsWorkspace,
+  persistRuntimeObjects,
   persistRuntimeWorkspace,
   readRuntimeObject,
+  readRuntimeObjectPrefix,
   recoverRuntimeWorkspace,
   recoverRuntimeWorkspaceHead,
   recoverRuntimeWorkspaceRoots,
   runtimeClosureWorkspaceId,
   type PersistedRuntimeArtifact,
+  type PersistedRuntimeArtifactMetadata,
   type RuntimeClosureInspection,
   type WorkspaceRootSlot,
 } from "@/lib/opfsArtifactStore";
@@ -48,16 +51,21 @@ type RuntimeSupportFilesHandle = {
   free(): void;
 };
 
+type PreparedReviewWorkspaceHandle = {
+  required_base_kind(): string;
+  execute_selected_base(selectedBaseBytes: Uint8Array): KernelHandle;
+  free(): void;
+};
+
 type KernelModule = {
-  default(input?: {
-    module_or_path: WebAssembly.Module;
-  }): Promise<unknown>;
+  default(input?: { module_or_path: WebAssembly.Module }): Promise<unknown>;
   runtime_version(): string;
   implementation_build_digest(): string;
   build_environment_digest(): string;
   runtime_identity_json(): string;
   pipeline_step_contract_json(): string;
   plan_stage_view_json(optionsJson: string): string;
+  review_base_probe_spec_json(): string;
   RuntimeSupportFiles: new () => RuntimeSupportFilesHandle;
   discover_timezones_v2(csvBytes: Uint8Array): string[];
   inspect_raw_file_v1(
@@ -83,6 +91,20 @@ type KernelModule = {
     reconstructionBaseBytes: Uint8Array,
     supportFiles: RuntimeSupportFilesHandle,
   ): KernelHandle;
+  prepare_workspace_review(
+    requestJson: string,
+    csvBytes: Uint8Array,
+    reviewBaseProbe: Uint8Array,
+    reconstructionBaseProbe: Uint8Array,
+    supportFiles: RuntimeSupportFilesHandle,
+  ): PreparedReviewWorkspaceHandle;
+  prepare_persisted_workspace_review(
+    requestJson: string,
+    inputSizeBytes: number,
+    reviewBaseProbe: Uint8Array,
+    reconstructionBaseProbe: Uint8Array,
+    supportFiles: RuntimeSupportFilesHandle,
+  ): PreparedReviewWorkspaceHandle;
   verify_evidence_journal_cbor(bytes: Uint8Array): number;
 };
 
@@ -394,7 +416,7 @@ function checkpointDomainAt(
           ),
         };
         if (
-          decoded.protocolVersion !== "chronicle-logical-stage-checkpoint/v3"
+          decoded.protocolVersion !== "chronicle-logical-stage-checkpoint/v5"
         ) {
           contractError(
             `${checkpointPath}.protocolVersion`,
@@ -970,6 +992,12 @@ export type RustRuntimeExecution = {
   workspaceId: string;
   manifestJson: string;
   manifest: RuntimeManifest;
+  /**
+   * Complete for an ephemeral execution. After a durable OPFS commit this map
+   * contains only the small views the immediate caller requested; the manifest
+   * remains the complete artifact catalog and all other bytes are read through
+   * their exact persisted root.
+   */
   artifacts: Map<string, Uint8Array>;
   persistedWorkspace?: WorkspaceRootSlot;
 };
@@ -999,21 +1027,29 @@ export type RustReviewExecution = {
   duplicateTimestampsCorrected: number;
   exactDuplicateRowsRemoved: number;
   cacheSources: Array<
-    | "salsa-memory"
-    | "verified-review-base"
-    | "verified-reconstruction-base"
+    "salsa-memory" | "verified-review-base" | "verified-reconstruction-base"
   >;
+  /** Bytes loaded from the receipt-pinned OPFS head and supplied to Rust. */
+  suppliedReviewBaseBytes: number;
+  suppliedReconstructionBaseBytes: number;
   recomputedStepIds: string[];
   cachedStepIds: string[];
   bypassedStepIds: string[];
   skippedStepIds: string[];
   errorStepIds: string[];
-  reviewSummary: ReviewSummary;
+  reviewSummaryJsonBytes: Uint8Array;
 };
 
-function decodeReviewRuntimeManifest(
+/** Decode and validate the compact manifest returned by the Rust review query. */
+export function decodeReviewRuntimeManifest(
   value: unknown,
-): Omit<RustReviewExecution, "manifestJson" | "reviewSummary"> {
+): Omit<
+  RustReviewExecution,
+  | "manifestJson"
+  | "reviewSummaryJsonBytes"
+  | "suppliedReviewBaseBytes"
+  | "suppliedReconstructionBaseBytes"
+> {
   const manifest = objectAt(value, "reviewManifest");
   if (manifest.protocolVersion !== "chronicle-preprocessing-runtime/v1") {
     contractError(
@@ -1171,6 +1207,83 @@ function decodeReviewRuntimeManifest(
 
 let initPromise: Promise<KernelModule> | null = null;
 
+type CachedRuntimeSupportFiles = {
+  handle: RuntimeSupportFilesHandle;
+  activeUsers: number;
+  invalid: boolean;
+};
+
+const runtimeSupportFilesCache = new Map<string, CachedRuntimeSupportFiles>();
+const MAX_RUNTIME_SUPPORT_BUNDLES = 2;
+
+function runtimeSupportFilesCacheKey(
+  verifiedBundleKey: string,
+  options: BrowserProcessingOptions,
+): string {
+  if (!/^sha256:[0-9a-f]{64}$/.test(verifiedBundleKey)) {
+    throw new Error("verified support cache key is invalid");
+  }
+  const enabledRoles = [
+    options.useFilterFile,
+    options.useAppsForcingScreenOpenFile,
+    options.useBackgroundAppsFile,
+    options.useAppCodebook,
+    options.enableStudyWindowFilter || options.enableDayCoverage,
+    options.enablePersonAttribution,
+  ]
+    .map((enabled) => (enabled ? "1" : "0"))
+    .join("");
+  return `${verifiedBundleKey}:${enabledRoles}`;
+}
+
+function pruneRuntimeSupportFilesCache(): void {
+  while (runtimeSupportFilesCache.size > MAX_RUNTIME_SUPPORT_BUNDLES) {
+    const candidate = [...runtimeSupportFilesCache.entries()].find(
+      ([, entry]) => entry.activeUsers === 0,
+    );
+    if (!candidate) return;
+    const [key, entry] = candidate;
+    runtimeSupportFilesCache.delete(key);
+    try {
+      entry.handle.free();
+    } catch {
+      // The entry is already unreachable; cleanup cannot affect correctness.
+    }
+  }
+}
+
+function releaseRuntimeSupportFilesCacheEntry(
+  key: string,
+  entry: CachedRuntimeSupportFiles,
+): void {
+  entry.activeUsers = Math.max(0, entry.activeUsers - 1);
+  if (entry.invalid && entry.activeUsers === 0) {
+    if (runtimeSupportFilesCache.get(key) === entry) {
+      runtimeSupportFilesCache.delete(key);
+    }
+    try {
+      entry.handle.free();
+    } catch {
+      // Preserve the primary execution error.
+    }
+  }
+  pruneRuntimeSupportFilesCache();
+}
+
+function clearRuntimeSupportFilesCache(): void {
+  for (const entry of runtimeSupportFilesCache.values()) {
+    entry.invalid = true;
+    if (entry.activeUsers === 0) {
+      try {
+        entry.handle.free();
+      } catch {
+        // Runtime replacement remains fail-safe.
+      }
+    }
+  }
+  runtimeSupportFilesCache.clear();
+}
+
 // The Rust worker retains exactly one live Salsa database. Keep the matching
 // root token here when OPFS persistence is disabled so repeated calls still
 // continue that database instead of accidentally forcing a cold reset.
@@ -1183,6 +1296,31 @@ let ephemeralContinuation:
 const MAX_REVIEW_BASE_ENCODED_BYTES = 64 * 1024 * 1024;
 const MAX_RECONSTRUCTION_BASE_ENCODED_BYTES = 96 * 1024 * 1024;
 const MAX_COMBINED_PERSISTED_BASE_ENCODED_BYTES = 128 * 1024 * 1024;
+// Large checkpoints are decoded and retained by the current Rust workspace.
+// Keeping the same encoded bytes alive in JavaScript doubles worker memory
+// without helping the warm path; retain only small checkpoints that are cheap
+// enough to benefit a later OPFS miss after the Rust workspace is evicted.
+const MAX_SELECTED_PERSISTED_BASE_CACHE_BYTES = 8 * 1024 * 1024;
+const MAX_PROCESSING_OPTIONS_BYTES = 1024 * 1024;
+
+function persistedBaseProbeSizes(kernel: KernelModule): {
+  review: number;
+  reconstruction: number;
+} {
+  const spec = objectAt(
+    JSON.parse(kernel.review_base_probe_spec_json()),
+    "reviewBaseProbeSpec",
+  );
+  const reviewProbeBytes = integerAt(
+    spec.reviewBaseBytes,
+    "reviewBaseProbeSpec.reviewBaseBytes",
+  );
+  const reconstructionProbeBytes = integerAt(
+    spec.reconstructionBaseBytes,
+    "reviewBaseProbeSpec.reconstructionBaseBytes",
+  );
+  return { review: reviewProbeBytes, reconstruction: reconstructionProbeBytes };
+}
 
 export type RustPersistenceAdapter = {
   openRoot(workspaceId: string): Promise<FileSystemDirectoryHandle>;
@@ -1209,6 +1347,8 @@ export type RustPersistenceAdapter = {
   ): Promise<WorkspaceRootSlot>;
 };
 
+type PersistedArtifactDescriptor = { digest: string; size: number };
+
 async function readArtifactsFromWorkspaceSlot(
   root: FileSystemDirectoryHandle,
   slot: WorkspaceRootSlot,
@@ -1219,6 +1359,8 @@ async function readArtifactsFromWorkspaceSlot(
     workspaceId?: string;
     inputDigest?: string;
   },
+  prefixBytesByKind?: Readonly<Record<string, number>>,
+  descriptorSink?: Map<string, PersistedArtifactDescriptor>,
 ): Promise<Map<string, Uint8Array>> {
   const rootBytes = await readRuntimeObject(root, slot.workspaceRootDigest);
   const rootCommit = JSON.parse(new TextDecoder().decode(rootBytes)) as {
@@ -1268,7 +1410,9 @@ async function readArtifactsFromWorkspaceSlot(
         ? MAX_REVIEW_BASE_ENCODED_BYTES
         : kind === "reconstruction-base"
           ? MAX_RECONSTRUCTION_BASE_ENCODED_BYTES
-          : undefined;
+          : kind === "processing-options-json"
+            ? MAX_PROCESSING_OPTIONS_BYTES
+            : undefined;
     return artifact ? [{ kind, artifact, limit }] : [];
   });
   let combinedBaseBytes = 0;
@@ -1279,14 +1423,32 @@ async function readArtifactsFromWorkspaceSlot(
     if (limit !== undefined && artifact.size > limit) {
       throw new Error(`persisted Rust artifact exceeds size limit: ${kind}`);
     }
-    if (limit !== undefined) combinedBaseBytes += artifact.size;
+    if (kind === "review-base" || kind === "reconstruction-base") {
+      combinedBaseBytes += artifact.size;
+    }
   }
   if (combinedBaseBytes > MAX_COMBINED_PERSISTED_BASE_ENCODED_BYTES) {
     throw new Error("combined persisted Rust bases exceed size limit");
   }
+  for (const { kind, artifact } of selected) {
+    descriptorSink?.set(kind, {
+      digest: artifact.digest,
+      size: artifact.size,
+    });
+  }
   const entries = await Promise.all(
     selected.map(async ({ kind, artifact, limit }) => {
-      const bytes = await readRuntimeObject(root, artifact.digest, limit);
+      const prefixBytes = prefixBytesByKind?.[kind];
+      const bytes =
+        prefixBytes === undefined
+          ? await readRuntimeObject(root, artifact.digest, limit)
+          : await readRuntimeObjectPrefix(
+              root,
+              artifact.digest,
+              artifact.size,
+              prefixBytes,
+              limit,
+            );
       return { kind, artifact, bytes };
     }),
   );
@@ -1294,7 +1456,11 @@ async function readArtifactsFromWorkspaceSlot(
   for (const { kind, artifact, bytes } of entries) {
     // readRuntimeObject already verifies the content digest. Keep the closure's
     // declared-size check here without hashing every multi-megabyte base twice.
-    if (bytes.byteLength !== artifact.size) {
+    const expectedBytes =
+      prefixBytesByKind?.[kind] === undefined
+        ? artifact.size
+        : Math.min(prefixBytesByKind[kind]!, artifact.size);
+    if (bytes.byteLength !== expectedBytes) {
       throw new Error(`persisted Rust artifact integrity mismatch: ${kind}`);
     }
     requested.set(kind, bytes);
@@ -1314,18 +1480,186 @@ export async function readPersistedRustReviewBases(
 ): Promise<{
   reviewBaseBytes: Uint8Array;
   reconstructionBaseBytes: Uint8Array;
+  datetimeOfPreprocessing?: string;
 }> {
   const artifacts = await readArtifactsFromWorkspaceSlot(
     root,
     slot,
-    ["review-base", "reconstruction-base"],
+    ["review-base", "reconstruction-base", "processing-options-json"],
     expected,
   );
+  const reviewBaseBytes = artifacts.get("review-base") ?? new Uint8Array();
+  const reconstructionBaseBytes =
+    artifacts.get("reconstruction-base") ?? new Uint8Array();
+  const optionsBytes = artifacts.get("processing-options-json");
+  let datetimeOfPreprocessing: string | undefined;
+  if (optionsBytes) {
+    const options = objectAt(
+      JSON.parse(new TextDecoder().decode(optionsBytes)),
+      "persistedProcessingOptions",
+    );
+    datetimeOfPreprocessing = stringAt(
+      options.datetime_of_preprocessing,
+      "persistedProcessingOptions.datetime_of_preprocessing",
+    );
+    if (!datetimeOfPreprocessing.trim()) {
+      contractError(
+        "persistedProcessingOptions.datetime_of_preprocessing",
+        "expected a non-empty timestamp",
+      );
+    }
+  } else if (
+    reviewBaseBytes.byteLength > 0 ||
+    reconstructionBaseBytes.byteLength > 0
+  ) {
+    throw new Error(
+      "persisted Rust review bases are missing their processing options",
+    );
+  }
   return {
-    reviewBaseBytes: artifacts.get("review-base") ?? new Uint8Array(),
-    reconstructionBaseBytes:
-      artifacts.get("reconstruction-base") ?? new Uint8Array(),
+    reviewBaseBytes,
+    reconstructionBaseBytes,
+    datetimeOfPreprocessing,
   };
+}
+
+type PersistedReviewExpectedIdentity = {
+  implementationDigest: string;
+  buildEnvironmentDigest: string;
+  workspaceId: string;
+  inputDigest: string;
+};
+
+type PersistedRustReviewProbes = {
+  reviewProbe: Uint8Array;
+  reconstructionProbe: Uint8Array;
+  datetimeOfPreprocessing?: string;
+  descriptors: Map<string, PersistedArtifactDescriptor>;
+};
+
+type PersistedReviewBaseKind = "review-base" | "reconstruction-base";
+
+function persistedReviewCacheKey(
+  slot: WorkspaceRootSlot,
+  expected: PersistedReviewExpectedIdentity,
+): string {
+  return [
+    slot.workspaceRootDigest,
+    expected.implementationDigest,
+    expected.buildEnvironmentDigest,
+    expected.workspaceId,
+    expected.inputDigest,
+  ].join("\u0000");
+}
+
+async function readPersistedRustReviewProbes(
+  kernel: KernelModule,
+  root: FileSystemDirectoryHandle,
+  slot: WorkspaceRootSlot,
+  expected: PersistedReviewExpectedIdentity,
+): Promise<PersistedRustReviewProbes> {
+  const sizes = persistedBaseProbeSizes(kernel);
+  const descriptors = new Map<string, PersistedArtifactDescriptor>();
+  const artifacts = await readArtifactsFromWorkspaceSlot(
+    root,
+    slot,
+    ["review-base", "reconstruction-base", "processing-options-json"],
+    expected,
+    {
+      "review-base": sizes.review,
+      "reconstruction-base": sizes.reconstruction,
+    },
+    descriptors,
+  );
+  const reviewProbe = artifacts.get("review-base") ?? new Uint8Array();
+  const reconstructionProbe =
+    artifacts.get("reconstruction-base") ?? new Uint8Array();
+  if (
+    (reviewProbe.byteLength > 0 && reviewProbe.byteLength !== sizes.review) ||
+    (reconstructionProbe.byteLength > 0 &&
+      reconstructionProbe.byteLength !== sizes.reconstruction)
+  ) {
+    throw new Error("persisted Rust review base is shorter than its probe");
+  }
+  const optionsBytes = artifacts.get("processing-options-json");
+  let datetimeOfPreprocessing: string | undefined;
+  if (optionsBytes) {
+    const options = objectAt(
+      JSON.parse(new TextDecoder().decode(optionsBytes)),
+      "persistedProcessingOptions",
+    );
+    datetimeOfPreprocessing = stringAt(
+      options.datetime_of_preprocessing,
+      "persistedProcessingOptions.datetime_of_preprocessing",
+    );
+    if (!datetimeOfPreprocessing.trim()) {
+      contractError(
+        "persistedProcessingOptions.datetime_of_preprocessing",
+        "expected a non-empty timestamp",
+      );
+    }
+  } else if (reviewProbe.byteLength || reconstructionProbe.byteLength) {
+    throw new Error(
+      "persisted Rust review bases are missing their processing options",
+    );
+  }
+  return {
+    reviewProbe,
+    reconstructionProbe,
+    datetimeOfPreprocessing,
+    descriptors,
+  };
+}
+
+let persistedRustReviewProbesCache:
+  { key: string; value: PersistedRustReviewProbes } | undefined;
+let persistedRustSelectedReviewBaseCache:
+  { key: string; value: Uint8Array } | undefined;
+
+async function readCachedPersistedRustReviewProbes(
+  kernel: KernelModule,
+  root: FileSystemDirectoryHandle,
+  slot: WorkspaceRootSlot,
+  expected: PersistedReviewExpectedIdentity,
+): Promise<PersistedRustReviewProbes> {
+  const key = persistedReviewCacheKey(slot, expected);
+  if (persistedRustReviewProbesCache?.key === key) {
+    return persistedRustReviewProbesCache.value;
+  }
+  const value = await readPersistedRustReviewProbes(
+    kernel,
+    root,
+    slot,
+    expected,
+  );
+  persistedRustReviewProbesCache = { key, value };
+  return value;
+}
+
+async function readCachedSelectedPersistedRustReviewBase(
+  root: FileSystemDirectoryHandle,
+  slot: WorkspaceRootSlot,
+  expected: PersistedReviewExpectedIdentity,
+  kind: PersistedReviewBaseKind,
+  descriptor: PersistedArtifactDescriptor,
+): Promise<Uint8Array> {
+  const key = `${persistedReviewCacheKey(slot, expected)}\u0000${kind}`;
+  if (persistedRustSelectedReviewBaseCache?.key === key) {
+    return persistedRustSelectedReviewBaseCache.value;
+  }
+  const limit =
+    kind === "review-base"
+      ? MAX_REVIEW_BASE_ENCODED_BYTES
+      : MAX_RECONSTRUCTION_BASE_ENCODED_BYTES;
+  const value = await readRuntimeObject(root, descriptor.digest, limit);
+  if (value.byteLength !== descriptor.size) {
+    throw new Error(`persisted Rust artifact integrity mismatch: ${kind}`);
+  }
+  persistedRustSelectedReviewBaseCache =
+    value.byteLength <= MAX_SELECTED_PERSISTED_BASE_CACHE_BYTES
+      ? { key, value }
+      : undefined;
+  return value;
 }
 
 const defaultPersistenceAdapter: RustPersistenceAdapter = {
@@ -1361,6 +1695,10 @@ async function verifyRootClosure(
   expectedWorkspaceRootDigest: string,
   verifyHistory = true,
 ): Promise<void> {
+  // Large outputs are read once for digest/size verification and immediately
+  // released. Retaining every 10–40 MB artifact until the entire closure has
+  // been walked multiplied peak memory without strengthening the check.
+  const maxCachedObjectBytes = 1024 * 1024;
   const currentIdentity = objectAt(
     JSON.parse(kernel.runtime_identity_json()),
     "runtimeIdentity",
@@ -1429,7 +1767,9 @@ async function verifyRootClosure(
     const cached = bytesByDigest.get(digest);
     if (cached) return cached;
     const bytes = await object(digest);
-    bytesByDigest.set(digest, bytes);
+    if (bytes.byteLength <= maxCachedObjectBytes) {
+      bytesByDigest.set(digest, bytes);
+    }
     return bytes;
   };
   type Root = {
@@ -1564,10 +1904,6 @@ async function verifyRootClosure(
       }
       bindings.set(binding.viewId, binding);
     }
-    if ([...requiredViews.keys()].some((viewId) => !bindings.has(viewId))) {
-      throw new Error("recovered workspace is missing a required typed view");
-    }
-
     const state = JSON.parse(
       new TextDecoder().decode(await readObject(commit.executionStateDigest)),
     ) as Record<string, unknown>;
@@ -1724,6 +2060,7 @@ let persistenceAdapter = defaultPersistenceAdapter;
 
 /** Test-only dependency seam for initializing the generated module from local bytes. */
 export function setRustRuntimeForTesting(module: KernelModule): void {
+  clearRuntimeSupportFilesCache();
   initPromise = Promise.resolve(module);
 }
 
@@ -1842,34 +2179,68 @@ export async function garbageCollectPersistedRustWorkspace(
 export async function readPersistedRustArtifact(
   workspaceId: string,
   kind: string,
+  expectedWorkspaceRootDigest?: string,
 ): Promise<Uint8Array> {
-  const [kernel, root] = await Promise.all([
-    loadKernel(),
-    openOpfsWorkspace(workspaceId),
-  ]);
-  const slot = await recoverRuntimeWorkspace(root);
-  if (!slot) throw new Error("no persisted Rust workspace exists");
-  await defaultPersistenceAdapter.verify?.(root, slot, kernel, workspaceId);
-  const rootCommit = JSON.parse(
-    new TextDecoder().decode(
-      await readRuntimeObject(root, slot.workspaceRootDigest),
-    ),
-  ) as { artifactClosureDigest: string };
-  const closureBytes = await readRuntimeObject(
-    root,
-    rootCommit.artifactClosureDigest,
+  return withWorkspaceLock(
+    workspaceId,
+    async () => {
+      const root = await openOpfsWorkspace(workspaceId);
+      const slot = expectedWorkspaceRootDigest
+        ? undefined
+        : await recoverRuntimeWorkspace(root);
+      if (!expectedWorkspaceRootDigest && !slot) {
+        throw new Error("no persisted Rust workspace exists");
+      }
+      // Old callers without a receipt pin retain the full identity/history
+      // verification. Current output locators pass the exact root digest, so a
+      // content-addressed read needs only the root, closure, and requested
+      // object (the same Merkle-path pattern used by the persisted bases).
+      if (expectedWorkspaceRootDigest === undefined) {
+        const kernel = await loadKernel();
+        await defaultPersistenceAdapter.verify?.(
+          root,
+          slot!,
+          kernel,
+          workspaceId,
+        );
+      }
+      const selectedRootDigest =
+        expectedWorkspaceRootDigest ?? slot!.workspaceRootDigest;
+      const rootCommit = JSON.parse(
+        new TextDecoder().decode(
+          await readRuntimeObject(root, selectedRootDigest),
+        ),
+      ) as { artifactClosureDigest: string; workspaceId: string };
+      if (rootCommit.workspaceId !== workspaceId) {
+        throw new Error("persisted Rust workspace identity mismatch");
+      }
+      const closureBytes = await readRuntimeObject(
+        root,
+        rootCommit.artifactClosureDigest,
+      );
+      // The closure cannot list itself without making its own digest recursive.
+      // Its exact bytes are nevertheless addressed by the verified root commit.
+      if (kind === "artifact-closure-json") return closureBytes;
+      const closure = JSON.parse(new TextDecoder().decode(closureBytes)) as {
+        workspaceId: string;
+        artifacts: Array<{ kind: string; digest: string; size: number }>;
+      };
+      if (closure.workspaceId !== workspaceId) {
+        throw new Error("persisted Rust artifact closure identity mismatch");
+      }
+      const artifact = closure.artifacts.find(
+        (candidate) => candidate.kind === kind,
+      );
+      if (!artifact)
+        throw new Error(`persisted Rust artifact is missing: ${kind}`);
+      const bytes = await readRuntimeObject(root, artifact.digest);
+      if (bytes.byteLength !== artifact.size) {
+        throw new Error(`persisted Rust artifact integrity mismatch: ${kind}`);
+      }
+      return bytes;
+    },
+    "shared",
   );
-  // The closure cannot list itself without making its own digest recursive.
-  // Its exact bytes are nevertheless addressed by the verified root commit.
-  if (kind === "artifact-closure-json") return closureBytes;
-  const closure = JSON.parse(new TextDecoder().decode(closureBytes)) as {
-    artifacts: Array<{ kind: string; digest: string }>;
-  };
-  const artifact = closure.artifacts.find(
-    (candidate) => candidate.kind === kind,
-  );
-  if (!artifact) throw new Error(`persisted Rust artifact is missing: ${kind}`);
-  return readRuntimeObject(root, artifact.digest);
 }
 
 export async function readVerifiedSemanticIndexSnapshot(
@@ -1912,7 +2283,9 @@ export async function readPersistedRustWorkspaceHead(
     workspaceId,
     async () => {
       const root = await openOpfsWorkspace(workspaceId);
-      return (await recoverRuntimeWorkspace(root))?.workspaceRootDigest ?? null;
+      return (
+        (await recoverRuntimeWorkspaceHead(root))?.workspaceRootDigest ?? null
+      );
     },
     "shared",
   );
@@ -1924,6 +2297,8 @@ export function setRustPersistenceForTesting(
 ): void {
   persistenceAdapter = adapter ?? defaultPersistenceAdapter;
   ephemeralContinuation = undefined;
+  persistedRustReviewProbesCache = undefined;
+  persistedRustSelectedReviewBaseCache = undefined;
 }
 
 async function loadKernel(): Promise<KernelModule> {
@@ -1938,6 +2313,25 @@ async function loadKernel(): Promise<KernelModule> {
     /* v8 ignore stop */
   }
   return initPromise;
+}
+
+/** The instantiated kernel's linear memory; null until wasm-bindgen init runs. */
+let kernelWasmMemory: WebAssembly.Memory | null = null;
+
+function captureWasmMemory(initOutput: unknown): void {
+  const memory = (initOutput as { memory?: WebAssembly.Memory } | undefined)
+    ?.memory;
+  if (memory instanceof WebAssembly.Memory) kernelWasmMemory = memory;
+}
+
+/**
+ * Current WASM linear-memory size of this thread's kernel instance, in bytes.
+ * WASM memory never shrinks, so this is also the high-water mark — the input
+ * `computeAdaptiveLaneTarget` uses for measured batch admission. Null when the
+ * kernel has not initialized (or was injected via setRustRuntimeForTesting).
+ */
+export function rustWasmMemoryBytes(): number | null {
+  return kernelWasmMemory ? kernelWasmMemory.buffer.byteLength : null;
 }
 
 export async function getRustRuntimeVersion(): Promise<string> {
@@ -2095,6 +2489,13 @@ export function buildRustV2Options(
     enable_spss_export: options.enableSpssExport,
     enable_aggregates: options.enableAggregates,
     aggregate_shape: options.aggregateShape,
+    enable_plotting: options.enablePlotting,
+    enable_activity_heatmap: options.enableActivityHeatmap,
+    export_plots_as_svg: options.exportPlotsAsSvg,
+    enable_interactive_timeline: options.enableInteractiveTimeline,
+    include_filtered_app_usage_in_plots: options.includeFilteredAppUsageInPlots,
+    materialize_visualization_data:
+      options.enablePlotting || options.enableInteractiveTimeline,
     credited_session_cap_minutes: options.creditedSessionCapMinutes,
     device_liveness_gap_tolerance_minutes:
       options.deviceLivenessGapToleranceMinutes,
@@ -2114,42 +2515,116 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
   ).join("");
 }
 
+const PERFORMANCE_TRACE_PREFIX = "CHRONICLE_RUNTIME_PERF ";
+
+async function traceRuntimePhase<T>(
+  runtime: BrowserProcessingRuntime,
+  details: {
+    operationId: string;
+    workspaceId: string;
+    inputFileName: string;
+    materialization: "full" | "review";
+    phase: string;
+    bytes?: number | (() => number);
+    items?: number;
+  },
+  operation: () => T | Promise<T>,
+): Promise<T> {
+  if (!runtime.performanceTraceId) return operation();
+  const started = performance.now();
+  try {
+    const result = await operation();
+    console.info(
+      `${PERFORMANCE_TRACE_PREFIX}${JSON.stringify({
+        kind: "runtime-phase",
+        schemaVersion: 1,
+        traceId: runtime.performanceTraceId,
+        ...details,
+        bytes:
+          typeof details.bytes === "function" ? details.bytes() : details.bytes,
+        outcome: "ok",
+        elapsedMs: performance.now() - started,
+      })}`,
+    );
+    return result;
+  } catch (error) {
+    console.info(
+      `${PERFORMANCE_TRACE_PREFIX}${JSON.stringify({
+        kind: "runtime-phase",
+        schemaVersion: 1,
+        traceId: runtime.performanceTraceId,
+        ...details,
+        bytes:
+          typeof details.bytes === "function" ? details.bytes() : details.bytes,
+        outcome: "error",
+        elapsedMs: performance.now() - started,
+        error: error instanceof Error ? error.message : String(error),
+      })}`,
+    );
+    throw error;
+  }
+}
+
 async function executeRustRuntimeUnlocked(
   workspaceId: string,
   csvBytes: Uint8Array,
+  inputSizeBytes: number,
   inputFileName: string,
   options: BrowserProcessingOptions,
   supportFiles: BrowserSupportFiles | undefined,
   runtime: BrowserProcessingRuntime,
   inputSha256: string,
   materialization: "full",
+  persistedReviewOnly?: false,
+  verifiedSupportCacheKey?: undefined,
 ): Promise<RustRuntimeExecution>;
 async function executeRustRuntimeUnlocked(
   workspaceId: string,
   csvBytes: Uint8Array,
+  inputSizeBytes: number,
   inputFileName: string,
   options: BrowserProcessingOptions,
   supportFiles: BrowserSupportFiles | undefined,
   runtime: BrowserProcessingRuntime,
   inputSha256: string,
   materialization: "review",
+  persistedReviewOnly?: boolean,
+  verifiedSupportCacheKey?: string,
 ): Promise<RustReviewExecution>;
 async function executeRustRuntimeUnlocked(
   workspaceId: string,
   csvBytes: Uint8Array,
+  inputSizeBytes: number,
   inputFileName: string,
   options: BrowserProcessingOptions,
   supportFiles: BrowserSupportFiles | undefined,
   runtime: BrowserProcessingRuntime,
   inputSha256: string,
   materialization: "full" | "review",
+  persistedReviewOnly = false,
+  verifiedSupportCacheKey?: string,
 ): Promise<RustRuntimeExecution | RustReviewExecution> {
   const reasons = rustRuntimeIneligibilityReasons(options);
   if (reasons.length > 0) {
     throw new Error(`Rust runtime is ineligible: ${reasons.join("; ")}`);
   }
+  const traceBase = {
+    operationId: `${materialization}:${inputSha256.slice(0, 16)}:${workspaceId.slice(-16)}`,
+    workspaceId,
+    inputFileName,
+    materialization,
+  } as const;
+  const traced = <T>(
+    phase: string,
+    operation: () => T | Promise<T>,
+    counts: { bytes?: number | (() => number); items?: number } = {},
+  ): Promise<T> =>
+    traceRuntimePhase(runtime, { ...traceBase, phase, ...counts }, operation);
   let handle: KernelHandle | null = null;
   let runtimeSupportFiles: RuntimeSupportFilesHandle | null = null;
+  let runtimeSupportCacheEntry:
+    { key: string; entry: CachedRuntimeSupportFiles } | undefined;
+  let executionSucceeded = false;
   try {
     const kernel = await loadKernel();
     const [filterBytes, forcingBytes, backgroundBytes, codebookBytes] =
@@ -2241,35 +2716,65 @@ async function executeRustRuntimeUnlocked(
         supportFiles?.enrolledDevicesFile?.name ?? "enrolled_devices.csv",
       ],
     ]);
-    runtimeSupportFiles = new kernel.RuntimeSupportFiles();
-    for (const [role, bytes] of ingressBytesByRole) {
-      if (role !== "raw_chronicle_csv") {
-        putSupport(
-          runtimeSupportFiles,
-          role,
-          supportNameByRole.get(role) ?? `${role}.csv`,
-          bytes,
-        );
+    const supportHandleKey =
+      materialization === "review" && verifiedSupportCacheKey
+        ? runtimeSupportFilesCacheKey(verifiedSupportCacheKey, options)
+        : undefined;
+    const cachedSupport = supportHandleKey
+      ? runtimeSupportFilesCache.get(supportHandleKey)
+      : undefined;
+    if (cachedSupport && !cachedSupport.invalid) {
+      runtimeSupportFilesCache.delete(supportHandleKey!);
+      runtimeSupportFilesCache.set(supportHandleKey!, cachedSupport);
+      cachedSupport.activeUsers += 1;
+      runtimeSupportFiles = cachedSupport.handle;
+      runtimeSupportCacheEntry = {
+        key: supportHandleKey!,
+        entry: cachedSupport,
+      };
+    } else {
+      runtimeSupportFiles = new kernel.RuntimeSupportFiles();
+      for (const [role, bytes] of ingressBytesByRole) {
+        if (role !== "raw_chronicle_csv") {
+          putSupport(
+            runtimeSupportFiles,
+            role,
+            supportNameByRole.get(role) ?? `${role}.csv`,
+            bytes,
+          );
+        }
+      }
+      if (supportHandleKey) {
+        const entry: CachedRuntimeSupportFiles = {
+          handle: runtimeSupportFiles,
+          activeUsers: 1,
+          invalid: false,
+        };
+        runtimeSupportFilesCache.set(supportHandleKey, entry);
+        runtimeSupportCacheEntry = { key: supportHandleKey, entry };
+        pruneRuntimeSupportFilesCache();
       }
     }
     let opfsRoot: FileSystemDirectoryHandle | undefined;
     let recoveredRoot: WorkspaceRootSlot | undefined;
     if (runtime.persistRustWorkspace) {
-      opfsRoot = await persistenceAdapter.openRoot(workspaceId);
-      recoveredRoot =
-        materialization === "review"
-          ? await (persistenceAdapter.recoverHead ?? persistenceAdapter.recover)(
-              opfsRoot,
-            )
-          : await persistenceAdapter.recover(opfsRoot);
-      if (recoveredRoot && materialization === "full") {
-        await persistenceAdapter.verify?.(
-          opfsRoot,
-          recoveredRoot,
-          kernel,
-          workspaceId,
-        );
-      }
+      await traced("previous-root-recovery", async () => {
+        opfsRoot = await persistenceAdapter.openRoot(workspaceId);
+        recoveredRoot =
+          materialization === "review"
+            ? await (
+                persistenceAdapter.recoverHead ?? persistenceAdapter.recover
+              )(opfsRoot)
+            : await persistenceAdapter.recover(opfsRoot);
+        if (recoveredRoot && materialization === "full") {
+          await persistenceAdapter.verify?.(
+            opfsRoot,
+            recoveredRoot,
+            kernel,
+            workspaceId,
+          );
+        }
+      });
     }
     const previousWorkspaceRootDigest =
       recoveredRoot?.workspaceRootDigest ??
@@ -2278,21 +2783,59 @@ async function executeRustRuntimeUnlocked(
         ? ephemeralContinuation.workspaceRootDigest
         : null);
     const requestId = `${materialization === "review" ? "review" : "execute"}-${inputSha256.slice(0, 16)}`;
-    let reviewBaseBytes: Uint8Array = new Uint8Array();
-    let reconstructionBaseBytes: Uint8Array = new Uint8Array();
+    let reviewBaseProbe: Uint8Array = new Uint8Array();
+    let reconstructionBaseProbe: Uint8Array = new Uint8Array();
+    let persistedDatetimeOfPreprocessing: string | undefined;
+    let persistedReviewDescriptors = new Map<
+      string,
+      PersistedArtifactDescriptor
+    >();
+    let persistedReviewExpected: PersistedReviewExpectedIdentity | undefined;
     if (
       materialization === "review" &&
       opfsRoot &&
       recoveredRoot &&
       persistenceAdapter === defaultPersistenceAdapter
     ) {
-      ({ reviewBaseBytes, reconstructionBaseBytes } =
-        await readPersistedRustReviewBases(opfsRoot, recoveredRoot, {
-          implementationDigest: kernel.implementation_build_digest(),
-          buildEnvironmentDigest: kernel.build_environment_digest(),
-          workspaceId,
-          inputDigest: `sha256:${inputSha256}`,
-        }));
+      let resolvedBaseBytes = 0;
+      persistedReviewExpected = {
+        implementationDigest: kernel.implementation_build_digest(),
+        buildEnvironmentDigest: kernel.build_environment_digest(),
+        workspaceId,
+        inputDigest: `sha256:${inputSha256}`,
+      };
+      ({
+        reviewProbe: reviewBaseProbe,
+        reconstructionProbe: reconstructionBaseProbe,
+        datetimeOfPreprocessing: persistedDatetimeOfPreprocessing,
+        descriptors: persistedReviewDescriptors,
+      } = await traced(
+        "persisted-base-resolve",
+        async () => {
+          const probes = await readCachedPersistedRustReviewProbes(
+            kernel,
+            opfsRoot!,
+            recoveredRoot!,
+            persistedReviewExpected!,
+          );
+          resolvedBaseBytes =
+            probes.reviewProbe.byteLength +
+            probes.reconstructionProbe.byteLength;
+          return probes;
+        },
+        {
+          bytes: () => resolvedBaseBytes,
+          items: 2,
+        },
+      ));
+    }
+    const requestOptions = buildRustV2Options(options, runtime);
+    if (materialization === "review" && persistedDatetimeOfPreprocessing) {
+      // A/B holds the original run timestamp fixed. A receiving worker's wall
+      // clock is not a researcher-controlled comparison setting and would
+      // invalidate otherwise exact persisted bases.
+      requestOptions.datetime_of_preprocessing =
+        persistedDatetimeOfPreprocessing;
     }
     const requestJson = JSON.stringify({
       protocolVersion: "chronicle-preprocessing-runtime/v1",
@@ -2303,38 +2846,100 @@ async function executeRustRuntimeUnlocked(
       workspaceId,
       inputFileName,
       inputSha256: `sha256:${inputSha256}`,
-      options: buildRustV2Options(options, runtime),
+      options: requestOptions,
     });
-    handle =
+    const hasPersistedReviewBase =
       materialization === "review" &&
-      (reviewBaseBytes.byteLength > 0 || reconstructionBaseBytes.byteLength > 0)
-        ? kernel.execute_workspace_with_review_bases(
+      (reviewBaseProbe.byteLength > 0 ||
+        reconstructionBaseProbe.byteLength > 0);
+    const probes = hasPersistedReviewBase
+      ? {
+          reviewProbe: reviewBaseProbe,
+          reconstructionProbe: reconstructionBaseProbe,
+          descriptors: persistedReviewDescriptors,
+        }
+      : undefined;
+    let suppliedReviewBaseBytes = probes?.reviewProbe.byteLength ?? 0;
+    let suppliedReconstructionBaseBytes =
+      probes?.reconstructionProbe.byteLength ?? 0;
+    let kernelBoundaryBytes = probes
+      ? probes.reviewProbe.byteLength + probes.reconstructionProbe.byteLength
+      : csvBytes.byteLength;
+    handle = await traced(
+      "kernel",
+      async () => {
+        if (!probes) {
+          if (persistedReviewOnly) throw new PersistedReviewMiss();
+          return kernel.execute_workspace(
             requestJson,
             csvBytes,
-            reviewBaseBytes,
-            reconstructionBaseBytes,
-            runtimeSupportFiles,
-          )
-/** The instantiated kernel's linear memory; null until wasm-bindgen init runs. */
-let kernelWasmMemory: WebAssembly.Memory | null = null;
-
-function captureWasmMemory(initOutput: unknown): void {
-  const memory = (initOutput as { memory?: WebAssembly.Memory } | undefined)
-    ?.memory;
-  if (memory instanceof WebAssembly.Memory) kernelWasmMemory = memory;
-}
-
-/**
- * Current WASM linear-memory size of this thread's kernel instance, in bytes.
- * WASM memory never shrinks, so this is also the high-water mark — the input
- * `computeAdaptiveLaneTarget` uses for measured batch admission. Null when the
- * kernel has not initialized (or was injected via setRustRuntimeForTesting).
- */
-export function rustWasmMemoryBytes(): number | null {
-  return kernelWasmMemory ? kernelWasmMemory.buffer.byteLength : null;
-}
-
-        : kernel.execute_workspace(requestJson, csvBytes, runtimeSupportFiles);
+            runtimeSupportFiles!,
+          );
+        }
+        const prepared = kernel.prepare_persisted_workspace_review(
+          requestJson,
+          inputSizeBytes,
+          probes.reviewProbe,
+          probes.reconstructionProbe,
+          runtimeSupportFiles!,
+        );
+        try {
+          const required = prepared.required_base_kind();
+          if (
+            required !== "none" &&
+            required !== "salsa-memory" &&
+            required !== "review-base" &&
+            required !== "reconstruction-base"
+          ) {
+            throw new Error(
+              `Rust selected an unknown review base: ${required}`,
+            );
+          }
+          if (required === "salsa-memory") {
+            return prepared.execute_selected_base(new Uint8Array());
+          }
+          if (required === "none") {
+            if (persistedReviewOnly) throw new PersistedReviewMiss();
+            kernelBoundaryBytes += csvBytes.byteLength;
+            return kernel.execute_workspace(
+              requestJson,
+              csvBytes,
+              runtimeSupportFiles!,
+            );
+          }
+          if (!opfsRoot || !recoveredRoot || !persistedReviewExpected) {
+            throw new Error(
+              "persisted Rust review selection lost its workspace",
+            );
+          }
+          const selected = await readCachedSelectedPersistedRustReviewBase(
+            opfsRoot,
+            recoveredRoot,
+            persistedReviewExpected,
+            required,
+            probes.descriptors.get(required) ??
+              (() => {
+                throw new Error(
+                  `persisted Rust workspace is missing ${required}`,
+                );
+              })(),
+          );
+          if (required === "review-base") {
+            suppliedReviewBaseBytes += selected.byteLength;
+          } else {
+            suppliedReconstructionBaseBytes += selected.byteLength;
+          }
+          kernelBoundaryBytes += selected.byteLength;
+          return prepared.execute_selected_base(selected);
+        } finally {
+          prepared.free();
+        }
+      },
+      {
+        bytes: () => kernelBoundaryBytes,
+        items: 1,
+      },
+    );
     let manifestValue: unknown;
     let manifestJson: string;
     try {
@@ -2383,24 +2988,31 @@ export function rustWasmMemoryBytes(): number | null {
       ) {
         throw new Error("review artifact identity mismatch");
       }
-      const reviewBytes = handle.take_artifact_bytes(0);
-      if (
-        metadata.size !== reviewBytes.byteLength ||
-        metadata.digest !== `sha256:${await sha256Hex(reviewBytes)}`
-      ) {
-        throw new Error("review artifact integrity mismatch");
-      }
-      let reviewSummary: ReviewSummary;
-      try {
-        reviewSummary = JSON.parse(
-          new TextDecoder().decode(reviewBytes),
-        ) as ReviewSummary;
-      } catch (error) {
-        throw new Error(
-          `review summary is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-      return { ...manifest, manifestJson, reviewSummary };
+      const reviewBytes = await traced(
+        "artifact-extract",
+        () => handle!.take_artifact_bytes(0),
+        { bytes: metadata.size, items: 1 },
+      );
+      await traced(
+        "artifact-integrity",
+        async () => {
+          if (
+            metadata.size !== reviewBytes.byteLength ||
+            metadata.digest !== `sha256:${await sha256Hex(reviewBytes)}`
+          ) {
+            throw new Error("review artifact integrity mismatch");
+          }
+        },
+        { bytes: reviewBytes.byteLength, items: 1 },
+      );
+      executionSucceeded = true;
+      return {
+        ...manifest,
+        manifestJson,
+        reviewSummaryJsonBytes: reviewBytes,
+        suppliedReviewBaseBytes,
+        suppliedReconstructionBaseBytes,
+      };
     }
     const manifest = decodeRuntimeManifest(manifestValue);
     if (manifest.requestId !== requestId) {
@@ -2426,12 +3038,12 @@ export function rustWasmMemoryBytes(): number | null {
     if (manifest.previousWorkspaceRootDigest !== previousWorkspaceRootDigest) {
       throw new Error("runtime manifest previous-root identity mismatch");
     }
+    const runtimeHandle = handle;
     const artifacts = new Map<string, Uint8Array>();
-    const persistedArtifacts: PersistedRuntimeArtifact[] = [];
     const handleMetadata = new Map<string, RuntimeArtifactMetadata>();
-    const extractedArtifacts: Array<{
+    const handleArtifacts: Array<{
+      index: number;
       metadata: RuntimeArtifactMetadata;
-      bytes: Uint8Array;
     }> = [];
     for (let index = 0; index < handle.artifact_count; index += 1) {
       let metadataValue: unknown;
@@ -2446,96 +3058,217 @@ export function rustWasmMemoryBytes(): number | null {
         metadataValue,
         `artifactMetadata[${index}]`,
       );
-      const bytes = handle.take_artifact_bytes(index);
-      if (metadata.size !== bytes.byteLength) {
-        throw new Error(
-          `runtime artifact integrity mismatch: ${metadata.kind}`,
-        );
-      }
       if (handleMetadata.has(metadata.kind)) {
         throw new Error(`duplicate runtime artifact kind: ${metadata.kind}`);
       }
       handleMetadata.set(metadata.kind, metadata);
-      extractedArtifacts.push({ metadata, bytes });
+      handleArtifacts.push({ index, metadata });
     }
-    // WebCrypto hashing can use the browser's native worker pool. Extract all
-    // owned WASM buffers first, then verify them concurrently instead of
-    // serializing every large digest behind an `await` in the handle loop.
-    const verificationQueue = [...extractedArtifacts].sort(
-      (left, right) => right.bytes.byteLength - left.bytes.byteLength,
-    );
-    let verificationIndex = 0;
-    const verifyNext = async (): Promise<void> => {
-      for (;;) {
-        const entry = verificationQueue[verificationIndex];
-        verificationIndex += 1;
-        if (!entry) return;
-        const { metadata, bytes } = entry;
-        if (metadata.digest !== `sha256:${await sha256Hex(bytes)}`) {
+    verifyRuntimeArtifactCatalog(manifest, [...handleMetadata.values()]);
+    const streamToOpfs =
+      runtime.persistRustWorkspace &&
+      opfsRoot !== undefined &&
+      persistenceAdapter === defaultPersistenceAdapter;
+    const callerArtifactKinds = new Set([
+      "execution-ledger-json",
+      "stage-view-json",
+      ...(options.enableInteractiveTimeline && !streamToOpfs
+        ? ["visualization-data-json"]
+        : []),
+    ]);
+    let persistedWorkspace: WorkspaceRootSlot | undefined;
+    if (streamToOpfs && opfsRoot) {
+      const persistedMetadata: PersistedRuntimeArtifactMetadata[] = [];
+      // Take, verify, and store one artifact at a time. WASM memory can be
+      // released before the next 40–100 MB artifact crosses into JavaScript.
+      const sortedHandleArtifacts = [...handleArtifacts].sort(
+        (left, right) => right.metadata.size - left.metadata.size,
+      );
+      for (let start = 0; start < sortedHandleArtifacts.length; start += 2) {
+        const batchMetadata = sortedHandleArtifacts.slice(start, start + 2);
+        const batchBytes = batchMetadata.reduce(
+          (total, { metadata }) => total + metadata.size,
+          0,
+        );
+        const batch = await traced(
+          "artifact-extract",
+          () =>
+            batchMetadata.map(({ index, metadata }) => ({
+              metadata,
+              bytes: runtimeHandle.take_artifact_bytes(index),
+            })),
+          { bytes: batchBytes, items: batchMetadata.length },
+        );
+        await traced(
+          "opfs-object-placement",
+          () =>
+            persistRuntimeObjects(
+              opfsRoot!,
+              batch.map(({ metadata, bytes }) => ({
+                ...metadata,
+                bytes,
+                digestVerified: true,
+              })),
+            ),
+          { bytes: batchBytes, items: batch.length },
+        );
+        for (const { metadata, bytes } of batch) {
+          if (callerArtifactKinds.has(metadata.kind)) {
+            artifacts.set(metadata.kind, bytes);
+          }
+          persistedMetadata.push({ ...metadata, digestVerified: true });
+        }
+      }
+      const ingressArtifacts: PersistedRuntimeArtifact[] = [];
+      for (const assignment of manifest.roleAssignments) {
+        if (assignment.role_id === "processing_options") continue;
+        const bytes = ingressBytesByRole.get(assignment.role_id);
+        if (!bytes) {
+          throw new Error(
+            `runtime declared an unknown ingress role: ${assignment.role_id}`,
+          );
+        }
+        if (assignment.artifact.size !== bytes.byteLength) {
+          throw new Error(
+            `runtime ingress assignment integrity mismatch: ${assignment.role_id}`,
+          );
+        }
+        const metadata = {
+          kind: `ingress:${assignment.role_id}`,
+          digest: assignment.artifact.digest,
+          size: assignment.artifact.size,
+          digestVerified: true as const,
+        };
+        ingressArtifacts.push({ ...metadata, bytes });
+        persistedMetadata.push(metadata);
+      }
+      const ingressBytes = ingressArtifacts.reduce(
+        (total, artifact) => total + artifact.size,
+        0,
+      );
+      await traced(
+        "opfs-ingress-placement",
+        () => persistRuntimeObjects(opfsRoot!, ingressArtifacts),
+        { bytes: ingressBytes, items: ingressArtifacts.length },
+      );
+      await traced(
+        "new-root-verification",
+        async () =>
+          verifyRootClosure(
+            await readRuntimeObject(opfsRoot!, manifest.workspaceRootDigest),
+            (digest) => readRuntimeObject(opfsRoot!, digest),
+            [...new Set(persistedMetadata.map(({ digest }) => digest))],
+            manifest.previousWorkspaceRootDigest,
+            kernel,
+            workspaceId,
+            manifest.workspaceRootDigest,
+            false,
+          ),
+        { items: persistedMetadata.length },
+      );
+      persistedWorkspace = await traced("root-commit", () =>
+        commitPersistedRuntimeWorkspace(opfsRoot!, {
+          workspaceRootDigest: manifest.workspaceRootDigest,
+          previousWorkspaceRootDigest: manifest.previousWorkspaceRootDigest,
+          artifacts: persistedMetadata,
+          recoveredSlot: recoveredRoot,
+        }),
+      );
+    } else {
+      const extractedArtifacts: Array<{
+        metadata: RuntimeArtifactMetadata;
+        bytes: Uint8Array;
+      }> = [];
+      for (const { index, metadata } of handleArtifacts) {
+        const bytes = handle.take_artifact_bytes(index);
+        if (metadata.size !== bytes.byteLength) {
           throw new Error(
             `runtime artifact integrity mismatch: ${metadata.kind}`,
           );
         }
+        extractedArtifacts.push({ metadata, bytes });
       }
-    };
-    await Promise.all([verifyNext(), verifyNext()]);
-    for (const { metadata, bytes } of extractedArtifacts) {
-      artifacts.set(metadata.kind, bytes);
-      persistedArtifacts.push({ ...metadata, bytes, digestVerified: true });
-    }
-    verifyRuntimeArtifactCatalog(manifest, [...handleMetadata.values()]);
-    for (const assignment of manifest.roleAssignments) {
-      if (assignment.role_id === "processing_options") continue;
-      const bytes = ingressBytesByRole.get(assignment.role_id);
-      if (!bytes) {
-        throw new Error(
-          `runtime declared an unknown ingress role: ${assignment.role_id}`,
-        );
+      const verificationQueue = [...extractedArtifacts].sort(
+        (left, right) => right.bytes.byteLength - left.bytes.byteLength,
+      );
+      let verificationIndex = 0;
+      const verifyNext = async (): Promise<void> => {
+        for (;;) {
+          const entry = verificationQueue[verificationIndex];
+          verificationIndex += 1;
+          if (!entry) return;
+          if (
+            entry.metadata.digest !== `sha256:${await sha256Hex(entry.bytes)}`
+          ) {
+            throw new Error(
+              `runtime artifact integrity mismatch: ${entry.metadata.kind}`,
+            );
+          }
+        }
+      };
+      await Promise.all([verifyNext(), verifyNext()]);
+      const persistedArtifacts: PersistedRuntimeArtifact[] =
+        extractedArtifacts.map(({ metadata, bytes }) => ({
+          ...metadata,
+          bytes,
+          digestVerified: true,
+        }));
+      for (const { metadata, bytes } of extractedArtifacts) {
+        artifacts.set(metadata.kind, bytes);
       }
-      if (assignment.artifact.size !== bytes.byteLength) {
-        throw new Error(
-          `runtime ingress assignment size mismatch: ${assignment.role_id}`,
-        );
+      for (const assignment of manifest.roleAssignments) {
+        if (assignment.role_id === "processing_options") continue;
+        const bytes = ingressBytesByRole.get(assignment.role_id);
+        if (!bytes) {
+          throw new Error(
+            `runtime declared an unknown ingress role: ${assignment.role_id}`,
+          );
+        }
+        if (assignment.artifact.size !== bytes.byteLength) {
+          throw new Error(
+            `runtime ingress assignment size mismatch: ${assignment.role_id}`,
+          );
+        }
+        persistedArtifacts.push({
+          kind: `ingress:${assignment.role_id}`,
+          digest: assignment.artifact.digest,
+          size: assignment.artifact.size,
+          bytes,
+          digestVerified: true,
+        });
       }
-      persistedArtifacts.push({
-        kind: `ingress:${assignment.role_id}`,
-        digest: assignment.artifact.digest,
-        size: assignment.artifact.size,
-        bytes,
-        digestVerified: true,
-      });
+      const persistedByDigest = new Map(
+        persistedArtifacts.map((artifact) => [artifact.digest, artifact.bytes]),
+      );
+      const rootBytes = persistedByDigest.get(manifest.workspaceRootDigest);
+      if (!rootBytes) {
+        throw new Error("runtime artifact set is missing its workspace root");
+      }
+      await verifyRootClosure(
+        rootBytes,
+        (digest) => {
+          const bytes = persistedByDigest.get(digest);
+          if (!bytes)
+            throw new Error(`runtime artifact set is missing ${digest}`);
+          return bytes;
+        },
+        [...persistedByDigest.keys()],
+        manifest.previousWorkspaceRootDigest,
+        kernel,
+        workspaceId,
+        manifest.workspaceRootDigest,
+        false,
+      );
+      persistedWorkspace =
+        runtime.persistRustWorkspace && opfsRoot
+          ? await persistenceAdapter.persist(opfsRoot, {
+              workspaceRootDigest: manifest.workspaceRootDigest,
+              previousWorkspaceRootDigest: manifest.previousWorkspaceRootDigest,
+              artifacts: persistedArtifacts,
+              recoveredSlot: recoveredRoot,
+            })
+          : undefined;
     }
-    const persistedByDigest = new Map(
-      persistedArtifacts.map((artifact) => [artifact.digest, artifact.bytes]),
-    );
-    const rootBytes = persistedByDigest.get(manifest.workspaceRootDigest);
-    if (!rootBytes) {
-      throw new Error("runtime artifact set is missing its workspace root");
-    }
-    await verifyRootClosure(
-      rootBytes,
-      (digest) => {
-        const bytes = persistedByDigest.get(digest);
-        if (!bytes)
-          throw new Error(`runtime artifact set is missing ${digest}`);
-        return bytes;
-      },
-      [...persistedByDigest.keys()],
-      manifest.previousWorkspaceRootDigest,
-      kernel,
-      workspaceId,
-      manifest.workspaceRootDigest,
-      false,
-    );
-    const persistedWorkspace =
-      runtime.persistRustWorkspace && opfsRoot
-        ? await persistenceAdapter.persist(opfsRoot, {
-            workspaceRootDigest: manifest.workspaceRootDigest,
-            previousWorkspaceRootDigest: manifest.previousWorkspaceRootDigest,
-            artifacts: persistedArtifacts,
-            recoveredSlot: recoveredRoot,
-          })
-        : undefined;
     if (
       persistedWorkspace &&
       recoveredRoot &&
@@ -2543,10 +3276,9 @@ export function rustWasmMemoryBytes(): number | null {
       persistenceAdapter === defaultPersistenceAdapter
     ) {
       try {
-        await garbageCollectRuntimeObjects(opfsRoot, [
-          persistedWorkspace,
-          recoveredRoot,
-        ]);
+        await traced("garbage-collection", () =>
+          garbageCollectRuntimeObjects(opfsRoot!, [persistedWorkspace]),
+        );
       } catch (error) {
         console.warn(
           "Committed Rust workspace but could not reclaim stale OPFS objects",
@@ -2562,6 +3294,16 @@ export function rustWasmMemoryBytes(): number | null {
         workspaceRootDigest: manifest.workspaceRootDigest,
       };
     }
+    // The complete closure was verified above, and the OPFS adapter returned
+    // only after per-object read-back verification and an atomic root commit.
+    // Keep only the small views the immediate browser projection parses;
+    // downloadable outputs use receipt-pinned OPFS locators.
+    if (materialization === "full" && persistedWorkspace) {
+      for (const kind of artifacts.keys()) {
+        if (!callerArtifactKinds.has(kind)) artifacts.delete(kind);
+      }
+    }
+    executionSucceeded = true;
     return {
       workspaceId,
       manifestJson,
@@ -2578,16 +3320,24 @@ export function rustWasmMemoryBytes(): number | null {
     } catch (error) {
       console.warn("Could not release trapped Rust runtime handle", error);
     }
-    try {
-      runtimeSupportFiles?.free();
-    } catch (error) {
-      console.warn("Could not release trapped Rust support handle", error);
+    if (runtimeSupportCacheEntry) {
+      if (!executionSucceeded) runtimeSupportCacheEntry.entry.invalid = true;
+      releaseRuntimeSupportFilesCacheEntry(
+        runtimeSupportCacheEntry.key,
+        runtimeSupportCacheEntry.entry,
+      );
+    } else {
+      try {
+        runtimeSupportFiles?.free();
+      } catch (error) {
+        console.warn("Could not release trapped Rust support handle", error);
+      }
     }
   }
 }
 
 export async function runtimeWorkspaceId(
-  inputFileName: string,
+  _inputFileName: string,
   csvBytes: Uint8Array,
   verifiedInputSha256?: string,
 ): Promise<string> {
@@ -2597,9 +3347,14 @@ export async function runtimeWorkspaceId(
       "verified input digest must be 64 lowercase hexadecimal characters",
     );
   }
+  // A filename is a display/output label, not a computational input: the Rust
+  // runtime validates it but never reads it while producing artifacts. Keying
+  // the workspace by content lets renamed or duplicated files share the same
+  // content-addressed history instead of writing identical 100 MB objects to
+  // separate OPFS stores.
   return `sha256:${await sha256Hex(
     new TextEncoder().encode(
-      `chronicle-preprocessing-workspace:${inputFileName}\n${inputDigest}`,
+      `chronicle-preprocessing-workspace:${inputDigest}`,
     ),
   )}`;
 }
@@ -2639,6 +3394,7 @@ export async function executeRustRuntime(
     executeRustRuntimeUnlocked(
       workspaceId,
       csvBytes,
+      csvBytes.byteLength,
       inputFileName,
       options,
       supportFiles,
@@ -2671,6 +3427,7 @@ export async function queryRustReview(
   supportFiles: BrowserSupportFiles | undefined,
   runtime: BrowserProcessingRuntime,
   verifiedInputSha256?: string,
+  verifiedSupportCacheKey?: string,
 ): Promise<RustReviewExecution> {
   const inputSha256 = verifiedInputSha256 ?? (await sha256Hex(csvBytes));
   const workspaceId = await runtimeWorkspaceId(
@@ -2682,12 +3439,15 @@ export async function queryRustReview(
     executeRustRuntimeUnlocked(
       workspaceId,
       csvBytes,
+      csvBytes.byteLength,
       inputFileName,
       options,
       supportFiles,
       runtime,
       inputSha256,
       "review",
+      false,
+      verifiedSupportCacheKey,
     );
   if (!runtime.persistRustWorkspace) return execute();
   if (typeof navigator === "undefined" || !navigator.locks?.request) {
@@ -2698,5 +3458,57 @@ export async function queryRustReview(
     }
     return execute();
   }
-  return withWorkspaceLock(workspaceId, execute);
+  return withWorkspaceLock(workspaceId, execute, "shared");
+}
+
+class PersistedReviewMiss extends Error {}
+
+/**
+ * Probe the receipt-pinned OPFS bases before reading the raw File again. A
+ * clean miss returns null so the caller can transfer the raw bytes and run the
+ * ordinary fail-closed path; corrupt persisted state still throws.
+ */
+export async function queryPersistedRustReview(
+  inputSizeBytes: number,
+  inputFileName: string,
+  options: BrowserProcessingOptions,
+  supportFiles: BrowserSupportFiles | undefined,
+  runtime: BrowserProcessingRuntime,
+  verifiedInputSha256: string,
+  verifiedSupportCacheKey?: string,
+): Promise<RustReviewExecution | null> {
+  if (!Number.isSafeInteger(inputSizeBytes) || inputSizeBytes < 0) {
+    throw new Error("verified input size must be a non-negative safe integer");
+  }
+  if (!/^[0-9a-f]{64}$/.test(verifiedInputSha256)) {
+    throw new Error(
+      "verified input digest must be 64 lowercase hexadecimal characters",
+    );
+  }
+  const empty = new Uint8Array();
+  const workspaceId = await runtimeWorkspaceId(
+    inputFileName,
+    empty,
+    verifiedInputSha256,
+  );
+  const execute = () =>
+    executeRustRuntimeUnlocked(
+      workspaceId,
+      empty,
+      inputSizeBytes,
+      inputFileName,
+      options,
+      supportFiles,
+      { ...runtime, persistRustWorkspace: true },
+      verifiedInputSha256,
+      "review",
+      true,
+      verifiedSupportCacheKey,
+    );
+  try {
+    return await withWorkspaceLock(workspaceId, execute, "shared");
+  } catch (error) {
+    if (error instanceof PersistedReviewMiss) return null;
+    throw error;
+  }
 }

@@ -55,7 +55,7 @@ const SHARD_INDEX = Number(process.env.RAW_BOUNDARY_SHARD_INDEX ?? "0");
 const encoder = new TextEncoder();
 
 type TypedCheckpoint = {
-  protocolVersion: "chronicle-logical-stage-checkpoint/v3";
+  protocolVersion: "chronicle-logical-stage-checkpoint/v5";
   nodeId: string;
   rowMembershipDigest: string;
   rowOrderDigest: string;
@@ -448,7 +448,7 @@ function assertCompleteSuccessfulManifest(
     manifest.processingSummary.logicalStageCheckpoints,
   )) {
     expect(checkpoint.protocolVersion).toBe(
-      "chronicle-logical-stage-checkpoint/v3",
+      "chronicle-logical-stage-checkpoint/v5",
     );
     expect(checkpoint.nodeId).toBe(nodeId);
     expect(checkpoint.terminalDigest).toBe(
@@ -459,7 +459,7 @@ function assertCompleteSuccessfulManifest(
     manifest.processingSummary.pipelineStepCheckpoints,
   )) {
     expect(checkpoint.protocolVersion).toBe(
-      "chronicle-logical-stage-checkpoint/v3",
+      "chronicle-logical-stage-checkpoint/v5",
     );
     expect(checkpoint.nodeId).toBe(stepId);
     expect(checkpoint.terminalDigest).toBe(
@@ -782,7 +782,7 @@ describe("raw timestamp boundary tomography", () => {
 
     const evidence = {
       protocolVersion: "chronicle-raw-boundary-influence-ledger/v1",
-      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v3",
+      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v5",
       claimBoundary:
         "Exact raw timestamp percolation for every named boundary intervention across all checked synthetic corpus profiles. Each mutation changes one raw event timestamp; warm execution is checked against an independent cold oracle. The evidence does not generalize beyond the listed boundary catalog, corpora, plan, and implementation receipt.",
       plan: { id: plan.plan_id, revision: plan.revision },

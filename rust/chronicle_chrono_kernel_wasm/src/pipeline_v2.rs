@@ -1,14 +1,16 @@
 //! Chronicle preprocessing computations shared by the production 55-step
 //! Salsa engine and an independent cold-run test oracle.
 
-use ahash::AHashSet;
+use ahash::{AHashMap, AHashSet};
 use blake3::Hasher as CheckpointHasher;
 use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Timelike};
 use chrono_tz::Tz;
 use csv_core::{ReadFieldResult, Reader as CsvReader};
 use sha2::{Digest, Sha256};
+use smallvec::SmallVec;
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::hash::{Hash, Hasher};
+use std::io::Write as _;
 use std::sync::{Arc, OnceLock};
 
 use crate::{parse_chronicle_timestamp_ns, weekday_chronicle, write_csv_field};
@@ -20,7 +22,10 @@ mod aggregates;
 #[path = "pipeline_v2_incremental.rs"]
 mod incremental;
 #[cfg(feature = "incremental-v2")]
-pub use incremental::{IncrementalPipelineV2Engine, IncrementalPipelineV2Execution};
+pub use incremental::{
+    reconstruction_base_header_bytes, review_base_header_bytes, select_persisted_review_base,
+    IncrementalPipelineV2Engine, IncrementalPipelineV2Execution, PersistedReviewBaseSelection,
+};
 
 pub const PREPROCESSOR_VERSION: &str = "1.0.0";
 
@@ -196,6 +201,10 @@ pub struct PipelineV2Options {
     pub enable_screen_gated_crediting: bool,
     pub enable_aggregates: bool,
     pub aggregate_shape: String,
+    /// Effective browser view target for the final output query only. The raw
+    /// UI flags remain in the receipt; their OR is the only value that can
+    /// affect Rust output materialization.
+    pub materialize_visualization_data: bool,
     pub credited_session_cap_minutes: f64,
     pub device_liveness_gap_tolerance_minutes: f64,
     pub auto_lock_bridge_seconds: f64,
@@ -359,7 +368,7 @@ fn parse_background_apps_csv(bytes: &[u8]) -> AHashSet<String> {
         .collect()
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct CodebookEntry {
     /// Indexed by codebook_col_index() output name (e.g. "codebook_application_label", "bcm_play_store_genreId"…)
     pub fields: Arc<Vec<Option<String>>>,
@@ -505,6 +514,14 @@ impl SharedString {
     fn as_str(&self) -> &str {
         self.0.as_str()
     }
+
+    fn shared(&self) -> Arc<String> {
+        Arc::clone(&self.0)
+    }
+
+    fn into_shared(self) -> Arc<String> {
+        self.0
+    }
 }
 
 impl std::ops::Deref for SharedString {
@@ -557,36 +574,211 @@ impl PartialEq<&str> for SharedString {
     }
 }
 
+#[derive(serde::Serialize)]
+struct PersistedStringRef<'a> {
+    id: u32,
+    value: Option<&'a str>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct PersistedString {
+    id: u32,
+    value: Option<String>,
+}
+
+struct PersistedStringEncoder(AHashMap<SharedString, u32>);
+
+impl Default for PersistedStringEncoder {
+    fn default() -> Self {
+        Self(AHashMap::new())
+    }
+}
+
+#[derive(Default)]
+struct PersistedStringDecoder(Vec<Arc<String>>);
+
+thread_local! {
+    static PERSISTED_STRING_ENCODER: RefCell<Option<PersistedStringEncoder>> = const {
+        RefCell::new(None)
+    };
+    static PERSISTED_STRING_DECODER: RefCell<Option<PersistedStringDecoder>> = const {
+        RefCell::new(None)
+    };
+}
+
+struct PersistedStringEncoderGuard;
+
+impl Drop for PersistedStringEncoderGuard {
+    fn drop(&mut self) {
+        PERSISTED_STRING_ENCODER.with(|slot| {
+            slot.borrow_mut().take();
+        });
+    }
+}
+
+struct PersistedStringDecoderGuard;
+
+impl Drop for PersistedStringDecoderGuard {
+    fn drop(&mut self) {
+        PERSISTED_STRING_DECODER.with(|slot| {
+            slot.borrow_mut().take();
+        });
+    }
+}
+
+fn with_serialized_row_string_table<T>(encode: impl FnOnce() -> T) -> T {
+    PERSISTED_STRING_ENCODER.with(|slot| {
+        let previous = slot.borrow_mut().replace(PersistedStringEncoder::default());
+        assert!(previous.is_none(), "row string serialization table nested");
+    });
+    let _guard = PersistedStringEncoderGuard;
+    encode()
+}
+
+fn serialize_persisted_string<S>(value: &SharedString, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let (id, first) = PERSISTED_STRING_ENCODER.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        let table = slot.as_mut().ok_or_else(|| {
+            <S::Error as serde::ser::Error>::custom(
+                "binary Chronicle row serialization requires a string table",
+            )
+        })?;
+        if let Some(id) = table.0.get(value).copied() {
+            Ok((id, false))
+        } else {
+            let id = u32::try_from(table.0.len()).map_err(|_| {
+                <S::Error as serde::ser::Error>::custom("Chronicle row string table exceeds u32")
+            })?;
+            table.0.insert(value.clone(), id);
+            Ok((id, true))
+        }
+    })?;
+    serde::Serialize::serialize(
+        &PersistedStringRef {
+            id,
+            value: first.then(|| value.as_str()),
+        },
+        serializer,
+    )
+}
+
+fn deserialize_persisted_string<'de, D>(deserializer: D) -> Result<SharedString, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let persisted = <PersistedString as serde::Deserialize>::deserialize(deserializer)?;
+    PERSISTED_STRING_DECODER.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        let table = slot.as_mut().ok_or_else(|| {
+            <D::Error as serde::de::Error>::custom(
+                "binary Chronicle row deserialization requires a string table",
+            )
+        })?;
+        let value = if let Some(value) = persisted.value {
+            if persisted.id as usize != table.0.len() {
+                return Err(<D::Error as serde::de::Error>::custom(
+                    "Chronicle row string definition is out of order",
+                ));
+            }
+            let shared = static_lineage_text(&value).unwrap_or_else(|| Arc::new(value));
+            table.0.push(Arc::clone(&shared));
+            shared
+        } else {
+            table.0.get(persisted.id as usize).cloned().ok_or_else(|| {
+                <D::Error as serde::de::Error>::custom(
+                    "Chronicle row string reference is undefined",
+                )
+            })?
+        };
+        Ok(SharedString(value))
+    })
+}
+
 /// Temporary value interner used while a row table is constructed. It shares
 /// repeated strings within that table without retaining raw-data values after
 /// the table is dropped or introducing global mutable state.
-#[derive(Default)]
-struct SharedStringPool(HashMap<u64, Vec<SharedString>>);
+struct SharedStringPool(AHashSet<SharedString>);
+
+impl Default for SharedStringPool {
+    fn default() -> Self {
+        Self(AHashSet::new())
+    }
+}
 
 impl SharedStringPool {
     fn intern_owned(&mut self, value: String) -> SharedString {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        value.hash(&mut hasher);
-        let bucket = self.0.entry(hasher.finish()).or_default();
-        if let Some(existing) = bucket.iter().find(|existing| existing.as_str() == value) {
+        if let Some(existing) = self.0.get(value.as_str()) {
             return existing.clone();
         }
         let shared = SharedString::from(value);
-        bucket.push(shared.clone());
+        self.0.insert(shared.clone());
         shared
     }
 
     fn intern(&mut self, value: &str) -> SharedString {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        value.hash(&mut hasher);
-        let bucket = self.0.entry(hasher.finish()).or_default();
-        if let Some(existing) = bucket.iter().find(|existing| existing.as_str() == value) {
+        if let Some(existing) = self.0.get(value) {
             return existing.clone();
         }
         let shared = SharedString::from(value);
-        bucket.push(shared.clone());
+        self.0.insert(shared.clone());
         shared
     }
+}
+
+thread_local! {
+    static DESERIALIZED_ROW_STRING_POOL: RefCell<Option<SharedStringPool>> = const {
+        RefCell::new(None)
+    };
+}
+
+struct DeserializedRowStringPoolGuard;
+
+impl Drop for DeserializedRowStringPoolGuard {
+    fn drop(&mut self) {
+        DESERIALIZED_ROW_STRING_POOL.with(|slot| {
+            slot.borrow_mut().take();
+        });
+    }
+}
+
+fn with_deserialized_row_string_pool<T>(decode: impl FnOnce() -> T) -> T {
+    DESERIALIZED_ROW_STRING_POOL.with(|slot| {
+        let previous = slot.borrow_mut().replace(SharedStringPool::default());
+        assert!(previous.is_none(), "row string deserialization pool nested");
+    });
+    PERSISTED_STRING_DECODER.with(|slot| {
+        let previous = slot.borrow_mut().replace(PersistedStringDecoder::default());
+        assert!(
+            previous.is_none(),
+            "row string deserialization table nested"
+        );
+    });
+    let _pool_guard = DeserializedRowStringPoolGuard;
+    let _table_guard = PersistedStringDecoderGuard;
+    decode()
+}
+
+fn intern_deserialized_string(value: String) -> SharedString {
+    DESERIALIZED_ROW_STRING_POOL.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        match slot.as_mut() {
+            Some(pool) => pool.intern_owned(value),
+            None => SharedString::from(value),
+        }
+    })
+}
+
+fn intern_deserialized_str(value: &str) -> SharedString {
+    DESERIALIZED_ROW_STRING_POOL.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        match slot.as_mut() {
+            Some(pool) => pool.intern(value),
+            None => SharedString::from(value),
+        }
+    })
 }
 
 impl serde::Serialize for SharedString {
@@ -594,7 +786,11 @@ impl serde::Serialize for SharedString {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(self.as_str())
+        if serializer.is_human_readable() {
+            serializer.serialize_str(self.as_str())
+        } else {
+            serialize_persisted_string(self, serializer)
+        }
     }
 }
 
@@ -603,7 +799,42 @@ impl<'de> serde::Deserialize<'de> for SharedString {
     where
         D: serde::Deserializer<'de>,
     {
-        String::deserialize(deserializer).map(Self::from)
+        if !deserializer.is_human_readable() {
+            return deserialize_persisted_string(deserializer);
+        }
+
+        struct SharedStringVisitor;
+
+        impl serde::de::Visitor<'_> for SharedStringVisitor {
+            type Value = SharedString;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a UTF-8 string")
+            }
+
+            fn visit_borrowed_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(intern_deserialized_str(value))
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(intern_deserialized_str(value))
+            }
+
+            fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(intern_deserialized_string(value))
+            }
+        }
+
+        deserializer.deserialize_string(SharedStringVisitor)
     }
 }
 
@@ -623,6 +854,22 @@ struct RowCheckpointCache {
     identity: OnceLock<[u8; 32]>,
     temporal: OnceLock<[u8; 32]>,
     classification: OnceLock<[u8; 32]>,
+}
+
+#[derive(serde::Serialize)]
+struct PersistedRowRef<'a> {
+    data: &'a RowData,
+    identity: Option<[u8; 32]>,
+    temporal: Option<[u8; 32]>,
+    classification: Option<[u8; 32]>,
+}
+
+#[derive(serde::Deserialize)]
+struct PersistedRow {
+    data: RowData,
+    identity: Option<[u8; 32]>,
+    temporal: Option<[u8; 32]>,
+    classification: Option<[u8; 32]>,
 }
 
 impl Clone for RowCheckpointCache {
@@ -674,7 +921,7 @@ struct RowData {
         serialize_with = "serialize_lineage_searches",
         deserialize_with = "deserialize_lineage_searches"
     )]
-    lineage_searches: Arc<Vec<LineageSearchEvidence>>,
+    lineage_searches: Arc<SmallVec<[LineageSearchEvidence; 1]>>,
     study_id: SharedString,
     participant_id: SharedString,
     possible_device_model: SharedString,
@@ -729,22 +976,47 @@ struct RowData {
 }
 
 fn serialize_lineage_searches<S>(
-    value: &Arc<Vec<LineageSearchEvidence>>,
+    value: &Arc<SmallVec<[LineageSearchEvidence; 1]>>,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
-    serde::Serialize::serialize(value, serializer)
+    serde::Serialize::serialize(value.as_slice(), serializer)
 }
 
 fn deserialize_lineage_searches<'de, D>(
     deserializer: D,
-) -> Result<Arc<Vec<LineageSearchEvidence>>, D::Error>
+) -> Result<Arc<SmallVec<[LineageSearchEvidence; 1]>>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
-    <Vec<LineageSearchEvidence> as serde::Deserialize>::deserialize(deserializer).map(Arc::new)
+    struct LineageSearchesVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for LineageSearchesVisitor {
+        type Value = Arc<SmallVec<[LineageSearchEvidence; 1]>>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("a sequence of lineage-search records")
+        }
+
+        fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+        where
+            A: serde::de::SeqAccess<'de>,
+        {
+            let mut searches = SmallVec::new();
+            while let Some(search) = sequence.next_element()? {
+                searches.push(search);
+            }
+            if searches.is_empty() {
+                Ok(empty_lineage_searches())
+            } else {
+                Ok(Arc::new(searches))
+            }
+        }
+    }
+
+    deserializer.deserialize_seq(LineageSearchesVisitor)
 }
 
 fn serialize_codebook_fields<S>(
@@ -763,7 +1035,32 @@ fn deserialize_codebook_fields<'de, D>(
 where
     D: serde::Deserializer<'de>,
 {
-    <Vec<Option<String>> as serde::Deserialize>::deserialize(deserializer).map(Arc::new)
+    struct CodebookFieldsVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for CodebookFieldsVisitor {
+        type Value = Arc<Vec<Option<String>>>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("the fixed Chronicle codebook field sequence")
+        }
+
+        fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+        where
+            A: serde::de::SeqAccess<'de>,
+        {
+            let mut fields = SmallVec::<[Option<String>; 32]>::new();
+            while let Some(field) = sequence.next_element()? {
+                fields.push(field);
+            }
+            if fields.len() == CODEBOOK_RENAME_PAIRS.len() && fields.iter().all(Option::is_none) {
+                Ok(empty_codebook_fields())
+            } else {
+                Ok(Arc::new(fields.into_vec()))
+            }
+        }
+    }
+
+    deserializer.deserialize_seq(CodebookFieldsVisitor)
 }
 
 impl serde::Serialize for Row {
@@ -771,7 +1068,17 @@ impl serde::Serialize for Row {
     where
         S: serde::Serializer,
     {
-        self.0.data.serialize(serializer)
+        if serializer.is_human_readable() {
+            self.0.data.serialize(serializer)
+        } else {
+            PersistedRowRef {
+                data: &self.0.data,
+                identity: self.0.checkpoint_parts.identity.get().copied(),
+                temporal: self.0.checkpoint_parts.temporal.get().copied(),
+                classification: self.0.checkpoint_parts.classification.get().copied(),
+            }
+            .serialize(serializer)
+        }
     }
 }
 
@@ -780,7 +1087,28 @@ impl<'de> serde::Deserialize<'de> for Row {
     where
         D: serde::Deserializer<'de>,
     {
-        RowData::deserialize(deserializer).map(|data| Self(Arc::new(RowInner::new(data))))
+        if deserializer.is_human_readable() {
+            RowData::deserialize(deserializer).map(|data| Self(Arc::new(RowInner::new(data))))
+        } else {
+            PersistedRow::deserialize(deserializer).map(|persisted| {
+                fn restored(value: Option<[u8; 32]>) -> OnceLock<[u8; 32]> {
+                    let lock = OnceLock::new();
+                    if let Some(value) = value {
+                        lock.set(value).expect("fresh checkpoint lock");
+                    }
+                    lock
+                }
+
+                Self(Arc::new(RowInner {
+                    data: persisted.data,
+                    checkpoint_parts: RowCheckpointCache {
+                        identity: restored(persisted.identity),
+                        temporal: restored(persisted.temporal),
+                        classification: restored(persisted.classification),
+                    },
+                }))
+            })
+        }
     }
 }
 
@@ -849,23 +1177,192 @@ pub struct SourceDataRowRange {
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LineageSearchEvidence {
-    pub protocol_version: String,
-    pub reason: String,
-    pub index_space: String,
-    pub start_participant_id: String,
+    #[serde(
+        serialize_with = "serialize_shared_arc_string",
+        deserialize_with = "deserialize_shared_arc_string"
+    )]
+    pub protocol_version: Arc<String>,
+    #[serde(
+        serialize_with = "serialize_shared_arc_string",
+        deserialize_with = "deserialize_shared_arc_string"
+    )]
+    pub reason: Arc<String>,
+    #[serde(
+        serialize_with = "serialize_shared_arc_string",
+        deserialize_with = "deserialize_shared_arc_string"
+    )]
+    pub index_space: Arc<String>,
+    #[serde(
+        serialize_with = "serialize_shared_arc_string",
+        deserialize_with = "deserialize_shared_arc_string"
+    )]
+    pub start_participant_id: Arc<String>,
     pub start_event_index: u32,
     pub end_event_index_exclusive: u32,
     pub candidate_event_count: u32,
-    pub candidate_chain_digest: String,
+    pub candidate_chain_digest: LineageSearchDigest,
+}
+
+fn serialize_shared_arc_string<S>(value: &Arc<String>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if serializer.is_human_readable() {
+        serializer.serialize_str(value)
+    } else {
+        serialize_persisted_string(&SharedString(Arc::clone(value)), serializer)
+    }
+}
+
+fn deserialize_shared_arc_string<'de, D>(deserializer: D) -> Result<Arc<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    if !deserializer.is_human_readable() {
+        return deserialize_persisted_string(deserializer).map(SharedString::into_shared);
+    }
+    struct SharedArcStringVisitor;
+
+    impl serde::de::Visitor<'_> for SharedArcStringVisitor {
+        type Value = Arc<String>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("a UTF-8 string")
+        }
+
+        fn visit_borrowed_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(intern_deserialized_arc_str(value))
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(intern_deserialized_arc_str(value))
+        }
+
+        fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(intern_deserialized_arc_string(value))
+        }
+    }
+
+    deserializer.deserialize_string(SharedArcStringVisitor)
+}
+
+fn static_lineage_text(value: &str) -> Option<Arc<String>> {
+    match value {
+        "chronicle-lineage-search/v1" => Some(shared_lineage_text("chronicle-lineage-search/v1")),
+        "selected-qualifying-stop" => Some(shared_lineage_text("selected-qualifying-stop")),
+        "no-qualifying-stop" => Some(shared_lineage_text("no-qualifying-stop")),
+        "screen-credit-liveness-window" => {
+            Some(shared_lineage_text("screen-credit-liveness-window"))
+        }
+        "pipeline-event-order" => Some(shared_lineage_text("pipeline-event-order")),
+        "participant-source-event-order" => {
+            Some(shared_lineage_text("participant-source-event-order"))
+        }
+        _ => None,
+    }
+}
+
+fn intern_deserialized_arc_str(value: &str) -> Arc<String> {
+    static_lineage_text(value).unwrap_or_else(|| intern_deserialized_str(value).into_shared())
+}
+
+fn intern_deserialized_arc_string(value: String) -> Arc<String> {
+    static_lineage_text(&value).unwrap_or_else(|| intern_deserialized_string(value).into_shared())
+}
+
+/// Raw BLAKE3 output that retains the public `blake3:<hex>` wire format
+/// without allocating a unique 71-byte string for every searched event range.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct LineageSearchDigest([u8; 32]);
+
+impl LineageSearchDigest {
+    fn from_hasher(hasher: CheckpointHasher) -> Self {
+        Self(*hasher.finalize().as_bytes())
+    }
+
+    pub fn parse(value: &str) -> Result<Self, String> {
+        let hex = value
+            .strip_prefix("blake3:")
+            .ok_or_else(|| "lineage search digest does not use blake3".to_string())?;
+        let mut digest = [0_u8; 32];
+        hex::decode_to_slice(hex, &mut digest)
+            .map_err(|error| format!("decode lineage search digest: {error}"))?;
+        Ok(Self(digest))
+    }
+
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+
+    fn encoded(self) -> [u8; 71] {
+        encode_blake3_digest(self.0)
+    }
+}
+
+impl std::fmt::Display for LineageSearchDigest {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let encoded = self.encoded();
+        formatter.write_str(std::str::from_utf8(&encoded).expect("BLAKE3 digest is ASCII"))
+    }
+}
+
+impl serde::Serialize for LineageSearchDigest {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let encoded = self.encoded();
+        serializer.serialize_str(std::str::from_utf8(&encoded).expect("BLAKE3 digest is ASCII"))
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for LineageSearchDigest {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = <&str>::deserialize(deserializer)?;
+        Self::parse(value).map_err(serde::de::Error::custom)
+    }
+}
+
+fn shared_lineage_text(value: &'static str) -> Arc<String> {
+    static VALUES: OnceLock<BTreeMap<&'static str, Arc<String>>> = OnceLock::new();
+    Arc::clone(
+        VALUES
+            .get_or_init(|| {
+                [
+                    "chronicle-lineage-search/v1",
+                    "selected-qualifying-stop",
+                    "no-qualifying-stop",
+                    "screen-credit-liveness-window",
+                    "pipeline-event-order",
+                    "participant-source-event-order",
+                ]
+                .into_iter()
+                .map(|text| (text, Arc::new(text.to_owned())))
+                .collect()
+            })
+            .get(value)
+            .expect("lineage text must be registered"),
+    )
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct SourceDataRows(Arc<Vec<SourceDataRowRange>>);
+struct SourceDataRows(SmallVec<[SourceDataRowRange; 2]>);
 
 impl Default for SourceDataRows {
     fn default() -> Self {
-        static EMPTY: OnceLock<Arc<Vec<SourceDataRowRange>>> = OnceLock::new();
-        Self(Arc::clone(EMPTY.get_or_init(|| Arc::new(Vec::new()))))
+        Self(SmallVec::new())
     }
 }
 
@@ -874,7 +1371,7 @@ impl serde::Serialize for SourceDataRows {
     where
         S: serde::Serializer,
     {
-        serde::Serialize::serialize(&self.0, serializer)
+        serde::Serialize::serialize(self.0.as_slice(), serializer)
     }
 }
 
@@ -883,17 +1380,39 @@ impl<'de> serde::Deserialize<'de> for SourceDataRows {
     where
         D: serde::Deserializer<'de>,
     {
-        <Vec<SourceDataRowRange> as serde::Deserialize>::deserialize(deserializer)
-            .map(|value| Self(Arc::new(value)))
+        struct SourceDataRowsVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for SourceDataRowsVisitor {
+            type Value = SourceDataRows;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a sequence of source-data row ranges")
+            }
+
+            fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let mut ranges = SmallVec::new();
+                while let Some(range) = sequence.next_element()? {
+                    ranges.push(range);
+                }
+                Ok(SourceDataRows(ranges))
+            }
+        }
+
+        deserializer.deserialize_seq(SourceDataRowsVisitor)
     }
 }
 
 impl SourceDataRows {
     fn single(row: u32) -> Self {
-        Self(Arc::new(vec![SourceDataRowRange {
+        let mut rows = SmallVec::new();
+        rows.push(SourceDataRowRange {
             first: row,
             last: row,
-        }]))
+        });
+        Self(rows)
     }
 
     fn len(&self) -> usize {
@@ -931,12 +1450,12 @@ impl SourceDataRows {
             return;
         }
         if self.0.is_empty() {
-            self.0 = Arc::clone(&additional.0);
+            self.0.clone_from(&additional.0);
             return;
         }
 
-        let mut merged: Vec<SourceDataRowRange> =
-            Vec::with_capacity(self.0.len() + additional.0.len());
+        let mut merged =
+            SmallVec::<[SourceDataRowRange; 2]>::with_capacity(self.0.len() + additional.0.len());
         let mut left = 0;
         let mut right = 0;
         while left < self.0.len() || right < additional.0.len() {
@@ -959,7 +1478,7 @@ impl SourceDataRows {
             }
             merged.push(next);
         }
-        self.0 = Arc::new(merged);
+        self.0 = merged;
     }
 
     fn cmp_expanded(&self, other: &Self) -> std::cmp::Ordering {
@@ -972,14 +1491,18 @@ impl SourceDataRows {
     }
 }
 
-fn empty_codebook_fields() -> Arc<Vec<Option<String>>> {
+fn empty_codebook_fields_ref() -> &'static Arc<Vec<Option<String>>> {
     static EMPTY: OnceLock<Arc<Vec<Option<String>>>> = OnceLock::new();
-    Arc::clone(EMPTY.get_or_init(|| Arc::new(vec![None; CODEBOOK_RENAME_PAIRS.len()])))
+    EMPTY.get_or_init(|| Arc::new(vec![None; CODEBOOK_RENAME_PAIRS.len()]))
 }
 
-fn empty_lineage_searches() -> Arc<Vec<LineageSearchEvidence>> {
-    static EMPTY: OnceLock<Arc<Vec<LineageSearchEvidence>>> = OnceLock::new();
-    Arc::clone(EMPTY.get_or_init(|| Arc::new(Vec::new())))
+fn empty_codebook_fields() -> Arc<Vec<Option<String>>> {
+    Arc::clone(empty_codebook_fields_ref())
+}
+
+fn empty_lineage_searches() -> Arc<SmallVec<[LineageSearchEvidence; 1]>> {
+    static EMPTY: OnceLock<Arc<SmallVec<[LineageSearchEvidence; 1]>>> = OnceLock::new();
+    Arc::clone(EMPTY.get_or_init(|| Arc::new(SmallVec::new())))
 }
 
 // ---- tz formatters ------------------------------------------------------
@@ -994,11 +1517,13 @@ fn ts_to_local(ts_ns: i64, tz: Tz) -> DateTime<Tz> {
         .with_timezone(&tz)
 }
 
-/// Format event_timestamp matching `formatEventTimestamp` (TS).
-/// "YYYY-MM-DD HH:MM:SS+HH:MM"
-fn fmt_event_timestamp(ts_ns: i64, tz: Tz) -> String {
+/// Write event_timestamp matching the established CSV contract without
+/// allocating an intermediate String for every output row.
+fn emit_event_timestamp(out: &mut Vec<u8>, ts_ns: i64, tz: Tz, first: &mut bool) {
+    begin_csv_field(out, first);
     let local = ts_to_local(ts_ns, tz);
-    format!(
+    write!(
+        out,
         "{:04}-{:02}-{:02} {:02}:{:02}:{:02}{}",
         local.year(),
         local.month(),
@@ -1008,15 +1533,15 @@ fn fmt_event_timestamp(ts_ns: i64, tz: Tz) -> String {
         local.second(),
         local.format("%:z"),
     )
+    .expect("writing a timestamp to Vec cannot fail");
 }
 
-/// Session timestamp: M-D-Y H:M:S (no offset). Empty if None.
-fn fmt_session_timestamp(ts_ns: Option<i64>, tz: Tz) -> String {
-    let Some(ns) = ts_ns else {
-        return String::new();
-    };
+fn emit_session_timestamp(out: &mut Vec<u8>, ts_ns: Option<i64>, tz: Tz, first: &mut bool) {
+    begin_csv_field(out, first);
+    let Some(ns) = ts_ns else { return };
     let local = ts_to_local(ns, tz);
-    format!(
+    write!(
+        out,
         "{:02}-{:02}-{:04} {:02}:{:02}:{:02}",
         local.month(),
         local.day(),
@@ -1025,61 +1550,57 @@ fn fmt_session_timestamp(ts_ns: Option<i64>, tz: Tz) -> String {
         local.minute(),
         local.second(),
     )
+    .expect("writing a timestamp to Vec cannot fail");
 }
 
-/// Screen timestamp: YYYY-MM-DD HH:MM:SS.000000+HH:MM (with .000000 micro filler)
-fn fmt_screen_timestamp(ts_ns: Option<i64>, tz: Tz) -> String {
-    let Some(ns) = ts_ns else {
-        return String::new();
-    };
-    let base = fmt_event_timestamp(ns, tz);
-    // Insert ".000000" before the offset suffix.
-    // Find last + or - that is the offset (>=19 chars in).
-    if let Some(idx) = find_offset_start(&base) {
-        let mut out = String::with_capacity(base.len() + 7);
-        out.push_str(&base[..idx]);
-        out.push_str(".000000");
-        out.push_str(&base[idx..]);
-        out
-    } else {
-        base
-    }
+// Aggregate writers build a small row of owned fields before serializing it.
+// Keep their existing helper while the high-volume row writers emit directly.
+fn fmt_session_timestamp(ts_ns: Option<i64>, tz: Tz) -> String {
+    ts_ns
+        .map(|ns| ts_to_local(ns, tz).format("%m-%d-%Y %H:%M:%S").to_string())
+        .unwrap_or_default()
 }
 
-/// Last activity timestamp: YYYY-MM-DDTHH:MM:SS.000000+HHMM (T separator + no colon in offset)
-fn fmt_screen_last_activity(ts_ns: Option<i64>, tz: Tz) -> String {
-    let Some(ns) = ts_ns else {
-        return String::new();
-    };
-    let base = fmt_event_timestamp(ns, tz);
-    let with_t = base.replacen(' ', "T", 1);
-    if let Some(idx) = find_offset_start(&with_t) {
-        // Strip the colon from the offset.
-        let prefix = &with_t[..idx];
-        let offset = &with_t[idx..];
-        let mut sanitized_offset = String::with_capacity(offset.len());
-        for ch in offset.chars() {
-            if ch != ':' {
-                sanitized_offset.push(ch);
-            }
-        }
-        let mut out = String::with_capacity(prefix.len() + 7 + sanitized_offset.len());
-        out.push_str(prefix);
-        out.push_str(".000000");
-        out.push_str(&sanitized_offset);
-        out
-    } else {
-        with_t
-    }
+fn emit_screen_timestamp(out: &mut Vec<u8>, ts_ns: Option<i64>, tz: Tz, first: &mut bool) {
+    begin_csv_field(out, first);
+    let Some(ns) = ts_ns else { return };
+    let local = ts_to_local(ns, tz);
+    write!(
+        out,
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}.000000{}",
+        local.year(),
+        local.month(),
+        local.day(),
+        local.hour(),
+        local.minute(),
+        local.second(),
+        local.format("%:z"),
+    )
+    .expect("writing a timestamp to Vec cannot fail");
 }
 
-fn find_offset_start(s: &str) -> Option<usize> {
-    s.rfind(['+', '-']).filter(|&i| i >= 19)
+fn emit_screen_last_activity(out: &mut Vec<u8>, ts_ns: Option<i64>, tz: Tz, first: &mut bool) {
+    begin_csv_field(out, first);
+    let Some(ns) = ts_ns else { return };
+    let local = ts_to_local(ns, tz);
+    write!(
+        out,
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.000000{}",
+        local.year(),
+        local.month(),
+        local.day(),
+        local.hour(),
+        local.minute(),
+        local.second(),
+        local.format("%z"),
+    )
+    .expect("writing a timestamp to Vec cannot fail");
 }
 
 fn populate_time_columns(row: &mut Row, tz: Tz) {
     let local = ts_to_local(row.event_timestamp_ns, tz);
-    row.date = format!(
+    let data = row.edit_temporal();
+    data.date = format!(
         "{:04}-{:02}-{:02}",
         local.year(),
         local.month(),
@@ -1087,16 +1608,16 @@ fn populate_time_columns(row: &mut Row, tz: Tz) {
     )
     .into();
     let day = weekday_chronicle(local.weekday());
-    row.day = day;
-    row.weekday_mf = if (2..=6).contains(&day) { 1 } else { 0 };
-    row.weekday_mth = if (2..=5).contains(&day) { 1 } else { 0 };
-    row.weekday_su_th = if day == 1 || (2..=5).contains(&day) {
+    data.day = day;
+    data.weekday_mf = if (2..=6).contains(&day) { 1 } else { 0 };
+    data.weekday_mth = if (2..=5).contains(&day) { 1 } else { 0 };
+    data.weekday_su_th = if day == 1 || (2..=5).contains(&day) {
         1
     } else {
         0
     };
-    row.hour = local.hour() as u8;
-    row.quarter = ((local.month() as u8 - 1) / 3) + 1;
+    data.hour = local.hour() as u8;
+    data.quarter = ((local.month() as u8 - 1) / 3) + 1;
 }
 
 // ---- float formatting (Python-like repr) -------------------------------
@@ -1373,17 +1894,6 @@ fn strip_exp_leading_zeros(s: &str) -> String {
     s.to_string()
 }
 
-fn format_csv_number_float(v: Option<f64>) -> String {
-    match v {
-        None => String::new(),
-        Some(x) => normalize_float_string(x),
-    }
-}
-
-fn format_csv_int(v: i32) -> String {
-    v.to_string()
-}
-
 // ---- main entry ---------------------------------------------------------
 
 /// Internal Rust-side result; not directly returned across the boundary.
@@ -1452,12 +1962,12 @@ pub struct LogicalStageCheckpoint {
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PipelineRowLineage {
-    pub output_kind: String,
+    pub output_kind: Arc<String>,
     pub output_row_index: u32,
     pub source_data_row_ranges: Vec<SourceDataRowRange>,
     pub source_data_row_count: u32,
     pub searches: Vec<LineageSearchEvidence>,
-    pub terminal_logical_node: String,
+    pub terminal_logical_node: Arc<String>,
 }
 
 fn build_row_lineage(
@@ -1473,14 +1983,16 @@ fn build_row_lineage_from_iter<'a>(
     terminal_logical_node: &'static str,
     rows: impl Iterator<Item = &'a Row>,
 ) -> Vec<PipelineRowLineage> {
+    let output_kind = Arc::new(output_kind.to_owned());
+    let terminal_logical_node = Arc::new(terminal_logical_node.to_owned());
     rows.enumerate()
         .map(|(index, row)| PipelineRowLineage {
-            output_kind: output_kind.to_string(),
+            output_kind: Arc::clone(&output_kind),
             output_row_index: index as u32,
             source_data_row_ranges: row.source_data_rows.ranges().to_vec(),
             source_data_row_count: row.source_data_rows.len() as u32,
-            searches: row.lineage_searches.as_ref().clone(),
-            terminal_logical_node: terminal_logical_node.to_string(),
+            searches: row.lineage_searches.iter().cloned().collect(),
+            terminal_logical_node: Arc::clone(&terminal_logical_node),
         })
         .collect()
 }
@@ -1656,7 +2168,7 @@ fn checkpoint_digest_optional_f64(sink: &mut impl CheckpointSink, value: Option<
     }
 }
 
-const LOGICAL_STAGE_CHECKPOINT_PROTOCOL: &str = "chronicle-logical-stage-checkpoint/v3";
+const LOGICAL_STAGE_CHECKPOINT_PROTOCOL: &str = "chronicle-logical-stage-checkpoint/v5";
 const LOGICAL_STAGE_ROW_SCHEMA: &str = concat!(
     "association:source_data_rows,index;",
     "membership:source_data_rows;",
@@ -1676,10 +2188,9 @@ const LOGICAL_STAGE_ROW_SCHEMA: &str = concat!(
     "broad_app_category,codebook_fields,usage_layer"
 );
 
-fn checkpoint_hasher(node_id: &str, component: &str) -> BufferedCheckpointHasher {
+fn checkpoint_hasher(component: &str) -> BufferedCheckpointHasher {
     let mut hasher = BufferedCheckpointHasher::new();
     checkpoint_digest_field(&mut hasher, LOGICAL_STAGE_CHECKPOINT_PROTOCOL.as_bytes());
-    checkpoint_digest_field(&mut hasher, node_id.as_bytes());
     checkpoint_digest_field(&mut hasher, component.as_bytes());
     hasher
 }
@@ -1807,7 +2318,7 @@ fn encode_row_checkpoint_parts<I: CheckpointSink, T: CheckpointSink, C: Checkpoi
         checkpoint_update(identity, &search.start_event_index.to_le_bytes());
         checkpoint_update(identity, &search.end_event_index_exclusive.to_le_bytes());
         checkpoint_update(identity, &search.candidate_event_count.to_le_bytes());
-        checkpoint_digest_field(identity, search.candidate_chain_digest.as_bytes());
+        checkpoint_digest_field(identity, &search.candidate_chain_digest.encoded());
     }
     checkpoint_update(identity, &(*index as u64).to_le_bytes());
 
@@ -1886,19 +2397,28 @@ fn encode_row_checkpoint_parts<I: CheckpointSink, T: CheckpointSink, C: Checkpoi
     }
     checkpoint_digest_optional_string(classification, genre_id_scraped.as_deref());
     checkpoint_digest_optional_string(classification, broad_app_category.as_deref());
-    checkpoint_update(
-        classification,
-        &(codebook_fields.len() as u64).to_le_bytes(),
-    );
-    for (field_index, value) in codebook_fields.iter().enumerate() {
-        let value = if *codebook_genre_fields_cleared
-            && COLLAPSED_GENRE_FIELD_INDICES.contains(&field_index)
-        {
-            None
-        } else {
-            value.as_deref()
-        };
-        checkpoint_digest_optional_string(classification, value);
+    if Arc::ptr_eq(codebook_fields, empty_codebook_fields_ref()) {
+        // The overwhelmingly common no-codebook case has a fixed exact
+        // encoding: the u64 sequence length followed by one zero tag per
+        // absent field. Append it as one block instead of 28 tiny writes.
+        let mut encoded = [0_u8; 8 + CODEBOOK_RENAME_PAIRS.len()];
+        encoded[..8].copy_from_slice(&(CODEBOOK_RENAME_PAIRS.len() as u64).to_le_bytes());
+        checkpoint_update(classification, &encoded);
+    } else {
+        checkpoint_update(
+            classification,
+            &(codebook_fields.len() as u64).to_le_bytes(),
+        );
+        for (field_index, value) in codebook_fields.iter().enumerate() {
+            let value = if *codebook_genre_fields_cleared
+                && COLLAPSED_GENRE_FIELD_INDICES.contains(&field_index)
+            {
+                None
+            } else {
+                value.as_deref()
+            };
+            checkpoint_digest_optional_string(classification, value);
+        }
     }
     checkpoint_digest_optional_string(classification, usage_layer.as_deref());
 }
@@ -2067,10 +2587,164 @@ fn logical_stage_checkpoint_with_parts(
 ) -> LogicalStageCheckpoint {
     if let Some(parts) = single_group_parts {
         let group_parts = [parts];
-        logical_stage_checkpoint_with_group_parts(node_id, row_groups, payloads, Some(&group_parts))
+        logical_stage_checkpoint_with_group_parts(
+            node_id,
+            row_groups,
+            payloads,
+            Some(&group_parts),
+            None,
+            None,
+        )
     } else {
-        logical_stage_checkpoint_with_group_parts(node_id, row_groups, payloads, None)
+        logical_stage_checkpoint_with_group_parts(node_id, row_groups, payloads, None, None, None)
     }
+}
+
+fn logical_stage_rows_checkpoint_with_parts_and_canonical_order(
+    node_id: &str,
+    rows: &[Row],
+    parts: &[RowCheckpointParts],
+    canonical_order: &[usize],
+) -> LogicalStageCheckpoint {
+    let group_parts = [parts];
+    logical_stage_checkpoint_with_group_parts(
+        node_id,
+        &[("rows", rows)],
+        &[],
+        Some(&group_parts),
+        None,
+        Some(canonical_order),
+    )
+}
+
+fn logical_stage_checkpoint_with_reusable_parts(
+    node_id: &str,
+    rows: &[Row],
+    payloads: &[(&str, &[u8])],
+    parts: &[RowCheckpointParts],
+    previous_parts: &[RowCheckpointParts],
+    previous_checkpoint: &LogicalStageCheckpoint,
+) -> LogicalStageCheckpoint {
+    let group_parts = [parts];
+    logical_stage_checkpoint_with_group_parts(
+        node_id,
+        &[("rows", rows)],
+        payloads,
+        Some(&group_parts),
+        Some(PreviousRowState {
+            checkpoint: previous_checkpoint,
+            reusable_components: reusable_row_components_from_parts(parts, previous_parts),
+        }),
+        None,
+    )
+}
+
+fn logical_stage_checkpoint_with_reusable_rows(
+    node_id: &str,
+    rows: &[Row],
+    payloads: &[(&str, &[u8])],
+    parts: &[RowCheckpointParts],
+    previous_rows: &[Row],
+    previous_checkpoint: &LogicalStageCheckpoint,
+) -> LogicalStageCheckpoint {
+    let group_parts = [parts];
+    logical_stage_checkpoint_with_group_parts(
+        node_id,
+        &[("rows", rows)],
+        payloads,
+        Some(&group_parts),
+        Some(PreviousRowState {
+            checkpoint: previous_checkpoint,
+            reusable_components: reusable_row_components_from_rows(parts, previous_rows),
+        }),
+        None,
+    )
+}
+
+fn logical_stage_checkpoint_with_known_membership_and_order(
+    node_id: &str,
+    rows: &[Row],
+    payloads: &[(&str, &[u8])],
+    previous_rows: &[Row],
+    previous_checkpoint: &LogicalStageCheckpoint,
+) -> LogicalStageCheckpoint {
+    debug_assert_eq!(rows.len(), previous_rows.len());
+    #[cfg(debug_assertions)]
+    {
+        let mut current_scratch = RowCheckpointScratch::default();
+        let mut previous_scratch = RowCheckpointScratch::default();
+        for (current, previous) in rows.iter().zip(previous_rows) {
+            debug_assert_eq!(
+                row_checkpoint_parts(current, &mut current_scratch).identity,
+                row_checkpoint_parts(previous, &mut previous_scratch).identity,
+            );
+        }
+    }
+    logical_stage_checkpoint_with_group_parts(
+        node_id,
+        &[("rows", rows)],
+        payloads,
+        None,
+        Some(PreviousRowState {
+            checkpoint: previous_checkpoint,
+            reusable_components: (true, true, false, false),
+        }),
+        None,
+    )
+}
+
+#[derive(Clone, Copy)]
+struct PreviousRowState<'a> {
+    checkpoint: &'a LogicalStageCheckpoint,
+    reusable_components: (bool, bool, bool, bool),
+}
+
+fn reusable_row_components_from_parts(
+    current: &[RowCheckpointParts],
+    previous: &[RowCheckpointParts],
+) -> (bool, bool, bool, bool) {
+    let same_identity = current.len() == previous.len()
+        && current
+            .iter()
+            .zip(previous)
+            .all(|(left, right)| left.identity == right.identity);
+    let same_temporal = same_identity
+        && current
+            .iter()
+            .zip(previous)
+            .all(|(left, right)| left.temporal == right.temporal);
+    let same_classification = same_identity
+        && current
+            .iter()
+            .zip(previous)
+            .all(|(left, right)| left.classification == right.classification);
+    (
+        same_identity,
+        same_identity,
+        same_temporal,
+        same_classification,
+    )
+}
+
+fn reusable_row_components_from_rows(
+    current: &[RowCheckpointParts],
+    previous: &[Row],
+) -> (bool, bool, bool, bool) {
+    if current.len() != previous.len() {
+        return (false, false, false, false);
+    }
+    let mut previous_scratch = RowCheckpointScratch::default();
+    let mut same_temporal = true;
+    let mut same_classification = true;
+    for (current, previous) in current.iter().zip(previous) {
+        let previous = row_checkpoint_parts(previous, &mut previous_scratch);
+        if current.identity != previous.identity {
+            return (false, false, false, false);
+        }
+        same_temporal &= current.temporal == previous.temporal;
+        same_classification &= current.classification == previous.classification;
+    }
+    (true, true, same_temporal, same_classification)
 }
 
 fn logical_stage_checkpoint_with_group_parts(
@@ -2078,13 +2752,32 @@ fn logical_stage_checkpoint_with_group_parts(
     row_groups: &[(&str, &[Row])],
     payloads: &[(&str, &[u8])],
     group_parts: Option<&[&[RowCheckpointParts]]>,
+    previous_row_state: Option<PreviousRowState<'_>>,
+    single_group_canonical_order: Option<&[usize]>,
 ) -> LogicalStageCheckpoint {
-    let mut membership = checkpoint_hasher(node_id, "row-membership");
-    let mut order = checkpoint_hasher(node_id, "row-order");
-    let mut temporal = checkpoint_hasher(node_id, "temporal-state");
-    let mut classification = checkpoint_hasher(node_id, "classification");
-    let mut payload = checkpoint_hasher(node_id, "payload");
-    let mut schema = checkpoint_hasher(node_id, "schema");
+    debug_assert!(
+        single_group_canonical_order.is_none() || row_groups.len() == 1,
+        "a supplied canonical order is valid only for one row group"
+    );
+    let (reuse_membership, reuse_order, reuse_temporal, reuse_classification) =
+        match previous_row_state {
+            Some(previous) => {
+                debug_assert_eq!(
+                    previous.checkpoint.protocol_version,
+                    LOGICAL_STAGE_CHECKPOINT_PROTOCOL
+                );
+                previous.reusable_components
+            }
+            None => (false, false, false, false),
+        };
+    #[cfg(feature = "query-timing")]
+    let checkpoint_started = std::time::Instant::now();
+    let mut membership = checkpoint_hasher("row-membership");
+    let mut order = checkpoint_hasher("row-order");
+    let mut temporal = checkpoint_hasher("temporal-state");
+    let mut classification = checkpoint_hasher("classification");
+    let mut payload = checkpoint_hasher("payload");
+    let mut schema = checkpoint_hasher("schema");
     checkpoint_digest_field(&mut schema, LOGICAL_STAGE_ROW_SCHEMA.as_bytes());
     for hasher in [
         &mut membership,
@@ -2109,61 +2802,129 @@ fn logical_stage_checkpoint_with_group_parts(
         // Membership and row-associated semantic components are canonicalized
         // by stable source identity. A temporal edit may change sequence order,
         // but it must not falsely report a membership or classification edit.
-        // Calculate the three row commitments once. The order commitment uses
-        // the same identity bytes below; recomputing `row_checkpoint_parts`
-        // there doubled all row hashing at every one of the 55 checkpoints.
-        let computed_parts;
-        let row_parts = if let Some(parts) = group_parts.and_then(|parts| parts.get(group_index)) {
-            assert_eq!(parts.len(), rows.len(), "checkpoint row-part count drift");
+        // Calculate the three row commitments once. When source identities
+        // are already canonical, feed each row directly to every commitment
+        // instead of allocating a 96-byte parts array for the whole table.
+        let canonical_components_needed =
+            !reuse_membership || !reuse_temporal || !reuse_classification;
+        let supplied_canonical_order = (group_index == 0)
+            .then_some(single_group_canonical_order)
+            .flatten();
+        let identity_is_already_sorted = supplied_canonical_order.is_none()
+            && (!canonical_components_needed
+                || rows.windows(2).all(|pair| {
+                    pair[0]
+                        .source_data_rows
+                        .cmp_expanded(&pair[1].source_data_rows)
+                        .then(pair[0].index.cmp(&pair[1].index))
+                        .is_le()
+                }));
+        let mut record_canonical_parts = |parts: &RowCheckpointParts| {
+            if !reuse_membership {
+                checkpoint_digest_fixed32(&mut membership, &parts.identity);
+            }
+            // v5: temporal/classification commit their parts alone. The row
+            // identity sequence is already committed by the membership digest
+            // in the SAME canonical order, and the terminal digest binds all
+            // components, so the (identity, part) association is positional —
+            // repeating the 32-byte identity here only doubled hashed bytes.
+            if !reuse_temporal {
+                checkpoint_digest_fixed32(&mut temporal, &parts.temporal);
+            }
+            if !reuse_classification {
+                checkpoint_digest_fixed32(&mut classification, &parts.classification);
+            }
+        };
+        if let Some(row_parts) = group_parts.and_then(|parts| parts.get(group_index)) {
+            assert_eq!(
+                row_parts.len(),
+                rows.len(),
+                "checkpoint row-part count drift"
+            );
             #[cfg(debug_assertions)]
             {
                 let fresh = row_checkpoint_parts_for_rows(rows);
                 assert_eq!(
-                    *parts, fresh,
+                    *row_parts, fresh,
                     "attempted to reuse stale row checkpoint parts for {node_id}"
                 );
             }
-            *parts
-        } else {
-            computed_parts = row_checkpoint_parts_for_rows(rows);
-            &computed_parts
-        };
-        let identity_is_already_sorted = rows.windows(2).all(|pair| {
-            pair[0]
-                .source_data_rows
-                .cmp_expanded(&pair[1].source_data_rows)
-                .then(pair[0].index.cmp(&pair[1].index))
-                .is_le()
-        });
-        let mut record_canonical_parts = |parts: &RowCheckpointParts| {
-            checkpoint_digest_fixed32(&mut membership, &parts.identity);
-            checkpoint_digest_fixed32_pair(&mut temporal, &parts.identity, &parts.temporal);
-            checkpoint_digest_fixed32_pair(
-                &mut classification,
-                &parts.identity,
-                &parts.classification,
-            );
-        };
-        if identity_is_already_sorted {
-            for parts in row_parts {
-                record_canonical_parts(parts);
+            if canonical_components_needed {
+                if let Some(identity_order) = supplied_canonical_order {
+                    debug_assert_eq!(identity_order.len(), rows.len());
+                    #[cfg(debug_assertions)]
+                    {
+                        let mut observed = vec![false; rows.len()];
+                        for (position, &row_index) in identity_order.iter().enumerate() {
+                            debug_assert!(row_index < rows.len());
+                            debug_assert!(!observed[row_index]);
+                            observed[row_index] = true;
+                            if let Some(&next_index) = identity_order.get(position + 1) {
+                                debug_assert!(rows[row_index]
+                                    .source_data_rows
+                                    .cmp_expanded(&rows[next_index].source_data_rows)
+                                    .then(rows[row_index].index.cmp(&rows[next_index].index))
+                                    .is_le());
+                            }
+                        }
+                    }
+                    for &row_index in identity_order {
+                        record_canonical_parts(&row_parts[row_index]);
+                    }
+                } else if identity_is_already_sorted {
+                    for parts in *row_parts {
+                        record_canonical_parts(parts);
+                    }
+                } else {
+                    let mut identity_order: Vec<usize> = (0..rows.len()).collect();
+                    identity_order.sort_by(|left, right| {
+                        rows[*left]
+                            .source_data_rows
+                            .cmp_expanded(&rows[*right].source_data_rows)
+                            .then(rows[*left].index.cmp(&rows[*right].index))
+                    });
+                    for row_index in identity_order {
+                        record_canonical_parts(&row_parts[row_index]);
+                    }
+                }
+            }
+            if !reuse_order {
+                for (position, parts) in row_parts.iter().enumerate() {
+                    checkpoint_digest_positioned_fixed32(&mut order, position, &parts.identity);
+                }
+            }
+        } else if identity_is_already_sorted {
+            let mut scratch = RowCheckpointScratch::default();
+            for (position, row) in rows.iter().enumerate() {
+                let parts = row_checkpoint_parts(row, &mut scratch);
+                if canonical_components_needed {
+                    record_canonical_parts(&parts);
+                }
+                if !reuse_order {
+                    checkpoint_digest_positioned_fixed32(&mut order, position, &parts.identity);
+                }
             }
         } else {
-            let mut identity_order: Vec<usize> = (0..rows.len()).collect();
-            identity_order.sort_by(|left, right| {
-                rows[*left]
-                    .source_data_rows
-                    .cmp_expanded(&rows[*right].source_data_rows)
-                    .then(rows[*left].index.cmp(&rows[*right].index))
-            });
-            for row_index in identity_order {
-                record_canonical_parts(&row_parts[row_index]);
+            let mut scratch = RowCheckpointScratch::default();
+            if canonical_components_needed {
+                let mut identity_order: Vec<usize> = (0..rows.len()).collect();
+                identity_order.sort_by(|left, right| {
+                    rows[*left]
+                        .source_data_rows
+                        .cmp_expanded(&rows[*right].source_data_rows)
+                        .then(rows[*left].index.cmp(&rows[*right].index))
+                });
+                for row_index in identity_order {
+                    let parts = row_checkpoint_parts(&rows[row_index], &mut scratch);
+                    record_canonical_parts(&parts);
+                }
             }
-        }
-        // Order remains deliberately sequence-sensitive and associates every
-        // position with the same stable row identity used above.
-        for (position, parts) in row_parts.iter().enumerate() {
-            checkpoint_digest_positioned_fixed32(&mut order, position, &parts.identity);
+            if !reuse_order {
+                for (position, row) in rows.iter().enumerate() {
+                    let parts = row_checkpoint_parts(row, &mut scratch);
+                    checkpoint_digest_positioned_fixed32(&mut order, position, &parts.identity);
+                }
+            }
         }
     }
     payload.update(&(payloads.len() as u64).to_le_bytes());
@@ -2173,10 +2934,93 @@ fn logical_stage_checkpoint_with_group_parts(
         checkpoint_digest_field(&mut payload, bytes);
         checkpoint_digest_field(&mut schema, label.as_bytes());
     }
-    let row_membership_digest = finish_checkpoint_digest(membership);
-    let row_order_digest = finish_checkpoint_digest(order);
-    let temporal_state_digest = finish_checkpoint_digest(temporal);
-    let classification_digest = finish_checkpoint_digest(classification);
+    let previous_checkpoint = previous_row_state.map(|previous| previous.checkpoint);
+    let row_membership_digest = if reuse_membership {
+        previous_checkpoint
+            .expect("reuse requires a previous checkpoint")
+            .row_membership_digest
+            .clone()
+    } else {
+        finish_checkpoint_digest(membership)
+    };
+    let row_order_digest = if reuse_order {
+        previous_checkpoint
+            .expect("reuse requires a previous checkpoint")
+            .row_order_digest
+            .clone()
+    } else {
+        finish_checkpoint_digest(order)
+    };
+    let temporal_state_digest = if reuse_temporal {
+        previous_checkpoint
+            .expect("reuse requires a previous checkpoint")
+            .temporal_state_digest
+            .clone()
+    } else {
+        finish_checkpoint_digest(temporal)
+    };
+    let classification_digest = if reuse_classification {
+        previous_checkpoint
+            .expect("reuse requires a previous checkpoint")
+            .classification_digest
+            .clone()
+    } else {
+        finish_checkpoint_digest(classification)
+    };
+    let payload_digest = finish_checkpoint_digest(payload);
+    let schema_digest = finish_checkpoint_digest(schema);
+    #[cfg(feature = "query-timing")]
+    eprintln!(
+        "checkpoint_reuse node={node_id} rows={} membership={reuse_membership} order={reuse_order} temporal={reuse_temporal} classification={reuse_classification} elapsed_ms={:.3}",
+        row_groups.iter().map(|(_, rows)| rows.len()).sum::<usize>(),
+        checkpoint_started.elapsed().as_secs_f64() * 1000.0
+    );
+    let terminal_digest = terminal_checkpoint_digest(
+        node_id,
+        [
+            &row_membership_digest,
+            &row_order_digest,
+            &temporal_state_digest,
+            &classification_digest,
+            &payload_digest,
+            &schema_digest,
+        ],
+    );
+    LogicalStageCheckpoint {
+        protocol_version: LOGICAL_STAGE_CHECKPOINT_PROTOCOL.into(),
+        node_id: node_id.into(),
+        row_membership_digest,
+        row_order_digest,
+        temporal_state_digest,
+        classification_digest,
+        payload_digest,
+        schema_digest,
+        terminal_digest,
+    }
+}
+
+fn checkpoint_for_exact_row_state(
+    node_id: &str,
+    previous: &LogicalStageCheckpoint,
+    payloads: &[(&str, &[u8])],
+) -> LogicalStageCheckpoint {
+    debug_assert_eq!(previous.protocol_version, LOGICAL_STAGE_CHECKPOINT_PROTOCOL);
+    let mut payload = checkpoint_hasher("payload");
+    let mut schema = checkpoint_hasher("schema");
+    checkpoint_digest_field(&mut schema, LOGICAL_STAGE_ROW_SCHEMA.as_bytes());
+    schema.update(&1_u64.to_le_bytes());
+    checkpoint_digest_field(&mut schema, b"rows");
+    payload.update(&(payloads.len() as u64).to_le_bytes());
+    schema.update(&(payloads.len() as u64).to_le_bytes());
+    for (label, bytes) in payloads {
+        checkpoint_digest_field(&mut payload, label.as_bytes());
+        checkpoint_digest_field(&mut payload, bytes);
+        checkpoint_digest_field(&mut schema, label.as_bytes());
+    }
+    let row_membership_digest = previous.row_membership_digest.clone();
+    let row_order_digest = previous.row_order_digest.clone();
+    let temporal_state_digest = previous.temporal_state_digest.clone();
+    let classification_digest = previous.classification_digest.clone();
     let payload_digest = finish_checkpoint_digest(payload);
     let schema_digest = finish_checkpoint_digest(schema);
     let terminal_digest = terminal_checkpoint_digest(
@@ -2203,17 +3047,59 @@ fn logical_stage_checkpoint_with_group_parts(
     }
 }
 
-fn logical_stage_rows_checkpoint(node_id: &str, rows: &[Row]) -> LogicalStageCheckpoint {
-    logical_stage_checkpoint(node_id, &[("rows", rows)], &[])
+fn checkpoint_for_exact_state(
+    node_id: &str,
+    previous: &LogicalStageCheckpoint,
+) -> LogicalStageCheckpoint {
+    debug_assert_eq!(previous.protocol_version, LOGICAL_STAGE_CHECKPOINT_PROTOCOL);
+    let mut checkpoint = previous.clone();
+    checkpoint.node_id = node_id.into();
+    checkpoint.terminal_digest = terminal_checkpoint_digest(
+        node_id,
+        [
+            &checkpoint.row_membership_digest,
+            &checkpoint.row_order_digest,
+            &checkpoint.temporal_state_digest,
+            &checkpoint.classification_digest,
+            &checkpoint.payload_digest,
+            &checkpoint.schema_digest,
+        ],
+    );
+    checkpoint
 }
 
-fn logical_stage_rows_checkpoint_with_parts(
+fn checkpoint_for_reordered_exact_rows(
     node_id: &str,
     rows: &[Row],
-    parts: &[RowCheckpointParts],
+    previous: &LogicalStageCheckpoint,
 ) -> LogicalStageCheckpoint {
-    assert_eq!(parts.len(), rows.len(), "checkpoint row-part count drift");
-    logical_stage_checkpoint_with_parts(node_id, &[("rows", rows)], &[], Some(parts))
+    let mut checkpoint = checkpoint_for_exact_row_state(node_id, previous, &[]);
+    let mut order = checkpoint_hasher("row-order");
+    order.update(&1_u64.to_le_bytes());
+    checkpoint_digest_field(&mut order, b"rows");
+    order.update(&(rows.len() as u64).to_le_bytes());
+    let mut scratch = RowCheckpointScratch::default();
+    for (position, row) in rows.iter().enumerate() {
+        let parts = row_checkpoint_parts(row, &mut scratch);
+        checkpoint_digest_positioned_fixed32(&mut order, position, &parts.identity);
+    }
+    checkpoint.row_order_digest = finish_checkpoint_digest(order);
+    checkpoint.terminal_digest = terminal_checkpoint_digest(
+        node_id,
+        [
+            &checkpoint.row_membership_digest,
+            &checkpoint.row_order_digest,
+            &checkpoint.temporal_state_digest,
+            &checkpoint.classification_digest,
+            &checkpoint.payload_digest,
+            &checkpoint.schema_digest,
+        ],
+    );
+    checkpoint
+}
+
+fn logical_stage_rows_checkpoint(node_id: &str, rows: &[Row]) -> LogicalStageCheckpoint {
+    logical_stage_checkpoint(node_id, &[("rows", rows)], &[])
 }
 
 fn logical_stage_rows_checkpoint_reusing_last(
@@ -2221,8 +3107,15 @@ fn logical_stage_rows_checkpoint_reusing_last(
     rows: &[Row],
     recorder: &StepCheckpointRecorder<'_>,
 ) -> LogicalStageCheckpoint {
-    match recorder.last_row_parts() {
-        Some(parts) => logical_stage_rows_checkpoint_with_parts(node_id, rows, parts),
+    match recorder.reusable_row_components(rows) {
+        Some((parts, checkpoint)) => logical_stage_checkpoint_with_reusable_parts(
+            node_id,
+            rows,
+            &[],
+            parts,
+            parts,
+            checkpoint,
+        ),
         None => logical_stage_rows_checkpoint(node_id, rows),
     }
 }
@@ -2249,18 +3142,30 @@ struct StepCheckpointRecorder<'a> {
     next_step_index: usize,
     error: Option<String>,
     last_row_parts: Option<Vec<RowCheckpointParts>>,
+    last_row_checkpoint: Option<LogicalStageCheckpoint>,
 }
 
 impl StepCheckpointRecorder<'_> {
     fn rows(&mut self, step_id: &str, rows: &[Row]) {
         let parts = row_checkpoint_parts_for_rows(rows);
-        self.record(logical_stage_checkpoint_with_parts(
-            step_id,
-            &[("rows", rows)],
-            &[],
-            Some(&parts),
-        ));
+        let checkpoint = if let (Some(previous_parts), Some(previous_checkpoint)) = (
+            self.last_row_parts.as_deref(),
+            self.last_row_checkpoint.as_ref(),
+        ) {
+            logical_stage_checkpoint_with_reusable_parts(
+                step_id,
+                rows,
+                &[],
+                &parts,
+                previous_parts,
+                previous_checkpoint,
+            )
+        } else {
+            logical_stage_checkpoint_with_parts(step_id, &[("rows", rows)], &[], Some(&parts))
+        };
         self.last_row_parts = Some(parts);
+        self.last_row_checkpoint = Some(checkpoint.clone());
+        self.record(checkpoint);
     }
 
     fn state(&mut self, step_id: &str, state: &str) {
@@ -2283,13 +3188,25 @@ impl StepCheckpointRecorder<'_> {
         let bytes = serde_json::to_vec(value)
             .map_err(|error| format!("serialize {step_id} checkpoint: {error}"))?;
         let parts = row_checkpoint_parts_for_rows(rows);
-        self.record(logical_stage_checkpoint_with_parts(
-            step_id,
-            &[("rows", rows)],
-            &[("value", &bytes)],
-            Some(&parts),
-        ));
+        let payloads = [("value", bytes.as_slice())];
+        let checkpoint = if let (Some(previous_parts), Some(previous_checkpoint)) = (
+            self.last_row_parts.as_deref(),
+            self.last_row_checkpoint.as_ref(),
+        ) {
+            logical_stage_checkpoint_with_reusable_parts(
+                step_id,
+                rows,
+                &payloads,
+                &parts,
+                previous_parts,
+                previous_checkpoint,
+            )
+        } else {
+            logical_stage_checkpoint_with_parts(step_id, &[("rows", rows)], &payloads, Some(&parts))
+        };
         self.last_row_parts = Some(parts);
+        self.last_row_checkpoint = Some(checkpoint.clone());
+        self.record(checkpoint);
         Ok(())
     }
 
@@ -2298,7 +3215,25 @@ impl StepCheckpointRecorder<'_> {
     }
 
     fn take_last_row_parts(&mut self) -> Option<Vec<RowCheckpointParts>> {
+        self.last_row_checkpoint = None;
         self.last_row_parts.take()
+    }
+
+    fn reusable_row_components(
+        &self,
+        rows: &[Row],
+    ) -> Option<(&[RowCheckpointParts], &LogicalStageCheckpoint)> {
+        let parts = self.last_row_parts.as_deref()?;
+        if parts.len() != rows.len() {
+            return None;
+        }
+        #[cfg(debug_assertions)]
+        assert_eq!(
+            parts,
+            row_checkpoint_parts_for_rows(rows),
+            "attempted to reuse stale row checkpoint components"
+        );
+        Some((parts, self.last_row_checkpoint.as_ref()?))
     }
 
     fn record(&mut self, checkpoint: LogicalStageCheckpoint) {
@@ -2405,11 +3340,11 @@ struct ReviewSummary {
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ReviewParticipantSummary {
-    participant_id: String,
-    study_id: String,
+    participant_id: SharedString,
+    study_id: SharedString,
     totals: ReviewParticipantTotals,
     per_day: Vec<ReviewDayMetrics>,
-    top_apps_by_date: BTreeMap<String, Vec<ReviewTopApp>>,
+    top_apps_by_date: BTreeMap<SharedString, Vec<ReviewTopApp>>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -2427,7 +3362,7 @@ struct ReviewParticipantTotals {
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ReviewDayMetrics {
-    date: String,
+    date: SharedString,
     app_usage_minutes: f64,
     background_app_usage_minutes: f64,
     screen_usage_minutes: f64,
@@ -2439,9 +3374,9 @@ struct ReviewDayMetrics {
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ReviewTopApp {
-    app_package_name: String,
-    application_label: String,
-    category: Option<String>,
+    app_package_name: SharedString,
+    application_label: SharedString,
+    category: Option<SharedString>,
     minutes: f64,
 }
 
@@ -2462,64 +3397,93 @@ struct ReviewTopAppAccumulator {
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-struct VisualizationData {
-    app_rows: Vec<VisualizationRow>,
-    screen_rows: Vec<VisualizationRow>,
-    event_timestamps_by_participant: BTreeMap<String, Vec<String>>,
+struct VisualizationData<'a> {
+    protocol_version: &'static str,
+    columns: &'static [&'static str],
+    app_rows: Vec<VisualizationRow<'a>>,
+    screen_rows: Vec<VisualizationRow<'a>>,
+    event_timestamps_by_participant: BTreeMap<&'a str, Vec<JsonI64>>,
 }
 
-#[derive(Debug, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct VisualizationRow {
-    participant_id: String,
-    date: String,
-    start_timestamp_ns: Option<String>,
-    stop_timestamp_ns: Option<String>,
-    event_timestamp_ns: String,
-    interaction_type: String,
-    broad_app_category: Option<String>,
-    app_package_name: String,
-    application_label: String,
-    username: String,
-    screen_usage_end_reason: Option<String>,
-}
+#[derive(Debug, Clone, Copy)]
+struct JsonI64(i64);
 
-fn visualization_row(row: &Row) -> VisualizationRow {
-    VisualizationRow {
-        participant_id: row.participant_id.to_string(),
-        date: row.date.to_string(),
-        start_timestamp_ns: row.start_timestamp_ns.map(|value| value.to_string()),
-        stop_timestamp_ns: row.stop_timestamp_ns.map(|value| value.to_string()),
-        event_timestamp_ns: row.event_timestamp_ns.to_string(),
-        interaction_type: row.interaction_type.to_string(),
-        broad_app_category: row.broad_app_category.as_ref().map(ToString::to_string),
-        app_package_name: row.app_package_name.to_string(),
-        application_label: row.application_label.to_string(),
-        username: row.username.to_string(),
-        screen_usage_end_reason: row
-            .screen_usage_end_reason
-            .as_ref()
-            .map(ToString::to_string),
+impl serde::Serialize for JsonI64 {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.collect_str(&self.0)
     }
 }
 
-fn build_visualization_data(
-    app_rows: &[Row],
-    screen_rows: &[Row],
-    policy_rows: &[Row],
-) -> VisualizationData {
-    let mut event_timestamps_by_participant = BTreeMap::<String, Vec<String>>::new();
+const VISUALIZATION_DATA_PROTOCOL: &str = "chronicle-visualization-data/v2";
+const VISUALIZATION_DATA_COLUMNS: &[&str] = &[
+    "participantId",
+    "date",
+    "startTimestampNs",
+    "stopTimestampNs",
+    "eventTimestampNs",
+    "interactionType",
+    "broadAppCategory",
+    "appPackageName",
+    "applicationLabel",
+    "username",
+    "screenUsageEndReason",
+];
+
+#[derive(Debug, serde::Serialize)]
+struct VisualizationRow<'a>(
+    &'a str,
+    &'a str,
+    Option<JsonI64>,
+    Option<JsonI64>,
+    JsonI64,
+    &'a str,
+    Option<&'a str>,
+    &'a str,
+    &'a str,
+    &'a str,
+    Option<&'a str>,
+);
+
+fn visualization_row(row: &Row) -> VisualizationRow<'_> {
+    VisualizationRow(
+        row.participant_id.as_str(),
+        row.date.as_str(),
+        row.start_timestamp_ns.map(JsonI64),
+        row.stop_timestamp_ns.map(JsonI64),
+        JsonI64(row.event_timestamp_ns),
+        row.interaction_type.as_str(),
+        row.broad_app_category.as_ref().map(SharedString::as_str),
+        row.app_package_name.as_str(),
+        row.application_label.as_str(),
+        row.username.as_str(),
+        row.screen_usage_end_reason
+            .as_ref()
+            .map(SharedString::as_str),
+    )
+}
+
+fn build_visualization_data<'a>(
+    app_rows: &'a [Row],
+    screen_rows: &'a [Row],
+    policy_rows: &'a [Row],
+) -> VisualizationData<'a> {
+    let mut event_timestamps_by_participant = BTreeMap::<&str, Vec<JsonI64>>::new();
     for row in policy_rows {
         event_timestamps_by_participant
             .entry(if row.participant_id.is_empty() {
-                "unknown".into()
+                "unknown"
             } else {
-                row.participant_id.to_string()
+                row.participant_id.as_str()
             })
             .or_default()
-            .push(row.event_timestamp_ns.to_string());
+            .push(JsonI64(row.event_timestamp_ns));
     }
     VisualizationData {
+        protocol_version: VISUALIZATION_DATA_PROTOCOL,
+        columns: VISUALIZATION_DATA_COLUMNS,
         app_rows: app_rows.iter().map(visualization_row).collect(),
         screen_rows: screen_rows.iter().map(visualization_row).collect(),
         event_timestamps_by_participant,
@@ -2551,10 +3515,14 @@ fn review_minutes(ns: i128) -> f64 {
 fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary {
     type ParticipantKey = (SharedString, SharedString);
     type DayKey = (SharedString, SharedString, SharedString);
-    let mut days = BTreeMap::<DayKey, ReviewDayAccumulator>::new();
-    let mut apps_by_participant = BTreeMap::<
+    // Accumulation order is irrelevant: the emitted participant/day maps are
+    // sorted below, and each top-app list has an explicit deterministic sort.
+    // Hash maps avoid doing tree comparisons for every one of the tens of
+    // thousands of review rows while preserving byte-identical JSON.
+    let mut days = AHashMap::<DayKey, ReviewDayAccumulator>::new();
+    let mut apps_by_participant = AHashMap::<
         ParticipantKey,
-        BTreeMap<SharedString, BTreeMap<SharedString, ReviewTopAppAccumulator>>,
+        AHashMap<SharedString, AHashMap<SharedString, ReviewTopAppAccumulator>>,
     >::new();
 
     for row in app_rows {
@@ -2570,9 +3538,9 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
         if let Some(minutes) = row.duration_minutes {
             let entry = apps_by_participant
                 .entry((key.0.clone(), key.1.clone()))
-                .or_default()
+                .or_insert_with(AHashMap::new)
                 .entry(key.2.clone())
-                .or_default()
+                .or_insert_with(AHashMap::new)
                 .entry(row.app_package_name.clone())
                 .or_insert_with(|| ReviewTopAppAccumulator {
                     application_label: row.application_label.clone(),
@@ -2614,7 +3582,7 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
             .insert(
                 date.clone(),
                 ReviewDayMetrics {
-                    date: date.to_string(),
+                    date,
                     app_usage_minutes: review_minutes(day.app_ns),
                     background_app_usage_minutes: review_minutes(day.background_ns),
                     screen_usage_minutes: review_minutes(day.screen_ns),
@@ -2630,23 +3598,23 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
         let first = observed_days
             .keys()
             .next()
-            .map(ToString::to_string)
+            .map(SharedString::as_str)
             .unwrap_or_default();
         let last = observed_days
             .keys()
             .next_back()
-            .map(ToString::to_string)
+            .map(SharedString::as_str)
             .unwrap_or_default();
         let mut per_day = Vec::new();
         if let (Ok(mut cursor), Ok(end)) = (
-            NaiveDate::parse_from_str(&first, "%Y-%m-%d"),
-            NaiveDate::parse_from_str(&last, "%Y-%m-%d"),
+            NaiveDate::parse_from_str(first, "%Y-%m-%d"),
+            NaiveDate::parse_from_str(last, "%Y-%m-%d"),
         ) {
             while cursor <= end {
                 let date = cursor.format("%Y-%m-%d").to_string();
                 per_day.push(observed_days.get(date.as_str()).cloned().unwrap_or(
                     ReviewDayMetrics {
-                        date,
+                        date: SharedString::from(date),
                         app_usage_minutes: 0.0,
                         background_app_usage_minutes: 0.0,
                         screen_usage_minutes: 0.0,
@@ -2695,9 +3663,9 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
             let mut top_apps: Vec<_> = by_package
                 .iter()
                 .map(|(app_package_name, accumulated)| ReviewTopApp {
-                    app_package_name: app_package_name.to_string(),
-                    application_label: accumulated.application_label.to_string(),
-                    category: accumulated.category.as_ref().map(ToString::to_string),
+                    app_package_name: app_package_name.clone(),
+                    application_label: accumulated.application_label.clone(),
+                    category: accumulated.category.clone(),
                     minutes: review_round4(accumulated.minutes),
                 })
                 .collect();
@@ -2709,13 +3677,13 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
             });
             top_apps.truncate(12);
             if !top_apps.is_empty() {
-                top_apps_by_date.insert(date.to_string(), top_apps);
+                top_apps_by_date.insert(date.clone(), top_apps);
             }
         }
 
         participants.push(ReviewParticipantSummary {
-            participant_id: participant_id.to_string(),
-            study_id: study_id.to_string(),
+            participant_id,
+            study_id,
             totals,
             per_day,
             top_apps_by_date,
@@ -2833,6 +3801,20 @@ pub struct PipelineV2OptionsJson {
     pub enable_aggregates: bool,
     #[serde(default = "default_aggregate_shape")]
     pub aggregate_shape: String,
+    // Exact browser view settings are carried in the Rust receipt even though
+    // the dependency certificate correctly excludes them from preprocessing.
+    #[serde(default = "default_true")]
+    pub enable_plotting: bool,
+    #[serde(default)]
+    pub enable_activity_heatmap: bool,
+    #[serde(default)]
+    pub export_plots_as_svg: bool,
+    #[serde(default)]
+    pub enable_interactive_timeline: bool,
+    #[serde(default)]
+    pub include_filtered_app_usage_in_plots: bool,
+    #[serde(default)]
+    pub materialize_visualization_data: Option<bool>,
     #[serde(default = "default_credited_session_cap_minutes")]
     pub credited_session_cap_minutes: f64,
     #[serde(default = "default_device_liveness_gap_tolerance_minutes")]
@@ -2877,6 +3859,9 @@ const fn default_no_witness_min_day_apps() -> u32 {
 
 impl PipelineV2OptionsJson {
     pub fn into_pipeline_options(self) -> PipelineV2Options {
+        let materialize_visualization_data = self
+            .materialize_visualization_data
+            .unwrap_or(self.enable_plotting || self.enable_interactive_timeline);
         let mode = match self.usage_session_mode.as_str() {
             "no_usage" => UsageSessionMode::NoUsage,
             "screen_usage" => UsageSessionMode::ScreenUsage,
@@ -2928,6 +3913,7 @@ impl PipelineV2OptionsJson {
             enable_screen_gated_crediting: self.enable_screen_gated_crediting,
             enable_aggregates: self.enable_aggregates,
             aggregate_shape: self.aggregate_shape,
+            materialize_visualization_data,
             credited_session_cap_minutes: self.credited_session_cap_minutes,
             device_liveness_gap_tolerance_minutes: self.device_liveness_gap_tolerance_minutes,
             auto_lock_bridge_seconds: self.auto_lock_bridge_seconds,
@@ -3094,7 +4080,7 @@ fn unalign_duplicate_timestamps(
             for (ordered_index, (_, local)) in order.iter().enumerate() {
                 let mut updated = block[*local].clone();
                 let offset = (count - ordered_index) as i64 * 1_000;
-                updated.event_timestamp_ns -= offset;
+                updated.edit_temporal().event_timestamp_ns -= offset;
                 rows[start + ordered_index] = updated;
             }
         }
@@ -3111,29 +4097,70 @@ fn unalign_duplicate_timestamps(
 fn mark_data_time_gaps(mut rows: Vec<Row>) -> Vec<Row> {
     for i in 0..rows.len() {
         if i == 0 {
-            rows[i].data_time_gap_hours = 0.0;
+            rows[i].edit_temporal().data_time_gap_hours = 0.0;
         } else {
             let delta_ns = rows[i].event_timestamp_ns - rows[i - 1].event_timestamp_ns;
             // (Number(delta_ns) / 3.6e12).toFixed(2) -> parse back to f64
             let raw = (delta_ns as f64) / 3_600_000_000_000.0;
-            // ECMAScript ToFixed(2) — must match V8 byte-for-byte.
-            let fixed_str = ecma_to_fixed(raw, 2);
-            let rounded: f64 = fixed_str.parse().unwrap_or(0.0);
+            let rounded = ecma_round_fixed_f64(raw, 2);
             // JS `(x || 0)` -> 0 if NaN or 0; otherwise rounded.
             let final_v = if rounded == 0.0 || rounded.is_nan() {
                 0.0
             } else {
                 rounded
             };
-            rows[i].data_time_gap_hours = final_v;
+            rows[i].edit_temporal().data_time_gap_hours = final_v;
         }
     }
     rows
 }
 
+/// Numeric result of ECMAScript `Number.prototype.toFixed`, without building
+/// the intermediate decimal string. The binary f64 is decomposed into its
+/// exact integer mantissa and power-of-two denominator, then rounded to the
+/// requested decimal scale with the specification's larger-integer tie rule.
+fn ecma_round_fixed_f64(value: f64, frac_digits: u32) -> f64 {
+    if !value.is_finite() || value == 0.0 || value.abs() >= 1e21 {
+        return value;
+    }
+    let negative = value.is_sign_negative();
+    let bits = value.abs().to_bits();
+    let exponent_bits = ((bits >> 52) & 0x7ff) as i32;
+    let fraction = bits & ((1_u64 << 52) - 1);
+    let (mantissa, exponent) = if exponent_bits == 0 {
+        (fraction, 1 - 1023 - 52)
+    } else {
+        ((1_u64 << 52) | fraction, exponent_bits - 1023 - 52)
+    };
+    let scale = 10_u128.pow(frac_digits);
+    let scaled_mantissa = (mantissa as u128) * scale;
+    let rounded_integer = if exponent >= 0 {
+        scaled_mantissa
+            .checked_shl(exponent as u32)
+            .unwrap_or(u128::MAX)
+    } else {
+        let shift = (-exponent) as u32;
+        if shift >= 128 {
+            0
+        } else {
+            let denominator = 1_u128 << shift;
+            let quotient = scaled_mantissa / denominator;
+            let remainder = scaled_mantissa % denominator;
+            quotient + u128::from(remainder >= denominator / 2)
+        }
+    };
+    let rounded = rounded_integer as f64 / scale as f64;
+    if negative {
+        -rounded
+    } else {
+        rounded
+    }
+}
+
 /// ECMAScript Number.prototype.toFixed(fractionDigits) — string form.
 /// Spec: pick integer n such that |n/10^f - x| is minimised; on ties pick
 /// the larger n. (Round-half-away-from-zero on the exact IEEE 754 value.)
+#[cfg(test)]
 fn ecma_to_fixed(value: f64, frac_digits: u32) -> String {
     if value.is_nan() {
         return "NaN".to_string();
@@ -3171,6 +4198,7 @@ fn ecma_to_fixed(value: f64, frac_digits: u32) -> String {
     }
 }
 
+#[cfg(test)]
 fn is_all_zeros(s: &str) -> bool {
     s.chars().all(|c| c == '0' || c == '.')
 }
@@ -3178,6 +4206,7 @@ fn is_all_zeros(s: &str) -> bool {
 /// Round a positive decimal string ("21.62500000000000124...") to `frac_digits`
 /// fractional digits, using round-half-away-from-zero on the *exact* string
 /// value. The string is expected to have plenty of trailing digits.
+#[cfg(test)]
 fn round_half_away_from_zero_decimal(s: &str, frac_digits: usize) -> String {
     let dot = match s.find('.') {
         Some(i) => i,
@@ -3272,50 +4301,45 @@ fn label_filtered_apps(
         if !labels.is_empty() && !labels.contains(row.application_label.as_str()) {
             continue;
         }
-        row.interaction_type = match row.interaction_type.as_str() {
-            ACTIVITY_RESUMED => FILTERED_RESUMED.into(),
-            ACTIVITY_PAUSED => FILTERED_PAUSED.into(),
-            ACTIVITY_STOPPED => FILTERED_STOPPED.into(),
-            "Activity Destroyed" => "Filtered App Destroyed".into(),
-            _ => row.interaction_type.clone(),
+        let replacement = match row.interaction_type.as_str() {
+            ACTIVITY_RESUMED => Some(FILTERED_RESUMED),
+            ACTIVITY_PAUSED => Some(FILTERED_PAUSED),
+            ACTIVITY_STOPPED => Some(FILTERED_STOPPED),
+            "Activity Destroyed" => Some("Filtered App Destroyed"),
+            _ => None,
         };
+        if let Some(replacement) = replacement {
+            row.edit_classification().interaction_type = replacement.into();
+        }
     }
     rows
 }
 
-fn factorize<'a>(values: impl IntoIterator<Item = &'a str>) -> Vec<i32> {
-    let mut lookup: HashMap<&str, i32> = HashMap::new();
-    let iterator = values.into_iter();
-    let mut codes = Vec::with_capacity(iterator.size_hint().0);
-    for v in iterator {
-        let next = lookup.len() as i32;
-        let code = *lookup.entry(v).or_insert(next);
-        codes.push(code);
-    }
-    codes
-}
-
-/// The exact ASCII representation used by the v1 lineage protocol, stored
-/// inline so a 100k-row suffix chain does not allocate 100k heap Strings.
-#[derive(Clone, Copy)]
-struct InlineLineageDigest([u8; 71]);
+/// Raw BLAKE3 output for a lineage suffix. Persisting 32-byte hashes avoids
+/// storing the 71-byte ASCII form for every event; the protocol spelling is
+/// reconstructed on the stack only when another hash consumes it.
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+struct InlineLineageDigest([u8; 32]);
 
 impl InlineLineageDigest {
     fn from_hasher(hasher: CheckpointHasher) -> Self {
-        const HEX: &[u8; 16] = b"0123456789abcdef";
-        let hash = hasher.finalize();
-        let mut encoded = [0_u8; 71];
-        encoded[..7].copy_from_slice(b"blake3:");
-        for (index, byte) in hash.as_bytes().iter().copied().enumerate() {
-            encoded[7 + index * 2] = HEX[(byte >> 4) as usize];
-            encoded[8 + index * 2] = HEX[(byte & 0x0f) as usize];
-        }
-        Self(encoded)
+        Self(*hasher.finalize().as_bytes())
     }
 
-    fn as_bytes(&self) -> &[u8] {
-        &self.0
+    fn encoded(self) -> [u8; 71] {
+        encode_blake3_digest(self.0)
     }
+}
+
+fn encode_blake3_digest(digest: [u8; 32]) -> [u8; 71] {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut encoded = [0_u8; 71];
+    encoded[..7].copy_from_slice(b"blake3:");
+    for (index, byte) in digest.iter().copied().enumerate() {
+        encoded[7 + index * 2] = HEX[(byte >> 4) as usize];
+        encoded[8 + index * 2] = HEX[(byte & 0x0f) as usize];
+    }
+    encoded
 }
 
 fn inline_lineage_search_suffix_digest(
@@ -3338,7 +4362,7 @@ fn inline_lineage_search_suffix_digest(
     match next_digest {
         Some(digest) => {
             hasher.update(&[1]);
-            checkpoint_digest_field(&mut hasher, digest.as_bytes());
+            checkpoint_digest_field(&mut hasher, &digest.encoded());
         }
         None => {
             hasher.update(&[0]);
@@ -3363,11 +4387,24 @@ fn empty_inline_lineage_search_suffix_digest(event_index: u32) -> InlineLineageD
     InlineLineageDigest::from_hasher(hasher)
 }
 
+fn inline_lineage_search_suffix_digests(rows: &[Row]) -> Vec<InlineLineageDigest> {
+    let empty_suffix = empty_inline_lineage_search_suffix_digest(rows.len() as u32);
+    let mut suffix_digests = vec![empty_suffix; rows.len() + 1];
+    for index in (0..rows.len()).rev() {
+        suffix_digests[index] = inline_lineage_search_suffix_digest(
+            &rows[index],
+            index,
+            Some(&suffix_digests[index + 1]),
+        );
+    }
+    suffix_digests
+}
+
 fn lineage_search_range_digest(
     suffix_digests: &[String],
     start_event_index: u32,
     end_event_index_exclusive: u32,
-) -> String {
+) -> LineageSearchDigest {
     let mut hasher = CheckpointHasher::new();
     checkpoint_digest_field(&mut hasher, b"chronicle-lineage-search-range/v1");
     hasher.update(&start_event_index.to_le_bytes());
@@ -3380,27 +4417,27 @@ fn lineage_search_range_digest(
         &mut hasher,
         suffix_digests[end_event_index_exclusive as usize].as_bytes(),
     );
-    format!("blake3:{}", hasher.finalize().to_hex())
+    LineageSearchDigest::from_hasher(hasher)
 }
 
 fn inline_lineage_search_range_digest(
     suffix_digests: &[InlineLineageDigest],
     start_event_index: u32,
     end_event_index_exclusive: u32,
-) -> String {
+) -> LineageSearchDigest {
     let mut hasher = CheckpointHasher::new();
     checkpoint_digest_field(&mut hasher, b"chronicle-lineage-search-range/v1");
     hasher.update(&start_event_index.to_le_bytes());
     hasher.update(&end_event_index_exclusive.to_le_bytes());
     checkpoint_digest_field(
         &mut hasher,
-        suffix_digests[start_event_index as usize].as_bytes(),
+        &suffix_digests[start_event_index as usize].encoded(),
     );
     checkpoint_digest_field(
         &mut hasher,
-        suffix_digests[end_event_index_exclusive as usize].as_bytes(),
+        &suffix_digests[end_event_index_exclusive as usize].encoded(),
     );
-    format!("blake3:{}", hasher.finalize().to_hex())
+    LineageSearchDigest::from_hasher(hasher)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -3484,10 +4521,13 @@ fn join_codebook(rows: &mut [Row], enabled: bool, codebook_map: &HashMap<String,
 }
 
 fn join_codebook_row(row: &mut Row, codebook_map: &HashMap<String, CodebookEntry>) {
-    row.codebook_fields = codebook_map
+    let fields = codebook_map
         .get(row.app_package_name.as_str())
         .map(|entry| entry.fields.clone())
         .unwrap_or_else(empty_codebook_fields);
+    if row.codebook_fields != fields {
+        row.edit_classification().codebook_fields = fields;
+    }
 }
 
 fn derive_broad_category(rows: &mut [Row], enabled: bool) {
@@ -3522,7 +4562,10 @@ fn derive_broad_category_row(row: &mut Row, indices: [usize; 4]) {
         .iter()
         .find_map(|candidate| candidate.filter(|value| !value.trim().is_empty()))
         .map(String::from);
-    row.broad_app_category = Some(chosen.unwrap_or_else(|| "Unknown".to_string()).into());
+    let category = Some(chosen.unwrap_or_else(|| "Unknown".to_string()).into());
+    if row.broad_app_category != category {
+        row.edit_classification().broad_app_category = category;
+    }
 }
 
 fn collapse_genre(rows: &mut [Row], enabled: bool) {
@@ -3553,7 +4596,9 @@ fn collapse_genre_row(row: &mut Row, indices: [usize; 4]) {
         .cloned()
         .collect::<Vec<_>>();
     if genre_values.is_empty() {
-        row.genre_id_scraped = Some("Unknown".into());
+        if row.genre_id_scraped.as_deref() != Some("Unknown") {
+            row.edit_classification().genre_id_scraped = Some("Unknown".into());
+        }
         return;
     }
     let unique = genre_values
@@ -3561,11 +4606,16 @@ fn collapse_genre_row(row: &mut Row, indices: [usize; 4]) {
         .map(String::as_str)
         .collect::<AHashSet<_>>();
     if unique.len() == 1 {
-        row.genre_id_scraped = Some(genre_values[0].clone().into());
-        row.codebook_genre_fields_cleared = true;
-    } else {
-        row.genre_id_scraped = None;
-        row.codebook_genre_fields_cleared = false;
+        let genre = SharedString::from(genre_values[0].as_str());
+        if row.genre_id_scraped.as_ref() != Some(&genre) || !row.codebook_genre_fields_cleared {
+            let data = row.edit_classification();
+            data.genre_id_scraped = Some(genre);
+            data.codebook_genre_fields_cleared = true;
+        }
+    } else if row.genre_id_scraped.is_some() || row.codebook_genre_fields_cleared {
+        let data = row.edit_classification();
+        data.genre_id_scraped = None;
+        data.codebook_genre_fields_cleared = false;
     }
 }
 
@@ -3596,7 +4646,11 @@ fn apply_codebook_annotations(
     }
 }
 
-fn add_app_usage_detail_columns(rows: &mut [Row], custom_app_engagement_duration: f64) {
+fn walk_app_usage_detail_columns(
+    rows: &mut [Row],
+    custom_app_engagement_duration: f64,
+    mut after_row: impl FnMut(&mut Row),
+) {
     fn metrics(
         previous: Option<(i64, &SharedString)>,
         start: i64,
@@ -3623,6 +4677,7 @@ fn add_app_usage_detail_columns(rows: &mut [Row], custom_app_engagement_duration
         let is_valid = is_primary && row.interaction_type == APP_USAGE;
         let is_any = is_valid || (is_primary && row.interaction_type == FILTERED_APP_USAGE);
         if !is_any {
+            after_row(row);
             continue;
         }
         let start = row.start_timestamp_ns.unwrap_or(i64::MIN);
@@ -3636,26 +4691,125 @@ fn add_app_usage_detail_columns(rows: &mut [Row], custom_app_engagement_duration
             &package,
             custom_app_engagement_duration,
         );
-        row.any_app_new_engage_30s = engage_30;
-        row.any_app_new_engage_custom = engage_custom;
-        row.any_app_switched_app = switched;
-        row.any_app_usage_time_gap_hours = gap_hours;
-        previous_any = Some((stop, package.clone()));
-
-        if is_valid {
-            let (engage_30, engage_custom, switched, gap_hours) = metrics(
+        let valid_metrics = is_valid.then(|| {
+            metrics(
                 previous_valid
                     .as_ref()
                     .map(|(previous_stop, previous_package)| (*previous_stop, previous_package)),
                 start,
                 &package,
                 custom_app_engagement_duration,
+            )
+        });
+        let any_classification_changed = row.any_app_new_engage_30s != engage_30
+            || row.any_app_new_engage_custom != engage_custom
+            || row.any_app_switched_app != switched;
+        let any_temporal_changed =
+            row.any_app_usage_time_gap_hours.to_bits() != gap_hours.to_bits();
+        let valid_classification_changed =
+            valid_metrics.is_some_and(|(engage_30, engage_custom, switched, _)| {
+                row.valid_app_new_engage_30s != engage_30
+                    || row.valid_app_new_engage_custom != engage_custom
+                    || row.valid_app_switched_app != switched
+            });
+        let valid_temporal_changed = valid_metrics.is_some_and(|(_, _, _, gap_hours)| {
+            row.valid_app_usage_time_gap_hours.to_bits() != gap_hours.to_bits()
+        });
+        if any_classification_changed
+            || any_temporal_changed
+            || valid_classification_changed
+            || valid_temporal_changed
+        {
+            let data = row.edit_components(
+                false,
+                any_temporal_changed || valid_temporal_changed,
+                any_classification_changed || valid_classification_changed,
             );
-            row.valid_app_new_engage_30s = engage_30;
-            row.valid_app_new_engage_custom = engage_custom;
-            row.valid_app_switched_app = switched;
-            row.valid_app_usage_time_gap_hours = gap_hours;
+            data.any_app_new_engage_30s = engage_30;
+            data.any_app_new_engage_custom = engage_custom;
+            data.any_app_switched_app = switched;
+            data.any_app_usage_time_gap_hours = gap_hours;
+            if let Some((engage_30, engage_custom, switched, gap_hours)) = valid_metrics {
+                data.valid_app_new_engage_30s = engage_30;
+                data.valid_app_new_engage_custom = engage_custom;
+                data.valid_app_switched_app = switched;
+                data.valid_app_usage_time_gap_hours = gap_hours;
+            }
+        }
+        previous_any = Some((stop, package.clone()));
+        if is_valid {
             previous_valid = Some((stop, package));
+        }
+        after_row(row);
+    }
+}
+
+fn add_app_usage_detail_columns(rows: &mut [Row], custom_app_engagement_duration: f64) {
+    walk_app_usage_detail_columns(rows, custom_app_engagement_duration, |_| {});
+}
+
+struct PreparedUsageFlags {
+    gap: Vec<(f64, String)>,
+    duration: Vec<(f64, String)>,
+}
+
+fn prepare_usage_flags(
+    long_data_time_gap_thresholds: &[f64],
+    long_usage_duration_thresholds: &[f64],
+) -> PreparedUsageFlags {
+    let mut gap_thresholds = long_data_time_gap_thresholds.to_vec();
+    gap_thresholds.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+    let mut dur_thresholds = long_usage_duration_thresholds.to_vec();
+    dur_thresholds.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+    let gap_thresholds = gap_thresholds
+        .into_iter()
+        .map(|threshold| {
+            (
+                threshold,
+                format!(">{}-HR TIME GAP", format_threshold(threshold)),
+            )
+        })
+        .collect::<Vec<_>>();
+    let dur_thresholds = dur_thresholds
+        .into_iter()
+        .map(|threshold| {
+            (
+                threshold,
+                format!(">{}-HR APP USAGE", format_threshold(threshold)),
+            )
+        })
+        .collect::<Vec<_>>();
+    PreparedUsageFlags {
+        gap: gap_thresholds,
+        duration: dur_thresholds,
+    }
+}
+
+fn mark_app_usage_flags_row(row: &mut Row, thresholds: &PreparedUsageFlags) {
+    let gap_flag = thresholds
+        .gap
+        .iter()
+        .find(|(threshold, _)| row.data_time_gap_hours >= *threshold)
+        .map(|(_, label)| label.as_str());
+    let dur_hours = row.duration_minutes.map(|m| m / 60.0).unwrap_or(0.0);
+    let duration_flag = thresholds
+        .duration
+        .iter()
+        .find(|(threshold, _)| dur_hours >= *threshold)
+        .map(|(_, label)| label.as_str());
+    if gap_flag.is_none() && duration_flag.is_none() {
+        if row.any_app_usage_flags != "[]" {
+            row.edit_classification().any_app_usage_flags = "[]".into();
+        }
+    } else {
+        let value = match (gap_flag, duration_flag) {
+            (Some(gap), Some(duration)) => format!("['{gap}', '{duration}']"),
+            (Some(gap), None) => format!("['{gap}']"),
+            (None, Some(duration)) => format!("['{duration}']"),
+            (None, None) => unreachable!("handled empty flags above"),
+        };
+        if row.any_app_usage_flags.as_str() != value {
+            row.edit_classification().any_app_usage_flags = value.into();
         }
     }
 }
@@ -3665,32 +4819,12 @@ fn mark_app_usage_flags(
     long_data_time_gap_thresholds: &[f64],
     long_usage_duration_thresholds: &[f64],
 ) {
-    let mut gap_thresholds = long_data_time_gap_thresholds.to_vec();
-    gap_thresholds.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
-    let mut dur_thresholds = long_usage_duration_thresholds.to_vec();
-    dur_thresholds.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
-    for row in rows.iter_mut() {
-        let mut flags: Vec<String> = Vec::new();
-        if let Some(&t) = gap_thresholds
-            .iter()
-            .find(|&&t| row.data_time_gap_hours >= t)
-        {
-            flags.push(format!(">{}-HR TIME GAP", format_threshold(t)));
-        }
-        let dur_hours = row.duration_minutes.map(|m| m / 60.0).unwrap_or(0.0);
-        if let Some(&t) = dur_thresholds.iter().find(|&&t| dur_hours >= t) {
-            flags.push(format!(">{}-HR APP USAGE", format_threshold(t)));
-        }
-        if flags.is_empty() {
-            if row.any_app_usage_flags != "[]" {
-                row.any_app_usage_flags = "[]".into();
-            }
-        } else {
-            let value = format!("['{}']", flags.join("', '"));
-            if row.any_app_usage_flags.as_str() != value {
-                row.any_app_usage_flags = value.into();
-            }
-        }
+    let thresholds = prepare_usage_flags(
+        long_data_time_gap_thresholds,
+        long_usage_duration_thresholds,
+    );
+    for row in rows {
+        mark_app_usage_flags_row(row, &thresholds);
     }
 }
 
@@ -3699,15 +4833,41 @@ fn format_threshold(t: f64) -> String {
     js_number_to_string(t)
 }
 
-fn clear_filtered_usage_timing(rows: &mut [Row]) {
-    for row in rows.iter_mut() {
-        if row.interaction_type == FILTERED_APP_USAGE {
-            row.start_timestamp_ns = None;
-            row.stop_timestamp_ns = None;
-            row.duration_seconds = None;
-            row.duration_minutes = None;
-        }
+fn clear_filtered_usage_timing_row(row: &mut Row) {
+    if row.interaction_type == FILTERED_APP_USAGE
+        && (row.start_timestamp_ns.is_some()
+            || row.stop_timestamp_ns.is_some()
+            || row.duration_seconds.is_some()
+            || row.duration_minutes.is_some())
+    {
+        let data = row.edit_temporal();
+        data.start_timestamp_ns = None;
+        data.stop_timestamp_ns = None;
+        data.duration_seconds = None;
+        data.duration_minutes = None;
     }
+}
+
+fn clear_filtered_usage_timing(rows: &mut [Row]) {
+    for row in rows {
+        clear_filtered_usage_timing_row(row);
+    }
+}
+
+fn apply_review_annotations_one_pass(
+    rows: &mut [Row],
+    custom_app_engagement_duration: f64,
+    long_data_time_gap_thresholds: &[f64],
+    long_usage_duration_thresholds: &[f64],
+) {
+    let thresholds = prepare_usage_flags(
+        long_data_time_gap_thresholds,
+        long_usage_duration_thresholds,
+    );
+    walk_app_usage_detail_columns(rows, custom_app_engagement_duration, |row| {
+        mark_app_usage_flags_row(row, &thresholds);
+        clear_filtered_usage_timing_row(row);
+    });
 }
 
 fn add_no_activity_placeholder_rows(mut app_rows: Vec<Row>, raw_rows: &[Row]) -> Vec<Row> {
@@ -3760,7 +4920,7 @@ fn add_no_activity_placeholder_rows(mut app_rows: Vec<Row>, raw_rows: &[Row]) ->
     app_rows
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 struct StudyWindow {
     participant_id: String,
     start_date: String,
@@ -3836,7 +4996,7 @@ fn numerical_id(value: &str) -> Option<&str> {
     start.and_then(|begin| (bytes.len() - begin >= 3).then_some(&value[begin..]))
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 struct ResolvedParticipantWindow {
     participant_id: String,
     window: Option<StudyWindow>,
@@ -3908,7 +5068,7 @@ enum SharingStatus {
     NonShared,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 struct SharingEntry {
     participant_id: String,
     status: SharingStatus,
@@ -4238,21 +5398,7 @@ fn build_day_coverage_csv(
     windows: &[StudyWindow],
     step_checkpoints: &mut StepCheckpointRecorder<'_>,
 ) -> Result<(Vec<u8>, u32), String> {
-    let study_dates_csv = if windows.is_empty() {
-        Vec::new()
-    } else {
-        let mut lines = vec!["participant_id,start_date,end_date".to_string()];
-        lines.extend(windows.iter().map(|window| {
-            format!(
-                "{},{},{}",
-                csv_escape_value(&window.participant_id),
-                window.start_date,
-                window.end_date
-            )
-        }));
-        lines.join("\n").into_bytes()
-    };
-    let output = incremental::build_coverage(usage_rows, raw_dates, &study_dates_csv)?;
+    let output = incremental::build_coverage(usage_rows, raw_dates, windows)?;
     step_checkpoints.value("build_coverage_table", &output.report)?;
     Ok((output.csv_bytes, output.report.coverage.len() as u32))
 }
@@ -4352,16 +5498,7 @@ fn build_compliance_csv(
     let result =
         incremental::score_attribution_days(&attribution, shared_participants, threshold_percent);
     step_checkpoints.value("score_days", &result)?;
-    let enrolled_devices_csv = if enrolled_devices.is_empty() {
-        Vec::new()
-    } else {
-        let mut lines = vec!["participant_id,device_count".to_string()];
-        lines.extend(enrolled_devices.iter().map(|(participant_id, count)| {
-            format!("{},{}", csv_escape_value(participant_id), count)
-        }));
-        lines.join("\n").into_bytes()
-    };
-    let bytes = incremental::compliance_csv(&result, &enrolled_devices_csv)?;
+    let bytes = incremental::compliance_csv(&result, enrolled_devices);
     let row_count = result.days.len() as u32;
     Ok((bytes, row_count))
 }
@@ -4537,10 +5674,10 @@ fn credit_lineage_contributors(
         let lower = events.partition_point(|event| event.0 < lower_bound);
         let upper = events.partition_point(|event| event.0 <= upper_bound);
         Some(LineageSearchEvidence {
-            protocol_version: "chronicle-lineage-search/v1".to_string(),
-            reason: "screen-credit-liveness-window".to_string(),
-            index_space: "participant-source-event-order".to_string(),
-            start_participant_id: participant_id.to_string(),
+            protocol_version: shared_lineage_text("chronicle-lineage-search/v1"),
+            reason: shared_lineage_text("screen-credit-liveness-window"),
+            index_space: shared_lineage_text("participant-source-event-order"),
+            start_participant_id: Arc::new(participant_id.to_owned()),
             start_event_index: lower as u32,
             end_event_index_exclusive: upper as u32,
             candidate_event_count: (upper - lower) as u32,
@@ -5071,6 +6208,54 @@ fn append_csv_field(out: &mut Vec<u8>, value: &str) {
     write_csv_field(out, value.as_bytes());
 }
 
+const SMALL_U8_DECIMALS: [&str; 24] = [
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
+    "17", "18", "19", "20", "21", "22", "23",
+];
+
+fn begin_csv_field(out: &mut Vec<u8>, first: &mut bool) {
+    if !*first {
+        out.push(b',');
+    }
+    *first = false;
+}
+
+fn emit_csv_u8(out: &mut Vec<u8>, value: u8, first: &mut bool) {
+    begin_csv_field(out, first);
+    if let Some(value) = SMALL_U8_DECIMALS.get(value as usize) {
+        out.extend_from_slice(value.as_bytes());
+    } else {
+        append_csv_field(out, &value.to_string());
+    }
+}
+
+fn emit_csv_i32(out: &mut Vec<u8>, value: i32, first: &mut bool) {
+    begin_csv_field(out, first);
+    match value {
+        0 => out.push(b'0'),
+        1 => out.push(b'1'),
+        _ => append_csv_field(out, &value.to_string()),
+    }
+}
+
+fn emit_csv_optional_float(out: &mut Vec<u8>, value: Option<f64>, first: &mut bool) {
+    begin_csv_field(out, first);
+    match value {
+        None => {}
+        Some(0.0) => out.extend_from_slice(b"0.0"),
+        Some(value) => append_csv_field(out, &normalize_float_string(value)),
+    }
+}
+
+fn emit_csv_float(out: &mut Vec<u8>, value: f64, first: &mut bool) {
+    begin_csv_field(out, first);
+    if value == 0.0 {
+        out.extend_from_slice(b"0.0");
+    } else {
+        append_csv_field(out, &normalize_float_string(value));
+    }
+}
+
 fn write_app_csv(rows: &[Row], opts: &PipelineV2Options, include_aliases: bool) -> Vec<u8> {
     write_app_csv_from_iter(rows.iter(), rows.len(), opts, include_aliases)
 }
@@ -5082,7 +6267,8 @@ fn write_app_csv_from_iter<'a>(
     include_aliases: bool,
 ) -> Vec<u8> {
     let cols = build_app_columns(opts, include_aliases);
-    let mut out: Vec<u8> = Vec::with_capacity(row_count * 256);
+    let estimated_row_bytes = if opts.use_app_codebook { 512 } else { 384 };
+    let mut out: Vec<u8> = Vec::with_capacity(row_count.saturating_mul(estimated_row_bytes));
     // header
     for (i, c) in cols.iter().enumerate() {
         if i > 0 {
@@ -5095,10 +6281,11 @@ fn write_app_csv_from_iter<'a>(
     let pp_version = PREPROCESSOR_VERSION;
     let dop = &opts.datetime_of_preprocessing;
     for row in rows {
-        let row_tz: Tz = row.timezone.parse().unwrap_or(tz);
-        let event = fmt_event_timestamp(row.event_timestamp_ns, row_tz);
-        let start_ts = fmt_session_timestamp(row.start_timestamp_ns, row_tz);
-        let stop_ts = fmt_session_timestamp(row.stop_timestamp_ns, row_tz);
+        let row_tz = if row.timezone.as_str() == opts.timezone {
+            tz
+        } else {
+            row.timezone.parse().unwrap_or(tz)
+        };
         let mut first = true;
         let emit = |out: &mut Vec<u8>, s: &str, first: &mut bool| {
             if !*first {
@@ -5112,7 +6299,7 @@ fn write_app_csv_from_iter<'a>(
         emit(&mut out, &row.participant_id, &mut first);
         emit(&mut out, &row.possible_device_model, &mut first);
         emit(&mut out, &row.username, &mut first);
-        emit(&mut out, &event, &mut first);
+        emit_event_timestamp(&mut out, row.event_timestamp_ns, row_tz, &mut first);
         emit(&mut out, &row.date, &mut first);
         emit(&mut out, &row.timezone, &mut first);
         emit(&mut out, &row.app_package_name, &mut first);
@@ -5154,70 +6341,26 @@ fn write_app_csv_from_iter<'a>(
             }
         }
         emit(&mut out, &row.interaction_type, &mut first);
-        emit(&mut out, &start_ts, &mut first);
-        emit(&mut out, &stop_ts, &mut first);
-        emit(
-            &mut out,
-            &format_csv_number_float(row.duration_seconds),
-            &mut first,
-        );
-        emit(
-            &mut out,
-            &format_csv_number_float(row.duration_minutes),
-            &mut first,
-        );
+        emit_session_timestamp(&mut out, row.start_timestamp_ns, row_tz, &mut first);
+        emit_session_timestamp(&mut out, row.stop_timestamp_ns, row_tz, &mut first);
+        emit_csv_optional_float(&mut out, row.duration_seconds, &mut first);
+        emit_csv_optional_float(&mut out, row.duration_minutes, &mut first);
         emit(&mut out, &row.any_app_usage_flags, &mut first);
-        emit(
-            &mut out,
-            &normalize_float_string(row.data_time_gap_hours),
-            &mut first,
-        );
-        emit(&mut out, &row.day.to_string(), &mut first);
-        emit(&mut out, &row.weekday_mf.to_string(), &mut first);
-        emit(&mut out, &row.weekday_mth.to_string(), &mut first);
-        emit(&mut out, &row.weekday_su_th.to_string(), &mut first);
-        emit(&mut out, &row.hour.to_string(), &mut first);
-        emit(&mut out, &row.quarter.to_string(), &mut first);
-        emit(
-            &mut out,
-            &format_csv_int(row.valid_app_new_engage_30s),
-            &mut first,
-        );
-        emit(
-            &mut out,
-            &format_csv_int(row.valid_app_new_engage_custom),
-            &mut first,
-        );
-        emit(
-            &mut out,
-            &format_csv_int(row.valid_app_switched_app),
-            &mut first,
-        );
-        emit(
-            &mut out,
-            &normalize_float_string(row.valid_app_usage_time_gap_hours),
-            &mut first,
-        );
-        emit(
-            &mut out,
-            &format_csv_int(row.any_app_new_engage_30s),
-            &mut first,
-        );
-        emit(
-            &mut out,
-            &format_csv_int(row.any_app_new_engage_custom),
-            &mut first,
-        );
-        emit(
-            &mut out,
-            &format_csv_int(row.any_app_switched_app),
-            &mut first,
-        );
-        emit(
-            &mut out,
-            &normalize_float_string(row.any_app_usage_time_gap_hours),
-            &mut first,
-        );
+        emit_csv_float(&mut out, row.data_time_gap_hours, &mut first);
+        emit_csv_u8(&mut out, row.day, &mut first);
+        emit_csv_u8(&mut out, row.weekday_mf, &mut first);
+        emit_csv_u8(&mut out, row.weekday_mth, &mut first);
+        emit_csv_u8(&mut out, row.weekday_su_th, &mut first);
+        emit_csv_u8(&mut out, row.hour, &mut first);
+        emit_csv_u8(&mut out, row.quarter, &mut first);
+        emit_csv_i32(&mut out, row.valid_app_new_engage_30s, &mut first);
+        emit_csv_i32(&mut out, row.valid_app_new_engage_custom, &mut first);
+        emit_csv_i32(&mut out, row.valid_app_switched_app, &mut first);
+        emit_csv_float(&mut out, row.valid_app_usage_time_gap_hours, &mut first);
+        emit_csv_i32(&mut out, row.any_app_new_engage_30s, &mut first);
+        emit_csv_i32(&mut out, row.any_app_new_engage_custom, &mut first);
+        emit_csv_i32(&mut out, row.any_app_switched_app, &mut first);
+        emit_csv_float(&mut out, row.any_app_usage_time_gap_hours, &mut first);
         emit(&mut out, pp_version, &mut first);
         emit(&mut out, dop, &mut first);
         if opts.model_concurrent_usage || opts.use_background_apps_file {
@@ -5234,7 +6377,7 @@ fn write_app_csv_from_iter<'a>(
 
 fn write_screen_csv(rows: &[Row], opts: &PipelineV2Options) -> Vec<u8> {
     let cols = build_screen_columns();
-    let mut out: Vec<u8> = Vec::with_capacity(rows.len() * 256);
+    let mut out: Vec<u8> = Vec::with_capacity(rows.len().saturating_mul(384));
     for (i, c) in cols.iter().enumerate() {
         if i > 0 {
             out.push(b',');
@@ -5249,12 +6392,11 @@ fn write_screen_csv(rows: &[Row], opts: &PipelineV2Options) -> Vec<u8> {
     let pp_version = PREPROCESSOR_VERSION;
     let dop = &opts.datetime_of_preprocessing;
     for row in rows {
-        let row_tz: Tz = row.timezone.parse().unwrap_or(tz);
-        let event = fmt_event_timestamp(row.event_timestamp_ns, row_tz);
-        let start_ts = fmt_screen_timestamp(row.start_timestamp_ns, row_tz);
-        let stop_ts = fmt_screen_timestamp(row.stop_timestamp_ns, row_tz);
-        let last_act =
-            fmt_screen_last_activity(row.screen_usage_last_activity_timestamp_ns, row_tz);
+        let row_tz = if row.timezone.as_str() == opts.timezone {
+            tz
+        } else {
+            row.timezone.parse().unwrap_or(tz)
+        };
         let mut first = true;
         let emit = |out: &mut Vec<u8>, s: &str, first: &mut bool| {
             if !*first {
@@ -5268,45 +6410,34 @@ fn write_screen_csv(rows: &[Row], opts: &PipelineV2Options) -> Vec<u8> {
         emit(&mut out, &row.participant_id, &mut first);
         emit(&mut out, &row.possible_device_model, &mut first);
         emit(&mut out, &row.username, &mut first);
-        emit(&mut out, &event, &mut first);
+        emit_event_timestamp(&mut out, row.event_timestamp_ns, row_tz, &mut first);
         emit(&mut out, &row.date, &mut first);
         emit(&mut out, &row.timezone, &mut first);
         emit(&mut out, &row.app_package_name, &mut first);
         emit(&mut out, "", &mut first); // application_label always empty
         emit(&mut out, &row.interaction_type, &mut first);
-        emit(&mut out, &start_ts, &mut first);
-        emit(&mut out, &stop_ts, &mut first);
-        emit(
-            &mut out,
-            &format_csv_number_float(row.duration_seconds),
-            &mut first,
-        );
-        emit(
-            &mut out,
-            &format_csv_number_float(row.duration_minutes),
-            &mut first,
-        );
+        emit_screen_timestamp(&mut out, row.start_timestamp_ns, row_tz, &mut first);
+        emit_screen_timestamp(&mut out, row.stop_timestamp_ns, row_tz, &mut first);
+        emit_csv_optional_float(&mut out, row.duration_seconds, &mut first);
+        emit_csv_optional_float(&mut out, row.duration_minutes, &mut first);
         emit(
             &mut out,
             row.screen_usage_end_reason.as_deref().unwrap_or(""),
             &mut first,
         );
-        emit(
-            &mut out,
-            &format_csv_number_float(row.screen_usage_end_reason_confidence),
-            &mut first,
-        );
+        emit_csv_optional_float(&mut out, row.screen_usage_end_reason_confidence, &mut first);
         emit(
             &mut out,
             row.screen_usage_stop_event_type.as_deref().unwrap_or(""),
             &mut first,
         );
-        emit(&mut out, &last_act, &mut first);
-        emit(
+        emit_screen_last_activity(
             &mut out,
-            &format_csv_number_float(row.screen_usage_tail_gap_seconds),
+            row.screen_usage_last_activity_timestamp_ns,
+            row_tz,
             &mut first,
         );
+        emit_csv_optional_float(&mut out, row.screen_usage_tail_gap_seconds, &mut first);
         emit(
             &mut out,
             row.screen_usage_foreground_app_package
@@ -5322,18 +6453,18 @@ fn write_screen_csv(rows: &[Row], opts: &PipelineV2Options) -> Vec<u8> {
             &mut first,
         );
         let lso = match row.screen_usage_lock_screen_only {
-            None => "".to_string(),
-            Some(0) => "false".to_string(),
-            Some(_) => "true".to_string(),
+            None => "",
+            Some(0) => "false",
+            Some(_) => "true",
         };
-        emit(&mut out, &lso, &mut first);
+        emit(&mut out, lso, &mut first);
         emit(&mut out, "", &mut first); // data_time_gap_hours always blank in screen
-        emit(&mut out, &row.day.to_string(), &mut first);
-        emit(&mut out, &row.weekday_mf.to_string(), &mut first);
-        emit(&mut out, &row.weekday_mth.to_string(), &mut first);
-        emit(&mut out, &row.weekday_su_th.to_string(), &mut first);
-        emit(&mut out, &row.hour.to_string(), &mut first);
-        emit(&mut out, &row.quarter.to_string(), &mut first);
+        emit_csv_u8(&mut out, row.day, &mut first);
+        emit_csv_u8(&mut out, row.weekday_mf, &mut first);
+        emit_csv_u8(&mut out, row.weekday_mth, &mut first);
+        emit_csv_u8(&mut out, row.weekday_su_th, &mut first);
+        emit_csv_u8(&mut out, row.hour, &mut first);
+        emit_csv_u8(&mut out, row.quarter, &mut first);
         emit(&mut out, pp_version, &mut first);
         emit(&mut out, dop, &mut first);
         out.push(b'\n');
@@ -5398,6 +6529,7 @@ pub fn run_pipeline_v2_with_supports(
         next_step_index: 0,
         error: None,
         last_row_parts: None,
+        last_row_checkpoint: None,
     };
     // 1. parse + sort + canonicalize
     let (mut rows, _tz) = parse_raw_rows(csv_bytes, opts, &mut step_checkpoints)?;
@@ -5424,12 +6556,12 @@ pub fn run_pipeline_v2_with_supports(
     let primary_timezone = incremental::compute_dominant_timezone(&rows);
     step_checkpoints.value("compute_dominant_timezone", &primary_timezone)?;
     let selection = incremental::select_timezone_strategy(
-        rows,
+        Arc::new(rows),
         &opts.timezone,
         &opts.timezone_handling,
         &primary_timezone,
     )?;
-    rows = selection.rows;
+    rows = Arc::try_unwrap(selection.rows).unwrap_or_else(|rows| (*rows).clone());
     let target_timezone = selection.target_timezone;
     let timezone_action = selection.action;
     step_checkpoints.rows_and_value(
@@ -5960,12 +7092,16 @@ pub fn run_pipeline_v2_with_supports(
     let review_summary_json_bytes =
         serde_json::to_vec(&build_review_summary(&app_rows_for_review, &screen_rows))
             .map_err(|error| format!("serialize review summary: {error}"))?;
-    let visualization_data_json_bytes = serde_json::to_vec(&build_visualization_data(
-        &app_rows_for_review,
-        &screen_rows,
-        &policy_rows,
-    ))
-    .map_err(|error| format!("serialize visualization data: {error}"))?;
+    let visualization_data_json_bytes = if opts.materialize_visualization_data {
+        serde_json::to_vec(&build_visualization_data(
+            &app_rows_for_review,
+            &screen_rows,
+            &policy_rows,
+        ))
+        .map_err(|error| format!("serialize visualization data: {error}"))?
+    } else {
+        Vec::new()
+    };
     let aggregate_csv_outputs =
         aggregates::build_aggregate_outputs(&app_rows_for_review, &screen_rows, opts);
     let mut row_lineage = Vec::new();
@@ -6150,6 +7286,38 @@ mod tests {
     }
 
     #[test]
+    fn persisted_string_dictionary_round_trips_and_rejects_bad_references() {
+        let values = vec![
+            SharedString::from("participant-01"),
+            SharedString::from("Activity Resumed"),
+            SharedString::from("participant-01"),
+        ];
+        let encoded = with_serialized_row_string_table(|| postcard::to_allocvec(&values))
+            .expect("encode dictionary strings");
+        let decoded: Vec<SharedString> = with_deserialized_row_string_pool(|| {
+            postcard::from_bytes(&encoded).expect("decode dictionary strings")
+        });
+        assert_eq!(decoded, values);
+        assert!(Arc::ptr_eq(&decoded[0].0, &decoded[2].0));
+
+        for invalid in [
+            PersistedString { id: 0, value: None },
+            PersistedString {
+                id: 1,
+                value: Some("out-of-order".into()),
+            },
+        ] {
+            let encoded = postcard::to_allocvec(&invalid).expect("encode invalid token");
+            assert!(with_deserialized_row_string_pool(|| {
+                postcard::from_bytes::<SharedString>(&encoded)
+            })
+            .is_err());
+        }
+
+        assert!(postcard::to_allocvec(&SharedString::from("unscoped")).is_err());
+    }
+
+    #[test]
     fn cached_row_checkpoint_invalidates_only_the_edited_component() {
         let csv = concat!(
             "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
@@ -6213,6 +7381,24 @@ mod tests {
         let rows = incremental::build_canonical_rows(raw, "UTC", &BTreeMap::new(), &model)
             .expect("canonical rows");
 
+        let source = logical_stage_checkpoint("source-step", &[("rows", &rows)], &[]);
+        let parts = row_checkpoint_parts_for_rows(&rows);
+        let payload = br#"{"enabled":true}"#;
+        let reused = logical_stage_checkpoint_with_reusable_parts(
+            "target-step",
+            &rows,
+            &[("value", payload.as_slice())],
+            &parts,
+            &parts,
+            &source,
+        );
+        let recomputed = logical_stage_checkpoint(
+            "target-step",
+            &[("rows", &rows)],
+            &[("value", payload.as_slice())],
+        );
+        assert_eq!(reused, recomputed);
+
         let compare_order_independent_components = |left: &[Row], right: &[Row]| {
             let left = logical_stage_checkpoint("fast-path-proof", &[("rows", left)], &[]);
             let right = logical_stage_checkpoint("fast-path-proof", &[("rows", right)], &[]);
@@ -6248,6 +7434,82 @@ mod tests {
             }
             compare_order_independent_components(&rows, &shuffled);
         }
+    }
+
+    #[test]
+    fn known_membership_and_order_checkpoint_and_filter_fallback_match_full_reference() {
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,A,Activity Resumed,a,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Child,B,Activity Resumed,b,2026-03-07 10:01:00,UTC\n",
+            "Study,P01,Child,C,Activity Resumed,c,2026-03-07 10:02:00,UTC\n",
+        );
+        let raw = incremental::csv_parse(csv.as_bytes());
+        let model = incremental::detect_device_model(&raw);
+        let previous_rows = incremental::build_canonical_rows(raw, "UTC", &BTreeMap::new(), &model)
+            .expect("canonical rows");
+        let previous_checkpoint =
+            logical_stage_checkpoint("source-step", &[("rows", &previous_rows)], &[]);
+
+        let mut rows = previous_rows.clone();
+        rows[0].edit_temporal().duration_seconds = Some(60.0);
+        rows[1].edit_classification().application_label = "Changed".into();
+        let payload = br#"{"enabled":false,"upstreamDigest":"fixed"}"#;
+        let optimized = logical_stage_checkpoint_with_known_membership_and_order(
+            "drop_zero_duration",
+            &rows,
+            &[("value", payload.as_slice())],
+            &previous_rows,
+            &previous_checkpoint,
+        );
+        let reference = logical_stage_checkpoint(
+            "drop_zero_duration",
+            &[("rows", &rows)],
+            &[("value", payload.as_slice())],
+        );
+
+        assert_eq!(optimized, reference);
+        assert_eq!(
+            optimized.row_membership_digest,
+            previous_checkpoint.row_membership_digest
+        );
+        assert_eq!(
+            optimized.row_order_digest,
+            previous_checkpoint.row_order_digest
+        );
+        assert_ne!(
+            optimized.temporal_state_digest,
+            previous_checkpoint.temporal_state_digest
+        );
+        assert_ne!(
+            optimized.classification_digest,
+            previous_checkpoint.classification_digest
+        );
+
+        let filtered_rows = rows[1..].to_vec();
+        let filtered_parts = row_checkpoint_parts_for_rows(&filtered_rows);
+        let fallback = logical_stage_checkpoint_with_reusable_rows(
+            "drop_zero_duration",
+            &filtered_rows,
+            &[("value", payload.as_slice())],
+            &filtered_parts,
+            &previous_rows,
+            &previous_checkpoint,
+        );
+        let filtered_reference = logical_stage_checkpoint(
+            "drop_zero_duration",
+            &[("rows", &filtered_rows)],
+            &[("value", payload.as_slice())],
+        );
+        assert_eq!(fallback, filtered_reference);
+        assert_ne!(
+            fallback.row_membership_digest,
+            previous_checkpoint.row_membership_digest
+        );
+        assert_ne!(
+            fallback.row_order_digest,
+            previous_checkpoint.row_order_digest
+        );
     }
 
     fn test_options() -> PipelineV2Options {
@@ -6295,6 +7557,7 @@ mod tests {
             enable_screen_gated_crediting: false,
             enable_aggregates: false,
             aggregate_shape: "wide".into(),
+            materialize_visualization_data: true,
             credited_session_cap_minutes: 360.0,
             device_liveness_gap_tolerance_minutes: 120.0,
             auto_lock_bridge_seconds: 120.0,
@@ -6417,6 +7680,75 @@ mod tests {
     }
 
     #[test]
+    fn aggregate_exports_cover_wide_long_category_and_overlapping_apps() {
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,UTC\n",
+            "Study,P01,Target Child,Game,Activity Resumed,com.example.game,2026-03-07 10:00:30,UTC\n",
+            "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:02:00,UTC\n",
+            "Study,P01,Target Child,Game,Activity Paused,com.example.game,2026-03-07 10:03:00,UTC\n",
+        );
+        let codebook = concat!(
+            "app_package_name,bcm_play_store_broad_app_category\n",
+            "com.example.chat,Social\n",
+            "com.example.game,Games\n",
+        );
+        let mut options = test_options();
+        options.timezone = "UTC".into();
+        options.minimum_usage_duration = 0.0;
+        options.model_concurrent_usage = true;
+        options.use_app_codebook = true;
+        options.enable_aggregates = true;
+
+        let wide = run_pipeline_v2(csv.as_bytes(), &options, &[], &[], codebook.as_bytes())
+            .expect("wide aggregate fixture");
+        let wide_by_kind = wide
+            .aggregate_csv_outputs
+            .iter()
+            .map(|output| (output.kind.as_str(), output))
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(wide_by_kind.len(), 5);
+        assert_eq!(wide_by_kind["aggregate-daily-summary-csv"].row_count, 1);
+        assert_eq!(wide_by_kind["aggregate-weekly-summary-csv"].row_count, 1);
+        assert_eq!(wide_by_kind["aggregate-top-apps-csv"].row_count, 2);
+        assert_eq!(
+            wide_by_kind["aggregate-category-time-budget-csv"].row_count,
+            2
+        );
+        assert_eq!(wide_by_kind["aggregate-app-co-usage-csv"].row_count, 1);
+        let daily = String::from_utf8(wide_by_kind["aggregate-daily-summary-csv"].bytes.clone())
+            .expect("daily aggregate is UTF-8 CSV");
+        assert!(daily.contains("total_app_usage_minutes"));
+        assert!(daily.contains("2026-03-07"));
+        let categories = String::from_utf8(
+            wide_by_kind["aggregate-category-time-budget-csv"]
+                .bytes
+                .clone(),
+        )
+        .expect("category aggregate is UTF-8 CSV");
+        assert!(categories.contains("Social"));
+        assert!(categories.contains("Games"));
+        let co_usage = String::from_utf8(wide_by_kind["aggregate-app-co-usage-csv"].bytes.clone())
+            .expect("co-usage aggregate is UTF-8 CSV");
+        assert!(co_usage.contains("com.example.chat,com.example.game,1,1.5"));
+
+        options.aggregate_shape = "long".into();
+        let long = run_pipeline_v2(csv.as_bytes(), &options, &[], &[], codebook.as_bytes())
+            .expect("long aggregate fixture");
+        let long_daily = long
+            .aggregate_csv_outputs
+            .iter()
+            .find(|output| output.kind == "aggregate-daily-summary-csv")
+            .expect("long daily aggregate");
+        assert_eq!(long_daily.row_count, 10);
+        let long_daily_csv =
+            String::from_utf8(long_daily.bytes.clone()).expect("long aggregate is UTF-8 CSV");
+        assert!(long_daily_csv
+            .starts_with("study_id,study_name,participant_id,date,timezone,metric,value\n"));
+        assert!(long_daily_csv.contains("active_window_minutes,3"));
+    }
+
+    #[test]
     fn duplicate_timestamp_nudging_reads_both_stop_type_lists() {
         let run = |middle_interaction: &str, options: &PipelineV2Options| {
             let csv = format!(
@@ -6476,7 +7808,7 @@ mod tests {
         let app_lineage = first
             .row_lineage
             .iter()
-            .filter(|lineage| lineage.output_kind == "app-csv")
+            .filter(|lineage| lineage.output_kind.as_str() == "app-csv")
             .collect::<Vec<_>>();
 
         assert_eq!(app_lineage.len(), EVENT_COUNT);
@@ -6503,7 +7835,10 @@ mod tests {
                 search.candidate_event_count,
                 (EVENT_COUNT - index - 1) as u32
             );
-            assert!(search.candidate_chain_digest.starts_with("blake3:"));
+            assert!(search
+                .candidate_chain_digest
+                .to_string()
+                .starts_with("blake3:"));
         }
     }
 
@@ -6585,7 +7920,7 @@ mod tests {
         for (node_id, checkpoint) in &first.logical_stage_checkpoints {
             assert_eq!(
                 checkpoint.protocol_version,
-                "chronicle-logical-stage-checkpoint/v3"
+                "chronicle-logical-stage-checkpoint/v5"
             );
             assert_eq!(&checkpoint.node_id, node_id);
             assert_eq!(
@@ -6736,6 +8071,58 @@ mod tests {
             baseline_output.payload_digest,
             changed_output.payload_digest
         );
+    }
+
+    #[test]
+    fn disabled_browser_views_do_not_materialize_visualization_data() {
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+            "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:01:00,America/Chicago\n"
+        );
+        let enabled = run_pipeline_v2(csv.as_bytes(), &test_options(), &[], &[], &[])
+            .expect("visualization-enabled run");
+        assert!(!enabled.visualization_data_json_bytes.is_empty());
+        let visualization: serde_json::Value =
+            serde_json::from_slice(&enabled.visualization_data_json_bytes)
+                .expect("visualization row-array JSON");
+        assert_eq!(
+            visualization["protocolVersion"],
+            VISUALIZATION_DATA_PROTOCOL
+        );
+        assert_eq!(
+            visualization["columns"],
+            serde_json::json!(VISUALIZATION_DATA_COLUMNS)
+        );
+        for family in ["appRows", "screenRows"] {
+            assert!(visualization[family]
+                .as_array()
+                .expect("visualization row family")
+                .iter()
+                .all(|row| row.as_array().is_some_and(|cells| cells.len() == 11)));
+        }
+
+        let mut disabled_options = test_options();
+        disabled_options.materialize_visualization_data = false;
+        let disabled = run_pipeline_v2(csv.as_bytes(), &disabled_options, &[], &[], &[])
+            .expect("visualization-disabled run");
+        assert!(disabled.visualization_data_json_bytes.is_empty());
+        assert_eq!(enabled.app_csv_bytes, disabled.app_csv_bytes);
+        assert_eq!(enabled.screen_csv_bytes, disabled.screen_csv_bytes);
+        assert_eq!(
+            enabled.review_summary_json_bytes,
+            disabled.review_summary_json_bytes
+        );
+        assert_eq!(enabled.row_lineage, disabled.row_lineage);
+
+        let changed_steps = enabled
+            .pipeline_step_digests
+            .iter()
+            .filter_map(|(step, digest)| {
+                (disabled.pipeline_step_digests.get(step) != Some(digest)).then_some(step.as_str())
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(changed_steps, BTreeSet::from(["assemble_result"]));
     }
 
     #[test]
@@ -7007,6 +8394,40 @@ mod tests {
     }
 
     #[test]
+    fn allocation_free_fixed_rounding_matches_the_decimal_reference() {
+        let reference = |value: f64| ecma_to_fixed(value, 2).parse::<f64>().unwrap();
+        for value in [
+            -21.625, -0.045, -0.025, 0.0, 0.025, 0.045, 0.05, 0.0833333, 2.675, 21.625,
+        ] {
+            assert_eq!(ecma_round_fixed_f64(value, 2), reference(value));
+        }
+
+        // Exercise the exact nanosecond values immediately around every
+        // half-centihour boundary in a two-day range.
+        for centihour in -4_800_i64..=4_800 {
+            let boundary_ns = centihour * 36_000_000_000 + 18_000_000_000;
+            for offset in -8_i64..=8 {
+                let value = (boundary_ns + offset) as f64 / 3_600_000_000_000.0;
+                assert_eq!(
+                    ecma_round_fixed_f64(value, 2),
+                    reference(value),
+                    "boundary mismatch at {boundary_ns} + {offset} ns"
+                );
+            }
+        }
+
+        let mut state = 0x4d59_5df4_d0f3_3173_u64;
+        for _ in 0..100_000 {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            let delta_ns = (state % 1_209_600_000_000_000) as i64 - 604_800_000_000_000;
+            let value = delta_ns as f64 / 3_600_000_000_000.0;
+            assert_eq!(ecma_round_fixed_f64(value, 2), reference(value));
+        }
+    }
+
+    #[test]
     fn precision_15_round_trip() {
         let v: f64 = 5.0000000000000004e-8;
         let p = round_to_precision(v, 15);
@@ -7052,7 +8473,10 @@ mod tests {
         let (contributors, search) = credit_lineage_contributors(&substrate, "P01", 150, 160, 10);
         assert_eq!(contributors.to_vec(), vec![2]);
         let search = search.expect("liveness window must be recorded");
-        assert_eq!(search.index_space, "participant-source-event-order");
+        assert_eq!(
+            search.index_space.as_str(),
+            "participant-source-event-order"
+        );
         assert_eq!(
             (search.start_event_index, search.end_event_index_exclusive),
             (2, 4)
@@ -7079,7 +8503,7 @@ mod tests {
             empty_lineage_search_suffix_digest(1),
         ];
         for (compact, string) in inline.iter().zip(&strings) {
-            assert_eq!(compact.as_bytes(), string.as_bytes());
+            assert_eq!(&compact.encoded(), string.as_bytes());
         }
         assert_eq!(
             inline_lineage_search_range_digest(&inline, 0, 1),

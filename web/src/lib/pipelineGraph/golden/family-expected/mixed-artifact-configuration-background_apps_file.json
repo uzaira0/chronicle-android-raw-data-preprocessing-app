@@ -7,12 +7,12 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:dbec83326b481f396c5f820eeb502699085fb514d37683e4d42d4694eaf99acb",
-    "planDigest": "sha256:7d57a41ec697dd873bf1d06137bc45d4f1de741dbc48b5e4ef72765a9e857257",
-    "profileDigest": "sha256:cf05a67af4a96dff2ae5c8fbc6fd68a66d86fa45217bb8661e75ece247886991",
-    "profileLockDigest": "sha256:681328e9215f00410ea98478bf3ecc25d8b1b94ff066151e98d29f16c076aa98",
+    "implementationDigest": "sha256:fc74f4ec38704b3a521f36dfc4d22d53d1fb164bbc09d6a96d333bf41c0f2988",
+    "planDigest": "sha256:7ee296d46b121e019ec0f43026fd91ff143efb1d33263ec95c19a92be7512ad7",
+    "profileDigest": "sha256:514e514933866ddd478c05044bc43c10a50895305f039400f210406949622ab7",
+    "profileLockDigest": "sha256:24467bd63829d2be5e5b794af2aec5ee092cd1fbf9f95763e5a834302848bcef",
     "runtimeAuthorityDigest": "sha256:bb2e2d109a81098514ba9a86344da6edc033cd305e6d6c4832c9dfd1ce81b2f9",
-    "productContractDigest": "sha256:65437936a927735c56f728f5e6ba4e2cbedfa8382ddb48d6458b07b3dee13173"
+    "productContractDigest": "sha256:c89ad3e6efaa2394a5cb5f321cf1758b4c3703659093999b0e0161f210c16a4c"
   },
   "roleRepresentatives": {
     "background_apps_file": {
@@ -152,13 +152,13 @@
         "introducedCount": 0,
         "maskedCount": 12332,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:d2de2d33848aa19d337ce2a29587038e00cddf73e3928918e77f2cfeb7539ca5"
+        "maskedDigest": "sha256:160fdc81e49cbe924d1f1e0937ebbacc1eef8a5c8a4a4e2d2c244db720f9ef9d"
       },
       "dataCellConditioning": {
         "introducedCount": 0,
         "maskedCount": 18398,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:fc7f87d2dad53d5d98c3f8bbaa6a96f895ac451e7eeae894038bbbc790a34aa7"
+        "maskedDigest": "sha256:2eebe1661e5d8d4e965f50648fd737dcfd49736f5d462dfde398d3ecfb209145"
       }
     },
     {
@@ -309,14 +309,14 @@
       "configCellConditioning": {
         "introducedCount": 8448,
         "maskedCount": 3689,
-        "introducedDigest": "sha256:593db43bc922510adda0ad7aed19816e6650aadb79cc171d1c81a48de1777c92",
-        "maskedDigest": "sha256:0325e375e03946998ea0616397ed0d0fa129d729c14881750388f4c8c8a12ce6"
+        "introducedDigest": "sha256:2f646c60c8a4cb233671f3980bba2c3b955e180a84a1d8a3a1292caccf795b27",
+        "maskedDigest": "sha256:b885947cbce29a286c065cf7d185ada1081a26cc27166e0c6b38886cb9a34f21"
       },
       "dataCellConditioning": {
         "introducedCount": 2023,
         "maskedCount": 9399,
-        "introducedDigest": "sha256:86e5ac7084e28fd2aa010194f208b991124523216d6f532374c4a6ec3b041ba8",
-        "maskedDigest": "sha256:326f9fb4d890d68c808d22a419dfb95d5b8f5942af47360393e8d54a8aed6c08"
+        "introducedDigest": "sha256:36f6e5afc0f582eedb5cacc10115f73d10d6ffb3c495ae397cee47075a55e9d1",
+        "maskedDigest": "sha256:fa5fe5135c501d3bb2ac37ee9e282ad43da65edd55fb84efb959097db97a2f11"
       }
     },
     {
@@ -459,6 +459,8 @@
       "configConditioning": {
         "introduced": [],
         "masked": [
+          "categorize_apps.temporalStateDigest",
+          "reconstruct_episodes.temporalStateDigest",
           "score_compliance.payloadDigest"
         ]
       },
@@ -470,13 +472,13 @@
         "introducedCount": 30,
         "maskedCount": 18430,
         "introducedDigest": "sha256:8d6015ed116a54ab225e99ec56944b1f30ad84f826a15f2249543d9242e5e225",
-        "maskedDigest": "sha256:df26195feef9b6fce08725baff0d849bc326d9dbab06da8b33db74216c48ad95"
+        "maskedDigest": "sha256:ab61e06855962781a39573defa780f598d4729c6451e394337c7903ce7f55d2a"
       },
       "dataCellConditioning": {
         "introducedCount": 719,
         "maskedCount": 16639,
-        "introducedDigest": "sha256:325e2884f5bdb3862ed07e4aceaf890b68a5a3128efeb8fbe16adb7b268545d5",
-        "maskedDigest": "sha256:78f1d85ec6d50405085c1204edc9545ce455980f70b428564c830480aa726f78"
+        "introducedDigest": "sha256:ee276039e5a7737199748933ded97e297d0a5bed36e84d50d7e82b682ac88e23",
+        "maskedDigest": "sha256:bccf42f59faf3745460aa6add3234d691a7a8402897e8534235212714a6e159f"
       }
     },
     {
@@ -641,6 +643,11 @@
       "configConditioning": {
         "introduced": [],
         "masked": [
+          "categorize_apps.classificationDigest",
+          "episode_annotations.classificationDigest",
+          "interval_cleaning.classificationDigest",
+          "observation_window.classificationDigest",
+          "reconstruct_episodes.classificationDigest",
           "score_compliance.payloadDigest"
         ]
       },
@@ -651,14 +658,14 @@
       "configCellConditioning": {
         "introducedCount": 64,
         "maskedCount": 8452,
-        "introducedDigest": "sha256:06c81f281d5831207b268de15d99d44ade91ecd32ca68947c52c3352a96c2516",
-        "maskedDigest": "sha256:59276b21b0479a27b256126511ef0d9b305adadebdaca47ae185d897f5ff807b"
+        "introducedDigest": "sha256:da61eed1fa3f17ab5c611fea380793eff7326a97d295340e0111886607bae929",
+        "maskedDigest": "sha256:56c2528e60545ea777a161d0136a18a08970b25e3700aa4f8f236721e80a2556"
       },
       "dataCellConditioning": {
         "introducedCount": 763,
         "maskedCount": 1415,
-        "introducedDigest": "sha256:8f82f98c6e2676fbf941d948729cde75f4ba5abf62e76db3afd63a71e94d1711",
-        "maskedDigest": "sha256:cc87084847e53134f4283380521f86e35c82a08fc417b7bab49ec03d7400b351"
+        "introducedDigest": "sha256:55fbd340d3b5c9ae8127aae3c15f3c28db0818356f045b70f7ec88e30fdb7d92",
+        "maskedDigest": "sha256:58553f09c26fcaecc9ec9763fa0d8511e060dddffcd8ff0b2891d1689089ca3a"
       }
     },
     {
@@ -841,14 +848,14 @@
       "configCellConditioning": {
         "introducedCount": 1800,
         "maskedCount": 3495,
-        "introducedDigest": "sha256:78b3bf9a44f251887263a16d094cca93321a08d8d521e1ff1a89a494ef504b55",
-        "maskedDigest": "sha256:ef59620d533b471418bbc7d085073389195d2fa3364cf7d5c6c6d3c5f735343c"
+        "introducedDigest": "sha256:a04c6001468bde48e705408347aeedfba2301a4718e1c6bf1a89593edbc2ce09",
+        "maskedDigest": "sha256:010d0d8de71d76361daad3cb9bcbd9dcdd585ada1448d3175b757356751e6b49"
       },
       "dataCellConditioning": {
         "introducedCount": 847,
         "maskedCount": 855,
-        "introducedDigest": "sha256:73440ecaf197969fabbe0d8bc3ab9ae5795ddd5d2eba086ded5cc276c50a28e4",
-        "maskedDigest": "sha256:6cb8a6b22469faf9d76321a14886f45044a86605986bd076dc82f0d765d4bd78"
+        "introducedDigest": "sha256:a9444fe0f046db6e0896a58ae7c313df766940e481e5511054e1d00948f4e3b1",
+        "maskedDigest": "sha256:ba3682baf92ec56af3f7d8ff53bcfcff731d56055fa8a3e13cfa1ed422833771"
       }
     },
     {
@@ -1031,14 +1038,14 @@
       "configCellConditioning": {
         "introducedCount": 5461,
         "maskedCount": 13311,
-        "introducedDigest": "sha256:4bc3808f04ae6795211584c25a94e865b7a9943b6e3471aea369d7ebbf69e903",
-        "maskedDigest": "sha256:c743aa4654625c433e05733e11d199ac7ff4119951e53f04ff584be1e18a2707"
+        "introducedDigest": "sha256:f3bf4eba03b144ae3dcb56ad9059bbeac69e0579bc8b8c47defd7c5d8d3cb0a2",
+        "maskedDigest": "sha256:9ded4aa9c5f333bc240cbb47fe41b79fad48d566755034580011d394d624bbfb"
       },
       "dataCellConditioning": {
         "introducedCount": 5043,
         "maskedCount": 13574,
-        "introducedDigest": "sha256:9ed0fecdfc97cef55a1faafa3a505d14e12115371ff3b89831ec68ee0b86b296",
-        "maskedDigest": "sha256:c55ecfc1572f337c941c29a1d118dcd25b7f50acad005ea7c2bd5ce4d0008d48"
+        "introducedDigest": "sha256:1a5b59d7cc43f571ef8320acf2c8d384edbbcdc2c2eb56155e495f936ce1d0fa",
+        "maskedDigest": "sha256:3cd2d7bbb697cdea4dee9109034fd5f297ab72fec24fbbf8d019bd7e8a336a81"
       }
     },
     {
@@ -1221,14 +1228,14 @@
       "configCellConditioning": {
         "introducedCount": 5461,
         "maskedCount": 13311,
-        "introducedDigest": "sha256:4bc3808f04ae6795211584c25a94e865b7a9943b6e3471aea369d7ebbf69e903",
-        "maskedDigest": "sha256:c743aa4654625c433e05733e11d199ac7ff4119951e53f04ff584be1e18a2707"
+        "introducedDigest": "sha256:f3bf4eba03b144ae3dcb56ad9059bbeac69e0579bc8b8c47defd7c5d8d3cb0a2",
+        "maskedDigest": "sha256:9ded4aa9c5f333bc240cbb47fe41b79fad48d566755034580011d394d624bbfb"
       },
       "dataCellConditioning": {
         "introducedCount": 5043,
         "maskedCount": 13574,
-        "introducedDigest": "sha256:9ed0fecdfc97cef55a1faafa3a505d14e12115371ff3b89831ec68ee0b86b296",
-        "maskedDigest": "sha256:c55ecfc1572f337c941c29a1d118dcd25b7f50acad005ea7c2bd5ce4d0008d48"
+        "introducedDigest": "sha256:1a5b59d7cc43f571ef8320acf2c8d384edbbcdc2c2eb56155e495f936ce1d0fa",
+        "maskedDigest": "sha256:3cd2d7bbb697cdea4dee9109034fd5f297ab72fec24fbbf8d019bd7e8a336a81"
       }
     },
     {
@@ -1393,14 +1400,14 @@
       "configCellConditioning": {
         "introducedCount": 9314,
         "maskedCount": 1161,
-        "introducedDigest": "sha256:f7557378426cbf203fb2df3a4b78a2971b1f707564b6df3b16e3e76d4ca51645",
-        "maskedDigest": "sha256:da4e53aab07137542fd2ee3476fd1e8b298aa4a5ae9ffe4cc97e551402a1618e"
+        "introducedDigest": "sha256:dd0b54e87ab143d6c5edd9a2ce5c4db6867449388db1bca00b9f3b030d4e59cc",
+        "maskedDigest": "sha256:ac430847c469075daf0dc7a5c5c7850e98fc963c144fc61d5b58f3d935505505"
       },
       "dataCellConditioning": {
         "introducedCount": 1952,
         "maskedCount": 14886,
-        "introducedDigest": "sha256:2725c08e0ade197d0f7d135452f3ed47b028a272f0cc244569b025695b1b688b",
-        "maskedDigest": "sha256:9ffc44ea56d4a8b664667df0d0e2dfc29fe8a518f5370cf27d773a32ae14741d"
+        "introducedDigest": "sha256:83c7df38a15c16ca758eef57a0b3de9b2303c6df71efbc6a8ab26b556b17ea1c",
+        "maskedDigest": "sha256:e0214f1da8f2460dfe015e98cf69230518f4e1f342da143cf2bdee14dfc58774"
       }
     },
     {
@@ -1483,6 +1490,8 @@
       "configConditioning": {
         "introduced": [],
         "masked": [
+          "categorize_apps.temporalStateDigest",
+          "reconstruct_episodes.temporalStateDigest",
           "score_compliance.payloadDigest"
         ]
       },
@@ -1526,13 +1535,13 @@
         "introducedCount": 3,
         "maskedCount": 18392,
         "introducedDigest": "sha256:337ea2d71af26de5e2a6f9bad263ac7b1eba8d2917cd30c14382998a958298ad",
-        "maskedDigest": "sha256:33b7e086e113ba4e86102251f712024d7aa110a03a13aa291e6afcef12d93fad"
+        "maskedDigest": "sha256:8d4e9ee2332e2e5836678faaf0f7d6d81726706688da7c5df6a29378b991181d"
       },
       "dataCellConditioning": {
         "introducedCount": 0,
         "maskedCount": 18398,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:fc7f87d2dad53d5d98c3f8bbaa6a96f895ac451e7eeae894038bbbc790a34aa7"
+        "maskedDigest": "sha256:2eebe1661e5d8d4e965f50648fd737dcfd49736f5d462dfde398d3ecfb209145"
       }
     },
     {
@@ -1672,13 +1681,13 @@
         "introducedCount": 0,
         "maskedCount": 5310,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:11e5b7a1631c9a48e261803662ae62b59da363ffda8ccb04b1e3f686fb66aeda"
+        "maskedDigest": "sha256:8888ee797027e51c5dea401706b7ed77cecc4a9f29d527800f2b8c5920e8b01c"
       },
       "dataCellConditioning": {
         "introducedCount": 0,
         "maskedCount": 7661,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:1455eea7142ced7cc2f716ad78070cb497458a9034c1ab1035a324a8dd6fe983"
+        "maskedDigest": "sha256:afb52ef048d6bdf6c64ed3f6969f7ebd24b481429dbc53c89cddda12c3019e07"
       }
     },
     {
@@ -2607,14 +2616,14 @@
       "configCellConditioning": {
         "introducedCount": 6682,
         "maskedCount": 6491,
-        "introducedDigest": "sha256:f96712912c2527590547fb86d571186a71dbc208d33f94ac677df941ba2a93eb",
-        "maskedDigest": "sha256:a3e6ac6de347900ba9b9c05648882461b074d78244a9f2541f4bad2d65778fb7"
+        "introducedDigest": "sha256:4d3b1d5632f125688295906f6527ac7f0af302a8c9d8598a56c8b61436b520cb",
+        "maskedDigest": "sha256:48b7f7aa70a4e836bbf1d9388c87edb2b7ec9a0dacef66221736ad92049259d5"
       },
       "dataCellConditioning": {
         "introducedCount": 2058,
         "maskedCount": 11329,
-        "introducedDigest": "sha256:b4a536508f3ff44c336cc7cca233914a81cee0d62ec2e5d12a6c37f1cd4d74cf",
-        "maskedDigest": "sha256:79e43f44ef09f79406a4e2b665eeba9dd52f87d7512966a57599544973cfa225"
+        "introducedDigest": "sha256:838f971c8230bcb5731819863b6e1f203f371b7d1c707fb608f9e9ca1f971cc6",
+        "maskedDigest": "sha256:22b7c02016756a0e1a03bb5d53540f5f97511d324e74ffab07c1247e2c2be2ae"
       }
     },
     {
@@ -2889,14 +2898,14 @@
       "configCellConditioning": {
         "introducedCount": 4452,
         "maskedCount": 5495,
-        "introducedDigest": "sha256:f41fd7eff96296ca286a82c7109bc04cdbd0929b2fc6c3b319abe293bd5740e7",
-        "maskedDigest": "sha256:6627d09e77b2fd2fa1c4ccf18c8e96cf4abdc835bdc5e512b002a11f55ff23db"
+        "introducedDigest": "sha256:f6a78663e705a6d42f89919ee3770b9a375e4b72f94facc829abd14280e7e334",
+        "maskedDigest": "sha256:d0e12ece785bffe274594977fae28c3be03e36f6fa4c3f04d18df4921f2a14d6"
       },
       "dataCellConditioning": {
         "introducedCount": 2256,
         "maskedCount": 1806,
-        "introducedDigest": "sha256:6b54d103c7763cab0653a62d28e906724dc6c160a4d242cf67e8946dcd372e1c",
-        "maskedDigest": "sha256:46744671ff95c8b7f6450bbe6262b039009b959d35f4c2688e3c7b9e28c08aa6"
+        "introducedDigest": "sha256:eca5b1447e332c74f66ae5adaff4ee23c867a2a122f1424efb4ef40608fd06ca",
+        "maskedDigest": "sha256:d33e96af0aa8e22a31071c5df5d9ef7e5a170125abfb10e79154eb667933a204"
       }
     },
     {
@@ -3091,14 +3100,14 @@
       "configCellConditioning": {
         "introducedCount": 9747,
         "maskedCount": 2032,
-        "introducedDigest": "sha256:30684fd78cf220febaa1be291be3a20988b573dde295c673b3f1b789c18086ee",
-        "maskedDigest": "sha256:bce199ec250ca5f7d280d0c04bc59bc1ebda77b96e453e654bc28ca3f9b07ee2"
+        "introducedDigest": "sha256:2daab1901f1ab1355bc8abd36ef8999650fb6d614de5e4d117b0ed0fa35c7316",
+        "maskedDigest": "sha256:b896b77a1b38fa8b26a74d7f5368cd76172a8447f6871ae750a6cbe06de5b3d7"
       },
       "dataCellConditioning": {
         "introducedCount": 1758,
         "maskedCount": 8790,
-        "introducedDigest": "sha256:f634525f9f5bbdf03c708e8eb70590ee08e69e0f43521f4c0c138cfc654981f5",
-        "maskedDigest": "sha256:8c63ae6dfdf7d59eb9d42b02ad9a15dcbb3ebc709d191a470e4a1ef7350fd286"
+        "introducedDigest": "sha256:361e4d5ecdd7fc62c166acbd35b4bdb6667cf965591374a7022efa2654636ef7",
+        "maskedDigest": "sha256:3f737cb2baf40dd6de768666ee6f88f8db4ddba1cb43486181d6f7725895110f"
       }
     },
     {
@@ -3201,14 +3210,14 @@
       "configCellConditioning": {
         "introducedCount": 1881,
         "maskedCount": 2849,
-        "introducedDigest": "sha256:6ab23d2dc2dd3384c5302bb64eec3e90ec3250f7bacfcd4c2e75c23dee490106",
-        "maskedDigest": "sha256:38b80bb32c03a9ff8cb7db00dbc7f6428b45b1d83c7bfbc7de433645d0f41aef"
+        "introducedDigest": "sha256:86d5388cac624dc15078278c4305a56e7327372a17b0e93f760ecd96a5ceeb9c",
+        "maskedDigest": "sha256:8b1f291fff3ce90341d31c7140616ec27a19a95877dc58f34e5c5655b4e1c32c"
       },
       "dataCellConditioning": {
         "introducedCount": 843,
         "maskedCount": 843,
-        "introducedDigest": "sha256:87e82132a7bbe69bf02cc11741d00d2eccd8a33150f7dd31dfabbca3dc29377f",
-        "maskedDigest": "sha256:6a31014c730ae3ddf6eb1bec27f6aa8ee2cfec30cc551a90d5f0c63002db1206"
+        "introducedDigest": "sha256:dfd64dd0cdead3601a07c61dedf909bfd10f68925be72224252e0e73565e0b62",
+        "maskedDigest": "sha256:2a362edd9ee7d21c8bddca6e0e03283359cf7a87e4a5eb8b66e16d047e7533dd"
       }
     },
     {
@@ -3738,14 +3747,14 @@
       "configCellConditioning": {
         "introducedCount": 14,
         "maskedCount": 194,
-        "introducedDigest": "sha256:0e9ed04f6b416af1ee1e7f282d1588ed62f52fd91349fafc14e3d8eb01cb0c93",
-        "maskedDigest": "sha256:67cda6e45debb667b6a121368b8834098a973abf8fa0bc74d30bdb1e3367f8c3"
+        "introducedDigest": "sha256:978fdd2b499b44663b3766097055a6e78b726c25e2f51d7faddb4a49fa492534",
+        "maskedDigest": "sha256:17d36bd45385eaea32b3a25642b5b59ea61d777fd7a22f965ecfe86f1abff7df"
       },
       "dataCellConditioning": {
         "introducedCount": 0,
         "maskedCount": 92,
         "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "maskedDigest": "sha256:1fc95acdd3012358888694c785aa67445ac453a42ebbcc97046ac70063cf9db9"
+        "maskedDigest": "sha256:ec2f13cc5c7de96324e94e070e67349992bce545761fc3caa7c7b3b215a8ed0f"
       }
     },
     {
@@ -3852,5 +3861,5 @@
       }
     }
   ],
-  "caseSetDigest": "sha256:59a6c3b873c062820c93b7752e34aa287f20af9e97dd48758729c83429fa74f1"
+  "caseSetDigest": "sha256:32a8e47f7b5c52dda7eba3e103486cfa280aac7f83aeb850a2404dcfebe2a8b8"
 }

@@ -2471,7 +2471,8 @@
         "enable_day_coverage",
         "enable_compliance_scoring",
         "enable_aggregates",
-        "aggregate_shape"
+        "aggregate_shape",
+        "materialize_visualization_data"
       ],
       "source_role_bindings": [
         {

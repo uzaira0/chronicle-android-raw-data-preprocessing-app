@@ -7,17 +7,17 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:dbec83326b481f396c5f820eeb502699085fb514d37683e4d42d4694eaf99acb",
-    "planDigest": "sha256:7d57a41ec697dd873bf1d06137bc45d4f1de741dbc48b5e4ef72765a9e857257",
-    "profileDigest": "sha256:cf05a67af4a96dff2ae5c8fbc6fd68a66d86fa45217bb8661e75ece247886991",
-    "profileLockDigest": "sha256:681328e9215f00410ea98478bf3ecc25d8b1b94ff066151e98d29f16c076aa98",
+    "implementationDigest": "sha256:fc74f4ec38704b3a521f36dfc4d22d53d1fb164bbc09d6a96d333bf41c0f2988",
+    "planDigest": "sha256:7ee296d46b121e019ec0f43026fd91ff143efb1d33263ec95c19a92be7512ad7",
+    "profileDigest": "sha256:514e514933866ddd478c05044bc43c10a50895305f039400f210406949622ab7",
+    "profileLockDigest": "sha256:24467bd63829d2be5e5b794af2aec5ee092cd1fbf9f95763e5a834302848bcef",
     "runtimeAuthorityDigest": "sha256:bb2e2d109a81098514ba9a86344da6edc033cd305e6d6c4832c9dfd1ce81b2f9",
-    "productContractDigest": "sha256:65437936a927735c56f728f5e6ba4e2cbedfa8382ddb48d6458b07b3dee13173"
+    "productContractDigest": "sha256:c89ad3e6efaa2394a5cb5f321cf1758b4c3703659093999b0e0161f210c16a4c"
   },
   "sourceLedgers": {
-    "configurationCaseSetDigest": "sha256:cdb5c5794c3a81f83853f0fa138b66aeca5585151ecbcfc12b02d6dcf8d68a8e",
-    "artifactCaseSetDigest": "sha256:a0c9d75c92e64df3ffabd1daefb26239fcce9fccafb320ab40f173bc22fe00ed",
-    "rawBoundaryCaseSetDigest": "sha256:5af80b920feee505865782a6a10aedc83a16e1ac012b9250e4ec29f30401a532"
+    "configurationCaseSetDigest": "sha256:22266c8db304e232532cda61a11bdac3e9db417b961e5bc0dc731347a345b79f",
+    "artifactCaseSetDigest": "sha256:e9f06fdb6c456540cf13f2eaad0aeecf66c804c59008da89ee924b4fddbccc2a",
+    "rawBoundaryCaseSetDigest": "sha256:8ed59c3efcdd30149cf7f3061e8454f281a39027e53173803450e27493ce9ab1"
   },
   "observationCount": 1734,
   "counts": {
@@ -32,7 +32,7 @@
     },
     "structuralCycles": 62,
     "structuralConditionBindings": 6,
-    "structuralStepBindings": 77,
+    "structuralStepBindings": 80,
     "rustRequestReadBindings": 11
   },
   "structuralProofs": {
@@ -3052,8 +3052,8 @@
       "sourceId": "background_apps_file",
       "targetId": "junk_downstream_mark",
       "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "artifact:support-representation:background_apps_file:crlf"
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "remove-role-binding:background_apps_file->split_concurrent",
@@ -3061,8 +3061,8 @@
       "sourceId": "background_apps_file",
       "targetId": "split_concurrent",
       "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "artifact:support-representation:background_apps_file:crlf"
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "remove-role-binding:app_codebook_file->codebook_join",
@@ -3088,8 +3088,8 @@
       "sourceId": "study_dates_file",
       "targetId": "filter_rows_to_window",
       "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "artifact:support-representation:study_dates_file:crlf"
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "remove-role-binding:study_dates_file->build_coverage_table",
@@ -3098,7 +3098,7 @@
       "targetId": "build_coverage_table",
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
-      "witnessId": "artifact:support-representation:study_dates_file:crlf"
+      "witnessId": "artifact:support:study-window-narrow"
     },
     {
       "mutantId": "remove-role-binding:device_sharing_file->resolve_sharing_status",

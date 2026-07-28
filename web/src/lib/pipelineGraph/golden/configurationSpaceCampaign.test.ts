@@ -17,6 +17,11 @@ import {
 const RUNTIME_ARTIFACT_REQUEST_FIELDS = new Set([
   "enable_parquet_export",
   "enable_spss_export",
+  "enable_plotting",
+  "enable_activity_heatmap",
+  "export_plots_as_svg",
+  "enable_interactive_timeline",
+  "include_filtered_app_usage_in_plots",
 ]);
 import {
   ALL_ON,
@@ -60,7 +65,7 @@ type Configuration = {
 };
 
 type TypedCheckpoint = {
-  protocolVersion: "chronicle-logical-stage-checkpoint/v3";
+  protocolVersion: "chronicle-logical-stage-checkpoint/v5";
   nodeId: string;
   rowMembershipDigest: string;
   rowOrderDigest: string;
@@ -485,6 +490,7 @@ function outputArtifacts(manifest: RuntimeManifest): Array<{
         OUTPUT_ARTIFACT_KINDS.has(artifact.kind) ||
         artifact.kind.startsWith("aggregate-"),
     )
+    .map(({ kind, digest, size }) => ({ kind, digest, size }))
     .sort((left, right) => left.kind.localeCompare(right.kind));
 }
 
@@ -961,8 +967,9 @@ describe("Rust/WASM configuration-space campaign", () => {
       ).toEqual(outputArtifacts(cold.manifest));
     }
 
-    // View and execution-strategy axes are deliberately absent from the Rust
-    // semantic projection. Prove both the boundary and the executable result:
+    // View settings are recorded in the exact Rust request/receipt but remain
+    // absent from its preprocessing-semantic projection. Execution-strategy
+    // settings never enter Rust. Prove both boundaries and the executable result:
     // each isolated change must produce no computational invalidation and the
     // same Rust semantic outputs/artifacts. View files and scheduling behavior
     // remain separately observable outside this preprocessing boundary.
@@ -974,44 +981,80 @@ describe("Rust/WASM configuration-space campaign", () => {
       id: "orthogonal-baseline",
       options: { ...ALL_ON },
     };
-    const orthogonalBaselineRun = await execute(
-      denseCorpus,
-      orthogonalBaseline,
-      "orthogonal-workspace",
-    );
-    let orthogonalPreviousRoot =
-      orthogonalBaselineRun.manifest.workspaceRootDigest;
-    const orthogonalProjection = buildRustV2Options(
+    const preprocessingProjection = (options: BrowserProcessingOptions) => {
+      const projection = {
+        ...buildRustV2Options(options, GOLDEN_RUNTIME),
+      };
+      for (const field of [
+        "enable_plotting",
+        "enable_activity_heatmap",
+        "export_plots_as_svg",
+        "enable_interactive_timeline",
+        "include_filtered_app_usage_in_plots",
+        "materialize_visualization_data",
+      ]) {
+        delete projection[field];
+      }
+      return projection;
+    };
+    const orthogonalProjection = preprocessingProjection(
       orthogonalBaseline.options,
-      GOLDEN_RUNTIME,
     );
     for (const key of orthogonalKeys) {
       const changed = alternateOrthogonalConfiguration(key);
+      const workspace = `orthogonal-workspace:${key}`;
+      const orthogonalBaselineRun = await execute(
+        denseCorpus,
+        orthogonalBaseline,
+        workspace,
+      );
       expect(
-        buildRustV2Options(changed.options, GOLDEN_RUNTIME),
+        preprocessingProjection(changed.options),
         `${key}: must not enter the Rust semantic projection`,
       ).toEqual(orthogonalProjection);
       const changedRun = await execute(
         denseCorpus,
         changed,
-        "orthogonal-workspace",
-        orthogonalPreviousRoot,
+        workspace,
+        orthogonalBaselineRun.manifest.workspaceRootDigest,
       );
       expect(
-        semanticOutcome(changedRun.manifest),
-        `${key}: semantic invariance`,
-      ).toEqual(semanticOutcome(orthogonalBaselineRun.manifest));
-      expect(
-        outputArtifacts(changedRun.manifest),
-        `${key}: artifact invariance`,
-      ).toEqual(outputArtifacts(orthogonalBaselineRun.manifest));
-      expect(
-        changedRun.manifest.nodeExecutions.filter(
+        computationalOutcome(changedRun.manifest),
+        `${key}: upstream semantic invariance`,
+      ).toEqual(computationalOutcome(orthogonalBaselineRun.manifest));
+      const changedNodes = changedRun.manifest.nodeExecutions
+        .filter(
           (node) => node.status === "recomputed" || node.status === "error",
-        ),
-        `${key}: no computational invalidation`,
-      ).toEqual([]);
-      orthogonalPreviousRoot = changedRun.manifest.workspaceRootDigest;
+        )
+        .map((node) => node.node_id);
+      if ((VIEW_BROWSER_OPTION_KEYS as readonly string[]).includes(key)) {
+        const viewDependentKinds = new Set([
+          "source-coordinate-index-arrow",
+          "result-cell-correspondence-arrow",
+          ...(key === "enablePlotting" ? ["visualization-data-json"] : []),
+        ]);
+        const withoutViewDependentArtifacts = (manifest: RuntimeManifest) =>
+          outputArtifacts(manifest).filter(
+            (artifact) => !viewDependentKinds.has(artifact.kind),
+          );
+        expect(
+          withoutViewDependentArtifacts(changedRun.manifest),
+          `${key}: non-view artifact invariance`,
+        ).toEqual(
+          withoutViewDependentArtifacts(orthogonalBaselineRun.manifest),
+        );
+        expect(changedNodes, `${key}: exact output invalidation`).toEqual(
+          key === "enablePlotting" ? ["outputs"] : [],
+        );
+      } else {
+        expect(
+          outputArtifacts(changedRun.manifest),
+          `${key}: artifact invariance`,
+        ).toEqual(outputArtifacts(orthogonalBaselineRun.manifest));
+        expect(changedNodes, `${key}: no computational invalidation`).toEqual(
+          [],
+        );
+      }
     }
 
     // studyName is not computationally inert: it is an output annotation.
@@ -1688,7 +1731,7 @@ describe("Rust/WASM configuration-space campaign", () => {
     }
     const evidence = {
       protocolVersion: "chronicle-configuration-influence-ledger/v1",
-      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v3",
+      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v5",
       claimBoundary:
         "Exact 55-step and 15-display-group execution plus warm/cold equality for the recorded Rust/WASM implementation, equivalence classes, contexts, support bindings, and synthetic corpora. Absence of an observed effect remains bounded to this declared test scope. Step recomputation is taken from actual Salsa query bodies plus explicitly instrumented product-step evaluations inside review-only fused queries. The separate sequential Rust path remains the independent cold oracle.",
       contractAuthority: "web/schema/chronicle-local-contract.linkml.yaml",

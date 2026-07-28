@@ -3082,8 +3082,10 @@ mod tracked {
 
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
     struct CanonicalTemporalSequence {
-        /// Exact bytes consumed by the v4 temporal-state checkpoint for each
-        /// row, in canonical source-identity order. Keeping this private
+        /// Exact bytes consumed by the v5 temporal-state checkpoint for each
+        /// row, in canonical source-identity order (40 bytes per row: 8-byte
+        /// length frame + the 32-byte temporal part; identity is committed by
+        /// the membership digest in the same order). Keeping this private
         /// buffer lets a repeated threshold edit patch changed rows and issue
         /// one SIMD-friendly BLAKE3 update instead of rebuilding 100k small
         /// hash writes.
@@ -3091,6 +3093,11 @@ mod tracked {
         /// Current row index -> canonical source-identity position.
         canonical_positions: Arc<Vec<u32>>,
     }
+
+    /// v5 temporal-state stride in `CanonicalTemporalSequence::encoded_rows`.
+    const TEMPORAL_SEQUENCE_STRIDE: usize = 40;
+    /// Offset of the 32-byte temporal part within one stride.
+    const TEMPORAL_SEQUENCE_PART_OFFSET: usize = 8;
 
     fn canonical_row_order(rows: &[Row]) -> Vec<usize> {
         let mut canonical_order = (0..rows.len()).collect::<Vec<_>>();
@@ -3118,12 +3125,12 @@ mod tracked {
     ) -> CanonicalTemporalSequence {
         debug_assert_eq!(canonical_order.len(), rows.len());
         let mut canonical_positions = vec![0_u32; rows.len()];
-        let mut encoded_rows = Vec::with_capacity(rows.len() * 80);
+        let mut encoded_rows = Vec::with_capacity(rows.len() * TEMPORAL_SEQUENCE_STRIDE);
         let mut scratch = RowCheckpointScratch::default();
         for (position, &row_index) in canonical_order.iter().enumerate() {
             canonical_positions[row_index] = position as u32;
             let parts = row_checkpoint_parts(&rows[row_index], &mut scratch);
-            checkpoint_digest_fixed32_pair(&mut encoded_rows, &parts.identity, &parts.temporal);
+            checkpoint_digest_fixed32(&mut encoded_rows, &parts.temporal);
         }
         CanonicalTemporalSequence {
             encoded_rows: Arc::new(encoded_rows),
@@ -3142,7 +3149,8 @@ mod tracked {
         for &row_index in changed_row_indices {
             let row_index = row_index as usize;
             let canonical_position = base.canonical_positions[row_index] as usize;
-            let temporal_offset = canonical_position * 80 + 48;
+            let temporal_offset =
+                canonical_position * TEMPORAL_SEQUENCE_STRIDE + TEMPORAL_SEQUENCE_PART_OFFSET;
             let parts = row_checkpoint_parts(&rows[row_index], &mut scratch);
             encoded_rows[temporal_offset..temporal_offset + 32].copy_from_slice(&parts.temporal);
         }
@@ -10357,6 +10365,80 @@ mod tracked {
                     .any(|step| step == "relabel_usage_with_floor"),
                 "floor edit did not exercise the incremental review path: {:?}",
                 cached.executed_steps
+            );
+        }
+
+        /// Cold full-execute attribution over a real raw export supplied via
+        /// `CHRONICLE_ATTR_CSV`, so per-step checkpoint costs are measured on
+        /// production-shaped data instead of the synthetic pattern above:
+        ///   CHRONICLE_ATTR_CSV=/path/to/raw.csv \
+        ///   cargo test --release --no-default-features \
+        ///     --features "incremental-v2 query-timing" \
+        ///     cold_execute_attribution_from_csv -- --ignored --nocapture
+        #[cfg(feature = "query-timing")]
+        #[test]
+        #[ignore]
+        fn cold_execute_attribution_from_csv() {
+            let path = std::env::var("CHRONICLE_ATTR_CSV")
+                .expect("set CHRONICLE_ATTR_CSV to a raw Chronicle export");
+            let raw = std::fs::read(&path).expect("read CHRONICLE_ATTR_CSV");
+            let baseline = pipeline_options();
+            let support = PipelineV2SupportFiles::default();
+            let mut producer = TrackedEngine::default();
+            eprintln!("attribution_phase=cold_full_execute file={path} bytes={}", raw.len());
+            let started = std::time::Instant::now();
+            producer.execute(&raw, &baseline, support, true).unwrap();
+            eprintln!(
+                "attribution_total cold_execute_ms={:.1}",
+                started.elapsed().as_secs_f64() * 1000.0
+            );
+
+            // Primitive microbenchmark on the same table: separates the fixed
+            // per-row hash cost (3 blake3 init/finalize per fresh row) from
+            // cached-parts recombination and from raw blake3 throughput, so
+            // the optimization target is the measured constant, not a guess.
+            let raw_rows = super::super::csv_parse(&raw);
+            let raw_rows = super::super::drop_empty_timestamp(raw_rows);
+            let bench = std::time::Instant::now();
+            let payload_json = serde_json::to_vec(&raw_rows).unwrap();
+            eprintln!(
+                "microbench value_step_serde_json_ms={:.1} json_bytes={}",
+                bench.elapsed().as_secs_f64() * 1000.0,
+                payload_json.len()
+            );
+            drop(payload_json);
+            let rows = super::super::build_canonical_rows(
+                raw_rows,
+                "America/Chicago",
+                &std::collections::BTreeMap::new(),
+                "Android",
+            )
+            .unwrap();
+            let bench = std::time::Instant::now();
+            let fresh =
+                super::super::super::logical_stage_rows_checkpoint("bench_fresh_parts", &rows);
+            eprintln!(
+                "microbench fresh_parts_and_recombine_ms={:.1} rows={}",
+                bench.elapsed().as_secs_f64() * 1000.0,
+                rows.len()
+            );
+            let bench = std::time::Instant::now();
+            let cached = super::super::super::logical_stage_rows_checkpoint(
+                "bench_cached_recombine",
+                &rows,
+            );
+            eprintln!(
+                "microbench cached_recombine_ms={:.1}",
+                bench.elapsed().as_secs_f64() * 1000.0
+            );
+            assert_eq!(fresh.row_membership_digest, cached.row_membership_digest);
+            let bench = std::time::Instant::now();
+            let one_shot = blake3::hash(&raw);
+            eprintln!(
+                "microbench blake3_one_shot_ms={:.1} bytes={} digest_prefix={:02x}",
+                bench.elapsed().as_secs_f64() * 1000.0,
+                raw.len(),
+                one_shot.as_bytes()[0]
             );
         }
     }

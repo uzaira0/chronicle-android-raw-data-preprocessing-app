@@ -101,7 +101,7 @@ type RuntimeManifest = {
     logicalStageCheckpoints: Record<
       string,
       {
-        protocolVersion: "chronicle-logical-stage-checkpoint/v3";
+        protocolVersion: "chronicle-logical-stage-checkpoint/v5";
         nodeId: string;
         rowMembershipDigest: string;
         rowOrderDigest: string;
@@ -589,7 +589,7 @@ describe("artifact dependency tomography", () => {
             manifest.processingSummary.logicalStageCheckpoints,
           )) {
             expect(checkpoint.protocolVersion).toBe(
-              "chronicle-logical-stage-checkpoint/v3",
+              "chronicle-logical-stage-checkpoint/v5",
             );
             expect(checkpoint.nodeId).toBe(nodeId);
             expect(checkpoint.terminalDigest).toBe(
@@ -606,7 +606,7 @@ describe("artifact dependency tomography", () => {
             manifest.processingSummary.pipelineStepCheckpoints,
           )) {
             expect(checkpoint.protocolVersion).toBe(
-              "chronicle-logical-stage-checkpoint/v3",
+              "chronicle-logical-stage-checkpoint/v5",
             );
             expect(checkpoint.nodeId).toBe(stepId);
             expect(checkpoint.terminalDigest).toBe(
@@ -718,15 +718,20 @@ describe("artifact dependency tomography", () => {
           exactEquivalences += 1;
         }
 
-      const actualExecutedSteps = executedStepIds(warmTarget);
-      const exactTargetOptions = buildRustV2Options(ALL_ON, GOLDEN_RUNTIME);
-      const expectedExecutedSteps = predictedExecutedSteps(
-        intervention.roleId,
-        new Set(changedSemanticSteps),
-        exactTargetOptions,
-        coldSource,
-          coldTarget,
-        );
+        const actualExecutedSteps = executedStepIds(warmTarget);
+        const exactTargetOptions = buildRustV2Options(ALL_ON, GOLDEN_RUNTIME);
+        const supportRepresentationOnly =
+          intervention.roleId !== "raw_chronicle_csv" &&
+          intervention.expectedSemanticEffect === "equivalent";
+        const expectedExecutedSteps = supportRepresentationOnly
+          ? []
+          : predictedExecutedSteps(
+              intervention.roleId,
+              new Set(changedSemanticSteps),
+              exactTargetOptions,
+              coldSource,
+              coldTarget,
+            );
         expect(
           actualExecutedSteps,
           `${caseId}: declared inputs and actual Salsa query bodies must agree exactly`,
@@ -753,11 +758,13 @@ describe("artifact dependency tomography", () => {
           )
           .map(({ id }) => id)
           .sort();
-        for (const binder of directBindingSteps) {
-          expect(
-            actualExecutedSteps,
-            `${caseId}: direct Rust artifact binding did not execute`,
-          ).toContain(binder);
+        if (!supportRepresentationOnly) {
+          for (const binder of directBindingSteps) {
+            expect(
+              actualExecutedSteps,
+              `${caseId}: direct Rust artifact binding did not execute`,
+            ).toContain(binder);
+          }
         }
 
         const changedOutputArtifactKinds = changedFields(
@@ -850,7 +857,7 @@ describe("artifact dependency tomography", () => {
 
     const evidence = {
       protocolVersion: "chronicle-artifact-influence-ledger/v1",
-      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v3",
+      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v5",
       claimBoundary:
         "Exact raw/support artifact percolation for the recorded product plan, implementation, six deterministic synthetic corpora, and intervention catalog. Each intervention changes exactly one source artifact; every warm 55-step checkpoint, 15 display-group checkpoint, and researcher-visible output is compared with an independent cold Rust/WASM target. Absence of an effect is not generalized beyond the named mutation and corpus.",
       plan: { id: plan.plan_id, revision: plan.revision },
