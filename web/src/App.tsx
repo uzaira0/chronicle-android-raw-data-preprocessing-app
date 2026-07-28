@@ -28,7 +28,11 @@ import {
   sendNotification,
 } from "@/lib/notification";
 import { clearLastRun, loadLastRun, saveLastRun } from "@/lib/lastRunStore";
-import { computeSafeConcurrency, readDeviceMemory } from "@/lib/concurrency";
+import {
+  computeAdaptiveLaneTarget,
+  computeSafeConcurrency,
+  readDeviceMemory,
+} from "@/lib/concurrency";
 import { clearCachedRun as clearCachedRunData } from "@/lib/localDataReset";
 import {
   probeOpfsCapability,
@@ -935,7 +939,26 @@ export default function App(): ReactElement {
         runOptions,
         userSupportFiles,
       );
-      pool = concurrency > 1 ? new WorkerPool(concurrency) : null;
+      const injectedRuntime = getInjectedRuntime();
+      // One batch gets one preprocessing timestamp. This removes filename- and
+      // worker-scheduling-dependent output differences and makes exact-content
+      // reuse correct and reproducible.
+      const runRuntime: BrowserProcessingRuntime = {
+        ...injectedRuntime,
+        datetimeOfPreprocessing:
+          injectedRuntime?.datetimeOfPreprocessing ??
+          `${new Date().toISOString().slice(0, 19).replace("T", " ")} UTC`,
+      };
+      const completedByInputDigest = new Map<
+        string,
+        Promise<ProcessedFileResult>
+      >();
+      // Reuse each batch worker: WASM memory stays at the largest file's high-
+      // water mark, while replacing a worker after every file would repeatedly
+      // fetch, instantiate, and warm the same Rust module. Terminating this
+      // batch-owned pool below still returns all worker memory after the run.
+      const runPool = new WorkerPool(laneCap);
+      pool = runPool;
       poolRef.current = pool;
       // Longest-processing-time first keeps one large export from becoming a
       // serial tail after every small file has completed. Results still occupy
@@ -948,9 +971,9 @@ export default function App(): ReactElement {
         .map(({ index }) => index);
       let cursor = 0;
       const failures: string[] = [];
-      const runner = async () => {
+      const runner = async (laneRetired: () => boolean) => {
         for (;;) {
-          if (cancelRequestedRef.current) return;
+          if (cancelRequestedRef.current || laneRetired()) return;
           const index = schedule[cursor];
           cursor += 1;
           if (index === undefined) return;
@@ -1008,7 +1031,53 @@ export default function App(): ReactElement {
           }
         }
       };
-      await Promise.all(Array.from({ length: concurrency }, () => runner()));
+      // Adaptive admission: lanes start at the static governor's answer (the
+      // safe pre-measurement floor) and grow toward laneCap as completed files
+      // report real worker WASM high-water marks. A shrinking target retires
+      // surplus lanes at their next loop head — an in-flight file is never
+      // interrupted, and lane 1 can never retire, so the batch always drains.
+      let maxObservedWorkerWasmBytes = 0;
+      let laneTarget = concurrency;
+      let activeLanes = 0;
+      const lanePromises: Promise<void>[] = [];
+      // A lane retires by observing there are more active lanes than the
+      // target allows; the retirement itself gives the surplus slot back, so
+      // exactly the excess retires (JS is single-threaded — no double count).
+      const laneRetired = () => {
+        if (activeLanes <= laneTarget) return false;
+        activeLanes -= 1;
+        return true;
+      };
+      const spawnLanesToTarget = () => {
+        while (
+          activeLanes < laneTarget &&
+          cursor < schedule.length &&
+          !cancelRequestedRef.current
+        ) {
+          activeLanes += 1;
+          lanePromises.push(runner(laneRetired));
+        }
+      };
+      const adaptLaneTarget = (observedWasmBytes: number | undefined) => {
+        if (!runOptions.parallelProcessing) return;
+        if (!observedWasmBytes || observedWasmBytes <= maxObservedWorkerWasmBytes)
+          return;
+        maxObservedWorkerWasmBytes = observedWasmBytes;
+        const next = computeAdaptiveLaneTarget({
+          laneCap,
+          observedWorkerHighWaterBytes: maxObservedWorkerWasmBytes,
+          deviceMemory: readDeviceMemory(),
+          fallbackLanes: concurrency,
+        });
+        if (next === laneTarget) return;
+        laneTarget = next;
+        setEffectiveProcessingConcurrency(next);
+        spawnLanesToTarget();
+      };
+      spawnLanesToTarget();
+      while (lanePromises.length) {
+        await Promise.all(lanePromises.splice(0));
+      }
 
       const successful = nextResults.filter(Boolean) as ProcessedFileResult[];
       keepDetailsOpen = failures.length > 0;
@@ -1219,6 +1288,31 @@ export default function App(): ReactElement {
   const progressRows = progressOrder.map(
     (name) => progressByFile[name] ?? { fileName: name, status: "pending" },
   );
+      // Hard lane ceiling for the measured (adaptive) admission path: cores/2
+      // and the user's cap still bind, but the static memory guess does not —
+      // workers report their real WASM high-water after each file and
+      // computeAdaptiveLaneTarget grows concurrency only as far as those
+      // measurements fit the device budget.
+      const laneCap = runOptions.parallelProcessing
+        ? Math.max(
+            1,
+            Math.min(
+              computationalFiles.length,
+              Math.max(
+                1,
+                Math.floor(
+                  (typeof navigator !== "undefined"
+                    ? (navigator.hardwareConcurrency ?? 2)
+                    : 2) / 2,
+                ),
+              ),
+              runOptions.parallelMaxWorkers && runOptions.parallelMaxWorkers > 0
+                ? Math.floor(runOptions.parallelMaxWorkers)
+                : Number.POSITIVE_INFINITY,
+            ),
+          )
+        : 1;
+      setEffectiveProcessingConcurrency(concurrency);
   const overallPercent =
     progressOrder.length === 0
       ? 0
@@ -1302,6 +1396,8 @@ export default function App(): ReactElement {
           <div
             className="update-banner"
             role="status"
+            verifiedInputDigestByFileRef.current.set(file, result.inputSha256);
+            adaptLaneTarget(computed.workerWasmMemoryBytes);
             data-testid="update-banner"
           >
             <span className="update-banner__text">

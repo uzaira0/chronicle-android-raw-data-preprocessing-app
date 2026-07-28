@@ -505,6 +505,14 @@ try {
   ]);
 
   const elapsed = performance.now() - processingStarted;
+  // Re-sample after completion: the first sample races the batch start and only
+  // sees the pre-measurement static lane count; the adaptive controller raises
+  // the attribute after the first worker reports its WASM high-water.
+  const finalEffectiveProcessingConcurrency = Number(
+    await page
+      .locator("#process")
+      .getAttribute("data-effective-processing-concurrency"),
+  );
   const resultSummaryText = (await completedSummary.textContent()) ?? "";
   const resultCount = Number(
     resultSummaryText.match(/^(\d+) files? processed/)?.[1] ?? 0,
@@ -729,6 +737,7 @@ try {
         selectionToReadyElapsedMs,
         clickToRenderedResultsMs: elapsed,
         effectiveProcessingConcurrency,
+        finalEffectiveProcessingConcurrency,
         resultCount,
         comparisonElapsedMs,
         repeatedComparisonElapsedMs,

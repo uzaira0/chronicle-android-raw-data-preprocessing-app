@@ -87,3 +87,48 @@ export function readDeviceMemory(): number | undefined {
   if (typeof navigator === "undefined") return undefined;
   return (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
 }
+
+/**
+ * Worker-heap budget on the 8-GiB `deviceMemory` baseline for the measured
+ * (adaptive) admission path. An 8-GiB device keeps roughly half its RAM for
+ * the OS, the browser, and this page's main thread; the other half can hold
+ * batch-worker WASM heaps. Devices reporting less memory scale down through
+ * `deviceMemoryBudgetScale`; Chromium clamps reports at 8, so machines with
+ * more RAM are still treated as 8-GiB — the platform hides real capacity.
+ */
+const ADAPTIVE_WORKER_BUDGET_BYTES = 4 * 1024 * 1024 * 1024;
+
+/**
+ * Measured admission control for the full-processing batch. The static
+ * `computeSafeConcurrency` guess uses the worst-case 128x amplification and
+ * admits one 19 MB file at a time; workers report their actual WASM
+ * linear-memory high-water after each completed file (WASM memory never
+ * shrinks, so `memory.buffer.byteLength` IS the high-water), and this
+ * function converts that observation into how many lanes fit the budget.
+ * Before the first observation (`observedWorkerHighWaterBytes` undefined)
+ * the static result stays authoritative via `fallbackLanes`.
+ */
+export function computeAdaptiveLaneTarget(input: {
+  /** min(fileCount, hardwareConcurrency/2, user cap) — never exceeded. */
+  laneCap: number;
+  /** Largest worker WASM memory observed so far this batch, in bytes. */
+  observedWorkerHighWaterBytes: number | undefined;
+  deviceMemory: number | undefined;
+  /** Pre-measurement lane count (the static governor's answer). */
+  fallbackLanes: number;
+}): number {
+  const { laneCap, observedWorkerHighWaterBytes, deviceMemory, fallbackLanes } =
+    input;
+  const cap = Math.max(1, Math.floor(laneCap));
+  if (
+    observedWorkerHighWaterBytes === undefined ||
+    !Number.isFinite(observedWorkerHighWaterBytes) ||
+    observedWorkerHighWaterBytes <= 0
+  ) {
+    return Math.max(1, Math.min(cap, Math.floor(fallbackLanes)));
+  }
+  const budget =
+    ADAPTIVE_WORKER_BUDGET_BYTES * deviceMemoryBudgetScale(deviceMemory);
+  const perLane = observedWorkerHighWaterBytes + WORKER_BASELINE_BYTES;
+  return Math.max(1, Math.min(cap, Math.floor(budget / perLane)));
+}

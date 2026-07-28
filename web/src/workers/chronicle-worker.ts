@@ -13,6 +13,7 @@ import {
   inspectRustRawFile,
   readPersistedRustWorkspaceHead,
   readVerifiedSemanticIndexSnapshot,
+  rustWasmMemoryBytes,
 } from "@/lib/rustPipelineRuntime";
 import type { RawFileInspection } from "@/lib/fileInspection";
 import {
@@ -296,6 +297,7 @@ const api = {
           }
         }
       : undefined;
+    result.workerWasmMemoryBytes = rustWasmMemoryBytes() ?? undefined;
     const result = await processRawCsvWithRustAuthority(
       inputFileName,
       inputBytes,

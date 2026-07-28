@@ -1736,7 +1736,7 @@ export async function initializeRustRuntime(
     initPromise = (async () => {
       const module =
         (await import("@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js")) as unknown as KernelModule;
-      await module.default({ module_or_path: compiledModule });
+      captureWasmMemory(await module.default({ module_or_path: compiledModule }));
       return module;
     })();
   }
@@ -1932,7 +1932,7 @@ async function loadKernel(): Promise<KernelModule> {
     initPromise = (async () => {
       const module =
         (await import("@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js")) as unknown as KernelModule;
-      await module.default();
+      captureWasmMemory(await module.default());
       return module;
     })();
     /* v8 ignore stop */
@@ -2315,6 +2315,25 @@ async function executeRustRuntimeUnlocked(
             reconstructionBaseBytes,
             runtimeSupportFiles,
           )
+/** The instantiated kernel's linear memory; null until wasm-bindgen init runs. */
+let kernelWasmMemory: WebAssembly.Memory | null = null;
+
+function captureWasmMemory(initOutput: unknown): void {
+  const memory = (initOutput as { memory?: WebAssembly.Memory } | undefined)
+    ?.memory;
+  if (memory instanceof WebAssembly.Memory) kernelWasmMemory = memory;
+}
+
+/**
+ * Current WASM linear-memory size of this thread's kernel instance, in bytes.
+ * WASM memory never shrinks, so this is also the high-water mark — the input
+ * `computeAdaptiveLaneTarget` uses for measured batch admission. Null when the
+ * kernel has not initialized (or was injected via setRustRuntimeForTesting).
+ */
+export function rustWasmMemoryBytes(): number | null {
+  return kernelWasmMemory ? kernelWasmMemory.buffer.byteLength : null;
+}
+
         : kernel.execute_workspace(requestJson, csvBytes, runtimeSupportFiles);
     let manifestValue: unknown;
     let manifestJson: string;

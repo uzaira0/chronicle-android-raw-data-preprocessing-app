@@ -381,6 +381,14 @@ export type ProcessedFileResult = {
    * field existed.
    */
   executionLedger?: RustExecutionLedger;
+  /**
+   * The processing worker's WASM linear-memory size (bytes) right after this
+   * file finished. WASM memory never shrinks, so this is the worker's
+   * high-water mark; the batch scheduler feeds it to
+   * `computeAdaptiveLaneTarget` to admit more concurrent files when measured
+   * cost is below the static worst-case guess. Worker entry points only.
+   */
+  workerWasmMemoryBytes?: number;
   /** Product-typed Rust projection used by the Graph tab; never inferred by UI code. */
   rustStageView?: RustStageView;
 };

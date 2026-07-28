@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  computeAdaptiveLaneTarget,
   computeSafeConcurrency,
   deviceMemoryBudgetScale,
   readDeviceMemory,
@@ -94,6 +95,113 @@ describe("computeSafeConcurrency", () => {
         deviceMemory: 8,
       }),
     ).toBe(1);
+  });
+});
+
+describe("computeAdaptiveLaneTarget", () => {
+  const GB = 1024 * MB;
+
+  it("stays on the static fallback until a measurement arrives", () => {
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 8,
+        observedWorkerHighWaterBytes: undefined,
+        deviceMemory: 8,
+        fallbackLanes: 1,
+      }),
+    ).toBe(1);
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 8,
+        observedWorkerHighWaterBytes: 0,
+        deviceMemory: 8,
+        fallbackLanes: 3,
+      }),
+    ).toBe(3);
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 8,
+        observedWorkerHighWaterBytes: Number.NaN,
+        deviceMemory: 8,
+        fallbackLanes: 2,
+      }),
+    ).toBe(2);
+  });
+
+  it("clamps the fallback into [1, laneCap]", () => {
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 4,
+        observedWorkerHighWaterBytes: undefined,
+        deviceMemory: 8,
+        fallbackLanes: 16,
+      }),
+    ).toBe(4);
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 4,
+        observedWorkerHighWaterBytes: undefined,
+        deviceMemory: 8,
+        fallbackLanes: 0,
+      }),
+    ).toBe(1);
+  });
+
+  it("converts a measured high-water into floor(budget / (highWater + baseline))", () => {
+    // 4 GiB budget / (464 MiB + 48 MiB) = 8 lanes exactly.
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 16,
+        observedWorkerHighWaterBytes: 464 * MB,
+        deviceMemory: 8,
+        fallbackLanes: 1,
+      }),
+    ).toBe(8);
+    // Slightly larger observation drops below the exact-fit boundary.
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 16,
+        observedWorkerHighWaterBytes: 464 * MB + 1,
+        deviceMemory: 8,
+        fallbackLanes: 1,
+      }),
+    ).toBe(7);
+  });
+
+  it("never exceeds laneCap even when the measurement is tiny", () => {
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 5,
+        observedWorkerHighWaterBytes: 1 * MB,
+        deviceMemory: 8,
+        fallbackLanes: 1,
+      }),
+    ).toBe(5);
+  });
+
+  it("never drops below one lane even for a giant measurement", () => {
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 8,
+        observedWorkerHighWaterBytes: 16 * GB,
+        deviceMemory: 8,
+        fallbackLanes: 4,
+      }),
+    ).toBe(1);
+  });
+
+  it("scales the budget down through deviceMemoryBudgetScale on low-memory devices", () => {
+    const input = {
+      laneCap: 16,
+      observedWorkerHighWaterBytes: 464 * MB,
+      fallbackLanes: 1,
+    };
+    // 8 GiB (and unknown) → full 4 GiB budget → 8 lanes.
+    expect(computeAdaptiveLaneTarget({ ...input, deviceMemory: 8 })).toBe(8);
+    expect(computeAdaptiveLaneTarget({ ...input, deviceMemory: undefined })).toBe(8);
+    // 4 GiB device → half budget → 4 lanes; 1 GiB device → floored 0.25 → 2 lanes.
+    expect(computeAdaptiveLaneTarget({ ...input, deviceMemory: 4 })).toBe(4);
+    expect(computeAdaptiveLaneTarget({ ...input, deviceMemory: 1 })).toBe(2);
   });
 });
 
