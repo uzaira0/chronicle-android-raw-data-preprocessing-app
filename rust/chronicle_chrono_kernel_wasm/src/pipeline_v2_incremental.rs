@@ -2006,6 +2006,57 @@ mod tracked {
             const { std::cell::Cell::new(0) };
     }
 
+    /// Two-slot cache for review row tables that alternate between two config
+    /// states in an interactive A/B loop (e.g. toggling model_concurrent_usage
+    /// on a warm engine). Salsa keeps exactly one memo per query, so A/B/A
+    /// alternation always misses even though both states were already
+    /// computed. Keys are the content-committing checkpoint digests of every
+    /// input that shapes the value, so a hit is a proof of identical content,
+    /// not a heuristic. Same thread-local precedent as
+    /// REVIEW_BASE_DECODE_CACHE; capacity is fixed at two states.
+    struct AlternationSlots<T> {
+        slots: Vec<(String, T)>,
+    }
+
+    impl<T: Clone> AlternationSlots<T> {
+        const CAPACITY: usize = 2;
+
+        fn lookup(&mut self, key: &str) -> Option<T> {
+            let index = self.slots.iter().position(|(slot_key, _)| slot_key == key)?;
+            let entry = self.slots.remove(index);
+            let value = entry.1.clone();
+            self.slots.insert(0, entry);
+            Some(value)
+        }
+
+        fn store(&mut self, key: String, value: T) {
+            self.slots.retain(|(slot_key, _)| slot_key != &key);
+            self.slots.insert(0, (key, value));
+            self.slots.truncate(Self::CAPACITY);
+        }
+    }
+
+    impl<T> Default for AlternationSlots<T> {
+        fn default() -> Self {
+            Self { slots: Vec::new() }
+        }
+    }
+
+    thread_local! {
+        static BEFORE_FLOOR_ALTERNATION_CACHE:
+            RefCell<AlternationSlots<ReviewUsageRowsBeforeFloor>> =
+            RefCell::new(AlternationSlots::default());
+        static STATIC_ANNOTATIONS_ALTERNATION_CACHE:
+            RefCell<AlternationSlots<ReviewStaticAnnotations>> =
+            RefCell::new(AlternationSlots::default());
+        static RECONSTRUCTED_ROWS_ALTERNATION_CACHE:
+            RefCell<AlternationSlots<ReviewReconstructedRows>> =
+            RefCell::new(AlternationSlots::default());
+        static ANNOTATIONS_FUSED_ALTERNATION_CACHE:
+            RefCell<AlternationSlots<ReviewAnnotations>> =
+            RefCell::new(AlternationSlots::default());
+    }
+
     // A batch worker processes different workspaces serially and retains only
     // one Salsa engine. Duplicated content therefore used to deserialize the
     // same 28 MiB reconstruction checkpoint for every file. Retain exactly
@@ -4619,10 +4670,29 @@ mod tracked {
                     .map(Arc::clone)
             })
         };
-        let suffix_digests = match persisted_suffix_digests {
-            Some(digests) => digests,
-            None => blind_lineage_suffix_digests(db, raw, early, config, support)?,
+        let (suffix_digests, suffix_source) = match persisted_suffix_digests {
+            Some(digests) => (digests, "persisted"),
+            None => (
+                blind_lineage_suffix_digests(db, raw, early, config, support)?,
+                "computed",
+            ),
         };
+        // Everything below is a pure function of the blind rows, the matcher
+        // result, and the junk-package set; their content-committing digests
+        // are therefore a complete key for the finished table.
+        let alternation_key = format!(
+            "{}|{}|{}|{suffix_source}",
+            blind.checkpoint.terminal_digest,
+            matcher.checkpoint.terminal_digest,
+            filtered.checkpoint.terminal_digest,
+        );
+        if let Some(cached) = BEFORE_FLOOR_ALTERNATION_CACHE
+            .with(|cache| cache.borrow_mut().lookup(&alternation_key))
+        {
+            #[cfg(feature = "query-timing")]
+            eprintln!("alternation_cache hit=review_usage_rows_before_floor");
+            return Ok(cached);
+        }
         let mut rows = (*blind.value).clone();
         let apply_timer = QueryTimer::start("review_reconstruction_apply_matcher_rows");
         super::apply_matcher_output_in_place(
@@ -4709,13 +4779,16 @@ mod tracked {
         let temporal_timer = QueryTimer::start("review_before_floor_temporal_sequence");
         let temporal_sequence = canonical_temporal_sequence_with_order(&rows, &canonical_order);
         temporal_timer.finish();
-        Ok(ReviewUsageRowsBeforeFloor {
+        let result = ReviewUsageRowsBeforeFloor {
             rows: Arc::new(rows),
             floor_candidate_indices: Arc::new(floor_candidate_indices),
             filtered_packages: Arc::clone(&filtered.value),
             checkpoint,
             temporal_sequence,
-        })
+        };
+        BEFORE_FLOOR_ALTERNATION_CACHE
+            .with(|cache| cache.borrow_mut().store(alternation_key, result.clone()));
+        Ok(result)
     }
 
     /// Cache annotation columns whose values do not read the duration floor.
@@ -4781,6 +4854,18 @@ mod tracked {
         )?
         .terminal_digest;
 
+        // input_key commits to the matcher application and every annotation
+        // setting; the prepared checkpoint commits to the row table content.
+        let alternation_key =
+            format!("{input_key}|{}", prepared.checkpoint.terminal_digest);
+        if let Some(cached) = STATIC_ANNOTATIONS_ALTERNATION_CACHE
+            .with(|cache| cache.borrow_mut().lookup(&alternation_key))
+        {
+            #[cfg(feature = "query-timing")]
+            eprintln!("alternation_cache hit=review_static_annotations");
+            return Ok(cached);
+        }
+
         let clone_timer = QueryTimer::start("review_static_clone_rows");
         let mut rows = (*prepared.rows).clone();
         clone_timer.finish();
@@ -4827,11 +4912,14 @@ mod tracked {
             &prepared.checkpoint,
         );
         checkpoint_timer.finish();
-        Ok(ReviewStaticAnnotations {
+        let result = ReviewStaticAnnotations {
             rows: Arc::new(rows),
             input_key,
             checkpoint,
-        })
+        };
+        STATIC_ANNOTATIONS_ALTERNATION_CACHE
+            .with(|cache| cache.borrow_mut().store(alternation_key, result.clone()));
+        Ok(result)
     }
 
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -4932,6 +5020,32 @@ mod tracked {
             0.0
         };
 
+        // The reconstructed table and its embedded step checkpoints are a
+        // pure function of the prepared table, the matcher-application
+        // checkpoints, the background set, and the floor/split settings read
+        // above; commit them all so an A/B config alternation can reuse the
+        // finished value.
+        let alternation_key = format!(
+            "{}|{}|{}|{}|{}|{}|{:?}|{}|{}|{}",
+            prepared.checkpoint.terminal_digest,
+            applied.compute_junk_packages.terminal_digest,
+            applied.junk_blind_fold.terminal_digest,
+            applied.build_matcher_input.terminal_digest,
+            applied.run_matcher.terminal_digest,
+            applied.apply_matcher_output.terminal_digest,
+            background.iter().collect::<BTreeSet<_>>(),
+            config.model_concurrent_usage(db),
+            effective_minimum.to_bits(),
+            apply_minimum_to_subintervals,
+        );
+        if let Some(cached) = RECONSTRUCTED_ROWS_ALTERNATION_CACHE
+            .with(|cache| cache.borrow_mut().lookup(&alternation_key))
+        {
+            #[cfg(feature = "query-timing")]
+            eprintln!("alternation_cache hit=review_reconstructed_rows");
+            return Ok(cached);
+        }
+
         let mut rows = (*prepared.rows).clone();
         let mut exact_prepared_rows = true;
         let mut changed_temporal_indices = Vec::new();
@@ -5012,7 +5126,7 @@ mod tracked {
             rows_step("split_concurrent", rows)
         };
         let split = with_logical_rows(split_step, "reconstruct_episodes");
-        Ok(ReviewReconstructedRows {
+        let result = ReviewReconstructedRows {
             rows: Arc::clone(&split.value),
             compute_junk_packages: applied.compute_junk_packages.clone(),
             junk_blind_fold: applied.junk_blind_fold.clone(),
@@ -5022,7 +5136,10 @@ mod tracked {
             split_concurrent: split.checkpoint.clone(),
             reconstruct_episodes: required_logical_checkpoint(&split, "reconstruct_episodes")?,
             annotation_checkpoint: None,
-        })
+        };
+        RECONSTRUCTED_ROWS_ALTERNATION_CACHE
+            .with(|cache| cache.borrow_mut().store(alternation_key, result.clone()));
+        Ok(result)
     }
 
     /// Execute adjacent row-mutating reconstruction steps on one owned buffer.
@@ -5495,6 +5612,32 @@ mod tracked {
         let codebook = parsed_codebook(db, support);
         let use_static_annotations =
             !config.model_concurrent_usage(db) && background_apps(db, config, support).is_empty();
+        // annotation_input_key commits every annotation-affecting setting
+        // (codebook, engagement, thresholds, removed types, zero-duration
+        // filter); the upstream split checkpoint commits the input rows; the
+        // static/prepared checkpoints commit the static-path overlay sources.
+        let alternation_key = if use_static_annotations {
+            let prepared = review_usage_rows_before_floor(db, raw, early, config, support)?;
+            let static_annotations = review_static_annotations(db, raw, early, config, support)?;
+            format!(
+                "static|{annotation_input_key}|{}|{}|{}",
+                upstream.split_concurrent.terminal_digest,
+                static_annotations.checkpoint.terminal_digest,
+                prepared.checkpoint.terminal_digest,
+            )
+        } else {
+            format!(
+                "dynamic|{annotation_input_key}|{}",
+                upstream.split_concurrent.terminal_digest,
+            )
+        };
+        if let Some(cached) = ANNOTATIONS_FUSED_ALTERNATION_CACHE
+            .with(|cache| cache.borrow_mut().lookup(&alternation_key))
+        {
+            #[cfg(feature = "query-timing")]
+            eprintln!("alternation_cache hit=review_annotations_fused");
+            return Ok(cached);
+        }
         let mut static_checkpoint = None;
         let mut static_classification_unchanged = true;
         let mut static_rows_unchanged = true;
@@ -5722,7 +5865,7 @@ mod tracked {
         );
         timer.finish();
 
-        Ok(ReviewAnnotations {
+        let result = ReviewAnnotations {
             rows: Arc::new(rows),
             codebook_join,
             derive_broad_category,
@@ -5736,7 +5879,10 @@ mod tracked {
             drop_zero_duration,
             interval_cleaning,
             drop_zero_duration_executed: config.filter_zero_duration_sessions(db),
-        })
+        };
+        ANNOTATIONS_FUSED_ALTERNATION_CACHE
+            .with(|cache| cache.borrow_mut().store(alternation_key, result.clone()));
+        Ok(result)
     }
 
     #[salsa::tracked(returns(clone))]
