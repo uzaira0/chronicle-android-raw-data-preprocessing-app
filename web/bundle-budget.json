@@ -1,5 +1,5 @@
 {
-  "_comment": "Deploy-artifact size budgets (bytes), enforced by check_deploy_artifact.mts. Baseline re-measured 2026-07-25 after adding verified dual persisted review caches, bounded parallel OPFS reads, cache-source receipts, and post-link similar-function folding: total assets 10,883,906; runtime WASM 5,870,434; semantic-index WASM 2,099,237; worker 112,983. The worker cap rose 2,000 bytes for the dual-cache integrity and provenance boundary while total assets fell 90,176 bytes. Runtime and semantic-index WASM remain separate lazy chunks. Budgets retain limited headroom; raising one requires a named cause and a new measurement.",
+  "_comment": "Deploy-artifact size budgets (bytes), enforced by check_deploy_artifact.mts. Re-measured 2026-07-28: worker 125,130 (was 119,980 on 2026-07-26). Cause: the persisted review-base comparison path compiled into the worker — OPFS workspace head recovery and verified review/reconstruction-base probes in rustPipelineRuntime.ts, the persisted-review miss fallback in rustPipelineAuthority.ts, and slot retire/replace in the pool. Sourcemap attribution of the chunk (rustPipelineRuntime 46.7k, plotGenerator 21.5k, opfsArtifactStore 15.4k, timelineViewerRuntime?raw 13.4k, rustPipelineAuthority 10.9k) found no removable duplication: rollup dedupes within the worker build, main/worker sharing is impossible across Vite's separate worker build, and the inlined viewer runtime is required for the per-file Timeline Viewer.html output the worker emits. Worker cap raised 122,000 to 127,000. Total assets 11,035,470; runtime WASM 5,978,073; semantic-index WASM 2,099,237. Runtime and semantic-index WASM remain separate lazy chunks. Budgets retain limited headroom; raising one requires a named cause and a new measurement.",
   "totalBytes": 11250000,
   "categories": {
     ".js": 900000,
@@ -9,6 +9,6 @@
   "filePrefixes": {
     "chronicle_preprocessing_runtime_wasm_bg-": 6000000,
     "chronicle_semantic_index_wasm_bg-": 2350000,
-    "chronicle-worker-": 114000
+    "chronicle-worker-": 127000
   }
 }
