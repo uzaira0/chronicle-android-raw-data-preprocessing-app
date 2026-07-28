@@ -1984,11 +1984,17 @@ mod tracked {
 
     struct CachedDecodedReconstructionBase {
         payload_digest: [u8; 32],
+        /// The exact verified encoded bytes, retained so a byte-equal request
+        /// can be proven identical by memcmp instead of re-hashing.
+        encoded_bytes: Arc<Vec<u8>>,
         value: Arc<ReconstructionBase>,
     }
 
     struct CachedDecodedReviewBase {
         payload_digest: [u8; 32],
+        /// The exact verified encoded bytes, retained so a byte-equal request
+        /// can be proven identical by memcmp instead of re-hashing.
+        encoded_bytes: Arc<Vec<u8>>,
         value: Arc<ReviewBase>,
     }
 
@@ -2619,6 +2625,20 @@ mod tracked {
     }
 
     fn decode_review_base_cached(bytes: &[u8]) -> Result<Arc<ReviewBase>, String> {
+        // A byte-equal request is proven identical to the verified encoded
+        // bytes by direct comparison, which is several times cheaper than
+        // re-hashing the payload. Corrupt or merely different bytes fail the
+        // comparison and take the full verify-then-decode path below, so
+        // tampered bases are still rejected.
+        if let Some(value) = REVIEW_BASE_DECODE_CACHE.with(|cache| {
+            cache
+                .borrow()
+                .as_ref()
+                .filter(|entry| entry.encoded_bytes.as_slice() == bytes)
+                .map(|entry| Arc::clone(&entry.value))
+        }) {
+            return Ok(value);
+        }
         let header = verify_review_base_payload(bytes)?;
         if let Some(value) = REVIEW_BASE_DECODE_CACHE.with(|cache| {
             cache
@@ -2637,6 +2657,7 @@ mod tracked {
         REVIEW_BASE_DECODE_CACHE.with(|cache| {
             *cache.borrow_mut() = Some(CachedDecodedReviewBase {
                 payload_digest: header.payload_digest,
+                encoded_bytes: Arc::new(bytes.to_vec()),
                 value: Arc::clone(&value),
             });
         });
@@ -2933,6 +2954,20 @@ mod tracked {
     }
 
     fn decode_reconstruction_base_cached(bytes: &[u8]) -> Result<Arc<ReconstructionBase>, String> {
+        // A byte-equal request is proven identical to the verified encoded
+        // bytes by direct comparison, which is several times cheaper than
+        // re-hashing the payload. Corrupt or merely different bytes fail the
+        // comparison and take the full verify-then-decode path below, so
+        // tampered bases are still rejected.
+        if let Some(value) = RECONSTRUCTION_BASE_DECODE_CACHE.with(|cache| {
+            cache
+                .borrow()
+                .as_ref()
+                .filter(|entry| entry.encoded_bytes.as_slice() == bytes)
+                .map(|entry| Arc::clone(&entry.value))
+        }) {
+            return Ok(value);
+        }
         let header = verify_reconstruction_base_payload(bytes)?;
         if let Some(value) = RECONSTRUCTION_BASE_DECODE_CACHE.with(|cache| {
             cache
@@ -2953,6 +2988,7 @@ mod tracked {
         RECONSTRUCTION_BASE_DECODE_CACHE.with(|cache| {
             *cache.borrow_mut() = Some(CachedDecodedReconstructionBase {
                 payload_digest: header.payload_digest,
+                encoded_bytes: Arc::new(bytes.to_vec()),
                 value: Arc::clone(&value),
             });
         });
@@ -3644,6 +3680,28 @@ mod tracked {
         Ok(Some(decoded))
     }
 
+    /// Decode keyed on the raw input alone, mirroring decoded_review_base:
+    /// a matcher-config edit must not invalidate the decoded (and digest-
+    /// verified) payload of an unchanged persisted base.
+    #[salsa::tracked(returns(clone))]
+    fn decoded_reconstruction_base(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+    ) -> Result<Option<DecodedReconstructionBase>, String> {
+        let _timer = QueryTimer::start("decoded_reconstruction_base");
+        db.record_internal_query_body("decoded_reconstruction_base");
+        let bytes = raw.reconstruction_base_bytes(db);
+        if bytes.is_empty() {
+            return Ok(None);
+        }
+        let value = decode_reconstruction_base_cached(&bytes)?;
+        let encoded_digest = *blake3::hash(&bytes[..RECONSTRUCTION_BASE_HEADER_BYTES]).as_bytes();
+        Ok(Some(DecodedReconstructionBase {
+            encoded_digest,
+            value,
+        }))
+    }
+
     #[salsa::tracked(returns(clone))]
     fn matching_reconstruction_base(
         db: &dyn EarlyStepDb,
@@ -3664,15 +3722,13 @@ mod tracked {
         {
             return Ok(None);
         }
-        let value = decode_reconstruction_base_cached(&bytes)?;
-        if value.input_key != expected_key {
+        let Some(decoded) = decoded_reconstruction_base(db, raw)? else {
+            return Ok(None);
+        };
+        if decoded.value.input_key != expected_key {
             return Err("reconstruction base header matched but payload key differed".into());
         }
-        let encoded_digest = *blake3::hash(&bytes[..RECONSTRUCTION_BASE_HEADER_BYTES]).as_bytes();
-        Ok(Some(DecodedReconstructionBase {
-            encoded_digest,
-            value,
-        }))
+        Ok(Some(decoded))
     }
 
     fn build_review_base_metadata(
@@ -8658,6 +8714,7 @@ mod tracked {
                     .ingredient::<LateSupportInput>()
                     .ingredient::<OutputConfigInput>()
                     .ingredient::<decoded_review_base>()
+                    .ingredient::<decoded_reconstruction_base>()
                     .ingredient::<matching_review_base>()
                     .ingredient::<matching_reconstruction_base>()
                     .ingredient::<screen_base_input_key>()
@@ -10745,7 +10802,9 @@ mod tracked {
                     restored.executed_steps
                 );
 
-                // Interactive view loop: same engine, repeated small edits.
+                // Interactive view loop, product-shaped: the browser compare
+                // flow supplies the persisted bases on every call, so the
+                // base-restored early state stays valid across edits.
                 for step in 0..3u32 {
                     let mut repeat = edit.clone();
                     match case {
@@ -10755,6 +10814,38 @@ mod tracked {
                         _ => {
                             // Alternate the toggle so every iteration is a
                             // real change on the warm engine.
+                            repeat.model_concurrent_usage = step % 2 == 0;
+                        }
+                    }
+                    eprintln!(
+                        "attribution_phase=warm_repeat_edit_with_bases case={case} step={step}"
+                    );
+                    let started = std::time::Instant::now();
+                    consumer
+                        .execute_with_review_bases(
+                            &raw,
+                            &review_base,
+                            &reconstruction_base,
+                            &repeat,
+                            support,
+                            false,
+                        )
+                        .unwrap();
+                    eprintln!(
+                        "attribution_total case={case} warm_repeat_with_bases_step={step} review_ms={:.1}",
+                        started.elapsed().as_secs_f64() * 1000.0
+                    );
+                }
+
+                // Interactive view loop with the bases dropped after the
+                // first review: measures base-invalidation recovery too.
+                for step in 0..3u32 {
+                    let mut repeat = edit.clone();
+                    match case {
+                        "narrow_minimum_usage_duration" => {
+                            repeat.minimum_usage_duration = 6.0 + f64::from(step);
+                        }
+                        _ => {
                             repeat.model_concurrent_usage = step % 2 == 0;
                         }
                     }
