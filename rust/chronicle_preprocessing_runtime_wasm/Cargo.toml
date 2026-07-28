@@ -26,6 +26,7 @@ crate-type = ["cdylib", "rlib"]
 # Used only by the local dependency-evidence refresh command. The special WASM
 # package is written to a temporary directory; normal builds never enable it.
 dependency-campaign-bootstrap = []
+query-timing = ["chronicle_chrono_kernel_wasm/query-timing"]
 
 [dependencies]
 arrow-array = { version = "59.1.0", default-features = false }

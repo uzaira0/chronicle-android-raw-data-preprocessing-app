@@ -416,7 +416,7 @@ function checkpointDomainAt(
           ),
         };
         if (
-          decoded.protocolVersion !== "chronicle-logical-stage-checkpoint/v6"
+          decoded.protocolVersion !== "chronicle-logical-stage-checkpoint/v7"
         ) {
           contractError(
             `${checkpointPath}.protocolVersion`,
@@ -1037,7 +1037,10 @@ export type RustReviewExecution = {
   bypassedStepIds: string[];
   skippedStepIds: string[];
   errorStepIds: string[];
-  reviewSummaryJsonBytes: Uint8Array;
+  /** True when the runtime matched the caller's known digest and returned no
+   * artifact bytes; the caller must reattach its cached summary bytes. */
+  reviewSummaryReused: boolean;
+  reviewSummaryJsonBytes?: Uint8Array;
 };
 
 /** Decode and validate the compact manifest returned by the Rust review query. */
@@ -1148,6 +1151,7 @@ export function decodeReviewRuntimeManifest(
       manifest.reviewSummaryDigest,
       "reviewManifest.reviewSummaryDigest",
     ),
+    reviewSummaryReused: manifest.reviewSummaryReused === true,
     counts: {
       original: integerAt(
         countsValue.original,
@@ -2577,6 +2581,7 @@ async function executeRustRuntimeUnlocked(
   materialization: "full",
   persistedReviewOnly?: false,
   verifiedSupportCacheKey?: undefined,
+  knownReviewSummaryDigests?: undefined,
 ): Promise<RustRuntimeExecution>;
 async function executeRustRuntimeUnlocked(
   workspaceId: string,
@@ -2590,6 +2595,7 @@ async function executeRustRuntimeUnlocked(
   materialization: "review",
   persistedReviewOnly?: boolean,
   verifiedSupportCacheKey?: string,
+  knownReviewSummaryDigests?: string[],
 ): Promise<RustReviewExecution>;
 async function executeRustRuntimeUnlocked(
   workspaceId: string,
@@ -2603,6 +2609,7 @@ async function executeRustRuntimeUnlocked(
   materialization: "full" | "review",
   persistedReviewOnly = false,
   verifiedSupportCacheKey?: string,
+  knownReviewSummaryDigests?: string[],
 ): Promise<RustRuntimeExecution | RustReviewExecution> {
   const reasons = rustRuntimeIneligibilityReasons(options);
   if (reasons.length > 0) {
@@ -2846,6 +2853,9 @@ async function executeRustRuntimeUnlocked(
       workspaceId,
       inputFileName,
       inputSha256: `sha256:${inputSha256}`,
+      ...(materialization === "review" && knownReviewSummaryDigests?.length
+        ? { knownReviewSummaryDigests }
+        : {}),
       options: requestOptions,
     });
     const hasPersistedReviewBase =
@@ -2972,6 +2982,27 @@ async function executeRustRuntimeUnlocked(
         manifest.buildEnvironmentDigest !== kernel.build_environment_digest()
       ) {
         throw new Error("review manifest build-environment identity mismatch");
+      }
+      if (manifest.reviewSummaryReused) {
+        if (
+          !knownReviewSummaryDigests?.includes(manifest.reviewSummaryDigest)
+        ) {
+          throw new Error(
+            "review manifest reused a summary digest the caller never offered",
+          );
+        }
+        if (handle.artifact_count !== 0) {
+          throw new Error(
+            "reused review query must not expose artifact bytes",
+          );
+        }
+        executionSucceeded = true;
+        return {
+          ...manifest,
+          manifestJson,
+          suppliedReviewBaseBytes,
+          suppliedReconstructionBaseBytes,
+        };
       }
       if (handle.artifact_count !== 1) {
         throw new Error(
@@ -3428,6 +3459,7 @@ export async function queryRustReview(
   runtime: BrowserProcessingRuntime,
   verifiedInputSha256?: string,
   verifiedSupportCacheKey?: string,
+  knownReviewSummaryDigests?: string[],
 ): Promise<RustReviewExecution> {
   const inputSha256 = verifiedInputSha256 ?? (await sha256Hex(csvBytes));
   const workspaceId = await runtimeWorkspaceId(
@@ -3448,6 +3480,7 @@ export async function queryRustReview(
       "review",
       false,
       verifiedSupportCacheKey,
+      knownReviewSummaryDigests,
     );
   if (!runtime.persistRustWorkspace) return execute();
   if (typeof navigator === "undefined" || !navigator.locks?.request) {
@@ -3476,6 +3509,7 @@ export async function queryPersistedRustReview(
   runtime: BrowserProcessingRuntime,
   verifiedInputSha256: string,
   verifiedSupportCacheKey?: string,
+  knownReviewSummaryDigests?: string[],
 ): Promise<RustReviewExecution | null> {
   if (!Number.isSafeInteger(inputSizeBytes) || inputSizeBytes < 0) {
     throw new Error("verified input size must be a non-negative safe integer");
@@ -3504,6 +3538,7 @@ export async function queryPersistedRustReview(
       "review",
       true,
       verifiedSupportCacheKey,
+      knownReviewSummaryDigests,
     );
   try {
     return await withWorkspaceLock(workspaceId, execute, "shared");

@@ -4,6 +4,7 @@ export type {
   OutputKind,
 } from "@/lib/generatedContract";
 import type {
+  BrowserProcessingOptions,
   OutputKind,
   RAW_CHRONICLE_COLUMNS,
 } from "@/lib/generatedContract";
@@ -117,6 +118,8 @@ export type BrowserProcessingRuntime = {
   executionAuthority?: "rust";
   /** Persist verified Rust artifacts and alternating roots in OPFS. */
   persistRustWorkspace?: boolean;
+  /** Opt-in benchmark trace ID; never enters semantic inputs or artifacts. */
+  performanceTraceId?: string;
 };
 
 export type RustStageView = {
@@ -172,6 +175,47 @@ export type RustRuntimeReceipt = {
   persistedGeneration?: number;
 };
 
+/**
+ * Exact inputs needed to render browser-owned static plots from the verified
+ * Rust visualization artifact. Keeping this small descriptor avoids retaining
+ * every PNG/SVG blob while a large batch is being processed.
+ */
+export type PersistedPlotRequest = {
+  workspaceId: string;
+  workspaceRootDigest: string;
+  inputFileName: string;
+  timezone: string;
+  preprocessorVersion: string;
+  options: Pick<
+    BrowserProcessingOptions,
+    | "processAppUsage"
+    | "processScreenUsage"
+    | "enablePlotting"
+    | "includeFilteredAppUsageInPlots"
+    | "enableActivityHeatmap"
+    | "exportPlotsAsSvg"
+  >;
+};
+
+/**
+ * Exact inputs needed to build the selected interactive timeline from the
+ * verified Rust visualization artifact without retaining every file's scene.
+ */
+export type PersistedTimelineRequest = {
+  workspaceId: string;
+  workspaceRootDigest: string;
+  inputFileName: string;
+  timezone: string;
+  preprocessorVersion: string;
+  options: Pick<
+    BrowserProcessingOptions,
+    | "processAppUsage"
+    | "processScreenUsage"
+    | "includeFilteredAppUsageInPlots"
+    | "enableInteractiveTimeline"
+  >;
+};
+
 /** Exact identities for a fast, non-persisted A/B review calculation. */
 export type RustReviewReceipt = {
   protocolVersion: "chronicle-preprocessing-runtime/v1";
@@ -189,10 +233,11 @@ export type RustReviewReceipt = {
   reviewSummaryDigest: string;
   comparisonDigest: string;
   cacheSources: Array<
-    | "salsa-memory"
-    | "verified-review-base"
-    | "verified-reconstruction-base"
+    "salsa-memory" | "verified-review-base" | "verified-reconstruction-base"
   >;
+  /** Exact persisted cache bytes supplied to the Rust comparison call. */
+  suppliedReviewBaseBytes: number;
+  suppliedReconstructionBaseBytes: number;
   recomputedStepIds: string[];
   cachedStepIds: string[];
   bypassedStepIds: string[];
@@ -241,6 +286,8 @@ export type ProcessedOutputFileResult = {
   /** Durable Rust outputs stay in OPFS and are loaded only when downloaded. */
   persistedArtifact?: {
     workspaceId: string;
+    /** Pins the download to the exact run that advertised this output. */
+    workspaceRootDigest: string;
     kind: string;
     mediaType: string;
     size: number;
@@ -334,8 +381,20 @@ export type ProcessedFileResult = {
    * worker entry points, never by a main-thread preprocessing implementation.
    */
   inputSha256?: string;
+  /**
+   * The processing worker's WASM linear-memory size (bytes) right after this
+   * file finished. WASM memory never shrinks, so this is the worker's
+   * high-water mark; the batch scheduler feeds it to
+   * `computeAdaptiveLaneTarget` to admit more concurrent files when measured
+   * cost is below the static worst-case guess. Worker entry points only.
+   */
+  workerWasmMemoryBytes?: number;
   /** Rust/WASM authority and content-addressed workspace receipt. */
   rustRuntimeReceipt?: RustRuntimeReceipt;
+  /** Static plots that can be regenerated from a receipt-pinned OPFS artifact. */
+  persistedPlotRequest?: PersistedPlotRequest;
+  /** Interactive timeline that can be loaded from a receipt-pinned OPFS artifact. */
+  persistedTimelineRequest?: PersistedTimelineRequest;
   /** Exact Rust identities for a fast View-tab comparison calculation. */
   rustReviewReceipt?: RustReviewReceipt;
   /** True when only review metrics were requested, so export/timeline bytes are absent. */
@@ -353,11 +412,24 @@ export type ProcessedFileResult = {
    */
   reviewSummary?: ReviewSummary;
   /**
+   * Review-only workers keep the exact Rust JSON as transferable bytes. The
+   * View tab parses only the selected Arm-B file instead of retaining hundreds
+   * of expanded JavaScript object graphs at once.
+   */
+  reviewSummaryJsonBytes?: Uint8Array;
+  /**
+   * True when the runtime matched the caller's `knownReviewSummaryDigests` list and
+   * returned no summary bytes; the dispatching client reattaches its cached
+   * copy (ETag semantics for the 2+ MB review summary).
+   */
+  reviewSummaryReused?: boolean;
+  /**
    * True when this result was rehydrated from the lightweight last-run cache: the
-   * heavy artifacts (`outputs[].blob`, `timelineView`) were dropped before
-   * persisting so a refresh can't exhaust memory/quota. Counts and
-   * {@link reviewSummary} survive; downloads and the interactive timeline need a
-   * re-run. The UI uses this to explain why and to skip "no outputs" warnings.
+   * browser-only blobs and timeline geometry were dropped before persisting so a
+   * refresh cannot exhaust memory/quota. Receipt-pinned Rust outputs remain
+   * downloadable, and the selected review summary is loaded from verified OPFS.
+   * Static plots remain regenerable from `persistedPlotRequest`; only the
+   * interactive timeline needs a re-run.
    */
   restoredWithoutArtifacts?: boolean;
   /**
@@ -381,14 +453,6 @@ export type ProcessedFileResult = {
    * field existed.
    */
   executionLedger?: RustExecutionLedger;
-  /**
-   * The processing worker's WASM linear-memory size (bytes) right after this
-   * file finished. WASM memory never shrinks, so this is the worker's
-   * high-water mark; the batch scheduler feeds it to
-   * `computeAdaptiveLaneTarget` to admit more concurrent files when measured
-   * cost is below the static worst-case guess. Worker entry points only.
-   */
-  workerWasmMemoryBytes?: number;
   /** Product-typed Rust projection used by the Graph tab; never inferred by UI code. */
   rustStageView?: RustStageView;
 };

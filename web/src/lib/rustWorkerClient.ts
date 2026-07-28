@@ -9,6 +9,7 @@ import type {
 } from "@/lib/types";
 import type { ChronicleWorkerApi } from "@/workers/chronicle-worker";
 import type { RawFileInspection } from "@/lib/fileInspection";
+export { comparisonSupportCacheKey } from "@/lib/comparisonSupportCache";
 import runtimeWasmUrl from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm?url";
 
 /**
@@ -34,6 +35,10 @@ type WorkerSlot = {
   busy: boolean;
   /** Set when this slot's worker has faulted; the pool stops handing it out. */
   dead: boolean;
+  /** A healthy slot deliberately retired at its task limit may be replaced. */
+  retired: boolean;
+  completedTasks: number;
+  terminated: boolean;
 };
 
 /** Never settles — stand-in fault for spawns (e.g. test stubs) that provide none. */
@@ -150,39 +155,47 @@ async function onSharedWorker<T>(
 }
 
 /**
- * Persistent pool of Comlink-wrapped Chronicle workers. Each slot keeps its
- * WASM init and default-codebook fetch warm across many files, replacing the
- * old "fresh worker per file" behavior that hung on large batches.
+ * Pool of Comlink-wrapped Chronicle workers. Slots are normally long-lived,
+ * but callers processing large full exports can set a task limit so a worker's
+ * non-shrinking WASM memory is released before the slot accepts another file.
  */
 type WaiterEntry = {
   resolve: (slot: WorkerSlot) => void;
   reject: (error: Error) => void;
 };
 
+export type WorkerPoolOptions = {
+  spawn?: WorkerSpawn;
+  /** Retire and replace a healthy slot after this many settled tasks. */
+  maxTasksPerWorker?: number;
+};
+
 export class WorkerPool {
   private readonly slots: WorkerSlot[] = [];
   private readonly waiters: WaiterEntry[] = [];
+  private readonly spawn: WorkerSpawn;
+  private readonly maxTasksPerWorker: number;
   private terminated = false;
 
-  constructor(size: number, spawn: WorkerSpawn = spawnWorker) {
+  constructor(
+    size: number,
+    spawnOrOptions: WorkerSpawn | WorkerPoolOptions = spawnWorker,
+  ) {
+    const options: WorkerPoolOptions =
+      typeof spawnOrOptions === "function"
+        ? { spawn: spawnOrOptions }
+        : spawnOrOptions;
+    this.spawn = options.spawn ?? spawnWorker;
+    const taskLimit = options.maxTasksPerWorker;
+    this.maxTasksPerWorker =
+      typeof taskLimit === "number" && Number.isFinite(taskLimit)
+        ? Math.max(1, Math.floor(taskLimit))
+        : Number.POSITIVE_INFINITY;
     const safeSize = Math.max(1, Math.floor(size));
     for (let index = 0; index < safeSize; index += 1) {
-      const { api, worker, fault, ready } = spawn();
-      const slot: WorkerSlot = {
-        api,
-        worker,
-        fault: fault ?? NEVER_FAULT,
-        ready: ready ?? Promise.resolve(),
-        busy: false,
-        dead: false,
-      };
-      // A faulted worker must not keep getting handed queued work (which would
-      // cascade-fail files a healthy slot could have processed). Mark it dead so
-      // acquire/release skip it.
-      slot.fault.catch(() => {
-        slot.dead = true;
-      });
+      const slot = this.createSlot();
       this.slots.push(slot);
+      this.watchSlot(slot);
     }
   }
 
@@ -190,11 +203,73 @@ export class WorkerPool {
     return this.slots.length;
   }
 
+  private createSlot(): WorkerSlot {
+    const { api, worker, fault, ready } = this.spawn();
+    return {
+      api,
+      worker,
+      fault: fault ?? NEVER_FAULT,
+      ready: ready ?? Promise.resolve(),
+      busy: false,
+      dead: false,
+      retired: false,
+      completedTasks: 0,
+      terminated: false,
+    };
+  }
+
+  private watchSlot(slot: WorkerSlot): void {
+    const markDead = (): void => {
+      slot.dead = true;
+      this.pump();
+    };
+    // A faulted or uninitializable worker must never receive another task.
+    slot.fault.catch(markDead);
+    slot.ready.catch(markDead);
+  }
+
+  private terminateSlot(slot: WorkerSlot): boolean {
+    if (slot.terminated) return true;
+    try {
+      slot.worker.terminate();
+      slot.terminated = true;
+      return true;
+    } catch {
+      slot.dead = true;
+      return false;
+    }
+  }
+
+  private replaceSlot(slot: WorkerSlot): WorkerSlot | undefined {
+    const index = this.slots.indexOf(slot);
+    if (
+      this.terminated ||
+      index < 0 ||
+      slot.busy ||
+      !slot.retired
+    )
+      return undefined;
+    if (!this.terminateSlot(slot)) return undefined;
+    try {
+      const replacement = this.createSlot();
+      this.slots[index] = replacement;
+      this.watchSlot(replacement);
+      return replacement;
+    } catch {
+      slot.dead = true;
+      return undefined;
+    }
+  }
+
   private acquire(): Promise<WorkerSlot> {
     if (this.terminated) {
       return Promise.reject(new Error("Worker pool has been terminated."));
     }
-    const idle = this.slots.find((slot) => !slot.busy && !slot.dead);
+    let idle = this.slots.find((slot) => !slot.busy && !slot.dead);
+    if (!idle) {
+      const retired = this.slots.find((slot) => !slot.busy && slot.retired);
+      if (retired) idle = this.replaceSlot(retired);
+    }
     if (idle) {
       idle.busy = true;
       return Promise.resolve(idle);
@@ -210,7 +285,11 @@ export class WorkerPool {
   /** Hand idle live slots to queued waiters; fail waiters only if every slot is dead. */
   private pump(): void {
     while (this.waiters.length) {
-      const idle = this.slots.find((slot) => !slot.busy && !slot.dead);
+      let idle = this.slots.find((slot) => !slot.busy && !slot.dead);
+      if (!idle) {
+        const retired = this.slots.find((slot) => !slot.busy && slot.retired);
+        if (retired) idle = this.replaceSlot(retired);
+      }
       if (!idle) break;
       idle.busy = true;
       this.waiters.shift()!.resolve(idle);
@@ -225,7 +304,20 @@ export class WorkerPool {
   }
 
   private release(slot: WorkerSlot): void {
+    if (this.terminated || !this.slots.includes(slot)) return;
     slot.busy = false;
+    slot.completedTasks += 1;
+    if (!slot.dead && slot.completedTasks >= this.maxTasksPerWorker) {
+      slot.dead = true;
+      slot.retired = true;
+      // Retire now, but initialize a replacement only when queued work needs
+      // it. The old eager path spawned a final unused wave immediately before
+      // a batch called terminate().
+      this.terminateSlot(slot);
+    }
+    if (slot.dead && this.waiters.length) {
+      this.replaceSlot(slot);
+    }
     this.pump();
   }
 
@@ -242,16 +334,32 @@ export class WorkerPool {
     }
   }
 
+  async submitWithSetup<T>(
+    hasSetup: (api: Comlink.Remote<ChronicleWorkerApi>) => Promise<boolean>,
+    setup: (api: Comlink.Remote<ChronicleWorkerApi>) => Promise<unknown>,
+    action: (api: Comlink.Remote<ChronicleWorkerApi>) => Promise<T>,
+  ): Promise<T> {
+    const slot = await this.acquire();
+    try {
+      await Promise.race([slot.ready, slot.fault]);
+      if (!(await Promise.race([hasSetup(slot.api), slot.fault]))) {
+        await Promise.race([setup(slot.api), slot.fault]);
+      }
+      return await Promise.race([action(slot.api), slot.fault]);
+    } finally {
+      this.release(slot);
+    }
+  }
+
   terminate(): void {
     this.terminated = true;
     while (this.waiters.length) {
-      const waiter = this.waiters.shift();
-      if (waiter) {
-        waiter.reject(new Error("Worker pool has been terminated."));
-      }
+      this.waiters
+        .shift()!
+        .reject(new Error("Worker pool has been terminated."));
     }
     this.slots.forEach((slot) => {
-      slot.worker.terminate();
+      this.terminateSlot(slot);
     });
     this.slots.length = 0;
   }
@@ -306,17 +414,6 @@ export async function getPlanStageView(
   return onSharedWorker((api) => api.planStageView(options));
 }
 
-export async function discoverTimezones(
-  csvText: string,
-  runtime?: BrowserProcessingRuntime,
-): Promise<string[]> {
-  // Preserve the injected-runtime parameter for the public browser API and
-  // existing deterministic test callers. Timezone discovery itself is now
-  // entirely owned by the Rust worker and needs no browser-runtime input.
-  void runtime;
-  return onSharedWorker((api) => api.discoverTimezones(csvText));
-}
-
 export async function discoverTimezonesBytes(
   csvBytes: ArrayBuffer,
   runtime?: BrowserProcessingRuntime,
@@ -331,75 +428,16 @@ export async function inspectRawCsvBytes(
   fileName: string,
   sizeBytes: number,
   csvBytes: ArrayBuffer,
+  verifiedInputSha256?: string,
 ): Promise<RawFileInspection> {
   return onSharedWorker((api) =>
     api.inspectRawCsvBytes(
       fileName,
       sizeBytes,
       Comlink.transfer(csvBytes, [csvBytes]),
+      verifiedInputSha256,
     ),
   );
-}
-
-export async function processRawCsv(
-  inputFileName: string,
-  csvText: string,
-  options?: Partial<BrowserProcessingOptions>,
-  supportFiles?: BrowserSupportFiles,
-  runtime?: BrowserProcessingRuntime,
-  onProgress?: (event: ProgressEvent) => void,
-): Promise<ProcessedFileResult> {
-  return onSharedWorker((api) => {
-    if (onProgress) {
-      const proxied = Comlink.proxy(onProgress);
-      return api.processRawCsvWithProgress(
-        inputFileName,
-        csvText,
-        options,
-        supportFiles,
-        runtime,
-        proxied,
-      );
-    }
-    return api.processRawCsv(
-      inputFileName,
-      csvText,
-      options,
-      supportFiles,
-      runtime,
-    );
-  });
-}
-
-export async function processRawCsvViaPool(
-  pool: WorkerPool,
-  inputFileName: string,
-  csvText: string,
-  options?: Partial<BrowserProcessingOptions>,
-  supportFiles?: BrowserSupportFiles,
-  runtime?: BrowserProcessingRuntime,
-  onProgress?: (event: ProgressEvent) => void,
-): Promise<ProcessedFileResult> {
-  return pool.submit(async (api) => {
-    if (onProgress) {
-      const proxied = Comlink.proxy(onProgress);
-      return api.processRawCsvWithProgress(
-        inputFileName,
-        csvText,
-        options,
-        supportFiles,
-        runtime,
-        proxied,
-      );
-    }
-    return api.processRawCsv(
-      inputFileName,
-      csvText,
-      options,
-      supportFiles,
-      runtime,
-    );
-  });
 }
 
 /** Transfer a single raw-file buffer to the long-lived worker without first
@@ -411,6 +449,7 @@ export async function processRawCsvBytes(
   supportFiles?: BrowserSupportFiles,
   runtime?: BrowserProcessingRuntime,
   onProgress?: (event: ProgressEvent) => void,
+  verifiedInputSha256?: string,
 ): Promise<ProcessedFileResult> {
   return onSharedWorker((api) =>
     api.processRawCsvBytes(
@@ -420,6 +459,7 @@ export async function processRawCsvBytes(
       supportFiles,
       runtime,
       onProgress ? Comlink.proxy(onProgress) : undefined,
+      verifiedInputSha256,
     ),
   );
 }
@@ -431,6 +471,7 @@ export async function processRawCsvReviewBytes(
   options?: Partial<BrowserProcessingOptions>,
   supportFiles?: BrowserSupportFiles,
   runtime?: BrowserProcessingRuntime,
+  verifiedInputSha256?: string,
 ): Promise<ProcessedFileResult> {
   return onSharedWorker((api) =>
     api.processReviewCsvBytes(
@@ -439,6 +480,28 @@ export async function processRawCsvReviewBytes(
       options,
       supportFiles,
       runtime,
+      verifiedInputSha256,
+    ),
+  );
+}
+
+/** Try verified OPFS review bases without reading the raw browser File. */
+export async function processPersistedReview(
+  inputFileName: string,
+  inputSizeBytes: number,
+  options: BrowserProcessingOptions,
+  supportFiles: BrowserSupportFiles | undefined,
+  runtime: BrowserProcessingRuntime | undefined,
+  verifiedInputSha256: string,
+): Promise<ProcessedFileResult | null> {
+  return onSharedWorker((api) =>
+    api.processPersistedReview(
+      inputFileName,
+      inputSizeBytes,
+      options,
+      supportFiles,
+      runtime,
+      verifiedInputSha256,
     ),
   );
 }
@@ -458,7 +521,7 @@ export async function processRawCsvChangedReviewBytesViaPool(
   verifiedInputSha256?: string,
 ): Promise<ProcessedFileResult> {
   return pool.submit((api) =>
-    api.processChangedReviewCsvBytes(
+    api.processReviewCsvBytes(
       inputFileName,
       Comlink.transfer(csvBytes, [csvBytes]),
       changedOptions,
@@ -467,6 +530,196 @@ export async function processRawCsvChangedReviewBytesViaPool(
       verifiedInputSha256,
     ),
   );
+}
+
+/** Pool variant of the metadata-first persisted review probe. */
+export async function processPersistedReviewViaPool(
+  pool: WorkerPool,
+  inputFileName: string,
+  inputSizeBytes: number,
+  options: BrowserProcessingOptions,
+  supportFiles: BrowserSupportFiles | undefined,
+  runtime: BrowserProcessingRuntime | undefined,
+  verifiedInputSha256: string,
+): Promise<ProcessedFileResult | null> {
+  return pool.submit((api) =>
+    api.processPersistedReview(
+      inputFileName,
+      inputSizeBytes,
+      options,
+      supportFiles,
+      runtime,
+      verifiedInputSha256,
+    ),
+  );
+}
+
+/**
+ * Keep one comparison file on one worker while trying OPFS and, only on a
+ * verified miss, falling back to its raw bytes. Releasing the slot between the
+ * two attempts could move the fallback to another worker and repeat WASM and
+ * support-file setup.
+ */
+/**
+ * Recent review summaries the main thread received per verified input digest.
+ * The digests ride each review request as `knownReviewSummaryDigests`; when
+ * the recomputed summary matches any of them, the runtime ships no artifact
+ * bytes and the cached copy is reattached here (ETag semantics for the 2+ MB
+ * summary). A small per-input LRU rather than a single entry because the
+ * comparison loop toggles settings A -> B -> A; with one slot the digest on
+ * file is always the one just replaced.
+ */
+const REVIEW_SUMMARY_REUSE_LRU_CAPACITY = 8;
+const reviewSummaryReuseCache = new Map<string, Map<string, Uint8Array>>();
+
+export function clearReviewSummaryReuseCache(): void {
+  reviewSummaryReuseCache.clear();
+}
+
+function knownReviewSummaryDigestsFor(
+  verifiedInputSha256: string,
+): string[] | undefined {
+  const lru = reviewSummaryReuseCache.get(verifiedInputSha256);
+  if (!lru?.size) return undefined;
+  return [...lru.keys()];
+}
+
+function applyReviewSummaryReuse(
+  verifiedInputSha256: string,
+  result: ProcessedFileResult,
+): ProcessedFileResult {
+  const lru = reviewSummaryReuseCache.get(verifiedInputSha256);
+  const digest = result.rustReviewReceipt?.reviewSummaryDigest;
+  if (result.reviewSummaryReused) {
+    const cachedBytes = digest ? lru?.get(digest) : undefined;
+    if (!cachedBytes || !digest) {
+      throw new Error(
+        "runtime reused a review summary the client no longer holds",
+      );
+    }
+    // Refresh LRU position: delete + set moves the digest to newest.
+    lru!.delete(digest);
+    lru!.set(digest, cachedBytes);
+    result.reviewSummaryJsonBytes = cachedBytes;
+  } else if (result.reviewSummaryJsonBytes && digest) {
+    let target = lru;
+    if (!target) {
+      target = new Map();
+      reviewSummaryReuseCache.set(verifiedInputSha256, target);
+    }
+    target.delete(digest);
+    target.set(digest, result.reviewSummaryJsonBytes);
+    while (target.size > REVIEW_SUMMARY_REUSE_LRU_CAPACITY) {
+      target.delete(target.keys().next().value!);
+    }
+  }
+  return result;
+}
+
+export async function processPersistedOrRawChangedReviewViaPool(
+  pool: WorkerPool,
+  inputFileName: string,
+  inputSizeBytes: number,
+  loadCsvBytes: () => Promise<ArrayBuffer>,
+  changedOptions: BrowserProcessingOptions,
+  changedSupportFiles: BrowserSupportFiles | undefined,
+  runtime: BrowserProcessingRuntime | undefined,
+  verifiedInputSha256: string,
+  supportCacheKey?: string,
+): Promise<ProcessedFileResult> {
+  const knownReviewSummaryDigests =
+    knownReviewSummaryDigestsFor(verifiedInputSha256);
+  const action = async (
+    api: Comlink.Remote<ChronicleWorkerApi>,
+  ): Promise<ProcessedFileResult> => {
+    const persisted = await api.processPersistedReview(
+      inputFileName,
+      inputSizeBytes,
+      changedOptions,
+      supportCacheKey ? undefined : changedSupportFiles,
+      runtime,
+      verifiedInputSha256,
+      supportCacheKey,
+      knownReviewSummaryDigests,
+    );
+    if (persisted) return applyReviewSummaryReuse(verifiedInputSha256, persisted);
+    const csvBytes = await loadCsvBytes();
+    return applyReviewSummaryReuse(
+      verifiedInputSha256,
+      await api.processReviewCsvBytes(
+        inputFileName,
+        Comlink.transfer(csvBytes, [csvBytes]),
+        changedOptions,
+        supportCacheKey ? undefined : changedSupportFiles,
+        runtime,
+        verifiedInputSha256,
+        supportCacheKey,
+        knownReviewSummaryDigests,
+      ),
+    );
+  };
+  if (!supportCacheKey) return pool.submit(action);
+  return pool.submitWithSetup(
+    (api) => api.hasComparisonSupportFiles(supportCacheKey),
+    (api) =>
+      api.cacheComparisonSupportFiles(
+        supportCacheKey,
+        changedSupportFiles ?? {},
+      ),
+    action,
+  );
+}
+
+/**
+ * Selected-file comparison on the long-lived worker. Setup, persisted lookup,
+ * and raw fallback stay on one worker so unchanged support bytes cross the
+ * main-thread boundary only after a cache miss.
+ */
+export async function processPersistedOrRawChangedReview(
+  inputFileName: string,
+  inputSizeBytes: number,
+  loadCsvBytes: () => Promise<ArrayBuffer>,
+  changedOptions: BrowserProcessingOptions,
+  changedSupportFiles: BrowserSupportFiles | undefined,
+  runtime: BrowserProcessingRuntime | undefined,
+  verifiedInputSha256: string,
+  supportCacheKey: string,
+): Promise<ProcessedFileResult> {
+  const knownReviewSummaryDigests =
+    knownReviewSummaryDigestsFor(verifiedInputSha256);
+  return onSharedWorker(async (api) => {
+    if (!(await api.hasComparisonSupportFiles(supportCacheKey))) {
+      await api.cacheComparisonSupportFiles(
+        supportCacheKey,
+        changedSupportFiles ?? {},
+      );
+    }
+    const persisted = await api.processPersistedReview(
+      inputFileName,
+      inputSizeBytes,
+      changedOptions,
+      undefined,
+      runtime,
+      verifiedInputSha256,
+      supportCacheKey,
+      knownReviewSummaryDigests,
+    );
+    if (persisted) return applyReviewSummaryReuse(verifiedInputSha256, persisted);
+    const csvBytes = await loadCsvBytes();
+    return applyReviewSummaryReuse(
+      verifiedInputSha256,
+      await api.processReviewCsvBytes(
+        inputFileName,
+        Comlink.transfer(csvBytes, [csvBytes]),
+        changedOptions,
+        undefined,
+        runtime,
+        verifiedInputSha256,
+        supportCacheKey,
+        knownReviewSummaryDigests,
+      ),
+    );
+  });
 }
 
 /**
@@ -483,6 +736,7 @@ export async function processRawCsvBytesViaPool(
   supportFiles?: BrowserSupportFiles,
   runtime?: BrowserProcessingRuntime,
   onProgress?: (event: ProgressEvent) => void,
+  verifiedInputSha256?: string,
 ): Promise<ProcessedFileResult> {
   return pool.submit(async (api) => {
     const proxied = onProgress ? Comlink.proxy(onProgress) : undefined;
@@ -493,38 +747,7 @@ export async function processRawCsvBytesViaPool(
       supportFiles,
       runtime,
       proxied,
+      verifiedInputSha256,
     );
   });
-}
-
-/**
- * Backwards-compatible wrapper. Older call sites used `processRawCsvIsolated`
- * which spun up and tore down a fresh worker per call. That pattern caused the
- * 90-file hang. The replacement creates a one-shot pool of size 1 so behavior
- * is preserved for callers that still want a private worker, but typical
- * batches should construct a `WorkerPool` of the right size and call
- * `processRawCsvViaPool` directly.
- */
-export async function processRawCsvIsolated(
-  inputFileName: string,
-  csvText: string,
-  options?: Partial<BrowserProcessingOptions>,
-  supportFiles?: BrowserSupportFiles,
-  runtime?: BrowserProcessingRuntime,
-  onProgress?: (event: ProgressEvent) => void,
-): Promise<ProcessedFileResult> {
-  const pool = new WorkerPool(1);
-  try {
-    return await processRawCsvViaPool(
-      pool,
-      inputFileName,
-      csvText,
-      options,
-      supportFiles,
-      runtime,
-      onProgress,
-    );
-  } finally {
-    pool.terminate();
-  }
 }

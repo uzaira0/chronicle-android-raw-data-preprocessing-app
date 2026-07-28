@@ -45,6 +45,47 @@ use std::sync::{Arc, OnceLock};
 use wasm_bindgen::prelude::*;
 
 pub const RUNTIME_PROTOCOL_VERSION: &str = "chronicle-preprocessing-runtime/v1";
+
+/// Native-only per-segment attribution for the runtime envelope around the
+/// tracked kernel, mirroring the kernel's `QueryTimer`. WASM builds never
+/// enable `query-timing` (no monotonic clock there).
+#[cfg(feature = "query-timing")]
+struct EnvelopeTimer {
+    label: &'static str,
+    started: std::time::Instant,
+}
+
+#[cfg(feature = "query-timing")]
+impl EnvelopeTimer {
+    fn start(label: &'static str) -> Self {
+        Self {
+            label,
+            started: std::time::Instant::now(),
+        }
+    }
+}
+
+#[cfg(feature = "query-timing")]
+impl Drop for EnvelopeTimer {
+    fn drop(&mut self) {
+        eprintln!(
+            "runtime_segment label={} elapsed_ms={:.3}",
+            self.label,
+            self.started.elapsed().as_secs_f64() * 1_000.0,
+        );
+    }
+}
+
+#[cfg(not(feature = "query-timing"))]
+struct EnvelopeTimer;
+
+#[cfg(not(feature = "query-timing"))]
+impl EnvelopeTimer {
+    #[inline(always)]
+    fn start(_label: &'static str) -> Self {
+        Self
+    }
+}
 pub const EXECUTE_WORKSPACE_COMMAND: &str = "ExecuteWorkspace";
 pub const QUERY_REVIEW_COMMAND: &str = "QueryReview";
 pub const IMPLEMENTATION_BUILD_DIGEST: &str = env!("CHRONICLE_IMPLEMENTATION_BUILD_DIGEST");
@@ -539,6 +580,15 @@ pub struct RuntimeRequest {
     pub workspace_id: String,
     pub input_file_name: String,
     pub input_sha256: String,
+    /// Review-summary digests the caller already holds (ETag semantics).
+    /// When a review request recomputes a summary whose digest is in this
+    /// list, the runtime returns the manifest with `review_summary_reused:
+    /// true` and no artifact bytes, so the caller keeps its cached copy
+    /// instead of re-receiving 2+ MB. A list (not a single digest) because
+    /// the interactive comparison loop toggles A -> B -> A: the caller holds
+    /// a small LRU of recent summaries, and any of them can match.
+    #[serde(default)]
+    pub known_review_summary_digests: Option<Vec<String>>,
     pub options: PipelineV2OptionsJson,
 }
 
@@ -720,6 +770,11 @@ pub struct ReviewRuntimeManifest {
     pub cache_sources: Vec<String>,
     pub review_summary_digest: String,
     pub comparison_digest: String,
+    /// True when the request's `knownReviewSummaryDigests` list matched the
+    /// recomputed summary, so no artifact bytes accompany this manifest and
+    /// the caller keeps its cached copy.
+    #[serde(default)]
+    pub review_summary_reused: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1885,7 +1940,7 @@ fn project_product_stages(
             output
         } else {
             let bytes = serde_jcs::to_vec(&serde_json::json!({
-                "checkpointProtocol": "chronicle-logical-stage-checkpoint/v6",
+                "checkpointProtocol": "chronicle-logical-stage-checkpoint/v7",
                 "physicalExecution": "salsa-tracked-rust-pipeline-v2",
                 "projection": "product-stage-from-actual-step-events",
                 "logicalNode": node.node_id,
@@ -1985,6 +2040,7 @@ fn execute_incremental_pipeline(
             // so without this assignment the next review reset again.
             state.last_workspace_root = request.workspace_root_digest.clone();
         }
+        let timer = EnvelopeTimer::start("cache_decision_evaluate");
         let certificate = embedded_dependency_certificate();
         let empirical_evidence_current = dependency_evidence_current(&certificate);
         let cache_decision = evaluate_dependency_cache_decision(
@@ -2005,7 +2061,9 @@ fn execute_incremental_pipeline(
             state.stable_artifact_bundle = None;
         }
         let had_previous_step_observations = !state.previous_step_observations.is_empty();
+        drop(timer);
 
+        let timer = EnvelopeTimer::start("persisted_base_verify");
         validate_persisted_base_encoded_lengths(
             persisted_bases.review.len(),
             persisted_bases.reconstruction.len(),
@@ -2026,6 +2084,8 @@ fn execute_incremental_pipeline(
         )?;
 
         let support_files = support.pipeline_files();
+        drop(timer);
+        let timer = EnvelopeTimer::start("engine_execute");
         let tracked_execution = if request.command == QUERY_REVIEW_COMMAND {
             if persisted_bases.warm_verified_input {
                 if !verified_persisted_input
@@ -2079,6 +2139,8 @@ fn execute_incremental_pipeline(
                 .incremental_engine
                 .execute(csv_bytes, options, support_files)?
         };
+        drop(timer);
+        let timer = EnvelopeTimer::start("base_export");
         let review_base = if request.command == QUERY_REVIEW_COMMAND {
             None
         } else {
@@ -2117,6 +2179,8 @@ fn execute_incremental_pipeline(
         if !executed_steps.is_empty() {
             TRACKED_PHYSICAL_EXECUTION_COUNT.with(|count| count.set(count.get() + 1));
         }
+        drop(timer);
+        let timer = EnvelopeTimer::start("step_executions_build");
         let previous_step_observations = state.previous_step_observations.clone();
         let exact_options = serde_json::to_value(&request.options)
             .map_err(|error| format!("serialize exact Rust options for step scheduler: {error}"))?;
@@ -2156,6 +2220,8 @@ fn execute_incremental_pipeline(
             })
             .map(|execution| execution.unit_id.as_str())
             .collect::<BTreeSet<_>>();
+        drop(timer);
+        let timer = EnvelopeTimer::start("project_product_stages");
         let result = tracked_execution.result;
         let (executions, node_artifacts) = project_product_stages(
             &plan,
@@ -2167,6 +2233,7 @@ fn execute_incremental_pipeline(
             &mut state.previous_stage_outputs,
             request.command != QUERY_REVIEW_COMMAND,
         )?;
+        drop(timer);
         Ok(IncrementalPipelineExecution {
             result,
             review_base,
@@ -2652,7 +2719,9 @@ fn prepare_runtime_workspace(
 ) -> Result<PreparedRuntimeWorkspace, String> {
     let request: RuntimeRequest =
         serde_json::from_str(request_json).map_err(|error| format!("invalid request: {error}"))?;
+    let timer = EnvelopeTimer::start("prepare_input_digest_verify");
     let verified_input_digest = request.validate(csv_bytes)?;
+    drop(timer);
     prepare_runtime_workspace_verified(
         request,
         verified_input_digest,
@@ -2686,14 +2755,19 @@ fn prepare_runtime_workspace_verified(
     input_size_bytes: u64,
     support_files: &RuntimeSupportFiles,
 ) -> Result<PreparedRuntimeWorkspace, String> {
+    let timer = EnvelopeTimer::start("prepare_options_canonicalize");
     let options_value = semantic_options_value(&request.options)?;
     let exact_options_value = serde_json::to_value(&request.options)
         .map_err(|error| format!("serialize exact Rust options: {error}"))?;
     let options_bytes = serde_jcs::to_vec(&exact_options_value)
         .map_err(|error| format!("canonicalize exact Rust options: {error}"))?;
     let options_digest = sha256(&options_bytes);
+    drop(timer);
+    let timer = EnvelopeTimer::start("prepare_support_resolve");
     let resolved_support = support_files.resolve()?;
     let pipeline_options = request.options.clone().into_pipeline_options();
+    drop(timer);
+    let timer = EnvelopeTimer::start("prepare_materialize_ingress");
     let ingress = materialize_ingress(
         csv_bytes,
         input_size_bytes,
@@ -2703,6 +2777,7 @@ fn prepare_runtime_workspace_verified(
         &resolved_support,
     )?;
     reject_open_binding_holes(&ingress.materialization)?;
+    drop(timer);
     Ok(PreparedRuntimeWorkspace {
         request,
         options_value,
@@ -2841,6 +2916,7 @@ fn execute_prepared_workspace(
         .map(|assignment| assignment.artifact.digest.clone())
         .collect::<Vec<_>>();
     if request.command == QUERY_REVIEW_COMMAND {
+        let timer = EnvelopeTimer::start("review_manifest_build");
         let review_summary_digest = sha256(&result.review_summary_json_bytes);
         let comparison_digest = sha256(
             &serde_jcs::to_vec(&serde_json::json!({
@@ -2856,13 +2932,21 @@ fn execute_prepared_workspace(
             }))
             .map_err(|error| format!("canonicalize review comparison digest: {error}"))?,
         );
-        let review_artifact = shared_pipeline_artifact(
-            Arc::clone(&result),
-            "review-summary-json",
-            "application/json",
-            assignment_digests,
-            review_summary_digest.clone(),
-        );
+        let review_summary_reused = request
+            .known_review_summary_digests
+            .as_ref()
+            .is_some_and(|digests| digests.iter().any(|digest| digest == &review_summary_digest));
+        let artifacts = if review_summary_reused {
+            Vec::new()
+        } else {
+            vec![shared_pipeline_artifact(
+                Arc::clone(&result),
+                "review-summary-json",
+                "application/json",
+                assignment_digests,
+                review_summary_digest.clone(),
+            )]
+        };
         let manifest = ReviewRuntimeManifest {
             protocol_version: RUNTIME_PROTOCOL_VERSION.into(),
             preprocessor_version: chronicle_chrono_kernel_wasm::pipeline_v2::PREPROCESSOR_VERSION
@@ -2900,11 +2984,14 @@ fn execute_prepared_workspace(
             cache_sources,
             review_summary_digest,
             comparison_digest,
+            review_summary_reused,
         };
+        let manifest_json = serde_json::to_string(&manifest)
+            .map_err(|error| format!("serialize review runtime manifest: {error}"))?;
+        drop(timer);
         return Ok(RuntimeHandle {
-            manifest_json: serde_json::to_string(&manifest)
-                .map_err(|error| format!("serialize review runtime manifest: {error}"))?,
-            artifacts: vec![review_artifact],
+            manifest_json,
+            artifacts,
         });
     }
     let stable_key = stable_artifact_key(
@@ -5222,6 +5309,133 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
     }
 
     #[test]
+    fn review_reuses_client_summary_when_known_digest_matches() {
+        let csv = csv();
+        let mut review_request = request_for_workspace(&csv, 'e');
+        review_request["command"] = Value::String(QUERY_REVIEW_COMMAND.into());
+        let mut first = execute_workspace_native(
+            &review_request.to_string(),
+            &csv,
+            &RuntimeSupportFiles::default(),
+        )
+        .unwrap();
+        let first_manifest: ReviewRuntimeManifest =
+            serde_json::from_str(&first.manifest_json).unwrap();
+        assert!(!first_manifest.review_summary_reused);
+        assert_eq!(first.artifact_count(), 1);
+        let first_bytes = first.take_artifact_bytes(0).unwrap();
+        assert_eq!(sha256(&first_bytes), first_manifest.review_summary_digest);
+
+        // Same options + the digest the client already holds: manifest only.
+        let mut repeat = review_request.clone();
+        repeat["knownReviewSummaryDigests"] = serde_json::json!([
+            format!("sha256:{}", "1".repeat(64)),
+            first_manifest.review_summary_digest.clone(),
+        ]);
+        let reused = execute_workspace_native(
+            &repeat.to_string(),
+            &csv,
+            &RuntimeSupportFiles::default(),
+        )
+        .unwrap();
+        let reused_manifest: ReviewRuntimeManifest =
+            serde_json::from_str(&reused.manifest_json).unwrap();
+        assert!(reused_manifest.review_summary_reused);
+        assert_eq!(reused.artifact_count(), 0);
+        assert_eq!(
+            reused_manifest.review_summary_digest,
+            first_manifest.review_summary_digest
+        );
+
+        // A stale digest must still receive the real bytes.
+        let mut stale = review_request.clone();
+        stale["knownReviewSummaryDigests"] = serde_json::json!([format!("sha256:{}", "0".repeat(64))]);
+        let mut fresh = execute_workspace_native(
+            &stale.to_string(),
+            &csv,
+            &RuntimeSupportFiles::default(),
+        )
+        .unwrap();
+        let fresh_manifest: ReviewRuntimeManifest =
+            serde_json::from_str(&fresh.manifest_json).unwrap();
+        assert!(!fresh_manifest.review_summary_reused);
+        assert_eq!(fresh.artifact_count(), 1);
+        assert_eq!(fresh.take_artifact_bytes(0).unwrap(), first_bytes);
+    }
+
+    /// Warm interactive-loop attribution through the FULL runtime envelope
+    /// (request parse -> ingress -> cache decision -> engine -> manifest) on a
+    /// real raw export, mirroring the view tab's repeated settings edits:
+    ///   CHRONICLE_ATTR_CSV=/path/to/raw.csv \
+    ///   cargo test --release --features query-timing \
+    ///     warm_review_repeat_attribution_from_csv -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn warm_review_repeat_attribution_from_csv() {
+        let path = std::env::var("CHRONICLE_ATTR_CSV")
+            .expect("set CHRONICLE_ATTR_CSV to a raw Chronicle export");
+        let csv = std::fs::read(&path).expect("read CHRONICLE_ATTR_CSV");
+        let mut review_request = request_for_workspace(&csv, 'c');
+        review_request["command"] = Value::String(QUERY_REVIEW_COMMAND.into());
+        review_request["options"]["usage_session_mode"] = Value::String("app_and_screen_usage".into());
+        review_request["options"]["model_concurrent_usage"] = Value::Bool(true);
+        review_request["options"]["minimum_usage_duration"] = serde_json::json!(60.0);
+        eprintln!("attribution_phase=warm_build file={path} bytes={}", csv.len());
+        let started = std::time::Instant::now();
+        let mut first = execute_workspace_native(
+            &review_request.to_string(),
+            &csv,
+            &RuntimeSupportFiles::default(),
+        )
+        .unwrap();
+        let manifest: Value = serde_json::from_str(&first.manifest_json).unwrap();
+        eprintln!(
+            "attribution_total warm_build_ms={:.1} review_summary_bytes={} cache_decision={} cache_sources={}",
+            started.elapsed().as_secs_f64() * 1000.0,
+            first.take_artifact_bytes(0).unwrap().len(),
+            manifest["dependency_cache_decision"]["mode"],
+            manifest["cache_sources"],
+        );
+        for (case, key, values) in [
+            (
+                "narrow_minimum_usage_duration",
+                "minimum_usage_duration",
+                vec![
+                    serde_json::json!(2.0),
+                    serde_json::json!(3.0),
+                    serde_json::json!(4.0),
+                ],
+            ),
+            (
+                "heavy_concurrent_usage_toggle",
+                "model_concurrent_usage",
+                vec![
+                    Value::Bool(false),
+                    Value::Bool(true),
+                    Value::Bool(false),
+                ],
+            ),
+        ] {
+            for (step, value) in values.into_iter().enumerate() {
+                let mut repeat = review_request.clone();
+                repeat["options"][key] = value;
+                eprintln!("attribution_phase=warm_repeat case={case} step={step}");
+                let started = std::time::Instant::now();
+                execute_workspace_native(
+                    &repeat.to_string(),
+                    &csv,
+                    &RuntimeSupportFiles::default(),
+                )
+                .unwrap();
+                eprintln!(
+                    "attribution_total case={case} warm_repeat_step={step} total_ms={:.1}",
+                    started.elapsed().as_secs_f64() * 1000.0
+                );
+            }
+        }
+    }
+
+    #[test]
     fn pre_run_stage_view_is_rust_owned_complete_and_has_no_fake_execution() {
         let request_value: Value = serde_json::from_str(&request(&csv())).unwrap();
         let view: Value = serde_json::from_str(
@@ -6028,7 +6242,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                 serde_json::from_slice(&handle.take_artifact_bytes(index).unwrap()).unwrap();
             assert_eq!(
                 fingerprint["checkpointProtocol"],
-                "chronicle-logical-stage-checkpoint/v6"
+                "chronicle-logical-stage-checkpoint/v7"
             );
             assert_eq!(
                 fingerprint["typedCheckpoint"]["nodeId"],

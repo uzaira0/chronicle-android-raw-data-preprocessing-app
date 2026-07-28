@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 
 import { Combobox } from "@/components/Combobox";
@@ -12,11 +12,14 @@ import { ReviewSettingsSummary } from "@/components/review/ReviewSettingsSummary
 import { AppListsPanel } from "@/components/review/AppListsPanel";
 import { CompareConfigDrawer } from "@/components/review/CompareConfigDrawer";
 import { buildComparisonWaterfallScene } from "@/lib/reviewCompareScene";
+import { materializePersistedTimeline } from "@/lib/rustPipelineAuthority";
+import { readPersistedRustArtifact } from "@/lib/rustPipelineRuntime";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
 import type {
   BrowserProcessingOptions,
   ProcessedFileResult,
   ReviewParticipantSummary,
+  ReviewSummary,
   TimelineParticipantView,
   TimelineViewData,
 } from "@/lib/types";
@@ -27,14 +30,17 @@ type Props = {
   /** Names of files still loaded in the Files tab — a comparison can only
    * re-run files whose bytes are still available. */
   uploadedFileNames?: string[];
-  /** Warm the selected file while the researcher edits Arm B. */
-  onPrepareComparison?: (fileName: string) => Promise<void>;
+  /** Warm the selected file and exact Arm-B settings while they are edited. */
+  onPrepareComparison?: (
+    fileName: string,
+    overrides?: Partial<BrowserProcessingOptions>,
+  ) => Promise<ProcessedFileResult>;
   /** Re-process every loaded review file under Arm-B options. The selected file
    * is prioritized, and completed files are reported as soon as they finish. */
   onRunComparison?: (
     fileName: string,
     overrides: Partial<BrowserProcessingOptions>,
-    onResult?: (result: ProcessedFileResult) => void,
+    onResults?: (results: ProcessedFileResult[]) => void,
   ) => Promise<ProcessedFileResult[]>;
   displayMasker: DemoDisplayMasker;
   includeFilteredAppUsageInPlots: boolean;
@@ -71,6 +77,57 @@ function isReviewable(
   return !!result.reviewSummary && result.reviewSummary.participants.length > 0;
 }
 
+function canLoadReview(result: ProcessedFileResult): boolean {
+  return (
+    isReviewable(result) ||
+    result.rustRuntimeReceipt?.persistedGeneration !== undefined
+  );
+}
+
+async function readPersistedReviewSummary(
+  result: ProcessedFileResult,
+): Promise<ReviewSummary> {
+  const receipt = result.rustRuntimeReceipt;
+  if (!receipt || receipt.persistedGeneration === undefined) {
+    throw new Error("This result has no persisted Rust review data.");
+  }
+  const bytes = await readPersistedRustArtifact(
+    receipt.workspaceId,
+    "review-summary-json",
+    receipt.workspaceRootDigest,
+  );
+  const parsed = JSON.parse(new TextDecoder().decode(bytes)) as ReviewSummary;
+  if (!parsed || !Array.isArray(parsed.participants)) {
+    throw new Error("The persisted Rust review summary is invalid.");
+  }
+  return parsed;
+}
+
+let decodedReviewSummaryCache:
+  { bytes: Uint8Array; summary: ReviewSummary } | undefined;
+
+function decodeInlineReviewSummary(
+  result: ProcessedFileResult | null,
+): ReviewSummary | undefined {
+  if (!result) return undefined;
+  if (result.reviewSummary) return result.reviewSummary;
+  const bytes = result.reviewSummaryJsonBytes;
+  if (!bytes) return undefined;
+  if (decodedReviewSummaryCache?.bytes === bytes) {
+    return decodedReviewSummaryCache.summary;
+  }
+  const parsed = JSON.parse(new TextDecoder().decode(bytes)) as ReviewSummary;
+  if (!parsed || !Array.isArray(parsed.participants)) {
+    throw new Error("The Rust comparison review summary is invalid.");
+  }
+  // Comparison results retain their transferable bytes. A WeakMap keyed by
+  // those still-live arrays therefore retained every expanded 100k-row summary
+  // the researcher visited. The UI displays one file at a time, so retain only
+  // the most recently decoded object graph.
+  decodedReviewSummaryCache = { bytes, summary: parsed };
+  return parsed;
+}
+
 export function ViewPanel({
   results,
   options,
@@ -80,7 +137,14 @@ export function ViewPanel({
   displayMasker,
   includeFilteredAppUsageInPlots,
 }: Props): ReactElement {
-  const reviewableFiles = results.filter(isReviewable);
+  const reviewableFiles = useMemo(
+    () => results.filter(canLoadReview),
+    [results],
+  );
+  const uploadedFileNameSet = useMemo(
+    () => new Set(uploadedFileNames),
+    [uploadedFileNames],
+  );
 
   const [selectedFile, setSelectedFile] = useState<string>("");
   const [fileQuery, setFileQuery] = useState<string | null>(null);
@@ -103,8 +167,49 @@ export function ViewPanel({
   const [compareOptions, setCompareOptions] =
     useState<BrowserProcessingOptions>(options);
   const [armBResults, setArmBResults] = useState<ProcessedFileResult[]>([]);
+  const [lastComparedOptionsKey, setLastComparedOptionsKey] = useState<
+    string | null
+  >(null);
   const [running, setRunning] = useState(false);
   const [compareError, setCompareError] = useState<string | null>(null);
+  const [loadedReview, setLoadedReview] = useState<{
+    key: string;
+    summary: ReviewSummary;
+  } | null>(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewLoadError, setReviewLoadError] = useState<string | null>(null);
+  const [loadedTimeline, setLoadedTimeline] = useState<{
+    key: string;
+    timeline: TimelineViewData;
+  } | null>(null);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineLoadError, setTimelineLoadError] = useState<string | null>(
+    null,
+  );
+  const focusDate = useCallback((date: string) => {
+    setFocusedDate((current) => (current === date ? null : date));
+  }, []);
+  const armBByName = useMemo(
+    () => new Map(armBResults.map((result) => [result.inputFileName, result])),
+    [armBResults],
+  );
+  const fileChoices = useMemo(
+    () =>
+      reviewableFiles.map((entry) => ({
+        source: entry.inputFileName,
+        label: displayMasker.fileName(entry.inputFileName),
+      })),
+    [displayMasker, reviewableFiles],
+  );
+  const reviewableFileCount = useMemo(
+    () =>
+      reviewableFiles.reduce(
+        (count, result) =>
+          count + Number(uploadedFileNameSet.has(result.inputFileName)),
+        0,
+      ),
+    [reviewableFiles, uploadedFileNameSet],
+  );
 
   useEffect(() => {
     setShowFilteredUsage(includeFilteredAppUsageInPlots);
@@ -113,8 +218,120 @@ export function ViewPanel({
   useEffect(() => {
     setArmBResults([]);
     setCompareOptions(options);
+    setLastComparedOptionsKey(null);
     setCompareError(null);
   }, [results, options]);
+
+  const activeFile =
+    reviewableFiles.find((r) => r.inputFileName === selectedFile) ??
+    reviewableFiles[0];
+  const reviewLoadKey = activeFile?.rustRuntimeReceipt
+    ? `${activeFile.rustRuntimeReceipt.workspaceId}:${activeFile.rustRuntimeReceipt.workspaceRootDigest}`
+    : (activeFile?.inputFileName ?? "");
+  const timelineRequest = activeFile?.persistedTimelineRequest;
+  const timelineLoadKey = timelineRequest
+    ? [
+        timelineRequest.workspaceId,
+        timelineRequest.workspaceRootDigest,
+        Number(timelineRequest.options.processAppUsage),
+        Number(timelineRequest.options.processScreenUsage),
+        Number(timelineRequest.options.includeFilteredAppUsageInPlots),
+      ].join(":")
+    : "";
+
+  useEffect(() => {
+    if (!drawerOpen || running || !activeFile || !onPrepareComparison) return;
+    const optionsKey = JSON.stringify(compareOptions);
+    if (armBResults.length === 0 && optionsKey === JSON.stringify(options)) {
+      // Arm A is already materialized. Do not spend a worker rerunning the
+      // unchanged configuration while the researcher is opening the drawer.
+      return;
+    }
+    // Reopening the drawer must not rerun the B configuration already shown.
+    // Wait for an actual edit before scheduling another Rust review.
+    if (armBResults.length > 0 && lastComparedOptionsKey === optionsKey) return;
+    // Settings controls can emit several updates while a value is typed. Wait
+    // briefly, then compute the exact selected-file Arm B in the background so
+    // Run can reuse the completed result (or await the same in-flight promise).
+    const timer = window.setTimeout(() => {
+      void onPrepareComparison(activeFile.inputFileName, compareOptions).catch(
+        (error) => {
+          setCompareError(
+            error instanceof Error ? error.message : String(error),
+          );
+        },
+      );
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [
+    activeFile,
+    armBResults.length,
+    compareOptions,
+    drawerOpen,
+    lastComparedOptionsKey,
+    onPrepareComparison,
+    running,
+  ]);
+
+  useEffect(() => {
+    if (!activeFile || activeFile.reviewSummary) {
+      setLoadedReview(null);
+      setReviewLoading(false);
+      setReviewLoadError(null);
+      return;
+    }
+    let current = true;
+    setLoadedReview(null);
+    setReviewLoading(true);
+    setReviewLoadError(null);
+    void readPersistedReviewSummary(activeFile)
+      .then((summary) => {
+        if (current) setLoadedReview({ key: reviewLoadKey, summary });
+      })
+      .catch((error) => {
+        if (current) {
+          setReviewLoadError(
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      })
+      .finally(() => {
+        if (current) setReviewLoading(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [activeFile, reviewLoadKey]);
+
+  useEffect(() => {
+    if (!activeFile || activeFile.timelineView || !timelineRequest) {
+      setLoadedTimeline(null);
+      setTimelineLoading(false);
+      setTimelineLoadError(null);
+      return;
+    }
+    let current = true;
+    setLoadedTimeline(null);
+    setTimelineLoading(true);
+    setTimelineLoadError(null);
+    void materializePersistedTimeline(timelineRequest)
+      .then((timeline) => {
+        if (current) setLoadedTimeline({ key: timelineLoadKey, timeline });
+      })
+      .catch((error) => {
+        if (current) {
+          setTimelineLoadError(
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      })
+      .finally(() => {
+        if (current) setTimelineLoading(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [activeFile, timelineLoadKey, timelineRequest]);
 
   if (reviewableFiles.length === 0) {
     return (
@@ -131,11 +348,39 @@ export function ViewPanel({
     );
   }
 
-  const activeFile =
-    reviewableFiles.find((r) => r.inputFileName === selectedFile) ??
-    reviewableFiles[0];
+  const activeReviewSummary =
+    activeFile.reviewSummary ??
+    (loadedReview?.key === reviewLoadKey ? loadedReview.summary : undefined);
+  if (!activeReviewSummary) {
+    return (
+      <section
+        className="timeline-view"
+        aria-label="Review"
+        data-testid="timeline-view"
+      >
+        <p className="timeline-view__empty" role="status">
+          {reviewLoading
+            ? "Loading the selected file’s verified review data…"
+            : (reviewLoadError ?? "No review data is available for this file.")}
+        </p>
+      </section>
+    );
+  }
+  if (activeReviewSummary.participants.length === 0) {
+    return (
+      <section
+        className="timeline-view"
+        aria-label="Review"
+        data-testid="timeline-view"
+      >
+        <p className="timeline-view__empty">
+          This file has no participants to review.
+        </p>
+      </section>
+    );
+  }
   const participants: ReviewParticipantSummary[] =
-    activeFile.reviewSummary.participants;
+    activeReviewSummary.participants;
   const activeParticipant =
     participants.find((p) => p.participantId === selectedParticipant) ??
     participants[0];
@@ -143,7 +388,11 @@ export function ViewPanel({
   // Reset the focused day whenever the participant or file context changes.
   const participantKey = `${activeFile.inputFileName}:${activeParticipant.participantId}`;
 
-  const timeline = activeFile.timelineView;
+  const timeline =
+    activeFile.timelineView ??
+    (loadedTimeline?.key === timelineLoadKey
+      ? loadedTimeline.timeline
+      : undefined);
   const availableTypes: ViewType[] = timeline
     ? [
         ...(hasAppViews(timeline) ? (["app"] as const) : []),
@@ -185,12 +434,10 @@ export function ViewPanel({
     ? `${typeLabel[activeType]} · ${filteredUsageLabel} · ${displayMasker.timezone(timeline.timezone)}`
     : "";
 
-  const armB =
-    armBResults.find(
-      (result) => result.inputFileName === activeFile.inputFileName,
-    ) ?? null;
+  const armB = armBByName.get(activeFile.inputFileName) ?? null;
+  const armBReviewSummary = decodeInlineReviewSummary(armB);
   const compareParticipant: ReviewParticipantSummary | null =
-    armB?.reviewSummary?.participants.find(
+    armBReviewSummary?.participants.find(
       (p) => p.participantId === activeParticipant.participantId,
     ) ?? null;
   const bTimeline = armB?.timelineView;
@@ -245,7 +492,7 @@ export function ViewPanel({
   const comparisonReceipt = armB?.rustReviewReceipt;
 
   const canCompare =
-    !!onRunComparison && uploadedFileNames.includes(activeFile.inputFileName);
+    !!onRunComparison && uploadedFileNameSet.has(activeFile.inputFileName);
 
   const openDrawer = (): void => {
     // First open seeds Arm B from the current run (A); reopening to edit keeps
@@ -253,35 +500,57 @@ export function ViewPanel({
     if (!armB) setCompareOptions(options);
     setCompareError(null);
     setDrawerOpen(true);
-    if (onPrepareComparison) {
-      void onPrepareComparison(activeFile.inputFileName).catch((error) => {
-        setCompareError(error instanceof Error ? error.message : String(error));
-      });
-    }
   };
   const runComparison = async (): Promise<void> => {
     if (!onRunComparison) return;
     setRunning(true);
     setCompareError(null);
-    setArmBResults([]);
+    const pendingResults = new Map<string, ProcessedFileResult>();
+    let pendingFrame: number | null = null;
     try {
-      const replaceResult = (result: ProcessedFileResult): void => {
+      const publishPending = (): void => {
+        pendingFrame = null;
+        if (pendingResults.size === 0) return;
+        const updates = Array.from(pendingResults.values());
+        pendingResults.clear();
+        const includesActive = updates.some(
+          (result) => result.inputFileName === activeFile.inputFileName,
+        );
         setArmBResults((current) => {
           const byName = new Map(
             current.map((entry) => [entry.inputFileName, entry]),
           );
-          byName.set(result.inputFileName, result);
+          for (const result of updates) {
+            byName.set(result.inputFileName, result);
+          }
           return Array.from(byName.values());
         });
+        if (includesActive) {
+          setLastComparedOptionsKey(JSON.stringify(compareOptions));
+          setDrawerOpen(false);
+        }
+      };
+      const replaceResults = (results: ProcessedFileResult[]): void => {
+        for (const result of results) {
+          pendingResults.set(result.inputFileName, result);
+        }
+        if (pendingFrame === null) {
+          pendingFrame = requestAnimationFrame(publishPending);
+        }
       };
       const compared = await onRunComparison(
         activeFile.inputFileName,
         compareOptions,
-        replaceResult,
+        replaceResults,
       );
+      if (pendingFrame !== null) cancelAnimationFrame(pendingFrame);
+      pendingResults.clear();
       setArmBResults(compared);
+      setLastComparedOptionsKey(JSON.stringify(compareOptions));
       setDrawerOpen(false);
     } catch (error) {
+      if (pendingFrame !== null) cancelAnimationFrame(pendingFrame);
+      pendingResults.clear();
       setCompareError(error instanceof Error ? error.message : String(error));
     } finally {
       setRunning(false);
@@ -294,10 +563,6 @@ export function ViewPanel({
   };
 
   const activeFileLabel = displayMasker.fileName(activeFile.inputFileName);
-  const fileChoices = reviewableFiles.map((entry) => ({
-    source: entry.inputFileName,
-    label: displayMasker.fileName(entry.inputFileName),
-  }));
   const fileInputValue = fileQuery ?? activeFileLabel;
   const onFileInputChange = (next: string): void => {
     setFileQuery(next);
@@ -317,17 +582,27 @@ export function ViewPanel({
       className="timeline-view review-view"
       aria-label="Review"
       data-testid="timeline-view"
+      data-active-file={activeFile.inputFileName}
       data-comparison-cache-sources={comparisonReceipt?.cacheSources.join(",")}
+      data-comparison-review-base-bytes={
+        comparisonReceipt?.suppliedReviewBaseBytes
+      }
+      data-comparison-reconstruction-base-bytes={
+        comparisonReceipt?.suppliedReconstructionBaseBytes
+      }
       data-comparison-build-environment-digest={
         comparisonReceipt?.buildEnvironmentDigest
       }
       data-comparison-digest={comparisonReceipt?.comparisonDigest}
+      data-comparison-summary-reused={
+        armB?.reviewSummaryReused ? "true" : undefined
+      }
       data-comparison-previous-root={
         comparisonReceipt?.previousWorkspaceRootDigest ?? undefined
       }
-      data-comparison-recomputed-steps={
-        comparisonReceipt?.recomputedStepIds.join(",")
-      }
+      data-comparison-recomputed-steps={comparisonReceipt?.recomputedStepIds.join(
+        ",",
+      )}
       data-comparison-cached-step-count={
         comparisonReceipt?.cachedStepIds.length
       }
@@ -447,9 +722,7 @@ export function ViewPanel({
           running={running}
           error={compareError}
           completedCount={armBResults.length}
-          fileCount={reviewableFiles.filter((result) =>
-            uploadedFileNames.includes(result.inputFileName),
-          ).length}
+          fileCount={reviewableFileCount}
         />
       ) : null}
 
@@ -506,8 +779,10 @@ export function ViewPanel({
               />
             ) : (
               <p className="timeline-view__empty">
-                No {typeLabel[activeType].toLowerCase()} timeline for this
-                participant.
+                {timelineLoading
+                  ? "Loading the selected file’s verified timeline…"
+                  : (timelineLoadError ??
+                    `No ${typeLabel[activeType].toLowerCase()} timeline for this participant.`)}
               </p>
             )}
             {armB && !comparisonView ? (
@@ -531,9 +806,7 @@ export function ViewPanel({
             compare={compareParticipant}
             activeType={activeType}
             focusedDate={focusedDate}
-            onFocusDate={(date) =>
-              setFocusedDate((current) => (current === date ? null : date))
-            }
+            onFocusDate={focusDate}
             masker={displayMasker}
           />
         </div>

@@ -7,10 +7,10 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:1108494a99d23b985e80b78a893c912b7183f680ffd5c3e0eff902aa1083a17d",
+    "implementationDigest": "sha256:b6a77cfe5b41fd7df0204f428ce9089e087bd3be4100e7326629efbef0ed4c63",
     "planDigest": "sha256:7ee296d46b121e019ec0f43026fd91ff143efb1d33263ec95c19a92be7512ad7",
-    "profileDigest": "sha256:afe722bff1d4cce6404fbb51410b60d475d23402f9c09615a93093283dc4a3ba",
-    "profileLockDigest": "sha256:21576c58dbd69a50cccc64a9bccab0197f742e97b1ef3d9f4cc98b3192865a12",
+    "profileDigest": "sha256:8bc0b2245ff32c7b166756b01452fce5135b9ca3fac2e9e3b1ad4424e2748a84",
+    "profileLockDigest": "sha256:cbf5d6005482e25070910e41e3a45e6fc521255ffe7ccc32e2af4a7cf294db5a",
     "runtimeAuthorityDigest": "sha256:bb2e2d109a81098514ba9a86344da6edc033cd305e6d6c4832c9dfd1ce81b2f9",
     "productContractDigest": "sha256:c89ad3e6efaa2394a5cb5f321cf1758b4c3703659093999b0e0161f210c16a4c"
   },

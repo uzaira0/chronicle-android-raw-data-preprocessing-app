@@ -718,7 +718,7 @@ beforeAll(async () => {
     REVIEW_RUNTIME,
   );
   reviewManifest = JSON.parse(review.manifestJson) as Record<string, unknown>;
-  reviewSummaryBytes = review.reviewSummaryJsonBytes;
+  reviewSummaryBytes = review.reviewSummaryJsonBytes!;
   // Move the process-local continuation to a different input so fake full-run
   // checks replay the captured manifest's original null predecessor exactly.
   await executeRustRuntime(
@@ -1262,11 +1262,11 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
                   kind: "review-summary-json",
                   mediaType: "application/json",
                   digest: realReview.reviewSummaryDigest,
-                  size: realReview.reviewSummaryJsonBytes.byteLength,
+                  size: realReview.reviewSummaryJsonBytes!.byteLength,
                   derivedFrom: [],
                 }),
               take_artifact_bytes: () =>
-                Uint8Array.from(realReview.reviewSummaryJsonBytes),
+                Uint8Array.from(realReview.reviewSummaryJsonBytes!),
               free: warmHandleFreed,
             };
           },
@@ -1329,10 +1329,10 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
               kind: "review-summary-json",
               mediaType: "application/json",
               digest: realReview.reviewSummaryDigest,
-              size: realReview.reviewSummaryJsonBytes.byteLength,
+              size: realReview.reviewSummaryJsonBytes!.byteLength,
               derivedFrom: [],
             }),
-          take_artifact_bytes: () => realReview.reviewSummaryJsonBytes,
+          take_artifact_bytes: () => realReview.reviewSummaryJsonBytes!,
           free: fallbackHandleFree,
         }),
       } as unknown as Parameters<typeof setRustRuntimeForTesting>[0];

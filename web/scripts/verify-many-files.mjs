@@ -36,6 +36,11 @@ const traceOutputPath = process.argv[10]
   ? path.resolve(process.argv[10])
   : null;
 const repeatComparison = process.argv[11] === "repeat";
+// "toggle" proves review-summary ETag reuse: edit Arm B to a second config,
+// then back to the first. The third pass recomputes a summary digest the
+// client still holds in its LRU, so the runtime ships zero artifact bytes and
+// the page must show data-comparison-summary-reused="true".
+const toggleComparison = process.argv[11] === "toggle";
 const performanceTraceId = `many-files-${process.pid}-${Date.now()}`;
 
 /** @param {number} rootPid */
@@ -492,7 +497,9 @@ try {
   // signal for this benchmark.
   const resultSummary = page.locator(".result-panel__summary");
   const completedSummary = resultSummary
-    .filter({ hasText: `${fileCount} files processed` })
+    .filter({
+      hasText: `${fileCount} ${fileCount === 1 ? "file" : "files"} processed`,
+    })
     .first();
   const fatalError = page.locator(".result-panel .error-text").first();
   await Promise.race([
@@ -522,6 +529,8 @@ try {
   );
   let comparisonElapsedMs = null;
   let repeatedComparisonElapsedMs = null;
+  let toggledComparisonElapsedMs = null;
+  let toggleReuseEvidence = null;
   let backgroundComparisonEvidence = null;
   const comparisonDigestsByFile = [];
   if (runComparison && resultCount === fileCount) {
@@ -586,7 +595,10 @@ try {
     comparisonElapsedMs = performance.now() - comparisonStarted;
     await drawer.waitFor({ state: "hidden", timeout: timeoutMs });
     await page.getByTestId("review-mcard-b").waitFor({ timeout: timeoutMs });
-    if (repeatComparison) {
+    const firstComparisonDigest = await page
+      .getByTestId("timeline-view")
+      .getAttribute("data-comparison-digest");
+    if (repeatComparison || toggleComparison) {
       console.log("Editing Arm B again with the warm worker pool…");
       await compareToggle.click();
       await drawer.waitFor({ state: "visible", timeout: timeoutMs });
@@ -616,6 +628,57 @@ try {
         performance.now() - repeatedComparisonStarted;
       await drawer.waitFor({ state: "hidden", timeout: timeoutMs });
       await page.getByTestId("review-mcard-b").waitFor({ timeout: timeoutMs });
+    }
+    if (toggleComparison) {
+      console.log("Toggling Arm B back to its first config (ETag reuse)…");
+      await compareToggle.click();
+      await drawer.waitFor({ state: "visible", timeout: timeoutMs });
+      await drawer.getByTestId("minimum-usage-duration-input").fill("2");
+      const toggledDigestBefore = await page
+        .getByTestId("timeline-view")
+        .getAttribute("data-comparison-digest");
+      const toggledComparisonStarted = performance.now();
+      await drawer.getByTestId("review-run-comparison").click();
+      await page.waitForFunction(
+        (previousDigest) => {
+          const digest = document
+            .querySelector('[data-testid="timeline-view"]')
+            ?.getAttribute("data-comparison-digest");
+          return /^sha256:[0-9a-f]{64}$/.test(digest ?? "") && digest !== previousDigest;
+        },
+        toggledDigestBefore,
+        { timeout: timeoutMs },
+      );
+      await page.evaluate(
+        () =>
+          new Promise((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(resolve)),
+          ),
+      );
+      toggledComparisonElapsedMs =
+        performance.now() - toggledComparisonStarted;
+      await drawer.waitFor({ state: "hidden", timeout: timeoutMs });
+      await page.getByTestId("review-mcard-b").waitFor({ timeout: timeoutMs });
+      const timeline = page.getByTestId("timeline-view");
+      toggleReuseEvidence = {
+        firstComparisonDigest,
+        toggledDigestBefore,
+        toggledComparisonDigest: await timeline.getAttribute(
+          "data-comparison-digest",
+        ),
+        summaryReused: await timeline.getAttribute(
+          "data-comparison-summary-reused",
+        ),
+      };
+      if (
+        toggleReuseEvidence.toggledComparisonDigest !==
+          firstComparisonDigest ||
+        toggleReuseEvidence.summaryReused !== "true"
+      ) {
+        throw new Error(
+          `toggle-back did not prove review-summary reuse: ${JSON.stringify(toggleReuseEvidence)}`,
+        );
+      }
     }
     if (fileCount > 1) {
       // Background comparisons complete asynchronously after the selected
@@ -741,6 +804,8 @@ try {
         resultCount,
         comparisonElapsedMs,
         repeatedComparisonElapsedMs,
+        toggledComparisonElapsedMs,
+        toggleReuseEvidence,
         comparisonWarmupMs,
         backgroundComparisonEvidence,
         comparedFileCount: comparisonDigestsByFile.length,

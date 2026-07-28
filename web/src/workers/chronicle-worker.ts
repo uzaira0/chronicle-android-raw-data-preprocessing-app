@@ -17,6 +17,7 @@ import {
 } from "@/lib/rustPipelineRuntime";
 import type { RawFileInspection } from "@/lib/fileInspection";
 import {
+  processPersistedReviewWithRustAuthority,
   processRawCsvReviewWithRustAuthority,
   processRawCsvWithRustAuthority,
 } from "@/lib/rustPipelineAuthority";
@@ -31,6 +32,7 @@ import type {
   ProcessedFileResult,
   ProgressEvent,
 } from "@/lib/types";
+import { comparisonSupportCacheKey } from "@/lib/comparisonSupportCache";
 
 /**
  * SHA-256 of the raw input, returned as a lowercase hex string. Runs in the
@@ -55,6 +57,27 @@ type SemanticIndexCacheEntry = {
   index: Uint8Array;
 };
 const semanticIndexes = new Map<string, SemanticIndexCacheEntry>();
+const comparisonSupportFiles = new Map<string, BrowserSupportFiles>();
+const MAX_COMPARISON_SUPPORT_BUNDLES = 2;
+
+function cachedComparisonSupportFiles(key: string): BrowserSupportFiles {
+  const cached = comparisonSupportFiles.get(key);
+  if (!cached) {
+    throw new Error("comparison support bundle is not cached on this worker");
+  }
+  comparisonSupportFiles.delete(key);
+  comparisonSupportFiles.set(key, cached);
+  return cached;
+}
+
+function transferReviewResult(
+  result: ProcessedFileResult | null,
+): ProcessedFileResult | null {
+  const reviewBytes = result?.reviewSummaryJsonBytes;
+  return reviewBytes
+    ? Comlink.transfer(result, [reviewBytes.buffer as ArrayBuffer])
+    : result;
+}
 
 function invalidateSemanticIndex(workspaceId: string): void {
   semanticIndexes.delete(workspaceId);
@@ -178,90 +201,50 @@ const api = {
   async runtimeVersion(): Promise<string> {
     return getRustRuntimeVersion();
   },
-  discoverTimezones(csvText: string): Promise<string[]> {
-    return discoverRustTimezones(new TextEncoder().encode(csvText));
+  hasComparisonSupportFiles(key: string): boolean {
+    return comparisonSupportFiles.has(key);
+  },
+  async cacheComparisonSupportFiles(
+    key: string,
+    supportFiles: BrowserSupportFiles,
+  ): Promise<void> {
+    if (!/^sha256:[0-9a-f]{64}$/.test(key)) {
+      throw new Error("comparison support cache key is invalid");
+    }
+    if ((await comparisonSupportCacheKey(supportFiles)) !== key) {
+      throw new Error("comparison support cache key does not match its bytes");
+    }
+    comparisonSupportFiles.delete(key);
+    comparisonSupportFiles.set(key, supportFiles);
+    while (comparisonSupportFiles.size > MAX_COMPARISON_SUPPORT_BUNDLES) {
+      const oldest = comparisonSupportFiles.keys().next().value;
+      if (oldest === undefined) break;
+      comparisonSupportFiles.delete(oldest);
+    }
   },
   discoverTimezonesBytes(csvBytes: ArrayBuffer): Promise<string[]> {
     return discoverRustTimezones(new Uint8Array(csvBytes));
   },
-  inspectRawCsvBytes(
+  async inspectRawCsvBytes(
     fileName: string,
     sizeBytes: number,
     csvBytes: ArrayBuffer,
+    verifiedInputSha256?: string,
   ): Promise<RawFileInspection> {
-    return inspectRustRawFile(new Uint8Array(csvBytes), fileName, sizeBytes);
-  },
-  async processRawCsv(
-    inputFileName: string,
-    csvText: string,
-    incomingOptions?: Partial<BrowserProcessingOptions>,
-    supportFiles?: BrowserSupportFiles,
-    runtime?: BrowserProcessingRuntime,
-  ): Promise<ProcessedFileResult> {
-    const options: BrowserProcessingOptions = {
-      ...DEFAULT_BROWSER_OPTIONS,
-      ...incomingOptions,
-    };
-    const bytes = new TextEncoder().encode(csvText);
-    const inputSha256 = await computeSha256Hex(bytes);
-    const resolvedRuntime = effectiveRuntime(
-      runtime,
-      inputFileName,
-      inputSha256,
+    // Inspection already owns the immutable File bytes. Hash them here once so
+    // the full batch can reuse exact duplicate content and avoid hashing again.
+    const digest = verifiedInputSha256 ?? (await computeSha256Hex(csvBytes));
+    if (!/^[0-9a-f]{64}$/.test(digest)) {
+      throw new Error(
+        "verified input digest must be 64 lowercase hexadecimal characters",
+      );
+    }
+    const inspection = await inspectRustRawFile(
+      new Uint8Array(csvBytes),
+      fileName,
+      sizeBytes,
     );
-    const result = await processRawCsvWithRustAuthority(
-      inputFileName,
-      bytes,
-      options,
-      supportFiles,
-      resolvedRuntime,
-      undefined,
-      inputSha256,
-    );
-    if (result.rustRuntimeReceipt)
-      invalidateSemanticIndex(result.rustRuntimeReceipt.workspaceId);
-    return result;
-  },
-  async processRawCsvWithProgress(
-    inputFileName: string,
-    csvText: string,
-    incomingOptions?: Partial<BrowserProcessingOptions>,
-    supportFiles?: BrowserSupportFiles,
-    runtime?: BrowserProcessingRuntime,
-    onProgress?: (event: ProgressEvent) => void,
-  ): Promise<ProcessedFileResult> {
-    const options: BrowserProcessingOptions = {
-      ...DEFAULT_BROWSER_OPTIONS,
-      ...incomingOptions,
-    };
-    const bytes = new TextEncoder().encode(csvText);
-    const inputSha256 = await computeSha256Hex(bytes);
-    const resolvedRuntime = effectiveRuntime(
-      runtime,
-      inputFileName,
-      inputSha256,
-    );
-    const forward = onProgress
-      ? (event: ProgressEvent) => {
-          try {
-            onProgress(event);
-          } catch {
-            // Ignore progress callback failures so they cannot abort processing.
-          }
-        }
-      : undefined;
-    const result = await processRawCsvWithRustAuthority(
-      inputFileName,
-      bytes,
-      options,
-      supportFiles,
-      resolvedRuntime,
-      forward,
-      inputSha256,
-    );
-    if (result.rustRuntimeReceipt)
-      invalidateSemanticIndex(result.rustRuntimeReceipt.workspaceId);
-    return result;
+    return { ...inspection, inputSha256: digest };
   },
   /**
    * Zero-copy variant: caller transfers ownership of the raw CSV bytes.
@@ -275,6 +258,7 @@ const api = {
     supportFiles?: BrowserSupportFiles,
     runtime?: BrowserProcessingRuntime,
     onProgress?: (event: ProgressEvent) => void,
+    verifiedInputSha256?: string,
   ): Promise<ProcessedFileResult> {
     const options: BrowserProcessingOptions = {
       ...DEFAULT_BROWSER_OPTIONS,
@@ -282,7 +266,13 @@ const api = {
     };
     // Hash the raw bytes before decoding (and before the buffer is dropped).
     const inputBytes = new Uint8Array(csvBytes);
-    const inputSha256 = await computeSha256Hex(csvBytes);
+    const inputSha256 =
+      verifiedInputSha256 ?? (await computeSha256Hex(csvBytes));
+    if (!/^[0-9a-f]{64}$/.test(inputSha256)) {
+      throw new Error(
+        "verified input digest must be 64 lowercase hexadecimal characters",
+      );
+    }
     const resolvedRuntime = effectiveRuntime(
       runtime,
       inputFileName,
@@ -297,7 +287,6 @@ const api = {
           }
         }
       : undefined;
-    result.workerWasmMemoryBytes = rustWasmMemoryBytes() ?? undefined;
     const result = await processRawCsvWithRustAuthority(
       inputFileName,
       inputBytes,
@@ -308,50 +297,61 @@ const api = {
       inputSha256,
     );
     result.inputSha256 = inputSha256;
+    result.workerWasmMemoryBytes = rustWasmMemoryBytes() ?? undefined;
     if (result.rustRuntimeReceipt)
       invalidateSemanticIndex(result.rustRuntimeReceipt.workspaceId);
     return result;
   },
   /** Fast A/B path: execute the same Rust graph and return review metrics only. */
+  async processPersistedReview(
+    inputFileName: string,
+    inputSizeBytes: number,
+    incomingOptions: Partial<BrowserProcessingOptions> | undefined,
+    supportFiles: BrowserSupportFiles | undefined,
+    runtime: BrowserProcessingRuntime | undefined,
+    verifiedInputSha256: string,
+    supportCacheKey?: string,
+    knownReviewSummaryDigests?: string[],
+  ): Promise<ProcessedFileResult | null> {
+    const options: BrowserProcessingOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      ...incomingOptions,
+    };
+    const resolvedRuntime = effectiveRuntime(
+      runtime,
+      inputFileName,
+      verifiedInputSha256,
+    );
+    return transferReviewResult(
+      await processPersistedReviewWithRustAuthority(
+        inputFileName,
+        inputSizeBytes,
+        options,
+        supportCacheKey
+          ? cachedComparisonSupportFiles(supportCacheKey)
+          : supportFiles,
+        resolvedRuntime,
+        verifiedInputSha256,
+        supportCacheKey,
+        knownReviewSummaryDigests,
+      ),
+    );
+  },
+
+  /** Fast A/B fallback when no verified persisted base can answer the request. */
   async processReviewCsvBytes(
     inputFileName: string,
     csvBytes: ArrayBuffer,
     incomingOptions?: Partial<BrowserProcessingOptions>,
     supportFiles?: BrowserSupportFiles,
     runtime?: BrowserProcessingRuntime,
+    verifiedInputSha256?: string,
+    supportCacheKey?: string,
+    knownReviewSummaryDigests?: string[],
   ): Promise<ProcessedFileResult> {
     const options: BrowserProcessingOptions = {
       ...DEFAULT_BROWSER_OPTIONS,
       ...incomingOptions,
-    };
-    const inputBytes = new Uint8Array(csvBytes);
-    const inputSha256 = await computeSha256Hex(csvBytes);
-    const resolvedRuntime = effectiveRuntime(
-      runtime,
-      inputFileName,
-      inputSha256,
-    );
-    return processRawCsvReviewWithRustAuthority(
-      inputFileName,
-      inputBytes,
-      options,
-      supportFiles,
-      resolvedRuntime,
-      inputSha256,
-    );
-  },
-  /** Compute Arm B once; the completed run already stores Arm A's metrics. */
-  async processChangedReviewCsvBytes(
-    inputFileName: string,
-    csvBytes: ArrayBuffer,
-    incomingChangedOptions: Partial<BrowserProcessingOptions>,
-    changedSupportFiles?: BrowserSupportFiles,
-    runtime?: BrowserProcessingRuntime,
-    verifiedInputSha256?: string,
-  ): Promise<ProcessedFileResult> {
-    const changedOptions: BrowserProcessingOptions = {
-      ...DEFAULT_BROWSER_OPTIONS,
-      ...incomingChangedOptions,
     };
     const inputBytes = new Uint8Array(csvBytes);
     const inputSha256 =
@@ -366,14 +366,19 @@ const api = {
       inputFileName,
       inputSha256,
     );
-    return processRawCsvReviewWithRustAuthority(
+    const result = await processRawCsvReviewWithRustAuthority(
       inputFileName,
       inputBytes,
-      changedOptions,
-      changedSupportFiles,
+      options,
+      supportCacheKey
+        ? cachedComparisonSupportFiles(supportCacheKey)
+        : supportFiles,
       resolvedRuntime,
       inputSha256,
+      supportCacheKey,
+      knownReviewSummaryDigests,
     );
+    return transferReviewResult(result)!;
   },
 };
 

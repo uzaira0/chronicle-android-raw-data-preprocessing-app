@@ -11,7 +11,9 @@ import {
 import { buildTimelineViewerHtml } from "@/lib/timelineViewer";
 import {
   executeRustRuntime,
+  queryPersistedRustReview,
   queryRustReview,
+  readPersistedRustArtifact,
   type RustReviewExecution,
   type RustRuntimeExecution,
 } from "@/lib/rustPipelineRuntime";
@@ -21,6 +23,8 @@ import type {
   BrowserSupportFiles,
   ProcessedFileResult,
   ProcessedOutputFileResult,
+  PersistedPlotRequest,
+  PersistedTimelineRequest,
   ProgressEvent,
   ProgressStepKind,
   ReviewSummary,
@@ -33,21 +37,38 @@ const CSV_MIME = "text/csv;charset=utf-8";
 const PARQUET_MIME = "application/vnd.apache.parquet";
 const SAV_MIME = "application/x-spss-sav";
 const ARROW_MIME = "application/vnd.apache.arrow.file";
-type SerializedVisualizationRow = {
-  participantId: string;
-  date: string;
-  startTimestampNs: string | null;
-  stopTimestampNs: string | null;
-  eventTimestampNs: string;
-  interactionType: string;
-  broadAppCategory: string | null;
-  appPackageName: string;
-  applicationLabel: string;
-  username: string;
-  screenUsageEndReason: string | null;
-};
+const VISUALIZATION_DATA_PROTOCOL = "chronicle-visualization-data/v2";
+const VISUALIZATION_DATA_COLUMNS = [
+  "participantId",
+  "date",
+  "startTimestampNs",
+  "stopTimestampNs",
+  "eventTimestampNs",
+  "interactionType",
+  "broadAppCategory",
+  "appPackageName",
+  "applicationLabel",
+  "username",
+  "screenUsageEndReason",
+] as const;
+
+type SerializedVisualizationRow = [
+  participantId: string,
+  date: string,
+  startTimestampNs: string | null,
+  stopTimestampNs: string | null,
+  eventTimestampNs: string,
+  interactionType: string,
+  broadAppCategory: string | null,
+  appPackageName: string,
+  applicationLabel: string,
+  username: string,
+  screenUsageEndReason: string | null,
+];
 
 type VisualizationData = {
+  protocolVersion: typeof VISUALIZATION_DATA_PROTOCOL;
+  columns: typeof VISUALIZATION_DATA_COLUMNS;
   appRows: SerializedVisualizationRow[];
   screenRows: SerializedVisualizationRow[];
   eventTimestampsByParticipant: Record<string, string[]>;
@@ -67,8 +88,65 @@ type VisualizationRow = {
   screen_usage_end_reason: string | null;
 };
 
+type RenderedViewOptions = Pick<
+  BrowserProcessingOptions,
+  | "processAppUsage"
+  | "processScreenUsage"
+  | "enablePlotting"
+  | "includeFilteredAppUsageInPlots"
+  | "enableActivityHeatmap"
+  | "exportPlotsAsSvg"
+  | "enableInteractiveTimeline"
+>;
+
 function deriveOutputFileName(inputFileName: string, suffix: string): string {
   return inputFileName.replace(/\.csv$/i, "") + suffix;
+}
+
+/**
+ * Reuse a durable result for another immutable File with the same verified
+ * content digest. File names are display/download labels; Rust computation,
+ * the workspace root, and every persisted artifact remain byte-identical.
+ */
+export function relabelDuplicateContentResult(
+  source: ProcessedFileResult,
+  inputFileName: string,
+): ProcessedFileResult {
+  const sourceStem = source.inputFileName.replace(/\.csv$/i, "");
+  const targetStem = inputFileName.replace(/\.csv$/i, "");
+  const outputs = source.outputs.map((output) => {
+    if (!output.outputFileName.startsWith(sourceStem)) {
+      throw new Error(
+        `Rust output name is not derived from its input label: ${output.outputFileName}`,
+      );
+    }
+    return {
+      ...output,
+      outputFileName:
+        targetStem + output.outputFileName.slice(sourceStem.length),
+    };
+  });
+  return {
+    ...source,
+    inputFileName,
+    outputs,
+    ...(source.persistedPlotRequest
+      ? {
+          persistedPlotRequest: {
+            ...source.persistedPlotRequest,
+            inputFileName,
+          },
+        }
+      : {}),
+    ...(source.persistedTimelineRequest
+      ? {
+          persistedTimelineRequest: {
+            ...source.persistedTimelineRequest,
+            inputFileName,
+          },
+        }
+      : {}),
+  };
 }
 
 function requiredArtifact(
@@ -93,7 +171,6 @@ function outputPayload(
   artifactKind: string,
   mediaType: string,
 ): Pick<ProcessedOutputFileResult, "blob" | "persistedArtifact"> {
-  const bytes = requiredArtifact(execution, artifactKind);
   const metadata = execution.manifest.artifacts.find(
     (artifact) => artifact.kind === artifactKind,
   );
@@ -105,12 +182,14 @@ function outputPayload(
       blob: null,
       persistedArtifact: {
         workspaceId: execution.workspaceId,
+        workspaceRootDigest: execution.manifest.workspaceRootDigest,
         kind: artifactKind,
         mediaType,
         size: metadata.size,
       },
     };
   }
+  const bytes = requiredArtifact(execution, artifactKind);
   return {
     blob: new Blob([artifactBlobPart(bytes)], {
       type: mediaType,
@@ -140,7 +219,7 @@ function addCsvOutput(
     (artifact) => artifact.kind === artifactKind,
   );
   const exactRowCount = rowCount ?? metadata?.rowCount;
-  if (exactRowCount === undefined || !metadata?.previewRows) {
+  if (exactRowCount === undefined || !metadata) {
     throw new Error(
       `Rust runtime omitted CSV display metadata: ${artifactKind}`,
     );
@@ -150,7 +229,7 @@ function addCsvOutput(
     outputFileName: deriveOutputFileName(inputFileName, suffix),
     ...outputPayload(execution, artifactKind, CSV_MIME),
     rowCount: exactRowCount,
-    previewRows: metadata.previewRows,
+    previewRows: metadata.previewRows ?? [],
   });
 }
 
@@ -194,30 +273,56 @@ function hydrateVisualizationRow(
   row: SerializedVisualizationRow,
 ): VisualizationRow {
   return {
-    participant_id: row.participantId,
-    date: row.date,
-    start_timestamp_ns:
-      row.startTimestampNs === null ? null : BigInt(row.startTimestampNs),
-    stop_timestamp_ns:
-      row.stopTimestampNs === null ? null : BigInt(row.stopTimestampNs),
-    event_timestamp_ns: BigInt(row.eventTimestampNs),
-    interaction_type: row.interactionType,
-    broad_app_category: row.broadAppCategory,
-    app_package_name: row.appPackageName,
-    application_label: row.applicationLabel,
-    username: row.username,
-    screen_usage_end_reason: row.screenUsageEndReason,
+    participant_id: row[0],
+    date: row[1],
+    start_timestamp_ns: row[2] === null ? null : BigInt(row[2]),
+    stop_timestamp_ns: row[3] === null ? null : BigInt(row[3]),
+    event_timestamp_ns: BigInt(row[4]),
+    interaction_type: row[5],
+    broad_app_category: row[6],
+    app_package_name: row[7],
+    application_label: row[8],
+    username: row[9],
+    screen_usage_end_reason: row[10],
   };
+}
+
+function decodeVisualizationData(bytes: Uint8Array): VisualizationData {
+  let value: unknown;
+  try {
+    value = JSON.parse(new TextDecoder().decode(bytes));
+  } catch (error) {
+    throw new Error("Rust visualization data is invalid JSON", {
+      cause: error,
+    });
+  }
+  const candidate = value as Partial<VisualizationData>;
+  if (
+    !value ||
+    typeof value !== "object" ||
+    candidate.protocolVersion !== VISUALIZATION_DATA_PROTOCOL ||
+    JSON.stringify(candidate.columns) !==
+      JSON.stringify(VISUALIZATION_DATA_COLUMNS) ||
+    !Array.isArray(candidate.appRows) ||
+    !Array.isArray(candidate.screenRows) ||
+    !candidate.eventTimestampsByParticipant ||
+    typeof candidate.eventTimestampsByParticipant !== "object"
+  ) {
+    throw new Error("Rust visualization data does not match the v2 row schema");
+  }
+  return candidate as VisualizationData;
 }
 
 async function addRenderedViews(
   outputs: ProcessedOutputFileResult[],
   inputFileName: string,
-  options: BrowserProcessingOptions,
+  options: RenderedViewOptions,
   timezone: string,
   preprocessorVersion: string,
   visualization: VisualizationData,
-): Promise<TimelineViewData> {
+  renderStaticPlots = true,
+  renderTimelineOutput = true,
+): Promise<TimelineViewData | undefined> {
   const appRows = visualization.appRows.map(hydrateVisualizationRow);
   const screenRows = visualization.screenRows.map(hydrateVisualizationRow);
   const eventTimestamps = new Map(
@@ -232,38 +337,6 @@ async function addRenderedViews(
   const screenPlotRows = screenRows as Parameters<
     typeof buildScreenTimelineViews
   >[0];
-  const appFilteredExcluded = options.processAppUsage
-    ? buildAppTimelineViews(
-        appPlotRows,
-        timezone,
-        options,
-        preprocessorVersion,
-        eventTimestamps,
-        false,
-      )
-    : [];
-  const appFilteredIncluded = options.processAppUsage
-    ? buildAppTimelineViews(
-        appPlotRows,
-        timezone,
-        options,
-        preprocessorVersion,
-        eventTimestamps,
-        true,
-      )
-    : [];
-  const app = options.includeFilteredAppUsageInPlots
-    ? appFilteredIncluded
-    : appFilteredExcluded;
-  const screen = options.processScreenUsage
-    ? buildScreenTimelineViews(
-        screenPlotRows,
-        timezone,
-        preprocessorVersion,
-        eventTimestamps,
-      )
-    : [];
-
   const pushPlots = (
     blobs: Map<string, Blob>,
     suffix: (participantId: string) => string,
@@ -281,7 +354,7 @@ async function addRenderedViews(
       });
     }
   };
-  if (options.enablePlotting && options.processAppUsage) {
+  if (renderStaticPlots && options.enablePlotting && options.processAppUsage) {
     pushPlots(
       await generateAllPlots(
         appPlotRows,
@@ -327,7 +400,11 @@ async function addRenderedViews(
       }
     }
   }
-  if (options.enablePlotting && options.processScreenUsage) {
+  if (
+    renderStaticPlots &&
+    options.enablePlotting &&
+    options.processScreenUsage
+  ) {
     pushPlots(
       await generateAllScreenPlots(
         screenPlotRows,
@@ -349,7 +426,46 @@ async function addRenderedViews(
       );
     }
   }
-  if (options.enableInteractiveTimeline) {
+  // Plot generation needs the hydrated rows only while this function runs.
+  // Keeping every per-session view in the React result when the interactive
+  // timeline is disabled retained several GiB across a 100-file batch even
+  // though the UI could not display that timeline. Let those temporary rows be
+  // collected after the plot blobs have been produced.
+  if (!options.enableInteractiveTimeline) return undefined;
+
+  const appFilteredExcluded = options.processAppUsage
+    ? buildAppTimelineViews(
+        appPlotRows,
+        timezone,
+        options,
+        preprocessorVersion,
+        eventTimestamps,
+        false,
+      )
+    : [];
+  const appFilteredIncluded = options.processAppUsage
+    ? buildAppTimelineViews(
+        appPlotRows,
+        timezone,
+        options,
+        preprocessorVersion,
+        eventTimestamps,
+        true,
+      )
+    : [];
+  const app = options.includeFilteredAppUsageInPlots
+    ? appFilteredIncluded
+    : appFilteredExcluded;
+  const screen = options.processScreenUsage
+    ? buildScreenTimelineViews(
+        screenPlotRows,
+        timezone,
+        preprocessorVersion,
+        eventTimestamps,
+      )
+    : [];
+
+  if (renderTimelineOutput) {
     outputs.push({
       kind: "plot",
       outputFileName: deriveOutputFileName(
@@ -379,6 +495,100 @@ async function addRenderedViews(
     app,
     screen,
   };
+}
+
+async function readPersistedVisualization(
+  request: Pick<
+    PersistedTimelineRequest,
+    "workspaceId" | "workspaceRootDigest"
+  >,
+): Promise<VisualizationData> {
+  return decodeVisualizationData(
+    await readPersistedRustArtifact(
+      request.workspaceId,
+      "visualization-data-json",
+      request.workspaceRootDigest,
+    ),
+  );
+}
+
+/**
+ * Render browser-owned static plots only when the user requests them. The
+ * source read is pinned to the exact workspace root that produced the result,
+ * so a newer run in the same workspace cannot silently change the plots.
+ */
+export async function materializePersistedPlots(
+  request: PersistedPlotRequest,
+): Promise<ProcessedOutputFileResult[]> {
+  const visualization = await readPersistedVisualization(request);
+  const outputs: ProcessedOutputFileResult[] = [];
+  await addRenderedViews(
+    outputs,
+    request.inputFileName,
+    { ...request.options, enableInteractiveTimeline: false },
+    request.timezone,
+    request.preprocessorVersion,
+    visualization,
+    true,
+  );
+  return outputs.filter(
+    (output) =>
+      output.kind === "plot" &&
+      !output.outputFileName.endsWith(" Timeline Viewer.html"),
+  );
+}
+
+/** Build only the selected file's timeline scene from its verified OPFS root. */
+export async function materializePersistedTimeline(
+  request: PersistedTimelineRequest,
+): Promise<TimelineViewData> {
+  const outputs: ProcessedOutputFileResult[] = [];
+  const timeline = await addRenderedViews(
+    outputs,
+    request.inputFileName,
+    {
+      ...request.options,
+      enablePlotting: false,
+      enableActivityHeatmap: false,
+      exportPlotsAsSvg: false,
+    },
+    request.timezone,
+    request.preprocessorVersion,
+    await readPersistedVisualization(request),
+    false,
+    false,
+  );
+  if (!timeline) {
+    throw new Error("Persisted timeline request did not enable the timeline");
+  }
+  return timeline;
+}
+
+/** Rebuild the standalone timeline HTML only when the user downloads it. */
+export async function materializePersistedTimelineOutput(
+  request: PersistedTimelineRequest,
+): Promise<ProcessedOutputFileResult> {
+  const outputs: ProcessedOutputFileResult[] = [];
+  await addRenderedViews(
+    outputs,
+    request.inputFileName,
+    {
+      ...request.options,
+      enablePlotting: false,
+      enableActivityHeatmap: false,
+      exportPlotsAsSvg: false,
+    },
+    request.timezone,
+    request.preprocessorVersion,
+    await readPersistedVisualization(request),
+    false,
+    true,
+  );
+  const output = outputs.find((candidate) =>
+    candidate.outputFileName.endsWith(" Timeline Viewer.html"),
+  );
+  if (!output) throw new Error("Persisted timeline viewer was not generated");
+  return output;
 }
 
 export async function processRawCsvWithRustAuthority(
@@ -618,22 +828,67 @@ export async function processRawCsvWithRustAuthority(
     rowCount: 0,
     previewRows: [],
   });
-  const visualization = parseJsonArtifact<VisualizationData>(
-    execution,
-    "visualization-data-json",
-  );
-  const timelineView = await addRenderedViews(
-    outputs,
-    inputFileName,
-    options,
-    manifest.processingSummary.timezone,
-    manifest.preprocessorVersion,
-    visualization,
-  );
-  const reviewSummary = parseJsonArtifact<ReviewSummary>(
-    execution,
-    "review-summary-json",
-  );
+  const renderStaticPlotsNow =
+    options.enablePlotting && !execution.persistedWorkspace;
+  const renderBrowserViewsNow =
+    !execution.persistedWorkspace &&
+    (options.enablePlotting || options.enableInteractiveTimeline);
+  const timelineView = renderBrowserViewsNow
+    ? await addRenderedViews(
+        outputs,
+        inputFileName,
+        options,
+        manifest.processingSummary.timezone,
+        manifest.preprocessorVersion,
+        decodeVisualizationData(
+          requiredArtifact(execution, "visualization-data-json"),
+        ),
+        renderStaticPlotsNow,
+      )
+    : undefined;
+  const persistedPlotRequest: PersistedPlotRequest | undefined =
+    execution.persistedWorkspace && options.enablePlotting
+      ? {
+          workspaceId: execution.workspaceId,
+          workspaceRootDigest: manifest.workspaceRootDigest,
+          inputFileName,
+          timezone: manifest.processingSummary.timezone,
+          preprocessorVersion: manifest.preprocessorVersion,
+          options: {
+            processAppUsage: options.processAppUsage,
+            processScreenUsage: options.processScreenUsage,
+            enablePlotting: options.enablePlotting,
+            includeFilteredAppUsageInPlots:
+              options.includeFilteredAppUsageInPlots,
+            enableActivityHeatmap: options.enableActivityHeatmap,
+            exportPlotsAsSvg: options.exportPlotsAsSvg,
+          },
+        }
+      : undefined;
+  const persistedTimelineRequest: PersistedTimelineRequest | undefined =
+    execution.persistedWorkspace && options.enableInteractiveTimeline
+      ? {
+          workspaceId: execution.workspaceId,
+          workspaceRootDigest: manifest.workspaceRootDigest,
+          inputFileName,
+          timezone: manifest.processingSummary.timezone,
+          preprocessorVersion: manifest.preprocessorVersion,
+          options: {
+            processAppUsage: options.processAppUsage,
+            processScreenUsage: options.processScreenUsage,
+            includeFilteredAppUsageInPlots:
+              options.includeFilteredAppUsageInPlots,
+            enableInteractiveTimeline: options.enableInteractiveTimeline,
+          },
+        }
+      : undefined;
+  // Durable runs keep the complete review JSON in verified OPFS. The View tab
+  // loads only the selected file and pins that read to this exact root. An
+  // ephemeral run still needs the bytes embedded because it has no durable
+  // source to read later.
+  const reviewSummary = execution.persistedWorkspace
+    ? undefined
+    : parseJsonArtifact<ReviewSummary>(execution, "review-summary-json");
   const executionLedger = parseJsonArtifact<RustExecutionLedger>(
     execution,
     "execution-ledger-json",
@@ -642,23 +897,6 @@ export async function processRawCsvWithRustAuthority(
     execution,
     "stage-view-json",
   );
-  for (const stepKind of [
-    "parse",
-    "timezone",
-    "filter",
-    "screen",
-    "matcher",
-    "codebook",
-    "enrich",
-    "output",
-  ] as const) {
-    onProgress?.({
-      type: "step",
-      fileName: inputFileName,
-      stepKind,
-      percent: 1,
-    });
-  }
   return {
     inputFileName,
     inputSha256: manifest.input.digest.replace(/^sha256:/, ""),
@@ -680,6 +918,8 @@ export async function processRawCsvWithRustAuthority(
     exactDuplicateRowsRemoved:
       manifest.processingSummary.exactDuplicateRowsRemoved,
     timelineView,
+    persistedPlotRequest,
+    persistedTimelineRequest,
     reviewSummary,
     executionLedger,
     rustStageView,
@@ -714,6 +954,8 @@ export async function processRawCsvReviewWithRustAuthority(
   supportFiles: BrowserSupportFiles | undefined,
   runtime: BrowserProcessingRuntime,
   verifiedInputSha256?: string,
+  verifiedSupportCacheKey?: string,
+  knownReviewSummaryDigests?: string[],
 ): Promise<ProcessedFileResult> {
   const execution: RustReviewExecution = await queryRustReview(
     csvBytes,
@@ -722,7 +964,40 @@ export async function processRawCsvReviewWithRustAuthority(
     supportFiles,
     { ...runtime, persistRustWorkspace: runtime.persistRustWorkspace ?? true },
     verifiedInputSha256,
+    verifiedSupportCacheKey,
+    knownReviewSummaryDigests,
   );
+  return reviewExecutionResult(inputFileName, execution);
+}
+
+/** Try the verified OPFS bases without reading or transferring the raw file. */
+export async function processPersistedReviewWithRustAuthority(
+  inputFileName: string,
+  inputSizeBytes: number,
+  options: BrowserProcessingOptions,
+  supportFiles: BrowserSupportFiles | undefined,
+  runtime: BrowserProcessingRuntime,
+  verifiedInputSha256: string,
+  verifiedSupportCacheKey?: string,
+  knownReviewSummaryDigests?: string[],
+): Promise<ProcessedFileResult | null> {
+  const execution = await queryPersistedRustReview(
+    inputSizeBytes,
+    inputFileName,
+    options,
+    supportFiles,
+    runtime,
+    verifiedInputSha256,
+    verifiedSupportCacheKey,
+    knownReviewSummaryDigests,
+  );
+  return execution ? reviewExecutionResult(inputFileName, execution) : null;
+}
+
+function reviewExecutionResult(
+  inputFileName: string,
+  execution: RustReviewExecution,
+): ProcessedFileResult {
   return {
     inputFileName,
     inputSha256: execution.inputDigest.replace(/^sha256:/, ""),
@@ -739,7 +1014,8 @@ export async function processRawCsvReviewWithRustAuthority(
     rowsRemovedByTimezone: execution.rowsRemovedByTimezone,
     duplicateTimestampsCorrected: execution.duplicateTimestampsCorrected,
     exactDuplicateRowsRemoved: execution.exactDuplicateRowsRemoved,
-    reviewSummary: execution.reviewSummary,
+    reviewSummaryJsonBytes: execution.reviewSummaryJsonBytes,
+    ...(execution.reviewSummaryReused ? { reviewSummaryReused: true } : {}),
     reviewOnly: true,
     rustReviewReceipt: {
       protocolVersion: "chronicle-preprocessing-runtime/v1",
@@ -757,6 +1033,9 @@ export async function processRawCsvReviewWithRustAuthority(
       reviewSummaryDigest: execution.reviewSummaryDigest,
       comparisonDigest: execution.comparisonDigest,
       cacheSources: execution.cacheSources,
+      suppliedReviewBaseBytes: execution.suppliedReviewBaseBytes,
+      suppliedReconstructionBaseBytes:
+        execution.suppliedReconstructionBaseBytes,
       recomputedStepIds: execution.recomputedStepIds,
       cachedStepIds: execution.cachedStepIds,
       bypassedStepIds: execution.bypassedStepIds,

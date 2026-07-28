@@ -115,7 +115,7 @@ function manifest(artifacts: RuntimeManifest["artifacts"]): RuntimeManifest {
     stepIds.map(({ stepId }) => [
       stepId,
       {
-        protocolVersion: "chronicle-logical-stage-checkpoint/v6" as const,
+        protocolVersion: "chronicle-logical-stage-checkpoint/v7" as const,
         nodeId: stepId,
         rowMembershipDigest: `xxh3:${"1".repeat(32)}`,
         rowOrderDigest: `xxh3:${"2".repeat(32)}`,
@@ -214,7 +214,7 @@ function manifest(artifacts: RuntimeManifest["artifacts"]): RuntimeManifest {
       logicalStageDigests: { parse_events: stageDigest },
       logicalStageCheckpoints: {
         parse_events: {
-          protocolVersion: "chronicle-logical-stage-checkpoint/v6",
+          protocolVersion: "chronicle-logical-stage-checkpoint/v7",
           nodeId: "parse_events",
           rowMembershipDigest: `xxh3:${"1".repeat(32)}`,
           rowOrderDigest: `xxh3:${"2".repeat(32)}`,
@@ -369,6 +369,7 @@ function fullExecution(): RustRuntimeExecution {
 
 function reviewExecution(): RustReviewExecution {
   return {
+    reviewSummaryReused: false,
     workspaceId: `sha256:${"3".repeat(64)}`,
     previousWorkspaceRootDigest: `sha256:${"2".repeat(64)}`,
     manifestJson: "{}",
@@ -447,6 +448,7 @@ describe("fast Rust review authority", () => {
       undefined,
       expect.objectContaining({ persistRustWorkspace: true }),
       "1".repeat(64),
+      undefined,
       undefined,
     );
     expect(result).toMatchObject({
