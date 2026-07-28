@@ -236,6 +236,21 @@ pub(super) fn stable_sort(mut rows: Vec<Row>) -> Vec<Row> {
     rows
 }
 
+fn rows_are_event_ordered(rows: &[Row]) -> bool {
+    rows.windows(2).all(|pair| {
+        pair[0]
+            .event_timestamp_ns
+            .cmp(&pair[1].event_timestamp_ns)
+            .then(pair[0].index.cmp(&pair[1].index))
+            .is_le()
+    })
+}
+
+fn rows_have_strictly_increasing_timestamps(rows: &[Row]) -> bool {
+    rows.windows(2)
+        .all(|pair| pair[0].event_timestamp_ns < pair[1].event_timestamp_ns)
+}
+
 pub(super) fn collect_timezones(rows: &[Row]) -> BTreeSet<String> {
     rows.iter().map(|row| row.timezone.to_string()).collect()
 }
@@ -259,13 +274,13 @@ pub(super) fn compute_dominant_timezone(rows: &[Row]) -> String {
 }
 
 pub(super) struct TimezoneSelection {
-    pub rows: Vec<Row>,
+    pub rows: Arc<Vec<Row>>,
     pub target_timezone: String,
     pub action: &'static str,
 }
 
 pub(super) fn select_timezone_strategy(
-    mut rows: Vec<Row>,
+    mut rows: Arc<Vec<Row>>,
     selected_timezone: &str,
     handling: &str,
     primary_timezone: &str,
@@ -275,7 +290,11 @@ pub(super) fn select_timezone_strategy(
             if selected_timezone.trim().is_empty() {
                 return Err("selected timezone is required for selected-filter".into());
             }
-            rows.retain(|row| row.timezone == selected_timezone);
+            if rows.iter().any(|row| row.timezone != selected_timezone) {
+                let mut filtered = (*rows).clone();
+                filtered.retain(|row| row.timezone == selected_timezone);
+                rows = Arc::new(filtered);
+            }
             if rows.is_empty() {
                 return Err(format!(
                     "selected timezone {selected_timezone} is not present in the input; filtering would remove all rows"
@@ -290,7 +309,11 @@ pub(super) fn select_timezone_strategy(
             (selected_timezone.to_string(), "converted_to_selected")
         }
         "primary-filter" => {
-            rows.retain(|row| row.timezone == primary_timezone);
+            if rows.iter().any(|row| row.timezone != primary_timezone) {
+                let mut filtered = (*rows).clone();
+                filtered.retain(|row| row.timezone == primary_timezone);
+                rows = Arc::new(filtered);
+            }
             (primary_timezone.to_string(), "filtered_to_primary")
         }
         "primary-convert" => (primary_timezone.to_string(), "converted_to_primary"),
@@ -310,9 +333,13 @@ pub(super) fn restamp_rows(mut rows: Vec<Row>, target_timezone: &str) -> Result<
     let mut strings = SharedStringPool::default();
     let target_timezone = strings.intern(target_timezone);
     for row in &mut rows {
-        row.timezone = target_timezone.clone();
+        if row.timezone == target_timezone {
+            continue;
+        }
+        row.edit_temporal().timezone = target_timezone.clone();
         populate_time_columns(row, timezone);
-        row.date = strings.intern(row.date.as_str());
+        let date = strings.intern(row.date.as_str());
+        row.edit_temporal().date = date;
     }
     Ok(rows)
 }
@@ -357,9 +384,13 @@ pub(super) fn mark_gaps(rows: Vec<Row>) -> Vec<Row> {
     mark_data_time_gaps(rows)
 }
 
-pub(super) fn tag_filtered_packages(rows: Vec<Row>, enabled: bool, filter_csv: &[u8]) -> Vec<Row> {
+pub(super) fn tag_filtered_packages(
+    rows: Vec<Row>,
+    enabled: bool,
+    filter_map: &HashMap<String, AHashSet<String>>,
+) -> Vec<Row> {
     if enabled {
-        label_filtered_apps(rows, &parse_filter_csv(filter_csv))
+        label_filtered_apps(rows, filter_map)
     } else {
         rows
     }
@@ -384,15 +415,16 @@ pub(super) fn compute_junk_packages(rows: &[Row]) -> BTreeSet<String> {
 
 pub(super) fn junk_blind_fold(mut rows: Vec<Row>) -> Vec<Row> {
     for row in &mut rows {
-        let interaction_type = match row.interaction_type.as_str() {
-            FILTERED_RESUMED => ACTIVITY_RESUMED,
-            FILTERED_PAUSED => ACTIVITY_PAUSED,
-            FILTERED_STOPPED => ACTIVITY_STOPPED,
-            "Filtered App Destroyed" => "Activity Destroyed",
-            other => other,
+        let replacement = match row.interaction_type.as_str() {
+            FILTERED_RESUMED => Some(ACTIVITY_RESUMED),
+            FILTERED_PAUSED => Some(ACTIVITY_PAUSED),
+            FILTERED_STOPPED => Some(ACTIVITY_STOPPED),
+            "Filtered App Destroyed" => Some("Activity Destroyed"),
+            _ => None,
+        };
+        if let Some(replacement) = replacement {
+            row.edit_classification().interaction_type = replacement.into();
         }
-        .into();
-        row.edit_classification().interaction_type = interaction_type;
     }
     rows
 }
@@ -434,9 +466,16 @@ pub(super) fn build_matcher_input(
     let mut other_stop = Vec::with_capacity(rows.len());
     let mut stopped = Vec::with_capacity(rows.len());
     let mut background = Vec::with_capacity(rows.len());
+    let mut app_codes = Vec::with_capacity(rows.len());
+    let mut timestamps = Vec::with_capacity(rows.len());
+    let mut app_code_lookup: AHashMap<&str, i32> = AHashMap::new();
     for row in rows {
         let interaction = row.interaction_type.as_str();
-        let is_background = background_apps.contains(row.app_package_name.as_str());
+        let package = row.app_package_name.as_str();
+        let next_code = app_code_lookup.len() as i32;
+        app_codes.push(*app_code_lookup.entry(package).or_insert(next_code));
+        timestamps.push(row.event_timestamp_ns);
+        let is_background = background_apps.contains(package);
         resumed.push(interaction == ACTIVITY_RESUMED);
         same_stop.push(if is_background {
             interaction == ACTIVITY_RESUMED || interaction == ACTIVITY_STOPPED
@@ -448,8 +487,8 @@ pub(super) fn build_matcher_input(
         background.push(is_background);
     }
     Ok(MatcherInput {
-        app_codes: factorize(rows.iter().map(|row| row.app_package_name.as_str())),
-        timestamps: rows.iter().map(|row| row.event_timestamp_ns).collect(),
+        app_codes,
+        timestamps,
         resumed,
         same_stop,
         other_stop,
@@ -502,19 +541,46 @@ pub(super) fn run_matcher(
 }
 
 pub(super) fn apply_matcher_output(
-    mut rows: Vec<Row>,
+    rows: Vec<Row>,
     result: &MatcherOutput,
     filtered_packages: &BTreeSet<String>,
 ) -> Vec<Row> {
-    let empty_suffix = empty_inline_lineage_search_suffix_digest(rows.len() as u32);
-    let mut search_suffix_digests = vec![empty_suffix; rows.len() + 1];
-    for index in (0..rows.len()).rev() {
-        search_suffix_digests[index] = inline_lineage_search_suffix_digest(
-            &rows[index],
-            index,
-            Some(&search_suffix_digests[index + 1]),
+    apply_matcher_output_with_suffix(rows, result, filtered_packages, None)
+}
+
+fn apply_matcher_output_with_suffix(
+    mut rows: Vec<Row>,
+    result: &MatcherOutput,
+    filtered_packages: &BTreeSet<String>,
+    persisted_suffix_digests: Option<&[InlineLineageDigest]>,
+) -> Vec<Row> {
+    apply_matcher_output_in_place(
+        &mut rows,
+        result,
+        filtered_packages,
+        persisted_suffix_digests,
+    );
+    rows
+}
+
+fn apply_matcher_output_in_place(
+    rows: &mut [Row],
+    result: &MatcherOutput,
+    filtered_packages: &BTreeSet<String>,
+    persisted_suffix_digests: Option<&[InlineLineageDigest]>,
+) {
+    let computed_suffix_digests;
+    let search_suffix_digests = if let Some(persisted) = persisted_suffix_digests {
+        assert_eq!(
+            persisted.len(),
+            rows.len() + 1,
+            "persisted lineage suffix count drift"
         );
-    }
+        persisted
+    } else {
+        computed_suffix_digests = inline_lineage_search_suffix_digests(&rows);
+        &computed_suffix_digests
+    };
     for &start_index in &result.start_indices {
         let event_timestamp_ns = rows[start_index].event_timestamp_ns;
         rows[start_index].edit_temporal().start_timestamp_ns = Some(event_timestamp_ns);
@@ -524,55 +590,45 @@ pub(super) fn apply_matcher_output(
         let lower = start_index.min(stop_index);
         let upper = start_index.max(stop_index);
         let stop_source_rows = rows[stop_index].source_data_rows.clone();
-        rows[start_index]
-            .edit_identity()
-            .source_data_rows
-            .merge(&stop_source_rows);
         let search_start_event_index = (lower + 1) as u32;
         let search_end_event_index_exclusive = (upper + 1) as u32;
-        let start_participant_id = rows[start_index].participant_id.to_string();
-        Arc::make_mut(&mut rows[start_index].edit_identity().lineage_searches).push(
-            LineageSearchEvidence {
-                protocol_version: "chronicle-lineage-search/v1".to_string(),
-                reason: "selected-qualifying-stop".to_string(),
-                index_space: "pipeline-event-order".to_string(),
-                start_participant_id,
-                start_event_index: search_start_event_index,
-                end_event_index_exclusive: search_end_event_index_exclusive,
-                candidate_event_count: search_end_event_index_exclusive
-                    .saturating_sub(search_start_event_index),
-                candidate_chain_digest: inline_lineage_search_range_digest(
-                    &search_suffix_digests,
-                    search_start_event_index,
-                    search_end_event_index_exclusive,
-                ),
-            },
-        );
-        let stop_timestamp_ns = rows[stop_index].event_timestamp_ns;
-        rows[start_index].edit_temporal().stop_timestamp_ns = Some(stop_timestamp_ns);
-    }
-    let mut missing_indices = vec![false; rows.len()];
-    for &index in &result.missing_indices {
-        missing_indices[index] = true;
-    }
-    let search_end_event_index_exclusive = rows.len() as u32;
-    for (index, row) in rows.iter_mut().enumerate() {
-        if !missing_indices[index] {
-            continue;
-        }
-        let search_start_event_index = (index + 1) as u32;
-        let start_participant_id = row.participant_id.to_string();
-        Arc::make_mut(&mut row.edit_identity().lineage_searches).push(LineageSearchEvidence {
-            protocol_version: "chronicle-lineage-search/v1".to_string(),
-            reason: "no-qualifying-stop".to_string(),
-            index_space: "pipeline-event-order".to_string(),
+        let start_participant_id = rows[start_index].participant_id.shared();
+        let identity = rows[start_index].edit_identity();
+        identity.source_data_rows.merge(&stop_source_rows);
+        Arc::make_mut(&mut identity.lineage_searches).push(LineageSearchEvidence {
+            protocol_version: shared_lineage_text("chronicle-lineage-search/v1"),
+            reason: shared_lineage_text("selected-qualifying-stop"),
+            index_space: shared_lineage_text("pipeline-event-order"),
             start_participant_id,
             start_event_index: search_start_event_index,
             end_event_index_exclusive: search_end_event_index_exclusive,
             candidate_event_count: search_end_event_index_exclusive
                 .saturating_sub(search_start_event_index),
             candidate_chain_digest: inline_lineage_search_range_digest(
-                &search_suffix_digests,
+                search_suffix_digests,
+                search_start_event_index,
+                search_end_event_index_exclusive,
+            ),
+        });
+        let stop_timestamp_ns = rows[stop_index].event_timestamp_ns;
+        rows[start_index].edit_temporal().stop_timestamp_ns = Some(stop_timestamp_ns);
+    }
+    let search_end_event_index_exclusive = rows.len() as u32;
+    for &index in &result.missing_indices {
+        let row = &mut rows[index];
+        let search_start_event_index = (index + 1) as u32;
+        let start_participant_id = row.participant_id.shared();
+        Arc::make_mut(&mut row.edit_identity().lineage_searches).push(LineageSearchEvidence {
+            protocol_version: shared_lineage_text("chronicle-lineage-search/v1"),
+            reason: shared_lineage_text("no-qualifying-stop"),
+            index_space: shared_lineage_text("pipeline-event-order"),
+            start_participant_id,
+            start_event_index: search_start_event_index,
+            end_event_index_exclusive: search_end_event_index_exclusive,
+            candidate_event_count: search_end_event_index_exclusive
+                .saturating_sub(search_start_event_index),
+            candidate_chain_digest: inline_lineage_search_range_digest(
+                search_suffix_digests,
                 search_start_event_index,
                 search_end_event_index_exclusive,
             ),
@@ -586,7 +642,6 @@ pub(super) fn apply_matcher_output(
             row.edit_temporal().start_timestamp_ns = None;
         }
     }
-    rows
 }
 
 pub(super) fn relabel_usage_with_floor(
@@ -741,17 +796,6 @@ pub(super) fn split_concurrent(
         expanded.push(row);
     }
     Ok(sort_episodes(expanded))
-}
-
-pub(super) fn codebook_join(rows: Vec<Row>, enabled: bool, codebook_csv: &[u8]) -> Vec<Row> {
-    let codebook = if enabled {
-        parse_codebook_csv(codebook_csv)
-    } else {
-        HashMap::new()
-    };
-    let mut rows = rows;
-    join_codebook(&mut rows, enabled, &codebook);
-    rows
 }
 
 pub(super) fn derive_broad_category_step(mut rows: Vec<Row>, enabled: bool) -> Vec<Row> {
@@ -1156,39 +1200,35 @@ pub(super) fn assemble_credit_result(
 
 pub(super) fn resolve_windows(
     rows: &[Row],
-    study_dates_csv: &[u8],
-) -> Result<Vec<ResolvedParticipantWindow>, String> {
-    let windows = if study_dates_csv.is_empty() {
-        Vec::new()
-    } else {
-        parse_study_windows(study_dates_csv)?
-    };
-    Ok(resolve_participant_windows(rows, &windows))
+    windows: &[StudyWindow],
+) -> Vec<ResolvedParticipantWindow> {
+    resolve_participant_windows(rows, windows)
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(super) struct WindowedRows {
-    pub rows: Vec<Row>,
+    pub rows: Arc<Vec<Row>>,
     pub dropped_rows: usize,
     pub participants_without_window: Vec<String>,
     pub applied: bool,
 }
 
 pub(super) fn filter_to_window(
-    rows: Vec<Row>,
+    rows: Arc<Vec<Row>>,
     resolved: &[ResolvedParticipantWindow],
     enabled: bool,
-    study_dates_csv: &[u8],
+    windows: &[StudyWindow],
 ) -> Result<WindowedRows, String> {
     if enabled {
-        if study_dates_csv.is_empty() {
+        if windows.is_empty() {
             return Err(
                 "Study dates file is required when study-window filtering is enabled".into(),
             );
         }
-        let (rows, dropped_rows, participants_without_window) = apply_study_window(rows, resolved);
+        let (rows, dropped_rows, participants_without_window) =
+            apply_study_window((*rows).clone(), resolved);
         Ok(WindowedRows {
-            rows,
+            rows: Arc::new(rows),
             dropped_rows,
             participants_without_window,
             applied: true,
@@ -1222,15 +1262,14 @@ pub(super) enum SharingResolutionValue {
 pub(super) fn resolve_sharing(
     rows: &[Row],
     enabled: bool,
-    device_sharing_csv: &[u8],
+    sharing: &[SharingEntry],
 ) -> Result<SharingResolutionValue, String> {
     if !enabled {
         return Ok(SharingResolutionValue::Disabled);
     }
-    if device_sharing_csv.is_empty() {
+    if sharing.is_empty() {
         return Err("Device sharing file is required when person attribution is enabled".into());
     }
-    let sharing = parse_device_sharing(device_sharing_csv)?;
     let mut statuses = BTreeMap::new();
     for participant_id in rows.iter().map(|row| &row.participant_id) {
         if statuses.contains_key(participant_id.as_str()) {
@@ -1258,28 +1297,17 @@ pub(super) fn resolve_sharing(
     }))
 }
 
-pub(super) fn survey_lookup(
-    enabled: bool,
-    survey_attribution_csv: &[u8],
-) -> Result<SurveyLookup, String> {
-    if enabled {
-        parse_survey_lookup(survey_attribution_csv)
-    } else {
-        Ok(BTreeMap::new())
-    }
-}
-
 pub(super) type SurveyLookup = BTreeMap<(String, i64), String>;
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(super) struct AttributedRows {
-    pub rows: Vec<Row>,
+    pub rows: Arc<Vec<Row>>,
     pub report: Option<AttributionReport>,
     pub shared_participants: BTreeSet<String>,
 }
 
 pub(super) fn attribute_rows(
-    rows: Vec<Row>,
+    rows: Arc<Vec<Row>>,
     resolution: &SharingResolutionValue,
     survey: &SurveyLookup,
 ) -> Result<AttributedRows, String> {
@@ -1295,9 +1323,9 @@ pub(super) fn attribute_rows(
                 .iter()
                 .cloned()
                 .collect::<BTreeSet<_>>();
-            let (rows, report) = attribute_person(rows, resolution, survey)?;
+            let (rows, report) = attribute_person((*rows).clone(), resolution, survey)?;
             Ok(AttributedRows {
-                rows,
+                rows: Arc::new(rows),
                 report: Some(report),
                 shared_participants,
             })
@@ -1305,9 +1333,13 @@ pub(super) fn attribute_rows(
     }
 }
 
-pub(super) fn inject_placeholders(rows: Vec<Row>, raw_rows: &[Row], enabled: bool) -> Vec<Row> {
+pub(super) fn inject_placeholders(
+    rows: Arc<Vec<Row>>,
+    raw_rows: &[Row],
+    enabled: bool,
+) -> Arc<Vec<Row>> {
     if enabled {
-        add_no_activity_placeholder_rows(rows, raw_rows)
+        Arc::new(add_no_activity_placeholder_rows((*rows).clone(), raw_rows))
     } else {
         rows
     }
@@ -1322,13 +1354,8 @@ pub(super) struct CoverageOutput {
 pub(super) fn build_coverage(
     usage_rows: &[Row],
     raw_dates: &BTreeMap<String, BTreeSet<String>>,
-    study_dates_csv: &[u8],
+    windows: &[StudyWindow],
 ) -> Result<CoverageOutput, String> {
-    let windows = if study_dates_csv.is_empty() {
-        Vec::new()
-    } else {
-        parse_study_windows(study_dates_csv)?
-    };
     let mut usage_dates: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for row in usage_rows {
         if row.interaction_type == APP_USAGE
@@ -1357,7 +1384,7 @@ pub(super) fn build_coverage(
         let window = if windows.is_empty() {
             None
         } else {
-            window_for(&participant_id, &windows)
+            window_for(&participant_id, windows)
         };
         let spine = if let Some(window) = window {
             inclusive_dates(&window.start_date, &window.end_date)?
@@ -1489,9 +1516,8 @@ pub(super) fn score_attribution_days(
 
 pub(super) fn compliance_csv(
     result: &ComplianceResultCheckpoint,
-    enrolled_devices_csv: &[u8],
-) -> Result<Vec<u8>, String> {
-    let enrolled_devices = parse_enrolled_devices(enrolled_devices_csv)?;
+    enrolled_devices: &BTreeMap<String, u32>,
+) -> Vec<u8> {
     let mut lines = vec![
         "participant_id,date,sharing_status,known_minutes,unknown_minutes,compliance_percent,zero_real_usage,is_valid,expected_device_count".to_string(),
     ];
@@ -1513,7 +1539,7 @@ pub(super) fn compliance_csv(
             date = day.date,
         ));
     }
-    Ok(lines.join("\n").into_bytes())
+    lines.join("\n").into_bytes()
 }
 
 pub(super) fn collect_keyguard_timestamps(rows: &[Row]) -> Vec<i64> {
@@ -1763,6 +1789,7 @@ mod tracked {
         fn finish(self) {}
     }
     use salsa::Setter;
+    use std::cell::RefCell;
     use std::fmt;
     use std::sync::{Arc, Mutex};
 
@@ -1784,16 +1811,16 @@ mod tracked {
 
     impl<T> Eq for StepValue<T> {}
 
-    const REVIEW_BASE_PROTOCOL: &str = "chronicle-review-base/v3";
-    const REVIEW_BASE_MAGIC: &[u8; 8] = b"CHRRB003";
+    const REVIEW_BASE_PROTOCOL: &str = "chronicle-review-base/v9";
+    const REVIEW_BASE_MAGIC: &[u8; 8] = b"CHRRB009";
     const REVIEW_BASE_HEADER_BYTES: usize = REVIEW_BASE_MAGIC.len() + 4 + 32 + 32 + 32;
     // The 100k-row production fixture currently needs about 25 MiB decoded.
     // Four-to-six times that measured size supports much larger individual
     // files without permitting two cache blobs to reserve over a GiB.
     const MAX_REVIEW_BASE_UNCOMPRESSED_BYTES: usize = 128 * 1024 * 1024;
     const MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES: usize = 192 * 1024 * 1024;
-    const RECONSTRUCTION_BASE_PROTOCOL: &str = "chronicle-reconstruction-base/v2";
-    const RECONSTRUCTION_BASE_MAGIC: &[u8; 8] = b"CHRRX002";
+    const RECONSTRUCTION_BASE_PROTOCOL: &str = "chronicle-reconstruction-base/v8";
+    const RECONSTRUCTION_BASE_MAGIC: &[u8; 8] = b"CHRRX008";
     const RECONSTRUCTION_BASE_HEADER_BYTES: usize = RECONSTRUCTION_BASE_MAGIC.len() + 4 + 32 + 32;
 
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -1818,6 +1845,11 @@ mod tracked {
         protocol_version: String,
         input_key: String,
         rows: Arc<Vec<Row>>,
+        /// Present only when app-usage processing was active while the base
+        /// was exported. A disabled app pipeline must not speculatively run
+        /// `junk_blind_fold` merely to prepare a cache for a possible future
+        /// configuration.
+        matcher_search_suffix_digests: Option<Arc<Vec<InlineLineageDigest>>>,
         metadata: ReviewBaseMetadata,
         screen: Option<ScreenBase>,
     }
@@ -1841,6 +1873,13 @@ mod tracked {
         app_policy_checkpoint: [u8; 32],
     }
 
+    struct VerifiedReviewBaseHeader {
+        input_key: [u8; 32],
+        app_policy_checkpoint: [u8; 32],
+        payload_digest: [u8; 32],
+        declared_bytes: usize,
+    }
+
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
     struct ReconstructionBase {
         protocol_version: String,
@@ -1853,6 +1892,76 @@ mod tracked {
         apply_matcher_output: LogicalStageCheckpoint,
         split_concurrent: LogicalStageCheckpoint,
         reconstruct_episodes: LogicalStageCheckpoint,
+        annotation_checkpoint: ReviewAnnotationCheckpointBase,
+        early_metadata: ReviewBaseMetadata,
+        screen: Option<ScreenBase>,
+    }
+
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct ReviewAnnotationCheckpointBase {
+        input_key: String,
+        rows: Arc<Vec<Row>>,
+        codebook_join: LogicalStageCheckpoint,
+        derive_broad_category: LogicalStageCheckpoint,
+        collapse_genre: LogicalStageCheckpoint,
+        categorize_apps: LogicalStageCheckpoint,
+        engagement_walk: LogicalStageCheckpoint,
+        flag_and_retain: LogicalStageCheckpoint,
+        episode_annotations: LogicalStageCheckpoint,
+        blank_junk_timing: LogicalStageCheckpoint,
+        drop_selected_types: LogicalStageCheckpoint,
+        drop_zero_duration: LogicalStageCheckpoint,
+        interval_cleaning: LogicalStageCheckpoint,
+    }
+
+    /// Disk representation of the two closely related reconstruction row
+    /// tables. Annotation never adds or reorders rows and never changes row
+    /// identity; it can only retain a row unchanged, replace its non-identity
+    /// fields, or remove it. Keeping the corresponding state beside the source
+    /// row lets LZ4 see shared bytes inside its 64 KiB window and avoids
+    /// deserializing a second Row when the exact Arc can be reused.
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct PersistedReconstructionRow {
+        reconstruction: Row,
+        annotation: PersistedAnnotationRow,
+    }
+
+    #[derive(serde::Serialize, serde::Deserialize)]
+    enum PersistedAnnotationRow {
+        Reuse,
+        Replace(Row),
+        Drop,
+    }
+
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct PersistedReviewAnnotationCheckpointBase {
+        input_key: String,
+        codebook_join: LogicalStageCheckpoint,
+        derive_broad_category: LogicalStageCheckpoint,
+        collapse_genre: LogicalStageCheckpoint,
+        categorize_apps: LogicalStageCheckpoint,
+        engagement_walk: LogicalStageCheckpoint,
+        flag_and_retain: LogicalStageCheckpoint,
+        episode_annotations: LogicalStageCheckpoint,
+        blank_junk_timing: LogicalStageCheckpoint,
+        drop_selected_types: LogicalStageCheckpoint,
+        drop_zero_duration: LogicalStageCheckpoint,
+        interval_cleaning: LogicalStageCheckpoint,
+    }
+
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct PersistedReconstructionBase {
+        protocol_version: String,
+        input_key: String,
+        row_states: Vec<PersistedReconstructionRow>,
+        compute_junk_packages: LogicalStageCheckpoint,
+        junk_blind_fold: LogicalStageCheckpoint,
+        build_matcher_input: LogicalStageCheckpoint,
+        run_matcher: LogicalStageCheckpoint,
+        apply_matcher_output: LogicalStageCheckpoint,
+        split_concurrent: LogicalStageCheckpoint,
+        reconstruct_episodes: LogicalStageCheckpoint,
+        annotation_checkpoint: PersistedReviewAnnotationCheckpointBase,
         early_metadata: ReviewBaseMetadata,
         screen: Option<ScreenBase>,
     }
@@ -1871,6 +1980,46 @@ mod tracked {
     struct DecodedReconstructionBase {
         encoded_digest: [u8; 32],
         value: Arc<ReconstructionBase>,
+    }
+
+    struct CachedDecodedReconstructionBase {
+        payload_digest: [u8; 32],
+        value: Arc<ReconstructionBase>,
+    }
+
+    struct CachedDecodedReviewBase {
+        payload_digest: [u8; 32],
+        value: Arc<ReviewBase>,
+    }
+
+    // A worker processing renamed copies of the same source file sees the
+    // same immutable review checkpoint repeatedly. Keep one decoded copy and
+    // verify the compressed payload digest on every access before reusing it.
+    thread_local! {
+        static REVIEW_BASE_DECODE_CACHE: RefCell<Option<CachedDecodedReviewBase>> =
+            const { RefCell::new(None) };
+    }
+
+    #[cfg(test)]
+    thread_local! {
+        static REVIEW_BASE_DECODE_COUNT: std::cell::Cell<usize> =
+            const { std::cell::Cell::new(0) };
+    }
+
+    // A batch worker processes different workspaces serially and retains only
+    // one Salsa engine. Duplicated content therefore used to deserialize the
+    // same 28 MiB reconstruction checkpoint for every file. Retain exactly
+    // one immutable decoded checkpoint per worker; every hit still hashes and
+    // verifies the selected compressed payload before reuse.
+    thread_local! {
+        static RECONSTRUCTION_BASE_DECODE_CACHE: RefCell<Option<CachedDecodedReconstructionBase>> =
+            const { RefCell::new(None) };
+    }
+
+    #[cfg(test)]
+    thread_local! {
+        static RECONSTRUCTION_BASE_DECODE_COUNT: std::cell::Cell<usize> =
+            const { std::cell::Cell::new(0) };
     }
 
     impl PartialEq for DecodedReconstructionBase {
@@ -1937,6 +2086,18 @@ mod tracked {
     }
 
     #[derive(serde::Serialize)]
+    struct ReviewAnnotationCheckpointInputKey {
+        protocol_version: &'static str,
+        use_app_codebook: bool,
+        codebook_digest: String,
+        custom_app_engagement_duration_bits: u64,
+        long_data_time_gap_threshold_bits: Vec<u64>,
+        long_usage_duration_threshold_bits: Vec<u64>,
+        interaction_types_to_remove: Vec<String>,
+        filter_zero_duration_sessions: bool,
+    }
+
+    #[derive(serde::Serialize)]
     struct ScreenBaseInputKey<'a> {
         protocol_version: &'static str,
         app_policy_checkpoint: &'a str,
@@ -1952,6 +2113,10 @@ mod tracked {
         format!("blake3:{}", blake3::hash(bytes).to_hex())
     }
 
+    fn sha256_bytes(bytes: &[u8]) -> String {
+        format!("sha256:{}", hex::encode(Sha256::digest(bytes)))
+    }
+
     fn review_base_input_key(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -1964,7 +2129,7 @@ mod tracked {
         let other_stop_types = early.other_stop_types(db);
         let material = ReviewBaseInputKey {
             protocol_version: REVIEW_BASE_PROTOCOL,
-            raw_digest: digest_bytes(&raw.bytes(db)),
+            raw_digest: raw.input_sha256(db),
             interaction_type_remap: interaction_type_remap.as_slice(),
             same_app_stop_types: same_app_stop_types.as_slice(),
             other_stop_types: other_stop_types.as_slice(),
@@ -1981,6 +2146,30 @@ mod tracked {
         Ok(digest_bytes(&bytes))
     }
 
+    fn review_base_input_key_for_options(
+        input_sha256: &str,
+        options: &PipelineV2Options,
+        support: PipelineV2SupportFiles<'_>,
+    ) -> Result<String, String> {
+        let material = ReviewBaseInputKey {
+            protocol_version: REVIEW_BASE_PROTOCOL,
+            raw_digest: input_sha256.to_string(),
+            interaction_type_remap: &options.interaction_type_remap,
+            same_app_stop_types: &options.same_app_stop_types,
+            other_stop_types: &options.other_stop_types,
+            timezone: options.timezone.clone(),
+            timezone_handling: options.timezone_handling.clone(),
+            datetime_of_preprocessing: options.datetime_of_preprocessing.clone(),
+            deduplicate_exact_rows: options.deduplicate_exact_rows,
+            correct_duplicate_event_timestamps: options.correct_duplicate_event_timestamps,
+            use_filter_file: options.use_filter_file,
+            filter_digest: digest_bytes(support.filter_csv),
+        };
+        let bytes = serde_json::to_vec(&material)
+            .map_err(|error| format!("serialize review-base input key: {error}"))?;
+        Ok(digest_bytes(&bytes))
+    }
+
     fn reconstruction_base_input_key(
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
@@ -1991,7 +2180,8 @@ mod tracked {
         let app_policy_checkpoint =
             review_base_app_policy_checkpoint(db, raw, early, config, support)?;
         let background_apps = background_apps(db, config, support)
-            .into_iter()
+            .iter()
+            .cloned()
             .collect::<BTreeSet<_>>();
         let rebuilds_usage_intervals =
             config.model_concurrent_usage(db) || !background_apps.is_empty();
@@ -2020,6 +2210,151 @@ mod tracked {
         let bytes = serde_json::to_vec(&material)
             .map_err(|error| format!("serialize reconstruction-base input key: {error}"))?;
         Ok(digest_bytes(&bytes))
+    }
+
+    fn reconstruction_base_input_key_for_options(
+        app_policy_checkpoint: &str,
+        options: &PipelineV2Options,
+        support: PipelineV2SupportFiles<'_>,
+    ) -> Result<String, String> {
+        let background_apps = if options.use_background_apps_file {
+            super::parse_background_apps_csv(support.background_apps_csv)
+                .into_iter()
+                .collect::<BTreeSet<_>>()
+        } else {
+            BTreeSet::new()
+        };
+        let rebuilds_usage_intervals =
+            options.model_concurrent_usage || !background_apps.is_empty();
+        let effective_minimum_usage_duration_bits = (!rebuilds_usage_intervals
+            || options.apply_minimum_usage_duration_to_concurrent_subintervals)
+            .then(|| options.minimum_usage_duration.to_bits());
+        let material = ReconstructionBaseInputKey {
+            protocol_version: RECONSTRUCTION_BASE_PROTOCOL,
+            app_policy_checkpoint,
+            same_app_stop_types: &options.same_app_stop_types,
+            other_stop_types: &options.other_stop_types,
+            background_apps,
+            model_concurrent_usage: options.model_concurrent_usage,
+            allow_stop_event_reuse: options.allow_stop_event_reuse,
+            use_activity_stopped_as_fallback: options.use_activity_stopped_as_fallback,
+            apply_threshold_to_fallback: options.apply_threshold_to_fallback,
+            long_duration_threshold_ns: options.long_duration_threshold_ns,
+            proximity_interval_ns: options.proximity_interval_ns,
+            effective_minimum_usage_duration_bits,
+            apply_minimum_to_concurrent_subintervals: options
+                .apply_minimum_usage_duration_to_concurrent_subintervals,
+        };
+        let bytes = serde_json::to_vec(&material)
+            .map_err(|error| format!("serialize reconstruction-base input key: {error}"))?;
+        Ok(digest_bytes(&bytes))
+    }
+
+    fn review_annotation_checkpoint_input_key(
+        db: &dyn EarlyStepDb,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<String, String> {
+        let use_app_codebook = support.use_app_codebook(db);
+        let material = ReviewAnnotationCheckpointInputKey {
+            protocol_version: "chronicle-review-annotation-checkpoint/v1",
+            use_app_codebook,
+            codebook_digest: if use_app_codebook {
+                digest_bytes(&support.codebook_csv(db))
+            } else {
+                digest_bytes(&[])
+            },
+            custom_app_engagement_duration_bits: config
+                .custom_app_engagement_duration(db)
+                .to_bits(),
+            long_data_time_gap_threshold_bits: config
+                .long_data_time_gap_thresholds(db)
+                .iter()
+                .map(|value| value.to_bits())
+                .collect(),
+            long_usage_duration_threshold_bits: config
+                .long_usage_duration_thresholds(db)
+                .iter()
+                .map(|value| value.to_bits())
+                .collect(),
+            interaction_types_to_remove: config.interaction_types_to_remove(db).as_ref().clone(),
+            filter_zero_duration_sessions: config.filter_zero_duration_sessions(db),
+        };
+        let bytes = serde_json::to_vec(&material)
+            .map_err(|error| format!("serialize review annotation checkpoint key: {error}"))?;
+        Ok(digest_bytes(&bytes))
+    }
+
+    /// Pick the deepest usable checkpoint before copying inputs into Salsa.
+    /// A reconstruction base subsumes the full review base, so only its small
+    /// verified header is retained to prove the app-policy checkpoint.
+    pub(super) fn select_persisted_base_kind(
+        input_sha256: &str,
+        review_base_bytes: &[u8],
+        reconstruction_base_bytes: &[u8],
+        options: &PipelineV2Options,
+        support: PipelineV2SupportFiles<'_>,
+    ) -> Result<PersistedReviewBaseSelection, String> {
+        if review_base_bytes.is_empty() {
+            return Ok(PersistedReviewBaseSelection::None);
+        }
+        let review_header = review_base_header(review_base_bytes)?;
+        let expected_review_key =
+            review_base_input_key_for_options(input_sha256, options, support)?;
+        if review_header.input_key
+            != parse_blake3_key(&expected_review_key, "expected review-base input key")?
+        {
+            return Ok(PersistedReviewBaseSelection::None);
+        }
+        if reconstruction_base_bytes.is_empty() {
+            return Ok(PersistedReviewBaseSelection::Review);
+        }
+        let app_policy_checkpoint = format!(
+            "sha256:{}",
+            hex::encode(review_header.app_policy_checkpoint)
+        );
+        let expected_reconstruction_key =
+            reconstruction_base_input_key_for_options(&app_policy_checkpoint, options, support)?;
+        if reconstruction_base_header_input_key(reconstruction_base_bytes)?
+            == parse_blake3_key(
+                &expected_reconstruction_key,
+                "expected reconstruction-base input key",
+            )?
+        {
+            return Ok(PersistedReviewBaseSelection::Reconstruction);
+        }
+        Ok(PersistedReviewBaseSelection::Review)
+    }
+
+    pub(super) const fn review_base_header_bytes() -> usize {
+        REVIEW_BASE_HEADER_BYTES
+    }
+
+    pub(super) const fn reconstruction_base_header_bytes() -> usize {
+        RECONSTRUCTION_BASE_HEADER_BYTES
+    }
+
+    fn select_persisted_bases<'a>(
+        input_sha256: &str,
+        review_base_bytes: &'a [u8],
+        reconstruction_base_bytes: &'a [u8],
+        options: &PipelineV2Options,
+        support: PipelineV2SupportFiles<'_>,
+    ) -> Result<(&'a [u8], &'a [u8]), String> {
+        match select_persisted_base_kind(
+            input_sha256,
+            review_base_bytes,
+            reconstruction_base_bytes,
+            options,
+            support,
+        )? {
+            PersistedReviewBaseSelection::None => Ok((&[], &[])),
+            PersistedReviewBaseSelection::Review => Ok((review_base_bytes, &[])),
+            PersistedReviewBaseSelection::Reconstruction => Ok((
+                &review_base_bytes[..REVIEW_BASE_HEADER_BYTES],
+                reconstruction_base_bytes,
+            )),
+        }
     }
 
     #[salsa::tracked(returns(clone))]
@@ -2084,8 +2419,8 @@ mod tracked {
     }
 
     fn encode_review_base(base: &ReviewBase) -> Result<Vec<u8>, String> {
-        let bytes =
-            postcard::to_allocvec(base).map_err(|error| format!("encode review base: {error}"))?;
+        let bytes = with_serialized_row_string_table(|| postcard::to_allocvec(base))
+            .map_err(|error| format!("encode review base: {error}"))?;
         if bytes.len() > MAX_REVIEW_BASE_UNCOMPRESSED_BYTES {
             return Err(format!(
                 "review base is too large: {} bytes exceeds {}",
@@ -2107,7 +2442,10 @@ mod tracked {
         let mut encoded = Vec::with_capacity(REVIEW_BASE_HEADER_BYTES + compressed.len());
         encoded.extend_from_slice(REVIEW_BASE_MAGIC);
         encoded.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
-        encoded.extend_from_slice(blake3::hash(&bytes).as_bytes());
+        // Authenticate the stored bytes before allocating the declared
+        // decompressed size. This also avoids hashing the much larger decoded
+        // row table on every comparison.
+        encoded.extend_from_slice(blake3::hash(&compressed).as_bytes());
         encoded.extend_from_slice(&input_key_digest);
         encoded.extend_from_slice(&app_policy_digest);
         encoded.extend_from_slice(&compressed);
@@ -2133,8 +2471,8 @@ mod tracked {
         })
     }
 
-    fn decode_review_base_bytes(bytes: &[u8]) -> Result<ReviewBase, String> {
-        review_base_header(bytes)?;
+    fn verify_review_base_payload(bytes: &[u8]) -> Result<VerifiedReviewBaseHeader, String> {
+        let header = review_base_header(bytes)?;
         let size_offset = REVIEW_BASE_MAGIC.len();
         let digest_offset = size_offset + 4;
         let payload_offset = REVIEW_BASE_HEADER_BYTES;
@@ -2149,24 +2487,262 @@ mod tracked {
                 declared, MAX_REVIEW_BASE_UNCOMPRESSED_BYTES
             ));
         }
-        let decoded = lz4_flex::block::decompress(&bytes[payload_offset..], declared as usize)
-            .map_err(|error| format!("decompress review base: {error}"))?;
-        if blake3::hash(&decoded).as_bytes() != &bytes[digest_offset..digest_offset + 32] {
+        let timer = QueryTimer::start("decode_review_base_verify_digest");
+        let payload_digest = *blake3::hash(&bytes[payload_offset..]).as_bytes();
+        if payload_digest != bytes[digest_offset..digest_offset + 32] {
             return Err("review base payload digest mismatch".into());
         }
-        let base: ReviewBase = postcard::from_bytes(&decoded)
+        timer.finish();
+        Ok(VerifiedReviewBaseHeader {
+            input_key: header.input_key,
+            app_policy_checkpoint: header.app_policy_checkpoint,
+            payload_digest,
+            declared_bytes: declared as usize,
+        })
+    }
+
+    fn decode_verified_review_base_bytes(
+        bytes: &[u8],
+        header: &VerifiedReviewBaseHeader,
+    ) -> Result<ReviewBase, String> {
+        #[cfg(test)]
+        REVIEW_BASE_DECODE_COUNT.with(|count| count.set(count.get() + 1));
+        let payload_offset = REVIEW_BASE_HEADER_BYTES;
+        let timer = QueryTimer::start("decode_review_base_decompress");
+        let decoded = lz4_flex::block::decompress(&bytes[payload_offset..], header.declared_bytes)
+            .map_err(|error| format!("decompress review base: {error}"))?;
+        timer.finish();
+        let timer = QueryTimer::start("decode_review_base_payload");
+        let base: ReviewBase = with_deserialized_row_string_pool(|| postcard::from_bytes(&decoded))
             .map_err(|error| format!("decode review base: {error}"))?;
+        timer.finish();
         if base.protocol_version != REVIEW_BASE_PROTOCOL {
             return Err(format!(
                 "unsupported review-base protocol: {}",
                 base.protocol_version
             ));
         }
+        if let Some(digests) = &base.matcher_search_suffix_digests {
+            let expected = base.rows.len() + 1;
+            if digests.len() != expected {
+                return Err(format!(
+                    "review base has {} matcher suffix digests; expected {expected}",
+                    digests.len()
+                ));
+            }
+        }
+        if parse_blake3_key(&base.input_key, "review-base payload input key")? != header.input_key {
+            return Err("review base header input key mismatch".into());
+        }
+        let app_policy_checkpoint = base
+            .metadata
+            .step_checkpoints
+            .get("tag_filtered_packages")
+            .ok_or_else(|| "review base is missing its app-policy checkpoint".to_string())?;
+        if parse_sha256_digest(
+            &app_policy_checkpoint.terminal_digest,
+            "review-base payload app-policy checkpoint",
+        )? != header.app_policy_checkpoint
+        {
+            return Err("review base header app-policy checkpoint mismatch".into());
+        }
         Ok(base)
     }
 
+    #[cfg(test)]
+    fn decode_review_base_bytes(bytes: &[u8]) -> Result<ReviewBase, String> {
+        let header = verify_review_base_payload(bytes)?;
+        decode_verified_review_base_bytes(bytes, &header)
+    }
+
+    fn decode_review_base_cached(bytes: &[u8]) -> Result<Arc<ReviewBase>, String> {
+        let header = verify_review_base_payload(bytes)?;
+        if let Some(value) = REVIEW_BASE_DECODE_CACHE.with(|cache| {
+            cache
+                .borrow()
+                .as_ref()
+                .filter(|entry| entry.payload_digest == header.payload_digest)
+                .map(|entry| Arc::clone(&entry.value))
+        }) {
+            return Ok(value);
+        }
+
+        REVIEW_BASE_DECODE_CACHE.with(|cache| {
+            cache.borrow_mut().take();
+        });
+        let value = Arc::new(decode_verified_review_base_bytes(bytes, &header)?);
+        REVIEW_BASE_DECODE_CACHE.with(|cache| {
+            *cache.borrow_mut() = Some(CachedDecodedReviewBase {
+                payload_digest: header.payload_digest,
+                value: Arc::clone(&value),
+            });
+        });
+        Ok(value)
+    }
+
+    fn same_row_identity(
+        left: &Row,
+        right: &Row,
+        left_scratch: &mut RowCheckpointScratch,
+        right_scratch: &mut RowCheckpointScratch,
+    ) -> bool {
+        row_checkpoint_parts(left, left_scratch).identity
+            == row_checkpoint_parts(right, right_scratch).identity
+    }
+
+    fn persist_reconstruction_base(
+        base: &ReconstructionBase,
+    ) -> Result<PersistedReconstructionBase, String> {
+        let mut annotation_index = 0_usize;
+        let annotation_rows = base.annotation_checkpoint.rows.as_slice();
+        let mut reconstruction_scratch = RowCheckpointScratch::default();
+        let mut annotation_scratch = RowCheckpointScratch::default();
+        let mut reused = 0_usize;
+        let mut replaced = 0_usize;
+        let mut dropped = 0_usize;
+        let row_states = base
+            .rows
+            .iter()
+            .map(|reconstruction| {
+                let annotation = annotation_rows.get(annotation_index);
+                let disposition = match annotation {
+                    Some(annotation)
+                        if same_row_identity(
+                            reconstruction,
+                            annotation,
+                            &mut reconstruction_scratch,
+                            &mut annotation_scratch,
+                        ) =>
+                    {
+                        annotation_index += 1;
+                        if Arc::ptr_eq(&reconstruction.0, &annotation.0) {
+                            reused += 1;
+                            PersistedAnnotationRow::Reuse
+                        } else {
+                            replaced += 1;
+                            PersistedAnnotationRow::Replace(annotation.clone())
+                        }
+                    }
+                    _ => {
+                        dropped += 1;
+                        PersistedAnnotationRow::Drop
+                    }
+                };
+                PersistedReconstructionRow {
+                    reconstruction: reconstruction.clone(),
+                    annotation: disposition,
+                }
+            })
+            .collect::<Vec<_>>();
+        if annotation_index != annotation_rows.len() {
+            return Err(format!(
+                "annotation rows are not an identity-preserving subsequence of reconstruction rows: matched {annotation_index} of {}",
+                annotation_rows.len()
+            ));
+        }
+        #[cfg(feature = "query-timing")]
+        eprintln!(
+            "reconstruction_base_rows total={} reused={reused} replaced={replaced} dropped={dropped}",
+            row_states.len(),
+        );
+
+        let annotation = &base.annotation_checkpoint;
+        Ok(PersistedReconstructionBase {
+            protocol_version: base.protocol_version.clone(),
+            input_key: base.input_key.clone(),
+            row_states,
+            compute_junk_packages: base.compute_junk_packages.clone(),
+            junk_blind_fold: base.junk_blind_fold.clone(),
+            build_matcher_input: base.build_matcher_input.clone(),
+            run_matcher: base.run_matcher.clone(),
+            apply_matcher_output: base.apply_matcher_output.clone(),
+            split_concurrent: base.split_concurrent.clone(),
+            reconstruct_episodes: base.reconstruct_episodes.clone(),
+            annotation_checkpoint: PersistedReviewAnnotationCheckpointBase {
+                input_key: annotation.input_key.clone(),
+                codebook_join: annotation.codebook_join.clone(),
+                derive_broad_category: annotation.derive_broad_category.clone(),
+                collapse_genre: annotation.collapse_genre.clone(),
+                categorize_apps: annotation.categorize_apps.clone(),
+                engagement_walk: annotation.engagement_walk.clone(),
+                flag_and_retain: annotation.flag_and_retain.clone(),
+                episode_annotations: annotation.episode_annotations.clone(),
+                blank_junk_timing: annotation.blank_junk_timing.clone(),
+                drop_selected_types: annotation.drop_selected_types.clone(),
+                drop_zero_duration: annotation.drop_zero_duration.clone(),
+                interval_cleaning: annotation.interval_cleaning.clone(),
+            },
+            early_metadata: base.early_metadata.clone(),
+            screen: base.screen.clone(),
+        })
+    }
+
+    fn restore_reconstruction_base(
+        persisted: PersistedReconstructionBase,
+    ) -> Result<ReconstructionBase, String> {
+        let mut reconstruction_rows = Vec::with_capacity(persisted.row_states.len());
+        let mut annotation_rows = Vec::with_capacity(persisted.row_states.len());
+        let mut reconstruction_scratch = RowCheckpointScratch::default();
+        let mut annotation_scratch = RowCheckpointScratch::default();
+        for state in persisted.row_states {
+            let PersistedReconstructionRow {
+                reconstruction,
+                annotation,
+            } = state;
+            match annotation {
+                PersistedAnnotationRow::Reuse => {
+                    annotation_rows.push(reconstruction.clone());
+                }
+                PersistedAnnotationRow::Replace(annotation) => {
+                    if !same_row_identity(
+                        &reconstruction,
+                        &annotation,
+                        &mut reconstruction_scratch,
+                        &mut annotation_scratch,
+                    ) {
+                        return Err("persisted annotation replacement changed row identity".into());
+                    }
+                    annotation_rows.push(annotation);
+                }
+                PersistedAnnotationRow::Drop => {}
+            }
+            reconstruction_rows.push(reconstruction);
+        }
+        let annotation = persisted.annotation_checkpoint;
+        Ok(ReconstructionBase {
+            protocol_version: persisted.protocol_version,
+            input_key: persisted.input_key,
+            rows: Arc::new(reconstruction_rows),
+            compute_junk_packages: persisted.compute_junk_packages,
+            junk_blind_fold: persisted.junk_blind_fold,
+            build_matcher_input: persisted.build_matcher_input,
+            run_matcher: persisted.run_matcher,
+            apply_matcher_output: persisted.apply_matcher_output,
+            split_concurrent: persisted.split_concurrent,
+            reconstruct_episodes: persisted.reconstruct_episodes,
+            annotation_checkpoint: ReviewAnnotationCheckpointBase {
+                input_key: annotation.input_key,
+                rows: Arc::new(annotation_rows),
+                codebook_join: annotation.codebook_join,
+                derive_broad_category: annotation.derive_broad_category,
+                collapse_genre: annotation.collapse_genre,
+                categorize_apps: annotation.categorize_apps,
+                engagement_walk: annotation.engagement_walk,
+                flag_and_retain: annotation.flag_and_retain,
+                episode_annotations: annotation.episode_annotations,
+                blank_junk_timing: annotation.blank_junk_timing,
+                drop_selected_types: annotation.drop_selected_types,
+                drop_zero_duration: annotation.drop_zero_duration,
+                interval_cleaning: annotation.interval_cleaning,
+            },
+            early_metadata: persisted.early_metadata,
+            screen: persisted.screen,
+        })
+    }
+
     fn encode_reconstruction_base(base: &ReconstructionBase) -> Result<Vec<u8>, String> {
-        let bytes = postcard::to_allocvec(base)
+        let persisted = persist_reconstruction_base(base)?;
+        let bytes = with_serialized_row_string_table(|| postcard::to_allocvec(&persisted))
             .map_err(|error| format!("encode reconstruction base: {error}"))?;
         if bytes.len() > MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES {
             return Err(format!(
@@ -2180,7 +2756,7 @@ mod tracked {
         let mut encoded = Vec::with_capacity(RECONSTRUCTION_BASE_HEADER_BYTES + compressed.len());
         encoded.extend_from_slice(RECONSTRUCTION_BASE_MAGIC);
         encoded.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
-        encoded.extend_from_slice(blake3::hash(&bytes).as_bytes());
+        encoded.extend_from_slice(blake3::hash(&compressed).as_bytes());
         encoded.extend_from_slice(&input_key_digest);
         encoded.extend_from_slice(&compressed);
         Ok(encoded)
@@ -2219,7 +2795,15 @@ mod tracked {
             .expect("32-byte reconstruction-base input key"))
     }
 
-    fn decode_reconstruction_base_bytes(bytes: &[u8]) -> Result<ReconstructionBase, String> {
+    struct VerifiedReconstructionBaseHeader {
+        input_key: [u8; 32],
+        payload_digest: [u8; 32],
+        declared_bytes: usize,
+    }
+
+    fn verify_reconstruction_base_payload(
+        bytes: &[u8],
+    ) -> Result<VerifiedReconstructionBaseHeader, String> {
         let header_input_key = reconstruction_base_header_input_key(bytes)?;
         let size_offset = RECONSTRUCTION_BASE_MAGIC.len();
         let digest_offset = size_offset + 4;
@@ -2235,25 +2819,81 @@ mod tracked {
                 declared, MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES
             ));
         }
-        let decoded = lz4_flex::block::decompress(&bytes[payload_offset..], declared as usize)
-            .map_err(|error| format!("decompress reconstruction base: {error}"))?;
-        if blake3::hash(&decoded).as_bytes() != &bytes[digest_offset..digest_offset + 32] {
+        let timer = QueryTimer::start("decode_reconstruction_base_verify_digest");
+        let payload_digest = *blake3::hash(&bytes[payload_offset..]).as_bytes();
+        if payload_digest != bytes[digest_offset..digest_offset + 32] {
             return Err("reconstruction base payload digest mismatch".into());
         }
-        let base: ReconstructionBase = postcard::from_bytes(&decoded)
-            .map_err(|error| format!("decode reconstruction base: {error}"))?;
-        if base.protocol_version != RECONSTRUCTION_BASE_PROTOCOL {
+        timer.finish();
+        Ok(VerifiedReconstructionBaseHeader {
+            input_key: header_input_key,
+            payload_digest,
+            declared_bytes: declared as usize,
+        })
+    }
+
+    fn decode_verified_reconstruction_base_bytes(
+        bytes: &[u8],
+        header: &VerifiedReconstructionBaseHeader,
+    ) -> Result<ReconstructionBase, String> {
+        #[cfg(test)]
+        RECONSTRUCTION_BASE_DECODE_COUNT.with(|count| count.set(count.get() + 1));
+        let payload_offset = RECONSTRUCTION_BASE_HEADER_BYTES;
+        let timer = QueryTimer::start("decode_reconstruction_base_decompress");
+        let decoded = lz4_flex::block::decompress(&bytes[payload_offset..], header.declared_bytes)
+            .map_err(|error| format!("decompress reconstruction base: {error}"))?;
+        timer.finish();
+        let timer = QueryTimer::start("decode_reconstruction_base_payload");
+        let persisted: PersistedReconstructionBase =
+            with_deserialized_row_string_pool(|| postcard::from_bytes(&decoded))
+                .map_err(|error| format!("decode reconstruction base: {error}"))?;
+        timer.finish();
+        if persisted.protocol_version != RECONSTRUCTION_BASE_PROTOCOL {
             return Err(format!(
                 "unsupported reconstruction-base protocol: {}",
-                base.protocol_version
+                persisted.protocol_version
             ));
         }
+        let base = restore_reconstruction_base(persisted)?;
         if parse_blake3_key(&base.input_key, "reconstruction-base payload input key")?
-            != header_input_key
+            != header.input_key
         {
             return Err("reconstruction base header input key mismatch".into());
         }
         Ok(base)
+    }
+
+    #[cfg(test)]
+    fn decode_reconstruction_base_bytes(bytes: &[u8]) -> Result<ReconstructionBase, String> {
+        let header = verify_reconstruction_base_payload(bytes)?;
+        decode_verified_reconstruction_base_bytes(bytes, &header)
+    }
+
+    fn decode_reconstruction_base_cached(bytes: &[u8]) -> Result<Arc<ReconstructionBase>, String> {
+        let header = verify_reconstruction_base_payload(bytes)?;
+        if let Some(value) = RECONSTRUCTION_BASE_DECODE_CACHE.with(|cache| {
+            cache
+                .borrow()
+                .as_ref()
+                .filter(|entry| entry.payload_digest == header.payload_digest)
+                .map(|entry| Arc::clone(&entry.value))
+        }) {
+            return Ok(value);
+        }
+
+        // Drop a prior file's decoded rows before allocating the next file's
+        // checkpoint so a miss does not retain two large workspaces.
+        RECONSTRUCTION_BASE_DECODE_CACHE.with(|cache| {
+            cache.borrow_mut().take();
+        });
+        let value = Arc::new(decode_verified_reconstruction_base_bytes(bytes, &header)?);
+        RECONSTRUCTION_BASE_DECODE_CACHE.with(|cache| {
+            *cache.borrow_mut() = Some(CachedDecodedReconstructionBase {
+                payload_digest: header.payload_digest,
+                value: Arc::clone(&value),
+            });
+        });
+        Ok(value)
     }
 
     impl<T> fmt::Debug for StepValue<T> {
@@ -2302,17 +2942,68 @@ mod tracked {
         upstream: &StepValue<Vec<Row>>,
         rows: Vec<Row>,
     ) -> StepValue<Vec<Row>> {
-        let checkpoint = logical_stage_rows_checkpoint(step, &rows);
-        let value = if same_row_state(&upstream.checkpoint, &checkpoint) {
-            Arc::clone(&upstream.value)
+        let exact_same_rows = rows.len() == upstream.value.len()
+            && rows
+                .iter()
+                .zip(upstream.value.iter())
+                .all(|(left, right)| Arc::ptr_eq(&left.0, &right.0));
+        let (checkpoint, value) = if exact_same_rows {
+            (
+                checkpoint_for_exact_row_state(step, &upstream.checkpoint, &[]),
+                Arc::clone(&upstream.value),
+            )
         } else {
-            Arc::new(rows)
+            let checkpoint = if rows.len() == upstream.value.len() {
+                let parts = row_checkpoint_parts_for_rows(&rows);
+                logical_stage_checkpoint_with_reusable_rows(
+                    step,
+                    &rows,
+                    &[],
+                    &parts,
+                    &upstream.value,
+                    &upstream.checkpoint,
+                )
+            } else {
+                logical_stage_rows_checkpoint(step, &rows)
+            };
+            let value = if same_row_state(&upstream.checkpoint, &checkpoint) {
+                Arc::clone(&upstream.value)
+            } else {
+                Arc::new(rows)
+            };
+            (checkpoint, value)
         };
         StepValue {
             value,
             checkpoint,
             logical_checkpoint: None,
         }
+    }
+
+    fn unchanged_rows_step(step: &str, upstream: &StepValue<Vec<Row>>) -> StepValue<Vec<Row>> {
+        StepValue {
+            value: Arc::clone(&upstream.value),
+            checkpoint: checkpoint_for_exact_row_state(step, &upstream.checkpoint, &[]),
+            logical_checkpoint: None,
+        }
+    }
+
+    fn unchanged_rows_with_payload<P: serde::Serialize>(
+        step: &str,
+        upstream: &StepValue<Vec<Row>>,
+        payload: &P,
+    ) -> Result<StepValue<Vec<Row>>, String> {
+        let bytes = serde_json::to_vec(payload)
+            .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
+        Ok(StepValue {
+            value: Arc::clone(&upstream.value),
+            checkpoint: checkpoint_for_exact_row_state(
+                step,
+                &upstream.checkpoint,
+                &[("value", &bytes)],
+            ),
+            logical_checkpoint: None,
+        })
     }
 
     fn value_payload_step<T, P: serde::Serialize>(
@@ -2349,6 +3040,178 @@ mod tracked {
             &[("rows", rows)],
             &[("value", &bytes)],
         ))
+    }
+
+    fn rows_and_value_checkpoint_reusing<P: serde::Serialize>(
+        step: &str,
+        rows: &[Row],
+        previous_rows: &[Row],
+        previous_checkpoint: &LogicalStageCheckpoint,
+        payload: &P,
+    ) -> Result<LogicalStageCheckpoint, String> {
+        let bytes = serde_json::to_vec(payload)
+            .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
+        let parts = row_checkpoint_parts_for_rows(rows);
+        Ok(logical_stage_checkpoint_with_reusable_rows(
+            step,
+            rows,
+            &[("value", &bytes)],
+            &parts,
+            previous_rows,
+            previous_checkpoint,
+        ))
+    }
+
+    fn rows_and_value_checkpoint_reusing_membership_and_order<P: serde::Serialize>(
+        step: &str,
+        rows: &[Row],
+        previous_rows: &[Row],
+        previous_checkpoint: &LogicalStageCheckpoint,
+        payload: &P,
+    ) -> Result<LogicalStageCheckpoint, String> {
+        let bytes = serde_json::to_vec(payload)
+            .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
+        Ok(logical_stage_checkpoint_with_known_membership_and_order(
+            step,
+            rows,
+            &[("value", &bytes)],
+            previous_rows,
+            previous_checkpoint,
+        ))
+    }
+
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct CanonicalTemporalSequence {
+        /// Exact bytes consumed by the v4 temporal-state checkpoint for each
+        /// row, in canonical source-identity order. Keeping this private
+        /// buffer lets a repeated threshold edit patch changed rows and issue
+        /// one SIMD-friendly BLAKE3 update instead of rebuilding 100k small
+        /// hash writes.
+        encoded_rows: Arc<Vec<u8>>,
+        /// Current row index -> canonical source-identity position.
+        canonical_positions: Arc<Vec<u32>>,
+    }
+
+    fn canonical_row_order(rows: &[Row]) -> Vec<usize> {
+        let mut canonical_order = (0..rows.len()).collect::<Vec<_>>();
+        if rows.windows(2).all(|pair| {
+            pair[0]
+                .source_data_rows
+                .cmp_expanded(&pair[1].source_data_rows)
+                .then(pair[0].index.cmp(&pair[1].index))
+                .is_le()
+        }) {
+            return canonical_order;
+        }
+        canonical_order.sort_by(|left, right| {
+            rows[*left]
+                .source_data_rows
+                .cmp_expanded(&rows[*right].source_data_rows)
+                .then(rows[*left].index.cmp(&rows[*right].index))
+        });
+        canonical_order
+    }
+
+    fn canonical_temporal_sequence_with_order(
+        rows: &[Row],
+        canonical_order: &[usize],
+    ) -> CanonicalTemporalSequence {
+        debug_assert_eq!(canonical_order.len(), rows.len());
+        let mut canonical_positions = vec![0_u32; rows.len()];
+        let mut encoded_rows = Vec::with_capacity(rows.len() * 80);
+        let mut scratch = RowCheckpointScratch::default();
+        for (position, &row_index) in canonical_order.iter().enumerate() {
+            canonical_positions[row_index] = position as u32;
+            let parts = row_checkpoint_parts(&rows[row_index], &mut scratch);
+            checkpoint_digest_fixed32_pair(&mut encoded_rows, &parts.identity, &parts.temporal);
+        }
+        CanonicalTemporalSequence {
+            encoded_rows: Arc::new(encoded_rows),
+            canonical_positions: Arc::new(canonical_positions),
+        }
+    }
+
+    fn temporal_digest_with_changed_rows(
+        base: &CanonicalTemporalSequence,
+        rows: &[Row],
+        changed_row_indices: &[u32],
+    ) -> String {
+        debug_assert_eq!(base.canonical_positions.len(), rows.len());
+        let mut encoded_rows = (*base.encoded_rows).clone();
+        let mut scratch = RowCheckpointScratch::default();
+        for &row_index in changed_row_indices {
+            let row_index = row_index as usize;
+            let canonical_position = base.canonical_positions[row_index] as usize;
+            let temporal_offset = canonical_position * 80 + 48;
+            let parts = row_checkpoint_parts(&rows[row_index], &mut scratch);
+            encoded_rows[temporal_offset..temporal_offset + 32].copy_from_slice(&parts.temporal);
+        }
+        let mut temporal = checkpoint_hasher("temporal-state");
+        temporal.update(&1_u64.to_le_bytes());
+        checkpoint_digest_field(&mut temporal, b"rows");
+        temporal.update(&(rows.len() as u64).to_le_bytes());
+        temporal.update(&encoded_rows);
+        finish_checkpoint_digest(temporal)
+    }
+
+    fn checkpoint_with_known_row_components<P: serde::Serialize>(
+        step: &str,
+        previous: &LogicalStageCheckpoint,
+        temporal_state_digest: String,
+        payload: &P,
+    ) -> Result<LogicalStageCheckpoint, String> {
+        let bytes = serde_json::to_vec(payload)
+            .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
+        Ok(checkpoint_with_known_row_component_payloads(
+            step,
+            previous,
+            temporal_state_digest,
+            &[("value", &bytes)],
+        ))
+    }
+
+    fn checkpoint_with_known_row_component_payloads(
+        step: &str,
+        previous: &LogicalStageCheckpoint,
+        temporal_state_digest: String,
+        payloads: &[(&str, &[u8])],
+    ) -> LogicalStageCheckpoint {
+        let mut payload_hasher = checkpoint_hasher("payload");
+        let mut schema = checkpoint_hasher("schema");
+        checkpoint_digest_field(&mut schema, LOGICAL_STAGE_ROW_SCHEMA.as_bytes());
+        schema.update(&1_u64.to_le_bytes());
+        checkpoint_digest_field(&mut schema, b"rows");
+        payload_hasher.update(&(payloads.len() as u64).to_le_bytes());
+        schema.update(&(payloads.len() as u64).to_le_bytes());
+        for (label, bytes) in payloads {
+            checkpoint_digest_field(&mut payload_hasher, label.as_bytes());
+            checkpoint_digest_field(&mut payload_hasher, bytes);
+            checkpoint_digest_field(&mut schema, label.as_bytes());
+        }
+        let payload_digest = finish_checkpoint_digest(payload_hasher);
+        let schema_digest = finish_checkpoint_digest(schema);
+        let terminal_digest = terminal_checkpoint_digest(
+            step,
+            [
+                &previous.row_membership_digest,
+                &previous.row_order_digest,
+                &temporal_state_digest,
+                &previous.classification_digest,
+                &payload_digest,
+                &schema_digest,
+            ],
+        );
+        LogicalStageCheckpoint {
+            protocol_version: LOGICAL_STAGE_CHECKPOINT_PROTOCOL.into(),
+            node_id: step.into(),
+            row_membership_digest: previous.row_membership_digest.clone(),
+            row_order_digest: previous.row_order_digest.clone(),
+            temporal_state_digest,
+            classification_digest: previous.classification_digest.clone(),
+            payload_digest,
+            schema_digest,
+            terminal_digest,
+        }
     }
 
     fn review_passthrough_checkpoint<P: serde::Serialize>(
@@ -2421,13 +3284,14 @@ mod tracked {
 
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
     struct SelectedTimezone {
-        rows: Vec<Row>,
+        rows: Arc<Vec<Row>>,
         target_timezone: String,
         action: String,
     }
 
     fn selected_timezone_step(
         step: &str,
+        upstream: &StepValue<Vec<Row>>,
         selected: TimezoneSelection,
     ) -> Result<StepValue<SelectedTimezone>, String> {
         let metadata = serde_json::json!({
@@ -2436,8 +3300,12 @@ mod tracked {
         });
         let bytes = serde_json::to_vec(&metadata)
             .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
-        let checkpoint =
-            logical_stage_checkpoint(step, &[("rows", &selected.rows)], &[("value", &bytes)]);
+        let exact_same_rows = Arc::ptr_eq(&selected.rows, &upstream.value);
+        let checkpoint = if exact_same_rows {
+            checkpoint_for_exact_row_state(step, &upstream.checkpoint, &[("value", &bytes)])
+        } else {
+            logical_stage_checkpoint(step, &[("rows", &selected.rows)], &[("value", &bytes)])
+        };
         Ok(StepValue {
             value: Arc::new(SelectedTimezone {
                 rows: selected.rows,
@@ -2453,9 +3321,10 @@ mod tracked {
         mut step: StepValue<Vec<Row>>,
         logical_node_id: &str,
     ) -> StepValue<Vec<Row>> {
-        step.logical_checkpoint = Some(logical_stage_rows_checkpoint(
+        step.logical_checkpoint = Some(checkpoint_for_exact_row_state(
             logical_node_id,
-            step.value.as_ref(),
+            &step.checkpoint,
+            &[],
         ));
         step
     }
@@ -2490,6 +3359,11 @@ mod tracked {
     struct EarlyRawInput {
         #[returns(clone)]
         bytes: Arc<Vec<u8>>,
+        /// SHA-256 verified by the runtime at ingestion. Persisted review
+        /// bases bind this identity so later A/B reviews do not need to copy
+        /// and hash the unchanged raw object again.
+        #[returns(clone)]
+        input_sha256: String,
         /// Optional product-owned checkpoint produced by a previous full run.
         /// Empty means the existing raw-input path is authoritative.
         #[returns(clone)]
@@ -2636,6 +3510,9 @@ mod tracked {
         enable_aggregates: bool,
         #[returns(clone)]
         aggregate_shape: String,
+        /// View materialization stays isolated to the output query.
+        #[returns(copy)]
+        materialize_visualization_data: bool,
         /// Execution concern, not a researcher option. Review queries use the
         /// same 55 product computations but defer large serialized outputs.
         #[returns(copy)]
@@ -2650,14 +3527,22 @@ mod tracked {
         let _timer = QueryTimer::start("decoded_review_base");
         db.record_internal_query_body("decoded_review_base");
         let bytes = raw.review_base_bytes(db);
-        if bytes.is_empty() {
+        if bytes.is_empty() || bytes.len() == REVIEW_BASE_HEADER_BYTES {
             return Ok(None);
         }
-        let encoded_digest = *blake3::hash(&bytes).as_bytes();
-        let value = decode_review_base_bytes(&bytes)?;
+        // The header already carries the verified digest of the canonical
+        // uncompressed payload. Re-hashing the full compressed base here made
+        // every review scan another ~16 MiB solely to give Salsa an equality
+        // key. Equal payloads are the semantic identity even if their LZ4
+        // encoding differs.
+        let digest_offset = REVIEW_BASE_MAGIC.len() + 4;
+        let encoded_digest = bytes[digest_offset..digest_offset + 32]
+            .try_into()
+            .expect("32-byte review-base payload digest");
+        let value = decode_review_base_cached(&bytes)?;
         Ok(Some(DecodedReviewBase {
             encoded_digest,
-            value: Arc::new(value),
+            value,
         }))
     }
 
@@ -2696,6 +3581,7 @@ mod tracked {
         config: UsageConfigInput,
         support: UsageSupportInput,
     ) -> Result<Option<DecodedReconstructionBase>, String> {
+        let _timer = QueryTimer::start("matching_reconstruction_base");
         db.record_internal_query_body("matching_reconstruction_base");
         let bytes = raw.reconstruction_base_bytes(db);
         if bytes.is_empty() {
@@ -2707,14 +3593,14 @@ mod tracked {
         {
             return Ok(None);
         }
-        let value = decode_reconstruction_base_bytes(&bytes)?;
+        let value = decode_reconstruction_base_cached(&bytes)?;
         if value.input_key != expected_key {
             return Err("reconstruction base header matched but payload key differed".into());
         }
         let encoded_digest = *blake3::hash(&bytes[..RECONSTRUCTION_BASE_HEADER_BYTES]).as_bytes();
         Ok(Some(DecodedReconstructionBase {
             encoded_digest,
-            value: Arc::new(value),
+            value,
         }))
     }
 
@@ -2799,10 +3685,22 @@ mod tracked {
         support: UsageSupportInput,
     ) -> Result<Vec<u8>, String> {
         let policy = tag_filtered_packages(db, raw, early, config, support)?;
+        let app_mode = matches!(
+            config.usage_session_mode(db),
+            UsageSessionMode::AppUsage | UsageSessionMode::AppAndScreenUsage
+        );
+        let matcher_search_suffix_digests = if app_mode {
+            Some(Arc::new(inline_lineage_search_suffix_digests(
+                &junk_blind_fold(db, raw, early, config, support)?.value,
+            )))
+        } else {
+            None
+        };
         let base = ReviewBase {
             protocol_version: REVIEW_BASE_PROTOCOL.into(),
             input_key: review_base_input_key(db, raw, early, support)?,
             rows: Arc::clone(&policy.value),
+            matcher_search_suffix_digests,
             metadata: build_review_base_metadata(db, raw, early, config, support)?,
             screen: build_screen_base(db, raw, early, config, support)?,
         };
@@ -2849,6 +3747,26 @@ mod tracked {
         let matcher_input = build_matcher_input(db, raw, early, config, support)?;
         let matcher = run_matcher(db, raw, early, config, support)?;
         let screen = build_screen_base(db, raw, early, config, support)?;
+        // Persist the checkpoint produced by the compact review query itself.
+        // The full-output query binds additional payload fields at a few
+        // pass-through steps; borrowing that checkpoint would keep result rows
+        // correct while silently changing later review provenance digests.
+        let annotated = review_annotations_fused(db, raw, early, config, support)?;
+        let annotation_checkpoint = ReviewAnnotationCheckpointBase {
+            input_key: review_annotation_checkpoint_input_key(db, config, support)?,
+            rows: Arc::clone(&annotated.rows),
+            codebook_join: annotated.codebook_join.clone(),
+            derive_broad_category: annotated.derive_broad_category.clone(),
+            collapse_genre: annotated.collapse_genre.clone(),
+            categorize_apps: annotated.categorize_apps.clone(),
+            engagement_walk: annotated.engagement_walk.clone(),
+            flag_and_retain: annotated.flag_and_retain.clone(),
+            episode_annotations: annotated.episode_annotations.clone(),
+            blank_junk_timing: annotated.blank_junk_timing.clone(),
+            drop_selected_types: annotated.drop_selected_types.clone(),
+            drop_zero_duration: annotated.drop_zero_duration.clone(),
+            interval_cleaning: annotated.interval_cleaning.clone(),
+        };
         let base = ReconstructionBase {
             protocol_version: RECONSTRUCTION_BASE_PROTOCOL.into(),
             input_key: reconstruction_base_input_key(db, raw, early, config, support)?,
@@ -2860,6 +3778,7 @@ mod tracked {
             apply_matcher_output: applied.checkpoint.clone(),
             split_concurrent: split.checkpoint.clone(),
             reconstruct_episodes: required_logical_checkpoint(&split, "reconstruct_episodes")?,
+            annotation_checkpoint,
             early_metadata: build_review_base_metadata(db, raw, early, config, support)?,
             screen,
         };
@@ -2952,14 +3871,21 @@ mod tracked {
     ) -> Result<StepValue<Vec<Row>>, String> {
         db.record_query_body("stable_sort");
         let rows = build_canonical_rows(db, raw, config)?;
-        Ok(with_logical_rows(
-            rows_step_reusing(
-                "stable_sort",
-                &rows,
-                super::stable_sort((*rows.value).clone()),
-            ),
-            "parse_events",
-        ))
+        if super::rows_are_event_ordered(&rows.value) {
+            return Ok(with_logical_rows(
+                unchanged_rows_step("stable_sort", &rows),
+                "parse_events",
+            ));
+        }
+        let sorted = super::stable_sort((*rows.value).clone());
+        let checkpoint =
+            checkpoint_for_reordered_exact_rows("stable_sort", &sorted, &rows.checkpoint);
+        let sorted = StepValue {
+            value: Arc::new(sorted),
+            checkpoint,
+            logical_checkpoint: None,
+        };
+        Ok(with_logical_rows(sorted, "parse_events"))
     }
 
     #[salsa::tracked(returns(clone))]
@@ -2998,8 +3924,9 @@ mod tracked {
         let primary = compute_dominant_timezone(db, raw, config)?;
         selected_timezone_step(
             "select_timezone_strategy",
+            &rows,
             super::select_timezone_strategy(
-                (*rows.value).clone(),
+                Arc::clone(&rows.value),
                 &config.timezone(db),
                 &config.timezone_handling(db),
                 &primary.value,
@@ -3015,10 +3942,45 @@ mod tracked {
     ) -> Result<StepValue<Vec<Row>>, String> {
         db.record_query_body("restamp_rows");
         let selected = select_timezone_strategy(db, raw, config)?;
-        let rows =
-            super::restamp_rows(selected.value.rows.clone(), &selected.value.target_timezone)?;
+        if selected
+            .value
+            .rows
+            .iter()
+            .all(|row| row.timezone.as_str() == selected.value.target_timezone)
+        {
+            return Ok(with_logical_rows(
+                StepValue {
+                    value: Arc::clone(&selected.value.rows),
+                    checkpoint: checkpoint_for_exact_row_state(
+                        "restamp_rows",
+                        &selected.checkpoint,
+                        &[],
+                    ),
+                    logical_checkpoint: None,
+                },
+                "normalize_timezones",
+            ));
+        }
+        let rows = super::restamp_rows(
+            (*selected.value.rows).clone(),
+            &selected.value.target_timezone,
+        )?;
+        let exact_same_rows = rows.len() == selected.value.rows.len()
+            && rows
+                .iter()
+                .zip(selected.value.rows.iter())
+                .all(|(left, right)| Arc::ptr_eq(&left.0, &right.0));
+        let checkpoint = if exact_same_rows {
+            checkpoint_for_exact_row_state("restamp_rows", &selected.checkpoint, &[])
+        } else {
+            logical_stage_rows_checkpoint("restamp_rows", &rows)
+        };
         Ok(with_logical_rows(
-            rows_step("restamp_rows", rows),
+            StepValue {
+                value: Arc::new(rows),
+                checkpoint,
+                logical_checkpoint: None,
+            },
             "normalize_timezones",
         ))
     }
@@ -3044,10 +4006,13 @@ mod tracked {
     ) -> Result<StepValue<Vec<Row>>, String> {
         db.record_query_body("exact_dedupe");
         let rows = restamp_rows(db, raw, config)?;
+        if !config.deduplicate_exact_rows(db) {
+            return Ok(unchanged_rows_step("exact_dedupe", &rows));
+        }
         Ok(rows_step_reusing(
             "exact_dedupe",
             &rows,
-            super::exact_dedupe((*rows.value).clone(), config.deduplicate_exact_rows(db)),
+            super::exact_dedupe((*rows.value).clone(), true),
         ))
     }
 
@@ -3070,12 +4035,18 @@ mod tracked {
     ) -> Result<StepValue<Vec<Row>>, String> {
         db.record_query_body("nudge_duplicate_timestamps");
         let rows = exact_dedupe(db, raw, config)?;
+        if !config.correct_duplicate_event_timestamps(db) {
+            return Ok(unchanged_rows_step("nudge_duplicate_timestamps", &rows));
+        }
+        if super::rows_have_strictly_increasing_timestamps(&rows.value) {
+            return Ok(unchanged_rows_step("nudge_duplicate_timestamps", &rows));
+        }
         Ok(rows_step_reusing(
             "nudge_duplicate_timestamps",
             &rows,
             super::nudge_duplicate_timestamps(
                 (*rows.value).clone(),
-                config.correct_duplicate_event_timestamps(db),
+                true,
                 &config.same_app_stop_types(db),
                 &config.other_stop_types(db),
             ),
@@ -3100,16 +4071,107 @@ mod tracked {
         ))
     }
 
+    #[salsa::tracked(returns(clone))]
     fn background_apps(
         db: &dyn EarlyStepDb,
         _config: UsageConfigInput,
         support: UsageSupportInput,
-    ) -> AHashSet<String> {
-        if support.use_background_apps_file(db) {
+    ) -> Arc<AHashSet<String>> {
+        db.record_internal_query_body("background_apps");
+        Arc::new(if support.use_background_apps_file(db) {
             parse_background_apps_csv(&support.background_apps_csv(db))
         } else {
             AHashSet::new()
+        })
+    }
+
+    #[salsa::tracked(returns(clone))]
+    fn parsed_filter_rules(
+        db: &dyn EarlyStepDb,
+        support: UsageSupportInput,
+    ) -> Arc<HashMap<String, AHashSet<String>>> {
+        db.record_internal_query_body("parsed_filter_rules");
+        Arc::new(if support.use_filter_file(db) {
+            parse_filter_csv(&support.filter_csv(db))
+        } else {
+            HashMap::new()
+        })
+    }
+
+    #[salsa::tracked(returns(clone))]
+    fn parsed_apps_forcing_screen_open(
+        db: &dyn EarlyStepDb,
+        support: UsageSupportInput,
+    ) -> Arc<HashMap<String, String>> {
+        db.record_internal_query_body("parsed_apps_forcing_screen_open");
+        Arc::new(if support.use_apps_forcing_screen_open(db) {
+            parse_apps_forcing_csv(&support.apps_forcing_csv(db))
+        } else {
+            HashMap::new()
+        })
+    }
+
+    #[salsa::tracked(returns(clone))]
+    fn parsed_codebook(
+        db: &dyn EarlyStepDb,
+        support: UsageSupportInput,
+    ) -> Arc<HashMap<String, CodebookEntry>> {
+        db.record_internal_query_body("parsed_codebook");
+        Arc::new(if support.use_app_codebook(db) {
+            parse_codebook_csv(&support.codebook_csv(db))
+        } else {
+            HashMap::new()
+        })
+    }
+
+    #[salsa::tracked(returns(clone))]
+    fn parsed_study_windows(
+        db: &dyn EarlyStepDb,
+        support: LateSupportInput,
+    ) -> Result<Arc<Vec<StudyWindow>>, String> {
+        db.record_internal_query_body("parsed_study_windows");
+        let bytes = support.study_dates_csv(db);
+        if bytes.is_empty() {
+            Ok(Arc::default())
+        } else {
+            Ok(Arc::new(parse_study_windows(&bytes)?))
         }
+    }
+
+    #[salsa::tracked(returns(clone))]
+    fn parsed_device_sharing(
+        db: &dyn EarlyStepDb,
+        support: LateSupportInput,
+    ) -> Result<Arc<Vec<SharingEntry>>, String> {
+        db.record_internal_query_body("parsed_device_sharing");
+        let bytes = support.device_sharing_csv(db);
+        if bytes.is_empty() {
+            Ok(Arc::default())
+        } else {
+            Ok(Arc::new(parse_device_sharing(&bytes)?))
+        }
+    }
+
+    #[salsa::tracked(returns(clone))]
+    fn parsed_survey_attribution(
+        db: &dyn EarlyStepDb,
+        support: LateSupportInput,
+    ) -> Result<Arc<SurveyLookup>, String> {
+        db.record_internal_query_body("parsed_survey_attribution");
+        Ok(Arc::new(parse_survey_lookup(
+            &support.survey_attribution_csv(db),
+        )?))
+    }
+
+    #[salsa::tracked(returns(clone))]
+    fn parsed_enrolled_devices(
+        db: &dyn EarlyStepDb,
+        support: LateSupportInput,
+    ) -> Result<Arc<BTreeMap<String, u32>>, String> {
+        db.record_internal_query_body("parsed_enrolled_devices");
+        Ok(Arc::new(parse_enrolled_devices(
+            &support.enrolled_devices_csv(db),
+        )?))
     }
 
     #[salsa::tracked(returns(clone))]
@@ -3152,16 +4214,18 @@ mod tracked {
         db.record_query_body("tag_filtered_packages");
         let rows = mark_data_time_gaps(db, raw, early)?;
         let enabled = support.use_filter_file(db);
-        let filter_csv = if enabled {
-            support.filter_csv(db)
-        } else {
-            Arc::default()
-        };
+        if !enabled {
+            return Ok(with_logical_rows(
+                unchanged_rows_step("tag_filtered_packages", &rows),
+                "app_policy",
+            ));
+        }
+        let filter_rules = parsed_filter_rules(db, support);
         Ok(with_logical_rows(
             rows_step_reusing(
                 "tag_filtered_packages",
                 &rows,
-                super::tag_filtered_packages((*rows.value).clone(), enabled, &filter_csv),
+                super::tag_filtered_packages((*rows.value).clone(), true, &filter_rules),
             ),
             "app_policy",
         ))
@@ -3249,11 +4313,7 @@ mod tracked {
             ));
         }
         let keyguard = collect_keyguard_timestamps(db, raw, early, config, support)?;
-        let forcing = if support.use_apps_forcing_screen_open(db) {
-            parse_apps_forcing_csv(&support.apps_forcing_csv(db))
-        } else {
-            HashMap::new()
-        };
+        let forcing = parsed_apps_forcing_screen_open(db, support);
         Ok(with_logical_rows(
             rows_step(
                 "build_classified_sessions",
@@ -3301,6 +4361,12 @@ mod tracked {
     ) -> Result<StepValue<Vec<Row>>, String> {
         db.record_query_body("junk_blind_fold");
         let rows = tag_filtered_packages(db, raw, early, config, support)?;
+        if compute_junk_packages(db, raw, early, config, support)?
+            .value
+            .is_empty()
+        {
+            return Ok(unchanged_rows_step("junk_blind_fold", &rows));
+        }
         Ok(rows_step_reusing(
             "junk_blind_fold",
             &rows,
@@ -3366,6 +4432,7 @@ mod tracked {
         sort_episodes: LogicalStageCheckpoint,
         split_concurrent: LogicalStageCheckpoint,
         reconstruct_episodes: LogicalStageCheckpoint,
+        annotation_checkpoint: Option<ReviewAnnotationCheckpointBase>,
     }
 
     impl PartialEq for ReviewReconstruction {
@@ -3380,10 +4447,333 @@ mod tracked {
                 && self.sort_episodes == other.sort_episodes
                 && self.split_concurrent == other.split_concurrent
                 && self.reconstruct_episodes == other.reconstruct_episodes
+                && self
+                    .annotation_checkpoint
+                    .as_ref()
+                    .map(|value| &value.input_key)
+                    == other
+                        .annotation_checkpoint
+                        .as_ref()
+                        .map(|value| &value.input_key)
         }
     }
 
     impl Eq for ReviewReconstruction {}
+
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct ReviewAppliedRows {
+        filtered_packages: Arc<BTreeSet<String>>,
+        compute_junk_packages: LogicalStageCheckpoint,
+        junk_blind_fold: LogicalStageCheckpoint,
+        build_matcher_input: LogicalStageCheckpoint,
+        run_matcher: LogicalStageCheckpoint,
+        apply_matcher_output: LogicalStageCheckpoint,
+    }
+
+    impl PartialEq for ReviewAppliedRows {
+        fn eq(&self, other: &Self) -> bool {
+            self.compute_junk_packages == other.compute_junk_packages
+                && self.junk_blind_fold == other.junk_blind_fold
+                && self.build_matcher_input == other.build_matcher_input
+                && self.run_matcher == other.run_matcher
+                && self.apply_matcher_output == other.apply_matcher_output
+        }
+    }
+
+    impl Eq for ReviewAppliedRows {}
+
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct ReviewUsageRowsBeforeFloor {
+        rows: Arc<Vec<Row>>,
+        /// Positions created from paired Activity Resumed records. Only these
+        /// rows are affected by minimum_usage_duration.
+        floor_candidate_indices: Arc<Vec<u32>>,
+        applied: ReviewAppliedRows,
+        checkpoint: LogicalStageCheckpoint,
+        temporal_sequence: CanonicalTemporalSequence,
+    }
+
+    impl PartialEq for ReviewUsageRowsBeforeFloor {
+        fn eq(&self, other: &Self) -> bool {
+            self.applied == other.applied
+        }
+    }
+
+    impl Eq for ReviewUsageRowsBeforeFloor {}
+
+    #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    struct ReviewStaticAnnotations {
+        rows: Arc<Vec<Row>>,
+        input_key: String,
+        checkpoint: LogicalStageCheckpoint,
+    }
+
+    impl PartialEq for ReviewStaticAnnotations {
+        fn eq(&self, other: &Self) -> bool {
+            self.input_key == other.input_key
+        }
+    }
+
+    impl Eq for ReviewStaticAnnotations {}
+
+    /// Keep matcher application independent from the duration floor. A floor
+    /// edit can then reuse these rows, while a matcher-affecting edit still
+    /// reruns the exact work without hashing a throwaway intermediate table.
+    #[salsa::tracked(returns(clone))]
+    fn review_applied_rows(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<ReviewAppliedRows, String> {
+        let _timer = QueryTimer::start("review_applied_rows");
+        db.record_internal_query_body("review_applied_rows");
+        let filtered = compute_junk_packages(db, raw, early, config, support)?;
+        let blind = junk_blind_fold(db, raw, early, config, support)?;
+        let matcher_input = build_matcher_input(db, raw, early, config, support)?;
+        let matcher = run_matcher(db, raw, early, config, support)?;
+        let apply_matcher_output = review_derived_checkpoint(
+            "apply_matcher_output",
+            &[
+                ("rows", &blind.checkpoint),
+                ("matcher", &matcher.checkpoint),
+                ("filteredPackages", &filtered.checkpoint),
+            ],
+            &serde_json::json!({}),
+        )?;
+        db.record_fused_product_step("apply_matcher_output");
+        Ok(ReviewAppliedRows {
+            filtered_packages: Arc::clone(&filtered.value),
+            compute_junk_packages: filtered.checkpoint.clone(),
+            junk_blind_fold: blind.checkpoint.clone(),
+            build_matcher_input: matcher_input.checkpoint.clone(),
+            run_matcher: matcher.checkpoint.clone(),
+            apply_matcher_output,
+        })
+    }
+
+    /// Build the threshold-independent part of relabel_usage_with_floor once.
+    /// Repeated floor edits can then copy and clear only the sessions below
+    /// the new threshold instead of reclassifying every matched session.
+    #[salsa::tracked(returns(clone))]
+    fn review_usage_rows_before_floor(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<ReviewUsageRowsBeforeFloor, String> {
+        let _timer = QueryTimer::start("review_usage_rows_before_floor");
+        db.record_internal_query_body("review_usage_rows_before_floor");
+        let applied = review_applied_rows(db, raw, early, config, support)?;
+        let blind = junk_blind_fold(db, raw, early, config, support)?;
+        let matcher = run_matcher(db, raw, early, config, support)?;
+        let persisted_suffix_digests = if raw.review_base_bytes(db).is_empty() {
+            None
+        } else {
+            matching_review_base(db, raw, early, support)?.and_then(|base| {
+                base.value
+                    .matcher_search_suffix_digests
+                    .as_ref()
+                    .map(Arc::clone)
+            })
+        };
+        let mut rows = (*blind.value).clone();
+        let apply_timer = QueryTimer::start("review_reconstruction_apply_matcher_rows");
+        super::apply_matcher_output_in_place(
+            &mut rows,
+            &matcher.value,
+            &applied.filtered_packages,
+            persisted_suffix_digests.as_deref().map(Vec::as_slice),
+        );
+        apply_timer.finish();
+        let mut floor_candidate_row_ids = AHashSet::new();
+        let retain_timer = QueryTimer::start("review_before_floor_relabel_retain");
+        rows.retain_mut(|row| {
+            if row.interaction_type == ACTIVITY_PAUSED
+                || (row.interaction_type == ACTIVITY_RESUMED
+                    && (row.start_timestamp_ns.is_none() || row.stop_timestamp_ns.is_none()))
+            {
+                return false;
+            }
+            if row.interaction_type == ACTIVITY_RESUMED {
+                let is_filtered = applied
+                    .filtered_packages
+                    .contains(row.app_package_name.as_str());
+                row.edit_classification().interaction_type = if is_filtered {
+                    FILTERED_APP_USAGE
+                } else {
+                    APP_USAGE
+                }
+                .into();
+                if is_filtered {
+                    let temporal = row.edit_temporal();
+                    temporal.start_timestamp_ns = None;
+                    temporal.stop_timestamp_ns = None;
+                    temporal.duration_seconds = None;
+                    temporal.duration_minutes = None;
+                } else {
+                    let start = row.start_timestamp_ns.expect("paired usage start");
+                    let stop = row.stop_timestamp_ns.expect("paired usage stop");
+                    let duration_seconds = (stop - start) as f64 / 1_000_000_000.0;
+                    let temporal = row.edit_temporal();
+                    temporal.duration_seconds = Some(duration_seconds);
+                    temporal.duration_minutes = Some(duration_seconds / 60.0);
+                    floor_candidate_row_ids.insert(row.index);
+                }
+            }
+            true
+        });
+        retain_timer.finish();
+        // Duration floors do not affect event order. Establish the exact sort
+        // once in this threshold-independent memo, then preserve it across
+        // every later A/B threshold edit.
+        let sort_timer = QueryTimer::start("review_before_floor_sort_episodes");
+        rows = super::sort_episodes(rows);
+        sort_timer.finish();
+        let floor_candidate_indices = rows
+            .iter()
+            .enumerate()
+            .filter_map(|(index, row)| {
+                floor_candidate_row_ids
+                    .contains(&row.index)
+                    .then_some(index as u32)
+            })
+            .collect::<Vec<_>>();
+        // Both the exact stage checkpoint and later sparse temporal updates use
+        // the same canonical source-identity order. Compute the per-row parts
+        // and sort once instead of walking and sorting this large table twice.
+        let parts_timer = QueryTimer::start("review_before_floor_checkpoint_parts");
+        let checkpoint_parts = row_checkpoint_parts_for_rows(&rows);
+        parts_timer.finish();
+        let order_timer = QueryTimer::start("review_before_floor_canonical_order");
+        let canonical_order = canonical_row_order(&rows);
+        order_timer.finish();
+        let stage_timer = QueryTimer::start("review_before_floor_stage_checkpoint");
+        let checkpoint = logical_stage_rows_checkpoint_with_parts_and_canonical_order(
+            "review_usage_rows_before_floor",
+            &rows,
+            &checkpoint_parts,
+            &canonical_order,
+        );
+        stage_timer.finish();
+        #[cfg(debug_assertions)]
+        debug_assert_eq!(
+            checkpoint,
+            logical_stage_rows_checkpoint("review_usage_rows_before_floor", &rows),
+            "precomputed canonical order changed the exact checkpoint",
+        );
+        let temporal_timer = QueryTimer::start("review_before_floor_temporal_sequence");
+        let temporal_sequence = canonical_temporal_sequence_with_order(&rows, &canonical_order);
+        temporal_timer.finish();
+        Ok(ReviewUsageRowsBeforeFloor {
+            rows: Arc::new(rows),
+            floor_candidate_indices: Arc::new(floor_candidate_indices),
+            applied,
+            checkpoint,
+            temporal_sequence,
+        })
+    }
+
+    /// Cache annotation columns whose values do not read the duration floor.
+    /// This path is valid only when concurrent/background reconstruction does
+    /// not change membership or order. The floor-specific duration and flags
+    /// are overlaid later from the exact reconstructed rows.
+    #[salsa::tracked(returns(clone))]
+    fn review_static_annotations(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<ReviewStaticAnnotations, String> {
+        let _timer = QueryTimer::start("review_static_annotations");
+        db.record_internal_query_body("review_static_annotations");
+        let prepared = review_usage_rows_before_floor(db, raw, early, config, support)?;
+        if config.model_concurrent_usage(db) || !background_apps(db, config, support).is_empty() {
+            return Err("static review annotations require stable row membership".into());
+        }
+        if !super::rows_are_event_ordered(&prepared.rows) {
+            return Err("static review annotations require stable row order".into());
+        }
+
+        let enabled = support.use_app_codebook(db);
+        let codebook_csv = if enabled {
+            support.codebook_csv(db)
+        } else {
+            Arc::default()
+        };
+        let codebook = parsed_codebook(db, support);
+        let long_gap_thresholds = config.long_data_time_gap_thresholds(db);
+        let long_usage_thresholds = config.long_usage_duration_thresholds(db);
+        let custom_engagement_duration = config.custom_app_engagement_duration(db);
+        let input_key = review_derived_checkpoint(
+            "review_static_annotations",
+            &[("applyMatcherOutput", &prepared.applied.apply_matcher_output)],
+            &serde_json::json!({
+                "filteredPackages": prepared.applied.filtered_packages,
+                "useAppCodebook": enabled,
+                "codebookDigest": digest_bytes(&codebook_csv),
+                "customAppEngagementDuration": custom_engagement_duration,
+                "longDataTimeGapThresholds": long_gap_thresholds,
+                "longUsageDurationThresholds": long_usage_thresholds,
+            }),
+        )?
+        .terminal_digest;
+
+        let clone_timer = QueryTimer::start("review_static_clone_rows");
+        let mut rows = (*prepared.rows).clone();
+        clone_timer.finish();
+        if !prepared.applied.filtered_packages.is_empty() {
+            let junk_timer = QueryTimer::start("review_static_junk_downstream_mark");
+            rows = super::junk_downstream_mark(
+                rows,
+                &prepared.applied.filtered_packages,
+                &AHashSet::new(),
+            );
+            junk_timer.finish();
+        }
+        let codebook_timer = QueryTimer::start("review_static_codebook_annotations");
+        super::apply_codebook_annotations(&mut rows, enabled, &codebook);
+        codebook_timer.finish();
+        let detail_timer = QueryTimer::start("review_static_detail_columns");
+        super::add_app_usage_detail_columns(&mut rows, custom_engagement_duration);
+        detail_timer.finish();
+        let flags_timer = QueryTimer::start("review_static_usage_flags");
+        super::mark_app_usage_flags(&mut rows, &long_gap_thresholds, &long_usage_thresholds);
+        flags_timer.finish();
+        let clear_timer = QueryTimer::start("review_static_clear_filtered_timing");
+        super::clear_filtered_usage_timing(&mut rows);
+        clear_timer.finish();
+        for step in [
+            "codebook_join",
+            "derive_broad_category",
+            "collapse_genre",
+            "engagement_walk",
+            "blank_junk_timing",
+        ] {
+            db.record_fused_product_step(step);
+        }
+        // Annotation changes values on existing rows but cannot add, remove,
+        // or reorder them. Preserve those two exact commitments from the
+        // threshold-independent table and hash only the temporal and
+        // classification columns that this pass can actually change.
+        let checkpoint_timer = QueryTimer::start("review_static_stage_checkpoint");
+        let checkpoint = logical_stage_checkpoint_with_known_membership_and_order(
+            "review_static_annotations",
+            &rows,
+            &[],
+            &prepared.rows,
+            &prepared.checkpoint,
+        );
+        checkpoint_timer.finish();
+        Ok(ReviewStaticAnnotations {
+            rows: Arc::new(rows),
+            input_key,
+            checkpoint,
+        })
+    }
 
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
     struct ReviewReconstructedRows {
@@ -3395,6 +4785,7 @@ mod tracked {
         apply_matcher_output: LogicalStageCheckpoint,
         split_concurrent: LogicalStageCheckpoint,
         reconstruct_episodes: LogicalStageCheckpoint,
+        annotation_checkpoint: Option<ReviewAnnotationCheckpointBase>,
     }
 
     impl PartialEq for ReviewReconstructedRows {
@@ -3406,6 +4797,14 @@ mod tracked {
                 && self.apply_matcher_output == other.apply_matcher_output
                 && self.split_concurrent == other.split_concurrent
                 && self.reconstruct_episodes == other.reconstruct_episodes
+                && self
+                    .annotation_checkpoint
+                    .as_ref()
+                    .map(|value| &value.input_key)
+                    == other
+                        .annotation_checkpoint
+                        .as_ref()
+                        .map(|value| &value.input_key)
         }
     }
 
@@ -3434,25 +4833,32 @@ mod tracked {
             if let Some(cached) = matching_reconstruction_base(db, raw, early, config, support)? {
                 db.record_internal_query_body("restore_reconstruction_base");
                 let cached = cached.value;
+                let apply_matcher_output = review_derived_checkpoint(
+                    "apply_matcher_output",
+                    &[
+                        ("rows", &cached.junk_blind_fold),
+                        ("matcher", &cached.run_matcher),
+                        ("filteredPackages", &cached.compute_junk_packages),
+                    ],
+                    &serde_json::json!({}),
+                )?;
                 return Ok(ReviewReconstructedRows {
                     rows: Arc::clone(&cached.rows),
                     compute_junk_packages: cached.compute_junk_packages.clone(),
                     junk_blind_fold: cached.junk_blind_fold.clone(),
                     build_matcher_input: cached.build_matcher_input.clone(),
                     run_matcher: cached.run_matcher.clone(),
-                    apply_matcher_output: cached.apply_matcher_output.clone(),
+                    apply_matcher_output,
                     split_concurrent: cached.split_concurrent.clone(),
                     reconstruct_episodes: cached.reconstruct_episodes.clone(),
+                    annotation_checkpoint: Some(cached.annotation_checkpoint.clone()),
                 });
             }
         }
         db.record_internal_query_body("review_reconstructed_rows");
 
-        let filtered = compute_junk_packages(db, raw, early, config, support)?;
-        let blind = junk_blind_fold(db, raw, early, config, support)?;
-        let matcher_input = build_matcher_input(db, raw, early, config, support)?;
-        let matcher = run_matcher(db, raw, early, config, support)?;
-        let applied = apply_matcher_output(db, raw, early, config, support)?;
+        let prepared = review_usage_rows_before_floor(db, raw, early, config, support)?;
+        let applied = &prepared.applied;
         let background = background_apps(db, config, support);
         let rebuilds_usage_intervals = config.model_concurrent_usage(db) || !background.is_empty();
         let apply_minimum_to_subintervals =
@@ -3467,35 +4873,96 @@ mod tracked {
             0.0
         };
 
-        let mut rows = super::relabel_usage_with_floor(
-            (*applied.value).clone(),
-            &filtered.value,
-            effective_minimum,
-        );
-        if !filtered.value.is_empty() {
-            rows = super::junk_downstream_mark(rows, &filtered.value, &background);
+        let mut rows = (*prepared.rows).clone();
+        let mut exact_prepared_rows = true;
+        let mut changed_temporal_indices = Vec::new();
+        if effective_minimum > 0.0 {
+            for &index in prepared.floor_candidate_indices.iter() {
+                let row = &mut rows[index as usize];
+                if row
+                    .duration_seconds
+                    .is_some_and(|duration| duration < effective_minimum)
+                {
+                    exact_prepared_rows = false;
+                    changed_temporal_indices.push(index);
+                    let temporal = row.edit_temporal();
+                    temporal.duration_seconds = None;
+                    temporal.duration_minutes = None;
+                }
+            }
         }
-        rows = super::sort_episodes(rows);
+        if !applied.filtered_packages.is_empty() {
+            exact_prepared_rows = false;
+            rows = super::junk_downstream_mark(rows, &applied.filtered_packages, &background);
+        }
+        // The matcher path normally preserves event order. Sorting an already
+        // ordered 100k-row table cost several milliseconds on every A/B edit
+        // without changing a byte. Keep the product step and its checkpoint,
+        // but only run the physical sort when the order check proves it is
+        // needed.
+        if !super::rows_are_event_ordered(&rows) {
+            exact_prepared_rows = false;
+            rows = super::sort_episodes(rows);
+        }
         if rebuilds_usage_intervals {
+            exact_prepared_rows = false;
             rows = super::split_concurrent(
                 rows,
-                &filtered.value,
+                &applied.filtered_packages,
                 &background,
                 config.model_concurrent_usage(db),
                 effective_minimum,
                 apply_minimum_to_subintervals,
             )?;
         }
-        let split = with_logical_rows(rows_step("split_concurrent", rows), "reconstruct_episodes");
+        let can_reuse_static_classification = !rebuilds_usage_intervals
+            && applied.filtered_packages.is_empty()
+            && super::rows_are_event_ordered(&prepared.rows)
+            && rows.len() == prepared.rows.len();
+        let split_step = if exact_prepared_rows {
+            // A changed threshold can be semantically relevant to the step
+            // while leaving this particular file's rows identical. Reuse the
+            // exact immutable table and its component digests; the step's own
+            // threshold-bound checkpoint remains distinct upstream.
+            StepValue {
+                checkpoint: checkpoint_for_exact_row_state(
+                    "split_concurrent",
+                    &prepared.checkpoint,
+                    &[],
+                ),
+                value: Arc::clone(&prepared.rows),
+                logical_checkpoint: None,
+            }
+        } else if can_reuse_static_classification {
+            let temporal_state_digest = temporal_digest_with_changed_rows(
+                &prepared.temporal_sequence,
+                &rows,
+                &changed_temporal_indices,
+            );
+            StepValue {
+                checkpoint: checkpoint_with_known_row_component_payloads(
+                    "split_concurrent",
+                    &prepared.checkpoint,
+                    temporal_state_digest,
+                    &[],
+                ),
+                value: Arc::new(rows),
+                logical_checkpoint: None,
+            }
+        } else {
+            rows_step("split_concurrent", rows)
+        };
+        let split = with_logical_rows(split_step, "reconstruct_episodes");
         Ok(ReviewReconstructedRows {
             rows: Arc::clone(&split.value),
-            compute_junk_packages: filtered.checkpoint.clone(),
-            junk_blind_fold: blind.checkpoint.clone(),
-            build_matcher_input: matcher_input.checkpoint.clone(),
-            run_matcher: matcher.checkpoint.clone(),
-            apply_matcher_output: applied.checkpoint.clone(),
+            compute_junk_packages: applied.compute_junk_packages.clone(),
+            junk_blind_fold: applied.junk_blind_fold.clone(),
+            build_matcher_input: applied.build_matcher_input.clone(),
+            run_matcher: applied.run_matcher.clone(),
+            apply_matcher_output: applied.apply_matcher_output.clone(),
             split_concurrent: split.checkpoint.clone(),
             reconstruct_episodes: required_logical_checkpoint(&split, "reconstruct_episodes")?,
+            annotation_checkpoint: None,
         })
     }
 
@@ -3577,6 +5044,51 @@ mod tracked {
             sort_episodes,
             split_concurrent,
             reconstruct_episodes,
+            annotation_checkpoint: reconstructed.annotation_checkpoint.clone(),
+        })
+    }
+
+    #[derive(Clone)]
+    struct ReviewReconstructionOutput {
+        rows: Arc<Vec<Row>>,
+        split_concurrent: LogicalStageCheckpoint,
+        annotation_checkpoint: Option<ReviewAnnotationCheckpointBase>,
+    }
+
+    impl PartialEq for ReviewReconstructionOutput {
+        fn eq(&self, other: &Self) -> bool {
+            // split_concurrent is the exact row-state boundary consumed by all
+            // later app steps. Earlier checkpoint differences remain visible
+            // in the 55-step ledger but must not invalidate consumers when
+            // reconstruction converges to identical rows.
+            self.split_concurrent == other.split_concurrent
+                && self
+                    .annotation_checkpoint
+                    .as_ref()
+                    .map(|value| &value.input_key)
+                    == other
+                        .annotation_checkpoint
+                        .as_ref()
+                        .map(|value| &value.input_key)
+        }
+    }
+
+    impl Eq for ReviewReconstructionOutput {}
+
+    #[salsa::tracked(returns(clone))]
+    fn review_reconstruction_output(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        config: UsageConfigInput,
+        support: UsageSupportInput,
+    ) -> Result<ReviewReconstructionOutput, String> {
+        db.record_internal_query_body("review_reconstruction_output");
+        let reconstructed = review_reconstruction_fused(db, raw, early, config, support)?;
+        Ok(ReviewReconstructionOutput {
+            rows: Arc::clone(&reconstructed.rows),
+            split_concurrent: reconstructed.split_concurrent.clone(),
+            annotation_checkpoint: reconstructed.annotation_checkpoint.clone(),
         })
     }
 
@@ -3593,11 +5105,28 @@ mod tracked {
         let rows = junk_blind_fold(db, raw, early, config, support)?;
         let matcher = run_matcher(db, raw, early, config, support)?;
         let filtered = compute_junk_packages(db, raw, early, config, support)?;
-        Ok(rows_step_reusing(
-            "apply_matcher_output",
-            &rows,
-            super::apply_matcher_output((*rows.value).clone(), &matcher.value, &filtered.value),
-        ))
+        let persisted_suffix_digests = if raw.review_base_bytes(db).is_empty() {
+            None
+        } else {
+            matching_review_base(db, raw, early, support)?.and_then(|base| {
+                base.value
+                    .matcher_search_suffix_digests
+                    .as_ref()
+                    .map(Arc::clone)
+            })
+        };
+        let timer = QueryTimer::start("apply_matcher_output_rows");
+        let next_rows = super::apply_matcher_output_with_suffix(
+            (*rows.value).clone(),
+            &matcher.value,
+            &filtered.value,
+            persisted_suffix_digests.as_deref().map(Vec::as_slice),
+        );
+        timer.finish();
+        let timer = QueryTimer::start("apply_matcher_output_checkpoint");
+        let result = rows_step_reusing("apply_matcher_output", &rows, next_rows);
+        timer.finish();
+        Ok(result)
     }
 
     #[salsa::tracked(returns(clone))]
@@ -3635,6 +5164,9 @@ mod tracked {
         db.record_query_body("junk_downstream_mark");
         let rows = relabel_usage_with_floor(db, raw, early, config, support)?;
         let filtered = compute_junk_packages(db, raw, early, config, support)?;
+        if filtered.value.is_empty() {
+            return Ok(unchanged_rows_step("junk_downstream_mark", &rows));
+        }
         Ok(rows_step_reusing(
             "junk_downstream_mark",
             &rows,
@@ -3657,6 +5189,9 @@ mod tracked {
         let _timer = QueryTimer::start("sort_episodes");
         db.record_query_body("sort_episodes");
         let rows = junk_downstream_mark(db, raw, early, config, support)?;
+        if super::rows_are_event_ordered(&rows.value) {
+            return Ok(unchanged_rows_step("sort_episodes", &rows));
+        }
         Ok(rows_step_reusing(
             "sort_episodes",
             &rows,
@@ -3683,6 +5218,14 @@ mod tracked {
             });
         }
         let rows = sort_episodes(db, raw, early, config, support)?;
+        let model_concurrent_usage = config.model_concurrent_usage(db);
+        let background = background_apps(db, config, support);
+        if !model_concurrent_usage && background.is_empty() {
+            return Ok(with_logical_rows(
+                unchanged_rows_step("split_concurrent", &rows),
+                "reconstruct_episodes",
+            ));
+        }
         let filtered = compute_junk_packages(db, raw, early, config, support)?;
         Ok(with_logical_rows(
             rows_step_reusing(
@@ -3691,8 +5234,8 @@ mod tracked {
                 super::split_concurrent(
                     (*rows.value).clone(),
                     &filtered.value,
-                    &background_apps(db, config, support),
-                    config.model_concurrent_usage(db),
+                    &background,
+                    model_concurrent_usage,
                     config.minimum_usage_duration(db),
                     config.apply_minimum_usage_duration_to_concurrent_subintervals(db),
                 )?,
@@ -3713,7 +5256,14 @@ mod tracked {
         db.record_query_body("codebook_join");
         let rows = split_concurrent(db, raw, early, config, support)?;
         let enabled = support.use_app_codebook(db);
-        if config.review_only(db) && !enabled {
+        if !enabled {
+            if !config.review_only(db) {
+                return unchanged_rows_with_payload(
+                    "codebook_join",
+                    &rows,
+                    &serde_json::json!({"codebookIsEmpty": true}),
+                );
+            }
             return review_passthrough_rows(
                 "codebook_join",
                 &rows,
@@ -3721,26 +5271,28 @@ mod tracked {
                 None,
             );
         }
-        let codebook_csv = if enabled {
-            support.codebook_csv(db)
-        } else {
-            Arc::default()
-        };
-        let codebook_is_empty = parse_codebook_csv(&codebook_csv).is_empty();
-        let next_rows = super::codebook_join((*rows.value).clone(), enabled, &codebook_csv);
-        let row_checkpoint = logical_stage_rows_checkpoint("codebook_join", &next_rows);
-        let value = if same_row_state(&rows.checkpoint, &row_checkpoint) {
-            Arc::clone(&rows.value)
-        } else {
-            Arc::new(next_rows)
-        };
-        let checkpoint = rows_and_value_checkpoint(
+        let codebook = parsed_codebook(db, support);
+        let codebook_is_empty = codebook.is_empty();
+        let mut next_rows = (*rows.value).clone();
+        super::join_codebook(&mut next_rows, true, &codebook);
+        let payload = serde_json::json!({"codebookIsEmpty": codebook_is_empty});
+        let exact_same_rows = next_rows.len() == rows.value.len()
+            && next_rows
+                .iter()
+                .zip(rows.value.iter())
+                .all(|(left, right)| Arc::ptr_eq(&left.0, &right.0));
+        if exact_same_rows {
+            return unchanged_rows_with_payload("codebook_join", &rows, &payload);
+        }
+        let checkpoint = rows_and_value_checkpoint_reusing(
             "codebook_join",
-            &value,
-            &serde_json::json!({"codebookIsEmpty": codebook_is_empty}),
+            &next_rows,
+            &rows.value,
+            &rows.checkpoint,
+            &payload,
         )?;
         Ok(StepValue {
-            value,
+            value: Arc::new(next_rows),
             checkpoint,
             logical_checkpoint: None,
         })
@@ -3757,7 +5309,10 @@ mod tracked {
         let _timer = QueryTimer::start("derive_broad_category");
         db.record_query_body("derive_broad_category");
         let rows = codebook_join(db, raw, early, config, support)?;
-        if config.review_only(db) && !support.use_app_codebook(db) {
+        if !support.use_app_codebook(db) {
+            if !config.review_only(db) {
+                return Ok(unchanged_rows_step("derive_broad_category", &rows));
+            }
             return review_passthrough_rows(
                 "derive_broad_category",
                 &rows,
@@ -3783,7 +5338,13 @@ mod tracked {
         let _timer = QueryTimer::start("collapse_genre");
         db.record_query_body("collapse_genre");
         let rows = derive_broad_category(db, raw, early, config, support)?;
-        if config.review_only(db) && !support.use_app_codebook(db) {
+        if !support.use_app_codebook(db) {
+            if !config.review_only(db) {
+                return Ok(with_logical_rows(
+                    unchanged_rows_step("collapse_genre", &rows),
+                    "categorize_apps",
+                ));
+            }
             return review_passthrough_rows(
                 "collapse_genre",
                 &rows,
@@ -3815,6 +5376,7 @@ mod tracked {
         drop_selected_types: LogicalStageCheckpoint,
         drop_zero_duration: LogicalStageCheckpoint,
         interval_cleaning: LogicalStageCheckpoint,
+        drop_zero_duration_executed: bool,
     }
 
     impl PartialEq for ReviewAnnotations {
@@ -3842,20 +5404,103 @@ mod tracked {
     ) -> Result<ReviewAnnotations, String> {
         let _timer = QueryTimer::start("review_annotations_fused");
         db.record_internal_query_body("review_annotations_fused");
-        let upstream = review_reconstruction_fused(db, raw, early, config, support)?;
+        let upstream = review_reconstruction_output(db, raw, early, config, support)?;
+        let annotation_input_key = review_annotation_checkpoint_input_key(db, config, support)?;
+        if let Some(cached) = upstream
+            .annotation_checkpoint
+            .as_ref()
+            .filter(|checkpoint| checkpoint.input_key == annotation_input_key)
+        {
+            return Ok(ReviewAnnotations {
+                rows: Arc::clone(&cached.rows),
+                codebook_join: cached.codebook_join.clone(),
+                derive_broad_category: cached.derive_broad_category.clone(),
+                collapse_genre: cached.collapse_genre.clone(),
+                categorize_apps: cached.categorize_apps.clone(),
+                engagement_walk: cached.engagement_walk.clone(),
+                flag_and_retain: cached.flag_and_retain.clone(),
+                episode_annotations: cached.episode_annotations.clone(),
+                blank_junk_timing: cached.blank_junk_timing.clone(),
+                drop_selected_types: cached.drop_selected_types.clone(),
+                drop_zero_duration: cached.drop_zero_duration.clone(),
+                interval_cleaning: cached.interval_cleaning.clone(),
+                drop_zero_duration_executed: false,
+            });
+        }
         let enabled = support.use_app_codebook(db);
         let codebook_csv = if enabled {
             support.codebook_csv(db)
         } else {
             Arc::default()
         };
-        let codebook = if enabled {
-            parse_codebook_csv(&codebook_csv)
+        let codebook = parsed_codebook(db, support);
+        let use_static_annotations =
+            !config.model_concurrent_usage(db) && background_apps(db, config, support).is_empty();
+        let mut static_checkpoint = None;
+        let mut static_classification_unchanged = true;
+        let mut static_rows_unchanged = true;
+        let mut static_temporal_matches_upstream = false;
+        let mut rows = if use_static_annotations {
+            let prepared = review_usage_rows_before_floor(db, raw, early, config, support)?;
+            static_temporal_matches_upstream = prepared.applied.filtered_packages.is_empty();
+            let static_annotations = review_static_annotations(db, raw, early, config, support)?;
+            if static_annotations.rows.len() != upstream.rows.len() {
+                return Err(format!(
+                    "static annotation row count mismatch: {} != {}",
+                    static_annotations.rows.len(),
+                    upstream.rows.len(),
+                ));
+            }
+            let mut rows = (*static_annotations.rows).clone();
+            let thresholds = super::prepare_usage_flags(
+                &config.long_data_time_gap_thresholds(db),
+                &config.long_usage_duration_thresholds(db),
+            );
+            for &index in prepared.floor_candidate_indices.iter() {
+                let index = index as usize;
+                let source = &upstream.rows[index];
+                let target = &mut rows[index];
+                if target.index != source.index
+                    || target.event_timestamp_ns != source.event_timestamp_ns
+                    || target.participant_id != source.participant_id
+                    || target.app_package_name != source.app_package_name
+                {
+                    return Err(format!(
+                        "static annotation correspondence mismatch at row {index}"
+                    ));
+                }
+                let same_seconds = match (target.duration_seconds, source.duration_seconds) {
+                    (Some(left), Some(right)) => left.to_bits() == right.to_bits(),
+                    (None, None) => true,
+                    _ => false,
+                };
+                let same_minutes = match (target.duration_minutes, source.duration_minutes) {
+                    (Some(left), Some(right)) => left.to_bits() == right.to_bits(),
+                    (None, None) => true,
+                    _ => false,
+                };
+                if !same_seconds || !same_minutes {
+                    static_rows_unchanged = false;
+                    let temporal = target.edit_temporal();
+                    temporal.duration_seconds = source.duration_seconds;
+                    temporal.duration_minutes = source.duration_minutes;
+                    let previous_flags = target.any_app_usage_flags.clone();
+                    super::mark_app_usage_flags_row(target, &thresholds);
+                    static_classification_unchanged &= target.any_app_usage_flags == previous_flags;
+                }
+            }
+            static_checkpoint = Some((
+                Arc::clone(&static_annotations.rows),
+                static_annotations.checkpoint.clone(),
+            ));
+            rows
         } else {
-            HashMap::new()
+            let mut rows = (*upstream.rows).clone();
+            let timer = QueryTimer::start("review_annotations_apply_codebook");
+            super::apply_codebook_annotations(&mut rows, enabled, &codebook);
+            timer.finish();
+            rows
         };
-        let mut rows = (*upstream.rows).clone();
-        super::apply_codebook_annotations(&mut rows, enabled, &codebook);
         let codebook_join = review_derived_checkpoint(
             "codebook_join",
             &[("rows", &upstream.split_concurrent)],
@@ -3865,14 +5510,18 @@ mod tracked {
                 "codebookIsEmpty": codebook.is_empty(),
             }),
         )?;
-        db.record_fused_product_step("codebook_join");
+        if !use_static_annotations {
+            db.record_fused_product_step("codebook_join");
+        }
 
         let derive_broad_category = review_derived_checkpoint(
             "derive_broad_category",
             &[("rows", &codebook_join)],
             &serde_json::json!({"enabled": enabled}),
         )?;
-        db.record_fused_product_step("derive_broad_category");
+        if !use_static_annotations {
+            db.record_fused_product_step("derive_broad_category");
+        }
 
         let collapse_genre = review_derived_checkpoint(
             "collapse_genre",
@@ -3884,9 +5533,22 @@ mod tracked {
             &[],
             &[("rows", collapse_genre.terminal_digest.as_bytes())],
         );
-        db.record_fused_product_step("collapse_genre");
+        if !use_static_annotations {
+            db.record_fused_product_step("collapse_genre");
+        }
 
-        rows = super::engagement_walk(rows, config.custom_app_engagement_duration(db));
+        let long_gap_thresholds = config.long_data_time_gap_thresholds(db);
+        let long_usage_thresholds = config.long_usage_duration_thresholds(db);
+        if !use_static_annotations {
+            let timer = QueryTimer::start("review_annotations_row_pass");
+            super::apply_review_annotations_one_pass(
+                &mut rows,
+                config.custom_app_engagement_duration(db),
+                &long_gap_thresholds,
+                &long_usage_thresholds,
+            );
+            timer.finish();
+        }
         let engagement_walk = review_derived_checkpoint(
             "engagement_walk",
             &[("rows", &collapse_genre)],
@@ -3894,11 +5556,10 @@ mod tracked {
                 "customAppEngagementDuration": config.custom_app_engagement_duration(db),
             }),
         )?;
-        db.record_fused_product_step("engagement_walk");
+        if !use_static_annotations {
+            db.record_fused_product_step("engagement_walk");
+        }
 
-        let long_gap_thresholds = config.long_data_time_gap_thresholds(db);
-        let long_usage_thresholds = config.long_usage_duration_thresholds(db);
-        rows = super::flag_and_retain(rows, &long_gap_thresholds, &long_usage_thresholds);
         let flag_and_retain = review_derived_checkpoint(
             "flag_and_retain",
             &[("rows", &engagement_walk)],
@@ -3915,16 +5576,18 @@ mod tracked {
         );
         db.record_fused_product_step("flag_and_retain");
 
-        rows = super::blank_junk_timing(rows);
         let blank_junk_timing = review_derived_checkpoint(
             "blank_junk_timing",
             &[("rows", &flag_and_retain)],
             &serde_json::json!({}),
         )?;
-        db.record_fused_product_step("blank_junk_timing");
+        if !use_static_annotations {
+            db.record_fused_product_step("blank_junk_timing");
+        }
 
         let removed_types = config.interaction_types_to_remove(db);
         if !removed_types.is_empty() {
+            static_rows_unchanged = false;
             rows = super::drop_selected_types(rows, &removed_types, &long_gap_thresholds);
         }
         let drop_selected_types = review_derived_checkpoint(
@@ -3938,21 +5601,67 @@ mod tracked {
         db.record_fused_product_step("drop_selected_types");
 
         if config.filter_zero_duration_sessions(db) {
+            static_rows_unchanged = false;
             rows = super::drop_zero_duration(rows, true);
         }
-        let drop_zero_duration = rows_and_value_checkpoint(
-            "drop_zero_duration",
-            &rows,
-            &serde_json::json!({
-                "enabled": config.filter_zero_duration_sessions(db),
-                "upstreamDigest": drop_selected_types.terminal_digest,
-            }),
-        )?;
+        let timer = QueryTimer::start("review_annotations_final_checkpoint");
+        let checkpoint_payload = serde_json::json!({
+            "enabled": config.filter_zero_duration_sessions(db),
+            "upstreamDigest": drop_selected_types.terminal_digest,
+        });
+        let drop_zero_duration = if static_rows_unchanged
+            && removed_types.is_empty()
+            && !config.filter_zero_duration_sessions(db)
+            && static_checkpoint.is_some()
+        {
+            let (_, static_checkpoint) = static_checkpoint
+                .as_ref()
+                .expect("checked static checkpoint");
+            let bytes = serde_json::to_vec(&checkpoint_payload)
+                .map_err(|error| format!("serialize drop_zero_duration checkpoint: {error}"))?;
+            checkpoint_for_exact_row_state(
+                "drop_zero_duration",
+                static_checkpoint,
+                &[("value", &bytes)],
+            )
+        } else if removed_types.is_empty()
+            && !config.filter_zero_duration_sessions(db)
+            && static_classification_unchanged
+            && static_temporal_matches_upstream
+            && static_checkpoint.is_some()
+        {
+            let (_, static_checkpoint) = static_checkpoint
+                .as_ref()
+                .expect("checked static checkpoint");
+            checkpoint_with_known_row_components(
+                "drop_zero_duration",
+                static_checkpoint,
+                upstream.split_concurrent.temporal_state_digest.clone(),
+                &checkpoint_payload,
+            )?
+        } else if removed_types.is_empty() && !config.filter_zero_duration_sessions(db) {
+            rows_and_value_checkpoint_reusing_membership_and_order(
+                "drop_zero_duration",
+                &rows,
+                &upstream.rows,
+                &upstream.split_concurrent,
+                &checkpoint_payload,
+            )?
+        } else {
+            rows_and_value_checkpoint_reusing(
+                "drop_zero_duration",
+                &rows,
+                &upstream.rows,
+                &upstream.split_concurrent,
+                &checkpoint_payload,
+            )?
+        };
         let interval_cleaning = logical_stage_checkpoint(
             "interval_cleaning",
             &[],
             &[("rows", drop_zero_duration.terminal_digest.as_bytes())],
         );
+        timer.finish();
 
         Ok(ReviewAnnotations {
             rows: Arc::new(rows),
@@ -3967,6 +5676,7 @@ mod tracked {
             drop_selected_types,
             drop_zero_duration,
             interval_cleaning,
+            drop_zero_duration_executed: config.filter_zero_duration_sessions(db),
         })
     }
 
@@ -4027,6 +5737,12 @@ mod tracked {
         let _timer = QueryTimer::start("blank_junk_timing");
         db.record_query_body("blank_junk_timing");
         let rows = flag_and_retain(db, raw, early, config, support)?;
+        if compute_junk_packages(db, raw, early, config, support)?
+            .value
+            .is_empty()
+        {
+            return Ok(unchanged_rows_step("blank_junk_timing", &rows));
+        }
         Ok(rows_step_reusing(
             "blank_junk_timing",
             &rows,
@@ -4046,7 +5762,10 @@ mod tracked {
         db.record_query_body("drop_selected_types");
         let rows = blank_junk_timing(db, raw, early, config, support)?;
         let removed_types = config.interaction_types_to_remove(db);
-        if config.review_only(db) && removed_types.is_empty() {
+        if removed_types.is_empty() {
+            if !config.review_only(db) {
+                return Ok(unchanged_rows_step("drop_selected_types", &rows));
+            }
             return review_passthrough_rows(
                 "drop_selected_types",
                 &rows,
@@ -4074,32 +5793,32 @@ mod tracked {
         support: UsageSupportInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
         let _timer = QueryTimer::start("drop_zero_duration");
-        db.record_query_body("drop_zero_duration");
         if config.review_only(db) {
             let fused = review_annotations_fused(db, raw, early, config, support)?;
+            if fused.drop_zero_duration_executed {
+                db.record_query_body("drop_zero_duration");
+            } else {
+                db.record_internal_query_body("drop_zero_duration_review_output");
+            }
             return Ok(StepValue {
                 value: Arc::clone(&fused.rows),
                 checkpoint: fused.drop_zero_duration.clone(),
                 logical_checkpoint: Some(fused.interval_cleaning.clone()),
             });
         }
+        db.record_query_body("drop_zero_duration");
         let rows = drop_selected_types(db, raw, early, config, support)?;
-        if config.review_only(db) && !config.filter_zero_duration_sessions(db) {
-            return review_passthrough_rows(
-                "drop_zero_duration",
-                &rows,
-                &serde_json::json!({"enabled": false}),
-                Some("interval_cleaning"),
-            );
+        if !config.filter_zero_duration_sessions(db) {
+            return Ok(with_logical_rows(
+                unchanged_rows_step("drop_zero_duration", &rows),
+                "interval_cleaning",
+            ));
         }
         Ok(with_logical_rows(
             rows_step_reusing(
                 "drop_zero_duration",
                 &rows,
-                super::drop_zero_duration(
-                    (*rows.value).clone(),
-                    config.filter_zero_duration_sessions(db),
-                ),
+                super::drop_zero_duration((*rows.value).clone(), true),
             ),
             "interval_cleaning",
         ))
@@ -4303,9 +6022,10 @@ mod tracked {
         let _timer = QueryTimer::start("resolve_participant_windows");
         db.record_query_body("resolve_participant_windows");
         let rows = drop_zero_duration(db, raw, early, config, support)?;
+        let windows = parsed_study_windows(db, late_support)?;
         value_step(
             "resolve_participant_windows",
-            super::resolve_windows(&rows.value, &late_support.study_dates_csv(db))?,
+            super::resolve_windows(&rows.value, &windows),
         )
     }
 
@@ -4324,11 +6044,7 @@ mod tracked {
         let rows = drop_zero_duration(db, raw, early, config, support)?;
         let resolved = resolve_participant_windows(db, raw, early, config, support, late_support)?;
         let enabled = late.enable_study_window_filter(db);
-        let study_dates = if enabled {
-            late_support.study_dates_csv(db)
-        } else {
-            Arc::default()
-        };
+        let windows = parsed_study_windows(db, late_support)?;
         if config.review_only(db) && !enabled {
             let mut participants_without_window = resolved
                 .value
@@ -4355,7 +6071,7 @@ mod tracked {
             );
             return Ok(StepValue {
                 value: Arc::new(WindowedRows {
-                    rows: rows.value.as_ref().clone(),
+                    rows: Arc::clone(&rows.value),
                     dropped_rows: 0,
                     participants_without_window,
                     applied: false,
@@ -4364,19 +6080,35 @@ mod tracked {
                 logical_checkpoint: Some(logical_checkpoint),
             });
         }
-        let value = super::filter_to_window(
-            (*rows.value).clone(),
-            &resolved.value,
-            enabled,
-            &study_dates,
-        )?;
+        let value =
+            super::filter_to_window(Arc::clone(&rows.value), &resolved.value, enabled, &windows)?;
         let payload = serde_json::json!({
             "applied": value.applied,
             "droppedRows": value.dropped_rows,
             "participantsWithoutWindow": value.participants_without_window,
         });
-        let checkpoint = rows_and_value_checkpoint("filter_rows_to_window", &value.rows, &payload)?;
-        let logical_checkpoint = logical_stage_rows_checkpoint("observation_window", &value.rows);
+        let checkpoint = if Arc::ptr_eq(&value.rows, &rows.value) {
+            let bytes = serde_json::to_vec(&payload)
+                .map_err(|error| format!("serialize filter_rows_to_window checkpoint: {error}"))?;
+            checkpoint_for_exact_row_state(
+                "filter_rows_to_window",
+                &rows.checkpoint,
+                &[("value", &bytes)],
+            )
+        } else {
+            rows_and_value_checkpoint_reusing(
+                "filter_rows_to_window",
+                &value.rows,
+                &rows.value,
+                &rows.checkpoint,
+                &payload,
+            )?
+        };
+        let logical_checkpoint = if Arc::ptr_eq(&value.rows, &rows.value) {
+            checkpoint_for_exact_row_state("observation_window", &checkpoint, &[])
+        } else {
+            logical_stage_rows_checkpoint("observation_window", &value.rows)
+        };
         Ok(StepValue {
             value: Arc::new(value),
             checkpoint,
@@ -4398,12 +6130,12 @@ mod tracked {
         db.record_query_body("resolve_sharing_status");
         let windowed = filter_rows_to_window(db, raw, early, config, support, late, late_support)?;
         let enabled = late.enable_person_attribution(db);
-        let sharing_csv = if enabled {
-            late_support.device_sharing_csv(db)
+        let sharing = if enabled {
+            parsed_device_sharing(db, late_support)?
         } else {
             Arc::default()
         };
-        let value = super::resolve_sharing(&windowed.value.rows, enabled, &sharing_csv)?;
+        let value = super::resolve_sharing(&windowed.value.rows, enabled, &sharing)?;
         match &value {
             SharingResolutionValue::Disabled => value_payload_step(
                 "resolve_sharing_status",
@@ -4436,7 +6168,7 @@ mod tracked {
                 &serde_json::json!({"enabled": false}),
             );
         }
-        let survey = super::survey_lookup(true, &late_support.survey_attribution_csv(db))?;
+        let survey = parsed_survey_attribution(db, late_support)?;
         let payload = survey
             .iter()
             .map(|((participant_id, event_timestamp_ns), user)| {
@@ -4447,7 +6179,7 @@ mod tracked {
                 })
             })
             .collect::<Vec<_>>();
-        value_payload_step("build_survey_lookup", survey, &payload)
+        value_payload_step("build_survey_lookup", (*survey).clone(), &payload)
     }
 
     #[salsa::tracked(returns(clone))]
@@ -4484,20 +6216,47 @@ mod tracked {
         }
         let sharing = resolve_sharing_status(db, raw, early, config, support, late, late_support)?;
         let survey = build_survey_lookup(db, late, late_support)?;
-        let value =
-            super::attribute_rows(windowed.value.rows.clone(), &sharing.value, &survey.value)?;
+        let value = super::attribute_rows(
+            Arc::clone(&windowed.value.rows),
+            &sharing.value,
+            &survey.value,
+        )?;
         let payload = match &value.report {
             Some(report) => serde_json::json!({"applied": true, "report": report}),
             None => serde_json::json!({"applied": false}),
         };
-        let checkpoint = rows_and_value_checkpoint("attribute_rows", &value.rows, &payload)?;
+        let checkpoint = if Arc::ptr_eq(&value.rows, &windowed.value.rows) {
+            let bytes = serde_json::to_vec(&payload)
+                .map_err(|error| format!("serialize attribute_rows checkpoint: {error}"))?;
+            checkpoint_for_exact_row_state(
+                "attribute_rows",
+                &windowed.checkpoint,
+                &[("value", &bytes)],
+            )
+        } else {
+            rows_and_value_checkpoint_reusing(
+                "attribute_rows",
+                &value.rows,
+                &windowed.value.rows,
+                &windowed.checkpoint,
+                &payload,
+            )?
+        };
         let shared_bytes = serde_json::to_vec(&value.shared_participants)
             .map_err(|error| format!("serialize shared-participant checkpoint: {error}"))?;
-        let logical_checkpoint = logical_stage_checkpoint(
-            "attribute_person",
-            &[("rows", &value.rows)],
-            &[("shared_participants", &shared_bytes)],
-        );
+        let logical_checkpoint = if Arc::ptr_eq(&value.rows, &windowed.value.rows) {
+            checkpoint_for_exact_row_state(
+                "attribute_person",
+                &checkpoint,
+                &[("shared_participants", &shared_bytes)],
+            )
+        } else {
+            logical_stage_checkpoint(
+                "attribute_person",
+                &[("rows", &value.rows)],
+                &[("shared_participants", &shared_bytes)],
+            )
+        };
         Ok(StepValue {
             value: Arc::new(value),
             checkpoint,
@@ -4526,21 +6285,37 @@ mod tracked {
                 &serde_json::json!({"applied": false}),
             )?;
             return Ok(StepValue {
-                value: Arc::new(attributed.value.rows.clone()),
+                value: Arc::clone(&attributed.value.rows),
                 checkpoint,
                 logical_checkpoint: None,
             });
         }
+        if !applied {
+            let bytes = serde_json::to_vec(&serde_json::json!({"applied": false}))
+                .map_err(|error| format!("serialize inject_placeholders checkpoint: {error}"))?;
+            return Ok(StepValue {
+                value: Arc::clone(&attributed.value.rows),
+                checkpoint: checkpoint_for_exact_row_state(
+                    "inject_placeholders",
+                    &attributed.checkpoint,
+                    &[("value", &bytes)],
+                ),
+                logical_checkpoint: None,
+            });
+        }
         let policy_rows = tag_filtered_packages(db, raw, early, config, support)?;
-        let rows =
-            super::inject_placeholders(attributed.value.rows.clone(), &policy_rows.value, applied);
+        let rows = super::inject_placeholders(
+            Arc::clone(&attributed.value.rows),
+            &policy_rows.value,
+            applied,
+        );
         let checkpoint = rows_and_value_checkpoint(
             "inject_placeholders",
             &rows,
             &serde_json::json!({"applied": applied}),
         )?;
         Ok(StepValue {
-            value: Arc::new(rows),
+            value: rows,
             checkpoint,
             logical_checkpoint: None,
         })
@@ -4575,11 +6350,8 @@ mod tracked {
         db.record_query_body("build_coverage_table");
         let rows = inject_placeholders(db, raw, early, config, support, late, late_support)?;
         let raw_dates = build_raw_date_index(db, raw, early, config, support)?;
-        let output = super::build_coverage(
-            &rows.value,
-            &raw_dates.value,
-            &late_support.study_dates_csv(db),
-        )?;
+        let windows = parsed_study_windows(db, late_support)?;
+        let output = super::build_coverage(&rows.value, &raw_dates.value, &windows)?;
         let checkpoint = value_payload_checkpoint("build_coverage_table", &output.report)?;
         let logical_checkpoint = logical_stage_checkpoint(
             "day_coverage",
@@ -4681,10 +6453,7 @@ mod tracked {
         support: UsageSupportInput,
     ) -> Result<StepValue<bool>, String> {
         db.record_internal_query_body("codebook_is_empty");
-        value_step(
-            "codebook_is_empty",
-            parse_codebook_csv(&support.codebook_csv(db)).is_empty(),
-        )
+        value_step("codebook_is_empty", parsed_codebook(db, support).is_empty())
     }
 
     fn assembled_checkpoint(
@@ -4803,6 +6572,7 @@ mod tracked {
             enable_screen_gated_crediting: late.enable_screen_gated_crediting(db),
             enable_aggregates: output.enable_aggregates(db),
             aggregate_shape: output.aggregate_shape(db),
+            materialize_visualization_data: output.materialize_visualization_data(db),
             credited_session_cap_minutes: 0.0,
             device_liveness_gap_tolerance_minutes: 0.0,
             auto_lock_bridge_seconds: 0.0,
@@ -4828,19 +6598,18 @@ mod tracked {
         let materialize_full_outputs = output.materialize_full_outputs(db);
         // This second reference exists only for visualization geometry. The
         // app-row path resolves its own memoized policy input when needed.
-        let policy_rows = materialize_full_outputs
+        let materialize_visualization_data =
+            materialize_full_outputs && options.materialize_visualization_data;
+        let policy_rows = materialize_visualization_data
             .then(|| tag_filtered_packages(db, raw, early, config, support))
             .transpose()?;
         let screen_rows = if matches!(
             options.usage_session_mode,
             UsageSessionMode::ScreenUsage | UsageSessionMode::AppAndScreenUsage
         ) {
-            build_classified_sessions(db, raw, early, config, support)?
-                .value
-                .as_ref()
-                .clone()
+            build_classified_sessions(db, raw, early, config, support)?.value
         } else {
-            Vec::new()
+            Arc::new(Vec::new())
         };
 
         let app_mode = matches!(
@@ -4850,12 +6619,9 @@ mod tracked {
         let app_rows = {
             let _timer = QueryTimer::start("resolve_review_app_rows");
             if app_mode {
-                inject_placeholders(db, raw, early, config, support, late, late_support)?
-                    .value
-                    .as_ref()
-                    .clone()
+                inject_placeholders(db, raw, early, config, support, late, late_support)?.value
             } else {
-                Vec::new()
+                Arc::new(Vec::new())
             }
         };
         let include_aliases = if !materialize_full_outputs || !app_mode || !options.use_app_codebook
@@ -4906,7 +6672,7 @@ mod tracked {
             serde_json::to_vec(&build_review_summary(&app_rows, &screen_rows))
                 .map_err(|error| format!("serialize review summary: {error}"))?
         };
-        let visualization_data_json_bytes = if materialize_full_outputs {
+        let visualization_data_json_bytes = if materialize_visualization_data {
             serde_json::to_vec(&build_visualization_data(
                 &app_rows,
                 &screen_rows,
@@ -4989,10 +6755,8 @@ mod tracked {
         let compliance_csv_bytes =
             if materialize_full_outputs && app_mode && late.enable_compliance_scoring(db) {
                 let scored = score_days(db, raw, early, config, support, late, late_support)?;
-                Arc::new(super::compliance_csv(
-                    &scored.value,
-                    &late_support.enrolled_devices_csv(db),
-                )?)
+                let enrolled_devices = parsed_enrolled_devices(db, late_support)?;
+                Arc::new(super::compliance_csv(&scored.value, &enrolled_devices))
             } else {
                 Arc::default()
             };
@@ -5007,8 +6771,14 @@ mod tracked {
             aggregate_csv_outputs: Arc::clone(&primary.value.aggregate_csv_outputs),
             row_lineage: Arc::clone(&primary.value.row_lineage),
         };
-        let checkpoint = assembled_checkpoint("assemble_result", &outputs)?;
-        let logical_checkpoint = assembled_checkpoint("outputs", &outputs)?;
+        let checkpoint = if outputs.day_coverage_csv_bytes.is_empty()
+            && outputs.compliance_csv_bytes.is_empty()
+        {
+            checkpoint_for_exact_state("assemble_result", &primary.checkpoint)
+        } else {
+            assembled_checkpoint("assemble_result", &outputs)?
+        };
+        let logical_checkpoint = checkpoint_for_exact_state("outputs", &checkpoint);
         Ok(StepValue {
             value: Arc::new(outputs),
             checkpoint,
@@ -5028,11 +6798,38 @@ mod tracked {
     }
 
     impl TrackedInputs {
+        // These arguments are the concrete Rust execution boundary. Wrapping
+        // them in a one-use parameter object would only hide required inputs.
+        #[allow(clippy::too_many_arguments)]
         fn new(
             db: &EarlyDatabase,
             csv_bytes: &[u8],
+            input_sha256: String,
             review_base_bytes: &[u8],
             reconstruction_base_bytes: &[u8],
+            options: &PipelineV2Options,
+            support: PipelineV2SupportFiles<'_>,
+            materialize_full_outputs: bool,
+        ) -> Self {
+            Self::new_owned(
+                db,
+                Arc::new(csv_bytes.to_vec()),
+                input_sha256,
+                Arc::new(review_base_bytes.to_vec()),
+                Arc::new(reconstruction_base_bytes.to_vec()),
+                options,
+                support,
+                materialize_full_outputs,
+            )
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn new_owned(
+            db: &EarlyDatabase,
+            csv_bytes: Arc<Vec<u8>>,
+            input_sha256: String,
+            review_base_bytes: Arc<Vec<u8>>,
+            reconstruction_base_bytes: Arc<Vec<u8>>,
             options: &PipelineV2Options,
             support: PipelineV2SupportFiles<'_>,
             materialize_full_outputs: bool,
@@ -5040,9 +6837,10 @@ mod tracked {
             Self {
                 raw: EarlyRawInput::new(
                     db,
-                    Arc::new(csv_bytes.to_vec()),
-                    Arc::new(review_base_bytes.to_vec()),
-                    Arc::new(reconstruction_base_bytes.to_vec()),
+                    csv_bytes,
+                    input_sha256,
+                    review_base_bytes,
+                    reconstruction_base_bytes,
                 ),
                 early: EarlyConfigInput::new(
                     db,
@@ -5117,6 +6915,7 @@ mod tracked {
                     options.include_category_column,
                     options.enable_aggregates,
                     options.aggregate_shape.clone(),
+                    options.materialize_visualization_data,
                     materialize_full_outputs,
                 ),
             }
@@ -5127,11 +6926,13 @@ mod tracked {
             self,
             db: &mut EarlyDatabase,
             csv_bytes: &[u8],
+            input_sha256: &str,
             review_base_bytes: &[u8],
             reconstruction_base_bytes: &[u8],
             options: &PipelineV2Options,
             support: PipelineV2SupportFiles<'_>,
             materialize_full_outputs: bool,
+            preserve_verified_input: bool,
         ) {
             macro_rules! set_if_changed {
                 ($input:expr, $getter:ident, $setter:ident, $value:expr) => {{
@@ -5149,21 +6950,29 @@ mod tracked {
                     }
                 }};
             }
-            set_arc_vec_if_changed!(self.raw, bytes, set_bytes, csv_bytes, csv_bytes.to_vec());
-            set_arc_vec_if_changed!(
-                self.raw,
-                review_base_bytes,
-                set_review_base_bytes,
-                review_base_bytes,
-                review_base_bytes.to_vec()
-            );
-            set_arc_vec_if_changed!(
-                self.raw,
-                reconstruction_base_bytes,
-                set_reconstruction_base_bytes,
-                reconstruction_base_bytes,
-                reconstruction_base_bytes.to_vec()
-            );
+            if !preserve_verified_input {
+                set_arc_vec_if_changed!(self.raw, bytes, set_bytes, csv_bytes, csv_bytes.to_vec());
+                set_if_changed!(
+                    self.raw,
+                    input_sha256,
+                    set_input_sha256,
+                    input_sha256.to_string()
+                );
+                set_arc_vec_if_changed!(
+                    self.raw,
+                    review_base_bytes,
+                    set_review_base_bytes,
+                    review_base_bytes,
+                    review_base_bytes.to_vec()
+                );
+                set_arc_vec_if_changed!(
+                    self.raw,
+                    reconstruction_base_bytes,
+                    set_reconstruction_base_bytes,
+                    reconstruction_base_bytes,
+                    reconstruction_base_bytes.to_vec()
+                );
+            }
             set_arc_vec_if_changed!(
                 self.early,
                 interaction_type_remap,
@@ -5515,6 +7324,12 @@ mod tracked {
             );
             set_if_changed!(
                 self.output,
+                materialize_visualization_data,
+                set_materialize_visualization_data,
+                options.materialize_visualization_data
+            );
+            set_if_changed!(
+                self.output,
                 materialize_full_outputs,
                 set_materialize_full_outputs,
                 materialize_full_outputs
@@ -5580,16 +7395,26 @@ mod tracked {
             support: PipelineV2SupportFiles<'_>,
             materialize_full_outputs: bool,
         ) -> Result<TrackedExecution, String> {
+            let input_sha256 = sha256_bytes(csv_bytes);
+            let (review_base_bytes, reconstruction_base_bytes) = select_persisted_bases(
+                &input_sha256,
+                review_base_bytes,
+                reconstruction_base_bytes,
+                options,
+                support,
+            )?;
             let inputs = match self.inputs {
                 Some(inputs) => {
                     inputs.update(
                         &mut self.db,
                         csv_bytes,
+                        &input_sha256,
                         review_base_bytes,
                         reconstruction_base_bytes,
                         options,
                         support,
                         materialize_full_outputs,
+                        false,
                     );
                     inputs
                 }
@@ -5597,6 +7422,7 @@ mod tracked {
                     let inputs = TrackedInputs::new(
                         &self.db,
                         csv_bytes,
+                        input_sha256,
                         review_base_bytes,
                         reconstruction_base_bytes,
                         options,
@@ -5607,6 +7433,125 @@ mod tracked {
                     inputs
                 }
             };
+            self.finish_execution(inputs)
+        }
+
+        pub fn execute_with_owned_csv_review_bases(
+            &mut self,
+            csv_bytes: Vec<u8>,
+            review_base_bytes: &[u8],
+            reconstruction_base_bytes: &[u8],
+            options: &PipelineV2Options,
+            support: PipelineV2SupportFiles<'_>,
+            materialize_full_outputs: bool,
+        ) -> Result<TrackedExecution, String> {
+            let input_sha256 = sha256_bytes(&csv_bytes);
+            self.execute_with_verified_csv_review_bases(
+                csv_bytes,
+                input_sha256,
+                review_base_bytes,
+                reconstruction_base_bytes,
+                options,
+                support,
+                materialize_full_outputs,
+            )
+        }
+
+        // The verified digest is deliberately adjacent to the bytes and both
+        // cache candidates so callers cannot accidentally take an unverified
+        // persisted-input path.
+        #[allow(clippy::too_many_arguments)]
+        pub fn execute_with_verified_csv_review_bases(
+            &mut self,
+            csv_bytes: Vec<u8>,
+            input_sha256: String,
+            review_base_bytes: &[u8],
+            reconstruction_base_bytes: &[u8],
+            options: &PipelineV2Options,
+            support: PipelineV2SupportFiles<'_>,
+            materialize_full_outputs: bool,
+        ) -> Result<TrackedExecution, String> {
+            parse_sha256_digest(&input_sha256, "verified raw input digest")?;
+            let (review_base_bytes, reconstruction_base_bytes) = select_persisted_bases(
+                &input_sha256,
+                review_base_bytes,
+                reconstruction_base_bytes,
+                options,
+                support,
+            )?;
+            let inputs = match self.inputs {
+                Some(inputs) => {
+                    // The live Salsa database already owns the current byte
+                    // inputs. Compare borrowed request bytes first so an
+                    // identical review does not allocate and scan another
+                    // complete 14--16 MiB persisted base before discovering
+                    // that the tracked input is unchanged.
+                    inputs.update(
+                        &mut self.db,
+                        &csv_bytes,
+                        &input_sha256,
+                        review_base_bytes,
+                        reconstruction_base_bytes,
+                        options,
+                        support,
+                        materialize_full_outputs,
+                        false,
+                    );
+                    inputs
+                }
+                None => {
+                    let inputs = TrackedInputs::new_owned(
+                        &self.db,
+                        Arc::new(csv_bytes),
+                        input_sha256,
+                        Arc::new(review_base_bytes.to_vec()),
+                        Arc::new(reconstruction_base_bytes.to_vec()),
+                        options,
+                        support,
+                        materialize_full_outputs,
+                    );
+                    self.inputs = Some(inputs);
+                    inputs
+                }
+            };
+            self.finish_execution(inputs)
+        }
+
+        pub fn has_verified_input(&self, input_sha256: &str) -> bool {
+            self.inputs
+                .is_some_and(|inputs| inputs.raw.input_sha256(&self.db) == input_sha256)
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        pub fn execute_with_warm_verified_input(
+            &mut self,
+            input_sha256: String,
+            options: &PipelineV2Options,
+            support: PipelineV2SupportFiles<'_>,
+            materialize_full_outputs: bool,
+        ) -> Result<TrackedExecution, String> {
+            parse_sha256_digest(&input_sha256, "verified raw input digest")?;
+            let inputs = self
+                .inputs
+                .ok_or_else(|| "warm review requires live tracked inputs".to_string())?;
+            if inputs.raw.input_sha256(&self.db) != input_sha256 {
+                return Err("warm review input identity mismatch".into());
+            }
+            inputs.update(
+                &mut self.db,
+                &[],
+                &input_sha256,
+                &[],
+                &[],
+                options,
+                support,
+                materialize_full_outputs,
+                true,
+            );
+            self.finish_execution(inputs)
+        }
+
+        fn finish_execution(&mut self, inputs: TrackedInputs) -> Result<TrackedExecution, String> {
             self.db.take_query_bodies();
             self.db.take_internal_query_bodies();
             self.db.take_fused_product_steps();
@@ -5705,6 +7650,103 @@ mod tracked {
         checkpoints.insert(checkpoint.node_id.clone(), checkpoint.clone());
     }
 
+    #[derive(Clone, PartialEq, Eq)]
+    struct EarlyAssembly {
+        step_checkpoints: BTreeMap<String, LogicalStageCheckpoint>,
+        parse_events: LogicalStageCheckpoint,
+        normalize_timezones: LogicalStageCheckpoint,
+        dedup_and_order: LogicalStageCheckpoint,
+        app_policy: LogicalStageCheckpoint,
+        original_row_count: u32,
+        processed_row_count: u32,
+        rows_before_timezone_handling: u32,
+        rows_after_timezone_handling: u32,
+        duplicate_timestamps_corrected: u32,
+        exact_duplicate_rows_removed: u32,
+        available_timezones: Vec<String>,
+        timezone: String,
+        timezone_action: String,
+        timezone_retained_source_rows_digest: String,
+        timezone_stage_digest: String,
+    }
+
+    /// Collapse the unchanged ingest/timezone/policy prefix behind one Salsa
+    /// query. A downstream review edit can then validate one aggregate instead
+    /// of walking seventeen separately memoized steps just to collect their
+    /// already-known checkpoints.
+    #[salsa::tracked(returns(clone))]
+    fn collect_early_assembly(
+        db: &dyn EarlyStepDb,
+        raw: EarlyRawInput,
+        early: EarlyConfigInput,
+        usage: UsageConfigInput,
+        usage_support: UsageSupportInput,
+    ) -> Result<Arc<EarlyAssembly>, String> {
+        db.record_internal_query_body("collect_early_assembly");
+        let mut step_checkpoints = BTreeMap::new();
+        let remap = parse_remap_config(db, early)?;
+        insert_checkpoint(&mut step_checkpoints, &remap.checkpoint);
+        let parsed = csv_parse(db, raw)?;
+        insert_checkpoint(&mut step_checkpoints, &parsed.checkpoint);
+        let nonempty = drop_empty_timestamp(db, raw)?;
+        insert_checkpoint(&mut step_checkpoints, &nonempty.checkpoint);
+        let model = detect_device_model(db, raw)?;
+        insert_checkpoint(&mut step_checkpoints, &model.checkpoint);
+        let preprocessing_datetime = resolve_preproc_datetime(db, early)?;
+        insert_checkpoint(&mut step_checkpoints, &preprocessing_datetime.checkpoint);
+        let canonical = build_canonical_rows(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &canonical.checkpoint);
+        let sorted = stable_sort(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &sorted.checkpoint);
+        let timezones = collect_timezones(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &timezones.checkpoint);
+        let dominant = compute_dominant_timezone(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &dominant.checkpoint);
+        let selected = select_timezone_strategy(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &selected.checkpoint);
+        let restamped = restamp_rows(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &restamped.checkpoint);
+        let row_counts = row_count_report(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &row_counts.checkpoint);
+        let deduped = exact_dedupe(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &deduped.checkpoint);
+        let duplicate_groups = count_dup_groups(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &duplicate_groups.checkpoint);
+        let nudged = nudge_duplicate_timestamps(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &nudged.checkpoint);
+        let gaps = mark_data_time_gaps(db, raw, early)?;
+        insert_checkpoint(&mut step_checkpoints, &gaps.checkpoint);
+        let policy = tag_filtered_packages(db, raw, early, usage, usage_support)?;
+        insert_checkpoint(&mut step_checkpoints, &policy.checkpoint);
+        let rows_before_timezone_handling = sorted.value.len() as u32;
+        let rows_after_timezone_handling = selected.value.rows.len() as u32;
+        Ok(Arc::new(EarlyAssembly {
+            step_checkpoints,
+            parse_events: required_logical_checkpoint(&sorted, "parse_events")?,
+            normalize_timezones: required_logical_checkpoint(&restamped, "normalize_timezones")?,
+            dedup_and_order: required_logical_checkpoint(&gaps, "dedup_and_order")?,
+            app_policy: required_logical_checkpoint(&policy, "app_policy")?,
+            original_row_count: rows_before_timezone_handling,
+            processed_row_count: policy.value.len() as u32,
+            rows_before_timezone_handling,
+            rows_after_timezone_handling,
+            duplicate_timestamps_corrected: if early.correct_duplicate_event_timestamps(db) {
+                *duplicate_groups.value
+            } else {
+                0
+            },
+            exact_duplicate_rows_removed: restamped.value.len().saturating_sub(deduped.value.len())
+                as u32,
+            available_timezones: timezones.value.iter().cloned().collect(),
+            timezone: selected.value.target_timezone.clone(),
+            timezone_action: selected.value.action.clone(),
+            timezone_retained_source_rows_digest: timezone_retained_source_rows_digest(
+                &selected.value.rows,
+            ),
+            timezone_stage_digest: timezone_stage_digest(&restamped.value),
+        }))
+    }
+
     #[allow(clippy::too_many_arguments)]
     #[salsa::tracked(returns(clone))]
     fn assemble_result(
@@ -5723,191 +7765,122 @@ mod tracked {
         let materialize_full_outputs = output.materialize_full_outputs(db);
         let mut step_checkpoints = BTreeMap::new();
 
-        struct EarlyAssembly {
-            parse_events: LogicalStageCheckpoint,
-            normalize_timezones: LogicalStageCheckpoint,
-            dedup_and_order: LogicalStageCheckpoint,
-            app_policy: LogicalStageCheckpoint,
-            original_row_count: u32,
-            processed_row_count: u32,
-            rows_before_timezone_handling: u32,
-            rows_after_timezone_handling: u32,
-            duplicate_timestamps_corrected: u32,
-            exact_duplicate_rows_removed: u32,
-            available_timezones: Vec<String>,
-            timezone: String,
-            timezone_action: String,
-            timezone_retained_source_rows_digest: String,
-            timezone_stage_digest: String,
-        }
-
-        let restored_reconstruction_base = if usage.review_only(db) {
-            matching_reconstruction_base(db, raw, early, usage, usage_support)?
-        } else {
-            None
-        };
-        let restored_review_base =
-            if restored_reconstruction_base.is_none() && usage.review_only(db) {
-                matching_review_base(db, raw, early, usage_support)?
+        let (restored_reconstruction_base, restored_review_base) = {
+            let _timer = QueryTimer::start("assemble_result_restore_bases");
+            let restored_reconstruction_base = if usage.review_only(db) {
+                matching_reconstruction_base(db, raw, early, usage, usage_support)?
             } else {
                 None
             };
-        let restored_metadata = restored_reconstruction_base
-            .as_ref()
-            .map(|base| &base.value.early_metadata)
-            .or_else(|| {
-                restored_review_base
-                    .as_ref()
-                    .map(|base| &base.value.metadata)
-            });
-        let early_state = if let Some(metadata) = restored_metadata {
-            step_checkpoints.extend(metadata.step_checkpoints.clone());
-            EarlyAssembly {
-                parse_events: metadata
-                    .logical_checkpoints
-                    .get("parse_events")
-                    .cloned()
-                    .ok_or_else(|| "review base is missing parse_events".to_string())?,
-                normalize_timezones: metadata
-                    .logical_checkpoints
-                    .get("normalize_timezones")
-                    .cloned()
-                    .ok_or_else(|| "review base is missing normalize_timezones".to_string())?,
-                dedup_and_order: metadata
-                    .logical_checkpoints
-                    .get("dedup_and_order")
-                    .cloned()
-                    .ok_or_else(|| "review base is missing dedup_and_order".to_string())?,
-                app_policy: metadata
-                    .logical_checkpoints
-                    .get("app_policy")
-                    .cloned()
-                    .ok_or_else(|| "review base is missing app_policy".to_string())?,
-                original_row_count: metadata.original_row_count,
-                processed_row_count: metadata.processed_row_count,
-                rows_before_timezone_handling: metadata.rows_before_timezone_handling,
-                rows_after_timezone_handling: metadata.rows_after_timezone_handling,
-                duplicate_timestamps_corrected: metadata.duplicate_timestamps_corrected,
-                exact_duplicate_rows_removed: metadata.exact_duplicate_rows_removed,
-                available_timezones: metadata.available_timezones.clone(),
-                timezone: metadata.timezone.clone(),
-                timezone_action: metadata.timezone_action.clone(),
-                timezone_retained_source_rows_digest: metadata
-                    .timezone_retained_source_rows_digest
-                    .clone(),
-                timezone_stage_digest: metadata.timezone_stage_digest.clone(),
-            }
-        } else {
-            let remap = parse_remap_config(db, early)?;
-            insert_checkpoint(&mut step_checkpoints, &remap.checkpoint);
-            let parsed = csv_parse(db, raw)?;
-            insert_checkpoint(&mut step_checkpoints, &parsed.checkpoint);
-            let nonempty = drop_empty_timestamp(db, raw)?;
-            insert_checkpoint(&mut step_checkpoints, &nonempty.checkpoint);
-            let model = detect_device_model(db, raw)?;
-            insert_checkpoint(&mut step_checkpoints, &model.checkpoint);
-            let preprocessing_datetime = resolve_preproc_datetime(db, early)?;
-            insert_checkpoint(&mut step_checkpoints, &preprocessing_datetime.checkpoint);
-            let canonical = build_canonical_rows(db, raw, early)?;
-            insert_checkpoint(&mut step_checkpoints, &canonical.checkpoint);
-            let sorted = stable_sort(db, raw, early)?;
-            insert_checkpoint(&mut step_checkpoints, &sorted.checkpoint);
-            let timezones = collect_timezones(db, raw, early)?;
-            insert_checkpoint(&mut step_checkpoints, &timezones.checkpoint);
-            let dominant = compute_dominant_timezone(db, raw, early)?;
-            insert_checkpoint(&mut step_checkpoints, &dominant.checkpoint);
-            let selected = select_timezone_strategy(db, raw, early)?;
-            insert_checkpoint(&mut step_checkpoints, &selected.checkpoint);
-            let restamped = restamp_rows(db, raw, early)?;
-            insert_checkpoint(&mut step_checkpoints, &restamped.checkpoint);
-            let row_counts = row_count_report(db, raw, early)?;
-            insert_checkpoint(&mut step_checkpoints, &row_counts.checkpoint);
-            let deduped = exact_dedupe(db, raw, early)?;
-            insert_checkpoint(&mut step_checkpoints, &deduped.checkpoint);
-            let duplicate_groups = count_dup_groups(db, raw, early)?;
-            insert_checkpoint(&mut step_checkpoints, &duplicate_groups.checkpoint);
-            let nudged = nudge_duplicate_timestamps(db, raw, early)?;
-            insert_checkpoint(&mut step_checkpoints, &nudged.checkpoint);
-            let gaps = mark_data_time_gaps(db, raw, early)?;
-            insert_checkpoint(&mut step_checkpoints, &gaps.checkpoint);
-            let policy = tag_filtered_packages(db, raw, early, usage, usage_support)?;
-            insert_checkpoint(&mut step_checkpoints, &policy.checkpoint);
-            let rows_before_timezone_handling = sorted.value.len() as u32;
-            let rows_after_timezone_handling = selected.value.rows.len() as u32;
-            EarlyAssembly {
-                parse_events: required_logical_checkpoint(&sorted, "parse_events")?,
-                normalize_timezones: required_logical_checkpoint(
-                    &restamped,
-                    "normalize_timezones",
-                )?,
-                dedup_and_order: required_logical_checkpoint(&gaps, "dedup_and_order")?,
-                app_policy: required_logical_checkpoint(&policy, "app_policy")?,
-                original_row_count: rows_before_timezone_handling,
-                processed_row_count: policy.value.len() as u32,
-                rows_before_timezone_handling,
-                rows_after_timezone_handling,
-                duplicate_timestamps_corrected: if options.correct_duplicate_event_timestamps {
-                    *duplicate_groups.value
+            let restored_review_base =
+                if restored_reconstruction_base.is_none() && usage.review_only(db) {
+                    matching_review_base(db, raw, early, usage_support)?
                 } else {
-                    0
-                },
-                exact_duplicate_rows_removed: restamped
-                    .value
-                    .len()
-                    .saturating_sub(deduped.value.len())
-                    as u32,
-                available_timezones: timezones.value.iter().cloned().collect(),
-                timezone: selected.value.target_timezone.clone(),
-                timezone_action: selected.value.action.clone(),
-                timezone_retained_source_rows_digest: timezone_retained_source_rows_digest(
-                    &selected.value.rows,
-                ),
-                timezone_stage_digest: timezone_stage_digest(&restamped.value),
+                    None
+                };
+            (restored_reconstruction_base, restored_review_base)
+        };
+        let early_state = {
+            let _timer = QueryTimer::start("assemble_result_early_state");
+            let restored_metadata = restored_reconstruction_base
+                .as_ref()
+                .map(|base| &base.value.early_metadata)
+                .or_else(|| {
+                    restored_review_base
+                        .as_ref()
+                        .map(|base| &base.value.metadata)
+                });
+            if let Some(metadata) = restored_metadata {
+                step_checkpoints.extend(metadata.step_checkpoints.clone());
+                Arc::new(EarlyAssembly {
+                    step_checkpoints: metadata.step_checkpoints.clone(),
+                    parse_events: metadata
+                        .logical_checkpoints
+                        .get("parse_events")
+                        .cloned()
+                        .ok_or_else(|| "review base is missing parse_events".to_string())?,
+                    normalize_timezones: metadata
+                        .logical_checkpoints
+                        .get("normalize_timezones")
+                        .cloned()
+                        .ok_or_else(|| "review base is missing normalize_timezones".to_string())?,
+                    dedup_and_order: metadata
+                        .logical_checkpoints
+                        .get("dedup_and_order")
+                        .cloned()
+                        .ok_or_else(|| "review base is missing dedup_and_order".to_string())?,
+                    app_policy: metadata
+                        .logical_checkpoints
+                        .get("app_policy")
+                        .cloned()
+                        .ok_or_else(|| "review base is missing app_policy".to_string())?,
+                    original_row_count: metadata.original_row_count,
+                    processed_row_count: metadata.processed_row_count,
+                    rows_before_timezone_handling: metadata.rows_before_timezone_handling,
+                    rows_after_timezone_handling: metadata.rows_after_timezone_handling,
+                    duplicate_timestamps_corrected: metadata.duplicate_timestamps_corrected,
+                    exact_duplicate_rows_removed: metadata.exact_duplicate_rows_removed,
+                    available_timezones: metadata.available_timezones.clone(),
+                    timezone: metadata.timezone.clone(),
+                    timezone_action: metadata.timezone_action.clone(),
+                    timezone_retained_source_rows_digest: metadata
+                        .timezone_retained_source_rows_digest
+                        .clone(),
+                    timezone_stage_digest: metadata.timezone_stage_digest.clone(),
+                })
+            } else {
+                let collected = collect_early_assembly(db, raw, early, usage, usage_support)?;
+                step_checkpoints.extend(collected.step_checkpoints.clone());
+                collected
             }
         };
         let screen_mode = matches!(
             options.usage_session_mode,
             UsageSessionMode::ScreenUsage | UsageSessionMode::AppAndScreenUsage
         );
-        let screen_rows = if screen_mode {
-            let cached_screen_candidate = restored_reconstruction_base
-                .as_ref()
-                .and_then(|base| base.value.screen.as_ref())
-                .or_else(|| {
-                    restored_review_base
-                        .as_ref()
-                        .and_then(|base| base.value.screen.as_ref())
-                });
-            let cached_screen = if let Some(screen) = cached_screen_candidate {
-                let expected_screen_key =
-                    screen_base_input_key(db, raw, early, usage, usage_support)?;
-                (screen.input_key == expected_screen_key).then_some(screen)
+        let screen_rows = {
+            let _timer = QueryTimer::start("assemble_result_screen_rows");
+            if screen_mode {
+                let cached_screen_candidate = restored_reconstruction_base
+                    .as_ref()
+                    .and_then(|base| base.value.screen.as_ref())
+                    .or_else(|| {
+                        restored_review_base
+                            .as_ref()
+                            .and_then(|base| base.value.screen.as_ref())
+                    });
+                let cached_screen = if let Some(screen) = cached_screen_candidate {
+                    let expected_screen_key =
+                        screen_base_input_key(db, raw, early, usage, usage_support)?;
+                    (screen.input_key == expected_screen_key).then_some(screen)
+                } else {
+                    None
+                };
+                if let Some(screen) = cached_screen {
+                    insert_checkpoint(&mut step_checkpoints, &screen.collect_keyguard_timestamps);
+                    insert_checkpoint(&mut step_checkpoints, &screen.walk_screen_state_machine);
+                    insert_checkpoint(&mut step_checkpoints, &screen.build_classified_sessions);
+                    Arc::clone(&screen.rows)
+                } else {
+                    let keyguard =
+                        collect_keyguard_timestamps(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &keyguard.checkpoint);
+                    let walked = walk_screen_state_machine(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &walked.checkpoint);
+                    let built = build_classified_sessions(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &built.checkpoint);
+                    Arc::clone(&built.value)
+                }
             } else {
-                None
-            };
-            if let Some(screen) = cached_screen {
-                insert_checkpoint(&mut step_checkpoints, &screen.collect_keyguard_timestamps);
-                insert_checkpoint(&mut step_checkpoints, &screen.walk_screen_state_machine);
-                insert_checkpoint(&mut step_checkpoints, &screen.build_classified_sessions);
-                screen.rows.as_ref().clone()
-            } else {
-                let keyguard = collect_keyguard_timestamps(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &keyguard.checkpoint);
-                let walked = walk_screen_state_machine(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &walked.checkpoint);
-                let built = build_classified_sessions(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &built.checkpoint);
-                built.value.as_ref().clone()
+                for step in [
+                    "collect_keyguard_timestamps",
+                    "walk_screen_state_machine",
+                    "build_classified_sessions",
+                ] {
+                    step_checkpoints.insert(step.into(), not_applicable(step));
+                }
+                Arc::new(Vec::new())
             }
-        } else {
-            for step in [
-                "collect_keyguard_timestamps",
-                "walk_screen_state_machine",
-                "build_classified_sessions",
-            ] {
-                step_checkpoints.insert(step.into(), not_applicable(step));
-            }
-            Vec::new()
         };
 
         let app_mode = matches!(
@@ -5922,7 +7895,7 @@ mod tracked {
             logical_stage_state_checkpoint("episode_annotations", "not_applicable");
         let mut cleaning_checkpoint =
             logical_stage_state_checkpoint("interval_cleaning", "not_applicable");
-        let mut app_rows = Vec::new();
+        let mut app_rows = Arc::new(Vec::new());
         let mut compliance_bytes = Vec::new();
         let mut credited_count = 0;
         let mut day_coverage_count = 0;
@@ -5934,207 +7907,162 @@ mod tracked {
             attribution_checkpoint,
             day_coverage_checkpoint,
             compliance_checkpoint,
-        ) = if app_mode {
-            let zero_filtered = if usage.review_only(db) {
-                let reconstruction =
-                    review_reconstruction_fused(db, raw, early, usage, usage_support)?;
-                for checkpoint in [
-                    &reconstruction.compute_junk_packages,
-                    &reconstruction.junk_blind_fold,
-                    &reconstruction.build_matcher_input,
-                    &reconstruction.run_matcher,
-                    &reconstruction.apply_matcher_output,
-                    &reconstruction.relabel_usage_with_floor,
-                    &reconstruction.junk_downstream_mark,
-                    &reconstruction.sort_episodes,
-                    &reconstruction.split_concurrent,
-                ] {
-                    insert_checkpoint(&mut step_checkpoints, checkpoint);
-                }
-                reconstruct_checkpoint = reconstruction.reconstruct_episodes.clone();
+        ) = {
+            let _timer = QueryTimer::start("assemble_result_app_steps");
+            if app_mode {
+                let zero_filtered = if usage.review_only(db) {
+                    let reconstruction =
+                        review_reconstruction_fused(db, raw, early, usage, usage_support)?;
+                    for checkpoint in [
+                        &reconstruction.compute_junk_packages,
+                        &reconstruction.junk_blind_fold,
+                        &reconstruction.build_matcher_input,
+                        &reconstruction.run_matcher,
+                        &reconstruction.apply_matcher_output,
+                        &reconstruction.relabel_usage_with_floor,
+                        &reconstruction.junk_downstream_mark,
+                        &reconstruction.sort_episodes,
+                        &reconstruction.split_concurrent,
+                    ] {
+                        insert_checkpoint(&mut step_checkpoints, checkpoint);
+                    }
+                    reconstruct_checkpoint = reconstruction.reconstruct_episodes.clone();
 
-                let fused = review_annotations_fused(db, raw, early, usage, usage_support)?;
-                for checkpoint in [
-                    &fused.codebook_join,
-                    &fused.derive_broad_category,
-                    &fused.collapse_genre,
-                    &fused.engagement_walk,
-                    &fused.flag_and_retain,
-                    &fused.blank_junk_timing,
-                    &fused.drop_selected_types,
-                    &fused.drop_zero_duration,
-                ] {
-                    insert_checkpoint(&mut step_checkpoints, checkpoint);
-                }
-                categorize_checkpoint = fused.categorize_apps.clone();
-                annotation_checkpoint = fused.episode_annotations.clone();
-                StepValue {
-                    value: Arc::clone(&fused.rows),
-                    checkpoint: fused.drop_zero_duration.clone(),
-                    logical_checkpoint: Some(fused.interval_cleaning.clone()),
-                }
-            } else {
-                let junk = compute_junk_packages(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &junk.checkpoint);
-                let blind = junk_blind_fold(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &blind.checkpoint);
-                let matcher_input = build_matcher_input(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &matcher_input.checkpoint);
-                let matcher = run_matcher(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &matcher.checkpoint);
-                let applied = apply_matcher_output(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &applied.checkpoint);
-                let relabeled = relabel_usage_with_floor(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &relabeled.checkpoint);
-                let downstream = junk_downstream_mark(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &downstream.checkpoint);
-                let sorted_episodes = sort_episodes(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &sorted_episodes.checkpoint);
-                let split = split_concurrent(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &split.checkpoint);
-                reconstruct_checkpoint =
-                    required_logical_checkpoint(&split, "reconstruct_episodes")?;
-                let joined = codebook_join(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &joined.checkpoint);
-                let broad = derive_broad_category(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &broad.checkpoint);
-                let collapsed = collapse_genre(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &collapsed.checkpoint);
-                categorize_checkpoint = required_logical_checkpoint(&collapsed, "categorize_apps")?;
-                let zero_filtered = drop_zero_duration(db, raw, early, usage, usage_support)?;
-                let engagement = engagement_walk(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &engagement.checkpoint);
-                let flagged = flag_and_retain(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &flagged.checkpoint);
-                annotation_checkpoint =
-                    required_logical_checkpoint(&flagged, "episode_annotations")?;
-                let blanked = blank_junk_timing(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &blanked.checkpoint);
-                let selected_types = drop_selected_types(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &selected_types.checkpoint);
-                insert_checkpoint(&mut step_checkpoints, &zero_filtered.checkpoint);
-                zero_filtered
-            };
-            cleaning_checkpoint = required_logical_checkpoint(&zero_filtered, "interval_cleaning")?;
+                    let fused = review_annotations_fused(db, raw, early, usage, usage_support)?;
+                    for checkpoint in [
+                        &fused.codebook_join,
+                        &fused.derive_broad_category,
+                        &fused.collapse_genre,
+                        &fused.engagement_walk,
+                        &fused.flag_and_retain,
+                        &fused.blank_junk_timing,
+                        &fused.drop_selected_types,
+                        &fused.drop_zero_duration,
+                    ] {
+                        insert_checkpoint(&mut step_checkpoints, checkpoint);
+                    }
+                    categorize_checkpoint = fused.categorize_apps.clone();
+                    annotation_checkpoint = fused.episode_annotations.clone();
+                    StepValue {
+                        value: Arc::clone(&fused.rows),
+                        checkpoint: fused.drop_zero_duration.clone(),
+                        logical_checkpoint: Some(fused.interval_cleaning.clone()),
+                    }
+                } else {
+                    let junk = compute_junk_packages(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &junk.checkpoint);
+                    let blind = junk_blind_fold(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &blind.checkpoint);
+                    let matcher_input = build_matcher_input(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &matcher_input.checkpoint);
+                    let matcher = run_matcher(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &matcher.checkpoint);
+                    let applied = apply_matcher_output(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &applied.checkpoint);
+                    let relabeled = relabel_usage_with_floor(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &relabeled.checkpoint);
+                    let downstream = junk_downstream_mark(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &downstream.checkpoint);
+                    let sorted_episodes = sort_episodes(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &sorted_episodes.checkpoint);
+                    let split = split_concurrent(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &split.checkpoint);
+                    reconstruct_checkpoint =
+                        required_logical_checkpoint(&split, "reconstruct_episodes")?;
+                    let joined = codebook_join(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &joined.checkpoint);
+                    let broad = derive_broad_category(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &broad.checkpoint);
+                    let collapsed = collapse_genre(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &collapsed.checkpoint);
+                    categorize_checkpoint =
+                        required_logical_checkpoint(&collapsed, "categorize_apps")?;
+                    let zero_filtered = drop_zero_duration(db, raw, early, usage, usage_support)?;
+                    let engagement = engagement_walk(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &engagement.checkpoint);
+                    let flagged = flag_and_retain(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &flagged.checkpoint);
+                    annotation_checkpoint =
+                        required_logical_checkpoint(&flagged, "episode_annotations")?;
+                    let blanked = blank_junk_timing(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &blanked.checkpoint);
+                    let selected_types = drop_selected_types(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &selected_types.checkpoint);
+                    insert_checkpoint(&mut step_checkpoints, &zero_filtered.checkpoint);
+                    zero_filtered
+                };
+                cleaning_checkpoint =
+                    required_logical_checkpoint(&zero_filtered, "interval_cleaning")?;
 
-            let effective = if materialize_full_outputs && options.enable_screen_gated_crediting {
-                let partition = partition_credit_sessions(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &partition.checkpoint);
-                let substrate = build_liveness_substrate(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &substrate.checkpoint);
-                let incapable = report_screen_incapable(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &incapable.checkpoint);
-                let day_apps = count_day_apps(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &day_apps.checkpoint);
-                let credited = credit_sessions(db, raw, early, usage, usage_support, late)?;
-                insert_checkpoint(&mut step_checkpoints, &credited.checkpoint);
-                let emitted = emit_credited_rows(db, raw, early, usage, usage_support, late)?;
-                insert_checkpoint(&mut step_checkpoints, &emitted.checkpoint);
-                let assembled = assemble_credit_result(db, raw, early, usage, usage_support, late)?;
-                insert_checkpoint(&mut step_checkpoints, &assembled.checkpoint);
-                credited_count = assembled.value.rows.len() as u32;
-                logical_stage_checkpoint(
-                    "effective_usage",
-                    &[],
-                    &[(
+                let effective = if materialize_full_outputs && options.enable_screen_gated_crediting
+                {
+                    let partition =
+                        partition_credit_sessions(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &partition.checkpoint);
+                    let substrate = build_liveness_substrate(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &substrate.checkpoint);
+                    let incapable = report_screen_incapable(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &incapable.checkpoint);
+                    let day_apps = count_day_apps(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &day_apps.checkpoint);
+                    let credited = credit_sessions(db, raw, early, usage, usage_support, late)?;
+                    insert_checkpoint(&mut step_checkpoints, &credited.checkpoint);
+                    let emitted = emit_credited_rows(db, raw, early, usage, usage_support, late)?;
+                    insert_checkpoint(&mut step_checkpoints, &emitted.checkpoint);
+                    let assembled =
+                        assemble_credit_result(db, raw, early, usage, usage_support, late)?;
+                    insert_checkpoint(&mut step_checkpoints, &assembled.checkpoint);
+                    credited_count = assembled.value.rows.len() as u32;
+                    logical_stage_checkpoint(
+                        "effective_usage",
+                        &[],
+                        &[(
+                            "assemble_credit_result",
+                            assembled.checkpoint.terminal_digest.as_bytes(),
+                        )],
+                    )
+                } else {
+                    for step in [
+                        "partition_credit_sessions",
+                        "build_liveness_substrate",
+                        "report_screen_incapable",
+                        "count_day_apps",
+                        "credit_sessions",
+                        "emit_credited_rows",
                         "assemble_credit_result",
-                        assembled.checkpoint.terminal_digest.as_bytes(),
-                    )],
-                )
-            } else {
-                for step in [
-                    "partition_credit_sessions",
-                    "build_liveness_substrate",
-                    "report_screen_incapable",
-                    "count_day_apps",
-                    "credit_sessions",
-                    "emit_credited_rows",
-                    "assemble_credit_result",
-                ] {
-                    step_checkpoints.insert(
-                        step.into(),
-                        logical_stage_state_checkpoint(
-                            step,
-                            if materialize_full_outputs {
-                                "not_applicable"
-                            } else {
-                                "not_requested"
-                            },
-                        ),
-                    );
-                }
-                logical_stage_state_checkpoint(
-                    "effective_usage",
-                    if materialize_full_outputs {
-                        "not_applicable"
-                    } else {
-                        "not_requested"
-                    },
-                )
-            };
-
-            let windows =
-                resolve_participant_windows(db, raw, early, usage, usage_support, late_support)?;
-            insert_checkpoint(&mut step_checkpoints, &windows.checkpoint);
-            let windowed =
-                filter_rows_to_window(db, raw, early, usage, usage_support, late, late_support)?;
-            insert_checkpoint(&mut step_checkpoints, &windowed.checkpoint);
-            let observation = required_logical_checkpoint(&windowed, "observation_window")?;
-
-            let sharing =
-                resolve_sharing_status(db, raw, early, usage, usage_support, late, late_support)?;
-            insert_checkpoint(&mut step_checkpoints, &sharing.checkpoint);
-            let survey = build_survey_lookup(db, late, late_support)?;
-            insert_checkpoint(&mut step_checkpoints, &survey.checkpoint);
-            let attributed =
-                attribute_rows(db, raw, early, usage, usage_support, late, late_support)?;
-            insert_checkpoint(&mut step_checkpoints, &attributed.checkpoint);
-            let attribution = required_logical_checkpoint(&attributed, "attribute_person")?;
-
-            let placeholders =
-                inject_placeholders(db, raw, early, usage, usage_support, late, late_support)?;
-            insert_checkpoint(&mut step_checkpoints, &placeholders.checkpoint);
-            app_rows = placeholders.value.as_ref().clone();
-            if materialize_full_outputs {
-                let raw_dates = build_raw_date_index(db, raw, early, usage, usage_support)?;
-                insert_checkpoint(&mut step_checkpoints, &raw_dates.checkpoint);
-            } else {
-                step_checkpoints.insert(
-                    "build_raw_date_index".into(),
-                    logical_stage_state_checkpoint("build_raw_date_index", "not_requested"),
-                );
-            }
-            let day_coverage = if materialize_full_outputs && options.enable_day_coverage {
-                let coverage =
-                    build_coverage_table(db, raw, early, usage, usage_support, late, late_support)?;
-                insert_checkpoint(&mut step_checkpoints, &coverage.checkpoint);
-                day_coverage_count = coverage.value.report.coverage.len() as u32;
-                required_logical_checkpoint(&coverage, "day_coverage")?
-            } else {
-                step_checkpoints.insert(
-                    "build_coverage_table".into(),
+                    ] {
+                        step_checkpoints.insert(
+                            step.into(),
+                            logical_stage_state_checkpoint(
+                                step,
+                                if materialize_full_outputs {
+                                    "not_applicable"
+                                } else {
+                                    "not_requested"
+                                },
+                            ),
+                        );
+                    }
                     logical_stage_state_checkpoint(
-                        "build_coverage_table",
+                        "effective_usage",
                         if materialize_full_outputs {
                             "not_applicable"
                         } else {
                             "not_requested"
                         },
-                    ),
-                );
-                if materialize_full_outputs {
-                    logical_stage_checkpoint(
-                        "day_coverage",
-                        &[("rows", &app_rows)],
-                        &[("day_coverage_csv", &[])],
                     )
-                } else {
-                    logical_stage_state_checkpoint("day_coverage", "not_requested")
-                }
-            };
+                };
 
-            if materialize_full_outputs && options.enable_compliance_scoring {
-                let minutes = accumulate_attribution_minutes(
+                let windows = resolve_participant_windows(
+                    db,
+                    raw,
+                    early,
+                    usage,
+                    usage_support,
+                    late_support,
+                )?;
+                insert_checkpoint(&mut step_checkpoints, &windows.checkpoint);
+                let windowed = filter_rows_to_window(
                     db,
                     raw,
                     early,
@@ -6143,18 +8071,57 @@ mod tracked {
                     late,
                     late_support,
                 )?;
-                insert_checkpoint(&mut step_checkpoints, &minutes.checkpoint);
-                let scored = score_days(db, raw, early, usage, usage_support, late, late_support)?;
-                insert_checkpoint(&mut step_checkpoints, &scored.checkpoint);
-                compliance_count = scored.value.days.len() as u32;
-                compliance_bytes =
-                    super::compliance_csv(&scored.value, &late_support.enrolled_devices_csv(db))?;
-            } else {
-                for step in ["accumulate_attribution_minutes", "score_days"] {
+                insert_checkpoint(&mut step_checkpoints, &windowed.checkpoint);
+                let observation = required_logical_checkpoint(&windowed, "observation_window")?;
+
+                let sharing = resolve_sharing_status(
+                    db,
+                    raw,
+                    early,
+                    usage,
+                    usage_support,
+                    late,
+                    late_support,
+                )?;
+                insert_checkpoint(&mut step_checkpoints, &sharing.checkpoint);
+                let survey = build_survey_lookup(db, late, late_support)?;
+                insert_checkpoint(&mut step_checkpoints, &survey.checkpoint);
+                let attributed =
+                    attribute_rows(db, raw, early, usage, usage_support, late, late_support)?;
+                insert_checkpoint(&mut step_checkpoints, &attributed.checkpoint);
+                let attribution = required_logical_checkpoint(&attributed, "attribute_person")?;
+
+                let placeholders =
+                    inject_placeholders(db, raw, early, usage, usage_support, late, late_support)?;
+                insert_checkpoint(&mut step_checkpoints, &placeholders.checkpoint);
+                app_rows = Arc::clone(&placeholders.value);
+                if materialize_full_outputs {
+                    let raw_dates = build_raw_date_index(db, raw, early, usage, usage_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &raw_dates.checkpoint);
+                } else {
                     step_checkpoints.insert(
-                        step.into(),
+                        "build_raw_date_index".into(),
+                        logical_stage_state_checkpoint("build_raw_date_index", "not_requested"),
+                    );
+                }
+                let day_coverage = if materialize_full_outputs && options.enable_day_coverage {
+                    let coverage = build_coverage_table(
+                        db,
+                        raw,
+                        early,
+                        usage,
+                        usage_support,
+                        late,
+                        late_support,
+                    )?;
+                    insert_checkpoint(&mut step_checkpoints, &coverage.checkpoint);
+                    day_coverage_count = coverage.value.report.coverage.len() as u32;
+                    required_logical_checkpoint(&coverage, "day_coverage")?
+                } else {
+                    step_checkpoints.insert(
+                        "build_coverage_table".into(),
                         logical_stage_state_checkpoint(
-                            step,
+                            "build_coverage_table",
                             if materialize_full_outputs {
                                 "not_applicable"
                             } else {
@@ -6162,47 +8129,92 @@ mod tracked {
                             },
                         ),
                     );
+                    if materialize_full_outputs {
+                        logical_stage_checkpoint(
+                            "day_coverage",
+                            &[("rows", &app_rows)],
+                            &[("day_coverage_csv", &[])],
+                        )
+                    } else {
+                        logical_stage_state_checkpoint("day_coverage", "not_requested")
+                    }
+                };
+
+                if materialize_full_outputs && options.enable_compliance_scoring {
+                    let minutes = accumulate_attribution_minutes(
+                        db,
+                        raw,
+                        early,
+                        usage,
+                        usage_support,
+                        late,
+                        late_support,
+                    )?;
+                    insert_checkpoint(&mut step_checkpoints, &minutes.checkpoint);
+                    let scored =
+                        score_days(db, raw, early, usage, usage_support, late, late_support)?;
+                    insert_checkpoint(&mut step_checkpoints, &scored.checkpoint);
+                    compliance_count = scored.value.days.len() as u32;
+                    let enrolled_devices = parsed_enrolled_devices(db, late_support)?;
+                    compliance_bytes = super::compliance_csv(&scored.value, &enrolled_devices);
+                } else {
+                    for step in ["accumulate_attribution_minutes", "score_days"] {
+                        step_checkpoints.insert(
+                            step.into(),
+                            logical_stage_state_checkpoint(
+                                step,
+                                if materialize_full_outputs {
+                                    "not_applicable"
+                                } else {
+                                    "not_requested"
+                                },
+                            ),
+                        );
+                    }
                 }
-            }
-            let compliance = if materialize_full_outputs {
-                logical_stage_checkpoint(
-                    "score_compliance",
-                    &[],
-                    &[("compliance_csv", &compliance_bytes)],
+                let compliance = if materialize_full_outputs {
+                    logical_stage_checkpoint(
+                        "score_compliance",
+                        &[],
+                        &[("compliance_csv", &compliance_bytes)],
+                    )
+                } else {
+                    logical_stage_state_checkpoint("score_compliance", "not_requested")
+                };
+                (
+                    effective,
+                    observation,
+                    attribution,
+                    day_coverage,
+                    compliance,
                 )
             } else {
-                logical_stage_state_checkpoint("score_compliance", "not_requested")
-            };
-            (
-                effective,
-                observation,
-                attribution,
-                day_coverage,
-                compliance,
-            )
-        } else {
-            for definition in &crate::step_contract::PIPELINE_STEPS[20..54] {
-                step_checkpoints.insert(definition.id.into(), not_applicable(definition.id));
+                for definition in &crate::step_contract::PIPELINE_STEPS[20..54] {
+                    step_checkpoints.insert(definition.id.into(), not_applicable(definition.id));
+                }
+                (
+                    logical_stage_state_checkpoint("effective_usage", "not_applicable"),
+                    logical_stage_state_checkpoint("observation_window", "not_applicable"),
+                    logical_stage_state_checkpoint("attribute_person", "not_applicable"),
+                    logical_stage_state_checkpoint("day_coverage", "not_applicable"),
+                    logical_stage_state_checkpoint("score_compliance", "not_applicable"),
+                )
             }
-            (
-                logical_stage_state_checkpoint("effective_usage", "not_applicable"),
-                logical_stage_state_checkpoint("observation_window", "not_applicable"),
-                logical_stage_state_checkpoint("attribute_person", "not_applicable"),
-                logical_stage_state_checkpoint("day_coverage", "not_applicable"),
-                logical_stage_state_checkpoint("score_compliance", "not_applicable"),
-            )
         };
 
-        let assembled = assemble_outputs(
-            db,
-            raw,
-            early,
-            usage,
-            usage_support,
-            late,
-            late_support,
-            output,
-        )?;
+        let assembled = {
+            let _timer = QueryTimer::start("assemble_result_outputs");
+            assemble_outputs(
+                db,
+                raw,
+                early,
+                usage,
+                usage_support,
+                late,
+                late_support,
+                output,
+            )?
+        };
         insert_checkpoint(&mut step_checkpoints, &assembled.checkpoint);
         if step_checkpoints.len() != 55 {
             return Err(format!(
@@ -6211,6 +8223,7 @@ mod tracked {
             ));
         }
 
+        let _finalize_timer = QueryTimer::start("assemble_result_finalize");
         let outputs_checkpoint = required_logical_checkpoint(&assembled, "outputs")?;
         let logical_checkpoints = [
             early_state.parse_events.clone(),
@@ -6342,6 +8355,14 @@ mod tracked {
                     .ingredient::<count_dup_groups>()
                     .ingredient::<nudge_duplicate_timestamps>()
                     .ingredient::<mark_data_time_gaps>()
+                    .ingredient::<background_apps>()
+                    .ingredient::<parsed_filter_rules>()
+                    .ingredient::<parsed_apps_forcing_screen_open>()
+                    .ingredient::<parsed_codebook>()
+                    .ingredient::<parsed_study_windows>()
+                    .ingredient::<parsed_device_sharing>()
+                    .ingredient::<parsed_survey_attribution>()
+                    .ingredient::<parsed_enrolled_devices>()
                     .ingredient::<tag_filtered_packages>()
                     .ingredient::<collect_keyguard_timestamps>()
                     .ingredient::<walk_screen_state_machine>()
@@ -6350,8 +8371,12 @@ mod tracked {
                     .ingredient::<junk_blind_fold>()
                     .ingredient::<build_matcher_input>()
                     .ingredient::<run_matcher>()
+                    .ingredient::<review_applied_rows>()
+                    .ingredient::<review_usage_rows_before_floor>()
+                    .ingredient::<review_static_annotations>()
                     .ingredient::<review_reconstructed_rows>()
                     .ingredient::<review_reconstruction_fused>()
+                    .ingredient::<review_reconstruction_output>()
                     .ingredient::<apply_matcher_output>()
                     .ingredient::<relabel_usage_with_floor>()
                     .ingredient::<junk_downstream_mark>()
@@ -6385,6 +8410,7 @@ mod tracked {
                     .ingredient::<score_days>()
                     .ingredient::<codebook_is_empty>()
                     .ingredient::<assemble_primary_outputs>()
+                    .ingredient::<collect_early_assembly>()
                     .ingredient::<assemble_result>()
                     .build(),
                 query_bodies: Arc::default(),
@@ -6468,8 +8494,16 @@ mod tracked {
         }
 
         fn inputs(db: &EarlyDatabase) -> (EarlyRawInput, EarlyConfigInput) {
+            let csv_bytes = csv();
+            let input_sha256 = sha256_bytes(csv_bytes.as_slice());
             (
-                EarlyRawInput::new(db, csv(), Arc::new(Vec::new()), Arc::new(Vec::new())),
+                EarlyRawInput::new(
+                    db,
+                    csv_bytes,
+                    input_sha256,
+                    Arc::new(Vec::new()),
+                    Arc::new(Vec::new()),
+                ),
                 EarlyConfigInput::new(
                     db,
                     Arc::new(Vec::new()),
@@ -6548,6 +8582,7 @@ mod tracked {
                 false,
                 false,
                 "wide".into(),
+                true,
                 true,
             )
         }
@@ -6726,6 +8761,7 @@ mod tracked {
                 enable_screen_gated_crediting: false,
                 enable_aggregates: false,
                 aggregate_shape: "wide".into(),
+                materialize_visualization_data: true,
                 credited_session_cap_minutes: 360.0,
                 device_liveness_gap_tolerance_minutes: 120.0,
                 auto_lock_bridge_seconds: 120.0,
@@ -6989,7 +9025,16 @@ mod tracked {
             );
             assert_eq!(
                 tracked.internal_executed_queries,
-                ["assemble_primary_outputs"]
+                [
+                    "collect_early_assembly",
+                    "parsed_apps_forcing_screen_open",
+                    "background_apps",
+                    "parsed_study_windows",
+                    "parsed_device_sharing",
+                    "parsed_survey_attribution",
+                    "parsed_enrolled_devices",
+                    "assemble_primary_outputs",
+                ]
             );
             assert_eq!(
                 tracked.result.pipeline_step_checkpoints,
@@ -7122,10 +9167,13 @@ mod tracked {
             let representation_only = codebook_engine
                 .execute(&csv(), &codebook_options, codebook_support_crlf, true)
                 .unwrap();
-            assert_eq!(representation_only.executed_steps, ["codebook_join"]);
+            // LF/CRLF is a support-file representation change only. Parsing is
+            // tracked separately, so identical codebook values stop here and
+            // no product step is falsely invalidated.
+            assert!(representation_only.executed_steps.is_empty());
             assert_eq!(
                 representation_only.internal_executed_queries,
-                ["codebook_is_empty"]
+                ["parsed_codebook"]
             );
             let representation_oracle =
                 run_pipeline_v2_with_supports(&csv(), &codebook_options, codebook_support_crlf)
@@ -7163,8 +9211,25 @@ mod tracked {
                     .executed_steps
                     .iter()
                     .any(|step| step == "relabel_usage_with_floor"),
-                "the changed logical step was not recorded: {:?}",
+                "the changed pre-split logical step was not recorded: {:?}",
                 reused.executed_steps
+            );
+            for downstream in ["codebook_join", "drop_zero_duration"] {
+                assert!(
+                    !reused.executed_steps.iter().any(|step| step == downstream),
+                    "the converged split output falsely invalidated {downstream}: {:?}",
+                    reused.executed_steps
+                );
+            }
+            assert_eq!(
+                reused.executed_steps,
+                [
+                    "relabel_usage_with_floor",
+                    "junk_downstream_mark",
+                    "sort_episodes",
+                    "assemble_result",
+                ],
+                "the minimum-only change crossed its proven convergence boundary"
             );
 
             let mut cold = TrackedEngine::default();
@@ -7199,6 +9264,95 @@ mod tracked {
         }
 
         #[test]
+        fn repeated_review_floor_edits_reuse_matcher_rows_when_the_floor_matters() {
+            let mut baseline = pipeline_options();
+            baseline.model_concurrent_usage = false;
+            baseline.minimum_usage_duration = 60.0;
+            let support = PipelineV2SupportFiles::default();
+
+            let mut producer = TrackedEngine::default();
+            producer.execute(&csv(), &baseline, support, true).unwrap();
+            let review_base = producer.export_review_base().unwrap();
+            let reconstruction_base = producer.export_reconstruction_base().unwrap();
+
+            let mut engine = TrackedEngine::default();
+            engine
+                .execute_with_review_bases(
+                    &csv(),
+                    &review_base,
+                    &reconstruction_base,
+                    &baseline,
+                    support,
+                    false,
+                )
+                .unwrap();
+
+            let mut first_edit = baseline.clone();
+            first_edit.minimum_usage_duration = 2.0;
+            let first = engine
+                .execute_with_review_bases(
+                    &csv(),
+                    &review_base,
+                    &reconstruction_base,
+                    &first_edit,
+                    support,
+                    false,
+                )
+                .unwrap();
+            assert!(
+                first
+                    .internal_executed_queries
+                    .iter()
+                    .any(|query| query == "review_applied_rows"),
+                "the first floor edit did not establish the matcher-row cache"
+            );
+
+            let mut second_edit = first_edit.clone();
+            second_edit.minimum_usage_duration = 3.0;
+            let second = engine
+                .execute_with_review_bases(
+                    &csv(),
+                    &review_base,
+                    &reconstruction_base,
+                    &second_edit,
+                    support,
+                    false,
+                )
+                .unwrap();
+            assert!(
+                !second
+                    .internal_executed_queries
+                    .iter()
+                    .any(|query| query == "review_applied_rows"),
+                "a repeated floor edit reran matcher application: {:?}",
+                second.internal_executed_queries
+            );
+            assert!(
+                !second
+                    .executed_steps
+                    .iter()
+                    .any(|step| step == "apply_matcher_output"),
+                "a repeated floor edit falsely recomputed apply_matcher_output: {:?}",
+                second.executed_steps
+            );
+            assert!(
+                second
+                    .executed_steps
+                    .iter()
+                    .any(|step| step == "relabel_usage_with_floor"),
+                "the changed floor did not recompute relabel_usage_with_floor"
+            );
+
+            let mut cold = TrackedEngine::default();
+            let expected = cold.execute(&csv(), &second_edit, support, false).unwrap();
+            assert_result_parity(
+                &second.result,
+                &expected.result,
+                second_edit.usage_session_mode,
+            );
+        }
+
+        #[test]
         fn review_base_skips_early_rows_without_changing_results() {
             let baseline = pipeline_options();
             let support = PipelineV2SupportFiles::default();
@@ -7208,6 +9362,12 @@ mod tracked {
             let decoded = decode_review_base_bytes(&review_base).unwrap();
             assert_eq!(decoded.metadata.step_checkpoints.len(), 17);
             assert_eq!(decoded.rows.len(), 5);
+            REVIEW_BASE_DECODE_CACHE.with(|cache| cache.borrow_mut().take());
+            REVIEW_BASE_DECODE_COUNT.with(|count| count.set(0));
+            let first_cached = decode_review_base_cached(&review_base).unwrap();
+            let second_cached = decode_review_base_cached(&review_base).unwrap();
+            assert!(Arc::ptr_eq(&first_cached, &second_cached));
+            REVIEW_BASE_DECODE_COUNT.with(|count| assert_eq!(count.get(), 1));
 
             let mut changed = baseline.clone();
             changed.model_concurrent_usage = true;
@@ -7335,6 +9495,36 @@ mod tracked {
         }
 
         #[test]
+        fn disabled_app_mode_does_not_precompute_hidden_matcher_work() {
+            let mut disabled = pipeline_options();
+            disabled.usage_session_mode = UsageSessionMode::NoUsage;
+            let support = PipelineV2SupportFiles::default();
+            let mut producer = TrackedEngine::default();
+            producer.execute(&csv(), &disabled, support, false).unwrap();
+            let review_base = producer.export_review_base().unwrap();
+            let decoded = decode_review_base_bytes(&review_base).unwrap();
+            assert!(decoded.matcher_search_suffix_digests.is_none());
+
+            let mut enabled = disabled;
+            enabled.usage_session_mode = UsageSessionMode::AppUsage;
+            let mut consumer = TrackedEngine::default();
+            let actual = consumer
+                .execute_with_review_base(&csv(), &review_base, &enabled, support, false)
+                .unwrap();
+            assert!(
+                actual
+                    .executed_steps
+                    .iter()
+                    .any(|step| step == "junk_blind_fold"),
+                "newly enabled app work was hidden behind a speculative cache: {:?}",
+                actual.executed_steps
+            );
+            let mut cold = TrackedEngine::default();
+            let expected = cold.execute(&csv(), &enabled, support, false).unwrap();
+            assert_result_parity(&actual.result, &expected.result, enabled.usage_session_mode);
+        }
+
+        #[test]
         fn reconstruction_base_skips_exact_reconstruction_cone_and_rejects_wrong_keys() {
             let mut baseline = pipeline_options();
             baseline.model_concurrent_usage = true;
@@ -7347,6 +9537,12 @@ mod tracked {
             let reconstruction_base = producer.export_reconstruction_base().unwrap();
             let decoded = decode_reconstruction_base_bytes(&reconstruction_base).unwrap();
             assert_eq!(decoded.rows.len(), 5);
+            RECONSTRUCTION_BASE_DECODE_CACHE.with(|cache| cache.borrow_mut().take());
+            RECONSTRUCTION_BASE_DECODE_COUNT.with(|count| count.set(0));
+            let first_cached = decode_reconstruction_base_cached(&reconstruction_base).unwrap();
+            let second_cached = decode_reconstruction_base_cached(&reconstruction_base).unwrap();
+            assert!(Arc::ptr_eq(&first_cached, &second_cached));
+            RECONSTRUCTION_BASE_DECODE_COUNT.with(|count| assert_eq!(count.get(), 1));
 
             let mut changed = baseline.clone();
             changed.minimum_usage_duration = 60.0;
@@ -7768,6 +9964,94 @@ mod tracked {
         }
 
         #[test]
+        fn reconstruction_base_v8_preserves_exact_annotation_rows_and_rejects_identity_drift() {
+            let mut options = pipeline_options();
+            options.model_concurrent_usage = true;
+            options.apply_minimum_usage_duration_to_concurrent_subintervals = false;
+            let support = PipelineV2SupportFiles::default();
+            let mut producer = TrackedEngine::default();
+            producer.execute(&csv(), &options, support, true).unwrap();
+
+            let encoded = producer.export_reconstruction_base().unwrap();
+            let decoded = decode_reconstruction_base_bytes(&encoded).unwrap();
+            assert_eq!(encoded, encode_reconstruction_base(&decoded).unwrap());
+            assert_eq!(decoded.rows.len(), decoded.annotation_checkpoint.rows.len());
+            assert!(decoded
+                .rows
+                .iter()
+                .zip(decoded.annotation_checkpoint.rows.iter())
+                .any(|(reconstruction, annotation)| {
+                    Arc::ptr_eq(&reconstruction.0, &annotation.0)
+                }));
+
+            let mut persisted = persist_reconstruction_base(&decoded).unwrap();
+            let reused = persisted
+                .row_states
+                .iter()
+                .filter(|state| matches!(state.annotation, PersistedAnnotationRow::Reuse))
+                .count();
+            let replaced = persisted
+                .row_states
+                .iter()
+                .filter(|state| matches!(state.annotation, PersistedAnnotationRow::Replace(_)))
+                .count();
+            assert!(reused > 0, "fixture did not exercise exact row reuse");
+            assert!(
+                replaced > 0,
+                "fixture did not exercise exact row replacement"
+            );
+
+            let replacement = persisted
+                .row_states
+                .iter_mut()
+                .find_map(|state| match &mut state.annotation {
+                    PersistedAnnotationRow::Replace(row) => Some(row),
+                    _ => None,
+                })
+                .expect("fixture has a replacement row");
+            replacement.edit_identity().index = replacement.index.saturating_add(1);
+            let error = match restore_reconstruction_base(persisted) {
+                Ok(_) => panic!("identity-mutated annotation row was accepted"),
+                Err(error) => error,
+            };
+            assert!(error.contains("changed row identity"), "{error}");
+
+            let mut removal_options = options;
+            removal_options.interaction_types_to_remove = vec!["App Usage".into()];
+            let mut removal_producer = TrackedEngine::default();
+            removal_producer
+                .execute(&csv(), &removal_options, support, true)
+                .unwrap();
+            let removal_base = decode_reconstruction_base_bytes(
+                &removal_producer.export_reconstruction_base().unwrap(),
+            )
+            .unwrap();
+            let removal_persisted = persist_reconstruction_base(&removal_base).unwrap();
+            assert!(removal_persisted
+                .row_states
+                .iter()
+                .any(|state| matches!(state.annotation, PersistedAnnotationRow::Drop)));
+            let restored = restore_reconstruction_base(removal_persisted).unwrap();
+            assert_eq!(
+                restored.annotation_checkpoint.rows.len(),
+                removal_base.annotation_checkpoint.rows.len()
+            );
+            let mut restored_scratch = RowCheckpointScratch::default();
+            let mut expected_scratch = RowCheckpointScratch::default();
+            for (actual, expected) in restored
+                .annotation_checkpoint
+                .rows
+                .iter()
+                .zip(removal_base.annotation_checkpoint.rows.iter())
+            {
+                assert_eq!(
+                    row_checkpoint_parts(actual, &mut restored_scratch),
+                    row_checkpoint_parts(expected, &mut expected_scratch)
+                );
+            }
+        }
+
+        #[test]
         fn fused_review_categorization_and_annotations_match_full_summary() {
             let mut options = pipeline_options();
             options.use_app_codebook = true;
@@ -7997,7 +10281,120 @@ mod tracked {
                 assert_result_parity(&actual.result, &expected, mode);
             }
         }
+
+        /// Native attribution for the review hot path. The only runner for the
+        /// query-timing sub-timers in review_usage_rows_before_floor and
+        /// review_static_annotations; it never runs in normal gates. Timings
+        /// print on stderr as `query_timing label=... elapsed_ms=...`. Run:
+        /// cargo test --release --no-default-features \
+        ///   --features "incremental-v2 query-timing" \
+        ///   review_hot_path_attribution -- --ignored --nocapture
+        #[cfg(feature = "query-timing")]
+        #[test]
+        #[ignore = "manual profiling harness for the query-timing feature"]
+        fn review_hot_path_attribution() {
+            fn push_row(
+                raw: &mut Vec<u8>,
+                second_of_day: u32,
+                label: &str,
+                interaction: &str,
+                package: &str,
+            ) {
+                let (h, m, s) = (
+                    second_of_day / 3600,
+                    (second_of_day / 60) % 60,
+                    second_of_day % 60,
+                );
+                raw.extend_from_slice(
+                    format!(
+                        "Study,P01,Target Child,{label},{interaction},{package},2026-03-07 {h:02}:{m:02}:{s:02},America/Chicago\n"
+                    )
+                    .as_bytes(),
+                );
+            }
+            // 20,000 repetitions of the proven five-event pattern from csv()
+            // (~100k rows) across 2026-03-07, rotating 200 packages so the
+            // annotation passes see realistic string churn.
+            let mut raw = Vec::with_capacity(24 * 1024 * 1024);
+            raw.extend_from_slice(
+                b"study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            );
+            for block in 0..20_000u32 {
+                let start_second = 10 + block * 4;
+                let package = format!("com.example.app{:03}", block % 200);
+                let label = format!("App {:03}", block % 200);
+                push_row(&mut raw, start_second, "", "Screen Interactive", "");
+                push_row(&mut raw, start_second + 1, &label, "Activity Resumed", &package);
+                push_row(&mut raw, start_second + 2, &label, "Device Shutdown", &package);
+                push_row(&mut raw, start_second + 2, &label, "User Interaction", &package);
+                push_row(&mut raw, start_second + 3, "", "Screen Non-Interactive", "");
+            }
+            let baseline = pipeline_options();
+            let support = PipelineV2SupportFiles::default();
+            let mut producer = TrackedEngine::default();
+            eprintln!("attribution_phase=base_full_execute");
+            producer.execute(&raw, &baseline, support, true).unwrap();
+            let review_base = producer.export_review_base().unwrap();
+            let reconstruction_base = producer.export_reconstruction_base().unwrap();
+            let mut changed = baseline.clone();
+            changed.minimum_usage_duration = 60.0;
+            let mut consumer = TrackedEngine::default();
+            eprintln!("attribution_phase=changed_review_with_bases");
+            let cached = consumer
+                .execute_with_review_bases(
+                    &raw,
+                    &review_base,
+                    &reconstruction_base,
+                    &changed,
+                    support,
+                    false,
+                )
+                .unwrap();
+            assert!(
+                cached
+                    .executed_steps
+                    .iter()
+                    .any(|step| step == "relabel_usage_with_floor"),
+                "floor edit did not exercise the incremental review path: {:?}",
+                cached.executed_steps
+            );
+        }
     }
+}
+
+#[cfg(feature = "incremental-v2")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PersistedReviewBaseSelection {
+    None,
+    Review,
+    Reconstruction,
+}
+
+#[cfg(feature = "incremental-v2")]
+pub const fn review_base_header_bytes() -> usize {
+    tracked::review_base_header_bytes()
+}
+
+#[cfg(feature = "incremental-v2")]
+pub const fn reconstruction_base_header_bytes() -> usize {
+    tracked::reconstruction_base_header_bytes()
+}
+
+#[cfg(feature = "incremental-v2")]
+pub fn select_persisted_review_base(
+    input_sha256: &str,
+    review_base_header: &[u8],
+    reconstruction_base_header: &[u8],
+    options: &PipelineV2Options,
+    support: PipelineV2SupportFiles<'_>,
+) -> Result<PersistedReviewBaseSelection, String> {
+    tracked::select_persisted_base_kind(
+        input_sha256,
+        review_base_header,
+        reconstruction_base_header,
+        options,
+        support,
+    )
 }
 
 #[cfg(feature = "incremental-v2")]
@@ -8018,6 +10415,10 @@ pub struct IncrementalPipelineV2Execution {
 
 #[cfg(feature = "incremental-v2")]
 impl IncrementalPipelineV2Engine {
+    pub fn has_verified_input(&self, input_sha256: &str) -> bool {
+        self.inner.has_verified_input(input_sha256)
+    }
+
     pub fn execute(
         &mut self,
         csv_bytes: &[u8],
@@ -8070,6 +10471,76 @@ impl IncrementalPipelineV2Engine {
             support,
             false,
         )?;
+        Ok(IncrementalPipelineV2Execution {
+            result: execution.result,
+            executed_steps: execution.executed_steps,
+            internal_executed_queries: execution.internal_executed_queries,
+        })
+    }
+
+    pub fn execute_review_with_owned_csv(
+        &mut self,
+        csv_bytes: Vec<u8>,
+        review_base_bytes: &[u8],
+        reconstruction_base_bytes: &[u8],
+        options: &PipelineV2Options,
+        support: PipelineV2SupportFiles<'_>,
+    ) -> Result<IncrementalPipelineV2Execution, String> {
+        let execution = self.inner.execute_with_owned_csv_review_bases(
+            csv_bytes,
+            review_base_bytes,
+            reconstruction_base_bytes,
+            options,
+            support,
+            false,
+        )?;
+        Ok(IncrementalPipelineV2Execution {
+            result: execution.result,
+            executed_steps: execution.executed_steps,
+            internal_executed_queries: execution.internal_executed_queries,
+        })
+    }
+
+    /// Re-enter a verified persisted base without copying the unchanged raw
+    /// object into WASM again. The caller must have verified `input_sha256`
+    /// while opening the content-addressed workspace; the selected base is
+    /// independently bound to that digest and fails closed on any mismatch.
+    pub fn execute_review_with_verified_input(
+        &mut self,
+        input_sha256: String,
+        review_base_bytes: &[u8],
+        reconstruction_base_bytes: &[u8],
+        options: &PipelineV2Options,
+        support: PipelineV2SupportFiles<'_>,
+    ) -> Result<IncrementalPipelineV2Execution, String> {
+        let execution = self.inner.execute_with_verified_csv_review_bases(
+            Vec::new(),
+            input_sha256,
+            review_base_bytes,
+            reconstruction_base_bytes,
+            options,
+            support,
+            false,
+        )?;
+        Ok(IncrementalPipelineV2Execution {
+            result: execution.result,
+            executed_steps: execution.executed_steps,
+            internal_executed_queries: execution.internal_executed_queries,
+        })
+    }
+
+    /// Reuse raw bytes and persisted-base state already owned by this exact
+    /// engine instance. The verified digest must match the live tracked input;
+    /// otherwise the request fails instead of silently falling back.
+    pub fn execute_review_with_warm_verified_input(
+        &mut self,
+        input_sha256: String,
+        options: &PipelineV2Options,
+        support: PipelineV2SupportFiles<'_>,
+    ) -> Result<IncrementalPipelineV2Execution, String> {
+        let execution =
+            self.inner
+                .execute_with_warm_verified_input(input_sha256, options, support, false)?;
         Ok(IncrementalPipelineV2Execution {
             result: execution.result,
             executed_steps: execution.executed_steps,
