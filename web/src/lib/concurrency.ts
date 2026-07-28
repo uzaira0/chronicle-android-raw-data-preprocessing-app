@@ -21,6 +21,17 @@
  *     bounds peak RAM during a batch).
  *   - Clamp to [1, hardwareConcurrency/2] and never exceed file count.
  */
+/**
+ * Full-processing amplification only. Review-materialization dispatch (the
+ * View-tab A/B comparison pool) measures far lower and must not be routed
+ * through this constant: 2026-07-28 verify-many-files receipts over distinct
+ * 19 MB inputs put a cold review worker at ~124 MB process-tree RSS
+ * (~6.6x input; 8 workers added 0.99 GB over the processing-only peak) and a
+ * warm salsa-memory repeat worker at ~38 MB (~2x). Governing the comparison
+ * pool with 128x would cut it from 8 workers to 1 and the measured ~6.6x
+ * under the 600 MB budget would still cap it at 3 — a wall-clock regression
+ * with no measured safety need, so that dispatch stays ungoverned.
+ */
 const PEAK_AMPLIFICATION = 128;
 const WORKER_BASELINE_BYTES = 48 * 1024 * 1024;
 const IN_FLIGHT_BUDGET_BYTES = 600 * 1024 * 1024;
