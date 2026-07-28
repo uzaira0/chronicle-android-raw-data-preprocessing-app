@@ -481,15 +481,19 @@ describe("semantic model mutation gate", () => {
       );
       for (const binder of binders) {
         mutants.push(
-          empiricalKill(
-            `remove-role-binding:${roleId}->${binder}`,
-            "remove-role-binding",
-            roleId,
-            binder,
-            baseInputs,
-            candidates,
-            (observation) =>
-              observation.directBinders.filter((nodeId) => nodeId !== binder),
+          killByRustSourceEdge(
+            empiricalKill(
+              `remove-role-binding:${roleId}->${binder}`,
+              "remove-role-binding",
+              roleId,
+              binder,
+              baseInputs,
+              candidates,
+              (observation) =>
+                observation.directBinders.filter(
+                  (nodeId) => nodeId !== binder,
+                ),
+            ),
           ),
         );
       }

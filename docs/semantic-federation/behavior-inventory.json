@@ -25,12 +25,12 @@
         "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "rust/chronicle_chrono_kernel_wasm/src/step_contract.rs"
       ],
-      "digest": "sha256:4cd1de9694faa17f734b828c58b729d0809befb802c8f4ee6f48b3e133a34300",
+      "digest": "sha256:6a3bf09bad99be30afeba927e8fabedf618376c1aa8b8cafbaf6b77a133dea0a",
       "coverage": "active-55-query-salsa-kernel-plus-fused-cold-test-oracle"
     },
     "rust_product_runtime": {
       "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
-      "digest": "sha256:64aeb75f3f08074341f226f7691a270a1a08d85b84799ec55c07721059269c3e",
+      "digest": "sha256:6ef9ad1bbc5c142eb125f99df4bd79925a755c81e7daab6ab4caeccf4fb085e8",
       "coverage": "production-worker-authority"
     }
   },
@@ -339,7 +339,7 @@
   "runtime_authority_surface_count": 23,
   "dependency_certificate": {
     "path": ".semantic-federation/proofs/dependency-certificate.json",
-    "digest": "sha256:12bdc0a9bb650c9f8c0e6ebf31f4f6ea8be93bb254ffa43a66dded02afe8b5ed",
+    "digest": "sha256:fdb908d2e6c23a1dc1dbabddfc659a14303ece4fa85c64738e4e6daf85f237d7",
     "fallback": "full-logical-recompute"
   },
   "resolved_baseline_findings": [

@@ -101,7 +101,7 @@ type RuntimeManifest = {
     logicalStageCheckpoints: Record<
       string,
       {
-        protocolVersion: "chronicle-logical-stage-checkpoint/v5";
+        protocolVersion: "chronicle-logical-stage-checkpoint/v6";
         nodeId: string;
         rowMembershipDigest: string;
         rowOrderDigest: string;
@@ -589,7 +589,7 @@ describe("artifact dependency tomography", () => {
             manifest.processingSummary.logicalStageCheckpoints,
           )) {
             expect(checkpoint.protocolVersion).toBe(
-              "chronicle-logical-stage-checkpoint/v5",
+              "chronicle-logical-stage-checkpoint/v6",
             );
             expect(checkpoint.nodeId).toBe(nodeId);
             expect(checkpoint.terminalDigest).toBe(
@@ -606,7 +606,7 @@ describe("artifact dependency tomography", () => {
             manifest.processingSummary.pipelineStepCheckpoints,
           )) {
             expect(checkpoint.protocolVersion).toBe(
-              "chronicle-logical-stage-checkpoint/v5",
+              "chronicle-logical-stage-checkpoint/v6",
             );
             expect(checkpoint.nodeId).toBe(stepId);
             expect(checkpoint.terminalDigest).toBe(
@@ -857,7 +857,7 @@ describe("artifact dependency tomography", () => {
 
     const evidence = {
       protocolVersion: "chronicle-artifact-influence-ledger/v1",
-      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v5",
+      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v6",
       claimBoundary:
         "Exact raw/support artifact percolation for the recorded product plan, implementation, six deterministic synthetic corpora, and intervention catalog. Each intervention changes exactly one source artifact; every warm 55-step checkpoint, 15 display-group checkpoint, and researcher-visible output is compared with an independent cold Rust/WASM target. Absence of an effect is not generalized beyond the named mutation and corpus.",
       plan: { id: plan.plan_id, revision: plan.revision },

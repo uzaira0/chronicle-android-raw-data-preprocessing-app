@@ -1,11 +1,13 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import {
+  decodeReviewRuntimeManifest,
   decodeRuntimeManifest,
   executeRustRuntime,
+  queryPersistedRustReview,
   queryRustReview,
   setRustRuntimeForTesting,
   verifyRuntimeArtifactCatalog,
@@ -14,6 +16,157 @@ import {
 import * as runtimeWasm from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
 
 let manifest: RuntimeManifest;
+let fullArtifacts: Map<string, Uint8Array>;
+let reviewManifest: Record<string, unknown>;
+let reviewSummaryBytes: Uint8Array;
+
+function reviewSourceFixture(): Uint8Array {
+  return new TextEncoder().encode(
+    [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Review,P99,Target Child,Example,Activity Resumed,example.app,2026-03-08 10:00:00,America/Chicago",
+      "Review,P99,Target Child,Example,Activity Paused,example.app,2026-03-08 10:01:00,America/Chicago",
+    ].join("\n"),
+  );
+}
+
+function reviewOptions() {
+  return {
+    ...DEFAULT_BROWSER_OPTIONS,
+    studyName: "Review contract proof",
+    selectedTimezone: "America/Chicago",
+    timezoneHandling: "selected-convert" as const,
+    useFilterFile: false,
+    useAppsForcingScreenOpenFile: false,
+    useBackgroundAppsFile: false,
+    useAppCodebook: false,
+    processScreenUsage: false,
+    enablePlotting: false,
+  };
+}
+
+const REVIEW_RUNTIME = {
+  datetimeOfPreprocessing: "2026-07-26 00:00:00 UTC",
+  persistRustWorkspace: false,
+} as const;
+
+function fullSourceFixture(): Uint8Array {
+  return new TextEncoder().encode(
+    [
+      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+      "Study,P01,Target Child,Example,Unknown importance: 1,example.app,2026-03-07 10:00:00,America/Chicago",
+      "Study,P01,Target Child,Example,Unknown importance: 2,example.app,2026-03-07 10:01:00,America/Chicago",
+    ].join("\n"),
+  );
+}
+
+function continuationDisplacementFixture(): Uint8Array {
+  return new TextEncoder().encode(
+    new TextDecoder().decode(reviewSourceFixture()).replaceAll("P99", "P98"),
+  );
+}
+
+function fullOptions() {
+  return {
+    ...DEFAULT_BROWSER_OPTIONS,
+    studyName: "Runtime Contract Proof",
+    selectedTimezone: "America/Chicago",
+    timezoneHandling: "selected-convert" as const,
+    useFilterFile: false,
+    useAppsForcingScreenOpenFile: false,
+    useBackgroundAppsFile: false,
+    useAppCodebook: false,
+    processScreenUsage: false,
+    enablePlotting: false,
+  };
+}
+
+const FULL_RUNTIME = {
+  datetimeOfPreprocessing: "2026-07-22 00:00:00 UTC",
+  persistRustWorkspace: false,
+} as const;
+
+class MemoryFileHandle {
+  readonly kind = "file" as const;
+  bytes = new Uint8Array();
+
+  getFile(): Promise<File> {
+    return Promise.resolve(new File([this.bytes], "object"));
+  }
+
+  createWritable(): Promise<FileSystemWritableFileStream> {
+    let pending = new Uint8Array();
+    return Promise.resolve({
+      write(data: FileSystemWriteChunkType) {
+        if (data instanceof Uint8Array) pending = Uint8Array.from(data);
+        else if (data instanceof ArrayBuffer) pending = new Uint8Array(data);
+        else throw new Error("unsupported test write");
+        return Promise.resolve();
+      },
+      close: () => {
+        this.bytes = pending;
+        return Promise.resolve();
+      },
+    } as FileSystemWritableFileStream);
+  }
+}
+
+class MemoryDirectoryHandle {
+  readonly kind = "directory" as const;
+  readonly directories = new Map<string, MemoryDirectoryHandle>();
+  readonly files = new Map<string, MemoryFileHandle>();
+
+  getDirectoryHandle(
+    name: string,
+    options?: FileSystemGetDirectoryOptions,
+  ): Promise<FileSystemDirectoryHandle> {
+    let directory = this.directories.get(name);
+    if (!directory && options?.create) {
+      directory = new MemoryDirectoryHandle();
+      this.directories.set(name, directory);
+    }
+    if (!directory) throw new DOMException("missing", "NotFoundError");
+    return Promise.resolve(directory as unknown as FileSystemDirectoryHandle);
+  }
+
+  getFileHandle(
+    name: string,
+    options?: FileSystemGetFileOptions,
+  ): Promise<FileSystemFileHandle> {
+    let file = this.files.get(name);
+    if (!file && options?.create) {
+      file = new MemoryFileHandle();
+      this.files.set(name, file);
+    }
+    if (!file) throw new DOMException("missing", "NotFoundError");
+    return Promise.resolve(file as unknown as FileSystemFileHandle);
+  }
+
+  removeEntry(name: string): Promise<void> {
+    if (!this.files.delete(name) && !this.directories.delete(name)) {
+      throw new DOMException("missing", "NotFoundError");
+    }
+    return Promise.resolve();
+  }
+
+  async *entries(): AsyncIterableIterator<
+    [string, FileSystemFileHandle | FileSystemDirectoryHandle]
+  > {
+    await Promise.resolve();
+    for (const [name, directory] of this.directories) {
+      yield [name, directory as unknown as FileSystemDirectoryHandle];
+    }
+    for (const [name, file] of this.files) {
+      yield [name, file as unknown as FileSystemFileHandle];
+    }
+  }
+}
+
+function memoryOpfsRoot(
+  root: MemoryDirectoryHandle,
+): FileSystemDirectoryHandle {
+  return root as unknown as FileSystemDirectoryHandle;
+}
 
 function cloneManifest(): RuntimeManifest {
   return structuredClone(manifest);
@@ -48,6 +201,185 @@ function representativeSourceFixture(): Uint8Array {
     );
   }
   return new TextEncoder().encode(rows.join("\n"));
+}
+
+type FakeReviewRuntimeOptions = {
+  manifestJson?: string;
+  mutateManifest?: (candidate: Record<string, unknown>) => void;
+  artifactCount?: number;
+  mutateMetadata?: (candidate: Record<string, unknown>) => void;
+  artifactBytes?: Uint8Array;
+  handleFreeError?: Error;
+  supportFreeError?: Error;
+};
+
+function installFakeReviewRuntime({
+  manifestJson,
+  mutateManifest,
+  artifactCount = 1,
+  mutateMetadata,
+  artifactBytes = reviewSummaryBytes,
+  handleFreeError,
+  supportFreeError,
+}: FakeReviewRuntimeOptions = {}) {
+  const candidate = structuredClone(reviewManifest);
+  mutateManifest?.(candidate);
+  const metadata: Record<string, unknown> = {
+    artifactId: "artifact:review-summary-json",
+    kind: "review-summary-json",
+    mediaType: "application/json",
+    digest: candidate.reviewSummaryDigest,
+    size: artifactBytes.byteLength,
+    derivedFrom: [],
+  };
+  mutateMetadata?.(metadata);
+  const handleFree = vi.fn(() => {
+    if (handleFreeError) throw handleFreeError;
+  });
+  const supportFree = vi.fn(() => {
+    if (supportFreeError) throw supportFreeError;
+  });
+  const fakeRuntime = {
+    implementation_build_digest: () => reviewManifest.implementationDigest,
+    build_environment_digest: () => reviewManifest.buildEnvironmentDigest,
+    RuntimeSupportFiles: class {
+      put() {}
+      put_with_name() {}
+      free() {
+        supportFree();
+      }
+    },
+    execute_workspace: () => ({
+      artifact_count: artifactCount,
+      manifest_json: () => manifestJson ?? JSON.stringify(candidate),
+      artifact_metadata_json: () => JSON.stringify(metadata),
+      take_artifact_bytes: () => artifactBytes,
+      free: handleFree,
+    }),
+  } as unknown as Parameters<typeof setRustRuntimeForTesting>[0];
+  setRustRuntimeForTesting(fakeRuntime);
+  return { handleFree, supportFree };
+}
+
+async function expectFakeReviewFailure(
+  options: FakeReviewRuntimeOptions,
+  expected: RegExp,
+): Promise<void> {
+  installFakeReviewRuntime(options);
+  try {
+    await expect(
+      queryRustReview(
+        reviewSourceFixture(),
+        "review-contract.csv",
+        reviewOptions(),
+        undefined,
+        REVIEW_RUNTIME,
+      ),
+    ).rejects.toThrow(expected);
+  } finally {
+    setRustRuntimeForTesting(runtimeWasm);
+  }
+}
+
+type FakeFullRuntimeOptions = {
+  mutateManifest?: (candidate: RuntimeManifest) => void;
+  artifactMetadataJson?: (
+    index: number,
+    metadata: RuntimeManifest["artifacts"][number],
+  ) => string;
+  mutateArtifactBytes?: (kind: string, bytes: Uint8Array) => Uint8Array;
+};
+
+function installFakeFullRuntime({
+  mutateManifest,
+  artifactMetadataJson,
+  mutateArtifactBytes,
+}: FakeFullRuntimeOptions = {}): void {
+  const candidate = cloneManifest();
+  mutateManifest?.(candidate);
+  const metadata = structuredClone(candidate.artifacts);
+  const fakeRuntime = {
+    implementation_build_digest: () => manifest.implementationDigest,
+    build_environment_digest: () => manifest.buildEnvironmentDigest,
+    runtime_identity_json: () => runtimeWasm.runtime_identity_json(),
+    RuntimeSupportFiles: class {
+      put() {}
+      put_with_name() {}
+      free() {}
+    },
+    execute_workspace: () => ({
+      artifact_count: metadata.length,
+      manifest_json: () => JSON.stringify(candidate),
+      artifact_metadata_json: (index: number) =>
+        artifactMetadataJson?.(index, metadata[index]) ??
+        JSON.stringify(metadata[index]),
+      take_artifact_bytes: (index: number) => {
+        const kind = metadata[index].kind;
+        const bytes = fullArtifacts.get(kind);
+        if (!bytes) throw new Error(`missing fixture bytes for ${kind}`);
+        const owned = Uint8Array.from(bytes);
+        return mutateArtifactBytes?.(kind, owned) ?? owned;
+      },
+      free() {},
+    }),
+    verify_evidence_journal_cbor: () => 1,
+  } as unknown as Parameters<typeof setRustRuntimeForTesting>[0];
+  setRustRuntimeForTesting(fakeRuntime);
+}
+
+async function expectFakeFullFailure(
+  options: FakeFullRuntimeOptions,
+  expected: RegExp,
+): Promise<void> {
+  installFakeFullRuntime(options);
+  try {
+    await expect(
+      executeRustRuntime(
+        fullSourceFixture(),
+        "runtime-contract.csv",
+        fullOptions(),
+        undefined,
+        FULL_RUNTIME,
+      ),
+    ).rejects.toThrow(expected);
+  } finally {
+    setRustRuntimeForTesting(runtimeWasm);
+  }
+}
+
+async function expectFakeStreamFullFailure(
+  options: FakeFullRuntimeOptions,
+  expected: RegExp,
+): Promise<void> {
+  const root = new MemoryDirectoryHandle();
+  const priorNavigator = globalThis.navigator;
+  vi.stubGlobal("navigator", {
+    storage: {
+      getDirectory: () => Promise.resolve(memoryOpfsRoot(root)),
+    },
+    locks: {
+      request: (
+        _name: string,
+        _options: LockOptions,
+        operation: () => Promise<unknown>,
+      ) => operation(),
+    },
+  });
+  installFakeFullRuntime(options);
+  try {
+    await expect(
+      executeRustRuntime(
+        fullSourceFixture(),
+        "runtime-contract.csv",
+        fullOptions(),
+        undefined,
+        { ...FULL_RUNTIME, persistRustWorkspace: true },
+      ),
+    ).rejects.toThrow(expected);
+  } finally {
+    setRustRuntimeForTesting(runtimeWasm);
+    vi.stubGlobal("navigator", priorNavigator);
+  }
 }
 
 const INVALID_CASES: Array<
@@ -228,7 +560,7 @@ const INVALID_CASES: Array<
       const nodeId = Object.keys(checkpoints)[0];
       record(checkpoints[nodeId]).payloadDigest = `sha256:${"a".repeat(64)}`;
     },
-    /payloadDigest.*lowercase blake3 digest/,
+    /payloadDigest.*lowercase xxh3-128 digest/,
   ],
   [
     "checkpoint protocol is unsupported",
@@ -369,39 +701,666 @@ beforeAll(async () => {
   );
   runtimeWasm.initSync({ module: runtimeBytes });
   setRustRuntimeForTesting(runtimeWasm);
-  const raw = new TextEncoder().encode(
-    [
-      "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
-      "Study,P01,Target Child,Example,Unknown importance: 1,example.app,2026-03-07 10:00:00,America/Chicago",
-      "Study,P01,Target Child,Example,Unknown importance: 2,example.app,2026-03-07 10:01:00,America/Chicago",
-    ].join("\n"),
+  const full = await executeRustRuntime(
+    fullSourceFixture(),
+    "runtime-contract.csv",
+    fullOptions(),
+    undefined,
+    FULL_RUNTIME,
   );
-  manifest = (
-    await executeRustRuntime(
-      raw,
-      "runtime-contract.csv",
-      {
-        ...DEFAULT_BROWSER_OPTIONS,
-        studyName: "Runtime Contract Proof",
-        selectedTimezone: "America/Chicago",
-        timezoneHandling: "selected-convert",
-        useFilterFile: false,
-        useAppsForcingScreenOpenFile: false,
-        useBackgroundAppsFile: false,
-        useAppCodebook: false,
-        processScreenUsage: false,
-        enablePlotting: false,
-      },
-      undefined,
-      {
-        datetimeOfPreprocessing: "2026-07-22 00:00:00 UTC",
-        persistRustWorkspace: false,
-      },
-    )
-  ).manifest;
+  manifest = full.manifest;
+  fullArtifacts = full.artifacts;
+  const review = await queryRustReview(
+    reviewSourceFixture(),
+    "review-contract.csv",
+    reviewOptions(),
+    undefined,
+    REVIEW_RUNTIME,
+  );
+  reviewManifest = JSON.parse(review.manifestJson) as Record<string, unknown>;
+  reviewSummaryBytes = review.reviewSummaryJsonBytes;
+  // Move the process-local continuation to a different input so fake full-run
+  // checks replay the captured manifest's original null predecessor exactly.
+  await executeRustRuntime(
+    continuationDisplacementFixture(),
+    "continuation-displacement.csv",
+    fullOptions(),
+    undefined,
+    FULL_RUNTIME,
+  );
 });
 
 describe("Rust/WASM runtime manifest contract firewall", () => {
+  it.each([
+    [
+      "protocol drift",
+      (candidate: Record<string, unknown>) => {
+        candidate.protocolVersion = "chronicle-preprocessing-runtime/v2";
+      },
+      /reviewManifest\.protocolVersion.*unsupported protocol version/,
+    ],
+    [
+      "the wrong command",
+      (candidate: Record<string, unknown>) => {
+        candidate.command = "ExecuteWorkspace";
+      },
+      /reviewManifest\.command.*expected QueryReview/,
+    ],
+    [
+      "an unknown timezone action",
+      (candidate: Record<string, unknown>) => {
+        candidate.timezoneAction = "guess";
+      },
+      /reviewManifest\.timezoneAction.*unknown timezone action/,
+    ],
+    [
+      "an unknown execution status",
+      (candidate: Record<string, unknown>) => {
+        firstRecord(candidate, "stepExecutions").status = "silently_stale";
+      },
+      /reviewManifest\.stepExecutions\[0\]\.status.*unknown execution status/,
+    ],
+    [
+      "an incomplete step domain",
+      (candidate: Record<string, unknown>) => {
+        array(candidate.stepExecutions).pop();
+      },
+      /expected exactly 55 unique Rust step executions/,
+    ],
+    [
+      "duplicate step identities",
+      (candidate: Record<string, unknown>) => {
+        const steps = array(candidate.stepExecutions);
+        record(steps[1]).step_id = record(steps[0]).step_id;
+      },
+      /expected exactly 55 unique Rust step executions/,
+    ],
+    [
+      "an unknown cache source",
+      (candidate: Record<string, unknown>) => {
+        candidate.cacheSources = ["unverified-cache"];
+      },
+      /reviewManifest\.cacheSources.*unknown or duplicate cache source/,
+    ],
+    [
+      "duplicate cache sources",
+      (candidate: Record<string, unknown>) => {
+        candidate.cacheSources = ["salsa-memory", "salsa-memory"];
+      },
+      /reviewManifest\.cacheSources.*unknown or duplicate cache source/,
+    ],
+  ] as const)(
+    "rejects a compact review manifest with %s",
+    (_name, mutate, expected) => {
+      const candidate = structuredClone(reviewManifest);
+      mutate(candidate);
+      expect(() => decodeReviewRuntimeManifest(candidate)).toThrow(expected);
+    },
+  );
+
+  it("maps every valid review execution status to its exact step identity", () => {
+    const candidate = structuredClone(reviewManifest);
+    const steps = array(candidate.stepExecutions).map(record);
+    const statuses = ["recomputed", "cached", "bypassed", "skipped", "error"];
+    statuses.forEach((status, index) => {
+      steps[index].status = status;
+    });
+
+    const decoded = decodeReviewRuntimeManifest(candidate);
+    expect(decoded.recomputedStepIds).toContain(steps[0].step_id);
+    expect(decoded.cachedStepIds).toContain(steps[1].step_id);
+    expect(decoded.bypassedStepIds).toContain(steps[2].step_id);
+    expect(decoded.skippedStepIds).toContain(steps[3].step_id);
+    expect(decoded.errorStepIds).toEqual([steps[4].step_id]);
+  });
+
+  it.each([
+    [
+      "workspace identity",
+      {
+        mutateManifest: (candidate: Record<string, unknown>): void => {
+          candidate.workspaceId = `sha256:${"1".repeat(64)}`;
+        },
+      },
+      /review manifest workspace identity mismatch/,
+    ],
+    [
+      "input identity",
+      {
+        mutateManifest: (candidate: Record<string, unknown>): void => {
+          candidate.inputDigest = `sha256:${"2".repeat(64)}`;
+        },
+      },
+      /review manifest input identity mismatch/,
+    ],
+    [
+      "previous-root identity",
+      {
+        mutateManifest: (candidate: Record<string, unknown>): void => {
+          candidate.previousWorkspaceRootDigest = `sha256:${"3".repeat(64)}`;
+        },
+      },
+      /review manifest previous-root identity mismatch/,
+    ],
+    [
+      "implementation identity",
+      {
+        mutateManifest: (candidate: Record<string, unknown>): void => {
+          candidate.implementationDigest = `sha256:${"4".repeat(64)}`;
+        },
+      },
+      /review manifest implementation identity mismatch/,
+    ],
+    [
+      "build-environment identity",
+      {
+        mutateManifest: (candidate: Record<string, unknown>): void => {
+          candidate.buildEnvironmentDigest = `sha256:${"5".repeat(64)}`;
+        },
+      },
+      /review manifest build-environment identity mismatch/,
+    ],
+    [
+      "artifact count",
+      { artifactCount: 2 },
+      /review query must expose exactly one compact artifact/,
+    ],
+    [
+      "artifact kind",
+      {
+        mutateMetadata: (candidate: Record<string, unknown>): void => {
+          candidate.kind = "wrong-kind";
+        },
+      },
+      /review artifact identity mismatch/,
+    ],
+    [
+      "artifact digest identity",
+      {
+        mutateMetadata: (candidate: Record<string, unknown>): void => {
+          candidate.digest = `sha256:${"6".repeat(64)}`;
+        },
+      },
+      /review artifact identity mismatch/,
+    ],
+    [
+      "artifact size",
+      {
+        mutateMetadata: (candidate: Record<string, unknown>): void => {
+          candidate.size = reviewSummaryBytes.byteLength + 1;
+        },
+      },
+      /review artifact integrity mismatch/,
+    ],
+    [
+      "artifact content digest",
+      { artifactBytes: new Uint8Array([0]) },
+      /review artifact integrity mismatch/,
+    ],
+  ] as const)(
+    "fails closed at the review execution boundary for %s",
+    async (_name, options, expected) => {
+      await expectFakeReviewFailure(options, expected);
+    },
+  );
+
+  it("preserves the primary manifest error when both WASM cleanup calls fail", async () => {
+    const warning = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => undefined);
+    const { handleFree, supportFree } = installFakeReviewRuntime({
+      manifestJson: "not-json",
+      handleFreeError: new Error("handle cleanup failed"),
+      supportFreeError: new Error("support cleanup failed"),
+    });
+    try {
+      await expect(
+        queryRustReview(
+          reviewSourceFixture(),
+          "review-contract.csv",
+          reviewOptions(),
+          undefined,
+          REVIEW_RUNTIME,
+        ),
+      ).rejects.toThrow(/runtime manifest is not valid JSON/);
+      expect(handleFree).toHaveBeenCalledOnce();
+      expect(supportFree).toHaveBeenCalledOnce();
+      expect(warning).toHaveBeenCalledTimes(2);
+    } finally {
+      warning.mockRestore();
+      setRustRuntimeForTesting(runtimeWasm);
+    }
+  });
+
+  it.each([
+    [
+      "request identity",
+      {
+        mutateManifest: (candidate: RuntimeManifest): void => {
+          candidate.requestId = "wrong-request";
+        },
+      },
+      /runtime manifest request identity mismatch/,
+    ],
+    [
+      "workspace identity",
+      {
+        mutateManifest: (candidate: RuntimeManifest): void => {
+          candidate.workspaceId = `sha256:${"7".repeat(64)}`;
+        },
+      },
+      /runtime manifest workspace identity mismatch/,
+    ],
+    [
+      "implementation identity",
+      {
+        mutateManifest: (candidate: RuntimeManifest): void => {
+          candidate.implementationDigest = `sha256:${"8".repeat(64)}`;
+        },
+      },
+      /runtime manifest implementation identity mismatch/,
+    ],
+    [
+      "build-environment identity",
+      {
+        mutateManifest: (candidate: RuntimeManifest): void => {
+          candidate.buildEnvironmentDigest = `sha256:${"9".repeat(64)}`;
+        },
+      },
+      /runtime manifest build-environment identity mismatch/,
+    ],
+    [
+      "input digest",
+      {
+        mutateManifest: (candidate: RuntimeManifest): void => {
+          candidate.input.digest = `sha256:${"a".repeat(64)}`;
+        },
+      },
+      /runtime manifest input identity mismatch/,
+    ],
+    [
+      "input size",
+      {
+        mutateManifest: (candidate: RuntimeManifest): void => {
+          candidate.input.size += 1;
+        },
+      },
+      /runtime manifest input identity mismatch/,
+    ],
+    [
+      "previous-root identity",
+      {
+        mutateManifest: (candidate: RuntimeManifest): void => {
+          candidate.previousWorkspaceRootDigest = `sha256:${"b".repeat(64)}`;
+        },
+      },
+      /runtime manifest previous-root identity mismatch/,
+    ],
+    [
+      "invalid artifact metadata JSON",
+      { artifactMetadataJson: () => "not-json" },
+      /runtime artifact metadata is not valid JSON at index 0/,
+    ],
+    [
+      "duplicate artifact kinds",
+      {
+        artifactMetadataJson: (
+          index: number,
+          metadata: RuntimeManifest["artifacts"][number],
+        ): string =>
+          JSON.stringify(index === 1 ? manifest.artifacts[0] : metadata),
+      },
+      /duplicate runtime artifact kind/,
+    ],
+    [
+      "artifact byte size",
+      {
+        mutateArtifactBytes: (_kind: string, bytes: Uint8Array): Uint8Array =>
+          bytes.subarray(0, Math.max(0, bytes.byteLength - 1)),
+      },
+      /runtime artifact integrity mismatch/,
+    ],
+    [
+      "artifact content digest",
+      {
+        mutateArtifactBytes: (_kind: string, bytes: Uint8Array): Uint8Array => {
+          if (bytes.byteLength > 0) bytes[0] ^= 1;
+          return bytes;
+        },
+      },
+      /runtime artifact integrity mismatch/,
+    ],
+    [
+      "unknown ingress role",
+      {
+        mutateManifest: (candidate: RuntimeManifest): void => {
+          const assignment = candidate.roleAssignments.find(
+            ({ role_id }) => role_id !== "processing_options",
+          );
+          if (!assignment) throw new Error("fixture has no ingress assignment");
+          assignment.role_id = "unknown_ingress";
+        },
+      },
+      /runtime declared an unknown ingress role/,
+    ],
+    [
+      "ingress byte size",
+      {
+        mutateManifest: (candidate: RuntimeManifest): void => {
+          const assignment = candidate.roleAssignments.find(
+            ({ role_id }) => role_id !== "processing_options",
+          );
+          if (!assignment) throw new Error("fixture has no ingress assignment");
+          assignment.artifact.size += 1;
+        },
+      },
+      /runtime ingress assignment size mismatch/,
+    ],
+    [
+      "missing workspace root artifact",
+      {
+        mutateManifest: (candidate: RuntimeManifest): void => {
+          candidate.artifacts = candidate.artifacts.filter(
+            ({ kind }) => kind !== "workspace-root-json",
+          );
+        },
+      },
+      /runtime artifact set is missing its workspace root/,
+    ],
+    [
+      "missing referenced closure artifact",
+      {
+        mutateManifest: (candidate: RuntimeManifest): void => {
+          candidate.artifacts = candidate.artifacts.filter(
+            ({ kind }) => kind !== "source-coordinate-index-arrow",
+          );
+        },
+      },
+      /runtime artifact set is missing sha256:/,
+    ],
+  ] as Array<[string, FakeFullRuntimeOptions, RegExp]>)(
+    "fails closed at the full execution boundary for %s",
+    async (_name, options, expected) => {
+      await expectFakeFullFailure(options, expected);
+    },
+  );
+
+  it.each([
+    [
+      "artifact integrity",
+      {
+        mutateArtifactBytes: (_kind: string, bytes: Uint8Array): Uint8Array =>
+          bytes.subarray(0, Math.max(0, bytes.byteLength - 1)),
+      },
+      /artifact size mismatch/,
+    ],
+    [
+      "artifact digest integrity",
+      {
+        mutateArtifactBytes: (_kind: string, bytes: Uint8Array): Uint8Array => {
+          const changed = Uint8Array.from(bytes);
+          if (changed.byteLength > 0) changed[0] ^= 1;
+          return changed;
+        },
+      },
+      /OPFS verification failed/,
+    ],
+    [
+      "unknown ingress role",
+      {
+        mutateManifest: (candidate: RuntimeManifest): void => {
+          const assignment = candidate.roleAssignments.find(
+            ({ role_id }) => role_id !== "processing_options",
+          );
+          if (!assignment) throw new Error("fixture has no ingress assignment");
+          assignment.role_id = "unknown_ingress";
+        },
+      },
+      /runtime declared an unknown ingress role/,
+    ],
+    [
+      "ingress integrity",
+      {
+        mutateManifest: (candidate: RuntimeManifest): void => {
+          const assignment = candidate.roleAssignments.find(
+            ({ role_id }) => role_id !== "processing_options",
+          );
+          if (!assignment) throw new Error("fixture has no ingress assignment");
+          assignment.artifact.size += 1;
+        },
+      },
+      /runtime ingress assignment integrity mismatch/,
+    ],
+  ] as Array<[string, FakeFullRuntimeOptions, RegExp]>)(
+    "fails closed while streaming to OPFS for %s",
+    async (_name, options, expected) => {
+      await expectFakeStreamFullFailure(options, expected);
+    },
+  );
+
+  it("rejects unknown persisted-base selections, frees the prepared handle, and treats none as a clean miss", async () => {
+    const root = new MemoryDirectoryHandle();
+    const priorNavigator = globalThis.navigator;
+    vi.stubGlobal("navigator", {
+      storage: {
+        getDirectory: () => Promise.resolve(memoryOpfsRoot(root)),
+      },
+      locks: {
+        request: (
+          _name: string,
+          _options: LockOptions,
+          operation: () => Promise<unknown>,
+        ) => operation(),
+      },
+    });
+    const raw = fullSourceFixture();
+    const runtime = { ...FULL_RUNTIME, persistRustWorkspace: true };
+    try {
+      const persisted = await executeRustRuntime(
+        raw,
+        "runtime-contract.csv",
+        fullOptions(),
+        undefined,
+        runtime,
+      );
+      const inputDigest = persisted.manifest.input.digest.replace(
+        /^sha256:/,
+        "",
+      );
+      const realReview = await queryPersistedRustReview(
+        raw.byteLength,
+        "runtime-contract.csv",
+        fullOptions(),
+        undefined,
+        runtime,
+        inputDigest,
+      );
+      if (!realReview) throw new Error("fixture review unexpectedly missed");
+      const installPreparedRuntime = (required: string) => {
+        const preparedFree = vi.fn();
+        const fakeRuntime = {
+          implementation_build_digest: () => manifest.implementationDigest,
+          build_environment_digest: () => manifest.buildEnvironmentDigest,
+          review_base_probe_spec_json: () =>
+            runtimeWasm.review_base_probe_spec_json(),
+          RuntimeSupportFiles: class {
+            put() {}
+            put_with_name() {}
+            free() {}
+          },
+          prepare_persisted_workspace_review: () => ({
+            required_base_kind: () => required,
+            execute_selected_base: () => {
+              throw new Error("test must not execute a base");
+            },
+            free: preparedFree,
+          }),
+        } as unknown as Parameters<typeof setRustRuntimeForTesting>[0];
+        setRustRuntimeForTesting(fakeRuntime);
+        return preparedFree;
+      };
+
+      const unknownFree = installPreparedRuntime("mystery-base");
+      await expect(
+        queryPersistedRustReview(
+          raw.byteLength,
+          "runtime-contract.csv",
+          fullOptions(),
+          undefined,
+          runtime,
+          inputDigest,
+        ),
+      ).rejects.toThrow(/Rust selected an unknown review base: mystery-base/);
+      expect(unknownFree).toHaveBeenCalledOnce();
+
+      const noneFree = installPreparedRuntime("none");
+      await expect(
+        queryPersistedRustReview(
+          raw.byteLength,
+          "runtime-contract.csv",
+          fullOptions(),
+          undefined,
+          runtime,
+          inputDigest,
+        ),
+      ).resolves.toBeNull();
+      expect(noneFree).toHaveBeenCalledOnce();
+
+      const supportConstructed = vi.fn();
+      const supportPut = vi.fn();
+      const supportFreed = vi.fn();
+      const warmPreparedFreed = vi.fn();
+      const warmHandleFreed = vi.fn();
+      const selectedBaseSizes: number[] = [];
+      setRustRuntimeForTesting({
+        implementation_build_digest: () => manifest.implementationDigest,
+        build_environment_digest: () => manifest.buildEnvironmentDigest,
+        review_base_probe_spec_json: () =>
+          runtimeWasm.review_base_probe_spec_json(),
+        RuntimeSupportFiles: class {
+          constructor() {
+            supportConstructed();
+          }
+          put() {}
+          put_with_name() {
+            supportPut();
+          }
+          free() {
+            supportFreed();
+          }
+        },
+        prepare_persisted_workspace_review: () => ({
+          required_base_kind: () => "salsa-memory",
+          execute_selected_base: (bytes: Uint8Array) => {
+            selectedBaseSizes.push(bytes.byteLength);
+            return {
+              artifact_count: 1,
+              manifest_json: () => realReview.manifestJson,
+              artifact_metadata_json: () =>
+                JSON.stringify({
+                  artifactId: "artifact:review-summary-json",
+                  kind: "review-summary-json",
+                  mediaType: "application/json",
+                  digest: realReview.reviewSummaryDigest,
+                  size: realReview.reviewSummaryJsonBytes.byteLength,
+                  derivedFrom: [],
+                }),
+              take_artifact_bytes: () =>
+                Uint8Array.from(realReview.reviewSummaryJsonBytes),
+              free: warmHandleFreed,
+            };
+          },
+          free: warmPreparedFreed,
+        }),
+      } as unknown as Parameters<typeof setRustRuntimeForTesting>[0]);
+      const supportBundle = {
+        surveyAttributionFile: {
+          name: "survey.csv",
+          bytes: new TextEncoder().encode("participant_id,survey_id\nP01,S01")
+            .buffer,
+        },
+      };
+      const verifiedSupportKey = `sha256:${"a".repeat(64)}`;
+      for (let index = 0; index < 2; index += 1) {
+        await expect(
+          queryPersistedRustReview(
+            raw.byteLength,
+            "runtime-contract.csv",
+            fullOptions(),
+            supportBundle,
+            runtime,
+            inputDigest,
+            verifiedSupportKey,
+          ),
+        ).resolves.not.toBeNull();
+      }
+      expect(selectedBaseSizes).toEqual([0, 0]);
+      expect(supportConstructed).toHaveBeenCalledOnce();
+      expect(supportPut).toHaveBeenCalledOnce();
+      expect(warmPreparedFreed).toHaveBeenCalledTimes(2);
+      expect(warmHandleFreed).toHaveBeenCalledTimes(2);
+      expect(supportFreed).not.toHaveBeenCalled();
+
+      const fallbackPreparedFree = vi.fn();
+      const fallbackHandleFree = vi.fn();
+      const fallbackRuntime = {
+        implementation_build_digest: () => manifest.implementationDigest,
+        build_environment_digest: () => manifest.buildEnvironmentDigest,
+        review_base_probe_spec_json: () =>
+          runtimeWasm.review_base_probe_spec_json(),
+        RuntimeSupportFiles: class {
+          put() {}
+          put_with_name() {}
+          free() {}
+        },
+        prepare_persisted_workspace_review: () => ({
+          required_base_kind: () => "none",
+          execute_selected_base: () => {
+            throw new Error("test must fall back to raw bytes");
+          },
+          free: fallbackPreparedFree,
+        }),
+        execute_workspace: () => ({
+          artifact_count: 1,
+          manifest_json: () => realReview.manifestJson,
+          artifact_metadata_json: () =>
+            JSON.stringify({
+              artifactId: "artifact:review-summary-json",
+              kind: "review-summary-json",
+              mediaType: "application/json",
+              digest: realReview.reviewSummaryDigest,
+              size: realReview.reviewSummaryJsonBytes.byteLength,
+              derivedFrom: [],
+            }),
+          take_artifact_bytes: () => realReview.reviewSummaryJsonBytes,
+          free: fallbackHandleFree,
+        }),
+      } as unknown as Parameters<typeof setRustRuntimeForTesting>[0];
+      setRustRuntimeForTesting(fallbackRuntime);
+      expect(supportFreed).toHaveBeenCalledOnce();
+      const trace = vi
+        .spyOn(console, "info")
+        .mockImplementation(() => undefined);
+      const fallback = await queryRustReview(
+        raw,
+        "runtime-contract.csv",
+        fullOptions(),
+        undefined,
+        { ...runtime, performanceTraceId: "review-fallback-contract" },
+        inputDigest,
+      );
+      trace.mockRestore();
+      expect(fallback.reviewSummaryJsonBytes).toEqual(
+        realReview.reviewSummaryJsonBytes,
+      );
+      expect(fallbackPreparedFree).toHaveBeenCalledOnce();
+      expect(fallbackHandleFree).toHaveBeenCalledOnce();
+    } finally {
+      setRustRuntimeForTesting(runtimeWasm);
+      vi.stubGlobal("navigator", priorNavigator);
+    }
+  });
+
   it("accepts the exact compiled runtime manifest and artifact catalog", () => {
     expect(decodeRuntimeManifest(cloneManifest())).toEqual(manifest);
     expect(manifest.dependencyCacheDecision).toMatchObject({
@@ -490,6 +1449,106 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
     }
   });
 
+  it("streams a complete Rust run into OPFS and resumes review from its verified bases", async () => {
+    const root = new MemoryDirectoryHandle();
+    const priorNavigator = globalThis.navigator;
+    const lockRequest = vi.fn(
+      async (
+        _name: string,
+        _options: LockOptions,
+        operation: () => Promise<unknown>,
+      ) => operation(),
+    );
+    vi.stubGlobal("navigator", {
+      storage: {
+        getDirectory: () => Promise.resolve(memoryOpfsRoot(root)),
+      },
+      locks: { request: lockRequest },
+    });
+    try {
+      const raw = new TextEncoder().encode(
+        [
+          "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
+          "Study,P01,Target Child,Example,Activity Resumed,example.app,2026-03-07 10:00:00,America/Chicago",
+          "Study,P01,Target Child,Example,Activity Paused,example.app,2026-03-07 10:01:00,America/Chicago",
+        ].join("\n"),
+      );
+      const options = {
+        ...DEFAULT_BROWSER_OPTIONS,
+        studyName: "Persisted runtime proof",
+        selectedTimezone: "America/Chicago",
+        timezoneHandling: "selected-convert" as const,
+        useFilterFile: false,
+        useAppsForcingScreenOpenFile: false,
+        useBackgroundAppsFile: false,
+        useAppCodebook: false,
+        processScreenUsage: false,
+        enablePlotting: false,
+      };
+      const runtime = {
+        datetimeOfPreprocessing: "2026-07-25 00:00:00 UTC",
+        persistRustWorkspace: true,
+      };
+
+      const first = await executeRustRuntime(
+        raw,
+        "persisted-runtime-proof.csv",
+        options,
+        undefined,
+        runtime,
+      );
+      expect(first.persistedWorkspace?.workspaceRootDigest).toBe(
+        first.manifest.workspaceRootDigest,
+      );
+      expect([...first.artifacts.keys()].sort()).toEqual([
+        "execution-ledger-json",
+        "stage-view-json",
+      ]);
+
+      const review = await queryPersistedRustReview(
+        raw.byteLength,
+        "persisted-runtime-proof.csv",
+        { ...options, minimumUsageDuration: 0.25 },
+        undefined,
+        runtime,
+        first.manifest.input.digest.replace(/^sha256:/, ""),
+      );
+      expect(review).not.toBeNull();
+      if (!review) throw new Error("persisted review unexpectedly missed");
+      expect(review.previousWorkspaceRootDigest).toBe(
+        first.manifest.workspaceRootDigest,
+      );
+      expect(review.suppliedReviewBaseBytes).toBeGreaterThan(0);
+      expect(review.suppliedReconstructionBaseBytes).toBeGreaterThan(0);
+      expect(review.cacheSources).toEqual(["salsa-memory"]);
+      const timezoneReview = await queryPersistedRustReview(
+        raw.byteLength,
+        "persisted-runtime-proof.csv",
+        { ...options, timezoneHandling: "primary-convert" },
+        undefined,
+        runtime,
+        first.manifest.input.digest.replace(/^sha256:/, ""),
+      );
+      expect(timezoneReview).not.toBeNull();
+      expect(timezoneReview?.cacheSources).toEqual(["salsa-memory"]);
+      expect(timezoneReview?.recomputedStepIds).toEqual([
+        "select_timezone_strategy",
+        "restamp_rows",
+        "row_count_report",
+        "relabel_usage_with_floor",
+        "junk_downstream_mark",
+        "sort_episodes",
+        "assemble_result",
+      ]);
+      expect(lockRequest).toHaveBeenCalledTimes(3);
+      expect(lockRequest.mock.calls.map(([, options]) => options.mode)).toEqual(
+        ["exclusive", "shared", "shared"],
+      );
+    } finally {
+      vi.stubGlobal("navigator", priorNavigator);
+    }
+  });
+
   it("returns byte-identical review metrics without materializing full exports", async () => {
     const raw = representativeSourceFixture();
     const options = {
@@ -522,24 +1581,11 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
       undefined,
       runtime,
     );
-    const expected: unknown = JSON.parse(
-      new TextDecoder().decode(full.artifacts.get("review-summary-json")),
+    expect(review.reviewSummaryJsonBytes).toEqual(
+      full.artifacts.get("review-summary-json"),
     );
-
-    expect(review.reviewSummary).toEqual(expected);
-    expect(review.cachedStepIds).toHaveLength(24);
+    expect(review.cachedStepIds).toHaveLength(35);
     expect(review.recomputedStepIds).toEqual([
-      "relabel_usage_with_floor",
-      "junk_downstream_mark",
-      "sort_episodes",
-      "codebook_join",
-      "derive_broad_category",
-      "collapse_genre",
-      "engagement_walk",
-      "flag_and_retain",
-      "blank_junk_timing",
-      "drop_selected_types",
-      "drop_zero_duration",
       "resolve_participant_windows",
       "filter_rows_to_window",
       "resolve_sharing_status",

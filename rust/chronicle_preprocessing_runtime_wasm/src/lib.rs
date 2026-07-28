@@ -1885,7 +1885,7 @@ fn project_product_stages(
             output
         } else {
             let bytes = serde_jcs::to_vec(&serde_json::json!({
-                "checkpointProtocol": "chronicle-logical-stage-checkpoint/v5",
+                "checkpointProtocol": "chronicle-logical-stage-checkpoint/v6",
                 "physicalExecution": "salsa-tracked-rust-pipeline-v2",
                 "projection": "product-stage-from-actual-step-events",
                 "logicalNode": node.node_id,
@@ -6028,7 +6028,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                 serde_json::from_slice(&handle.take_artifact_bytes(index).unwrap()).unwrap();
             assert_eq!(
                 fingerprint["checkpointProtocol"],
-                "chronicle-logical-stage-checkpoint/v5"
+                "chronicle-logical-stage-checkpoint/v6"
             );
             assert_eq!(
                 fingerprint["typedCheckpoint"]["nodeId"],

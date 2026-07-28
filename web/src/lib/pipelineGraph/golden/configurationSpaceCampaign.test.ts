@@ -65,7 +65,7 @@ type Configuration = {
 };
 
 type TypedCheckpoint = {
-  protocolVersion: "chronicle-logical-stage-checkpoint/v5";
+  protocolVersion: "chronicle-logical-stage-checkpoint/v6";
   nodeId: string;
   rowMembershipDigest: string;
   rowOrderDigest: string;
@@ -1731,7 +1731,7 @@ describe("Rust/WASM configuration-space campaign", () => {
     }
     const evidence = {
       protocolVersion: "chronicle-configuration-influence-ledger/v1",
-      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v5",
+      logicalCheckpointProtocol: "chronicle-logical-stage-checkpoint/v6",
       claimBoundary:
         "Exact 55-step and 15-display-group execution plus warm/cold equality for the recorded Rust/WASM implementation, equivalence classes, contexts, support bindings, and synthetic corpora. Absence of an observed effect remains bounded to this declared test scope. Step recomputation is taken from actual Salsa query bodies plus explicitly instrumented product-step evaluations inside review-only fused queries. The separate sequential Rust path remains the independent cold oracle.",
       contractAuthority: "web/schema/chronicle-local-contract.linkml.yaml",

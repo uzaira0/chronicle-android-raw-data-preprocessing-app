@@ -3082,9 +3082,9 @@ mod tracked {
 
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
     struct CanonicalTemporalSequence {
-        /// Exact bytes consumed by the v5 temporal-state checkpoint for each
-        /// row, in canonical source-identity order (40 bytes per row: 8-byte
-        /// length frame + the 32-byte temporal part; identity is committed by
+        /// Exact bytes consumed by the v6 temporal-state checkpoint for each
+        /// row, in canonical source-identity order (24 bytes per row: 8-byte
+        /// length frame + the 16-byte temporal part; identity is committed by
         /// the membership digest in the same order). Keeping this private
         /// buffer lets a repeated threshold edit patch changed rows and issue
         /// one SIMD-friendly BLAKE3 update instead of rebuilding 100k small
@@ -3094,8 +3094,8 @@ mod tracked {
         canonical_positions: Arc<Vec<u32>>,
     }
 
-    /// v5 temporal-state stride in `CanonicalTemporalSequence::encoded_rows`.
-    const TEMPORAL_SEQUENCE_STRIDE: usize = 40;
+    /// v6 temporal-state stride in `CanonicalTemporalSequence::encoded_rows`.
+    const TEMPORAL_SEQUENCE_STRIDE: usize = 24;
     /// Offset of the 32-byte temporal part within one stride.
     const TEMPORAL_SEQUENCE_PART_OFFSET: usize = 8;
 
@@ -3130,7 +3130,7 @@ mod tracked {
         for (position, &row_index) in canonical_order.iter().enumerate() {
             canonical_positions[row_index] = position as u32;
             let parts = row_checkpoint_parts(&rows[row_index], &mut scratch);
-            checkpoint_digest_fixed32(&mut encoded_rows, &parts.temporal);
+            checkpoint_digest_fixed16(&mut encoded_rows, &parts.temporal);
         }
         CanonicalTemporalSequence {
             encoded_rows: Arc::new(encoded_rows),
@@ -3152,7 +3152,7 @@ mod tracked {
             let temporal_offset =
                 canonical_position * TEMPORAL_SEQUENCE_STRIDE + TEMPORAL_SEQUENCE_PART_OFFSET;
             let parts = row_checkpoint_parts(&rows[row_index], &mut scratch);
-            encoded_rows[temporal_offset..temporal_offset + 32].copy_from_slice(&parts.temporal);
+            encoded_rows[temporal_offset..temporal_offset + 16].copy_from_slice(&parts.temporal);
         }
         let mut temporal = checkpoint_hasher("temporal-state");
         temporal.update(&1_u64.to_le_bytes());

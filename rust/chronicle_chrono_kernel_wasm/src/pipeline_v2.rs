@@ -3,6 +3,7 @@
 
 use ahash::{AHashMap, AHashSet};
 use blake3::Hasher as CheckpointHasher;
+use xxhash_rust::xxh3::{xxh3_128, Xxh3};
 use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Timelike};
 use chrono_tz::Tz;
 use csv_core::{ReadFieldResult, Reader as CsvReader};
@@ -851,30 +852,30 @@ struct RowInner {
 
 #[derive(Default)]
 struct RowCheckpointCache {
-    identity: OnceLock<[u8; 32]>,
-    temporal: OnceLock<[u8; 32]>,
-    classification: OnceLock<[u8; 32]>,
+    identity: OnceLock<[u8; 16]>,
+    temporal: OnceLock<[u8; 16]>,
+    classification: OnceLock<[u8; 16]>,
 }
 
 #[derive(serde::Serialize)]
 struct PersistedRowRef<'a> {
     data: &'a RowData,
-    identity: Option<[u8; 32]>,
-    temporal: Option<[u8; 32]>,
-    classification: Option<[u8; 32]>,
+    identity: Option<[u8; 16]>,
+    temporal: Option<[u8; 16]>,
+    classification: Option<[u8; 16]>,
 }
 
 #[derive(serde::Deserialize)]
 struct PersistedRow {
     data: RowData,
-    identity: Option<[u8; 32]>,
-    temporal: Option<[u8; 32]>,
-    classification: Option<[u8; 32]>,
+    identity: Option<[u8; 16]>,
+    temporal: Option<[u8; 16]>,
+    classification: Option<[u8; 16]>,
 }
 
 impl Clone for RowCheckpointCache {
     fn clone(&self) -> Self {
-        fn copy_lock(source: &OnceLock<[u8; 32]>) -> OnceLock<[u8; 32]> {
+        fn copy_lock(source: &OnceLock<[u8; 16]>) -> OnceLock<[u8; 16]> {
             let copy = OnceLock::new();
             if let Some(value) = source.get() {
                 copy.set(*value).expect("fresh checkpoint lock");
@@ -1091,7 +1092,7 @@ impl<'de> serde::Deserialize<'de> for Row {
             RowData::deserialize(deserializer).map(|data| Self(Arc::new(RowInner::new(data))))
         } else {
             PersistedRow::deserialize(deserializer).map(|persisted| {
-                fn restored(value: Option<[u8; 32]>) -> OnceLock<[u8; 32]> {
+                fn restored(value: Option<[u8; 16]>) -> OnceLock<[u8; 16]> {
                     let lock = OnceLock::new();
                     if let Some(value) = value {
                         lock.set(value).expect("fresh checkpoint lock");
@@ -2001,21 +2002,22 @@ trait CheckpointSink {
     fn checkpoint_update(&mut self, bytes: &[u8]);
 }
 
-// BLAKE3's public streaming API parallelizes large updates internally, but a
-// logical checkpoint previously fed it one 40-128 byte row encoding per call.
-// Keep a small bounded buffer so the exact same protocol bytes reach BLAKE3 in
-// larger updates. This is deliberately not a second hash or a cache shortcut.
+// Batch the many small row encodings into larger updates before they reach
+// the fingerprint hasher, so per-call overhead cannot dominate (measured at
+// +420 ms per WASM cold execute when 24-48 byte writes hit the hasher raw at
+// the runtime crate's opt-level 2). This is not a second hash or a cache
+// shortcut: the exact same protocol bytes reach the hasher.
 const CHECKPOINT_HASH_BUFFER_BYTES: usize = 16 * 1024;
 
 struct BufferedCheckpointHasher {
-    hasher: CheckpointHasher,
+    hasher: Xxh3,
     pending: Vec<u8>,
 }
 
 impl BufferedCheckpointHasher {
     fn new() -> Self {
         Self {
-            hasher: CheckpointHasher::new(),
+            hasher: Xxh3::new(),
             pending: Vec::with_capacity(CHECKPOINT_HASH_BUFFER_BYTES),
         }
     }
@@ -2033,9 +2035,9 @@ impl BufferedCheckpointHasher {
         }
     }
 
-    fn finalize(mut self) -> blake3::Hash {
+    fn finalize128(mut self) -> u128 {
         self.flush();
-        self.hasher.finalize()
+        self.hasher.digest128()
     }
 }
 
@@ -2055,6 +2057,12 @@ impl CheckpointSink for BufferedCheckpointHasher {
 }
 
 impl CheckpointSink for CheckpointHasher {
+    fn checkpoint_update(&mut self, bytes: &[u8]) {
+        self.update(bytes);
+    }
+}
+
+impl CheckpointSink for Xxh3 {
     fn checkpoint_update(&mut self, bytes: &[u8]) {
         self.update(bytes);
     }
@@ -2082,53 +2090,40 @@ fn checkpoint_digest_field(sink: &mut impl CheckpointSink, bytes: &[u8]) {
     sink.checkpoint_update(bytes);
 }
 
-fn checkpoint_digest_fixed32(hasher: &mut impl CheckpointSink, value: &[u8; 32]) {
-    let mut encoded = [0_u8; 40];
-    encoded[..8].copy_from_slice(&32_u64.to_le_bytes());
+fn checkpoint_digest_fixed16(hasher: &mut impl CheckpointSink, value: &[u8; 16]) {
+    let mut encoded = [0_u8; 24];
+    encoded[..8].copy_from_slice(&16_u64.to_le_bytes());
     encoded[8..].copy_from_slice(value);
     hasher.checkpoint_update(&encoded);
 }
 
-fn checkpoint_digest_fixed32_pair(
-    hasher: &mut impl CheckpointSink,
-    first: &[u8; 32],
-    second: &[u8; 32],
-) {
-    let mut encoded = [0_u8; 80];
-    encoded[..8].copy_from_slice(&32_u64.to_le_bytes());
-    encoded[8..40].copy_from_slice(first);
-    encoded[40..48].copy_from_slice(&32_u64.to_le_bytes());
-    encoded[48..].copy_from_slice(second);
-    hasher.checkpoint_update(&encoded);
-}
-
-fn checkpoint_digest_positioned_fixed32(
+fn checkpoint_digest_positioned_fixed16(
     hasher: &mut impl CheckpointSink,
     position: usize,
-    value: &[u8; 32],
+    value: &[u8; 16],
 ) {
-    let mut encoded = [0_u8; 48];
+    let mut encoded = [0_u8; 32];
     encoded[..8].copy_from_slice(&(position as u64).to_le_bytes());
-    encoded[8..16].copy_from_slice(&32_u64.to_le_bytes());
+    encoded[8..16].copy_from_slice(&16_u64.to_le_bytes());
     encoded[16..].copy_from_slice(value);
     hasher.checkpoint_update(&encoded);
 }
 
-fn checkpoint_digest_positioned_fixed32_triple(
+fn checkpoint_digest_positioned_fixed16_triple(
     hasher: &mut impl CheckpointSink,
     position: usize,
-    first: &[u8; 32],
-    second: &[u8; 32],
-    third: &[u8; 32],
+    first: &[u8; 16],
+    second: &[u8; 16],
+    third: &[u8; 16],
 ) {
-    let mut encoded = [0_u8; 128];
+    let mut encoded = [0_u8; 80];
     encoded[..8].copy_from_slice(&(position as u64).to_le_bytes());
-    encoded[8..16].copy_from_slice(&32_u64.to_le_bytes());
-    encoded[16..48].copy_from_slice(first);
-    encoded[48..56].copy_from_slice(&32_u64.to_le_bytes());
-    encoded[56..88].copy_from_slice(second);
-    encoded[88..96].copy_from_slice(&32_u64.to_le_bytes());
-    encoded[96..].copy_from_slice(third);
+    encoded[8..16].copy_from_slice(&16_u64.to_le_bytes());
+    encoded[16..32].copy_from_slice(first);
+    encoded[32..40].copy_from_slice(&16_u64.to_le_bytes());
+    encoded[40..56].copy_from_slice(second);
+    encoded[56..64].copy_from_slice(&16_u64.to_le_bytes());
+    encoded[64..].copy_from_slice(third);
     hasher.checkpoint_update(&encoded);
 }
 
@@ -2168,7 +2163,7 @@ fn checkpoint_digest_optional_f64(sink: &mut impl CheckpointSink, value: Option<
     }
 }
 
-const LOGICAL_STAGE_CHECKPOINT_PROTOCOL: &str = "chronicle-logical-stage-checkpoint/v5";
+const LOGICAL_STAGE_CHECKPOINT_PROTOCOL: &str = "chronicle-logical-stage-checkpoint/v6";
 const LOGICAL_STAGE_ROW_SCHEMA: &str = concat!(
     "association:source_data_rows,index;",
     "membership:source_data_rows;",
@@ -2196,7 +2191,7 @@ fn checkpoint_hasher(component: &str) -> BufferedCheckpointHasher {
 }
 
 fn finish_checkpoint_digest(hasher: BufferedCheckpointHasher) -> String {
-    format!("blake3:{}", hasher.finalize().to_hex())
+    format!("xxh3:{:032x}", hasher.finalize128())
 }
 
 fn terminal_checkpoint_digest(node_id: &str, component_digests: [&str; 6]) -> String {
@@ -2217,9 +2212,9 @@ fn sha256_digest_field(hasher: &mut Sha256, bytes: &[u8]) {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct RowCheckpointParts {
-    identity: [u8; 32],
-    temporal: [u8; 32],
-    classification: [u8; 32],
+    identity: [u8; 16],
+    temporal: [u8; 16],
+    classification: [u8; 16],
 }
 
 struct RowCheckpointScratch {
@@ -2492,10 +2487,10 @@ impl RowCheckpointScratch {
             (false, false, false) => unreachable!("handled above"),
         }
 
-        let identity = missing_identity.then(|| *blake3::hash(&self.identity).as_bytes());
-        let temporal = missing_temporal.then(|| *blake3::hash(&self.temporal).as_bytes());
+        let identity = missing_identity.then(|| xxh3_128(&self.identity).to_le_bytes());
+        let temporal = missing_temporal.then(|| xxh3_128(&self.temporal).to_le_bytes());
         let classification =
-            missing_classification.then(|| *blake3::hash(&self.classification).as_bytes());
+            missing_classification.then(|| xxh3_128(&self.classification).to_le_bytes());
         RowCheckpointParts {
             identity: *cache
                 .identity
@@ -2544,12 +2539,12 @@ fn row_parts_sequence_digest<'a>(
     part_count: usize,
     parts: impl Iterator<Item = &'a RowCheckpointParts>,
 ) -> String {
-    let mut hasher = CheckpointHasher::new();
+    let mut hasher = Xxh3::new();
     checkpoint_digest_field(&mut hasher, b"chronicle-row-reference-sequence/v1");
     hasher.update(&(part_count as u64).to_le_bytes());
     let mut observed = 0_usize;
     for (position, parts) in parts.enumerate() {
-        checkpoint_digest_positioned_fixed32_triple(
+        checkpoint_digest_positioned_fixed16_triple(
             &mut hasher,
             position,
             &parts.identity,
@@ -2559,7 +2554,7 @@ fn row_parts_sequence_digest<'a>(
         observed += 1;
     }
     assert_eq!(observed, part_count, "row-part sequence count drift");
-    format!("blake3:{}", hasher.finalize().to_hex())
+    format!("xxh3:{:032x}", hasher.digest128())
 }
 
 fn row_reference_sequence_digest(rows: &[&Row]) -> String {
@@ -2821,7 +2816,7 @@ fn logical_stage_checkpoint_with_group_parts(
                 }));
         let mut record_canonical_parts = |parts: &RowCheckpointParts| {
             if !reuse_membership {
-                checkpoint_digest_fixed32(&mut membership, &parts.identity);
+                checkpoint_digest_fixed16(&mut membership, &parts.identity);
             }
             // v5: temporal/classification commit their parts alone. The row
             // identity sequence is already committed by the membership digest
@@ -2829,10 +2824,10 @@ fn logical_stage_checkpoint_with_group_parts(
             // components, so the (identity, part) association is positional —
             // repeating the 32-byte identity here only doubled hashed bytes.
             if !reuse_temporal {
-                checkpoint_digest_fixed32(&mut temporal, &parts.temporal);
+                checkpoint_digest_fixed16(&mut temporal, &parts.temporal);
             }
             if !reuse_classification {
-                checkpoint_digest_fixed32(&mut classification, &parts.classification);
+                checkpoint_digest_fixed16(&mut classification, &parts.classification);
             }
         };
         if let Some(row_parts) = group_parts.and_then(|parts| parts.get(group_index)) {
@@ -2890,7 +2885,7 @@ fn logical_stage_checkpoint_with_group_parts(
             }
             if !reuse_order {
                 for (position, parts) in row_parts.iter().enumerate() {
-                    checkpoint_digest_positioned_fixed32(&mut order, position, &parts.identity);
+                    checkpoint_digest_positioned_fixed16(&mut order, position, &parts.identity);
                 }
             }
         } else if identity_is_already_sorted {
@@ -2901,7 +2896,7 @@ fn logical_stage_checkpoint_with_group_parts(
                     record_canonical_parts(&parts);
                 }
                 if !reuse_order {
-                    checkpoint_digest_positioned_fixed32(&mut order, position, &parts.identity);
+                    checkpoint_digest_positioned_fixed16(&mut order, position, &parts.identity);
                 }
             }
         } else {
@@ -2922,7 +2917,7 @@ fn logical_stage_checkpoint_with_group_parts(
             if !reuse_order {
                 for (position, row) in rows.iter().enumerate() {
                     let parts = row_checkpoint_parts(row, &mut scratch);
-                    checkpoint_digest_positioned_fixed32(&mut order, position, &parts.identity);
+                    checkpoint_digest_positioned_fixed16(&mut order, position, &parts.identity);
                 }
             }
         }
@@ -3081,7 +3076,7 @@ fn checkpoint_for_reordered_exact_rows(
     let mut scratch = RowCheckpointScratch::default();
     for (position, row) in rows.iter().enumerate() {
         let parts = row_checkpoint_parts(row, &mut scratch);
-        checkpoint_digest_positioned_fixed32(&mut order, position, &parts.identity);
+        checkpoint_digest_positioned_fixed16(&mut order, position, &parts.identity);
     }
     checkpoint.row_order_digest = finish_checkpoint_digest(order);
     checkpoint.terminal_digest = terminal_checkpoint_digest(
@@ -7920,7 +7915,7 @@ mod tests {
         for (node_id, checkpoint) in &first.logical_stage_checkpoints {
             assert_eq!(
                 checkpoint.protocol_version,
-                "chronicle-logical-stage-checkpoint/v5"
+                "chronicle-logical-stage-checkpoint/v6"
             );
             assert_eq!(&checkpoint.node_id, node_id);
             assert_eq!(
@@ -7936,9 +7931,9 @@ mod tests {
                 &checkpoint.schema_digest,
             ] {
                 assert!(
-                    digest.len() == 71
-                        && digest.starts_with("blake3:")
-                        && digest[7..].bytes().all(|byte| byte.is_ascii_hexdigit())
+                    digest.len() == 37
+                        && digest.starts_with("xxh3:")
+                        && digest[5..].bytes().all(|byte| byte.is_ascii_hexdigit())
                 );
             }
             assert!(
@@ -7980,51 +7975,46 @@ mod tests {
 
     #[test]
     fn batched_fixed_checkpoint_encodings_match_the_streaming_reference() {
-        let first = [0x11_u8; 32];
-        let second = [0x22_u8; 32];
-        let third = [0x33_u8; 32];
+        let first = [0x11_u8; 16];
+        let second = [0x22_u8; 16];
+        let third = [0x33_u8; 16];
 
-        let mut reference = CheckpointHasher::new();
+        let mut reference = Xxh3::new();
         checkpoint_digest_field(&mut reference, &first);
-        let mut batched = CheckpointHasher::new();
-        checkpoint_digest_fixed32(&mut batched, &first);
-        assert_eq!(reference.finalize(), batched.finalize());
+        let mut batched = Xxh3::new();
+        checkpoint_digest_fixed16(&mut batched, &first);
+        assert_eq!(reference.digest128(), batched.digest128());
 
-        let mut reference = CheckpointHasher::new();
-        checkpoint_digest_field(&mut reference, &first);
-        checkpoint_digest_field(&mut reference, &second);
-        let mut batched = CheckpointHasher::new();
-        checkpoint_digest_fixed32_pair(&mut batched, &first, &second);
-        assert_eq!(reference.finalize(), batched.finalize());
-
-        let mut reference = CheckpointHasher::new();
+        let mut reference = Xxh3::new();
         reference.update(&7_u64.to_le_bytes());
         checkpoint_digest_field(&mut reference, &first);
-        let mut batched = CheckpointHasher::new();
-        checkpoint_digest_positioned_fixed32(&mut batched, 7, &first);
-        assert_eq!(reference.finalize(), batched.finalize());
+        let mut batched = Xxh3::new();
+        checkpoint_digest_positioned_fixed16(&mut batched, 7, &first);
+        assert_eq!(reference.digest128(), batched.digest128());
 
-        let mut reference = CheckpointHasher::new();
+        let mut reference = Xxh3::new();
         reference.update(&7_u64.to_le_bytes());
         checkpoint_digest_field(&mut reference, &first);
         checkpoint_digest_field(&mut reference, &second);
         checkpoint_digest_field(&mut reference, &third);
-        let mut batched = CheckpointHasher::new();
-        checkpoint_digest_positioned_fixed32_triple(&mut batched, 7, &first, &second, &third);
-        assert_eq!(reference.finalize(), batched.finalize());
+        let mut batched = Xxh3::new();
+        checkpoint_digest_positioned_fixed16_triple(&mut batched, 7, &first, &second, &third);
+        assert_eq!(reference.digest128(), batched.digest128());
     }
 
     #[test]
     fn buffered_checkpoint_hasher_matches_streaming_across_flush_boundaries() {
-        let mut reference = CheckpointHasher::new();
+        let mut reference = Xxh3::new();
         let mut buffered = BufferedCheckpointHasher::new();
         for index in 0..1_000_usize {
-            let first = blake3::hash(&(index as u64).to_le_bytes());
-            let second = blake3::hash(&((index as u64) + 1).to_le_bytes());
-            checkpoint_digest_fixed32_pair(&mut reference, first.as_bytes(), second.as_bytes());
-            checkpoint_digest_fixed32_pair(&mut buffered, first.as_bytes(), second.as_bytes());
+            let first = xxh3_128(&(index as u64).to_le_bytes()).to_le_bytes();
+            let second = xxh3_128(&((index as u64) + 1).to_le_bytes()).to_le_bytes();
+            checkpoint_digest_fixed16(&mut reference, &first);
+            checkpoint_digest_fixed16(&mut reference, &second);
+            checkpoint_digest_fixed16(&mut buffered, &first);
+            checkpoint_digest_fixed16(&mut buffered, &second);
         }
-        assert_eq!(reference.finalize(), buffered.finalize());
+        assert_eq!(reference.digest128(), buffered.finalize128());
     }
 
     #[test]

@@ -57,7 +57,7 @@ if (SHARD_COUNT > 1 && !SHARD_OUTPUT) {
 const encoder = new TextEncoder();
 
 type TypedCheckpoint = {
-  protocolVersion: "chronicle-logical-stage-checkpoint/v5";
+  protocolVersion: "chronicle-logical-stage-checkpoint/v6";
   nodeId: string;
   rowMembershipDigest: string;
   rowOrderDigest: string;
@@ -335,7 +335,7 @@ function assertCompleteStepManifest(
     Object.entries(manifest.processingSummary.pipelineStepCheckpoints).every(
       ([stepId, checkpoint]) =>
         checkpoint.protocolVersion ===
-          "chronicle-logical-stage-checkpoint/v5" &&
+          "chronicle-logical-stage-checkpoint/v6" &&
         checkpoint.nodeId === stepId &&
         checkpoint.terminalDigest ===
           manifest.processingSummary.pipelineStepDigests[stepId],

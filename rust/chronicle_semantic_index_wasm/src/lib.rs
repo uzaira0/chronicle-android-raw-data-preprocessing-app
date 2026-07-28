@@ -194,10 +194,10 @@ fn is_sha256(value: &str) -> bool {
         && value[7..].bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
-fn is_blake3(value: &str) -> bool {
-    value.len() == 71
-        && value.starts_with("blake3:")
-        && value[7..].bytes().all(|byte| byte.is_ascii_hexdigit())
+fn is_checkpoint_component_digest(value: &str) -> bool {
+    value.len() == 37
+        && value.starts_with("xxh3:")
+        && value[5..].bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 fn urn(kind: &str, value: &str) -> String {
@@ -723,12 +723,12 @@ pub fn rebuild_semantic_index_native(source_json: &[u8]) -> Result<Vec<u8>, Stri
             &checkpoint.payload_digest,
             &checkpoint.schema_digest,
         ];
-        if checkpoint.protocol_version != "chronicle-logical-stage-checkpoint/v5"
+        if checkpoint.protocol_version != "chronicle-logical-stage-checkpoint/v6"
             || checkpoint.node_id != *step_id
             || source.pipeline_step_digests.get(step_id) != Some(&checkpoint.terminal_digest)
             || component_digests
                 .into_iter()
-                .any(|digest| !is_blake3(digest))
+                .any(|digest| !is_checkpoint_component_digest(digest))
         {
             return Err(format!(
                 "semantic index step checkpoint is invalid for {step_id}: protocol={} node={} terminal={} expected={:?}",
@@ -771,8 +771,7 @@ mod tests {
 
     fn complete_source() -> Value {
         let digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        let component_digest =
-            "blake3:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        let component_digest = "xxh3:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
         let step_executions = (0..55)
             .map(|index| {
                 json!({
@@ -794,7 +793,7 @@ mod tests {
                 (
                     step_id.clone(),
                     json!({
-                        "protocolVersion": "chronicle-logical-stage-checkpoint/v5",
+                        "protocolVersion": "chronicle-logical-stage-checkpoint/v6",
                         "nodeId": step_id,
                         "rowMembershipDigest": component_digest,
                         "rowOrderDigest": component_digest,
@@ -993,15 +992,15 @@ mod tests {
     #[test]
     fn digest_and_nquads_boundaries_are_exact() {
         let sha = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        let blake = "blake3:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        let xxh3 = "xxh3:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
         assert!(is_sha256(sha));
         assert!(!is_sha256(&sha[1..]));
-        assert!(!is_sha256(&format!("blake3:{}", "a".repeat(64))));
+        assert!(!is_sha256(&format!("xxh3:{}", "a".repeat(32))));
         assert!(!is_sha256(&format!("sha256:{}g", "a".repeat(63))));
-        assert!(is_blake3(blake));
-        assert!(!is_blake3(&blake[1..]));
-        assert!(!is_blake3(&format!("sha256:{}", "b".repeat(64))));
-        assert!(!is_blake3(&format!("blake3:{}g", "b".repeat(63))));
+        assert!(is_checkpoint_component_digest(xxh3));
+        assert!(!is_checkpoint_component_digest(&xxh3[1..]));
+        assert!(!is_checkpoint_component_digest(&format!("sha256:{}", "b".repeat(64))));
+        assert!(!is_checkpoint_component_digest(&format!("xxh3:{}g", "b".repeat(31))));
 
         let parsed: IndexSource = serde_json::from_value(complete_source()).unwrap();
         let index = build_index(&parsed);
@@ -1049,7 +1048,7 @@ mod tests {
                 "terminalDigest",
                 "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
             ),
-            ("rowMembershipDigest", "blake3:short"),
+            ("rowMembershipDigest", "xxh3:short"),
         ] {
             let mut source = complete_source();
             source["pipelineStepCheckpoints"]["step-00"][field] = Value::String(value.into());

@@ -272,7 +272,7 @@ export type RuntimeManifest = {
 type JsonObject = Record<string, unknown>;
 
 const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
-const BLAKE3_PATTERN = /^blake3:[0-9a-f]{64}$/;
+const CHECKPOINT_COMPONENT_PATTERN = /^xxh3:[0-9a-f]{32}$/;
 const EXECUTION_STATUSES = new Set([
   "cached",
   "recomputed",
@@ -351,8 +351,8 @@ function digestAt(value: unknown, path: string): string {
 
 function checkpointComponentDigestAt(value: unknown, path: string): string {
   const digest = stringAt(value, path);
-  if (!BLAKE3_PATTERN.test(digest)) {
-    contractError(path, "expected a lowercase blake3 digest");
+  if (!CHECKPOINT_COMPONENT_PATTERN.test(digest)) {
+    contractError(path, "expected a lowercase xxh3-128 digest");
   }
   return digest;
 }
@@ -416,7 +416,7 @@ function checkpointDomainAt(
           ),
         };
         if (
-          decoded.protocolVersion !== "chronicle-logical-stage-checkpoint/v5"
+          decoded.protocolVersion !== "chronicle-logical-stage-checkpoint/v6"
         ) {
           contractError(
             `${checkpointPath}.protocolVersion`,
