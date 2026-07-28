@@ -4726,18 +4726,18 @@ mod tracked {
                     .map(Arc::clone)
             })
         };
-        let (suffix_digests, suffix_source) = match persisted_suffix_digests {
-            Some(digests) => (digests, "persisted"),
-            None => (
-                blind_lineage_suffix_digests(db, raw, early, config, support)?,
-                "computed",
-            ),
+        let suffix_digests = match persisted_suffix_digests {
+            Some(digests) => digests,
+            None => blind_lineage_suffix_digests(db, raw, early, config, support)?,
         };
         // Everything below is a pure function of the blind rows, the matcher
         // result, and the junk-package set; their content-committing digests
-        // are therefore a complete key for the finished table.
+        // are therefore a complete key for the finished table. The suffix
+        // digests are themselves a pure function of the blind rows (the
+        // persisted base is only a cheaper source of the same values), so
+        // the digest source deliberately does not split this key.
         let alternation_key = format!(
-            "{}|{}|{}|{suffix_source}",
+            "{}|{}|{}",
             blind.checkpoint.terminal_digest,
             matcher.checkpoint.terminal_digest,
             filtered.checkpoint.terminal_digest,
