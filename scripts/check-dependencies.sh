@@ -62,14 +62,23 @@ echo
 # Trivy — filesystem scan (catches OS-level CVEs, misconfigs, and secrets)
 # ---------------------------------------------------------------------------
 echo "=== Trivy filesystem scan ==="
+# Both skip patterns below were inert, so trivy walked ~2 GB of generated
+# preprocessing output and died with "semaphore acquire: context deadline
+# exceeded" -- failing this audit for a reason unrelated to security.
+#   1. The directories on disk are "OutputSizeCheck ..." and "OutputSizeCheckBoth
+#      ..."; the old "OutputSizeCurrentCodebook*" matched neither. "OutputSize*"
+#      covers all three, so a new OutputSize<X> run cannot re-break the gate.
+#   2. Trivy globs do not let * cross a "/", so "*.csv" only ever matched CSVs at
+#      the scan root -- never the 121 MB files one directory down, which are
+#      exactly what the walk timed out on. "**/*.csv" matches those.
 if command -v trivy &>/dev/null; then
   trivy fs \
     --exit-code 1 \
     --severity HIGH,CRITICAL \
     --ignore-unfixed \
     --scanners vuln,secret \
-    --skip-dirs ".venv,web/node_modules,web/dist,target,OutputSizeCurrentCodebook*,tests/golden" \
-    --skip-files "*.csv" \
+    --skip-dirs ".venv,web/node_modules,web/dist,target,OutputSize*,tests/golden" \
+    --skip-files "**/*.csv" \
     "$REPO_ROOT" 2>&1 || FAIL=1
 else
   echo "trivy not found — install with: brew install trivy" >&2

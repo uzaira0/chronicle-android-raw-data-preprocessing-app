@@ -9,7 +9,17 @@ PyQt6>=6.10.0
 pyinstaller>=6.16.0
 pytest>=9.0.1
 # Transitive deps pinned to their security floors (matplotlib pulls pillow;
-# pytest/rich pull pygments). osv-scanner resolves unpinned transitives to old
-# vulnerable versions; these floors match what the runtime already installs.
-pillow>=12.2.0
+# pytest/rich pull pygments; requests pulls idna and urllib3; CacheControl pulls
+# msgpack). osv-scanner resolves unpinned transitives to old vulnerable versions;
+# these floors match what the runtime already installs.
+#
+# Floors are only a declaration -- scripts/check-dependencies.sh runs pip-audit
+# against .venv, so raising a floor here does nothing until that environment is
+# actually upgraded. Raised together on 2026-07-27 to clear PYSEC-2026-2253..3496
+# (pillow), GHSA-6v7p-g79w-8964 (msgpack), PYSEC-2026-215 (idna) and
+# PYSEC-2026-141/142 (urllib3).
+pillow>=12.3.0
 pygments>=2.20.0
+msgpack>=1.2.1
+idna>=3.15
+urllib3>=2.7.0
