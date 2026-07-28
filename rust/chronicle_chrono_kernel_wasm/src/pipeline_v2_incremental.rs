@@ -4517,14 +4517,20 @@ mod tracked {
         /// Positions created from paired Activity Resumed records. Only these
         /// rows are affected by minimum_usage_duration.
         floor_candidate_indices: Arc<Vec<u32>>,
-        applied: ReviewAppliedRows,
+        filtered_packages: Arc<BTreeSet<String>>,
         checkpoint: LogicalStageCheckpoint,
         temporal_sequence: CanonicalTemporalSequence,
     }
 
     impl PartialEq for ReviewUsageRowsBeforeFloor {
+        // Compare by the content-committing rows checkpoint plus the two
+        // derived values consumers read. The step checkpoints from matcher
+        // application deliberately do NOT participate: a matcher-config edit
+        // that leaves the matcher result unchanged must backdate this table.
         fn eq(&self, other: &Self) -> bool {
-            self.applied == other.applied
+            self.checkpoint == other.checkpoint
+                && self.floor_candidate_indices == other.floor_candidate_indices
+                && self.filtered_packages == other.filtered_packages
         }
     }
 
@@ -4595,7 +4601,12 @@ mod tracked {
     ) -> Result<ReviewUsageRowsBeforeFloor, String> {
         let _timer = QueryTimer::start("review_usage_rows_before_floor");
         db.record_internal_query_body("review_usage_rows_before_floor");
-        let applied = review_applied_rows(db, raw, early, config, support)?;
+        // Depend on the junk-package set and matcher OUTPUT values, not on
+        // review_applied_rows: that struct compares by step checkpoints, and
+        // the build_matcher_input checkpoint changes on matcher-config edits
+        // (e.g. model_concurrent_usage flips the other_stop bits) even when
+        // the matcher result — and therefore this row table — is unchanged.
+        let filtered = compute_junk_packages(db, raw, early, config, support)?;
         let blind = junk_blind_fold(db, raw, early, config, support)?;
         let matcher = run_matcher(db, raw, early, config, support)?;
         let persisted_suffix_digests = if raw.review_base_bytes(db).is_empty() {
@@ -4617,7 +4628,7 @@ mod tracked {
         super::apply_matcher_output_in_place(
             &mut rows,
             &matcher.value,
-            &applied.filtered_packages,
+            &filtered.value,
             Some(suffix_digests.as_slice()),
         );
         apply_timer.finish();
@@ -4631,9 +4642,7 @@ mod tracked {
                 return false;
             }
             if row.interaction_type == ACTIVITY_RESUMED {
-                let is_filtered = applied
-                    .filtered_packages
-                    .contains(row.app_package_name.as_str());
+                let is_filtered = filtered.value.contains(row.app_package_name.as_str());
                 row.edit_classification().interaction_type = if is_filtered {
                     FILTERED_APP_USAGE
                 } else {
@@ -4703,7 +4712,7 @@ mod tracked {
         Ok(ReviewUsageRowsBeforeFloor {
             rows: Arc::new(rows),
             floor_candidate_indices: Arc::new(floor_candidate_indices),
-            applied,
+            filtered_packages: Arc::clone(&filtered.value),
             checkpoint,
             temporal_sequence,
         })
@@ -4724,9 +4733,10 @@ mod tracked {
         let _timer = QueryTimer::start("review_static_annotations");
         db.record_internal_query_body("review_static_annotations");
         let prepared = review_usage_rows_before_floor(db, raw, early, config, support)?;
-        if config.model_concurrent_usage(db) || !background_apps(db, config, support).is_empty() {
-            return Err("static review annotations require stable row membership".into());
-        }
+        // Membership stability (no concurrent/background reconstruction) is
+        // guaranteed by the only caller, review_annotations_fused, via its
+        // use_static_annotations gate. Reading model_concurrent_usage here
+        // would re-execute this table on every matcher-config toggle.
         if !super::rows_are_event_ordered(&prepared.rows) {
             return Err("static review annotations require stable row order".into());
         }
@@ -4741,11 +4751,27 @@ mod tracked {
         let long_gap_thresholds = config.long_data_time_gap_thresholds(db);
         let long_usage_thresholds = config.long_usage_duration_thresholds(db);
         let custom_engagement_duration = config.custom_app_engagement_duration(db);
+        // Rebuild the apply_matcher_output derived checkpoint from the three
+        // stable step values (byte-identical to review_applied_rows' one)
+        // instead of depending on review_applied_rows, whose value changes
+        // whenever the build_matcher_input checkpoint does.
+        let filtered = compute_junk_packages(db, raw, early, config, support)?;
+        let blind = junk_blind_fold(db, raw, early, config, support)?;
+        let matcher = run_matcher(db, raw, early, config, support)?;
+        let apply_matcher_output = review_derived_checkpoint(
+            "apply_matcher_output",
+            &[
+                ("rows", &blind.checkpoint),
+                ("matcher", &matcher.checkpoint),
+                ("filteredPackages", &filtered.checkpoint),
+            ],
+            &serde_json::json!({}),
+        )?;
         let input_key = review_derived_checkpoint(
             "review_static_annotations",
-            &[("applyMatcherOutput", &prepared.applied.apply_matcher_output)],
+            &[("applyMatcherOutput", &apply_matcher_output)],
             &serde_json::json!({
-                "filteredPackages": prepared.applied.filtered_packages,
+                "filteredPackages": prepared.filtered_packages,
                 "useAppCodebook": enabled,
                 "codebookDigest": digest_bytes(&codebook_csv),
                 "customAppEngagementDuration": custom_engagement_duration,
@@ -4758,11 +4784,11 @@ mod tracked {
         let clone_timer = QueryTimer::start("review_static_clone_rows");
         let mut rows = (*prepared.rows).clone();
         clone_timer.finish();
-        if !prepared.applied.filtered_packages.is_empty() {
+        if !prepared.filtered_packages.is_empty() {
             let junk_timer = QueryTimer::start("review_static_junk_downstream_mark");
             rows = super::junk_downstream_mark(
                 rows,
-                &prepared.applied.filtered_packages,
+                &prepared.filtered_packages,
                 &AHashSet::new(),
             );
             junk_timer.finish();
@@ -4891,7 +4917,7 @@ mod tracked {
         db.record_internal_query_body("review_reconstructed_rows");
 
         let prepared = review_usage_rows_before_floor(db, raw, early, config, support)?;
-        let applied = &prepared.applied;
+        let applied = review_applied_rows(db, raw, early, config, support)?;
         let background = background_apps(db, config, support);
         let rebuilds_usage_intervals = config.model_concurrent_usage(db) || !background.is_empty();
         let apply_minimum_to_subintervals =
@@ -5475,7 +5501,7 @@ mod tracked {
         let mut static_temporal_matches_upstream = false;
         let mut rows = if use_static_annotations {
             let prepared = review_usage_rows_before_floor(db, raw, early, config, support)?;
-            static_temporal_matches_upstream = prepared.applied.filtered_packages.is_empty();
+            static_temporal_matches_upstream = prepared.filtered_packages.is_empty();
             let static_annotations = review_static_annotations(db, raw, early, config, support)?;
             if static_annotations.rows.len() != upstream.rows.len() {
                 return Err(format!(
