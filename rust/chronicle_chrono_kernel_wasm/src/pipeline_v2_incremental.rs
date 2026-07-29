@@ -165,7 +165,10 @@ pub(super) fn build_canonical_rows(
         .map(|(index, raw)| {
             let event_timestamp_ns = parse_chronicle_timestamp_ns(&raw.event_timestamp)
                 .ok_or_else(|| format!("Invalid event_timestamp: {}", raw.event_timestamp))?;
-            let timezone = if raw.timezone.is_empty() {
+            // Blank and literal "None" timezone cells are both documented
+            // missing-timezone shapes; keep this in lockstep with
+            // discover_timezones_v2_native and inspect_raw_file_v1.
+            let timezone = if raw.timezone.is_empty() || raw.timezone == "None" {
                 "UTC"
             } else {
                 raw.timezone.as_str()

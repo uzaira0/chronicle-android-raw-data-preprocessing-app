@@ -8683,6 +8683,30 @@ mod tests {
     }
 
     #[test]
+    fn literal_none_timezone_rows_fall_back_to_utc_through_the_full_pipeline() {
+        // "None" is a real observed export value for a missing timezone, not a
+        // hypothetical. It must behave exactly like a blank cell all the way
+        // through row construction — not just in the advisory inspectors —
+        // otherwise selected-filter silently drops rows the inspection screen
+        // promised to keep as UTC.
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,None\n",
+            "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:01:00,\n"
+        );
+        let mut options = test_options();
+        options.timezone = "UTC".into();
+        options.timezone_handling = "selected-filter".into();
+        let result =
+            run_pipeline_v2(csv.as_bytes(), &options, &[], &[], &[]).expect("UTC-fallback run");
+        assert_eq!(result.original_row_count, 2);
+        assert_eq!(result.processed_row_count, 2);
+        assert_eq!(result.app_row_count, 1);
+        let output = String::from_utf8(result.app_csv_bytes.as_ref().clone()).expect("UTF-8 CSV");
+        assert!(!output.contains("None"));
+    }
+
+    #[test]
     fn selected_timezone_filter_rejects_an_absent_qualification_before_output_gates() {
         let csv = concat!(
             "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
