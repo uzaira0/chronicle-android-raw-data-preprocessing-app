@@ -156,6 +156,9 @@ pub(super) fn build_canonical_rows(
         .parse()
         .map_err(|error| format!("tz {fallback_timezone}: {error}"))?;
     let mut strings = SharedStringPool::default();
+    let possible_device_model = strings.intern(possible_device_model);
+    let empty_usage_flags = strings.intern("[]");
+    let mut date_memo = LocalDateMemo::default();
     raw_rows
         .iter()
         .enumerate()
@@ -176,9 +179,12 @@ pub(super) fn build_canonical_rows(
                 lineage_searches: empty_lineage_searches(),
                 study_id: strings.intern(&raw.study_id),
                 participant_id: strings.intern(&raw.participant_id),
-                possible_device_model: strings.intern(possible_device_model),
-                username: strings
-                    .intern_owned(raw.username.replace("Target child", "Target Child")),
+                possible_device_model: possible_device_model.clone(),
+                username: if raw.username.contains("Target child") {
+                    strings.intern_owned(raw.username.replace("Target child", "Target Child"))
+                } else {
+                    strings.intern(&raw.username)
+                },
                 application_label: strings.intern(&raw.application_label),
                 interaction_type: strings.intern(interaction_type),
                 app_package_name: strings.intern(&raw.app_package_name),
@@ -204,7 +210,7 @@ pub(super) fn build_canonical_rows(
                 screen_usage_foreground_app_package: None,
                 screen_usage_apps_forcing_screen_open_label: None,
                 screen_usage_lock_screen_only: None,
-                any_app_usage_flags: strings.intern("[]"),
+                any_app_usage_flags: empty_usage_flags.clone(),
                 valid_app_new_engage_30s: 0,
                 valid_app_new_engage_custom: 0,
                 valid_app_switched_app: 0,
@@ -221,7 +227,7 @@ pub(super) fn build_canonical_rows(
                 usage_layer: None,
             });
             let row_timezone = row.timezone.parse().unwrap_or(fallback);
-            populate_time_columns(&mut row, row_timezone);
+            populate_time_columns(&mut row, row_timezone, &mut date_memo);
             row.date = strings.intern(row.date.as_str());
             Ok(row)
         })
@@ -333,12 +339,13 @@ pub(super) fn restamp_rows(mut rows: Vec<Row>, target_timezone: &str) -> Result<
         .map_err(|error| format!("tz: {error}"))?;
     let mut strings = SharedStringPool::default();
     let target_timezone = strings.intern(target_timezone);
+    let mut date_memo = LocalDateMemo::default();
     for row in &mut rows {
         if row.timezone == target_timezone {
             continue;
         }
         row.edit_temporal().timezone = target_timezone.clone();
-        populate_time_columns(row, timezone);
+        populate_time_columns(row, timezone, &mut date_memo);
         let date = strings.intern(row.date.as_str());
         row.edit_temporal().date = date;
     }
@@ -1131,7 +1138,7 @@ pub(super) fn emit_credited_rows(
             credited_row.duration_seconds = Some(duration_seconds);
             credited_row.duration_minutes = Some(duration_seconds * (1.0 / 60.0));
             let timezone: Tz = credited_row.timezone.parse().unwrap_or(chrono_tz::UTC);
-            populate_time_columns(&mut credited_row, timezone);
+            populate_time_columns(&mut credited_row, timezone, &mut LocalDateMemo::default());
             credited.push(credited_row);
         }
         if credited.len() == before {
@@ -1666,7 +1673,7 @@ pub(super) fn build_classified_sessions(
         session.timezone.clone_from(&state.start_timezone);
         session.index = start_row.index + 1_000_000;
         if let Ok(timezone) = session.timezone.parse::<Tz>() {
-            populate_time_columns(&mut session, timezone);
+            populate_time_columns(&mut session, timezone, &mut LocalDateMemo::default());
         }
 
         let Some(stop_timestamp_ns) = close.stop_timestamp_ns else {

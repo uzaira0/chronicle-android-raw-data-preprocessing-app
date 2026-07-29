@@ -1598,16 +1598,29 @@ fn emit_screen_last_activity(out: &mut Vec<u8>, ts_ns: Option<i64>, tz: Tz, firs
     .expect("writing a timestamp to Vec cannot fail");
 }
 
-fn populate_time_columns(row: &mut Row, tz: Tz) {
+/// Consecutive rows overwhelmingly share a local calendar date, so callers
+/// that populate time columns in a loop pass one memo to avoid re-formatting
+/// the same `YYYY-MM-DD` string per row.
+#[derive(Default)]
+struct LocalDateMemo(Option<(i32, u32, u32, SharedString)>);
+
+impl LocalDateMemo {
+    fn date_string(&mut self, year: i32, month: u32, day: u32) -> SharedString {
+        match &self.0 {
+            Some((y, m, d, date)) if *y == year && *m == month && *d == day => date.clone(),
+            _ => {
+                let date = SharedString::from(format!("{year:04}-{month:02}-{day:02}"));
+                self.0 = Some((year, month, day, date.clone()));
+                date
+            }
+        }
+    }
+}
+
+fn populate_time_columns(row: &mut Row, tz: Tz, date_memo: &mut LocalDateMemo) {
     let local = ts_to_local(row.event_timestamp_ns, tz);
     let data = row.edit_temporal();
-    data.date = format!(
-        "{:04}-{:02}-{:02}",
-        local.year(),
-        local.month(),
-        local.day()
-    )
-    .into();
+    data.date = date_memo.date_string(local.year(), local.month(), local.day());
     let day = weekday_chronicle(local.weekday());
     data.day = day;
     data.weekday_mf = if (2..=6).contains(&day) { 1 } else { 0 };
@@ -5308,6 +5321,7 @@ fn add_no_activity_placeholder_rows(mut app_rows: Vec<Row>, raw_rows: &[Row]) ->
         }
     }
 
+    let mut date_memo = LocalDateMemo::default();
     for mut sample in samples {
         let key = (sample.participant_id.clone(), sample.date.clone());
         if usage_days.contains(&key) {
@@ -5323,7 +5337,7 @@ fn add_no_activity_placeholder_rows(mut app_rows: Vec<Row>, raw_rows: &[Row]) ->
         sample.data_time_gap_hours = 0.0;
         sample.index += 2_000_000;
         let timezone: Tz = sample.timezone.parse().unwrap_or(chrono_tz::UTC);
-        populate_time_columns(&mut sample, timezone);
+        populate_time_columns(&mut sample, timezone, &mut date_memo);
         app_rows.push(sample);
     }
     app_rows.sort_by(|left, right| {
