@@ -33,10 +33,12 @@
   --color-accent-hover: #131b30;
   --color-accent-soft: #eef0f6;
   --color-accent-text: #ffffff;
+  --color-accent-ink: #1f2a44;
 
   /* Color: status */
   --color-success: #0f9c6e;
   --color-success-soft: #e7f7f0;
+  --color-success-ink: #087455;
   --color-warning: #b9550c;
   --color-warning-soft: #fdf1e2;
   --color-danger: #b42318;
@@ -140,13 +142,15 @@
   --color-border-strong: #3b455f;
   --color-border-focus: #7d8bff;
 
-  --color-accent: #5b6cf3;
-  --color-accent-hover: #6f7df6;
+  --color-accent: #4d5ff1;
+  --color-accent-hover: #5463f2;
   --color-accent-soft: #1d2640;
   --color-accent-text: #ffffff;
+  --color-accent-ink: #8a96ff;
 
   --color-success: #35d39a;
   --color-success-soft: #103029;
+  --color-success-ink: #35d39a;
   --color-warning: #f0a559;
   --color-warning-soft: #382711;
   --color-danger: #ff6f63;
@@ -579,7 +583,7 @@ a:hover {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   letter-spacing: 0.08em;
-  color: var(--color-accent);
+  color: var(--color-accent-ink);
   text-transform: uppercase;
 }
 
@@ -743,7 +747,7 @@ a:hover {
 }
 
 .preset-diff__to {
-  color: var(--color-accent);
+  color: var(--color-accent-ink);
   font-weight: var(--font-weight-medium);
 }
 
@@ -886,7 +890,7 @@ a:hover {
 .status-pill.is-success,
 .support-file-state.is-enabled {
   background: var(--color-success-soft);
-  color: #087455;
+  color: var(--color-success-ink);
 }
 
 .status-pill.is-warning {
@@ -3132,7 +3136,7 @@ a:hover {
 }
 
 .timeline-view__match-count {
-  color: var(--color-accent);
+  color: var(--color-accent-ink);
   font-weight: var(--font-weight-normal);
 }
 
@@ -3438,7 +3442,7 @@ a:hover {
   background: none;
   padding: 0;
   margin: 0;
-  color: var(--color-accent);
+  color: var(--color-accent-ink);
   font-size: var(--font-size-xs);
   cursor: pointer;
   white-space: nowrap;

@@ -6,6 +6,12 @@
     <meta name="theme-color" content="#111318" />
     <meta name="description" content="Chronicle Android Raw Data Preprocessor — offline fallback. Files stay on this device." />
     <title>Chronicle — Offline</title>
+    <!-- Inline favicon: the offline fallback must not trigger any network
+         request (a missing /favicon.ico 404s and logs a console error). -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%234d5ff1'/%3E%3C/svg%3E"
+    />
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
       body {

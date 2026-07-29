@@ -291,6 +291,7 @@ rust/**/mutants.out/
 rust/**/mutants.out.old/
 
 web/.lighthouse-results/
+web/.lighthouseci/
 # Cargo fuzz artifacts (crash inputs, corpus) — never commit
 rust/chronicle_app_usage_matcher/fuzz/artifacts/
 rust/chronicle_app_usage_matcher/fuzz/corpus/

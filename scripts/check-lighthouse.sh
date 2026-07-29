@@ -16,4 +16,4 @@ echo "=== Building web app for Lighthouse ==="
 (cd "$WEB_DIR" && npm run build -- --outDir dist 2>&1)
 
 echo "=== Running Lighthouse CI ==="
-(cd "$WEB_DIR" && "$LHCI" autorun --config=lighthouserc.json 2>&1)
+(cd "$WEB_DIR" && "$LHCI" autorun --config=lighthouserc.cjs 2>&1)
