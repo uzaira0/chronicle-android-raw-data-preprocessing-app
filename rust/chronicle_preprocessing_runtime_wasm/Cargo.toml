@@ -19,6 +19,23 @@ wasm-opt = [
     '--strip-producers',
 ]
 
+# Keep the same optimizer and target features as production while retaining
+# function names for V8/Samply profiles.
+[package.metadata.wasm-pack.profile.profiling]
+wasm-opt = [
+    '-O3',
+    '--enable-simd',
+    '--enable-bulk-memory',
+    '--enable-nontrapping-float-to-int',
+    '--enable-mutable-globals',
+    '--enable-sign-ext',
+    '--enable-reference-types',
+    '--merge-similar-functions',
+    '--vacuum',
+    '--strip-producers',
+    '--debuginfo',
+]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
@@ -41,21 +58,30 @@ parquet = { version = "59.1.0", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_jcs = "0.2"
 serde_json = "1.0"
-sha2 = "0.10"
+sha2 = "0.11"
 wasm-bindgen = "0.2"
 
 [build-dependencies]
 hex = "0.4"
 quote = "1.0"
-sha2 = "0.10"
+sha2 = "0.11"
 syn = { version = "2.0", features = ["full", "visit-mut"] }
 
 [dev-dependencies]
 bytes = "1.11"
 
 [profile.release]
-opt-level = 3
+# `2` keeps the runtime below the 6 MiB uncompressed WASM budget without the
+# ~29% cold-ingestion regression measured with `s`. On the 100 x 100k-row,
+# 8-worker review benchmark it preserved exact output/status parity and was
+# no slower than `3` on the changed-config path.
+opt-level = 2
 lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = "symbols"
+
+[profile.profiling]
+inherits = "release"
+debug = 1
+strip = "none"

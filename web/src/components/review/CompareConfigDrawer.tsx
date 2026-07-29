@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { Dispatch, ReactElement, SetStateAction } from "react";
 
 import { SettingsOverviewCard } from "@/components/SettingsOverviewCard";
@@ -17,6 +18,22 @@ type Props = {
   completedCount: number;
   fileCount: number;
 };
+
+const CompareConfigFields = memo(function CompareConfigFields({
+  options,
+  setOptions,
+}: Pick<Props, "options" | "setOptions">): ReactElement {
+  return (
+    <div className="review-drawer__body">
+      <SettingsOverviewCard options={options} setOptions={setOptions} />
+      <div className="settings-stack">
+        <SessionDetectionCard options={options} setOptions={setOptions} />
+        <ScreenDetectionCard options={options} setOptions={setOptions} />
+        <InteractionSemanticsCard options={options} setOptions={setOptions} />
+      </div>
+    </div>
+  );
+});
 
 /**
  * Arm-B configuration drawer: the same settings controls the Settings tab uses,
@@ -45,14 +62,7 @@ export function CompareConfigDrawer({
           ✕
         </button>
       </div>
-      <div className="review-drawer__body">
-        <SettingsOverviewCard options={options} setOptions={setOptions} />
-        <div className="settings-stack">
-          <SessionDetectionCard options={options} setOptions={setOptions} />
-          <ScreenDetectionCard options={options} setOptions={setOptions} />
-          <InteractionSemanticsCard options={options} setOptions={setOptions} />
-        </div>
-      </div>
+      <CompareConfigFields options={options} setOptions={setOptions} />
       {error ? (
         <p className="review-drawer__error" data-testid="review-compare-error">
           {error}

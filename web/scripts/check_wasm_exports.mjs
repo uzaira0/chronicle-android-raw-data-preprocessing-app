@@ -10,6 +10,7 @@ const packages = [
     expected: [
       "class:RuntimeHandle",
       "class:RuntimeSupportFiles",
+      "class:PreparedReviewWorkspace",
       "function:build_environment_digest",
       "function:discover_timezones_v2",
       "function:evaluate_workspace_requirements",
@@ -21,6 +22,9 @@ const packages = [
       "function:inspect_raw_file_v1",
       "function:pipeline_step_contract_json",
       "function:plan_stage_view_json",
+      "function:prepare_persisted_workspace_review",
+      "function:prepare_workspace_review",
+      "function:review_base_probe_spec_json",
       "function:runtime_identity_json",
       "function:runtime_version",
       "function:verify_evidence_journal_cbor",

@@ -1,3 +1,4 @@
+import { supportFileInputList } from "@/lib/comparisonSupportKey";
 import {
   Suspense,
   lazy,
@@ -14,8 +15,11 @@ import {
 } from "@/lib/processingUiContract";
 import {
   WorkerPool,
+  comparisonSupportCacheKey,
   discoverTimezonesBytes,
   getPlanStageView,
+  processPersistedOrRawChangedReview,
+  processPersistedOrRawChangedReviewViaPool,
   processRawCsvBytes,
   processRawCsvChangedReviewBytesViaPool,
   processRawCsvReviewBytes,
@@ -59,6 +63,7 @@ import {
   readDemoDisplayEnabled,
 } from "@/lib/demoDisplay";
 import { inspectRawFiles, type RawFileInspection } from "@/lib/fileInspection";
+import { relabelDuplicateContentResult } from "@/lib/rustPipelineAuthority";
 import { applyProgressEvent } from "@/lib/progressReducer";
 import { storedFileToFile, type ProjectRecord } from "@/lib/projectsStore";
 import type {
@@ -175,6 +180,15 @@ export default function App(): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState<ProcessedFileResult[]>([]);
+  // File objects are immutable. A digest is eligible for content reuse only
+  // when inspection or a successful run hashed this exact object; matching a
+  // replacement file by name, size, or timestamp is never sufficient.
+  const verifiedInputDigestByFileRef = useRef(new WeakMap<File, string>());
+  // Arm-B warmups must also be tied to the exact immutable File objects. Two
+  // support files may have the same name and size while carrying different
+  // study rules, so metadata alone is not a safe cache key.
+  const comparisonFileIdentityByRef = useRef(new WeakMap<File, number>());
+  const nextComparisonFileIdentityRef = useRef(1);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [fileInspections, setFileInspections] = useState<RawFileInspection[]>(
     [],
@@ -238,6 +252,8 @@ export default function App(): ReactElement {
   const [storagePressureDismissed, setStoragePressureDismissed] =
     useState(false);
   const [retryingFile, setRetryingFile] = useState<string | null>(null);
+  const [effectiveProcessingConcurrency, setEffectiveProcessingConcurrency] =
+    useState<number | null>(null);
   const [updateReady, setUpdateReady] = useState(false);
   const baseTitleRef = useRef<string | null>(null);
   // Snapshot of the options that produced `results`, so the Result panel can warn
@@ -256,8 +272,19 @@ export default function App(): ReactElement {
   const retryingFileRef = useRef<string | null>(null);
   const comparisonWarmupRef = useRef<{
     key: string;
-    promise: Promise<void>;
+    setup: Promise<{
+      options: BrowserProcessingOptions;
+      supportFiles: BrowserSupportFiles;
+      supportCacheKey: string;
+    }>;
+    supportInputs: Array<File | null>;
+    promise: Promise<ProcessedFileResult>;
   } | null>(null);
+  const comparisonPoolRef = useRef<{
+    size: number;
+    pool: WorkerPool;
+  } | null>(null);
+  const comparisonPoolIdleTimerRef = useRef<number | null>(null);
   // Holds the pending "flash the jumped-to setting" timer so a rapid second jump
   // to the same card cancels the first timer instead of cutting its flash short.
   const flashTimerRef = useRef<number | null>(null);
@@ -268,11 +295,55 @@ export default function App(): ReactElement {
     () => createDemoDisplayMasker(hideDemoMetadata),
     [hideDemoMetadata],
   );
+  const uploadedFileNames = useMemo(
+    () => uploadedFiles.map((file) => file.name),
+    [uploadedFiles],
+  );
 
   const resultsStale =
     results.length > 0 &&
     resultsOptions !== null &&
     JSON.stringify(options) !== JSON.stringify(resultsOptions);
+
+  const disposeComparisonPool = useCallback((): void => {
+    if (comparisonPoolIdleTimerRef.current !== null) {
+      window.clearTimeout(comparisonPoolIdleTimerRef.current);
+      comparisonPoolIdleTimerRef.current = null;
+    }
+    comparisonPoolRef.current?.pool.terminate();
+    comparisonPoolRef.current = null;
+    comparisonWarmupRef.current = null;
+  }, []);
+
+  const getComparisonPool = useCallback((size: number): WorkerPool | null => {
+    if (comparisonPoolIdleTimerRef.current !== null) {
+      window.clearTimeout(comparisonPoolIdleTimerRef.current);
+      comparisonPoolIdleTimerRef.current = null;
+    }
+    if (size <= 0) {
+      comparisonPoolRef.current?.pool.terminate();
+      comparisonPoolRef.current = null;
+      return null;
+    }
+    const current = comparisonPoolRef.current;
+    if (current?.size === size) return current.pool;
+    current?.pool.terminate();
+    const pool = new WorkerPool(size);
+    comparisonPoolRef.current = { size, pool };
+    return pool;
+  }, []);
+
+  const releaseComparisonPoolWhenIdle = useCallback((): void => {
+    if (comparisonPoolIdleTimerRef.current !== null) {
+      window.clearTimeout(comparisonPoolIdleTimerRef.current);
+    }
+    comparisonPoolIdleTimerRef.current = window.setTimeout(
+      disposeComparisonPool,
+      120_000,
+    );
+  }, [disposeComparisonPool]);
+
+  useEffect(() => disposeComparisonPool, [disposeComparisonPool]);
 
   // Sample storage usage on boot and whenever asked (after a run / a clear), so
   // the banner can warn before a write fails. A fresh high reading re-arms the
@@ -423,6 +494,7 @@ export default function App(): ReactElement {
     files: File[],
     input: { clearCachedRun?: boolean } = {},
   ) => {
+    disposeComparisonPool();
     const { clearCachedRun = true } = input;
     setUploadedFiles(files);
     setFileInspections([]);
@@ -444,6 +516,14 @@ export default function App(): ReactElement {
     setIsInspectingFiles(true);
     void inspectRawFiles(files)
       .then((inspections) => {
+        inspections.forEach((inspection, index) => {
+          if (/^[0-9a-f]{64}$/.test(inspection.inputSha256 ?? "")) {
+            verifiedInputDigestByFileRef.current.set(
+              files[index],
+              inspection.inputSha256!,
+            );
+          }
+        });
         setFileInspections(inspections);
         const timezones = Array.from(
           new Set(inspections.flatMap((inspection) => inspection.timezones)),
@@ -633,12 +713,30 @@ export default function App(): ReactElement {
           reviewOptions,
           await buildSupportFilesForOptions(reviewOptions),
         ));
+      const verifiedInputSha256 =
+        verifiedInputDigestByFileRef.current.get(file);
+      if (verifiedInputSha256) {
+        const supportCacheKey = await comparisonSupportCacheKey(
+          resolvedSupportFiles,
+        );
+        return processPersistedOrRawChangedReview(
+          file.name,
+          file.size,
+          () => file.arrayBuffer(),
+          reviewOptions,
+          resolvedSupportFiles,
+          getInjectedRuntime(),
+          verifiedInputSha256,
+          supportCacheKey,
+        );
+      }
       return processRawCsvReviewBytes(
         file.name,
         await file.arrayBuffer(),
         reviewOptions,
         resolvedSupportFiles,
         getInjectedRuntime(),
+        verifiedInputSha256,
       );
     },
     [
@@ -654,28 +752,135 @@ export default function App(): ReactElement {
     ],
   );
 
-  /** Warm the selected file while the researcher edits Arm B. This worker is
-   * one of the eight assumed comparison workers; the other seven handle the
-   * remaining files when Run is pressed. */
+  /** Warm the selected file while the researcher edits Arm B. Only that file
+   * uses the shared worker; distinct remaining files use the bounded pool when
+   * Run is pressed. */
   const prepareComparison = useCallback(
-    (fileName: string): Promise<void> => {
+    (
+      fileName: string,
+      overrides: Partial<BrowserProcessingOptions> = {},
+    ): Promise<ProcessedFileResult> => {
       const baselineOptions = resultsOptions ?? options;
-      const key = `${fileName}:${JSON.stringify(baselineOptions)}`;
+      const requestedOptions = sanitizeOptions({
+        ...baselineOptions,
+        ...overrides,
+      });
+      const file = uploadedFiles.find(
+        (candidate) => candidate.name === fileName,
+      );
+      if (!file) {
+        return Promise.reject(
+          new Error(
+            "The raw file for this run is no longer loaded. Re-add it in the Files tab to compare.",
+          ),
+        );
+      }
+      const exactFileIdentity = (candidate: File | null): number => {
+        if (!candidate) return 0;
+        const known = comparisonFileIdentityByRef.current.get(candidate);
+        if (known !== undefined) return known;
+        const next = nextComparisonFileIdentityRef.current;
+        nextComparisonFileIdentityRef.current += 1;
+        comparisonFileIdentityByRef.current.set(candidate, next);
+        return next;
+      };
+      const baselineResult = results.find(
+        (result) => result.inputFileName === fileName,
+      );
+      const key = JSON.stringify({
+        file: exactFileIdentity(file),
+        workspaceRoot:
+          baselineResult?.rustRuntimeReceipt?.workspaceRootDigest ?? null,
+        supports: supportFileInputList<File | null>({
+          filterFile,
+          appsForcingScreenOpenFile,
+          backgroundAppsFile,
+          appCodebookFile,
+          studyDatesFile,
+          deviceSharingFile,
+          surveyAttributionFile,
+          enrolledDevicesFile,
+        }).map(exactFileIdentity),
+        options: requestedOptions,
+      });
       if (comparisonWarmupRef.current?.key === key) {
         return comparisonWarmupRef.current.promise;
       }
-      const promise = executeComparisonReview(fileName, baselineOptions)
-        .then(() => undefined)
+      const backgroundWorkerCount = Math.min(
+        COMPARISON_WORKER_LIMIT - 1,
+        Math.max(
+          0,
+          new Set(
+            results
+              .map((result) => result.inputSha256)
+              .filter((digest): digest is string => !!digest),
+          ).size - 1,
+        ),
+      );
+      // Constructing the background pool starts WASM initialization while the
+      // drawer is open. Do not execute Arm A on every worker: configuration is
+      // part of the cache key, so that speculative work cannot warm changed B.
+      getComparisonPool(backgroundWorkerCount);
+      const supportInputs = supportFileInputList<File | null>({
+        filterFile,
+        appsForcingScreenOpenFile,
+        backgroundAppsFile,
+        appCodebookFile,
+        studyDatesFile,
+        deviceSharingFile,
+        surveyAttributionFile,
+        enrolledDevicesFile,
+      });
+      const setup = (async () => {
+        const resolvedOptions = await resolveRunOptions(requestedOptions, [
+          file,
+        ]);
+        const changedUploads =
+          await buildSupportFilesForOptions(resolvedOptions);
+        const supportFiles = await resolveDefaultSupportFiles(
+          resolvedOptions,
+          changedUploads,
+        );
+        return {
+          options: resolvedOptions,
+          supportFiles,
+          supportCacheKey: await comparisonSupportCacheKey(supportFiles),
+        };
+      })();
+      const promise = setup
+        .then(({ options, supportFiles }) =>
+          executeComparisonReview(fileName, options, supportFiles),
+        )
         .catch((error) => {
-          if (comparisonWarmupRef.current?.promise === promise) {
-            comparisonWarmupRef.current = null;
-          }
-          throw error;
-        });
-      comparisonWarmupRef.current = { key, promise };
+        if (comparisonWarmupRef.current?.promise === promise) {
+          comparisonWarmupRef.current = null;
+        }
+        throw error;
+      });
+      comparisonWarmupRef.current = {
+        key,
+        setup,
+        supportInputs,
+        promise,
+      };
       return promise;
     },
-    [executeComparisonReview, options, resultsOptions],
+    [
+      executeComparisonReview,
+      getComparisonPool,
+      options,
+      resultsOptions,
+      results,
+      uploadedFiles,
+      filterFile,
+      appsForcingScreenOpenFile,
+      backgroundAppsFile,
+      appCodebookFile,
+      studyDatesFile,
+      deviceSharingFile,
+      surveyAttributionFile,
+      enrolledDevicesFile,
+    ],
   );
 
   /** Re-run every loaded review file under Arm B. The selected file uses the
@@ -685,11 +890,15 @@ export default function App(): ReactElement {
     async (
       priorityFileName: string,
       overrides: Partial<BrowserProcessingOptions>,
-      onResult?: (result: ProcessedFileResult) => void,
+      onResults?: (results: ProcessedFileResult[]) => void,
     ): Promise<ProcessedFileResult[]> => {
       const reviewableNames = new Set(
         results
-          .filter((result) => !!result.reviewSummary)
+          .filter(
+            (result) =>
+              !!result.reviewSummary ||
+              result.rustRuntimeReceipt?.persistedGeneration !== undefined,
+          )
           .map((result) => result.inputFileName),
       );
       const files = uploadedFiles.filter((file) =>
@@ -709,60 +918,132 @@ export default function App(): ReactElement {
         ...overrides,
       });
       const armBOptions = await resolveRunOptions(requestedArmB, files);
-      const changedUploads = await buildSupportFilesForOptions(armBOptions);
-      const changedSupportFiles = await resolveDefaultSupportFiles(
-        armBOptions,
-        changedUploads,
-      );
+      const currentSupportInputs = supportFileInputList<File | null>({
+        filterFile,
+        appsForcingScreenOpenFile,
+        backgroundAppsFile,
+        appCodebookFile,
+        studyDatesFile,
+        deviceSharingFile,
+        surveyAttributionFile,
+        enrolledDevicesFile,
+      });
+      const warmup = comparisonWarmupRef.current;
+      const warmSetup =
+        warmup &&
+        warmup.supportInputs.length === currentSupportInputs.length &&
+        warmup.supportInputs.every(
+          (input, index) => input === currentSupportInputs[index],
+        )
+          ? await warmup.setup
+          : null;
+      const canReuseWarmSetup =
+        warmSetup !== null &&
+        JSON.stringify(warmSetup.options) === JSON.stringify(armBOptions);
+      const changedSupportFiles = canReuseWarmSetup
+        ? warmSetup.supportFiles
+        : await resolveDefaultSupportFiles(
+            armBOptions,
+            await buildSupportFilesForOptions(armBOptions),
+          );
+      const changedSupportCacheKey = canReuseWarmSetup
+        ? warmSetup.supportCacheKey
+        : await comparisonSupportCacheKey(changedSupportFiles);
       const inputDigestByName = new Map(
         results.map((result) => [result.inputFileName, result.inputSha256]),
       );
 
-      const activeIndex = files.findIndex(
-        (file) => file.name === priorityFileName,
+      type ComparisonGroup = {
+        digest: string;
+        members: Array<{ file: File; index: number }>;
+      };
+      const groupByDigest = new Map<string, ComparisonGroup>();
+      files.forEach((file, index) => {
+        const digest = inputDigestByName.get(file.name);
+        if (!digest) {
+          throw new Error(
+            `completed result is missing its raw input digest: ${file.name}`,
+          );
+        }
+        const group = groupByDigest.get(digest) ?? { digest, members: [] };
+        group.members.push({ file, index });
+        groupByDigest.set(digest, group);
+      });
+      const activeGroup = Array.from(groupByDigest.values()).find((group) =>
+        group.members.some(({ file }) => file.name === priorityFileName),
       );
-      const schedule = files
-        .map((file, index) => ({ file, index }))
-        .filter((item) => item.index !== activeIndex)
+      if (!activeGroup) {
+        throw new Error("selected comparison file has no input digest group");
+      }
+      const schedule = Array.from(groupByDigest.values())
+        .filter((group) => group !== activeGroup)
         .sort((left, right) => {
-          return right.file.size - left.file.size || left.index - right.index;
+          const leftMember = left.members[0];
+          const rightMember = right.members[0];
+          return (
+            rightMember.file.size - leftMember.file.size ||
+            leftMember.index - rightMember.index
+          );
         });
       const completed: Array<ProcessedFileResult | undefined> = Array.from(
         { length: files.length },
         () => undefined,
       );
       const failures: string[] = [];
+      const recordGroup = (
+        group: ComparisonGroup,
+        result: ProcessedFileResult,
+      ): void => {
+        const labeledResults = group.members.map(({ file, index }) => {
+          const labeled =
+            result.inputFileName === file.name
+              ? result
+              : relabelDuplicateContentResult(result, file.name);
+          completed[index] = labeled;
+          return labeled;
+        });
+        onResults?.(labeledResults);
+      };
       const backgroundWorkerCount = Math.min(
         COMPARISON_WORKER_LIMIT - 1,
         schedule.length,
       );
-      const pool = backgroundWorkerCount
-        ? new WorkerPool(backgroundWorkerCount)
-        : null;
+      const pool = getComparisonPool(backgroundWorkerCount);
       let cursor = 0;
       const runner = async (): Promise<void> => {
         for (;;) {
-          const item = schedule[cursor];
+          const group = schedule[cursor];
           cursor += 1;
-          if (!item) return;
+          if (!group) return;
+          const item = group.members[0];
           try {
-            const inputSha256 = inputDigestByName.get(item.file.name);
-            if (!inputSha256) {
-              throw new Error(
-                "completed result is missing its raw input digest",
-              );
-            }
-            const result = await processRawCsvChangedReviewBytesViaPool(
-              pool!,
-              item.file.name,
-              await item.file.arrayBuffer(),
-              armBOptions,
-              changedSupportFiles,
-              getInjectedRuntime(),
-              inputSha256,
-            );
-            completed[item.index] = result;
-            onResult?.(result);
+            const verifiedInputSha256 =
+              verifiedInputDigestByFileRef.current.get(item.file) ===
+              group.digest
+                ? group.digest
+                : undefined;
+            const result = verifiedInputSha256
+              ? await processPersistedOrRawChangedReviewViaPool(
+                  pool!,
+                  item.file.name,
+                  item.file.size,
+                  () => item.file.arrayBuffer(),
+                  armBOptions,
+                  changedSupportFiles,
+                  getInjectedRuntime(),
+                  verifiedInputSha256,
+                  changedSupportCacheKey,
+                )
+              : await processRawCsvChangedReviewBytesViaPool(
+                  pool!,
+                  item.file.name,
+                  await item.file.arrayBuffer(),
+                armBOptions,
+                  changedSupportFiles,
+                  getInjectedRuntime(),
+                  verifiedInputSha256,
+                );
+            recordGroup(group, result);
           } catch (error) {
             failures.push(
               `${item.file.name}: ${error instanceof Error ? error.message : String(error)}`,
@@ -772,14 +1053,8 @@ export default function App(): ReactElement {
       };
       const activeTask = (async (): Promise<void> => {
         try {
-          await prepareComparison(priorityFileName);
-          const result = await executeComparisonReview(
-            priorityFileName,
-            armBOptions,
-            changedSupportFiles,
-          );
-          completed[activeIndex] = result;
-          onResult?.(result);
+          const result = await prepareComparison(priorityFileName, armBOptions);
+          recordGroup(activeGroup, result);
         } catch (error) {
           failures.push(
             `${priorityFileName}: ${error instanceof Error ? error.message : String(error)}`,
@@ -792,7 +1067,7 @@ export default function App(): ReactElement {
           ...Array.from({ length: backgroundWorkerCount }, () => runner()),
         ]);
       } finally {
-        pool?.terminate();
+        releaseComparisonPoolWhenIdle();
       }
       const successful = completed.filter(
         (result): result is ProcessedFileResult => !!result,
@@ -822,7 +1097,9 @@ export default function App(): ReactElement {
       surveyAttributionFile,
       enrolledDevicesFile,
       executeComparisonReview,
+      getComparisonPool,
       prepareComparison,
+      releaseComparisonPoolWhenIdle,
     ],
   );
 
@@ -915,15 +1192,30 @@ export default function App(): ReactElement {
         { length: uploadedFiles.length },
         () => undefined,
       );
-      const totalInputBytes = uploadedFiles.reduce(
+      // Selection already hashed every inspected file. Size the expensive WASM
+      // pool for distinct content, not filenames: 100 renamed copies need one
+      // computation and therefore one worker, while unverified files remain
+      // conservatively distinct.
+      const uniqueVerifiedFiles = new Map<string, File>();
+      const unverifiedFiles: File[] = [];
+      for (const file of uploadedFiles) {
+        const digest = verifiedInputDigestByFileRef.current.get(file);
+        if (digest) uniqueVerifiedFiles.set(digest, file);
+        else unverifiedFiles.push(file);
+      }
+      const computationalFiles = [
+        ...uniqueVerifiedFiles.values(),
+        ...unverifiedFiles,
+      ];
+      const totalInputBytes = computationalFiles.reduce(
         (sum, file) => sum + file.size,
         0,
       );
       const concurrency = runOptions.parallelProcessing
         ? computeSafeConcurrency({
-            fileCount: uploadedFiles.length,
+            fileCount: computationalFiles.length,
             totalInputBytes,
-            fileSizes: uploadedFiles.map((file) => file.size),
+            fileSizes: computationalFiles.map((file) => file.size),
             userCap: runOptions.parallelMaxWorkers,
             hardwareConcurrency:
               typeof navigator !== "undefined"
@@ -932,6 +1224,31 @@ export default function App(): ReactElement {
             deviceMemory: readDeviceMemory(),
           })
         : 1;
+      // Hard lane ceiling for the measured (adaptive) admission path: cores/2
+      // and the user's cap still bind, but the static memory guess does not —
+      // workers report their real WASM high-water after each file and
+      // computeAdaptiveLaneTarget grows concurrency only as far as those
+      // measurements fit the device budget.
+      const laneCap = runOptions.parallelProcessing
+        ? Math.max(
+            1,
+            Math.min(
+              computationalFiles.length,
+              Math.max(
+                1,
+                Math.floor(
+                  (typeof navigator !== "undefined"
+                    ? (navigator.hardwareConcurrency ?? 2)
+                    : 2) / 2,
+                ),
+              ),
+              runOptions.parallelMaxWorkers && runOptions.parallelMaxWorkers > 0
+                ? Math.floor(runOptions.parallelMaxWorkers)
+                : Number.POSITIVE_INFINITY,
+            ),
+          )
+        : 1;
+      setEffectiveProcessingConcurrency(concurrency);
       // Resolve bundled-default support files once on the main thread so
       // every worker uses identical bytes (no per-worker fetches), and so
       // the user's uploads win over defaults.
@@ -980,35 +1297,62 @@ export default function App(): ReactElement {
           const file = uploadedFiles[index];
           handleProgressEvent({ type: "file-start", fileName: file.name });
           try {
-            let result: ProcessedFileResult;
-            // Transfer ownership even on the one-file path. Decoding with
-            // File.text() would create a second, UTF-16-sized main-thread copy.
-            const bytes = await file.arrayBuffer();
-            if (pool) {
-              result = await processRawCsvBytesViaPool(
-                pool,
-                file.name,
-                bytes,
-                runOptions,
-                supportFiles,
-                getInjectedRuntime(),
-                handleProgressEvent,
-              );
-            } else {
-              result = await processRawCsvBytes(
-                file.name,
-                bytes,
-                runOptions,
-                supportFiles,
-                getInjectedRuntime(),
-                handleProgressEvent,
-              );
+            const verifiedInputSha256 =
+              verifiedInputDigestByFileRef.current.get(file);
+            let computation = verifiedInputSha256
+              ? completedByInputDigest.get(verifiedInputSha256)
+              : undefined;
+            if (!computation) {
+              if (verifiedInputSha256) {
+                // Publish the promise before the asynchronous file read. With
+                // several runners, inserting it after `arrayBuffer()` lets each
+                // runner miss the map and start the same digest independently.
+                computation = (async () => {
+                  // Transfer ownership rather than decoding with File.text(),
+                  // which would create a second UTF-16-sized main-thread copy.
+                  const bytes = await file.arrayBuffer();
+                  return processRawCsvBytesViaPool(
+                    runPool,
+                    file.name,
+                    bytes,
+                    runOptions,
+                    supportFiles,
+                    runRuntime,
+                    handleProgressEvent,
+                    verifiedInputSha256,
+                  );
+                })();
+                completedByInputDigest.set(verifiedInputSha256, computation);
+              } else {
+                const bytes = await file.arrayBuffer();
+                computation = processRawCsvBytesViaPool(
+                  runPool,
+                  file.name,
+                  bytes,
+                  runOptions,
+                  supportFiles,
+                  runRuntime,
+                  handleProgressEvent,
+                );
+              }
             }
+            const computed = await computation;
+            const result =
+              computed.inputFileName === file.name
+                ? computed
+                : relabelDuplicateContentResult(computed, file.name);
             // If the user cancelled while this file was mid-flight, discard its
             // result instead of committing it — keeps the sequential path (which
             // can't terminate an in-flight worker) consistent with the pool path.
             if (cancelRequestedRef.current) return;
+            if (!result.inputSha256) {
+              throw new Error(
+                "Rust result is missing its verified input digest",
+              );
+            }
             nextResults[index] = result;
+            verifiedInputDigestByFileRef.current.set(file, result.inputSha256);
+            adaptLaneTarget(computed.workerWasmMemoryBytes);
             handleProgressEvent({
               type: "file-complete",
               fileName: file.name,
@@ -1230,6 +1574,10 @@ export default function App(): ReactElement {
           getInjectedRuntime(),
           handleProgressEvent,
         );
+        if (!result.inputSha256) {
+          throw new Error("Rust result is missing its verified input digest");
+        }
+        verifiedInputDigestByFileRef.current.set(file, result.inputSha256);
         handleProgressEvent({ type: "file-complete", fileName, result });
         const merged = (() => {
           const byName = new Map(
@@ -1288,31 +1636,6 @@ export default function App(): ReactElement {
   const progressRows = progressOrder.map(
     (name) => progressByFile[name] ?? { fileName: name, status: "pending" },
   );
-      // Hard lane ceiling for the measured (adaptive) admission path: cores/2
-      // and the user's cap still bind, but the static memory guess does not —
-      // workers report their real WASM high-water after each file and
-      // computeAdaptiveLaneTarget grows concurrency only as far as those
-      // measurements fit the device budget.
-      const laneCap = runOptions.parallelProcessing
-        ? Math.max(
-            1,
-            Math.min(
-              computationalFiles.length,
-              Math.max(
-                1,
-                Math.floor(
-                  (typeof navigator !== "undefined"
-                    ? (navigator.hardwareConcurrency ?? 2)
-                    : 2) / 2,
-                ),
-              ),
-              runOptions.parallelMaxWorkers && runOptions.parallelMaxWorkers > 0
-                ? Math.floor(runOptions.parallelMaxWorkers)
-                : Number.POSITIVE_INFINITY,
-            ),
-          )
-        : 1;
-      setEffectiveProcessingConcurrency(concurrency);
   const overallPercent =
     progressOrder.length === 0
       ? 0
@@ -1396,8 +1719,6 @@ export default function App(): ReactElement {
           <div
             className="update-banner"
             role="status"
-            verifiedInputDigestByFileRef.current.set(file, result.inputSha256);
-            adaptLaneTarget(computed.workerWasmMemoryBytes);
             data-testid="update-banner"
           >
             <span className="update-banner__text">
@@ -1679,6 +2000,7 @@ export default function App(): ReactElement {
               retryingFile={retryingFile}
               progressRows={progressRows}
               overallPercent={overallPercent}
+              effectiveProcessingConcurrency={effectiveProcessingConcurrency}
               expanded={processExpanded}
               onExpandedChange={setProcessExpanded}
             />
@@ -1752,7 +2074,7 @@ export default function App(): ReactElement {
             <ViewPanel
               results={results}
               options={resultsOptions ?? options}
-              uploadedFileNames={uploadedFiles.map((file) => file.name)}
+              uploadedFileNames={uploadedFileNames}
               onPrepareComparison={prepareComparison}
               onRunComparison={runComparison}
               displayMasker={demoDisplay}

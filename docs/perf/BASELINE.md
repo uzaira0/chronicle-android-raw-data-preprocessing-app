@@ -81,41 +81,119 @@ just to warm each replacement worker.
 - Fixture: deterministic generated weird-case Chronicle CSV, 100,004 accepted
   raw rows, 19,018,650 bytes,
   `sha256:6c4bca2853bd7ef10df31dbe2f4c7e3e4c7e4f5da3e96b82e0175d0b5513a95f`
-- Change: `modelConcurrentUsage: true` to `false`, with the other browser
-  options held constant
+- Changes: `modelConcurrentUsage: true` to `false`, and the narrower
+  `minimumUsageDuration: 60` to `2`, with all other browser options held
+  constant
 - Scale: 100 copies of the synthetic input, executed as independent cold Arm B
   computations by eight parallel worker processes
 - Command: `npm run measure:review-batch --
   ../.tmp-benchmark/chronicle-synthetic-100000.csv 100 8`
 
-| Measurement across 100 files | Result |
-|---|---:|
-| Whole 100-file wall time | 33.046 s |
-| Cold Arm B execute minimum | 2,286.8 ms |
-| Cold Arm B execute median | 2,338.6 ms |
-| Cold Arm B execute p90 | 2,422.0 ms |
-| Cold Arm B execute p95 | 4,501.5 ms |
-| Cold Arm B execute maximum | 4,514.7 ms |
-| Cold Arm B execute mean | 2,513.5 ms |
-| Runtime WASM | 5,828,774 bytes |
-| Runtime WASM digest | `sha256:ffe78cfd7cd1f26454ccc0350b17308f15faf0f3ef2e9acfce4401da3d84e7fc` |
+| Measurement across 100 files | Concurrent-usage change | Minimum-duration change |
+|---|---:|---:|
+| Whole 100-file wall time | 4.928 s | 1.423 s |
+| Arm B execute minimum | 367.5 ms | 104.6 ms |
+| Arm B execute median | 376.9 ms | 107.5 ms |
+| Arm B execute p90 | 384.1 ms | 111.1 ms |
+| Arm B execute p95 | 386.3 ms | 111.6 ms |
+| Arm B execute maximum | 387.0 ms | 114.3 ms |
+| Arm B execute mean | 377.3 ms | 108.0 ms |
+| Bytes copied into WASM per file | 15,509,934 | 14,014,310 |
+| Verified review-summary digest | `sha256:dd1f366ec052bbd484a8f18e4122d75c3c674cc7a6b1b33974bd72e957b1adad` | `sha256:77efd3cb915681bc34f3ce1237a7bdb05417c7001e5dbdf862ec232d05341045` |
 
-This is the honest replacement-worker cost, not the selected-file warm path.
-It measures the normal fail-closed WASM package after a one-process bootstrap;
-no test-only evidence bypass is present. A direct full browser attempt with 100
+The runtime WASM was 6,047,282 bytes with digest
+`sha256:679ece24d761bc782442978b60ca56173afce107f02975d9091a8683bdf36f4b`.
+
+This is the honest persisted-base cost for 100 independent files on eight warm
+WASM workers, not an unchanged-request shortcut. It measures the normal
+fail-closed WASM package after a one-process bootstrap; no test-only evidence
+bypass is present. A direct full browser attempt with 100
 simultaneously loaded 19 MB files remained active but the target page closed
 after the browser process tree reached roughly 7 GB. That is a separate
 full-result retention and rendering-memory problem; this benchmark isolates the
 review computation distribution without claiming the current UI can safely
 retain all 100 full results.
 
-The next clean latency step is a durable typed cache at logical step 28
-(`sort_episodes`). It will store a versioned, checksummed Rust-owned stage value
-under the existing exact action key in OPFS. A replacement worker can then
-verify that value and resume the same Rust pipeline at step 29. This is not a
-second engine or an opaque Salsa snapshot. Until that cache passes cold-oracle,
-tamper, schema-version, and exact-invalidation tests, the numbers above remain
-the production baseline.
+These numbers include the durable Rust-owned resume points that are now in
+production code. A full run saves independently checksummed values after step
+16 (`compile_reconstruction`) and step 28 (`sort_episodes`) in the existing
+OPFS content-addressed store. A replacement worker verifies the exact input,
+options, implementation, contract, schema, compressed-object digest, and
+decoded payload before resuming at step 17 or step 29. A mismatch cannot reuse
+the value; the browser transfers the raw input and runs the ordinary Rust path.
+
+The initial full ingestion verifies the 19,018,650-byte input with SHA-256.
+Later comparisons reuse that verified identity and transfer only the selected
+Rust cache value. This removes a second raw-file copy and hash from every Arm B
+run. The remaining measured time is cache verification/decompression/decoding,
+the actually affected Rust steps, and final review-state assembly. Further work
+must profile those costs instead of adding another scheduler or cache model.
+
+## Exact-duplicate browser batch baseline
+
+The normal browser path now hashes selected files with bounded WebCrypto
+concurrency, groups files only when their SHA-256 contents are identical, runs
+one full Rust/WASM computation for each unique content digest, and gives each
+selected filename its own result record. This is content reuse, not a
+filename-based shortcut: files with different bytes still execute separately.
+
+- Captured: 2026-07-26
+- Build: production Vite bundle served by `vite preview`
+- Fixture: the 100,004-row / 19,018,650-byte fixture above, selected under 100
+  distinct browser filenames
+- Configured worker cap: eight
+- Command: `node scripts/verify-many-files.mjs <preview-url> 100 8 600000
+  <fixture> compare 0 no-plots <trace.jsonl> repeat`
+
+| Measurement | Result |
+|---|---:|
+| File selection through inspection readiness | 1.301 s |
+| Process click through 100 rendered results | 4.915 s |
+| First changed comparison through rendered bars | 0.827 s |
+| Second nearby option change through rendered bars | 0.852 s |
+| Full Rust/WASM kernel for the one unique input | 4.88 s |
+| First changed-comparison Rust/WASM kernel | 0.62 s |
+| Second-change Rust/WASM kernel | 0.35 s |
+| Peak Chromium process-tree RSS | 1,492,959,232 bytes |
+| Runtime WASM | 6,047,282 bytes (`sha256:679ece24d761bc782442978b60ca56173afce107f02975d9091a8683bdf36f4b`) |
+| Worker JavaScript | 120,971 bytes |
+| Errors / missing results | 0 / 0 |
+
+The second request changes `minimumUsageDuration` from 2 to 3 and reports
+`salsa-memory`, 17 recomputed product steps, and 27 cached steps. It is a warm
+nearby edit, not an unchanged-request benchmark. The saved review and
+reconstruction bases remain verified and
+the output correspondence, source-coordinate, lineage, and workspace-root
+artifacts are unchanged. A rejected experiment that retained OPFS base objects
+in a JavaScript memory cache produced no repeatable latency improvement and was
+removed.
+
+Although the configured cap was eight, inspection proved that all 100 files
+had the same SHA-256 content, so the batch created one processing worker. The
+previous path created all eight even though seven could never receive work; it
+also retired active workers after one file. Distinct files still use up to the
+configured, memory-safe worker count and reuse those workers until the batch
+ends.
+
+This benchmark proves the important repeated-content case without claiming
+that 100 distinct 100,000-row inputs cost the same. The independent eight-WASM
+process measurements above remain the bound for 100 unique inputs.
+
+## Current native 100,000-row full-output profile
+
+The final native release harness runs the same 55-query product runtime and
+consumes every artifact. Five Hyperfine runs after the allocation changes
+measured 4.476 s ± 0.025 s (4.448–4.509 s). The published-output digest stayed
+`sha256:022ac0c820511e341879178d6a4dcb45824e689bdd75cfe224fcecb303119f36`.
+
+The run emits 46 artifacts totaling about 150.6 MB. The largest costs are the
+31.5 MB exact result-cell correspondence, two 25.7 MB app CSVs, 17.0 MB
+visualization data, 15.3 MB review base, 13.9 MB reconstruction base, 7.4 MB
+row lineage, and 5.8 MB source-coordinate index. The final changes reuse CSV
+record buffers, read cells as bytes, reuse the already parsed selected
+timezone, and write timestamps directly into output buffers. They preserve all
+cryptographic identities and remove allocations rather than weakening the
+provenance model.
 
 ## Clean-commit native full-output profile
 

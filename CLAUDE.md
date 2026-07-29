@@ -50,6 +50,37 @@ npm run build:wasm     # rebuild the WASM packages used by the app and tests
 
 Most npm scripts wrap the real command in `node scripts/run-clean-env.mjs` to strip a polluted env.
 
+### Incremental-engine gates and evidence
+```bash
+make dependency-evidence   # regenerate implementation-bound dependency data (rebuilds the
+                           # temporary evidence WASM, then the normal fail-closed package).
+                           # REQUIRED after any pipeline_v2*.rs / step_contract.rs change —
+                           # tests fail if declared graph and observed Salsa reads drift.
+make combinatorial         # combinatorial option-influence campaigns
+make gate-truth            # execution-claim / evidence truth gate
+make mutation              # mutation testing (mutation-web + mutation-rust; long-running)
+make coverage-all          # web + rust coverage
+make profile-current       # focused performance profile of the current build
+```
+
+Incremental Rust tests run with the feature flag:
+```bash
+cargo test --locked --manifest-path rust/chronicle_chrono_kernel_wasm/Cargo.toml --features incremental-v2
+```
+
+### Benchmarks (run from `web/`)
+```bash
+npm run measure:unique-review-batch -- <dir> <workers> <case>  # 100-DISTINCT-input review benchmark with cold-oracle check
+npm run measure:review-batch       # same-raw-path batch (duplicate-content reuse only)
+npm run benchmark:many-files       # duplicate-content fixture (NOT distinct-input evidence)
+npm run benchmark:runtime-wasm     # runtime microbenchmark
+```
+**Benchmark truthfulness:** `verify-many-files.mjs`, `measure_review_batch.mjs`, and
+`benchmark_runtime_wasm.mts` reuse identical bytes/SHA-256 — they prove duplicate-content
+reuse, never the cost of distinct files. Only `measure_unique_review_batch.mjs` over files
+from `generate_benchmark_fixture.mts` with different seeds is distinct-input evidence; it
+requires unique SHA-256s, cold-oracle matches, and exact 55-step statuses.
+
 ## Architecture
 
 ### Rust (`rust/`)
@@ -66,8 +97,13 @@ Most npm scripts wrap the real command in `node scripts/run-clean-env.mjs` to st
   temporary rollback, not the warm execution path.
 - `chronicle_preprocessing_runtime_wasm` — product contract, qualification,
   execution, evidence, typed views, and verified artifact closure. Salsa state
-  is an in-worker cache only; a replacement worker recalculates from verified
-  OPFS inputs because snapshot restore was measured slower than a cold run.
+  is an in-worker cache only and an opaque Salsa database is **never**
+  serialized. What *is* persisted: typed Rust resume values around step 16 and
+  step 28 (reconstruction format v8, magic `CHRRX008`, row dispositions as
+  reuse/replacement/drop) stored in the existing OPFS content-addressed store.
+  A replacement worker verifies the saved header, object digest, options,
+  implementation, contract, schema, and row count before resuming at step 17
+  or 29; any mismatch fails closed to the normal full Rust path.
 - Generated WASM packages under `web/src/wasm/*/pkg/` are ignored build
   outputs. `npm run build` rebuilds them from the reviewed Rust sources and
   therefore requires the Rust WASM toolchain.
@@ -101,8 +137,9 @@ The (now-removed) desktop engine is consumed by the `research-pipeline` monorepo
 screen time for the TECH / GNSM studies — see the consumer-coupling warning above; the
 `polars_fast_path.py` line references below resolve at the last pre-removal ref. That consumer froze a **locked config** and, in
 2026-06, ran a per-instance audit (`analyses/chronicle-window-definition/`) that landed a
-**valid-usage-window paradigm** this engine does not yet implement. Captured here so the
-matcher's behavior and the planned change are both on the record.
+**valid-usage-window paradigm**, now implemented on this branch as the opt-in
+screen-gated crediting layer (status below). Captured here so the matcher's behavior
+and the paradigm mapping are both on the record.
 
 **Locked config (the consumer's frozen `PreprocessingOptions` for app-usage):**
 `long_duration_threshold_hours=6` (engine default is 12), `proximity_interval_seconds=2`,
@@ -128,19 +165,25 @@ stream also requires `proximity=2 s` (stock prox0 collapses PBS sessions).
   `screen_usage_auto_lock_timeout_seconds`, default 2 min) — it has **zero** app-usage
   consumers today.
 
-**Planned paradigm (decided by the researcher, NOT yet built — implement as opt-in /
-parity-safe, default no-op on the fixture):**
-1. feed Screen-Non-Interactive into the matcher as a session closer, with a **blip-bridge**
-   (an off shorter than the 2-min auto-lock followed by the same app within 2 min is
-   bridged — it cannot be an auto-lock);
-2. switch the 6 h threshold from **zero-out** to **truncate-to-6 h** (keep the first 6 h);
-3. no-true-end (runs to shutdown/death with no screen-off) → credit screen-on to the last
-   engagement, not a blanket zero.
-This makes held-open video/games count as usage (screen-on), so the n-file becomes moot
-for app-usage. Within a continuous screen-on span Chronicle cannot distinguish attentive
-watching from a left-on device (no presence signal during playback), so the 6 h cap — not
-an attention timeout — bounds the tail. See `docs/chronicle-decisions-made.md` §14 in the
-consumer repo.
+**Paradigm status: LANDED on this branch as opt-in "Screen-gated usage credit"**
+(`enable_screen_gated_crediting`, off by default; kernel entry
+`apply_screen_gated_credit_incremental` in `pipeline_v2.rs`; options in
+`web/schema/chronicle-local-contract.linkml.yaml`). The implementation credits each
+app session only for intervals where the screen was witnessed ON and the device was
+demonstrably alive, emitted as a **side-by-side "Credited App Usage" CSV** — the
+headline app-usage output is never changed. It maps to the researcher's decisions as:
+1. blip-bridge → `auto_lock_bridge_seconds` (default 120 s: a screen-OFF blip shorter
+   than the auto-lock cannot be a real lock, so credit bridges across it);
+2. truncate-not-zero → `credited_session_cap_minutes` (default 360; credit is
+   truncated at the cap from session start, never zeroed);
+3. no-true-end → `device_liveness_gap_tolerance_minutes` (default 120; a Device
+   Startup inside a silence always breaks the chain) plus the `no_witness_*`
+   fallback options for sessions with no screen witness at all.
+Held-open video/games count while the screen is lit, so the n-file is moot for
+app-usage crediting. Within a continuous screen-on span Chronicle cannot distinguish
+attentive watching from a left-on device (no presence signal during playback), so the
+credited-session cap — not an attention timeout — bounds the tail. See
+`docs/chronicle-decisions-made.md` §14 in the consumer repo for the decision record.
 
 ## Gotchas
 
@@ -148,6 +191,8 @@ consumer repo.
 - `web/src/lib/progressReducer.ts`: `applyProgressEvent` must **never** revert a terminal status (complete/error) back to running — a Comlink dual-port race otherwise sticks the UI at "Building output 100%". `progressReducer.test.ts` pins this; don't simplify the reducer.
 - App category in plots is **derived** by coalescing four per-source columns + normalizing UPPERCASE; the old `broad_app_category` input column is deprecated. The derived `include_category_column` output is opt-in and golden-checked.
 - `main` is protected (`enforce_admins`). Land via PR (squash). Merge to `main` auto-deploys the web PWA to GitHub Pages; the deploy does **not** run tests, so `make all` locally is the real gate.
+- **This branch deploys to preview only.** Development deployment goes solely to `uzaira0/chronicle-web-preview` `gh-pages`. Do not merge or push `main` or touch production Pages from `codex/chronicle-55-step-authority` until the research-pipeline consumer is repointed (see consumer-coupling warning above).
+- GitHub Pages does not provide cross-origin isolation, so shared-memory WASM threads are unavailable. File-level parallelism (independent files across workers) is the browser concurrency model.
 
 ## Conventions (from user's global rules)
 

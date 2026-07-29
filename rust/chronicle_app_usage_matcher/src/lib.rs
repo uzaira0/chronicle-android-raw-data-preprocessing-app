@@ -110,6 +110,7 @@ pub fn split_overlapping_sessions(
     let mut ps = 0usize;
     let mut pe = 0usize;
     let mut out: Vec<LayeredSession> = Vec::with_capacity(n.saturating_mul(2));
+    let mut started_now = Vec::new();
 
     let transition = |session_index: usize,
                       next_layer: UsageLayer,
@@ -162,7 +163,7 @@ pub fn split_overlapping_sessions(
             pe += 1;
         }
 
-        let mut started_now = Vec::new();
+        started_now.clear();
         while ps < n && starts[by_start[ps]] <= timestamp {
             let i = by_start[ps];
             if stops[i] > timestamp {
@@ -194,7 +195,7 @@ pub fn split_overlapping_sessions(
                 );
             }
         }
-        for index in started_now {
+        for &index in &started_now {
             active_segments[index] = Some((
                 timestamp,
                 if Some(index) == current_primary {
@@ -872,7 +873,7 @@ pub fn match_app_usage_update_indices_core(
 /// Activity-Stopped fallback lands inside the grace window, matching the
 /// product's former TypeScript implementation exactly.
 #[allow(clippy::too_many_arguments)]
-pub fn match_app_usage_update_indices_with_proximity_core(
+fn match_sorted_app_usage_update_indices_with_proximity(
     app_codes: &[i32],
     timestamp_ns: &[i64],
     resumed: &[bool],
@@ -883,31 +884,176 @@ pub fn match_app_usage_update_indices_with_proximity_core(
     options: MatchOptions,
     proximity_ns: i64,
 ) -> MatcherResult<MatchUpdateIndices> {
-    let len = validate_lengths(
-        app_codes,
-        timestamp_ns,
-        resumed,
-        same_stop,
-        other_stop,
-        stopped,
-        background,
-    )?;
-    if proximity_ns < 0 {
-        return Err(MatcherError::new("proximity_ns must be non-negative"));
-    }
-    if proximity_ns == 0 {
-        return match_app_usage_update_indices_core(
-            app_codes,
-            timestamp_ns,
-            resumed,
-            same_stop,
-            other_stop,
-            stopped,
-            background,
-            options,
-        );
+    let len = app_codes.len();
+    let max_app_code = app_codes.iter().copied().max().unwrap_or(0);
+    let app_slots = max_app_code as usize + 1;
+    let mut last_event_ns = vec![None; app_slots];
+    let mut last_was_same_stop = vec![false; app_slots];
+    let mut is_reresume = vec![false; len];
+    let mut open_starts = SparseOpenStarts::new(len, app_codes)?;
+    let mut start_indices = Vec::new();
+    let mut stop_start_indices = Vec::new();
+    let mut stop_event_indices = Vec::new();
+    let mut missing_indices = Vec::new();
+    let mut closed = Vec::new();
+    let threshold_ns = options.long_duration_threshold_ns;
+
+    for index in 0..len {
+        if let Some(stop_mode) = sparse_stop_mode(index, same_stop, other_stop, stopped, options) {
+            let current_app = app_codes[index];
+            let stop_timestamp_ns = timestamp_ns[index];
+            let enforce_threshold = sparse_stop_enforces_threshold(stop_mode, options);
+
+            if options.allow_stop_event_reuse {
+                // Sparse lists run newest-to-oldest. Buffer and reverse the
+                // matches so the public result retains the legacy order.
+                closed.clear();
+                match stop_mode {
+                    SparseStopMode::SameApp | SparseStopMode::FallbackSameApp => {
+                        open_starts.close_same_app_matches(
+                            current_app,
+                            stop_timestamp_ns,
+                            enforce_threshold,
+                            threshold_ns,
+                            timestamp_ns,
+                            |start_index| closed.push(start_index),
+                        );
+                    }
+                    SparseStopMode::OtherApp => {
+                        open_starts.close_matching_global(
+                            stop_timestamp_ns,
+                            enforce_threshold,
+                            threshold_ns,
+                            timestamp_ns,
+                            |start_index| {
+                                app_codes[start_index] != current_app && !background[start_index]
+                            },
+                            |start_index| closed.push(start_index),
+                        );
+                    }
+                    SparseStopMode::AnyApp => {
+                        open_starts.close_matching_global(
+                            stop_timestamp_ns,
+                            enforce_threshold,
+                            threshold_ns,
+                            timestamp_ns,
+                            |start_index| {
+                                app_codes[start_index] == current_app || !background[start_index]
+                            },
+                            |start_index| closed.push(start_index),
+                        );
+                    }
+                }
+                for start_index in closed.drain(..).rev() {
+                    stop_start_indices.push(start_index);
+                    stop_event_indices.push(index);
+                }
+            } else {
+                let matched_start = match stop_mode {
+                    SparseStopMode::SameApp => open_starts.latest_same_app(
+                        current_app,
+                        stop_timestamp_ns,
+                        true,
+                        threshold_ns,
+                        timestamp_ns,
+                    ),
+                    SparseStopMode::FallbackSameApp => {
+                        let candidate = open_starts.latest_same_app(
+                            current_app,
+                            stop_timestamp_ns,
+                            enforce_threshold,
+                            threshold_ns,
+                            timestamp_ns,
+                        );
+                        candidate.filter(|&start_index| {
+                            !(is_reresume[start_index]
+                                && i128::from(stop_timestamp_ns)
+                                    - i128::from(timestamp_ns[start_index])
+                                    < i128::from(proximity_ns))
+                        })
+                    }
+                    SparseStopMode::OtherApp => open_starts.latest_matching_global(
+                        stop_timestamp_ns,
+                        true,
+                        threshold_ns,
+                        timestamp_ns,
+                        |start_index| {
+                            app_codes[start_index] != current_app && !background[start_index]
+                        },
+                    ),
+                    SparseStopMode::AnyApp => open_starts.latest_matching_global(
+                        stop_timestamp_ns,
+                        true,
+                        threshold_ns,
+                        timestamp_ns,
+                        |start_index| {
+                            app_codes[start_index] == current_app || !background[start_index]
+                        },
+                    ),
+                };
+
+                if let Some(start_index) = matched_start {
+                    open_starts.close(start_index);
+                    stop_start_indices.push(start_index);
+                    stop_event_indices.push(index);
+                }
+            }
+        }
+
+        if resumed[index] {
+            let slot = app_codes[index] as usize;
+            is_reresume[index] = last_event_ns[slot].is_some_and(|last| {
+                last_was_same_stop[slot]
+                    && i128::from(timestamp_ns[index]) - i128::from(last) < i128::from(proximity_ns)
+            });
+            start_indices.push(index);
+            open_starts.open(index, app_codes[index]);
+        }
+
+        let slot = app_codes[index] as usize;
+        last_event_ns[slot] = Some(timestamp_ns[index]);
+        last_was_same_stop[slot] = same_stop[index];
     }
 
+    if len > 0 {
+        let last_index = len - 1;
+        let mut final_stops = Vec::new();
+        let mut final_missing = Vec::new();
+        open_starts.finish_open_starts(
+            last_index,
+            timestamp_ns,
+            threshold_ns,
+            |start_index, stop_index| final_stops.push((start_index, stop_index)),
+            |start_index| final_missing.push(start_index),
+        );
+        for (start_index, stop_index) in final_stops.into_iter().rev() {
+            stop_start_indices.push(start_index);
+            stop_event_indices.push(stop_index);
+        }
+        missing_indices.extend(final_missing.into_iter().rev());
+    }
+
+    Ok(MatchUpdateIndices {
+        start_indices,
+        stop_start_indices,
+        stop_event_indices,
+        missing_indices,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn match_legacy_app_usage_update_indices_with_proximity(
+    app_codes: &[i32],
+    timestamp_ns: &[i64],
+    resumed: &[bool],
+    same_stop: &[bool],
+    other_stop: &[bool],
+    stopped: &[bool],
+    background: &[bool],
+    options: MatchOptions,
+    proximity_ns: i64,
+) -> MatcherResult<MatchUpdateIndices> {
+    let len = app_codes.len();
     let max_app_code = app_codes.iter().copied().max().unwrap_or(0);
     if app_codes.iter().any(|&code| code < 0) {
         return Err(MatcherError::new(
@@ -1025,6 +1171,70 @@ pub fn match_app_usage_update_indices_with_proximity_core(
         stop_event_indices,
         missing_indices,
     })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn match_app_usage_update_indices_with_proximity_core(
+    app_codes: &[i32],
+    timestamp_ns: &[i64],
+    resumed: &[bool],
+    same_stop: &[bool],
+    other_stop: &[bool],
+    stopped: &[bool],
+    background: &[bool],
+    options: MatchOptions,
+    proximity_ns: i64,
+) -> MatcherResult<MatchUpdateIndices> {
+    validate_lengths(
+        app_codes,
+        timestamp_ns,
+        resumed,
+        same_stop,
+        other_stop,
+        stopped,
+        background,
+    )?;
+    if proximity_ns < 0 {
+        return Err(MatcherError::new("proximity_ns must be non-negative"));
+    }
+    if proximity_ns == 0 {
+        return match_app_usage_update_indices_core(
+            app_codes,
+            timestamp_ns,
+            resumed,
+            same_stop,
+            other_stop,
+            stopped,
+            background,
+            options,
+        );
+    }
+
+    if timestamp_ns.windows(2).all(|pair| pair[0] <= pair[1]) {
+        return match_sorted_app_usage_update_indices_with_proximity(
+            app_codes,
+            timestamp_ns,
+            resumed,
+            same_stop,
+            other_stop,
+            stopped,
+            background,
+            options,
+            proximity_ns,
+        );
+    }
+
+    match_legacy_app_usage_update_indices_with_proximity(
+        app_codes,
+        timestamp_ns,
+        resumed,
+        same_stop,
+        other_stop,
+        stopped,
+        background,
+        options,
+        proximity_ns,
+    )
 }
 
 #[cfg(feature = "python")]
@@ -1320,6 +1530,207 @@ mod tests {
     }
 
     #[test]
+    fn every_input_array_length_is_validated_independently() {
+        let app_codes = [1];
+        let timestamps = [0];
+        let flags = [false];
+        assert_eq!(
+            validate_lengths(
+                &app_codes,
+                &timestamps,
+                &flags,
+                &flags,
+                &flags,
+                &flags,
+                &flags,
+            ),
+            Ok(1),
+        );
+
+        for short_index in 0..6 {
+            let empty_i64: &[i64] = &[];
+            let empty_bool: &[bool] = &[];
+            let result = validate_lengths(
+                &app_codes,
+                if short_index == 0 {
+                    empty_i64
+                } else {
+                    &timestamps
+                },
+                if short_index == 1 { empty_bool } else { &flags },
+                if short_index == 2 { empty_bool } else { &flags },
+                if short_index == 3 { empty_bool } else { &flags },
+                if short_index == 4 { empty_bool } else { &flags },
+                if short_index == 5 { empty_bool } else { &flags },
+            );
+            assert!(
+                result.is_err(),
+                "input array {short_index} was not validated"
+            );
+        }
+    }
+
+    #[test]
+    fn stop_compatibility_covers_same_other_background_fallback_and_threshold_boundaries() {
+        let app_codes = [1, 2];
+        let timestamps = [10, 20];
+        let none = [false, false];
+        let stop_at_one = [false, true];
+        let foreground = [false, false];
+        let background_start = [true, false];
+        let options = MatchOptions {
+            allow_stop_event_reuse: false,
+            use_activity_stopped_as_fallback: true,
+            apply_threshold_to_fallback: true,
+            long_duration_threshold_ns: 10,
+        };
+
+        assert!(!is_compatible_open_start_for_stop(
+            1,
+            0,
+            &app_codes,
+            &timestamps,
+            &stop_at_one,
+            &none,
+            &none,
+            &foreground,
+            options,
+        ));
+        assert!(is_compatible_open_start_for_stop(
+            1,
+            0,
+            &app_codes,
+            &timestamps,
+            &none,
+            &stop_at_one,
+            &none,
+            &foreground,
+            options,
+        ));
+        assert!(!is_compatible_open_start_for_stop(
+            1,
+            0,
+            &app_codes,
+            &timestamps,
+            &none,
+            &stop_at_one,
+            &none,
+            &background_start,
+            options,
+        ));
+
+        let same_app_codes = [2, 2];
+        assert!(is_compatible_open_start_for_stop(
+            1,
+            0,
+            &same_app_codes,
+            &timestamps,
+            &stop_at_one,
+            &none,
+            &none,
+            &foreground,
+            options,
+        ));
+        assert!(is_compatible_open_start_for_stop(
+            1,
+            0,
+            &same_app_codes,
+            &timestamps,
+            &none,
+            &none,
+            &stop_at_one,
+            &foreground,
+            options,
+        ));
+        let too_late = [10, 21];
+        assert!(!is_compatible_open_start_for_stop(
+            1,
+            0,
+            &same_app_codes,
+            &too_late,
+            &none,
+            &none,
+            &stop_at_one,
+            &foreground,
+            options,
+        ));
+        let fallback_without_threshold = MatchOptions {
+            apply_threshold_to_fallback: false,
+            ..options
+        };
+        assert!(is_compatible_open_start_for_stop(
+            1,
+            0,
+            &same_app_codes,
+            &too_late,
+            &none,
+            &none,
+            &stop_at_one,
+            &foreground,
+            fallback_without_threshold,
+        ));
+        let fallback_disabled = MatchOptions {
+            use_activity_stopped_as_fallback: false,
+            ..options
+        };
+        assert!(!is_compatible_open_start_for_stop(
+            1,
+            0,
+            &same_app_codes,
+            &timestamps,
+            &none,
+            &none,
+            &stop_at_one,
+            &foreground,
+            fallback_disabled,
+        ));
+    }
+
+    #[test]
+    fn sparse_stop_classification_is_exhaustive() {
+        let off = [false];
+        let on = [true];
+        let options = MatchOptions {
+            allow_stop_event_reuse: false,
+            use_activity_stopped_as_fallback: true,
+            apply_threshold_to_fallback: false,
+            long_duration_threshold_ns: 1,
+        };
+        assert_eq!(sparse_stop_mode(0, &off, &off, &off, options), None);
+        assert_eq!(
+            sparse_stop_mode(0, &on, &off, &off, options),
+            Some(SparseStopMode::SameApp),
+        );
+        assert_eq!(
+            sparse_stop_mode(0, &off, &on, &off, options),
+            Some(SparseStopMode::OtherApp),
+        );
+        assert_eq!(
+            sparse_stop_mode(0, &on, &on, &off, options),
+            Some(SparseStopMode::AnyApp),
+        );
+        assert_eq!(
+            sparse_stop_mode(0, &off, &off, &on, options),
+            Some(SparseStopMode::FallbackSameApp),
+        );
+        assert!(!sparse_stop_enforces_threshold(
+            SparseStopMode::FallbackSameApp,
+            options,
+        ));
+        assert!(sparse_stop_enforces_threshold(
+            SparseStopMode::FallbackSameApp,
+            MatchOptions {
+                apply_threshold_to_fallback: true,
+                ..options
+            },
+        ));
+        assert!(sparse_stop_enforces_threshold(
+            SparseStopMode::SameApp,
+            options,
+        ));
+    }
+
+    #[test]
     fn proximity_ignores_intra_app_teardown_after_reresume() {
         let app_codes = [1, 1, 1, 1, 1];
         let timestamps = [0, 100, 150, 200, 1_000];
@@ -1387,6 +1798,81 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(error.to_string(), "proximity_ns must be non-negative");
+    }
+
+    #[test]
+    fn sorted_sparse_proximity_matches_the_legacy_oracle_across_random_inputs() {
+        struct Lcg(u64);
+
+        impl Lcg {
+            fn next(&mut self) -> u64 {
+                self.0 = self
+                    .0
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
+                self.0
+            }
+
+            fn flag(&mut self, one_in: u64) -> bool {
+                self.next().is_multiple_of(one_in)
+            }
+        }
+
+        let mut random = Lcg(0x4348_524f_4e49_434c);
+        for case_index in 0..2_000 {
+            let len = (random.next() % 160) as usize;
+            let mut timestamp_ns = Vec::with_capacity(len);
+            let mut timestamp = 0_i64;
+            for _ in 0..len {
+                // Includes equal timestamps and exact threshold/proximity
+                // boundaries; the optimized path only requires nondecreasing
+                // event order.
+                timestamp += (random.next() % 9) as i64;
+                timestamp_ns.push(timestamp);
+            }
+            let app_codes = (0..len)
+                .map(|_| (random.next() % 7) as i32)
+                .collect::<Vec<_>>();
+            let resumed = (0..len).map(|_| random.flag(3)).collect::<Vec<_>>();
+            let same_stop = (0..len).map(|_| random.flag(4)).collect::<Vec<_>>();
+            let other_stop = (0..len).map(|_| random.flag(5)).collect::<Vec<_>>();
+            let stopped = (0..len).map(|_| random.flag(4)).collect::<Vec<_>>();
+            let background = (0..len).map(|_| random.flag(5)).collect::<Vec<_>>();
+            let options = MatchOptions {
+                allow_stop_event_reuse: random.flag(2),
+                use_activity_stopped_as_fallback: random.flag(2),
+                apply_threshold_to_fallback: random.flag(2),
+                long_duration_threshold_ns: (random.next() % 80) as i64,
+            };
+            let proximity_ns = 1 + (random.next() % 20) as i64;
+
+            let expected = match_legacy_app_usage_update_indices_with_proximity(
+                &app_codes,
+                &timestamp_ns,
+                &resumed,
+                &same_stop,
+                &other_stop,
+                &stopped,
+                &background,
+                options,
+                proximity_ns,
+            )
+            .expect("legacy oracle should accept generated input");
+            let actual = match_sorted_app_usage_update_indices_with_proximity(
+                &app_codes,
+                &timestamp_ns,
+                &resumed,
+                &same_stop,
+                &other_stop,
+                &stopped,
+                &background,
+                options,
+                proximity_ns,
+            )
+            .expect("sorted sparse matcher should accept generated input");
+
+            assert_eq!(actual, expected, "randomized case {case_index}");
+        }
     }
 
     #[test]

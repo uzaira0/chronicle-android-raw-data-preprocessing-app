@@ -1,7 +1,9 @@
 use arrow_array::{
-    builder::{FixedSizeBinaryBuilder, Int32Builder, StringDictionaryBuilder},
+    builder::{
+        ArrayBuilder, FixedSizeBinaryBuilder, Int32Builder, StringDictionaryBuilder, UInt32Builder,
+    },
     types::Int32Type,
-    ArrayRef, DictionaryArray, RecordBatch, StringArray, UInt32Array,
+    Array, ArrayRef, DictionaryArray, RecordBatch, StringArray, UInt32Array,
 };
 use arrow_ipc::{
     writer::{DictionaryHandling, FileWriter, IpcWriteOptions},
@@ -16,12 +18,13 @@ use parquet::{
     schema::types::Type as ParquetType,
 };
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
-use std::io::Cursor;
+use std::collections::{BTreeMap, HashMap};
+use std::fmt::Write as FmtWrite;
+use std::io::{Cursor, Write};
 use std::sync::Arc;
 
-const RESULT_CELL_CORRESPONDENCE_PROTOCOL: &str = "chronicle-result-cell-correspondence/v2";
-const SOURCE_COORDINATE_PROTOCOL: &str = "chronicle-source-coordinate-index/v2";
+const RESULT_CELL_CORRESPONDENCE_PROTOCOL: &str = "chronicle-result-cell-correspondence/v4";
+const SOURCE_COORDINATE_PROTOCOL: &str = "chronicle-source-coordinate-index/v3";
 const ROW_LINEAGE_PROTOCOL: &str = "chronicle-row-lineage/v2";
 
 struct RunCachedStringDictionaryBuilder {
@@ -32,17 +35,22 @@ struct RunCachedStringDictionaryBuilder {
 }
 
 impl RunCachedStringDictionaryBuilder {
+    #[cfg(test)]
     fn new() -> Self {
+        Self::with_capacity(1_024, 16)
+    }
+
+    fn with_capacity(key_capacity: usize, distinct_capacity: usize) -> Self {
         Self {
-            keys: Int32Builder::new(),
-            values: Vec::new(),
-            lookup: HashMap::new(),
+            keys: Int32Builder::with_capacity(key_capacity),
+            values: Vec::with_capacity(distinct_capacity),
+            lookup: HashMap::with_capacity(distinct_capacity),
             last: None,
         }
     }
 
-    fn with_dictionary(values: &StringArray) -> Result<Self, String> {
-        let mut builder = Self::new();
+    fn with_dictionary(values: &StringArray, key_capacity: usize) -> Result<Self, String> {
+        let mut builder = Self::with_capacity(key_capacity, values.len());
         for value in values.iter() {
             let value = value.ok_or_else(|| {
                 "string dictionary values must not contain null entries".to_string()
@@ -116,32 +124,51 @@ struct SourceCoordinateBuilders {
     coordinate_media_type: RunCachedStringDictionaryBuilder,
     normalization: RunCachedStringDictionaryBuilder,
     address_kind: RunCachedStringDictionaryBuilder,
-    source_record_index: Vec<Option<u32>>,
+    source_record_index: UInt32Builder,
     selector: StringDictionaryBuilder<Int32Type>,
     value_digest: FixedSizeBinaryBuilder,
-    coordinate_id: FixedSizeBinaryBuilder,
 }
 
 impl SourceCoordinateBuilders {
     fn new() -> Self {
         Self {
-            role_id: RunCachedStringDictionaryBuilder::new(),
-            source_artifact_digest: RunCachedStringDictionaryBuilder::new(),
-            source_media_type: RunCachedStringDictionaryBuilder::new(),
-            coordinate_media_type: RunCachedStringDictionaryBuilder::new(),
-            normalization: RunCachedStringDictionaryBuilder::new(),
-            address_kind: RunCachedStringDictionaryBuilder::new(),
-            source_record_index: Vec::new(),
-            selector: StringDictionaryBuilder::new(),
-            value_digest: FixedSizeBinaryBuilder::new(32),
-            coordinate_id: FixedSizeBinaryBuilder::new(32),
+            role_id: RunCachedStringDictionaryBuilder::with_capacity(
+                SOURCE_COORDINATE_BATCH_ROWS,
+                8,
+            ),
+            source_artifact_digest: RunCachedStringDictionaryBuilder::with_capacity(
+                SOURCE_COORDINATE_BATCH_ROWS,
+                8,
+            ),
+            source_media_type: RunCachedStringDictionaryBuilder::with_capacity(
+                SOURCE_COORDINATE_BATCH_ROWS,
+                8,
+            ),
+            coordinate_media_type: RunCachedStringDictionaryBuilder::with_capacity(
+                SOURCE_COORDINATE_BATCH_ROWS,
+                8,
+            ),
+            normalization: RunCachedStringDictionaryBuilder::with_capacity(
+                SOURCE_COORDINATE_BATCH_ROWS,
+                8,
+            ),
+            address_kind: RunCachedStringDictionaryBuilder::with_capacity(
+                SOURCE_COORDINATE_BATCH_ROWS,
+                8,
+            ),
+            source_record_index: UInt32Builder::with_capacity(SOURCE_COORDINATE_BATCH_ROWS),
+            selector: StringDictionaryBuilder::with_capacity(
+                SOURCE_COORDINATE_BATCH_ROWS,
+                256,
+                16_384,
+            ),
+            value_digest: FixedSizeBinaryBuilder::with_capacity(SOURCE_COORDINATE_BATCH_ROWS, 32),
         }
     }
 
     fn append(
         &mut self,
         source: &CanonicalSource<'_>,
-        coordinate_prefix: &Sha256,
         address_kind: &'static str,
         source_record_index: Option<u32>,
         selector: &str,
@@ -150,7 +177,6 @@ impl SourceCoordinateBuilders {
         let value_digest = sha256_array(value_bytes);
         self.append_with_value_digest(
             source,
-            coordinate_prefix,
             address_kind,
             source_record_index,
             selector,
@@ -161,19 +187,11 @@ impl SourceCoordinateBuilders {
     fn append_with_value_digest(
         &mut self,
         source: &CanonicalSource<'_>,
-        coordinate_prefix: &Sha256,
         address_kind: &'static str,
         source_record_index: Option<u32>,
         selector: &str,
         value_digest: [u8; 32],
     ) -> Result<(), String> {
-        let coordinate_id = source_coordinate_id(
-            coordinate_prefix,
-            address_kind,
-            source_record_index,
-            selector,
-            &value_digest,
-        );
         self.role_id
             .append(source.role_id)
             .map_err(|error| error.to_string())?;
@@ -192,15 +210,16 @@ impl SourceCoordinateBuilders {
         self.address_kind
             .append(address_kind)
             .map_err(|error| error.to_string())?;
-        self.source_record_index.push(source_record_index);
+        if let Some(source_record_index) = source_record_index {
+            self.source_record_index.append_value(source_record_index);
+        } else {
+            self.source_record_index.append_null();
+        }
         self.selector
             .append(selector)
             .map_err(|error| error.to_string())?;
         self.value_digest
             .append_value(value_digest)
-            .map_err(|error| error.to_string())?;
-        self.coordinate_id
-            .append_value(coordinate_id)
             .map_err(|error| error.to_string())?;
         Ok(())
     }
@@ -210,8 +229,9 @@ impl SourceCoordinateBuilders {
     }
 
     fn with_dictionaries(dictionaries: &SourceCoordinateDictionaries) -> Result<Self, String> {
-        let dictionary =
-            |values: &StringArray| RunCachedStringDictionaryBuilder::with_dictionary(values);
+        let dictionary = |values: &StringArray| {
+            RunCachedStringDictionaryBuilder::with_dictionary(values, SOURCE_COORDINATE_BATCH_ROWS)
+        };
         Ok(Self {
             role_id: dictionary(&dictionaries.role_id)?,
             source_artifact_digest: dictionary(&dictionaries.source_artifact_digest)?,
@@ -219,16 +239,17 @@ impl SourceCoordinateBuilders {
             coordinate_media_type: dictionary(&dictionaries.coordinate_media_type)?,
             normalization: dictionary(&dictionaries.normalization)?,
             address_kind: dictionary(&dictionaries.address_kind)?,
-            source_record_index: Vec::new(),
-            selector: StringDictionaryBuilder::new_with_dictionary(0, &dictionaries.selector)
-                .map_err(|error| error.to_string())?,
-            value_digest: FixedSizeBinaryBuilder::new(32),
-            coordinate_id: FixedSizeBinaryBuilder::new(32),
+            source_record_index: UInt32Builder::with_capacity(SOURCE_COORDINATE_BATCH_ROWS),
+            selector: StringDictionaryBuilder::new_with_dictionary(
+                SOURCE_COORDINATE_BATCH_ROWS,
+                &dictionaries.selector,
+            )
+            .map_err(|error| error.to_string())?,
+            value_digest: FixedSizeBinaryBuilder::with_capacity(SOURCE_COORDINATE_BATCH_ROWS, 32),
         })
     }
 
     fn finish(mut self, schema: Arc<Schema>) -> Result<RecordBatch, String> {
-        let source_record_index = UInt32Array::from(self.source_record_index);
         let arrays: Vec<ArrayRef> = vec![
             Arc::new(self.role_id.finish()?),
             Arc::new(self.source_artifact_digest.finish()?),
@@ -236,10 +257,9 @@ impl SourceCoordinateBuilders {
             Arc::new(self.coordinate_media_type.finish()?),
             Arc::new(self.normalization.finish()?),
             Arc::new(self.address_kind.finish()?),
-            Arc::new(source_record_index),
+            Arc::new(self.source_record_index.finish()),
             Arc::new(self.selector.finish()),
             Arc::new(self.value_digest.finish()),
-            Arc::new(self.coordinate_id.finish()),
         ];
         RecordBatch::try_new(schema, arrays)
             .map_err(|error| format!("build source coordinate Arrow batch: {error}"))
@@ -296,6 +316,10 @@ fn source_coordinate_schema() -> Arc<Schema> {
         "recordBatchRows".into(),
         SOURCE_COORDINATE_BATCH_ROWS.to_string(),
     );
+    metadata.insert(
+        "coordinateIdentityDerivation".into(),
+        "sha256(length-prefixed protocolVersion, role_id, source_artifact_digest, source_media_type, coordinate_media_type, normalization, address_kind, selector; optional record index marker and little-endian u32; value_sha256)".into(),
+    );
     Arc::new(Schema::new_with_metadata(
         vec![
             Field::new("role_id", dictionary_type(), false),
@@ -307,7 +331,6 @@ fn source_coordinate_schema() -> Arc<Schema> {
             Field::new("source_record_index", DataType::UInt32, true),
             Field::new("selector", dictionary_type(), false),
             Field::new("value_sha256", DataType::FixedSizeBinary(32), false),
-            Field::new("coordinate_sha256", DataType::FixedSizeBinary(32), false),
         ],
         metadata,
     ))
@@ -341,7 +364,6 @@ impl SourceCoordinateBatchWriter {
     fn append(
         &mut self,
         source: &CanonicalSource<'_>,
-        coordinate_prefix: &Sha256,
         address_kind: &'static str,
         source_record_index: Option<u32>,
         selector: &str,
@@ -349,7 +371,6 @@ impl SourceCoordinateBatchWriter {
     ) -> Result<(), String> {
         self.builders.append(
             source,
-            coordinate_prefix,
             address_kind,
             source_record_index,
             selector,
@@ -368,7 +389,6 @@ impl SourceCoordinateBatchWriter {
     fn append_with_value_digest(
         &mut self,
         source: &CanonicalSource<'_>,
-        coordinate_prefix: &Sha256,
         address_kind: &'static str,
         source_record_index: Option<u32>,
         selector: &str,
@@ -376,7 +396,6 @@ impl SourceCoordinateBatchWriter {
     ) -> Result<(), String> {
         self.builders.append_with_value_digest(
             source,
-            coordinate_prefix,
             address_kind,
             source_record_index,
             selector,
@@ -415,6 +434,7 @@ impl SourceCoordinateBatchWriter {
     }
 }
 
+#[cfg(test)]
 fn source_coordinate_prefix(source: &CanonicalSource<'_>) -> Sha256 {
     let mut hasher = Sha256::new();
     for field in [
@@ -431,6 +451,7 @@ fn source_coordinate_prefix(source: &CanonicalSource<'_>) -> Sha256 {
     hasher
 }
 
+#[cfg(test)]
 fn source_coordinate_id(
     coordinate_prefix: &Sha256,
     address_kind: &str,
@@ -457,45 +478,48 @@ fn source_coordinate_id(
 fn append_source_json_coordinates(
     builders: &mut SourceCoordinateBatchWriter,
     source: &CanonicalSource<'_>,
-    coordinate_prefix: &Sha256,
-    path: &str,
+    path: &mut String,
     value: &serde_json::Value,
 ) -> Result<(), String> {
     match value {
         serde_json::Value::Array(values) => {
             if values.is_empty() {
-                builders.append(source, coordinate_prefix, "json-leaf", None, path, b"[]")?;
+                builders.append_with_value_digest(
+                    source,
+                    "json-leaf",
+                    None,
+                    path,
+                    sha256_array(b"[]"),
+                )?;
             }
             for (index, value) in values.iter().enumerate() {
-                append_source_json_coordinates(
-                    builders,
-                    source,
-                    coordinate_prefix,
-                    &format!("{path}/{index}"),
-                    value,
-                )?;
+                let previous_len = path.len();
+                write!(path, "/{index}").expect("writing to String cannot fail");
+                append_source_json_coordinates(builders, source, path, value)?;
+                path.truncate(previous_len);
             }
         }
         serde_json::Value::Object(values) => {
             if values.is_empty() {
-                builders.append(source, coordinate_prefix, "json-leaf", None, path, b"{}")?;
-            }
-            let mut keys = values.keys().collect::<Vec<_>>();
-            keys.sort();
-            for key in keys {
-                append_source_json_coordinates(
-                    builders,
+                builders.append_with_value_digest(
                     source,
-                    coordinate_prefix,
-                    &format!("{path}/{}", json_pointer_escape(key)),
-                    &values[key],
+                    "json-leaf",
+                    None,
+                    path,
+                    sha256_array(b"{}"),
                 )?;
+            }
+            for (key, value) in values {
+                let previous_len = path.len();
+                push_json_pointer_segment(path, key);
+                append_source_json_coordinates(builders, source, path, value)?;
+                path.truncate(previous_len);
             }
         }
         _ => {
-            let encoded = serde_jcs::to_vec(value)
+            let value_digest = canonical_json_value_digest(value)
                 .map_err(|error| format!("canonicalize source JSON coordinate {path}: {error}"))?;
-            builders.append(source, coordinate_prefix, "json-leaf", None, path, &encoded)?;
+            builders.append_with_value_digest(source, "json-leaf", None, path, value_digest)?;
         }
     }
     Ok(())
@@ -505,7 +529,8 @@ fn append_source_csv_coordinates(
     builders: &mut SourceCoordinateBatchWriter,
     source: &CanonicalSource<'_>,
 ) -> Result<(), String> {
-    let coordinate_prefix = source_coordinate_prefix(source);
+    std::str::from_utf8(source.bytes)
+        .map_err(|error| format!("read {} source CSV as UTF-8: {error}", source.role_id))?;
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .from_reader(source.bytes);
@@ -519,30 +544,32 @@ fn append_source_csv_coordinates(
         .map(|_| BoundedValueDigestCache::default())
         .collect::<Vec<_>>();
     let mut row_count = 0_u32;
-    for (zero_based_index, row) in reader.records().enumerate() {
-        let row =
-            row.map_err(|error| format!("read {} source CSV row: {error}", source.role_id))?;
+    let mut row = csv::ByteRecord::new();
+    let mut zero_based_index = 0_usize;
+    while reader
+        .read_byte_record(&mut row)
+        .map_err(|error| format!("read {} source CSV row: {error}", source.role_id))?
+    {
         let source_record_index = u32::try_from(zero_based_index + 1)
             .map_err(|_| format!("{} source row index exceeds u32", source.role_id))?;
         row_count = source_record_index;
         for (sorted_index, (column_index, column)) in sorted_columns.iter().enumerate() {
-            let value_bytes = row.get(*column_index).unwrap_or_default().as_bytes();
+            let value_bytes = row.get(*column_index).unwrap_or_default();
             builders.append_with_value_digest(
                 source,
-                &coordinate_prefix,
                 "csv-cell",
                 Some(source_record_index),
                 column,
                 value_digest_caches[sorted_index].digest(value_bytes),
             )?;
         }
+        zero_based_index += 1;
     }
     let header_values = headers.iter().collect::<Vec<_>>();
     let encoded_headers = serde_jcs::to_vec(&header_values)
         .map_err(|error| format!("canonicalize {} source columns: {error}", source.role_id))?;
     builders.append(
         source,
-        &coordinate_prefix,
         "csv-shape",
         None,
         "/shape/columns",
@@ -550,7 +577,6 @@ fn append_source_csv_coordinates(
     )?;
     builders.append(
         source,
-        &coordinate_prefix,
         "csv-shape",
         None,
         "/shape/rows",
@@ -562,50 +588,57 @@ fn append_source_csv_coordinates(
 struct ResultCellBuilders {
     output_kind: RunCachedStringDictionaryBuilder,
     address_kind: RunCachedStringDictionaryBuilder,
-    output_row_index: Vec<Option<u32>>,
+    output_row_index: UInt32Builder,
     selector: StringDictionaryBuilder<Int32Type>,
     cell_value_digest: FixedSizeBinaryBuilder,
     terminal_logical_node: RunCachedStringDictionaryBuilder,
     row_lineage_output_kind: RunCachedStringDictionaryBuilder,
-    row_lineage_row_index: Vec<Option<u32>>,
-    row_correspondence_precision: RunCachedStringDictionaryBuilder,
-    semantic_dependency_precision: RunCachedStringDictionaryBuilder,
-    dependency_spec_digest: FixedSizeBinaryBuilder,
+    row_lineage_row_index: UInt32Builder,
 }
 
 impl ResultCellBuilders {
     fn new() -> Self {
         Self {
-            output_kind: RunCachedStringDictionaryBuilder::new(),
-            address_kind: RunCachedStringDictionaryBuilder::new(),
-            output_row_index: Vec::new(),
-            selector: StringDictionaryBuilder::new(),
-            cell_value_digest: FixedSizeBinaryBuilder::new(32),
-            terminal_logical_node: RunCachedStringDictionaryBuilder::new(),
-            row_lineage_output_kind: RunCachedStringDictionaryBuilder::new(),
-            row_lineage_row_index: Vec::new(),
-            row_correspondence_precision: RunCachedStringDictionaryBuilder::new(),
-            semantic_dependency_precision: RunCachedStringDictionaryBuilder::new(),
-            dependency_spec_digest: FixedSizeBinaryBuilder::new(32),
+            output_kind: RunCachedStringDictionaryBuilder::with_capacity(
+                RESULT_CELL_BATCH_ROWS,
+                16,
+            ),
+            address_kind: RunCachedStringDictionaryBuilder::with_capacity(
+                RESULT_CELL_BATCH_ROWS,
+                8,
+            ),
+            output_row_index: UInt32Builder::with_capacity(RESULT_CELL_BATCH_ROWS),
+            selector: StringDictionaryBuilder::with_capacity(RESULT_CELL_BATCH_ROWS, 256, 16_384),
+            cell_value_digest: FixedSizeBinaryBuilder::with_capacity(RESULT_CELL_BATCH_ROWS, 32),
+            terminal_logical_node: RunCachedStringDictionaryBuilder::with_capacity(
+                RESULT_CELL_BATCH_ROWS,
+                16,
+            ),
+            row_lineage_output_kind: RunCachedStringDictionaryBuilder::with_capacity(
+                RESULT_CELL_BATCH_ROWS,
+                16,
+            ),
+            row_lineage_row_index: UInt32Builder::with_capacity(RESULT_CELL_BATCH_ROWS),
         }
     }
 
     fn with_dictionaries(dictionaries: &ResultCellDictionaries) -> Result<Self, String> {
-        let dictionary =
-            |values: &StringArray| RunCachedStringDictionaryBuilder::with_dictionary(values);
+        let dictionary = |values: &StringArray| {
+            RunCachedStringDictionaryBuilder::with_dictionary(values, RESULT_CELL_BATCH_ROWS)
+        };
         Ok(Self {
             output_kind: dictionary(&dictionaries.output_kind)?,
             address_kind: dictionary(&dictionaries.address_kind)?,
-            output_row_index: Vec::new(),
-            selector: StringDictionaryBuilder::new_with_dictionary(0, &dictionaries.selector)
-                .map_err(|error| error.to_string())?,
-            cell_value_digest: FixedSizeBinaryBuilder::new(32),
+            output_row_index: UInt32Builder::with_capacity(RESULT_CELL_BATCH_ROWS),
+            selector: StringDictionaryBuilder::new_with_dictionary(
+                RESULT_CELL_BATCH_ROWS,
+                &dictionaries.selector,
+            )
+            .map_err(|error| error.to_string())?,
+            cell_value_digest: FixedSizeBinaryBuilder::with_capacity(RESULT_CELL_BATCH_ROWS, 32),
             terminal_logical_node: dictionary(&dictionaries.terminal_logical_node)?,
             row_lineage_output_kind: dictionary(&dictionaries.row_lineage_output_kind)?,
-            row_lineage_row_index: Vec::new(),
-            row_correspondence_precision: dictionary(&dictionaries.row_correspondence_precision)?,
-            semantic_dependency_precision: dictionary(&dictionaries.semantic_dependency_precision)?,
-            dependency_spec_digest: FixedSizeBinaryBuilder::new(32),
+            row_lineage_row_index: UInt32Builder::with_capacity(RESULT_CELL_BATCH_ROWS),
         })
     }
 
@@ -614,20 +647,15 @@ impl ResultCellBuilders {
     }
 
     fn finish(mut self, schema: Arc<Schema>) -> Result<RecordBatch, String> {
-        let output_row_index = UInt32Array::from(self.output_row_index);
-        let row_lineage_row_index = UInt32Array::from(self.row_lineage_row_index);
         let arrays: Vec<ArrayRef> = vec![
             Arc::new(self.output_kind.finish()?),
             Arc::new(self.address_kind.finish()?),
-            Arc::new(output_row_index),
+            Arc::new(self.output_row_index.finish()),
             Arc::new(self.selector.finish()),
             Arc::new(self.cell_value_digest.finish()),
             Arc::new(self.terminal_logical_node.finish()?),
             Arc::new(self.row_lineage_output_kind.finish()?),
-            Arc::new(row_lineage_row_index),
-            Arc::new(self.row_correspondence_precision.finish()?),
-            Arc::new(self.semantic_dependency_precision.finish()?),
-            Arc::new(self.dependency_spec_digest.finish()),
+            Arc::new(self.row_lineage_row_index.finish()),
         ];
         RecordBatch::try_new(schema, arrays)
             .map_err(|error| format!("build result-cell correspondence Arrow batch: {error}"))
@@ -640,8 +668,6 @@ struct ResultCellDictionaries {
     selector: StringArray,
     terminal_logical_node: StringArray,
     row_lineage_output_kind: StringArray,
-    row_correspondence_precision: StringArray,
-    semantic_dependency_precision: StringArray,
 }
 
 impl ResultCellDictionaries {
@@ -663,8 +689,6 @@ impl ResultCellDictionaries {
             selector: values(3)?,
             terminal_logical_node: values(5)?,
             row_lineage_output_kind: values(6)?,
-            row_correspondence_precision: values(8)?,
-            semantic_dependency_precision: values(9)?,
         })
     }
 }
@@ -679,10 +703,23 @@ fn result_cell_schema() -> Arc<Schema> {
     );
     metadata.insert(
         "claimBoundary".into(),
-        "Exact canonical CSV/JSON cell coordinates and value digests; exact joins to output-row lineage keys; raw-row contributors remain conservative and semantic dependencies remain declared-transitive.".into(),
+        "Exact canonical tabular cell coordinates and value digests; exact joins to output-row lineage keys; raw-row contributors remain conservative and semantic dependencies remain declared-transitive.".into(),
     );
     metadata.insert("recordBatchCompression".into(), "lz4-frame".into());
     metadata.insert("recordBatchRows".into(), RESULT_CELL_BATCH_ROWS.to_string());
+    metadata.insert(
+        "dependencyIdentityDerivation".into(),
+        "sha256(length-prefixed protocolVersion, output_kind, selector, terminal_logical_node)"
+            .into(),
+    );
+    metadata.insert(
+        "rowCorrespondencePrecisionDerivation".into(),
+        "row_lineage_output_kind and row_lineage_row_index present => conservative; otherwise output_row_index present => unresolved; otherwise not-applicable".into(),
+    );
+    metadata.insert(
+        "semanticDependencyPrecision".into(),
+        "declared-transitive".into(),
+    );
     Arc::new(Schema::new_with_metadata(
         vec![
             Field::new("output_kind", dictionary_type(), false),
@@ -693,13 +730,6 @@ fn result_cell_schema() -> Arc<Schema> {
             Field::new("terminal_logical_node", dictionary_type(), false),
             Field::new("row_lineage_output_kind", dictionary_type(), true),
             Field::new("row_lineage_row_index", DataType::UInt32, true),
-            Field::new("row_correspondence_precision", dictionary_type(), false),
-            Field::new("semantic_dependency_precision", dictionary_type(), false),
-            Field::new(
-                "dependency_spec_sha256",
-                DataType::FixedSizeBinary(32),
-                false,
-            ),
         ],
         metadata,
     ))
@@ -768,6 +798,26 @@ fn sha256_array(bytes: &[u8]) -> [u8; 32] {
     Sha256::digest(bytes).into()
 }
 
+struct Sha256Writer<'a>(&'a mut Sha256);
+
+impl Write for Sha256Writer<'_> {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.update(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn canonical_json_value_digest(value: &serde_json::Value) -> Result<[u8; 32], String> {
+    let mut digest = Sha256::new();
+    serde_jcs::to_writer(Sha256Writer(&mut digest), value)
+        .map_err(|error| format!("canonicalize JSON value: {error}"))?;
+    Ok(digest.finalize().into())
+}
+
 const VALUE_DIGEST_CACHE_MAX_ENTRIES: usize = 256;
 
 struct BoundedValueDigestCache {
@@ -800,6 +850,7 @@ impl BoundedValueDigestCache {
     }
 }
 
+#[cfg(test)]
 fn dependency_spec_prefix(output_kind: &str) -> Sha256 {
     let mut hasher = Sha256::new();
     for field in [RESULT_CELL_CORRESPONDENCE_PROTOCOL, output_kind] {
@@ -809,6 +860,7 @@ fn dependency_spec_prefix(output_kind: &str) -> Sha256 {
     hasher
 }
 
+#[cfg(test)]
 fn dependency_spec_digest_from_prefix(
     prefix: &Sha256,
     selector: &str,
@@ -822,6 +874,7 @@ fn dependency_spec_digest_from_prefix(
     hasher.finalize().into()
 }
 
+#[cfg(test)]
 fn dependency_spec_digest(output_kind: &str, selector: &str, terminal_node: &str) -> [u8; 32] {
     dependency_spec_digest_from_prefix(
         &dependency_spec_prefix(output_kind),
@@ -837,7 +890,6 @@ struct ResultCellInput<'a> {
     value_bytes: &'a [u8],
     cached_value_digest: Option<[u8; 32]>,
     row_lineage: Option<&'a PipelineRowLineage>,
-    cached_dependency_spec_digest: Option<[u8; 32]>,
 }
 
 fn push_cell(
@@ -853,15 +905,7 @@ fn push_cell(
         value_bytes,
         cached_value_digest,
         row_lineage,
-        cached_dependency_spec_digest,
     } = input;
-    let row_correspondence_precision = if row_lineage.is_some() {
-        "conservative"
-    } else if output_row_index.is_some() {
-        "unresolved"
-    } else {
-        "not-applicable"
-    };
     builders
         .output_kind
         .append(output.kind)
@@ -870,7 +914,11 @@ fn push_cell(
         .address_kind
         .append(address_kind)
         .map_err(|error| error.to_string())?;
-    builders.output_row_index.push(output_row_index);
+    if let Some(output_row_index) = output_row_index {
+        builders.output_row_index.append_value(output_row_index);
+    } else {
+        builders.output_row_index.append_null();
+    }
     builders
         .selector
         .append(selector)
@@ -890,37 +938,37 @@ fn push_cell(
             .map_err(|error| error.to_string())?;
         builders
             .row_lineage_row_index
-            .push(Some(lineage.output_row_index));
+            .append_value(lineage.output_row_index);
     } else {
         builders.row_lineage_output_kind.append_null();
-        builders.row_lineage_row_index.push(None);
+        builders.row_lineage_row_index.append_null();
     }
-    builders
-        .row_correspondence_precision
-        .append(row_correspondence_precision)
-        .map_err(|error| error.to_string())?;
-    builders
-        .semantic_dependency_precision
-        .append("declared-transitive")
-        .map_err(|error| error.to_string())?;
-    builders
-        .dependency_spec_digest
-        .append_value(cached_dependency_spec_digest.unwrap_or_else(|| {
-            dependency_spec_digest(output.kind, selector, output.terminal_logical_node)
-        }))
-        .map_err(|error| error.to_string())?;
     batch_writer.finish_row()
 }
 
+#[cfg(test)]
 fn json_pointer_escape(value: &str) -> String {
-    value.replace('~', "~0").replace('/', "~1")
+    let mut escaped = String::new();
+    push_json_pointer_segment(&mut escaped, value);
+    escaped.remove(0);
+    escaped
+}
+
+fn push_json_pointer_segment(path: &mut String, value: &str) {
+    path.push('/');
+    for character in value.chars() {
+        match character {
+            '~' => path.push_str("~0"),
+            '/' => path.push_str("~1"),
+            other => path.push(other),
+        }
+    }
 }
 
 fn append_json_cells(
     batch_writer: &mut ResultCellBatchWriter,
     output: &CanonicalOutput<'_>,
-    dependency_prefix: &Sha256,
-    path: &str,
+    path: &mut String,
     value: &serde_json::Value,
 ) -> Result<(), String> {
     match value {
@@ -934,24 +982,16 @@ fn append_json_cells(
                         output_row_index: None,
                         selector: path,
                         value_bytes: b"[]",
-                        cached_value_digest: None,
+                        cached_value_digest: Some(sha256_array(b"[]")),
                         row_lineage: None,
-                        cached_dependency_spec_digest: Some(dependency_spec_digest_from_prefix(
-                            dependency_prefix,
-                            path,
-                            output.terminal_logical_node,
-                        )),
                     },
                 )?;
             }
             for (index, value) in values.iter().enumerate() {
-                append_json_cells(
-                    batch_writer,
-                    output,
-                    dependency_prefix,
-                    &format!("{path}/{index}"),
-                    value,
-                )?;
+                let previous_len = path.len();
+                write!(path, "/{index}").expect("writing to String cannot fail");
+                append_json_cells(batch_writer, output, path, value)?;
+                path.truncate(previous_len);
             }
         }
         serde_json::Value::Object(values) => {
@@ -964,30 +1004,20 @@ fn append_json_cells(
                         output_row_index: None,
                         selector: path,
                         value_bytes: b"{}",
-                        cached_value_digest: None,
+                        cached_value_digest: Some(sha256_array(b"{}")),
                         row_lineage: None,
-                        cached_dependency_spec_digest: Some(dependency_spec_digest_from_prefix(
-                            dependency_prefix,
-                            path,
-                            output.terminal_logical_node,
-                        )),
                     },
                 )?;
             }
-            let mut keys = values.keys().collect::<Vec<_>>();
-            keys.sort();
-            for key in keys {
-                append_json_cells(
-                    batch_writer,
-                    output,
-                    dependency_prefix,
-                    &format!("{path}/{}", json_pointer_escape(key)),
-                    &values[key],
-                )?;
+            for (key, value) in values {
+                let previous_len = path.len();
+                push_json_pointer_segment(path, key);
+                append_json_cells(batch_writer, output, path, value)?;
+                path.truncate(previous_len);
             }
         }
         _ => {
-            let encoded = serde_jcs::to_vec(value)
+            let value_digest = canonical_json_value_digest(value)
                 .map_err(|error| format!("canonicalize JSON result cell {path}: {error}"))?;
             push_cell(
                 batch_writer,
@@ -996,14 +1026,9 @@ fn append_json_cells(
                     address_kind: "json-leaf",
                     output_row_index: None,
                     selector: path,
-                    value_bytes: &encoded,
-                    cached_value_digest: None,
+                    value_bytes: &[],
+                    cached_value_digest: Some(value_digest),
                     row_lineage: None,
-                    cached_dependency_spec_digest: Some(dependency_spec_digest_from_prefix(
-                        dependency_prefix,
-                        path,
-                        output.terminal_logical_node,
-                    )),
                 },
             )?;
         }
@@ -1014,9 +1039,10 @@ fn append_json_cells(
 fn append_csv_cells(
     batch_writer: &mut ResultCellBatchWriter,
     output: &CanonicalOutput<'_>,
-    lineages: &HashMap<(&str, u32), &PipelineRowLineage>,
+    lineages: Option<&[Option<&PipelineRowLineage>]>,
 ) -> Result<(), String> {
-    let dependency_prefix = dependency_spec_prefix(output.kind);
+    std::str::from_utf8(output.bytes)
+        .map_err(|error| format!("read {} result CSV as UTF-8: {error}", output.kind))?;
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .from_reader(output.bytes);
@@ -1026,32 +1052,25 @@ fn append_csv_cells(
         .clone();
     let mut sorted_columns = headers.iter().enumerate().collect::<Vec<_>>();
     sorted_columns.sort_by_key(|(_, column)| *column);
-    let column_dependency_digests = sorted_columns
-        .iter()
-        .map(|(_, column)| {
-            dependency_spec_digest_from_prefix(
-                &dependency_prefix,
-                column,
-                output.terminal_logical_node,
-            )
-        })
-        .collect::<Vec<_>>();
     let mut value_digest_caches = (0..sorted_columns.len())
         .map(|_| BoundedValueDigestCache::default())
         .collect::<Vec<_>>();
     let mut row_count = 0_u32;
-    for (row_index, row) in reader.records().enumerate() {
-        let row = row.map_err(|error| format!("read {} result CSV row: {error}", output.kind))?;
-        let row_index = u32::try_from(row_index)
+    let mut row = csv::ByteRecord::new();
+    let mut next_row_index = 0_usize;
+    while reader
+        .read_byte_record(&mut row)
+        .map_err(|error| format!("read {} result CSV row: {error}", output.kind))?
+    {
+        let row_index = u32::try_from(next_row_index)
             .map_err(|_| format!("{} row index exceeds u32", output.kind))?;
         row_count = row_index.saturating_add(1);
-        let lineage = lineages.get(&(output.kind, row_index)).copied();
-        for (sorted_index, ((column_index, column), dependency_digest)) in sorted_columns
-            .iter()
-            .zip(&column_dependency_digests)
-            .enumerate()
-        {
-            let value_bytes = row.get(*column_index).unwrap_or_default().as_bytes();
+        let lineage = lineages
+            .and_then(|rows| rows.get(row_index as usize))
+            .copied()
+            .flatten();
+        for (sorted_index, (column_index, column)) in sorted_columns.iter().enumerate() {
+            let value_bytes = row.get(*column_index).unwrap_or_default();
             push_cell(
                 batch_writer,
                 output,
@@ -1064,10 +1083,10 @@ fn append_csv_cells(
                         value_digest_caches[sorted_index].digest(value_bytes),
                     ),
                     row_lineage: lineage,
-                    cached_dependency_spec_digest: Some(*dependency_digest),
                 },
             )?;
         }
+        next_row_index += 1;
     }
     push_cell(
         batch_writer,
@@ -1079,7 +1098,6 @@ fn append_csv_cells(
             value_bytes: row_count.to_string().as_bytes(),
             cached_value_digest: None,
             row_lineage: None,
-            cached_dependency_spec_digest: None,
         },
     )?;
     let header_values = headers.iter().collect::<Vec<_>>();
@@ -1095,7 +1113,6 @@ fn append_csv_cells(
             value_bytes: &columns,
             cached_value_digest: None,
             row_lineage: None,
-            cached_dependency_spec_digest: None,
         },
     )?;
     Ok(())
@@ -1124,12 +1141,10 @@ pub fn source_coordinate_index_arrow(
                     serde_json::from_slice(source.bytes).map_err(|error| {
                         format!("parse {} source JSON coordinates: {error}", source.role_id)
                     })?;
-                let coordinate_prefix = source_coordinate_prefix(source);
                 append_source_json_coordinates(
                     &mut batch_writer,
                     source,
-                    &coordinate_prefix,
-                    "",
+                    &mut String::new(),
                     &value,
                 )?;
             }
@@ -1154,26 +1169,34 @@ pub fn result_cell_correspondence_arrow(
     outputs: &[CanonicalOutput<'_>],
     row_lineages: &[PipelineRowLineage],
 ) -> Result<(Vec<u8>, u32), String> {
-    let lineages = row_lineages
-        .iter()
-        .map(|lineage| {
-            (
-                (lineage.output_kind.as_str(), lineage.output_row_index),
-                lineage,
-            )
-        })
-        .collect::<HashMap<_, _>>();
+    let mut lineages = BTreeMap::<&str, Vec<Option<&PipelineRowLineage>>>::new();
+    for lineage in row_lineages {
+        let row_index = lineage.output_row_index as usize;
+        let rows = lineages.entry(lineage.output_kind.as_str()).or_default();
+        if rows.len() <= row_index {
+            rows.resize(row_index + 1, None);
+        }
+        if rows[row_index].replace(lineage).is_some() {
+            return Err(format!(
+                "duplicate row lineage for {} row {}",
+                lineage.output_kind, lineage.output_row_index
+            ));
+        }
+    }
     let mut batch_writer = ResultCellBatchWriter::new()?;
     let mut sorted_outputs = outputs.iter().collect::<Vec<_>>();
     sorted_outputs.sort_by_key(|output| output.kind);
     for output in sorted_outputs {
         match output.media_type {
-            "text/csv" => append_csv_cells(&mut batch_writer, output, &lineages)?,
+            "text/csv" => append_csv_cells(
+                &mut batch_writer,
+                output,
+                lineages.get(output.kind).map(Vec::as_slice),
+            )?,
             "application/json" => {
                 let value: serde_json::Value = serde_json::from_slice(output.bytes)
                     .map_err(|error| format!("parse {} JSON cells: {error}", output.kind))?;
-                let dependency_prefix = dependency_spec_prefix(output.kind);
-                append_json_cells(&mut batch_writer, output, &dependency_prefix, "", &value)?;
+                append_json_cells(&mut batch_writer, output, &mut String::new(), &value)?;
             }
             other => return Err(format!("unsupported canonical cell media type {other}")),
         }
@@ -1204,7 +1227,7 @@ pub fn row_lineage_arrow(
     for lineage in lineages {
         for source_range in &lineage.source_data_row_ranges {
             output_kind
-                .append(&lineage.output_kind)
+                .append(lineage.output_kind.as_str())
                 .map_err(|error| format!("encode lineage output kind: {error}"))?;
             output_row_index.push(lineage.output_row_index);
             relationship_kind
@@ -1216,7 +1239,7 @@ pub fn row_lineage_arrow(
                 .append(source_input_digest)
                 .map_err(|error| format!("encode lineage source digest: {error}"))?;
             terminal_logical_node
-                .append(&lineage.terminal_logical_node)
+                .append(lineage.terminal_logical_node.as_str())
                 .map_err(|error| format!("encode lineage terminal node: {error}"))?;
             dependency_precision
                 .append("conservative")
@@ -1232,7 +1255,7 @@ pub fn row_lineage_arrow(
         }
         for search in &lineage.searches {
             output_kind
-                .append(&lineage.output_kind)
+                .append(lineage.output_kind.as_str())
                 .map_err(|error| format!("encode lineage output kind: {error}"))?;
             output_row_index.push(lineage.output_row_index);
             relationship_kind
@@ -1244,44 +1267,28 @@ pub fn row_lineage_arrow(
                 .append(source_input_digest)
                 .map_err(|error| format!("encode lineage source digest: {error}"))?;
             terminal_logical_node
-                .append(&lineage.terminal_logical_node)
+                .append(lineage.terminal_logical_node.as_str())
                 .map_err(|error| format!("encode lineage terminal node: {error}"))?;
             dependency_precision
                 .append("exact-event-range")
                 .map_err(|error| format!("encode lineage precision: {error}"))?;
             search_protocol_version
-                .append(&search.protocol_version)
+                .append(search.protocol_version.as_str())
                 .map_err(|error| format!("encode lineage search protocol: {error}"))?;
             search_index_space
-                .append(&search.index_space)
+                .append(search.index_space.as_str())
                 .map_err(|error| format!("encode lineage search index space: {error}"))?;
             search_reason
-                .append(&search.reason)
+                .append(search.reason.as_str())
                 .map_err(|error| format!("encode lineage search reason: {error}"))?;
             search_start_participant_id
-                .append(&search.start_participant_id)
+                .append(search.start_participant_id.as_str())
                 .map_err(|error| format!("encode lineage search participant: {error}"))?;
             search_start_event_index.push(Some(search.start_event_index));
             search_end_event_index_exclusive.push(Some(search.end_event_index_exclusive));
             search_candidate_event_count.push(Some(search.candidate_event_count));
-            let digest = search
-                .candidate_chain_digest
-                .strip_prefix("blake3:")
-                .ok_or_else(|| {
-                    format!(
-                        "lineage search candidate digest has unsupported algorithm: {}",
-                        search.candidate_chain_digest
-                    )
-                })?;
-            let mut digest_bytes = [0_u8; 32];
-            hex::decode_to_slice(digest, &mut digest_bytes).map_err(|error| {
-                format!(
-                    "decode lineage search candidate digest {}: {error}",
-                    search.candidate_chain_digest
-                )
-            })?;
             search_candidate_chain_digest
-                .append_value(digest_bytes)
+                .append_value(search.candidate_chain_digest.as_bytes())
                 .map_err(|error| format!("encode lineage search candidate digest: {error}"))?;
         }
     }
@@ -1909,6 +1916,11 @@ mod tests {
         assert_ne!(sha256_array(b"exact-value"), [0; 32]);
         assert_ne!(sha256_array(b"exact-value"), [1; 32]);
         assert_eq!(json_pointer_escape("a/b~c"), "a~1b~0c");
+        let canonical_value = serde_json::json!({"unicode":"é", "nested":[1, true, null]});
+        assert_eq!(
+            canonical_json_value_digest(&canonical_value).unwrap(),
+            sha256_array(&serde_jcs::to_vec(&canonical_value).unwrap()),
+        );
         let source = CanonicalSource {
             role_id: "raw_chronicle_csv",
             source_artifact_digest:
@@ -2002,7 +2014,7 @@ mod tests {
     #[test]
     fn streaming_dictionary_and_empty_batch_boundaries_are_explicit() {
         let seeded = StringArray::from(vec!["alpha", "beta"]);
-        let mut builder = RunCachedStringDictionaryBuilder::with_dictionary(&seeded).unwrap();
+        let mut builder = RunCachedStringDictionaryBuilder::with_dictionary(&seeded, 4).unwrap();
         for value in ["alpha", "alpha", "beta", "gamma", "alpha"] {
             builder.append(value).unwrap();
         }
@@ -2013,7 +2025,7 @@ mod tests {
         assert!(dictionary.is_null(5));
 
         let nullable_seed = StringArray::from(vec![Some("valid"), None]);
-        let nullable_error = RunCachedStringDictionaryBuilder::with_dictionary(&nullable_seed)
+        let nullable_error = RunCachedStringDictionaryBuilder::with_dictionary(&nullable_seed, 2)
             .err()
             .unwrap_or_default();
         assert!(nullable_error.contains("must not contain null"));
@@ -2124,7 +2136,7 @@ mod tests {
     #[test]
     fn lineage_is_a_normalized_deterministic_arrow_range_table() {
         let lineages = vec![PipelineRowLineage {
-            output_kind: "app-csv".to_string(),
+            output_kind: Arc::new("app-csv".to_string()),
             output_row_index: 0,
             source_data_row_ranges: vec![
                 chronicle_chrono_kernel_wasm::pipeline_v2::SourceDataRowRange { first: 1, last: 1 },
@@ -2133,17 +2145,21 @@ mod tests {
             source_data_row_count: 3,
             searches: vec![
                 chronicle_chrono_kernel_wasm::pipeline_v2::LineageSearchEvidence {
-                    protocol_version: "chronicle-lineage-search/v1".to_string(),
-                    reason: "no-qualifying-stop".to_string(),
-                    index_space: "pipeline-event-order".to_string(),
-                    start_participant_id: "P01".to_string(),
+                    protocol_version: Arc::new("chronicle-lineage-search/v1".to_string()),
+                    reason: Arc::new("no-qualifying-stop".to_string()),
+                    index_space: Arc::new("pipeline-event-order".to_string()),
+                    start_participant_id: Arc::new("P01".to_string()),
                     start_event_index: 2,
                     end_event_index_exclusive: 5,
                     candidate_event_count: 2,
-                    candidate_chain_digest: format!("blake3:{}", "b".repeat(64)),
+                    candidate_chain_digest:
+                        chronicle_chrono_kernel_wasm::pipeline_v2::LineageSearchDigest::parse(
+                            &format!("blake3:{}", "b".repeat(64)),
+                        )
+                        .unwrap(),
                 },
             ],
-            terminal_logical_node: "outputs".to_string(),
+            terminal_logical_node: Arc::new("outputs".to_string()),
         }];
         let digest = format!("sha256:{}", "a".repeat(64));
         let first = row_lineage_arrow(&lineages, &digest).unwrap();
@@ -2241,18 +2257,10 @@ mod tests {
         );
         assert!(batch.schema().metadata()["claimBoundary"]
             .contains("output contribution is not implied"));
+        assert!(batch.schema().metadata()["coordinateIdentityDerivation"].starts_with("sha256("));
+        assert_eq!(batch.num_columns(), 9);
         assert_eq!(batch.schema().field(6).name(), "source_record_index");
         assert_eq!(batch.schema().field(8).name(), "value_sha256");
-        assert_eq!(batch.schema().field(9).name(), "coordinate_sha256");
-        let coordinate_ids = batch
-            .column(9)
-            .as_any()
-            .downcast_ref::<FixedSizeBinaryArray>()
-            .unwrap();
-        let distinct_ids = (0..coordinate_ids.len())
-            .map(|index| coordinate_ids.value(index).to_vec())
-            .collect::<std::collections::BTreeSet<_>>();
-        assert_eq!(distinct_ids.len(), batch.num_rows());
         let record_indexes = batch
             .column(6)
             .as_any()
@@ -2396,37 +2404,14 @@ mod tests {
         .unwrap_err()
         .contains("unsupported canonical cell media type"));
 
-        let lineage_with_digest = |candidate_chain_digest: String| PipelineRowLineage {
-            output_kind: "app-csv".to_string(),
-            output_row_index: 0,
-            source_data_row_ranges: Vec::new(),
-            source_data_row_count: 0,
-            searches: vec![
-                chronicle_chrono_kernel_wasm::pipeline_v2::LineageSearchEvidence {
-                    protocol_version: "chronicle-lineage-search/v1".to_string(),
-                    reason: "no-qualifying-stop".to_string(),
-                    index_space: "pipeline-event-order".to_string(),
-                    start_participant_id: "P01".into(),
-                    start_event_index: 0,
-                    end_event_index_exclusive: 1,
-                    candidate_event_count: 1,
-                    candidate_chain_digest,
-                },
-            ],
-            terminal_logical_node: "outputs".to_string(),
-        };
-        assert!(row_lineage_arrow(
-            &[lineage_with_digest(format!("sha256:{}", "b".repeat(64)))],
-            &digest,
-        )
-        .unwrap_err()
-        .contains("unsupported algorithm"));
-        assert!(row_lineage_arrow(
-            &[lineage_with_digest(format!("blake3:{}", "z".repeat(64)))],
-            &digest,
-        )
-        .unwrap_err()
-        .contains("decode lineage search candidate digest"));
+        assert!(
+            chronicle_chrono_kernel_wasm::pipeline_v2::LineageSearchDigest::parse(&format!(
+                "blake3:{}",
+                "z".repeat(64)
+            ))
+            .unwrap_err()
+            .contains("decode lineage search digest")
+        );
     }
 
     #[test]
@@ -2448,7 +2433,7 @@ mod tests {
             },
         ];
         let lineages = [PipelineRowLineage {
-            output_kind: "app-csv".to_string(),
+            output_kind: Arc::new("app-csv".to_string()),
             output_row_index: 0,
             source_data_row_ranges: vec![
                 chronicle_chrono_kernel_wasm::pipeline_v2::SourceDataRowRange { first: 1, last: 1 },
@@ -2456,7 +2441,7 @@ mod tests {
             ],
             source_data_row_count: 2,
             searches: Vec::new(),
-            terminal_logical_node: "outputs".to_string(),
+            terminal_logical_node: Arc::new("outputs".to_string()),
         }];
 
         let (first, row_count) = result_cell_correspondence_arrow(&outputs, &lineages).unwrap();
@@ -2475,10 +2460,15 @@ mod tests {
         assert_eq!(batch.schema().field(3).data_type(), &dictionary_type());
         assert_eq!(batch.schema().field(4).name(), "cell_value_sha256");
         assert_eq!(batch.schema().field(7).name(), "row_lineage_row_index");
-        assert_eq!(batch.schema().field(10).name(), "dependency_spec_sha256");
+        assert_eq!(batch.num_columns(), 8);
+        assert!(batch.schema().metadata()["dependencyIdentityDerivation"].starts_with("sha256("));
         assert_eq!(
-            batch.schema().field(10).data_type(),
-            &DataType::FixedSizeBinary(32)
+            batch.schema().metadata()["semanticDependencyPrecision"],
+            "declared-transitive"
+        );
+        assert!(
+            batch.schema().metadata()["rowCorrespondencePrecisionDerivation"]
+                .contains("output_row_index present => unresolved")
         );
 
         let output_kinds = batch
@@ -2567,6 +2557,26 @@ mod tests {
         assert_eq!(
             batches.iter().map(RecordBatch::num_rows).sum::<usize>(),
             data_rows + 2
+        );
+        let observed_row_indexes = batches
+            .iter()
+            .flat_map(|batch| {
+                let indexes = batch
+                    .column(2)
+                    .as_any()
+                    .downcast_ref::<UInt32Array>()
+                    .unwrap();
+                (0..indexes.len())
+                    .filter(|index| indexes.is_valid(*index))
+                    .map(|index| indexes.value(index))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(observed_row_indexes.len(), data_rows);
+        assert_eq!(observed_row_indexes.first(), Some(&0));
+        assert_eq!(
+            observed_row_indexes.last(),
+            Some(&u32::try_from(data_rows - 1).unwrap())
         );
         assert_eq!(
             batches[0].schema().metadata()["recordBatchRows"],

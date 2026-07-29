@@ -16,8 +16,13 @@
 # tuple-return mutants; its Rust core remains fully in scope.
 # Optional fields after the exclusion regex ratchet line, region, and function
 # coverage for an established authority below the shared new-code defaults.
+# The final field lists product features required by both coverage and mutation;
+# omitting `incremental-v2` would silently test the retired non-authoritative
+# kernel build instead of the production 55-step query engine.
+# A seventh `no-default-features` field keeps a gate on the exact feature set
+# linked into the browser when a crate's defaults only expose another product.
 ../rust/chronicle_preprocessing_semantic_adapter/Cargo.toml|wasm::
-../rust/chronicle_preprocessing_runtime_wasm/Cargo.toml|src/lib\.rs:[0-9]+:1[37]: replace && with,src/lib\.rs:129:23: replace \+= with,src/lib\.rs:1[35][34]:[12][05]: replace \+= with \*=
+../rust/chronicle_preprocessing_runtime_wasm/Cargo.toml|src/lib\.rs:[0-9]+:1[37]: replace && with,replace \+= with .* in (physical_data_row_count|duplicate_safe_headers)
 ../rust/chronicle_semantic_index_wasm/Cargo.toml
-../rust/chronicle_chrono_kernel_wasm/Cargo.toml|src/bin/export_pipeline_step_contract\.rs|40|39|38
-../rust/chronicle_app_usage_matcher/Cargo.toml|src/lib\.rs:10[3-9][0-9]:,src/lib\.rs:11[0-9]{2}:,src/lib\.rs:12[012][0-9]:|85|84|86
+../rust/chronicle_chrono_kernel_wasm/Cargo.toml|src/bin/|90|89|85|incremental-v2
+../rust/chronicle_app_usage_matcher/Cargo.toml| in (to_py_error|match_app_usage(_update_(indices|arrays)|_arrays)?|split_overlapping_sessions_py|_rust_app_usage_matcher)|93|93|90||no-default-features

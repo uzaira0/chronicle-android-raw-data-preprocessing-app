@@ -38,6 +38,7 @@
     "benchmark:many-files": "node scripts/verify-many-files.mjs",
     "benchmark:runtime-wasm": "node scripts/run-clean-env.mjs vite-node scripts/benchmark_runtime_wasm.mts",
     "measure:review-batch": "node scripts/measure_review_batch.mjs",
+    "measure:unique-review-batch": "node scripts/measure_unique_review_batch.mjs",
     "generate:benchmark-fixture": "node scripts/run-clean-env.mjs vite-node scripts/generate_benchmark_fixture.mts",
     "build:wasm": "node scripts/build_wasm.mjs && node scripts/check_wasm_exports.mjs",
     "check:wasm-exports": "node scripts/check_wasm_exports.mjs",
@@ -47,6 +48,7 @@
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",
     "@dagrejs/graphlib": "^4.0.1",
+    "@tanstack/react-virtual": "^3.14.8",
     "@xyflow/react": "^12.11.2",
     "comlink": "^4.4.2",
     "hyparquet-writer": "^0.15.6",

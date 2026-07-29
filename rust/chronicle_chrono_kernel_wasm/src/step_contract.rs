@@ -805,7 +805,7 @@ pub const PIPELINE_STEPS: &[PipelineStepDefinition] = &[
     PipelineStepDefinition {
         id: "junk_blind_fold",
         group: "reconstruct_episodes",
-        inputs: &["tag_filtered_packages"],
+        inputs: &["tag_filtered_packages", "compute_junk_packages"],
     },
     PipelineStepDefinition {
         id: "build_matcher_input",
@@ -870,7 +870,7 @@ pub const PIPELINE_STEPS: &[PipelineStepDefinition] = &[
     PipelineStepDefinition {
         id: "blank_junk_timing",
         group: "interval_cleaning",
-        inputs: &["flag_and_retain"],
+        inputs: &["flag_and_retain", "compute_junk_packages"],
     },
     PipelineStepDefinition {
         id: "drop_selected_types",
@@ -1131,15 +1131,23 @@ pub fn step_request_fields(step_id: &str) -> &'static [&'static str] {
             "enable_compliance_scoring",
             "enable_aggregates",
             "aggregate_shape",
+            "materialize_visualization_data",
         ],
         _ => &[],
     }
 }
 
-/// Request fields consumed by the browser runtime when it serializes optional
-/// output artifacts. They do not change any of the 55 Rust computation results.
-pub const RUNTIME_ARTIFACT_REQUEST_FIELDS: &[&str] =
-    &["enable_parquet_export", "enable_spss_export"];
+/// Request fields consumed only while materializing derived browser/export
+/// artifacts. They do not invalidate the upstream preprocessing queries.
+pub const RUNTIME_ARTIFACT_REQUEST_FIELDS: &[&str] = &[
+    "enable_parquet_export",
+    "enable_spss_export",
+    "enable_plotting",
+    "enable_interactive_timeline",
+    "enable_activity_heatmap",
+    "export_plots_as_svg",
+    "include_filtered_app_usage_in_plots",
+];
 
 const APP_USAGE_MODES: &[&str] = &["app_usage", "app_and_screen_usage"];
 const USE_FILTER_FILE: &[PipelineSourceRolePredicate] =
@@ -1408,15 +1416,43 @@ mod tests {
             .expect("tracked query module");
         collector.visit_item_mod(tracked_module);
 
+        fn collect_step_calls(
+            function: &str,
+            calls: &BTreeMap<String, BTreeSet<String>>,
+            local_calls: &BTreeMap<String, BTreeSet<String>>,
+            transparent_edge_aggregates: &BTreeSet<&str>,
+            visited: &mut BTreeSet<String>,
+        ) -> BTreeSet<String> {
+            if !visited.insert(function.to_string()) {
+                return BTreeSet::new();
+            }
+            let mut result = calls.get(function).cloned().unwrap_or_default();
+            for called in local_calls.get(function).into_iter().flatten() {
+                if transparent_edge_aggregates.contains(called.as_str()) {
+                    result.extend(collect_step_calls(
+                        called,
+                        calls,
+                        local_calls,
+                        transparent_edge_aggregates,
+                        visited,
+                    ));
+                }
+            }
+            result
+        }
+
+        let transparent_edge_aggregates = BTreeSet::from(["collect_early_assembly"]);
         let mut mismatches = Vec::new();
         for step in PIPELINE_STEPS {
             let declared = step.inputs.iter().copied().collect::<BTreeSet<_>>();
-            let observed = collector
-                .calls
-                .get(step.id)
-                .into_iter()
-                .flat_map(|calls| calls.iter().map(String::as_str))
-                .collect::<BTreeSet<_>>();
+            let observed_owned = collect_step_calls(
+                step.id,
+                &collector.calls,
+                &collector.local_calls,
+                &transparent_edge_aggregates,
+                &mut BTreeSet::new(),
+            );
+            let observed = observed_owned.iter().map(String::as_str).collect();
             if declared != observed {
                 mismatches.push(format!(
                     "{}: declared={declared:?} observed={observed:?}",
@@ -1468,10 +1504,31 @@ mod tests {
             .iter()
             .flat_map(|step| step_request_fields(step.id).iter().copied())
             .collect::<BTreeSet<_>>();
+        // These internal Salsa queries memoize parsed support values but do
+        // not hide their reads from the product-step contract. Follow through
+        // them when deriving each step's actual configuration/source inputs.
+        let transparent_support_queries = [
+            "background_apps",
+            "parsed_filter_rules",
+            "parsed_apps_forcing_screen_open",
+            "parsed_codebook",
+            "parsed_study_windows",
+            "parsed_device_sharing",
+            "parsed_survey_attribution",
+            "parsed_enrolled_devices",
+        ]
+        .into_iter()
+        .collect::<BTreeSet<_>>();
         let query_boundaries = step_ids
             .iter()
             .copied()
-            .chain(collector.internal_queries.iter().map(String::as_str))
+            .chain(
+                collector
+                    .internal_queries
+                    .iter()
+                    .map(String::as_str)
+                    .filter(|query| !transparent_support_queries.contains(query)),
+            )
             .collect::<BTreeSet<_>>();
         let mut field_mismatches = Vec::new();
         for step in PIPELINE_STEPS {

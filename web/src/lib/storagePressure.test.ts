@@ -121,3 +121,20 @@ describe("estimateStoragePressure", () => {
     await expect(estimateStoragePressure()).resolves.toEqual(empty);
   });
 });
+
+describe("server-side fallback", () => {
+  it("returns safe defaults when navigator does not exist", async () => {
+    vi.stubGlobal("navigator", undefined);
+    try {
+      await expect(estimateStoragePressure()).resolves.toEqual({
+        usage: 0,
+        quota: 0,
+        ratio: 0,
+        supported: false,
+      });
+      await expect(requestPersistentStorage()).resolves.toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

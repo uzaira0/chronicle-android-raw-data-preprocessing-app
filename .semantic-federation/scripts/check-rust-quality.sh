@@ -24,7 +24,7 @@ while IFS= read -r entry || [[ -n "$entry" ]]; do
   entry=${entry#"${entry%%[![:space:]]*}"}
   entry=${entry%"${entry##*[![:space:]]}"}
   [[ -z "$entry" ]] && continue
-  IFS='|' read -r manifest exclude_re entry_lines entry_regions entry_functions <<< "$entry"
+  IFS='|' read -r manifest exclude_re entry_lines entry_regions entry_functions features no_default_features <<< "$entry"
   coverage_lines=${entry_lines:-$minimum_lines}
   coverage_regions=${entry_regions:-$minimum_regions}
   coverage_functions=${entry_functions:-$minimum_functions}
@@ -35,12 +35,15 @@ while IFS= read -r entry || [[ -n "$entry" ]]; do
   count=$((count + 1))
   case "$mode" in
     coverage)
-      rustup run stable cargo llvm-cov \
-        --manifest-path "$manifest" \
-        --summary-only \
-        --fail-under-lines "$coverage_lines" \
-        --fail-under-regions "$coverage_regions" \
-        --fail-under-functions "$coverage_functions"
+      args=(llvm-cov
+        --manifest-path "$manifest"
+        --summary-only
+        --fail-under-lines "$coverage_lines"
+        --fail-under-regions "$coverage_regions"
+        --fail-under-functions "$coverage_functions")
+      [[ "$no_default_features" == "no-default-features" ]] && args+=(--no-default-features)
+      [[ -n "$features" ]] && args+=(--features "$features")
+      rustup run stable cargo "${args[@]}"
       ;;
     mutation)
       crate_dir=$(cd "$(dirname "$manifest")" && pwd -P)
@@ -51,6 +54,8 @@ while IFS= read -r entry || [[ -n "$entry" ]]; do
           args+=(-E "$pattern")
         done
       fi
+      [[ "$no_default_features" == "no-default-features" ]] && args+=(--no-default-features)
+      [[ -n "$features" ]] && args+=(--features "$features")
       cargo "${args[@]}"
       ;;
     supply-chain)

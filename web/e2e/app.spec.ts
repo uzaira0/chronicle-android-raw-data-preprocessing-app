@@ -913,6 +913,47 @@ test("processes multiple uploaded files with parallel workers enabled", async ({
   assertNoExternalRequests(requestTracker);
 });
 
+test("large result batches defer per-output controls and reset that choice for the next run", async ({
+  page,
+}) => {
+  const files = (prefix: string) =>
+    Array.from({ length: 21 }, (_, index) => ({
+      name: `${prefix} P${String(index + 1).padStart(2, "0")}.csv`,
+      mimeType: "text/csv",
+      buffer: Buffer.from(APP_ONLY_RAW_CSV, "utf-8"),
+    }));
+  const run = async (): Promise<void> => {
+    await page.getByRole("tab", { name: /Process/i }).click();
+    await page.getByTestId("process-files-button").click();
+    await expect(page.getByTestId("result-panel")).toContainText(
+      "21 files processed",
+      { timeout: 15_000 },
+    );
+  };
+
+  // ResultPanel was already mounted with zero results before this first run;
+  // the large-batch default must still be collapsed when results arrive.
+  await page.getByTestId("raw-file-input").setInputFiles(files("First"));
+  await run();
+  const toggle = page.getByTestId("results-collapse-toggle");
+  await expect(toggle).toHaveText("▸ Show results details");
+  await expect(page.getByTestId("result-file-table")).toHaveCount(0);
+  await expect(page.getByTestId("download-single-output")).toHaveCount(0);
+
+  await toggle.click();
+  await expect(page.getByTestId("result-file-table")).toBeVisible();
+  await expect(page.getByTestId("result-row")).toHaveCount(21);
+
+  // Selecting a genuinely new batch clears the explicit open override. The
+  // next large run must not eagerly rebuild the thousands-of-controls DOM.
+  await page.getByRole("tab", { name: /Files/i }).click();
+  await page.getByTestId("raw-file-input").setInputFiles(files("Second"));
+  await run();
+  await expect(toggle).toHaveText("▸ Show results details");
+  await expect(page.getByTestId("result-file-table")).toHaveCount(0);
+  assertNoExternalRequests(requestTracker);
+});
+
 test("saves a project with files to IndexedDB and restores it after reload (#22)", async ({ page }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
   await expect(page.getByTestId("raw-file-row")).toHaveCount(1);

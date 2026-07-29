@@ -9,7 +9,7 @@ import type {
 } from "@/lib/types";
 import type { ChronicleWorkerApi } from "@/workers/chronicle-worker";
 import type { RawFileInspection } from "@/lib/fileInspection";
-export { comparisonSupportCacheKey } from "@/lib/comparisonSupportCache";
+export { comparisonSupportCacheKey } from "@/lib/comparisonSupportKey";
 import runtimeWasmUrl from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm?url";
 
 /**

@@ -26,6 +26,11 @@ export type PersistedRuntimeArtifact = {
   digestVerified?: true;
 };
 
+export type PersistedRuntimeArtifactMetadata = Omit<
+  PersistedRuntimeArtifact,
+  "bytes"
+>;
+
 export type WorkspaceRootSlot = {
   protocolVersion: "chronicle-opfs-root/v1";
   generation: number;
@@ -164,6 +169,23 @@ async function putObject(
   if (stored.byteLength !== artifact.size || (await sha256(stored)) !== artifact.digest) {
     throw new Error(`OPFS verification failed for ${artifact.kind}`);
   }
+}
+
+/** Verify and place one immutable object without advancing a workspace root. */
+export async function persistRuntimeObject(
+  root: FileSystemDirectoryHandle,
+  artifact: PersistedRuntimeArtifact,
+): Promise<void> {
+  await persistRuntimeObjects(root, [artifact]);
+}
+
+/** Verify and place a caller-bounded set of immutable objects. */
+export async function persistRuntimeObjects(
+  root: FileSystemDirectoryHandle,
+  artifacts: readonly PersistedRuntimeArtifact[],
+): Promise<void> {
+  const { objects } = await storeDirectories(root);
+  await Promise.all(artifacts.map((artifact) => putObject(objects, artifact)));
 }
 
 async function readVerifiedObject(
@@ -404,6 +426,17 @@ export async function probeOpfsCapability(): Promise<OpfsCapability> {
   }
 }
 
+/**
+ * Write a complete artifact set and advance the alternating root.
+ *
+ * Concurrency contract: exclusive write access per workspace is the caller's
+ * job — every production path routes through `withWorkspaceLock` in
+ * rustPipelineRuntime.ts (the Web Locks API); this module never takes a lock
+ * itself. What it does guarantee is detection: recovery runs twice (here
+ * before any object write, and again disk-verified inside
+ * commitPersistedRuntimeWorkspace), so a root advanced by another writer
+ * mid-persist fails the previous-root check instead of being clobbered.
+ */
 export async function persistRuntimeWorkspace(
   root: FileSystemDirectoryHandle,
   input: {
@@ -481,6 +514,75 @@ export async function persistRuntimeWorkspace(
     }
   };
   await Promise.all([writeNext(), writeNext()]);
+  return commitPersistedRuntimeWorkspace(root, {
+    ...input,
+    artifacts: input.artifacts,
+  });
+}
+
+/**
+ * Advance the alternating root only after every listed object has already been
+ * verified and placed in the content-addressed store.
+ *
+ * Concurrency contract: callers must hold the per-workspace Web Lock (see
+ * `withWorkspaceLock` in rustPipelineRuntime.ts). The disk-verified recovery
+ * below is deliberately repeated even when persistRuntimeWorkspace already
+ * recovered pre-write: it is the mid-write race detector, not redundancy.
+ */
+export async function commitPersistedRuntimeWorkspace(
+  root: FileSystemDirectoryHandle,
+  input: {
+    workspaceRootDigest: string;
+    previousWorkspaceRootDigest: string | null;
+    artifacts: PersistedRuntimeArtifactMetadata[];
+    recoveredSlot?: WorkspaceRootSlot;
+    verifiedDetachedHistory?: boolean;
+    slotArtifactDigests?: string[];
+  },
+): Promise<WorkspaceRootSlot> {
+  digestHex(input.workspaceRootDigest);
+  const { objects, roots } = await storeDirectories(root);
+  const byDigest = new Map<string, PersistedRuntimeArtifactMetadata>();
+  for (const artifact of input.artifacts) {
+    const existing = byDigest.get(artifact.digest);
+    if (existing && existing.size !== artifact.size) {
+      throw new Error(`conflicting artifact metadata for ${artifact.digest}`);
+    }
+    byDigest.set(artifact.digest, artifact);
+  }
+  if (!byDigest.has(input.workspaceRootDigest)) {
+    throw new Error("runtime artifact set is missing the workspace-root object");
+  }
+  const previous = input.recoveredSlot
+    ? await parseSlot(encodeJson(input.recoveredSlot))
+    : await recoverFromDirectories(objects, roots);
+  const incomingHistoryContains = async (targetDigest: string): Promise<boolean> => {
+    const seen = new Set<string>();
+    let rootDigest: string | null = input.workspaceRootDigest;
+    while (rootDigest !== null) {
+      if (rootDigest === targetDigest) return true;
+      if (seen.has(rootDigest) || seen.size >= MAX_HISTORY_ROOTS) {
+        throw new Error("incoming workspace history is cyclic or too large");
+      }
+      seen.add(rootDigest);
+      rootDigest = decodeHistoryRoot(
+        await readVerifiedObject(objects, rootDigest),
+      ).previousWorkspaceRootDigest;
+    }
+    return false;
+  };
+  const previousIsAncestor =
+    previous !== undefined &&
+    input.previousWorkspaceRootDigest !== previous.workspaceRootDigest
+      ? await incomingHistoryContains(previous.workspaceRootDigest)
+      : false;
+  if (
+    (previous?.workspaceRootDigest ?? null) !== input.previousWorkspaceRootDigest &&
+    !(input.verifiedDetachedHistory && previous === undefined) &&
+    !previousIsAncestor
+  ) {
+    throw new Error("recovered OPFS root does not match the runtime's previous root");
+  }
   // The object writes above are not a workspace commit. Check the complete
   // projected history before advancing either root slot so a hard limit can
   // never make the newly committed head unreadable.
@@ -566,6 +668,42 @@ export async function readRuntimeObject(
 ): Promise<Uint8Array> {
   const { objects } = await storeDirectories(root);
   return readVerifiedObject(objects, digest, maxBytes);
+}
+
+/**
+ * Read an untrusted prefix for format selection without loading a large object.
+ * The caller must verify the complete selected object with `readRuntimeObject`
+ * before using it as authority. Exact total size is checked here so a closure
+ * descriptor cannot point the probe at a truncated or oversized file.
+ */
+export async function readRuntimeObjectPrefix(
+  root: FileSystemDirectoryHandle,
+  digest: string,
+  expectedSize: number,
+  prefixBytes: number,
+  maxBytes?: number,
+): Promise<Uint8Array> {
+  if (
+    !Number.isSafeInteger(expectedSize) ||
+    expectedSize < 0 ||
+    !Number.isSafeInteger(prefixBytes) ||
+    prefixBytes < 0
+  ) {
+    throw new Error("invalid OPFS object prefix bounds");
+  }
+  if (maxBytes !== undefined && expectedSize > maxBytes) {
+    throw new Error(`file exceeds the ${maxBytes} byte read limit`);
+  }
+  const { objects } = await storeDirectories(root);
+  const { directory, name } = await objectDirectory(objects, digest, false);
+  const handle = await directory.getFileHandle(name);
+  const file = await handle.getFile();
+  if (file.size !== expectedSize) {
+    throw new Error(`persisted OPFS object size mismatch: ${digest}`);
+  }
+  return new Uint8Array(
+    await file.slice(0, Math.min(prefixBytes, expectedSize)).arrayBuffer(),
+  );
 }
 
 type HistoryRootCommit = {

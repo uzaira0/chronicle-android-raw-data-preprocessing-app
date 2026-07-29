@@ -1,16 +1,16 @@
 {
   "protocol_version": "0.1",
-  "root_digest": "sha256:d2eeacc30f26e0cbe81958d8c17bcf76f35d7fd672c91e618b7ad95335ea7613",
+  "root_digest": "sha256:ed187ec28a04d479b6fb17f4da144d05e51c72200197271c442535de84d6d144",
   "artifacts": [
     {
       "artifact_id": "capability-bindings.json",
-      "digest": "sha256:569fb933d90d8bd39dc163b5d99be0c0273b26b5e6ffffa178ad6bbac413eda3",
+      "digest": "sha256:5cb80b708c3802fb58d4274c85cd1f3a4fe9e49e83d363ea98a6bb83ee7d684f",
       "media_type": "application/json",
       "size": 82955
     },
     {
       "artifact_id": "conformance-report.json",
-      "digest": "sha256:afda6fb660cc34eda82656a50e72e47b1ff0db016d15302cdb4788bb670c0e57",
+      "digest": "sha256:b7926e14040ff3c4495f94a025cc66eba9c67c4ba77478b6ad1bd353f4f25145",
       "media_type": "application/json",
       "size": 630
     },
@@ -46,9 +46,9 @@
     },
     {
       "artifact_id": "resources/chronicle.plan.json",
-      "digest": "sha256:7ee296d46b121e019ec0f43026fd91ff143efb1d33263ec95c19a92be7512ad7",
+      "digest": "sha256:e6acec3530cef7f3e67443077affb86632db8485d771c3fa9a754dc810ff8e20",
       "media_type": "application/json",
-      "size": 85826
+      "size": 85924
     },
     {
       "artifact_id": "resources/existing-ontology-sources.json",
@@ -76,16 +76,16 @@
     },
     {
       "artifact_id": "semantic-profile.json",
-      "digest": "sha256:42df1b0b605ebace1407e09f00d742ab3270afe35e598339ccc81fea960d4e47",
+      "digest": "sha256:9b07e9229b4d3a97898df9abaf69ab7f6062350355da3e366f0cc20357772967",
       "media_type": "application/json",
       "size": 4450
     },
     {
       "artifact_id": "semantic-profile.lock",
-      "digest": "sha256:7277156c16ae1da9b0a4d97c021cf243caa15e59e28bf44f4f5fe35eeb700ffc",
+      "digest": "sha256:5a8b42a405df4fbcaf9e3bfb7eb51f03fd96d8fbf9a8228a03f3d2f9c819c744",
       "media_type": "application/octet-stream",
       "size": 3111
     }
   ],
-  "closure_digest": "sha256:86b978e1c991fe85945dff7a411a90611bd67ab5e8f11c4a303980333224bced"
+  "closure_digest": "sha256:115f6115f4872dac7d6df9ced05ceba4f8b68ecd8616a25b0ff71c6a90e1039d"
 }

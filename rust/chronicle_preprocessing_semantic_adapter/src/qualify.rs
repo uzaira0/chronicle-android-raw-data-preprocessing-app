@@ -489,6 +489,29 @@ mod tests {
         assert!(report.traces[0].rule_evaluations.iter().any(|rule| {
             rule.rule_id == "chronicle.binding.content-validation.v1" && !rule.passed
         }));
+
+        let mut failed_competitor = candidate("failed", &["filter_file"], "text/csv");
+        failed_competitor
+            .qualifiers
+            .insert("content_validation".into(), "failed".into());
+        let report = qualify_candidates(
+            &embedded_plan(),
+            &[
+                candidate("valid", &["filter_file"], "text/csv"),
+                failed_competitor,
+            ],
+            &serde_json::json!({"use_filter_file": true}),
+        );
+        assert_eq!(
+            report
+                .traces
+                .iter()
+                .find(|trace| trace.candidate_id == "valid")
+                .expect("valid candidate trace")
+                .decision,
+            QualificationDecision::Accepted,
+            "a content-invalid candidate must not create false singleton ambiguity"
+        );
     }
 
     #[test]

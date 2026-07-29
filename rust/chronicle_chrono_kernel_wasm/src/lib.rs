@@ -167,3 +167,38 @@ pub(crate) fn write_csv_field(output: &mut Vec<u8>, field: &[u8]) {
     }
     output.push(b'"');
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn weekday_mapping_covers_the_complete_chronicle_domain() {
+        use chrono::Weekday::*;
+        assert_eq!(
+            [Sun, Mon, Tue, Wed, Thu, Fri, Sat].map(weekday_chronicle),
+            [1, 2, 3, 4, 5, 6, 7],
+        );
+    }
+
+    #[test]
+    fn interaction_recognition_distinguishes_alias_canonical_and_unknown_values() {
+        assert_eq!(
+            normalize_interaction_type("Unknown importance: 1"),
+            "Activity Resumed"
+        );
+        assert!(is_recognized_interaction_type("Unknown importance: 1"));
+        assert!(is_recognized_interaction_type("Activity Resumed"));
+        assert!(!is_recognized_interaction_type(
+            "Researcher-specific marker"
+        ));
+    }
+
+    #[test]
+    fn timezone_validation_accepts_iana_and_utc_but_rejects_unknown_values() {
+        assert!(is_valid_chronicle_timezone("UTC"));
+        assert!(is_valid_chronicle_timezone("America/Chicago"));
+        assert!(!is_valid_chronicle_timezone("Not/AZone"));
+        assert!(!is_valid_chronicle_timezone(""));
+    }
+}

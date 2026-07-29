@@ -181,8 +181,8 @@ fn dependency_binding_surface_digest(plan: &ChroniclePlan) -> Result<String, Run
 mod tests {
     use super::*;
     use crate::{
-        embedded_dependency_certificate, embedded_plan, EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256,
-        EMBEDDED_PLAN_SHA256,
+        embedded_dependency_certificate, embedded_plan, ArtifactRef,
+        EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256, EMBEDDED_PLAN_SHA256,
     };
 
     fn complete_options(certificate: &DependencyCertificate) -> Value {
@@ -211,6 +211,10 @@ mod tests {
         )
         .unwrap();
         assert_eq!(decision.mode, DependencyCacheMode::CertifiedNarrow);
+        assert_eq!(
+            decision.reasons,
+            ["dependency_surface_structurally_certified"]
+        );
     }
 
     #[test]
@@ -218,30 +222,40 @@ mod tests {
         let plan = embedded_plan();
         let certificate = embedded_dependency_certificate();
         let options = complete_options(&certificate);
-        for decision in [
-            evaluate_dependency_cache_decision(
-                &plan,
-                None,
-                None,
-                Some(EMBEDDED_PLAN_SHA256),
-                true,
-                &options,
-                &BTreeMap::new(),
-            )
-            .unwrap(),
-            evaluate_dependency_cache_decision(
-                &plan,
-                Some(&certificate),
-                Some(EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256),
-                Some(EMBEDDED_PLAN_SHA256),
-                false,
-                &options,
-                &BTreeMap::new(),
-            )
-            .unwrap(),
-        ] {
-            assert_eq!(decision.mode, DependencyCacheMode::ConservativeFull);
-        }
+        let missing_certificate = evaluate_dependency_cache_decision(
+            &plan,
+            None,
+            None,
+            Some(EMBEDDED_PLAN_SHA256),
+            true,
+            &options,
+            &BTreeMap::new(),
+        )
+        .unwrap();
+        assert_eq!(
+            missing_certificate.mode,
+            DependencyCacheMode::ConservativeFull
+        );
+
+        let stale_evidence = evaluate_dependency_cache_decision(
+            &plan,
+            Some(&certificate),
+            Some(EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256),
+            Some(EMBEDDED_PLAN_SHA256),
+            false,
+            &options,
+            &BTreeMap::new(),
+        )
+        .unwrap();
+        assert_eq!(stale_evidence.mode, DependencyCacheMode::ConservativeFull);
+        assert!(stale_evidence
+            .reasons
+            .iter()
+            .any(|reason| reason == "empirical_dependency_evidence_stale_release_blocking"));
+        assert!(stale_evidence
+            .reasons
+            .iter()
+            .any(|reason| reason == "dependency_surface_structurally_certified"));
 
         let mut unknown = options;
         unknown
@@ -263,5 +277,78 @@ mod tests {
             .reasons
             .iter()
             .any(|reason| reason == "dependency_option_unknown"));
+
+        let mut missing = complete_options(&certificate);
+        let removed = certificate.structural_contract.cache_relevant_option_keys[0].clone();
+        missing.as_object_mut().unwrap().remove(&removed);
+        let decision = evaluate_dependency_cache_decision(
+            &plan,
+            Some(&certificate),
+            Some(EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256),
+            Some(EMBEDDED_PLAN_SHA256),
+            true,
+            &missing,
+            &BTreeMap::new(),
+        )
+        .unwrap();
+        assert_eq!(decision.mode, DependencyCacheMode::ConservativeFull);
+        assert!(decision
+            .reasons
+            .iter()
+            .any(|reason| reason == "dependency_option_missing"));
+        assert!(!decision
+            .reasons
+            .iter()
+            .any(|reason| reason == "dependency_option_unknown"));
+
+        let assignment = |role: &str| RoleAssignment {
+            assignment_id: format!("assignment:{role}"),
+            role_id: role.into(),
+            artifact: ArtifactRef {
+                artifact_id: format!("artifact:{role}"),
+                digest: format!("sha256:{}", "a".repeat(64)),
+                media_type: "text/csv".into(),
+                size: 1,
+                derived_from: Vec::new(),
+                qualifiers: BTreeMap::new(),
+            },
+            qualifiers: BTreeMap::new(),
+            revision: 1,
+        };
+        let known_role = certificate.structural_contract.role_ids[0].clone();
+        let known_assignments = BTreeMap::from([(known_role.clone(), assignment(&known_role))]);
+        let known = evaluate_dependency_cache_decision(
+            &plan,
+            Some(&certificate),
+            Some(EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256),
+            Some(EMBEDDED_PLAN_SHA256),
+            true,
+            &complete_options(&certificate),
+            &known_assignments,
+        )
+        .unwrap();
+        assert_eq!(known.mode, DependencyCacheMode::CertifiedNarrow);
+        assert!(!known
+            .reasons
+            .iter()
+            .any(|reason| reason == "dependency_role_unknown"));
+
+        let unknown_assignments =
+            BTreeMap::from([("unknown-role".into(), assignment("unknown-role"))]);
+        let unknown = evaluate_dependency_cache_decision(
+            &plan,
+            Some(&certificate),
+            Some(EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256),
+            Some(EMBEDDED_PLAN_SHA256),
+            true,
+            &complete_options(&certificate),
+            &unknown_assignments,
+        )
+        .unwrap();
+        assert_eq!(unknown.mode, DependencyCacheMode::ConservativeFull);
+        assert!(unknown
+            .reasons
+            .iter()
+            .any(|reason| reason == "dependency_role_unknown"));
     }
 }

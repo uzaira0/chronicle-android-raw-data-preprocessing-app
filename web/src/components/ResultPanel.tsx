@@ -1,4 +1,8 @@
-import { useMemo, useState } from "react";
+import {
+  startExclusiveDownload,
+  type ExclusiveDownloadHooks,
+} from "@/lib/exclusiveDownload";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 
 import { createZipBlob } from "@/lib/zip";
@@ -10,6 +14,10 @@ import type {
   TimezoneAction,
 } from "@/lib/types";
 import { downloadBlob } from "@/lib/download";
+import {
+  materializePersistedPlots,
+  materializePersistedTimelineOutput,
+} from "@/lib/rustPipelineAuthority";
 import { readPersistedRustArtifact } from "@/lib/rustPipelineRuntime";
 import type { FileProgress } from "@/components/ProgressList";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
@@ -46,24 +54,32 @@ const TIMEZONE_ACTION_LABEL: Record<TimezoneAction, string> = {
   converted_to_primary: "Converted to primary",
 };
 
-function collectOutputs(results: ProcessedFileResult[], kind?: OutputKind): BatchOutput[] {
+function collectOutputs(
+  results: ProcessedFileResult[],
+): BatchOutput[] {
   return results.flatMap((result) =>
     result.outputs
-      .filter((output) => !kind || output.kind === kind)
       .map((output) => ({ inputFileName: result.inputFileName, output })),
   );
 }
 
 function zipName(kind: "all" | OutputKind): string {
   const suffix =
-    kind === "all" ? "all-outputs"
-    : kind === "app" ? "app-usage-outputs"
-    : kind === "screen" ? "screen-usage-outputs"
-    : kind === "aggregate" ? "aggregate-summaries"
-    : kind === "parquet" ? "parquet-files"
-    : kind === "spss" ? "spss-files"
-    : kind === "lineage" ? "lineage-and-correspondence"
-    : "plots";
+    kind === "all"
+      ? "all-outputs"
+      : kind === "app"
+        ? "app-usage-outputs"
+        : kind === "screen"
+          ? "screen-usage-outputs"
+          : kind === "aggregate"
+            ? "aggregate-summaries"
+            : kind === "parquet"
+              ? "parquet-files"
+              : kind === "spss"
+                ? "spss-files"
+                : kind === "lineage"
+                  ? "lineage-and-correspondence"
+                  : "plots";
   return `chronicle-${suffix}.zip`;
 }
 
@@ -109,11 +125,15 @@ function buildPerFileWarnings(
       output.kind !== "spss" &&
       output.kind !== "lineage"
     ) {
-      warnings.push(`${displayMasker.fileName(output.outputFileName)} contains zero data rows.`);
+      warnings.push(
+        `${displayMasker.fileName(output.outputFileName)} contains zero data rows.`,
+      );
     }
     const outputSize = output.blob?.size ?? output.persistedArtifact?.size;
     if (outputSize === 0) {
-      warnings.push(`${displayMasker.fileName(output.outputFileName)} is an empty file.`);
+      warnings.push(
+        `${displayMasker.fileName(output.outputFileName)} is an empty file.`,
+      );
     }
   });
   return warnings;
@@ -126,7 +146,8 @@ function buildBatchWarnings(input: {
   expectedFileCount: number;
   progressRows: FileProgress[];
 }): string[] {
-  const { results, error, displayMasker, expectedFileCount, progressRows } = input;
+  const { results, error, displayMasker, expectedFileCount, progressRows } =
+    input;
   const warnings: string[] = [];
   if (error) {
     warnings.push(error);
@@ -139,10 +160,14 @@ function buildBatchWarnings(input: {
   });
   // Files the user deliberately cancelled aren't a shortfall — exclude them from
   // the "only N/M produced results" check so a cancel doesn't read as a failure.
-  const cancelledCount = progressRows.filter((row) => row.status === "cancelled").length;
+  const cancelledCount = progressRows.filter(
+    (row) => row.status === "cancelled",
+  ).length;
   const expectedProduced = expectedFileCount - cancelledCount;
   if (expectedProduced > 0 && results.length < expectedProduced) {
-    warnings.push(`Only ${results.length}/${expectedProduced} selected files produced results.`);
+    warnings.push(
+      `Only ${results.length}/${expectedProduced} selected files produced results.`,
+    );
   }
   return warnings;
 }
@@ -151,17 +176,57 @@ async function downloadZip(
   kind: "all" | OutputKind,
   outputs: BatchOutput[],
 ): Promise<void> {
-  const entries = await Promise.all(
-    outputs.map(async ({ output }) => ({
+  const entries: Array<{ fileName: string; blob: Blob }> = [];
+  // Receipt-pinned OPFS reads can be very large. Resolve one at a time instead
+  // of making every Arrow/CSV allocation live at once before ZIP creation.
+  for (const { output } of outputs) {
+    entries.push({
       fileName: output.outputFileName,
       blob: await resolveOutputBlob(output),
-    })),
-  );
+    });
+  }
   const zip = await createZipBlob(entries);
   downloadBlob(zipName(kind), zip);
 }
 
-async function resolveOutputBlob(output: ProcessedOutputFileResult): Promise<Blob> {
+async function materializeRequestedPlots(
+  results: ProcessedFileResult[],
+): Promise<BatchOutput[]> {
+  const outputs: BatchOutput[] = [];
+  // Plotting can briefly allocate a full-size canvas. Generate one file at a
+  // time so a 100-file batch never has multiple plot canvases live together.
+  for (const result of results) {
+    if (!result.persistedPlotRequest) continue;
+    const plots = await materializePersistedPlots(result.persistedPlotRequest);
+    outputs.push(
+      ...plots.map((output) => ({
+        inputFileName: result.inputFileName,
+        output,
+      })),
+    );
+  }
+  return outputs;
+}
+
+async function materializeRequestedTimelines(
+  results: ProcessedFileResult[],
+): Promise<BatchOutput[]> {
+  const outputs: BatchOutput[] = [];
+  for (const result of results) {
+    if (!result.persistedTimelineRequest) continue;
+    outputs.push({
+      inputFileName: result.inputFileName,
+      output: await materializePersistedTimelineOutput(
+        result.persistedTimelineRequest,
+      ),
+    });
+  }
+  return outputs;
+}
+
+async function resolveOutputBlob(
+  output: ProcessedOutputFileResult,
+): Promise<Blob> {
   if (output.blob) return output.blob;
   const artifact = output.persistedArtifact;
   if (!artifact) {
@@ -170,13 +235,16 @@ async function resolveOutputBlob(output: ProcessedOutputFileResult): Promise<Blo
   const bytes = await readPersistedRustArtifact(
     artifact.workspaceId,
     artifact.kind,
+    artifact.workspaceRootDigest,
   );
   return new Blob([bytes as Uint8Array<ArrayBuffer>], {
     type: artifact.mediaType,
   });
 }
 
-async function downloadOutput(output: ProcessedOutputFileResult): Promise<void> {
+async function downloadOutput(
+  output: ProcessedOutputFileResult,
+): Promise<void> {
   downloadBlob(output.outputFileName, await resolveOutputBlob(output));
 }
 
@@ -199,30 +267,75 @@ export function ResultPanel({
         appRows: totals.appRows + result.appRowCount,
         screenRows: totals.screenRows + result.screenRowCount,
       }),
-      { files: 0, originalRows: 0, processedRows: 0, appRows: 0, screenRows: 0 },
+      {
+        files: 0,
+        originalRows: 0,
+        processedRows: 0,
+        appRows: 0,
+        screenRows: 0,
+      },
     );
   }, [results]);
 
   const allOutputs = useMemo(() => collectOutputs(results), [results]);
-  const appOutputs = useMemo(() => collectOutputs(results, "app"), [results]);
-  const screenOutputs = useMemo(() => collectOutputs(results, "screen"), [results]);
+  const appOutputs = useMemo(
+    () => allOutputs.filter(({ output }) => output.kind === "app"),
+    [allOutputs],
+  );
+  const screenOutputs = useMemo(
+    () => allOutputs.filter(({ output }) => output.kind === "screen"),
+    [allOutputs],
+  );
   // The timeline viewer is emitted as a "plot" output but is a standalone HTML
   // file — split it out so it gets its own download and isn't bundled into the
   // image "Plots ZIP".
   const plotOutputs = useMemo(
-    () => collectOutputs(results, "plot").filter((entry) => !isTimelineViewer(entry.output)),
-    [results],
+    () =>
+      allOutputs.filter(
+        ({ output }) => output.kind === "plot" && !isTimelineViewer(output),
+      ),
+    [allOutputs],
   );
   const timelineOutputs = useMemo(
-    () => collectOutputs(results, "plot").filter((entry) => isTimelineViewer(entry.output)),
+    () =>
+      allOutputs.filter(
+        ({ output }) => output.kind === "plot" && isTimelineViewer(output),
+      ),
+    [allOutputs],
+  );
+  const deferredPlotFileCount = useMemo(
+    () => results.filter((result) => !!result.persistedPlotRequest).length,
     [results],
   );
-  const aggregateOutputs = useMemo(() => collectOutputs(results, "aggregate"), [results]);
-  const parquetOutputs = useMemo(() => collectOutputs(results, "parquet"), [results]);
-  const spssOutputs = useMemo(() => collectOutputs(results, "spss"), [results]);
-  const lineageOutputs = useMemo(() => collectOutputs(results, "lineage"), [results]);
+  const deferredTimelineFileCount = useMemo(
+    () => results.filter((result) => !!result.persistedTimelineRequest).length,
+    [results],
+  );
+  const aggregateOutputs = useMemo(
+    () => allOutputs.filter(({ output }) => output.kind === "aggregate"),
+    [allOutputs],
+  );
+  const parquetOutputs = useMemo(
+    () => allOutputs.filter(({ output }) => output.kind === "parquet"),
+    [allOutputs],
+  );
+  const spssOutputs = useMemo(
+    () => allOutputs.filter(({ output }) => output.kind === "spss"),
+    [allOutputs],
+  );
+  const lineageOutputs = useMemo(
+    () => allOutputs.filter(({ output }) => output.kind === "lineage"),
+    [allOutputs],
+  );
   const batchWarnings = useMemo(
-    () => buildBatchWarnings({ results, error, expectedFileCount, progressRows, displayMasker }),
+    () =>
+      buildBatchWarnings({
+        results,
+        error,
+        expectedFileCount,
+        progressRows,
+        displayMasker,
+      }),
     [results, error, expectedFileCount, progressRows, displayMasker],
   );
   const progressByFile = useMemo(() => {
@@ -230,7 +343,53 @@ export function ResultPanel({
     progressRows.forEach((row) => map.set(row.fileName, row));
     return map;
   }, [progressRows]);
-  const [detailsOpen, setDetailsOpen] = useState(true);
+  // ResultPanel remains mounted while an empty run becomes a completed batch,
+  // so this default must be derived from the current result count rather than
+  // captured once by useState. A user click becomes an explicit override.
+  const [detailsOverride, setDetailsOverride] = useState<boolean | null>(null);
+  const detailsOpen = detailsOverride ?? results.length <= 20;
+  useEffect(() => {
+    if (results.length === 0) setDetailsOverride(null);
+  }, [results.length]);
+  const [activeDownload, setActiveDownload] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const downloadHooks: ExclusiveDownloadHooks = {
+    isBusy: () => activeDownload !== null,
+    markBusy: setActiveDownload,
+    markIdle: () => setActiveDownload(null),
+    reportError: setDownloadError,
+  };
+
+  const startZipDownload = (
+    id: "all" | OutputKind,
+    outputs: BatchOutput[],
+    includeDeferredPlots = false,
+    includeDeferredTimelines = false,
+  ): void => {
+    void startExclusiveDownload(downloadHooks, id, async () => {
+      const deferredPlots = includeDeferredPlots
+        ? await materializeRequestedPlots(results)
+        : [];
+      const deferredTimelines = includeDeferredTimelines
+        ? await materializeRequestedTimelines(results)
+        : [];
+      await downloadZip(id, [
+        ...outputs,
+        ...deferredPlots,
+        ...deferredTimelines,
+      ]);
+    });
+  };
+
+  const startTimelineDownload = (): void => {
+    void startExclusiveDownload(downloadHooks, "timeline", async () => {
+      const deferred = await materializeRequestedTimelines(results);
+      for (const { output } of [...timelineOutputs, ...deferred]) {
+        await downloadOutput(output);
+      }
+    });
+  };
 
   if (error && !results.length) {
     return (
@@ -244,16 +403,23 @@ export function ResultPanel({
 
   const showAppColumns = options.processAppUsage;
   const showScreenColumns = options.processScreenUsage;
-  const restoredLightweight = results.some((result) => result.restoredWithoutArtifacts);
+  const restoredLightweight = results.some(
+    (result) => result.restoredWithoutArtifacts,
+  );
 
   return (
-    <section className="result-panel" aria-label="Processing results" data-testid="result-panel">
+    <section
+      className="result-panel"
+      aria-label="Processing results"
+      data-testid="result-panel"
+    >
       <header className="result-panel__header">
         <div>
           <h2 className="result-panel__title">Results</h2>
           <span className="result-panel__summary">
             {summary.files} {summary.files === 1 ? "file" : "files"} processed ·{" "}
-            {allOutputs.length} output {allOutputs.length === 1 ? "file" : "files"}
+            {allOutputs.length} output{" "}
+            {allOutputs.length === 1 ? "file" : "files"}
           </span>
         </div>
         <div className="result-panel__actions">
@@ -262,20 +428,27 @@ export function ResultPanel({
             className="btn btn--primary"
             data-testid="download-all-zip"
             onClick={() => {
-              void downloadZip("all", allOutputs);
+              startZipDownload("all", allOutputs, true, true);
             }}
-            disabled={!allOutputs.length}
+            disabled={
+              !!activeDownload ||
+              (!allOutputs.length &&
+                !deferredPlotFileCount &&
+                !deferredTimelineFileCount)
+            }
           >
-            Download all ZIP
+            {activeDownload === "all"
+              ? "Preparing all files…"
+              : "Download all ZIP"}
           </button>
           <button
             type="button"
             className="btn btn--secondary"
             data-testid="download-app-csv"
             onClick={() => {
-              void downloadZip("app", appOutputs);
+              startZipDownload("app", appOutputs);
             }}
-            disabled={!appOutputs.length}
+            disabled={!!activeDownload || !appOutputs.length}
           >
             App ZIP
           </button>
@@ -284,46 +457,54 @@ export function ResultPanel({
             className="btn btn--secondary"
             data-testid="download-screen-csv"
             onClick={() => {
-              void downloadZip("screen", screenOutputs);
+              startZipDownload("screen", screenOutputs);
             }}
-            disabled={!screenOutputs.length}
+            disabled={!!activeDownload || !screenOutputs.length}
           >
             Screen ZIP
           </button>
-          {plotOutputs.length > 0 && (
+          {plotOutputs.length > 0 || deferredPlotFileCount > 0 ? (
             <button
               type="button"
               className="btn btn--secondary"
               data-testid="download-plots-zip"
               onClick={() => {
-                void downloadZip("plot", plotOutputs);
+                startZipDownload("plot", plotOutputs, true);
               }}
+              disabled={!!activeDownload}
             >
-              Plots ZIP ({plotOutputs.length})
+              {activeDownload === "plot"
+                ? "Generating plots…"
+                : `Plots ZIP (${deferredPlotFileCount || plotOutputs.length} ${
+                    deferredPlotFileCount === 1 ||
+                    (deferredPlotFileCount === 0 && plotOutputs.length === 1)
+                      ? "file"
+                      : "files"
+                  })`}
             </button>
-          )}
-          {timelineOutputs.length > 0 && (
+          ) : null}
+          {timelineOutputs.length > 0 || deferredTimelineFileCount > 0 ? (
             <button
               type="button"
               className="btn btn--secondary"
               data-testid="download-timeline-viewer"
-              onClick={() => {
-                void Promise.all(
-                  timelineOutputs.map(({ output }) => downloadOutput(output)),
-                );
-              }}
+              onClick={startTimelineDownload}
+              disabled={!!activeDownload}
             >
-              Timeline viewer ({timelineOutputs.length})
+              {activeDownload === "timeline"
+                ? "Generating timeline…"
+                : `Timeline viewer (${deferredTimelineFileCount || timelineOutputs.length})`}
             </button>
-          )}
+          ) : null}
           {aggregateOutputs.length > 0 && (
             <button
               type="button"
               className="btn btn--secondary"
               data-testid="download-aggregates-zip"
               onClick={() => {
-                void downloadZip("aggregate", aggregateOutputs);
+                startZipDownload("aggregate", aggregateOutputs);
               }}
+              disabled={!!activeDownload}
             >
               Aggregates ZIP ({aggregateOutputs.length})
             </button>
@@ -334,8 +515,9 @@ export function ResultPanel({
               className="btn btn--secondary"
               data-testid="download-parquet-zip"
               onClick={() => {
-                void downloadZip("parquet", parquetOutputs);
+                startZipDownload("parquet", parquetOutputs);
               }}
+              disabled={!!activeDownload}
             >
               Parquet ZIP ({parquetOutputs.length})
             </button>
@@ -346,8 +528,9 @@ export function ResultPanel({
               className="btn btn--secondary"
               data-testid="download-spss-zip"
               onClick={() => {
-                void downloadZip("spss", spssOutputs);
+                startZipDownload("spss", spssOutputs);
               }}
+              disabled={!!activeDownload}
             >
               SPSS ZIP ({spssOutputs.length})
             </button>
@@ -358,8 +541,9 @@ export function ResultPanel({
               className="btn btn--secondary"
               data-testid="download-lineage-zip"
               onClick={() => {
-                void downloadZip("lineage", lineageOutputs);
+                startZipDownload("lineage", lineageOutputs);
               }}
+              disabled={!!activeDownload}
             >
               Lineage evidence ZIP ({lineageOutputs.length})
             </button>
@@ -378,21 +562,42 @@ export function ResultPanel({
         </div>
       </header>
       {error ? <p className="error-text u-mb-3">{error}</p> : null}
+      {downloadError ? (
+        <p
+          className="error-text u-mb-3"
+          role="alert"
+          data-testid="download-error"
+        >
+          Could not prepare download: {downloadError}
+        </p>
+      ) : null}
       {stale ? (
-        <p className="result-stale-note" data-testid="results-stale-note" role="status">
-          Settings have changed since these results were generated. Re-process the files to
-          bring the outputs in line with your current settings.
+        <p
+          className="result-stale-note"
+          data-testid="results-stale-note"
+          role="status"
+        >
+          Settings have changed since these results were generated. Re-process
+          the files to bring the outputs in line with your current settings.
         </p>
       ) : null}
       {restoredLightweight ? (
-        <p className="result-restored-note" data-testid="restored-lightweight-note" role="status">
-          Restored a summary of your last run. Downloads and the interactive timeline aren’t kept
-          across a refresh to save memory — re-process the files to regenerate them.
+        <p
+          className="result-restored-note"
+          data-testid="restored-lightweight-note"
+          role="status"
+        >
+          Restored a summary of your last run. Rust outputs and static plots
+          remain downloadable; the selected interactive timeline loads from
+          verified local storage on demand.
         </p>
       ) : null}
       {batchWarnings.length ? (
         <div className="result-warnings" role="alert">
-          <strong>{batchWarnings.length} warning{batchWarnings.length === 1 ? "" : "s"}</strong>
+          <strong>
+            {batchWarnings.length} warning
+            {batchWarnings.length === 1 ? "" : "s"}
+          </strong>
           <ul>
             {batchWarnings.map((warning) => (
               <li key={warning}>{warning}</li>
@@ -406,7 +611,7 @@ export function ResultPanel({
         className="result-collapse"
         data-testid="results-collapse-toggle"
         aria-expanded={detailsOpen}
-        onClick={() => setDetailsOpen((open) => !open)}
+        onClick={() => setDetailsOverride(!detailsOpen)}
       >
         {detailsOpen ? "▾ Hide results details" : "▸ Show results details"}
       </button>
@@ -416,8 +621,12 @@ export function ResultPanel({
           <div className="result-summary-grid">
             <Stat label="Original rows" value={summary.originalRows} />
             <Stat label="Processed rows" value={summary.processedRows} />
-            {showAppColumns ? <Stat label="App rows" value={summary.appRows} /> : null}
-            {showScreenColumns ? <Stat label="Screen rows" value={summary.screenRows} /> : null}
+            {showAppColumns ? (
+              <Stat label="App rows" value={summary.appRows} />
+            ) : null}
+            {showScreenColumns ? (
+              <Stat label="Screen rows" value={summary.screenRows} />
+            ) : null}
           </div>
 
           <div className="result-table-wrap">
@@ -438,14 +647,20 @@ export function ResultPanel({
                 {results.map((result) => {
                   const progress = progressByFile.get(result.inputFileName);
                   const failed = progress?.status === "error";
-                  const fileWarnings = buildPerFileWarnings(result, options, displayMasker);
+                  const fileWarnings = buildPerFileWarnings(
+                    result,
+                    options,
+                    displayMasker,
+                  );
                   const statusLabel = failed
                     ? "Failed"
                     : fileWarnings.length
                       ? "Review"
                       : "Success";
                   const tzTitle = buildTimezoneTitle(result, displayMasker);
-                  const maskedFileName = displayMasker.fileName(result.inputFileName);
+                  const maskedFileName = displayMasker.fileName(
+                    result.inputFileName,
+                  );
                   const outputCounts = summarizeOutputs(result.outputs);
                   return (
                     <tr key={result.inputFileName} data-testid="result-row">
@@ -476,13 +691,18 @@ export function ResultPanel({
                         </td>
                       ) : null}
                       <td className="result-table__tz" title={tzTitle}>
-                        {result.timezone ? displayMasker.timezone(result.timezone) : "—"}
+                        {result.timezone
+                          ? displayMasker.timezone(result.timezone)
+                          : "—"}
                       </td>
                       <td className="result-table__outputs">
                         {outputCounts.length ? (
                           <span className="result-table__chips">
                             {outputCounts.map((entry) => (
-                              <span className="chip chip--output" key={entry.label}>
+                              <span
+                                className="chip chip--output"
+                                key={entry.label}
+                              >
                                 {entry.label}
                                 {entry.count > 1 ? ` ×${entry.count}` : ""}
                               </span>
@@ -491,8 +711,12 @@ export function ResultPanel({
                         ) : (
                           <span className="text-faint">No outputs</span>
                         )}
-                        {!result.restoredWithoutArtifacts && result.outputs.length ? (
-                          <ul className="result-table__downloads" aria-label="Download individual outputs">
+                        {!result.restoredWithoutArtifacts &&
+                        result.outputs.length ? (
+                          <ul
+                            className="result-table__downloads"
+                            aria-label="Download individual outputs"
+                          >
                             {result.outputs.map((output) => (
                               <li key={output.outputFileName}>
                                 <button
@@ -511,7 +735,10 @@ export function ResultPanel({
                           </ul>
                         ) : null}
                         {fileWarnings.length ? (
-                          <ul className="result-table__warnings" aria-label="Warnings">
+                          <ul
+                            className="result-table__warnings"
+                            aria-label="Warnings"
+                          >
                             {fileWarnings.map((warning) => (
                               <li key={warning}>{warning}</li>
                             ))}
@@ -572,18 +799,30 @@ function buildTimezoneTitle(
     );
   }
   if (result.availableTimezones.length > 1) {
-    parts.push(`timezones seen: ${result.availableTimezones.map(displayMasker.timezone).join(", ")}`);
+    parts.push(
+      `timezones seen: ${result.availableTimezones.map(displayMasker.timezone).join(", ")}`,
+    );
   }
   if (result.duplicateTimestampsCorrected > 0) {
-    parts.push(`${result.duplicateTimestampsCorrected.toLocaleString()} duplicate timestamps corrected`);
+    parts.push(
+      `${result.duplicateTimestampsCorrected.toLocaleString()} duplicate timestamps corrected`,
+    );
   }
   if (result.exactDuplicateRowsRemoved > 0) {
-    parts.push(`${result.exactDuplicateRowsRemoved.toLocaleString()} duplicate rows collapsed`);
+    parts.push(
+      `${result.exactDuplicateRowsRemoved.toLocaleString()} duplicate rows collapsed`,
+    );
   }
   return parts.join(" · ");
 }
 
-function Stat({ label, value }: { label: string; value: number }): ReactElement {
+function Stat({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}): ReactElement {
   return (
     <div className="stat-block">
       <div className="stat-block__label">{label}</div>

@@ -32,7 +32,7 @@ import type {
   ProcessedFileResult,
   ProgressEvent,
 } from "@/lib/types";
-import { comparisonSupportCacheKey } from "@/lib/comparisonSupportCache";
+import { comparisonSupportCacheKey } from "@/lib/comparisonSupportKey";
 
 /**
  * SHA-256 of the raw input, returned as a lowercase hex string. Runs in the

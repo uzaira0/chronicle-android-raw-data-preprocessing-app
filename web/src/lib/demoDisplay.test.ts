@@ -16,14 +16,16 @@ describe("demoDisplay date masking", () => {
 
   it("masks locale weekday + month label dates shown in waterfall row labels", () => {
     const masker = createDemoDisplayMasker(true);
-    expect(masker.text("Tue, Jun 08, 2026 · 00:00 → 01:00")).toBe("Date 01 · 00:00 → 01:00");
+    expect(masker.text("Tue, Jun 08, 2026 · 00:00 → 01:00")).toBe(
+      "Date 01 · 00:00 → 01:00",
+    );
   });
 
   it("masks space-separated datetimes (no TS suffix), bare dates, and repeats stably", () => {
     const masker = createDemoDisplayMasker(true);
-    expect(masker.text("seen 2026-03-02T10:00:00Z then 2026-03-02T10:00:00Z")).toBe(
-      "seen Date 01 TS then Date 01 TS",
-    );
+    expect(
+      masker.text("seen 2026-03-02T10:00:00Z then 2026-03-02T10:00:00Z"),
+    ).toBe("seen Date 01 TS then Date 01 TS");
     expect(masker.text("at 2026-03-02 10:00:00-06:00")).toBe("at Date 02");
     expect(masker.text("on 2026-04-01")).toBe("on Date 03");
     expect(masker.text("Monday, March 2, 2026 visit")).toBe("Date 04 visit");
@@ -88,7 +90,9 @@ describe("createDemoDisplayMasker", () => {
     expect(masker.fileName("P01_raw.csv")).toBe("P01_raw.csv");
     expect(masker.participantId("P01")).toBe("P01");
     expect(masker.timezone("America/Chicago")).toBe("America/Chicago");
-    expect(masker.text("2026-03-02 seen for P01")).toBe("2026-03-02 seen for P01");
+    expect(masker.text("2026-03-02 seen for P01")).toBe(
+      "2026-03-02 seen for P01",
+    );
   });
 
   it("assigns stable per-value labels and preserves file extensions", () => {
@@ -120,5 +124,10 @@ describe("createDemoDisplayMasker", () => {
     expect(out).toBe(`${fileFull} and ${fileBase} both seen`);
     // No exact values → text passes straight to date masking only.
     expect(masker.text("plain text")).toBe("plain text");
+    // An absent exact value is a no-op. A generated label that contains the
+    // original word must terminate after one replacement, not loop forever.
+    const edgeMasker = createDemoDisplayMasker(true);
+    expect(edgeMasker.text("plain text", ["absent"])).toBe("plain text");
+    expect(edgeMasker.text("File", ["File"])).toBe("File 02");
   });
 });

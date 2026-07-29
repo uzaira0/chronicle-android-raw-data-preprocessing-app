@@ -158,6 +158,7 @@ graph_nodes:
     section: clean
     node_inputs:
       - episode_annotations
+      - reconstruct_episodes
     node_knobs:
       - option_key: process_app_usage
         edge: gates
@@ -462,6 +463,7 @@ graph_steps:
     unit_id: reconstruct_episodes
     step_inputs:
       - tag_filtered_packages
+      - compute_junk_packages
     has_bypass: true
   - step_id: build_matcher_input
     step_label: Build matcher input
@@ -573,6 +575,7 @@ graph_steps:
     unit_id: interval_cleaning
     step_inputs:
       - flag_and_retain
+      - compute_junk_packages
     has_bypass: true
   - step_id: drop_selected_types
     step_label: Drop selected types

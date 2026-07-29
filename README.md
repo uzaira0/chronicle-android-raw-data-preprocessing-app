@@ -35,8 +35,9 @@ checkpoints with an independent cold Rust target, and requires a concrete
 activating case for every computational axis. The model preserves enum, numeric, list,
 and string equivalence domains; it does not reduce non-boolean settings to
 flags. Declared logical propagation is exact for the recorded test scope. Those
-ledgers predate the Salsa cutover and must be regenerated before they can prove
-the current physical execution sets.
+ledgers have been regenerated on the physical Salsa engine (see the campaign
+status table in `docs/semantic-federation/55-step-incremental-rust-plan.md`);
+regenerate them again after any change to the tracked query set.
 
 The companion
 [artifact dependency tomography](docs/semantic-federation/artifact-dependency-tomography.md)

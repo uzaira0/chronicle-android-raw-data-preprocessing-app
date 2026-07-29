@@ -89,7 +89,7 @@ corpora per intervention so context-dependent support edges remain explicit.
 
 ## Typed checkpoint shape
 
-`chronicle-logical-stage-checkpoint/v3` replaces an opaque stage comparison
+`chronicle-logical-stage-checkpoint/v7` (current shipping version) replaces an opaque stage comparison
 with six product-owned components:
 
 | Component | Chronicle meaning |

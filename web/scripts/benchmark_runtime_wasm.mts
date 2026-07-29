@@ -312,6 +312,66 @@ if (args.exportReviewBasesDir) {
   supports.free();
   process.exit(0);
 }
+const reviewProbeSpec = JSON.parse(runtime.review_base_probe_spec_json()) as {
+  reviewBaseBytes: number;
+  reconstructionBaseBytes: number;
+};
+const executePreparedReview = (requestJson: string) => {
+  if (!reviewBaseBytes || !reconstructionBaseBytes) {
+    throw new Error("prepared review requires persisted review bases");
+  }
+  const reviewProbe = reviewBaseBytes.subarray(
+    0,
+    reviewProbeSpec.reviewBaseBytes,
+  );
+  const reconstructionProbe = reconstructionBaseBytes.subarray(
+    0,
+    reviewProbeSpec.reconstructionBaseBytes,
+  );
+  const prepared = runtime.prepare_persisted_workspace_review(
+    requestJson,
+    inputBytes.byteLength,
+    reviewProbe,
+    reconstructionProbe,
+    supports,
+  );
+  try {
+    const selectedBaseKind = prepared.required_base_kind();
+    if (
+      selectedBaseKind !== "none" &&
+      selectedBaseKind !== "review-base" &&
+      selectedBaseKind !== "reconstruction-base"
+    ) {
+      throw new Error(`Rust selected an unknown review base: ${selectedBaseKind}`);
+    }
+    if (selectedBaseKind === "none") {
+      return {
+        handle: runtime.execute_workspace(requestJson, inputBytes, supports),
+        selectedBaseKind,
+        wasmBoundaryBytes:
+          inputBytes.byteLength +
+          reviewProbe.byteLength +
+          reconstructionProbe.byteLength,
+      };
+    }
+    const selectedBase =
+      selectedBaseKind === "review-base"
+        ? reviewBaseBytes
+        : selectedBaseKind === "reconstruction-base"
+          ? reconstructionBaseBytes
+        : reconstructionBaseBytes;
+    return {
+      handle: prepared.execute_selected_base(selectedBase),
+      selectedBaseKind,
+      wasmBoundaryBytes:
+        reviewProbe.byteLength +
+        reconstructionProbe.byteLength +
+        selectedBase.byteLength,
+    };
+  } finally {
+    prepared.free();
+  }
+};
 if (args.warmRuntime) {
   if (!reviewBaseBytes || !reconstructionBaseBytes) {
     throw new Error("--warm-runtime requires persisted review bases");
@@ -329,17 +389,14 @@ if (args.warmRuntime) {
       datetimeOfPreprocessing: "2026-07-23 00:00:00 UTC",
     }),
   });
-  const warmHandle = runtime.execute_workspace_with_review_bases(
-    warmRequest,
-    inputBytes,
-    reviewBaseBytes,
-    reconstructionBaseBytes,
-    supports,
-  );
+  const { handle: warmHandle, selectedBaseKind: warmSelectedBaseKind } =
+    executePreparedReview(warmRequest);
   try {
     const manifest = JSON.parse(warmHandle.manifest_json());
     if (!Array.isArray(manifest.cacheSources) || manifest.cacheSources.length === 0) {
-      throw new Error("worker warmup did not restore a verified cache");
+      throw new Error(
+        `worker warmup did not restore a verified cache (selected ${warmSelectedBaseKind})`,
+      );
     }
   } finally {
     warmHandle.free();
@@ -402,6 +459,8 @@ try {
           ? stableWorkspaceId
           : sha256(`${stableWorkspaceId}:${iteration}`);
       let handle: ReturnType<typeof runtime.execute_workspace> | undefined;
+      let selectedBaseKind = "none";
+      let wasmBoundaryBytes = inputBytes.byteLength;
       try {
         const browserOptions = buildBrowserOptions(
           args.changedOnly || iteration > 0,
@@ -433,19 +492,20 @@ try {
               datetimeOfPreprocessing: "2026-07-23 00:00:00 UTC",
             }),
           });
-        handle = args.reviewBase
-          ? runtime.execute_workspace_with_review_bases(
-              requestJson("single", browserOptions),
-              inputBytes,
-              reviewBaseBytes!,
-              reconstructionBaseBytes!,
-              supports,
-            )
-          : runtime.execute_workspace(
-              requestJson("single", browserOptions),
-              inputBytes,
-              supports,
-            );
+        if (args.reviewBase) {
+          const prepared = executePreparedReview(
+            requestJson("single", browserOptions),
+          );
+          handle = prepared.handle;
+          selectedBaseKind = prepared.selectedBaseKind;
+          wasmBoundaryBytes = prepared.wasmBoundaryBytes;
+        } else {
+          handle = runtime.execute_workspace(
+            requestJson("single", browserOptions),
+            inputBytes,
+            supports,
+          );
+        }
         const executeElapsedMs = performance.now() - executeStarted;
         sampleMemory();
         const manifest = JSON.parse(handle.manifest_json());
@@ -492,6 +552,8 @@ try {
           comparisonDigest: manifest.comparisonDigest ?? null,
           reviewSummaryDigest: manifest.reviewSummaryDigest ?? null,
           cacheSources: manifest.cacheSources ?? [],
+          selectedBaseKind,
+          wasmBoundaryBytes,
           implementationDigest: manifest.implementationDigest,
           planDigest: manifest.planDigest,
           profileDigest: manifest.profileDigest,
@@ -596,6 +658,12 @@ process.stdout.write(
           ),
           coldCacheSources: coldResults.map(
             (result: any) => result.cacheSources,
+          ),
+          coldSelectedBaseKinds: coldResults.map(
+            (result: any) => result.selectedBaseKind,
+          ),
+          coldWasmBoundaryBytes: coldResults.map(
+            (result: any) => result.wasmBoundaryBytes,
           ),
           coldCounts: coldResults.map((result: any) => result.counts),
           coldIdentities: coldResults.map((result: any) => ({

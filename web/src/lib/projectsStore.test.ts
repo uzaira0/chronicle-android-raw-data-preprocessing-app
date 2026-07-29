@@ -56,10 +56,26 @@ describe("projectByteSize", () => {
   it("is zero when files aren't bundled, sums sizes otherwise", () => {
     const args = {
       rawFiles: [file("a.csv", "12345")],
-      supportFiles: { appCodebookFile: file("c.csv", "678") },
+      supportFiles: {
+        appCodebookFile: file("c.csv", "678"),
+        filterFile: null,
+      },
     };
     expect(projectByteSize({ ...args, includeFiles: false })).toBe(0);
     expect(projectByteSize({ ...args, includeFiles: true })).toBe(8);
+  });
+});
+
+describe("storedFileToFile", () => {
+  it("falls back to the blob MIME type when optional file metadata is absent", () => {
+    const restored = storedFileToFile({
+      name: "legacy.csv",
+      blob: new Blob(["legacy"], { type: "text/csv" }),
+    });
+
+    expect(restored.name).toBe("legacy.csv");
+    expect(restored.type).toBe("text/csv");
+    expect(restored.lastModified).toBeGreaterThan(0);
   });
 });
 
@@ -149,6 +165,97 @@ describe("IndexedDB CRUD round-trip", () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it("normalizes a non-Error transaction failure without recreating an existing store", async () => {
+    const createObjectStore = vi.fn();
+    const db = {
+      close: vi.fn(),
+      objectStoreNames: { contains: () => true },
+      createObjectStore,
+      transaction: () => {
+        const tx: {
+          error: string;
+          oncomplete: (() => void) | null;
+          onerror: (() => void) | null;
+          objectStore: () => { put: () => Record<string, never> };
+        } = {
+          error: "string transaction failure",
+          oncomplete: null,
+          onerror: null,
+          objectStore: () => ({
+            put: () => {
+              queueMicrotask(() => tx.onerror?.());
+              return {};
+            },
+          }),
+        };
+        return tx;
+      },
+    };
+    vi.stubGlobal("indexedDB", {
+      open: () => {
+        const request: {
+          result: typeof db;
+          onupgradeneeded: (() => void) | null;
+          onsuccess: (() => void) | null;
+          onerror: (() => void) | null;
+        } = {
+          result: db,
+          onupgradeneeded: null,
+          onsuccess: null,
+          onerror: null,
+        };
+        queueMicrotask(() => {
+          request.onupgradeneeded?.();
+          request.onsuccess?.();
+        });
+        return request;
+      },
+    });
+
+    try {
+      await expect(
+        saveProject(
+          buildProjectRecord({
+            id: "string-error",
+            name: "String error",
+            now: "2026-06-04T00:00:00Z",
+            options: DEFAULT_BROWSER_OPTIONS,
+            rawFiles: [],
+            supportFiles: {},
+            includeFiles: false,
+          }),
+        ),
+      ).rejects.toThrow("string transaction failure");
+      expect(createObjectStore).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each([new Error("open boom"), "string open failure"])(
+    "normalizes an IndexedDB open failure (%s)",
+    async (error) => {
+      vi.stubGlobal("indexedDB", {
+        open: () => {
+          const request: {
+            error: unknown;
+            onerror: (() => void) | null;
+          } = { error, onerror: null };
+          queueMicrotask(() => request.onerror?.());
+          return request;
+        },
+      });
+
+      try {
+        await expect(listProjects()).rejects.toThrow(
+          error instanceof Error ? error.message : error,
+        );
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    },
+  );
 
   it("orders projects by most-recently-updated first", async () => {
     await saveProject(

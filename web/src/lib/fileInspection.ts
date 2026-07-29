@@ -4,6 +4,8 @@ import type { BrowserProcessingOptions } from "@/lib/types";
 export type RawFileInspection = {
   fileName: string;
   sizeBytes: number;
+  /** SHA-256 computed from this exact immutable File while it is already in the inspection worker. */
+  inputSha256?: string;
   rowCount: number;
   /** Distinct participant_id values. >1 means multiple participants are
    * concatenated in one file, which the per-file pipeline doesn't group by. */
@@ -60,19 +62,76 @@ type RawFileInspector = (
   fileName: string,
   sizeBytes: number,
   csvBytes: ArrayBuffer,
+  verifiedInputSha256?: string,
 ) => Promise<RawFileInspection>;
 
 let rawFileInspector: RawFileInspector = inspectRawCsvBytes;
 
 /** Test seam for running the same Rust inspection function without a browser Worker. */
-export function setRawFileInspectorForTesting(inspector: RawFileInspector | null): void {
+export function setRawFileInspectorForTesting(
+  inspector: RawFileInspector | null,
+): void {
   rawFileInspector = inspector ?? inspectRawCsvBytes;
 }
 
 export async function inspectRawFile(file: File): Promise<RawFileInspection> {
-  return rawFileInspector(file.name, file.size, await file.arrayBuffer());
+  const bytes = await file.arrayBuffer();
+  const inputSha256 = await sha256Hex(bytes);
+  return {
+    ...(await rawFileInspector(file.name, file.size, bytes, inputSha256)),
+    inputSha256,
+  };
 }
 
-export async function inspectRawFiles(files: File[]): Promise<RawFileInspection[]> {
-  return Promise.all(files.map((file) => inspectRawFile(file)));
+export async function inspectRawFiles(
+  files: File[],
+): Promise<RawFileInspection[]> {
+  // Hashing is cheaper than parsing. Exact duplicate content is parsed once,
+  // while each selected File keeps its own display name and size. Bound both
+  // worker count and total queued bytes so large files cannot exhaust memory.
+  const results: Array<RawFileInspection | undefined> = Array.from(
+    { length: files.length },
+    () => undefined,
+  );
+  const inspectionByDigest = new Map<string, Promise<RawFileInspection>>();
+  let cursor = 0;
+  const inspectNext = async (): Promise<void> => {
+    for (;;) {
+      const index = cursor;
+      cursor += 1;
+      const file = files[index];
+      if (!file) return;
+      const bytes = await file.arrayBuffer();
+      const inputSha256 = await sha256Hex(bytes);
+      let inspection = inspectionByDigest.get(inputSha256);
+      if (!inspection) {
+        inspection = rawFileInspector(file.name, file.size, bytes, inputSha256);
+        inspectionByDigest.set(inputSha256, inspection);
+      }
+      const canonical = await inspection;
+      results[index] = {
+        ...canonical,
+        fileName: file.name,
+        sizeBytes: file.size,
+        inputSha256,
+      };
+    }
+  };
+  const largestFileBytes = Math.max(1, ...files.map((file) => file.size));
+  const byteBound = Math.max(
+    1,
+    Math.floor((256 * 1024 * 1024) / largestFileBytes),
+  );
+  const concurrency = Math.min(8, byteBound, files.length);
+  await Promise.all(Array.from({ length: concurrency }, () => inspectNext()));
+  return results.filter(
+    (inspection): inspection is RawFileInspection => inspection !== undefined,
+  );
+}
+
+async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
 }

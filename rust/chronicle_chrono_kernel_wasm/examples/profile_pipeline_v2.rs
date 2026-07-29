@@ -205,6 +205,7 @@ fn options() -> PipelineV2Options {
         enable_screen_gated_crediting: true,
         enable_aggregates: true,
         aggregate_shape: "wide".into(),
+        materialize_visualization_data: true,
         credited_session_cap_minutes: 360.0,
         device_liveness_gap_tolerance_minutes: 120.0,
         auto_lock_bridge_seconds: 120.0,
@@ -662,11 +663,17 @@ fn main() -> Result<(), String> {
     let mut checksum = Sha256::new();
     let mut app_rows = 0_u32;
     let mut screen_rows = 0_u32;
+    let mut app_csv_bytes = 0_usize;
+    let mut screen_csv_bytes = 0_usize;
+    let mut visualization_bytes = 0_usize;
     for _ in 0..args.iterations {
         let result =
             run_pipeline_v2_with_supports(black_box(&raw_csv), black_box(&options), support)?;
         app_rows = result.app_row_count;
         screen_rows = result.screen_row_count;
+        app_csv_bytes = result.app_csv_bytes.len();
+        screen_csv_bytes = result.screen_csv_bytes.len();
+        visualization_bytes = result.visualization_data_json_bytes.len();
         checksum.update(result.app_csv_bytes.as_slice());
         checksum.update(result.screen_csv_bytes.as_slice());
         checksum.update(result.review_summary_json_bytes.as_slice());
@@ -679,7 +686,7 @@ fn main() -> Result<(), String> {
     let processed_rows = rows.saturating_mul(args.iterations);
     let rows_per_second = processed_rows as f64 / elapsed.as_secs_f64();
     println!(
-        "rows={} iterations={} input_bytes={} elapsed_ns={} elapsed_ms={:.3} rows_per_second={:.3} app_rows={} screen_rows={} checksum={}",
+        "rows={} iterations={} input_bytes={} elapsed_ns={} elapsed_ms={:.3} rows_per_second={:.3} app_rows={} screen_rows={} app_csv_bytes={} screen_csv_bytes={} visualization_bytes={} checksum={}",
         rows,
         args.iterations,
         raw_csv.len(),
@@ -688,6 +695,9 @@ fn main() -> Result<(), String> {
         rows_per_second,
         app_rows,
         screen_rows,
+        app_csv_bytes,
+        screen_csv_bytes,
+        visualization_bytes,
         hex::encode(checksum.finalize()),
     );
     Ok(())

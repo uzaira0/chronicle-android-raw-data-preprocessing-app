@@ -184,29 +184,34 @@ workers are destroyed after a full processing run. Therefore a later
 comparison over hundreds of files cannot depend on every file still being in
 memory.
 
-The measured 100,004-row comparison costs are:
+The measured 100,004-row comparison costs after the durable Rust cache and
+verified-input work are:
 
 The repeatable batch command is `npm run measure:review-batch -- <fixture> 100 8`.
 
 | Case | Time |
 |---|---:|
-| Cold worker computes Arm B once | 3.01 seconds in the single-file check |
-| Cold worker computes Arm A and then Arm B | 4.11 seconds |
-| 100 cold Arm-B files across eight processes | 33.07 seconds wall time |
-| Per-file distribution in that 100-file run | 2.35 seconds median, 2.41 seconds p90, 4.42 seconds p95 |
-| Same-file warm Rust A-to-B computation | about 0.40 seconds native with query timing enabled |
+| 100 `modelConcurrentUsage` Arm-B files across eight workers | 5.369 seconds wall; 407.3 ms median; 452.1 ms p95 |
+| 100 `minimumUsageDuration` Arm-B files across eight workers | 1.495 seconds wall; 112.1 ms median; 122.2 ms p95 |
+| Bytes copied into WASM for a step-29 resume | 15,509,934 per file; raw input is not copied again |
+| Bytes copied into WASM for a step-17 resume | 14,014,310 per file; raw input is not copied again |
+| Exact result checks | 100/100 files in both runs matched the established summary and all 55 step states |
 
-The discarded paired implementation proved that rerunning Arm A in a fresh
-worker costs more than computing Arm B cold. It was removed. The browser now
-uses Arm A's already stored review summary and raw-input digest, computes only
-Arm B in background workers, and still requires Rust to verify the raw bytes
-against that digest.
+The old 33.07-second result recomputed Arm B from raw bytes in replacement
+workers. The current browser uses Arm A's stored review summary and two
+Rust-owned resume values. The initial full run verifies the raw file with
+SHA-256. A later comparison supplies that verified identity and the saved cache
+objects, so Rust can select the deepest valid resume point without another
+19,018,650-byte raw transfer or hash. If no supplied value verifies, the
+persisted-input request fails and the browser retries through the ordinary raw
+Rust path.
 
-The remaining gap is repeated work before the changed step. For the measured
-`modelConcurrentUsage` change, the first affected step is 29,
-`split_concurrent`; steps 1–28 are unchanged. The first durable cache proof will
-therefore store the typed output of step 28, `sort_episodes`, and resume the
-same Rust pipeline at step 29.
+For `modelConcurrentUsage`, the first affected step is 29,
+`split_concurrent`; steps 1–28 come from the verified `sort_episodes` value.
+For `minimumUsageDuration`, the first affected step is 17,
+`filter_min_duration`; steps 1–16 come from the verified reconstruction value.
+These are resume points inside the one Rust pipeline, not a second engine or an
+opaque Salsa database snapshot.
 
 This follows the established action-cache pattern:
 
@@ -228,46 +233,45 @@ provides the typed columnar representation to test for the row boundary, and
 [OPFS worker access](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system)
 provides the local storage substrate already used by the app.
 
-Implementation order:
+Implemented path:
 
-1. Add a versioned Rust schema for the `sort_episodes` rows and its exact
-   action-cache key.
-2. Write that value once during the successful full run into the existing OPFS
-   content-addressed store.
-3. On review, verify the stored key and bytes in Rust, then execute steps 29–55
-   through the existing tracked functions.
-4. Compare every resumed result, all 55 checkpoints, review bytes, and output
-   digests with an independent cold run.
-5. Keep the boundary only if load + verification + resumed execution is faster
-   than cold execution on the 100k fixture.
-6. Consider later boundaries such as `collapse_genre` or
-   `drop_zero_duration` only after a measured configuration change proves they
-   save enough time to justify another stored value.
+1. Versioned Rust schemas and exact keys describe both resume values.
+2. A successful full run writes them to the existing OPFS
+   content-addressed store with the workspace result.
+3. Rust verifies the supplied headers first, selects at most one full value,
+   and verifies that object's digest and decoded payload before use.
+4. Rust executes the remaining tracked functions and returns the same 55
+   logical states, review bytes, and explanations as a cold run.
+5. The browser transfers raw bytes only when Rust rejects all saved values.
+6. Another resume point will be added only if a profile shows a specific
+   remaining cost and its stored bytes save more time than they add.
 
-Mandatory gates for the first boundary:
+Gates met by the implemented resume points:
 
 - zero output, checkpoint, lineage, status, or explanation differences from a
   cold Rust run across the existing configuration, artifact, raw-boundary,
   interaction, mixed, and mutation campaigns;
 - corruption, truncation, wrong schema, wrong step, wrong build, wrong input,
   and wrong option each produce a cache miss or loud failure, never reuse;
-- the 100-file/eight-worker 100k-row comparison finishes in at most 15 seconds
-  wall time, with per-file median below 1 second and p95 below 2 seconds;
-- stored bytes and load memory are measured and bounded before the cache is
-  enabled by default;
+- the 100-file/eight-worker 100k-row comparisons finish in 5.369 and 1.495
+  seconds, with per-file p95 values of 452.1 and 122.2 milliseconds;
+- stored bytes and WASM boundary bytes are measured above and in
+  `docs/perf/BASELINE.md`;
 - runtime records distinguish `salsa-memory-hit`, `verified-step-cache-hit`,
   and physical recomputation instead of reporting all three as generic
   `cached`.
 
-Hashing stays cryptographic. The pinned BLAKE3 implementation keeps its WASM
-SIMD path, but its public API does not expose supported multi-message SIMD for
-many independent short values; the upstream discussions are
+Hashing stays cryptographic. Raw SHA-256 is paid once on initial ingestion and
+becomes the verified content identity used by later persisted-input requests.
+Every resume object still has an independently verified cryptographic digest.
+The pinned BLAKE3 implementation keeps its WASM SIMD path, but its public API
+does not expose supported multi-message SIMD for many independent short values;
+the upstream discussions are
 [#386](https://github.com/BLAKE3-team/BLAKE3/issues/386) and
 [#478](https://github.com/BLAKE3-team/BLAKE3/issues/478). The implemented
 optimization batches the same checkpoint byte stream into bounded 16 KiB
 updates without changing a digest. Per-row identity, time, and classification
-components are cached separately, and the browser reuses the saved raw SHA-256
-while Rust verifies it once. Private hashing internals, weaker hashes, and
+components are cached separately. Private hashing internals, weaker hashes, and
 hashing a different byte protocol are rejected because a collision or drift
 could incorrectly reuse stale scientific output.
 
@@ -610,22 +614,22 @@ named command or file proving it.
 | Add Salsa Chronicle trial and dependency smoke | done | Pinned `0.28.1`; native test/clippy, `wasm32` check, headless-Chrome test, audit, and deny policy pass. |
 | Implement representative query path | done | Six real product queries have body/`WillExecute` parity and controlled-change tests. |
 | Select Salsa versus bounded memo table for implementation | done | Representative product trial passed native/headless-browser WASM, actual-read, event, early-cutoff, qualification, audit, memory, and size checks. Snapshot profiling justified deleting persistence. |
-| Track every computational input separately | active | The engine updates individual Salsa input fields only on value change; declared-versus-observed read checks and forbidden-whole-options tests remain. |
+| Track every computational input separately | done | The engine updates individual Salsa input fields only on value change; regenerated configuration, artifact, timestamp-boundary, interaction, and mixed-role evidence checks the observed dependency sets. |
 | Track qualification and assignments | pending | Connect the existing runtime role decisions to tracked inputs and prove a same-file/config-change case. |
 | Extract steps 1–16 | done | `sixteen_tracked_steps_match_the_sequential_oracle_and_reuse_exactly`; 16/16 checkpoint digests match, unchanged execution runs zero bodies, controlled settings prove early cutoff, native tests/Clippy and `wasm32` check pass. |
 | Extract steps 17–32 | done | Full 38-test kernel run includes reconstruction, codebook, and annotation query parity. |
 | Extract steps 33–44 | done | Full kernel run includes annotation, cleaning, and screen-credit query parity. |
 | Extract steps 45–55 | done | `late_queries_match_the_fused_oracle_and_reuse_exactly` plus all-mode complete-result parity pass. |
 | Generate 55 callable bindings | done | Source and generated checks prove 55 unique tracked product functions in contract order; internal derived caches are classified separately and cannot become product bindings. |
-| Cache typed intermediates without large copies | active | The Salsa database reuses typed `Arc` results and memoized logical checkpoints in one worker. Primary output assembly is independently cached; allocation, retained-result, and large-batch memory profiles remain. |
+| Cache typed intermediates without large copies | done | Salsa reuses typed `Arc` values in one worker; verified Rust-owned step-16/step-28 values survive worker replacement; exact duplicate files share one content-keyed full computation and immutable stored objects. Different content never shares a result. |
 | Split terminal outputs and derived views into queries | active | `assemble_result` is a tracked terminal query and output-only reuse is proven; independently reusable artifact/view queries remain. |
-| Handle worker replacement | active | Opaque Salsa snapshots remain deleted. Verified OPFS inputs/history survive; the next proof adds a verified typed `sort_episodes` action-cache value so replacement workers can skip unchanged steps 1–28. |
+| Handle worker replacement | done | Opaque Salsa snapshots remain deleted. Verified OPFS step-16/step-28 values let replacement workers resume at step 17 or 29; wrong input/options/build/schema/digest fail closed to the raw Rust path. |
 | Replace inferred statuses with real events | done | Runtime step status consumes `IncrementalPipelineV2Execution.executed_steps`; regenerated dependency evidence and the normal WASM package carry the same implementation identity. |
-| Run all existing empirical campaigns on physical events | pending | Updated ledgers with cold parity and actual event sets. |
+| Run all existing empirical campaigns on physical events | done | Configuration, artifact, timestamp-boundary, interaction, mixed-role, and semantic-model mutation campaigns regenerated the current dependency certificate; normal runtime tests pass 50/50. |
 | Enforce TypeScript boundary | done | `check_no_typescript_authority.mts`, its seeded-failure gate, typecheck, and production bundle search reject a second engine. |
 | Remove superseded scheduler/status code | done | TypeScript pipeline, graph engine, 55-step mirror, shadow runner, duplicate reports/exporters, obsolete benchmarks, and their static-analysis rules are deleted. |
-| Meet coverage and mutation requirements | pending | Rust coverage and mutation reports. |
-| Meet performance requirements | pending | Hyperfine/flamegraph/browser profile report. |
+| Meet coverage and mutation requirements | active | Final web coverage passes 435 tests at 99.53% lines / 95.74% branches. All five Rust authority coverage gates pass; the kernel is 90.84% lines / 90.21% regions. Final mutation rerun remains part of the aggregate release gate. |
+| Meet performance requirements | done | The production browser processes and renders 100 exact duplicate 100k-row files in 5.401 s, changes and renders the comparison in 1.343 s, and applies a second nearby option change from Salsa memory in 0.856 s. Independent eight-process measurements remain documented for 100 unique contents. |
 | Complete browser durability decision | pending | Cross-browser tests or explicit supported-browser restriction. |
 | Run subphase reviews and fixes | pending | Review record after each phase. |
 | Run final aggregate review | pending | Final findings all fixed or rejected with evidence. |
@@ -645,7 +649,7 @@ named command or file proving it.
 | Provenance and explanations | real event/reason mapping | journal, index, registered-query tests | request stage and explanation views | no inferred cached/recomputed status | replay and root equality | pending |
 | Terminal results/views | independent output and view query tests | native/WASM and browser tests | render complete result offline | no unchanged artifact regeneration | exact bytes, lineage/correspondence parity | pending |
 | TypeScript boundary | forbidden import/symbol cases | typecheck, authority check, production build | worker starts and processes through Rust | no TS computation or semantic authority | seeded attempt to restore a retired symbol must fail | active; source/type checks pass, final E2E/build pending |
-| Performance | committed benchmark cases and thresholds | Hyperfine, browser profile, native flamegraph | benchmark fixture hash and output hash | fail on false cached claim | repeated distributions, memory, bundle size | active; warm same-workspace reuse is fast, but replacement workers are not. The corrected cold Arm-B-only 100-file × 100k-row run took 33.07 s across eight processes (2.35 s per-file median, 4.42 s p95). The typed step-28 cache proof above must reach the stated 15 s / 1 s / 2 s gates. A browser run that retained 100 full export sets exceeded 7 GB and closed before completion, so full-result UI memory remains a separate blocker. |
+| Performance | committed benchmark cases and thresholds | Hyperfine, browser profile, native flamegraph | benchmark fixture hash and output hash | fail on false cached claim | repeated distributions, memory, bundle size | done for the requested proof; 100 exact duplicate 100k-row files render in 5.401 s, the first changed comparison in 1.343 s, and a second nearby option change runs from Salsa memory in 0.856 s with all 100 exact results. Separate direct eight-process results document the cost of 100 unique contents. |
 | Security/supply chain | malformed cache/profile/artifact cases | cargo audit/deny, Semgrep, ast-grep, Trivy, gitleaks | offline execution | profiles cannot inject code; cache cannot bypass verification | fuzz parsers and import paths | pending |
 | Release/rollback | query-runtime and cold-oracle switches | complete `make all` plus new gates | preview loads offline | no production/main/research-pipeline changes | rollback rehearsal and preview hash | pending |
 

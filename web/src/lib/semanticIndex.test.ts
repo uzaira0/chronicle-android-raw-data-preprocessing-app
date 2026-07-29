@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import {
   executeRustRuntime,
@@ -109,5 +109,43 @@ describe("derived semantic index WASM boundary", () => {
     await expect(
       queryRegisteredSemanticIndex(first, "DROP ALL"),
     ).rejects.toThrow(/unregistered production query/i);
+  });
+
+  it("can clear and restore the injected module between isolated workspaces", () => {
+    setSemanticIndexForTesting(null);
+    setSemanticIndexForTesting(indexWasm);
+  });
+
+  it("lazy-initializes the generated module once when no test module is injected", async () => {
+    vi.resetModules();
+    const init = vi.fn().mockResolvedValue(undefined);
+    const rebuild = vi.fn((source: Uint8Array) => Uint8Array.from(source));
+    const query = vi.fn(() => JSON.stringify({ queryId: "actual-executions" }));
+    vi.doMock(
+      "@/wasm/chronicle_semantic_index_wasm/pkg/chronicle_semantic_index_wasm.js",
+      () => ({
+        default: init,
+        rebuild_semantic_index: rebuild,
+        query_registered: query,
+      }),
+    );
+
+    try {
+      const fresh = await import("@/lib/semanticIndex");
+      const source = new Uint8Array([1, 2, 3]);
+      await expect(fresh.rebuildSemanticIndex(source)).resolves.toEqual(source);
+      await expect(
+        fresh.queryRegisteredSemanticIndex(source, "actual-executions"),
+      ).resolves.toEqual({ queryId: "actual-executions" });
+      expect(init).toHaveBeenCalledTimes(1);
+      expect(rebuild).toHaveBeenCalledWith(source);
+      expect(query).toHaveBeenCalledWith(source, "actual-executions");
+    } finally {
+      vi.doUnmock(
+        "@/wasm/chronicle_semantic_index_wasm/pkg/chronicle_semantic_index_wasm.js",
+      );
+      vi.resetModules();
+      setSemanticIndexForTesting(indexWasm);
+    }
   });
 });

@@ -82,7 +82,9 @@ const stepIds = [
   "score_days",
   "assemble_result",
 ];
-const skippedSteps = new Set(stepIds.slice(37, 44).concat("build_raw_date_index"));
+const skippedSteps = new Set(
+  stepIds.slice(37, 44).concat("build_raw_date_index"),
+);
 const bypassedSteps = new Set([
   "build_coverage_table",
   "accumulate_attribution_minutes",
@@ -90,10 +92,19 @@ const bypassedSteps = new Set([
 ]);
 const recomputedSteps = new Set([
   ...(benchmarkCase === "middle_concurrent_usage"
-    ? stepIds.slice(20, 28)
-    : stepIds.slice(25, 28)),
-  ...stepIds.slice(29, 37),
-  ...stepIds.slice(44, 50),
+    ? [
+        ...stepIds.slice(20, 28),
+        ...stepIds.slice(29, 36),
+        ...stepIds.slice(44, 50),
+      ]
+    : [
+        ...stepIds.slice(25, 28),
+        // Each synthetic filename is a distinct workspace. The verified
+        // reconstruction checkpoint proves the large row transformations are
+        // unchanged; these small later queries still rebuild that workspace's
+        // review projection and execution record.
+        ...stepIds.slice(44, 50),
+      ]),
   "assemble_result",
 ]);
 const expectedStatuses = Object.fromEntries(
@@ -111,6 +122,17 @@ const expectedStatuses = Object.fromEntries(
 
 const executable = path.resolve("node_modules/.bin/vite-node");
 const benchmark = path.resolve("scripts/benchmark_runtime_wasm.mts");
+const runtimePackage = process.env.CHRONICLE_BENCHMARK_RUNTIME_DIR
+  ? path.resolve(process.env.CHRONICLE_BENCHMARK_RUNTIME_DIR)
+  : null;
+const runtimeArgs = runtimePackage
+  ? [
+      "--runtime-js",
+      path.join(runtimePackage, "chronicle_preprocessing_runtime_wasm.js"),
+      "--wasm",
+      path.join(runtimePackage, "chronicle_preprocessing_runtime_wasm_bg.wasm"),
+    ]
+  : [];
 const totalStarted = performance.now();
 
 /**
@@ -119,7 +141,7 @@ const totalStarted = performance.now();
  */
 function captureProcess(args) {
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, [benchmark, ...args], {
+    const child = spawn(executable, [benchmark, ...runtimeArgs, ...args], {
       env: { ...process.env, FORCE_COLOR: "0" },
     });
     let stdout = "";
@@ -145,7 +167,7 @@ function captureProcess(args) {
   });
 }
 
-/** @typedef {{input: {path: string, bytes: number, sha256: string}, wasm: {bytes: number, sha256: string}, environment: {node: string, platform: string, architecture: string, logicalCpus: number, totalMemoryBytes: number, peakProcessMemoryBytes: {rss: number, heapTotal: number, heapUsed: number, external: number, arrayBuffers: number}}, reviewBaseBytes: number, reconstructionBaseBytes: number, measurements: {coldExecuteMs: number[], coldStepStatuses: Array<Array<[string, string]>>, coldReviewSummaryDigests: Array<string>, coldCacheSources: string[][], coldCounts: Array<{original: number, processed: number, app: number, screen: number}>, coldIdentities: Array<Record<string, string>>}}} ShardResult */
+/** @typedef {{input: {path: string, bytes: number, sha256: string}, wasm: {bytes: number, sha256: string}, environment: {node: string, platform: string, architecture: string, logicalCpus: number, totalMemoryBytes: number, peakProcessMemoryBytes: {rss: number, heapTotal: number, heapUsed: number, external: number, arrayBuffers: number}}, reviewBaseBytes: number, reconstructionBaseBytes: number, measurements: {coldExecuteMs: number[], coldStepStatuses: Array<Array<[string, string]>>, coldReviewSummaryDigests: Array<string>, coldCacheSources: string[][], coldSelectedBaseKinds: string[], coldWasmBoundaryBytes: number[], coldCounts: Array<{original: number, processed: number, app: number, screen: number}>, coldIdentities: Array<Record<string, string>>}}} ShardResult */
 /** @typedef {{ready: Promise<void>, start: () => void, complete: Promise<void>, result: Promise<ShardResult>}} ShardHandle */
 /**
  * @param {number} index
@@ -159,6 +181,7 @@ function createShard(index, count, offset, reviewBasesDir) {
     executable,
     [
       benchmark,
+      ...runtimeArgs,
       "--raw",
       raw,
       "--mode",
@@ -344,9 +367,10 @@ for (const [index, shard] of shards.entries()) {
   for (const [name, values] of Object.entries({
     coldExecuteMs: shard.measurements.coldExecuteMs,
     coldStepStatuses: shard.measurements.coldStepStatuses,
-    coldReviewSummaryDigests:
-      shard.measurements.coldReviewSummaryDigests,
+    coldReviewSummaryDigests: shard.measurements.coldReviewSummaryDigests,
     coldCacheSources: shard.measurements.coldCacheSources,
+    coldSelectedBaseKinds: shard.measurements.coldSelectedBaseKinds,
+    coldWasmBoundaryBytes: shard.measurements.coldWasmBoundaryBytes,
     coldCounts: shard.measurements.coldCounts,
     coldIdentities: shard.measurements.coldIdentities,
   })) {
@@ -364,7 +388,9 @@ for (const [index, shard] of shards.entries()) {
     shard.reviewBaseBytes !== baseMetadata.reviewBaseBytes ||
     shard.reconstructionBaseBytes !== baseMetadata.reconstructionBaseBytes
   ) {
-    throw new Error(`benchmark shard ${index} identity does not match preparation`);
+    throw new Error(
+      `benchmark shard ${index} identity does not match preparation`,
+    );
   }
 }
 const values = shards
@@ -379,9 +405,13 @@ const reviewSummaryDigests = new Set(
 const cacheSources = shards.flatMap(
   (shard) => shard.measurements.coldCacheSources,
 );
-const resultCounts = shards.flatMap(
-  (shard) => shard.measurements.coldCounts,
+const selectedBaseKinds = shards.flatMap(
+  (shard) => shard.measurements.coldSelectedBaseKinds,
 );
+const wasmBoundaryBytes = shards.flatMap(
+  (shard) => shard.measurements.coldWasmBoundaryBytes,
+);
+const resultCounts = shards.flatMap((shard) => shard.measurements.coldCounts);
 const resultIdentities = shards.flatMap(
   (shard) => shard.measurements.coldIdentities,
 );
@@ -389,6 +419,8 @@ for (const [name, entries] of Object.entries({
   values,
   stepStatuses,
   cacheSources,
+  selectedBaseKinds,
+  wasmBoundaryBytes,
   resultCounts,
   resultIdentities,
 })) {
@@ -403,7 +435,9 @@ const workerMemory = {
     ...shards.map((shard) => shard.environment.peakProcessMemoryBytes.rss),
   ),
   heapTotal: Math.max(
-    ...shards.map((shard) => shard.environment.peakProcessMemoryBytes.heapTotal),
+    ...shards.map(
+      (shard) => shard.environment.peakProcessMemoryBytes.heapTotal,
+    ),
   ),
   heapUsed: Math.max(
     ...shards.map((shard) => shard.environment.peakProcessMemoryBytes.heapUsed),
@@ -412,13 +446,25 @@ const workerMemory = {
     ...shards.map((shard) => shard.environment.peakProcessMemoryBytes.external),
   ),
   arrayBuffers: Math.max(
-    ...shards.map((shard) => shard.environment.peakProcessMemoryBytes.arrayBuffers),
+    ...shards.map(
+      (shard) => shard.environment.peakProcessMemoryBytes.arrayBuffers,
+    ),
   ),
 };
 const expectedCacheSources =
   benchmarkCase === "middle_minimum_usage_duration"
     ? ["verified-reconstruction-base"]
     : ["verified-review-base"];
+const expectedSelectedBaseKind =
+  benchmarkCase === "middle_minimum_usage_duration"
+    ? "reconstruction-base"
+    : "review-base";
+const expectedWasmBoundaryBytes =
+  148 +
+  116 +
+  (expectedSelectedBaseKind === "reconstruction-base"
+    ? baseMetadata.reconstructionBaseBytes
+    : baseMetadata.reviewBaseBytes);
 for (const [resultIndex, entries] of stepStatuses.entries()) {
   const statuses = new Map(entries);
   if (statuses.size !== 55) {
@@ -427,7 +473,9 @@ for (const [resultIndex, entries] of stepStatuses.entries()) {
     );
   }
   if (entries.map(([step]) => step).join("\n") !== stepIds.join("\n")) {
-    throw new Error(`${benchmarkCase} result ${resultIndex} step order drifted`);
+    throw new Error(
+      `${benchmarkCase} result ${resultIndex} step order drifted`,
+    );
   }
   for (const [step, expected] of Object.entries(expectedStatuses)) {
     if (statuses.get(step) !== expected) {
@@ -463,12 +511,30 @@ for (const [resultIndex, sources] of cacheSources.entries()) {
     );
   }
 }
+for (const [resultIndex, kind] of selectedBaseKinds.entries()) {
+  if (kind !== expectedSelectedBaseKind) {
+    throw new Error(
+      `${benchmarkCase} result ${resultIndex}: selected ${kind}, expected ${expectedSelectedBaseKind}`,
+    );
+  }
+}
+for (const [resultIndex, bytes] of wasmBoundaryBytes.entries()) {
+  if (bytes !== expectedWasmBoundaryBytes) {
+    throw new Error(
+      `${benchmarkCase} result ${resultIndex}: transferred ${bytes} bytes, expected ${expectedWasmBoundaryBytes}`,
+    );
+  }
+}
 if (reviewSummaryDigests.size !== 1) {
   throw new Error(
     `duplicated inputs produced ${reviewSummaryDigests.size} review-summary digests`,
   );
 }
-if (![...reviewSummaryDigests].every((digest) => digest === coldOracleReviewSummaryDigest)) {
+if (
+  ![...reviewSummaryDigests].every(
+    (digest) => digest === coldOracleReviewSummaryDigest,
+  )
+) {
   throw new Error(
     `persisted-cache result does not match cold oracle ${coldOracleReviewSummaryDigest}`,
   );
@@ -483,7 +549,9 @@ const git = (...args) =>
   execFileSync("git", args, { cwd: repositoryRoot, encoding: "utf8" }).trim();
 /** @param {string} file */
 const hashFile = async (file) =>
-  `sha256:${createHash("sha256").update(await readFile(file)).digest("hex")}`;
+  `sha256:${createHash("sha256")
+    .update(await readFile(file))
+    .digest("hex")}`;
 const source = {
   gitCommit: git("rev-parse", "HEAD"),
   gitTree: git("rev-parse", "HEAD^{tree}"),
@@ -538,6 +606,8 @@ process.stdout.write(
       exactStepStatusResults: stepStatuses.length,
       expectedStatuses,
       expectedCacheSources,
+      expectedSelectedBaseKind,
+      wasmBoundaryBytesPerFile: expectedWasmBoundaryBytes,
       reviewSummaryDigest: [...reviewSummaryDigests][0],
       coldOracleReviewSummaryDigest,
     },

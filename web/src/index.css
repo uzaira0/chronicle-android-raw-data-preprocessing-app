@@ -3467,6 +3467,14 @@ a:hover {
   text-align: right;
   border-bottom: 1px solid var(--color-surface-sunken);
   cursor: pointer;
+  height: 24px;
+  box-sizing: border-box;
+}
+
+.review-day-table__spacer td {
+  padding: 0;
+  border: 0;
+  cursor: default;
 }
 
 .review-day-table td:first-child {

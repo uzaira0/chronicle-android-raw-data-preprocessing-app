@@ -23,14 +23,14 @@ serde_jcs = "0.2"
 serde_json = "1.0"
 semprof-core = { git = "https://github.com/uzaira0/semantic-profile-toolchain", rev = "d46708a14c49143e783b3ec251850a13c5623533" }
 semprof-materialize = { git = "https://github.com/uzaira0/semantic-profile-toolchain", rev = "d46708a14c49143e783b3ec251850a13c5623533" }
-sha2 = "0.10"
+sha2 = "0.11"
 thiserror = "2.0"
 wasm-bindgen = { version = "0.2", optional = true }
 
 [build-dependencies]
 hex = "0.4"
 serde_json = "1.0"
-sha2 = "0.10"
+sha2 = "0.11"
 
 [dev-dependencies]
 proptest = "1.9"
