@@ -918,8 +918,20 @@ def build_inventory(projection: dict, plan: dict, dependency_certificate: dict) 
             {
                 "gate": "trivy-bun-lock",
                 "finding": "brace-expansion 5.0.6 / CVE-2026-13149",
-                "resolution": "bun.lock and package-lock.json now resolve affected branches to 5.0.7 or 1.1.16",
-            }
+                "resolution": "package.json overrides pin brace-expansion to ^5.0.8 in both lockfiles",
+            },
+            {
+                "gate": "osv-scanner",
+                "finding": "bun.lock reported 10 advisories while npm audit --omit=dev reported 0",
+                "resolution": (
+                    "bun.lock had drifted from package.json (it still pinned eslint 9 and "
+                    "predated the knip dependency removals), and osv-scanner cannot read "
+                    "bun's dev/prod split so it scored dev tooling as production. "
+                    "Regenerated bun.lock and pinned the fixable transitives "
+                    "(brace-expansion, fast-uri, postcss, tmp, uuid) through overrides; "
+                    "both lockfiles now scan clean."
+                ),
+            },
         ],
     }
 

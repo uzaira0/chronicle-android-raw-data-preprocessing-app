@@ -2,10 +2,17 @@
 // and captures the results table + generated plots so we can eyeball the UI.
 // Usage: node scripts/screenshot_results.mjs [baseUrl] [outDir]
 import { mkdir, writeFile, readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 
 const BASE = process.argv[2] ?? "http://127.0.0.1:5181";
-const OUT = process.argv[3] ?? "/tmp/chronicle-shots";
+// Default under the repo, never a shared temp directory: a world-writable
+// fixed path lets any local user pre-create or symlink these files, and the
+// captures are worth keeping across reboots.
+const OUT =
+  process.argv[3] ??
+  path.resolve(fileURLToPath(new URL("../", import.meta.url)), ".screenshots");
 
 const HEADER =
   "study_id,participant_id,possible_device_model,username,application_label,interaction_type,app_package_name,event_timestamp,start_timestamp,stop_timestamp,timezone";
