@@ -2958,6 +2958,7 @@ async function executeRustRuntimeUnlocked(
     } catch (error) {
       throw new Error(
         `runtime manifest is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
       );
     }
     if (materialization === "review") {
@@ -3083,6 +3084,7 @@ async function executeRustRuntimeUnlocked(
       } catch (error) {
         throw new Error(
           `runtime artifact metadata is not valid JSON at index ${index}: ${error instanceof Error ? error.message : String(error)}`,
+          { cause: error },
         );
       }
       const metadata = artifactMetadataAt(

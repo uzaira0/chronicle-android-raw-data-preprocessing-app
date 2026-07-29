@@ -23,7 +23,9 @@ export function WorkflowNav({ active, onSelect }: Props): ReactElement {
   };
   const onKeyDown = (tab: WorkflowTab, event: KeyboardEvent<HTMLButtonElement>) => {
     const currentIndex = tabs.indexOf(tab);
-    let next = tab;
+    // Every arm below either assigns next or returns, so an initializer here
+    // would only mask a future arm that forgets to assign.
+    let next: WorkflowTab;
     if (event.key === "ArrowRight" || event.key === "ArrowDown") {
       next = tabs[(currentIndex + 1) % tabs.length]!;
     } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {

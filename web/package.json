@@ -56,7 +56,8 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.2",
-    "@eslint/js": "^9.20.0",
+    "@eslint/js": "^10.0.1",
+    "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.59.1",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
@@ -65,7 +66,7 @@
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.1.0",
     "@vitest/coverage-v8": "4.1.5",
-    "eslint": "^9.20.0",
+    "eslint": "^10.8.0",
     "fake-indexeddb": "^6.2.5",
     "knip": "^6.29.0",
     "typescript": "^5.9.3",
@@ -73,8 +74,7 @@
     "vite": "^7.1.12",
     "vite-node": "^3.2.4",
     "vitest": "^4.1.5",
-    "yaml": "^2.8.3",
-    "@lhci/cli": "^0.15.1"
+    "yaml": "^2.8.3"
   },
   "overrides": {
     "esbuild": "^0.28.1",

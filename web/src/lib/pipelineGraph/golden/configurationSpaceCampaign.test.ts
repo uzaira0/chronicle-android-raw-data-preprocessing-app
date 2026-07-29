@@ -308,7 +308,7 @@ async function execute(
         supports,
       );
     } catch (error) {
-      throw new Error(`${identity}: ${String(error)}`);
+      throw new Error(`${identity}: ${String(error)}`, { cause: error });
     }
     const manifest = JSON.parse(handle.manifest_json()) as RuntimeManifest;
     const capturedArtifacts = new Map<string, Uint8Array>();
