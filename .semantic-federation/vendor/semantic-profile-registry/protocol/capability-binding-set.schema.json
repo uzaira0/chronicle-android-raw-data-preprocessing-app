@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:uzaira0:semantic-federation:protocol:capability-binding-set:0.1",
+  "title": "Product capability binding set",
+  "description": "Binds product-owned capability identifiers to versioned physical implementations without defining product graph semantics.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "binding_set_id",
+    "product_profile_id",
+    "product_contract_digest",
+    "bindings"
+  ],
+  "properties": {
+    "protocol_version": { "const": "0.1" },
+    "binding_set_id": { "$ref": "#/$defs/identifier" },
+    "product_profile_id": { "$ref": "#/$defs/identifier" },
+    "product_contract_digest": { "$ref": "#/$defs/digest" },
+    "bindings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/binding" },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^(urn:[A-Za-z0-9][A-Za-z0-9:._/-]*|https://[^\\s]+)$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding_id",
+        "capability_ids",
+        "implementation",
+        "relationship",
+        "status",
+        "authority"
+      ],
+      "properties": {
+        "binding_id": { "$ref": "#/$defs/identifier" },
+        "capability_ids": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/identifier" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "implementation": { "$ref": "#/$defs/implementation" },
+        "relationship": {
+          "enum": ["one-to-one", "fused", "projection", "fallback"]
+        },
+        "status": {
+          "enum": ["active", "shadow", "planned", "retired"]
+        },
+        "authority": { "type": "boolean" },
+        "evidence_projection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_id", "loss"],
+          "properties": {
+            "schema_id": { "$ref": "#/$defs/identifier" },
+            "loss": { "enum": ["lossless", "declared-lossy", "none"] },
+            "notes": { "type": "string" }
+          }
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "implementation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["implementation_id", "language", "target", "source", "entrypoint", "build_digest"],
+      "properties": {
+        "implementation_id": { "$ref": "#/$defs/identifier" },
+        "language": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$" },
+        "entrypoint": { "type": "string", "minLength": 1 },
+        "build_digest": { "$ref": "#/$defs/digest" }
+      }
+    }
+  }
+}

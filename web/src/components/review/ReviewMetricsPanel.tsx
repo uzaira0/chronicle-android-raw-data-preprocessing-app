@@ -1,4 +1,6 @@
+import { memo, useEffect, useMemo, useRef } from "react";
 import type { ReactElement } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { CATEGORY_COLORS } from "@/lib/plotGenerator";
 import type { DemoDisplayMasker } from "@/lib/demoDisplay";
@@ -113,7 +115,7 @@ function totalsRows(p: ReviewParticipantSummary): Array<[string, string]> {
 
 /** Right-rail metrics for one participant: run-totals card (plus B + Δ cards when
  * comparing), a per-day table, and the focused day's top-apps breakdown. */
-export function ReviewMetricsPanel({
+export const ReviewMetricsPanel = memo(function ReviewMetricsPanel({
   participant,
   compare,
   activeType = "app",
@@ -122,13 +124,61 @@ export function ReviewMetricsPanel({
   masker,
 }: Props): ReactElement {
   const comparing = !!compare;
-  const aByDate = new Map(participant.perDay.map((day) => [day.date, day]));
-  const bByDate = new Map((compare?.perDay ?? []).map((day) => [day.date, day]));
+  const aByDate = useMemo(
+    () => new Map(participant.perDay.map((day) => [day.date, day])),
+    [participant.perDay],
+  );
+  const bByDate = useMemo(
+    () => new Map((compare?.perDay ?? []).map((day) => [day.date, day])),
+    [compare?.perDay],
+  );
   // Union of both arms' dates so a day present only in arm B (which the waterfall
   // shows) still gets a table row instead of silently vanishing.
-  const compareDates = comparing
-    ? [...new Set([...aByDate.keys(), ...bByDate.keys()])].sort()
-    : [];
+  const compareDates = useMemo(
+    () =>
+      comparing
+        ? [...new Set([...aByDate.keys(), ...bByDate.keys()])].sort()
+        : [],
+    [aByDate, bByDate, comparing],
+  );
+  const tableDates = useMemo(
+    () =>
+      comparing
+        ? compareDates
+        : participant.perDay.map((day) => day.date),
+    [compareDates, comparing, participant.perDay],
+  );
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: tableDates.length,
+    getScrollElement: () => tableScrollRef.current,
+    estimateSize: () => 24,
+    overscan: 8,
+    getItemKey: (index) => tableDates[index] ?? index,
+  });
+  const shouldVirtualize = tableDates.length > 100;
+  const virtualRows = shouldVirtualize
+    ? rowVirtualizer.getVirtualItems()
+    : tableDates.map((_, index) => ({
+        index,
+        key: tableDates[index],
+        start: index * 24,
+        end: (index + 1) * 24,
+        size: 24,
+        lane: 0,
+      }));
+  const paddingTop = shouldVirtualize && virtualRows.length
+    ? virtualRows[0].start
+    : 0;
+  const paddingBottom = shouldVirtualize && virtualRows.length
+    ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
+    : 0;
+
+  useEffect(() => {
+    if (!focusedDate || !shouldVirtualize) return;
+    const index = tableDates.indexOf(focusedDate);
+    if (index >= 0) rowVirtualizer.scrollToIndex(index, { align: "auto" });
+  }, [focusedDate, rowVirtualizer, shouldVirtualize, tableDates]);
   const topApps = focusedDate ? participant.topAppsByDate[focusedDate] : undefined;
   // When comparing, diff the focused day's apps A↔B so the detail panel can show
   // which apps drove the change (the per-app delta breakdown).
@@ -202,8 +252,13 @@ export function ReviewMetricsPanel({
         </div>
       ) : null}
 
-      <div className="review-day-table-wrap">
-        <table className="review-day-table" data-testid="review-day-table">
+      <div className="review-day-table-wrap" ref={tableScrollRef}>
+        <table
+          className="review-day-table"
+          data-testid="review-day-table"
+          data-total-rows={tableDates.length}
+          data-rendered-rows={virtualRows.length}
+        >
           <thead>
             <tr>
               <th>DAY</th>
@@ -223,8 +278,14 @@ export function ReviewMetricsPanel({
             </tr>
           </thead>
           <tbody>
-            {comparing
-              ? compareDates.map((date) => {
+            {paddingTop > 0 ? (
+              <tr className="review-day-table__spacer" aria-hidden="true">
+                <td colSpan={4} style={{ height: paddingTop }} />
+              </tr>
+            ) : null}
+            {virtualRows.map((virtualRow) => {
+              const date = tableDates[virtualRow.index];
+              if (comparing) {
                   const a = aByDate.get(date);
                   const b = bByDate.get(date);
                   const aMin = a ? minutesFor(a, activeType) : 0;
@@ -241,8 +302,8 @@ export function ReviewMetricsPanel({
                       <td className={deltaClass(delta)}>{fmtDelta(delta)}</td>
                     </tr>
                   );
-                })
-              : participant.perDay.map((day) => {
+              }
+              const day = participant.perDay[virtualRow.index];
                   const isGap = day.flags.includes("no_usage_day");
                   const rowClass =
                     (focusedDate === day.date ? "is-focused " : "") + (isGap ? "is-gap" : "");
@@ -254,7 +315,12 @@ export function ReviewMetricsPanel({
                       <td>{day.appSessionCount}</td>
                     </tr>
                   );
-                })}
+            })}
+            {paddingBottom > 0 ? (
+              <tr className="review-day-table__spacer" aria-hidden="true">
+                <td colSpan={4} style={{ height: paddingBottom }} />
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>
@@ -315,4 +381,4 @@ export function ReviewMetricsPanel({
       ) : null}
     </aside>
   );
-}
+});

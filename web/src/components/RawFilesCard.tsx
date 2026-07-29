@@ -52,7 +52,7 @@ export function RawFilesCard({
     if (to < 0 || to >= uploadedFiles.length) return;
     const next = uploadedFiles.slice();
     const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved!);
+    next.splice(to, 0, moved);
     onFilesChange(next);
   };
 

@@ -1,0 +1,18 @@
+[package]
+name = "chronicle-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1", features = ["derive"] }
+_rust_app_usage_matcher = { package = "chronicle_app_usage_matcher", path = "..", default-features = false }
+
+[[bin]]
+name = "match_core"
+path = "fuzz_targets/match_core.rs"
+doc = false

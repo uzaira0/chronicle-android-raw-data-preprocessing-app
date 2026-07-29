@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { Dispatch, ReactElement, SetStateAction } from "react";
 
 import { SettingsOverviewCard } from "@/components/SettingsOverviewCard";
@@ -14,7 +15,25 @@ type Props = {
   onClose: () => void;
   running: boolean;
   error: string | null;
+  completedCount: number;
+  fileCount: number;
 };
+
+const CompareConfigFields = memo(function CompareConfigFields({
+  options,
+  setOptions,
+}: Pick<Props, "options" | "setOptions">): ReactElement {
+  return (
+    <div className="review-drawer__body">
+      <SettingsOverviewCard options={options} setOptions={setOptions} />
+      <div className="settings-stack">
+        <SessionDetectionCard options={options} setOptions={setOptions} />
+        <ScreenDetectionCard options={options} setOptions={setOptions} />
+        <InteractionSemanticsCard options={options} setOptions={setOptions} />
+      </div>
+    </div>
+  );
+});
 
 /**
  * Arm-B configuration drawer: the same settings controls the Settings tab uses,
@@ -29,23 +48,21 @@ export function CompareConfigDrawer({
   onClose,
   running,
   error,
+  completedCount,
+  fileCount,
 }: Props): ReactElement {
   return (
     <div className="review-drawer" data-testid="review-compare-drawer">
       <div className="review-drawer__head">
-        <span>Arm B config — re-processes the selected file, applied on run</span>
+        <span>
+          Arm B config — re-processes {fileCount} loaded review{" "}
+          {fileCount === 1 ? "file" : "files"} with up to 8 workers
+        </span>
         <button type="button" className="review-drawer__close" onClick={onClose} aria-label="Close">
           ✕
         </button>
       </div>
-      <div className="review-drawer__body">
-        <SettingsOverviewCard options={options} setOptions={setOptions} />
-        <div className="settings-stack">
-          <SessionDetectionCard options={options} setOptions={setOptions} />
-          <ScreenDetectionCard options={options} setOptions={setOptions} />
-          <InteractionSemanticsCard options={options} setOptions={setOptions} />
-        </div>
-      </div>
+      <CompareConfigFields options={options} setOptions={setOptions} />
       {error ? (
         <p className="review-drawer__error" data-testid="review-compare-error">
           {error}
@@ -62,7 +79,9 @@ export function CompareConfigDrawer({
           disabled={running}
           data-testid="review-run-comparison"
         >
-          {running ? "Running…" : "Run comparison"}
+          {running
+            ? `Running… ${completedCount}/${fileCount}`
+            : "Run comparison"}
         </button>
       </div>
     </div>

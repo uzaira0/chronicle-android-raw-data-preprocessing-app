@@ -69,6 +69,33 @@ test("the review (View) surface and the compare drawer have no serious axe viola
   assertNoExternalRequests(requestTracker);
 });
 
+test("the Graph panel has no serious axe violations at either scale, before and after a run", async ({
+  page,
+}) => {
+  // Pre-run: the declared DAG (steps scale is the default).
+  await page.getByRole("tab", { name: /Graph/i }).click();
+  await expect(page.getByTestId("graph-canvas")).toBeVisible();
+  const stepsScan = await new AxeBuilder({ page }).analyze();
+  expect(seriousViolations(stepsScan)).toEqual([]);
+
+  await page.getByTestId("graph-scale-units").click();
+  await expect(page.getByTestId("graph-scale-units")).toHaveAttribute("aria-pressed", "true");
+  const unitsScan = await new AxeBuilder({ page }).analyze();
+  expect(seriousViolations(unitsScan)).toEqual([]);
+
+  // Post-run: nodes now carry execution-ledger metrics (rows in→out, duration)
+  // and possible expectation-warning badges — those additions must stay clean.
+  await page.getByRole("tab", { name: /^Files$/i }).click();
+  await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
+  await processFiles(page);
+  await page.getByRole("tab", { name: /Graph/i }).click();
+  await expect(page.getByTestId("graph-canvas")).toBeVisible();
+  await expect(page.getByTestId("graph-node-metrics").first()).toBeVisible();
+  const postRunScan = await new AxeBuilder({ page }).analyze();
+  expect(seriousViolations(postRunScan)).toEqual([]);
+  assertNoExternalRequests(requestTracker);
+});
+
 test("a keyboard user can select the Process tab by arrow keys and run by Enter", async ({
   page,
 }) => {

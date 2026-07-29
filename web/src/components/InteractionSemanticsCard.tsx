@@ -5,11 +5,11 @@ import { SectionCard } from "@/components/SectionCard";
 import { CheckboxGroup } from "@/components/CheckboxGroup";
 import { InteractionRemapEditor } from "@/components/InteractionRemapEditor";
 import {
-  DEFAULT_BROWSER_OPTIONS,
   INTERACTION_TYPES_TO_REMOVE_OPTIONS,
   OTHER_INTERACTION_TYPE_OPTIONS,
   SAME_APP_INTERACTION_TYPE_OPTIONS,
-} from "@/lib/browserPipeline";
+} from "@/lib/processingUiContract";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import { TOOLTIPS } from "@/lib/tooltipText";
 import { anyOptionModified, isOptionDefault, type OptionKey } from "@/lib/optionDefaults";
 import type { BrowserProcessingOptions } from "@/lib/types";

@@ -1,0 +1,58 @@
+rules:
+- id: chronicle-ts-parseint-radix-missing
+  message: 'parseInt() without a radix defaults to base 10 in modern JS but is ambiguous with leading-zero
+    strings. Always pass radix 10 explicitly.
+
+    '
+  severity: WARNING
+  languages:
+  - typescript
+  paths:
+    include:
+    - '**/web/src/**/*.ts'
+    - '**/web/src/**/*.tsx'
+  patterns:
+  - pattern: parseInt($STR)
+  - pattern-not: parseInt($STR, ...)
+- id: chronicle-ts-number-nan-equality
+  message: "NaN !== NaN \u2014 comparing a value to NaN with === or !== always returns false. Use Number.isNaN()\
+    \ or isNaN() to test for NaN.\n"
+  severity: ERROR
+  languages:
+  - typescript
+  paths:
+    include:
+    - '**/web/src/**/*.ts'
+    - '**/web/src/**/*.tsx'
+  pattern-either:
+  - pattern: $X === NaN
+  - pattern: $X !== NaN
+  - pattern: NaN === $X
+  - pattern: NaN !== $X
+- id: chronicle-ts-unguarded-worker-postmessage
+  message: 'Posting large objects (CSV strings, ArrayBuffers) via postMessage without Transferable objects
+    copies the data. Pass Transferables as the second argument to avoid double-buffering in the WASM pipeline.
+
+    '
+  severity: WARNING
+  languages:
+  - typescript
+  paths:
+    include:
+    - '**/web/src/workers/**/*.ts'
+  patterns:
+  - pattern: $WORKER.postMessage($MSG)
+  - pattern-not: $WORKER.postMessage($MSG, ...)
+- id: chronicle-ts-json-parse-cast
+  message: 'JSON.parse returns unknown. Casting directly to a specific type with ''as T'' bypasses runtime
+    validation. Use a Zod schema or a type guard to validate the parsed structure before use.
+
+    '
+  severity: WARNING
+  languages:
+  - typescript
+  paths:
+    include:
+    - '**/web/src/**/*.ts'
+    - '**/web/src/**/*.tsx'
+  pattern: JSON.parse($STR) as $T

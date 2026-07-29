@@ -1,0 +1,156 @@
+# Hand-authored SHACL contract axioms for the Chronicle usage ontology.
+#
+# These encode the load-bearing invariants the ontology EXISTS to protect —
+# the ones that keep measurement honest (doc 13 §D4). gen-shacl emits basic
+# cardinality/range shapes from the LinkML schema; these add the conditional
+# invariants LinkML cannot express. `make merge-axioms` concatenates the
+# generated shapes with this file into generated/shacl/merged.shacl.ttl.
+#
+# Targets use the minted chron: class IRIs. Each domain class carries its own
+# chron: identity (upper-ontology types — prov:Entity, time:ProperInterval,
+# prov:Activity, sosa:*, pplan:* — are declared as broad_mappings → skos:broadMatch,
+# NOT class_uri), so LinkML types canonical instances `a chron:X` and each shape
+# applies to exactly one class. (broadMatch, not exactMatch: the upper type is
+# broader; exactMatch would falsely make all prov:Entity subclasses equivalent.)
+#
+# Enum-valued conditions match STRING LITERALS ("unresolved", "observed"): LinkML
+# serializes enum slots as their permissible-value text (xsd:string), not the
+# minted enum IRI, so `sh:hasValue "unresolved"` — not an IRI — is what fires.
+
+@prefix sh:    <http://www.w3.org/ns/shacl#> .
+@prefix chron: <https://w3id.org/chronicle-usage-ontology/core/> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov:  <http://www.w3.org/ns/prov#> .
+
+# ── Attribution: closed, conservative, no phantom person ─────────────────────
+# A1 (exactly one attribution_status) is DELEGATED to the generated shape —
+#    attribution_status is required + single-valued there — so it is not
+#    duplicated here; the numbering below keeps A2–A6 for the conditional
+#    invariants LinkML can't express.
+# A2. An UNRESOLVED assertion must NOT carry an attributed person: "None"/blank
+#    means the person is genuinely unknown, so a named person would be a
+#    contradiction (mirrors classifyAttribution() in attributePerson.ts).
+chron:AttributionAssertionContractShape
+    a sh:NodeShape ;
+    sh:targetClass chron:AttributionAssertion ;
+    sh:not [
+        a sh:NodeShape ;
+        sh:property [
+            sh:path chron:attribution_status ;
+            sh:hasValue "unresolved" ;
+            sh:minCount 1 ;
+        ] ;
+        sh:property [
+            sh:path chron:attributed_person ;
+            sh:minCount 1 ;
+        ] ;
+    ] ;
+    sh:message "An unresolved attribution (person == None/blank) must not name an attributed_person." .
+
+# ── Absence is always explicit (open-world): endpoints ───────────────────────
+# A3. If an interval endpoint is marked `observed`, the corresponding instant
+#     must be present. A missing instant may only accompany a non-observed
+#     status (unobserved / right_censored / interval_censored) — you cannot
+#     claim to have observed an endpoint you did not record.
+chron:UsageIntervalEndpointShape
+    a sh:NodeShape ;
+    sh:targetClass chron:UsageInterval ;
+    sh:not [
+        a sh:NodeShape ;
+        sh:property [
+            sh:path chron:end_status ;
+            sh:hasValue "observed" ;
+            sh:minCount 1 ;
+        ] ;
+        sh:property [ sh:path chron:end_instant ; sh:maxCount 0 ] ;
+    ] ;
+    sh:not [
+        a sh:NodeShape ;
+        sh:property [
+            sh:path chron:start_status ;
+            sh:hasValue "observed" ;
+            sh:minCount 1 ;
+        ] ;
+        sh:property [ sh:path chron:start_instant ; sh:maxCount 0 ] ;
+    ] ;
+    sh:message "An endpoint marked 'observed' must carry its instant." .
+
+# ── Coverage: no NoData claim without an expectation ─────────────────────────
+# A4. Asserting that data was NOT available (actually_available = false) is only
+#     meaningful relative to an expectation, so expected_available must be set.
+#     A gap is an observability condition, never bare physical inactivity.
+chron:CoverageAssessmentShape
+    a sh:NodeShape ;
+    sh:targetClass chron:CoverageAssessment ;
+    sh:not [
+        a sh:NodeShape ;
+        sh:property [
+            sh:path chron:actually_available ;
+            sh:hasValue false ;
+            sh:minCount 1 ;
+        ] ;
+        sh:property [ sh:path chron:expected_available ; sh:maxCount 0 ] ;
+    ] ;
+    sh:message "A no-data assessment (actually_available = false) requires expected_available to be stated." .
+
+# ── Provenance completeness ──────────────────────────────────────────────────
+# A5. Every derived episode assertion must name the execution that produced it
+#     (what was RECONSTRUCTED must always point back to its activity).
+chron:UsageEpisodeProvenanceShape
+    a sh:NodeShape ;
+    sh:targetClass chron:UsageEpisodeAssertion ;
+    sh:property [
+        sh:path chron:reconstructed_by ;
+        sh:minCount 1 ;
+        sh:message "A usage episode assertion must be reconstructed_by an execution." ;
+    ] .
+
+# A6. Every effective-usage figure must cite the ParameterSet AND the node
+#     execution that produced it — a headline number with no provenance is
+#     exactly what this ontology forbids.
+chron:EffectiveUsageProvenanceShape
+    a sh:NodeShape ;
+    sh:targetClass chron:EffectiveUsageMeasure ;
+    sh:property [
+        sh:path chron:cites_parameter_set ;
+        sh:minCount 1 ;
+        sh:message "An effective-usage measure must cite the ParameterSet it was produced under." ;
+    ] ;
+    sh:property [
+        sh:path chron:produced_by ;
+        sh:minCount 1 ;
+        sh:message "An effective-usage measure must name the node execution that produced it." ;
+    ] .
+
+# ── Runtime lineage ledger: executions are auditable ─────────────────────────
+# A7. Every NodeExecution names the StepDefinition it executes and cites the
+#     ParameterSet it ran under, and an execution that records a start must
+#     record its end. Timestamps appear in TWO vocabularies — canonical
+#     LinkML instances serialize chron:started_at/chron:ended_at, while the
+#     PROV-idiomatic runtime sidecar (chronicle-provenance.jsonld) emits
+#     prov:startedAtTime/prov:endedAtTime — so the started⇒ended invariant
+#     is enforced over both pairs by one shape.
+chron:NodeExecutionContractShape
+    a sh:NodeShape ;
+    sh:targetClass chron:NodeExecution ;
+    sh:property [
+        sh:path chron:executes_step ;
+        sh:minCount 1 ;
+        sh:message "A node execution must name the StepDefinition it executes." ;
+    ] ;
+    sh:property [
+        sh:path chron:used_parameter_set ;
+        sh:minCount 1 ;
+        sh:message "A node execution must cite the ParameterSet it ran under." ;
+    ] ;
+    sh:not [
+        a sh:NodeShape ;
+        sh:property [ sh:path chron:started_at ; sh:minCount 1 ] ;
+        sh:property [ sh:path chron:ended_at ; sh:maxCount 0 ] ;
+    ] ;
+    sh:not [
+        a sh:NodeShape ;
+        sh:property [ sh:path prov:startedAtTime ; sh:minCount 1 ] ;
+        sh:property [ sh:path prov:endedAtTime ; sh:maxCount 0 ] ;
+    ] ;
+    sh:message "A node execution that records a start must record its end." .

@@ -1,6 +1,6 @@
 import type { KeyboardEvent, ReactElement } from "react";
 
-export type WorkflowTab = "settings" | "files" | "process" | "view";
+export type WorkflowTab = "guide" | "settings" | "files" | "process" | "view" | "graph";
 
 type Props = {
   active: WorkflowTab;
@@ -8,12 +8,14 @@ type Props = {
 };
 
 export function WorkflowNav({ active, onSelect }: Props): ReactElement {
-  const tabs: WorkflowTab[] = ["settings", "files", "process", "view"];
+  const tabs: WorkflowTab[] = ["guide", "settings", "files", "process", "view", "graph"];
   const labels: Record<WorkflowTab, string> = {
+    guide: "Guide",
     settings: "Settings",
     files: "Files",
     process: "Process",
     view: "View",
+    graph: "Graph",
   };
   const selectAndFocus = (tab: WorkflowTab) => {
     onSelect(tab);
@@ -21,7 +23,9 @@ export function WorkflowNav({ active, onSelect }: Props): ReactElement {
   };
   const onKeyDown = (tab: WorkflowTab, event: KeyboardEvent<HTMLButtonElement>) => {
     const currentIndex = tabs.indexOf(tab);
-    let next = tab;
+    // Every arm below either assigns next or returns, so an initializer here
+    // would only mask a future arm that forgets to assign.
+    let next: WorkflowTab;
     if (event.key === "ArrowRight" || event.key === "ArrowDown") {
       next = tabs[(currentIndex + 1) % tabs.length]!;
     } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {

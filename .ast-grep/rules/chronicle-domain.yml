@@ -1,0 +1,128 @@
+---
+# Polars: deprecated replace() with default= kwarg
+# This exact pattern caused a regression in polars_fast_path.py.
+id: chronicle-polars-replace-with-default-kwarg
+language: python
+message: >
+  replace($KEYS, $VALS, default=$DEFAULT) is the deprecated Polars <0.20
+  signature. Replace with replace_strict($KEYS, $VALS, default=$DEFAULT).
+severity: error
+files:
+  - src/**/*.py
+  - scripts/**/*.py
+rule:
+  pattern: $EXPR.replace($KEYS, $VALS, default = $DEFAULT)
+---
+# Polars: .row() access without a surrounding try/except
+# Row index access can raise IndexError on empty DataFrames.
+id: chronicle-polars-row-no-try-except
+language: python
+message: >
+  DataFrame.row(n) raises IndexError when the DataFrame is empty or n is
+  out of bounds. Wrap in try/except IndexError or guard with len(df) > n.
+severity: warning
+files:
+  - src/chronicle_preprocessing_app/core/**/*.py
+rule:
+  all:
+    - pattern: $DF.row($N)
+    - not:
+        inside:
+          any:
+            - pattern: |
+                try:
+                  $$$
+                except $E:
+                  $$$
+---
+# Python: datetime.utcnow() deprecated and returns naive datetime
+id: chronicle-datetime-utcnow
+language: python
+message: >
+  datetime.datetime.utcnow() returns a naive datetime and is deprecated
+  in Python 3.12+. Use datetime.datetime.now(datetime.timezone.utc) instead.
+severity: error
+files:
+  - src/**/*.py
+  - scripts/**/*.py
+rule:
+  any:
+    - pattern: datetime.datetime.utcnow()
+    - pattern: datetime.utcnow()
+---
+# Python: pytz.timezone(X) attached via replace() — wrong for DST zones
+id: chronicle-pytz-replace-tzinfo
+language: python
+message: >
+  dt.replace(tzinfo=pytz.timezone(X)) uses LMT offset, not the wall-clock
+  DST offset for that date. Use pytz_tz.localize(dt) or
+  dt.replace(tzinfo=ZoneInfo(X)) (Python 3.9+).
+severity: error
+files:
+  - src/**/*.py
+rule:
+  pattern: $DT.replace(tzinfo = pytz.timezone($TZ))
+---
+# TypeScript: NaN equality check always false
+id: chronicle-ts-nan-equality
+language: typescript
+message: >
+  NaN === NaN is always false in JavaScript. Use Number.isNaN(value) to
+  test for NaN.
+severity: error
+files:
+  - web/src/**/*.ts
+  - web/src/**/*.tsx
+rule:
+  any:
+    - pattern: $X === NaN
+    - pattern: $X !== NaN
+    - pattern: NaN === $X
+    - pattern: NaN !== $X
+---
+# TypeScript: direct array index access without optional chaining in processing loops
+# Catches places where noUncheckedIndexedAccess suppression (!) is used but
+# the surrounding context doesn't verify bounds.
+id: chronicle-ts-unchecked-index-in-loop
+language: typescript
+message: >
+  Non-null assertion (!) on array index inside a loop body bypasses
+  noUncheckedIndexedAccess. Verify bounds with an explicit length check
+  or use optional chaining with a fallback.
+severity: warning
+files:
+  - web/src/lib/**/*.ts
+rule:
+  all:
+    - pattern: $ARR[$IDX]!
+    - inside:
+        any:
+          - pattern: |
+              for ($$$) {
+                $$$
+              }
+          - pattern: |
+              while ($COND) {
+                $$$
+              }
+---
+# Python: bare string column names instead of Column enum members
+# Direct string literals for column names prevent rename-refactor detection.
+id: chronicle-polars-literal-column-name
+language: python
+message: >
+  Hardcoded string used as a column name instead of the Column enum.
+  Use Column.COLUMN_NAME so renames are caught at import time.
+severity: warning
+files:
+  - src/chronicle_preprocessing_app/core/**/*.py
+rule:
+  any:
+    - pattern: pl.col("event_timestamp")
+    - pattern: pl.col("timezone")
+    - pattern: pl.col("interaction_type")
+    - pattern: pl.col("app_package_name")
+    - pattern: pl.col("application_label")
+    - pattern: pl.col("participant_id")
+    - pattern: pl.col("study_id")
+    - pattern: pl.col("username")

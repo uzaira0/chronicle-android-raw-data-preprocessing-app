@@ -1,0 +1,2 @@
+study_id,study_name,participant_id,iso_year_week,week_start_date,timezone,total_app_usage_minutes,total_background_app_usage_minutes,total_screen_usage_minutes,app_session_count,screen_session_count,app_switches,pickups,mean_app_session_minutes,longest_app_session_minutes,active_window_minutes,first_use,last_use
+Study,,P04,2026-W10,2026-03-02,America/Chicago,13,0,20,3,2,2,2,4.3333,6,1383.5,03-07-2026 04:00:00,03-08-2026 04:03:30

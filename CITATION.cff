@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software to preprocess Chronicle Android raw data in a
+  publication, please cite it using the metadata below. Cite the exact
+  version (and contract version) that processed your data — the version is
+  recorded in every run's processing report and provenance sidecar.
+type: software
+title: Chronicle Android Raw Data Preprocessing App
+abstract: >-
+  A dual-engine (browser + desktop Python) preprocessing instrument for
+  Chronicle Android usage-events data: reconstructs app-usage and
+  screen-usage sessions from raw interaction events under an explicit,
+  versioned 55-option contract, with byte-exact cross-engine parity,
+  golden-scenario locking, and per-run PROV provenance sidecars. The
+  research ontology (LinkML/OWL/SHACL) that defines the instrument's
+  measurand and parameters is generated from the same source of truth.
+authors:
+  - family-names: Alam
+    given-names: Uzair
+version: 1.0.0
+repository-code: https://github.com/uzaira0/chronicle-android-raw-data-preprocessing-app
+license-url: https://github.com/uzaira0/chronicle-android-raw-data-preprocessing-app
+keywords:
+  - Chronicle
+  - Android usage data
+  - screen time
+  - digital media use
+  - preprocessing
+  - provenance
+  - reproducibility

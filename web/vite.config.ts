@@ -23,6 +23,12 @@ function buildIdentity(): { sha: string; date: string } {
   }
 }
 const BUILD = buildIdentity();
+const dependencyCampaignPackage = process.env.CHRONICLE_DEPENDENCY_CAMPAIGN_WASM_DIR;
+if (dependencyCampaignPackage && process.env.VITEST !== "true") {
+  throw new Error(
+    "CHRONICLE_DEPENDENCY_CAMPAIGN_WASM_DIR is allowed only in Vitest dependency campaigns",
+  );
+}
 
 /**
  * In dev mode Vite injects CSS via HMR-managed <style> blocks and inline
@@ -96,9 +102,20 @@ export default defineConfig({
   },
   plugins: [react(), devCspPlugin(), precacheExtraPlugin()],
   resolve: {
-    alias: {
-      "@": resolve(__dirname, "./src"),
-    },
+    alias: [
+      ...(dependencyCampaignPackage
+        ? [
+            {
+              find: "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js",
+              replacement: resolve(
+                dependencyCampaignPackage,
+                "chronicle_preprocessing_runtime_wasm.js",
+              ),
+            },
+          ]
+        : []),
+      { find: "@", replacement: resolve(__dirname, "./src") },
+    ],
   },
   worker: {
     format: "es",

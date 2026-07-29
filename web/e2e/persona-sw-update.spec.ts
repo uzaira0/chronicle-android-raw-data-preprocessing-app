@@ -111,6 +111,7 @@ test("after an update, the app still cold-starts offline from the precache", asy
     const registration = await navigator.serviceWorker.ready;
     await registration.update();
   });
+  await waitForServiceWorkerControl(page);
 
   // Pull the network and reload — the shell must come from cache. Offline
   // cold-start can be slow under parallel load, so allow generous headroom.

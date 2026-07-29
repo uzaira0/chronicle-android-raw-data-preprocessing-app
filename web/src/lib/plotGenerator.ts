@@ -103,6 +103,10 @@ const GAP_COLOR = "#808080";
 
 const APP_USAGE_TYPE = "App Usage";
 const FILTERED_APP_USAGE_TYPE = "Filtered App Usage";
+/** Construct-and-mark category: a filtered app's CONSTRUCTED background session
+ * (real timing). Plots as a bar (not an event tick) under the same
+ * include-filtered toggle. */
+const FILTERED_APP_BACKGROUND_USAGE_TYPE = "Filtered App Background Usage";
 const FILTERED_USAGE_EVENT_DETAIL = "Filtered App Usage event";
 const DEVICE_SHUTDOWN_TYPE = "Device Shutdown";
 const DEVICE_STARTUP_TYPE = "Device Startup";
@@ -200,10 +204,15 @@ function buildCanvas(height: number): OffscreenCanvas | HTMLCanvasElement {
   if (typeof OffscreenCanvas !== "undefined") {
     return new OffscreenCanvas(CANVAS_WIDTH, height);
   }
+  // DOM-only fallback: reached only when OffscreenCanvas is absent, which never
+  // happens in a real browser (all supported targets have it) or in the node
+  // test env (which stubs OffscreenCanvas). No algorithm.
+  /* v8 ignore start */
   const el = document.createElement("canvas");
   el.width = CANVAS_WIDTH;
   el.height = height;
   return el;
+  /* v8 ignore stop */
 }
 
 function plotWidth(): number {
@@ -405,13 +414,13 @@ export function computeDataGapRects(
   const rects: GapRect[] = [];
   let hadGap = false;
   for (let i = 0; i + 1 < allEventNs.length; i++) {
-    const gapNs = allEventNs[i + 1]! - allEventNs[i]!;
+    const gapNs = allEventNs[i + 1] - allEventNs[i];
     if (gapNs <= GAP_THRESHOLD_NS) continue;
     hadGap = true;
-    const startH = nsToLocalHours(allEventNs[i]!);
-    const endH = nsToLocalHours(allEventNs[i + 1]!);
-    const startIso = nsToIso(allEventNs[i]!);
-    const endIso = nsToIso(allEventNs[i + 1]!);
+    const startH = nsToLocalHours(allEventNs[i]);
+    const endH = nsToLocalHours(allEventNs[i + 1]);
+    const startIso = nsToIso(allEventNs[i]);
+    const endIso = nsToIso(allEventNs[i + 1]);
 
     // One tooltip describes the whole gap; every band of a multi-day gap shares
     // it so hovering any band shows the gap's full extent.
@@ -419,8 +428,8 @@ export function computeDataGapRects(
     if (regionsOut && nsToClock) {
       const gapMin = Number(gapNs) / 60_000_000_000;
       const dur = gapMin >= 60 ? `${(gapMin / 60).toFixed(1)} h` : `${gapMin.toFixed(1)} min`;
-      const a = nsToClock(allEventNs[i]!);
-      const b = nsToClock(allEventNs[i + 1]!);
+      const a = nsToClock(allEventNs[i]);
+      const b = nsToClock(allEventNs[i + 1]);
       const range =
         startIso === endIso ? `${startIso} ${a} → ${b}` : `${startIso} ${a} → ${endIso} ${b}`;
       gapLines = [`No device events · ${dur}`, range];
@@ -677,11 +686,11 @@ export function buildWaterfallScene(
   };
 
   for (let i = 0; i + 1 < sortedEvents.length; i++) {
-    const gapNs = sortedEvents[i + 1]! - sortedEvents[i]!;
+    const gapNs = sortedEvents[i + 1] - sortedEvents[i];
     if (gapNs <= GAP_THRESHOLD_NS) continue;
 
-    const startNs = sortedEvents[i]!;
-    const endNs = sortedEvents[i + 1]!;
+    const startNs = sortedEvents[i];
+    const endNs = sortedEvents[i + 1];
     const startIso = nsToIso(startNs);
     const endIso = nsToIso(endNs);
     const gapMin = Number(gapNs) / 60_000_000_000;
@@ -968,14 +977,17 @@ export function buildTimelineScene(
 
   // ── app-usage bars ────────────────────────────────────────────────────────
   const usageTypes = new Set([APP_USAGE_TYPE]);
-  if (options.includeFilteredAppUsageInPlots) usageTypes.add(FILTERED_APP_USAGE_TYPE);
+  if (options.includeFilteredAppUsageInPlots) {
+    usageTypes.add(FILTERED_APP_USAGE_TYPE);
+    usageTypes.add(FILTERED_APP_BACKGROUND_USAGE_TYPE);
+  }
 
   for (const row of rows) {
     if (!usageTypes.has(row.interaction_type)) continue;
 
     const color =
       CATEGORY_COLORS[row.broad_app_category ?? "Unknown"] ??
-      CATEGORY_COLORS["Uncategorised"]!;
+      CATEGORY_COLORS["Uncategorised"];
 
     if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) {
       if (row.interaction_type !== FILTERED_APP_USAGE_TYPE) continue;
@@ -1119,7 +1131,7 @@ async function sceneToPngBlob(scene: Scene): Promise<Blob> {
   return canvasToBlob(canvas);
 }
 
-export async function generateParticipantPlotBlob(
+async function generateParticipantPlotBlob(
   participantId: string,
   rows: PlotRow[],
   timezone: string,
@@ -1139,12 +1151,17 @@ async function canvasToBlob(canvas: OffscreenCanvas | HTMLCanvasElement): Promis
   if (canvas instanceof OffscreenCanvas) {
     return canvas.convertToBlob({ type: "image/png" });
   }
+  // DOM-only fallback: the HTMLCanvasElement.toBlob path is reached only when
+  // buildCanvas returned a real <canvas>, i.e. when OffscreenCanvas is absent
+  // (never in a browser or the stubbed test env).
+  /* v8 ignore start */
   return new Promise<Blob>((resolve, reject) => {
-    (canvas as HTMLCanvasElement).toBlob(
+    (canvas).toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error("toBlob returned null"))),
       "image/png",
     );
   });
+  /* v8 ignore stop */
 }
 
 // ─── screen-usage plot ────────────────────────────────────────────────────────
@@ -1317,7 +1334,7 @@ export function buildScreenScene(
     if (row.start_timestamp_ns === null || row.stop_timestamp_ns === null) continue;
 
     const reason = row.screen_usage_end_reason ?? "unknown";
-    const color = SCREEN_REASON_COLORS[reason] ?? SCREEN_REASON_COLORS["unknown"]!;
+    const color = SCREEN_REASON_COLORS[reason] ?? SCREEN_REASON_COLORS["unknown"];
 
     const startIso = nsToIso(row.start_timestamp_ns);
     const stopIso = nsToIso(row.stop_timestamp_ns);
@@ -1464,7 +1481,7 @@ export async function generateAllScreenPlots(
 }
 
 /** Vector (SVG) twin of {@link generateAllScreenPlots} — one SVG per participant. */
-export async function generateAllScreenPlotSvgs(
+export function generateAllScreenPlotSvgs(
   rows: ScreenPlotRow[],
   timezone: string,
   version: string,
@@ -1476,7 +1493,7 @@ export async function generateAllScreenPlotSvgs(
     const scene = buildScreenScene(pid, pRows, timezone, version, dateStr, preAlgoTsByParticipant?.get(pid));
     result.set(pid, sceneToSvgBlob(scene));
   }
-  return result;
+  return Promise.resolve(result);
 }
 
 // ─── batch entry point ────────────────────────────────────────────────────────
@@ -1488,8 +1505,8 @@ export async function generateAllPlots(
   /** Preprocessor version, stamped in each plot subtitle. */
   version: string,
   /** Pre-algorithm event timestamps per participant (keyed by participant_id).
-   * Collected before runAppUsageAlgorithm so gap detection sees all raw event
-   * types, not only the session-level rows in the final output. */
+   * Collected before app-usage session reconstruction so gap detection sees all
+   * raw event types, not only the session-level rows in the final output. */
   preAlgoTsByParticipant?: Map<string, bigint[]>,
 ): Promise<Map<string, Blob>> {
   const result = new Map<string, Blob>();
@@ -1501,7 +1518,7 @@ export async function generateAllPlots(
 }
 
 /** Vector (SVG) twin of {@link generateAllPlots} — one SVG per participant. */
-export async function generateAllPlotSvgs(
+export function generateAllPlotSvgs(
   rows: PlotRow[],
   timezone: string,
   options: Pick<BrowserProcessingOptions, "includeFilteredAppUsageInPlots">,
@@ -1522,7 +1539,7 @@ export async function generateAllPlotSvgs(
     );
     result.set(pid, sceneToSvgBlob(scene));
   }
-  return result;
+  return Promise.resolve(result);
 }
 
 /** One participant's interactive waterfall scene plus per-session hover regions.
@@ -1546,7 +1563,10 @@ export function buildAppTimelineViews(
   void version;
   const views: ParticipantTimelineView[] = [];
   const usageTypes = new Set([APP_USAGE_TYPE]);
-  if (includeFilteredOverride) usageTypes.add(FILTERED_APP_USAGE_TYPE);
+  if (includeFilteredOverride) {
+    usageTypes.add(FILTERED_APP_USAGE_TYPE);
+    usageTypes.add(FILTERED_APP_BACKGROUND_USAGE_TYPE);
+  }
   for (const [pid, pRows] of groupByParticipant(rows)) {
     const regions: SceneRegion[] = [];
     const sessions: WaterfallSession[] = [];
@@ -1572,7 +1592,7 @@ export function buildAppTimelineViews(
       }
       if (!usageTypes.has(row.interaction_type)) continue;
       const category = row.broad_app_category ?? "Unknown";
-      const color = CATEGORY_COLORS[category] ?? CATEGORY_COLORS["Uncategorised"]!;
+      const color = CATEGORY_COLORS[category] ?? CATEGORY_COLORS["Uncategorised"];
       const appLabel = row.application_label?.trim();
       const packageName = row.app_package_name || "(app)";
       const title = appLabel || packageName;
@@ -1627,7 +1647,7 @@ export function buildScreenTimelineViews(
       sessions.push({
         startNs: row.start_timestamp_ns,
         stopNs: row.stop_timestamp_ns,
-        color: SCREEN_REASON_COLORS[reason] ?? SCREEN_REASON_COLORS["unknown"]!,
+        color: SCREEN_REASON_COLORS[reason] ?? SCREEN_REASON_COLORS["unknown"],
         title: "Screen",
         detail: [SCREEN_REASON_LABELS[reason] ?? reason, `${durMin.toFixed(1)} min`],
       });
@@ -1682,7 +1702,10 @@ export function computeHourDayMatrix(
   const nsToIso = (ns: bigint): string => dateFmt.format(new Date(Number(ns / 1_000_000n)));
 
   const usageTypes = new Set([APP_USAGE_TYPE]);
-  if (options.includeFilteredAppUsageInPlots) usageTypes.add(FILTERED_APP_USAGE_TYPE);
+  if (options.includeFilteredAppUsageInPlots) {
+    usageTypes.add(FILTERED_APP_USAGE_TYPE);
+    usageTypes.add(FILTERED_APP_BACKGROUND_USAGE_TYPE);
+  }
 
   // Seed the date axis from the calendar dates each usage session actually spans
   // (start date through stop date), not just row.date. A session crossing
@@ -1743,7 +1766,7 @@ export function computeHourDayMatrix(
 
       for (let hour = Math.floor(h0); hour < Math.ceil(h1) && hour < 24; hour++) {
         const overlapHours = Math.min(h1, hour + 1) - Math.max(h0, hour);
-        if (overlapHours > 0) cellRow[hour] += overlapHours * 3600;
+        if (overlapHours > 0) cellRow[hour] = (cellRow[hour] ?? 0) + overlapHours * 3600;
       }
     }
   }
@@ -1814,7 +1837,7 @@ export function buildHeatmapScene(
   // Cells
   for (let di = 0; di < dates.length; di++) {
     const y = plotTop + di * ROW_HEIGHT;
-    const cellRow = cells[di]!;
+    const cellRow = cells[di];
     for (let hour = 0; hour < 24; hour++) {
       prims.push({
         type: "rect",
@@ -1822,7 +1845,7 @@ export function buildHeatmapScene(
         y,
         w: colWidth,
         h: ROW_HEIGHT,
-        fill: heatColor(cellRow[hour]! / maxCell),
+        fill: heatColor(cellRow[hour] / maxCell),
       });
     }
   }
@@ -1902,7 +1925,7 @@ export function buildHeatmapScene(
   return { width: CANVAS_WIDTH, height: totalHeight, primitives: prims };
 }
 
-export async function generateParticipantHeatmapBlob(
+async function generateParticipantHeatmapBlob(
   participantId: string,
   rows: PlotRow[],
   timezone: string,
@@ -1926,7 +1949,7 @@ export async function generateAllHeatmaps(
 }
 
 /** Vector (SVG) twin of {@link generateAllHeatmaps} — one SVG per participant. */
-export async function generateAllHeatmapSvgs(
+export function generateAllHeatmapSvgs(
   rows: PlotRow[],
   timezone: string,
   options: Pick<BrowserProcessingOptions, "includeFilteredAppUsageInPlots">,
@@ -1937,5 +1960,5 @@ export async function generateAllHeatmapSvgs(
   for (const [pid, pRows] of groupByParticipant(rows)) {
     result.set(pid, sceneToSvgBlob(buildHeatmapScene(pid, pRows, timezone, options, version, dateStr)));
   }
-  return result;
+  return Promise.resolve(result);
 }

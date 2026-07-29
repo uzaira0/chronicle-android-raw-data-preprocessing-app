@@ -1,0 +1,44 @@
+# Rust supply-chain policy for the Chronicle raw-data preprocessing app.
+# cargo-deny evaluates every target and feature so hidden target-specific
+# dependencies cannot bypass the license and source closure.
+
+[graph]
+targets = []
+all-features = true
+
+[advisories]
+ignore = [
+  { id = "RUSTSEC-2024-0436", reason = "paste 1.0.15 is an unmaintained build-time transitive dependency of parquet 59.1.0; no patched parquet release exists yet, runtime exposure is absent, and cargo-audit remains a separate no-vulnerability gate." },
+]
+
+[licenses]
+allow = [
+  "0BSD",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "BSL-1.0",
+  "CC0-1.0",
+  "GPL-3.0-only",
+  "ISC",
+  "LGPL-2.1-or-later",
+  "MIT",
+  "MPL-2.0",
+  "Unicode-3.0",
+  "Unlicense",
+  "Zlib",
+]
+confidence-threshold = 0.8
+
+[licenses.private]
+ignore = false
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = [
+  "https://github.com/oxigraph/oxigraph.git",
+  "https://github.com/uzaira0/semantic-profile-toolchain",
+]

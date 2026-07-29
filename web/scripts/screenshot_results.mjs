@@ -2,10 +2,17 @@
 // and captures the results table + generated plots so we can eyeball the UI.
 // Usage: node scripts/screenshot_results.mjs [baseUrl] [outDir]
 import { mkdir, writeFile, readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 
 const BASE = process.argv[2] ?? "http://127.0.0.1:5181";
-const OUT = process.argv[3] ?? "/tmp/chronicle-shots";
+// Default under the repo, never a shared temp directory: a world-writable
+// fixed path lets any local user pre-create or symlink these files, and the
+// captures are worth keeping across reboots.
+const OUT =
+  process.argv[3] ??
+  path.resolve(fileURLToPath(new URL("../", import.meta.url)), ".screenshots");
 
 const HEADER =
   "study_id,participant_id,possible_device_model,username,application_label,interaction_type,app_package_name,event_timestamp,start_timestamp,stop_timestamp,timezone";
@@ -93,9 +100,12 @@ function unzipStored(bytes) {
   /** @type {Map<string, Uint8Array>} */
   const out = new Map();
   let o = 0;
-  const u16 = (/** @type {number} */ p) => bytes[p] | (bytes[p + 1] << 8);
+  const u16 = (/** @type {number} */ p) => (bytes[p] ?? 0) | ((bytes[p + 1] ?? 0) << 8);
   const u32 = (/** @type {number} */ p) =>
-    (bytes[p] | (bytes[p + 1] << 8) | (bytes[p + 2] << 16) | (bytes[p + 3] << 24)) >>> 0;
+    ((bytes[p] ?? 0) |
+      ((bytes[p + 1] ?? 0) << 8) |
+      ((bytes[p + 2] ?? 0) << 16) |
+      ((bytes[p + 3] ?? 0) << 24)) >>> 0;
   while (o + 30 <= bytes.byteLength && u32(o) === 0x04034b50) {
     const comp = u16(o + 8);
     const size = u32(o + 18);

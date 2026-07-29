@@ -29,6 +29,10 @@ jobs:
       contents: read
       security-events: write
     with:
+      # --config is required: a recursive scan only auto-loads an
+      # osv-scanner.toml sitting beside each lockfile, so the repo-root
+      # exception file is ignored without it.
       scan-args: |-
+        --config=osv-scanner.toml
         --recursive
         ./

@@ -1,0 +1,14 @@
+{
+  "_comment": "Deploy-artifact size budgets (bytes), enforced by check_deploy_artifact.mts. Re-measured 2026-07-28 (evening): runtime WASM 6,039,041 (was 5,978,073 same morning). Cause: the incremental-execution kernel perf work landed 2026-07-28 (becd018..eab8b6e) — seven content-keyed alternation caches, the decoded_reconstruction_base salsa query split with retained-encoded-bytes identity, the product-shaped warm loop support, and the canonical-row/dedupe allocation cuts all compile into chronicle_chrono_kernel_wasm. Runtime WASM cap raised 6,000,000 to 6,100,000. Also .js total 900,222 (cap was 900,000): the in-progress compare/View UI work in the working tree (App.tsx, ProcessPanel.tsx, review panels); .js cap raised 900,000 to 910,000. Total assets 11,087,227; worker 125,840; semantic-index WASM 2,024,364 — all within their existing caps. Prior worker-raise rationale (122,000 to 127,000, sourcemap attribution finding no removable duplication) retained in git history. Budgets retain limited headroom; raising one requires a named cause and a new measurement.",
+  "totalBytes": 11250000,
+  "categories": {
+    ".js": 910000,
+    ".wasm": 8200000,
+    ".css": 100000
+  },
+  "filePrefixes": {
+    "chronicle_preprocessing_runtime_wasm_bg-": 6100000,
+    "chronicle_semantic_index_wasm_bg-": 2350000,
+    "chronicle-worker-": 127000
+  }
+}

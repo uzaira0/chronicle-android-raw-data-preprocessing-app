@@ -70,6 +70,9 @@ test("configures every export + processing feature and the artifacts reflect the
   await page.getByTestId("toggle-enableSpssExport").check();
   await page.getByTestId("toggle-enableInteractiveTimeline").check();
   await page.getByTestId("toggle-includeFilteredAppUsageInPlots").check();
+  // App filtering is a cleaning step and off by default; this persona turns
+  // every processing feature on and asserts filter semantics in the output.
+  await page.getByTestId("toggle-useFilterFile").check();
 
   await uploadFullSupportSet(page);
   await setInputFile(
@@ -91,7 +94,7 @@ test("configures every export + processing feature and the artifacts reflect the
 
   // Codebook enrichment columns and the filter semantics are visible in output.
   const appCsv = await downloadCsv(page, "download-app-csv");
-  expect(csvHeaders(appCsv)).toContain("play_store_genreId");
+  expect(csvHeaders(appCsv)).toContain("bcm_play_store_genreId");
   expect(appCsv).toContain("Filtered App Usage");
   const screenCsv = await downloadCsv(page, "download-screen-csv");
   expect(screenCsv).toContain("Screen Usage");
@@ -144,11 +147,13 @@ test("saves a named preset and a named config, then exports the whole config", a
   const download = await downloadPromise;
   const stream = await download.createReadStream();
   if (!stream) throw new Error("config export produced no stream");
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
-  const exported = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+  const chunks: Array<Buffer | Uint8Array> = [];
+  for await (const chunk of stream) {
+    chunks.push(chunk instanceof Buffer ? chunk : Buffer.from(chunk as ArrayLike<number>));
+  }
+  const exported = JSON.parse(Buffer.concat(chunks).toString("utf-8")) as { currentSettings: { studyName: string }; presets: Array<{ name: string }> };
   expect(exported.currentSettings.studyName).toBe("ExpertConfig");
-  expect(exported.presets.map((p: { name: string }) => p.name)).toContain("Expert Snapshot");
+  expect(exported.presets.map((p) => p.name)).toContain("Expert Snapshot");
   assertNoExternalRequests(requestTracker);
 });
 
@@ -167,7 +172,8 @@ test("drives the full review + A/B comparison workflow in the View tab", async (
   await dayRows.first().click();
   await expect(page.getByTestId("review-day-detail")).toBeVisible();
 
-  // Run an Arm-B comparison and confirm the single interleaved waterfall.
+  // Run an Arm-B comparison and confirm the compact Rust result updates the
+  // chart metrics without materializing a second full timeline.
   await page.getByTestId("review-compare-toggle").click();
   const drawer = page.getByTestId("review-compare-drawer");
   await expect(drawer).toBeVisible();
@@ -175,7 +181,9 @@ test("drives the full review + A/B comparison workflow in the View tab", async (
   await page.getByTestId("review-run-comparison").click();
   await expect(page.getByTestId("review-mcard-b")).toBeVisible();
   await expect(page.getByTestId("review-mcard-delta")).toBeVisible();
-  await expect(page.getByTestId("review-compare-legend")).toBeVisible();
+  await expect(page.getByTestId("review-compare-no-overlap")).toContainText(
+    "fast comparison updated the Δ metrics",
+  );
   await expect(page.getByTestId("timeline-view-participant-title")).toHaveCount(1);
   assertNoExternalRequests(requestTracker);
 });

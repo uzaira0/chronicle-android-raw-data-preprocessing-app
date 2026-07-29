@@ -2,6 +2,57 @@
 
 An application for preprocessing and plotting Chronicle Android raw data.
 
+The browser application is the first full implementation target for the
+generalized semantic-federation scaffold. Browser computation is Rust/WASM, and
+all 55 preprocessing transformations now exist as individually tracked Salsa
+computations that match the complete Rust oracle in every usage mode. The
+stateful kernel skips every step on an unchanged call and runs only
+`assemble_result` for an output-only study-name change.
+
+The runtime computes through the 55 tracked product queries and reports their actual
+execution events. The 15 groups are display summaries, not another scheduler.
+Persisted Salsa snapshots were removed after profiling showed that restoring
+one was slower and much larger than recalculating from the verified inputs.
+OPFS keeps the source, configuration, results, history, evidence, and views;
+the in-worker Salsa database is only a fast disposable cache.
+
+See the
+[55-step incremental Rust plan](docs/semantic-federation/55-step-incremental-rust-plan.md)
+for the current/target distinction, exact implementation backlog, and release
+checks. The separate
+[production proof](docs/semantic-federation/production-proof.md) records what
+the existing semantic, storage, provenance, and browser boundaries already
+prove.
+
+The executable variability proof uses a contract-derived Rust/WASM campaign
+over all 46 computational options,
+separate proofs for the eight annotation/view/execution axes, catalog-derived
+synthetic corpora, explicit binding/qualification holes, and
+incremental-versus-cold replay. The existing checked controlled-intervention ledger holds
+all other inputs constant across every ordered value transition, records the
+exact observed invalidation/state/output effects, compares all 15 logical-stage
+checkpoints with an independent cold Rust target, and requires a concrete
+activating case for every computational axis. The model preserves enum, numeric, list,
+and string equivalence domains; it does not reduce non-boolean settings to
+flags. Declared logical propagation is exact for the recorded test scope. Those
+ledgers have been regenerated on the physical Salsa engine (see the campaign
+status table in `docs/semantic-federation/55-step-incremental-rust-plan.md`);
+regenerate them again after any change to the tracked query set.
+
+The companion
+[artifact dependency tomography](docs/semantic-federation/artifact-dependency-tomography.md)
+holds configuration constant while changing every raw column, raw row shape,
+and support-artifact role one at a time across all six synthetic corpora. Its
+checked 192-case ledger compares all warm checkpoints and outputs with cold
+Rust targets, records context-dependent convergence, and separates
+computational equivalence from exact source/correspondence identity. A second
+162-case boundary ledger probes 21 adjacent timestamp gaps and six calendar/DST
+joints across those same corpora. Compressed digest-bound sidecars retain the
+864,557 exact canonical CSV/JSON cell addresses changed by those controlled
+interventions. A model-mutation gate also deletes or reverses every declared
+DAG edge and deletes every recorded option and input-role binding; all 116
+mutants must be killed by an attributed empirical or structural test case.
+
 Not affiliated with GetMethodic/Chronicle, please visit them here: https://getmethodic.com/
 
 Credits:

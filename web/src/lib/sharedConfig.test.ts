@@ -61,12 +61,10 @@ describe("shareable config URL (#23)", () => {
   });
 });
 
-describe("sanitizeOptions interactionTypeRemap validation (FU3)", () => {
-  it("drops entries whose target is not a canonical interaction type", () => {
-    expect(
-      sanitizeOptions({ interactionTypeRemap: ["Move to Foreground => BogusType"] })
-        .interactionTypeRemap,
-    ).toEqual([]);
+describe("sanitizeOptions interactionTypeRemap transport", () => {
+  it("preserves entries for authoritative Rust validation", () => {
+    const entries = ["Move to Foreground => BogusType"];
+    expect(sanitizeOptions({ interactionTypeRemap: entries }).interactionTypeRemap).toEqual(entries);
   });
 
   it("keeps a canonical target with a free-form (non-canonical) source", () => {
@@ -74,12 +72,12 @@ describe("sanitizeOptions interactionTypeRemap validation (FU3)", () => {
     expect(sanitizeOptions({ interactionTypeRemap: [entry] }).interactionTypeRemap).toEqual([entry]);
   });
 
-  it("filters a mixed list to only canonical-target entries", () => {
+  it("preserves mixed lists without interpreting their meaning", () => {
     const ok = "VENDOR_X => Activity Paused";
+    const entries = ["A => BogusType", ok, "B => NotReal"];
     expect(
-      sanitizeOptions({ interactionTypeRemap: ["A => BogusType", ok, "B => NotReal"] })
-        .interactionTypeRemap,
-    ).toEqual([ok]);
+      sanitizeOptions({ interactionTypeRemap: entries }).interactionTypeRemap,
+    ).toEqual(entries);
   });
 
   it("keeps inert in-progress rows (no delimiter / empty side)", () => {
@@ -92,10 +90,8 @@ describe("sanitizeOptions interactionTypeRemap validation (FU3)", () => {
     expect(sanitizeOptions({ interactionTypeRemap: entries }).interactionTypeRemap).toEqual(entries);
   });
 
-  it("closes the untrusted share-link vector on decode", () => {
-    // Hand-built param (not the encoder, which sanitizes on its own path) models
-    // an attacker-crafted link.
+  it("passes a hand-built share-link value through to Rust unchanged", () => {
     const param = JSON.stringify({ interactionTypeRemap: ["VENDOR => BogusType"] });
-    expect(decodeOptionsFromParam(param)?.interactionTypeRemap).toEqual([]);
+    expect(decodeOptionsFromParam(param)?.interactionTypeRemap).toEqual(["VENDOR => BogusType"]);
   });
 });

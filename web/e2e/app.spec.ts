@@ -40,7 +40,7 @@ test.beforeEach(async ({ page }) => {
   assertNoExternalRequests(requestTracker);
 });
 
-test("@smoke boots locally and processes a raw file entirely on localhost", async ({
+test("@smoke @opfs boots locally and processes a raw file entirely on localhost", async ({
   page,
 }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
@@ -60,6 +60,8 @@ test("processes app and screen outputs with CSV support files and downloads both
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
   await page.getByTestId("toggle-processScreenUsage").check();
   await page.getByTestId("toggle-useAppsForcingScreenOpenFile").check();
+  // App filtering is a cleaning step and off by default; this spec exercises it.
+  await page.getByTestId("toggle-useFilterFile").check();
   await setInputFile(page, "filter-file-input", "filter.csv", FILTER_FILE_CSV, "text/csv");
   await setInputFile(page, "apps-forcing-screen-open-file-input", "apps_forcing_screen_open.csv", APPS_FORCING_SCREEN_OPEN_CSV, "text/csv");
   await setInputFile(page, "app-codebook-file-input", "codebook.csv", CODEBOOK_CSV, "text/csv");
@@ -69,18 +71,42 @@ test("processes app and screen outputs with CSV support files and downloads both
 
   const zipEntries = await downloadZipEntries(page, "download-all-zip");
   expect(Array.from(zipEntries.keys())).toContain("chronicle-processing-report.json");
-  const report = JSON.parse(zipEntries.get("chronicle-processing-report.json") ?? "{}");
-  expect(report.preprocessorVersion).toBe("1.0.0");
-  expect(report.files).toHaveLength(1);
+  const report = JSON.parse(zipEntries.get("chronicle-processing-report.json") ?? "{}") as unknown;
+  expect((report as Record<string, unknown>).preprocessorVersion).toBe("1.0.0");
+  const reportFiles = (report as Record<string, unknown>).files as Array<Record<string, unknown>>;
+  expect(reportFiles).toHaveLength(1);
   // Plots are on by default, so outputs also include "plot" entries; assert the
   // CSV kinds are present rather than pinning the exact set.
-  const outputKinds = report.files[0].outputs.map((output: { kind: string }) => output.kind);
+  const outputKinds = (reportFiles[0]?.outputs as Array<{ kind: string }>).map((output) => output.kind);
   expect(outputKinds).toContain("app");
   expect(outputKinds).toContain("screen");
+  // The manifest carries the run's ExecutionLedger (per-unit/per-step lineage).
+  expect(((reportFiles[0]?.executions as unknown[]) ?? []).length).toBeGreaterThan(0);
+  expect(
+    ((reportFiles[0]?.executions as Array<{ steps: unknown[] }>) ?? []).flatMap((unit) => unit.steps).length,
+  ).toBeGreaterThan(0);
+
+  // The PROV-O sidecar rides in the same ZIP and carries per-node
+  // chron:NodeExecution activities (the runtime lineage ledger) alongside
+  // the run activity — not just the run-level summary.
+  expect(Array.from(zipEntries.keys())).toContain("chronicle-provenance.jsonld");
+  const provenance = JSON.parse(zipEntries.get("chronicle-provenance.jsonld") ?? "{}") as unknown;
+  const provGraph: Array<Record<string, unknown>> = (provenance as Record<string, unknown>)["@graph"] as Array<Record<string, unknown>> ?? [];
+  const nodeExecutions = provGraph.filter(
+    (node) => Array.isArray(node["@type"]) && (node["@type"] as string[]).includes("chron:NodeExecution"),
+  );
+  expect(nodeExecutions.length).toBeGreaterThan(0);
+  expect(
+    nodeExecutions.every(
+      (node) => node["chron:executes_step"] && node["chron:used_parameter_set"],
+    ),
+  ).toBe(true);
+  // Step-scale executions nest under their unit via dcterms:isPartOf.
+  expect(nodeExecutions.some((node) => node["dcterms:isPartOf"])).toBe(true);
 
   const appCsv = await downloadCsv(page, "download-app-csv");
   const screenCsv = await downloadCsv(page, "download-screen-csv");
-  expect(csvHeaders(appCsv)).toContain("play_store_genreId");
+  expect(csvHeaders(appCsv)).toContain("bcm_play_store_genreId");
   expect(appCsv).toContain("Filtered App Usage");
   expect(screenCsv).toContain("Screen Usage");
   assertNoExternalRequests(requestTracker);
@@ -233,7 +259,8 @@ test("has no automated axe accessibility violations across workflow tabs", async
 test("supports keyboard-only skip and workflow tab navigation", async ({ page }) => {
   const settingsTab = page.getByRole("tab", { name: /Settings/i });
   const filesTab = page.getByRole("tab", { name: /Files/i });
-  const viewTab = page.getByRole("tab", { name: /View/i });
+  const guideTab = page.getByRole("tab", { name: /Guide/i });
+  const graphTab = page.getByRole("tab", { name: /Graph/i });
 
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: /Skip to workflow tabs/i })).toBeFocused();
@@ -245,11 +272,11 @@ test("supports keyboard-only skip and workflow tab navigation", async ({ page })
   await expect(filesTab).toBeFocused();
   await expect(filesTab).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("End");
-  await expect(viewTab).toBeFocused();
-  await expect(viewTab).toHaveAttribute("aria-selected", "true");
+  await expect(graphTab).toBeFocused();
+  await expect(graphTab).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("Home");
-  await expect(settingsTab).toBeFocused();
-  await expect(settingsTab).toHaveAttribute("aria-selected", "true");
+  await expect(guideTab).toBeFocused();
+  await expect(guideTab).toHaveAttribute("aria-selected", "true");
   assertNoExternalRequests(requestTracker);
 });
 
@@ -318,6 +345,22 @@ test("supports reduced motion, forced colors, and practical pointer targets", as
   assertNoExternalRequests(requestTracker);
 });
 
+test("prefers-contrast: more does not break layout or hide content", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light", forcedColors: "none" });
+  // Inject a style tag that simulates high-contrast preference so layout
+  // responses to prefers-contrast are exercised even in non-supporting browsers.
+  await page.addStyleTag({
+    content: "@media (prefers-contrast: more) { * { outline: 2px solid red !important; } }",
+  });
+  await gotoApp(page);
+  await expect(page.getByRole("tab", { name: /Settings/i })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Files/i })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Process/i })).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+  assertNoExternalRequests(requestTracker);
+});
+
 test("reflows at narrow widths without page-level horizontal scrolling", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 900 });
   for (const tabName of ["Settings", "Files", "Process"]) {
@@ -358,6 +401,8 @@ test("accepts an XLSX filter file and still produces filtered app usage locally"
 }) => {
   const xlsxBytes = await createFilterWorkbookBytes();
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
+  // App filtering is a cleaning step and off by default; this spec exercises it.
+  await page.getByTestId("toggle-useFilterFile").check();
   await setInputFile(
     page,
     "filter-file-input",
@@ -393,6 +438,28 @@ test("discovers timezones and honors selected-filter output behavior", async ({ 
   assertNoExternalRequests(requestTracker);
 });
 
+test("does not silently bind a multi-timezone input to the first discovered candidate", async ({
+  page,
+}) => {
+  await setInputFile(
+    page,
+    "raw-file-input",
+    "Raw Mixed.csv",
+    MIXED_TIMEZONE_RAW_CSV,
+    "text/csv",
+  );
+  await page.getByTestId("discover-timezones-button").click();
+  await expect(page.getByTestId("selected-timezone-input")).toHaveValue("");
+
+  await page.getByRole("tab", { name: /Process/i }).click();
+  await page.getByTestId("process-files-button").click();
+  await expect(page.locator(".error-text")).toContainText(
+    /found multiple candidates.*Choose one explicitly/i,
+  );
+  await expect(page.getByTestId("result-panel")).toHaveCount(0);
+  assertNoExternalRequests(requestTracker);
+});
+
 test("converts mixed-timezone data into the selected timezone", async ({ page }) => {
   await setInputFile(
     page,
@@ -420,7 +487,7 @@ test("drops codebook-enriched columns when app codebook use is disabled", async 
   const appCsv = await downloadCsv(page, "download-app-csv");
   const headers = csvHeaders(appCsv);
   expect(headers).not.toContain("genreId_scraped");
-  expect(headers).not.toContain("play_store_genreId");
+  expect(headers).not.toContain("bcm_play_store_genreId");
   assertNoExternalRequests(requestTracker);
 });
 
@@ -465,7 +532,7 @@ test("exports an HTML timeline viewer when the option is enabled (#18)", async (
   assertNoExternalRequests(requestTracker);
 });
 
-test("@smoke the exported HTML timeline viewer runs its inlined interactivity offline (#18)", async ({
+test("@smoke @opfs the exported HTML timeline viewer runs its inlined interactivity offline (#18)", async ({
   page,
 }, testInfo) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
@@ -511,19 +578,19 @@ test("@smoke the exported HTML timeline viewer runs its inlined interactivity of
   // (3) Hovering a session bar shows the per-session detail tooltip. The bar's
   // screen position is derived from the embedded scene at the auto-fit transform
   // (scale = width / sceneWidth, tx = ty = 0).
-  const target = await viewer.evaluate(() => {
-    const data = JSON.parse(document.getElementById("tv-data")!.textContent!);
-    const view = data.app[0];
-    const region = view.regions[0];
+  const target: { x: number; y: number; title: string } = await viewer.evaluate(() => {
+    const data = JSON.parse(document.getElementById("tv-data")!.textContent) as unknown;
+    const view = (data as Record<string, unknown>).app as Array<Record<string, unknown>>;
+    const region = (view[0]?.regions as Array<Record<string, unknown>>)?.[0];
     const el = document.querySelector(
       '[data-tv-type="app"][data-tv-index="0"] .tv-canvas',
     ) as HTMLCanvasElement;
     const rect = el.getBoundingClientRect();
-    const scale = rect.width / view.scene.width;
+    const scale = rect.width / ((view[0]?.scene as Record<string, unknown>)?.width as number);
     return {
-      x: rect.left + (region.x + region.w / 2) * scale,
-      y: rect.top + (region.y + region.h / 2) * scale,
-      title: region.title,
+      x: rect.left + (((region?.x as number) ?? 0) + (((region?.w as number) ?? 0) / 2)) * scale,
+      y: rect.top + (((region?.y as number) ?? 0) + (((region?.h as number) ?? 0) / 2)) * scale,
+      title: region?.title as string,
     };
   });
   const beforeZoom = await canvas.evaluate((c) => ({
@@ -555,6 +622,9 @@ test("View tab renders the review surface (rail, metrics, timeline) with file an
   page,
 }, testInfo) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_AND_SCREEN_RAW_CSV, "text/csv");
+  // App filtering is a cleaning step and off by default; this spec asserts
+  // filtered events appear in the review rail, so turn it on.
+  await page.getByTestId("toggle-useFilterFile").check();
   await setInputFile(page, "filter-file-input", "filter.csv", FILTER_FILE_CSV, "text/csv");
   await page.getByTestId("toggle-enableInteractiveTimeline").check();
   await page.getByTestId("toggle-includeFilteredAppUsageInPlots").check();
@@ -569,17 +639,17 @@ test("View tab renders the review surface (rail, metrics, timeline) with file an
   const html = await readFile(htmlPath, "utf-8");
   const dataMatch = html.match(/<script type="application\/json" id="tv-data">([^<]*)<\/script>/);
   expect(dataMatch).not.toBeNull();
-  const data = JSON.parse(dataMatch![1]!);
-  const view = data.app[0];
-  const includedView = data.appFilteredIncluded?.[0] ?? data.app[0];
-  const excludedView = data.appFilteredExcluded?.[0];
+  const data = JSON.parse(dataMatch![1]) as unknown;
+  const view = (data as Record<string, unknown>).app as Array<Record<string, unknown>>;
+  const includedView = ((data as Record<string, unknown>).appFilteredIncluded as Array<Record<string, unknown>> | undefined)?.[0] ?? view[0];
+  const excludedView = ((data as Record<string, unknown>).appFilteredExcluded as Array<Record<string, unknown>> | undefined)?.[0];
   expect(
-    includedView.regions.some((r: { lines: string[] }) =>
+    ((includedView?.regions as Array<{ lines: string[] }>) ?? []).some((r) =>
       r.lines.some((line) => line.includes("Filtered App Usage event")),
     ),
   ).toBe(true);
   expect(
-    excludedView?.regions.some((r: { lines: string[] }) =>
+    ((excludedView?.regions as Array<{ lines: string[] }>) ?? []).some((r) =>
       r.lines.some((line) => line.includes("Filtered App Usage event")),
     ) ?? false,
   ).toBe(false);
@@ -631,21 +701,21 @@ test("View tab renders the review surface (rail, metrics, timeline) with file an
     .poll(async () => canvas.evaluate((c) => (c as HTMLCanvasElement).toDataURL()))
     .not.toBe(includedBitmap);
 
-  const zoomView = excludedView ?? view;
-  const region = zoomView.regions.find((r: { lines: string[] }) => r.lines.some((line) => line.includes("→")));
+  const zoomView = excludedView ?? view[0];
+  const region = (zoomView?.regions as Array<{ lines: string[] }>)?.find((r) => r.lines.some((line) => line.includes("→")));
   expect(region).toBeDefined();
 
-  const target = await canvas.evaluate(
-    (el, payload) => {
+  const target: { x: number; y: number; title: string } = await canvas.evaluate(
+    (el, payload: { region: Record<string, unknown>; scene: Record<string, unknown> }) => {
       const rect = el.getBoundingClientRect();
-      const scale = rect.width / payload.scene.width;
+      const scale = rect.width / (payload.scene.width as number);
       return {
-        x: rect.left + (payload.region.x + payload.region.w / 2) * scale,
-        y: rect.top + (payload.region.y + payload.region.h / 2) * scale,
-        title: payload.region.title,
+        x: rect.left + (((payload.region.x as number) ?? 0) + (((payload.region.w as number) ?? 0) / 2)) * scale,
+        y: rect.top + (((payload.region.y as number) ?? 0) + (((payload.region.h as number) ?? 0) / 2)) * scale,
+        title: payload.region.title as string,
       };
     },
-    { region: region!, scene: zoomView.scene },
+    { region: region as Record<string, unknown>, scene: zoomView?.scene as Record<string, unknown> },
   );
   const beforeZoom = await canvas.evaluate((c) => ({
     bitmap: (c as HTMLCanvasElement).toDataURL(),
@@ -718,9 +788,11 @@ test("View tab compares the run against a second config (Arm B) in-browser", asy
     "Δ",
   ]);
 
-  // The timeline interleaves into ONE combined A/B waterfall (legend + a single
-  // scene), not two stacked timelines.
-  await expect(page.getByTestId("review-compare-legend")).toBeVisible();
+  // The fast comparison deliberately returns compact Rust metrics rather than
+  // rebuilding Arm-B timeline geometry.
+  await expect(page.getByTestId("review-compare-no-overlap")).toContainText(
+    "fast comparison updated the Δ metrics",
+  );
   await expect(page.getByTestId("timeline-view-participant-title")).toHaveCount(1);
 
   assertNoExternalRequests(requestTracker);
@@ -751,6 +823,16 @@ test("restores last processed results after refresh and collapses process detail
   // on the next boot). The note explains it and downloads are disabled.
   await expect(page.getByTestId("restored-lightweight-note")).toBeVisible();
   await expect(page.getByTestId("download-all-zip")).toBeDisabled();
+
+  // Delete results: the panel empties AND the persisted copy is gone, so a
+  // further refresh starts clean instead of restoring the run again.
+  await page.getByTestId("delete-results").click();
+  await expect(page.getByTestId("result-panel")).toBeHidden();
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Chronicle Android Raw Data Preprocessor" }),
+  ).toBeVisible();
+  await expect(page.getByTestId("result-panel")).toBeHidden();
   assertNoExternalRequests(requestTracker);
 });
 
@@ -844,6 +926,47 @@ test("processes multiple uploaded files with parallel workers enabled", async ({
   await page.getByTestId("parallel-max-workers-input").fill("2");
   await processFiles(page);
   await expect(page.getByTestId("result-panel")).toContainText("2 files processed");
+  assertNoExternalRequests(requestTracker);
+});
+
+test("large result batches defer per-output controls and reset that choice for the next run", async ({
+  page,
+}) => {
+  const files = (prefix: string) =>
+    Array.from({ length: 21 }, (_, index) => ({
+      name: `${prefix} P${String(index + 1).padStart(2, "0")}.csv`,
+      mimeType: "text/csv",
+      buffer: Buffer.from(APP_ONLY_RAW_CSV, "utf-8"),
+    }));
+  const run = async (): Promise<void> => {
+    await page.getByRole("tab", { name: /Process/i }).click();
+    await page.getByTestId("process-files-button").click();
+    await expect(page.getByTestId("result-panel")).toContainText(
+      "21 files processed",
+      { timeout: 15_000 },
+    );
+  };
+
+  // ResultPanel was already mounted with zero results before this first run;
+  // the large-batch default must still be collapsed when results arrive.
+  await page.getByTestId("raw-file-input").setInputFiles(files("First"));
+  await run();
+  const toggle = page.getByTestId("results-collapse-toggle");
+  await expect(toggle).toHaveText("▸ Show results details");
+  await expect(page.getByTestId("result-file-table")).toHaveCount(0);
+  await expect(page.getByTestId("download-single-output")).toHaveCount(0);
+
+  await toggle.click();
+  await expect(page.getByTestId("result-file-table")).toBeVisible();
+  await expect(page.getByTestId("result-row")).toHaveCount(21);
+
+  // Selecting a genuinely new batch clears the explicit open override. The
+  // next large run must not eagerly rebuild the thousands-of-controls DOM.
+  await page.getByRole("tab", { name: /Files/i }).click();
+  await page.getByTestId("raw-file-input").setInputFiles(files("Second"));
+  await run();
+  await expect(toggle).toHaveText("▸ Show results details");
+  await expect(page.getByTestId("result-file-table")).toHaveCount(0);
   assertNoExternalRequests(requestTracker);
 });
 
@@ -1124,10 +1247,12 @@ test("config export round-trips both active settings and the preset library", as
   const download = await downloadPromise;
   const stream = await download.createReadStream();
   if (!stream) throw new Error("download stream missing");
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
-  const exported = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+  const chunks: Array<Buffer | Uint8Array> = [];
+  for await (const chunk of stream) {
+    chunks.push(chunk instanceof Buffer ? chunk : Buffer.from(chunk as ArrayLike<number>));
+  }
+  const exported = JSON.parse(Buffer.concat(chunks).toString("utf-8")) as { currentSettings: { studyName: string }; presets: Array<{ name: string }> };
   expect(exported.currentSettings.studyName).toBe("RoundTrip");
-  expect(exported.presets.map((p: { name: string }) => p.name)).toContain("Snapshot A");
+  expect(exported.presets.map((p) => p.name)).toContain("Snapshot A");
   assertNoExternalRequests(requestTracker);
 });

@@ -1,0 +1,374 @@
+# Output-column semantics catalog — instance data for OutputColumnCatalog in
+# chronicle-local-contract.linkml.yaml.
+#
+# HAND-AUTHORED semantics layer (descriptions, units, alignments). The column
+# NAMES are bijection-checked against the emit-order SSOT
+# (declared_app_output_columns / declared_screen_output_columns in Rust) by
+# web/scripts/generate_output_codebook_artifacts.mts, which also renders
+# docs/researcher-output-codebook.md. Adding/removing a column in code without
+# updating this catalog fails check:contract.
+output_columns:
+  # ── Identity / provenance (both outputs) ──
+  - column_name: study_id
+    column_outputs: [app, screen]
+    value_type: string
+    column_description: Study identifier as it appears in the raw Chronicle export, preserved unchanged.
+  - column_name: study_name
+    column_outputs: [app, screen]
+    value_type: string
+    column_description: Your own study label, entered in the app (the study_name option); not from the raw data.
+  - column_name: participant_id
+    column_outputs: [app, screen]
+    value_type: string
+    column_description: Participant identifier from the raw Chronicle export.
+  - column_name: possible_device_model
+    column_outputs: [app, screen]
+    value_type: string
+    column_description: Device model inferred from the raw export's device metadata, when present.
+  - column_name: username
+    column_outputs: [app, screen]
+    value_type: string
+    column_description: Chronicle account username from the raw export.
+  - column_name: event_timestamp
+    column_outputs: [app, screen]
+    value_type: timestamp
+    column_description: Timestamp of the raw event that opened this usage row, in the row's output timezone.
+    vocabulary_alignment: Android UsageEvents.Event#getTimeStamp
+  - column_name: date
+    column_outputs: [app, screen]
+    value_type: date
+    column_description: Calendar date of the row's start, after timezone handling.
+  - column_name: timezone
+    column_outputs: [app, screen]
+    value_type: string
+    column_description: IANA timezone the row's timestamps are expressed in (after the selected/primary filter or conversion).
+  - column_name: app_package_name
+    column_outputs: [app, screen]
+    value_type: string
+    column_description: Android application package (e.g. com.google.android.youtube). For screen rows, a screen-session pseudo-package.
+    vocabulary_alignment: Android UsageEvents.Event#getPackageName
+  - column_name: application_label
+    column_outputs: [app, screen]
+    value_type: string
+    column_description: Human-readable app name recorded by Chronicle at collection time.
+
+  # ── Codebook categories (app output, when use_app_codebook) ──
+  - column_name: genreId_scraped
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: Play-Store genre scraped for the package (codebook passthrough).
+  - column_name: broad_app_category
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook and include_category_column
+    column_description: Single broad category chosen from the codebook's per-source category columns (first non-empty in preference order).
+  - column_name: codebook_application_label
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: App name as recorded in the app codebook (may differ from the device-reported label).
+  - column_name: bcm_play_store_genreId
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: BCM codebook — Play-Store genre id for the package.
+  - column_name: bcm_play_store_genre
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: BCM codebook — Play-Store genre name.
+  - column_name: bcm_play_store_broad_app_category
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: BCM codebook — broad category derived from the Play-Store genre.
+  - column_name: bcm_play_store_developer
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: BCM codebook — Play-Store developer name.
+  - column_name: bcm_play_store_free
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: BCM codebook — whether the Play-Store listing is free.
+  - column_name: bcm_play_store_rating
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: BCM codebook — Play-Store content rating.
+  - column_name: bcm_play_store_downloads
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: BCM codebook — Play-Store download-count bracket.
+  - column_name: usc_broad_app_category
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: USC codebook — broad category.
+  - column_name: usc_genreId
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: USC codebook — genre id.
+  - column_name: umich_child_app_category_code
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: UMich codebook — child-app category code.
+  - column_name: umich_child_app_category
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: UMich codebook — child-app category.
+  - column_name: umich_adult_app_category_code
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: UMich codebook — adult-app category code.
+  - column_name: umich_adult_app_category
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: UMich codebook — adult-app category.
+  - column_name: umich_free
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: UMich codebook — whether the app is free.
+  - column_name: umich_gambling_app
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: UMich codebook — gambling-app indicator.
+  - column_name: umich_inappropriate_app
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: UMich codebook — inappropriate-app indicator.
+  - column_name: babyemu_genreId_scraped
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: BabyEMU codebook — scraped genre id.
+  - column_name: babyemu_genreId_manual
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: BabyEMU codebook — manually assigned genre id.
+  - column_name: babyemu_broad_app_category
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: BabyEMU codebook — broad category.
+  - column_name: babyemu_medium_app_category
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: BabyEMU codebook — medium-granularity category.
+  - column_name: babyemu_fine_app_category
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: BabyEMU codebook — fine-granularity category.
+  - column_name: babyemu_alternate_fine_app_category
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: BabyEMU codebook — alternate fine category.
+  - column_name: babyemu_kids
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: BabyEMU codebook — kids-app indicator.
+  - column_name: bcm_cnrc_heuristic_category
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: BCM CNRC codebook — heuristic category assignment.
+  - column_name: bcm_cnrc_categorization_source
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: BCM CNRC codebook — which source produced the heuristic category.
+  - column_name: codebook_dataset
+    column_outputs: [app]
+    value_type: string
+    present_when: use_app_codebook
+    column_description: Which codebook dataset the category row came from.
+
+  # ── Session core (both outputs) ──
+  - column_name: interaction_type
+    column_outputs: [app, screen]
+    value_type: string
+    column_description: >-
+      Row kind — "App Usage" for reconstructed foreground sessions, "Screen Usage"
+      for screen-on sessions, "Filtered App Usage" and related marker types for
+      rows retained as timing witnesses. Derived from Android UsageEvents
+      transitions (Activity Resumed/Paused/Stopped and screen events).
+    vocabulary_alignment: Android UsageEvents event types (P&T pairing vocabulary)
+  - column_name: start_timestamp
+    column_outputs: [app, screen]
+    value_type: timestamp
+    column_description: Session start, in the row's output timezone.
+  - column_name: stop_timestamp
+    column_outputs: [app, screen]
+    value_type: timestamp
+    column_description: Session end, in the row's output timezone.
+  - column_name: duration_seconds
+    column_outputs: [app, screen]
+    value_type: float
+    units: seconds
+    column_description: Session length (stop − start) in seconds.
+  - column_name: duration_minutes
+    column_outputs: [app, screen]
+    value_type: float
+    units: minutes
+    column_description: Session length in minutes (duration_seconds × 1/60).
+  - column_name: any_app_usage_flags
+    column_outputs: [app]
+    value_type: list_text
+    column_description: >-
+      Quality flags for the row rendered as a list literal — ">N-HR TIME GAP" when
+      the preceding data gap crossed a long_data_time_gap threshold, ">N-HR APP
+      USAGE" when the session itself crossed a long_usage_duration threshold.
+  - column_name: data_time_gap_hours
+    column_outputs: [app, screen]
+    value_type: float
+    units: hours
+    column_description: Hours since the previous raw data row from the device (device-silent gap preceding this row).
+
+  # ── Calendar decomposition (both outputs) ──
+  - column_name: day
+    column_outputs: [app, screen]
+    value_type: integer
+    column_description: Weekday number of the row's date, 1 = Sunday … 7 = Saturday.
+  - column_name: weekdayMF
+    column_outputs: [app, screen]
+    value_type: binary_flag
+    column_description: 1 when the date falls Monday–Friday.
+  - column_name: weekdayMTh
+    column_outputs: [app, screen]
+    value_type: binary_flag
+    column_description: 1 when the date falls Monday–Thursday.
+  - column_name: weekdaySuTh
+    column_outputs: [app, screen]
+    value_type: binary_flag
+    column_description: 1 when the date falls Sunday–Thursday.
+  - column_name: hour
+    column_outputs: [app, screen]
+    value_type: integer
+    column_description: Local hour of day (0–23) of the row's start.
+  - column_name: quarter
+    column_outputs: [app, screen]
+    value_type: integer
+    column_description: Calendar quarter (1–4) of the row's date.
+
+  # ── Engagement walk (app output; EYES-manual metric family) ──
+  - column_name: valid_app_new_engage_30s
+    column_outputs: [app]
+    value_type: binary_flag
+    filter_dependent: true
+    column_description: >-
+      1 when this session begins a new engagement — ≥30 s since the previous
+      usage — computed over VALID (non-filtered) apps only.
+    vocabulary_alignment: EYES manual engagement metrics
+  - column_name: valid_app_new_engage_custom_{custom_app_engagement_duration}s
+    column_outputs: [app]
+    value_type: binary_flag
+    filter_dependent: true
+    column_description: >-
+      Same as valid_app_new_engage_30s with your custom engagement gap (the
+      custom_app_engagement_duration option, stamped into the header).
+    vocabulary_alignment: EYES manual engagement metrics
+  - column_name: valid_app_switched_app
+    column_outputs: [app]
+    value_type: binary_flag
+    filter_dependent: true
+    column_description: 1 when the session's app differs from the previous valid-app session (an app switch).
+    vocabulary_alignment: EYES manual engagement metrics
+  - column_name: valid_app_usage_time_gap_hours
+    column_outputs: [app]
+    value_type: float
+    units: hours
+    filter_dependent: true
+    column_description: Hours since the previous valid-app session ended.
+  - column_name: any_app_new_engage_30s
+    column_outputs: [app]
+    value_type: binary_flag
+    column_description: >-
+      1 when this session begins a new engagement (≥30 s since previous usage),
+      computed over ALL apps including filtered ones.
+    vocabulary_alignment: EYES manual engagement metrics
+  - column_name: any_app_new_engage_custom_{custom_app_engagement_duration}s
+    column_outputs: [app]
+    value_type: binary_flag
+    column_description: Same as any_app_new_engage_30s with your custom engagement gap.
+    vocabulary_alignment: EYES manual engagement metrics
+  - column_name: any_app_switched_app
+    column_outputs: [app]
+    value_type: binary_flag
+    column_description: 1 when the session's app differs from the previous session over all apps.
+    vocabulary_alignment: EYES manual engagement metrics
+  - column_name: any_app_usage_time_gap_hours
+    column_outputs: [app]
+    value_type: float
+    units: hours
+    column_description: Hours since the previous session (any app) ended.
+
+  # ── Screen-session diagnostics (screen output) ──
+  - column_name: screen_usage_end_reason
+    column_outputs: [screen]
+    value_type: string
+    column_description: Why the screen session ended (auto-lock timeout, manual lock, keyguard, shutdown, data gap).
+  - column_name: screen_usage_end_reason_confidence
+    column_outputs: [screen]
+    value_type: string
+    column_description: Confidence grade for the end reason (direct event vs inferred).
+  - column_name: screen_usage_stop_event_type
+    column_outputs: [screen]
+    value_type: string
+    column_description: Raw event type that closed the session.
+  - column_name: screen_usage_last_activity_timestamp
+    column_outputs: [screen]
+    value_type: timestamp
+    column_description: Last app-activity timestamp observed inside the session.
+  - column_name: screen_usage_tail_gap_seconds
+    column_outputs: [screen]
+    value_type: float
+    units: seconds
+    column_description: Seconds between the last in-session activity and the session end.
+  - column_name: screen_usage_foreground_app_package
+    column_outputs: [screen]
+    value_type: string
+    column_description: Package foregrounded when the session ended, when known.
+  - column_name: screen_usage_apps_forcing_screen_open_label
+    column_outputs: [screen]
+    value_type: string
+    column_description: Label of the matched screen-forcing app (from the apps-forcing-screen-open file), when one anchored the session.
+  - column_name: screen_usage_lock_screen_only
+    column_outputs: [screen]
+    value_type: string
+    column_description: Marker for sessions that never left the lock screen.
+
+  # ── Run provenance (both outputs) ──
+  - column_name: preprocessor_version
+    column_outputs: [app, screen]
+    value_type: string
+    column_description: Version of the preprocessing engine that produced the file.
+  - column_name: datetime_of_preprocessing
+    column_outputs: [app, screen]
+    value_type: timestamp
+    column_description: UTC wall-clock stamp of the processing run (one stamp per file per session).
+
+  # ── Concurrent-usage layer (app output, when model_concurrent_usage) ──
+  - column_name: usage_layer
+    column_outputs: [app]
+    value_type: string
+    present_when: model_concurrent_usage
+    column_description: >-
+      "primary" when the app was the sole foreground app for the row's
+      sub-interval, "secondary" when it ran underneath another app (split-screen
+      or picture-in-picture).

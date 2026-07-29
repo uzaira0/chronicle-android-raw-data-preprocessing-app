@@ -1,0 +1,7 @@
+{
+  "family": "incremental-dataflow",
+  "schema_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:family/incremental-dataflow/0.1",
+  "authority": "product",
+  "payload_schema": "product-defined",
+  "required_proofs": ["exact-dirty-cone", "early-cutoff", "reason-journal", "native-runtime-parity"]
+}

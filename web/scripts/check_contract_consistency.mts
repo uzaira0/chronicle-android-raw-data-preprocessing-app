@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { parse as parseYaml } from "yaml";
@@ -11,6 +10,8 @@ import {
   BROWSER_RUNTIME_KEYS,
   BROWSER_SUPPORT_FILE_KEYS,
   OUTPUT_KIND_VALUES,
+  RAW_CHRONICLE_COLUMNS,
+  REQUIRED_RAW_COLUMNS,
   TIMEZONE_HANDLING_VALUES,
 } from "../src/lib/generatedContract";
 
@@ -123,6 +124,26 @@ async function main(): Promise<void> {
     openapiRuntimeProperties,
     BROWSER_RUNTIME_KEYS,
   );
+
+  // Raw-input contract: the generated column lists mirror the LinkML class
+  // VERBATIM (raw CSV headers are never camelized), and every required
+  // column is one of the declared columns. This class is deliberately not
+  // part of the OpenAPI surface (raw rows travel inside csvText, not JSON).
+  const linkmlRawColumns = linkml.classes.RawChronicleEventRecord?.slots ?? [];
+  const linkmlRequiredRawColumns = linkmlRawColumns.filter(
+    (slot) => linkml.slots[slot]?.required,
+  );
+  expectEqual("RawChronicleEventRecord columns vs LinkML slots", RAW_CHRONICLE_COLUMNS, linkmlRawColumns);
+  expectEqual(
+    "REQUIRED_RAW_COLUMNS vs LinkML required raw slots",
+    REQUIRED_RAW_COLUMNS,
+    linkmlRequiredRawColumns,
+  );
+  const rawColumnSet = new Set<string>(RAW_CHRONICLE_COLUMNS);
+  const strayRequired = REQUIRED_RAW_COLUMNS.filter((column) => !rawColumnSet.has(column));
+  if (strayRequired.length > 0) {
+    throw new Error(`REQUIRED_RAW_COLUMNS not subset of RAW_CHRONICLE_COLUMNS: ${strayRequired.join(", ")}`);
+  }
 
   const discoverTimezonesRequestProperties = Object.keys(
     openapi.components.schemas.DiscoverTimezonesRequest?.properties ?? {},

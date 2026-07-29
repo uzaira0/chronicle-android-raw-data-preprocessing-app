@@ -4,46 +4,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Preprocessing and plotting for Chronicle Android raw-data exports (app-usage and screen-usage events). The same preprocessing semantics are implemented across **three surfaces** that must produce identical output:
+Preprocessing and plotting for Chronicle Android raw-data exports (app-usage and screen-usage events). Two surfaces:
 
-- **Python desktop** — PyQt6 GUI + Polars pipeline (`src/chronicle_preprocessing_app/`)
-- **Web** — React + Vite PWA running the whole pipeline in-browser via Rust→WASM (`web/`)
-- **Rust** — shared algorithm crate compiled to both a PyO3 extension (desktop) and WASM (web) (`rust/`)
+- **Web** — React + Vite PWA running the whole pipeline in-browser via Rust→WASM (`web/`). **This is the single engine.**
+- **Rust** — shared algorithm crate compiled to WASM (`rust/`); `chronicle_app_usage_matcher` is the matcher's source of truth.
 
-**The web surface is canonical for new features.** New options are designed to be a **no-op on the parity fixture** so the cross-surface gate stays green untouched; desktop and Rust are aligned to match the web's behavior. Do not design new work around the Python/desktop "oracle" or chase Python parity for net-new capability.
+The Python desktop engine (PyQt6 GUI + Polars pipeline), its pytest suite, and the cross-engine parity/metamorphic/corpus-soak harnesses were **removed as fully deprecated**. Their final evidence is frozen in `docs/validation/CORPUS_SOAK.md` (124-file dual-engine byte-parity, zero mismatches after the five documented fixes) and `docs/perf/BASELINE.md`; the removal commit message names the last ref that still carries the desktop tree.
 
-## Cross-surface parity is the central constraint
+## Behavioral reference after the desktop removal
 
-`scripts/run_deterministic_web_parity.py` (run via `make parity`) builds a deterministic pathological fixture, runs it through both the Python desktop pipeline and the in-browser TS/WASM pipeline, and compares CSV outputs **row-by-row, column-by-column**. A single differing cell blocks the change.
+The Rust/WASM cold-oracle and dependency campaigns are now the **sole executable behavioral reference**. Their checked evidence remains under `web/src/lib/pipelineGraph/golden/family-expected/`; the directory name is historical and contains data, not a TypeScript graph engine. Consequences:
+- A new flag/option must default such that, **with the flag off, golden output is byte-identical** to before. Add capability as opt-in. Goldens are re-recorded only deliberately (`UPDATE_GOLDEN=1`), never to make a red run green.
+- Green self-validation has shipped real logic bugs before. For logic-dense changes, get an independent review (spawn a code-reviewer subagent / use an independent oracle) before merging.
 
-Consequences for how you work:
-- A new flag/option must default such that, **with the flag off (its fixture default), output is byte-identical** to before. Add capability as opt-in.
-- The matcher algorithm itself is shared Rust (one source of truth), so its behavior is automatically identical across surfaces. Everything *around* it (CSV parse, timestamp formatting, codebook enrichment, plotting) is implemented **independently** in Python and TypeScript and must be kept in lockstep by hand + the parity gate.
-- Green self-validation has shipped real logic bugs before. For logic-dense changes, get an independent review (spawn a code-reviewer subagent / use an independent oracle) before merging — do not trust a green parity run alone.
+⚠ **Consumer coupling:** the `research-pipeline` monorepo installs this repo as an **editable path dependency** (`chronicle-android-preprocessor = { path = "/home/opt/chronicle-android-raw-data-preprocessing-app", editable = true }`) and imports `chronicle_preprocessing_app` from this working tree (`v1_engine.py`). Do not check this branch out on the production machine, and do not merge it, until that consumer is repointed (vendored copy or pinned pre-removal ref).
 
 ## Commands
 
 All CI is **local** (remote GitHub Actions were removed; only `web-pwa-deploy.yml` remains, and it only builds + deploys to GitHub Pages — it does not run tests). `make all` is the gate.
 
 ```bash
-make ci        # python tests + rust tests + all security scanners
-make all       # ci + web checks + cross-surface parity + e2e smoke + deploy-artifact validation
+make ci        # rust tests + all security scanners
+make all       # ci + web checks + e2e smoke + deploy-artifact validation
 make web       # typecheck + web unit tests + contract check
-make security  # semgrep ast-grep bandit pip-audit cargo-audit trivy gitleaks
+make security  # semgrep ast-grep cargo-audit trivy gitleaks
 make help      # list every target
-```
-
-Point `PYTHON` at an interpreter that has the deps (polars, etc.):
-```bash
-make ci PYTHON=/home/opt/eyes-parity-venv/bin/python
-```
-
-### Python
-```bash
-PYTHONPATH=src python -m pytest -q                          # all tests (pythonpath also set in pyproject)
-PYTHONPATH=src python -m pytest tests/test_polars_fast_path.py -q      # one file
-PYTHONPATH=src python -m pytest tests/test_polars_fast_path.py::test_name   # one test
-python main.py                                              # launch the PyQt6 GUI
 ```
 
 ### Rust
@@ -60,32 +45,81 @@ npm run typecheck      # THREE tsc --noEmit passes (root + tsconfig.node.json fo
 npm run test           # vitest unit tests
 npm run test:e2e:smoke # playwright @smoke tests
 npm run check:contract # regenerate + validate the generated contract (see below)
-npm run build:wasm     # rebuild chronicle_app_usage_wasm via wasm-pack
+npm run build:wasm     # rebuild the WASM packages used by the app and tests
 ```
 
 Most npm scripts wrap the real command in `node scripts/run-clean-env.mjs` to strip a polluted env.
 
+### Incremental-engine gates and evidence
+```bash
+make dependency-evidence   # regenerate implementation-bound dependency data (rebuilds the
+                           # temporary evidence WASM, then the normal fail-closed package).
+                           # REQUIRED after any pipeline_v2*.rs / step_contract.rs change —
+                           # tests fail if declared graph and observed Salsa reads drift.
+make combinatorial         # combinatorial option-influence campaigns
+make gate-truth            # execution-claim / evidence truth gate
+make mutation              # mutation testing (mutation-web + mutation-rust; long-running)
+make coverage-all          # web + rust coverage
+make profile-current       # focused performance profile of the current build
+```
+
+Incremental Rust tests run with the feature flag:
+```bash
+cargo test --locked --manifest-path rust/chronicle_chrono_kernel_wasm/Cargo.toml --features incremental-v2
+```
+
+### Benchmarks (run from `web/`)
+```bash
+npm run measure:unique-review-batch -- <dir> <workers> <case>  # 100-DISTINCT-input review benchmark with cold-oracle check
+npm run measure:review-batch       # same-raw-path batch (duplicate-content reuse only)
+npm run benchmark:many-files       # duplicate-content fixture (NOT distinct-input evidence)
+npm run benchmark:runtime-wasm     # runtime microbenchmark
+```
+**Benchmark truthfulness:** `verify-many-files.mjs`, `measure_review_batch.mjs`, and
+`benchmark_runtime_wasm.mts` reuse identical bytes/SHA-256 — they prove duplicate-content
+reuse, never the cost of distinct files. Only `measure_unique_review_batch.mjs` over files
+from `generate_benchmark_fixture.mts` with different seeds is distinct-input evidence; it
+requires unique SHA-256s, cold-oracle matches, and exact 55-step statuses.
+
 ## Architecture
 
-### Python pipeline (`src/chronicle_preprocessing_app/`)
-- `core/` — framework-agnostic logic. `config.py` holds `PreprocessingOptions` (the master config dataclass, ~250 fields) and `ProcessingStats`.
-- `core/preprocessing/main_preprocessor.py` — `MainPreprocessor` orchestrates the run. When `supports_polars_fast_path()` is true (the standard case), it delegates to the **fast path** and skips the legacy sequential preprocessors.
-- `core/preprocessing/polars_fast_path.py` — `PolarsFastPathPreprocessor`, the canonical Polars-native implementation (CSV load → codebook enrichment → app-usage matching → concurrent-usage layering → output). This is where the canonical semantics live; the per-stage preprocessors (`timestamp_preprocessor.py`, `screen_usage_preprocessor.py`, `app_usage_preprocessor.py`, `timezone_preprocessor.py`, etc.) are the legacy fallback path used only when the fast path is unavailable (e.g. survey data, custom date providers).
-- `core/preprocessing/algorithms/` — `OptimizedAppUsageAlgorithm` (session derivation) and `rust_app_usage_matcher.py` (the PyO3 bridge: `process_app_usage_with_rust()` converts Polars columns to numpy, calls `_rust_app_usage_matcher`, falls back to Python if the extension is absent and not in strict mode).
-- `core/plotting/plotting_manager.py` — matplotlib PNG daily bar charts (desktop only; the web does its own plotting).
-- `config/` — `constants.py` (enums like `InteractionType`, `TimezoneHandlingOption`, `Column`), `defaults.py`, `version.py`.
-- `gui/` — PyQt6 (windows / panels / dialogs / workers). `gui/workers/preprocessing_thread.py` runs `MainPreprocessor` off the UI thread. `cli/` and `web/` packages are placeholders.
-
 ### Rust (`rust/`)
-- `chronicle_app_usage_matcher` — **the single source of truth for session matching**. Core functions (`match_app_usage_core`, `split_overlapping_sessions` — an O(N log N) sweep-line) are binding-agnostic. A `python` feature (default on) gates PyO3 + numpy.
-- `chronicle_app_usage_wasm` — wasm-bindgen wrapper around the matcher (path dep, `default-features = false` to exclude PyO3). Used by the web worker.
-- `chronicle_chrono_kernel_py` / `chronicle_chrono_kernel_wasm` — chrono-tz timestamp/CSV kernels (PyO3 and WASM twins). The matcher is the only algorithm shared cross-surface today; parse/format/dedupe kernels remain separately implemented per surface.
-- Prebuilt WASM packages are committed under `web/src/wasm/*/pkg/` so the web build needs only Node (no Rust toolchain). They are **force-tracked** (`.gitignore` excludes `pkg/`); after `npm run build:wasm` you must `git add -f` the regenerated pkg.
+- `chronicle_app_usage_matcher` — **the single source of truth for session matching**. Core functions (`match_app_usage_core`, `split_overlapping_sessions` — an O(N log N) sweep-line) are binding-agnostic. A `python` feature (default on) gates PyO3 + numpy; the web crates depend on it with `default-features = false`, and `make rust` tests it feature-free.
+- `chronicle_chrono_kernel_wasm` — the 55-step processing library used by the
+  production runtime. It uses `chronicle_app_usage_matcher` directly and has
+  no standalone browser entry point.
+- `chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs` — the physical
+  preprocessing engine: exactly 55 Salsa `0.28.1` tracked Rust product computations;
+  internal derived caches are reported separately and are not product steps.
+  Their actual reads control invalidation; Salsa execution events are the only
+  source of physical cached/recomputed status. The complete sequential
+  `run_pipeline_v2_with_supports()` path is an independent cold oracle and
+  temporary rollback, not the warm execution path.
+- `chronicle_preprocessing_runtime_wasm` — product contract, qualification,
+  execution, evidence, typed views, and verified artifact closure. Salsa state
+  is an in-worker cache only and an opaque Salsa database is **never**
+  serialized. What *is* persisted: typed Rust resume values around step 16 and
+  step 28 (reconstruction format v8, magic `CHRRX008`, row dispositions as
+  reuse/replacement/drop) stored in the existing OPFS content-addressed store.
+  A replacement worker verifies the saved header, object digest, options,
+  implementation, contract, schema, and row count before resuming at step 17
+  or 29; any mismatch fails closed to the normal full Rust path.
+- Generated WASM packages under `web/src/wasm/*/pkg/` are ignored build
+  outputs. `npm run build` rebuilds them from the reviewed Rust sources and
+  therefore requires the Rust WASM toolchain.
 
 ### Web (`web/src/`)
 - `App.tsx` + `components/WorkflowNav.tsx` — tab UI: **settings → files → process → view**.
-- `lib/browserPipeline.ts` — orchestrates the in-browser pipeline (CSV parse → timezone → session split → WASM matching → codebook enrichment → plotting → aggregation → Parquet/SPSS/CSV output).
-- `lib/chronicleMatcher.ts` + `workers/chronicle-worker.ts` — a Comlink-managed `WorkerPool`; each worker holds warm WASM + codebook and runs the matcher off the main thread.
+- `lib/rustPipelineRuntime.ts` + `workers/chronicle-worker.ts` — the production
+  Comlink worker boundary. Rust/WASM owns parsing, qualification, all 55
+  transformations, incremental execution, evidence, and result artifacts.
+- `lib/opfsArtifactStore.ts` — thin browser persistence for Rust-owned
+  content-addressed objects, complete root history, and alternating
+  authoritative workspace roots. It does not persist opaque scheduler state.
+- `lib/rustWorkerClient.ts` — browser-facing worker lifecycle, transferables,
+  pooling, and fault handling. It contains no preprocessing implementation.
+- `components/GraphPanel/viewGraph.ts` — UI-only path/highlight operations over
+  the Rust-projected stage view. It never schedules or computes pipeline data.
 - `lib/plotGenerator.ts` + `lib/plotScene.ts` — a resolution-independent **Scene** model feeds both PNG (canvas) and SVG exports *and* the interactive surfaces, so they cannot drift. Plot types: app timeline, screen timeline, activity heatmap.
 - `components/TimelineViewPanel.tsx` — the current **"view" tab**: an interactive zoomable waterfall timeline built from the Scene model. `buildAppTimelineViews()` / `buildScreenTimelineViews()` in `plotGenerator.ts` are the switch points that feed both the View tab and the exported interactive HTML (`lib/timelineViewer.ts`).
 - Persistence: IndexedDB projects (`lib/projectsStore.ts`, file bundling opt-in), localStorage settings/presets (`lib/settingsPersistence.ts`). Service worker (`public/sw.js`) caches for offline use.
@@ -93,14 +127,19 @@ Most npm scripts wrap the real command in `node scripts/run-clean-env.mjs` to st
 ### The contract (web defaults & option keys)
 `web/schema/chronicle-local-contract.linkml.yaml` (LinkML) is the source of truth for web option keys, defaults, and tooltips. `npm run check:contract` regenerates and validates `web/src/lib/generatedContract.ts` (`BROWSER_PROCESSING_OPTION_KEYS`, `DEFAULT_BROWSER_OPTIONS`, `BROWSER_OPTION_TOOLTIPS`). **Edit the LinkML schema, not the generated file**, then regenerate.
 
+`npm run check:authority-boundary` fails if the deleted TypeScript engine,
+graph scheduler, shadow path, or provenance builder is reintroduced.
+
 ## Usage-window semantics (research-pipeline consumer)
 
-This engine is consumed by the `research-pipeline` monorepo
+The (now-removed) desktop engine is consumed by the `research-pipeline` monorepo
 (`apps/pipeline/research_pipeline/lib/android/chronicle/v1_engine.py`) to score child
-screen time for the TECH / GNSM studies. That consumer froze a **locked config** and, in
+screen time for the TECH / GNSM studies — see the consumer-coupling warning above; the
+`polars_fast_path.py` line references below resolve at the last pre-removal ref. That consumer froze a **locked config** and, in
 2026-06, ran a per-instance audit (`analyses/chronicle-window-definition/`) that landed a
-**valid-usage-window paradigm** this engine does not yet implement. Captured here so the
-matcher's behavior and the planned change are both on the record.
+**valid-usage-window paradigm**, now implemented on this branch as the opt-in
+screen-gated crediting layer (status below). Captured here so the matcher's behavior
+and the paradigm mapping are both on the record.
 
 **Locked config (the consumer's frozen `PreprocessingOptions` for app-usage):**
 `long_duration_threshold_hours=6` (engine default is 12), `proximity_interval_seconds=2`,
@@ -126,26 +165,34 @@ stream also requires `proximity=2 s` (stock prox0 collapses PBS sessions).
   `screen_usage_auto_lock_timeout_seconds`, default 2 min) — it has **zero** app-usage
   consumers today.
 
-**Planned paradigm (decided by the researcher, NOT yet built — implement as opt-in /
-parity-safe, default no-op on the fixture):**
-1. feed Screen-Non-Interactive into the matcher as a session closer, with a **blip-bridge**
-   (an off shorter than the 2-min auto-lock followed by the same app within 2 min is
-   bridged — it cannot be an auto-lock);
-2. switch the 6 h threshold from **zero-out** to **truncate-to-6 h** (keep the first 6 h);
-3. no-true-end (runs to shutdown/death with no screen-off) → credit screen-on to the last
-   engagement, not a blanket zero.
-This makes held-open video/games count as usage (screen-on), so the n-file becomes moot
-for app-usage. Within a continuous screen-on span Chronicle cannot distinguish attentive
-watching from a left-on device (no presence signal during playback), so the 6 h cap — not
-an attention timeout — bounds the tail. See `docs/chronicle-decisions-made.md` §14 in the
-consumer repo.
+**Paradigm status: LANDED on this branch as opt-in "Screen-gated usage credit"**
+(`enable_screen_gated_crediting`, off by default; kernel entry
+`apply_screen_gated_credit_incremental` in `pipeline_v2.rs`; options in
+`web/schema/chronicle-local-contract.linkml.yaml`). The implementation credits each
+app session only for intervals where the screen was witnessed ON and the device was
+demonstrably alive, emitted as a **side-by-side "Credited App Usage" CSV** — the
+headline app-usage output is never changed. It maps to the researcher's decisions as:
+1. blip-bridge → `auto_lock_bridge_seconds` (default 120 s: a screen-OFF blip shorter
+   than the auto-lock cannot be a real lock, so credit bridges across it);
+2. truncate-not-zero → `credited_session_cap_minutes` (default 360; credit is
+   truncated at the cap from session start, never zeroed);
+3. no-true-end → `device_liveness_gap_tolerance_minutes` (default 120; a Device
+   Startup inside a silence always breaks the chain) plus the `no_witness_*`
+   fallback options for sessions with no screen witness at all.
+Held-open video/games count while the screen is lit, so the n-file is moot for
+app-usage crediting. Within a continuous screen-on span Chronicle cannot distinguish
+attentive watching from a left-on device (no presence signal during playback), so the
+credited-session cap — not an attention timeout — bounds the tail. See
+`docs/chronicle-decisions-made.md` §14 in the consumer repo for the decision record.
 
 ## Gotchas
 
 - `npm run typecheck` is three separate `tsc` invocations (not `tsc -b`). Composite/project-reference builds fail because scripts import `src/*` (TS6307). Only the `*.mjs` config sets `allowJs`/`checkJs`.
 - `web/src/lib/progressReducer.ts`: `applyProgressEvent` must **never** revert a terminal status (complete/error) back to running — a Comlink dual-port race otherwise sticks the UI at "Building output 100%". `progressReducer.test.ts` pins this; don't simplify the reducer.
-- App category in plots is **derived** by coalescing four per-source columns + normalizing UPPERCASE; the old `broad_app_category` input column is deprecated. The derived `include_category_column` output is opt-in and parity-checked.
+- App category in plots is **derived** by coalescing four per-source columns + normalizing UPPERCASE; the old `broad_app_category` input column is deprecated. The derived `include_category_column` output is opt-in and golden-checked.
 - `main` is protected (`enforce_admins`). Land via PR (squash). Merge to `main` auto-deploys the web PWA to GitHub Pages; the deploy does **not** run tests, so `make all` locally is the real gate.
+- **This branch deploys to preview only.** Development deployment goes solely to `uzaira0/chronicle-web-preview` `gh-pages`. Do not merge or push `main` or touch production Pages from `codex/chronicle-55-step-authority` until the research-pipeline consumer is repointed (see consumer-coupling warning above).
+- GitHub Pages does not provide cross-origin isolation, so shared-memory WASM threads are unavailable. File-level parallelism (independent files across workers) is the browser concurrency model.
 
 ## Conventions (from user's global rules)
 
