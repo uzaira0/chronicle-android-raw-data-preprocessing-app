@@ -26,6 +26,7 @@ closure: semantic
 
 check: semantic architecture chronicle closure
 	python3 scripts/check-semantic.py
+	python3 scripts/check-artifacts-in-sync.py
 
 quality-rust-coverage:
 	scripts/check-rust-quality.sh coverage
