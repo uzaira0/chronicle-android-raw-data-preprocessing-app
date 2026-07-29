@@ -216,13 +216,28 @@ def check_source_shape() -> None:
         fail(f"expected 55 unique Salsa product queries, found {len(product_queries)}")
     if derived_queries != {
         "assemble_primary_outputs",
+        "background_apps",
+        "blind_lineage_suffix_digests",
         "codebook_is_empty",
+        "collect_early_assembly",
+        "decoded_reconstruction_base",
         "decoded_review_base",
         "matching_reconstruction_base",
         "matching_review_base",
+        "parsed_apps_forcing_screen_open",
+        "parsed_codebook",
+        "parsed_device_sharing",
+        "parsed_enrolled_devices",
+        "parsed_filter_rules",
+        "parsed_study_windows",
+        "parsed_survey_attribution",
+        "review_applied_rows",
+        "review_usage_rows_before_floor",
+        "review_static_annotations",
         "review_annotations_fused",
         "review_reconstructed_rows",
         "review_reconstruction_fused",
+        "review_reconstruction_output",
         "screen_base_input_key",
     }:
         fail(f"unexpected derived Salsa cache queries: {sorted(derived_queries)}")

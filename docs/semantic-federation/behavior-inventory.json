@@ -15,7 +15,7 @@
     },
     "structural_projection": {
       "path": "web/schema/chronicle-pipeline-graph.yaml",
-      "digest": "sha256:65e077994f88ba0ac90c9cb399e510c33102575541b2d347cd6261c67b32cd2e",
+      "digest": "sha256:6805b95a5b1880ef4c8b3e956f556c7da1f2e0093b2a4f98b37749bbfdc6d222",
       "executable": false
     },
     "rust_migration_base": {
@@ -25,12 +25,12 @@
         "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "rust/chronicle_chrono_kernel_wasm/src/step_contract.rs"
       ],
-      "digest": "sha256:e4087b834997c774ee5ea09070a0595f5256c3532ee59ccc8daa992467b3acd3",
+      "digest": "sha256:95480b289bb1c73a39c91905176a432993ced4cca15e40e0f469c4726a9d6f0b",
       "coverage": "active-55-query-salsa-kernel-plus-fused-cold-test-oracle"
     },
     "rust_product_runtime": {
       "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
-      "digest": "sha256:1b696baad693876a234425078374c58e74b4032322f1b95ef999e1e72190ca7b",
+      "digest": "sha256:bd782165797175bc1148830d4316910b29e2923cc9d8137cc7bd522dc6b1d175",
       "coverage": "production-worker-authority"
     }
   },
@@ -339,7 +339,7 @@
   "runtime_authority_surface_count": 23,
   "dependency_certificate": {
     "path": ".semantic-federation/proofs/dependency-certificate.json",
-    "digest": "sha256:5a05dfc969bc4e07fbe7ab7b1a44a3a03c302c898129215757e728f00786a86a",
+    "digest": "sha256:280e700441e96bd795cd495f51d5610b4762e550de237bf79bd4acf7423ef1dd",
     "fallback": "full-logical-recompute"
   },
   "resolved_baseline_findings": [

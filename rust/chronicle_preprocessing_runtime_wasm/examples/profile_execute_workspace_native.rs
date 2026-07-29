@@ -168,7 +168,7 @@ fn options(change: Option<&str>, iteration: usize) -> Result<PipelineV2OptionsJs
         }
         Some("repeated_minimum_usage_duration_without_concurrent_usage") => {
             options.model_concurrent_usage = false;
-            options.minimum_usage_duration = if iteration % 2 == 0 { 2.0 } else { 3.0 };
+            options.minimum_usage_duration = if iteration.is_multiple_of(2) { 2.0 } else { 3.0 };
         }
         Some(other) => return Err(format!("unsupported --change: {other}")),
     }

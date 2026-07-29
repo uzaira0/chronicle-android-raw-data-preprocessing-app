@@ -63,6 +63,10 @@ impl EnvelopeTimer {
             started: std::time::Instant::now(),
         }
     }
+
+    fn finish(self) {
+        drop(self);
+    }
 }
 
 #[cfg(feature = "query-timing")]
@@ -85,6 +89,9 @@ impl EnvelopeTimer {
     fn start(_label: &'static str) -> Self {
         Self
     }
+
+    #[inline(always)]
+    fn finish(self) {}
 }
 pub const EXECUTE_WORKSPACE_COMMAND: &str = "ExecuteWorkspace";
 pub const QUERY_REVIEW_COMMAND: &str = "QueryReview";
@@ -1856,6 +1863,7 @@ fn product_stage_status(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn project_product_stages(
     plan: &chronicle_preprocessing_semantic_adapter::ChroniclePlan,
     semantic_options: &Value,
@@ -2061,7 +2069,7 @@ fn execute_incremental_pipeline(
             state.stable_artifact_bundle = None;
         }
         let had_previous_step_observations = !state.previous_step_observations.is_empty();
-        drop(timer);
+        timer.finish();
 
         let timer = EnvelopeTimer::start("persisted_base_verify");
         validate_persisted_base_encoded_lengths(
@@ -2084,7 +2092,7 @@ fn execute_incremental_pipeline(
         )?;
 
         let support_files = support.pipeline_files();
-        drop(timer);
+        timer.finish();
         let timer = EnvelopeTimer::start("engine_execute");
         let tracked_execution = if request.command == QUERY_REVIEW_COMMAND {
             if persisted_bases.warm_verified_input {
@@ -2139,7 +2147,7 @@ fn execute_incremental_pipeline(
                 .incremental_engine
                 .execute(csv_bytes, options, support_files)?
         };
-        drop(timer);
+        timer.finish();
         let timer = EnvelopeTimer::start("base_export");
         let review_base = if request.command == QUERY_REVIEW_COMMAND {
             None
@@ -2179,7 +2187,7 @@ fn execute_incremental_pipeline(
         if !executed_steps.is_empty() {
             TRACKED_PHYSICAL_EXECUTION_COUNT.with(|count| count.set(count.get() + 1));
         }
-        drop(timer);
+        timer.finish();
         let timer = EnvelopeTimer::start("step_executions_build");
         let previous_step_observations = state.previous_step_observations.clone();
         let exact_options = serde_json::to_value(&request.options)
@@ -2220,7 +2228,7 @@ fn execute_incremental_pipeline(
             })
             .map(|execution| execution.unit_id.as_str())
             .collect::<BTreeSet<_>>();
-        drop(timer);
+        timer.finish();
         let timer = EnvelopeTimer::start("project_product_stages");
         let result = tracked_execution.result;
         let (executions, node_artifacts) = project_product_stages(
@@ -2233,7 +2241,7 @@ fn execute_incremental_pipeline(
             &mut state.previous_stage_outputs,
             request.command != QUERY_REVIEW_COMMAND,
         )?;
-        drop(timer);
+        timer.finish();
         Ok(IncrementalPipelineExecution {
             result,
             review_base,
@@ -2721,7 +2729,7 @@ fn prepare_runtime_workspace(
         serde_json::from_str(request_json).map_err(|error| format!("invalid request: {error}"))?;
     let timer = EnvelopeTimer::start("prepare_input_digest_verify");
     let verified_input_digest = request.validate(csv_bytes)?;
-    drop(timer);
+    timer.finish();
     prepare_runtime_workspace_verified(
         request,
         verified_input_digest,
@@ -2762,11 +2770,11 @@ fn prepare_runtime_workspace_verified(
     let options_bytes = serde_jcs::to_vec(&exact_options_value)
         .map_err(|error| format!("canonicalize exact Rust options: {error}"))?;
     let options_digest = sha256(&options_bytes);
-    drop(timer);
+    timer.finish();
     let timer = EnvelopeTimer::start("prepare_support_resolve");
     let resolved_support = support_files.resolve()?;
     let pipeline_options = request.options.clone().into_pipeline_options();
-    drop(timer);
+    timer.finish();
     let timer = EnvelopeTimer::start("prepare_materialize_ingress");
     let ingress = materialize_ingress(
         csv_bytes,
@@ -2777,7 +2785,7 @@ fn prepare_runtime_workspace_verified(
         &resolved_support,
     )?;
     reject_open_binding_holes(&ingress.materialization)?;
-    drop(timer);
+    timer.finish();
     Ok(PreparedRuntimeWorkspace {
         request,
         options_value,
@@ -2988,7 +2996,7 @@ fn execute_prepared_workspace(
         };
         let manifest_json = serde_json::to_string(&manifest)
             .map_err(|error| format!("serialize review runtime manifest: {error}"))?;
-        drop(timer);
+        timer.finish();
         return Ok(RuntimeHandle {
             manifest_json,
             artifacts,

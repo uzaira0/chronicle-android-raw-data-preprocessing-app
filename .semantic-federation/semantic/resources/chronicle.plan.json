@@ -510,7 +510,8 @@
       "section": "clean",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/node/interval_cleaning/v1",
       "input_nodes": [
-        "episode_annotations"
+        "episode_annotations",
+        "reconstruct_episodes"
       ],
       "output_role": "urn:uzaira0:semantic-federation:chronicle-preprocessing:role/node-output/interval_cleaning",
       "knobs": [
@@ -1392,7 +1393,8 @@
       "description": "Fold pre-relabeled junk events back to their Activity equivalents so the matcher sees every app identically (junk-BLIND matching).",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/junk_blind_fold/v1",
       "input_steps": [
-        "tag_filtered_packages"
+        "tag_filtered_packages",
+        "compute_junk_packages"
       ],
       "request_fields": [],
       "source_role_bindings": [],
@@ -1771,7 +1773,8 @@
       "description": "The SOLE blanking site: null start/stop/duration on 'Filtered App Usage' rows, after the engagement walk has read their real timing.",
       "capability_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:capability/step/blank_junk_timing/v1",
       "input_steps": [
-        "flag_and_retain"
+        "flag_and_retain",
+        "compute_junk_packages"
       ],
       "request_fields": [],
       "source_role_bindings": [],

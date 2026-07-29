@@ -7,12 +7,12 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:336dcc44df102a618932e815c34b47942d320829b1f4dc9606909cffeb4c6b00",
-    "planDigest": "sha256:7ee296d46b121e019ec0f43026fd91ff143efb1d33263ec95c19a92be7512ad7",
-    "profileDigest": "sha256:ec5e5f44e0919ffbf97b59a48ea6a26263411adda616d583532e7506a3bfb0bd",
-    "profileLockDigest": "sha256:b5d7d0d255712a65c376f9e9c9317101f1c3af42084aea932e1c728e0e36bffb",
+    "implementationDigest": "sha256:b473c8a89def089d49a4287d6407188ee539e1fde1c4fa74f2023d00cbaf4a05",
+    "planDigest": "sha256:e6acec3530cef7f3e67443077affb86632db8485d771c3fa9a754dc810ff8e20",
+    "profileDigest": "sha256:9b07e9229b4d3a97898df9abaf69ab7f6062350355da3e366f0cc20357772967",
+    "profileLockDigest": "sha256:5a8b42a405df4fbcaf9e3bfb7eb51f03fd96d8fbf9a8228a03f3d2f9c819c744",
     "runtimeAuthorityDigest": "sha256:bb2e2d109a81098514ba9a86344da6edc033cd305e6d6c4832c9dfd1ce81b2f9",
-    "productContractDigest": "sha256:c89ad3e6efaa2394a5cb5f321cf1758b4c3703659093999b0e0161f210c16a4c"
+    "productContractDigest": "sha256:a465fec650f42700875ea2c40cbdfce2b92bdc9f5fda20fdb1b847e72ad17883"
   },
   "sourceLedgers": {
     "configurationCaseSetDigest": "sha256:22266c8db304e232532cda61a11bdac3e9db417b961e5bc0dc731347a345b79f",
@@ -21,18 +21,18 @@
   },
   "observationCount": 1734,
   "counts": {
-    "total": 343,
-    "killed": 343,
+    "total": 347,
+    "killed": 347,
     "survived": 0,
     "byClass": {
-      "remove-edge": 128,
-      "reverse-edge": 128,
+      "remove-edge": 130,
+      "reverse-edge": 130,
       "remove-option-binding": 74,
       "remove-role-binding": 13
     },
-    "structuralCycles": 62,
+    "structuralCycles": 65,
     "structuralConditionBindings": 6,
-    "structuralStepBindings": 80,
+    "structuralStepBindings": 83,
     "rustRequestReadBindings": 11
   },
   "structuralProofs": {
@@ -487,8 +487,26 @@
       "sourceId": "tag_filtered_packages",
       "targetId": "junk_blind_fold",
       "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:correctDuplicateEventTimestamps:active:true:false:catalog-random"
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
+    },
+    {
+      "mutantId": "remove-edge:compute_junk_packages->junk_blind_fold",
+      "mutantClass": "remove-edge",
+      "sourceId": "compute_junk_packages",
+      "targetId": "junk_blind_fold",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:compute_junk_packages->junk_blind_fold",
+      "mutantClass": "reverse-edge",
+      "sourceId": "compute_junk_packages",
+      "targetId": "junk_blind_fold",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
     },
     {
       "mutantId": "remove-edge:junk_blind_fold->build_matcher_input",
@@ -577,8 +595,8 @@
       "sourceId": "compute_junk_packages",
       "targetId": "apply_matcher_output",
       "killed": true,
-      "killKind": "empirical-cluster-mismatch",
-      "witnessId": "configuration:useFilterFile:active:true:false:catalog-random"
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
     },
     {
       "mutantId": "remove-edge:apply_matcher_output->relabel_usage_with_floor",
@@ -813,6 +831,24 @@
       "killed": true,
       "killKind": "empirical-cluster-mismatch",
       "witnessId": "configuration:allowStopEventReuse:active:true:false:configuration-influence-probes"
+    },
+    {
+      "mutantId": "remove-edge:compute_junk_packages->blank_junk_timing",
+      "mutantClass": "remove-edge",
+      "sourceId": "compute_junk_packages",
+      "targetId": "blank_junk_timing",
+      "killed": true,
+      "killKind": "rust-source-call-binding",
+      "witnessId": "step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls"
+    },
+    {
+      "mutantId": "reverse-edge:compute_junk_packages->blank_junk_timing",
+      "mutantClass": "reverse-edge",
+      "sourceId": "compute_junk_packages",
+      "targetId": "blank_junk_timing",
+      "killed": true,
+      "killKind": "structural-cycle",
+      "witnessId": "plan-toposort"
     },
     {
       "mutantId": "remove-edge:blank_junk_timing->drop_selected_types",

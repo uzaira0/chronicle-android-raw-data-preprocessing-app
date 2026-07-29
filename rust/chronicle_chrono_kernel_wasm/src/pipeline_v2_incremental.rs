@@ -592,7 +592,7 @@ fn apply_matcher_output_in_place(
         );
         persisted
     } else {
-        computed_suffix_digests = inline_lineage_search_suffix_digests(&rows);
+        computed_suffix_digests = inline_lineage_search_suffix_digests(rows);
         &computed_suffix_digests
     };
     for &start_index in &result.start_indices {
@@ -1291,7 +1291,7 @@ pub(super) fn resolve_sharing(
         }
         statuses.insert(
             participant_id.to_string(),
-            sharing_status_for(participant_id.as_str(), &sharing)?,
+            sharing_status_for(participant_id.as_str(), sharing)?,
         );
     }
     Ok(SharingResolutionValue::Enabled(SharingResolution {
@@ -5965,52 +5965,51 @@ mod tracked {
             "enabled": config.filter_zero_duration_sessions(db),
             "upstreamDigest": drop_selected_types.terminal_digest,
         });
-        let drop_zero_duration = if static_rows_unchanged
-            && removed_types.is_empty()
-            && !config.filter_zero_duration_sessions(db)
-            && static_checkpoint.is_some()
-        {
-            let (_, static_checkpoint) = static_checkpoint
-                .as_ref()
-                .expect("checked static checkpoint");
-            let fingerprint = super::value_fingerprint(&checkpoint_payload)
-                .map_err(|error| format!("serialize drop_zero_duration checkpoint: {error}"))?;
-            checkpoint_for_exact_row_state(
-                "drop_zero_duration",
-                static_checkpoint,
-                &[("value", &fingerprint)],
-            )
-        } else if removed_types.is_empty()
-            && !config.filter_zero_duration_sessions(db)
-            && static_classification_unchanged
-            && static_temporal_matches_upstream
-            && static_checkpoint.is_some()
-        {
-            let (_, static_checkpoint) = static_checkpoint
-                .as_ref()
-                .expect("checked static checkpoint");
-            checkpoint_with_known_row_components(
-                "drop_zero_duration",
-                static_checkpoint,
-                upstream.split_concurrent.temporal_state_digest.clone(),
-                &checkpoint_payload,
-            )?
-        } else if removed_types.is_empty() && !config.filter_zero_duration_sessions(db) {
-            rows_and_value_checkpoint_reusing_membership_and_order(
+        let zero_duration_filter_off = !config.filter_zero_duration_sessions(db);
+        let drop_zero_duration = match static_checkpoint.as_ref() {
+            Some((_, static_checkpoint))
+                if static_rows_unchanged
+                    && removed_types.is_empty()
+                    && zero_duration_filter_off =>
+            {
+                let fingerprint = super::value_fingerprint(&checkpoint_payload).map_err(
+                    |error| format!("serialize drop_zero_duration checkpoint: {error}"),
+                )?;
+                checkpoint_for_exact_row_state(
+                    "drop_zero_duration",
+                    static_checkpoint,
+                    &[("value", &fingerprint)],
+                )
+            }
+            Some((_, static_checkpoint))
+                if removed_types.is_empty()
+                    && zero_duration_filter_off
+                    && static_classification_unchanged
+                    && static_temporal_matches_upstream =>
+            {
+                checkpoint_with_known_row_components(
+                    "drop_zero_duration",
+                    static_checkpoint,
+                    upstream.split_concurrent.temporal_state_digest.clone(),
+                    &checkpoint_payload,
+                )?
+            }
+            _ if removed_types.is_empty() && zero_duration_filter_off => {
+                rows_and_value_checkpoint_reusing_membership_and_order(
+                    "drop_zero_duration",
+                    &rows,
+                    &upstream.rows,
+                    &upstream.split_concurrent,
+                    &checkpoint_payload,
+                )?
+            }
+            _ => rows_and_value_checkpoint_reusing(
                 "drop_zero_duration",
                 &rows,
                 &upstream.rows,
                 &upstream.split_concurrent,
                 &checkpoint_payload,
-            )?
-        } else {
-            rows_and_value_checkpoint_reusing(
-                "drop_zero_duration",
-                &rows,
-                &upstream.rows,
-                &upstream.split_concurrent,
-                &checkpoint_payload,
-            )?
+            )?,
         };
         let interval_cleaning = logical_stage_checkpoint(
             "interval_cleaning",
