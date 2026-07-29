@@ -5,6 +5,7 @@ import {
   NUMBER_ARRAY_BROWSER_OPTION_KEYS,
   STRING_BROWSER_OPTION_KEYS,
   STRING_ARRAY_BROWSER_OPTION_KEYS,
+  TIMEZONE_HANDLING_VALUES,
 } from "@/lib/generatedContract";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import type { BrowserProcessingOptions } from "@/lib/types";
@@ -84,6 +85,14 @@ export function sanitizeOptions(value: unknown): BrowserProcessingOptions {
   }
   for (const key of STRING_BROWSER_OPTION_KEYS) {
     if (typeof src[key] === "string") (next as Record<string, unknown>)[key] = src[key];
+  }
+  if (
+    typeof src.timezoneHandling === "string" &&
+    !TIMEZONE_HANDLING_VALUES.includes(
+      src.timezoneHandling as (typeof TIMEZONE_HANDLING_VALUES)[number],
+    )
+  ) {
+    next.timezoneHandling = DEFAULT_BROWSER_OPTIONS.timezoneHandling;
   }
   for (const key of STRING_ARRAY_BROWSER_OPTION_KEYS) {
     (next as Record<string, unknown>)[key] = stringArray(src[key], DEFAULT_BROWSER_OPTIONS[key]);
@@ -200,7 +209,14 @@ export function buildConfigExportBlob(
 }
 
 export async function readConfigFile(file: File): Promise<ImportedConfig> {
-  const parsed = JSON.parse(await file.text()) as unknown;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    throw new Error(
+      "The selected file is not valid JSON. Make sure you're importing a Chronicle config file.",
+    );
+  }
   const source = isRecord(parsed) ? parsed : {};
   return {
     options: sanitizeOptions(source.currentSettings),

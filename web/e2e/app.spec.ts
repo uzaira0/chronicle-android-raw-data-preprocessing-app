@@ -40,7 +40,7 @@ test.beforeEach(async ({ page }) => {
   assertNoExternalRequests(requestTracker);
 });
 
-test("@smoke boots locally and processes a raw file entirely on localhost", async ({
+test("@smoke @opfs boots locally and processes a raw file entirely on localhost", async ({
   page,
 }) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
@@ -345,6 +345,22 @@ test("supports reduced motion, forced colors, and practical pointer targets", as
   assertNoExternalRequests(requestTracker);
 });
 
+test("prefers-contrast: more does not break layout or hide content", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light", forcedColors: "none" });
+  // Inject a style tag that simulates high-contrast preference so layout
+  // responses to prefers-contrast are exercised even in non-supporting browsers.
+  await page.addStyleTag({
+    content: "@media (prefers-contrast: more) { * { outline: 2px solid red !important; } }",
+  });
+  await gotoApp(page);
+  await expect(page.getByRole("tab", { name: /Settings/i })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Files/i })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Process/i })).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+  assertNoExternalRequests(requestTracker);
+});
+
 test("reflows at narrow widths without page-level horizontal scrolling", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 900 });
   for (const tabName of ["Settings", "Files", "Process"]) {
@@ -516,7 +532,7 @@ test("exports an HTML timeline viewer when the option is enabled (#18)", async (
   assertNoExternalRequests(requestTracker);
 });
 
-test("@smoke the exported HTML timeline viewer runs its inlined interactivity offline (#18)", async ({
+test("@smoke @opfs the exported HTML timeline viewer runs its inlined interactivity offline (#18)", async ({
   page,
 }, testInfo) => {
   await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");

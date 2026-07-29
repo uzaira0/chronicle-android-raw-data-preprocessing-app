@@ -93,9 +93,12 @@ function unzipStored(bytes) {
   /** @type {Map<string, Uint8Array>} */
   const out = new Map();
   let o = 0;
-  const u16 = (/** @type {number} */ p) => bytes[p] | (bytes[p + 1] << 8);
+  const u16 = (/** @type {number} */ p) => (bytes[p] ?? 0) | ((bytes[p + 1] ?? 0) << 8);
   const u32 = (/** @type {number} */ p) =>
-    (bytes[p] | (bytes[p + 1] << 8) | (bytes[p + 2] << 16) | (bytes[p + 3] << 24)) >>> 0;
+    ((bytes[p] ?? 0) |
+      ((bytes[p + 1] ?? 0) << 8) |
+      ((bytes[p + 2] ?? 0) << 16) |
+      ((bytes[p + 3] ?? 0) << 24)) >>> 0;
   while (o + 30 <= bytes.byteLength && u32(o) === 0x04034b50) {
     const comp = u16(o + 8);
     const size = u32(o + 18);

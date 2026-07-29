@@ -235,14 +235,15 @@ pub fn discover_timezones_v2(csv_bytes: &[u8]) -> Result<Vec<String>, JsValue> {
     discover_timezones_v2_native(csv_bytes).map_err(|error| JsValue::from_str(&error))
 }
 
-const ADVISORY_RAW_COLUMNS: [&str; 7] = [
+// timezone is deliberately absent: a missing timezone column (or blank/"None"
+// cells) is documented input and rows fall back to UTC.
+const ADVISORY_RAW_COLUMNS: [&str; 6] = [
     "study_id",
     "participant_id",
     "application_label",
     "interaction_type",
     "app_package_name",
     "event_timestamp",
-    "timezone",
 ];
 
 #[derive(Debug, Serialize)]
@@ -384,8 +385,12 @@ pub fn inspect_raw_file_v1(csv_bytes: &[u8], file_name: &str, size_bytes: f64) -
             participants.insert(participant.to_string());
         }
         let timezone = raw_cell(row, &header_indexes, "timezone");
-        if timezone.is_empty() {
+        if timezone.is_empty() || timezone == "None" {
+            // Blank and literal "None" cells are real Chronicle export values;
+            // preprocessing falls back to UTC for them, so the inspection
+            // reports UTC as the effective timezone and keeps only the count.
             missing_timezone_count += 1;
+            timezones.insert("UTC".to_string());
         } else {
             timezones.insert(timezone.to_string());
             if !is_valid_chronicle_timezone(timezone) {
@@ -452,14 +457,6 @@ pub fn inspect_raw_file_v1(csv_bytes: &[u8], file_name: &str, size_bytes: f64) -
     }
     if duplicate_headers {
         warnings.push("Duplicate column headers found.".to_string());
-    }
-    if timezones.is_empty() && !missing.contains(&"timezone") {
-        warnings.push("No timezone values found.".to_string());
-    }
-    if missing_timezone_count > 0 && !missing.contains(&"timezone") {
-        warnings.push(format!(
-            "{missing_timezone_count} rows are missing timezone values."
-        ));
     }
     if !invalid_timezones.is_empty() {
         warnings.push(format!(
@@ -4849,7 +4846,7 @@ S,P1,Chat,Activity Resumed,pkg,2026-03-07 12:00:00,America/Chicago\r\n\
 ,,,,,,\r\n\
 S,P1,Chat,Activity Paused,pkg,2026-03-07 12:00:00,America/Chicago\r\n\
 S,P2,Chat,Unknown Event,pkg,not-a-time,\r\n\
-S,P2,Chat,Activity Resumed,pkg,2026-03-07 11:00:00,\r\n\
+S,P2,Chat,Activity Resumed,pkg,2026-03-07 11:00:00,None\r\n\
 S,P2,Chat,Activity Resumed,pkg,2026-03-07T10:00:00Z,UTC\r\n\
 S,P2,Chat,Activity Resumed,pkg,2026-03-07T09:00:00+00:00,UTC\r\n\
 S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
@@ -4877,9 +4874,11 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         assert!(warnings.iter().any(|warning| warning
             .as_str()
             .is_some_and(|text| text.starts_with("This file contains 2 participants."))));
-        assert!(warnings
+        assert!(!warnings
             .iter()
-            .any(|warning| warning == "2 rows are missing timezone values."));
+            .any(|warning| warning
+                .as_str()
+                .is_some_and(|text| text.contains("missing timezone"))));
         assert!(warnings
             .iter()
             .any(|warning| warning == "1 rows have invalid event_timestamp values."));
@@ -4926,12 +4925,11 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         ))
         .unwrap();
         let warnings = present["warnings"].as_array().unwrap();
-        assert!(warnings
-            .iter()
-            .any(|warning| warning == "No timezone values found."));
-        assert!(warnings
-            .iter()
-            .any(|warning| warning == "1 rows are missing timezone values."));
+        assert!(!warnings.iter().any(|warning| warning
+            .as_str()
+            .is_some_and(|text| text.contains("timezone"))));
+        assert_eq!(present["missingTimezoneCount"], 1);
+        assert_eq!(present["timezones"], serde_json::json!(["UTC"]));
         assert!(warnings
             .iter()
             .any(|warning| warning == "1 rows are missing event_timestamp values."));

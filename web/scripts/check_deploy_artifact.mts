@@ -337,11 +337,20 @@ async function main(): Promise<void> {
     if (!cspMatch) {
       throw new Error(`${path.basename(artifactDir)}/_headers does not contain a Content-Security-Policy rule`);
     }
-    const headersCsp = cspMatch[1].trim();
-    const metaCsp = metaCspMatch[1].trim();
-    if (headersCsp !== metaCsp) {
+    const headersCsp = cspMatch[1]!.trim();
+    const metaCsp = metaCspMatch[1]!.trim();
+    // frame-ancestors is enforceable only via the HTTP header — browsers
+    // ignore it in a <meta> CSP and log a console warning — so the meta tag
+    // deliberately omits exactly that one directive.
+    const headersCspForMeta = headersCsp.replace("; frame-ancestors 'none'", "");
+    if (headersCspForMeta === headersCsp) {
       throw new Error(
-        `CSP mismatch between ${path.basename(artifactDir)}/_headers and ${path.basename(artifactDir)}/index.html\nheaders: ${headersCsp}\nmeta: ${metaCsp}`,
+        `${path.basename(artifactDir)}/_headers CSP no longer pins frame-ancestors 'none'`,
+      );
+    }
+    if (headersCspForMeta !== metaCsp) {
+      throw new Error(
+        `CSP mismatch between ${path.basename(artifactDir)}/_headers and ${path.basename(artifactDir)}/index.html\nheaders (frame-ancestors removed): ${headersCspForMeta}\nmeta: ${metaCsp}`,
       );
     }
   }

@@ -27,7 +27,7 @@ test.beforeEach(async ({ page }) => {
   assertNoExternalRequests(requestTracker);
 });
 
-test("@smoke screen-gated credit emits the side-by-side Credited App Usage CSV", async ({
+test("@smoke @opfs screen-gated credit emits the side-by-side Credited App Usage CSV", async ({
   page,
 }) => {
   const pageErrors = trackPageErrors(page);

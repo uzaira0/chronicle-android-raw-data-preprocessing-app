@@ -17,7 +17,7 @@ const SUPPORT_FILE_ROLE_FLAGS = {
  * compile error here until this list learns about it, so the key derivation
  * and every caller building an ordered input list stay complete.
  */
-export const SUPPORT_FILE_ROLES = Object.keys(
+const SUPPORT_FILE_ROLES = Object.keys(
   SUPPORT_FILE_ROLE_FLAGS,
 ) as readonly (keyof BrowserSupportFiles)[];
 

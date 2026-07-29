@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844" width="390" height="844">
+  <rect width="390" height="844" fill="#111318"/>
+  <!-- Header -->
+  <rect width="390" height="52" fill="#1a1d24"/>
+  <rect x="16" y="16" width="160" height="20" rx="4" fill="#e5e7eb"/>
+  <rect x="16" y="40" width="80" height="8" rx="2" fill="#6b7280"/>
+  <!-- Workflow tabs -->
+  <rect y="52" width="390" height="40" fill="#15171e"/>
+  <rect x="8" y="60" width="90" height="24" rx="4" fill="#3b82f6"/>
+  <rect x="8" y="60" width="90" height="24" rx="4" fill="#3b82f6"/>
+  <rect x="106" y="60" width="90" height="24" rx="4" fill="#1e2027"/>
+  <rect x="204" y="60" width="90" height="24" rx="4" fill="#1e2027"/>
+  <!-- Files card -->
+  <rect x="12" y="104" width="366" height="160" rx="8" fill="#1a1d24" stroke="#2d2f3a" stroke-width="1"/>
+  <rect x="28" y="120" width="120" height="14" rx="3" fill="#e5e7eb"/>
+  <rect x="28" y="142" width="220" height="10" rx="2" fill="#4b5563"/>
+  <rect x="28" y="162" width="330" height="40" rx="6" fill="#252830" stroke="#3d4050" stroke-width="1"/>
+  <rect x="44" y="174" width="180" height="10" rx="2" fill="#6b7280"/>
+  <rect x="28" y="214" width="310" height="32" rx="4" fill="#1e2027" stroke="#2d2f3a" stroke-width="1"/>
+  <!-- Settings card -->
+  <rect x="12" y="276" width="366" height="200" rx="8" fill="#1a1d24" stroke="#2d2f3a" stroke-width="1"/>
+  <rect x="28" y="292" width="100" height="14" rx="3" fill="#e5e7eb"/>
+  <rect x="28" y="316" width="200" height="28" rx="4" fill="#252830"/>
+  <rect x="28" y="352" width="200" height="28" rx="4" fill="#252830"/>
+  <rect x="28" y="388" width="200" height="28" rx="4" fill="#252830"/>
+  <rect x="28" y="424" width="200" height="28" rx="4" fill="#252830"/>
+  <!-- Process button -->
+  <rect x="12" y="488" width="366" height="120" rx="8" fill="#1a1d24" stroke="#2d2f3a" stroke-width="1"/>
+  <rect x="28" y="504" width="100" height="14" rx="3" fill="#e5e7eb"/>
+  <rect x="200" y="500" width="160" height="36" rx="6" fill="#3b82f6"/>
+  <rect x="244" y="512" width="72" height="12" rx="3" fill="#fff"/>
+  <!-- Footer -->
+  <rect y="800" width="390" height="44" fill="#15171e"/>
+  <rect x="80" y="814" width="230" height="8" rx="2" fill="#374151"/>
+</svg>

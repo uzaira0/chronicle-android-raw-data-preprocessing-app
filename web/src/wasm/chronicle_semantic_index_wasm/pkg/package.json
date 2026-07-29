@@ -1,0 +1,16 @@
+{
+  "name": "chronicle_semantic_index_wasm",
+  "type": "module",
+  "version": "0.1.0",
+  "license": "GPL-3.0-only",
+  "files": [
+    "chronicle_semantic_index_wasm_bg.wasm",
+    "chronicle_semantic_index_wasm.js",
+    "chronicle_semantic_index_wasm.d.ts"
+  ],
+  "main": "chronicle_semantic_index_wasm.js",
+  "types": "chronicle_semantic_index_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

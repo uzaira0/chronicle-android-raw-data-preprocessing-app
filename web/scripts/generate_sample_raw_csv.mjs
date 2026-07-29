@@ -118,7 +118,8 @@ while (rows.length - 1 < TARGET_ROWS) {
       ]),
     );
   } else {
-    const app = APPS[Math.floor(rand() * APPS.length)];
+    const app = APPS[Math.floor(rand() * APPS.length)] ?? APPS[0];
+    if (!app) throw new Error("No demo apps configured");
     rows.push(
       row([
         "demo",

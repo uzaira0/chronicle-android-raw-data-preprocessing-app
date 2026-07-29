@@ -153,6 +153,7 @@ describe("fileInspection", () => {
     const inspection = await inspectRawFile(fileFromText("empty.csv", ""));
 
     expect(inspection.hasRequiredColumns).toBe(false);
+    expect(inspection.rowCount).toBe(0);
     expect(inspection.warnings.join(" ")).toContain("File is empty");
     expect(inspection.warnings.join(" ")).toContain("Missing required columns");
   });
@@ -161,6 +162,43 @@ describe("fileInspection", () => {
     "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone";
   const row = (interaction: string, ts: string): string =>
     `Study,P09,Target Child,Chat,${interaction},com.example.chat,${ts},America/Chicago`;
+
+  it("treats a missing timezone column as UTC fallback input", async () => {
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P01.csv",
+        [
+          "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp",
+          "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00",
+        ].join("\n"),
+      ),
+    );
+
+    expect(inspection.hasRequiredColumns).toBe(true);
+    expect(inspection.timezones).toEqual(["UTC"]);
+    expect(inspection.warnings).not.toContain("No timezone values found.");
+    expect(inspection.warnings.join(" ")).not.toContain("missing timezone values");
+    expect(inspection.warnings.join(" ")).not.toContain("Missing required columns");
+  });
+
+  it("uses UTC fallback metadata for blank and None timezone values", async () => {
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P01.csv",
+        [
+          HEADER,
+          "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,",
+          "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,None",
+        ].join("\n"),
+      ),
+    );
+
+    expect(inspection.timezones).toEqual(["UTC"]);
+    expect(inspection.missingTimezoneCount).toBe(2);
+    expect(inspection.warnings).not.toContain("No timezone values found.");
+    expect(inspection.warnings.join(" ")).not.toContain("missing timezone values");
+    expect(inspection.warnings.some((warning) => warning.includes("unrecognised timezone value"))).toBe(false);
+  });
 
   it("computes out-of-order metrics without raising a warning (pipeline re-sorts)", async () => {
     const inspection = await inspectRawFile(
@@ -354,7 +392,7 @@ describe("fileInspection", () => {
     expect(withFix).not.toContain("appear more than once");
   });
 
-  it("warns when the timezone column is present but has no values", async () => {
+  it("reports UTC fallback when the timezone column is present but has no values", async () => {
     const tzBlank = (ts: string): string =>
       `Study,P09,Target Child,Chat,Unknown importance: 1,com.example.chat,${ts},`;
     const inspection = await inspectRawFile(
@@ -367,9 +405,10 @@ describe("fileInspection", () => {
         ].join("\n"),
       ),
     );
-    expect(inspection.timezones).toEqual([]);
+    expect(inspection.timezones).toEqual(["UTC"]);
+    expect(inspection.missingTimezoneCount).toBe(2);
     expect(inspection.hasRequiredColumns).toBe(true);
-    expect(inspection.warnings.join(" ")).toContain("No timezone values found");
+    expect(inspection.warnings.join(" ")).not.toContain("timezone");
   });
 
   it("inspects multiple files in one call", async () => {

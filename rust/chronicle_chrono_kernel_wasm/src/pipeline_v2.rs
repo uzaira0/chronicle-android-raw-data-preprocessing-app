@@ -4150,7 +4150,7 @@ pub fn discover_timezones_v2_native(csv_bytes: &[u8]) -> Result<Vec<String>, Str
         let timezone = record
             .get("timezone")
             .map(|value| value.trim())
-            .filter(|value| !value.is_empty())
+            .filter(|value| !value.is_empty() && *value != "None")
             .unwrap_or("UTC");
         timezone
             .parse::<Tz>()

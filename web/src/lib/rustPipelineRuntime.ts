@@ -1463,7 +1463,7 @@ async function readArtifactsFromWorkspaceSlot(
     const expectedBytes =
       prefixBytesByKind?.[kind] === undefined
         ? artifact.size
-        : Math.min(prefixBytesByKind[kind]!, artifact.size);
+        : Math.min(prefixBytesByKind[kind], artifact.size);
     if (bytes.byteLength !== expectedBytes) {
       throw new Error(`persisted Rust artifact integrity mismatch: ${kind}`);
     }
@@ -2406,7 +2406,7 @@ function putSupport(
  * Every unsupported option is loud; adding support requires changing this
  * list and proving it with parity fixtures.
  */
-export function rustRuntimeIneligibilityReasons(
+function rustRuntimeIneligibilityReasons(
   options: BrowserProcessingOptions,
 ): string[] {
   const reasons: string[] = [];

@@ -27,23 +27,6 @@ type SlotStatus =
   | { kind: "needs-input"; neededBy: string }
   | { kind: "optional"; usedBy: string | null };
 
-export function studyInputsNeedingUpload(
-  options: BrowserProcessingOptions,
-  files: {
-    studyDatesFile: File | null;
-    deviceSharingFile: File | null;
-  },
-): string[] {
-  const missing: string[] = [];
-  if (options.enableStudyWindowFilter && !files.studyDatesFile) {
-    missing.push("Study dates (needed by the study-window filter)");
-  }
-  if (options.enablePersonAttribution && !files.deviceSharingFile) {
-    missing.push("Device sharing (needed by person attribution)");
-  }
-  return missing;
-}
-
 export function StudyInputsCard(props: Props): ReactElement {
   const {
     options,

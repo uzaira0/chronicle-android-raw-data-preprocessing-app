@@ -6,7 +6,7 @@ export type RustExecutionStatus =
   | "skipped"
   | "bypassed";
 
-export type RustExpectationResult = {
+type RustExpectationResult = {
   id: string;
   kind: "row_count" | "conservation" | "monotonic" | "custom";
   ok: boolean;
@@ -16,13 +16,13 @@ export type RustExpectationResult = {
   severity: "warn";
 };
 
-export type RustStepTiming = {
+type RustStepTiming = {
   startedAt: string;
   endedAt: string;
   durationMs: number;
 };
 
-export type RustStepExecutionRecord = {
+type RustStepExecutionRecord = {
   stepId: string;
   unit: string;
   status: RustExecutionStatus;
@@ -37,7 +37,7 @@ export type RustStepExecutionRecord = {
   timing: RustStepTiming;
 };
 
-export type RustUnitExecutionRecord = {
+type RustUnitExecutionRecord = {
   unit: string;
   status: RustExecutionStatus;
   rowsIn: number | null;

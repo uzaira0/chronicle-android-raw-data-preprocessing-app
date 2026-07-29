@@ -25,7 +25,7 @@ import { spliceOut, type Section, type ViewGraph } from "@/components/GraphPanel
  */
 
 export type LayoutDirection = "LR" | "TB";
-export type EdgeVariant = "spine" | "tap";
+type EdgeVariant = "spine" | "tap";
 
 export const NODE_WIDTH = 216;
 export const NODE_HEIGHT = 64;
@@ -34,7 +34,7 @@ export const NODE_HEIGHT = 64;
 const SPINE_WEIGHT = 12;
 const TAP_WEIGHT = 1;
 
-export interface LayoutNode {
+interface LayoutNode {
   id: string;
   label: string;
   section: Section;
@@ -44,7 +44,7 @@ export interface LayoutNode {
   offSpine: boolean;
 }
 
-export interface LayoutEdge {
+interface LayoutEdge {
   id: string;
   source: string;
   target: string;

@@ -107,6 +107,7 @@ import { ProjectsCard } from "@/components/ProjectsCard";
 import { SettingsOverviewCard } from "@/components/SettingsOverviewCard";
 import { SettingsSearchResults } from "@/components/SettingsSearchResults";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { clearSwCachesAndReload } from "@/lib/swCache";
 import { applyUpdate, onUpdateReady } from "@/lib/swUpdate";
 
 async function readSupportFile(file: File): Promise<BrowserSupportFile> {
@@ -235,8 +236,12 @@ export default function App(): ReactElement {
   const [settingsQuery, setSettingsQuery] = useState("");
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowTab>(() => {
     if (typeof window === "undefined") return "settings";
-    const stored = localStorage.getItem(WORKFLOW_STORAGE_KEY);
-    return isWorkflowTab(stored) ? stored : "settings";
+    try {
+      const stored = localStorage.getItem(WORKFLOW_STORAGE_KEY);
+      return isWorkflowTab(stored) ? stored : "settings";
+    } catch {
+      return "settings";
+    }
   });
   const [processExpanded, setProcessExpanded] = useState(true);
   const [hideDemoMetadata, setHideDemoMetadata] = useState(() =>
@@ -468,7 +473,11 @@ export default function App(): ReactElement {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    localStorage.setItem(WORKFLOW_STORAGE_KEY, activeWorkflow);
+    try {
+      localStorage.setItem(WORKFLOW_STORAGE_KEY, activeWorkflow);
+    } catch {
+      // Storage can be unavailable (private mode/full); tab state stays in memory.
+    }
   }, [activeWorkflow]);
 
   useEffect(() => {
@@ -1634,7 +1643,7 @@ export default function App(): ReactElement {
   );
 
   const progressRows = progressOrder.map(
-    (name) => progressByFile[name] ?? { fileName: name, status: "pending" },
+    (name) => progressByFile[name] ?? { fileName: name, status: "pending" as const },
   );
   const overallPercent =
     progressOrder.length === 0
@@ -2096,6 +2105,19 @@ export default function App(): ReactElement {
             <span>Bundled codebook available</span>
             <span aria-hidden="true">·</span>
             <span>Runs entirely in your browser</span>
+            <span aria-hidden="true">·</span>
+            <button
+              type="button"
+              className="app-footer__cache-reset"
+              onClick={() => {
+                void clearSwCachesAndReload().catch(() => {
+                  setError("Could not clear the cache. Try a hard reload (Ctrl+Shift+R / Cmd+Shift+R).");
+                });
+              }}
+              title="Clear service worker caches and reload"
+            >
+              Trouble loading?
+            </button>
           </div>
         </footer>
         {toast ? (

@@ -207,11 +207,18 @@ preprocessors/survey_data_preprocessor.py
 !web/src/**/*.test.tsx
 *demo*
 *benchmark*
+!tests/benchmarks/
+!tests/benchmarks/**
 !scripts/benchmark_browser_pathological_fixture.py
+!scripts/check-benchmark-regression.sh
 !web/scripts/benchmark_browser_processing.mjs
 !web/scripts/benchmark_runtime_wasm.mts
 !web/scripts/generate_benchmark_fixture.mts
  Chronicle Android Automatically Preprocessed Data/
+
+# Benchmark run outputs (baseline.json is tracked; per-run results are not)
+benchmarks/current.json
+benchmarks/criterion/
 
 # Local archives
 archive/
@@ -247,6 +254,7 @@ web/.github-pages-dist/
 web/src/wasm/*/pkg/
 .cargo-target-shared/
 .superpowers/
+.mutation-scratch/
 !web/src/lib/
 !web/src/lib/**
 !web/src/test-runtime.d.ts
@@ -281,3 +289,10 @@ cargo-flamegraph.trace/
 # cargo-mutants reports are local quality evidence, not source artifacts.
 rust/**/mutants.out/
 rust/**/mutants.out.old/
+
+web/.lighthouse-results/
+# Cargo fuzz artifacts (crash inputs, corpus) — never commit
+rust/chronicle_app_usage_matcher/fuzz/artifacts/
+rust/chronicle_app_usage_matcher/fuzz/corpus/
+# Automation proposals — design docs, not source code
+automation-proposals/

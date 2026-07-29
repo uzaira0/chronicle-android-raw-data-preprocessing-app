@@ -2,7 +2,7 @@
 export type Section = "preprocess" | "clean" | "analyze" | "output";
 export type NodeStatus = "cached" | "recomputed" | "error" | "skipped" | "bypassed";
 
-export type ViewGraphNode = {
+type ViewGraphNode = {
   id: string;
   label: string;
   description?: string;

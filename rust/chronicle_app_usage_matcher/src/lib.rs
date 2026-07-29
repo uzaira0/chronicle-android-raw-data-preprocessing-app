@@ -265,6 +265,7 @@ fn is_valid_duration(
     !enforce_threshold || duration_ns <= i128::from(threshold_ns)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn is_compatible_open_start_for_stop(
     stop_index: usize,
     start_index: usize,
@@ -301,6 +302,7 @@ fn is_compatible_open_start_for_stop(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn nearest_compatible_open_start_for_stop(
     stop_index: usize,
     app_codes: &[i32],
@@ -331,6 +333,7 @@ fn nearest_compatible_open_start_for_stop(
     None
 }
 
+#[allow(clippy::too_many_arguments)]
 fn close_reused_starts<F>(
     stop_index: usize,
     app_codes: &[i32],
@@ -371,6 +374,7 @@ fn close_reused_starts<F>(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::enum_variant_names)]
 enum SparseStopMode {
     SameApp,
     OtherApp,
@@ -630,6 +634,7 @@ impl SparseOpenStarts {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn match_app_usage_core(
     app_codes: &[i32],
     timestamp_ns: &[i64],
@@ -723,6 +728,7 @@ pub fn match_app_usage_core(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn match_app_usage_update_indices_core(
     app_codes: &[i32],
     timestamp_ns: &[i64],
@@ -1527,6 +1533,11 @@ mod tests {
             vec![false; len],
             vec![false; len],
         )
+    }
+
+    fn next_u64(seed: &mut u64) -> u64 {
+        *seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+        *seed
     }
 
     #[test]

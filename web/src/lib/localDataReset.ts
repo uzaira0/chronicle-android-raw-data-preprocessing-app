@@ -13,7 +13,7 @@ import { PROJECTS_DB_NAME } from "@/lib/projectsStore";
 import { OPFS_WORKSPACES_DIRECTORY } from "@/lib/opfsArtifactStore";
 
 /** Every IndexedDB database this app owns. */
-export const CHRONICLE_IDB_NAMES = [LAST_RUN_DB_NAME, PROJECTS_DB_NAME] as const;
+const CHRONICLE_IDB_NAMES = [LAST_RUN_DB_NAME, PROJECTS_DB_NAME] as const;
 
 function deleteDatabase(name: string): Promise<void> {
   return new Promise((resolve) => {

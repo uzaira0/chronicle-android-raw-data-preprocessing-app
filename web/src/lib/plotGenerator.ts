@@ -1131,7 +1131,7 @@ async function sceneToPngBlob(scene: Scene): Promise<Blob> {
   return canvasToBlob(canvas);
 }
 
-export async function generateParticipantPlotBlob(
+async function generateParticipantPlotBlob(
   participantId: string,
   rows: PlotRow[],
   timezone: string,
@@ -1766,7 +1766,7 @@ export function computeHourDayMatrix(
 
       for (let hour = Math.floor(h0); hour < Math.ceil(h1) && hour < 24; hour++) {
         const overlapHours = Math.min(h1, hour + 1) - Math.max(h0, hour);
-        if (overlapHours > 0) cellRow[hour] += overlapHours * 3600;
+        if (overlapHours > 0) cellRow[hour] = (cellRow[hour] ?? 0) + overlapHours * 3600;
       }
     }
   }
@@ -1925,7 +1925,7 @@ export function buildHeatmapScene(
   return { width: CANVAS_WIDTH, height: totalHeight, primitives: prims };
 }
 
-export async function generateParticipantHeatmapBlob(
+async function generateParticipantHeatmapBlob(
   participantId: string,
   rows: PlotRow[],
   timezone: string,

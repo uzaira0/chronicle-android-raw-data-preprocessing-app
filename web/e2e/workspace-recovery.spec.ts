@@ -58,7 +58,7 @@ function inspectClosure(bytes: Uint8Array): {
   return { manifest, root };
 }
 
-test("@smoke verified workspace closure survives reload, imports into a fresh origin, rejects corruption, and resumes its root chain", async ({
+test("@smoke @opfs verified workspace closure survives reload, imports into a fresh origin, rejects corruption, and resumes its root chain", async ({
   page,
   browser,
 }) => {
