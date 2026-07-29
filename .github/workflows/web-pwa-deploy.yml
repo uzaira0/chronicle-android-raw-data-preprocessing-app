@@ -41,17 +41,21 @@ jobs:
         working-directory: web
         run: npm ci
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-
-      - name: Install wasm-pack
-        uses: taiki-e/install-action@wasm-pack
-
-      - name: Build web app from the reviewed Rust sources
+      # Deliberately NOT `npm run build`: that runs build:wasm, which shells out
+      # to wasm-pack -> cargo. chronicle_preprocessing_runtime_wasm depends on
+      # chronicle_preprocessing_semantic_adapter, which pulls semprof-core and
+      # semprof-materialize from the PRIVATE repo uzaira0/semantic-profile-toolchain.
+      # A runner's GITHUB_TOKEN is scoped to this repository only, so `cargo
+      # metadata` cannot even resolve the graph and the job dies before it
+      # compiles anything. build:app consumes the WASM packages committed under
+      # web/src/wasm/*/pkg (force-tracked for exactly this reason), so the deploy
+      # needs Node alone. Their freshness is gated locally by `make all`, whose
+      # cargo digest tests fail if the committed pkg drifts from the Rust source.
+      # Restoring a from-source build here requires giving the runner read access
+      # to that private repo (deploy key or PAT), not a workflow change.
+      - name: Build web app from the committed WASM packages
         working-directory: web
-        run: npm run build
+        run: npm run build:app
 
       - name: Prepare GitHub Pages artifact
         working-directory: web
