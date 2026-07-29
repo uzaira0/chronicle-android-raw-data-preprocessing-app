@@ -1,13 +1,13 @@
 {
-  "_comment": "Deploy-artifact size budgets (bytes), enforced by check_deploy_artifact.mts. Re-measured 2026-07-28: worker 125,130 (was 119,980 on 2026-07-26). Cause: the persisted review-base comparison path compiled into the worker — OPFS workspace head recovery and verified review/reconstruction-base probes in rustPipelineRuntime.ts, the persisted-review miss fallback in rustPipelineAuthority.ts, and slot retire/replace in the pool. Sourcemap attribution of the chunk (rustPipelineRuntime 46.7k, plotGenerator 21.5k, opfsArtifactStore 15.4k, timelineViewerRuntime?raw 13.4k, rustPipelineAuthority 10.9k) found no removable duplication: rollup dedupes within the worker build, main/worker sharing is impossible across Vite's separate worker build, and the inlined viewer runtime is required for the per-file Timeline Viewer.html output the worker emits. Worker cap raised 122,000 to 127,000. Total assets 11,035,470; runtime WASM 5,978,073; semantic-index WASM 2,099,237. Runtime and semantic-index WASM remain separate lazy chunks. Budgets retain limited headroom; raising one requires a named cause and a new measurement.",
+  "_comment": "Deploy-artifact size budgets (bytes), enforced by check_deploy_artifact.mts. Re-measured 2026-07-28 (evening): runtime WASM 6,039,041 (was 5,978,073 same morning). Cause: the incremental-execution kernel perf work landed 2026-07-28 (becd018..eab8b6e) — seven content-keyed alternation caches, the decoded_reconstruction_base salsa query split with retained-encoded-bytes identity, the product-shaped warm loop support, and the canonical-row/dedupe allocation cuts all compile into chronicle_chrono_kernel_wasm. Runtime WASM cap raised 6,000,000 to 6,100,000. Also .js total 900,222 (cap was 900,000): the in-progress compare/View UI work in the working tree (App.tsx, ProcessPanel.tsx, review panels); .js cap raised 900,000 to 910,000. Total assets 11,087,227; worker 125,840; semantic-index WASM 2,024,364 — all within their existing caps. Prior worker-raise rationale (122,000 to 127,000, sourcemap attribution finding no removable duplication) retained in git history. Budgets retain limited headroom; raising one requires a named cause and a new measurement.",
   "totalBytes": 11250000,
   "categories": {
-    ".js": 900000,
+    ".js": 910000,
     ".wasm": 8200000,
     ".css": 100000
   },
   "filePrefixes": {
-    "chronicle_preprocessing_runtime_wasm_bg-": 6000000,
+    "chronicle_preprocessing_runtime_wasm_bg-": 6100000,
     "chronicle_semantic_index_wasm_bg-": 2350000,
     "chronicle-worker-": 127000
   }
