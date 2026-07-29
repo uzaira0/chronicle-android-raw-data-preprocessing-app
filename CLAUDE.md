@@ -21,7 +21,7 @@ The Rust/WASM cold-oracle and dependency campaigns are now the **sole executable
 
 ## Commands
 
-All CI is **local** (remote GitHub Actions were removed; only `web-pwa-deploy.yml` remains, and it only builds + deploys to GitHub Pages — it does not run tests). `make all` is the gate.
+All CI is **local**. `make all` is the gate. The remaining remote workflows are `codeql.yml` / `security.yml` (scanners, on push + PR), `canary.yml` (6-hourly Playwright smoke against the deployed app), and `web-pwa-deploy.yml`, which runs no tests and is **manual dispatch only** — see the deploy note in Conventions below.
 
 ```bash
 make ci        # rust tests + all security scanners
@@ -190,7 +190,8 @@ credited-session cap — not an attention timeout — bounds the tail. See
 - `npm run typecheck` is three separate `tsc` invocations (not `tsc -b`). Composite/project-reference builds fail because scripts import `src/*` (TS6307). Only the `*.mjs` config sets `allowJs`/`checkJs`.
 - `web/src/lib/progressReducer.ts`: `applyProgressEvent` must **never** revert a terminal status (complete/error) back to running — a Comlink dual-port race otherwise sticks the UI at "Building output 100%". `progressReducer.test.ts` pins this; don't simplify the reducer.
 - App category in plots is **derived** by coalescing four per-source columns + normalizing UPPERCASE; the old `broad_app_category` input column is deprecated. The derived `include_category_column` output is opt-in and golden-checked.
-- `main` is protected (`enforce_admins`). Land via PR (squash). Merge to `main` auto-deploys the web PWA to GitHub Pages; the deploy does **not** run tests, so `make all` locally is the real gate.
+- `main` is protected (`enforce_admins`). Land via PR (squash).
+- **Merging does NOT deploy.** `web-pwa-deploy.yml` is `workflow_dispatch` only — publishing to the live GitHub Pages app is an explicit decision, never a side effect of landing a PR. Review builds are local: `npm run host:local` serves the production build on `127.0.0.1:4173`. Do not add a `push` trigger, and do not run the deploy workflow without being asked to. The deploy also runs **no** tests, so `make all` locally is the real gate.
 - **This branch deploys to preview only.** Development deployment goes solely to `uzaira0/chronicle-web-preview` `gh-pages`. Do not merge or push `main` or touch production Pages from `codex/chronicle-55-step-authority` until the research-pipeline consumer is repointed (see consumer-coupling warning above).
 - GitHub Pages does not provide cross-origin isolation, so shared-memory WASM threads are unavailable. File-level parallelism (independent files across workers) is the browser concurrency model.
 
