@@ -2,11 +2,16 @@ name: Web PWA
 
 # Bare-minimum deploy to GitHub Pages. No tests run here — all testing
 # (typecheck, unit, contract, parity, e2e, security) is local via `make all`.
-# Only runs on push to main (and manual dispatch); does not run on pull requests.
+#
+# MANUAL DISPATCH ONLY. There is deliberately no `push` trigger: publishing to
+# the live app is an explicit decision, not a side effect of merging. Landing a
+# PR must never move what users are served. Review builds are local
+# (`npm run host:local`, which serves the production build on 127.0.0.1:4173).
+#
+# Run it from the Actions tab, or `gh workflow run web-pwa-deploy.yml`, when a
+# release to the live app is actually intended.
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
