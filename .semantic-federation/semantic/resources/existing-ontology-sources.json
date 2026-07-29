@@ -1,0 +1,34 @@
+{
+  "resource_map_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:ontology-sources/0.1",
+  "product_sources": [
+    {
+      "canonical_source": "web/schema/chronicle-research-ontology.linkml.yaml",
+      "profile_snapshot": "semantic/resources/chronicle-research-ontology.linkml.yaml",
+      "role": "product-domain-model",
+      "execution_authority": false
+    },
+    {
+      "canonical_source": "web/schema/generated/shacl/merged.shacl.ttl",
+      "profile_snapshot": "semantic/resources/chronicle-research-ontology.merged.shacl.ttl",
+      "snapshot_transform": "strip-trailing-horizontal-whitespace",
+      "role": "product-conformance-shapes",
+      "execution_authority": false
+    }
+  ],
+  "reused_vocabularies": [
+    "RDF 1.1",
+    "SHACL",
+    "PROV-O",
+    "SOSA/SSN",
+    "OWL-Time",
+    "DQV",
+    "DCTERMS",
+    "DPV"
+  ],
+  "guardrails": {
+    "prov_describes_actual_execution_only": true,
+    "planned_topology_is_not_prov_activity": true,
+    "raw_rows_are_not_rdf_triples": true,
+    "product_terms_are_not_shared_standards": true
+  }
+}

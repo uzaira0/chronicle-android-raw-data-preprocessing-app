@@ -86,9 +86,9 @@ describe("drawDataGaps", () => {
     const drew = drawDataGaps(ctx, events, dateToY, nsToLocalHours, nsToIso);
     expect(drew).toBe(true);
     expect(rects).toHaveLength(1);
-    expect(rowCenterOf(rects[0]!)).toBe(100); // day 0 row
-    expect(rects[0]!.w).toBeGreaterThan(0);
-    expect(rects[0]!.alpha).toBeCloseTo(0.15); // faint shading
+    expect(rowCenterOf(rects[0])).toBe(100); // day 0 row
+    expect(rects[0].w).toBeGreaterThan(0);
+    expect(rects[0].alpha).toBeCloseTo(0.15); // faint shading
   });
 
   it("tiles a multi-day gap across tail, full middle day(s), and head", () => {

@@ -11,7 +11,7 @@ type Row = Record<string, string>;
 
 const NOTES: Record<string, string> = {
   apps_to_filter:
-    "Engine setting: use filter file. Matching usage is relabelled “Filtered App Usage” — visible but excluded from target minutes, and it closes other apps' sessions.",
+    "Engine setting: use filter file. Matching usage is relabelled “Filtered App Usage” — visible but excluded from target minutes, and it closes other apps' sessions. A package also on the background list is constructed-and-marked instead: “Filtered App Background Usage” with real timing, its own deferred category.",
   background_apps:
     "Engine setting: use background apps file. Overlap with the foreground app is split into concurrent (primary/secondary) layers only for these packages.",
   apps_forcing_screen_open:
@@ -60,7 +60,7 @@ function SmallList({
         <table className="review-alist__table">
           <tbody>
             {(rows ?? []).map((row, index) => (
-              <tr key={`${row[columns[0]!.key] ?? index}`}>
+              <tr key={`${row[columns[0].key] ?? index}`}>
                 {columns.map((col) => (
                   <td key={col.key}>{row[col.key] ?? ""}</td>
                 ))}
@@ -135,7 +135,7 @@ function CodebookList(): ReactElement {
               <tr key={`${row.app_package_name ?? index}`}>
                 <td>{row.application_label ?? ""}</td>
                 <td>{row.app_package_name ?? ""}</td>
-                <td>{row.bcm_cnrc_heuristic_category ?? row.play_store_broad_app_category ?? ""}</td>
+                <td>{row.bcm_cnrc_heuristic_category ?? row.bcm_play_store_broad_app_category ?? ""}</td>
               </tr>
             ))}
             {rows && hits.length === 0 ? (

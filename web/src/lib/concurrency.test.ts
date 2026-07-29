@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { computeSafeConcurrency, deviceMemoryBudgetScale } from "@/lib/concurrency";
+import {
+  computeAdaptiveLaneTarget,
+  computeSafeConcurrency,
+  deviceMemoryBudgetScale,
+  readDeviceMemory,
+} from "@/lib/concurrency";
 
 const MB = 1024 * 1024;
 
@@ -21,7 +26,7 @@ describe("deviceMemoryBudgetScale", () => {
 describe("computeSafeConcurrency", () => {
   const base = {
     fileCount: 8,
-    totalInputBytes: 8 * 20 * MB, // 20 MB avg → memory-bound, not core-bound
+    totalInputBytes: 8 * MB,
     userCap: undefined,
     hardwareConcurrency: 16,
   };
@@ -30,8 +35,15 @@ describe("computeSafeConcurrency", () => {
     expect(computeSafeConcurrency({ ...base, fileCount: 1 })).toBe(1);
   });
 
-  it("honours a user-pinned cap regardless of memory", () => {
-    expect(computeSafeConcurrency({ ...base, userCap: 3, deviceMemory: 1 })).toBe(3);
+  it("treats a user-pinned cap as an upper bound without bypassing memory", () => {
+    expect(computeSafeConcurrency({ ...base, userCap: 3, deviceMemory: 8 })).toBe(3);
+    expect(computeSafeConcurrency({ ...base, userCap: 32, deviceMemory: 1 })).toBe(1);
+  });
+
+  it("never lets a user cap bypass the core limit", () => {
+    expect(
+      computeSafeConcurrency({ ...base, userCap: 32, hardwareConcurrency: 4, deviceMemory: 8 }),
+    ).toBe(2);
   });
 
   it("a low-deviceMemory machine gets fewer workers than a high-memory one", () => {
@@ -57,5 +69,152 @@ describe("computeSafeConcurrency", () => {
         deviceMemory: 8,
       }),
     ).toBeLessThanOrEqual(2);
+  });
+
+  it("uses safe defaults when CPU and aggregate-size telemetry are absent", () => {
+    expect(
+      computeSafeConcurrency({
+        fileCount: 4,
+        totalInputBytes: 0,
+        userCap: undefined,
+        hardwareConcurrency: undefined,
+        deviceMemory: 8,
+      }),
+    ).toBe(1);
+  });
+
+  it("uses the actual largest files instead of an unsafe batch average", () => {
+    const fileSizes = [4 * MB, 1024, 1024, 1024, 1024, 1024, 1024, 1024];
+    expect(
+      computeSafeConcurrency({
+        fileCount: fileSizes.length,
+        totalInputBytes: fileSizes.reduce((sum, size) => sum + size, 0),
+        fileSizes,
+        userCap: undefined,
+        hardwareConcurrency: 16,
+        deviceMemory: 8,
+      }),
+    ).toBe(1);
+  });
+});
+
+describe("computeAdaptiveLaneTarget", () => {
+  const GB = 1024 * MB;
+
+  it("stays on the static fallback until a measurement arrives", () => {
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 8,
+        observedWorkerHighWaterBytes: undefined,
+        deviceMemory: 8,
+        fallbackLanes: 1,
+      }),
+    ).toBe(1);
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 8,
+        observedWorkerHighWaterBytes: 0,
+        deviceMemory: 8,
+        fallbackLanes: 3,
+      }),
+    ).toBe(3);
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 8,
+        observedWorkerHighWaterBytes: Number.NaN,
+        deviceMemory: 8,
+        fallbackLanes: 2,
+      }),
+    ).toBe(2);
+  });
+
+  it("clamps the fallback into [1, laneCap]", () => {
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 4,
+        observedWorkerHighWaterBytes: undefined,
+        deviceMemory: 8,
+        fallbackLanes: 16,
+      }),
+    ).toBe(4);
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 4,
+        observedWorkerHighWaterBytes: undefined,
+        deviceMemory: 8,
+        fallbackLanes: 0,
+      }),
+    ).toBe(1);
+  });
+
+  it("converts a measured high-water into floor(budget / (highWater + baseline))", () => {
+    // 4 GiB budget / (464 MiB + 48 MiB) = 8 lanes exactly.
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 16,
+        observedWorkerHighWaterBytes: 464 * MB,
+        deviceMemory: 8,
+        fallbackLanes: 1,
+      }),
+    ).toBe(8);
+    // Slightly larger observation drops below the exact-fit boundary.
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 16,
+        observedWorkerHighWaterBytes: 464 * MB + 1,
+        deviceMemory: 8,
+        fallbackLanes: 1,
+      }),
+    ).toBe(7);
+  });
+
+  it("never exceeds laneCap even when the measurement is tiny", () => {
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 5,
+        observedWorkerHighWaterBytes: 1 * MB,
+        deviceMemory: 8,
+        fallbackLanes: 1,
+      }),
+    ).toBe(5);
+  });
+
+  it("never drops below one lane even for a giant measurement", () => {
+    expect(
+      computeAdaptiveLaneTarget({
+        laneCap: 8,
+        observedWorkerHighWaterBytes: 16 * GB,
+        deviceMemory: 8,
+        fallbackLanes: 4,
+      }),
+    ).toBe(1);
+  });
+
+  it("scales the budget down through deviceMemoryBudgetScale on low-memory devices", () => {
+    const input = {
+      laneCap: 16,
+      observedWorkerHighWaterBytes: 464 * MB,
+      fallbackLanes: 1,
+    };
+    // 8 GiB (and unknown) → full 4 GiB budget → 8 lanes.
+    expect(computeAdaptiveLaneTarget({ ...input, deviceMemory: 8 })).toBe(8);
+    expect(computeAdaptiveLaneTarget({ ...input, deviceMemory: undefined })).toBe(8);
+    // 4 GiB device → half budget → 4 lanes; 1 GiB device → floored 0.25 → 2 lanes.
+    expect(computeAdaptiveLaneTarget({ ...input, deviceMemory: 4 })).toBe(4);
+    expect(computeAdaptiveLaneTarget({ ...input, deviceMemory: 1 })).toBe(2);
+  });
+});
+
+describe("readDeviceMemory", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("returns navigator.deviceMemory when the browser exposes it", () => {
+    vi.stubGlobal("navigator", { deviceMemory: 4 });
+    expect(readDeviceMemory()).toBe(4);
+  });
+
+  it("returns undefined when navigator is unavailable", () => {
+    vi.stubGlobal("navigator", undefined);
+    expect(readDeviceMemory()).toBeUndefined();
   });
 });

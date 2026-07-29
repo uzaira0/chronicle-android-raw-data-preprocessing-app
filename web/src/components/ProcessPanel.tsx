@@ -15,6 +15,7 @@ type Props = {
   uploadedFiles: File[];
   inspections: RawFileInspection[];
   displayMasker: DemoDisplayMasker;
+  isInspecting: boolean;
   isRunning: boolean;
   onProcess: () => void;
   onCancel: () => void;
@@ -22,6 +23,7 @@ type Props = {
   retryingFile?: string | null;
   progressRows: FileProgress[];
   overallPercent: number;
+  effectiveProcessingConcurrency?: number | null;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
 };
@@ -38,6 +40,7 @@ export function ProcessPanel({
   uploadedFiles,
   inspections,
   displayMasker,
+  isInspecting,
   isRunning,
   onProcess,
   onCancel,
@@ -45,6 +48,7 @@ export function ProcessPanel({
   retryingFile,
   progressRows,
   overallPercent,
+  effectiveProcessingConcurrency,
   expanded,
   onExpandedChange,
 }: Props): ReactElement {
@@ -60,6 +64,9 @@ export function ProcessPanel({
       id="process"
       className={`workflow-section process-section ${expanded ? "is-expanded" : "is-collapsed"}`}
       aria-labelledby="process-title"
+      data-effective-processing-concurrency={
+        effectiveProcessingConcurrency ?? undefined
+      }
     >
       <div className="workflow-section__header">
         <div>
@@ -95,14 +102,57 @@ export function ProcessPanel({
             className="btn btn--primary btn--lg"
             data-testid="process-files-button"
             onClick={onProcess}
-            disabled={isRunning || !!retryingFile || !uploadedFiles.length}
+            disabled={isRunning || isInspecting || !!retryingFile || !uploadedFiles.length}
           >
-            {isRunning ? "Processing..." : "Process files"}
+            {isRunning
+              ? "Processing..."
+              : isInspecting
+                ? "Inspecting files..."
+                : "Process files"}
           </button>
         </div>
       </div>
 
       <div id="process-details" className="process-section__body" hidden={!expanded}>
+        <div className="process-sections" data-testid="process-sections">
+          <div className="process-sections__item">
+            <strong>Preprocess</strong>
+            <span>
+              Parse, timezone normalization, dedup &amp; ordering, session reconstruction
+              {options.processScreenUsage ? ", screen usage derivation" : ""}.
+            </span>
+          </div>
+          <div className="process-sections__item">
+            <strong>Clean</strong>
+            <span>
+              {[
+                options.useFilterFile ? "app filter list" : null,
+                options.minimumUsageDuration ? "minimum-duration floor" : null,
+                "long-session flags",
+                options.enableScreenGatedCrediting ? "screen-gated usage credit (side-by-side)" : null,
+              ]
+                .filter(Boolean)
+                .join(", ")}
+              .
+            </span>
+          </div>
+          <div className="process-sections__item">
+            <strong>Analyze</strong>
+            <span>
+              {(() => {
+                const active = [
+                  options.enableStudyWindowFilter ? "study-window filter" : null,
+                  options.enablePersonAttribution ? "person attribution" : null,
+                  options.enableComplianceScoring ? "compliance scoring" : null,
+                  options.enableDayCoverage ? "day coverage report" : null,
+                ].filter(Boolean);
+                return active.length
+                  ? `${active.join(", ")}.`
+                  : "Off. Turn on study analysis steps in Settings → Study analysis.";
+              })()}
+            </span>
+          </div>
+        </div>
         <div className="process-controls">
           <ToggleField
             label="Parallel processing"
@@ -140,6 +190,16 @@ export function ProcessPanel({
               disabled={!options.parallelProcessing}
             />
           </SettingsField>
+          {effectiveProcessingConcurrency ? (
+            <p
+              className="text-muted"
+              data-testid="effective-processing-concurrency"
+              aria-live="polite"
+            >
+              Last run used {effectiveProcessingConcurrency} processing worker
+              {effectiveProcessingConcurrency === 1 ? "" : "s"}.
+            </p>
+          ) : null}
         </div>
 
         {warningCount ? (

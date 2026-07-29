@@ -1,4 +1,4 @@
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import type { BrowserProcessingOptions } from "@/lib/types";
 
 export type OptionKey = keyof BrowserProcessingOptions;
@@ -38,5 +38,5 @@ export function resetOption<K extends OptionKey>(
   options: BrowserProcessingOptions,
   key: K,
 ): BrowserProcessingOptions {
-  return { ...options, [key]: DEFAULT_BROWSER_OPTIONS[key] } as BrowserProcessingOptions;
+  return { ...options, [key]: DEFAULT_BROWSER_OPTIONS[key] };
 }

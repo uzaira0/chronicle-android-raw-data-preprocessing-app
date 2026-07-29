@@ -1,0 +1,41 @@
+{
+  "protocol_version": "0.1",
+  "profile_id": "urn:uzaira0:semantic-federation:chronicle-preprocessing",
+  "version": "0.1.0",
+  "title": "Chronicle Raw Data Preprocessing semantic profile",
+  "description": "Product-owned semantic profile generated from source declarations.",
+  "profile_kind": "product",
+  "namespace": "urn:uzaira0:semantic-federation:chronicle-preprocessing:",
+  "standards": [
+    {"id":"rdf-1.1","version":"1.1","uri":"https://www.w3.org/TR/rdf11-concepts/","license":"W3C-20150513"},
+    {"id":"sparql-1.1","version":"1.1","uri":"https://www.w3.org/TR/sparql11-query/","license":"W3C-20150513"},
+    {"id":"shacl","version":"2017","uri":"https://www.w3.org/TR/shacl/","license":"W3C-20150513"},
+    {"id":"rdfc-1.0","version":"1.0","uri":"https://www.w3.org/TR/rdf-canon/","license":"W3C-20230522"},
+    {"id":"dcterms","version":"2020-01-20","uri":"http://purl.org/dc/terms/","license":"CC-BY-4.0"},
+    {"id":"prov-o","version":"2013","uri":"https://www.w3.org/TR/prov-o/","license":"W3C-20150513"},
+    {"id":"dqv","version":"2016","uri":"https://www.w3.org/TR/vocab-dqv/","license":"W3C-20150513"},
+    {"id":"sosa-ssn","version":"2017","uri":"https://www.w3.org/TR/vocab-ssn/","license":"W3C-20150513"},
+    {"id":"dpv","version":"2.1","uri":"https://w3id.org/dpv/","license":"W3C-20150513"}
+  ],
+  "dependencies": [],
+  "resources": [
+    {"path":"resources/identity-contract.json","media_type":"application/json","role":"binding-source"},
+    {"path":"capability-bindings.json","media_type":"application/json","role":"binding-source"},
+    {"path":"families/incremental-dataflow/contract.json","media_type":"application/json","role":"binding-source"},
+    {"path":"resources/chronicle.plan.json","media_type":"application/json","role":"binding-source"},
+    {"path":"resources/runtime-authority.json","media_type":"application/json","role":"binding-source"},
+    {"path":"resources/chronicle-research-ontology.linkml.yaml","media_type":"application/yaml","role":"ontology"},
+    {"path":"resources/chronicle-research-ontology.merged.shacl.ttl","media_type":"text/turtle","role":"shape"},
+    {"path":"resources/registered-queries.json","media_type":"application/json","role":"query"},
+    {"path":"resources/chronicle-views.schema.json","media_type":"application/schema+json","role":"binding-source"},
+    {"path":"resources/existing-ontology-sources.json","media_type":"application/json","role":"mapping"}
+  ],
+  "conformance_classes": [
+    {"id":"urn:uzaira0:semantic-federation:chronicle-preprocessing:conformance/identity","required":true,"determinism":"byte-exact"},
+    {"id":"urn:uzaira0:semantic-federation:chronicle-preprocessing:conformance/incremental-dataflow","required":true,"determinism":"semantic"}
+  ],
+  "licenses": ["MIT OR Apache-2.0"],
+  "extensions": [],
+  "mappings": [],
+  "deprecations": []
+}

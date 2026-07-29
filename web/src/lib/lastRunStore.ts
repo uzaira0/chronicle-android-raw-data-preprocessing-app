@@ -1,4 +1,7 @@
-import type { BrowserProcessingOptions, ProcessedFileResult } from "@/lib/types";
+import type {
+  BrowserProcessingOptions,
+  ProcessedFileResult,
+} from "@/lib/types";
 
 export const LAST_RUN_DB_NAME = "chronicle-last-run";
 const DB_NAME = LAST_RUN_DB_NAME;
@@ -6,6 +9,24 @@ const STORE = "lastRun";
 const DB_VERSION = 1;
 const LAST_RUN_ID = "last";
 const SCHEMA_VERSION = 1;
+const LAST_RUN_DELETED_FENCE = "chronicle-last-run-deleted-v1";
+
+function setDeletedFence(deleted: boolean): void {
+  try {
+    if (deleted) localStorage.setItem(LAST_RUN_DELETED_FENCE, "1");
+    else localStorage.removeItem(LAST_RUN_DELETED_FENCE);
+  } catch {
+    // IndexedDB remains authoritative when storage is unavailable or full.
+  }
+}
+
+function hasDeletedFence(): boolean {
+  try {
+    return localStorage.getItem(LAST_RUN_DELETED_FENCE) === "1";
+  } catch {
+    return false;
+  }
+}
 
 export type LastRunRecord = {
   id: typeof LAST_RUN_ID;
@@ -22,16 +43,27 @@ export type LastRunRecord = {
  * (`timelineView`) are the bulk of a result and are exactly what makes a big
  * batch blow past memory/quota — both when writing the cache and, worse, when
  * the whole record is rehydrated into memory on the next boot. We keep only the
- * scalars and the compact `reviewSummary`, and flag the result so the UI can
- * explain that downloads/timeline need a re-run.
+ * scalars, receipt-pinned OPFS output references, and runtime receipt. The View
+ * tab reloads its selected review summary from that exact OPFS root — but only
+ * when OPFS persistence actually succeeded (`persistedGeneration` set). When it
+ * did not (Safari without locks, quota denial), the compact `reviewSummary` is
+ * the researcher's only copy, so it is retained; stripping it would delete
+ * their data on the next save. The raw JSON bytes are always dropped. Browser
+ * Static plot blobs and timeline geometry are omitted. Small root-pinned
+ * requests are retained so both can be rebuilt from the verified Rust artifact.
  */
 export function toLightweightResults(
   results: ProcessedFileResult[],
 ): ProcessedFileResult[] {
   return results.map((result) => ({
     ...result,
-    outputs: [],
+    outputs: result.outputs.filter((output) => output.persistedArtifact),
     timelineView: undefined,
+    reviewSummary:
+      result.rustRuntimeReceipt?.persistedGeneration !== undefined
+        ? undefined
+        : result.reviewSummary,
+    reviewSummaryJsonBytes: undefined,
     restoredWithoutArtifacts: true,
   }));
 }
@@ -46,7 +78,12 @@ function openDb(): Promise<IDBDatabase> {
       }
     };
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onerror = () =>
+      reject(
+        request.error instanceof Error
+          ? request.error
+          : new Error(String(request.error)),
+      );
   });
 }
 
@@ -65,7 +102,11 @@ function runStore<T>(
         };
         transaction.onerror = () => {
           db.close();
-          reject(transaction.error);
+          reject(
+            transaction.error instanceof Error
+              ? transaction.error
+              : new Error(String(transaction.error)),
+          );
         };
       }),
   );
@@ -88,6 +129,7 @@ export async function saveLastRun(input: {
   };
   try {
     await runStore("readwrite", (store) => store.put(record));
+    setDeletedFence(false);
   } catch (error) {
     // A failed put (quota exhaustion is the common case) must not leave a
     // half/over-sized record behind that wedges the next boot — drop it so the
@@ -98,10 +140,18 @@ export async function saveLastRun(input: {
 }
 
 export async function loadLastRun(): Promise<LastRunRecord | undefined> {
+  if (hasDeletedFence()) {
+    await runStore("readwrite", (store) => store.delete(LAST_RUN_ID)).catch(
+      () => {},
+    );
+    return undefined;
+  }
   let record: LastRunRecord | undefined;
   try {
-    record = await runStore<LastRunRecord | undefined>("readonly", (store) =>
-      store.get(LAST_RUN_ID),
+    record = await runStore<LastRunRecord | undefined>(
+      "readonly",
+      (store) =>
+        store.get(LAST_RUN_ID) as IDBRequest<LastRunRecord | undefined>,
     );
   } catch {
     // A corrupt/unreadable record would otherwise throw on every boot. Self-heal:
@@ -122,5 +172,8 @@ export async function loadLastRun(): Promise<LastRunRecord | undefined> {
 }
 
 export async function clearLastRun(): Promise<void> {
+  // The synchronous fence closes the click-then-immediate-reload race while
+  // the IndexedDB deletion is still committing.
+  setDeletedFence(true);
   await runStore("readwrite", (store) => store.delete(LAST_RUN_ID));
 }

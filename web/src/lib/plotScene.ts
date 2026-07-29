@@ -15,9 +15,9 @@
  */
 
 /** Horizontal text alignment (Canvas textAlign left/center/right). */
-export type Anchor = "start" | "middle" | "end";
+type Anchor = "start" | "middle" | "end";
 /** Vertical text alignment (Canvas textBaseline). */
-export type Baseline = "top" | "middle" | "alphabetic";
+type Baseline = "top" | "middle" | "alphabetic";
 
 export type RectPrim = {
   type: "rect";
@@ -46,7 +46,7 @@ export type TextPrim = {
   baseline: Baseline;
 };
 
-export type LinePrim = {
+type LinePrim = {
   type: "line";
   x1: number;
   y1: number;
@@ -58,7 +58,7 @@ export type LinePrim = {
   dash?: number[];
 };
 
-export type PolyPrim = {
+type PolyPrim = {
   type: "poly";
   points: Array<[number, number]>;
   fill?: string;

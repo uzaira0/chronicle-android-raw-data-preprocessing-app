@@ -1,5 +1,17 @@
-export type { BrowserProcessingOptions, BrowserTimezoneHandling, OutputKind } from "@/lib/generatedContract";
-import type { OutputKind } from "@/lib/generatedContract";
+export type {
+  BrowserProcessingOptions,
+  BrowserTimezoneHandling,
+  OutputKind,
+} from "@/lib/generatedContract";
+import type {
+  BrowserProcessingOptions,
+  OutputKind,
+  RAW_CHRONICLE_COLUMNS,
+} from "@/lib/generatedContract";
+import type {
+  RustExecutionLedger,
+  RustExecutionStatus,
+} from "@/lib/rustExecutionRecords";
 import type { Scene, SceneRegion } from "@/lib/plotScene";
 
 /** One participant's interactive day-grid timeline: the render scene plus the
@@ -36,9 +48,9 @@ export type MatcherInput = {
     applyThresholdToFallback: boolean;
     longDurationThresholdNs: bigint;
     /**
-     * Intra-app teardown grace, in nanoseconds. 0 = off (the shared WASM matcher
-     * ignores it and runs unchanged). When > 0 the pipeline routes to the JS
-     * proximity matcher instead, so the WASM path never sees a non-zero value.
+     * Intra-app teardown grace, in nanoseconds. 0 selects the optimized sparse
+     * Rust path; a positive value selects the reference-compatible Rust grace
+     * path in the same WASM module.
      */
     proximityNs: bigint;
   };
@@ -71,19 +83,17 @@ export type SplitterInput = {
 /** Output of `splitOverlappingSessions`. */
 export type SplitterOutput = LayeredSessionRow[];
 
-export type RawChronicleRow = {
-  study_id?: string;
-  participant_id?: string;
-  possible_device_model?: string;
-  username?: string;
-  application_label?: string;
-  interaction_type?: string;
-  app_package_name?: string;
-  event_timestamp?: string;
-  start_timestamp?: string;
-  stop_timestamp?: string;
-  timezone?: string;
-};
+/**
+ * One raw Chronicle CSV row, keyed by the LITERAL export headers. Derived
+ * from the generated contract (RawChronicleEventRecord in
+ * schema/chronicle-local-contract.linkml.yaml) so the ingest boundary has a
+ * single source of truth. Every field is optional at the type level — the
+ * required columns are an advisory expectation enforced as warnings by
+ * fileInspection, never a parse gate.
+ */
+export type RawChronicleRow = Partial<
+  Record<(typeof RAW_CHRONICLE_COLUMNS)[number], string>
+>;
 
 export type BrowserSupportFile = {
   name: string;
@@ -95,12 +105,145 @@ export type BrowserSupportFiles = {
   appsForcingScreenOpenFile?: BrowserSupportFile;
   backgroundAppsFile?: BrowserSupportFile;
   appCodebookFile?: BrowserSupportFile;
+  /** Study Inputs (Analyze tier) — see docs/pipeline-graph/. */
+  studyDatesFile?: BrowserSupportFile;
+  deviceSharingFile?: BrowserSupportFile;
+  surveyAttributionFile?: BrowserSupportFile;
+  enrolledDevicesFile?: BrowserSupportFile;
 };
 
 export type BrowserProcessingRuntime = {
   datetimeOfPreprocessing?: string;
+  /** The only supported computational authority. */
+  executionAuthority?: "rust";
+  /** Persist verified Rust artifacts and alternating roots in OPFS. */
+  persistRustWorkspace?: boolean;
+  /** Opt-in benchmark trace ID; never enters semantic inputs or artifacts. */
+  performanceTraceId?: string;
 };
 
+export type RustStageView = {
+  protocol_version: "0.1";
+  view_id: "chronicle.stage.v1";
+  family: "incremental-dataflow";
+  schema_id: "urn:chronicle:view:stage:v1";
+  revision: number;
+  root_digest: string;
+  payload: {
+    stage: string | null;
+    node_states: Array<{
+      node_id: string;
+      label: string;
+      section: "preprocess" | "clean" | "analyze" | "output";
+      input_nodes: string[];
+      can_bypass: boolean;
+      materialization_state:
+        | "open"
+        | "ready"
+        | "satisfied"
+        | "blocked"
+        | "invalid"
+        | "not_applicable";
+      execution_status: RustExecutionStatus | null;
+      reason_ids: string[];
+    }>;
+    step_states: Array<{
+      step_id: string;
+      unit_id: string;
+      label: string;
+      description: string;
+      input_steps: string[];
+      can_bypass: boolean;
+      execution_status: RustExecutionStatus | null;
+    }>;
+  };
+};
+
+export type RustRuntimeReceipt = {
+  protocolVersion: "chronicle-preprocessing-runtime/v1";
+  workspaceId: string;
+  workspaceRootDigest: string;
+  previousWorkspaceRootDigest: string | null;
+  implementationDigest: string;
+  buildEnvironmentDigest: string;
+  planDigest: string;
+  profileDigest: string;
+  profileLockDigest: string;
+  productContractDigest: string;
+  journalDigest: string;
+  openObligationCount: number;
+  persistedGeneration?: number;
+};
+
+/**
+ * Exact inputs needed to render browser-owned static plots from the verified
+ * Rust visualization artifact. Keeping this small descriptor avoids retaining
+ * every PNG/SVG blob while a large batch is being processed.
+ */
+export type PersistedPlotRequest = {
+  workspaceId: string;
+  workspaceRootDigest: string;
+  inputFileName: string;
+  timezone: string;
+  preprocessorVersion: string;
+  options: Pick<
+    BrowserProcessingOptions,
+    | "processAppUsage"
+    | "processScreenUsage"
+    | "enablePlotting"
+    | "includeFilteredAppUsageInPlots"
+    | "enableActivityHeatmap"
+    | "exportPlotsAsSvg"
+  >;
+};
+
+/**
+ * Exact inputs needed to build the selected interactive timeline from the
+ * verified Rust visualization artifact without retaining every file's scene.
+ */
+export type PersistedTimelineRequest = {
+  workspaceId: string;
+  workspaceRootDigest: string;
+  inputFileName: string;
+  timezone: string;
+  preprocessorVersion: string;
+  options: Pick<
+    BrowserProcessingOptions,
+    | "processAppUsage"
+    | "processScreenUsage"
+    | "includeFilteredAppUsageInPlots"
+    | "enableInteractiveTimeline"
+  >;
+};
+
+/** Exact identities for a fast, non-persisted A/B review calculation. */
+export type RustReviewReceipt = {
+  protocolVersion: "chronicle-preprocessing-runtime/v1";
+  workspaceId: string;
+  previousWorkspaceRootDigest: string | null;
+  inputDigest: string;
+  optionsDigest: string;
+  implementationDigest: string;
+  buildEnvironmentDigest: string;
+  planDigest: string;
+  profileDigest: string;
+  profileLockDigest: string;
+  productContractDigest: string;
+  dependencyCertificateDigest: string;
+  reviewSummaryDigest: string;
+  comparisonDigest: string;
+  cacheSources: Array<
+    "salsa-memory" | "verified-review-base" | "verified-reconstruction-base"
+  >;
+  /** Exact persisted cache bytes supplied to the Rust comparison call. */
+  suppliedReviewBaseBytes: number;
+  suppliedReconstructionBaseBytes: number;
+  recomputedStepIds: string[];
+  cachedStepIds: string[];
+  bypassedStepIds: string[];
+  skippedStepIds: string[];
+  errorStepIds: string[];
+};
 
 export type ProgressStepKind =
   | "parse"
@@ -114,8 +257,18 @@ export type ProgressStepKind =
 
 export type ProgressEvent =
   | { type: "file-start"; fileName: string }
-  | { type: "step"; fileName: string; stepKind: ProgressStepKind; percent: number }
-  | { type: "file-complete"; fileName: string; result?: ProcessedFileResult; error?: string };
+  | {
+      type: "step";
+      fileName: string;
+      stepKind: ProgressStepKind;
+      percent: number;
+    }
+  | {
+      type: "file-complete";
+      fileName: string;
+      result?: ProcessedFileResult;
+      error?: string;
+    };
 
 /**
  * One generated output file (app or screen). The CSV bytes live in `blob`
@@ -128,7 +281,17 @@ export type ProgressEvent =
 export type ProcessedOutputFileResult = {
   kind: OutputKind;
   outputFileName: string;
-  blob: Blob;
+  /** Present for generated browser-only files and non-persisted executions. */
+  blob: Blob | null;
+  /** Durable Rust outputs stay in OPFS and are loaded only when downloaded. */
+  persistedArtifact?: {
+    workspaceId: string;
+    /** Pins the download to the exact run that advertised this output. */
+    workspaceRootDigest: string;
+    kind: string;
+    mediaType: string;
+    size: number;
+  };
   rowCount: number;
   previewRows: string[][];
 };
@@ -215,9 +378,27 @@ export type ProcessedFileResult = {
    * SHA-256 (hex) of the raw input file, computed in the worker where the
    * bytes live (the parallel path transfers them off the main thread). Used
    * for the run-manifest provenance sidecar. Optional: only populated by the
-   * worker entry points, not by direct `processRawCsvContent` calls.
+   * worker entry points, never by a main-thread preprocessing implementation.
    */
   inputSha256?: string;
+  /**
+   * The processing worker's WASM linear-memory size (bytes) right after this
+   * file finished. WASM memory never shrinks, so this is the worker's
+   * high-water mark; the batch scheduler feeds it to
+   * `computeAdaptiveLaneTarget` to admit more concurrent files when measured
+   * cost is below the static worst-case guess. Worker entry points only.
+   */
+  workerWasmMemoryBytes?: number;
+  /** Rust/WASM authority and content-addressed workspace receipt. */
+  rustRuntimeReceipt?: RustRuntimeReceipt;
+  /** Static plots that can be regenerated from a receipt-pinned OPFS artifact. */
+  persistedPlotRequest?: PersistedPlotRequest;
+  /** Interactive timeline that can be loaded from a receipt-pinned OPFS artifact. */
+  persistedTimelineRequest?: PersistedTimelineRequest;
+  /** Exact Rust identities for a fast View-tab comparison calculation. */
+  rustReviewReceipt?: RustReviewReceipt;
+  /** True when only review metrics were requested, so export/timeline bytes are absent. */
+  reviewOnly?: boolean;
   /**
    * Interactive timeline payload for the in-app View tab (#18). Present only
    * when `enableInteractiveTimeline` is on (it carries per-session geometry, so
@@ -231,11 +412,47 @@ export type ProcessedFileResult = {
    */
   reviewSummary?: ReviewSummary;
   /**
+   * Review-only workers keep the exact Rust JSON as transferable bytes. The
+   * View tab parses only the selected Arm-B file instead of retaining hundreds
+   * of expanded JavaScript object graphs at once.
+   */
+  reviewSummaryJsonBytes?: Uint8Array;
+  /**
+   * True when the runtime matched the caller's `knownReviewSummaryDigests` list and
+   * returned no summary bytes; the dispatching client reattaches its cached
+   * copy (ETag semantics for the 2+ MB review summary).
+   */
+  reviewSummaryReused?: boolean;
+  /**
    * True when this result was rehydrated from the lightweight last-run cache: the
-   * heavy artifacts (`outputs[].blob`, `timelineView`) were dropped before
-   * persisting so a refresh can't exhaust memory/quota. Counts and
-   * {@link reviewSummary} survive; downloads and the interactive timeline need a
-   * re-run. The UI uses this to explain why and to skip "no outputs" warnings.
+   * browser-only blobs and timeline geometry were dropped before persisting so a
+   * refresh cannot exhaust memory/quota. Receipt-pinned Rust outputs remain
+   * downloadable, and the selected review summary is loaded from verified OPFS.
+   * Static plots remain regenerable from `persistedPlotRequest`; only the
+   * interactive timeline needs a re-run.
    */
   restoredWithoutArtifacts?: boolean;
+  /**
+   * Loud configuration-contradiction notices. Populated when active support
+   * lists make contradictory claims about the same package (e.g. an app on
+   * both the filter list and the background-apps list) and the pipeline had
+   * to apply a precedence rule. Each entry names the packages and states the
+   * rule applied, so the resolution is declared instead of silent.
+   */
+  configNotices?: string[];
+  /**
+   * Per-node engine statuses + errors from the pipeline graph run that produced
+   * this result (Graph tab badges). Optional: absent on results persisted
+   * before this field existed.
+   */
+  /**
+   * Per-unit/per-step execution ledger for the run that produced this
+   * result (timing, row counts, loss accounting, expectation results) —
+   * the runtime-lineage SSOT projected into the run manifest and the
+   * PROV-O sidecar. Optional: absent on results persisted before this
+   * field existed.
+   */
+  executionLedger?: RustExecutionLedger;
+  /** Product-typed Rust projection used by the Graph tab; never inferred by UI code. */
+  rustStageView?: RustStageView;
 };

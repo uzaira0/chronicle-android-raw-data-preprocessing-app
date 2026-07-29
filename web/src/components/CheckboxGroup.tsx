@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 
 import { Tooltip, type TooltipContent } from "@/components/Tooltip";
 
-export type CheckboxOption = { label: string; value: string };
+type CheckboxOption = { label: string; value: string };
 
 type CheckboxGroupProps = {
   title: string;

@@ -17,10 +17,6 @@ export function notifyUpdateReady(): void {
   for (const listener of listeners) listener();
 }
 
-export function isUpdateReady(): boolean {
-  return updateReady;
-}
-
 export function onUpdateReady(listener: Listener): () => void {
   listeners.push(listener);
   if (updateReady) listener();

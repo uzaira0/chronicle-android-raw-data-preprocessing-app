@@ -1,0 +1,16 @@
+{
+  "name": "chronicle_preprocessing_runtime_wasm",
+  "type": "module",
+  "version": "0.1.0",
+  "license": "GPL-3.0-only",
+  "files": [
+    "chronicle_preprocessing_runtime_wasm_bg.wasm",
+    "chronicle_preprocessing_runtime_wasm.js",
+    "chronicle_preprocessing_runtime_wasm.d.ts"
+  ],
+  "main": "chronicle_preprocessing_runtime_wasm.js",
+  "types": "chronicle_preprocessing_runtime_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

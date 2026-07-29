@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation-scores browser-owned code only: Rust worker transport, OPFS persistence, result projection, and the UI graph projection. Preprocessing mutations belong to cargo-mutants because Rust/WASM is the only preprocessing engine. Run make mutation-web, measure the new set, then ratchet these provisional thresholds.",
+  "mutate": [
+    "src/components/GraphPanel/viewGraph.ts",
+    "src/lib/canonicalJson.ts",
+    "src/lib/opfsArtifactStore.ts",
+    "src/lib/rustPipelineAuthority.ts",
+    "src/lib/rustPipelineRuntime.ts"
+  ],
+  "_ignoreStatic_comment": "Retained from the measured runner limitation: module-load constants execute before Stryker activates a mutant and otherwise create false survivors.",
+  "ignoreStatic": true,
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.config.ts"
+  },
+  "coverageAnalysis": "perTest",
+  "reporters": ["clear-text", "progress", "json", "html"],
+  "_thresholds_comment": "The former 96.22% score described the deleted TypeScript preprocessing engine and is invalid for this new browser-only mutation set. Thresholds stay non-claiming until a fresh complete run is recorded.",
+  "thresholds": { "high": 80, "low": 60, "break": 0 },
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true
+}

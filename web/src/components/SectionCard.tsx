@@ -8,7 +8,8 @@ type SectionAccent =
   | "session"
   | "screen"
   | "interaction"
-  | "performance";
+  | "performance"
+  | "study";
 
 type SectionCardProps = {
   id: string;

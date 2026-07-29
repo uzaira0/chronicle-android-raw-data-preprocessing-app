@@ -63,7 +63,7 @@ describe("buildTimelineScene", () => {
     expect(scene.width).toBe(1800);
 
     // The session bar is filled with the Games category colour.
-    const gamesColor = CATEGORY_COLORS["Games"]!;
+    const gamesColor = CATEGORY_COLORS["Games"];
     expect(rectsWithFill(scene.primitives, gamesColor).length).toBeGreaterThan(0);
 
     // Stroke-only plot border (a rect with stroke and no fill).
@@ -134,7 +134,7 @@ describe("buildTimelineScene", () => {
   it("the SVG of the scene carries the same bar colour (PNG/SVG share geometry)", () => {
     const scene = buildTimelineScene(...TL_ARGS([usage("Games", 10, 11)]));
     const svg = renderSceneToSvg(scene);
-    expect(svg).toContain(CATEGORY_COLORS["Games"]!);
+    expect(svg).toContain(CATEGORY_COLORS["Games"]);
     expect(svg).toContain("Time of Day (Hours)");
   });
 });
@@ -175,7 +175,7 @@ describe("buildWaterfallScene", () => {
         {
           startNs: at(10),
           stopNs: at(11),
-          color: CATEGORY_COLORS["Games"]!,
+          color: CATEGORY_COLORS["Games"],
           title: "com.example.app",
           detail: ["Games", "60.0 min · App Usage"],
         },
@@ -193,7 +193,7 @@ describe("buildWaterfallScene", () => {
       plotWidth: 1088,
       rows: [{ date: "2026-03-07", y: 6, h: 32 }],
     });
-    expect(rectsWithFill(scene.primitives, CATEGORY_COLORS["Games"]!).length).toBeGreaterThan(0);
+    expect(rectsWithFill(scene.primitives, CATEGORY_COLORS["Games"]).length).toBeGreaterThan(0);
 
     const texts = scene.primitives.filter((p) => p.type === "text").map((p) => (p as { text: string }).text);
     expect(texts).toContain("Sat, Mar 07, 2026");
@@ -224,7 +224,7 @@ describe("buildWaterfallScene", () => {
         {
           startNs: atDay(7, 10),
           stopNs: atDay(7, 11),
-          color: CATEGORY_COLORS["Games"]!,
+          color: CATEGORY_COLORS["Games"],
           title: "com.example.app",
           detail: ["Games", "60.0 min · App Usage"],
         },
@@ -250,14 +250,14 @@ describe("buildWaterfallScene", () => {
         {
           startNs: at(10),
           stopNs: at(11),
-          color: CATEGORY_COLORS["Games"]!,
+          color: CATEGORY_COLORS["Games"],
           title: "com.example.app",
           detail: ["Games", "60.0 min · App Usage"],
         },
         {
           startNs: BigInt(Date.UTC(2026, 2, 8, 10, 0, 0)) * 1_000_000n,
           stopNs: BigInt(Date.UTC(2026, 2, 8, 11, 0, 0)) * 1_000_000n,
-          color: CATEGORY_COLORS["Education"]!,
+          color: CATEGORY_COLORS["Education"],
           title: "com.example.learn",
           detail: ["Education", "60.0 min · App Usage"],
         },
@@ -279,7 +279,7 @@ describe("buildWaterfallScene", () => {
         {
           startNs: at(10),
           stopNs: at(11),
-          color: CATEGORY_COLORS["Games"]!,
+          color: CATEGORY_COLORS["Games"],
           title: "Chat",
           detail: ["com.example.chat", "Games", "60.0 min · App Usage"],
         },
@@ -304,7 +304,7 @@ describe("buildWaterfallScene", () => {
           startNs: at(10, 5),
           stopNs: at(10, 5),
           instant: true,
-          color: CATEGORY_COLORS["Education"]!,
+          color: CATEGORY_COLORS["Education"],
           title: "Filtered Reader",
           detail: ["com.example.filtered", "Education", "Filtered App Usage event"],
         },
@@ -314,7 +314,7 @@ describe("buildWaterfallScene", () => {
       regions,
     );
 
-    expect(rectsWithFill(scene.primitives, CATEGORY_COLORS["Education"]!)).toHaveLength(1);
+    expect(rectsWithFill(scene.primitives, CATEGORY_COLORS["Education"])).toHaveLength(1);
     const instant = regions.find((r) => r.title === "Filtered Reader");
     expect(instant).toBeDefined();
     expect(instant!.w).toBe(1);
@@ -375,7 +375,7 @@ describe("buildHeatmapScene", () => {
   it("returns a 1×1 empty scene when there is no usage", () => {
     const scene = buildHeatmapScene(
       "P01",
-      [] as unknown as Parameters<typeof buildHeatmapScene>[1],
+      [],
       "UTC",
       { includeFilteredAppUsageInPlots: false },
       "1.0.0",

@@ -1,0 +1,8 @@
+{
+  "envelope": {
+    "fields": ["view_id", "family", "schema_id", "revision", "root_digest", "payload"],
+    "payload_is_family_specific": true,
+    "generic_items_links_forbidden": true
+  },
+  "selected_views": ["stage", "artifact", "obligation", "temporal_subject", "explanation", "assurance"]
+}

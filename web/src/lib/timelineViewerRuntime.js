@@ -306,7 +306,7 @@
       if (e && canvas.releasePointerCapture) {
         try {
           canvas.releasePointerCapture(e.pointerId);
-        } catch (_) {
+        } catch {
           // Some browsers throw if capture was already released.
         }
       }

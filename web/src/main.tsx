@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { applyTheme, readTheme } from "@/lib/theme";
+import { clearSwCaches } from "@/lib/swCache";
 import { notifyUpdateReady } from "@/lib/swUpdate";
 import "./index.css";
 
@@ -44,15 +45,8 @@ if ("serviceWorker" in navigator) {
     // build that might be cached by the browser. The SW aggressively caches
     // index.html and the bundled JS/CSS, which silently masks dev edits.
     window.addEventListener("load", () => {
-      void navigator.serviceWorker.getRegistrations().then((registrations) => {
-        registrations.forEach((registration) => {
-          void registration.unregister();
-        });
-      });
-      void caches?.keys().then((keys) => {
-        keys.forEach((key) => {
-          void caches.delete(key);
-        });
+      void clearSwCaches().catch(() => {
+        // Dev-mode SW eviction failure is non-fatal.
       });
     });
   }

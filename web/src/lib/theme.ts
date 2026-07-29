@@ -26,7 +26,7 @@ export function persistTheme(theme: Theme): void {
   }
 }
 
-export function systemPrefersDark(): boolean {
+function systemPrefersDark(): boolean {
   return (
     typeof window !== "undefined" &&
     typeof window.matchMedia === "function" &&
@@ -34,7 +34,7 @@ export function systemPrefersDark(): boolean {
   );
 }
 
-export function resolveTheme(theme: Theme): "light" | "dark" {
+function resolveTheme(theme: Theme): "light" | "dark" {
   return theme === "system" ? (systemPrefersDark() ? "dark" : "light") : theme;
 }
 

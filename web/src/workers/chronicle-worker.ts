@@ -1,31 +1,38 @@
 import * as Comlink from "comlink";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import {
-  DEFAULT_BROWSER_OPTIONS,
-  discoverTimezonesFromRawCsv,
-  processRawCsvContent,
-} from "@/lib/browserPipeline";
+  discoverRustTimezones,
+  exportPersistedRustWorkspace,
+  garbageCollectPersistedRustWorkspace,
+  importPersistedRustWorkspace,
+  importPersistedRustWorkspaceArchive,
+  initializeRustRuntime,
+  verifyPersistedRustWorkspace,
+  getRustRuntimeVersion,
+  getRustPlanStageView,
+  inspectRustRawFile,
+  readPersistedRustWorkspaceHead,
+  readVerifiedSemanticIndexSnapshot,
+  rustWasmMemoryBytes,
+} from "@/lib/rustPipelineRuntime";
+import type { RawFileInspection } from "@/lib/fileInspection";
+import {
+  processPersistedReviewWithRustAuthority,
+  processRawCsvReviewWithRustAuthority,
+  processRawCsvWithRustAuthority,
+} from "@/lib/rustPipelineAuthority";
+import {
+  queryRegisteredSemanticIndex,
+  rebuildSemanticIndex,
+} from "@/lib/semanticIndex";
 import type {
   BrowserProcessingOptions,
   BrowserProcessingRuntime,
   BrowserSupportFiles,
-  MatcherInput,
-  MatcherOutput,
   ProcessedFileResult,
   ProgressEvent,
-  SplitterInput,
-  SplitterOutput,
 } from "@/lib/types";
-
-/**
- * Decode an ArrayBuffer to UTF-8 string and immediately drop the buffer
- * reference. The buffer was transferred (zero-copy) from the main thread,
- * so the main thread no longer holds the bytes. Decoding produces a JS
- * string that we then feed into the existing CSV pipeline. Net peak memory
- * for the input phase: one copy of the file content (vs. two before).
- */
-function decodeCsvBytes(bytes: ArrayBuffer): string {
-  return new TextDecoder("utf-8").decode(bytes);
-}
+import { comparisonSupportCacheKey } from "@/lib/comparisonSupportKey";
 
 /**
  * SHA-256 of the raw input, returned as a lowercase hex string. Runs in the
@@ -34,116 +41,210 @@ function decodeCsvBytes(bytes: ArrayBuffer): string {
  */
 async function computeSha256Hex(data: BufferSource): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
 }
 
-let initPromise: Promise<void> | null = null;
+const sessionDatetimes = new Map<
+  string,
+  { inputSha256: string; datetime: string }
+>();
+const MAX_SESSION_DATETIMES = 32;
+const MAX_SEMANTIC_INDEXES = 8;
+type SemanticIndexCacheEntry = {
+  workspaceRootDigest: string;
+  index: Uint8Array;
+};
+const semanticIndexes = new Map<string, SemanticIndexCacheEntry>();
+const comparisonSupportFiles = new Map<string, BrowserSupportFiles>();
+const MAX_COMPARISON_SUPPORT_BUNDLES = 2;
 
-async function ensureInit(): Promise<void> {
-  if (initPromise) {
-    return initPromise;
+function cachedComparisonSupportFiles(key: string): BrowserSupportFiles {
+  const cached = comparisonSupportFiles.get(key);
+  if (!cached) {
+    throw new Error("comparison support bundle is not cached on this worker");
   }
-  initPromise = (async () => {
-    const module = await import("@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
-    await module.default();
-  })();
-  return initPromise;
+  comparisonSupportFiles.delete(key);
+  comparisonSupportFiles.set(key, cached);
+  return cached;
 }
 
-async function runMatcher(input: MatcherInput): Promise<MatcherOutput> {
-  await ensureInit();
-  const module = await import("@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
-  return module.matchAppUsageUpdateIndices(
-    input.appCodes,
-    input.timestampNs,
-    input.resumed,
-    input.sameStop,
-    input.otherStop,
-    input.stopped,
-    input.background,
-    input.options.allowStopEventReuse,
-    input.options.useActivityStoppedAsFallback,
-    input.options.applyThresholdToFallback,
-    input.options.longDurationThresholdNs,
-  ) as MatcherOutput;
+function transferReviewResult(
+  result: ProcessedFileResult | null,
+): ProcessedFileResult | null {
+  const reviewBytes = result?.reviewSummaryJsonBytes;
+  return reviewBytes
+    ? Comlink.transfer(result, [reviewBytes.buffer as ArrayBuffer])
+    : result;
 }
 
-async function runSplitter(input: SplitterInput): Promise<SplitterOutput> {
-  await ensureInit();
-  const module = await import("@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
-  // The pkg .d.ts declares splitOverlappingSessions(BigInt64Array, BigInt64Array),
-  // but TS cannot resolve it on this dynamic import's module type under our
-  // Bundler-resolution / @ts-self-types configuration. Keep a minimal cast
-  // with the correct BigInt64Array signature (no-copy, no Array.from).
-  const wasmModule = module as unknown as {
-    splitOverlappingSessions: (starts: BigInt64Array, stops: BigInt64Array) => SplitterOutput;
+function invalidateSemanticIndex(workspaceId: string): void {
+  semanticIndexes.delete(workspaceId);
+}
+
+function cacheSemanticIndex(
+  workspaceId: string,
+  entry: SemanticIndexCacheEntry,
+): SemanticIndexCacheEntry {
+  semanticIndexes.delete(workspaceId);
+  semanticIndexes.set(workspaceId, entry);
+  while (semanticIndexes.size > MAX_SEMANTIC_INDEXES) {
+    const oldest = semanticIndexes.keys().next().value;
+    if (oldest === undefined) break;
+    semanticIndexes.delete(oldest);
+  }
+  return entry;
+}
+
+async function getSemanticIndex(
+  workspaceId: string,
+): Promise<SemanticIndexCacheEntry> {
+  const cached = semanticIndexes.get(workspaceId);
+  if (
+    cached &&
+    cached.workspaceRootDigest ===
+      (await readPersistedRustWorkspaceHead(workspaceId))
+  ) {
+    semanticIndexes.delete(workspaceId);
+    semanticIndexes.set(workspaceId, cached);
+    return cached;
+  }
+  const snapshot = await readVerifiedSemanticIndexSnapshot(workspaceId);
+  return cacheSemanticIndex(workspaceId, {
+    workspaceRootDigest: snapshot.workspaceRootDigest,
+    index: await rebuildSemanticIndex(snapshot.source),
+  });
+}
+
+function resolveSessionDatetime(fileName: string, inputSha256: string): string {
+  const existing = sessionDatetimes.get(fileName);
+  if (existing?.inputSha256 === inputSha256) {
+    sessionDatetimes.delete(fileName);
+    sessionDatetimes.set(fileName, existing);
+    return existing.datetime;
+  }
+  const datetime = `${new Date().toISOString().slice(0, 19).replace("T", " ")} UTC`;
+  if (
+    !sessionDatetimes.has(fileName) &&
+    sessionDatetimes.size >= MAX_SESSION_DATETIMES
+  ) {
+    const oldest = sessionDatetimes.keys().next().value;
+    if (oldest !== undefined) sessionDatetimes.delete(oldest);
+  }
+  sessionDatetimes.delete(fileName);
+  sessionDatetimes.set(fileName, { inputSha256, datetime });
+  return datetime;
+}
+
+function effectiveRuntime(
+  runtime: BrowserProcessingRuntime | undefined,
+  fileName: string,
+  inputSha256: string,
+): BrowserProcessingRuntime {
+  return {
+    ...runtime,
+    executionAuthority: runtime?.executionAuthority ?? "rust",
+    datetimeOfPreprocessing:
+      runtime?.datetimeOfPreprocessing ??
+      resolveSessionDatetime(fileName, inputSha256),
   };
-  return wasmModule.splitOverlappingSessions(input.starts, input.stops);
 }
 
 const api = {
-  async matcherVersion(): Promise<string> {
-    await ensureInit();
-    const module = await import("@/wasm/chronicle_app_usage_wasm/pkg/chronicle_app_usage_wasm.js");
-    return module.matcherVersion();
+  async initializeRuntime(compiledModule: WebAssembly.Module): Promise<void> {
+    await initializeRustRuntime(compiledModule);
   },
-  async discoverTimezones(
-    csvText: string,
-    runtime?: BrowserProcessingRuntime,
-  ): Promise<string[]> {
-    return discoverTimezonesFromRawCsv(csvText, runtime);
+  planStageView(options: BrowserProcessingOptions) {
+    return getRustPlanStageView(options);
   },
-  async processRawCsv(
-    inputFileName: string,
-    csvText: string,
-    incomingOptions?: Partial<BrowserProcessingOptions>,
-    supportFiles?: BrowserSupportFiles,
-    runtime?: BrowserProcessingRuntime,
-  ): Promise<ProcessedFileResult> {
-    const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
-    const result = await processRawCsvContent(
-      inputFileName,
-      csvText,
-      options,
-      supportFiles,
-      runMatcher,
-      runtime,
-      undefined,
-      runSplitter,
-    );
-    result.inputSha256 = await computeSha256Hex(new TextEncoder().encode(csvText));
+  async verifyWorkspace(workspaceId: string) {
+    return (await verifyPersistedRustWorkspace(workspaceId)) ?? null;
+  },
+  async exportWorkspaceClosure(workspaceId: string): Promise<Uint8Array> {
+    const archive = await exportPersistedRustWorkspace(workspaceId);
+    return Comlink.transfer(archive, [archive.buffer]);
+  },
+  async importWorkspaceClosure(workspaceId: string, bytes: Uint8Array) {
+    const result = await importPersistedRustWorkspace(workspaceId, bytes);
+    invalidateSemanticIndex(workspaceId);
     return result;
   },
-  async processRawCsvWithProgress(
-    inputFileName: string,
-    csvText: string,
-    incomingOptions?: Partial<BrowserProcessingOptions>,
-    supportFiles?: BrowserSupportFiles,
-    runtime?: BrowserProcessingRuntime,
-    onProgress?: (event: ProgressEvent) => void,
-  ): Promise<ProcessedFileResult> {
-    const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
-    const forward = onProgress
-      ? (event: ProgressEvent) => {
-          try {
-            onProgress(event);
-          } catch {
-            // Ignore progress callback failures so they cannot abort processing.
-          }
-        }
-      : undefined;
-    const result = await processRawCsvContent(
-      inputFileName,
-      csvText,
-      options,
-      supportFiles,
-      runMatcher,
-      runtime,
-      forward,
-      runSplitter,
-    );
-    result.inputSha256 = await computeSha256Hex(new TextEncoder().encode(csvText));
+  async importWorkspaceClosureArchive(bytes: Uint8Array) {
+    const result = await importPersistedRustWorkspaceArchive(bytes);
+    invalidateSemanticIndex(result.workspaceId);
     return result;
+  },
+  async garbageCollectWorkspace(
+    workspaceId: string,
+  ): Promise<{ removedObjects: number }> {
+    const removedObjects =
+      await garbageCollectPersistedRustWorkspace(workspaceId);
+    invalidateSemanticIndex(workspaceId);
+    return { removedObjects };
+  },
+  async rebuildIndex(workspaceId: string): Promise<Uint8Array> {
+    const snapshot = await readVerifiedSemanticIndexSnapshot(workspaceId);
+    const entry = cacheSemanticIndex(workspaceId, {
+      workspaceRootDigest: snapshot.workspaceRootDigest,
+      index: await rebuildSemanticIndex(snapshot.source),
+    });
+    return entry.index;
+  },
+  async queryRegistered(workspaceId: string, queryId: string) {
+    const entry = await getSemanticIndex(workspaceId);
+    return {
+      ...(await queryRegisteredSemanticIndex(entry.index, queryId)),
+      workspaceRootDigest: entry.workspaceRootDigest,
+    };
+  },
+  async runtimeVersion(): Promise<string> {
+    return getRustRuntimeVersion();
+  },
+  hasComparisonSupportFiles(key: string): boolean {
+    return comparisonSupportFiles.has(key);
+  },
+  async cacheComparisonSupportFiles(
+    key: string,
+    supportFiles: BrowserSupportFiles,
+  ): Promise<void> {
+    if (!/^sha256:[0-9a-f]{64}$/.test(key)) {
+      throw new Error("comparison support cache key is invalid");
+    }
+    if ((await comparisonSupportCacheKey(supportFiles)) !== key) {
+      throw new Error("comparison support cache key does not match its bytes");
+    }
+    comparisonSupportFiles.delete(key);
+    comparisonSupportFiles.set(key, supportFiles);
+    while (comparisonSupportFiles.size > MAX_COMPARISON_SUPPORT_BUNDLES) {
+      const oldest = comparisonSupportFiles.keys().next().value;
+      if (oldest === undefined) break;
+      comparisonSupportFiles.delete(oldest);
+    }
+  },
+  discoverTimezonesBytes(csvBytes: ArrayBuffer): Promise<string[]> {
+    return discoverRustTimezones(new Uint8Array(csvBytes));
+  },
+  async inspectRawCsvBytes(
+    fileName: string,
+    sizeBytes: number,
+    csvBytes: ArrayBuffer,
+    verifiedInputSha256?: string,
+  ): Promise<RawFileInspection> {
+    // Inspection already owns the immutable File bytes. Hash them here once so
+    // the full batch can reuse exact duplicate content and avoid hashing again.
+    const digest = verifiedInputSha256 ?? (await computeSha256Hex(csvBytes));
+    if (!/^[0-9a-f]{64}$/.test(digest)) {
+      throw new Error(
+        "verified input digest must be 64 lowercase hexadecimal characters",
+      );
+    }
+    const inspection = await inspectRustRawFile(
+      new Uint8Array(csvBytes),
+      fileName,
+      sizeBytes,
+    );
+    return { ...inspection, inputSha256: digest };
   },
   /**
    * Zero-copy variant: caller transfers ownership of the raw CSV bytes.
@@ -157,11 +258,26 @@ const api = {
     supportFiles?: BrowserSupportFiles,
     runtime?: BrowserProcessingRuntime,
     onProgress?: (event: ProgressEvent) => void,
+    verifiedInputSha256?: string,
   ): Promise<ProcessedFileResult> {
-    const options: BrowserProcessingOptions = { ...DEFAULT_BROWSER_OPTIONS, ...incomingOptions };
+    const options: BrowserProcessingOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      ...incomingOptions,
+    };
     // Hash the raw bytes before decoding (and before the buffer is dropped).
-    const inputSha256 = await computeSha256Hex(csvBytes);
-    const csvText = decodeCsvBytes(csvBytes);
+    const inputBytes = new Uint8Array(csvBytes);
+    const inputSha256 =
+      verifiedInputSha256 ?? (await computeSha256Hex(csvBytes));
+    if (!/^[0-9a-f]{64}$/.test(inputSha256)) {
+      throw new Error(
+        "verified input digest must be 64 lowercase hexadecimal characters",
+      );
+    }
+    const resolvedRuntime = effectiveRuntime(
+      runtime,
+      inputFileName,
+      inputSha256,
+    );
     const forward = onProgress
       ? (event: ProgressEvent) => {
           try {
@@ -171,18 +287,98 @@ const api = {
           }
         }
       : undefined;
-    const result = await processRawCsvContent(
+    const result = await processRawCsvWithRustAuthority(
       inputFileName,
-      csvText,
+      inputBytes,
       options,
       supportFiles,
-      runMatcher,
-      runtime,
+      resolvedRuntime,
       forward,
-      runSplitter,
+      inputSha256,
     );
     result.inputSha256 = inputSha256;
+    result.workerWasmMemoryBytes = rustWasmMemoryBytes() ?? undefined;
+    if (result.rustRuntimeReceipt)
+      invalidateSemanticIndex(result.rustRuntimeReceipt.workspaceId);
     return result;
+  },
+  /** Fast A/B path: execute the same Rust graph and return review metrics only. */
+  async processPersistedReview(
+    inputFileName: string,
+    inputSizeBytes: number,
+    incomingOptions: Partial<BrowserProcessingOptions> | undefined,
+    supportFiles: BrowserSupportFiles | undefined,
+    runtime: BrowserProcessingRuntime | undefined,
+    verifiedInputSha256: string,
+    supportCacheKey?: string,
+    knownReviewSummaryDigests?: string[],
+  ): Promise<ProcessedFileResult | null> {
+    const options: BrowserProcessingOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      ...incomingOptions,
+    };
+    const resolvedRuntime = effectiveRuntime(
+      runtime,
+      inputFileName,
+      verifiedInputSha256,
+    );
+    return transferReviewResult(
+      await processPersistedReviewWithRustAuthority(
+        inputFileName,
+        inputSizeBytes,
+        options,
+        supportCacheKey
+          ? cachedComparisonSupportFiles(supportCacheKey)
+          : supportFiles,
+        resolvedRuntime,
+        verifiedInputSha256,
+        supportCacheKey,
+        knownReviewSummaryDigests,
+      ),
+    );
+  },
+
+  /** Fast A/B fallback when no verified persisted base can answer the request. */
+  async processReviewCsvBytes(
+    inputFileName: string,
+    csvBytes: ArrayBuffer,
+    incomingOptions?: Partial<BrowserProcessingOptions>,
+    supportFiles?: BrowserSupportFiles,
+    runtime?: BrowserProcessingRuntime,
+    verifiedInputSha256?: string,
+    supportCacheKey?: string,
+    knownReviewSummaryDigests?: string[],
+  ): Promise<ProcessedFileResult> {
+    const options: BrowserProcessingOptions = {
+      ...DEFAULT_BROWSER_OPTIONS,
+      ...incomingOptions,
+    };
+    const inputBytes = new Uint8Array(csvBytes);
+    const inputSha256 =
+      verifiedInputSha256 ?? (await computeSha256Hex(csvBytes));
+    if (!/^[0-9a-f]{64}$/.test(inputSha256)) {
+      throw new Error(
+        "verified input digest must be 64 lowercase hexadecimal characters",
+      );
+    }
+    const resolvedRuntime = effectiveRuntime(
+      runtime,
+      inputFileName,
+      inputSha256,
+    );
+    const result = await processRawCsvReviewWithRustAuthority(
+      inputFileName,
+      inputBytes,
+      options,
+      supportCacheKey
+        ? cachedComparisonSupportFiles(supportCacheKey)
+        : supportFiles,
+      resolvedRuntime,
+      inputSha256,
+      supportCacheKey,
+      knownReviewSummaryDigests,
+    );
+    return transferReviewResult(result)!;
   },
 };
 

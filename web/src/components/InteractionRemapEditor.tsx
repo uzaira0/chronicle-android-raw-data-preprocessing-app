@@ -70,8 +70,6 @@ export function InteractionRemapEditor({
           </p>
         ) : null}
         {rows.map((row, index) => (
-          // Rows are positional; index is a stable enough key for this small editor.
-          // eslint-disable-next-line react/no-array-index-key
           <div className="remap-editor__row" key={index}>
             <input
               type="text"

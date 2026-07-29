@@ -1,0 +1,6 @@
+{
+  "repository": "https://github.com/uzaira0/semantic-profile-registry",
+  "commit": "6a97b1670dab705baaba92a9e29483ea4fcf0eca",
+  "protocol_version": "0.1",
+  "vendored_paths": ["catalog", "protocol", "standards"]
+}

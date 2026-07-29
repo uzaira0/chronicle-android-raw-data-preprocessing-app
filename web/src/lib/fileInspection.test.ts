@@ -1,13 +1,79 @@
-import { describe, expect, it } from "vitest";
+import { readFile } from "node:fs/promises";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { effectiveWarnings, inspectRawFile } from "@/lib/fileInspection";
-import { DEFAULT_BROWSER_OPTIONS } from "@/lib/browserPipeline";
+import {
+  effectiveWarnings,
+  inspectRawFile,
+  inspectRawFiles,
+  setRawFileInspectorForTesting,
+} from "@/lib/fileInspection";
+import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
+import {
+  inspectRustRawFile,
+  setRustRuntimeForTesting,
+} from "@/lib/rustPipelineRuntime";
+import * as runtimeWasm from "@/wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm.js";
+
+const wasmInspector = (
+  fileName: string,
+  sizeBytes: number,
+  csvBytes: ArrayBuffer,
+) => inspectRustRawFile(new Uint8Array(csvBytes), fileName, sizeBytes);
+
+beforeAll(async () => {
+  const runtimeBytes = await readFile(
+    new URL(
+      "../wasm/chronicle_preprocessing_runtime_wasm/pkg/chronicle_preprocessing_runtime_wasm_bg.wasm",
+      import.meta.url,
+    ),
+  );
+  runtimeWasm.initSync({ module: runtimeBytes });
+  setRustRuntimeForTesting(runtimeWasm);
+  setRawFileInspectorForTesting(wasmInspector);
+});
+
+afterEach(() => setRawFileInspectorForTesting(wasmInspector));
 
 function fileFromText(name: string, text: string): File {
   return new File([text], name, { type: "text/csv" });
 }
 
 describe("fileInspection", () => {
+  it("uses singular and sampled plural wording for unrecognized interaction types", () => {
+    const inspection = {
+      fileName: "Raw.csv",
+      sizeBytes: 1,
+      rowCount: 1,
+      participantCount: 1,
+      columns: [],
+      timezones: [],
+      hasRequiredColumns: true,
+      invalidTimestampCount: 0,
+      missingTimestampCount: 0,
+      missingTimezoneCount: 0,
+      duplicateTimestampCount: 0,
+      outOfOrderTimestampCount: 0,
+      firstOutOfOrderRow: null,
+      warnings: [],
+      unrecognizedInteractionTypes: ["Vendor Event"],
+    };
+    expect(effectiveWarnings(inspection, DEFAULT_BROWSER_OPTIONS)[0]).toMatch(
+      /^1 unrecognized interaction type:/,
+    );
+    expect(
+      effectiveWarnings(
+        {
+          ...inspection,
+          unrecognizedInteractionTypes: ["A", "B", "C", "D", "E", "F"],
+        },
+        DEFAULT_BROWSER_OPTIONS,
+      )[0],
+    ).toContain("A, B, C, D, E, …");
+
+    setRawFileInspectorForTesting(null);
+    setRawFileInspectorForTesting(wasmInspector);
+  });
+
   it("reports ready metadata for a valid Chronicle CSV", async () => {
     const inspection = await inspectRawFile(
       fileFromText(
@@ -42,7 +108,10 @@ describe("fileInspection", () => {
     );
 
     expect(inspection.hasRequiredColumns).toBe(true);
-    expect(inspection.timezones).toEqual(["America/Chicago", "America/New_York"]);
+    expect(inspection.timezones).toEqual([
+      "America/Chicago",
+      "America/New_York",
+    ]);
     // The only thing different about this file is the second timezone; an
     // otherwise-valid multi-timezone file must produce zero warnings.
     expect(inspection.warnings).toEqual([]);
@@ -68,16 +137,23 @@ describe("fileInspection", () => {
     expect(inspection.missingTimestampCount).toBe(1);
     expect(inspection.missingTimezoneCount).toBe(1);
     expect(inspection.duplicateTimestampCount).toBe(1);
-    expect(inspection.warnings.join(" ")).toContain("File extension is not .csv");
-    expect(inspection.warnings.join(" ")).toContain("Duplicate column headers found");
+    expect(inspection.warnings.join(" ")).toContain(
+      "File extension is not .csv",
+    );
+    expect(inspection.warnings.join(" ")).toContain(
+      "Duplicate column headers found",
+    );
     expect(inspection.warnings.join(" ")).toContain("Invalid timezone values");
-    expect(inspection.warnings.join(" ")).toContain("rows have invalid event_timestamp values");
+    expect(inspection.warnings.join(" ")).toContain(
+      "rows have invalid event_timestamp values",
+    );
   });
 
   it("reports missing required columns and empty files", async () => {
     const inspection = await inspectRawFile(fileFromText("empty.csv", ""));
 
     expect(inspection.hasRequiredColumns).toBe(false);
+    expect(inspection.rowCount).toBe(0);
     expect(inspection.warnings.join(" ")).toContain("File is empty");
     expect(inspection.warnings.join(" ")).toContain("Missing required columns");
   });
@@ -86,6 +162,43 @@ describe("fileInspection", () => {
     "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone";
   const row = (interaction: string, ts: string): string =>
     `Study,P09,Target Child,Chat,${interaction},com.example.chat,${ts},America/Chicago`;
+
+  it("treats a missing timezone column as UTC fallback input", async () => {
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P01.csv",
+        [
+          "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp",
+          "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00",
+        ].join("\n"),
+      ),
+    );
+
+    expect(inspection.hasRequiredColumns).toBe(true);
+    expect(inspection.timezones).toEqual(["UTC"]);
+    expect(inspection.warnings).not.toContain("No timezone values found.");
+    expect(inspection.warnings.join(" ")).not.toContain("missing timezone values");
+    expect(inspection.warnings.join(" ")).not.toContain("Missing required columns");
+  });
+
+  it("uses UTC fallback metadata for blank and None timezone values", async () => {
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P01.csv",
+        [
+          HEADER,
+          "Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,",
+          "Study,P01,Target Child,Chat,Unknown importance: 2,com.example.chat,2026-03-07 10:05:00,None",
+        ].join("\n"),
+      ),
+    );
+
+    expect(inspection.timezones).toEqual(["UTC"]);
+    expect(inspection.missingTimezoneCount).toBe(2);
+    expect(inspection.warnings).not.toContain("No timezone values found.");
+    expect(inspection.warnings.join(" ")).not.toContain("missing timezone values");
+    expect(inspection.warnings.some((warning) => warning.includes("unrecognised timezone value"))).toBe(false);
+  });
 
   it("computes out-of-order metrics without raising a warning (pipeline re-sorts)", async () => {
     const inspection = await inspectRawFile(
@@ -105,9 +218,9 @@ describe("fileInspection", () => {
     expect(inspection.firstOutOfOrderRow).toBe(2);
     // …but it does NOT surface as a warning (the pipeline re-sorts, so it's not actionable).
     expect(inspection.warnings.join(" ")).not.toMatch(/chronological order/i);
-    expect(effectiveWarnings(inspection, DEFAULT_BROWSER_OPTIONS).join(" ")).not.toMatch(
-      /chronological order/i,
-    );
+    expect(
+      effectiveWarnings(inspection, DEFAULT_BROWSER_OPTIONS).join(" "),
+    ).not.toMatch(/chronological order/i);
   });
 
   it("out-of-order metric compares wall-clock as UTC, ignoring the timezone column (W2)", async () => {
@@ -119,9 +232,11 @@ describe("fileInspection", () => {
     const inspection = await inspectRawFile(
       fileFromText(
         "Raw P09 tz.csv",
-        [HEADER, tzRow("2026-03-07 10:00:00", "America/Chicago"), tzRow("2026-03-07 11:00:00", "Asia/Tokyo")].join(
-          "\n",
-        ),
+        [
+          HEADER,
+          tzRow("2026-03-07 10:00:00", "America/Chicago"),
+          tzRow("2026-03-07 11:00:00", "Asia/Tokyo"),
+        ].join("\n"),
       ),
     );
     expect(inspection.outOfOrderTimestampCount).toBe(0);
@@ -203,8 +318,11 @@ describe("fileInspection", () => {
       "Custom Vendor Event",
       "Unknown importance: 99",
     ]);
-    // The warning is now produced in effectiveWarnings (it depends on the remap option).
-    const warnings = effectiveWarnings(inspection, DEFAULT_BROWSER_OPTIONS).join(" ");
+    // The warning is produced in effectiveWarnings from the Rust inspection result.
+    const warnings = effectiveWarnings(
+      inspection,
+      DEFAULT_BROWSER_OPTIONS,
+    ).join(" ");
     expect(warnings).toContain("unrecognized interaction type");
     // Must point only at options that actually exist; uses the UI label "mappings".
     expect(warnings).toContain("interaction types to remove");
@@ -213,7 +331,7 @@ describe("fileInspection", () => {
     expect(warnings).not.toMatch(/remapping/i);
   });
 
-  it("excludes remapped interaction types from the unrecognized warning (#4)", async () => {
+  it("does not reinterpret Rust interaction warnings in TypeScript", async () => {
     const inspection = await inspectRawFile(
       fileFromText(
         "Raw P09 remap.csv",
@@ -226,16 +344,16 @@ describe("fileInspection", () => {
       ),
     );
 
-    // Map only one of the two unrecognized types: the other still warns.
+    // A remap may change execution in Rust, but the browser must not suppress
+    // Rust's preflight result using a second TypeScript parser.
     const oneMapped = effectiveWarnings(inspection, {
       ...DEFAULT_BROWSER_OPTIONS,
       interactionTypeRemap: ["Custom Vendor Event => Activity Resumed"],
     }).join(" ");
     expect(oneMapped).toContain("unrecognized interaction type");
     expect(oneMapped).toContain("Unknown importance: 99");
-    expect(oneMapped).not.toContain("Custom Vendor Event");
+    expect(oneMapped).toContain("Custom Vendor Event");
 
-    // Map both: the unrecognized warning disappears entirely.
     const allMapped = effectiveWarnings(inspection, {
       ...DEFAULT_BROWSER_OPTIONS,
       interactionTypeRemap: [
@@ -243,7 +361,195 @@ describe("fileInspection", () => {
         "Unknown importance: 99 => Activity Stopped",
       ],
     }).join(" ");
-    expect(allMapped).not.toContain("unrecognized interaction type");
+    expect(allMapped).toContain("unrecognized interaction type");
+    expect(allMapped).toContain("Custom Vendor Event");
+    expect(allMapped).toContain("Unknown importance: 99");
+  });
+
+  it("warns about duplicate timestamps only when the correction option is off", async () => {
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P09 dup.csv",
+        [
+          HEADER,
+          row("Unknown importance: 1", "2026-03-07 10:00:00"),
+          row("Unknown importance: 2", "2026-03-07 10:00:00"), // duplicate timestamp
+        ].join("\n"),
+      ),
+    );
+    expect(inspection.duplicateTimestampCount).toBe(1);
+
+    const withoutFix = effectiveWarnings(inspection, {
+      ...DEFAULT_BROWSER_OPTIONS,
+      correctDuplicateEventTimestamps: false,
+    }).join(" ");
+    expect(withoutFix).toContain("appear more than once");
+
+    const withFix = effectiveWarnings(inspection, {
+      ...DEFAULT_BROWSER_OPTIONS,
+      correctDuplicateEventTimestamps: true,
+    }).join(" ");
+    expect(withFix).not.toContain("appear more than once");
+  });
+
+  it("reports UTC fallback when the timezone column is present but has no values", async () => {
+    const tzBlank = (ts: string): string =>
+      `Study,P09,Target Child,Chat,Unknown importance: 1,com.example.chat,${ts},`;
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P09 no-tz.csv",
+        [
+          HEADER,
+          tzBlank("2026-03-07 10:00:00"),
+          tzBlank("2026-03-07 10:05:00"),
+        ].join("\n"),
+      ),
+    );
+    expect(inspection.timezones).toEqual(["UTC"]);
+    expect(inspection.missingTimezoneCount).toBe(2);
+    expect(inspection.hasRequiredColumns).toBe(true);
+    expect(inspection.warnings.join(" ")).not.toContain("timezone");
+  });
+
+  it("inspects multiple files in one call", async () => {
+    const inspections = await inspectRawFiles([
+      fileFromText(
+        "Raw A.csv",
+        [
+          HEADER,
+          `Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago`,
+        ].join("\n"),
+      ),
+      fileFromText(
+        "Raw B.csv",
+        [
+          HEADER,
+          `Study,P02,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago`,
+        ].join("\n"),
+      ),
+    ]);
+    expect(inspections).toHaveLength(2);
+    expect(inspections.map((i) => i.fileName)).toEqual([
+      "Raw A.csv",
+      "Raw B.csv",
+    ]);
+  });
+
+  it("parses exact duplicate content once while preserving both file labels", async () => {
+    const inspector = vi.fn(wasmInspector);
+    setRawFileInspectorForTesting(inspector);
+    const text = [
+      HEADER,
+      `Study,P01,Target Child,Chat,Unknown importance: 1,com.example.chat,2026-03-07 10:00:00,America/Chicago`,
+    ].join("\n");
+    const inspections = await inspectRawFiles([
+      fileFromText("Raw A.csv", text),
+      fileFromText("Raw B.csv", text),
+    ]);
+    expect(inspector).toHaveBeenCalledTimes(1);
+    expect(inspections.map(({ fileName }) => fileName)).toEqual([
+      "Raw A.csv",
+      "Raw B.csv",
+    ]);
+    expect(inspections[0]?.inputSha256).toBe(inspections[1]?.inputSha256);
+  });
+
+  it("truncates the unrecognized-type sample to five with an ellipsis when more exist", async () => {
+    // Six distinct unrecognized types → the sample shows five plus ", …".
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P09 many-unknown.csv",
+        [
+          HEADER,
+          row("Vendor A", "2026-03-07 10:00:00"),
+          row("Vendor B", "2026-03-07 10:01:00"),
+          row("Vendor C", "2026-03-07 10:02:00"),
+          row("Vendor D", "2026-03-07 10:03:00"),
+          row("Vendor E", "2026-03-07 10:04:00"),
+          row("Vendor F", "2026-03-07 10:05:00"),
+        ].join("\n"),
+      ),
+    );
+    expect(inspection.unrecognizedInteractionTypes).toHaveLength(6);
+    const warnings = effectiveWarnings(
+      inspection,
+      DEFAULT_BROWSER_OPTIONS,
+    ).join(" ");
+    // Sample is capped at five names and ends with the ellipsis continuation.
+    expect(warnings).toContain(
+      "Vendor A, Vendor B, Vendor C, Vendor D, Vendor E, …",
+    );
+    expect(warnings).not.toContain("Vendor F,");
+  });
+
+  it("ignores an offset-bearing timestamp in the out-of-order metric (append-Z makes it unparseable)", async () => {
+    // A timestamp that already carries a UTC offset passes the format check but,
+    // once "Z" is appended for the deterministic UTC parse, becomes NaN and is
+    // skipped by the out-of-order scan — so it never counts as out of order.
+    const offsetRow = (ts: string): string =>
+      `Study,P09,Target Child,Chat,Unknown importance: 1,com.example.chat,${ts},America/Chicago`;
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P09 offset.csv",
+        [
+          HEADER,
+          offsetRow("2026-03-07 12:00:00"),
+          offsetRow("2026-03-07T10:00:00+05:00"), // earlier wall-clock, but offset → skipped
+        ].join("\n"),
+      ),
+    );
+    // The offset row is valid per the format regex, so it is NOT counted invalid…
+    expect(inspection.invalidTimestampCount).toBe(0);
+    // …but it is skipped by the out-of-order scan, so no out-of-order is recorded.
+    expect(inspection.outOfOrderTimestampCount).toBe(0);
+    expect(inspection.firstOutOfOrderRow).toBeNull();
+  });
+
+  it("records the FIRST out-of-order row only, even with several out-of-order rows", async () => {
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw P09 multi-ooo.csv",
+        [
+          HEADER,
+          row("Unknown importance: 1", "2026-03-07 12:00:00"),
+          row("Unknown importance: 2", "2026-03-07 09:00:00"), // out of order (row 2)
+          row("Unknown importance: 1", "2026-03-07 08:00:00"), // out of order again (row 3)
+        ].join("\n"),
+      ),
+    );
+    expect(inspection.outOfOrderTimestampCount).toBe(2);
+    // firstOutOfOrderRow is pinned at the first occurrence and not overwritten.
+    expect(inspection.firstOutOfOrderRow).toBe(2);
+  });
+
+  it("tolerates rows with fewer columns than the header (absent trailing fields)", async () => {
+    // Data rows shorter than the header leave later fields absent on the parsed
+    // row object; the inspector coalesces every missing field (participant_id,
+    // interaction_type, event_timestamp, timezone) to "" rather than throwing.
+    // event_timestamp is placed early so the second row can carry a VALID
+    // timestamp while still omitting participant_id — exercising the
+    // participant lookup inside the out-of-order scan on an absent id.
+    const inspection = await inspectRawFile(
+      fileFromText(
+        "Raw short.csv",
+        [
+          "study_id,event_timestamp,interaction_type,participant_id,timezone",
+          "Study", // everything after study_id absent (no timestamp, tz, id, type)
+          "Study,2026-03-07 10:00:00", // valid timestamp; id/type/tz absent
+        ].join("\n"),
+      ),
+    );
+    // Absent participant_id on every row → zero distinct participants.
+    expect(inspection.participantCount).toBe(0);
+    // Row 1 has an absent event_timestamp → counted as missing (row 2 has one).
+    expect(inspection.missingTimestampCount).toBe(1);
+    // Both rows have an absent timezone → both counted as missing.
+    expect(inspection.missingTimezoneCount).toBe(2);
+    // Absent interaction_type contributes nothing to the unrecognized set.
+    expect(inspection.unrecognizedInteractionTypes).toEqual([]);
+    // Row 2's valid timestamp reaches the out-of-order scan with an absent id;
+    // with only one datable row nothing is out of order.
+    expect(inspection.outOfOrderTimestampCount).toBe(0);
   });
 
   it("does not flag canonical interaction-type names as unrecognized", async () => {

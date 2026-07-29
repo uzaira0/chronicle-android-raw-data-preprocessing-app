@@ -40,7 +40,7 @@ function dataRowForPrimitive(meta: WaterfallSceneMeta | undefined, p: Primitive)
     if (p.x + p.w < meta.gutter) return null;
     const row = rowAtY(meta, p.y + p.h / 2);
     if (row === null) return null;
-    const rowMeta = meta.rows[row]!;
+    const rowMeta = meta.rows[row];
     if (p.y < rowMeta.y - 0.01 || p.y + p.h > rowMeta.y + rowMeta.h + 0.01) return null;
     return row;
   }
@@ -181,7 +181,7 @@ function paintHighlights(
       ctx.strokeRect(x, region.y, w, region.h);
     };
     if (row !== null && transform && transform.zoom > 1) {
-      const rowMeta = meta.rows[row]!;
+      const rowMeta = meta.rows[row];
       ctx.save();
       ctx.beginPath();
       ctx.rect(meta.gutter, rowMeta.y, meta.plotWidth, rowMeta.h);
@@ -204,7 +204,7 @@ function renderScene(
     const row = dataRowForPrimitive(meta, p);
     const rowTransform = row !== null ? transforms[row] : undefined;
     if (meta && row !== null && rowTransform && rowTransform.zoom > 1) {
-      const rowMeta = meta.rows[row]!;
+      const rowMeta = meta.rows[row];
       ctx.save();
       ctx.beginPath();
       ctx.rect(meta.gutter, rowMeta.y, meta.plotWidth, rowMeta.h);
@@ -300,7 +300,6 @@ export function InteractiveScene({
   // effect (which lists `gaps` as a dep) would re-run on every parent render.
   const gaps = useMemo(
     () => gapDates ?? emptyGaps,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [gapKey, emptyGaps],
   );
 
@@ -540,8 +539,8 @@ export function InteractiveScene({
 
   const focusAnnouncement =
     focusVisible && focusedRow !== null && meta?.rows[focusedRow]
-      ? `Row ${focusedRow + 1} of ${meta.rows.length}: ${meta.rows[focusedRow]!.date}${
-          rowTransforms[focusedRow] ? `, zoomed ${rowTransforms[focusedRow]!.zoom.toFixed(1)}×` : ""
+      ? `Row ${focusedRow + 1} of ${meta.rows.length}: ${meta.rows[focusedRow].date}${
+          rowTransforms[focusedRow] ? `, zoomed ${rowTransforms[focusedRow].zoom.toFixed(1)}×` : ""
         }`
       : "";
 

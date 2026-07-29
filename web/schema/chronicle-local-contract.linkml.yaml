@@ -29,6 +29,7 @@ enums:
       aggregate:
       parquet:
       spss:
+      lineage:
   AggregateShape:
     description: Layout for the daily/weekly aggregate summaries (#12 long ⇄ wide).
     permissible_values:
@@ -53,6 +54,34 @@ enums:
         description: The app was the sole foreground app for the sub-interval.
       secondary:
         description: The app was running underneath another foreground app.
+  ColumnValueType:
+    description: Value type of an output CSV column (as researchers receive it).
+    permissible_values:
+      string:
+      integer:
+      float:
+      binary_flag:
+        description: 0/1 indicator column.
+      timestamp:
+        description: Wall-clock timestamp text in the row's output timezone.
+      date:
+        description: YYYY-MM-DD in the row's output timezone.
+      list_text:
+        description: Python-style list literal rendered as text (e.g. "['>12-HR TIME GAP']").
+  PipelineSection:
+    description: The four processing tiers of the pipeline graph.
+    permissible_values:
+      preprocess:
+      clean:
+      analyze:
+      output:
+  PipelineKnobEdge:
+    description: >-
+      How an option binds to a pipeline node: 'gates' turns the step on/off,
+      'tunes' parameterizes its transform ('feeds' edges are the inputs list).
+    permissible_values:
+      gates:
+      tunes:
 
 classes:
   BrowserSupportFile:
@@ -66,6 +95,10 @@ classes:
       - apps_forcing_screen_open_file
       - background_apps_file
       - app_codebook_file
+      - study_dates_file
+      - device_sharing_file
+      - survey_attribution_file
+      - enrolled_devices_file
 
   BrowserProcessingRuntime:
     slots:
@@ -117,6 +150,106 @@ classes:
       - interaction_type_remap
       - proximity_interval_seconds
       - add_no_activity_placeholder_days
+      - enable_screen_gated_crediting
+      - credited_session_cap_minutes
+      - device_liveness_gap_tolerance_minutes
+      - auto_lock_bridge_seconds
+      - no_witness_min_day_apps
+      - enable_study_window_filter
+      - enable_person_attribution
+      - enable_compliance_scoring
+      - compliance_threshold_percent
+      - enable_day_coverage
+
+  OutputColumn:
+    description: >-
+      Semantics of one column of the delivered App Usage / Screen Usage CSVs.
+      Hand-authored layer over the output columns emitted by the Rust pipeline;
+      the bijection between this catalog and the code is enforced by
+      web/scripts/generate_output_codebook_artifacts.mts, which also renders
+      docs/researcher-output-codebook.md from it.
+    slots:
+      - column_name
+      - column_outputs
+      - value_type
+      - units
+      - column_description
+      - present_when
+      - filter_dependent
+      - vocabulary_alignment
+
+  OutputColumnCatalog:
+    slots:
+      - output_columns
+
+  PipelineKnobBinding:
+    description: An option bound to a pipeline node (a 'gates' or 'tunes' edge).
+    slots:
+      - option_key
+      - edge
+
+  PipelineNode:
+    description: >-
+      One display group in the Rust preprocessing graph. It is projected from
+      rust/chronicle_chrono_kernel_wasm/src/step_contract.rs by
+      web/scripts/generate_pipeline_graph_artifacts.mts. The group does not
+      schedule execution; the 55 Rust queries do.
+    slots:
+      - node_id
+      - node_label
+      - section
+      - node_inputs
+      - node_knobs
+      - node_support_files
+      - has_bypass
+      - has_early_cutoff
+
+  PipelineStep:
+    description: >-
+      One transformation of the flat 55-step DAG, projected from the Rust step
+      contract and checked against the direct calls made by each Salsa query.
+      unit_id groups steps for display only and never controls memoization or
+      execution.
+    slots:
+      - step_id
+      - step_label
+      - step_description
+      - unit_id
+      - step_inputs
+      - has_bypass
+
+  PipelineGraph:
+    description: >-
+      The full pipeline DAG at both scales: unit nodes (the engine's
+      memoization boundary, carrying their 'feeds' edges as inputs) and the
+      flat step DAG they group.
+    slots:
+      - graph_nodes
+      - graph_steps
+
+  RawChronicleEventRecord:
+    description: >-
+      One row of the RAW Chronicle CSV as uploaded (the ingest boundary).
+      Slot names are the LITERAL raw column headers — they are deliberately
+      not camelized anywhere, and this class is not part of the OpenAPI
+      surface (raw rows travel inside csvText, never as JSON). The required
+      slots are ADVISORY: fileInspection derives REQUIRED_RAW_COLUMNS from
+      them and warns — never blocks — when a header is missing, preserving
+      the desktop preprocessor's ingest tolerance. start_timestamp /
+      stop_timestamp appear only in some Chronicle exports;
+      possible_device_model and username are likewise export-dependent.
+    slots:
+      - study_id
+      - participant_id
+      - possible_device_model
+      - username
+      - application_label
+      - interaction_type
+      - app_package_name
+      - event_timestamp
+      - start_timestamp
+      - stop_timestamp
+      - timezone
 
   ProcessedOutputFileResult:
     slots:
@@ -155,6 +288,30 @@ slots:
     range: BrowserSupportFile
   app_codebook_file:
     range: BrowserSupportFile
+  study_dates_file:
+    range: BrowserSupportFile
+    description: >-
+      Study-dates table (CSV/XLSX): one row per participant with the study
+      window start and end dates. Consumed by the observation-window step.
+      Columns: participant_id, start_date, end_date (ISO dates, inclusive).
+  device_sharing_file:
+    range: BrowserSupportFile
+    description: >-
+      Device-sharing table (CSV/XLSX): the sharing status per device.
+      Consumed by person attribution. Columns: participant_id,
+      sharing_status ("Shared" or "Non-Shared"). Devices are matched exactly
+      first, then by numerical id + device number (bare id = device 1);
+      a configured table that misses a device is a hard error.
+  survey_attribution_file:
+    range: BrowserSupportFile
+    description: >-
+      Usage-survey answers (CSV/XLSX) that relabel a session's username at an
+      exact event timestamp. Columns: participant_id, event_timestamp, users.
+  enrolled_devices_file:
+    range: BrowserSupportFile
+    description: >-
+      Enrolled/expected device counts per participant (CSV/XLSX) — the
+      denominator for compliance validity. Columns: participant_id, device_count.
   datetime_of_preprocessing:
     description: >
       Internal/test-only fixed preprocessing timestamp used to make output stamping
@@ -162,6 +319,8 @@ slots:
 
   study_name:
     required: true
+    annotations:
+      configuration_axis: annotation
     title: "Study name"
     description: >-
       Your label for this study. Written into the `study_name` column of every output row.
@@ -276,8 +435,10 @@ slots:
     title: "Use filter file"
     description: >-
       If on, the pipeline labels apps in your filter list as filtered (instead of dropping them).
-      Without an uploaded file the app falls back to the bundled default.
-    default: true
+      Without an uploaded file the app falls back to the bundled default. Off by default:
+      this is an app-policy (cleaning) decision, not part of standard preprocessing —
+      enable it only when your study's protocol says to.
+    default: false
   use_apps_forcing_screen_open_file:
     range: boolean
     required: true
@@ -320,6 +481,8 @@ slots:
   enable_plotting:
     range: boolean
     required: true
+    annotations:
+      configuration_axis: view
     title: "Generate app-usage plots"
     description: >-
       After preprocessing, renders one horizontal-bar timeline chart per participant
@@ -328,6 +491,8 @@ slots:
   include_filtered_app_usage_in_plots:
     range: boolean
     required: true
+    annotations:
+      configuration_axis: view
     title: "Include filtered apps in plots"
     description: >-
       When on, bars for apps that were filtered (but retained in the output)
@@ -336,6 +501,8 @@ slots:
   enable_activity_heatmap:
     range: boolean
     required: true
+    annotations:
+      configuration_axis: view
     title: "Generate activity heatmaps"
     description: >-
       Alongside the timeline chart, render an hour-of-day × calendar-day heatmap
@@ -346,6 +513,8 @@ slots:
   export_plots_as_svg:
     range: boolean
     required: true
+    annotations:
+      configuration_axis: view
     title: "Also export plots as SVG (vector)"
     description: >-
       In addition to the PNG charts, write a scalable vector SVG of each plot
@@ -397,6 +566,8 @@ slots:
   enable_interactive_timeline:
     range: boolean
     required: true
+    annotations:
+      configuration_axis: view
     title: "Interactive timeline explorer"
     description: >-
       Show an in-browser zoomable/pannable timeline of every session (app and
@@ -415,8 +586,10 @@ slots:
     description: >-
       Sessions shorter than this threshold have their duration_seconds and duration_minutes
       set to null in the output. The session row is retained. Set to 0 to disable.
-    example: "default 0 (disabled)"
-    default: 0
+      The 60-second default nulls sub-minute foreground blips (UI transitions and
+      glances), matching the studies' locked preprocessing configuration.
+    example: "default 60 seconds"
+    default: 60
   filter_zero_duration_sessions:
     range: boolean
     required: true
@@ -436,8 +609,108 @@ slots:
       session stays open for the next genuine stop event. Set to 0 to disable. When on,
       app-usage matching runs in a JavaScript matcher path (the shared WASM matcher has no
       proximity parameter); with it off the output is byte-identical to before.
-    example: "default 0 (disabled)"
-    default: 0.0
+      The 2-second default matches the studies' locked preprocessing configuration.
+    example: "default 2 seconds"
+    default: 2.0
+  enable_screen_gated_crediting:
+    range: boolean
+    required: true
+    title: "Screen-gated usage credit"
+    description: >-
+      Emit an additional, side-by-side "Credited App Usage" CSV in which each
+      app session is reduced to the intervals where the screen was witnessed ON
+      and the device was demonstrably alive (event cadence within the liveness
+      tolerance), truncated at the credited-session cap. The headline app-usage
+      output is never changed by this option. Long held-open sessions are
+      credited only while the device was actually lit and alive. Off by default.
+    default: false
+  credited_session_cap_minutes:
+    range: integer
+    required: true
+    title: "Credited-session cap (minutes)"
+    description: >-
+      Upper bound on any single credited session interval. Credit is truncated
+      at this many minutes from the session start (never zeroed out).
+    example: "default 360 minutes (6 hours)"
+    default: 360
+  device_liveness_gap_tolerance_minutes:
+    range: integer
+    required: true
+    title: "Device-liveness gap tolerance (minutes)"
+    description: >-
+      An event silence shorter than this keeps the device "alive" for
+      crediting; a longer silence breaks the chain. A Device Startup landing
+      inside a silence always breaks it (a boot proves the device was off).
+    example: "default 120 minutes"
+    default: 120
+  auto_lock_bridge_seconds:
+    range: integer
+    required: true
+    title: "Auto-lock bridge (seconds)"
+    description: >-
+      A screen-OFF blip shorter than this cannot be the device auto-lock, so
+      credit bridges across it (screen bounce, not a real lock).
+    example: "default 120 seconds"
+    default: 120
+  no_witness_min_day_apps:
+    range: integer
+    required: true
+    title: "No-witness fallback: min distinct apps per day"
+    description: >-
+      When a session has no screen witness at all, credit its alive time only
+      if the participant-day switched across at least this many distinct apps
+      (you cannot switch apps on a dark screen). Below the floor, the session
+      earns no credit.
+    example: "default 2"
+    default: 2
+  enable_study_window_filter:
+    range: boolean
+    required: true
+    title: "Study-window filter"
+    description: >-
+      Keep only sessions whose LOCAL calendar date falls inside the
+      participant's study window from the study-dates file (inclusive).
+      Requires the study-dates support file.
+    default: false
+  enable_person_attribution:
+    range: boolean
+    required: true
+    title: "Person attribution (shared devices)"
+    description: >-
+      On shared devices, attribute each session to a person using the
+      device-sharing table (exact participant match only) and optional
+      usage-survey answers; usage attributed to someone other than the target
+      becomes "Non-Target Child App Usage" (kept, excluded from screen time).
+      Requires the device-sharing support file.
+    default: false
+  enable_compliance_scoring:
+    range: boolean
+    required: true
+    title: "Compliance scoring"
+    description: >-
+      Emit a per-participant-day compliance report: known / (known + unknown)
+      attributed minutes, with non-shared devices at 100 by definition. Days
+      at 100 with zero real usage are kept but flagged.
+    default: false
+  compliance_threshold_percent:
+    range: float
+    required: true
+    title: "Compliance threshold (%)"
+    description: >-
+      A day counts as valid when its compliance is at or above this percent.
+      Study-specific; the default mirrors the common 70% rule.
+    example: "default 70"
+    default: 70
+  enable_day_coverage:
+    range: boolean
+    required: true
+    title: "Day coverage report"
+    description: >-
+      Emit a per-participant-day coverage report distinguishing days with
+      usage, "no activity" days (raw events but no usage), and "no data" days
+      (device silent), across the study window when one is loaded. Fails loudly
+      if any windowed day would end uncovered.
+    default: false
   add_no_activity_placeholder_days:
     range: boolean
     required: true
@@ -541,6 +814,8 @@ slots:
   parallel_processing:
     range: boolean
     required: true
+    annotations:
+      configuration_axis: execution
     title: "Enable parallel file processing"
     description: >-
       When this is on, the app can process more than one uploaded raw file at the same time.
@@ -548,6 +823,8 @@ slots:
     default: true
   parallel_max_workers:
     range: integer
+    annotations:
+      configuration_axis: execution
     title: "Max parallel workers"
     description: >-
       The maximum number of files the app may process at the same time.
@@ -569,10 +846,17 @@ slots:
     description: >-
       Interaction types from any other source that close the current session —
       e.g. a different app coming to the foreground or the device shutting down.
+      "End of Usage Missing" is an unmatched foreground/resume (the app came to
+      the foreground; only its close was never seen), so it also displaces
+      whatever was foreground and must interrupt other app usage — without it an
+      unmatched filtered foreground silently stopped interrupting valid sessions
+      only when the filter was on (the two-pass interrupt leak).
     default:
       - "Activity Resumed"
       - "Filtered App Resumed"
       - "Filtered App Usage"
+      - "Filtered App Background Usage"
+      - "End of Usage Missing"
       - "Device Shutdown"
   interaction_types_to_remove:
     multivalued: true
@@ -651,3 +935,145 @@ slots:
       For concurrent-usage output only: 'primary' when the app was the sole
       foreground app for the row's sub-interval, 'secondary' when it was running
       underneath another app. Absent when model_concurrent_usage is off.
+
+  # ── Output-column semantics (OutputColumn / OutputColumnCatalog) ──
+  column_name:
+    required: true
+    identifier: true
+    description: >-
+      Column header as delivered. Dynamic headers use a {placeholder} for the
+      option-dependent part (e.g. valid_app_new_engage_custom_{custom_app_engagement_duration}s).
+  column_outputs:
+    range: OutputKind
+    multivalued: true
+    required: true
+    description: Which delivered CSVs carry the column (app and/or screen).
+  value_type:
+    range: ColumnValueType
+    required: true
+  units:
+    description: Measurement units, when the column is a quantity (seconds, minutes, hours).
+  column_description:
+    required: true
+    description: Researcher-facing meaning of the column.
+  present_when:
+    description: >-
+      Option condition for conditional columns (snake_case contract slot
+      expression); absent for always-present columns.
+  filter_dependent:
+    range: boolean
+    description: >-
+      True when the column's value is defined over the filtered-app universe,
+      so toggling use_filter_file legitimately changes it (the valid_app_*
+      engagement walk).
+  vocabulary_alignment:
+    description: >-
+      Community vocabulary the column is grounded in (Android UsageEvents
+      constants, EYES manual metrics, P&T terminology), where one exists.
+  output_columns:
+    range: OutputColumn
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+
+  # ── Pipeline graph (PipelineGraph / PipelineNode / PipelineKnobBinding) ──
+  option_key:
+    required: true
+    description: >-
+      snake_case slot name of the bound BrowserProcessingOptions option (the
+      camelCase runtime key is derived the same way generatedContract.ts is).
+  edge:
+    range: PipelineKnobEdge
+    required: true
+  node_id:
+    required: true
+    identifier: true
+    description: Stable snake_case node id (community-grounded vocabulary).
+  node_label:
+    required: true
+    description: Human label shown in the graph view.
+  section:
+    range: PipelineSection
+    required: true
+  node_inputs:
+    multivalued: true
+    description: Upstream node ids — the 'feeds' edges.
+  node_knobs:
+    range: PipelineKnobBinding
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+  node_support_files:
+    multivalued: true
+    description: BrowserSupportFiles slot names whose content the node reads.
+  has_bypass:
+    range: boolean
+    required: true
+    description: Whether the node declares a bypassedWhen predicate.
+  has_early_cutoff:
+    range: boolean
+    required: true
+    description: >-
+      Whether the node declares early cutoff (Salsa backdating) — a rerun
+      whose output is deep-equal to the cached value keeps its stamp, so the
+      downstream cone stays cached.
+  graph_nodes:
+    range: PipelineNode
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+  step_id:
+    required: true
+    identifier: true
+    description: Globally unique snake_case step id (flat step DAG).
+  step_label:
+    required: true
+    description: Human label shown in the graph view at step scale.
+  step_description:
+    required: true
+    description: One-liner — what the transformation actually does.
+  unit_id:
+    required: true
+    description: >-
+      PipelineNode id of the execution unit the step runs inside (the
+      engine's memoization boundary — an arbitrary-scale grouping).
+  step_inputs:
+    multivalued: true
+    description: >-
+      Upstream step ids — real dataflow edges (a cross-unit port edge
+      resolves to the port's source step).
+  graph_steps:
+    range: PipelineStep
+    multivalued: true
+    inlined: true
+    inlined_as_list: true
+
+  # ── RawChronicleEventRecord: literal raw CSV column headers ──────────────
+  # required = advisory presence expectation (fileInspection warns, never
+  # blocks). `timezone` (also required) is reused from the shared slots above.
+  study_id:
+    required: true
+    description: Chronicle study identifier stamped on every exported row.
+  participant_id:
+    required: true
+    description: Chronicle participant identifier (always treated as a string).
+  possible_device_model:
+    description: Device-model hint present in some Chronicle exports.
+  username:
+    description: Device username column present in some Chronicle exports.
+  application_label:
+    required: true
+    description: Human-readable app label as reported by Chronicle.
+  interaction_type:
+    required: true
+    description: Raw Chronicle interaction type (e.g. "Activity Resumed").
+  app_package_name:
+    required: true
+    description: Android package name of the app the event belongs to.
+  event_timestamp:
+    required: true
+    description: Event timestamp text; rows without one are dropped at parse.
+  start_timestamp:
+    description: Pre-paired session start present only in some exports.
+  stop_timestamp:
+    description: Pre-paired session stop present only in some exports.

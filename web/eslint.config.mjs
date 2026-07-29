@@ -17,4 +17,13 @@ export default tseslint.config(
       parserOptions: { projectService: true },
     },
   },
+  {
+    files: ['src/**/*.js'],
+    languageOptions: {
+      globals: {
+        document: 'readonly',
+        window: 'readonly',
+      },
+    },
+  },
 );
