@@ -30,7 +30,12 @@ function createLabeler(prefix: string) {
 }
 
 function replaceExactAll(source: string, value: string, replacement: string): string {
+  // text() pre-filters empty exact values, so this is unreachable from the
+  // public API; the guard stays because "".includes("") is true and an empty
+  // needle would loop forever.
+  /* v8 ignore start */
   if (!value) return source;
+  /* v8 ignore stop */
   if (!source.includes(value)) return source;
   let cursor = 0;
   let next = source;

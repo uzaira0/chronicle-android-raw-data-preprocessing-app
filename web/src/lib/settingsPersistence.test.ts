@@ -258,6 +258,24 @@ describe("config export / import / shared URL", () => {
     expect(imported.presets).toEqual([]);
   });
 
+  it("rejects a non-JSON file with the friendly import message", async () => {
+    const file = new File(["not json {"], "config.json");
+    await expect(readConfigFile(file)).rejects.toThrow(
+      "The selected file is not valid JSON. Make sure you're importing a Chronicle config file.",
+    );
+  });
+
+  it("resets an unknown timezoneHandling value to the default", async () => {
+    const file = new File(
+      [JSON.stringify({ currentSettings: { timezoneHandling: "bogus-mode" } })],
+      "config.json",
+    );
+    const imported = await readConfigFile(file);
+    expect(imported.options.timezoneHandling).toBe(
+      DEFAULT_BROWSER_OPTIONS.timezoneHandling,
+    );
+  });
+
   it("readSharedConfig returns null for absent or invalid search params", () => {
     expect(readSharedConfig("")).toBeNull();
     expect(readSharedConfig("?cfg=%%%broken")).toBeNull();

@@ -8,6 +8,7 @@ import {
   getPlanStageView,
   importVerifiedWorkspaceClosure,
   inspectRawCsvBytes,
+  clearReviewSummaryReuseCache,
   processPersistedReview,
   processPersistedOrRawChangedReviewViaPool,
   processPersistedReviewViaPool,
@@ -1009,6 +1010,201 @@ describe("shared worker successful routing and WASM compilation", () => {
       if (original) {
         Object.defineProperty(WebAssembly, "compileStreaming", original);
       }
+    }
+  });
+});
+
+describe("review summary reuse cache (ETag semantics for the 2+ MB summary)", () => {
+  function summaryResult(
+    digest: string,
+    bytes: Uint8Array,
+  ): ProcessedFileResult {
+    return {
+      outputFileName: "out.csv",
+      reviewSummaryJsonBytes: bytes,
+      rustReviewReceipt: { reviewSummaryDigest: digest },
+    } as unknown as ProcessedFileResult;
+  }
+
+  function reusedResult(digest?: string): ProcessedFileResult {
+    return {
+      outputFileName: "out.csv",
+      reviewSummaryReused: true,
+      rustReviewReceipt: digest ? { reviewSummaryDigest: digest } : undefined,
+    } as unknown as ProcessedFileResult;
+  }
+
+  function reviewPool(results: Array<ProcessedFileResult | Error>) {
+    const seenDigests: Array<string[] | undefined> = [];
+    const harness = stubSpawn({
+      processPersistedReview: vi.fn((...args: unknown[]) => {
+        seenDigests.push(args[7] as string[] | undefined);
+        const next = results.shift();
+        if (!next) throw new Error("test queue exhausted");
+        if (next instanceof Error) return Promise.reject(next);
+        return Promise.resolve(next);
+      }),
+    });
+    return { pool: new WorkerPool(1, harness.spawn), seenDigests };
+  }
+
+  function dispatch(pool: WorkerPool, inputSha: string) {
+    return processPersistedOrRawChangedReviewViaPool(
+      pool,
+      "pair.csv",
+      3,
+      vi.fn(),
+      {} as BrowserProcessingOptions,
+      undefined,
+      undefined,
+      inputSha,
+    );
+  }
+
+  it("stores a fresh summary, offers its digest, and reattaches bytes on reuse", async () => {
+    const inputSha = "a".repeat(64);
+    const bytes = new Uint8Array([10, 20, 30]);
+    const { pool, seenDigests } = reviewPool([
+      summaryResult("digest-1", bytes),
+      reusedResult("digest-1"),
+    ]);
+    const first = await dispatch(pool, inputSha);
+    expect(seenDigests[0]).toBeUndefined();
+    expect(first.reviewSummaryJsonBytes).toBe(bytes);
+
+    const second = await dispatch(pool, inputSha);
+    expect(seenDigests[1]).toEqual(["digest-1"]);
+    expect(second.reviewSummaryReused).toBe(true);
+    expect(second.reviewSummaryJsonBytes).toBe(bytes);
+    pool.terminate();
+    clearReviewSummaryReuseCache();
+  });
+
+  it("throws when the runtime reuses a digest the client never stored", async () => {
+    const { pool } = reviewPool([
+      reusedResult("digest-unknown"),
+      reusedResult(undefined),
+    ]);
+    await expect(dispatch(pool, "b".repeat(64))).rejects.toThrow(
+      "runtime reused a review summary the client no longer holds",
+    );
+    await expect(dispatch(pool, "b".repeat(64))).rejects.toThrow(
+      "runtime reused a review summary the client no longer holds",
+    );
+    pool.terminate();
+    clearReviewSummaryReuseCache();
+  });
+
+  it("evicts the oldest digest beyond capacity and refreshes recency on reuse", async () => {
+    const inputSha = "c".repeat(64);
+    const digests = Array.from({ length: 9 }, (_, i) => `digest-${i + 1}`);
+    const { pool, seenDigests } = reviewPool([
+      ...digests
+        .slice(0, 8)
+        .map((d, i) => summaryResult(d, new Uint8Array([i]))),
+      reusedResult("digest-1"),
+      summaryResult("digest-9", new Uint8Array([9])),
+      reusedResult("digest-2"),
+    ]);
+    for (let i = 0; i < 8; i += 1) await dispatch(pool, inputSha);
+    // Reuse digest-1: moves it to newest, so the next store evicts digest-2.
+    await dispatch(pool, inputSha);
+    await dispatch(pool, inputSha);
+    // digest-2 was evicted, so a runtime claiming to reuse it is a contract
+    // violation.
+    await expect(dispatch(pool, inputSha)).rejects.toThrow(
+      "runtime reused a review summary the client no longer holds",
+    );
+    // The offer that final dispatch carried shows the post-eviction LRU order.
+    expect(seenDigests.at(-1)).toEqual([
+      "digest-3",
+      "digest-4",
+      "digest-5",
+      "digest-6",
+      "digest-7",
+      "digest-8",
+      "digest-1",
+      "digest-9",
+    ]);
+    pool.terminate();
+    clearReviewSummaryReuseCache();
+  });
+
+  it("clearReviewSummaryReuseCache forgets every stored summary", async () => {
+    const inputSha = "d".repeat(64);
+    const { pool, seenDigests } = reviewPool([
+      summaryResult("digest-1", new Uint8Array([1])),
+      summaryResult("digest-2", new Uint8Array([2])),
+    ]);
+    await dispatch(pool, inputSha);
+    clearReviewSummaryReuseCache();
+    await dispatch(pool, inputSha);
+    expect(seenDigests[1]).toBeUndefined();
+    pool.terminate();
+    clearReviewSummaryReuseCache();
+  });
+
+  it("applies reuse across the shared-worker persisted/raw review path", async () => {
+    const inputSha = "e".repeat(64);
+    const bytes = new Uint8Array([7, 8]);
+    const persistedCalls: Array<string[] | undefined> = [];
+    const api = {
+      initializeRuntime: vi.fn(() => Promise.resolve()),
+      hasComparisonSupportFiles: vi
+        .fn()
+        .mockResolvedValueOnce(false)
+        .mockResolvedValue(true),
+      cacheComparisonSupportFiles: vi.fn(() => Promise.resolve()),
+      processPersistedReview: vi.fn((...args: unknown[]) => {
+        persistedCalls.push(args[7] as string[] | undefined);
+        return Promise.resolve(
+          persistedCalls.length === 1 ? null : reusedResult("digest-shared"),
+        );
+      }),
+      processReviewCsvBytes: vi.fn(() =>
+        Promise.resolve(summaryResult("digest-shared", bytes)),
+      ),
+    } as unknown as RemoteApi;
+    const module = {} as WebAssembly.Module;
+    const compileStreaming = vi
+      .spyOn(WebAssembly, "compileStreaming")
+      .mockResolvedValue(module);
+    try {
+      const client = await loadFreshWorkerClient(
+        api,
+        new Response(new Uint8Array([0, 97, 115, 109]), {
+          headers: { "content-type": "application/wasm" },
+        }),
+      );
+      const load = vi
+        .fn()
+        .mockResolvedValue(new Uint8Array([1]).buffer);
+      const run = () =>
+        client.processPersistedOrRawChangedReview(
+          "pair.csv",
+          3,
+          load,
+          {} as BrowserProcessingOptions,
+          undefined,
+          undefined,
+          inputSha,
+          "support-key",
+        );
+
+      const first = await run();
+      expect(load).toHaveBeenCalledTimes(1);
+      expect(api.cacheComparisonSupportFiles).toHaveBeenCalledTimes(1);
+      expect(first.reviewSummaryJsonBytes).toBe(bytes);
+      expect(persistedCalls[0]).toBeUndefined();
+
+      const second = await run();
+      expect(load).toHaveBeenCalledTimes(1);
+      expect(api.cacheComparisonSupportFiles).toHaveBeenCalledTimes(1);
+      expect(persistedCalls[1]).toEqual(["digest-shared"]);
+      expect(second.reviewSummaryReused).toBe(true);
+      expect(second.reviewSummaryJsonBytes).toBe(bytes);
+    } finally {
+      compileStreaming.mockRestore();
     }
   });
 });

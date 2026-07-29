@@ -8,6 +8,7 @@ import {
   decodeRuntimeManifest,
   executeRustRuntime,
   queryPersistedRustReview,
+  rustWasmMemoryBytes,
   queryRustReview,
   setRustRuntimeForTesting,
   verifyRuntimeArtifactCatalog,
@@ -1355,6 +1356,332 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
       );
       expect(fallbackPreparedFree).toHaveBeenCalledOnce();
       expect(fallbackHandleFree).toHaveBeenCalledOnce();
+    } finally {
+      setRustRuntimeForTesting(runtimeWasm);
+      vi.stubGlobal("navigator", priorNavigator);
+    }
+  });
+
+  it("supplies persisted review bases to the kernel and gates reused review summaries", async () => {
+    const root = new MemoryDirectoryHandle();
+    const priorNavigator = globalThis.navigator;
+    vi.stubGlobal("navigator", {
+      storage: {
+        getDirectory: () => Promise.resolve(memoryOpfsRoot(root)),
+      },
+      locks: {
+        request: (
+          _name: string,
+          _options: LockOptions,
+          operation: () => Promise<unknown>,
+        ) => operation(),
+      },
+    });
+    const raw = fullSourceFixture();
+    const runtime = { ...FULL_RUNTIME, persistRustWorkspace: true };
+    try {
+      const persisted = await executeRustRuntime(
+        raw,
+        "review-base-contract.csv",
+        fullOptions(),
+        undefined,
+        runtime,
+      );
+      const inputDigest = persisted.manifest.input.digest.replace(
+        /^sha256:/,
+        "",
+      );
+      const realReview = await queryPersistedRustReview(
+        raw.byteLength,
+        "review-base-contract.csv",
+        fullOptions(),
+        undefined,
+        runtime,
+        inputDigest,
+      );
+      if (!realReview) throw new Error("fixture review unexpectedly missed");
+
+      const summaryMetadata = JSON.stringify({
+        artifactId: "artifact:review-summary-json",
+        kind: "review-summary-json",
+        mediaType: "application/json",
+        digest: realReview.reviewSummaryDigest,
+        size: realReview.reviewSummaryJsonBytes!.byteLength,
+        derivedFrom: [],
+      });
+      const installRuntime = (input: {
+        required: string;
+        manifestJson?: string;
+        artifactCount?: number;
+        onSelected?: (bytes: Uint8Array) => void;
+      }) =>
+        setRustRuntimeForTesting({
+          implementation_build_digest: () => manifest.implementationDigest,
+          build_environment_digest: () => manifest.buildEnvironmentDigest,
+          review_base_probe_spec_json: () =>
+            runtimeWasm.review_base_probe_spec_json(),
+          RuntimeSupportFiles: class {
+            put() {}
+            put_with_name() {}
+            free() {}
+          },
+          prepare_persisted_workspace_review: () => ({
+            required_base_kind: () => input.required,
+            execute_selected_base: (bytes: Uint8Array) => {
+              input.onSelected?.(bytes);
+              return {
+                artifact_count: input.artifactCount ?? 1,
+                manifest_json: () => input.manifestJson ?? realReview.manifestJson,
+                artifact_metadata_json: () => summaryMetadata,
+                take_artifact_bytes: () =>
+                  Uint8Array.from(realReview.reviewSummaryJsonBytes!),
+                free: () => {},
+              };
+            },
+            free: () => {},
+          }),
+        } as unknown as Parameters<typeof setRustRuntimeForTesting>[0]);
+
+      // A required review-base is read out of the persisted workspace and
+      // handed to the kernel. Each query commits a new root, so the second
+      // call re-reads a fresh base rather than serving the cached one.
+      const suppliedSizes: number[] = [];
+      installRuntime({
+        required: "review-base",
+        onSelected: (bytes) => suppliedSizes.push(bytes.byteLength),
+      });
+      const query = () =>
+        queryPersistedRustReview(
+          raw.byteLength,
+          "review-base-contract.csv",
+          fullOptions(),
+          undefined,
+          runtime,
+          inputDigest,
+        );
+      // Both counters start at the probe prefix already read for that kind,
+      // so a selected base is reported as probe + selected bytes.
+      const probeSpec = JSON.parse(
+        runtimeWasm.review_base_probe_spec_json(),
+      ) as { reviewBaseBytes: number; reconstructionBaseBytes: number };
+      const first = await query();
+      expect(suppliedSizes).toHaveLength(1);
+      expect(suppliedSizes[0]).toBeGreaterThan(0);
+      expect(first?.suppliedReviewBaseBytes).toBe(
+        probeSpec.reviewBaseBytes + suppliedSizes[0],
+      );
+      expect(first?.suppliedReconstructionBaseBytes).toBe(
+        probeSpec.reconstructionBaseBytes,
+      );
+
+      suppliedSizes.length = 0;
+      const second = await query();
+      expect(suppliedSizes).toHaveLength(1);
+      expect(second?.suppliedReviewBaseBytes).toBe(
+        probeSpec.reviewBaseBytes + suppliedSizes[0],
+      );
+
+      // A reconstruction-base selection is attributed to the other counter.
+      const reconstructionSizes: number[] = [];
+      installRuntime({
+        required: "reconstruction-base",
+        onSelected: (bytes) => reconstructionSizes.push(bytes.byteLength),
+      });
+      const reconstruction = await query();
+      expect(reconstructionSizes[0]).toBeGreaterThan(0);
+      expect(reconstruction?.suppliedReconstructionBaseBytes).toBe(
+        probeSpec.reconstructionBaseBytes + reconstructionSizes[0],
+      );
+      expect(reconstruction?.suppliedReviewBaseBytes).toBe(
+        probeSpec.reviewBaseBytes,
+      );
+
+      // Reused-summary manifests are only honoured for a digest the caller
+      // actually offered, and must ship no artifact bytes.
+      const reusedManifestJson = JSON.stringify({
+        ...(JSON.parse(realReview.manifestJson) as Record<string, unknown>),
+        reviewSummaryReused: true,
+      });
+      const reusedQuery = (knownDigests?: string[]) =>
+        queryPersistedRustReview(
+          raw.byteLength,
+          "review-base-contract.csv",
+          fullOptions(),
+          undefined,
+          runtime,
+          inputDigest,
+          undefined,
+          knownDigests,
+        );
+
+      installRuntime({
+        required: "review-base",
+        manifestJson: reusedManifestJson,
+        artifactCount: 0,
+      });
+      await expect(reusedQuery()).rejects.toThrow(
+        /reused a summary digest the caller never offered/,
+      );
+      await expect(reusedQuery(["sha256:not-the-one"])).rejects.toThrow(
+        /reused a summary digest the caller never offered/,
+      );
+
+      installRuntime({
+        required: "review-base",
+        manifestJson: reusedManifestJson,
+        artifactCount: 1,
+      });
+      await expect(
+        reusedQuery([realReview.reviewSummaryDigest]),
+      ).rejects.toThrow(/reused review query must not expose artifact bytes/);
+
+      installRuntime({
+        required: "review-base",
+        manifestJson: reusedManifestJson,
+        artifactCount: 0,
+      });
+      const reused = await reusedQuery([realReview.reviewSummaryDigest]);
+      expect(reused?.reviewSummaryReused).toBe(true);
+      expect(reused?.reviewSummaryDigest).toBe(realReview.reviewSummaryDigest);
+    } finally {
+      setRustRuntimeForTesting(runtimeWasm);
+      vi.stubGlobal("navigator", priorNavigator);
+    }
+  });
+
+  it("bounds the support-file cache, rejects unverified keys, and drops failed entries", async () => {
+    const root = new MemoryDirectoryHandle();
+    const priorNavigator = globalThis.navigator;
+    vi.stubGlobal("navigator", {
+      storage: {
+        getDirectory: () => Promise.resolve(memoryOpfsRoot(root)),
+      },
+      locks: {
+        request: (
+          _name: string,
+          _options: LockOptions,
+          operation: () => Promise<unknown>,
+        ) => operation(),
+      },
+    });
+    const raw = fullSourceFixture();
+    const runtime = { ...FULL_RUNTIME, persistRustWorkspace: true };
+    try {
+      const persisted = await executeRustRuntime(
+        raw,
+        "support-cache-contract.csv",
+        fullOptions(),
+        undefined,
+        runtime,
+      );
+      // A second durable full run recovers the prior root and re-verifies it.
+      const recovered = await executeRustRuntime(
+        raw,
+        "support-cache-contract.csv",
+        fullOptions(),
+        undefined,
+        runtime,
+      );
+      expect(recovered.manifest.previousWorkspaceRootDigest).toBe(
+        persisted.manifest.workspaceRootDigest,
+      );
+      const inputDigest = persisted.manifest.input.digest.replace(
+        /^sha256:/,
+        "",
+      );
+      const realReview = await queryPersistedRustReview(
+        raw.byteLength,
+        "support-cache-contract.csv",
+        fullOptions(),
+        undefined,
+        runtime,
+        inputDigest,
+      );
+      if (!realReview) throw new Error("fixture review unexpectedly missed");
+
+      // The runtime only reports wasm memory for a genuinely loaded kernel;
+      // an injected test kernel has none.
+      expect(rustWasmMemoryBytes()).toBeNull();
+
+      const supportBundle = (label: string) => ({
+        surveyAttributionFile: {
+          name: `${label}.csv`,
+          bytes: new TextEncoder().encode(`participant_id,survey_id\nP01,${label}`)
+            .buffer,
+        },
+      });
+      const freed: string[] = [];
+      const installRuntime = (fail: boolean) =>
+        setRustRuntimeForTesting({
+          implementation_build_digest: () => manifest.implementationDigest,
+          build_environment_digest: () => manifest.buildEnvironmentDigest,
+          review_base_probe_spec_json: () =>
+            runtimeWasm.review_base_probe_spec_json(),
+          RuntimeSupportFiles: class {
+            put() {}
+            put_with_name() {}
+            free() {
+              freed.push("support");
+            }
+          },
+          prepare_persisted_workspace_review: () => ({
+            required_base_kind: () => "salsa-memory",
+            execute_selected_base: () => {
+              if (fail) throw new Error("support-cache run failed");
+              return {
+                artifact_count: 1,
+                manifest_json: () => realReview.manifestJson,
+                artifact_metadata_json: () =>
+                  JSON.stringify({
+                    artifactId: "artifact:review-summary-json",
+                    kind: "review-summary-json",
+                    mediaType: "application/json",
+                    digest: realReview.reviewSummaryDigest,
+                    size: realReview.reviewSummaryJsonBytes!.byteLength,
+                    derivedFrom: [],
+                  }),
+                take_artifact_bytes: () =>
+                  Uint8Array.from(realReview.reviewSummaryJsonBytes!),
+                free: () => {},
+              };
+            },
+            free: () => {},
+          }),
+        } as unknown as Parameters<typeof setRustRuntimeForTesting>[0]);
+
+      const review = (supportKey: string | undefined, label: string) =>
+        queryPersistedRustReview(
+          raw.byteLength,
+          "support-cache-contract.csv",
+          fullOptions(),
+          supportBundle(label),
+          runtime,
+          inputDigest,
+          supportKey,
+        );
+
+      installRuntime(false);
+      // An unverified support key never reaches the kernel.
+      await expect(review("not-a-verified-key", "a")).rejects.toThrow(
+        /verified support cache key is invalid/,
+      );
+
+      // The cache holds at most two bundles, so a third distinct key evicts
+      // (and frees) the least recently used one.
+      const keys = ["a", "b", "c"].map((c) => `sha256:${c.repeat(64)}`);
+      for (const [index, key] of keys.entries()) {
+        await expect(review(key, `bundle-${index}`)).resolves.not.toBeNull();
+      }
+      expect(freed).toHaveLength(1);
+
+      // A failed run marks its cached bundle invalid, so it is dropped and
+      // freed on release rather than served to the next query.
+      const freedBeforeFailure = freed.length;
+      installRuntime(true);
+      await expect(review(keys[0], "bundle-0")).rejects.toThrow(
+        /support-cache run failed/,
+      );
+      expect(freed.length).toBeGreaterThan(freedBeforeFailure);
     } finally {
       setRustRuntimeForTesting(runtimeWasm);
       vi.stubGlobal("navigator", priorNavigator);
