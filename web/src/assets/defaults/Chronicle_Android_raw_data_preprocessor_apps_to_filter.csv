@@ -1,28 +1,81 @@
 app_package_name,known_application_labels,app_filter_category,filter_bool
-com.sec.android.app.clockpackage,"Clock, Reloj",Alert,1
-com.android.deskclock,"Clock, Reloj",Alert,1
-com.android.cellbroadcastreceiver,"Wireless emergency alerts, Wireless Emergency Alerts, com.android.cellbroadcastreceiver",Alert,1
-android,"System, Android System, Sistema Android",Android System,1
-com.wssyncmldm,"Software update, Actualización de software",Background Process,1
-com.samsung.android.samsungpassautofill,"Autofill with Samsung Pass, Autorrellenar (Samsung Pass)",Background Process,1
-com.samsung.android.samsungpass,Samsung Pass,Background Process,1
-com.osp.app.signin,Samsung account,Background Process,1
-com.google.android.packageinstaller,"Package installer, Instalador de paquetes",Background Process,1
-com.verizon.mips.services,My Verizon Services,Background Process,1
-com.google.android.permissioncontroller,"Permission controller, Controlador de permisos",Background Process,1
-com.google.android.gms,"Google Play services, Servicios de Google Play",Background Process,1
-com.android.systemui,"System, System UI, UI sistema, IU del sistema, Keyguard",Background Process,1
-com.android.server.telecom,"Phone Calls, Phone calls, Llamadas telef�nicas, Llamadas telefonicas, Llamadas telefónicas, Call Management, Call management, Phone",Audio,1
-com.google.android.dialer,Phone,Audio,1
-com.samsung.android.incallui,"Call, Llamar",Audio,1
-com.spotify.music,Spotify,Audio,1
-com.openlattice.chronicle,chronicle,Chronicle,1
-com.amazon.firelauncher,"Home Pages, Amazon Fire Launcher",Home Screen,1
-com.sec.android.app.launcher,"One UI Home, Inicio de One UI",Home Screen,1
-com.motorola.launcher3,Moto App Launcher,Home Screen,1
-com.google.android.apps.nexuslauncher,Pixel Launcher,Home Screen,1
-com.anroid.launcher3,Quickstep,Home Screen,1
-com.lge.launcher3,Home,Home Screen,1
-com.android.settings,"Settings, Ajustes, Configuración",Settings,1
-com.android.settings.intelligence,"Settings Suggestions, Settings suggestions, Sugerencias de ajustes",Settings,1
-com.samsung.android.app.telephonyui,"Call settings, Ajustes de llamada",Settings,1
+android,"Android System, Sistema Android, System",system,1
+com.amazon.csapp,Help,system,1
+com.amazon.firelauncher,"Amazon Fire Launcher, Home Pages",system,1
+com.amazon.parentalcontrols,Profile and parental controls,system,1
+com.amazon.settings,Settings,system,1
+com.amazon.settings.systemupdates,System Updates,system,1
+com.amazon.smartgenie,Device Dashboard,system,1
+com.amazon.ssmsys,System Status Monitor,system,1
+com.android.calculator2,Calculator,system,1
+com.android.cellbroadcastreceiver,"Wireless Emergency Alerts, Wireless emergency alerts, com.android.cellbroadcastreceiver",system,1
+com.android.deskclock,"Clock, Reloj",system,1
+com.android.documentsui,Files,system,1
+com.android.intentresolver,IntentResolver,system,1
+com.android.launcher3,"Launcher3, Quickstep",system,1
+com.android.printspooler,Print Spooler,system,1
+com.android.providers.downloads.ui,Downloads,system,1
+com.android.settings,"Ajustes, Configuración, Settings",system,1
+com.android.settings.intelligence,"Settings Suggestions, Settings suggestions, Sugerencias de ajustes",system,1
+com.android.systemui,"IU del sistema, Keyguard, System, System UI, UI sistema",system,1
+com.applovin.array.apphub.tmobile,AppHub,carrier,1
+com.att.myWireless,myAT&T,carrier,1
+com.audible.application.kindle,Audible,audio,1
+com.aura.news.hashtag.news,#news,lockscreen-phantom,1
+com.byteapps.rokuremote.beta,RoByte,external-remote,1
+com.clearchannel.iheartkids.freetime,iHeartRadio Family,audio,1
+com.dti.att,Mobile Services Manager,carrier,1
+com.example.screentime,ScreenTime,system,1
+com.google.android.apps.maps,Maps,navigation,1
+com.google.android.apps.nbu.files,Files by Google,system,1
+com.google.android.apps.youtube.music,YouTube Music,audio,1
+com.google.android.captiveportallogin,Captive Portal Login,system,1
+com.google.android.cellbroadcastreceiver,Wireless Emergency Alerts,system,1
+com.google.android.contacts,Contacts,system,1
+com.google.android.deskclock,Clock,system,1
+com.google.android.dialer,Phone,system,1
+com.google.android.gm,Gmail,non-child-productivity,1
+com.google.android.gm.lite,Gmail,non-child-productivity,1
+com.google.android.gms,"Google Play services, Servicios de Google Play",system,1
+com.google.android.gms.supervision,System parental controls,system,1
+com.google.android.packageinstaller,"Instalador de paquetes, Package installer",system,1
+com.google.android.permissioncontroller,"Controlador de permisos, Permission controller",system,1
+com.lge.launcher3,Home,system,1
+com.manageengine.mdm.android,ManageEngine MDM,system,1
+com.mediatek.batterywarning,com.mediatek.batterywarning,system,1
+com.mediatek.duraspeed,DuraSpeed,system,1
+com.metro.minus1,Metro Play,carrier,1
+com.metropcs.metrozone,metroZone,carrier,1
+com.microsoft.office.excel,Excel,non-child-productivity,1
+com.microsoft.skydrive,OneDrive,non-child-productivity,1
+com.motorola.launcher3,Moto App Launcher,system,1
+com.openlattice.chronicle,chronicle,system,1
+com.pandora.android,Pandora,audio,1
+com.pls247.mobile.pls_android,PLS Mobile,carrier,1
+com.qlixar.qlixar,Qlixar News,lockscreen-phantom,1
+com.samsung.android.app.contacts,Contacts,system,1
+com.samsung.android.app.dressroom,Wallpaper and style,system,1
+com.samsung.android.app.routines,Modes and Routines,system,1
+com.samsung.android.bixby.agent,Bixby Voice,system,1
+com.samsung.android.dialer,Phone,system,1
+com.samsung.android.forest,Digital Wellbeing,system,1
+com.samsung.android.incallui,"Call, Llamar",system,1
+com.sec.android.app.clockpackage,"Clock, Reloj",system,1
+com.sec.android.app.launcher,"Inicio de One UI, One UI Home",system,1
+com.sec.android.daemonapp,Weather,system,1
+com.spotify.music,Spotify,audio,1
+com.squareup.cash,Cash App,non-child-productivity,1
+com.tcl.android.launcher,Launcher,system,1
+com.wefi.qlink,Free Wi-Fi,system,1
+com.wssyncmldm,"Actualización de software, Software update",system,1
+com.zhiliao.musically.livewallpaper,TickTock Video Wallpaper by TikTok,system,1
+jp.kyocera.kyocerahome.launcher,Standard Home,system,1
+my.photo.picture.keyboard.app.keyboard.theme,#Love Keyboard,system,1
+com.android.server.telecom,"Phone Calls, Phone calls, Llamadas telef�nicas, Llamadas telefonicas, Llamadas telefónicas, Call Management, Call management, Phone",system-defensive,1
+com.google.android.apps.nexuslauncher,Pixel Launcher,system-defensive,1
+com.k2.consolelauncher,Console Launcher,system-defensive,1
+com.osp.app.signin,Samsung account,system-defensive,1
+com.samsung.android.app.telephonyui,"Call settings, Ajustes de llamada",system-defensive,1
+com.samsung.android.samsungpass,Samsung Pass,system-defensive,1
+com.samsung.android.samsungpassautofill,"Autofill with Samsung Pass, Autorrellenar (Samsung Pass)",system-defensive,1
+com.verizon.mips.services,My Verizon Services,system-defensive,1

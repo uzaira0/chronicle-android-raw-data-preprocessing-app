@@ -51,8 +51,36 @@ export async function waitForServiceWorkerControl(page: Page): Promise<void> {
     if (!("serviceWorker" in navigator)) {
       return false;
     }
-    await navigator.serviceWorker.ready;
-    return navigator.serviceWorker.controller !== null;
+    const registration = await navigator.serviceWorker.ready;
+    if (
+      navigator.serviceWorker.controller === null ||
+      registration.active?.state !== "activated" ||
+      registration.installing ||
+      registration.waiting
+    ) {
+      return false;
+    }
+    const requiredUrls = [
+      new URL("./", location.href).href,
+      new URL("./index.html", location.href).href,
+      ...Array.from(
+        document.querySelectorAll<HTMLScriptElement | HTMLLinkElement>(
+          'script[src],link[rel="stylesheet"][href]',
+        ),
+        (element) =>
+          new URL(
+            element instanceof HTMLScriptElement ? element.src : element.href,
+            location.href,
+          ).href,
+      ),
+    ];
+    for (const url of requiredUrls) {
+      const response = await caches.match(url, { ignoreVary: true });
+      if (!response?.ok || (await response.clone().arrayBuffer()).byteLength === 0) {
+        return false;
+      }
+    }
+    return true;
   });
 }
 
@@ -158,15 +186,15 @@ async function readDownload(download: Download): Promise<string> {
 }
 
 function readUint16(bytes: Uint8Array, offset: number): number {
-  return bytes[offset]! | (bytes[offset + 1]! << 8);
+  return bytes[offset] | (bytes[offset + 1] << 8);
 }
 
 function readUint32(bytes: Uint8Array, offset: number): number {
   return (
-    bytes[offset]! |
-    (bytes[offset + 1]! << 8) |
-    (bytes[offset + 2]! << 16) |
-    (bytes[offset + 3]! << 24)
+    bytes[offset] |
+    (bytes[offset + 1] << 8) |
+    (bytes[offset + 2] << 16) |
+    (bytes[offset + 3] << 24)
   ) >>> 0;
 }
 

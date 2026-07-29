@@ -22,7 +22,11 @@ export type SupportFileSlot =
   | "filterFile"
   | "appsForcingScreenOpenFile"
   | "backgroundAppsFile"
-  | "appCodebookFile";
+  | "appCodebookFile"
+  | "studyDatesFile"
+  | "deviceSharingFile"
+  | "surveyAttributionFile"
+  | "enrolledDevicesFile";
 
 export type ProjectRecord = {
   id: string;
@@ -55,7 +59,7 @@ function openDb(): Promise<IDBDatabase> {
       }
     };
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onerror = () => reject(request.error instanceof Error ? request.error : new Error(String(request.error)));
   });
 }
 
@@ -74,7 +78,7 @@ function runStore<T>(
         };
         transaction.onerror = () => {
           db.close();
-          reject(transaction.error);
+          reject(transaction.error instanceof Error ? transaction.error : new Error(String(transaction.error)));
         };
       }),
   );
@@ -85,7 +89,7 @@ export async function saveProject(record: ProjectRecord): Promise<void> {
 }
 
 export async function loadProject(id: string): Promise<ProjectRecord | undefined> {
-  return runStore<ProjectRecord | undefined>("readonly", (store) => store.get(id));
+  return runStore<ProjectRecord | undefined>("readonly", (store) => store.get(id) as IDBRequest<ProjectRecord | undefined>);
 }
 
 export async function deleteProject(id: string): Promise<void> {
@@ -93,7 +97,7 @@ export async function deleteProject(id: string): Promise<void> {
 }
 
 export async function listProjects(): Promise<ProjectSummary[]> {
-  const records = await runStore<ProjectRecord[]>("readonly", (store) => store.getAll());
+  const records = await runStore<ProjectRecord[]>("readonly", (store) => store.getAll() as IDBRequest<ProjectRecord[]>);
   return records
     .map(({ id, name, createdAt, updatedAt, includesFiles, rawFileNames }) => ({
       id,

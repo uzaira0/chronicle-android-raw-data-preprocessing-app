@@ -1,0 +1,2002 @@
+{
+  "protocolVersion": "chronicle-mixed-artifact-configuration-ledger/v1",
+  "claimBoundary": "Exhaustive value-level pair coverage between every declared computational configuration alternate and one empirically branch-activating intervention for the selected raw/support source role. Its activation context is selected deterministically from the six existing synthetic corpora. Both transition orders must equal an independent cold Rust/WASM target at every logical checkpoint, output artifact, and canonical output cell. The nine independently recycled role shards form the aggregate role/value proof; one representative mutation does not exhaust every record- or field-level interaction.",
+  "plan": {
+    "id": "urn:uzaira0:semantic-federation:chronicle-preprocessing:plan/raw-data/v1",
+    "revision": "0.1.0"
+  },
+  "implementationReceipt": {
+    "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
+    "implementationDigest": "sha256:a4c19b7fcc8fa046956e29cc5004b9fe2a3b28986af530fc8dde9bbf9f90aebc",
+    "planDigest": "sha256:e6acec3530cef7f3e67443077affb86632db8485d771c3fa9a754dc810ff8e20",
+    "profileDigest": "sha256:8fed8fb3408597e495d2cf9bee49d87018b74d0b7c4d359810917ab8e2a1f691",
+    "profileLockDigest": "sha256:a2ac2a8ef360b7527f9148d9d8f0b139696a08709b7851fcd82d64c66e0f62f5",
+    "runtimeAuthorityDigest": "sha256:bb2e2d109a81098514ba9a86344da6edc033cd305e6d6c4832c9dfd1ce81b2f9",
+    "productContractDigest": "sha256:a465fec650f42700875ea2c40cbdfce2b92bdc9f5fda20fdb1b847e72ad17883"
+  },
+  "roleRepresentatives": {
+    "survey_attribution_file": {
+      "corpusId": "catalog-random",
+      "seed": 12648430,
+      "rowCount": 186,
+      "injectedFeatures": [
+        "catalog-derived-apps",
+        "mixed-timezone-rows",
+        "remappable-interaction-types",
+        "removable-interaction-types",
+        "screen-and-keyguard-events"
+      ],
+      "interventionId": "support:survey-target-to-other",
+      "mutationClass": "record-edit",
+      "changedComponents": [
+        "survey_attribution_file.participant[P-SYN-00c0ffee].users[*]"
+      ]
+    }
+  },
+  "invalidVariants": [
+    {
+      "variantId": "selectedTimezone=none",
+      "reason": "selected timezone is required by a selected-* timezone policy"
+    }
+  ],
+  "coverage": {
+    "sourceRoles": 1,
+    "computationalAxes": 46,
+    "declaredAlternateValues": 51,
+    "validConfigurationVariants": 50,
+    "invalidConfigurationVariants": 1,
+    "validRoleValuePairs": 50,
+    "coldExecutions": 102,
+    "incrementalExecutions": 300,
+    "totalRustExecutions": 402,
+    "warmColdComparisons": 300,
+    "exactClusterComparisons": 100,
+    "nonAdditiveOrMaskedPairs": 18
+  },
+  "interactions": [
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×processAppUsage=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "processAppUsage",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataPredictedSteps": [
+        "assemble_result"
+      ],
+      "configAfterDataActualSteps": [
+        "assemble_result"
+      ],
+      "configAfterDataDeactivatedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "build_survey_lookup",
+        "codebook_join",
+        "collapse_genre",
+        "compute_junk_packages",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
+      ],
+      "dataAfterConfigPredictedSteps": [],
+      "dataAfterConfigActualSteps": [],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "attribute_person.classificationDigest",
+          "day_coverage.classificationDigest",
+          "day_coverage.payloadDigest",
+          "outputs.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 4,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:4feb892638459f5bb31a8a5d9e0e6ca9fce1fa537365023a04c571ab3cdddf74"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 607,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:37426a7d8c05b4989d80198e0f53f7aa178308565601649d3ba9919ff46554d7"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×useActivityStoppedAsFallback=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "useActivityStoppedAsFallback",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
+      ],
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 8,
+        "maskedCount": 4,
+        "introducedDigest": "sha256:85d453668ccbce5081aac26f5476c1aa5501aeb418ef43ae3b9184a680624fb7",
+        "maskedDigest": "sha256:4feb892638459f5bb31a8a5d9e0e6ca9fce1fa537365023a04c571ab3cdddf74"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 112,
+        "maskedCount": 162,
+        "introducedDigest": "sha256:d19b14cb4bf22e7e5a0423865f9ac97456880038286c23e9b494f3c8460d292d",
+        "maskedDigest": "sha256:ef9384e67da8768e78cb76e80dd4093247fb5c4d171cbc3cf6f34d2f8339bdee"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×longDurationThresholdHours=h1",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "longDurationThresholdHours",
+      "alternate": {
+        "label": "h1",
+        "value": 1
+      },
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
+      ],
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 8,
+        "maskedCount": 6,
+        "introducedDigest": "sha256:795ad434b353139cb06b6c42f67e55892324ae21c94e34422bcafa6dd5f5b702",
+        "maskedDigest": "sha256:30d0607a2dfd594db103fae49651c40a868fbfde50560d90727ae96571c38a1d"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 26,
+        "maskedCount": 394,
+        "introducedDigest": "sha256:291cf026961d65895dc0a86987a4a3594e82155329b8cc8bcecfdda0be057479",
+        "maskedDigest": "sha256:ff751f6176fd0d26fd104502cfa46051c66b1231dcc769e984b5e3d99853aaa0"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×correctDuplicateEventTimestamps=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "correctDuplicateEventTimestamps",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
+      ],
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [
+          "day_coverage.rowMembershipDigest",
+          "day_coverage.rowOrderDigest",
+          "day_coverage.temporalStateDigest"
+        ],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 1588,
+        "maskedCount": 1002,
+        "introducedDigest": "sha256:345bd4bed17eb71572737fd72d1816736ba7804556662aaba63ae72a51ab8a44",
+        "maskedDigest": "sha256:de4581bb9a6af676ed5a7c811e1fd0b3776583a5005ebabb9259e42ea9291feb"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 4412,
+        "maskedCount": 30,
+        "introducedDigest": "sha256:2bedbe5de6ae2ffaa5989d4bf07a84c87a0f4296f6df26664bae6e5bf52324f0",
+        "maskedDigest": "sha256:0c4b99fb761c73ea6222fbc151ab23087f570d1d1ff5b6c5cad6f1d2c9aeca27"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×selectedTimezone=america_new_york",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "selectedTimezone",
+      "alternate": {
+        "label": "america_new_york",
+        "value": "America/New_York"
+      },
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_canonical_rows",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
+      ],
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_canonical_rows",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 2,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:9b51c8c5129ebaac5586bbd8234b7c9fc311db331e4860afc184b7deb5840e4d"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 121,
+        "maskedCount": 121,
+        "introducedDigest": "sha256:9d4d36316a6a78578bef5fa59d230e5acc3df6d4d5eed15658951eeac4c61717",
+        "maskedDigest": "sha256:a5a68830dfb5843a3e53e45c66b41a2f40b20c83e22770fbcdfd1ce90ab317ec"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×timezoneHandling=selected_filter",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "timezoneHandling",
+      "alternate": {
+        "label": "selected_filter",
+        "value": "selected-filter"
+      },
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
+      ],
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 8,
+        "maskedCount": 6,
+        "introducedDigest": "sha256:135888b49fadd52bc4c87d0f3cb748aee87bed1421bfc243bf8664c0f07a12f4",
+        "maskedDigest": "sha256:30d0607a2dfd594db103fae49651c40a868fbfde50560d90727ae96571c38a1d"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 50,
+        "maskedCount": 362,
+        "introducedDigest": "sha256:9eb8f43ab5aaa11de379f855fbe872c8d951814f277953d4ab742b06a1fae3a9",
+        "maskedDigest": "sha256:83451cfe03b8d70f9fd9c671598dc9335fb8cf62260851ace5e9af9533ecbc40"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×timezoneHandling=primary_filter",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "timezoneHandling",
+      "alternate": {
+        "label": "primary_filter",
+        "value": "primary-filter"
+      },
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
+      ],
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 8,
+        "maskedCount": 6,
+        "introducedDigest": "sha256:135888b49fadd52bc4c87d0f3cb748aee87bed1421bfc243bf8664c0f07a12f4",
+        "maskedDigest": "sha256:30d0607a2dfd594db103fae49651c40a868fbfde50560d90727ae96571c38a1d"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 50,
+        "maskedCount": 362,
+        "introducedDigest": "sha256:9eb8f43ab5aaa11de379f855fbe872c8d951814f277953d4ab742b06a1fae3a9",
+        "maskedDigest": "sha256:83451cfe03b8d70f9fd9c671598dc9335fb8cf62260851ace5e9af9533ecbc40"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×useFilterFile=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "useFilterFile",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
+      ],
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "compute_junk_packages",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [
+          "day_coverage.payloadDigest"
+        ],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "day_coverage.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 25,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:95bba596bd239c1e3df0879bb9a5e33d91ecbace86c0d769663206209f697e60",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 240,
+        "maskedCount": 155,
+        "introducedDigest": "sha256:4b25004966bae4fd4776379b1b8d013feef8acf95330351bbc55879f10ea3877",
+        "maskedDigest": "sha256:de39a35a4ae73cd226c4747ede5a88410837da51f1560742c67d582b5632d9a1"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×useBackgroundAppsFile=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "useBackgroundAppsFile",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "build_matcher_input",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
+      ],
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "build_matcher_input",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 8,
+        "maskedCount": 6,
+        "introducedDigest": "sha256:795ad434b353139cb06b6c42f67e55892324ae21c94e34422bcafa6dd5f5b702",
+        "maskedDigest": "sha256:30d0607a2dfd594db103fae49651c40a868fbfde50560d90727ae96571c38a1d"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 26,
+        "maskedCount": 388,
+        "introducedDigest": "sha256:291cf026961d65895dc0a86987a4a3594e82155329b8cc8bcecfdda0be057479",
+        "maskedDigest": "sha256:db2e1424ec7d709c884f9525bea4c7657a49d2b418b60820b2a6785f36a53bf0"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×enableAggregates=true",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "enableAggregates",
+      "alternate": {
+        "label": "true",
+        "value": true
+      },
+      "configAfterDataPredictedSteps": [
+        "assemble_result"
+      ],
+      "configAfterDataActualSteps": [
+        "assemble_result"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 589,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:310be19e6b5ba23e88316478778bee89de4a5b3c08d6b488d2d751d0841228b6"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 637,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:68d37ef94aff93060dc7295b2204af4b0cb2213fb0304bd2e79b9deb3c139258",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×minimumUsageDuration=s0",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "minimumUsageDuration",
+      "alternate": {
+        "label": "s0",
+        "value": 0
+      },
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
+      ],
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [
+          "day_coverage.payloadDigest"
+        ],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "day_coverage.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 1,
+        "maskedCount": 4,
+        "introducedDigest": "sha256:689feb63e4ec1c6119017cf4d1a7cc37c40bcdf19fd56d7b1a0e8dcf85c71d1b",
+        "maskedDigest": "sha256:4feb892638459f5bb31a8a5d9e0e6ca9fce1fa537365023a04c571ab3cdddf74"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 1,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:689feb63e4ec1c6119017cf4d1a7cc37c40bcdf19fd56d7b1a0e8dcf85c71d1b"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×sameAppInteractionTypesToStopUsageAt=empty",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "sameAppInteractionTypesToStopUsageAt",
+      "alternate": {
+        "label": "empty",
+        "value": []
+      },
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "build_matcher_input",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
+      ],
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "build_matcher_input",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_downstream_mark",
+        "nudge_duplicate_timestamps",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "run_matcher",
+        "score_days",
+        "sort_episodes",
+        "split_concurrent"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [
+          "day_coverage.payloadDigest"
+        ],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "day_coverage.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 13,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:289edb8466ea307548705e5c6a128e6a835d15f37e5a7742f317ca9329ff6022",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 104,
+        "maskedCount": 273,
+        "introducedDigest": "sha256:d90cb208728a4ebefd95216772a383b2fc69704166d3a69b75d7fe7a1fb373f2",
+        "maskedDigest": "sha256:09080e4efb8f7243b85823dd2c1011ee19d8ba576ad1cbe4101268ebed742672"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×applyMinimumUsageDurationToConcurrentSubintervals=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "applyMinimumUsageDurationToConcurrentSubintervals",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "partition_credit_sessions",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days",
+        "split_concurrent"
+      ],
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_coverage_table",
+        "codebook_join",
+        "collapse_genre",
+        "count_day_apps",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "partition_credit_sessions",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days",
+        "split_concurrent"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [
+          "day_coverage.payloadDigest"
+        ],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "day_coverage.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 1,
+        "maskedCount": 4,
+        "introducedDigest": "sha256:689feb63e4ec1c6119017cf4d1a7cc37c40bcdf19fd56d7b1a0e8dcf85c71d1b",
+        "maskedDigest": "sha256:4feb892638459f5bb31a8a5d9e0e6ca9fce1fa537365023a04c571ab3cdddf74"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 1,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:689feb63e4ec1c6119017cf4d1a7cc37c40bcdf19fd56d7b1a0e8dcf85c71d1b"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×interactionTypesToRemove=none",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "interactionTypesToRemove",
+      "alternate": {
+        "label": "none",
+        "value": []
+      },
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "count_day_apps",
+        "credit_sessions",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "partition_credit_sessions",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "count_day_apps",
+        "credit_sessions",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "filter_rows_to_window",
+        "inject_placeholders",
+        "partition_credit_sessions",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 6,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:7f913ce65a5bd8062fe4a9a891327a5364b24339025a345ee354ed001928ee71",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 130,
+        "maskedCount": 130,
+        "introducedDigest": "sha256:5eaa7be28ac31a533956dd9f700792cc5d5d509049a06d5ad410e9dca8308246",
+        "maskedDigest": "sha256:eb6e12a7ec37498573e54d51c494c93cb4090da9e4124dcc86a4354c3cbd551b"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×interactionTypeRemap=custom",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "interactionTypeRemap",
+      "alternate": {
+        "label": "custom",
+        "value": [
+          "Custom Foreground => Activity Resumed"
+        ]
+      },
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_canonical_rows",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "collect_timezones",
+        "compute_dominant_timezone",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "parse_remap_config",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "stable_sort",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
+      ],
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "apply_matcher_output",
+        "assemble_credit_result",
+        "assemble_result",
+        "attribute_rows",
+        "blank_junk_timing",
+        "build_canonical_rows",
+        "build_classified_sessions",
+        "build_coverage_table",
+        "build_liveness_substrate",
+        "build_matcher_input",
+        "build_raw_date_index",
+        "codebook_join",
+        "collapse_genre",
+        "collect_keyguard_timestamps",
+        "collect_timezones",
+        "compute_dominant_timezone",
+        "compute_junk_packages",
+        "count_day_apps",
+        "count_dup_groups",
+        "credit_sessions",
+        "derive_broad_category",
+        "drop_selected_types",
+        "drop_zero_duration",
+        "emit_credited_rows",
+        "engagement_walk",
+        "exact_dedupe",
+        "filter_rows_to_window",
+        "flag_and_retain",
+        "inject_placeholders",
+        "junk_blind_fold",
+        "junk_downstream_mark",
+        "mark_data_time_gaps",
+        "nudge_duplicate_timestamps",
+        "parse_remap_config",
+        "partition_credit_sessions",
+        "relabel_usage_with_floor",
+        "report_screen_incapable",
+        "resolve_participant_windows",
+        "resolve_sharing_status",
+        "restamp_rows",
+        "row_count_report",
+        "run_matcher",
+        "score_days",
+        "select_timezone_strategy",
+        "sort_episodes",
+        "split_concurrent",
+        "stable_sort",
+        "tag_filtered_packages",
+        "walk_screen_state_machine"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [
+          "day_coverage.payloadDigest"
+        ],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "day_coverage.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 113,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:2835268fecf280ce068f1bc25a2b4a10d2f3476c8124d64f1beeaf85c552f21e",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 64,
+        "maskedCount": 325,
+        "introducedDigest": "sha256:c7177c8f5e1eb39c607990c53783ba7191387c7eb2ce91e1a1e970feba97e982",
+        "maskedDigest": "sha256:74cac80c3b24d2c45dda692f53a787123c9463ce89776483df5cac50c6817436"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×addNoActivityPlaceholderDays=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "addNoActivityPlaceholderDays",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "build_coverage_table",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "build_coverage_table",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 118,
+        "maskedCount": 118,
+        "introducedDigest": "sha256:4ae5044cdddf91059b444abc0984b607acc4255698bc02a9094f85df16646131",
+        "maskedDigest": "sha256:9a14c9a86225cc5b664d178dc6b6174ffc6b15b6421b2d0990ab0e6a2fd9cb43"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×enablePersonAttribution=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "enablePersonAttribution",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "configAfterDataActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_coverage_table",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "resolve_sharing_status",
+        "score_days"
+      ],
+      "configAfterDataDeactivatedSteps": [],
+      "dataAfterConfigPredictedSteps": [],
+      "dataAfterConfigActualSteps": [],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [
+          "day_coverage.payloadDigest"
+        ],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "attribute_person.classificationDigest",
+          "day_coverage.classificationDigest",
+          "day_coverage.payloadDigest",
+          "outputs.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 293,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:be575f26b3f134ebf1be1059f26c79f8c402f725a2f8359dba1a1304d8ca4068",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 607,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:37426a7d8c05b4989d80198e0f53f7aa178308565601649d3ba9919ff46554d7"
+      }
+    },
+    {
+      "caseId": "survey_attribution_file:support:survey-target-to-other×enableDayCoverage=false",
+      "roleId": "survey_attribution_file",
+      "interventionId": "support:survey-target-to-other",
+      "optionKey": "enableDayCoverage",
+      "alternate": {
+        "label": "false",
+        "value": false
+      },
+      "configAfterDataPredictedSteps": [
+        "assemble_result"
+      ],
+      "configAfterDataActualSteps": [
+        "assemble_result"
+      ],
+      "configAfterDataDeactivatedSteps": [
+        "build_coverage_table"
+      ],
+      "dataAfterConfigPredictedSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigActualSteps": [
+        "accumulate_attribution_minutes",
+        "assemble_result",
+        "attribute_rows",
+        "build_survey_lookup",
+        "inject_placeholders",
+        "score_days"
+      ],
+      "dataAfterConfigDeactivatedSteps": [],
+      "configConditioning": {
+        "introduced": [],
+        "masked": []
+      },
+      "dataConditioning": {
+        "introduced": [],
+        "masked": [
+          "day_coverage.payloadDigest"
+        ]
+      },
+      "configCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 0,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "dataCellConditioning": {
+        "introducedCount": 0,
+        "maskedCount": 1,
+        "introducedDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "maskedDigest": "sha256:689feb63e4ec1c6119017cf4d1a7cc37c40bcdf19fd56d7b1a0e8dcf85c71d1b"
+      }
+    }
+  ],
+  "caseSetDigest": "sha256:628a401b37dd8f816d03d5011a6fc4559f320a61404f8b19cbeed5af4e57e063"
+}

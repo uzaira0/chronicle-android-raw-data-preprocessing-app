@@ -35,8 +35,6 @@ export function ThresholdsInput({ value, fallback, onChange, testId, placeholder
     if (!arraysEqual(parsed, value)) {
       setText(value.join(", "));
     }
-    // Intentional: only re-sync when the upstream value changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   return (

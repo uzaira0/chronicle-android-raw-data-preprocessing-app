@@ -5,10 +5,10 @@ import {
   NUMBER_ARRAY_BROWSER_OPTION_KEYS,
   STRING_BROWSER_OPTION_KEYS,
   STRING_ARRAY_BROWSER_OPTION_KEYS,
+  TIMEZONE_HANDLING_VALUES,
 } from "@/lib/generatedContract";
 import { DEFAULT_BROWSER_OPTIONS } from "@/lib/generatedContract";
 import type { BrowserProcessingOptions } from "@/lib/types";
-import { CANONICAL_INTERACTION_TYPES, parseInteractionRemap } from "@/lib/interactionTypes";
 import { safeUuid } from "@/lib/uuid";
 
 const STORAGE_KEY = "chronicle.processingOptions.v1";
@@ -56,26 +56,6 @@ function stringArray(value: unknown, fallback: string[]): string[] {
   return value.filter((entry): entry is string => typeof entry === "string");
 }
 
-const CANONICAL_INTERACTION_TYPE_SET = new Set<string>(CANONICAL_INTERACTION_TYPES);
-
-/**
- * Drop a restored `interactionTypeRemap` entry only when it forms an *active*
- * mapping (one `parseInteractionRemap` inserts) whose target is NOT a canonical
- * interaction type — exactly the set the editor's <select> offers. This blocks a
- * share-link / preset / project entry like "VENDOR => BogusType" the editor could
- * never produce, which otherwise maps events to an inert type AND suppresses the
- * pre-flight "unrecognized interaction type" warning (false reassurance). Inert
- * in-progress rows (no delimiter, or an empty side) are kept so the editor's
- * mid-edit round-trip stays intact. Reusing the real parser keeps this in lockstep
- * with how the pipeline interprets the same entries.
- */
-function isValidRemapEntry(entry: string): boolean {
-  for (const target of parseInteractionRemap([entry]).values()) {
-    if (!CANONICAL_INTERACTION_TYPE_SET.has(target)) return false;
-  }
-  return true;
-}
-
 function optionalPositiveInteger(value: unknown): number | undefined {
   if (value === undefined || value === null || value === "") return undefined;
   const number = Number(value);
@@ -93,7 +73,7 @@ export function sanitizeOptions(value: unknown): BrowserProcessingOptions {
     next.processScreenUsage = mode === "screen_usage" || mode === "app_and_screen_usage";
   }
 
-  const src = source as Record<string, unknown>;
+  const src = source;
   for (const key of BOOLEAN_BROWSER_OPTION_KEYS) {
     if (typeof src[key] === "boolean") (next as Record<string, unknown>)[key] = src[key];
   }
@@ -106,15 +86,19 @@ export function sanitizeOptions(value: unknown): BrowserProcessingOptions {
   for (const key of STRING_BROWSER_OPTION_KEYS) {
     if (typeof src[key] === "string") (next as Record<string, unknown>)[key] = src[key];
   }
+  if (
+    typeof src.timezoneHandling === "string" &&
+    !TIMEZONE_HANDLING_VALUES.includes(
+      src.timezoneHandling as (typeof TIMEZONE_HANDLING_VALUES)[number],
+    )
+  ) {
+    next.timezoneHandling = DEFAULT_BROWSER_OPTIONS.timezoneHandling;
+  }
   for (const key of STRING_ARRAY_BROWSER_OPTION_KEYS) {
     (next as Record<string, unknown>)[key] = stringArray(src[key], DEFAULT_BROWSER_OPTIONS[key]);
   }
   // parallelMaxWorkers has unique semantics (optional, positive-only) so stays explicit.
   next.parallelMaxWorkers = optionalPositiveInteger(src.parallelMaxWorkers);
-
-  // Reject restored remap entries whose target isn't a canonical interaction type
-  // (the editor's <select> can't produce these; a hand-crafted config could).
-  next.interactionTypeRemap = next.interactionTypeRemap.filter(isValidRemapEntry);
 
   return next;
 }
@@ -166,8 +150,8 @@ export function readPersistedPresets(): SettingsPreset[] {
   try {
     const raw = window.localStorage.getItem(PRESETS_STORAGE_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    const presets = isRecord(parsed) && Array.isArray(parsed.presets) ? parsed.presets : parsed;
+    const parsed = JSON.parse(raw) as unknown;
+    const presets = isRecord(parsed) && Array.isArray(parsed.presets) ? (parsed.presets as unknown) : parsed;
     if (!Array.isArray(presets)) return [];
     return presets
       .filter(isRecord)
@@ -225,7 +209,14 @@ export function buildConfigExportBlob(
 }
 
 export async function readConfigFile(file: File): Promise<ImportedConfig> {
-  const parsed = JSON.parse(await file.text());
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    throw new Error(
+      "The selected file is not valid JSON. Make sure you're importing a Chronicle config file.",
+    );
+  }
   const source = isRecord(parsed) ? parsed : {};
   return {
     options: sanitizeOptions(source.currentSettings),
@@ -256,7 +247,7 @@ export function diffOptionsFromDefaults(
       diff[key] = sanitized[key];
     }
   }
-  return diff as Partial<BrowserProcessingOptions>;
+  return diff;
 }
 
 /** Encode options (diff from defaults) into a URL-param string value. */

@@ -8,9 +8,3 @@ export const TOOLTIPS = {
     body: "Runs the preprocessing pipeline on your uploaded raw Chronicle CSV files.",
   },
 } as const satisfies Record<string, TooltipContent>;
-
-export type TooltipKey = keyof typeof TOOLTIPS;
-
-export function tooltipFor(key: TooltipKey): TooltipContent {
-  return TOOLTIPS[key];
-}

@@ -25,7 +25,7 @@ function crc32(bytes: Uint8Array): number {
   const table = getCrcTable();
   let crc = 0xffffffff;
   for (const byte of bytes) {
-    crc = table[(crc ^ byte) & 0xff]! ^ (crc >>> 8);
+    crc = table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
   }
   return (crc ^ 0xffffffff) >>> 0;
 }
@@ -60,7 +60,7 @@ export async function createZipBlob(entries: ZipEntry[]): Promise<Blob> {
 
   for (const entry of entries) {
     const nameBytes = textEncoder.encode(normalizeZipPath(entry.fileName));
-    const data = new Uint8Array((await entry.blob.arrayBuffer()) as ArrayBuffer);
+    const data = new Uint8Array((await entry.blob.arrayBuffer()));
     const checksum = crc32(data);
 
     const localHeader = new Uint8Array(30 + nameBytes.length);

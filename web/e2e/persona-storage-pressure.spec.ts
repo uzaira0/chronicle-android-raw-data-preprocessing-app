@@ -24,7 +24,7 @@ async function simulateQuota(page: Page, usage: number, quota: number): Promise<
   await page.addInitScript(
     ({ usage, quota }) => {
       const nav = navigator as unknown as { storage?: { estimate?: () => Promise<unknown> } };
-      const estimate = async () => ({ usage, quota });
+      const estimate = () => Promise.resolve({ usage, quota });
       if (nav.storage) {
         nav.storage.estimate = estimate;
       } else {
@@ -164,10 +164,10 @@ test("requests persistent storage on boot so saved data isn't evicted", async ({
       storage?: { persist?: () => Promise<boolean>; persisted?: () => Promise<boolean> };
     };
     if (nav.storage) {
-      nav.storage.persisted = async () => false;
-      nav.storage.persist = async () => {
+      nav.storage.persisted = () => Promise.resolve(false);
+      nav.storage.persist = () => {
         (window as unknown as { __recordPersist: () => void }).__recordPersist();
-        return true;
+        return Promise.resolve(true);
       };
     }
   });

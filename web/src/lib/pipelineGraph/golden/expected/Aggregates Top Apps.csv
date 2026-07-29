@@ -1,0 +1,4 @@
+study_id,study_name,participant_id,date,rank,app_package_name,application_label,foreground_minutes,background_minutes,total_minutes,session_count
+Study,,P04,2026-03-07,1,com.example.social,Social,6,0,6,1
+Study,,P04,2026-03-07,2,com.example.chat,Chat,4,0,4,1
+Study,,P04,2026-03-08,1,com.example.chat,Chat,3,0,3,1

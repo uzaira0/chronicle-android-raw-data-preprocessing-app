@@ -1,0 +1,18 @@
+; Shared transport envelope only. Product event payloads remain opaque and
+; family-specific.
+journal-envelope = {
+  protocol-version: "0.1",
+  sequence: uint,
+  event-id: tstr,
+  previous-event-digest: digest / nil,
+  event-digest: digest,
+  family: tstr,
+  schema-id: tstr,
+  plan-digest: digest,
+  profile-lock-digest: digest,
+  payload-media-type: tstr,
+  payload-digest: digest,
+  payload: bstr
+}
+
+digest = "sha256:" .cat 64*64(lcase / DIGIT)

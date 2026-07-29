@@ -66,7 +66,7 @@ test("the app exposes no mutating or cross-origin network surface", async ({ pag
 test("rapid-firing the workflow tabs 24 times does not break the app", async ({ page }) => {
   const tabs = ["Files", "Process", "View", "Settings"] as const;
   for (let i = 0; i < 24; i += 1) {
-    const name = tabs[i % tabs.length]!;
+    const name = tabs[i % tabs.length];
     await page.getByRole("tab", { name: new RegExp(`^${name}$`, "i") }).click();
   }
   // Still alive and interactive.

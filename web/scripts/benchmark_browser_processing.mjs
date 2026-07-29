@@ -17,6 +17,8 @@ function parseArgs(argv) {
    *   timezoneHandling: string;
    *   outputJson: boolean;
    *   datetime: string;
+   *   maxElapsedMs: number | null;
+   *   maxHeapDeltaBytes: number | null;
    * }}
    */
   const args = {
@@ -24,11 +26,13 @@ function parseArgs(argv) {
     filter: null,
     keepAwake: null,
     codebook: null,
-    mode: "app_usage",
+    mode: "full",
     timezone: "America/Chicago",
     timezoneHandling: "selected-filter",
     outputJson: false,
     datetime: "2026-04-24 00:32:53",
+    maxElapsedMs: null,
+    maxHeapDeltaBytes: null,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -60,6 +64,12 @@ function parseArgs(argv) {
       index += 1;
     } else if (token === "--output-json") {
       args.outputJson = true;
+    } else if (token === "--max-elapsed-ms" && next) {
+      args.maxElapsedMs = Number(next);
+      index += 1;
+    } else if (token === "--max-heap-delta-bytes" && next) {
+      args.maxHeapDeltaBytes = Number(next);
+      index += 1;
     } else {
       throw new Error(`Unknown or incomplete argument: ${token ?? ""}`);
     }
@@ -67,6 +77,15 @@ function parseArgs(argv) {
 
   if (args.raw.length === 0) {
     throw new Error("At least one --raw <path> argument is required.");
+  }
+  if (!["full", "app_usage"].includes(args.mode)) {
+    throw new Error("--mode must be either full or app_usage.");
+  }
+  if (
+    (args.maxElapsedMs !== null && !(args.maxElapsedMs > 0)) ||
+    (args.maxHeapDeltaBytes !== null && !(args.maxHeapDeltaBytes > 0))
+  ) {
+    throw new Error("Performance budgets must be positive numbers.");
   }
 
   return args;
@@ -93,7 +112,7 @@ async function waitForServer(url, timeoutMs = 30_000) {
 function spawnPreview() {
   return spawn(
     process.execPath,
-    ["scripts/run-clean-env.mjs", "vite", "preview", "--host", "127.0.0.1", "--port", "4173"],
+    ["node_modules/vite/bin/vite.js", "preview", "--host", "127.0.0.1", "--port", "4173"],
     {
       cwd: process.cwd(),
       stdio: ["ignore", "pipe", "pipe"],
@@ -167,7 +186,12 @@ async function main() {
         })),
       );
       await page.getByTestId("raw-file-input").setInputFiles(rawFiles);
-      await page.getByTestId("usage-mode-select").selectOption(args.mode);
+      const processScreenUsage = page.getByTestId("toggle-processScreenUsage");
+      if (args.mode === "app_usage") {
+        await processScreenUsage.uncheck();
+      } else {
+        await processScreenUsage.check();
+      }
       await page.getByTestId("selected-timezone-input").fill(args.timezone);
       await page.getByTestId("timezone-handling-select").selectOption(args.timezoneHandling);
 
@@ -185,8 +209,27 @@ async function main() {
       }
 
       const started = performance.now();
+      await page.locator("#process-tab").click();
       await page.getByTestId("process-files-button").click();
-      await page.getByTestId("result-card").first().waitFor({ state: "visible" });
+      await page.getByTestId("process-files-button").filter({ hasText: "Processing..." }).waitFor();
+      // A batch benchmark is complete only when every requested input has a
+      // result. Timing the first card silently under-reported multi-file runs.
+      await page.waitForFunction(
+        (expected) =>
+          document.querySelectorAll('[data-testid="result-row"]').length >= expected ||
+          document.querySelector('[data-testid="process-files-button"]')?.textContent?.trim() !==
+            "Processing...",
+        args.raw.length,
+      );
+      const completedResults = await page.getByTestId("result-row").count();
+      if (completedResults < args.raw.length) {
+        const diagnostics = await page
+          .locator(".error-text, [data-testid='error-detail'], .progress-row")
+          .allTextContents();
+        throw new Error(
+          `processing completed without all results (${completedResults}/${args.raw.length}): ${diagnostics.join(" | ")}`,
+        );
+      }
       const elapsedMs = performance.now() - started;
       const heapAfterBytes = await page.evaluate(() => {
         const memory = /** @type {{ usedJSHeapSize?: number } | undefined} */ (
@@ -212,6 +255,7 @@ async function main() {
       const result = {
         elapsedMs,
         fileCount: args.raw.length,
+        resultCount: await page.getByTestId("result-row").count(),
         appRowCount: countCsvRows(appCsv),
         screenRowCounts,
         externalRequests,
@@ -219,6 +263,22 @@ async function main() {
         heapAfterBytes,
         serviceWorkerControlled: await page.evaluate(() => navigator.serviceWorker.controller !== null),
       };
+
+      if (args.maxElapsedMs !== null && elapsedMs > args.maxElapsedMs) {
+        throw new Error(
+          `browser processing exceeded elapsed budget: ${elapsedMs.toFixed(1)}ms > ${args.maxElapsedMs}ms`,
+        );
+      }
+      if (
+        args.maxHeapDeltaBytes !== null &&
+        heapBeforeBytes !== null &&
+        heapAfterBytes !== null &&
+        heapAfterBytes - heapBeforeBytes > args.maxHeapDeltaBytes
+      ) {
+        throw new Error(
+          `browser processing exceeded JS heap budget: ${heapAfterBytes - heapBeforeBytes} > ${args.maxHeapDeltaBytes} bytes`,
+        );
+      }
 
       if (!args.outputJson) {
         console.log(JSON.stringify(result, null, 2));

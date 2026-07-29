@@ -6,19 +6,22 @@ pathological fixture, including the quirks below.
 
 ## Quirks To Revisit
 
-### Filtered-app detail metrics use legacy null/sentinel arithmetic
+### ~~Filtered-app detail metrics use legacy null/sentinel arithmetic~~ (FIXED)
 
-`Filtered App Usage` rows keep blank `start_timestamp`, `stop_timestamp`,
-`duration_seconds`, and `duration_minutes` in the final CSV, but some derived
-detail fields such as `any_app_new_engage_*` and
-`any_app_usage_time_gap_hours` are still computed from the same legacy
-sentinel/null behavior used by the desktop Polars path.
-
-Effect:
-- some filtered rows receive very large or otherwise non-obvious
-  `any_app_usage_time_gap_hours` values
-- those values are parity-correct today, but they are not obviously the cleanest
-  semantic interpretation
+RESOLVED (both runtimes together): a `Filtered App Usage` row now keeps its
+REAL `start_timestamp`/`stop_timestamp` through the engagement walk
+(`_add_app_usage_detail_columns` / `addAppUsageDetailColumns`), so
+`any_app_new_engage_*` and `any_app_usage_time_gap_hours` are computed from
+real neighbour timing instead of the int64-min sentinel (which wrapped into
+~-2.07e9-second gaps on rows adjacent to a filtered app). The timing is
+blanked AFTER the walk — desktop `_clear_filtered_usage_timing`, web
+`interval_cleaning` — so the final CSV still never carries junk timing, and
+junk durations are nulled before the min-duration / zero-drop / flag steps.
+Valid-app episodes are unchanged (junk-blind matcher). Also fixed alongside:
+the web CSV float serializer no longer truncates sub-1e-4 values to 15
+significant digits, and web `duration_minutes` uses the same reciprocal
+multiply as polars — web↔desktop parity is now byte-exact with ZERO
+documented residuals.
 
 ### `End of Usage Missing` start timestamps are asymmetric
 

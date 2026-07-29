@@ -1,0 +1,615 @@
+{
+  "contractVersion": 1,
+  "options": {
+    "studyName": {
+      "type": "string",
+      "default": ""
+    },
+    "processAppUsage": {
+      "type": "boolean",
+      "default": true
+    },
+    "processScreenUsage": {
+      "type": "boolean",
+      "default": true
+    },
+    "allowStopEventReuse": {
+      "type": "boolean",
+      "default": false
+    },
+    "useActivityStoppedAsFallback": {
+      "type": "boolean",
+      "default": true
+    },
+    "applyThresholdToFallback": {
+      "type": "boolean",
+      "default": true
+    },
+    "longDurationThresholdHours": {
+      "type": "number",
+      "default": 12
+    },
+    "correctDuplicateEventTimestamps": {
+      "type": "boolean",
+      "default": true
+    },
+    "deduplicateExactRows": {
+      "type": "boolean",
+      "default": true
+    },
+    "selectedTimezone": {
+      "type": "string",
+      "default": ""
+    },
+    "timezoneHandling": {
+      "type": "string",
+      "default": "selected-filter"
+    },
+    "useFilterFile": {
+      "type": "boolean",
+      "default": false
+    },
+    "useAppsForcingScreenOpenFile": {
+      "type": "boolean",
+      "default": false
+    },
+    "useBackgroundAppsFile": {
+      "type": "boolean",
+      "default": false
+    },
+    "useAppCodebook": {
+      "type": "boolean",
+      "default": true
+    },
+    "includeCategoryColumn": {
+      "type": "boolean",
+      "default": false
+    },
+    "enablePlotting": {
+      "type": "boolean",
+      "default": true
+    },
+    "includeFilteredAppUsageInPlots": {
+      "type": "boolean",
+      "default": false
+    },
+    "enableActivityHeatmap": {
+      "type": "boolean",
+      "default": true
+    },
+    "exportPlotsAsSvg": {
+      "type": "boolean",
+      "default": false
+    },
+    "enableAggregates": {
+      "type": "boolean",
+      "default": false
+    },
+    "aggregateShape": {
+      "type": "string",
+      "default": "wide"
+    },
+    "enableParquetExport": {
+      "type": "boolean",
+      "default": false
+    },
+    "enableSpssExport": {
+      "type": "boolean",
+      "default": false
+    },
+    "enableInteractiveTimeline": {
+      "type": "boolean",
+      "default": false
+    },
+    "minimumUsageDuration": {
+      "type": "number",
+      "default": 60
+    },
+    "filterZeroDurationSessions": {
+      "type": "boolean",
+      "default": false
+    },
+    "customAppEngagementDuration": {
+      "type": "number",
+      "default": 300
+    },
+    "longUsageDurationThresholds": {
+      "type": "number[]",
+      "default": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ]
+    },
+    "longDataTimeGapThresholds": {
+      "type": "number[]",
+      "default": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ]
+    },
+    "screenUsageAutoLockTimeoutSeconds": {
+      "type": "number",
+      "default": 120
+    },
+    "screenUsageAutoLockToleranceSeconds": {
+      "type": "number",
+      "default": 30
+    },
+    "screenUsageManualLockMaxTailGapSeconds": {
+      "type": "number",
+      "default": 30
+    },
+    "screenUsageKeyguardNearStopSeconds": {
+      "type": "number",
+      "default": 2
+    },
+    "parallelProcessing": {
+      "type": "boolean",
+      "default": true
+    },
+    "parallelMaxWorkers": {
+      "type": "number?",
+      "default": null
+    },
+    "sameAppInteractionTypesToStopUsageAt": {
+      "type": "string[]",
+      "default": [
+        "Activity Paused",
+        "Activity Resumed"
+      ]
+    },
+    "otherInteractionTypesToStopUsageAt": {
+      "type": "string[]",
+      "default": [
+        "Activity Resumed",
+        "Filtered App Resumed",
+        "Filtered App Usage",
+        "Filtered App Background Usage",
+        "End of Usage Missing",
+        "Device Shutdown"
+      ]
+    },
+    "modelConcurrentUsage": {
+      "type": "boolean",
+      "default": false
+    },
+    "applyMinimumUsageDurationToConcurrentSubintervals": {
+      "type": "boolean",
+      "default": false
+    },
+    "interactionTypesToRemove": {
+      "type": "string[]",
+      "default": []
+    },
+    "interactionTypeRemap": {
+      "type": "string[]",
+      "default": []
+    },
+    "proximityIntervalSeconds": {
+      "type": "number",
+      "default": 2
+    },
+    "addNoActivityPlaceholderDays": {
+      "type": "boolean",
+      "default": false
+    },
+    "enableScreenGatedCrediting": {
+      "type": "boolean",
+      "default": false
+    },
+    "creditedSessionCapMinutes": {
+      "type": "number",
+      "default": 360
+    },
+    "deviceLivenessGapToleranceMinutes": {
+      "type": "number",
+      "default": 120
+    },
+    "autoLockBridgeSeconds": {
+      "type": "number",
+      "default": 120
+    },
+    "noWitnessMinDayApps": {
+      "type": "number",
+      "default": 2
+    },
+    "enableStudyWindowFilter": {
+      "type": "boolean",
+      "default": false
+    },
+    "enablePersonAttribution": {
+      "type": "boolean",
+      "default": false
+    },
+    "enableComplianceScoring": {
+      "type": "boolean",
+      "default": false
+    },
+    "complianceThresholdPercent": {
+      "type": "number",
+      "default": 70
+    },
+    "enableDayCoverage": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "enums": {
+    "TimezoneHandlingMode": [
+      "selected-filter",
+      "selected-convert",
+      "primary-filter",
+      "primary-convert"
+    ],
+    "OutputKind": [
+      "app",
+      "screen",
+      "plot",
+      "aggregate",
+      "parquet",
+      "spss",
+      "lineage"
+    ],
+    "AggregateShape": [
+      "wide",
+      "long"
+    ]
+  },
+  "nodeIds": [
+    "app_policy",
+    "attribute_person",
+    "categorize_apps",
+    "day_coverage",
+    "dedup_and_order",
+    "device_state_timeline",
+    "effective_usage",
+    "episode_annotations",
+    "interval_cleaning",
+    "normalize_timezones",
+    "observation_window",
+    "outputs",
+    "parse_events",
+    "reconstruct_episodes",
+    "score_compliance"
+  ],
+  "stepIds": [
+    "accumulate_attribution_minutes",
+    "apply_matcher_output",
+    "assemble_credit_result",
+    "assemble_result",
+    "attribute_rows",
+    "blank_junk_timing",
+    "build_canonical_rows",
+    "build_classified_sessions",
+    "build_coverage_table",
+    "build_liveness_substrate",
+    "build_matcher_input",
+    "build_raw_date_index",
+    "build_survey_lookup",
+    "codebook_join",
+    "collapse_genre",
+    "collect_keyguard_timestamps",
+    "collect_timezones",
+    "compute_dominant_timezone",
+    "compute_junk_packages",
+    "count_day_apps",
+    "count_dup_groups",
+    "credit_sessions",
+    "csv_parse",
+    "derive_broad_category",
+    "detect_device_model",
+    "drop_empty_timestamp",
+    "drop_selected_types",
+    "drop_zero_duration",
+    "emit_credited_rows",
+    "engagement_walk",
+    "exact_dedupe",
+    "filter_rows_to_window",
+    "flag_and_retain",
+    "inject_placeholders",
+    "junk_blind_fold",
+    "junk_downstream_mark",
+    "mark_data_time_gaps",
+    "nudge_duplicate_timestamps",
+    "parse_remap_config",
+    "partition_credit_sessions",
+    "relabel_usage_with_floor",
+    "report_screen_incapable",
+    "resolve_participant_windows",
+    "resolve_preproc_datetime",
+    "resolve_sharing_status",
+    "restamp_rows",
+    "row_count_report",
+    "run_matcher",
+    "score_days",
+    "select_timezone_strategy",
+    "sort_episodes",
+    "split_concurrent",
+    "stable_sort",
+    "tag_filtered_packages",
+    "walk_screen_state_machine"
+  ],
+  "outputColumns": {
+    "study_id": [
+      "app",
+      "screen"
+    ],
+    "study_name": [
+      "app",
+      "screen"
+    ],
+    "participant_id": [
+      "app",
+      "screen"
+    ],
+    "possible_device_model": [
+      "app",
+      "screen"
+    ],
+    "username": [
+      "app",
+      "screen"
+    ],
+    "event_timestamp": [
+      "app",
+      "screen"
+    ],
+    "date": [
+      "app",
+      "screen"
+    ],
+    "timezone": [
+      "app",
+      "screen"
+    ],
+    "app_package_name": [
+      "app",
+      "screen"
+    ],
+    "application_label": [
+      "app",
+      "screen"
+    ],
+    "genreId_scraped": [
+      "app"
+    ],
+    "broad_app_category": [
+      "app"
+    ],
+    "codebook_application_label": [
+      "app"
+    ],
+    "bcm_play_store_genreId": [
+      "app"
+    ],
+    "bcm_play_store_genre": [
+      "app"
+    ],
+    "bcm_play_store_broad_app_category": [
+      "app"
+    ],
+    "bcm_play_store_developer": [
+      "app"
+    ],
+    "bcm_play_store_free": [
+      "app"
+    ],
+    "bcm_play_store_rating": [
+      "app"
+    ],
+    "bcm_play_store_downloads": [
+      "app"
+    ],
+    "usc_broad_app_category": [
+      "app"
+    ],
+    "usc_genreId": [
+      "app"
+    ],
+    "umich_child_app_category_code": [
+      "app"
+    ],
+    "umich_child_app_category": [
+      "app"
+    ],
+    "umich_adult_app_category_code": [
+      "app"
+    ],
+    "umich_adult_app_category": [
+      "app"
+    ],
+    "umich_free": [
+      "app"
+    ],
+    "umich_gambling_app": [
+      "app"
+    ],
+    "umich_inappropriate_app": [
+      "app"
+    ],
+    "babyemu_genreId_scraped": [
+      "app"
+    ],
+    "babyemu_genreId_manual": [
+      "app"
+    ],
+    "babyemu_broad_app_category": [
+      "app"
+    ],
+    "babyemu_medium_app_category": [
+      "app"
+    ],
+    "babyemu_fine_app_category": [
+      "app"
+    ],
+    "babyemu_alternate_fine_app_category": [
+      "app"
+    ],
+    "babyemu_kids": [
+      "app"
+    ],
+    "bcm_cnrc_heuristic_category": [
+      "app"
+    ],
+    "bcm_cnrc_categorization_source": [
+      "app"
+    ],
+    "codebook_dataset": [
+      "app"
+    ],
+    "interaction_type": [
+      "app",
+      "screen"
+    ],
+    "start_timestamp": [
+      "app",
+      "screen"
+    ],
+    "stop_timestamp": [
+      "app",
+      "screen"
+    ],
+    "duration_seconds": [
+      "app",
+      "screen"
+    ],
+    "duration_minutes": [
+      "app",
+      "screen"
+    ],
+    "any_app_usage_flags": [
+      "app"
+    ],
+    "data_time_gap_hours": [
+      "app",
+      "screen"
+    ],
+    "day": [
+      "app",
+      "screen"
+    ],
+    "weekdayMF": [
+      "app",
+      "screen"
+    ],
+    "weekdayMTh": [
+      "app",
+      "screen"
+    ],
+    "weekdaySuTh": [
+      "app",
+      "screen"
+    ],
+    "hour": [
+      "app",
+      "screen"
+    ],
+    "quarter": [
+      "app",
+      "screen"
+    ],
+    "valid_app_new_engage_30s": [
+      "app"
+    ],
+    "valid_app_new_engage_custom_{custom_app_engagement_duration}s": [
+      "app"
+    ],
+    "valid_app_switched_app": [
+      "app"
+    ],
+    "valid_app_usage_time_gap_hours": [
+      "app"
+    ],
+    "any_app_new_engage_30s": [
+      "app"
+    ],
+    "any_app_new_engage_custom_{custom_app_engagement_duration}s": [
+      "app"
+    ],
+    "any_app_switched_app": [
+      "app"
+    ],
+    "any_app_usage_time_gap_hours": [
+      "app"
+    ],
+    "screen_usage_end_reason": [
+      "screen"
+    ],
+    "screen_usage_end_reason_confidence": [
+      "screen"
+    ],
+    "screen_usage_stop_event_type": [
+      "screen"
+    ],
+    "screen_usage_last_activity_timestamp": [
+      "screen"
+    ],
+    "screen_usage_tail_gap_seconds": [
+      "screen"
+    ],
+    "screen_usage_foreground_app_package": [
+      "screen"
+    ],
+    "screen_usage_apps_forcing_screen_open_label": [
+      "screen"
+    ],
+    "screen_usage_lock_screen_only": [
+      "screen"
+    ],
+    "preprocessor_version": [
+      "app",
+      "screen"
+    ],
+    "datetime_of_preprocessing": [
+      "app",
+      "screen"
+    ],
+    "usage_layer": [
+      "app"
+    ]
+  },
+  "rawColumns": {
+    "all": [
+      "study_id",
+      "participant_id",
+      "possible_device_model",
+      "username",
+      "application_label",
+      "interaction_type",
+      "app_package_name",
+      "event_timestamp",
+      "start_timestamp",
+      "stop_timestamp",
+      "timezone"
+    ],
+    "required": [
+      "study_id",
+      "participant_id",
+      "application_label",
+      "interaction_type",
+      "app_package_name",
+      "event_timestamp",
+      "timezone"
+    ]
+  }
+}

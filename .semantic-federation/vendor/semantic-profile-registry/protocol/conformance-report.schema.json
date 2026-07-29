@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:uzaira0:semantic-federation:protocol:conformance-report:0.1",
+  "title": "Deterministic semantic profile conformance report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "profile_lock_digest", "subject_digest", "conforms", "checks", "report_digest"],
+  "properties": {
+    "protocol_version": { "const": "0.1" },
+    "profile_lock_digest": { "$ref": "#/$defs/digest" },
+    "subject_digest": { "$ref": "#/$defs/digest" },
+    "conforms": { "type": "boolean" },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["check_id", "status"],
+        "properties": {
+          "check_id": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["pass", "fail", "not-applicable"] },
+          "message": { "type": "string" },
+          "source": { "type": "string" }
+        }
+      }
+    },
+    "report_digest": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+  }
+}

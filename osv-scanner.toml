@@ -1,0 +1,7 @@
+# Advisory exceptions for the CI osv-scan. Keep this in lockstep with
+# .semantic-federation/quality/deny.toml, which is the cargo-deny half of the
+# same decision — an ID may only appear here if it is justified there too.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0436"
+reason = "paste 1.0.15 is an unmaintained (not vulnerable) build-time transitive dependency of parquet 59.1.0. No patched parquet release exists, the crate expands macros at build time so there is no runtime exposure, and cargo-audit remains a separate no-vulnerability gate. Same exception as .semantic-federation/quality/deny.toml."

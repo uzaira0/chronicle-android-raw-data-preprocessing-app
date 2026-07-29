@@ -1,5 +1,13 @@
 # Feature Ideas & Implementation Plan
 
+> **Historical backlog.** Keep the concrete behavior examples, but do not use
+> its old Python/TypeScript path references or multi-engine parity instructions
+> as current architecture. Processing now has one Rust/Salsa authority; current
+> status and paths are in `CLAUDE.md`, `README.md`, and the 55-step Rust plan.
+> `make parity` and `scripts/run_deterministic_web_parity.py` referenced below
+> were REMOVED with the desktop engine — the golden/cold-oracle gates replace
+> them; a "parity impact" note now means "changes golden-checked output".
+
 Curated backlog for the Chronicle Android Raw Data Preprocessor, selected
 2026-06-04. Tags: **[infra]** = builds on existing infrastructure (low-friction);
 **[net-new]** = new subsystem. Each feature notes its **surface impact** —
@@ -448,4 +456,4 @@ why they're deferred.
 ### Still open
 
 - **Single-participant-per-file matcher/split grouping (pre-existing)** (`browserPipeline.ts` ~1223/1300; `polars_fast_path.py` `_process_usage_rows`): the Phase-1 matcher and Phase-2 split are fed all rows ungrouped by `participant_id` on **both** surfaces, so a CSV concatenating multiple participants can mis-match/mis-label sessions. Now surfaced by a pre-flight warning (above), but full per-participant grouping is deferred: it re-architects the always-on matcher and its "no-op for single participant" property means the existing parity gate (single-participant fixture) can't validate the new multi-participant path — it needs its own isolated change with multi-participant tests on both surfaces.
-- **Detail-column gap can be negative for out-of-start-order primaries on the concurrent path** (`addAppUsageDetailColumns` / `_add_app_usage_detail_columns`): the engagement walk iterates rows in event-timestamp order, but the split's primary sub-intervals are not strictly start-ordered, so a later-listed primary can show a negative `any_app_usage_time_gap_hours`. FU2 fixed the secondary-interleaving cause; this residual is a deeper issue (the walk should sort by `start_timestamp`, but the "any" list includes Filtered App Usage rows with null starts, complicating a safe both-surface sort). It affects both surfaces identically (parity holds) and only the ungated concurrent/background path. Deferred as its own careful change.
+- **Detail-column gap can be negative for out-of-start-order primaries on the concurrent path** (`addAppUsageDetailColumns` / `_add_app_usage_detail_columns`): the engagement walk iterates rows in event-timestamp order, but the split's primary sub-intervals are not strictly start-ordered, so a later-listed primary can show a negative `any_app_usage_time_gap_hours`. FU2 fixed the secondary-interleaving cause; this residual is a deeper issue (the walk should sort by `start_timestamp`). NOTE: the old blocker — Filtered App Usage rows having null starts at walk time — is GONE (the sentinel-gap fix keeps their real timing through the walk and blanks it afterwards), so a both-surface start-ordered walk is now straightforward if wanted. It affects both surfaces identically (parity holds) and only the ungated concurrent/background path. Deferred as its own careful change.

@@ -88,103 +88,129 @@ pub fn split_overlapping_sessions(
         }
     }
 
-    // Boundary timestamps: every distinct start and stop, sorted.
+    // Sweep start/stop events while tracking only layer transitions. The old
+    // implementation emitted one temporary row for every open session at
+    // every boundary and then coalesced adjacent equal-layer rows. That made
+    // a highly overlapping input consume O(open sessions x boundaries)
+    // temporary memory even when the final answer contained only a few layer
+    // changes per session.
+    //
+    // A session's layer can change only when it starts, stops, becomes the
+    // newest open session, or stops being the newest open session. Recording
+    // those transitions directly produces the same maximal intervals without
+    // constructing the redundant per-boundary rows.
     let n = starts.len();
-    let mut boundaries: Vec<i64> = Vec::with_capacity(n * 2);
-    boundaries.extend_from_slice(starts);
-    boundaries.extend_from_slice(stops);
-    boundaries.sort_unstable();
-    boundaries.dedup();
-
-    // Sweep-line over sub-intervals [t0, t1) between consecutive distinct
-    // boundaries. Because t1 is the next boundary after t0 and every start/stop is
-    // a boundary, the sessions open throughout [t0, t1) are exactly
-    //   { i : starts[i] <= t0 AND stops[i] > t0 }   (stops[i] >= t1 <=> stops[i] > t0)
-    // — a set that depends only on t0. We maintain it incrementally as t0 advances
-    // (add at a session's start, drop at its stop) instead of rescanning all N
-    // sessions per window, turning the old O(N^2) boundary scan into O(N log N).
-    // Output is byte-identical: same per-window open set, same primary (greatest
-    // start, then greatest index), same downstream coalesce/zero-width handling.
     let mut by_start: Vec<usize> = (0..n).collect();
     by_start.sort_unstable_by_key(|&i| (starts[i], i));
     let mut by_stop: Vec<usize> = (0..n).collect();
     by_stop.sort_unstable_by_key(|&i| (stops[i], i));
 
     let mut open: std::collections::BTreeSet<(i64, usize)> = std::collections::BTreeSet::new();
-    let mut ps = 0usize; // next session to open, by ascending start
-    let mut pe = 0usize; // next session to close, by ascending stop
-    let mut raw: Vec<LayeredSession> = Vec::new();
+    let mut active_segments: Vec<Option<(i64, UsageLayer)>> = vec![None; n];
+    let mut ps = 0usize;
+    let mut pe = 0usize;
+    let mut out: Vec<LayeredSession> = Vec::with_capacity(n.saturating_mul(2));
+    let mut started_now = Vec::new();
 
-    for w in 0..boundaries.len().saturating_sub(1) {
-        let t0 = boundaries[w];
-        let t1 = boundaries[w + 1];
-        // Drop sessions that have stopped by t0 (stops[i] <= t0 => not open past t0).
-        while pe < n && stops[by_stop[pe]] <= t0 {
+    let transition = |session_index: usize,
+                      next_layer: UsageLayer,
+                      timestamp: i64,
+                      active_segments: &mut [Option<(i64, UsageLayer)>],
+                      out: &mut Vec<LayeredSession>| {
+        let Some((segment_start, previous_layer)) = active_segments[session_index] else {
+            return;
+        };
+        if previous_layer == next_layer {
+            return;
+        }
+        if timestamp > segment_start {
+            out.push(LayeredSession {
+                session_index,
+                start_ns: segment_start,
+                stop_ns: timestamp,
+                layer: previous_layer,
+            });
+        }
+        active_segments[session_index] = Some((timestamp, next_layer));
+    };
+
+    while ps < n || pe < n {
+        let next_start = (ps < n).then(|| starts[by_start[ps]]);
+        let next_stop = (pe < n).then(|| stops[by_stop[pe]]);
+        let timestamp = match (next_start, next_stop) {
+            (Some(start), Some(stop)) => start.min(stop),
+            (Some(start), None) => start,
+            (None, Some(stop)) => stop,
+            (None, None) => break,
+        };
+        let previous_primary = open.iter().next_back().map(|&(_, index)| index);
+
+        // A stop at T is not open on [T, next boundary), so close/remove stops
+        // before selecting the primary for the interval beginning at T.
+        while pe < n && stops[by_stop[pe]] <= timestamp {
             let i = by_stop[pe];
+            if let Some((segment_start, layer)) = active_segments[i].take() {
+                if timestamp > segment_start {
+                    out.push(LayeredSession {
+                        session_index: i,
+                        start_ns: segment_start,
+                        stop_ns: timestamp,
+                        layer,
+                    });
+                }
+            }
             open.remove(&(starts[i], i));
             pe += 1;
         }
-        // Add sessions started by t0 that still run past t0. Zero-width sessions
-        // (stops == starts == t0) fail `stops > t0`, so they are never added — they
-        // produced no window row in the reference and are preserved separately below.
-        while ps < n && starts[by_start[ps]] <= t0 {
+
+        started_now.clear();
+        while ps < n && starts[by_start[ps]] <= timestamp {
             let i = by_start[ps];
-            if stops[i] > t0 {
+            if stops[i] > timestamp {
                 open.insert((starts[i], i));
+                started_now.push(i);
             }
             ps += 1;
         }
-        if open.is_empty() {
-            continue;
+
+        let current_primary = open.iter().next_back().map(|&(_, index)| index);
+        if previous_primary != current_primary {
+            if let Some(index) = previous_primary.filter(|index| active_segments[*index].is_some())
+            {
+                transition(
+                    index,
+                    UsageLayer::Secondary,
+                    timestamp,
+                    &mut active_segments,
+                    &mut out,
+                );
+            }
+            if let Some(index) = current_primary.filter(|index| active_segments[*index].is_some()) {
+                transition(
+                    index,
+                    UsageLayer::Primary,
+                    timestamp,
+                    &mut active_segments,
+                    &mut out,
+                );
+            }
         }
-        // Primary = greatest start_ns, tie broken by greatest index = the BTreeSet max.
-        let primary = open
-            .iter()
-            .next_back()
-            .map(|&(_, i)| i)
-            .expect("open is non-empty");
-        for &(_, i) in &open {
-            raw.push(LayeredSession {
-                session_index: i,
-                start_ns: t0,
-                stop_ns: t1,
-                layer: if i == primary {
+        for &index in &started_now {
+            active_segments[index] = Some((
+                timestamp,
+                if Some(index) == current_primary {
                     UsageLayer::Primary
                 } else {
                     UsageLayer::Secondary
                 },
-            });
+            ));
         }
-    }
-
-    // Stable order by (session_index, start_ns), then coalesce adjacency.
-    raw.sort_by(|a, b| {
-        a.session_index
-            .cmp(&b.session_index)
-            .then(a.start_ns.cmp(&b.start_ns))
-    });
-    let mut out: Vec<LayeredSession> = Vec::with_capacity(raw.len());
-    for row in raw {
-        if let Some(last) = out.last_mut() {
-            if last.session_index == row.session_index
-                && last.layer == row.layer
-                && last.stop_ns == row.start_ns
-            {
-                last.stop_ns = row.stop_ns;
-                continue;
-            }
-        }
-        out.push(row);
     }
 
     // Zero-width sessions (start == stop) are covered by no positive sub-interval
-    // window, so they produced no row above. Emit a single primary row for each
-    // so the session is preserved (matching the non-concurrent path, which keeps
-    // a 0-duration row) rather than being silently dropped.
-    let present: std::collections::HashSet<usize> =
-        out.iter().map(|r| r.session_index).collect();
+    // window. Emit one primary row so the session remains observable.
     for i in 0..starts.len() {
-        if !present.contains(&i) {
+        if starts[i] == stops[i] {
             out.push(LayeredSession {
                 session_index: i,
                 start_ns: starts[i],
@@ -219,7 +245,9 @@ fn validate_lengths(
         || stopped.len() != len
         || background.len() != len
     {
-        return Err(MatcherError::new("all input arrays must have the same length"));
+        return Err(MatcherError::new(
+            "all input arrays must have the same length",
+        ));
     }
     Ok(len)
 }
@@ -237,6 +265,7 @@ fn is_valid_duration(
     !enforce_threshold || duration_ns <= i128::from(threshold_ns)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn is_compatible_open_start_for_stop(
     stop_index: usize,
     start_index: usize,
@@ -273,6 +302,7 @@ fn is_compatible_open_start_for_stop(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn nearest_compatible_open_start_for_stop(
     stop_index: usize,
     app_codes: &[i32],
@@ -303,6 +333,7 @@ fn nearest_compatible_open_start_for_stop(
     None
 }
 
+#[allow(clippy::too_many_arguments)]
 fn close_reused_starts<F>(
     stop_index: usize,
     app_codes: &[i32],
@@ -343,6 +374,7 @@ fn close_reused_starts<F>(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::enum_variant_names)]
 enum SparseStopMode {
     SameApp,
     OtherApp,
@@ -602,6 +634,7 @@ impl SparseOpenStarts {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn match_app_usage_core(
     app_codes: &[i32],
     timestamp_ns: &[i64],
@@ -695,6 +728,7 @@ pub fn match_app_usage_core(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn match_app_usage_update_indices_core(
     app_codes: &[i32],
     timestamp_ns: &[i64],
@@ -837,6 +871,376 @@ pub fn match_app_usage_update_indices_core(
         stop_event_indices,
         missing_indices,
     })
+}
+
+/// Reference-compatible matcher with the intra-app teardown grace used by the
+/// browser product. A zero proximity delegates to the optimized sparse
+/// matcher. A positive proximity keeps a re-resumed session open when an
+/// Activity-Stopped fallback lands inside the grace window, matching the
+/// product's former TypeScript implementation exactly.
+#[allow(clippy::too_many_arguments)]
+fn match_sorted_app_usage_update_indices_with_proximity(
+    app_codes: &[i32],
+    timestamp_ns: &[i64],
+    resumed: &[bool],
+    same_stop: &[bool],
+    other_stop: &[bool],
+    stopped: &[bool],
+    background: &[bool],
+    options: MatchOptions,
+    proximity_ns: i64,
+) -> MatcherResult<MatchUpdateIndices> {
+    let len = app_codes.len();
+    let max_app_code = app_codes.iter().copied().max().unwrap_or(0);
+    let app_slots = max_app_code as usize + 1;
+    let mut last_event_ns = vec![None; app_slots];
+    let mut last_was_same_stop = vec![false; app_slots];
+    let mut is_reresume = vec![false; len];
+    let mut open_starts = SparseOpenStarts::new(len, app_codes)?;
+    let mut start_indices = Vec::new();
+    let mut stop_start_indices = Vec::new();
+    let mut stop_event_indices = Vec::new();
+    let mut missing_indices = Vec::new();
+    let mut closed = Vec::new();
+    let threshold_ns = options.long_duration_threshold_ns;
+
+    for index in 0..len {
+        if let Some(stop_mode) = sparse_stop_mode(index, same_stop, other_stop, stopped, options) {
+            let current_app = app_codes[index];
+            let stop_timestamp_ns = timestamp_ns[index];
+            let enforce_threshold = sparse_stop_enforces_threshold(stop_mode, options);
+
+            if options.allow_stop_event_reuse {
+                // Sparse lists run newest-to-oldest. Buffer and reverse the
+                // matches so the public result retains the legacy order.
+                closed.clear();
+                match stop_mode {
+                    SparseStopMode::SameApp | SparseStopMode::FallbackSameApp => {
+                        open_starts.close_same_app_matches(
+                            current_app,
+                            stop_timestamp_ns,
+                            enforce_threshold,
+                            threshold_ns,
+                            timestamp_ns,
+                            |start_index| closed.push(start_index),
+                        );
+                    }
+                    SparseStopMode::OtherApp => {
+                        open_starts.close_matching_global(
+                            stop_timestamp_ns,
+                            enforce_threshold,
+                            threshold_ns,
+                            timestamp_ns,
+                            |start_index| {
+                                app_codes[start_index] != current_app && !background[start_index]
+                            },
+                            |start_index| closed.push(start_index),
+                        );
+                    }
+                    SparseStopMode::AnyApp => {
+                        open_starts.close_matching_global(
+                            stop_timestamp_ns,
+                            enforce_threshold,
+                            threshold_ns,
+                            timestamp_ns,
+                            |start_index| {
+                                app_codes[start_index] == current_app || !background[start_index]
+                            },
+                            |start_index| closed.push(start_index),
+                        );
+                    }
+                }
+                for start_index in closed.drain(..).rev() {
+                    stop_start_indices.push(start_index);
+                    stop_event_indices.push(index);
+                }
+            } else {
+                let matched_start = match stop_mode {
+                    SparseStopMode::SameApp => open_starts.latest_same_app(
+                        current_app,
+                        stop_timestamp_ns,
+                        true,
+                        threshold_ns,
+                        timestamp_ns,
+                    ),
+                    SparseStopMode::FallbackSameApp => {
+                        let candidate = open_starts.latest_same_app(
+                            current_app,
+                            stop_timestamp_ns,
+                            enforce_threshold,
+                            threshold_ns,
+                            timestamp_ns,
+                        );
+                        candidate.filter(|&start_index| {
+                            !(is_reresume[start_index]
+                                && i128::from(stop_timestamp_ns)
+                                    - i128::from(timestamp_ns[start_index])
+                                    < i128::from(proximity_ns))
+                        })
+                    }
+                    SparseStopMode::OtherApp => open_starts.latest_matching_global(
+                        stop_timestamp_ns,
+                        true,
+                        threshold_ns,
+                        timestamp_ns,
+                        |start_index| {
+                            app_codes[start_index] != current_app && !background[start_index]
+                        },
+                    ),
+                    SparseStopMode::AnyApp => open_starts.latest_matching_global(
+                        stop_timestamp_ns,
+                        true,
+                        threshold_ns,
+                        timestamp_ns,
+                        |start_index| {
+                            app_codes[start_index] == current_app || !background[start_index]
+                        },
+                    ),
+                };
+
+                if let Some(start_index) = matched_start {
+                    open_starts.close(start_index);
+                    stop_start_indices.push(start_index);
+                    stop_event_indices.push(index);
+                }
+            }
+        }
+
+        if resumed[index] {
+            let slot = app_codes[index] as usize;
+            is_reresume[index] = last_event_ns[slot].is_some_and(|last| {
+                last_was_same_stop[slot]
+                    && i128::from(timestamp_ns[index]) - i128::from(last) < i128::from(proximity_ns)
+            });
+            start_indices.push(index);
+            open_starts.open(index, app_codes[index]);
+        }
+
+        let slot = app_codes[index] as usize;
+        last_event_ns[slot] = Some(timestamp_ns[index]);
+        last_was_same_stop[slot] = same_stop[index];
+    }
+
+    if len > 0 {
+        let last_index = len - 1;
+        let mut final_stops = Vec::new();
+        let mut final_missing = Vec::new();
+        open_starts.finish_open_starts(
+            last_index,
+            timestamp_ns,
+            threshold_ns,
+            |start_index, stop_index| final_stops.push((start_index, stop_index)),
+            |start_index| final_missing.push(start_index),
+        );
+        for (start_index, stop_index) in final_stops.into_iter().rev() {
+            stop_start_indices.push(start_index);
+            stop_event_indices.push(stop_index);
+        }
+        missing_indices.extend(final_missing.into_iter().rev());
+    }
+
+    Ok(MatchUpdateIndices {
+        start_indices,
+        stop_start_indices,
+        stop_event_indices,
+        missing_indices,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn match_legacy_app_usage_update_indices_with_proximity(
+    app_codes: &[i32],
+    timestamp_ns: &[i64],
+    resumed: &[bool],
+    same_stop: &[bool],
+    other_stop: &[bool],
+    stopped: &[bool],
+    background: &[bool],
+    options: MatchOptions,
+    proximity_ns: i64,
+) -> MatcherResult<MatchUpdateIndices> {
+    let len = app_codes.len();
+    let max_app_code = app_codes.iter().copied().max().unwrap_or(0);
+    if app_codes.iter().any(|&code| code < 0) {
+        return Err(MatcherError::new(
+            "app code arrays must contain only non-negative values",
+        ));
+    }
+    let app_slots = max_app_code as usize + 1;
+    let mut last_event_ns = vec![None; app_slots];
+    let mut last_was_same_stop = vec![false; app_slots];
+    let mut is_reresume = vec![false; len];
+    let mut open_start_indices = Vec::new();
+    let mut start_indices = Vec::new();
+    let mut stop_start_indices = Vec::new();
+    let mut stop_event_indices = Vec::new();
+    let mut missing_indices = Vec::new();
+
+    for index in 0..len {
+        let current_app = app_codes[index];
+        let is_normal_stop = same_stop[index] || other_stop[index];
+        let is_fallback_stop = stopped[index] && options.use_activity_stopped_as_fallback;
+
+        if options.allow_stop_event_reuse && (is_normal_stop || is_fallback_stop) {
+            close_reused_starts(
+                index,
+                app_codes,
+                timestamp_ns,
+                same_stop,
+                other_stop,
+                stopped,
+                background,
+                options,
+                &mut open_start_indices,
+                |start_index| {
+                    stop_start_indices.push(start_index);
+                    stop_event_indices.push(index);
+                },
+            );
+        } else if is_normal_stop || is_fallback_stop {
+            let mut matched_position = None;
+            for (position, &start_index) in open_start_indices.iter().enumerate().rev() {
+                let start_app = app_codes[start_index];
+                let same_app_compatible = same_stop[index] && start_app == current_app;
+                let other_app_compatible =
+                    other_stop[index] && start_app != current_app && !background[start_index];
+                let fallback_compatible =
+                    !is_normal_stop && is_fallback_stop && start_app == current_app;
+                if !(same_app_compatible || other_app_compatible || fallback_compatible) {
+                    continue;
+                }
+                let enforce_threshold = !fallback_compatible || options.apply_threshold_to_fallback;
+                if !is_valid_duration(
+                    timestamp_ns[start_index],
+                    timestamp_ns[index],
+                    enforce_threshold,
+                    options.long_duration_threshold_ns,
+                ) {
+                    continue;
+                }
+                if fallback_compatible
+                    && is_reresume[start_index]
+                    && i128::from(timestamp_ns[index]) - i128::from(timestamp_ns[start_index])
+                        < i128::from(proximity_ns)
+                {
+                    // Intra-app teardown artifact: leave this start open for
+                    // the next genuine stop event.
+                    break;
+                }
+                matched_position = Some(position);
+                break;
+            }
+            if let Some(position) = matched_position {
+                let start_index = open_start_indices.remove(position);
+                stop_start_indices.push(start_index);
+                stop_event_indices.push(index);
+            }
+        }
+
+        if resumed[index] {
+            let slot = current_app as usize;
+            is_reresume[index] = last_event_ns[slot].is_some_and(|last| {
+                last_was_same_stop[slot]
+                    && i128::from(timestamp_ns[index]) - i128::from(last) < i128::from(proximity_ns)
+            });
+            start_indices.push(index);
+            open_start_indices.push(index);
+        }
+
+        let slot = current_app as usize;
+        last_event_ns[slot] = Some(timestamp_ns[index]);
+        last_was_same_stop[slot] = same_stop[index];
+    }
+
+    if len > 0 {
+        let last_index = len - 1;
+        for start_index in open_start_indices {
+            if last_index > start_index
+                && is_valid_duration(
+                    timestamp_ns[start_index],
+                    timestamp_ns[last_index],
+                    true,
+                    options.long_duration_threshold_ns,
+                )
+            {
+                stop_start_indices.push(start_index);
+                stop_event_indices.push(last_index);
+            } else {
+                missing_indices.push(start_index);
+            }
+        }
+    }
+
+    Ok(MatchUpdateIndices {
+        start_indices,
+        stop_start_indices,
+        stop_event_indices,
+        missing_indices,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn match_app_usage_update_indices_with_proximity_core(
+    app_codes: &[i32],
+    timestamp_ns: &[i64],
+    resumed: &[bool],
+    same_stop: &[bool],
+    other_stop: &[bool],
+    stopped: &[bool],
+    background: &[bool],
+    options: MatchOptions,
+    proximity_ns: i64,
+) -> MatcherResult<MatchUpdateIndices> {
+    validate_lengths(
+        app_codes,
+        timestamp_ns,
+        resumed,
+        same_stop,
+        other_stop,
+        stopped,
+        background,
+    )?;
+    if proximity_ns < 0 {
+        return Err(MatcherError::new("proximity_ns must be non-negative"));
+    }
+    if proximity_ns == 0 {
+        return match_app_usage_update_indices_core(
+            app_codes,
+            timestamp_ns,
+            resumed,
+            same_stop,
+            other_stop,
+            stopped,
+            background,
+            options,
+        );
+    }
+
+    if timestamp_ns.windows(2).all(|pair| pair[0] <= pair[1]) {
+        return match_sorted_app_usage_update_indices_with_proximity(
+            app_codes,
+            timestamp_ns,
+            resumed,
+            same_stop,
+            other_stop,
+            stopped,
+            background,
+            options,
+            proximity_ns,
+        );
+    }
+
+    match_legacy_app_usage_update_indices_with_proximity(
+        app_codes,
+        timestamp_ns,
+        resumed,
+        same_stop,
+        other_stop,
+        stopped,
+        background,
+        options,
+        proximity_ns,
+    )
 }
 
 #[cfg(feature = "python")]
@@ -1016,8 +1420,8 @@ fn split_overlapping_sessions_py(
     starts: PyReadonlyArray1<'_, i64>,
     stops: PyReadonlyArray1<'_, i64>,
 ) -> PyResult<(Vec<usize>, Vec<i64>, Vec<i64>, Vec<bool>)> {
-    let rows = split_overlapping_sessions(starts.as_slice()?, stops.as_slice()?)
-        .map_err(to_py_error)?;
+    let rows =
+        split_overlapping_sessions(starts.as_slice()?, stops.as_slice()?).map_err(to_py_error)?;
     let mut session_index = Vec::with_capacity(rows.len());
     let mut start_ns = Vec::with_capacity(rows.len());
     let mut stop_ns = Vec::with_capacity(rows.len());
@@ -1129,6 +1533,357 @@ mod tests {
             vec![false; len],
             vec![false; len],
         )
+    }
+
+    fn next_u64(seed: &mut u64) -> u64 {
+        *seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+        *seed
+    }
+
+    #[test]
+    fn every_input_array_length_is_validated_independently() {
+        let app_codes = [1];
+        let timestamps = [0];
+        let flags = [false];
+        assert_eq!(
+            validate_lengths(
+                &app_codes,
+                &timestamps,
+                &flags,
+                &flags,
+                &flags,
+                &flags,
+                &flags,
+            ),
+            Ok(1),
+        );
+
+        for short_index in 0..6 {
+            let empty_i64: &[i64] = &[];
+            let empty_bool: &[bool] = &[];
+            let result = validate_lengths(
+                &app_codes,
+                if short_index == 0 {
+                    empty_i64
+                } else {
+                    &timestamps
+                },
+                if short_index == 1 { empty_bool } else { &flags },
+                if short_index == 2 { empty_bool } else { &flags },
+                if short_index == 3 { empty_bool } else { &flags },
+                if short_index == 4 { empty_bool } else { &flags },
+                if short_index == 5 { empty_bool } else { &flags },
+            );
+            assert!(
+                result.is_err(),
+                "input array {short_index} was not validated"
+            );
+        }
+    }
+
+    #[test]
+    fn stop_compatibility_covers_same_other_background_fallback_and_threshold_boundaries() {
+        let app_codes = [1, 2];
+        let timestamps = [10, 20];
+        let none = [false, false];
+        let stop_at_one = [false, true];
+        let foreground = [false, false];
+        let background_start = [true, false];
+        let options = MatchOptions {
+            allow_stop_event_reuse: false,
+            use_activity_stopped_as_fallback: true,
+            apply_threshold_to_fallback: true,
+            long_duration_threshold_ns: 10,
+        };
+
+        assert!(!is_compatible_open_start_for_stop(
+            1,
+            0,
+            &app_codes,
+            &timestamps,
+            &stop_at_one,
+            &none,
+            &none,
+            &foreground,
+            options,
+        ));
+        assert!(is_compatible_open_start_for_stop(
+            1,
+            0,
+            &app_codes,
+            &timestamps,
+            &none,
+            &stop_at_one,
+            &none,
+            &foreground,
+            options,
+        ));
+        assert!(!is_compatible_open_start_for_stop(
+            1,
+            0,
+            &app_codes,
+            &timestamps,
+            &none,
+            &stop_at_one,
+            &none,
+            &background_start,
+            options,
+        ));
+
+        let same_app_codes = [2, 2];
+        assert!(is_compatible_open_start_for_stop(
+            1,
+            0,
+            &same_app_codes,
+            &timestamps,
+            &stop_at_one,
+            &none,
+            &none,
+            &foreground,
+            options,
+        ));
+        assert!(is_compatible_open_start_for_stop(
+            1,
+            0,
+            &same_app_codes,
+            &timestamps,
+            &none,
+            &none,
+            &stop_at_one,
+            &foreground,
+            options,
+        ));
+        let too_late = [10, 21];
+        assert!(!is_compatible_open_start_for_stop(
+            1,
+            0,
+            &same_app_codes,
+            &too_late,
+            &none,
+            &none,
+            &stop_at_one,
+            &foreground,
+            options,
+        ));
+        let fallback_without_threshold = MatchOptions {
+            apply_threshold_to_fallback: false,
+            ..options
+        };
+        assert!(is_compatible_open_start_for_stop(
+            1,
+            0,
+            &same_app_codes,
+            &too_late,
+            &none,
+            &none,
+            &stop_at_one,
+            &foreground,
+            fallback_without_threshold,
+        ));
+        let fallback_disabled = MatchOptions {
+            use_activity_stopped_as_fallback: false,
+            ..options
+        };
+        assert!(!is_compatible_open_start_for_stop(
+            1,
+            0,
+            &same_app_codes,
+            &timestamps,
+            &none,
+            &none,
+            &stop_at_one,
+            &foreground,
+            fallback_disabled,
+        ));
+    }
+
+    #[test]
+    fn sparse_stop_classification_is_exhaustive() {
+        let off = [false];
+        let on = [true];
+        let options = MatchOptions {
+            allow_stop_event_reuse: false,
+            use_activity_stopped_as_fallback: true,
+            apply_threshold_to_fallback: false,
+            long_duration_threshold_ns: 1,
+        };
+        assert_eq!(sparse_stop_mode(0, &off, &off, &off, options), None);
+        assert_eq!(
+            sparse_stop_mode(0, &on, &off, &off, options),
+            Some(SparseStopMode::SameApp),
+        );
+        assert_eq!(
+            sparse_stop_mode(0, &off, &on, &off, options),
+            Some(SparseStopMode::OtherApp),
+        );
+        assert_eq!(
+            sparse_stop_mode(0, &on, &on, &off, options),
+            Some(SparseStopMode::AnyApp),
+        );
+        assert_eq!(
+            sparse_stop_mode(0, &off, &off, &on, options),
+            Some(SparseStopMode::FallbackSameApp),
+        );
+        assert!(!sparse_stop_enforces_threshold(
+            SparseStopMode::FallbackSameApp,
+            options,
+        ));
+        assert!(sparse_stop_enforces_threshold(
+            SparseStopMode::FallbackSameApp,
+            MatchOptions {
+                apply_threshold_to_fallback: true,
+                ..options
+            },
+        ));
+        assert!(sparse_stop_enforces_threshold(
+            SparseStopMode::SameApp,
+            options,
+        ));
+    }
+
+    #[test]
+    fn proximity_ignores_intra_app_teardown_after_reresume() {
+        let app_codes = [1, 1, 1, 1, 1];
+        let timestamps = [0, 100, 150, 200, 1_000];
+        let resumed = [true, false, true, false, false];
+        let same_stop = [false, true, false, false, true];
+        let other_stop = [false; 5];
+        let stopped = [false, false, false, true, false];
+        let background = [false; 5];
+        let options = MatchOptions {
+            allow_stop_event_reuse: false,
+            use_activity_stopped_as_fallback: true,
+            apply_threshold_to_fallback: true,
+            long_duration_threshold_ns: 10_000,
+        };
+
+        let output = match_app_usage_update_indices_with_proximity_core(
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
+            options,
+            200,
+        )
+        .unwrap();
+        assert_eq!(output.start_indices, vec![0, 2]);
+        assert_eq!(output.stop_start_indices, vec![0, 2]);
+        assert_eq!(output.stop_event_indices, vec![1, 4]);
+        assert!(output.missing_indices.is_empty());
+
+        let without_proximity = match_app_usage_update_indices_with_proximity_core(
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
+            options,
+            0,
+        )
+        .unwrap();
+        assert_eq!(without_proximity.stop_event_indices, vec![1, 3]);
+    }
+
+    #[test]
+    fn negative_proximity_fails_closed() {
+        let error = match_app_usage_update_indices_with_proximity_core(
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            MatchOptions {
+                allow_stop_event_reuse: false,
+                use_activity_stopped_as_fallback: true,
+                apply_threshold_to_fallback: true,
+                long_duration_threshold_ns: 1,
+            },
+            -1,
+        )
+        .unwrap_err();
+        assert_eq!(error.to_string(), "proximity_ns must be non-negative");
+    }
+
+    #[test]
+    fn sorted_sparse_proximity_matches_the_legacy_oracle_across_random_inputs() {
+        struct Lcg(u64);
+
+        impl Lcg {
+            fn next(&mut self) -> u64 {
+                self.0 = self
+                    .0
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
+                self.0
+            }
+
+            fn flag(&mut self, one_in: u64) -> bool {
+                self.next().is_multiple_of(one_in)
+            }
+        }
+
+        let mut random = Lcg(0x4348_524f_4e49_434c);
+        for case_index in 0..2_000 {
+            let len = (random.next() % 160) as usize;
+            let mut timestamp_ns = Vec::with_capacity(len);
+            let mut timestamp = 0_i64;
+            for _ in 0..len {
+                // Includes equal timestamps and exact threshold/proximity
+                // boundaries; the optimized path only requires nondecreasing
+                // event order.
+                timestamp += (random.next() % 9) as i64;
+                timestamp_ns.push(timestamp);
+            }
+            let app_codes = (0..len)
+                .map(|_| (random.next() % 7) as i32)
+                .collect::<Vec<_>>();
+            let resumed = (0..len).map(|_| random.flag(3)).collect::<Vec<_>>();
+            let same_stop = (0..len).map(|_| random.flag(4)).collect::<Vec<_>>();
+            let other_stop = (0..len).map(|_| random.flag(5)).collect::<Vec<_>>();
+            let stopped = (0..len).map(|_| random.flag(4)).collect::<Vec<_>>();
+            let background = (0..len).map(|_| random.flag(5)).collect::<Vec<_>>();
+            let options = MatchOptions {
+                allow_stop_event_reuse: random.flag(2),
+                use_activity_stopped_as_fallback: random.flag(2),
+                apply_threshold_to_fallback: random.flag(2),
+                long_duration_threshold_ns: (random.next() % 80) as i64,
+            };
+            let proximity_ns = 1 + (random.next() % 20) as i64;
+
+            let expected = match_legacy_app_usage_update_indices_with_proximity(
+                &app_codes,
+                &timestamp_ns,
+                &resumed,
+                &same_stop,
+                &other_stop,
+                &stopped,
+                &background,
+                options,
+                proximity_ns,
+            )
+            .expect("legacy oracle should accept generated input");
+            let actual = match_sorted_app_usage_update_indices_with_proximity(
+                &app_codes,
+                &timestamp_ns,
+                &resumed,
+                &same_stop,
+                &other_stop,
+                &stopped,
+                &background,
+                options,
+                proximity_ns,
+            )
+            .expect("sorted sparse matcher should accept generated input");
+
+            assert_eq!(actual, expected, "randomized case {case_index}");
+        }
     }
 
     #[test]
@@ -1414,7 +2169,14 @@ mod tests {
         options: MatchOptions,
     ) -> MatchOutput {
         match_app_usage_core(
-            app_codes, timestamp_ns, resumed, same_stop, other_stop, stopped, background, options,
+            app_codes,
+            timestamp_ns,
+            resumed,
+            same_stop,
+            other_stop,
+            stopped,
+            background,
+            options,
         )
         .expect("core matcher should succeed")
     }
@@ -1430,7 +2192,14 @@ mod tests {
         options: MatchOptions,
     ) -> MatchUpdateIndices {
         match_app_usage_update_indices_core(
-            app_codes, timestamp_ns, resumed, same_stop, other_stop, stopped, background, options,
+            app_codes,
+            timestamp_ns,
+            resumed,
+            same_stop,
+            other_stop,
+            stopped,
+            background,
+            options,
         )
         .expect("sparse matcher should succeed")
     }
@@ -1461,7 +2230,13 @@ mod tests {
         let options = background_options();
 
         let output = run_bg(
-            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
             options,
         );
         // S survived N's other-stop (stop=300, not 100); N runs to file end (300).
@@ -1471,7 +2246,13 @@ mod tests {
 
         // Sparse path agrees with dense.
         let sparse = run_update_indices_bg(
-            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
             options,
         );
         assert_eq!(
@@ -1493,14 +2274,26 @@ mod tests {
         let options = background_options();
 
         let output = run_bg(
-            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
             options,
         );
         assert_eq!(output.start_ns, vec![0, 100, -1]);
         assert_eq!(output.stop_ns, vec![100, 300, -1]);
 
         let sparse = run_update_indices_bg(
-            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
             options,
         );
         assert_eq!(
@@ -1527,7 +2320,13 @@ mod tests {
         };
 
         let output = run_bg(
-            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
             options,
         );
         // index 2 (app 2) other-stop closes B (code 3) but not S (code 1, background).
@@ -1536,7 +2335,13 @@ mod tests {
         assert_eq!(output.stop_ns, vec![100, 100, -1]);
 
         let sparse = run_update_indices_bg(
-            &app_codes, &timestamps, &resumed, &same_stop, &other_stop, &stopped, &background,
+            &app_codes,
+            &timestamps,
+            &resumed,
+            &same_stop,
+            &other_stop,
+            &stopped,
+            &background,
             options,
         );
         assert_eq!(
@@ -1666,15 +2471,15 @@ mod tests {
 
         // Explicit edges (in addition to the random corpus above).
         let edges: &[(Vec<i64>, Vec<i64>)] = &[
-            (vec![], vec![]),                       // empty
-            (vec![5], vec![5]),                     // single zero-width
-            (vec![0], vec![10]),                    // single
-            (vec![0, 0], vec![10, 10]),             // coincident identical
-            (vec![0, 0, 0], vec![10, 10, 10]),      // triple coincident
-            (vec![0, 40], vec![100, 60]),           // fully nested
-            (vec![0, 10], vec![10, 20]),            // adjacent-touching (stop == next start)
-            (vec![0, 5, 10], vec![5, 5, 15]),       // zero-width nested in a run
-            (vec![10, 0, 5], vec![20, 30, 5]),      // unsorted input with zero-width
+            (vec![], vec![]),                  // empty
+            (vec![5], vec![5]),                // single zero-width
+            (vec![0], vec![10]),               // single
+            (vec![0, 0], vec![10, 10]),        // coincident identical
+            (vec![0, 0, 0], vec![10, 10, 10]), // triple coincident
+            (vec![0, 40], vec![100, 60]),      // fully nested
+            (vec![0, 10], vec![10, 20]),       // adjacent-touching (stop == next start)
+            (vec![0, 5, 10], vec![5, 5, 15]),  // zero-width nested in a run
+            (vec![10, 0, 5], vec![20, 30, 5]), // unsorted input with zero-width
         ];
         for (starts, stops) in edges {
             assert_eq!(
@@ -1683,6 +2488,20 @@ mod tests {
                 "edge mismatch starts={starts:?} stops={stops:?}",
             );
         }
+
+        // Dense overlap is the case that previously created a much larger
+        // temporary per-boundary table than the coalesced result. Keep a
+        // moderately large exact comparison here so that the memory-saving
+        // transition sweep cannot change interval or tie-breaking semantics.
+        let starts = (0..512).map(i64::from).collect::<Vec<_>>();
+        let stops = (0..512)
+            .map(|index| 1_024_i64 - i64::from(index % 17))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            split_overlapping_sessions(&starts, &stops).expect("ok"),
+            reference_split(&starts, &stops),
+            "dense-overlap transition sweep must match the reference",
+        );
     }
 
     #[test]
@@ -1691,8 +2510,18 @@ mod tests {
         assert_eq!(
             out,
             vec![
-                LayeredSession { session_index: 0, start_ns: 0, stop_ns: 50, layer: UsageLayer::Primary },
-                LayeredSession { session_index: 1, start_ns: 100, stop_ns: 150, layer: UsageLayer::Primary },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 0,
+                    stop_ns: 50,
+                    layer: UsageLayer::Primary
+                },
+                LayeredSession {
+                    session_index: 1,
+                    start_ns: 100,
+                    stop_ns: 150,
+                    layer: UsageLayer::Primary
+                },
             ]
         );
     }
@@ -1704,10 +2533,30 @@ mod tests {
         assert_eq!(
             out,
             vec![
-                LayeredSession { session_index: 0, start_ns: 0, stop_ns: 40, layer: UsageLayer::Primary },
-                LayeredSession { session_index: 0, start_ns: 40, stop_ns: 60, layer: UsageLayer::Secondary },
-                LayeredSession { session_index: 0, start_ns: 60, stop_ns: 100, layer: UsageLayer::Primary },
-                LayeredSession { session_index: 1, start_ns: 40, stop_ns: 60, layer: UsageLayer::Primary },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 0,
+                    stop_ns: 40,
+                    layer: UsageLayer::Primary
+                },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 40,
+                    stop_ns: 60,
+                    layer: UsageLayer::Secondary
+                },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 60,
+                    stop_ns: 100,
+                    layer: UsageLayer::Primary
+                },
+                LayeredSession {
+                    session_index: 1,
+                    start_ns: 40,
+                    stop_ns: 60,
+                    layer: UsageLayer::Primary
+                },
             ]
         );
     }
@@ -1719,9 +2568,24 @@ mod tests {
         assert_eq!(
             out,
             vec![
-                LayeredSession { session_index: 0, start_ns: 0, stop_ns: 40, layer: UsageLayer::Primary },
-                LayeredSession { session_index: 0, start_ns: 40, stop_ns: 60, layer: UsageLayer::Secondary },
-                LayeredSession { session_index: 1, start_ns: 40, stop_ns: 100, layer: UsageLayer::Primary },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 0,
+                    stop_ns: 40,
+                    layer: UsageLayer::Primary
+                },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 40,
+                    stop_ns: 60,
+                    layer: UsageLayer::Secondary
+                },
+                LayeredSession {
+                    session_index: 1,
+                    start_ns: 40,
+                    stop_ns: 100,
+                    layer: UsageLayer::Primary
+                },
             ]
         );
     }
@@ -1733,8 +2597,18 @@ mod tests {
         assert_eq!(
             out,
             vec![
-                LayeredSession { session_index: 0, start_ns: 0, stop_ns: 100, layer: UsageLayer::Secondary },
-                LayeredSession { session_index: 1, start_ns: 0, stop_ns: 100, layer: UsageLayer::Primary },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 0,
+                    stop_ns: 100,
+                    layer: UsageLayer::Secondary
+                },
+                LayeredSession {
+                    session_index: 1,
+                    start_ns: 0,
+                    stop_ns: 100,
+                    layer: UsageLayer::Primary
+                },
             ]
         );
     }
@@ -1781,9 +2655,24 @@ mod tests {
         assert_eq!(
             out,
             vec![
-                LayeredSession { session_index: 0, start_ns: 0, stop_ns: 100, layer: UsageLayer::Secondary },
-                LayeredSession { session_index: 1, start_ns: 0, stop_ns: 100, layer: UsageLayer::Secondary },
-                LayeredSession { session_index: 2, start_ns: 0, stop_ns: 100, layer: UsageLayer::Primary },
+                LayeredSession {
+                    session_index: 0,
+                    start_ns: 0,
+                    stop_ns: 100,
+                    layer: UsageLayer::Secondary
+                },
+                LayeredSession {
+                    session_index: 1,
+                    start_ns: 0,
+                    stop_ns: 100,
+                    layer: UsageLayer::Secondary
+                },
+                LayeredSession {
+                    session_index: 2,
+                    start_ns: 0,
+                    stop_ns: 100,
+                    layer: UsageLayer::Primary
+                },
             ]
         );
     }

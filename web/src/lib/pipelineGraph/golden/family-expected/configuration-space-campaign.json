@@ -1,0 +1,289 @@
+{
+  "protocolVersion": "chronicle-configuration-space-campaign/v1",
+  "contractAuthority": "web/schema/chronicle-local-contract.linkml.yaml",
+  "contractOptionKeyCount": 54,
+  "computationalOptionKeyCount": 46,
+  "factoredAxes": {
+    "annotation": [
+      "studyName"
+    ],
+    "view": [
+      "enablePlotting",
+      "includeFilteredAppUsageInPlots",
+      "enableActivityHeatmap",
+      "exportPlotsAsSvg",
+      "enableInteractiveTimeline"
+    ],
+    "execution": [
+      "parallelProcessing",
+      "parallelMaxWorkers"
+    ]
+  },
+  "equivalenceClassAuthority": "web/scripts/generate_combinatorial_model.mts",
+  "coveringArray": {
+    "strength": 3,
+    "configurations": 62,
+    "exactValidTupleCoverage": "100%"
+  },
+  "highOrderSample": {
+    "seed": 12648430,
+    "configurations": 128,
+    "uniquePublishedOutputs": 111
+  },
+  "supportCatalogs": {
+    "authority": [
+      "web/src/assets/defaults/unified_app_codebook.csv",
+      "web/src/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_to_filter.csv",
+      "web/src/assets/defaults/Chronicle_Android_raw_data_preprocessor_background_apps.csv",
+      "web/src/assets/defaults/Chronicle_Android_raw_data_preprocessor_apps_forcing_screen_open.csv"
+    ],
+    "sourceCounts": {
+      "codebook": 12531,
+      "filter": 80,
+      "background": 4,
+      "forcingScreenOpen": 5
+    }
+  },
+  "campaign": {
+    "validCorpora": 6,
+    "coldFullRustExecutions": 500,
+    "incrementalColdOracleComparisons": 62,
+    "singleComputationalOptionColdOracleComparisons": 46,
+    "noncomputationalInvarianceComparisons": 7,
+    "annotationDependencyComparisons": 1,
+    "computationalOptionKeys": [
+      "processAppUsage",
+      "processScreenUsage",
+      "allowStopEventReuse",
+      "useActivityStoppedAsFallback",
+      "applyThresholdToFallback",
+      "longDurationThresholdHours",
+      "correctDuplicateEventTimestamps",
+      "deduplicateExactRows",
+      "selectedTimezone",
+      "timezoneHandling",
+      "useFilterFile",
+      "useAppsForcingScreenOpenFile",
+      "useBackgroundAppsFile",
+      "useAppCodebook",
+      "includeCategoryColumn",
+      "enableAggregates",
+      "aggregateShape",
+      "enableParquetExport",
+      "enableSpssExport",
+      "minimumUsageDuration",
+      "filterZeroDurationSessions",
+      "customAppEngagementDuration",
+      "longUsageDurationThresholds",
+      "longDataTimeGapThresholds",
+      "screenUsageAutoLockTimeoutSeconds",
+      "screenUsageAutoLockToleranceSeconds",
+      "screenUsageManualLockMaxTailGapSeconds",
+      "screenUsageKeyguardNearStopSeconds",
+      "sameAppInteractionTypesToStopUsageAt",
+      "otherInteractionTypesToStopUsageAt",
+      "modelConcurrentUsage",
+      "applyMinimumUsageDurationToConcurrentSubintervals",
+      "interactionTypesToRemove",
+      "interactionTypeRemap",
+      "proximityIntervalSeconds",
+      "addNoActivityPlaceholderDays",
+      "enableScreenGatedCrediting",
+      "creditedSessionCapMinutes",
+      "deviceLivenessGapToleranceMinutes",
+      "autoLockBridgeSeconds",
+      "noWitnessMinDayApps",
+      "enableStudyWindowFilter",
+      "enablePersonAttribution",
+      "enableComplianceScoring",
+      "complianceThresholdPercent",
+      "enableDayCoverage"
+    ],
+    "qualificationExecutions": 62,
+    "qualificationSuccesses": 54,
+    "expectedQualificationFailures": [
+      "pict_1",
+      "pict_5",
+      "pict_7",
+      "pict_16",
+      "pict_33",
+      "pict_35",
+      "pict_47",
+      "pict_58"
+    ]
+  },
+  "corpusReports": [
+    {
+      "corpusId": "catalog-random",
+      "seed": 12648430,
+      "rowCount": 186,
+      "timezones": [
+        "America/Chicago",
+        "America/New_York"
+      ],
+      "injectedFeatures": [
+        "catalog-derived-apps",
+        "mixed-timezone-rows",
+        "remappable-interaction-types",
+        "removable-interaction-types",
+        "screen-and-keyguard-events"
+      ],
+      "t3Executions": 62,
+      "uniquePublishedOutputs": 57,
+      "uniquePipelineProvenance": 62,
+      "uniqueWorkspaceRoots": 62,
+      "processedRows": {
+        "minimum": 78,
+        "maximum": 186
+      }
+    },
+    {
+      "corpusId": "support-intersections",
+      "seed": 1369957802,
+      "rowCount": 193,
+      "timezones": [
+        "America/Chicago",
+        "America/New_York"
+      ],
+      "injectedFeatures": [
+        "catalog-derived-apps",
+        "exact-duplicate-rows",
+        "mixed-timezone-rows",
+        "overlapping-sessions",
+        "remappable-interaction-types",
+        "removable-interaction-types",
+        "screen-and-keyguard-events"
+      ],
+      "t3Executions": 62,
+      "uniquePublishedOutputs": 60,
+      "uniquePipelineProvenance": 62,
+      "uniqueWorkspaceRoots": 62,
+      "processedRows": {
+        "minimum": 79,
+        "maximum": 193
+      }
+    },
+    {
+      "corpusId": "temporal-pathologies",
+      "seed": 3512143742,
+      "rowCount": 174,
+      "timezones": [
+        "America/Chicago",
+        "America/New_York"
+      ],
+      "injectedFeatures": [
+        "catalog-derived-apps",
+        "duplicate-event-timestamps",
+        "exact-duplicate-rows",
+        "long-duration-threshold-crossings",
+        "missing-stop-events",
+        "mixed-timezone-rows",
+        "out-of-order-input",
+        "overlapping-sessions",
+        "remappable-interaction-types",
+        "removable-interaction-types",
+        "screen-and-keyguard-events"
+      ],
+      "t3Executions": 62,
+      "uniquePublishedOutputs": 60,
+      "uniquePipelineProvenance": 62,
+      "uniqueWorkspaceRoots": 62,
+      "processedRows": {
+        "minimum": 67,
+        "maximum": 174
+      }
+    },
+    {
+      "corpusId": "interaction-pathologies",
+      "seed": 3134582485,
+      "rowCount": 180,
+      "timezones": [
+        "America/Chicago",
+        "America/New_York"
+      ],
+      "injectedFeatures": [
+        "catalog-derived-apps",
+        "duplicate-event-timestamps",
+        "long-duration-threshold-crossings",
+        "missing-stop-events",
+        "mixed-timezone-rows",
+        "out-of-order-input",
+        "overlapping-sessions",
+        "quoted-and-unicode-labels",
+        "remappable-interaction-types",
+        "removable-interaction-types",
+        "screen-and-keyguard-events"
+      ],
+      "t3Executions": 62,
+      "uniquePublishedOutputs": 58,
+      "uniquePipelineProvenance": 62,
+      "uniqueWorkspaceRoots": 62,
+      "processedRows": {
+        "minimum": 71,
+        "maximum": 180
+      }
+    },
+    {
+      "corpusId": "threshold-boundaries",
+      "seed": 1611516510,
+      "rowCount": 192,
+      "timezones": [
+        "America/Chicago",
+        "America/New_York"
+      ],
+      "injectedFeatures": [
+        "catalog-derived-apps",
+        "duplicate-event-timestamps",
+        "exact-duplicate-rows",
+        "long-duration-threshold-crossings",
+        "missing-stop-events",
+        "mixed-timezone-rows",
+        "quoted-and-unicode-labels",
+        "remappable-interaction-types",
+        "removable-interaction-types",
+        "screen-and-keyguard-events"
+      ],
+      "t3Executions": 62,
+      "uniquePublishedOutputs": 59,
+      "uniquePipelineProvenance": 62,
+      "uniqueWorkspaceRoots": 62,
+      "processedRows": {
+        "minimum": 71,
+        "maximum": 192
+      }
+    },
+    {
+      "corpusId": "configuration-influence-probes",
+      "seed": 522091749,
+      "rowCount": 85,
+      "timezones": [
+        "America/Chicago",
+        "America/New_York"
+      ],
+      "injectedFeatures": [
+        "catalog-derived-apps",
+        "influence-probe:compliance-thresholds",
+        "influence-probe:fallback-threshold",
+        "influence-probe:keyguard-near-stop",
+        "influence-probe:no-screen-witness-day",
+        "influence-probe:other-app-stop",
+        "influence-probe:stop-event-reuse",
+        "influence-probe:teardown-proximity",
+        "influence-probe:zero-duration-session",
+        "mixed-timezone-rows",
+        "remappable-interaction-types",
+        "removable-interaction-types",
+        "screen-and-keyguard-events"
+      ],
+      "t3Executions": 62,
+      "uniquePublishedOutputs": 57,
+      "uniquePipelineProvenance": 62,
+      "uniqueWorkspaceRoots": 62,
+      "processedRows": {
+        "minimum": 22,
+        "maximum": 85
+      }
+    }
+  ],
+  "caseSetDigest": "sha256:af0522dcfc9d1d42ae9c30fede1c84b354bf1ec087e0013bb7a921bee0346471"
+}

@@ -1,42 +1,49 @@
 rules:
-  - id: chronicle-python-no-eval
-    message: Avoid `eval`; use explicit parsing or a safe decoder instead.
-    severity: ERROR
-    languages: [python]
-    paths:
-      include:
-        - /src/**/*.py
-        - /scripts/**/*.py
-    pattern: eval(...)
-
-  - id: chronicle-python-no-exec
-    message: Avoid `exec`; refactor to explicit callable dispatch or a parser.
-    severity: ERROR
-    languages: [python]
-    paths:
-      include:
-        - /src/**/*.py
-        - /scripts/**/*.py
-    pattern: exec(...)
-
-  - id: chronicle-python-no-subprocess-shell-true
-    message: Avoid `shell=True`; prefer argument arrays and direct executable invocation.
-    severity: ERROR
-    languages: [python]
-    paths:
-      include:
-        - /src/**/*.py
-        - /scripts/**/*.py
-    pattern-either:
-      - pattern: subprocess.$FUNC(..., shell=True, ...)
-      - pattern: subprocess.$FUNC(..., shell = True, ...)
-
-  - id: chronicle-github-actions-no-direct-github-context-in-run
-    message: Do not interpolate `${{ github.* }}` directly inside `run:` blocks. Move values through `env:` first.
-    severity: ERROR
-    languages: [generic]
-    paths:
-      include:
-        - /.github/workflows/*.yml
-        - /.github/workflows/*.yaml
-    pattern-regex: '(?s)run:\\s*\\|.*\\$\\{\\{\\s*github\\.'
+- id: chronicle-github-actions-no-direct-github-context-in-run
+  message: Do not interpolate `${{ github.* }}` directly inside `run:` blocks. Move values through `env:`
+    first.
+  severity: ERROR
+  languages:
+  - generic
+  paths:
+    include:
+    - /.github/workflows/*.yml
+    - /.github/workflows/*.yaml
+  pattern-regex: (?s)run:\\s*\\|.*\\$\\{\\{\\s*github\\.
+- id: chronicle-ts-console-log
+  message: Remove console.log before committing; use structured logging or remove the statement.
+  severity: ERROR
+  languages:
+  - typescript
+  paths:
+    include:
+    - '**/web/src/**/*.ts'
+    - '**/web/src/**/*.tsx'
+  pattern: console.log(...)
+- id: chronicle-ts-localstorage-unguarded
+  message: localStorage access can throw in Safari private mode or when storage is full; wrap in try/catch.
+  severity: WARNING
+  languages:
+  - typescript
+  paths:
+    include:
+    - '**/web/src/**/*.ts'
+    - '**/web/src/**/*.tsx'
+  patterns:
+  - pattern: localStorage.$METHOD(...)
+  - pattern-not-inside: "try {\n  ...\n} catch ($E) {\n  ...\n}\n"
+  - pattern-not-inside: "try {\n  ...\n} catch {\n  ...\n}\n"
+- id: chronicle-ts-window-localstorage-unguarded
+  message: window.localStorage access can throw in Safari private mode or when storage is full; wrap in
+    try/catch.
+  severity: WARNING
+  languages:
+  - typescript
+  paths:
+    include:
+    - '**/web/src/**/*.ts'
+    - '**/web/src/**/*.tsx'
+  patterns:
+  - pattern: window.localStorage.$METHOD(...)
+  - pattern-not-inside: "try {\n  ...\n} catch ($E) {\n  ...\n}\n"
+  - pattern-not-inside: "try {\n  ...\n} catch {\n  ...\n}\n"

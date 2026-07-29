@@ -2,36 +2,48 @@
 name = "chronicle_chrono_kernel_wasm"
 version = "0.1.0"
 edition = "2021"
+license = "GPL-3.0-only"
+publish = false
 
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = [
-    '-O3',
-    '--enable-simd',
-    '--enable-bulk-memory',
-    '--enable-nontrapping-float-to-int',
-    '--enable-mutable-globals',
-    '--enable-sign-ext',
-    '--enable-reference-types',
-]
+[features]
+default = []
+incremental-v2 = ["dep:salsa"]
+# Native profiling only; normal and browser builds compile the timer away.
+query-timing = []
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [dependencies]
-wasm-bindgen = "0.2"
-serde = { version = "1.0", features = ["derive"] }
-serde-wasm-bindgen = "0.6"
-chrono = { version = "0.4", default-features = false, features = ["alloc", "wasmbind"] }
+serde = { version = "1.0", features = ["derive", "rc"] }
+chrono = { version = "0.4", default-features = false, features = ["alloc"] }
 chrono-tz = { version = "0.10", default-features = false }
 csv-core = "0.1"
+csv = "1.3"
 ahash = { version = "0.8", default-features = false, features = ["std"] }
+blake3 = { version = "1.8.5", features = ["wasm32_simd"] }
+xxhash-rust = { version = "0.8.12", features = ["xxh3"] }
 chronicle_app_usage_matcher = { path = "../chronicle_app_usage_matcher", default-features = false }
 serde_json = "1.0"
+postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
+lz4_flex = { version = "0.13.1", default-features = false, features = ["safe-encode", "safe-decode"] }
 ryu-js = "1.0"
+hex = "0.4"
+sha2 = "0.11"
+salsa = { version = "=0.28.1", default-features = false, features = ["macros"], optional = true }
+smallvec = { version = "1.15", default-features = false }
+
+[dev-dependencies]
+syn = { version = "2.0", features = ["full", "visit"] }
 
 [profile.release]
-opt-level = "z"
+opt-level = 3
 lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = "symbols"
+
+[profile.profiling]
+inherits = "release"
+debug = 1
+strip = "none"
