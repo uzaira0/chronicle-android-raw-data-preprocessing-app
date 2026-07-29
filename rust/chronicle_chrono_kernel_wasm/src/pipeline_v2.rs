@@ -4402,7 +4402,7 @@ struct RawRow {
 }
 
 fn dedupe_exact_rows(rows: Vec<Row>) -> Vec<Row> {
-    let mut seen = HashMap::<(SharedString, i64, SharedString, SharedString), usize>::with_capacity(
+    let mut seen = AHashMap::<(SharedString, i64, SharedString, SharedString), usize>::with_capacity(
         rows.len(),
     );
     let mut out: Vec<Row> = Vec::with_capacity(rows.len());
@@ -4523,19 +4523,24 @@ fn unalign_duplicate_timestamps(
 
 fn mark_data_time_gaps(mut rows: Vec<Row>) -> Vec<Row> {
     for i in 0..rows.len() {
-        if i == 0 {
-            rows[i].edit_temporal().data_time_gap_hours = 0.0;
+        let final_v = if i == 0 {
+            0.0
         } else {
             let delta_ns = rows[i].event_timestamp_ns - rows[i - 1].event_timestamp_ns;
             // (Number(delta_ns) / 3.6e12).toFixed(2) -> parse back to f64
             let raw = (delta_ns as f64) / 3_600_000_000_000.0;
             let rounded = ecma_round_fixed_f64(raw, 2);
             // JS `(x || 0)` -> 0 if NaN or 0; otherwise rounded.
-            let final_v = if rounded == 0.0 || rounded.is_nan() {
+            if rounded == 0.0 || rounded.is_nan() {
                 0.0
             } else {
                 rounded
-            };
+            }
+        };
+        // Most gaps round to the 0.0 the row already holds; writing that
+        // back would deep-clone the shared row and invalidate its temporal
+        // checkpoint part for an identical value.
+        if rows[i].data_time_gap_hours != final_v {
             rows[i].edit_temporal().data_time_gap_hours = final_v;
         }
     }

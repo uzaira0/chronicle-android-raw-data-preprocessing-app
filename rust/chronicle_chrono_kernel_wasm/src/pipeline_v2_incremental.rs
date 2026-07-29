@@ -259,25 +259,31 @@ fn rows_have_strictly_increasing_timestamps(rows: &[Row]) -> bool {
 }
 
 pub(super) fn collect_timezones(rows: &[Row]) -> BTreeSet<String> {
-    rows.iter().map(|row| row.timezone.to_string()).collect()
+    // Row timezones repeat heavily; dedupe on the shared &str before
+    // allocating one String per unique zone.
+    let mut unique = AHashSet::<&str>::new();
+    rows.iter()
+        .filter(|row| unique.insert(row.timezone.as_str()))
+        .map(|row| row.timezone.to_string())
+        .collect()
 }
 
 pub(super) fn compute_dominant_timezone(rows: &[Row]) -> String {
-    let mut counts = HashMap::<String, usize>::new();
-    let mut primary = "UTC".to_string();
+    let mut counts = AHashMap::<&str, usize>::new();
+    let mut primary = "UTC";
     let mut primary_count = 0;
     for row in rows {
         if row.timezone.is_empty() {
             continue;
         }
-        let count = counts.entry(row.timezone.to_string()).or_default();
+        let count = counts.entry(row.timezone.as_str()).or_default();
         *count += 1;
         if *count > primary_count {
-            primary = row.timezone.to_string();
+            primary = row.timezone.as_str();
             primary_count = *count;
         }
     }
-    primary
+    primary.to_string()
 }
 
 pub(super) struct TimezoneSelection {
