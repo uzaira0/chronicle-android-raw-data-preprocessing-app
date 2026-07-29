@@ -74,7 +74,10 @@ pub(super) fn csv_parse(csv_bytes: &[u8]) -> Vec<RawRow> {
     let mut row_values = vec![String::new(); headers.len()];
     let mut column_index = 0;
     let mut data_row_number = 0_u32;
-    let mut raw_rows = Vec::with_capacity(1024);
+    // One newline per record; pre-sizing avoids repeated reallocation of a
+    // vector that reaches ~200 bytes per row on real exports.
+    let estimated_rows = input.iter().filter(|&&byte| byte == b'\n').count();
+    let mut raw_rows = Vec::with_capacity(estimated_rows.min(4_000_000));
     loop {
         let (result, consumed, produced) = reader.read_field(input, &mut field_buf);
         input = &input[consumed..];
@@ -144,7 +147,7 @@ pub(super) fn resolve_preproc_datetime(value: &str) -> String {
 }
 
 pub(super) fn build_canonical_rows(
-    raw_rows: Vec<RawRow>,
+    raw_rows: &[RawRow],
     fallback_timezone: &str,
     interaction_remap: &BTreeMap<String, String>,
     possible_device_model: &str,
@@ -154,35 +157,33 @@ pub(super) fn build_canonical_rows(
         .map_err(|error| format!("tz {fallback_timezone}: {error}"))?;
     let mut strings = SharedStringPool::default();
     raw_rows
-        .into_iter()
+        .iter()
         .enumerate()
         .map(|(index, raw)| {
             let event_timestamp_ns = parse_chronicle_timestamp_ns(&raw.event_timestamp)
                 .ok_or_else(|| format!("Invalid event_timestamp: {}", raw.event_timestamp))?;
             let timezone = if raw.timezone.is_empty() {
-                "UTC".to_string()
+                "UTC"
             } else {
-                raw.timezone
+                raw.timezone.as_str()
             };
-            let interaction_type = interaction_remap
-                .get(&raw.interaction_type)
-                .cloned()
-                .unwrap_or_else(|| {
-                    normalize_interaction_type_local(&raw.interaction_type).to_string()
-                });
+            let interaction_type = match interaction_remap.get(&raw.interaction_type) {
+                Some(mapped) => mapped.as_str(),
+                None => normalize_interaction_type_local(&raw.interaction_type),
+            };
             let mut row = Row::new(RowData {
                 source_data_rows: SourceDataRows::single(raw.source_data_row),
                 lineage_searches: empty_lineage_searches(),
-                study_id: strings.intern_owned(raw.study_id),
-                participant_id: strings.intern_owned(raw.participant_id),
+                study_id: strings.intern(&raw.study_id),
+                participant_id: strings.intern(&raw.participant_id),
                 possible_device_model: strings.intern(possible_device_model),
                 username: strings
                     .intern_owned(raw.username.replace("Target child", "Target Child")),
-                application_label: strings.intern_owned(raw.application_label),
-                interaction_type: strings.intern_owned(interaction_type),
-                app_package_name: strings.intern_owned(raw.app_package_name),
+                application_label: strings.intern(&raw.application_label),
+                interaction_type: strings.intern(interaction_type),
+                app_package_name: strings.intern(&raw.app_package_name),
                 event_timestamp_ns,
-                timezone: strings.intern_owned(timezone),
+                timezone: strings.intern(timezone),
                 data_time_gap_hours: 0.0,
                 date: SharedString::default(),
                 day: 0,
@@ -3006,10 +3007,20 @@ mod tracked {
     }
 
     fn value_step<T: serde::Serialize>(step: &str, value: T) -> Result<StepValue<T>, String> {
-        let fingerprint = super::value_fingerprint(&value)
+        value_step_shared(step, Arc::new(value))
+    }
+
+    /// value_step for an already-shared value, so a step that passes its
+    /// input through unchanged can reuse the upstream allocation. The
+    /// checkpoint is byte-identical to value_step's.
+    fn value_step_shared<T: serde::Serialize>(
+        step: &str,
+        value: Arc<T>,
+    ) -> Result<StepValue<T>, String> {
+        let fingerprint = super::value_fingerprint(&*value)
             .map_err(|error| format!("serialize {step} checkpoint: {error}"))?;
         Ok(StepValue {
-            value: Arc::new(value),
+            value,
             checkpoint: logical_stage_checkpoint(step, &[], &[("value", &fingerprint)]),
             logical_checkpoint: None,
         })
@@ -3929,6 +3940,7 @@ mod tracked {
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
     ) -> Result<StepValue<Vec<RawRow>>, String> {
+        let _timer = QueryTimer::start("csv_parse");
         db.record_query_body("csv_parse");
         value_step("csv_parse", super::csv_parse(&raw.bytes(db)))
     }
@@ -3938,12 +3950,17 @@ mod tracked {
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
     ) -> Result<StepValue<Vec<RawRow>>, String> {
+        let _timer = QueryTimer::start("drop_empty_timestamp");
         db.record_query_body("drop_empty_timestamp");
         let parsed = csv_parse(db, raw)?;
-        value_step(
-            "drop_empty_timestamp",
-            super::drop_empty_timestamp((*parsed.value).clone()),
-        )
+        // Exports normally contain no empty-timestamp rows; share the parsed
+        // vector instead of deep-cloning ~9 owned strings per row.
+        let value = if parsed.value.iter().any(|row| row.event_timestamp.is_empty()) {
+            Arc::new(super::drop_empty_timestamp((*parsed.value).clone()))
+        } else {
+            Arc::clone(&parsed.value)
+        };
+        value_step_shared("drop_empty_timestamp", value)
     }
 
     #[salsa::tracked(returns(clone))]
@@ -3951,6 +3968,7 @@ mod tracked {
         db: &dyn EarlyStepDb,
         raw: EarlyRawInput,
     ) -> Result<StepValue<String>, String> {
+        let _timer = QueryTimer::start("detect_device_model");
         db.record_query_body("detect_device_model");
         let rows = drop_empty_timestamp(db, raw)?;
         value_step(
@@ -3977,12 +3995,13 @@ mod tracked {
         raw: EarlyRawInput,
         config: EarlyConfigInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("build_canonical_rows");
         db.record_query_body("build_canonical_rows");
         let raw_rows = drop_empty_timestamp(db, raw)?;
         let remap = parse_remap_config(db, config)?;
         let device_model = detect_device_model(db, raw)?;
         let rows = super::build_canonical_rows(
-            (*raw_rows.value).clone(),
+            &raw_rows.value,
             &config.timezone(db),
             &remap.value,
             &device_model.value,
@@ -3996,6 +4015,7 @@ mod tracked {
         raw: EarlyRawInput,
         config: EarlyConfigInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("stable_sort");
         db.record_query_body("stable_sort");
         let rows = build_canonical_rows(db, raw, config)?;
         if super::rows_are_event_ordered(&rows.value) {
@@ -4021,6 +4041,7 @@ mod tracked {
         raw: EarlyRawInput,
         config: EarlyConfigInput,
     ) -> Result<StepValue<BTreeSet<String>>, String> {
+        let _timer = QueryTimer::start("collect_timezones");
         db.record_query_body("collect_timezones");
         let rows = stable_sort(db, raw, config)?;
         value_step("collect_timezones", super::collect_timezones(&rows.value))
@@ -4032,6 +4053,7 @@ mod tracked {
         raw: EarlyRawInput,
         config: EarlyConfigInput,
     ) -> Result<StepValue<String>, String> {
+        let _timer = QueryTimer::start("compute_dominant_timezone");
         db.record_query_body("compute_dominant_timezone");
         let rows = stable_sort(db, raw, config)?;
         value_step(
@@ -4046,6 +4068,7 @@ mod tracked {
         raw: EarlyRawInput,
         config: EarlyConfigInput,
     ) -> Result<StepValue<SelectedTimezone>, String> {
+        let _timer = QueryTimer::start("select_timezone_strategy");
         db.record_query_body("select_timezone_strategy");
         let rows = stable_sort(db, raw, config)?;
         let primary = compute_dominant_timezone(db, raw, config)?;
@@ -4067,6 +4090,7 @@ mod tracked {
         raw: EarlyRawInput,
         config: EarlyConfigInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("restamp_rows");
         db.record_query_body("restamp_rows");
         let selected = select_timezone_strategy(db, raw, config)?;
         if selected
@@ -4131,6 +4155,7 @@ mod tracked {
         raw: EarlyRawInput,
         config: EarlyConfigInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("exact_dedupe");
         db.record_query_body("exact_dedupe");
         let rows = restamp_rows(db, raw, config)?;
         if !config.deduplicate_exact_rows(db) {
@@ -4149,6 +4174,7 @@ mod tracked {
         raw: EarlyRawInput,
         config: EarlyConfigInput,
     ) -> Result<StepValue<u32>, String> {
+        let _timer = QueryTimer::start("count_dup_groups");
         db.record_query_body("count_dup_groups");
         let rows = exact_dedupe(db, raw, config)?;
         value_step("count_dup_groups", count_duplicate_groups(&rows.value))
@@ -4160,6 +4186,7 @@ mod tracked {
         raw: EarlyRawInput,
         config: EarlyConfigInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("nudge_duplicate_timestamps");
         db.record_query_body("nudge_duplicate_timestamps");
         let rows = exact_dedupe(db, raw, config)?;
         if !config.correct_duplicate_event_timestamps(db) {
@@ -4186,6 +4213,7 @@ mod tracked {
         raw: EarlyRawInput,
         config: EarlyConfigInput,
     ) -> Result<StepValue<Vec<Row>>, String> {
+        let _timer = QueryTimer::start("mark_data_time_gaps");
         db.record_query_body("mark_data_time_gaps");
         let rows = nudge_duplicate_timestamps(db, raw, config)?;
         Ok(with_logical_rows(
@@ -4338,6 +4366,7 @@ mod tracked {
                 });
             }
         }
+        let _timer = QueryTimer::start("tag_filtered_packages");
         db.record_query_body("tag_filtered_packages");
         let rows = mark_data_time_gaps(db, raw, early)?;
         let enabled = support.use_filter_file(db);
@@ -10902,7 +10931,7 @@ mod tracked {
             );
             drop(payload_json);
             let rows = super::super::build_canonical_rows(
-                raw_rows,
+                &raw_rows,
                 "America/Chicago",
                 &std::collections::BTreeMap::new(),
                 "Android",

@@ -4360,7 +4360,7 @@ fn parse_raw_rows(
     step_checkpoints.value("resolve_preproc_datetime", &preprocessing_datetime)?;
 
     let rows = incremental::build_canonical_rows(
-        raw_rows,
+        &raw_rows,
         &opts.timezone,
         &interaction_remap,
         &possible_device_model,
@@ -7740,7 +7740,7 @@ mod tests {
         let raw = incremental::csv_parse(csv.as_bytes());
         let model = incremental::detect_device_model(&raw);
         let mut row =
-            incremental::build_canonical_rows(raw, "America/Chicago", &BTreeMap::new(), &model)
+            incremental::build_canonical_rows(&raw, "America/Chicago", &BTreeMap::new(), &model)
                 .expect("canonical row")
                 .remove(0);
         let mut scratch = RowCheckpointScratch::default();
@@ -7792,7 +7792,7 @@ mod tests {
         );
         let raw = incremental::csv_parse(csv.as_bytes());
         let model = incremental::detect_device_model(&raw);
-        let rows = incremental::build_canonical_rows(raw, "UTC", &BTreeMap::new(), &model)
+        let rows = incremental::build_canonical_rows(&raw, "UTC", &BTreeMap::new(), &model)
             .expect("canonical rows");
 
         let source = logical_stage_checkpoint("source-step", &[("rows", &rows)], &[]);
@@ -7860,7 +7860,7 @@ mod tests {
         );
         let raw = incremental::csv_parse(csv.as_bytes());
         let model = incremental::detect_device_model(&raw);
-        let previous_rows = incremental::build_canonical_rows(raw, "UTC", &BTreeMap::new(), &model)
+        let previous_rows = incremental::build_canonical_rows(&raw, "UTC", &BTreeMap::new(), &model)
             .expect("canonical rows");
         let previous_checkpoint =
             logical_stage_checkpoint("source-step", &[("rows", &previous_rows)], &[]);
