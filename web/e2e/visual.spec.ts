@@ -21,14 +21,13 @@ import {
  */
 // The footer's version/build stamp changes on every wasm rebuild and every
 // calendar day, so it is masked out of every baseline.
-const screenshotOptions = (page: Page) =>
-  ({
-    animations: "disabled",
-    caret: "hide",
-    fullPage: false,
-    maxDiffPixels: 100,
-    mask: [page.getByTestId("app-footer")],
-  }) as const;
+const screenshotOptions = (page: Page) => ({
+  animations: "disabled" as const,
+  caret: "hide" as const,
+  fullPage: false,
+  maxDiffPixels: 100,
+  mask: [page.getByTestId("app-footer")],
+});
 
 test.describe("Visual regression", { tag: "@visual" }, () => {
   // Baselines are captured on chromium only (mirroring the pre-push hook);
