@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { APP_ONLY_RAW_CSV } from "./fixtures";
 import {
@@ -19,12 +19,16 @@ import {
  * committed; regenerate intentional UI changes with:
  *   cd web && npx playwright test --project=chromium --grep "@visual" --update-snapshots
  */
-const SCREENSHOT_OPTIONS = {
-  animations: "disabled",
-  caret: "hide",
-  fullPage: false,
-  maxDiffPixels: 100,
-} as const;
+// The footer's version/build stamp changes on every wasm rebuild and every
+// calendar day, so it is masked out of every baseline.
+const screenshotOptions = (page: Page) =>
+  ({
+    animations: "disabled",
+    caret: "hide",
+    fullPage: false,
+    maxDiffPixels: 100,
+    mask: [page.getByTestId("app-footer")],
+  }) as const;
 
 test.describe("Visual regression", { tag: "@visual" }, () => {
   // Baselines are captured on chromium only (mirroring the pre-push hook);
@@ -44,13 +48,13 @@ test.describe("Visual regression", { tag: "@visual" }, () => {
       "aria-selected",
       "true",
     );
-    await expect(page).toHaveScreenshot(SCREENSHOT_OPTIONS);
+    await expect(page).toHaveScreenshot(screenshotOptions(page));
   });
 
   test("Files tab — empty state", async ({ page }) => {
     await page.getByRole("tab", { name: /Files/i }).click();
     await expect(page.getByTestId("raw-file-input")).toBeAttached();
-    await expect(page).toHaveScreenshot(SCREENSHOT_OPTIONS);
+    await expect(page).toHaveScreenshot(screenshotOptions(page));
   });
 
   test("Files tab — file uploaded", async ({ page }) => {
@@ -60,13 +64,13 @@ test.describe("Visual regression", { tag: "@visual" }, () => {
     // counts are stable before capturing.
     await expect(page.getByTestId("raw-file-row")).toHaveCount(1);
     await expect(page.getByTestId("raw-file-row")).toContainText("Success: Ready");
-    await expect(page).toHaveScreenshot(SCREENSHOT_OPTIONS);
+    await expect(page).toHaveScreenshot(screenshotOptions(page));
   });
 
   test("Process tab — with results", async ({ page }) => {
     await page.getByRole("tab", { name: /Files/i }).click();
     await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
     await processFiles(page);
-    await expect(page).toHaveScreenshot(SCREENSHOT_OPTIONS);
+    await expect(page).toHaveScreenshot(screenshotOptions(page));
   });
 });
