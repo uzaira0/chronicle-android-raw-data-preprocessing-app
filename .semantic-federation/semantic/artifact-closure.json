@@ -1,16 +1,16 @@
 {
   "protocol_version": "0.1",
-  "root_digest": "sha256:b76c26873a68ca71b9dcdc389c6784b9728428d923c406976aba9c9e6765c6de",
+  "root_digest": "sha256:d6ae508de2610a837be3932cc8f135eff509101c3a79ae7b5b281f790f85561e",
   "artifacts": [
     {
       "artifact_id": "capability-bindings.json",
-      "digest": "sha256:4019a745ad3e86934dbcef621a26cc1f77aaac620a2b8644674ab65a837598cd",
+      "digest": "sha256:59ff4383e43a851a3fd055ecfe0061e8cb2d011020d0f9a64dae29bb16bce3a6",
       "media_type": "application/json",
       "size": 82955
     },
     {
       "artifact_id": "conformance-report.json",
-      "digest": "sha256:a712c8cb6b5b1a1bda6db2d152f2ba47215883160c588bc0214ae810894e3994",
+      "digest": "sha256:23185bc7e7b385b5cf8e7bc263b4c948217a372bf5cc0194472954fd7396938d",
       "media_type": "application/json",
       "size": 630
     },
@@ -76,16 +76,16 @@
     },
     {
       "artifact_id": "semantic-profile.json",
-      "digest": "sha256:8fed8fb3408597e495d2cf9bee49d87018b74d0b7c4d359810917ab8e2a1f691",
+      "digest": "sha256:fb92569d970dc685c2bab75cad87b91fbe97aadad683aeee0168b0ca726eabc4",
       "media_type": "application/json",
       "size": 4450
     },
     {
       "artifact_id": "semantic-profile.lock",
-      "digest": "sha256:a2ac2a8ef360b7527f9148d9d8f0b139696a08709b7851fcd82d64c66e0f62f5",
+      "digest": "sha256:a476c7a03bc39413aeded6c6f4884f58e2bd17f12c09539439f18602b73226a7",
       "media_type": "application/octet-stream",
       "size": 3111
     }
   ],
-  "closure_digest": "sha256:16568edcb0bdfd631685979bfc0f9829eb0db4e629e34e1a81e3682343effa85"
+  "closure_digest": "sha256:ca4a6fbde932c8741f9a10a9682f201088886748a2a275e2e0e005d6c48e52e8"
 }

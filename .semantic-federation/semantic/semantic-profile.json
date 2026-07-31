@@ -74,7 +74,7 @@
       "path": "capability-bindings.json",
       "media_type": "application/json",
       "role": "binding-source",
-      "digest": "sha256:4019a745ad3e86934dbcef621a26cc1f77aaac620a2b8644674ab65a837598cd"
+      "digest": "sha256:59ff4383e43a851a3fd055ecfe0061e8cb2d011020d0f9a64dae29bb16bce3a6"
     },
     {
       "path": "families/incremental-dataflow/contract.json",
