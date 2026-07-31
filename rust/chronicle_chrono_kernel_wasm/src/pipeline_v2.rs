@@ -251,10 +251,11 @@ pub fn validate_support_csv(role: &str, bytes: &[u8]) -> Result<(), String> {
         if missing.is_empty() {
             Ok(())
         } else {
+            // PHI safety: never echo the found headers — a headerless upload
+            // would leak its first data row here.
             Err(format!(
-                "{role}: missing required column(s) {}; found {}",
-                missing.join(", "),
-                headers.iter().cloned().collect::<Vec<_>>().join(", ")
+                "{role}: missing required column(s) {}",
+                missing.join(", ")
             ))
         }
     };
@@ -263,9 +264,8 @@ pub fn validate_support_csv(role: &str, bytes: &[u8]) -> Result<(), String> {
             Ok(())
         } else {
             Err(format!(
-                "{role}: requires one of columns {}; found {}",
-                names.join(", "),
-                headers.iter().cloned().collect::<Vec<_>>().join(", ")
+                "{role}: requires one of columns {}",
+                names.join(", ")
             ))
         }
     };
@@ -4137,7 +4137,9 @@ pub struct PipelineV2SupportFiles<'a> {
 /// timestamp are ignored exactly as they are by preprocessing.
 pub fn discover_timezones_v2_native(csv_bytes: &[u8]) -> Result<Vec<String>, String> {
     let mut timezones = BTreeSet::new();
-    for record in parse_csv_to_records(csv_bytes) {
+    // PHI safety: raw cell values must never enter error strings surfaced to
+    // the UI/console — report the 1-based data-row position instead.
+    for (index, record) in parse_csv_to_records(csv_bytes).into_iter().enumerate() {
         let timestamp = record
             .get("event_timestamp")
             .map(|value| value.trim())
@@ -4146,7 +4148,7 @@ pub fn discover_timezones_v2_native(csv_bytes: &[u8]) -> Result<Vec<String>, Str
             continue;
         }
         parse_chronicle_timestamp_ns(timestamp)
-            .ok_or_else(|| format!("Invalid event_timestamp: {timestamp}"))?;
+            .ok_or_else(|| format!("Invalid event_timestamp at data row {}", index + 1))?;
         let timezone = record
             .get("timezone")
             .map(|value| value.trim())
@@ -4154,7 +4156,7 @@ pub fn discover_timezones_v2_native(csv_bytes: &[u8]) -> Result<Vec<String>, Str
             .unwrap_or("UTC");
         timezone
             .parse::<Tz>()
-            .map_err(|error| format!("invalid timezone {timezone}: {error}"))?;
+            .map_err(|_| format!("invalid timezone value at data row {}", index + 1))?;
         timezones.insert(timezone.to_string());
     }
     Ok(timezones.into_iter().collect())
@@ -5368,20 +5370,22 @@ fn normalize_support_date(value: &str) -> Result<String, String> {
             return Ok(prefix.to_string());
         }
     }
+    // PHI safety: never echo the raw cell — callers annotate the column and
+    // participant instead.
     let parts: Vec<_> = value.split('/').collect();
     if parts.len() == 3 {
         let month = parts[0]
             .parse::<u8>()
-            .map_err(|_| format!("unparseable date: {value}"))?;
+            .map_err(|_| "unparseable date value".to_string())?;
         let day = parts[1]
             .parse::<u8>()
-            .map_err(|_| format!("unparseable date: {value}"))?;
+            .map_err(|_| "unparseable date value".to_string())?;
         let year = parts[2]
             .parse::<u16>()
-            .map_err(|_| format!("unparseable date: {value}"))?;
+            .map_err(|_| "unparseable date value".to_string())?;
         return Ok(format!("{year:04}-{month:02}-{day:02}"));
     }
-    Err(format!("unparseable date: {value}"))
+    Err("unparseable date value".to_string())
 }
 
 fn parse_study_windows(bytes: &[u8]) -> Result<Vec<StudyWindow>, String> {
@@ -5395,14 +5399,16 @@ fn parse_study_windows(bytes: &[u8]) -> Result<Vec<StudyWindow>, String> {
         let start_date = normalize_support_date(
             row.get("start_date")
                 .ok_or("Study dates file: missing required column start_date")?,
-        )?;
+        )
+        .map_err(|_| format!("Study dates file: unparseable start_date for {participant_id}"))?;
         let end_date = normalize_support_date(
             row.get("end_date")
                 .ok_or("Study dates file: missing required column end_date")?,
-        )?;
+        )
+        .map_err(|_| format!("Study dates file: unparseable end_date for {participant_id}"))?;
         if end_date < start_date {
             return Err(format!(
-                "Study dates file: window for {participant_id} ends ({end_date}) before it starts ({start_date})"
+                "Study dates file: window for {participant_id} ends before it starts"
             ));
         }
         windows.push(StudyWindow {
@@ -5531,12 +5537,11 @@ fn require_support_columns(
     if missing.is_empty() {
         Ok(())
     } else {
-        let mut available: Vec<_> = first.keys().cloned().collect();
-        available.sort();
+        // PHI safety: never echo the found headers — a headerless upload
+        // would leak its first data row here.
         Err(format!(
-            "{file_label}: missing required column(s) {}. Found: {}",
-            missing.join(", "),
-            available.join(", ")
+            "{file_label}: missing required column(s) {}",
+            missing.join(", ")
         ))
     }
 }
@@ -5566,7 +5571,7 @@ fn parse_device_sharing(bytes: &[u8]) -> Result<Vec<SharingEntry>, String> {
                 SharingStatus::NonShared
             } else {
                 return Err(format!(
-                    "Device sharing file: unknown sharing_status {raw:?} for {participant_id} (expected \"Shared\" or \"Non-Shared\")"
+                    "Device sharing file: unknown sharing_status for {participant_id} (expected \"Shared\" or \"Non-Shared\")"
                 ));
             };
             Ok(SharingEntry {
@@ -5618,25 +5623,27 @@ fn sharing_status_for(
 }
 
 fn parse_survey_timestamp_ns(value: &str) -> Result<i64, String> {
+    // PHI safety: never echo the raw cell — the caller annotates the
+    // participant instead.
     let text = value.trim();
     if text.len() >= 10 && text.bytes().all(|byte| byte.is_ascii_digit()) {
-        let parsed = text.parse::<i64>().map_err(|_| {
-            format!("Survey attribution file: unparseable event_timestamp {value:?}")
-        })?;
+        let parsed = text
+            .parse::<i64>()
+            .map_err(|_| "Survey attribution file: unparseable event_timestamp value".to_string())?;
         return if text.len() >= 19 {
             Ok(parsed)
         } else if text.len() >= 13 {
-            parsed.checked_mul(1_000_000).ok_or_else(|| {
-                format!("Survey attribution file: event_timestamp overflow {value:?}")
-            })
+            parsed
+                .checked_mul(1_000_000)
+                .ok_or_else(|| "Survey attribution file: event_timestamp overflow".to_string())
         } else {
-            parsed.checked_mul(1_000_000_000).ok_or_else(|| {
-                format!("Survey attribution file: event_timestamp overflow {value:?}")
-            })
+            parsed
+                .checked_mul(1_000_000_000)
+                .ok_or_else(|| "Survey attribution file: event_timestamp overflow".to_string())
         };
     }
     parse_chronicle_timestamp_ns(text)
-        .ok_or_else(|| format!("Survey attribution file: unparseable event_timestamp {value:?}"))
+        .ok_or_else(|| "Survey attribution file: unparseable event_timestamp value".to_string())
 }
 
 fn parse_survey_lookup(bytes: &[u8]) -> Result<BTreeMap<(String, i64), String>, String> {
@@ -5667,7 +5674,8 @@ fn parse_survey_lookup(bytes: &[u8]) -> Result<BTreeMap<(String, i64), String>, 
         lookup.insert(
             (
                 participant_id.to_string(),
-                parse_survey_timestamp_ns(timestamp)?,
+                parse_survey_timestamp_ns(timestamp)
+                    .map_err(|error| format!("{error} (participant {participant_id})"))?,
             ),
             user.to_string(),
         );
@@ -5772,9 +5780,9 @@ fn window_for<'a>(participant_id: &str, windows: &'a [StudyWindow]) -> Option<&'
 
 fn inclusive_dates(start: &str, end: &str) -> Result<Vec<String>, String> {
     let mut current = NaiveDate::parse_from_str(start, "%Y-%m-%d")
-        .map_err(|error| format!("invalid coverage start date {start:?}: {error}"))?;
+        .map_err(|error| format!("invalid coverage start date: {error}"))?;
     let end = NaiveDate::parse_from_str(end, "%Y-%m-%d")
-        .map_err(|error| format!("invalid coverage end date {end:?}: {error}"))?;
+        .map_err(|error| format!("invalid coverage end date: {error}"))?;
     let mut dates = Vec::new();
     while current <= end {
         dates.push(current.format("%Y-%m-%d").to_string());
@@ -5869,7 +5877,7 @@ fn parse_enrolled_devices(bytes: &[u8]) -> Result<BTreeMap<String, u32>, String>
             0
         } else {
             raw.parse::<u32>().map_err(|_| {
-                format!("Enrolled devices file: invalid device_count {raw:?} for {participant_id}")
+                format!("Enrolled devices file: invalid device_count for {participant_id}")
             })?
         };
         devices.insert(participant_id.to_string(), count);

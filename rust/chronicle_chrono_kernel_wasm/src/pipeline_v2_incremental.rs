@@ -163,8 +163,12 @@ pub(super) fn build_canonical_rows(
         .iter()
         .enumerate()
         .map(|(index, raw)| {
+            // PHI safety: raw cell values must never enter error strings
+            // surfaced to the UI/console — report the row position instead.
             let event_timestamp_ns = parse_chronicle_timestamp_ns(&raw.event_timestamp)
-                .ok_or_else(|| format!("Invalid event_timestamp: {}", raw.event_timestamp))?;
+                .ok_or_else(|| {
+                    format!("Invalid event_timestamp at data row {}", raw.source_data_row)
+                })?;
             // Blank and literal "None" timezone cells are both documented
             // missing-timezone shapes; keep this in lockstep with
             // discover_timezones_v2_native and inspect_raw_file_v1.

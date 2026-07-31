@@ -1467,7 +1467,7 @@ fn parse_i32(value: Option<&str>, column: &str) -> Result<Option<i32>, String> {
         .map(|value| {
             value
                 .parse::<i32>()
-                .map_err(|error| format!("invalid INT32 value for {column}: {value}: {error}"))
+                .map_err(|error| format!("invalid INT32 value for {column}: {error}"))
         })
         .transpose()
 }
@@ -1477,7 +1477,7 @@ fn parse_f64(value: Option<&str>, column: &str) -> Result<Option<f64>, String> {
         .map(|value| {
             value
                 .parse::<f64>()
-                .map_err(|error| format!("invalid DOUBLE value for {column}: {value}: {error}"))
+                .map_err(|error| format!("invalid DOUBLE value for {column}: {error}"))
         })
         .transpose()
 }
@@ -1487,7 +1487,7 @@ fn parse_bool(value: Option<&str>, column: &str) -> Result<Option<bool>, String>
         .map(|value| match value {
             "true" | "1" => Ok(true),
             "false" | "0" => Ok(false),
-            _ => Err(format!("invalid BOOLEAN value for {column}: {value}")),
+            _ => Err(format!("invalid BOOLEAN value for {column}")),
         })
         .transpose()
 }
