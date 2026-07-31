@@ -5,17 +5,17 @@ type ZipEntry = {
 
 const textEncoder = new TextEncoder();
 
-let crcTable: Uint32Array | null = null;
+let crcTable: DataView | null = null;
 
-function getCrcTable(): Uint32Array {
+function getCrcTable(): DataView {
   if (crcTable) return crcTable;
-  const table = new Uint32Array(256);
+  const table = new DataView(new ArrayBuffer(256 * 4));
   for (let index = 0; index < 256; index += 1) {
     let crc = index;
     for (let bit = 0; bit < 8; bit += 1) {
       crc = (crc & 1) === 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
     }
-    table[index] = crc >>> 0;
+    table.setUint32(index << 2, crc >>> 0, true);
   }
   crcTable = table;
   return table;
@@ -25,8 +25,9 @@ function crc32(bytes: Uint8Array): number {
   const table = getCrcTable();
   let crc = 0xffffffff;
   for (const byte of bytes) {
-    // The table has 256 entries, so a & 0xff index is always in range.
-    crc = (table[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8);
+    // The table has 256 entries, so the & 0xff offset is always in range;
+    // DataView reads return plain numbers (no index-may-be-undefined branch).
+    crc = table.getUint32(((crc ^ byte) & 0xff) << 2, true) ^ (crc >>> 8);
   }
   return (crc ^ 0xffffffff) >>> 0;
 }

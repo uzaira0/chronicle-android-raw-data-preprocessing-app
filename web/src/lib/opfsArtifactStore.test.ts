@@ -1410,4 +1410,35 @@ describe("OPFS content-addressed runtime workspace", () => {
       /workspace identity|invalid committed workspace root/,
     );
   });
+
+  it("rejects prefix reads with invalid bounds or an exceeded read limit", async () => {
+    const root = new MemoryDirectoryHandle();
+    const bogusDigest = `sha256:${"a".repeat(64)}`;
+    await expect(
+      readRuntimeObjectPrefix(rootHandle(root), bogusDigest, 8, -1),
+    ).rejects.toThrow(/invalid OPFS object prefix bounds/);
+    await expect(
+      readRuntimeObjectPrefix(rootHandle(root), bogusDigest, 8, 4, 4),
+    ).rejects.toThrow(/exceeds the 4 byte read limit/);
+  });
+
+  it("rejects a persist whose incoming root artifact lies about its digest", async () => {
+    const root = new MemoryDirectoryHandle();
+    const first = await artifact("workspace-root-json", "history-base");
+    await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: first.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [first],
+    });
+    const liar = await artifact("workspace-root-json", "history-liar");
+    const unrelated = await artifact("blob", "unrelated-bytes");
+    const misdeclared = { ...liar, digest: unrelated.digest };
+    await expect(
+      persistRuntimeWorkspace(rootHandle(root), {
+        workspaceRootDigest: misdeclared.digest,
+        previousWorkspaceRootDigest: first.digest,
+        artifacts: [misdeclared],
+      }),
+    ).rejects.toThrow(/artifact digest mismatch for workspace-root-json/);
+  });
 });

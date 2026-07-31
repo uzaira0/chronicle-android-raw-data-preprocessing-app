@@ -162,6 +162,27 @@ describe("WorkerPool", () => {
     expect(workers[1]?.terminate).toHaveBeenCalledTimes(1);
   });
 
+  it("fails the pool when a retired worker refuses to terminate", async () => {
+    const { spawn, apis, workers } = makeSpawn();
+    const throwingSpawn: typeof spawn = () => {
+      const slot = spawn();
+      if (workers.length === 1) {
+        workers[0]?.terminate.mockImplementation(() => {
+          throw new Error("terminate refused");
+        });
+      }
+      return slot;
+    };
+    const pool = new WorkerPool(1, { spawn: throwingSpawn, maxTasksPerWorker: 1 });
+    await expect(pool.submit((api) => Promise.resolve(api))).resolves.toBe(
+      apis[0],
+    );
+    await expect(pool.submit((api) => Promise.resolve(api))).rejects.toThrow(
+      /All Chronicle workers have failed/,
+    );
+    expect(workers).toHaveLength(1);
+  });
+
   it("replaces an idle retired lane while another lane is still busy", async () => {
     const { spawn, apis, workers } = makeSpawn();
     const pool = new WorkerPool(2, { spawn, maxTasksPerWorker: 1 });

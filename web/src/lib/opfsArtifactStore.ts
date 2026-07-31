@@ -840,9 +840,14 @@ export async function exportRuntimeClosure(
       await readRuntimeObject(root, slot.workspaceRootDigest),
     ),
   ) as { workspaceId?: string };
+  // Unreachable: verifyRuntimeWorkspace above already decoded this exact root
+  // via decodeHistoryRoot, which rejects a non-string workspaceId. Kept as a
+  // type-narrowing guard for the manifest below.
+  /* v8 ignore start */
   if (!rootCommit.workspaceId) {
     throw new Error("workspace root is missing its workspace identity");
   }
+  /* v8 ignore stop */
   digestHex(rootCommit.workspaceId);
   const sorted = await collectRuntimeHistoryDigests(
     root,
@@ -865,9 +870,14 @@ export async function exportRuntimeClosure(
     objects,
   };
   const manifestBytes = encodeJson(manifest);
+  // Unreachable while MAX_CLOSURE_OBJECTS holds: 100k manifest entries encode
+  // to ~12 MiB, under the 16 MiB cap, and commits reject larger histories.
+  // Kept so a future constant change cannot silently produce a corrupt header.
+  /* v8 ignore start */
   if (manifestBytes.byteLength > MAX_CLOSURE_MANIFEST_BYTES) {
     throw new Error("runtime closure manifest is too large");
   }
+  /* v8 ignore stop */
   const archive = new Uint8Array(
     CLOSURE_MAGIC.byteLength + 4 + manifestBytes.byteLength + offset,
   );
@@ -882,9 +892,13 @@ export async function exportRuntimeClosure(
   for (let index = 0; index < payloads.length; index += 1) {
     const payload = payloads[index];
     const entry = objects[index];
+    // Unreachable: payloads and objects are appended in lockstep by the same
+    // loop above, so the shared index is always in range for both.
+    /* v8 ignore start */
     if (payload === undefined || entry === undefined) {
       throw new Error("runtime closure payload and object tables diverged");
     }
+    /* v8 ignore stop */
     archive.set(payload, payloadStart + entry.offset);
   }
   return archive;
