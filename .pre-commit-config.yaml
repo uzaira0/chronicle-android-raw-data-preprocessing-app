@@ -31,7 +31,7 @@ repos:
   - repo: local
     hooks:
       - id: web-complexity
-        name: Web/TS cyclomatic complexity (ESLint, ceiling 37)
+        name: Web/TS cyclomatic complexity (ESLint, ceiling 137)
         language: script
         entry: scripts/check-web-complexity.sh
         pass_filenames: false
@@ -74,6 +74,14 @@ repos:
         name: E2E smoke — all browsers
         language: script
         entry: scripts/run-e2e-all-browsers.sh
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^web/
+
+      - id: visual-regression
+        name: Visual regression (chromium)
+        language: script
+        entry: scripts/run-visual-regression.sh
         pass_filenames: false
         stages: [pre-push]
         files: ^web/
