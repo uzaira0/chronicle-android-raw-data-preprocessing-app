@@ -1,0 +1,5 @@
+id: chronicle-ts-as-any
+valid:
+  - const parsed = payload as unknown;
+invalid:
+  - const parsed = payload as any;

@@ -1,0 +1,9 @@
+id: chronicle-python-len-nonzero-check
+valid:
+  - |
+    if rows:
+        process(rows)
+invalid:
+  - |
+    if len(rows) > 0:
+        process(rows)

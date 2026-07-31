@@ -1,0 +1,8 @@
+id: chronicle-ts-as-any
+snapshots:
+  const parsed = payload as any;:
+    labels:
+    - source: payload as any
+      style: primary
+      start: 15
+      end: 29

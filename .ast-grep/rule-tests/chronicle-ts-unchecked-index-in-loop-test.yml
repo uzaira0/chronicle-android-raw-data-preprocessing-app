@@ -1,0 +1,19 @@
+id: chronicle-ts-unchecked-index-in-loop
+valid:
+  - |
+    for (let i = 0; i < items.length; i++) {
+      const v = items[i];
+      if (v !== undefined) use(v);
+    }
+  - const first = items[0]!;
+invalid:
+  - |
+    for (let i = 0; i < items.length; i++) {
+      const v = items[i]!;
+      use(v);
+    }
+  - |
+    while (cursor < items.length) {
+      use(items[cursor]!);
+      cursor += 1;
+    }

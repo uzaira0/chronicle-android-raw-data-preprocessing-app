@@ -1,0 +1,5 @@
+id: chronicle-python-no-exec
+valid:
+  - result = dispatch_table[name](payload)
+invalid:
+  - exec(code_string)

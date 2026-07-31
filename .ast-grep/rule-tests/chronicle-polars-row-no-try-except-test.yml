@@ -1,0 +1,9 @@
+id: chronicle-polars-row-no-try-except
+valid:
+  - |
+    try:
+        value = df.row(0)
+    except IndexError:
+        value = None
+invalid:
+  - value = df.row(0)

@@ -1,0 +1,9 @@
+id: chronicle-python-len-zero-check
+valid:
+  - |
+    if not rows:
+        return None
+invalid:
+  - |
+    if len(rows) == 0:
+        return None
