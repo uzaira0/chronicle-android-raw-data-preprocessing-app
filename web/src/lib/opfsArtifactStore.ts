@@ -880,7 +880,12 @@ export async function exportRuntimeClosure(
   const payloadStart = CLOSURE_MAGIC.byteLength + 4 + manifestBytes.byteLength;
   archive.set(manifestBytes, CLOSURE_MAGIC.byteLength + 4);
   for (let index = 0; index < payloads.length; index += 1) {
-    archive.set(payloads[index], payloadStart + objects[index].offset);
+    const payload = payloads[index];
+    const entry = objects[index];
+    if (payload === undefined || entry === undefined) {
+      throw new Error("runtime closure payload and object tables diverged");
+    }
+    archive.set(payload, payloadStart + entry.offset);
   }
   return archive;
 }

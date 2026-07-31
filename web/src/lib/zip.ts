@@ -25,7 +25,8 @@ function crc32(bytes: Uint8Array): number {
   const table = getCrcTable();
   let crc = 0xffffffff;
   for (const byte of bytes) {
-    crc = table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+    // The table has 256 entries, so a & 0xff index is always in range.
+    crc = (table[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8);
   }
   return (crc ^ 0xffffffff) >>> 0;
 }

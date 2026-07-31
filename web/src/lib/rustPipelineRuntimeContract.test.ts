@@ -188,6 +188,12 @@ function firstRecord(
   return record(array(candidate[field])[0]);
 }
 
+function firstKey(value: Record<string, unknown>): string {
+  const key = Object.keys(value)[0];
+  if (key === undefined) throw new Error("fixture object has no keys");
+  return key;
+}
+
 function representativeSourceFixture(): Uint8Array {
   const rows = [
     "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
@@ -311,11 +317,14 @@ function installFakeFullRuntime({
     execute_workspace: () => ({
       artifact_count: metadata.length,
       manifest_json: () => JSON.stringify(candidate),
-      artifact_metadata_json: (index: number) =>
-        artifactMetadataJson?.(index, metadata[index]) ??
-        JSON.stringify(metadata[index]),
+      artifact_metadata_json: (index: number) => {
+        const entry = metadata[index];
+        if (entry === undefined) throw new Error(`no fixture metadata at index ${index}`);
+        return artifactMetadataJson?.(index, entry) ?? JSON.stringify(entry);
+      },
       take_artifact_bytes: (index: number) => {
-        const kind = metadata[index].kind;
+        const kind = metadata[index]?.kind;
+        if (kind === undefined) throw new Error(`no fixture metadata at index ${index}`);
         const bytes = fullArtifacts.get(kind);
         if (!bytes) throw new Error(`missing fixture bytes for ${kind}`);
         const owned = Uint8Array.from(bytes);
@@ -547,7 +556,7 @@ const INVALID_CASES: Array<
     (candidate) => {
       const summary = record(candidate.processingSummary);
       const checkpoints = record(summary.logicalStageCheckpoints);
-      const nodeId = Object.keys(checkpoints)[0];
+      const nodeId = firstKey(checkpoints);
       record(checkpoints[nodeId]).terminalDigest = `sha256:${"f".repeat(64)}`;
     },
     /checkpoint identity or terminal digest/,
@@ -558,7 +567,7 @@ const INVALID_CASES: Array<
       const checkpoints = record(
         record(candidate.processingSummary).logicalStageCheckpoints,
       );
-      const nodeId = Object.keys(checkpoints)[0];
+      const nodeId = firstKey(checkpoints);
       record(checkpoints[nodeId]).payloadDigest = `sha256:${"a".repeat(64)}`;
     },
     /payloadDigest.*lowercase xxh3-128 digest/,
@@ -569,7 +578,7 @@ const INVALID_CASES: Array<
       const checkpoints = record(
         record(candidate.processingSummary).logicalStageCheckpoints,
       );
-      const nodeId = Object.keys(checkpoints)[0];
+      const nodeId = firstKey(checkpoints);
       record(checkpoints[nodeId]).protocolVersion =
         "chronicle-logical-stage-checkpoint/v99";
     },
@@ -581,7 +590,7 @@ const INVALID_CASES: Array<
       const checkpoints = record(
         record(candidate.processingSummary).logicalStageCheckpoints,
       );
-      const nodeId = Object.keys(checkpoints)[0];
+      const nodeId = firstKey(checkpoints);
       record(checkpoints[nodeId]).nodeId = "different-node";
     },
     /checkpoint identity or terminal digest/,
@@ -600,7 +609,7 @@ const INVALID_CASES: Array<
     (candidate) => {
       const summary = record(candidate.processingSummary);
       const checkpoints = record(summary.logicalStageCheckpoints);
-      delete checkpoints[Object.keys(checkpoints)[0]];
+      delete checkpoints[firstKey(checkpoints)];
     },
     /digest and checkpoint domains must contain the same 15 identities/,
   ],
@@ -802,17 +811,22 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
   it("maps every valid review execution status to its exact step identity", () => {
     const candidate = structuredClone(reviewManifest);
     const steps = array(candidate.stepExecutions).map(record);
+    const stepAt = (index: number): Record<string, unknown> => {
+      const step = steps[index];
+      if (step === undefined) throw new Error(`fixture manifest has no step ${index}`);
+      return step;
+    };
     const statuses = ["recomputed", "cached", "bypassed", "skipped", "error"];
     statuses.forEach((status, index) => {
-      steps[index].status = status;
+      stepAt(index).status = status;
     });
 
     const decoded = decodeReviewRuntimeManifest(candidate);
-    expect(decoded.recomputedStepIds).toContain(steps[0].step_id);
-    expect(decoded.cachedStepIds).toContain(steps[1].step_id);
-    expect(decoded.bypassedStepIds).toContain(steps[2].step_id);
-    expect(decoded.skippedStepIds).toContain(steps[3].step_id);
-    expect(decoded.errorStepIds).toEqual([steps[4].step_id]);
+    expect(decoded.recomputedStepIds).toContain(stepAt(0).step_id);
+    expect(decoded.cachedStepIds).toContain(stepAt(1).step_id);
+    expect(decoded.bypassedStepIds).toContain(stepAt(2).step_id);
+    expect(decoded.skippedStepIds).toContain(stepAt(3).step_id);
+    expect(decoded.errorStepIds).toEqual([stepAt(4).step_id]);
   });
 
   it.each([
@@ -1025,7 +1039,7 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
       "artifact content digest",
       {
         mutateArtifactBytes: (_kind: string, bytes: Uint8Array): Uint8Array => {
-          if (bytes.byteLength > 0) bytes[0] ^= 1;
+          if (bytes.byteLength > 0) bytes[0] = (bytes[0] ?? 0) ^ 1;
           return bytes;
         },
       },
@@ -1100,7 +1114,7 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
       {
         mutateArtifactBytes: (_kind: string, bytes: Uint8Array): Uint8Array => {
           const changed = Uint8Array.from(bytes);
-          if (changed.byteLength > 0) changed[0] ^= 1;
+          if (changed.byteLength > 0) changed[0] = (changed[0] ?? 0) ^ 1;
           return changed;
         },
       },
@@ -1468,7 +1482,7 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
       expect(suppliedSizes).toHaveLength(1);
       expect(suppliedSizes[0]).toBeGreaterThan(0);
       expect(first?.suppliedReviewBaseBytes).toBe(
-        probeSpec.reviewBaseBytes + suppliedSizes[0],
+        probeSpec.reviewBaseBytes + (suppliedSizes[0] ?? 0),
       );
       expect(first?.suppliedReconstructionBaseBytes).toBe(
         probeSpec.reconstructionBaseBytes,
@@ -1478,7 +1492,7 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
       const second = await query();
       expect(suppliedSizes).toHaveLength(1);
       expect(second?.suppliedReviewBaseBytes).toBe(
-        probeSpec.reviewBaseBytes + suppliedSizes[0],
+        probeSpec.reviewBaseBytes + (suppliedSizes[0] ?? 0),
       );
 
       // A reconstruction-base selection is attributed to the other counter.
@@ -1490,7 +1504,7 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
       const reconstruction = await query();
       expect(reconstructionSizes[0]).toBeGreaterThan(0);
       expect(reconstruction?.suppliedReconstructionBaseBytes).toBe(
-        probeSpec.reconstructionBaseBytes + reconstructionSizes[0],
+        probeSpec.reconstructionBaseBytes + (reconstructionSizes[0] ?? 0),
       );
       expect(reconstruction?.suppliedReviewBaseBytes).toBe(
         probeSpec.reviewBaseBytes,
@@ -1973,10 +1987,12 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
 
   it("accepts an explicit no-output node execution without inventing an artifact", () => {
     const candidate = cloneManifest();
-    candidate.nodeExecutions[0].output = null;
+    const firstExecution = candidate.nodeExecutions[0];
+    if (firstExecution === undefined) throw new Error("fixture manifest has no node executions");
+    firstExecution.output = null;
 
     expect(
-      decodeRuntimeManifest(candidate).nodeExecutions[0].output,
+      decodeRuntimeManifest(candidate).nodeExecutions[0]?.output,
     ).toBeNull();
   });
 
@@ -2059,15 +2075,19 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
 
   it("rejects disagreement between manifest metadata and exposed WASM bytes", () => {
     const exposed = structuredClone(manifest.artifacts);
-    exposed[0].size += 1;
+    const firstExposed = exposed[0];
+    if (firstExposed === undefined) throw new Error("fixture manifest has no artifacts");
+    firstExposed.size += 1;
     expect(() => verifyRuntimeArtifactCatalog(manifest, exposed)).toThrow(
       /artifact catalog mismatch/,
     );
 
+    const firstArtifact = manifest.artifacts[0];
+    if (firstArtifact === undefined) throw new Error("fixture manifest has no artifacts");
     expect(() =>
       verifyRuntimeArtifactCatalog(manifest, [
         ...structuredClone(manifest.artifacts),
-        structuredClone(manifest.artifacts[0]),
+        structuredClone(firstArtifact),
       ]),
     ).toThrow(/artifact catalog length mismatch/);
 

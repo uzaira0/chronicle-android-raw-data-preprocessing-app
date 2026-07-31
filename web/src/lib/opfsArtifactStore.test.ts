@@ -638,7 +638,7 @@ describe("OPFS content-addressed runtime workspace", () => {
     ).toEqual(payload.bytes);
 
     const corrupt = Uint8Array.from(archive);
-    corrupt[corrupt.length - 1] ^= 0xff;
+    corrupt[corrupt.length - 1] = (corrupt[corrupt.length - 1] ?? 0) ^ 0xff;
     await expect(
       importRuntimeClosure(
         rootHandle(new MemoryDirectoryHandle()),
@@ -691,7 +691,7 @@ describe("OPFS content-addressed runtime workspace", () => {
       archive,
       () => Promise.resolve(),
     );
-    expect(imported.previousWorkspaceRootDigest).toBe(roots[1].digest);
+    expect(imported.previousWorkspaceRootDigest).toBe(roots[1]?.digest);
     await expect(
       verifyRuntimeWorkspace(rootHandle(destination), imported),
     ).resolves.toBeUndefined();
@@ -754,22 +754,27 @@ describe("OPFS content-addressed runtime workspace", () => {
       payloads.push(payload);
     }
     const archive = await exportRuntimeClosure(rootHandle(source), sourceSlot!);
+    const [firstRoot, secondRoot, thirdRoot] = roots;
+    const firstPayload = payloads[0];
+    if (!firstRoot || !secondRoot || !thirdRoot || !firstPayload) {
+      throw new Error("expected three persisted commits");
+    }
 
     const destination = new MemoryDirectoryHandle();
     const localFirst = await persistRuntimeWorkspace(rootHandle(destination), {
-      workspaceRootDigest: roots[0].digest,
+      workspaceRootDigest: firstRoot.digest,
       previousWorkspaceRootDigest: null,
-      artifacts: [roots[0], payloads[0]],
+      artifacts: [firstRoot, firstPayload],
     });
-    expect(localFirst.workspaceRootDigest).toBe(roots[0].digest);
+    expect(localFirst.workspaceRootDigest).toBe(firstRoot.digest);
 
     const imported = await importRuntimeClosure(
       rootHandle(destination),
       archive,
       () => Promise.resolve(),
     );
-    expect(imported.workspaceRootDigest).toBe(roots[2].digest);
-    expect(imported.previousWorkspaceRootDigest).toBe(roots[1].digest);
+    expect(imported.workspaceRootDigest).toBe(thirdRoot.digest);
+    expect(imported.previousWorkspaceRootDigest).toBe(secondRoot.digest);
     await expect(
       verifyRuntimeWorkspace(rootHandle(destination), imported),
     ).resolves.toBeUndefined();
@@ -905,7 +910,7 @@ describe("OPFS content-addressed runtime workspace", () => {
     }));
     await expect(
       commitPersistedRuntimeWorkspace(rootHandle(new MemoryDirectoryHandle()), {
-        workspaceRootDigest: excessiveMetadata[0].digest,
+        workspaceRootDigest: digestFor(0),
         previousWorkspaceRootDigest: null,
         artifacts: excessiveMetadata,
       }),
@@ -1343,7 +1348,9 @@ describe("OPFS content-addressed runtime workspace", () => {
     expect(() =>
       runtimeClosureWorkspaceId(
         rewrite((manifest) => {
-          manifest.objects[0].size = -1;
+          const firstObject = manifest.objects[0];
+          if (!firstObject) throw new Error("closure manifest has no objects");
+          firstObject.size = -1;
         }),
       ),
     ).toThrow(/invalid runtime closure object table/);

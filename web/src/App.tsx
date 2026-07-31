@@ -526,9 +526,10 @@ export default function App(): ReactElement {
     void inspectRawFiles(files)
       .then((inspections) => {
         inspections.forEach((inspection, index) => {
-          if (/^[0-9a-f]{64}$/.test(inspection.inputSha256 ?? "")) {
+          const file = files[index];
+          if (file && /^[0-9a-f]{64}$/.test(inspection.inputSha256 ?? "")) {
             verifiedInputDigestByFileRef.current.set(
-              files[index],
+              file,
               inspection.inputSha256!,
             );
           }
@@ -989,6 +990,7 @@ export default function App(): ReactElement {
         .sort((left, right) => {
           const leftMember = left.members[0];
           const rightMember = right.members[0];
+          if (leftMember === undefined || rightMember === undefined) return 0;
           return (
             rightMember.file.size - leftMember.file.size ||
             leftMember.index - rightMember.index
@@ -1025,6 +1027,7 @@ export default function App(): ReactElement {
           cursor += 1;
           if (!group) return;
           const item = group.members[0];
+          if (item === undefined) continue;
           try {
             const verifiedInputSha256 =
               verifiedInputDigestByFileRef.current.get(item.file) ===
@@ -1304,6 +1307,7 @@ export default function App(): ReactElement {
           cursor += 1;
           if (index === undefined) return;
           const file = uploadedFiles[index];
+          if (file === undefined) continue;
           handleProgressEvent({ type: "file-start", fileName: file.name });
           try {
             const verifiedInputSha256 =

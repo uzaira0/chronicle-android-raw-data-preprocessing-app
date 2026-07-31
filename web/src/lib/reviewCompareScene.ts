@@ -72,6 +72,7 @@ function findRowByY(
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
     const r = rows[mid];
+    if (r === undefined) return undefined;
     if (centerY < r.y) hi = mid - 1;
     else if (centerY >= r.y + r.h) lo = mid + 1;
     else return r;

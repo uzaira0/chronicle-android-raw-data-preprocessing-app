@@ -94,11 +94,14 @@ export function joinPoints(graph: ViewGraph): string[] {
       if (node.inputs.length < 2) return false;
       for (let left = 0; left < node.inputs.length; left += 1) {
         for (let right = left + 1; right < node.inputs.length; right += 1) {
-          const leftUpstream = reach([node.inputs[left]], links.upstream);
-          const rightUpstream = reach([node.inputs[right]], links.upstream);
+          const leftInput = node.inputs[left];
+          const rightInput = node.inputs[right];
+          if (leftInput === undefined || rightInput === undefined) continue;
+          const leftUpstream = reach([leftInput], links.upstream);
+          const rightUpstream = reach([rightInput], links.upstream);
           if (
-            !leftUpstream.has(node.inputs[right]) &&
-            !rightUpstream.has(node.inputs[left])
+            !leftUpstream.has(rightInput) &&
+            !rightUpstream.has(leftInput)
           ) {
             return true;
           }

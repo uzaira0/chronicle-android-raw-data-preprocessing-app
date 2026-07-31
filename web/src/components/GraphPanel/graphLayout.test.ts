@@ -55,6 +55,7 @@ describe("graph layout (single dagre pass, real edges only)", () => {
       for (let j = i + 1; j < layout.nodes.length; j += 1) {
         const a = layout.nodes[i];
         const b = layout.nodes[j];
+        if (a === undefined || b === undefined) throw new Error("node index out of range");
         const overlaps =
           Math.abs(a.x - b.x) < NODE_WIDTH - 8 && Math.abs(a.y - b.y) < NODE_HEIGHT - 8;
         expect(overlaps, `${a.id} overlaps ${b.id}`).toBe(false);

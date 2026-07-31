@@ -169,8 +169,9 @@ function parseRecords(csv: string, label: string): { fields: string[]; rows: Csv
     header: true,
     skipEmptyLines: true,
   });
-  if (parsed.errors.length > 0) {
-    throw new Error(`${label}: ${parsed.errors[0].message}`);
+  const firstParseError = parsed.errors[0];
+  if (firstParseError) {
+    throw new Error(`${label}: ${firstParseError.message}`);
   }
   return {
     fields: parsed.meta.fields ?? [],
@@ -315,7 +316,8 @@ export function generateSyntheticChronicleCorpus(
   profile: SyntheticCorpusProfile,
   catalog: SyntheticCatalog,
 ): SyntheticChronicleCorpus {
-  if (profile.sessionCount < 10 || profile.timezones.length === 0) {
+  const primaryTimezone = profile.timezones[0];
+  if (profile.sessionCount < 10 || primaryTimezone === undefined) {
     throw new Error("synthetic corpus profiles require at least ten sessions and one timezone");
   }
   const random = seededRandom(profile.seed);
@@ -376,8 +378,14 @@ export function generateSyntheticChronicleCorpus(
   const system: SyntheticApp = { packageName: "android", label: "System", classes: [] };
   const pickClass = (appClass: SyntheticAppClass): SyntheticApp => {
     const candidates = byClass.get(appClass) ?? [];
-    if (candidates.length === 0) throw new Error(`no app candidates for ${appClass}`);
-    return candidates[Math.floor(random() * candidates.length)];
+    const candidate = candidates[Math.floor(random() * candidates.length)];
+    if (candidate === undefined) throw new Error(`no app candidates for ${appClass}`);
+    return candidate;
+  };
+  const cycleAt = <T,>(values: readonly T[], index: number): T => {
+    const value = values[index % values.length];
+    if (value === undefined) throw new Error("cannot cycle an empty array");
+    return value;
   };
 
   // This session occurs before the participant's first screen-state event but
@@ -388,17 +396,17 @@ export function generateSyntheticChronicleCorpus(
   if (profile.injectInfluenceProbes) {
     const noWitnessApp = pickClass("catalog");
     const noWitnessStart = cursor - 24 * 60 * 60 * 1000;
-    emit(noWitnessApp, "Activity Resumed", profile.timezones[0], noWitnessStart);
-    emit(noWitnessApp, "Activity Paused", profile.timezones[0], noWitnessStart + 10 * 60_000);
+    emit(noWitnessApp, "Activity Resumed", primaryTimezone, noWitnessStart);
+    emit(noWitnessApp, "Activity Paused", primaryTimezone, noWitnessStart + 10 * 60_000);
     features.add("influence-probe:no-screen-witness-day");
   }
 
-  emit(system, "Screen Interactive", profile.timezones[0]);
+  emit(system, "Screen Interactive", primaryTimezone);
   for (let index = 0; index < profile.sessionCount; index += 1) {
-    const appClass = appClassCycle[index % appClassCycle.length];
+    const appClass = cycleAt(appClassCycle, index);
     const app = pickClass(appClass);
-    const timezone = profile.timezones[index % profile.timezones.length];
-    const duration = durationSeconds[index % durationSeconds.length] * 1000;
+    const timezone = cycleAt(profile.timezones, index);
+    const duration = cycleAt(durationSeconds, index) * 1000;
     const resumed = index % 2 === 0 ? "Activity Resumed" : "Unknown importance: 1";
     const paused = index % 3 === 0 ? "Activity Paused" : "Unknown importance: 2";
     const label =
@@ -410,7 +418,7 @@ export function generateSyntheticChronicleCorpus(
     emit(app, resumed, timezone, cursor, label);
 
     if (profile.injectOverlaps && index % 7 === 0) {
-      const overlapping = pickClass(appClassCycle[(index + 1) % appClassCycle.length]);
+      const overlapping = pickClass(cycleAt(appClassCycle, index + 1));
       emit(overlapping, "Activity Resumed", timezone, cursor + 500, overlapping.label);
       emit(overlapping, "Activity Paused", timezone, cursor + Math.max(1_000, duration / 2));
       features.add("overlapping-sessions");
@@ -444,8 +452,11 @@ export function generateSyntheticChronicleCorpus(
       features.add("removable-interaction-types");
     }
     if (profile.injectExactDuplicates && index % 9 === 0) {
-      rows.push([...rows[rows.length - 1]]);
-      features.add("exact-duplicate-rows");
+      const lastRow = rows[rows.length - 1];
+      if (lastRow !== undefined) {
+        rows.push([...lastRow]);
+        features.add("exact-duplicate-rows");
+      }
     }
     if (profile.injectDuplicateTimestamps && index % 6 === 0) {
       const duplicateTimeApp = pickClass("catalog");
@@ -464,7 +475,7 @@ export function generateSyntheticChronicleCorpus(
     const secondProbeApp = (byClass.get("catalog") ?? []).find(
       (candidate) => candidate.packageName !== probeApp.packageName,
     ) ?? pickClass("unknown");
-    const timezone = profile.timezones[0];
+    const timezone = primaryTimezone;
     let probeCursor = cursor + 60_000;
 
     // Two compatible starts and one stop expose stop-event reuse. Reuse closes
@@ -538,14 +549,19 @@ export function generateSyntheticChronicleCorpus(
 
     cursor = probeCursor;
   }
-  emit(system, "Device Shutdown", profile.timezones[0], cursor);
+  emit(system, "Device Shutdown", primaryTimezone, cursor);
   if (profile.injectUnicodeAndQuotedLabels) features.add("quoted-and-unicode-labels");
   if (profile.timezones.length > 1) features.add("mixed-timezone-rows");
 
   if (profile.shuffleRows) {
     for (let index = rows.length - 1; index > 0; index -= 1) {
       const swap = Math.floor(random() * (index + 1));
-      [rows[index], rows[swap]] = [rows[swap], rows[index]];
+      const rowAtIndex = rows[index];
+      const rowAtSwap = rows[swap];
+      if (rowAtIndex !== undefined && rowAtSwap !== undefined) {
+        rows[index] = rowAtSwap;
+        rows[swap] = rowAtIndex;
+      }
     }
     features.add("out-of-order-input");
   }
