@@ -1,16 +1,16 @@
 {
   "protocol_version": "0.1",
-  "root_digest": "sha256:25824a25337df473435cdfdb8d67faafb432dfc0a9a5d5ea51cacc4b3b1672eb",
+  "root_digest": "sha256:f7fad61c1f927a3fbf02da9ced36767a064170438d807d31cb97b27d56f9282e",
   "artifacts": [
     {
       "artifact_id": "capability-bindings.json",
-      "digest": "sha256:5b145b075c5df8c396aeee3f37fbd6ab3d758537bb3421a4d8d0b24369c0525a",
+      "digest": "sha256:242eae05e5c10ac45e49698013793cd41c56fdeebaa3d18aa773fc5e503c5db8",
       "media_type": "application/json",
-      "size": 82955
+      "size": 83197
     },
     {
       "artifact_id": "conformance-report.json",
-      "digest": "sha256:958b8f0b0ebcf5150cf0a14a5169c186764c8e941f88b1d1047202ff675c10d5",
+      "digest": "sha256:d7be40fa3ba40c31e59f1298d18907bd9600c1c07efd15123b55eaf1ce71c88f",
       "media_type": "application/json",
       "size": 630
     },
@@ -70,22 +70,22 @@
     },
     {
       "artifact_id": "resources/runtime-authority.json",
-      "digest": "sha256:bb2e2d109a81098514ba9a86344da6edc033cd305e6d6c4832c9dfd1ce81b2f9",
+      "digest": "sha256:7598af2d710ac32563dd8e0bff49a9447e7f450c618c4689004025fbb6826ed4",
       "media_type": "application/json",
-      "size": 25150
+      "size": 25912
     },
     {
       "artifact_id": "semantic-profile.json",
-      "digest": "sha256:c82f3949c01154eac7e5591c0c5b6d72b99c328a550ce61ca4d29d81397dd9cc",
+      "digest": "sha256:7581dd27886f0317d037380b0c4e6b7c041e7690fd94580a5b60c089f1cfe1ba",
       "media_type": "application/json",
       "size": 4450
     },
     {
       "artifact_id": "semantic-profile.lock",
-      "digest": "sha256:35b8df429a2cd26f80230722ddf17b13f660924eeabc5966f4b1d0dd2b2b6297",
+      "digest": "sha256:63d048c400ec4aab8c03d642f8d3533f949fbd5513789387df65ff0d6109062f",
       "media_type": "application/octet-stream",
       "size": 3111
     }
   ],
-  "closure_digest": "sha256:1873ff8df39cbaeb88acc2e40c8364e5a3c088368b33ec822d4e1caccd005520"
+  "closure_digest": "sha256:b8d199a492dfb1cd4a33fe8ca3feec796db2d4a96e9245dc8c47ab41c904afbe"
 }

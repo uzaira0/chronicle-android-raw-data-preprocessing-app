@@ -727,6 +727,61 @@ mod tests {
     }
 
     #[test]
+    fn invalid_digest_sibling_does_not_poison_a_valid_singleton_binding() {
+        let valid = candidate("valid", &["filter_file"], "text/csv");
+        let mut invalid = candidate("invalid", &["filter_file"], "text/csv");
+        invalid.artifact.digest = format!("sha256:{}", "g".repeat(64));
+
+        let report = qualify_candidates(
+            &embedded_plan(),
+            &[invalid, valid],
+            &serde_json::json!({"use_filter_file": true}),
+        );
+        let valid_trace = report
+            .traces
+            .iter()
+            .find(|trace| trace.candidate_id == "valid")
+            .expect("valid trace");
+        let invalid_trace = report
+            .traces
+            .iter()
+            .find(|trace| trace.candidate_id == "invalid")
+            .expect("invalid trace");
+
+        assert_eq!(valid_trace.decision, QualificationDecision::Accepted);
+        assert_eq!(invalid_trace.decision, QualificationDecision::Rejected);
+        assert_eq!(report.accepted_assignment_ids, vec!["valid"]);
+    }
+
+    #[test]
+    fn qualification_explanation_ids_are_sha256_content_identities() {
+        let report = qualify_candidates(
+            &embedded_plan(),
+            &[candidate("raw", &["raw_chronicle_csv"], "text/csv")],
+            &serde_json::json!({}),
+        );
+        let trace = &report.traces[0];
+        let requirement = report
+            .requirement_traces
+            .iter()
+            .find(|requirement| requirement.role_id == "raw_chronicle_csv")
+            .expect("raw role requirement");
+
+        for identity in [
+            trace.trace_id.as_str(),
+            trace.reason_id.as_str(),
+            requirement.trace_id.as_str(),
+            requirement.reason_id.as_str(),
+        ] {
+            assert!(
+                is_sha256(identity),
+                "invalid explanation identity: {identity}"
+            );
+        }
+        assert_ne!(trace.trace_id, trace.reason_id);
+    }
+
+    #[test]
     fn every_fail_closed_identity_and_role_rule_has_a_killing_witness() {
         let plan = embedded_plan();
         let duplicate_left = candidate("duplicate", &["filter_file"], "text/csv");

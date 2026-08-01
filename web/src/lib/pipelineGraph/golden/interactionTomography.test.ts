@@ -359,6 +359,7 @@ const OUTPUT_KINDS = new Set([
   "row-lineage-arrow",
   "source-coordinate-index-arrow",
   "result-cell-correspondence-arrow",
+  "source-result-influence-arrow",
 ]);
 
 function outputArtifacts(manifest: RuntimeManifest): Record<string, string> {

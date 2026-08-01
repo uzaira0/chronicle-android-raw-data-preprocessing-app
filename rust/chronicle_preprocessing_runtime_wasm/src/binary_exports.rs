@@ -10,7 +10,8 @@ use arrow_ipc::{
     CompressionType,
 };
 use arrow_schema::{DataType, Field, Schema};
-use chronicle_chrono_kernel_wasm::pipeline_v2::PipelineRowLineage;
+use chronicle_chrono_kernel_wasm::pipeline_v2::{LogicalStageCheckpoint, PipelineRowLineage};
+use chronicle_preprocessing_semantic_adapter::ChroniclePlan;
 use parquet::{
     basic::{ConvertedType, Repetition, Type as PhysicalType},
     data_type::{BoolType, ByteArray, ByteArrayType, DoubleType, Int32Type as ParquetInt32Type},
@@ -18,7 +19,7 @@ use parquet::{
     schema::types::Type as ParquetType,
 };
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::fmt::Write as FmtWrite;
 use std::io::{Cursor, Write};
 use std::sync::Arc;
@@ -26,6 +27,7 @@ use std::sync::Arc;
 const RESULT_CELL_CORRESPONDENCE_PROTOCOL: &str = "chronicle-result-cell-correspondence/v4";
 const SOURCE_COORDINATE_PROTOCOL: &str = "chronicle-source-coordinate-index/v3";
 const ROW_LINEAGE_PROTOCOL: &str = "chronicle-row-lineage/v2";
+const SOURCE_RESULT_INFLUENCE_PROTOCOL: &str = "chronicle-source-result-influence/v1";
 
 struct RunCachedStringDictionaryBuilder {
     keys: Int32Builder,
@@ -115,6 +117,13 @@ pub struct CanonicalSource<'a> {
     pub coordinate_media_type: &'a str,
     pub normalization: &'a str,
     pub bytes: &'a [u8],
+}
+
+pub struct InfluenceContext<'a> {
+    pub implementation_digest: &'a str,
+    pub plan_digest: &'a str,
+    pub profile_lock_digest: &'a str,
+    pub dependency_certificate_digest: &'a str,
 }
 
 struct SourceCoordinateBuilders {
@@ -946,7 +955,6 @@ fn push_cell(
     batch_writer.finish_row()
 }
 
-#[cfg(test)]
 fn json_pointer_escape(value: &str) -> String {
     let mut escaped = String::new();
     push_json_pointer_segment(&mut escaped, value);
@@ -1202,6 +1210,521 @@ pub fn result_cell_correspondence_arrow(
         }
     }
     batch_writer.finish()
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct InfluenceWitnessRecord {
+    source_key_kind: &'static str,
+    source_role_id: String,
+    source_selector_prefix: Option<String>,
+    source_record_index: Option<u32>,
+    source_record_last: Option<u32>,
+    target_kind: &'static str,
+    target_id: String,
+    target_logical_node: String,
+    target_output_kind: Option<String>,
+    target_output_row_index: Option<u32>,
+    relation: &'static str,
+    precision: &'static str,
+    evidence_kind: &'static str,
+    evidence_digest: [u8; 32],
+}
+
+struct InfluenceWitnessSpec<'a> {
+    source_key_kind: &'static str,
+    source_role_id: &'a str,
+    source_selector_prefix: Option<&'a str>,
+    source_record_index: Option<u32>,
+    source_record_last: Option<u32>,
+    target_kind: &'static str,
+    target_id: String,
+    target_logical_node: String,
+    target_output_kind: Option<String>,
+    target_output_row_index: Option<u32>,
+    relation: &'static str,
+    precision: &'static str,
+    evidence_kind: &'static str,
+    extra_evidence: &'a [u8],
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct SourceScope {
+    role_id: String,
+    selector_prefix: Option<String>,
+    reached_nodes: BTreeSet<String>,
+}
+
+fn json_pointer_head(selector: &str) -> Option<String> {
+    let encoded = selector.strip_prefix('/')?.split('/').next()?;
+    Some(encoded.replace("~1", "/").replace("~0", "~"))
+}
+
+fn downstream_closure(plan: &ChroniclePlan, seeds: BTreeSet<String>) -> BTreeSet<String> {
+    let mut reached = seeds;
+    let mut frontier = reached.iter().cloned().collect::<VecDeque<_>>();
+    while let Some(source_node) = frontier.pop_front() {
+        for node in &plan.nodes {
+            if node.input_nodes.contains(&source_node) && reached.insert(node.node_id.clone()) {
+                frontier.push_back(node.node_id.clone());
+            }
+        }
+    }
+    reached
+}
+
+/// Distinct source scopes and their declared downstream reach. A scope is a
+/// whole source role, or one top-level JSON pointer prefix of the
+/// `processing_options` document — the same selector space the streamed
+/// source-coordinate index addresses, without materializing its records.
+fn source_scopes(
+    sources: &[CanonicalSource<'_>],
+    plan: &ChroniclePlan,
+) -> Result<Vec<SourceScope>, String> {
+    let mut keys = BTreeSet::new();
+    for source in sources {
+        if source.role_id == "processing_options"
+            && source.coordinate_media_type == "application/json"
+        {
+            let value: serde_json::Value =
+                serde_json::from_slice(source.bytes).map_err(|error| {
+                    format!("parse {} source JSON coordinates: {error}", source.role_id)
+                })?;
+            let prefixes = match &value {
+                serde_json::Value::Object(values) => values
+                    .keys()
+                    .map(|key| format!("/{}", json_pointer_escape(key)))
+                    .collect::<Vec<_>>(),
+                serde_json::Value::Array(values) => {
+                    (0..values.len()).map(|index| format!("/{index}")).collect()
+                }
+                _ => Vec::new(),
+            };
+            if prefixes.is_empty() {
+                keys.insert((source.role_id.to_string(), None));
+            }
+            for prefix in prefixes {
+                keys.insert((source.role_id.to_string(), Some(prefix)));
+            }
+        } else {
+            keys.insert((source.role_id.to_string(), None));
+        }
+    }
+    Ok(keys
+        .into_iter()
+        .map(|(role_id, selector_prefix)| {
+            let mut seeds = BTreeSet::new();
+            if role_id == "raw_chronicle_csv" {
+                seeds.insert("parse_events".to_string());
+            } else if role_id == "processing_options" {
+                let option_key = selector_prefix.as_deref().and_then(json_pointer_head);
+                if let Some(option_key) = option_key {
+                    for node in &plan.nodes {
+                        if node.knobs.iter().any(|knob| {
+                            crate::exact_option_key_reaches_certified(
+                                &option_key,
+                                &knob.option_key,
+                            )
+                        }) {
+                            seeds.insert(node.node_id.clone());
+                        }
+                    }
+                }
+            } else {
+                for node in &plan.nodes {
+                    if node.support_roles.contains(&role_id) {
+                        seeds.insert(node.node_id.clone());
+                    }
+                }
+            }
+            SourceScope {
+                role_id,
+                selector_prefix,
+                reached_nodes: downstream_closure(plan, seeds),
+            }
+        })
+        .collect())
+}
+
+fn influence_evidence_digest(
+    context: &InfluenceContext<'_>,
+    source_key: &str,
+    target_kind: &str,
+    target_id: &str,
+    relation: &str,
+    extra: &[u8],
+) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    for field in [
+        SOURCE_RESULT_INFLUENCE_PROTOCOL.as_bytes(),
+        context.implementation_digest.as_bytes(),
+        context.plan_digest.as_bytes(),
+        context.profile_lock_digest.as_bytes(),
+        context.dependency_certificate_digest.as_bytes(),
+        source_key.as_bytes(),
+        target_kind.as_bytes(),
+        target_id.as_bytes(),
+        relation.as_bytes(),
+        extra,
+    ] {
+        hasher.update((field.len() as u64).to_le_bytes());
+        hasher.update(field);
+    }
+    hasher.finalize().into()
+}
+
+fn append_influence_witness(
+    records: &mut Vec<InfluenceWitnessRecord>,
+    context: &InfluenceContext<'_>,
+    spec: InfluenceWitnessSpec<'_>,
+) {
+    let source_key = format!(
+        "{}:{}:{}:{}",
+        spec.source_key_kind,
+        spec.source_role_id,
+        spec.source_selector_prefix.unwrap_or("*"),
+        match (spec.source_record_index, spec.source_record_last) {
+            (Some(first), Some(last)) => format!("{first}-{last}"),
+            (Some(first), None) => first.to_string(),
+            _ => "*".into(),
+        }
+    );
+    let evidence_digest = influence_evidence_digest(
+        context,
+        &source_key,
+        spec.target_kind,
+        &spec.target_id,
+        spec.relation,
+        spec.extra_evidence,
+    );
+    records.push(InfluenceWitnessRecord {
+        source_key_kind: spec.source_key_kind,
+        source_role_id: spec.source_role_id.into(),
+        source_selector_prefix: spec.source_selector_prefix.map(str::to_string),
+        source_record_index: spec.source_record_index,
+        source_record_last: spec.source_record_last,
+        target_kind: spec.target_kind,
+        target_id: spec.target_id,
+        target_logical_node: spec.target_logical_node,
+        target_output_kind: spec.target_output_kind,
+        target_output_row_index: spec.target_output_row_index,
+        relation: spec.relation,
+        precision: spec.precision,
+        evidence_kind: spec.evidence_kind,
+        evidence_digest,
+    });
+}
+
+/// A compact, proof-carrying bridge between exact source coordinates, typed
+/// logical checkpoints, output rows, and result cells.
+///
+/// This is deliberately normalized rather than a materialized coordinate ×
+/// cell closure. Consumers join source coordinates by role/selector-prefix or
+/// raw-row key, then join result cells by output-kind/output-row key. This
+/// retains the exact endpoints while avoiding redundant Cartesian expansion.
+pub fn source_result_influence_witness_arrow(
+    sources: &[CanonicalSource<'_>],
+    outputs: &[CanonicalOutput<'_>],
+    row_lineages: &[PipelineRowLineage],
+    plan: &ChroniclePlan,
+    checkpoints: &BTreeMap<String, LogicalStageCheckpoint>,
+    context: &InfluenceContext<'_>,
+) -> Result<(Vec<u8>, u32), String> {
+    let scopes = source_scopes(sources, plan)?;
+    let output_scopes = outputs
+        .iter()
+        .map(|output| (output.kind, output.terminal_logical_node))
+        .collect::<BTreeSet<_>>();
+    let row_lineage_outputs = row_lineages
+        .iter()
+        .map(|lineage| lineage.output_kind.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut records = Vec::new();
+
+    for scope in &scopes {
+        let source_kind = if scope.selector_prefix.is_some() {
+            "selector-prefix"
+        } else {
+            "role-scope"
+        };
+        for node_id in &scope.reached_nodes {
+            if let Some(checkpoint) = checkpoints.get(node_id) {
+                append_influence_witness(
+                    &mut records,
+                    context,
+                    InfluenceWitnessSpec {
+                        source_key_kind: source_kind,
+                        source_role_id: &scope.role_id,
+                        source_selector_prefix: scope.selector_prefix.as_deref(),
+                        source_record_index: None,
+                        source_record_last: None,
+                        target_kind: "logical-checkpoint",
+                        target_id: checkpoint.terminal_digest.clone(),
+                        target_logical_node: node_id.clone(),
+                        target_output_kind: None,
+                        target_output_row_index: None,
+                        relation: "may-affect-checkpoint",
+                        precision: "declared-transitive",
+                        evidence_kind: "product-plan-and-typed-checkpoint",
+                        extra_evidence: checkpoint.schema_digest.as_bytes(),
+                    },
+                );
+            }
+        }
+    }
+
+    for lineage in row_lineages {
+        for source_range in &lineage.source_data_row_ranges {
+            let target_id = format!("{}:{}", lineage.output_kind, lineage.output_row_index);
+            let extra = format!(
+                "{}-{}:{}",
+                source_range.first, source_range.last, lineage.output_row_index
+            );
+            append_influence_witness(
+                &mut records,
+                context,
+                InfluenceWitnessSpec {
+                    source_key_kind: "raw-row",
+                    source_role_id: "raw_chronicle_csv",
+                    source_selector_prefix: None,
+                    source_record_index: Some(source_range.first),
+                    source_record_last: Some(source_range.last),
+                    target_kind: "result-row",
+                    target_id,
+                    target_logical_node: lineage.terminal_logical_node.to_string(),
+                    target_output_kind: Some(lineage.output_kind.to_string()),
+                    target_output_row_index: Some(lineage.output_row_index),
+                    relation: "may-contribute-via-row-lineage",
+                    precision: "conservative-row-lineage",
+                    evidence_kind: "kernel-row-lineage",
+                    extra_evidence: extra.as_bytes(),
+                },
+            );
+        }
+    }
+
+    for scope in &scopes {
+        let source_kind = if scope.selector_prefix.is_some() {
+            "selector-prefix"
+        } else {
+            "role-scope"
+        };
+        for (output_kind, terminal_node) in &output_scopes {
+            let no_declared_binding = scope.reached_nodes.is_empty();
+            let reached_output = scope.reached_nodes.contains(*terminal_node);
+            let has_row_witness =
+                scope.role_id == "raw_chronicle_csv" && row_lineage_outputs.contains(*output_kind);
+            if no_declared_binding || (reached_output && !has_row_witness) {
+                append_influence_witness(
+                    &mut records,
+                    context,
+                    InfluenceWitnessSpec {
+                        source_key_kind: source_kind,
+                        source_role_id: &scope.role_id,
+                        source_selector_prefix: scope.selector_prefix.as_deref(),
+                        source_record_index: None,
+                        source_record_last: None,
+                        target_kind: "result-scope",
+                        target_id: (*output_kind).into(),
+                        target_logical_node: (*terminal_node).into(),
+                        target_output_kind: Some((*output_kind).into()),
+                        target_output_row_index: None,
+                        relation: if no_declared_binding {
+                            "semantic-scope-unresolved"
+                        } else {
+                            "cell-contribution-unresolved"
+                        },
+                        precision: "unresolved",
+                        evidence_kind: "explicit-gap",
+                        extra_evidence: output_kind.as_bytes(),
+                    },
+                );
+            }
+        }
+    }
+
+    records.sort_by(|left, right| {
+        (
+            left.source_key_kind,
+            left.source_role_id.as_str(),
+            left.source_selector_prefix.as_deref(),
+            left.source_record_index,
+            left.source_record_last,
+            left.target_kind,
+            left.target_id.as_str(),
+            left.relation,
+        )
+            .cmp(&(
+                right.source_key_kind,
+                right.source_role_id.as_str(),
+                right.source_selector_prefix.as_deref(),
+                right.source_record_index,
+                right.source_record_last,
+                right.target_kind,
+                right.target_id.as_str(),
+                right.relation,
+            ))
+    });
+    records.dedup();
+    let row_count = u32::try_from(records.len())
+        .map_err(|_| "source-result influence witness exceeds u32 rows".to_string())?;
+
+    let mut source_key_kind = StringDictionaryBuilder::<Int32Type>::new();
+    let mut source_role_id = StringDictionaryBuilder::<Int32Type>::new();
+    let mut source_selector_prefix = StringDictionaryBuilder::<Int32Type>::new();
+    let source_record_index = UInt32Array::from(
+        records
+            .iter()
+            .map(|record| record.source_record_index)
+            .collect::<Vec<_>>(),
+    );
+    let source_record_last = UInt32Array::from(
+        records
+            .iter()
+            .map(|record| record.source_record_last)
+            .collect::<Vec<_>>(),
+    );
+    let mut target_kind = StringDictionaryBuilder::<Int32Type>::new();
+    let mut target_id = StringDictionaryBuilder::<Int32Type>::new();
+    let mut target_logical_node = StringDictionaryBuilder::<Int32Type>::new();
+    let mut target_output_kind = StringDictionaryBuilder::<Int32Type>::new();
+    let target_output_row_index = UInt32Array::from(
+        records
+            .iter()
+            .map(|record| record.target_output_row_index)
+            .collect::<Vec<_>>(),
+    );
+    let mut relation = StringDictionaryBuilder::<Int32Type>::new();
+    let mut precision = StringDictionaryBuilder::<Int32Type>::new();
+    let mut evidence_kind = StringDictionaryBuilder::<Int32Type>::new();
+    let mut evidence_digest = FixedSizeBinaryBuilder::with_capacity(records.len(), 32);
+
+    for record in &records {
+        source_key_kind
+            .append(record.source_key_kind)
+            .map_err(|error| error.to_string())?;
+        source_role_id
+            .append(&record.source_role_id)
+            .map_err(|error| error.to_string())?;
+        if let Some(value) = &record.source_selector_prefix {
+            source_selector_prefix
+                .append(value)
+                .map_err(|error| error.to_string())?;
+        } else {
+            source_selector_prefix.append_null();
+        }
+        target_kind
+            .append(record.target_kind)
+            .map_err(|error| error.to_string())?;
+        target_id
+            .append(&record.target_id)
+            .map_err(|error| error.to_string())?;
+        target_logical_node
+            .append(&record.target_logical_node)
+            .map_err(|error| error.to_string())?;
+        if let Some(value) = &record.target_output_kind {
+            target_output_kind
+                .append(value)
+                .map_err(|error| error.to_string())?;
+        } else {
+            target_output_kind.append_null();
+        }
+        relation
+            .append(record.relation)
+            .map_err(|error| error.to_string())?;
+        precision
+            .append(record.precision)
+            .map_err(|error| error.to_string())?;
+        evidence_kind
+            .append(record.evidence_kind)
+            .map_err(|error| error.to_string())?;
+        evidence_digest
+            .append_value(record.evidence_digest)
+            .map_err(|error| error.to_string())?;
+    }
+
+    let mut metadata = HashMap::new();
+    metadata.insert(
+        "protocolVersion".into(),
+        SOURCE_RESULT_INFLUENCE_PROTOCOL.into(),
+    );
+    metadata.insert(
+        "claimBoundary".into(),
+        "Plan reachability is declared-transitive; raw-row candidate contribution is conservative; scopes without row/cell witnesses are explicitly unresolved. The table is normalized: join source coordinates by role plus selector-prefix or the inclusive one-based raw-row range [source_record_index, source_record_last], and join result cells by output kind plus zero-based output row. Absence of a row/cell edge is never a non-influence claim, and no field-level exact contribution is claimed.".into(),
+    );
+    metadata.insert(
+        "sourceCoordinateJoin".into(),
+        "role_id=source_role_id AND (selector-prefix is null OR selector=prefix OR selector starts prefix + '/') AND (source_record_index is null OR (source_record_index <= record_index AND record_index <= coalesce(source_record_last, source_record_index)))".into(),
+    );
+    metadata.insert(
+        "resultCellJoin".into(),
+        "output_kind=target_output_kind AND output_row_index=target_output_row_index".into(),
+    );
+    metadata.insert(
+        "implementationDigest".into(),
+        context.implementation_digest.into(),
+    );
+    metadata.insert("planDigest".into(), context.plan_digest.into());
+    metadata.insert(
+        "profileLockDigest".into(),
+        context.profile_lock_digest.into(),
+    );
+    metadata.insert(
+        "dependencyCertificateDigest".into(),
+        context.dependency_certificate_digest.into(),
+    );
+    metadata.insert("recordBatchCompression".into(), "lz4-frame".into());
+    let schema = Arc::new(Schema::new_with_metadata(
+        vec![
+            Field::new("source_key_kind", dictionary_type(), false),
+            Field::new("source_role_id", dictionary_type(), false),
+            Field::new("source_selector_prefix", dictionary_type(), true),
+            Field::new("source_record_index", DataType::UInt32, true),
+            Field::new("source_record_last", DataType::UInt32, true),
+            Field::new("target_kind", dictionary_type(), false),
+            Field::new("target_id", dictionary_type(), false),
+            Field::new("target_logical_node", dictionary_type(), false),
+            Field::new("target_output_kind", dictionary_type(), true),
+            Field::new("target_output_row_index", DataType::UInt32, true),
+            Field::new("relation", dictionary_type(), false),
+            Field::new("precision", dictionary_type(), false),
+            Field::new("evidence_kind", dictionary_type(), false),
+            Field::new("evidence_sha256", DataType::FixedSizeBinary(32), false),
+        ],
+        metadata,
+    ));
+    let arrays: Vec<ArrayRef> = vec![
+        Arc::new(source_key_kind.finish()),
+        Arc::new(source_role_id.finish()),
+        Arc::new(source_selector_prefix.finish()),
+        Arc::new(source_record_index),
+        Arc::new(source_record_last),
+        Arc::new(target_kind.finish()),
+        Arc::new(target_id.finish()),
+        Arc::new(target_logical_node.finish()),
+        Arc::new(target_output_kind.finish()),
+        Arc::new(target_output_row_index),
+        Arc::new(relation.finish()),
+        Arc::new(precision.finish()),
+        Arc::new(evidence_kind.finish()),
+        Arc::new(evidence_digest.finish()),
+    ];
+    let batch = RecordBatch::try_new(schema.clone(), arrays)
+        .map_err(|error| format!("build source-result influence Arrow batch: {error}"))?;
+    let mut output = Cursor::new(Vec::new());
+    {
+        let write_options = IpcWriteOptions::default()
+            .try_with_compression(Some(CompressionType::LZ4_FRAME))
+            .map_err(|error| format!("configure source-result influence compression: {error}"))?;
+        let mut writer = FileWriter::try_new_with_options(&mut output, &schema, write_options)
+            .map_err(|error| format!("create source-result influence writer: {error}"))?;
+        writer
+            .write(&batch)
+            .map_err(|error| format!("write source-result influence batch: {error}"))?;
+        writer
+            .finish()
+            .map_err(|error| format!("finish source-result influence file: {error}"))?;
+    }
+    Ok((output.into_inner(), row_count))
 }
 
 pub fn row_lineage_arrow(
@@ -2315,6 +2838,93 @@ mod tests {
     }
 
     #[test]
+    fn influence_hashes_and_graph_closure_are_exact_and_nonconstant() {
+        assert_eq!(
+            hex::encode(sha256_array(b"abc")),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        assert_ne!(sha256_array(b"abc"), sha256_array(b"abd"));
+
+        let first_spec = dependency_spec_digest("app-csv", "duration", "outputs");
+        let second_spec = dependency_spec_digest("app-csv", "participant", "outputs");
+        assert_ne!(first_spec, [0; 32]);
+        assert_ne!(first_spec, [1; 32]);
+        assert_ne!(first_spec, second_spec);
+
+        let plan = crate::embedded_plan();
+        let closure =
+            downstream_closure(&plan, BTreeSet::from(["normalize_timezones".to_string()]));
+        assert_eq!(closure.len(), 14);
+        assert!(closure.contains("normalize_timezones"));
+        assert!(closure.contains("outputs"));
+        assert!(!closure.contains("parse_events"));
+
+        let options_digest = format!("sha256:{}", "b".repeat(64));
+        let options = br#"{"timezone_handling":"selected-filter"}"#;
+        let scopes = source_scopes(
+            &[CanonicalSource {
+                role_id: "processing_options",
+                source_artifact_digest: &options_digest,
+                source_media_type: "application/json",
+                coordinate_media_type: "application/json",
+                normalization: "canonical-json",
+                bytes: options,
+            }],
+            &plan,
+        )
+        .unwrap();
+        assert_eq!(scopes.len(), 1);
+        assert_eq!(
+            scopes[0].selector_prefix.as_deref(),
+            Some("/timezone_handling")
+        );
+        assert_eq!(scopes[0].reached_nodes, closure);
+
+        let renamed_options =
+            br#"{"timezone":"America/Chicago","usage_session_mode":"app_and_screen_usage"}"#;
+        let renamed_scopes = source_scopes(
+            &[CanonicalSource {
+                role_id: "processing_options",
+                source_artifact_digest: &options_digest,
+                source_media_type: "application/json",
+                coordinate_media_type: "application/json",
+                normalization: "canonical-json",
+                bytes: renamed_options,
+            }],
+            &plan,
+        )
+        .unwrap();
+        assert_eq!(renamed_scopes.len(), 2);
+        let timezone_scope = renamed_scopes
+            .iter()
+            .find(|scope| scope.selector_prefix.as_deref() == Some("/timezone"))
+            .unwrap();
+        assert!(timezone_scope.reached_nodes.contains("parse_events"));
+        assert!(timezone_scope.reached_nodes.contains("normalize_timezones"));
+        assert!(timezone_scope.reached_nodes.contains("outputs"));
+        let mode_scope = renamed_scopes
+            .iter()
+            .find(|scope| scope.selector_prefix.as_deref() == Some("/usage_session_mode"))
+            .unwrap();
+        assert!(mode_scope.reached_nodes.contains("device_state_timeline"));
+        assert!(mode_scope.reached_nodes.contains("reconstruct_episodes"));
+
+        let context = InfluenceContext {
+            implementation_digest: "implementation-a",
+            plan_digest: "plan-a",
+            profile_lock_digest: "lock-a",
+            dependency_certificate_digest: "certificate-a",
+        };
+        let first_evidence =
+            influence_evidence_digest(&context, "source-a", "result", "target-a", "may", b"x");
+        let second_evidence =
+            influence_evidence_digest(&context, "source-a", "result", "target-b", "may", b"x");
+        assert_ne!(first_evidence, [0; 32]);
+        assert_ne!(first_evidence, [1; 32]);
+        assert_ne!(first_evidence, second_evidence);
+    }
+
+    #[test]
     fn source_coordinate_streaming_writes_and_reads_every_deterministic_batch() {
         let data_rows = SOURCE_COORDINATE_BATCH_ROWS + 5;
         let mut csv = String::with_capacity(data_rows * 8);
@@ -2527,6 +3137,216 @@ mod tests {
         )
         .unwrap_err()
         .contains("parse review-summary-json JSON cells"));
+    }
+
+    #[test]
+    fn source_result_influence_is_joinable_conservative_and_gap_explicit() {
+        let raw_digest = format!("sha256:{}", "a".repeat(64));
+        let options_digest = format!("sha256:{}", "b".repeat(64));
+        let raw = b"participant_id,event_timestamp\nP01,2026-01-01 00:00:00\n";
+        let options = br#"{"interaction_type_remap":true}"#;
+        let sources = [
+            CanonicalSource {
+                role_id: "raw_chronicle_csv",
+                source_artifact_digest: &raw_digest,
+                source_media_type: "text/csv",
+                coordinate_media_type: "text/csv",
+                normalization: "identity-csv",
+                bytes: raw,
+            },
+            CanonicalSource {
+                role_id: "processing_options",
+                source_artifact_digest: &options_digest,
+                source_media_type: "application/json",
+                coordinate_media_type: "application/json",
+                normalization: "canonical-json",
+                bytes: options,
+            },
+        ];
+        let app_csv = b"participant_id,duration_seconds\nP01,60\n";
+        let outputs = [CanonicalOutput {
+            kind: "app-csv",
+            media_type: "text/csv",
+            bytes: app_csv,
+            terminal_logical_node: "outputs",
+        }];
+        let lineages = [PipelineRowLineage {
+            output_kind: Arc::new("app-csv".to_string()),
+            output_row_index: 0,
+            source_data_row_ranges: vec![
+                chronicle_chrono_kernel_wasm::pipeline_v2::SourceDataRowRange { first: 1, last: 1 },
+            ],
+            source_data_row_count: 1,
+            searches: Vec::new(),
+            terminal_logical_node: Arc::new("outputs".to_string()),
+        }];
+        let plan = crate::embedded_plan();
+        let checkpoints = plan
+            .nodes
+            .iter()
+            .map(|node| {
+                let digest = format!(
+                    "sha256:{}",
+                    hex::encode(Sha256::digest(node.node_id.as_bytes()))
+                );
+                (
+                    node.node_id.clone(),
+                    LogicalStageCheckpoint {
+                        protocol_version: "chronicle-logical-stage-checkpoint/v7".into(),
+                        node_id: node.node_id.clone(),
+                        row_membership_digest: digest.clone(),
+                        row_order_digest: digest.clone(),
+                        temporal_state_digest: digest.clone(),
+                        classification_digest: digest.clone(),
+                        payload_digest: digest.clone(),
+                        schema_digest: digest.clone(),
+                        terminal_digest: digest,
+                    },
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        let context = InfluenceContext {
+            implementation_digest: crate::IMPLEMENTATION_BUILD_DIGEST,
+            plan_digest: crate::EMBEDDED_PLAN_SHA256,
+            profile_lock_digest: crate::EMBEDDED_PROFILE_LOCK_SHA256,
+            dependency_certificate_digest: crate::EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256,
+        };
+
+        let (first, row_count) = source_result_influence_witness_arrow(
+            &sources,
+            &outputs,
+            &lineages,
+            &plan,
+            &checkpoints,
+            &context,
+        )
+        .unwrap();
+        let (second, second_count) = source_result_influence_witness_arrow(
+            &sources,
+            &outputs,
+            &lineages,
+            &plan,
+            &checkpoints,
+            &context,
+        )
+        .unwrap();
+        assert_eq!(first, second);
+        assert_eq!(row_count, second_count);
+        assert!(row_count > 4);
+
+        let mut reader = FileReader::try_new(Cursor::new(first), None).unwrap();
+        let batch = reader.next().unwrap().unwrap();
+        assert_eq!(batch.num_rows(), row_count as usize);
+        assert_eq!(
+            batch.schema().metadata()["protocolVersion"],
+            SOURCE_RESULT_INFLUENCE_PROTOCOL
+        );
+        assert!(batch.schema().metadata()["claimBoundary"]
+            .contains("Absence of a row/cell edge is never a non-influence claim"));
+        assert_eq!(batch.schema().field(0).name(), "source_key_kind");
+        assert_eq!(batch.schema().field(3).name(), "source_record_index");
+        assert_eq!(batch.schema().field(4).name(), "source_record_last");
+        assert_eq!(batch.schema().field(9).name(), "target_output_row_index");
+        assert_eq!(batch.schema().field(13).name(), "evidence_sha256");
+
+        let dictionary_values = |column: usize| {
+            let dictionary = batch
+                .column(column)
+                .as_any()
+                .downcast_ref::<DictionaryArray<Int32Type>>()
+                .unwrap();
+            let values = dictionary
+                .values()
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap();
+            (0..dictionary.len())
+                .map(|index| {
+                    values
+                        .value(dictionary.keys().value(index) as usize)
+                        .to_string()
+                })
+                .collect::<BTreeSet<_>>()
+        };
+        assert_eq!(
+            dictionary_values(10),
+            BTreeSet::from([
+                "cell-contribution-unresolved".to_string(),
+                "may-affect-checkpoint".to_string(),
+                "may-contribute-via-row-lineage".to_string(),
+            ])
+        );
+        assert_eq!(
+            dictionary_values(11),
+            BTreeSet::from([
+                "conservative-row-lineage".to_string(),
+                "declared-transitive".to_string(),
+                "unresolved".to_string(),
+            ])
+        );
+
+        assert_eq!(
+            dictionary_values(0),
+            BTreeSet::from([
+                "raw-row".to_string(),
+                "role-scope".to_string(),
+                "selector-prefix".to_string(),
+            ])
+        );
+        let source_rows = batch
+            .column(3)
+            .as_any()
+            .downcast_ref::<UInt32Array>()
+            .unwrap();
+        let source_last_rows = batch
+            .column(4)
+            .as_any()
+            .downcast_ref::<UInt32Array>()
+            .unwrap();
+        let target_rows = batch
+            .column(9)
+            .as_any()
+            .downcast_ref::<UInt32Array>()
+            .unwrap();
+        assert!((0..batch.num_rows())
+            .any(|index| source_rows.is_valid(index) && target_rows.is_valid(index)));
+        assert!((0..batch.num_rows()).any(|index| !target_rows.is_valid(index)));
+        assert!((0..batch.num_rows()).all(|index| {
+            source_rows.is_valid(index) == source_last_rows.is_valid(index)
+                && (!source_rows.is_valid(index)
+                    || source_rows.value(index) <= source_last_rows.value(index))
+        }));
+        assert!((0..batch.num_rows()).any(|index| {
+            source_rows.is_valid(index)
+                && (source_rows.value(index), source_last_rows.value(index)) == (1, 1)
+        }));
+        let source_roles = batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<DictionaryArray<Int32Type>>()
+            .unwrap();
+        let source_role_values = source_roles
+            .values()
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        let relations = batch
+            .column(10)
+            .as_any()
+            .downcast_ref::<DictionaryArray<Int32Type>>()
+            .unwrap();
+        let relation_values = relations
+            .values()
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        assert!(!(0..batch.num_rows()).any(|index| {
+            source_role_values.value(source_roles.keys().value(index) as usize)
+                == "raw_chronicle_csv"
+                && relation_values.value(relations.keys().value(index) as usize)
+                    == "cell-contribution-unresolved"
+        }));
+        assert!(reader.next().is_none());
     }
 
     #[test]

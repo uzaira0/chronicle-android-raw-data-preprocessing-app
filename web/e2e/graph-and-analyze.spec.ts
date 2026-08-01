@@ -14,9 +14,20 @@ import {
 
 let requestTracker: ReturnType<typeof trackExternalRequests>;
 
+// WebKit surfaces this as a pageerror when observed layout work spills past one
+// frame; it is benign notification overflow, not an application fault.
+const BENIGN_PAGE_ERRORS = [
+  "ResizeObserver loop completed with undelivered notifications.",
+];
+
 function trackPageErrors(page: Page): string[] {
   const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(String(error)));
+  page.on("pageerror", (error) => {
+    const text = String(error);
+    if (!BENIGN_PAGE_ERRORS.some((benign) => text.includes(benign))) {
+      errors.push(text);
+    }
+  });
   return errors;
 }
 

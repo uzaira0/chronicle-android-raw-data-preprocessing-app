@@ -2060,11 +2060,34 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
       ({ kind }) => kind === "source-coordinate-index-arrow",
     );
     const bytes = execution.artifacts.get("source-coordinate-index-arrow");
+    const influenceMetadata = execution.manifest.artifacts.find(
+      ({ kind }) => kind === "source-result-influence-arrow",
+    );
+    const influenceBytes = execution.artifacts.get(
+      "source-result-influence-arrow",
+    );
+    const dependencyDigests = [
+      "source-coordinate-index-arrow",
+      "result-cell-correspondence-arrow",
+      "row-lineage-arrow",
+    ].map(
+      (kind) =>
+        execution.manifest.artifacts.find((artifact) => artifact.kind === kind)!
+          .digest,
+    );
     expect(metadata).toBeDefined();
     expect(bytes).toBeDefined();
     expect(metadata?.rowCount).toBeGreaterThanOrEqual(4_800);
     expect(metadata?.size).toBe(bytes?.byteLength);
     expect(metadata?.size).toBeLessThanOrEqual(raw.byteLength * 3 + 65_536);
+    expect(influenceMetadata).toBeDefined();
+    expect(influenceBytes).toBeDefined();
+    expect(influenceMetadata?.rowCount).toBe(686);
+    expect(influenceMetadata?.size).toBe(influenceBytes?.byteLength);
+    expect(influenceMetadata?.size).toBeLessThanOrEqual(262_144);
+    expect(influenceMetadata?.derivedFrom).toEqual(
+      expect.arrayContaining(dependencyDigests),
+    );
   });
 
   it.each(INVALID_CASES)("rejects %s", (_name, mutate, expected) => {

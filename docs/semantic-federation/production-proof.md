@@ -74,7 +74,7 @@ Rust/WASM owns:
 - proximity matching, concurrent splitting, app/screen computation,
   attribution, coverage, compliance, aggregates and exports;
 - CSV, Parquet, SPSS, Arrow row lineage, and normalized result-cell
-  correspondence bytes;
+  correspondence and source-to-result influence-witness bytes;
 - role assignments, obligations, node states, dirty-cone decisions and reasons;
 - the CBOR evidence chain, artifact closure, root commit and typed views;
 - the rebuildable semantic-index source and registered-query execution.
@@ -306,18 +306,31 @@ and canonical configuration JSON leaf a stable exact coordinate. Each record
 commits to the qualified role, source artifact digest, media and normalization
 boundary, one-based source record or JSON pointer, selector, and value digest.
 These are witness endpoints—not inferred contribution claims.
-On the checked 600-event fixture, the source index contains 4,853 coordinates
-in 191,714 bytes (3.27 times the 58,610-byte raw/config source) and is guarded
-by a bounded-ratio regression.
+On the checked 600-event fixture, the source index contains 4,885 coordinates
+in 37,866 bytes (0.62 times the 60,719 bytes of raw CSV plus canonical
+configuration JSON) and is guarded by a bounded-ratio regression.
 `result-cell-correspondence-arrow` assigns every canonical CSV cell and JSON
 leaf an exact address and value digest, records its terminal logical node, and
 joins row-addressed CSV cells exactly to `row-lineage-arrow`. The Arrow batch
 uses dictionary encoding plus LZ4 frame compression. On the checked 600-event
-representative fixture it contains 13,834 cells in 278,602 bytes, 1.39 times
-the 200,479 canonical output bytes. The precision labels remain load-bearing:
-source and result coordinate identity and row-table joins are exact, raw-row contributor sets are
-conservative, semantic dependencies are declared-transitive, and exact
-raw-field/support-record contributors are not yet claimed.
+representative fixture it contains 9,902 cells in 45,810 bytes, 0.51 times
+the 89,709 canonical output bytes. The precision labels remain load-bearing:
+source and result coordinate identity and row-table joins are exact, raw-row
+contributor sets are conservative, semantic dependencies are
+declared-transitive, and exact raw-field/support-record contributors are not yet
+claimed.
+
+`source-result-influence-arrow` makes those precision boundaries executable.
+It contains 686 normalized witness rows in 47,042 bytes on the same fixture:
+role/selector-prefix to logical checkpoint, contiguous raw source-row range
+(`source_record_index`..`source_record_last`) to output row, and
+explicit unresolved source-scope to result-family gaps. The first Cartesian
+prototype (measured on the development fixture during design) emitted 240,540
+rows and 13,759,858 bytes; normalization reduces the bridge by two orders of
+magnitude while preserving lossless
+joins into the source-coordinate, result-cell, and row-lineage tables. The
+artifact is closure-bound, deterministic, researcher-exportable, and states
+that a missing row/cell edge is never evidence of non-influence.
 
 The combined empirical and structural sweep found both kinds of ontology drift.
 Output assembly directly consumed attribution and observation-window products

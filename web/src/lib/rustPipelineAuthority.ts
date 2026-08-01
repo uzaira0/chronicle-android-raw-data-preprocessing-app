@@ -788,6 +788,19 @@ export async function processRawCsvWithRustAuthority(
     ARROW_MIME,
     cellCorrespondenceMetadata?.rowCount ?? 0,
   );
+  const influenceWitnessMetadata = manifest.artifacts.find(
+    (artifact) => artifact.kind === "source-result-influence-arrow",
+  );
+  addBinaryOutput(
+    outputs,
+    execution,
+    "lineage",
+    "source-result-influence-arrow",
+    inputFileName,
+    " Source-Result Influence Witness.arrow",
+    ARROW_MIME,
+    influenceWitnessMetadata?.rowCount ?? 0,
+  );
   for (const [kind, suffix, mediaType] of [
     ["evidence-journal", " Evidence Journal.cbor", "application/cbor"],
     ["artifact-closure-json", " Artifact Closure.json", "application/json"],
