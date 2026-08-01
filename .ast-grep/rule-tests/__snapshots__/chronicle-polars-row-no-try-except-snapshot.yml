@@ -1,5 +1,26 @@
 id: chronicle-polars-row-no-try-except
 snapshots:
+  ? |
+    def load():
+        try:
+            return df.row(0)
+        except ConfigError:
+            return None
+  : labels:
+    - source: df.row(0)
+      style: primary
+      start: 36
+      end: 45
+  ? |
+    try:
+        value = df.row(0)
+    except ValueError:
+        value = None
+  : labels:
+    - source: df.row(0)
+      style: primary
+      start: 17
+      end: 26
   value = df.row(0):
     labels:
     - source: df.row(0)

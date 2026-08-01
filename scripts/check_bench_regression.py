@@ -137,13 +137,16 @@ def main() -> int:
 
     print("Benchmark results (mean ns):")
     failures: list[str] = []
+    missing: list[str] = []
+    compared = 0
     for bench_id, baseline_entry in sorted(baseline.items()):
         baseline_ns: float = (
             baseline_entry["mean_ns"] if isinstance(baseline_entry, dict) else float(baseline_entry)
         )
         if bench_id not in current_normalised:
-            print(f"WARNING: baseline key {bench_id!r} not found in current run.")
+            missing.append(bench_id)
             continue
+        compared += 1
         current_ns = current_normalised[bench_id]
         ratio = (current_ns - baseline_ns) / baseline_ns
         if ratio > REGRESSION_THRESHOLD:
@@ -157,6 +160,19 @@ def main() -> int:
             status = f"  (within threshold: {ratio:+.1%} vs baseline {baseline_ns:,.1f} ns)"
         print(f"  {bench_id}: {current_ns:,.1f} ns{status}")
 
+    # A baseline key with no current measurement (renamed/deleted benchmark)
+    # or an empty intersection must fail — otherwise the gate is vacuously
+    # green exactly when it measures nothing.
+    if missing:
+        print(f"\nFAILED: {len(missing)} baseline benchmark(s) missing from the current run:")
+        for bench_id in missing:
+            print(f"  {bench_id}")
+        print("If the benchmark was intentionally renamed/removed, refresh with --write-baseline.")
+        return 1
+    if compared == 0:
+        print("\nFAILED: no benchmarks compared — baseline and current run share no keys.")
+        return 1
+
     if failures:
         print(
             f"\nFAILED: {len(failures)} benchmark(s) regressed by more than {REGRESSION_THRESHOLD:.0%}:"
@@ -165,7 +181,7 @@ def main() -> int:
             print(f"  {failure}")
         return 1
 
-    print(f"\nAll benchmarks within {REGRESSION_THRESHOLD:.0%} regression threshold.")
+    print(f"\nAll {compared} benchmark(s) within {REGRESSION_THRESHOLD:.0%} regression threshold.")
     return 0
 
 

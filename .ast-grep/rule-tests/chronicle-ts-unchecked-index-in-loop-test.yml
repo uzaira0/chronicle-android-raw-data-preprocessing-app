@@ -17,3 +17,12 @@ invalid:
       use(items[cursor]!);
       cursor += 1;
     }
+  - |
+    for (const key in lookup) {
+      use(lookup[key]!);
+    }
+  - |
+    do {
+      use(items[cursor]!);
+      cursor += 1;
+    } while (cursor < items.length);

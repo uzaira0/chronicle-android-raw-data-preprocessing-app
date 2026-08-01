@@ -29,4 +29,16 @@ done
 curl -sf -o /dev/null "http://127.0.0.1:$PORT/" || {
   echo "preview server failed to start on port $PORT" >&2; exit 1
 }
+# The readiness probe alone can be satisfied by a FOREIGN server if our
+# strictPort launch lost a race and died — require that the listener on the
+# port is exactly the vite process this script started.
+kill -0 "$PREVIEW_PID" 2>/dev/null || {
+  echo "our preview process died — refusing to screenshot whatever answered on port $PORT" >&2
+  exit 1
+}
+LISTENER="$(lsof -tnP -iTCP:"$PORT" -sTCP:LISTEN | head -1)"
+if [ "$LISTENER" != "$PREVIEW_PID" ]; then
+  echo "port $PORT is held by PID ${LISTENER:-none}, not our preview ($PREVIEW_PID) — refusing" >&2
+  exit 1
+fi
 PLAYWRIGHT_BASE_URL="http://127.0.0.1:$PORT" npx playwright test --project=chromium --grep "@visual"

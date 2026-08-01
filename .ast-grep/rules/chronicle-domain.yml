@@ -26,6 +26,11 @@ files:
 rule:
   all:
     - pattern: $DF.row($N)
+    # Only an except clause that can actually catch IndexError disarms the
+    # rule — a try/except for an unrelated exception must still flag.
+    # Literal alternatives, not 'except $E' + constraints: constraints are
+    # not evaluated for captures inside a negated relational rule, and a
+    # bare 'except:' PATTERN would wildcard-match typed clauses.
     - not:
         inside:
           stopBy: end
@@ -33,8 +38,43 @@ rule:
             - pattern: |
                 try:
                   $$$
-                except $E:
+                except IndexError:
                   $$$
+            - pattern: |
+                try:
+                  $$$
+                except IndexError as $ALIAS:
+                  $$$
+            - pattern: |
+                try:
+                  $$$
+                except Exception:
+                  $$$
+            - pattern: |
+                try:
+                  $$$
+                except Exception as $ALIAS:
+                  $$$
+            - pattern: |
+                try:
+                  $$$
+                except BaseException:
+                  $$$
+            - pattern: |
+                try:
+                  $$$
+                except BaseException as $ALIAS:
+                  $$$
+            - all:
+                - kind: try_statement
+                - has:
+                    kind: except_clause
+                    regex: '^except\s*:'
+            - all:
+                - kind: try_statement
+                - has:
+                    kind: except_clause
+                    regex: '^except\s*\([^)]*\b(IndexError|Exception|BaseException)\b'
 ---
 # Python: datetime.utcnow() deprecated and returns naive datetime
 id: chronicle-datetime-utcnow
