@@ -128,7 +128,7 @@ boundary cases enforce that separation.
 ## Bidirectional correspondence
 
 Each run now exports `correspondence-index-json` using
-`chronicle-correspondence-index/v3`. Its directed edge set can be traversed
+`chronicle-correspondence-index/v4`. Its directed edge set can be traversed
 forward or backward and binds:
 
 - exact artifact digests to accepted role assignments and qualification traces;
@@ -144,14 +144,21 @@ forward or backward and binds:
 - typed checkpoints and execution artifacts to their logical nodes; and
 - terminal nodes to researcher-visible artifact digests; and
 - the normalized result-cell index to each canonical CSV/JSON output and to
-  its row-correspondence table.
+  its row-correspondence table; and
+- a normalized `source-result-influence-arrow` witness joining qualified
+  source scopes to logical checkpoints, raw source rows to output rows, and
+  unresolved source scopes to result families whose exact cell contributors
+  are not yet known.
 
 The source-coordinate index deliberately stops at the correct epistemic
 boundary: indexing a value proves that the value existed in a qualified source,
-not that it contributed to a particular output. Exact contribution requires a
-separate dependency-witness edge. This prevents both the unsafe assumption that
-every available field affected every output and the opposite unsafe assumption
-that one unchanged perturbation proves irrelevance.
+not that it contributed to a particular output. The separate influence witness
+adds only relationships for which the runtime has an explicit basis. It records
+declared-transitive source-scope-to-checkpoint edges and conservative
+raw-row-to-output-row lineage, while retaining unresolved result-family gaps.
+It never promotes one unchanged perturbation to a non-influence proof and never
+labels a raw field or support record as an exact cell contributor without a
+dependency witness.
 
 The existing `row-lineage-arrow` remains the large row correspondence table
 from output rows back to one-based raw source rows. Precision is deliberately
@@ -160,11 +167,15 @@ plan dependencies are declared; raw row dependency sets remain conservative.
 `result-cell-correspondence-arrow` now gives every canonical CSV cell and JSON
 leaf an exact normalized address, exact value digest, terminal logical node,
 and (for row-addressed CSV cells) an exact join key into `row-lineage-arrow`.
-This is a real backward-query spine, but not an overclaim: raw-field
-contributors, support-record contributors, and semantic cell dependencies
-beyond the declared transitive plan remain unresolved. The intervention
-harness separately supplies empirical forward correspondence—named changed
-component to exactly changed canonical output cells—for its checked cases.
+`source-result-influence-arrow` normalizes the bridge rather than materializing
+the source-coordinate×result-cell Cartesian product: selectors join through a
+role or selector prefix, source rows join through row keys, and result cells
+join through output kind and output row. Absence of a bridge row is explicitly
+not a non-influence claim. Raw-field contributors, support-record contributors,
+and semantic cell dependencies beyond the declared transitive plan remain
+unresolved. The intervention harness separately supplies empirical forward
+correspondence—named changed component to exactly changed canonical output
+cells—for its checked cases.
 
 ## Computation, correspondence, and representation
 
@@ -257,3 +268,41 @@ unchanged cell. Exhaustive boundary discovery beyond the declared catalog also
 remains an expansion rather than implied coverage. Interaction tomography and
 semantic-model mutation testing are separate checked gates documented with the
 configuration-space campaign.
+
+## Next proof frontier: a context-conditioned influence atlas
+
+The next model is not a larger unconditional DAG. Configuration, qualifications,
+and data shape can change which bindings and dependencies are active, so the
+actual object is a product-owned family of specialized DAGs indexed by context.
+The compact representation should be a certified influence atlas whose records
+bind:
+
+- a Chronicle source-coordinate or change pattern;
+- a Chronicle checkpoint component, output row, or result-cell pattern;
+- the exact configuration/data/qualification region in which the claim holds;
+- a dependence channel: value, membership, order, control, qualification, or
+  schema/contract;
+- a relation: observed effect, declared possible influence, empirically
+  invariant over an explicit finite domain, or unresolved; and
+- the cold/warm, mutation, coverage-domain, implementation, and contract
+  evidence that justifies that relation.
+
+Non-influence is not the bottom of an influence-strength scale. It is a
+separate, bounded claim and is admitted only when its declared domain was
+exhausted or a product-specific invariant independently proves it. One
+convergent intervention never creates a non-influence edge.
+
+At runtime the current assignments and options specialize the atlas. Narrow
+reuse is allowed only when every cache-relevant path lies inside a current
+certified region. A novel context, an unresolved critical path, stale evidence,
+or a contradiction triggers conservative recomputation and emits a new coverage
+hole for the intervention campaign. Cold execution remains the independent
+oracle. A changed checkpoint outside the predicted cone is a soundness failure;
+an unnecessarily recomputed checkpoint is a separately reported minimality
+failure.
+
+The reusable scaffold should standardize only this experiment-and-certificate
+envelope. Chronicle continues to own its coordinate schemas, context predicates,
+checkpoint components, comparators, generators, and meanings. Other products
+can provide different adapters without adopting Chronicle's ontology or model
+of computation.

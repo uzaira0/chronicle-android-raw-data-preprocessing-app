@@ -899,6 +899,7 @@ struct CorrespondenceIndex {
     source_coordinate_artifact_kind: &'static str,
     row_correspondence_artifact_kind: &'static str,
     cell_correspondence_artifact_kind: &'static str,
+    influence_witness_artifact_kind: &'static str,
     edges: Vec<CorrespondenceEdge>,
 }
 
@@ -1017,7 +1018,7 @@ struct StableArtifactBundle {
     key: String,
     result_digests: PipelineResultDigests,
     binary_artifacts: Vec<RuntimeArtifact>,
-    source_coordinate_artifact: RuntimeArtifact,
+    source_coordinate_artifacts: Vec<RuntimeArtifact>,
 }
 
 #[derive(Debug, Clone)]
@@ -1405,6 +1406,65 @@ fn semantic_options_value(options: &PipelineV2OptionsJson) -> Result<Value, Stri
         ));
     }
     Ok(value)
+}
+
+/// Exact-serialization option keys that [`semantic_options_value`] renames or
+/// derives before the certified-key filter. Every exact key absent from this
+/// table projects to itself. The influence witness resolves option scopes
+/// (exact top-level keys of the `processing_options` document) against plan
+/// knobs (certified keys) through this same table, so the two spaces cannot
+/// drift apart silently.
+pub(crate) const EXACT_TO_CERTIFIED_OPTION_KEYS: &[(&str, &[&str])] = &[
+    (
+        "usage_session_mode",
+        &["process_app_usage", "process_screen_usage"],
+    ),
+    ("timezone", &["selected_timezone"]),
+    (
+        "use_apps_forcing_screen_open",
+        &["use_apps_forcing_screen_open_file"],
+    ),
+    (
+        "long_duration_threshold_ns",
+        &["long_duration_threshold_hours"],
+    ),
+    ("proximity_interval_ns", &["proximity_interval_seconds"]),
+    (
+        "same_app_stop_types",
+        &["same_app_interaction_types_to_stop_usage_at"],
+    ),
+    (
+        "other_stop_types",
+        &["other_interaction_types_to_stop_usage_at"],
+    ),
+    (
+        "screen_auto_lock_timeout_seconds",
+        &["screen_usage_auto_lock_timeout_seconds"],
+    ),
+    (
+        "screen_auto_lock_tolerance_seconds",
+        &["screen_usage_auto_lock_tolerance_seconds"],
+    ),
+    (
+        "screen_manual_lock_max_tail_seconds",
+        &["screen_usage_manual_lock_max_tail_gap_seconds"],
+    ),
+    (
+        "screen_keyguard_near_stop_seconds",
+        &["screen_usage_keyguard_near_stop_seconds"],
+    ),
+];
+
+/// Whether influence through the exact-serialization option key reaches the
+/// given certified option key after the [`semantic_options_value`] projection.
+pub(crate) fn exact_option_key_reaches_certified(exact_key: &str, certified_key: &str) -> bool {
+    match EXACT_TO_CERTIFIED_OPTION_KEYS
+        .iter()
+        .find(|(exact, _)| *exact == exact_key)
+    {
+        Some((_, certified)) => certified.contains(&certified_key),
+        None => exact_key == certified_key,
+    }
 }
 
 /// Product support artifacts injected by registered semantic role. Adding a
@@ -2997,6 +3057,7 @@ fn execute_prepared_workspace(
             artifacts,
         });
     }
+    let plan = embedded_plan();
     let stable_key = stable_artifact_key(
         &request.workspace_id,
         &ingress.input.digest,
@@ -3008,12 +3069,12 @@ fn execute_prepared_workspace(
     let cached_bundle = (dependency_cache_decision.mode == DependencyCacheMode::CertifiedNarrow)
         .then(|| cached_stable_artifact_bundle(&request.workspace_id, &stable_key))
         .flatten();
-    let (result_digests, mut binary_artifacts, source_coordinate_artifact) =
+    let (result_digests, mut binary_artifacts, source_coordinate_artifacts) =
         if let Some(bundle) = cached_bundle {
             for artifact in bundle
                 .binary_artifacts
                 .iter()
-                .chain(std::iter::once(&bundle.source_coordinate_artifact))
+                .chain(bundle.source_coordinate_artifacts.iter())
             {
                 let RuntimeArtifactBytes::Shared(bytes) = &artifact.bytes else {
                     return Err("stable artifact cache contained mutable bytes".into());
@@ -3025,7 +3086,7 @@ fn execute_prepared_workspace(
             (
                 bundle.result_digests,
                 bundle.binary_artifacts,
-                bundle.source_coordinate_artifact,
+                bundle.source_coordinate_artifacts,
             )
         } else {
             #[cfg(test)]
@@ -3043,12 +3104,15 @@ fn execute_prepared_workspace(
             let mut source_coordinate_artifacts = Vec::new();
             append_source_coordinate_index(
                 &mut source_coordinate_artifacts,
+                &result,
+                &binary_artifacts,
                 csv_bytes,
                 &options_bytes,
                 &ingress.assignments,
                 &resolved_support,
+                &plan,
             )?;
-            if source_coordinate_artifacts.len() != 1 {
+            if source_coordinate_artifacts.len() != 2 {
                 return Err("source-coordinate generator emitted an invalid artifact count".into());
             }
             let cache_stable_artifacts = dependency_cache_decision.mode
@@ -3057,22 +3121,17 @@ fn execute_prepared_workspace(
             if cache_stable_artifacts {
                 share_owned_artifacts(&mut binary_artifacts);
                 share_owned_artifacts(&mut source_coordinate_artifacts);
-            }
-            let source_coordinate_artifact = source_coordinate_artifacts
-                .pop()
-                .expect("source-coordinate artifact count checked");
-            if cache_stable_artifacts {
                 store_stable_artifact_bundle(
                     &request.workspace_id,
                     StableArtifactBundle {
                         key: stable_key,
                         result_digests: result_digests.clone(),
                         binary_artifacts: binary_artifacts.clone(),
-                        source_coordinate_artifact: source_coordinate_artifact.clone(),
+                        source_coordinate_artifacts: source_coordinate_artifacts.clone(),
                     },
                 );
             }
-            (result_digests, binary_artifacts, source_coordinate_artifact)
+            (result_digests, binary_artifacts, source_coordinate_artifacts)
         };
     // Binary indexes borrow the canonical output bytes above. Once they are
     // complete, transfer those Vec allocations into the runtime artifacts
@@ -3112,8 +3171,7 @@ fn execute_prepared_workspace(
                 .collect(),
         ));
     }
-    artifacts.push(source_coordinate_artifact);
-    let plan = embedded_plan();
+    artifacts.extend(source_coordinate_artifacts);
     let satisfied_nodes: BTreeSet<_> = node_executions
         .iter()
         .filter(|execution| {
@@ -3184,6 +3242,12 @@ fn execute_prepared_workspace(
         .filter(|artifact| {
             artifact.metadata.kind.starts_with("node-output:")
                 || is_researcher_output_kind(&artifact.metadata.kind)
+                || matches!(
+                    artifact.metadata.kind.as_str(),
+                    "source-coordinate-index-arrow"
+                        | "result-cell-correspondence-arrow"
+                        | "source-result-influence-arrow"
+                )
         })
         .map(|artifact| artifact.metadata.digest.clone())
         .chain(
@@ -4095,18 +4159,60 @@ fn build_correspondence_index(inputs: CorrespondenceIndexInputs<'_>) -> Result<V
         }
     }
 
+    if let Some(influence) = artifacts
+        .iter()
+        .find(|artifact| artifact.metadata.kind == "source-result-influence-arrow")
+    {
+        for (source_kind, relation, precision) in [
+            (
+                "source-coordinate-index-arrow",
+                "supplies-source-coordinates-to",
+                "exact",
+            ),
+            (
+                "result-cell-correspondence-arrow",
+                "supplies-result-coordinates-to",
+                "exact",
+            ),
+            (
+                "row-lineage-arrow",
+                "supplies-conservative-row-witnesses-to",
+                "conservative",
+            ),
+        ] {
+            if let Some(source) = artifacts
+                .iter()
+                .find(|artifact| artifact.metadata.kind == source_kind)
+            {
+                append_correspondence_edge(
+                    &mut edges,
+                    correspondence_edge(
+                        "artifact",
+                        source.metadata.digest.clone(),
+                        relation,
+                        "artifact",
+                        influence.metadata.digest.clone(),
+                        precision,
+                    )
+                    .with_evidence(vec![EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256.into()]),
+                );
+            }
+        }
+    }
+
     edges.sort_by(|left, right| left.edge_id.cmp(&right.edge_id));
     let index = CorrespondenceIndex {
-        protocol_version: "chronicle-correspondence-index/v3",
+        protocol_version: "chronicle-correspondence-index/v4",
         implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
         build_environment_digest: BUILD_ENVIRONMENT_DIGEST,
         plan_digest: EMBEDDED_PLAN_SHA256,
         profile_lock_digest: EMBEDDED_PROFILE_LOCK_SHA256,
         product_contract_digest: EMBEDDED_PRODUCT_CONTRACT_SHA256,
-        claim_boundary: "Bidirectional graph traversal over exact source-coordinate indexing, qualification, checkpoint, execution, publication, canonical result-cell identity, and cell-to-row join edges plus declared plan/role/knob dependencies. Source coordinate identity is exact but does not imply output contribution; raw-row contributors remain conservatively labeled, semantic cell dependencies are declared-transitive, and exact raw-field/support-record-to-output correspondence is not yet claimed.",
+        claim_boundary: "Bidirectional graph traversal over exact source/result coordinate identities, qualification, checkpoint, execution, publication, and cell-to-row joins plus declared plan/role/knob dependencies. The influence witness makes declared checkpoint reachability, conservative raw-row candidate cells, and unresolved result scopes explicit. Exact raw-field/support-record contribution is not claimed, and absence of a cell edge is never a non-influence claim.",
         source_coordinate_artifact_kind: "source-coordinate-index-arrow",
         row_correspondence_artifact_kind: "row-lineage-arrow",
         cell_correspondence_artifact_kind: "result-cell-correspondence-arrow",
+        influence_witness_artifact_kind: "source-result-influence-arrow",
         edges,
     };
     serde_jcs::to_vec(&index).map_err(|error| format!("canonicalize correspondence index: {error}"))
@@ -4452,12 +4558,16 @@ fn append_binary_exports(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn append_source_coordinate_index(
     artifacts: &mut Vec<RuntimeArtifact>,
+    result: &PipelineV2Result,
+    binary_artifacts: &[RuntimeArtifact],
     raw_csv: &[u8],
     options_json: &[u8],
     assignments: &BTreeMap<String, RoleAssignment>,
     support_files: &ResolvedSupportFiles,
+    plan: &chronicle_preprocessing_semantic_adapter::ChroniclePlan,
 ) -> Result<(), String> {
     let assignment = |role: &str| {
         assignments
@@ -4506,6 +4616,50 @@ fn append_source_coordinate_index(
         .collect();
     let mut artifact = runtime_artifact(
         "source-coordinate-index-arrow",
+        "application/vnd.apache.arrow.file",
+        bytes,
+        dependencies,
+    );
+    artifact.metadata.row_count = Some(row_count);
+    let source_coordinate_digest = artifact.metadata.digest.clone();
+    artifacts.push(artifact);
+
+    let canonical_outputs = canonical_cell_outputs(result);
+    let context = binary_exports::InfluenceContext {
+        implementation_digest: IMPLEMENTATION_BUILD_DIGEST,
+        plan_digest: EMBEDDED_PLAN_SHA256,
+        profile_lock_digest: EMBEDDED_PROFILE_LOCK_SHA256,
+        dependency_certificate_digest: EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256,
+    };
+    let (bytes, row_count) = binary_exports::source_result_influence_witness_arrow(
+        &sources,
+        &canonical_outputs,
+        &result.row_lineage,
+        plan,
+        &result.logical_stage_checkpoints,
+        &context,
+    )?;
+    let mut dependencies = vec![
+        source_coordinate_digest,
+        EMBEDDED_PLAN_SHA256.into(),
+        EMBEDDED_PROFILE_LOCK_SHA256.into(),
+        EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256.into(),
+    ];
+    dependencies.extend(
+        binary_artifacts
+            .iter()
+            .filter(|artifact| {
+                matches!(
+                    artifact.metadata.kind.as_str(),
+                    "result-cell-correspondence-arrow" | "row-lineage-arrow"
+                )
+            })
+            .map(|artifact| artifact.metadata.digest.clone()),
+    );
+    dependencies.sort();
+    dependencies.dedup();
+    let mut artifact = runtime_artifact(
+        "source-result-influence-arrow",
         "application/vnd.apache.arrow.file",
         bytes,
         dependencies,
@@ -5153,47 +5307,44 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
     }
 
     #[test]
-    fn every_dependency_receipt_field_is_required_for_narrow_reuse() {
-        let certificate = embedded_dependency_certificate();
+    fn dependency_evidence_requires_every_receipt_identity_field() {
+        let mut certificate = embedded_dependency_certificate();
+        let receipt = &mut certificate.evidence.implementation_receipt;
+        receipt.implementation = "chronicle_preprocessing_runtime_wasm/0.1.0".into();
+        receipt.implementation_digest = IMPLEMENTATION_BUILD_DIGEST.into();
+        receipt.plan_digest = EMBEDDED_PLAN_SHA256.into();
+        receipt.profile_digest = EMBEDDED_PROFILE_SHA256.into();
+        receipt.profile_lock_digest = EMBEDDED_PROFILE_LOCK_SHA256.into();
+        receipt.runtime_authority_digest = EMBEDDED_RUNTIME_AUTHORITY_SHA256.into();
+        receipt.product_contract_digest = EMBEDDED_PRODUCT_CONTRACT_SHA256.into();
         assert!(dependency_evidence_current(&certificate));
-        let replacements: [fn(&mut chronicle_preprocessing_semantic_adapter::DependencyCertificate);
-            7] = [
-            |certificate| {
-                certificate.evidence.implementation_receipt.implementation = "wrong".into()
-            },
-            |certificate| {
-                certificate
-                    .evidence
-                    .implementation_receipt
-                    .implementation_digest = "wrong".into()
-            },
-            |certificate| certificate.evidence.implementation_receipt.plan_digest = "wrong".into(),
-            |certificate| {
-                certificate.evidence.implementation_receipt.profile_digest = "wrong".into()
-            },
-            |certificate| {
-                certificate
-                    .evidence
-                    .implementation_receipt
-                    .profile_lock_digest = "wrong".into()
-            },
-            |certificate| {
-                certificate
-                    .evidence
-                    .implementation_receipt
-                    .runtime_authority_digest = "wrong".into()
-            },
-            |certificate| {
-                certificate
-                    .evidence
-                    .implementation_receipt
-                    .product_contract_digest = "wrong".into()
-            },
+
+        let replacements = [
+            "implementation",
+            "implementation_digest",
+            "plan_digest",
+            "profile_digest",
+            "profile_lock_digest",
+            "runtime_authority_digest",
+            "product_contract_digest",
         ];
-        for replace in replacements {
-            let mut changed = certificate.clone();
-            replace(&mut changed);
-            assert!(!dependency_evidence_current(&changed));
+        for field in replacements {
+            let mut stale = certificate.clone();
+            let receipt = &mut stale.evidence.implementation_receipt;
+            match field {
+                "implementation" => receipt.implementation.push_str("-stale"),
+                "implementation_digest" => receipt.implementation_digest.push_str("-stale"),
+                "plan_digest" => receipt.plan_digest.push_str("-stale"),
+                "profile_digest" => receipt.profile_digest.push_str("-stale"),
+                "profile_lock_digest" => receipt.profile_lock_digest.push_str("-stale"),
+                "runtime_authority_digest" => receipt.runtime_authority_digest.push_str("-stale"),
+                "product_contract_digest" => receipt.product_contract_digest.push_str("-stale"),
+                _ => unreachable!(),
+            }
+            assert!(
+                !dependency_evidence_current(&stale),
+                "a stale {field} must disable certified narrow reuse"
+            );
         }
     }
 
@@ -5444,6 +5595,70 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
     }
 
     #[test]
+    fn correspondence_predicates_keep_outputs_and_traces_exact() {
+        assert!(is_researcher_output_kind("app-csv"));
+        assert!(is_researcher_output_kind("aggregate-daily-csv"));
+        assert!(!is_researcher_output_kind("stage-view-json"));
+
+        let plan = embedded_plan();
+        let assignment = RoleAssignment {
+            assignment_id: "assignment-raw".into(),
+            role_id: "raw_chronicle_csv".into(),
+            artifact: chronicle_preprocessing_semantic_adapter::ArtifactRef {
+                artifact_id: "artifact-raw".into(),
+                digest: format!("sha256:{}", "a".repeat(64)),
+                media_type: "text/csv".into(),
+                size: 1,
+                derived_from: Vec::new(),
+                qualifiers: BTreeMap::new(),
+            },
+            qualifiers: BTreeMap::new(),
+            revision: 1,
+        };
+        let assignments = BTreeMap::from([(assignment.role_id.clone(), assignment.clone())]);
+        let mut materialization =
+            chronicle_preprocessing_semantic_adapter::evaluate_materialization(
+                &plan,
+                &assignments,
+                &serde_json::json!({}),
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+            );
+        let mut mismatched = materialization
+            .qualification_traces
+            .first()
+            .expect("raw qualification trace")
+            .clone();
+        mismatched.selected_role_id = Some("processing_options".into());
+        materialization.qualification_traces = vec![mismatched];
+
+        let index: Value = serde_json::from_slice(
+            &build_correspondence_index(CorrespondenceIndexInputs {
+                plan: &plan,
+                assignments: &assignments,
+                materialization: &materialization,
+                node_executions: &[],
+                options: &serde_json::json!({}),
+                artifacts: &[],
+                checkpoints: &BTreeMap::new(),
+                step_checkpoints: &BTreeMap::new(),
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        let qualified = index["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|edge| edge["relation"] == "qualified-as")
+            .expect("qualified-as edge");
+        assert!(
+            qualified["evidenceIds"].as_array().unwrap().is_empty(),
+            "a trace matching only the candidate, not the selected role, is not evidence"
+        );
+    }
+
+    #[test]
     fn pre_run_stage_view_is_rust_owned_complete_and_has_no_fake_execution() {
         let request_value: Value = serde_json::from_str(&request(&csv())).unwrap();
         let view: Value = serde_json::from_str(
@@ -5469,6 +5684,12 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             .unwrap()
             .iter()
             .any(|step| step["execution_status"].is_null()));
+    }
+
+    fn assert_sha256_identity(value: &str) {
+        let hexadecimal = value.strip_prefix("sha256:").expect("sha256 prefix");
+        assert_eq!(hexadecimal.len(), 64);
+        assert!(hexadecimal.bytes().all(|byte| byte.is_ascii_hexdigit()));
     }
 
     fn csv() -> Vec<u8> {
@@ -5526,6 +5747,16 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             .iter()
             .find(|artifact| artifact.kind == "result-cell-correspondence-arrow")
             .unwrap();
+        let source_index = manifest
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.kind == "source-coordinate-index-arrow")
+            .unwrap();
+        let influence = manifest
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.kind == "source-result-influence-arrow")
+            .unwrap();
         let canonical_bytes = manifest
             .artifacts
             .iter()
@@ -5533,20 +5764,32 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             .map(|artifact| artifact.size)
             .sum::<u64>();
         assert!(cell_index.row_count.unwrap() > manifest.counts.app);
+        assert!(influence.row_count.unwrap() > manifest.counts.original);
         assert!(
             cell_index.size <= canonical_bytes.saturating_mul(3) + 65_536,
             "cell index {} bytes exceeded bounded ratio for {} canonical bytes",
             cell_index.size,
             canonical_bytes,
         );
+        assert!(
+            influence.size <= canonical_bytes + 65_536,
+            "normalized influence witness {} bytes exceeded bounded ratio for {} canonical bytes",
+            influence.size,
+            canonical_bytes,
+        );
         eprintln!(
-            "representative-result-cell-index input_rows={} app_rows={} cell_rows={} canonical_bytes={} index_bytes={} ratio={:.3}",
+            "representative-result-cell-index input_rows={} app_rows={} source_rows={} cell_rows={} witness_rows={} canonical_bytes={} source_index_bytes={} cell_index_bytes={} witness_bytes={} cell_ratio={:.3} witness_to_index_ratio={:.3}",
             manifest.counts.original,
             manifest.counts.app,
+            source_index.row_count.unwrap(),
             cell_index.row_count.unwrap(),
+            influence.row_count.unwrap(),
             canonical_bytes,
+            source_index.size,
             cell_index.size,
+            influence.size,
             cell_index.size as f64 / canonical_bytes as f64,
+            influence.size as f64 / (source_index.size + cell_index.size) as f64,
         );
     }
 
@@ -5569,12 +5812,23 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         );
         assert_eq!(
             manifest.dependency_cache_decision.mode,
-            chronicle_preprocessing_semantic_adapter::DependencyCacheMode::CertifiedNarrow
+            if dependency_evidence_current(&embedded_dependency_certificate()) {
+                chronicle_preprocessing_semantic_adapter::DependencyCacheMode::CertifiedNarrow
+            } else {
+                chronicle_preprocessing_semantic_adapter::DependencyCacheMode::ConservativeFull
+            }
         );
-        assert!(manifest
-            .dependency_cache_decision
-            .reasons
-            .contains(&"dependency_surface_structurally_certified".into()));
+        if dependency_evidence_current(&embedded_dependency_certificate()) {
+            assert!(manifest
+                .dependency_cache_decision
+                .reasons
+                .contains(&"dependency_surface_structurally_certified".into()));
+        } else {
+            assert!(manifest
+                .dependency_cache_decision
+                .reasons
+                .contains(&"empirical_dependency_evidence_stale_release_blocking".into()));
+        }
         assert_eq!(
             manifest.product_contract_digest,
             EMBEDDED_PRODUCT_CONTRACT_SHA256
@@ -5622,7 +5876,13 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                 .collect::<Vec<_>>(),
             vec![2, 1]
         );
+        for assignment in &manifest.role_assignments {
+            assert_sha256_identity(&assignment.assignment_id);
+        }
         assert_eq!(manifest.node_executions.len(), 15);
+        for execution in &manifest.node_executions {
+            assert_sha256_identity(&execution.reason_id);
+        }
         assert!(manifest
             .artifacts
             .iter()
@@ -5646,6 +5906,22 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             .all(|artifact| correspondence_artifact
                 .derived_from
                 .contains(&artifact.digest)));
+        let dependency_kinds = manifest
+            .artifacts
+            .iter()
+            .filter(|artifact| {
+                correspondence_artifact
+                    .derived_from
+                    .contains(&artifact.digest)
+            })
+            .map(|artifact| artifact.kind.as_str())
+            .collect::<BTreeSet<_>>();
+        assert!(dependency_kinds.contains("node-output:outputs"));
+        assert!(dependency_kinds.contains("app-csv"));
+        assert!(dependency_kinds.contains("source-coordinate-index-arrow"));
+        assert!(dependency_kinds.contains("result-cell-correspondence-arrow"));
+        assert!(dependency_kinds.contains("source-result-influence-arrow"));
+        assert!(!dependency_kinds.contains("stage-view-json"));
         assert!(manifest.open_obligations.is_empty());
         assert!(manifest.state_reasons.iter().any(|reason| {
             reason.subject_id == "outputs" && reason.state == MaterializationState::Satisfied
@@ -5730,6 +6006,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         assert!(kinds.contains("row-lineage-arrow"));
         assert!(kinds.contains("result-cell-correspondence-arrow"));
         assert!(kinds.contains("source-coordinate-index-arrow"));
+        assert!(kinds.contains("source-result-influence-arrow"));
         assert!(!kinds.iter().any(|kind| kind.starts_with("ingress:")));
         assert_eq!(
             kinds
@@ -5780,7 +6057,7 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         let correspondence_value = correspondence_value.unwrap();
         assert_eq!(
             correspondence_value["protocolVersion"],
-            "chronicle-correspondence-index/v3"
+            "chronicle-correspondence-index/v4"
         );
         assert_eq!(
             correspondence_value["sourceCoordinateArtifactKind"],
@@ -5793,6 +6070,10 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         assert_eq!(
             correspondence_value["cellCorrespondenceArtifactKind"],
             "result-cell-correspondence-arrow"
+        );
+        assert_eq!(
+            correspondence_value["influenceWitnessArtifactKind"],
+            "source-result-influence-arrow"
         );
         assert_eq!(
             correspondence_value["implementationDigest"],
@@ -5869,6 +6150,12 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             .find(|artifact| artifact.kind == "row-lineage-arrow")
             .unwrap()
             .digest;
+        let influence_digest = &manifest
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.kind == "source-result-influence-arrow")
+            .unwrap()
+            .digest;
         assert!(correspondence_edges.iter().any(|edge| {
             edge["sourceKind"] == "logical-node"
                 && edge["sourceId"] == "outputs"
@@ -5881,6 +6168,24 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                 && edge["relation"] == "has-source-coordinates-in"
                 && edge["targetId"] == *source_index_digest
                 && edge["precision"] == "exact"
+        }));
+        assert!(correspondence_edges.iter().any(|edge| {
+            edge["sourceId"] == *source_index_digest
+                && edge["relation"] == "supplies-source-coordinates-to"
+                && edge["targetId"] == *influence_digest
+                && edge["precision"] == "exact"
+        }));
+        assert!(correspondence_edges.iter().any(|edge| {
+            edge["sourceId"] == *cell_index_digest
+                && edge["relation"] == "supplies-result-coordinates-to"
+                && edge["targetId"] == *influence_digest
+                && edge["precision"] == "exact"
+        }));
+        assert!(correspondence_edges.iter().any(|edge| {
+            edge["sourceId"] == *row_index_digest
+                && edge["relation"] == "supplies-conservative-row-witnesses-to"
+                && edge["targetId"] == *influence_digest
+                && edge["precision"] == "conservative"
         }));
         let cell_index_metadata = manifest
             .artifacts
@@ -6095,7 +6400,14 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             .filter(|execution| execution.status == ExecutionStatus::Recomputed)
             .map(|execution| execution.node_id.as_str())
             .collect();
-        assert_eq!(recomputed, BTreeSet::from(["day_coverage", "outputs"]));
+        let evidence_current = dependency_evidence_current(&embedded_dependency_certificate());
+        if evidence_current {
+            assert_eq!(recomputed, BTreeSet::from(["day_coverage", "outputs"]));
+        } else {
+            assert!(recomputed.contains("day_coverage"));
+            assert!(recomputed.contains("outputs"));
+            assert!(recomputed.contains("parse_events"));
+        }
         assert_eq!(
             changed
                 .step_executions
@@ -6112,7 +6424,11 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                 .find(|execution| execution.node_id == "parse_events")
                 .unwrap()
                 .status,
-            ExecutionStatus::Cached
+            if evidence_current {
+                ExecutionStatus::Cached
+            } else {
+                ExecutionStatus::Recomputed
+            }
         );
     }
 
@@ -6796,12 +7112,22 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                     })
                     .map(|execution| execution.node_id.clone())
                     .collect::<BTreeSet<_>>();
-                assert!(
-                    touched == expected_touched,
-                    "{from} -> {to}: exact changed-node set differs: missing={:?} extra={:?}",
-                    expected_touched.difference(&touched).collect::<Vec<_>>(),
-                    touched.difference(&expected_touched).collect::<Vec<_>>()
-                );
+                let evidence_current =
+                    dependency_evidence_current(&embedded_dependency_certificate());
+                if evidence_current {
+                    assert!(
+                        touched == expected_touched,
+                        "{from} -> {to}: exact changed-node set differs: missing={:?} extra={:?}",
+                        expected_touched.difference(&touched).collect::<Vec<_>>(),
+                        touched.difference(&expected_touched).collect::<Vec<_>>()
+                    );
+                } else {
+                    assert!(
+                        expected_touched.is_subset(&touched),
+                        "{from} -> {to}: under-invalidated nodes: {:?}",
+                        expected_touched.difference(&touched).collect::<Vec<_>>()
+                    );
+                }
                 assert_eq!(
                     manifest
                         .node_executions
@@ -6809,8 +7135,12 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
                         .find(|execution| execution.node_id == "parse_events")
                         .unwrap()
                         .status,
-                    ExecutionStatus::Cached,
-                    "{from} -> {to}: upstream parse must remain cached"
+                    if evidence_current {
+                        ExecutionStatus::Cached
+                    } else {
+                        ExecutionStatus::Recomputed
+                    },
+                    "{from} -> {to}: parse status must reflect certified versus conservative execution"
                 );
             }
         }
@@ -7410,6 +7740,45 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
     }
 
     #[test]
+    fn raw_artifact_is_exposed_only_to_the_parse_node() {
+        let raw_digest = format!("sha256:{}", "a".repeat(64));
+        let assignments = BTreeMap::from([(
+            "raw_chronicle_csv".to_string(),
+            RoleAssignment {
+                assignment_id: stable_id(&["assignment", "raw_chronicle_csv", &raw_digest]),
+                role_id: "raw_chronicle_csv".into(),
+                artifact: ArtifactRef {
+                    artifact_id: "artifact:raw_chronicle_csv".into(),
+                    digest: raw_digest.clone(),
+                    media_type: "text/csv".into(),
+                    size: 1,
+                    derived_from: Vec::new(),
+                    qualifiers: BTreeMap::new(),
+                },
+                qualifiers: BTreeMap::new(),
+                revision: 1,
+            },
+        )]);
+        let exact = serde_json::Map::new();
+        for definition in PIPELINE_STEPS {
+            let sources = active_source_roles(definition.id, &exact, &assignments);
+            if definition.id == "csv_parse" {
+                assert_eq!(definition.group, "parse_events");
+                assert_eq!(
+                    sources.get("raw_chronicle_csv"),
+                    Some(&Some(raw_digest.clone()))
+                );
+            } else {
+                assert!(
+                    !sources.contains_key("raw_chronicle_csv"),
+                    "{} must not read the raw artifact",
+                    definition.id
+                );
+            }
+        }
+    }
+
+    #[test]
     fn every_optional_output_family_is_emitted_by_the_rust_authority() {
         let csv = concat!(
             "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
@@ -7448,11 +7817,16 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         let mut handle =
             execute_workspace_native(&request_value.to_string(), &csv, &support).unwrap();
         assert_eq!(handle.manifest_json(), handle.manifest_json);
+        let mut correspondence_value = None;
         let kinds = (0..handle.artifact_count())
             .map(|index| {
                 let metadata: RuntimeArtifactMetadata =
                     serde_json::from_str(&handle.artifact_metadata_json(index).unwrap()).unwrap();
-                assert!(!handle.take_artifact_bytes(index).unwrap().is_empty());
+                let bytes = handle.take_artifact_bytes(index).unwrap();
+                assert!(!bytes.is_empty());
+                if metadata.kind == "correspondence-index-json" {
+                    correspondence_value = Some(serde_json::from_slice::<Value>(&bytes).unwrap());
+                }
                 if metadata.media_type == "text/csv" {
                     assert!(metadata.row_count.is_some(), "{} row count", metadata.kind);
                     assert!(
@@ -7480,6 +7854,22 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
             assert!(kinds.contains(expected), "missing {expected}: {kinds:?}");
         }
         assert!(kinds.iter().any(|kind| kind.starts_with("aggregate-")));
+
+        let manifest: RuntimeManifest = serde_json::from_str(&handle.manifest_json).unwrap();
+        let credited_app_digest = &manifest
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.kind == "credited-app-csv")
+            .unwrap()
+            .digest;
+        let correspondence_value = correspondence_value.unwrap();
+        let correspondence_edges = correspondence_value["edges"].as_array().unwrap();
+        assert!(correspondence_edges.iter().any(|edge| {
+            edge["sourceKind"] == "logical-node"
+                && edge["sourceId"] == "effective_usage"
+                && edge["relation"] == "publishes"
+                && edge["targetId"] == *credited_app_digest
+        }));
     }
 
     #[test]
@@ -7605,5 +7995,53 @@ S,P2,Chat,Activity Resumed,pkg,2026-03-07 10:00:00,UTC";
         ] {
             assert!(projected.get(excluded).is_none());
         }
+    }
+
+    #[test]
+    fn exact_to_certified_option_key_table_matches_the_projection() {
+        let request_value: Value = serde_json::from_str(&request(&csv())).unwrap();
+        let options: PipelineV2OptionsJson =
+            serde_json::from_value(request_value["options"].clone()).unwrap();
+        let exact_value = serde_json::to_value(&options).unwrap();
+        let exact_keys = exact_value
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::clone)
+            .collect::<BTreeSet<_>>();
+
+        for (exact_key, certified_keys) in EXACT_TO_CERTIFIED_OPTION_KEYS {
+            assert!(
+                exact_keys.contains(*exact_key),
+                "table exact key {exact_key} is not a serialized option field"
+            );
+            assert!(
+                !CERTIFIED_OPTION_KEYS.contains(exact_key),
+                "table exact key {exact_key} is itself certified; identity would be ambiguous"
+            );
+            for certified_key in *certified_keys {
+                assert!(
+                    CERTIFIED_OPTION_KEYS.contains(certified_key),
+                    "table target {certified_key} is not a certified option key"
+                );
+            }
+        }
+
+        let reachable = exact_keys
+            .iter()
+            .flat_map(|exact_key| {
+                CERTIFIED_OPTION_KEYS
+                    .iter()
+                    .filter(|certified_key| {
+                        exact_option_key_reaches_certified(exact_key, certified_key)
+                    })
+                    .copied()
+            })
+            .collect::<BTreeSet<_>>();
+        let certified = CERTIFIED_OPTION_KEYS.iter().copied().collect::<BTreeSet<_>>();
+        assert_eq!(
+            reachable, certified,
+            "every certified knob key must be reachable from exactly the exact-serialization keys"
+        );
     }
 }
