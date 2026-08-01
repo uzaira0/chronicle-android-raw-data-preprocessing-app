@@ -3,15 +3,15 @@ import { describe, expect, it } from "vitest";
 import { createZipBlob } from "@/lib/zip";
 
 function readUint16(bytes: Uint8Array, offset: number): number {
-  return bytes[offset] | (bytes[offset + 1] << 8);
+  return (bytes[offset] ?? 0) | ((bytes[offset + 1] ?? 0) << 8);
 }
 
 function readUint32(bytes: Uint8Array, offset: number): number {
   return (
-    bytes[offset] |
-    (bytes[offset + 1] << 8) |
-    (bytes[offset + 2] << 16) |
-    (bytes[offset + 3] << 24)
+    (bytes[offset] ?? 0) |
+    ((bytes[offset + 1] ?? 0) << 8) |
+    ((bytes[offset + 2] ?? 0) << 16) |
+    ((bytes[offset + 3] ?? 0) << 24)
   ) >>> 0;
 }
 

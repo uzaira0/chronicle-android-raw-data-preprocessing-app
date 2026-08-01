@@ -1,0 +1,12 @@
+id: chronicle-python-len-zero-check
+snapshots:
+  ? |
+    if len(rows) == 0:
+        return None
+  : labels:
+    - source: |-
+        if len(rows) == 0:
+            return None
+      style: primary
+      start: 0
+      end: 34

@@ -37,6 +37,7 @@ function SmallList({
 }): ReactElement {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const firstColumnKey = columns[0]?.key;
 
   useEffect(() => {
     let active = true;
@@ -60,7 +61,7 @@ function SmallList({
         <table className="review-alist__table">
           <tbody>
             {(rows ?? []).map((row, index) => (
-              <tr key={`${row[columns[0].key] ?? index}`}>
+              <tr key={`${(firstColumnKey !== undefined ? row[firstColumnKey] : undefined) ?? index}`}>
                 {columns.map((col) => (
                   <td key={col.key}>{row[col.key] ?? ""}</td>
                 ))}

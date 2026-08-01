@@ -1,0 +1,13 @@
+id: chronicle-python-swallowed-exception
+valid:
+  - |
+    try:
+        do_work()
+    except Exception:
+        logger.exception("do_work failed")
+invalid:
+  - |
+    try:
+        do_work()
+    except Exception:
+        pass

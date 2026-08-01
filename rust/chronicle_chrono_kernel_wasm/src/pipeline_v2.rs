@@ -251,10 +251,11 @@ pub fn validate_support_csv(role: &str, bytes: &[u8]) -> Result<(), String> {
         if missing.is_empty() {
             Ok(())
         } else {
+            // PHI safety: never echo the found headers — a headerless upload
+            // would leak its first data row here.
             Err(format!(
-                "{role}: missing required column(s) {}; found {}",
-                missing.join(", "),
-                headers.iter().cloned().collect::<Vec<_>>().join(", ")
+                "{role}: missing required column(s) {}",
+                missing.join(", ")
             ))
         }
     };
@@ -263,9 +264,8 @@ pub fn validate_support_csv(role: &str, bytes: &[u8]) -> Result<(), String> {
             Ok(())
         } else {
             Err(format!(
-                "{role}: requires one of columns {}; found {}",
-                names.join(", "),
-                headers.iter().cloned().collect::<Vec<_>>().join(", ")
+                "{role}: requires one of columns {}",
+                names.join(", ")
             ))
         }
     };
@@ -404,6 +404,18 @@ fn trim_owned(v: Option<&String>) -> String {
 }
 
 fn parse_csv_to_records(bytes: &[u8]) -> Vec<HashMap<String, String>> {
+    parse_csv_to_records_with_physical_rows(bytes)
+        .into_iter()
+        .map(|(_physical_data_row, record)| record)
+        .collect()
+}
+
+/// Like `parse_csv_to_records`, but each surviving record carries its physical
+/// 1-based data-row number — counting EVERY data record in the file, including
+/// the all-empty records this parser skips — so error messages name the same
+/// row the incremental executor's `csv_parse` reports via
+/// `RawRow::source_data_row`.
+fn parse_csv_to_records_with_physical_rows(bytes: &[u8]) -> Vec<(u32, HashMap<String, String>)> {
     // csv-core's empty-input flush path differs under the optimized browser
     // WASM target for a final unterminated field: the row can be emitted while
     // its last cell is empty. Normalize only the missing record terminator so
@@ -453,6 +465,10 @@ fn parse_csv_to_records(bytes: &[u8]) -> Vec<HashMap<String, String>> {
     let mut row_vals: Vec<String> = vec![String::new(); headers.len()];
     let mut col_idx = 0;
     let mut any_nonempty = false;
+    // Physical 1-based data-row counter, incremented for every record —
+    // including all-empty records that are skipped from the output — to match
+    // `csv_parse`'s `data_row_number` in pipeline_v2_incremental.rs.
+    let mut physical_data_row = 0_u32;
     loop {
         let (result, n_in, n_out) = rdr.read_field(input, &mut field_buf);
         input = &input[n_in..];
@@ -475,12 +491,13 @@ fn parse_csv_to_records(bytes: &[u8]) -> Vec<HashMap<String, String>> {
                 }
                 col_idx += 1;
                 if record_end {
+                    physical_data_row += 1;
                     if any_nonempty {
                         let mut rec = HashMap::with_capacity(headers.len());
                         for (i, h) in headers.iter().enumerate() {
                             rec.insert(h.clone(), row_vals[i].clone());
                         }
-                        records.push(rec);
+                        records.push((physical_data_row, rec));
                     }
                     for s in row_vals.iter_mut() {
                         s.clear();
@@ -4137,7 +4154,12 @@ pub struct PipelineV2SupportFiles<'a> {
 /// timestamp are ignored exactly as they are by preprocessing.
 pub fn discover_timezones_v2_native(csv_bytes: &[u8]) -> Result<Vec<String>, String> {
     let mut timezones = BTreeSet::new();
-    for record in parse_csv_to_records(csv_bytes) {
+    // PHI safety: raw cell values must never enter error strings surfaced to
+    // the UI/console — report the 1-based data-row position instead. The
+    // physical data-row number counts every data record in the file (including
+    // all-empty skipped records) so it matches the row the incremental
+    // executor reports for the same cell.
+    for (data_row, record) in parse_csv_to_records_with_physical_rows(csv_bytes) {
         let timestamp = record
             .get("event_timestamp")
             .map(|value| value.trim())
@@ -4146,7 +4168,7 @@ pub fn discover_timezones_v2_native(csv_bytes: &[u8]) -> Result<Vec<String>, Str
             continue;
         }
         parse_chronicle_timestamp_ns(timestamp)
-            .ok_or_else(|| format!("Invalid event_timestamp: {timestamp}"))?;
+            .ok_or_else(|| format!("Invalid event_timestamp at data row {data_row}"))?;
         let timezone = record
             .get("timezone")
             .map(|value| value.trim())
@@ -4154,7 +4176,7 @@ pub fn discover_timezones_v2_native(csv_bytes: &[u8]) -> Result<Vec<String>, Str
             .unwrap_or("UTC");
         timezone
             .parse::<Tz>()
-            .map_err(|error| format!("invalid timezone {timezone}: {error}"))?;
+            .map_err(|_| format!("invalid timezone value at data row {data_row}"))?;
         timezones.insert(timezone.to_string());
     }
     Ok(timezones.into_iter().collect())
@@ -5368,20 +5390,22 @@ fn normalize_support_date(value: &str) -> Result<String, String> {
             return Ok(prefix.to_string());
         }
     }
+    // PHI safety: never echo the raw cell — callers annotate the column and
+    // participant instead.
     let parts: Vec<_> = value.split('/').collect();
     if parts.len() == 3 {
         let month = parts[0]
             .parse::<u8>()
-            .map_err(|_| format!("unparseable date: {value}"))?;
+            .map_err(|_| "unparseable date value".to_string())?;
         let day = parts[1]
             .parse::<u8>()
-            .map_err(|_| format!("unparseable date: {value}"))?;
+            .map_err(|_| "unparseable date value".to_string())?;
         let year = parts[2]
             .parse::<u16>()
-            .map_err(|_| format!("unparseable date: {value}"))?;
+            .map_err(|_| "unparseable date value".to_string())?;
         return Ok(format!("{year:04}-{month:02}-{day:02}"));
     }
-    Err(format!("unparseable date: {value}"))
+    Err("unparseable date value".to_string())
 }
 
 fn parse_study_windows(bytes: &[u8]) -> Result<Vec<StudyWindow>, String> {
@@ -5395,14 +5419,16 @@ fn parse_study_windows(bytes: &[u8]) -> Result<Vec<StudyWindow>, String> {
         let start_date = normalize_support_date(
             row.get("start_date")
                 .ok_or("Study dates file: missing required column start_date")?,
-        )?;
+        )
+        .map_err(|_| format!("Study dates file: unparseable start_date for {participant_id}"))?;
         let end_date = normalize_support_date(
             row.get("end_date")
                 .ok_or("Study dates file: missing required column end_date")?,
-        )?;
+        )
+        .map_err(|_| format!("Study dates file: unparseable end_date for {participant_id}"))?;
         if end_date < start_date {
             return Err(format!(
-                "Study dates file: window for {participant_id} ends ({end_date}) before it starts ({start_date})"
+                "Study dates file: window for {participant_id} ends before it starts"
             ));
         }
         windows.push(StudyWindow {
@@ -5531,12 +5557,11 @@ fn require_support_columns(
     if missing.is_empty() {
         Ok(())
     } else {
-        let mut available: Vec<_> = first.keys().cloned().collect();
-        available.sort();
+        // PHI safety: never echo the found headers — a headerless upload
+        // would leak its first data row here.
         Err(format!(
-            "{file_label}: missing required column(s) {}. Found: {}",
-            missing.join(", "),
-            available.join(", ")
+            "{file_label}: missing required column(s) {}",
+            missing.join(", ")
         ))
     }
 }
@@ -5566,7 +5591,7 @@ fn parse_device_sharing(bytes: &[u8]) -> Result<Vec<SharingEntry>, String> {
                 SharingStatus::NonShared
             } else {
                 return Err(format!(
-                    "Device sharing file: unknown sharing_status {raw:?} for {participant_id} (expected \"Shared\" or \"Non-Shared\")"
+                    "Device sharing file: unknown sharing_status for {participant_id} (expected \"Shared\" or \"Non-Shared\")"
                 ));
             };
             Ok(SharingEntry {
@@ -5618,25 +5643,27 @@ fn sharing_status_for(
 }
 
 fn parse_survey_timestamp_ns(value: &str) -> Result<i64, String> {
+    // PHI safety: never echo the raw cell — the caller annotates the
+    // participant instead.
     let text = value.trim();
     if text.len() >= 10 && text.bytes().all(|byte| byte.is_ascii_digit()) {
-        let parsed = text.parse::<i64>().map_err(|_| {
-            format!("Survey attribution file: unparseable event_timestamp {value:?}")
-        })?;
+        let parsed = text
+            .parse::<i64>()
+            .map_err(|_| "Survey attribution file: unparseable event_timestamp value".to_string())?;
         return if text.len() >= 19 {
             Ok(parsed)
         } else if text.len() >= 13 {
-            parsed.checked_mul(1_000_000).ok_or_else(|| {
-                format!("Survey attribution file: event_timestamp overflow {value:?}")
-            })
+            parsed
+                .checked_mul(1_000_000)
+                .ok_or_else(|| "Survey attribution file: event_timestamp overflow".to_string())
         } else {
-            parsed.checked_mul(1_000_000_000).ok_or_else(|| {
-                format!("Survey attribution file: event_timestamp overflow {value:?}")
-            })
+            parsed
+                .checked_mul(1_000_000_000)
+                .ok_or_else(|| "Survey attribution file: event_timestamp overflow".to_string())
         };
     }
     parse_chronicle_timestamp_ns(text)
-        .ok_or_else(|| format!("Survey attribution file: unparseable event_timestamp {value:?}"))
+        .ok_or_else(|| "Survey attribution file: unparseable event_timestamp value".to_string())
 }
 
 fn parse_survey_lookup(bytes: &[u8]) -> Result<BTreeMap<(String, i64), String>, String> {
@@ -5667,7 +5694,8 @@ fn parse_survey_lookup(bytes: &[u8]) -> Result<BTreeMap<(String, i64), String>, 
         lookup.insert(
             (
                 participant_id.to_string(),
-                parse_survey_timestamp_ns(timestamp)?,
+                parse_survey_timestamp_ns(timestamp)
+                    .map_err(|error| format!("{error} (participant {participant_id})"))?,
             ),
             user.to_string(),
         );
@@ -5772,9 +5800,9 @@ fn window_for<'a>(participant_id: &str, windows: &'a [StudyWindow]) -> Option<&'
 
 fn inclusive_dates(start: &str, end: &str) -> Result<Vec<String>, String> {
     let mut current = NaiveDate::parse_from_str(start, "%Y-%m-%d")
-        .map_err(|error| format!("invalid coverage start date {start:?}: {error}"))?;
+        .map_err(|error| format!("invalid coverage start date: {error}"))?;
     let end = NaiveDate::parse_from_str(end, "%Y-%m-%d")
-        .map_err(|error| format!("invalid coverage end date {end:?}: {error}"))?;
+        .map_err(|error| format!("invalid coverage end date: {error}"))?;
     let mut dates = Vec::new();
     while current <= end {
         dates.push(current.format("%Y-%m-%d").to_string());
@@ -5869,7 +5897,7 @@ fn parse_enrolled_devices(bytes: &[u8]) -> Result<BTreeMap<String, u32>, String>
             0
         } else {
             raw.parse::<u32>().map_err(|_| {
-                format!("Enrolled devices file: invalid device_count {raw:?} for {participant_id}")
+                format!("Enrolled devices file: invalid device_count for {participant_id}")
             })?
         };
         devices.insert(participant_id.to_string(), count);
@@ -5973,9 +6001,12 @@ fn screen_witness_state(interaction_type: &str) -> Result<Option<ScreenCreditSta
             .and_then(|rest| rest.as_bytes().first())
             .is_some_and(u8::is_ascii_digit)
     {
-        return Err(format!(
-            "Screen-gated credit: unmapped interaction type {interaction_type:?} in the raw stream — extend the interaction-type mapping before crediting."
-        ));
+        // PHI safety: raw cell values must never enter error strings surfaced
+        // to the UI/console — the caller appends the data-row position.
+        return Err(
+            "Screen-gated credit: unmapped interaction type in the raw stream — extend the interaction-type mapping before crediting."
+                .to_string(),
+        );
     }
     let state = match interaction_type {
         "Screen Interactive"
@@ -6031,7 +6062,12 @@ fn build_screen_credit_substrate(raw_events: &[Row]) -> Result<ScreenCreditSubst
         let mut points = Vec::new();
         let mut last = None;
         for (timestamp_ns, interaction_type, source_data_rows) in &events {
-            let state = screen_witness_state(interaction_type)?;
+            let state = screen_witness_state(interaction_type).map_err(|error| {
+                match source_data_rows.iter().next() {
+                    Some(data_row) => format!("{error} (data row {data_row})"),
+                    None => error,
+                }
+            })?;
             if let Some(state) = state {
                 if Some(state) != last {
                     points.push(ScreenChangePoint {
@@ -7710,6 +7746,50 @@ mod tests {
         )
         .unwrap_err()
         .contains("before it starts"));
+    }
+
+    #[test]
+    fn discovery_and_incremental_report_the_same_physical_data_row() {
+        // Header + valid data row 1 + an all-empty filler record (physical
+        // data row 2 — skipped by parse_csv_to_records_with_physical_rows'
+        // any_nonempty guard and dropped by drop_empty_timestamp) + an invalid
+        // event_timestamp at physical data row 3. Both reporting paths must
+        // name physical data row 3; the old discovery numbering (enumerate()
+        // over the skipping parser) said data row 2.
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,UTC\n",
+            ",,,,,,,\n",
+            "Study,P01,Child,Chat,Activity Resumed,com.example.chat,not-a-timestamp,UTC\n",
+        );
+
+        let discovery_error = discover_timezones_v2_native(csv.as_bytes())
+            .expect_err("invalid event_timestamp must fail discovery");
+        assert_eq!(discovery_error, "Invalid event_timestamp at data row 3");
+
+        let raw = incremental::csv_parse(csv.as_bytes());
+        let raw = incremental::drop_empty_timestamp(raw);
+        let model = incremental::detect_device_model(&raw);
+        let processing_error =
+            incremental::build_canonical_rows(&raw, "UTC", &BTreeMap::new(), &model)
+                .err()
+                .expect("invalid event_timestamp must fail processing");
+        assert_eq!(processing_error, discovery_error);
+
+        // PHI safety: the raw cell value must not appear in either error.
+        assert!(!discovery_error.contains("not-a-timestamp"));
+        assert!(!processing_error.contains("not-a-timestamp"));
+    }
+
+    #[test]
+    fn screen_witness_state_error_omits_raw_interaction_type() {
+        let error = screen_witness_state("Unknown importance: com.example.secret")
+            .expect_err("unmapped interaction type must fail");
+        assert!(
+            !error.contains("com.example.secret"),
+            "raw cell value leaked into the error: {error}"
+        );
+        assert!(error.contains("unmapped interaction type"), "{error}");
     }
 
     #[test]

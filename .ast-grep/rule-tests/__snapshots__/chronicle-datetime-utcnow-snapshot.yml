@@ -1,0 +1,14 @@
+id: chronicle-datetime-utcnow
+snapshots:
+  now = datetime.datetime.utcnow():
+    labels:
+    - source: datetime.datetime.utcnow()
+      style: primary
+      start: 6
+      end: 32
+  now = datetime.utcnow():
+    labels:
+    - source: datetime.utcnow()
+      style: primary
+      start: 6
+      end: 23

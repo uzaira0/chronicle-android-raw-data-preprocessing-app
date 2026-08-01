@@ -41,6 +41,7 @@ function dataRowForPrimitive(meta: WaterfallSceneMeta | undefined, p: Primitive)
     const row = rowAtY(meta, p.y + p.h / 2);
     if (row === null) return null;
     const rowMeta = meta.rows[row];
+    if (rowMeta === undefined) return null;
     if (p.y < rowMeta.y - 0.01 || p.y + p.h > rowMeta.y + rowMeta.h + 0.01) return null;
     return row;
   }
@@ -180,8 +181,8 @@ function paintHighlights(
       ctx.lineWidth = 2;
       ctx.strokeRect(x, region.y, w, region.h);
     };
-    if (row !== null && transform && transform.zoom > 1) {
-      const rowMeta = meta.rows[row];
+    const rowMeta = row !== null ? meta.rows[row] : undefined;
+    if (rowMeta !== undefined && transform && transform.zoom > 1) {
       ctx.save();
       ctx.beginPath();
       ctx.rect(meta.gutter, rowMeta.y, meta.plotWidth, rowMeta.h);
@@ -203,8 +204,8 @@ function renderScene(
   for (const p of scene.primitives) {
     const row = dataRowForPrimitive(meta, p);
     const rowTransform = row !== null ? transforms[row] : undefined;
-    if (meta && row !== null && rowTransform && rowTransform.zoom > 1) {
-      const rowMeta = meta.rows[row];
+    const rowMeta = meta && row !== null ? meta.rows[row] : undefined;
+    if (meta && rowMeta !== undefined && rowTransform && rowTransform.zoom > 1) {
       ctx.save();
       ctx.beginPath();
       ctx.rect(meta.gutter, rowMeta.y, meta.plotWidth, rowMeta.h);

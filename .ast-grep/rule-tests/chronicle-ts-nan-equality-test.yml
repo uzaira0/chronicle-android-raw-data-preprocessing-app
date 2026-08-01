@@ -1,0 +1,8 @@
+id: chronicle-ts-nan-equality
+valid:
+  - if (Number.isNaN(value)) { handleMissing(); }
+invalid:
+  - if (value === NaN) { handleMissing(); }
+  - if (value !== NaN) { handlePresent(); }
+  - if (NaN === value) { handleMissing(); }
+  - if (NaN !== value) { handlePresent(); }

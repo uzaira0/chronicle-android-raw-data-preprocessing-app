@@ -1,0 +1,26 @@
+id: chronicle-ts-nan-equality
+snapshots:
+  if (NaN !== value) { handlePresent(); }:
+    labels:
+    - source: NaN !== value
+      style: primary
+      start: 4
+      end: 17
+  if (NaN === value) { handleMissing(); }:
+    labels:
+    - source: NaN === value
+      style: primary
+      start: 4
+      end: 17
+  if (value !== NaN) { handlePresent(); }:
+    labels:
+    - source: value !== NaN
+      style: primary
+      start: 4
+      end: 17
+  if (value === NaN) { handleMissing(); }:
+    labels:
+    - source: value === NaN
+      style: primary
+      start: 4
+      end: 17

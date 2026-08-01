@@ -60,8 +60,9 @@ function csvCells(kind: string, bytes: Uint8Array): Record<string, string> {
     header: true,
     skipEmptyLines: true,
   });
-  if (parsed.errors.length > 0) {
-    throw new Error(`${kind}: ${parsed.errors[0].message}`);
+  const firstParseError = parsed.errors[0];
+  if (firstParseError) {
+    throw new Error(`${kind}: ${firstParseError.message}`);
   }
   const fields = parsed.meta.fields ?? [];
   const cells: Record<string, string> = {};

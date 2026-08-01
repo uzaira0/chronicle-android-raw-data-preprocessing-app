@@ -459,13 +459,11 @@ pub fn inspect_raw_file_v1(csv_bytes: &[u8], file_name: &str, size_bytes: f64) -
         warnings.push("Duplicate column headers found.".to_string());
     }
     if !invalid_timezones.is_empty() {
+        // PHI safety: report only the count — raw cell values must never
+        // enter warning strings surfaced to the UI.
         warnings.push(format!(
-            "Invalid timezone values: {}",
-            invalid_timezones
-                .into_iter()
-                .take(5)
-                .collect::<Vec<_>>()
-                .join(", ")
+            "Invalid timezone values: {} distinct value(s) in the timezone column.",
+            invalid_timezones.len()
         ));
     }
     if missing_timestamp_count > 0 && !missing.contains(&"event_timestamp") {
@@ -4793,7 +4791,11 @@ Study,P02,Chat,Activity Paused,com.example,,America/Chicago,America/Chicago\n";
         assert!(warnings
             .iter()
             .any(|warning| warning == "Duplicate column headers found."));
-        assert!(warnings
+        // PHI safety: the invalid-timezone warning reports only a count —
+        // the raw cell value must never appear in UI-surfaced text.
+        assert!(warnings.iter().any(|warning| warning
+            == "Invalid timezone values: 1 distinct value(s) in the timezone column."));
+        assert!(!warnings
             .iter()
             .any(|warning| warning.as_str().unwrap().contains("Not/AZone")));
     }

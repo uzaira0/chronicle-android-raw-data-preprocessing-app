@@ -250,13 +250,14 @@ async function checkBundleBudget(artifactDir: string): Promise<Record<string, nu
   }
   for (const [prefix, limit] of Object.entries(budget.filePrefixes ?? {})) {
     const matches = files.filter(({ name }) => name.startsWith(prefix));
-    if (matches.length !== 1) {
+    const match = matches[0];
+    if (matches.length !== 1 || match === undefined) {
       failures.push(`${prefix} matched ${matches.length} files; expected exactly one`);
       continue;
     }
-    if (matches[0].bytes > limit) {
+    if (match.bytes > limit) {
       failures.push(
-        `${matches[0].name} ${matches[0].bytes.toLocaleString()} B exceeds budget ${limit.toLocaleString()} B`,
+        `${match.name} ${match.bytes.toLocaleString()} B exceeds budget ${limit.toLocaleString()} B`,
       );
     }
   }

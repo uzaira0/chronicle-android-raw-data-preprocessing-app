@@ -1,0 +1,6 @@
+id: chronicle-polars-literal-column-name
+valid:
+  - expr = pl.col(Column.EVENT_TIMESTAMP)
+invalid:
+  - expr = pl.col("event_timestamp")
+  - expr = pl.col("app_package_name")

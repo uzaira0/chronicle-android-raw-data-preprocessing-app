@@ -1,0 +1,8 @@
+id: chronicle-python-no-eval
+snapshots:
+  result = eval(raw_text):
+    labels:
+    - source: eval(raw_text)
+      style: primary
+      start: 9
+      end: 23

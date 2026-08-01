@@ -639,7 +639,9 @@ test("View tab renders the review surface (rail, metrics, timeline) with file an
   const html = await readFile(htmlPath, "utf-8");
   const dataMatch = html.match(/<script type="application\/json" id="tv-data">([^<]*)<\/script>/);
   expect(dataMatch).not.toBeNull();
-  const data = JSON.parse(dataMatch![1]) as unknown;
+  const dataJson = dataMatch?.[1];
+  if (dataJson === undefined) throw new Error("interactive HTML is missing its tv-data payload");
+  const data = JSON.parse(dataJson) as unknown;
   const view = (data as Record<string, unknown>).app as Array<Record<string, unknown>>;
   const includedView = ((data as Record<string, unknown>).appFilteredIncluded as Array<Record<string, unknown>> | undefined)?.[0] ?? view[0];
   const excludedView = ((data as Record<string, unknown>).appFilteredExcluded as Array<Record<string, unknown>> | undefined)?.[0];

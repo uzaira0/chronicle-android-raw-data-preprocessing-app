@@ -95,11 +95,13 @@ describe("IndexedDB CRUD round-trip", () => {
     const summaries = await listProjects();
     expect(summaries).toHaveLength(1);
     expect(summaries[0]).toMatchObject({ id: "p1", name: "Resumable", includesFiles: true });
-    expect(summaries[0].rawFileNames).toEqual(["Raw P01.csv"]);
+    expect(summaries[0]?.rawFileNames).toEqual(["Raw P01.csv"]);
 
     const loaded = await loadProject("p1");
     expect(loaded!.options.studyName).toBe("MyStudy");
-    const restored = storedFileToFile(loaded!.rawFiles[0]);
+    const firstStoredFile = loaded!.rawFiles[0];
+    if (firstStoredFile === undefined) throw new Error("expected a stored raw file");
+    const restored = storedFileToFile(firstStoredFile);
     expect(restored).toBeInstanceOf(File);
     expect(restored.name).toBe("Raw P01.csv");
     expect(await restored.text()).toBe("hello");

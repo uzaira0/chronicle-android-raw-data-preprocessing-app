@@ -294,7 +294,7 @@ describe("computeDataGapRects multi-day paths", () => {
     expect(regions).toHaveLength(3);
     expect(regions.every((r) => r.title === "Data gap")).toBe(true);
     // Multi-day range dates BOTH ends (the else arm of the range ternary).
-    expect(regions[0].lines[1]).toBe("2026-03-07 22:00:00 → 2026-03-09 02:00:00");
+    expect(regions[0]?.lines[1]).toBe("2026-03-07 22:00:00 → 2026-03-09 02:00:00");
   });
 
   it("still reports a multi-day gap when none of its day rows are mapped", () => {
@@ -592,14 +592,14 @@ describe("buildAppTimelineViews edge cases", () => {
     ] as unknown as Parameters<typeof buildAppTimelineViews>[0];
     const views = buildAppTimelineViews(rows, "UTC", OPTS, "1.0.0");
     expect(views).toHaveLength(1);
-    const polyFills = views[0].scene.primitives
+    const polyFills = views[0]?.scene.primitives
       .filter((p) => p.type === "poly")
       .map((p) => (p as { fill?: string }).fill);
     expect(polyFills).toEqual(expect.arrayContaining(["red", "green", "#888"]));
     // Unknown category → Uncategorised colour for the session bar.
-    expect(views[0].scene.primitives.some((p) => p.type === "rect" && (p as { fill?: string }).fill === "#222222")).toBe(true);
+    expect(views[0]?.scene.primitives.some((p) => p.type === "rect" && (p as { fill?: string }).fill === "#222222")).toBe(true);
     // Blank-package session falls back to the "(app)" title.
-    expect(views[0].regions.some((r) => r.title === "(app)")).toBe(true);
+    expect(views[0]?.regions.some((r) => r.title === "(app)")).toBe(true);
   });
 });
 
@@ -633,10 +633,10 @@ describe("buildScreenTimelineViews edge cases", () => {
     ] as unknown as Parameters<typeof buildScreenTimelineViews>[0];
     const views = buildScreenTimelineViews(rows, "UTC", "1.0.0");
     expect(views).toHaveLength(1);
-    const regionLines = views[0].regions.flatMap((r) => r.lines);
+    const regionLines = views[0]?.regions.flatMap((r) => r.lines);
     expect(regionLines).toContain("Unknown");
     expect(regionLines).toContain("bogus_reason");
-    expect(views[0].scene.primitives.some((p) => p.type === "rect" && (p as { fill?: string }).fill === "#9E9E9E")).toBe(true);
+    expect(views[0]?.scene.primitives.some((p) => p.type === "rect" && (p as { fill?: string }).fill === "#9E9E9E")).toBe(true);
   });
 });
 

@@ -144,6 +144,9 @@ describe("fileInspection", () => {
       "Duplicate column headers found",
     );
     expect(inspection.warnings.join(" ")).toContain("Invalid timezone values");
+    // PHI safety: the warning reports a count only — the raw cell value must
+    // never appear in UI-surfaced text.
+    expect(inspection.warnings.join(" ")).not.toContain("Not/AZone");
     expect(inspection.warnings.join(" ")).toContain(
       "rows have invalid event_timestamp values",
     );

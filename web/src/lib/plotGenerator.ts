@@ -84,6 +84,9 @@ type PlotRow = {
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
+/** Fallback for categories missing from {@link CATEGORY_COLORS} (also its "Uncategorised" entry). */
+const UNCATEGORISED_COLOR = "#222222";
+
 export const CATEGORY_COLORS: Record<string, string> = {
   "Games": "#e6194b",
   "Video Players (e.g. YouTube)": "#4363d8",
@@ -96,7 +99,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   "Travel & Local": "#9a6324",
   "News & Magazines": "#dcbeff",
   "Photography": "yellow",
-  "Uncategorised": "#222222",
+  "Uncategorised": UNCATEGORISED_COLOR,
   "Unknown": "#555555",
 };
 const GAP_COLOR = "#808080";
@@ -414,13 +417,16 @@ export function computeDataGapRects(
   const rects: GapRect[] = [];
   let hadGap = false;
   for (let i = 0; i + 1 < allEventNs.length; i++) {
-    const gapNs = allEventNs[i + 1] - allEventNs[i];
+    const currentNs = allEventNs[i];
+    const nextNs = allEventNs[i + 1];
+    if (currentNs === undefined || nextNs === undefined) continue;
+    const gapNs = nextNs - currentNs;
     if (gapNs <= GAP_THRESHOLD_NS) continue;
     hadGap = true;
-    const startH = nsToLocalHours(allEventNs[i]);
-    const endH = nsToLocalHours(allEventNs[i + 1]);
-    const startIso = nsToIso(allEventNs[i]);
-    const endIso = nsToIso(allEventNs[i + 1]);
+    const startH = nsToLocalHours(currentNs);
+    const endH = nsToLocalHours(nextNs);
+    const startIso = nsToIso(currentNs);
+    const endIso = nsToIso(nextNs);
 
     // One tooltip describes the whole gap; every band of a multi-day gap shares
     // it so hovering any band shows the gap's full extent.
@@ -428,8 +434,8 @@ export function computeDataGapRects(
     if (regionsOut && nsToClock) {
       const gapMin = Number(gapNs) / 60_000_000_000;
       const dur = gapMin >= 60 ? `${(gapMin / 60).toFixed(1)} h` : `${gapMin.toFixed(1)} min`;
-      const a = nsToClock(allEventNs[i]);
-      const b = nsToClock(allEventNs[i + 1]);
+      const a = nsToClock(currentNs);
+      const b = nsToClock(nextNs);
       const range =
         startIso === endIso ? `${startIso} ${a} → ${b}` : `${startIso} ${a} → ${endIso} ${b}`;
       gapLines = [`No device events · ${dur}`, range];
@@ -686,11 +692,12 @@ export function buildWaterfallScene(
   };
 
   for (let i = 0; i + 1 < sortedEvents.length; i++) {
-    const gapNs = sortedEvents[i + 1] - sortedEvents[i];
-    if (gapNs <= GAP_THRESHOLD_NS) continue;
-
     const startNs = sortedEvents[i];
     const endNs = sortedEvents[i + 1];
+    if (startNs === undefined || endNs === undefined) continue;
+    const gapNs = endNs - startNs;
+    if (gapNs <= GAP_THRESHOLD_NS) continue;
+
     const startIso = nsToIso(startNs);
     const endIso = nsToIso(endNs);
     const gapMin = Number(gapNs) / 60_000_000_000;
@@ -1174,13 +1181,16 @@ type ScreenPlotRow = {
   screen_usage_end_reason?: string | null;
 };
 
+/** Fallback for reasons missing from {@link SCREEN_REASON_COLORS} (also its "unknown" entry). */
+const UNKNOWN_SCREEN_REASON_COLOR = "#9E9E9E";
+
 const SCREEN_REASON_COLORS: Record<string, string> = {
   probable_manual_lock: "#4CAF50",
   probable_auto_lock: "#2196F3",
   app_kept_awake_or_extended: "#FF9800",
   lock_screen_only: "#9C27B0",
   extended_idle_or_unknown: "#607D8B",
-  unknown: "#9E9E9E",
+  unknown: UNKNOWN_SCREEN_REASON_COLOR,
   missing_stop: "#F44336",
 };
 
@@ -1592,7 +1602,7 @@ export function buildAppTimelineViews(
       }
       if (!usageTypes.has(row.interaction_type)) continue;
       const category = row.broad_app_category ?? "Unknown";
-      const color = CATEGORY_COLORS[category] ?? CATEGORY_COLORS["Uncategorised"];
+      const color = CATEGORY_COLORS[category] ?? UNCATEGORISED_COLOR;
       const appLabel = row.application_label?.trim();
       const packageName = row.app_package_name || "(app)";
       const title = appLabel || packageName;
@@ -1647,7 +1657,7 @@ export function buildScreenTimelineViews(
       sessions.push({
         startNs: row.start_timestamp_ns,
         stopNs: row.stop_timestamp_ns,
-        color: SCREEN_REASON_COLORS[reason] ?? SCREEN_REASON_COLORS["unknown"],
+        color: SCREEN_REASON_COLORS[reason] ?? UNKNOWN_SCREEN_REASON_COLOR,
         title: "Screen",
         detail: [SCREEN_REASON_LABELS[reason] ?? reason, `${durMin.toFixed(1)} min`],
       });
@@ -1838,6 +1848,7 @@ export function buildHeatmapScene(
   for (let di = 0; di < dates.length; di++) {
     const y = plotTop + di * ROW_HEIGHT;
     const cellRow = cells[di];
+    if (cellRow === undefined) continue;
     for (let hour = 0; hour < 24; hour++) {
       prims.push({
         type: "rect",
@@ -1845,7 +1856,7 @@ export function buildHeatmapScene(
         y,
         w: colWidth,
         h: ROW_HEIGHT,
-        fill: heatColor(cellRow[hour] / maxCell),
+        fill: heatColor((cellRow[hour] ?? 0) / maxCell),
       });
     }
   }

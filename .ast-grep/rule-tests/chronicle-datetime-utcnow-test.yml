@@ -1,0 +1,6 @@
+id: chronicle-datetime-utcnow
+valid:
+  - now = datetime.datetime.now(datetime.timezone.utc)
+invalid:
+  - now = datetime.datetime.utcnow()
+  - now = datetime.utcnow()

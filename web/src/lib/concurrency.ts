@@ -72,7 +72,7 @@ export function computeSafeConcurrency(input: {
   let memoryCap = 1;
   for (let index = 0; index < candidateLimit; index += 1) {
     inFlightBytes +=
-      WORKER_BASELINE_BYTES + normalizedSizes[index] * PEAK_AMPLIFICATION;
+      WORKER_BASELINE_BYTES + (normalizedSizes[index] ?? 0) * PEAK_AMPLIFICATION;
     if (inFlightBytes <= budget) {
       memoryCap = index + 1;
     } else {
