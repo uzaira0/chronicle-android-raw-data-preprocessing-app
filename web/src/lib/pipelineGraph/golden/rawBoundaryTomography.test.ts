@@ -314,6 +314,7 @@ const OUTPUT_ARTIFACT_KINDS = new Set([
   "row-lineage-arrow",
   "source-coordinate-index-arrow",
   "result-cell-correspondence-arrow",
+  "source-result-influence-arrow",
 ]);
 
 function outputArtifactDigests(

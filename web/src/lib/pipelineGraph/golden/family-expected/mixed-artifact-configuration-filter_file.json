@@ -7,12 +7,12 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:ca8f4fcf465b647f529399d522900a9736081734e41eedc274061861307a6d0f",
+    "implementationDigest": "sha256:34d3bbdad183ef69dc7c01eff2d48371086e653b29ed67ad6d03c2acbf1419fc",
     "planDigest": "sha256:e6acec3530cef7f3e67443077affb86632db8485d771c3fa9a754dc810ff8e20",
-    "profileDigest": "sha256:c82f3949c01154eac7e5591c0c5b6d72b99c328a550ce61ca4d29d81397dd9cc",
-    "profileLockDigest": "sha256:35b8df429a2cd26f80230722ddf17b13f660924eeabc5966f4b1d0dd2b2b6297",
-    "runtimeAuthorityDigest": "sha256:bb2e2d109a81098514ba9a86344da6edc033cd305e6d6c4832c9dfd1ce81b2f9",
-    "productContractDigest": "sha256:a465fec650f42700875ea2c40cbdfce2b92bdc9f5fda20fdb1b847e72ad17883"
+    "profileDigest": "sha256:7581dd27886f0317d037380b0c4e6b7c041e7690fd94580a5b60c089f1cfe1ba",
+    "profileLockDigest": "sha256:63d048c400ec4aab8c03d642f8d3533f949fbd5513789387df65ff0d6109062f",
+    "runtimeAuthorityDigest": "sha256:7598af2d710ac32563dd8e0bff49a9447e7f450c618c4689004025fbb6826ed4",
+    "productContractDigest": "sha256:3855791ad25992d95e055d5c672253cb06ac3e4320463bc46f984b7bc8f05f95"
   },
   "roleRepresentatives": {
     "filter_file": {
