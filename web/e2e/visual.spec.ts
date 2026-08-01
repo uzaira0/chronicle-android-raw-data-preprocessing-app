@@ -47,6 +47,11 @@ test.describe("Visual regression", { tag: "@visual" }, () => {
       "aria-selected",
       "true",
     );
+    // A pristine visit (fresh browser context, empty localStorage) must not
+    // announce "Last used settings restored." — that toast auto-dismisses on a
+    // real 5s timer, so baselines embedding it fail on slow runs. Pinned here
+    // beyond the pixel diff so a regression names the cause.
+    await expect(page.locator(".toast")).toHaveCount(0);
     await expect(page).toHaveScreenshot(screenshotOptions(page));
   });
 
@@ -70,6 +75,12 @@ test.describe("Visual regression", { tag: "@visual" }, () => {
     await page.getByRole("tab", { name: /Files/i }).click();
     await setInputFile(page, "raw-file-input", "Raw P01.csv", APP_ONLY_RAW_CSV, "text/csv");
     await processFiles(page);
+    // The completion toast embeds wall-clock timing ("Processed 1/1 files in
+    // 0s") that flips to "1s" under load. Dismiss it deterministically and
+    // wait for it to detach so the baseline never contains timing text.
+    const toast = page.locator(".toast");
+    await toast.getByRole("button", { name: "Dismiss" }).click();
+    await expect(toast).toHaveCount(0);
     await expect(page).toHaveScreenshot(screenshotOptions(page));
   });
 });

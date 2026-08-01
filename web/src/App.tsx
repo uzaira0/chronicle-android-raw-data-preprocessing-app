@@ -217,6 +217,12 @@ export default function App(): ReactElement {
   // synchronously during init because the persist effect runs before the
   // URL-strip effect below.
   const skipNextPersist = useRef(false);
+  // Whether saved settings existed BEFORE this session wrote anything. Captured
+  // in a lazy initializer (first render, before any effect) because the persist
+  // effect below writes the storage key on mount — a mount-effect
+  // hasPersistedOptions() check would see this session's own write and announce
+  // "Last used settings restored." on every pristine first visit.
+  const [hadPersistedOptionsAtBoot] = useState(() => hasPersistedOptions());
   const [options, setOptions] = useState<BrowserProcessingOptions>(() => {
     const shared =
       typeof window === "undefined"
@@ -414,10 +420,11 @@ export default function App(): ReactElement {
       );
       return;
     }
-    if (hasPersistedOptions()) {
+    if (hadPersistedOptionsAtBoot) {
       setToast({ message: "Last used settings restored.", isError: false });
     }
-  }, []);
+    // hadPersistedOptionsAtBoot is set once at first render and never changes.
+  }, [hadPersistedOptionsAtBoot]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
