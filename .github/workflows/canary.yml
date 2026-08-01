@@ -25,10 +25,15 @@ jobs:
         run: npm ci --prefix web
 
       - name: Install Playwright (chromium only)
-        run: npx --prefix web playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: web
 
+      # `npx --prefix web` resolves the binary from web/node_modules but keeps
+      # the repo root as cwd, so playwright never finds web/playwright.config.ts
+      # ("Project(s) \"chromium\" not found. Available projects: \"\"").
       - name: Run smoke tests against deployed app
-        run: npx --prefix web playwright test --grep "@smoke" --project=chromium
+        run: npx playwright test --grep "@smoke" --project=chromium
+        working-directory: web
         env:
           CI: "true"
           PLAYWRIGHT_BASE_URL: "https://uzaira0.github.io/chronicle-android-raw-data-preprocessing-app/"
