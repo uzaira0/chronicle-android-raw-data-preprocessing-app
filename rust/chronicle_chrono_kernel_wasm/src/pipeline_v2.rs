@@ -404,6 +404,18 @@ fn trim_owned(v: Option<&String>) -> String {
 }
 
 fn parse_csv_to_records(bytes: &[u8]) -> Vec<HashMap<String, String>> {
+    parse_csv_to_records_with_physical_rows(bytes)
+        .into_iter()
+        .map(|(_physical_data_row, record)| record)
+        .collect()
+}
+
+/// Like `parse_csv_to_records`, but each surviving record carries its physical
+/// 1-based data-row number — counting EVERY data record in the file, including
+/// the all-empty records this parser skips — so error messages name the same
+/// row the incremental executor's `csv_parse` reports via
+/// `RawRow::source_data_row`.
+fn parse_csv_to_records_with_physical_rows(bytes: &[u8]) -> Vec<(u32, HashMap<String, String>)> {
     // csv-core's empty-input flush path differs under the optimized browser
     // WASM target for a final unterminated field: the row can be emitted while
     // its last cell is empty. Normalize only the missing record terminator so
@@ -453,6 +465,10 @@ fn parse_csv_to_records(bytes: &[u8]) -> Vec<HashMap<String, String>> {
     let mut row_vals: Vec<String> = vec![String::new(); headers.len()];
     let mut col_idx = 0;
     let mut any_nonempty = false;
+    // Physical 1-based data-row counter, incremented for every record —
+    // including all-empty records that are skipped from the output — to match
+    // `csv_parse`'s `data_row_number` in pipeline_v2_incremental.rs.
+    let mut physical_data_row = 0_u32;
     loop {
         let (result, n_in, n_out) = rdr.read_field(input, &mut field_buf);
         input = &input[n_in..];
@@ -475,12 +491,13 @@ fn parse_csv_to_records(bytes: &[u8]) -> Vec<HashMap<String, String>> {
                 }
                 col_idx += 1;
                 if record_end {
+                    physical_data_row += 1;
                     if any_nonempty {
                         let mut rec = HashMap::with_capacity(headers.len());
                         for (i, h) in headers.iter().enumerate() {
                             rec.insert(h.clone(), row_vals[i].clone());
                         }
-                        records.push(rec);
+                        records.push((physical_data_row, rec));
                     }
                     for s in row_vals.iter_mut() {
                         s.clear();
@@ -4138,8 +4155,11 @@ pub struct PipelineV2SupportFiles<'a> {
 pub fn discover_timezones_v2_native(csv_bytes: &[u8]) -> Result<Vec<String>, String> {
     let mut timezones = BTreeSet::new();
     // PHI safety: raw cell values must never enter error strings surfaced to
-    // the UI/console — report the 1-based data-row position instead.
-    for (index, record) in parse_csv_to_records(csv_bytes).into_iter().enumerate() {
+    // the UI/console — report the 1-based data-row position instead. The
+    // physical data-row number counts every data record in the file (including
+    // all-empty skipped records) so it matches the row the incremental
+    // executor reports for the same cell.
+    for (data_row, record) in parse_csv_to_records_with_physical_rows(csv_bytes) {
         let timestamp = record
             .get("event_timestamp")
             .map(|value| value.trim())
@@ -4148,7 +4168,7 @@ pub fn discover_timezones_v2_native(csv_bytes: &[u8]) -> Result<Vec<String>, Str
             continue;
         }
         parse_chronicle_timestamp_ns(timestamp)
-            .ok_or_else(|| format!("Invalid event_timestamp at data row {}", index + 1))?;
+            .ok_or_else(|| format!("Invalid event_timestamp at data row {data_row}"))?;
         let timezone = record
             .get("timezone")
             .map(|value| value.trim())
@@ -4156,7 +4176,7 @@ pub fn discover_timezones_v2_native(csv_bytes: &[u8]) -> Result<Vec<String>, Str
             .unwrap_or("UTC");
         timezone
             .parse::<Tz>()
-            .map_err(|_| format!("invalid timezone value at data row {}", index + 1))?;
+            .map_err(|_| format!("invalid timezone value at data row {data_row}"))?;
         timezones.insert(timezone.to_string());
     }
     Ok(timezones.into_iter().collect())
@@ -5981,9 +6001,12 @@ fn screen_witness_state(interaction_type: &str) -> Result<Option<ScreenCreditSta
             .and_then(|rest| rest.as_bytes().first())
             .is_some_and(u8::is_ascii_digit)
     {
-        return Err(format!(
-            "Screen-gated credit: unmapped interaction type {interaction_type:?} in the raw stream — extend the interaction-type mapping before crediting."
-        ));
+        // PHI safety: raw cell values must never enter error strings surfaced
+        // to the UI/console — the caller appends the data-row position.
+        return Err(
+            "Screen-gated credit: unmapped interaction type in the raw stream — extend the interaction-type mapping before crediting."
+                .to_string(),
+        );
     }
     let state = match interaction_type {
         "Screen Interactive"
@@ -6039,7 +6062,12 @@ fn build_screen_credit_substrate(raw_events: &[Row]) -> Result<ScreenCreditSubst
         let mut points = Vec::new();
         let mut last = None;
         for (timestamp_ns, interaction_type, source_data_rows) in &events {
-            let state = screen_witness_state(interaction_type)?;
+            let state = screen_witness_state(interaction_type).map_err(|error| {
+                match source_data_rows.iter().next() {
+                    Some(data_row) => format!("{error} (data row {data_row})"),
+                    None => error,
+                }
+            })?;
             if let Some(state) = state {
                 if Some(state) != last {
                     points.push(ScreenChangePoint {
@@ -7718,6 +7746,50 @@ mod tests {
         )
         .unwrap_err()
         .contains("before it starts"));
+    }
+
+    #[test]
+    fn discovery_and_incremental_report_the_same_physical_data_row() {
+        // Header + valid data row 1 + an all-empty filler record (physical
+        // data row 2 — skipped by parse_csv_to_records_with_physical_rows'
+        // any_nonempty guard and dropped by drop_empty_timestamp) + an invalid
+        // event_timestamp at physical data row 3. Both reporting paths must
+        // name physical data row 3; the old discovery numbering (enumerate()
+        // over the skipping parser) said data row 2.
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,UTC\n",
+            ",,,,,,,\n",
+            "Study,P01,Child,Chat,Activity Resumed,com.example.chat,not-a-timestamp,UTC\n",
+        );
+
+        let discovery_error = discover_timezones_v2_native(csv.as_bytes())
+            .expect_err("invalid event_timestamp must fail discovery");
+        assert_eq!(discovery_error, "Invalid event_timestamp at data row 3");
+
+        let raw = incremental::csv_parse(csv.as_bytes());
+        let raw = incremental::drop_empty_timestamp(raw);
+        let model = incremental::detect_device_model(&raw);
+        let processing_error =
+            incremental::build_canonical_rows(&raw, "UTC", &BTreeMap::new(), &model)
+                .err()
+                .expect("invalid event_timestamp must fail processing");
+        assert_eq!(processing_error, discovery_error);
+
+        // PHI safety: the raw cell value must not appear in either error.
+        assert!(!discovery_error.contains("not-a-timestamp"));
+        assert!(!processing_error.contains("not-a-timestamp"));
+    }
+
+    #[test]
+    fn screen_witness_state_error_omits_raw_interaction_type() {
+        let error = screen_witness_state("Unknown importance: com.example.secret")
+            .expect_err("unmapped interaction type must fail");
+        assert!(
+            !error.contains("com.example.secret"),
+            "raw cell value leaked into the error: {error}"
+        );
+        assert!(error.contains("unmapped interaction type"), "{error}");
     }
 
     #[test]
