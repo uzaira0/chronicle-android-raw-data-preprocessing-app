@@ -1,0 +1,8 @@
+id: chronicle-pytz-replace-tzinfo
+snapshots:
+  aware = naive_dt.replace(tzinfo=pytz.timezone("America/New_York")):
+    labels:
+    - source: naive_dt.replace(tzinfo=pytz.timezone("America/New_York"))
+      style: primary
+      start: 8
+      end: 66

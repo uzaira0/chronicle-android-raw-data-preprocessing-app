@@ -12,6 +12,7 @@ fn make_input(
     Vec<bool>,
     Vec<bool>,
     Vec<bool>,
+    Vec<bool>,
 ) {
     let mut app_codes = Vec::with_capacity(n);
     let mut timestamps = Vec::with_capacity(n);
@@ -19,6 +20,7 @@ fn make_input(
     let mut same_stop = Vec::with_capacity(n);
     let mut other_stop = Vec::with_capacity(n);
     let mut stopped = Vec::with_capacity(n);
+    let mut background = Vec::with_capacity(n);
 
     let mut ts: i64 = 0;
     let mut seed: u64 = 42;
@@ -32,10 +34,11 @@ fn make_input(
         same_stop.push(i % 6 == 0);
         other_stop.push(i % 7 == 0);
         stopped.push(i % 9 == 0);
+        background.push(i % 11 == 0);
     }
 
     (
-        app_codes, timestamps, resumed, same_stop, other_stop, stopped,
+        app_codes, timestamps, resumed, same_stop, other_stop, stopped, background,
     )
 }
 
@@ -49,7 +52,8 @@ fn bench_match_core(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("match_app_usage_core");
     for size in [100usize, 1_000, 10_000] {
-        let (app_codes, timestamps, resumed, same_stop, other_stop, stopped) = make_input(size);
+        let (app_codes, timestamps, resumed, same_stop, other_stop, stopped, background) =
+            make_input(size);
         group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
             b.iter(|| {
                 match_app_usage_core(
@@ -59,6 +63,7 @@ fn bench_match_core(c: &mut Criterion) {
                     black_box(&same_stop),
                     black_box(&other_stop),
                     black_box(&stopped),
+                    black_box(&background),
                     options,
                 )
                 .unwrap()
@@ -78,7 +83,8 @@ fn bench_match_update_indices(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("match_app_usage_update_indices_core");
     for size in [100usize, 1_000, 10_000] {
-        let (app_codes, timestamps, resumed, same_stop, other_stop, stopped) = make_input(size);
+        let (app_codes, timestamps, resumed, same_stop, other_stop, stopped, background) =
+            make_input(size);
         group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
             b.iter(|| {
                 match_app_usage_update_indices_core(
@@ -88,6 +94,7 @@ fn bench_match_update_indices(c: &mut Criterion) {
                     black_box(&same_stop),
                     black_box(&other_stop),
                     black_box(&stopped),
+                    black_box(&background),
                     options,
                 )
                 .unwrap()

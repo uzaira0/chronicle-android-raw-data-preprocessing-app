@@ -10,14 +10,19 @@ import {
 function handle(
   artifacts: Array<{ kind: string; mediaType: string; body: string }>,
 ): RuntimeArtifactHandle {
+  const artifactAt = (index: number) => {
+    const artifact = artifacts[index];
+    if (artifact === undefined) throw new Error(`no artifact at index ${index}`);
+    return artifact;
+  };
   return {
     artifact_count: artifacts.length,
     artifact_metadata_json: (index) =>
       JSON.stringify({
-        kind: artifacts[index].kind,
-        mediaType: artifacts[index].mediaType,
+        kind: artifactAt(index).kind,
+        mediaType: artifactAt(index).mediaType,
       }),
-    take_artifact_bytes: (index) => new TextEncoder().encode(artifacts[index].body),
+    take_artifact_bytes: (index) => new TextEncoder().encode(artifactAt(index).body),
   };
 }
 

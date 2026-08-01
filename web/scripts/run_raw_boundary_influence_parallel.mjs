@@ -76,11 +76,13 @@ function runShard(index) {
 
 /** @param {ShardResult[]} shards @param {string} field @returns {any} */
 function sameAcross(shards, field) {
-  const first = JSON.stringify(shards[0].evidence[field]);
+  const firstShard = shards[0];
+  if (!firstShard) throw new Error("no shard results to aggregate");
+  const first = JSON.stringify(firstShard.evidence[field]);
   if (shards.some((shard) => JSON.stringify(shard.evidence[field]) !== first)) {
     throw new Error(`raw-boundary shards disagree on ${field}`);
   }
-  return shards[0].evidence[field];
+  return firstShard.evidence[field];
 }
 
 /** @param {ShardResult[]} shards @param {string} field */
@@ -141,7 +143,9 @@ try {
   const caseSetDigest = `sha256:${createHash("sha256")
     .update(caseIdentities.join("\n"))
     .digest("hex")}`;
-  const first = shards[0].evidence;
+  const firstShard = shards[0];
+  if (!firstShard) throw new Error("no shard results to aggregate");
+  const first = firstShard.evidence;
   const evidence = {
     protocolVersion: sameAcross(shards, "protocolVersion"),
     logicalCheckpointProtocol: sameAcross(shards, "logicalCheckpointProtocol"),

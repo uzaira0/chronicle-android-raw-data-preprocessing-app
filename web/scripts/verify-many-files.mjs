@@ -70,7 +70,9 @@ function processTreeRssBytes(rootPid) {
   }
   const selected = new Set(descendants);
   return rows.reduce(
-    (total, [pid, , rssKib]) => total + (selected.has(pid) ? rssKib * 1024 : 0),
+    (total, [pid, , rssKib]) =>
+      total +
+      (pid !== undefined && rssKib !== undefined && selected.has(pid) ? rssKib * 1024 : 0),
     0,
   );
 }

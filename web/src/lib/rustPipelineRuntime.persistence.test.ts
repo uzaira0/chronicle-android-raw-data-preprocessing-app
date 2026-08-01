@@ -66,6 +66,11 @@ const runtimeAuthorityDigest = `sha256:${"a".repeat(64)}`;
 const viewDigests = ["a", "b", "c", "d"].map(
   (marker) => `sha256:${marker.repeat(64)}`,
 );
+function viewDigest(index: number): string {
+  const digest = viewDigests[index];
+  if (digest === undefined) throw new Error(`no view digest at index ${index}`);
+  return digest;
+}
 const root = {} as FileSystemDirectoryHandle;
 const archive = enc.encode("archive");
 const workspaceLockRequest = vi.fn();
@@ -191,28 +196,30 @@ const validCommit = {
     ...viewDigests,
   ],
   executionStateDigest,
-  requiredViews: [
-    ["stage-view-json", "chronicle.stage.v1", "urn:chronicle:view:stage:v1"],
+  requiredViews: (
     [
-      "artifact-view-json",
-      "chronicle.artifact.v1",
-      "urn:chronicle:view:artifact:v1",
-    ],
-    [
-      "obligation-view-json",
-      "chronicle.obligation.v1",
-      "urn:chronicle:view:obligation:v1",
-    ],
-    [
-      "explanation-view-json",
-      "chronicle.explanation.v1",
-      "urn:chronicle:view:explanation:v1",
-    ],
-  ].map(([artifactKind, viewId, schemaId], index) => ({
+      ["stage-view-json", "chronicle.stage.v1", "urn:chronicle:view:stage:v1"],
+      [
+        "artifact-view-json",
+        "chronicle.artifact.v1",
+        "urn:chronicle:view:artifact:v1",
+      ],
+      [
+        "obligation-view-json",
+        "chronicle.obligation.v1",
+        "urn:chronicle:view:obligation:v1",
+      ],
+      [
+        "explanation-view-json",
+        "chronicle.explanation.v1",
+        "urn:chronicle:view:explanation:v1",
+      ],
+    ] satisfies Array<[string, string, string]>
+  ).map(([artifactKind, viewId, schemaId], index) => ({
     artifactKind,
     viewId,
     schemaId,
-    artifactDigest: viewDigests[index],
+    artifactDigest: viewDigest(index),
   })),
   journalDigest,
   artifactClosureDigest: closureDigest,
@@ -924,7 +931,7 @@ describe("persisted Rust workspace boundary", () => {
   it("rejects execution-identity drift and a same-size fake view", async () => {
     const originalRoot = bytesByDigest.get(rootDigest)!;
     const originalState = bytesByDigest.get(executionStateDigest)!;
-    const originalView = bytesByDigest.get(viewDigests[0])!;
+    const originalView = bytesByDigest.get(viewDigest(0))!;
     try {
       bytesByDigest.set(
         executionStateDigest,
@@ -944,14 +951,14 @@ describe("persisted Rust workspace boundary", () => {
         .decode(originalView)
         .replace("chronicle.stage.v1", "chronicle.wrong.v1");
       expect(enc.encode(fakeView).byteLength).toBe(originalView.byteLength);
-      bytesByDigest.set(viewDigests[0], enc.encode(fakeView));
+      bytesByDigest.set(viewDigest(0), enc.encode(fakeView));
       await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
         /typed view is invalid/,
       );
     } finally {
       bytesByDigest.set(rootDigest, originalRoot);
       bytesByDigest.set(executionStateDigest, originalState);
-      bytesByDigest.set(viewDigests[0], originalView);
+      bytesByDigest.set(viewDigest(0), originalView);
     }
   });
 
@@ -1081,9 +1088,8 @@ describe("persisted Rust workspace boundary", () => {
   );
 
   it("rejects fake typed views and unbound retained objects", async () => {
-    const original = bytesByDigest.get(viewDigests[0])!;
-    bytesByDigest.set(
-      viewDigests[0],
+    const original = bytesByDigest.get(viewDigest(0))!;
+    bytesByDigest.set(viewDigest(0),
       enc.encode(
         JSON.stringify({
           view_id: "chronicle.stage.v1",
@@ -1094,7 +1100,7 @@ describe("persisted Rust workspace boundary", () => {
     await expect(verifyPersistedRustWorkspace(workspaceId)).rejects.toThrow(
       /artifact size mismatch|typed view is invalid/,
     );
-    bytesByDigest.set(viewDigests[0], original);
+    bytesByDigest.set(viewDigest(0), original);
 
     opfs.collectRuntimeHistoryDigests.mockResolvedValue([
       ...slot.artifactDigests,

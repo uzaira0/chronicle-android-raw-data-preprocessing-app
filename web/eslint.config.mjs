@@ -16,6 +16,13 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: { projectService: true },
     },
+    rules: {
+      // Cyclomatic complexity ceiling, enforced by scripts/check-web-complexity.sh
+      // (pre-commit web-complexity hook). Pinned to the current codebase max
+      // (rustPipelineRuntime.executeRustRuntimeUnlocked = 137) so existing code
+      // passes and any increase fails. Lower it when the max drops.
+      complexity: ['error', 137],
+    },
   },
   {
     files: ['src/**/*.js'],

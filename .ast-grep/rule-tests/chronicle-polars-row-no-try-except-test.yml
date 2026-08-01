@@ -1,0 +1,35 @@
+id: chronicle-polars-row-no-try-except
+valid:
+  - |
+    try:
+        value = df.row(0)
+    except IndexError:
+        value = None
+  - |
+    try:
+        value = df.row(0)
+    except (ValueError, IndexError) as error:
+        value = None
+  - |
+    try:
+        value = df.row(0)
+    except Exception:
+        value = None
+  - |
+    try:
+        value = df.row(0)
+    except:
+        value = None
+invalid:
+  - value = df.row(0)
+  - |
+    try:
+        value = df.row(0)
+    except ValueError:
+        value = None
+  - |
+    def load():
+        try:
+            return df.row(0)
+        except ConfigError:
+            return None

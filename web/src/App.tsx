@@ -217,6 +217,12 @@ export default function App(): ReactElement {
   // synchronously during init because the persist effect runs before the
   // URL-strip effect below.
   const skipNextPersist = useRef(false);
+  // Whether saved settings existed BEFORE this session wrote anything. Captured
+  // in a lazy initializer (first render, before any effect) because the persist
+  // effect below writes the storage key on mount — a mount-effect
+  // hasPersistedOptions() check would see this session's own write and announce
+  // "Last used settings restored." on every pristine first visit.
+  const [hadPersistedOptionsAtBoot] = useState(() => hasPersistedOptions());
   const [options, setOptions] = useState<BrowserProcessingOptions>(() => {
     const shared =
       typeof window === "undefined"
@@ -414,10 +420,11 @@ export default function App(): ReactElement {
       );
       return;
     }
-    if (hasPersistedOptions()) {
+    if (hadPersistedOptionsAtBoot) {
       setToast({ message: "Last used settings restored.", isError: false });
     }
-  }, []);
+    // hadPersistedOptionsAtBoot is set once at first render and never changes.
+  }, [hadPersistedOptionsAtBoot]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -526,9 +533,10 @@ export default function App(): ReactElement {
     void inspectRawFiles(files)
       .then((inspections) => {
         inspections.forEach((inspection, index) => {
-          if (/^[0-9a-f]{64}$/.test(inspection.inputSha256 ?? "")) {
+          const file = files[index];
+          if (file && /^[0-9a-f]{64}$/.test(inspection.inputSha256 ?? "")) {
             verifiedInputDigestByFileRef.current.set(
-              files[index],
+              file,
               inspection.inputSha256!,
             );
           }
@@ -989,6 +997,7 @@ export default function App(): ReactElement {
         .sort((left, right) => {
           const leftMember = left.members[0];
           const rightMember = right.members[0];
+          if (leftMember === undefined || rightMember === undefined) return 0;
           return (
             rightMember.file.size - leftMember.file.size ||
             leftMember.index - rightMember.index
@@ -1025,6 +1034,7 @@ export default function App(): ReactElement {
           cursor += 1;
           if (!group) return;
           const item = group.members[0];
+          if (item === undefined) continue;
           try {
             const verifiedInputSha256 =
               verifiedInputDigestByFileRef.current.get(item.file) ===
@@ -1304,6 +1314,7 @@ export default function App(): ReactElement {
           cursor += 1;
           if (index === undefined) return;
           const file = uploadedFiles[index];
+          if (file === undefined) continue;
           handleProgressEvent({ type: "file-start", fileName: file.name });
           try {
             const verifiedInputSha256 =

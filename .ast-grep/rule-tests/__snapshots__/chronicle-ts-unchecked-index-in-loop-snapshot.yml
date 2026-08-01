@@ -1,0 +1,72 @@
+id: chronicle-ts-unchecked-index-in-loop
+snapshots:
+  ? |
+    do {
+      use(items[cursor]!);
+      cursor += 1;
+    } while (cursor < items.length);
+  : labels:
+    - source: items[cursor]!
+      style: primary
+      start: 11
+      end: 25
+    - source: |-
+        do {
+          use(items[cursor]!);
+          cursor += 1;
+        } while (cursor < items.length);
+      style: secondary
+      start: 0
+      end: 75
+  ? |
+    for (const key in lookup) {
+      use(lookup[key]!);
+    }
+  : labels:
+    - source: lookup[key]!
+      style: primary
+      start: 34
+      end: 46
+    - source: |-
+        for (const key in lookup) {
+          use(lookup[key]!);
+        }
+      style: secondary
+      start: 0
+      end: 50
+  ? |
+    for (let i = 0; i < items.length; i++) {
+      const v = items[i]!;
+      use(v);
+    }
+  : labels:
+    - source: items[i]!
+      style: primary
+      start: 53
+      end: 62
+    - source: |-
+        for (let i = 0; i < items.length; i++) {
+          const v = items[i]!;
+          use(v);
+        }
+      style: secondary
+      start: 0
+      end: 75
+  ? |
+    while (cursor < items.length) {
+      use(items[cursor]!);
+      cursor += 1;
+    }
+  : labels:
+    - source: items[cursor]!
+      style: primary
+      start: 38
+      end: 52
+    - source: |-
+        while (cursor < items.length) {
+          use(items[cursor]!);
+          cursor += 1;
+        }
+      style: secondary
+      start: 0
+      end: 71

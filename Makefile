@@ -27,7 +27,8 @@ SEM_PROF_BIN ?= $(if $(wildcard $(LOCAL_SEM_PROF_BIN)),$(LOCAL_SEM_PROF_BIN),sem
         semgrep ast-grep cargo-audit cargo-deny trivy gitleaks \
         typecheck web-test contract semantic-federation combinatorial gate-truth \
         mutation mutation-web mutation-rust coverage coverage-rust coverage-all \
-        knip profile profile-current profile-many e2e deploy-artifact dependency-evidence
+        knip profile profile-current profile-many e2e deploy-artifact dependency-evidence \
+        bench-regression
 
 help:
 	@echo 'Local CI (GitHub Actions carries CD only):'
@@ -41,6 +42,7 @@ help:
 	@echo '               typecheck web-test contract e2e gate-truth mutation'
 	@echo '               mutation-web mutation-rust coverage coverage-rust coverage-all'
 	@echo '               knip profile profile-current profile-many combinatorial deploy-artifact dependency-evidence'
+	@echo '               bench-regression (criterion matcher benches vs benchmarks/baseline.json; local-only)'
 
 # ---------- aggregates ----------
 ci: rust security
@@ -156,6 +158,16 @@ mutation-web:
 # them; their delegates are unit-tested and compiled exports are exercised E2E.
 mutation-rust:
 	$(MAKE) -C .semantic-federation quality-rust-mutation
+
+# Criterion bench-regression gate for the matcher core. Wall clock carries no
+# deterministic evidence authority (same policy as profile), so this stays
+# OUTSIDE ci/all — run it locally when touching the matcher hot path. Fails on
+# a >25% mean regression vs the committed benchmarks/baseline.json; recapture
+# with scripts/check_bench_regression.py --write-baseline after a justified
+# performance change.
+bench-regression:
+	CRITERION_HOME=$(CURDIR)/benchmarks/criterion cargo bench --locked --manifest-path $(MATCHER) --no-default-features --bench matcher_bench
+	python3 scripts/check_bench_regression.py
 
 # Measure the deployed worker -> authoritative Rust/WASM -> OPFS -> rendered
 # result path. The deterministic evidence ledger intentionally carries no wall

@@ -278,7 +278,9 @@ function existingTestsCsv(): string {
 async function decodePictOutput(tsvPath: string, outPath: string): Promise<void> {
   const text = await readFile(tsvPath, "utf-8");
   const lines = text.trim().split(/\r?\n/);
-  const header = lines[0].split("\t");
+  const headerLine = lines[0];
+  if (headerLine === undefined) throw new Error("PICT output is empty");
+  const header = headerLine.split("\t");
   const expected = new Set<string>(MODEL_OPTION_KEYS);
   if (header.length !== expected.size || header.some((key) => !expected.has(key))) {
     throw new Error("PICT output columns do not exactly match the computational option model");
@@ -350,14 +352,18 @@ async function sampleConfigurations(
     const encoded: EncodedRow = {};
     for (const key of MODEL_OPTION_KEYS) {
       const classes = classesFor(key);
-      encoded[key] = classes[Math.floor(random() * classes.length)].label;
+      const chosen = classes[Math.floor(random() * classes.length)];
+      if (chosen === undefined) throw new Error(`no value classes for ${key}`);
+      encoded[key] = chosen.label;
     }
     const handling = encoded.timezoneHandling;
     if (handling === "primary_filter" || handling === "primary_convert") {
       encoded.selectedTimezone = "none";
     } else if (encoded.selectedTimezone === "none") {
       const selected = classesFor("selectedTimezone").filter((entry) => entry.label !== "none");
-      encoded.selectedTimezone = selected[Math.floor(random() * selected.length)].label;
+      const chosen = selected[Math.floor(random() * selected.length)];
+      if (chosen === undefined) throw new Error("no selectable timezone classes");
+      encoded.selectedTimezone = chosen.label;
     }
     if (!isLegalPartial(encoded)) throw new Error("internal generator emitted an illegal row");
     const identity = MODEL_OPTION_KEYS.map((key) => encoded[key]).join("\u001f");
@@ -394,9 +400,12 @@ type EncodedRow = Record<string, string>;
 async function readEncodedTable(tablePath: string): Promise<EncodedRow[]> {
   const text = await readFile(tablePath, "utf-8");
   const lines = text.trim().split(/\r?\n/);
-  if (lines.length < 2) throw new Error(`${tablePath}: expected a header and at least one row`);
-  const delimiter = lines[0].includes("\t") ? "\t" : ",";
-  const header = lines[0].split(delimiter);
+  const headerLine = lines[0];
+  if (lines.length < 2 || headerLine === undefined) {
+    throw new Error(`${tablePath}: expected a header and at least one row`);
+  }
+  const delimiter = headerLine.includes("\t") ? "\t" : ",";
+  const header = headerLine.split(delimiter);
   const expected = new Set<string>(MODEL_OPTION_KEYS);
   if (header.length !== expected.size || header.some((key) => !expected.has(key))) {
     throw new Error(`${tablePath}: columns do not exactly match the processing-option contract`);
@@ -409,10 +418,10 @@ async function readEncodedTable(tablePath: string): Promise<EncodedRow[]> {
     return Object.fromEntries(
       header.map((key, column) => {
         const value = cells[column];
-        if (!classesFor(key).some((candidate) => candidate.label === value)) {
+        if (value === undefined || !classesFor(key).some((candidate) => candidate.label === value)) {
           throw new Error(`${tablePath}:${rowIndex + 2}: invalid ${key} class ${JSON.stringify(value)}`);
         }
-        return [key, value];
+        return [key, value] as const;
       }),
     );
   });
@@ -421,9 +430,12 @@ async function readEncodedTable(tablePath: string): Promise<EncodedRow[]> {
 async function projectEncodedTable(tablePath: string, outPath: string): Promise<void> {
   const text = await readFile(tablePath, "utf-8");
   const lines = text.trim().split(/\r?\n/);
-  if (lines.length < 2) throw new Error(`${tablePath}: expected a header and at least one row`);
-  const delimiter = lines[0].includes("\t") ? "\t" : ",";
-  const sourceHeader = lines[0].split(delimiter);
+  const headerLine = lines[0];
+  if (lines.length < 2 || headerLine === undefined) {
+    throw new Error(`${tablePath}: expected a header and at least one row`);
+  }
+  const delimiter = headerLine.includes("\t") ? "\t" : ",";
+  const sourceHeader = headerLine.split(delimiter);
   const indices = MODEL_OPTION_KEYS.map((key) => {
     const index = sourceHeader.indexOf(key);
     if (index < 0) throw new Error(`${tablePath}: missing computational column ${key}`);
@@ -490,7 +502,11 @@ function exactCoverage(rows: EncodedRow[], strength: number): { covered: number;
   let covered = 0;
   let total = 0;
   for (const indices of indexCombinations(contractKeys.length, strength)) {
-    const keys = indices.map((index) => contractKeys[index]);
+    const keys = indices.map((index) => {
+      const key = contractKeys[index];
+      if (key === undefined) throw new Error(`combination index ${index} out of range`);
+      return key;
+    });
     const observed = new Set(rows.map((row) => tupleKey(keys, row)));
     const assignment: EncodedRow = {};
     const visitValues = (depth: number) => {
@@ -502,6 +518,7 @@ function exactCoverage(rows: EncodedRow[], strength: number): { covered: number;
         return;
       }
       const key = keys[depth];
+      if (key === undefined) return;
       for (const candidate of classesFor(key)) {
         assignment[key] = candidate.label;
         visitValues(depth + 1);

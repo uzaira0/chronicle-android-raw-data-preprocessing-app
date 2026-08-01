@@ -1,0 +1,8 @@
+id: chronicle-python-no-exec
+snapshots:
+  exec(code_string):
+    labels:
+    - source: exec(code_string)
+      style: primary
+      start: 0
+      end: 17

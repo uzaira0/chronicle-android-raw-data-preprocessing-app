@@ -62,8 +62,9 @@ function parseTable(csv: string, label: string): CsvTable {
     header: true,
     skipEmptyLines: true,
   });
-  if (parsed.errors.length > 0) {
-    throw new Error(`${label}: ${parsed.errors[0].message}`);
+  const firstParseError = parsed.errors[0];
+  if (firstParseError) {
+    throw new Error(`${label}: ${firstParseError.message}`);
   }
   return {
     fields: parsed.meta.fields ?? [],
@@ -177,15 +178,18 @@ export function buildArtifactFixtureState(input: {
   const raw = parseTable(corpus.csv, "synthetic raw corpus");
   const appEvent = firstApplicationRow(raw);
   const surveyTimestamp = appEvent.event_timestamp;
+  if (surveyTimestamp === undefined) {
+    throw new Error("first application row is missing event_timestamp");
+  }
   const surveyRows = raw.rows
     .filter(
       (row) =>
         packageColumn(row) !== "android" &&
-        ["Activity Resumed", "Unknown importance: 1"].includes(row.interaction_type),
+        ["Activity Resumed", "Unknown importance: 1"].includes(row.interaction_type ?? ""),
     )
     .map((row) => ({
       participant_id: corpus.participantId,
-      event_timestamp: row.event_timestamp,
+      event_timestamp: row.event_timestamp ?? "",
       users: "Target Child",
     }));
   const firstDate = surveyTimestamp.slice(0, 10);
@@ -255,8 +259,12 @@ export function buildArtifactInterventions(input: {
   catalog: SyntheticCatalog;
 }): ArtifactIntervention[] {
   const { corpus, catalog } = input;
-  const firstDataDate = parseTable(corpus.csv, "artifact intervention corpus").rows[0]
-    .event_timestamp.slice(0, 10);
+  const firstCorpusTimestamp = parseTable(corpus.csv, "artifact intervention corpus")
+    .rows[0]?.event_timestamp;
+  if (firstCorpusTimestamp === undefined) {
+    throw new Error("artifact intervention corpus has no timestamped rows");
+  }
+  const firstDataDate = firstCorpusTimestamp.slice(0, 10);
   const backgroundPackage = usedPackageForClass(corpus, catalog, "background");
   const rawRows = parseTable(corpus.csv, "artifact intervention corpus").rows;
   const filterActivationEvent = rawRows.find((row) => {
@@ -268,7 +276,7 @@ export function buildArtifactInterventions(input: {
         "Activity Paused",
         "Activity Stopped",
         "Activity Destroyed",
-      ].includes(row.interaction_type)
+      ].includes(row.interaction_type ?? "")
     );
   });
   if (!filterActivationEvent) {
@@ -276,11 +284,12 @@ export function buildArtifactInterventions(input: {
   }
   let forcingActivationEvent: CsvRow | undefined;
   for (let stopIndex = 0; stopIndex < rawRows.length; stopIndex += 1) {
-    if (rawRows[stopIndex].interaction_type !== "Screen Non-Interactive") continue;
+    if (rawRows[stopIndex]?.interaction_type !== "Screen Non-Interactive") continue;
     for (let candidateIndex = stopIndex - 1; candidateIndex >= 0; candidateIndex -= 1) {
       const candidate = rawRows[candidateIndex];
+      if (candidate === undefined) continue;
       if (packageColumn(candidate) === "android") continue;
-      if (!["Activity Resumed", "Unknown importance: 1"].includes(candidate.interaction_type)) {
+      if (!["Activity Resumed", "Unknown importance: 1"].includes(candidate.interaction_type ?? "")) {
         continue;
       }
       const app = catalog.apps.find(
@@ -601,15 +610,18 @@ export function buildRawBoundaryInterventions(): ArtifactIntervention[] {
     apply: (source) =>
       mutateRawTable(source, (table) => {
         const rows = table.rows.filter((row) => packageColumn(row) !== "android");
-        if (!rows[0]) throw new Error("boundary fixture needs an application event");
-        const origin = new Date(`${rows[0].event_timestamp.replace(" ", "T")}Z`);
+        const firstRowTimestamp = rows[0]?.event_timestamp;
+        if (firstRowTimestamp === undefined) {
+          throw new Error("boundary fixture needs an application event");
+        }
+        const origin = new Date(`${firstRowTimestamp.replace(" ", "T")}Z`);
         if (Number.isNaN(origin.valueOf())) {
-          throw new Error(`invalid boundary origin ${rows[0].event_timestamp}`);
+          throw new Error(`invalid boundary origin ${firstRowTimestamp}`);
         }
         const desired = formatTimestamp(new Date(origin.valueOf() + seconds * 1_000));
         const target = rows.find((row, index) => {
           if (index === 0) return false;
-          const current = new Date(`${row.event_timestamp.replace(" ", "T")}Z`);
+          const current = new Date(`${(row.event_timestamp ?? "").replace(" ", "T")}Z`);
           return !Number.isNaN(current.valueOf()) && current.valueOf() !== origin.valueOf() + seconds * 1_000;
         });
         if (!target) {
@@ -618,14 +630,15 @@ export function buildRawBoundaryInterventions(): ArtifactIntervention[] {
         target.event_timestamp = desired;
       }),
   }));
-  const calendarValues = [
+  const calendarJoints: Array<[label: string, timestamp: string]> = [
     ["spring-forward-before", "2026-03-08 01:59:59"],
     ["spring-forward-after", "2026-03-08 03:00:00"],
     ["fall-back-before", "2026-11-01 00:59:59"],
     ["fall-back-after", "2026-11-01 02:00:00"],
     ["day-end", "2026-06-15 23:59:59"],
     ["day-start", "2026-06-16 00:00:00"],
-  ].map<ArtifactIntervention>(([label, timestamp]) => ({
+  ];
+  const calendarValues = calendarJoints.map<ArtifactIntervention>(([label, timestamp]) => ({
     id: `raw-boundary:calendar:${label}`,
     roleId: "raw_chronicle_csv",
     mutationClass: "boundary-edit",

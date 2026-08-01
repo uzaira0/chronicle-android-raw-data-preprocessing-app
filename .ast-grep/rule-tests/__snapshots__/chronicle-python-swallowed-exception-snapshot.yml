@@ -1,0 +1,16 @@
+id: chronicle-python-swallowed-exception
+snapshots:
+  ? |
+    try:
+        do_work()
+    except Exception:
+        pass
+  : labels:
+    - source: |-
+        try:
+            do_work()
+        except Exception:
+            pass
+      style: primary
+      start: 0
+      end: 45

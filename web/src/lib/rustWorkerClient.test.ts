@@ -162,6 +162,27 @@ describe("WorkerPool", () => {
     expect(workers[1]?.terminate).toHaveBeenCalledTimes(1);
   });
 
+  it("fails the pool when a retired worker refuses to terminate", async () => {
+    const { spawn, apis, workers } = makeSpawn();
+    const throwingSpawn: typeof spawn = () => {
+      const slot = spawn();
+      if (workers.length === 1) {
+        workers[0]?.terminate.mockImplementation(() => {
+          throw new Error("terminate refused");
+        });
+      }
+      return slot;
+    };
+    const pool = new WorkerPool(1, { spawn: throwingSpawn, maxTasksPerWorker: 1 });
+    await expect(pool.submit((api) => Promise.resolve(api))).resolves.toBe(
+      apis[0],
+    );
+    await expect(pool.submit((api) => Promise.resolve(api))).rejects.toThrow(
+      /All Chronicle workers have failed/,
+    );
+    expect(workers).toHaveLength(1);
+  });
+
   it("replaces an idle retired lane while another lane is still busy", async () => {
     const { spawn, apis, workers } = makeSpawn();
     const pool = new WorkerPool(2, { spawn, maxTasksPerWorker: 1 });
@@ -427,12 +448,12 @@ describe("WorkerPool", () => {
   it("marks a faulted slot dead, keeps serving from live slots, and fails only when all are dead", async () => {
     const { spawn, faults } = stubSpawn();
     const pool = new WorkerPool(2, spawn);
-    faults[0].reject(new Error("slot 0 died"));
+    faults[0]?.reject(new Error("slot 0 died"));
     await Promise.resolve();
     await expect(
       pool.submit(async (api) => api.runtimeVersion()),
     ).resolves.toBe("stub");
-    faults[1].reject(new Error("slot 1 died"));
+    faults[1]?.reject(new Error("slot 1 died"));
     await Promise.resolve();
     await expect(
       pool.submit(async (api) => api.runtimeVersion()),
@@ -450,7 +471,7 @@ describe("WorkerPool", () => {
       api.processRawCsvBytes("a.csv", new ArrayBuffer(0)),
     );
     const waiting = pool.submit(async (api) => api.runtimeVersion());
-    faults[0].reject(new Error("died while busy"));
+    faults[0]?.reject(new Error("died while busy"));
     await expect(running).rejects.toThrow("died while busy");
     // Release pumps the queue: the only slot is dead, so the waiter fails loudly.
     await expect(waiting).rejects.toThrow("All Chronicle workers have failed.");
@@ -649,7 +670,9 @@ describe("pool entry points", () => {
         return { support, key: await comparisonSupportCacheKey(support) };
       }),
     );
-    for (const bundle of [...bundles, bundles[0]]) {
+    const firstBundle = bundles[0];
+    if (firstBundle === undefined) throw new Error("expected three support bundles");
+    for (const bundle of [...bundles, firstBundle]) {
       await processPersistedOrRawChangedReviewViaPool(
         pool,
         "pair.csv",
@@ -662,7 +685,7 @@ describe("pool entry points", () => {
         bundle.key,
       );
     }
-    expect(harness.calls.filter((call) => call === `support:${bundles[0].key}`)).toHaveLength(2);
+    expect(harness.calls.filter((call) => call === `support:${firstBundle.key}`)).toHaveLength(2);
     pool.terminate();
   });
 });

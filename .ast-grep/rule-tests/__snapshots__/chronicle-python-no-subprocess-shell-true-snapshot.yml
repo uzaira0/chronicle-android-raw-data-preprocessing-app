@@ -1,0 +1,14 @@
+id: chronicle-python-no-subprocess-shell-true
+snapshots:
+  subprocess.check_output("ls -l", shell=True, text=True):
+    labels:
+    - source: subprocess.check_output("ls -l", shell=True, text=True)
+      style: primary
+      start: 0
+      end: 55
+  subprocess.run(command, shell=True, check=True):
+    labels:
+    - source: subprocess.run(command, shell=True, check=True)
+      style: primary
+      start: 0
+      end: 47

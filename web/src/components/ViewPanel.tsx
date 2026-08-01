@@ -333,7 +333,9 @@ export function ViewPanel({
     };
   }, [activeFile, timelineLoadKey, timelineRequest]);
 
-  if (reviewableFiles.length === 0) {
+  // activeFile is undefined exactly when reviewableFiles is empty; checking it
+  // here narrows activeFile for the rest of the render.
+  if (reviewableFiles.length === 0 || activeFile === undefined) {
     return (
       <section
         className="timeline-view"
@@ -366,7 +368,14 @@ export function ViewPanel({
       </section>
     );
   }
-  if (activeReviewSummary.participants.length === 0) {
+  const participants: ReviewParticipantSummary[] =
+    activeReviewSummary.participants;
+  const activeParticipant =
+    participants.find((p) => p.participantId === selectedParticipant) ??
+    participants[0];
+  // activeParticipant is undefined exactly when the file has no participants;
+  // checking it here narrows activeParticipant for the rest of the render.
+  if (activeParticipant === undefined) {
     return (
       <section
         className="timeline-view"
@@ -379,11 +388,6 @@ export function ViewPanel({
       </section>
     );
   }
-  const participants: ReviewParticipantSummary[] =
-    activeReviewSummary.participants;
-  const activeParticipant =
-    participants.find((p) => p.participantId === selectedParticipant) ??
-    participants[0];
 
   // Reset the focused day whenever the participant or file context changes.
   const participantKey = `${activeFile.inputFileName}:${activeParticipant.participantId}`;
