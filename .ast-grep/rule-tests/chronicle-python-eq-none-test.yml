@@ -1,0 +1,7 @@
+id: chronicle-python-eq-none
+valid:
+  - flag = value is None
+  - flag = value is not None
+invalid:
+  - flag = value == None
+  - flag = value != None

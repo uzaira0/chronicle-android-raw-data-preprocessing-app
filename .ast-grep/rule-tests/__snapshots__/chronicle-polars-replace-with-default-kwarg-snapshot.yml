@@ -1,0 +1,8 @@
+id: chronicle-polars-replace-with-default-kwarg
+snapshots:
+  mapped = expr.replace(keys, vals, default=None):
+    labels:
+    - source: expr.replace(keys, vals, default=None)
+      style: primary
+      start: 9
+      end: 47

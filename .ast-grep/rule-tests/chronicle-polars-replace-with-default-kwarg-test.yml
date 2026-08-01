@@ -1,0 +1,5 @@
+id: chronicle-polars-replace-with-default-kwarg
+valid:
+  - mapped = expr.replace_strict(keys, vals, default=None)
+invalid:
+  - mapped = expr.replace(keys, vals, default=None)

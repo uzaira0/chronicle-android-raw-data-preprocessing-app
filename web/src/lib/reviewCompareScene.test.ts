@@ -58,7 +58,7 @@ describe("buildComparisonWaterfallScene", () => {
     const meta = out.scene.meta?.kind === "waterfall" ? out.scene.meta : undefined;
     expect(meta?.rows.map((r) => r.date)).toEqual(["2026-03-07", "2026-03-08"]);
     // One row per date, 58px apart.
-    expect(meta!.rows[1].y - meta!.rows[0].y).toBe(58);
+    expect((meta!.rows[1]?.y ?? 0) - (meta!.rows[0]?.y ?? 0)).toBe(58);
 
     const aSeg = out.regions.find((r) => r.title === "App A · A");
     const bSeg = out.regions.find((r) => r.title === "App B · B");

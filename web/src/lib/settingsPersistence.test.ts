@@ -168,10 +168,10 @@ describe("persisted options round-trip (window stubbed)", () => {
     );
     const read = readPersistedPresets();
     expect(read).toHaveLength(1);
-    expect(read[0].id).toBeTruthy();
-    expect(read[0].name).toBe("Imported preset");
-    expect(read[0].createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    expect(read[0].updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(read[0]?.id).toBeTruthy();
+    expect(read[0]?.name).toBe("Imported preset");
+    expect(read[0]?.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(read[0]?.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
   it("round-trips presets and sanitizes malformed entries", () => {
@@ -224,7 +224,7 @@ describe("config export / import / shared URL", () => {
     const imported = await readConfigFile(file);
     expect(imported.options.minimumUsageDuration).toBe(33);
     expect(imported.presets).toHaveLength(1);
-    expect(imported.presets[0].options.proximityIntervalSeconds).toBe(9);
+    expect(imported.presets[0]?.options.proximityIntervalSeconds).toBe(9);
   });
 
   it("imports malformed preset entries with generated ids and default names", async () => {
@@ -234,8 +234,8 @@ describe("config export / import / shared URL", () => {
     );
     const imported = await readConfigFile(file);
     expect(imported.presets).toHaveLength(1);
-    expect(imported.presets[0].name).toBe("Imported preset");
-    expect(imported.presets[0].id).toBeTruthy();
+    expect(imported.presets[0]?.name).toBe("Imported preset");
+    expect(imported.presets[0]?.id).toBeTruthy();
   });
 
   it("returns empty presets when the imported config's presets field is not an array", async () => {

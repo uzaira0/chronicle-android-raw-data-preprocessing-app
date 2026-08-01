@@ -127,6 +127,7 @@ describe("toLightweightResults", () => {
   it("drops browser blobs and OPFS-recoverable review objects but keeps pinned Rust outputs", () => {
     const persisted = { ...result(), rustRuntimeReceipt: persistedReceipt() };
     const [light] = toLightweightResults([persisted]);
+    if (light === undefined) throw new Error("expected one lightweight result");
     expect(light.outputs).toHaveLength(1);
     expect(light.outputs[0]?.persistedArtifact).toMatchObject({
       kind: "row-lineage-arrow",
@@ -149,6 +150,7 @@ describe("toLightweightResults", () => {
     // No rustRuntimeReceipt at all (persistence unavailable) — the in-memory
     // summary is the only copy, so it must survive the save.
     const [light] = toLightweightResults([result()]);
+    if (light === undefined) throw new Error("expected one lightweight result");
     expect(light.reviewSummary).toEqual({ participants: [] });
     expect(light.reviewSummaryJsonBytes).toBeUndefined();
 
@@ -159,6 +161,7 @@ describe("toLightweightResults", () => {
     const [unpersisted] = toLightweightResults([
       { ...result(), rustRuntimeReceipt: receipt },
     ]);
+    if (unpersisted === undefined) throw new Error("expected one lightweight result");
     expect(unpersisted.reviewSummary).toEqual({ participants: [] });
     expect(unpersisted.reviewSummaryJsonBytes).toBeUndefined();
   });

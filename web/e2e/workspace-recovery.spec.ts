@@ -118,7 +118,7 @@ test("@smoke @opfs verified workspace closure survives reload, imports into a fr
     );
 
     const corrupt = Uint8Array.from(reloadedArchive);
-    corrupt[corrupt.byteLength - 1] ^= 0xff;
+    corrupt[corrupt.byteLength - 1] = (corrupt[corrupt.byteLength - 1] ?? 0) ^ 0xff;
     await restoredPage.getByTestId("import-workspace-file").setInputFiles({
       name: "corrupt.chronicle-workspace",
       mimeType: "application/vnd.chronicle.workspace",

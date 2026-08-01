@@ -398,8 +398,8 @@ function changedStepCheckpointComponents(
           [
             stepId,
             changedFields(
-              source.processingSummary.pipelineStepCheckpoints[stepId],
-              target.processingSummary.pipelineStepCheckpoints[stepId],
+              source.processingSummary.pipelineStepCheckpoints[stepId] ?? {},
+              target.processingSummary.pipelineStepCheckpoints[stepId] ?? {},
             ).filter((field) => field !== "terminalDigest"),
           ] as const,
       )

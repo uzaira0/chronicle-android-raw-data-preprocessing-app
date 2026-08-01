@@ -1,0 +1,14 @@
+id: chronicle-polars-literal-column-name
+snapshots:
+  expr = pl.col("app_package_name"):
+    labels:
+    - source: pl.col("app_package_name")
+      style: primary
+      start: 7
+      end: 33
+  expr = pl.col("event_timestamp"):
+    labels:
+    - source: pl.col("event_timestamp")
+      style: primary
+      start: 7
+      end: 32

@@ -167,11 +167,13 @@ export const ReviewMetricsPanel = memo(function ReviewMetricsPanel({
         size: 24,
         lane: 0,
       }));
-  const paddingTop = shouldVirtualize && virtualRows.length
-    ? virtualRows[0].start
+  const firstVirtualRow = virtualRows[0];
+  const lastVirtualRow = virtualRows[virtualRows.length - 1];
+  const paddingTop = shouldVirtualize && firstVirtualRow !== undefined
+    ? firstVirtualRow.start
     : 0;
-  const paddingBottom = shouldVirtualize && virtualRows.length
-    ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
+  const paddingBottom = shouldVirtualize && lastVirtualRow !== undefined
+    ? rowVirtualizer.getTotalSize() - lastVirtualRow.end
     : 0;
 
   useEffect(() => {
@@ -285,6 +287,7 @@ export const ReviewMetricsPanel = memo(function ReviewMetricsPanel({
             ) : null}
             {virtualRows.map((virtualRow) => {
               const date = tableDates[virtualRow.index];
+              if (date === undefined) return null;
               if (comparing) {
                   const a = aByDate.get(date);
                   const b = bByDate.get(date);
@@ -304,6 +307,7 @@ export const ReviewMetricsPanel = memo(function ReviewMetricsPanel({
                   );
               }
               const day = participant.perDay[virtualRow.index];
+              if (day === undefined) return null;
                   const isGap = day.flags.includes("no_usage_day");
                   const rowClass =
                     (focusedDate === day.date ? "is-focused " : "") + (isGap ? "is-gap" : "");

@@ -1,0 +1,6 @@
+id: chronicle-python-no-subprocess-shell-true
+valid:
+  - subprocess.run(["ls", "-l"], check=True)
+invalid:
+  - subprocess.run(command, shell=True, check=True)
+  - subprocess.check_output("ls -l", shell=True, text=True)

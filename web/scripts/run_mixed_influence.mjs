@@ -79,7 +79,9 @@ const shards = roles.map((role) => {
     ledger: JSON.parse(bytes.toString("utf8")),
   };
 });
-const receipt = shards[0].ledger.implementationReceipt;
+const firstShard = shards[0];
+if (!firstShard) throw new Error("no mixed influence shards to aggregate");
+const receipt = firstShard.ledger.implementationReceipt;
 for (const shard of shards) {
   if (JSON.stringify(shard.ledger.implementationReceipt) !== JSON.stringify(receipt)) {
     throw new Error(`${shard.roleId}: mixed ledger authority receipt drift`);
@@ -95,10 +97,10 @@ const aggregate = {
   implementationReceipt: receipt,
   coverage: {
     sourceRoles: shards.length,
-    computationalAxes: shards[0].ledger.coverage.computationalAxes,
-    declaredAlternateValues: shards[0].ledger.coverage.declaredAlternateValues,
-    validConfigurationVariants: shards[0].ledger.coverage.validConfigurationVariants,
-    invalidConfigurationVariants: shards[0].ledger.coverage.invalidConfigurationVariants,
+    computationalAxes: firstShard.ledger.coverage.computationalAxes,
+    declaredAlternateValues: firstShard.ledger.coverage.declaredAlternateValues,
+    validConfigurationVariants: firstShard.ledger.coverage.validConfigurationVariants,
+    invalidConfigurationVariants: firstShard.ledger.coverage.invalidConfigurationVariants,
     validRoleValuePairs: sum("validRoleValuePairs"),
     coldExecutions: sum("coldExecutions"),
     incrementalExecutions: sum("incrementalExecutions"),

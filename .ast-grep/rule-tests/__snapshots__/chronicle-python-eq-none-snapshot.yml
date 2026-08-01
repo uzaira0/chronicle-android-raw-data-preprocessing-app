@@ -1,0 +1,14 @@
+id: chronicle-python-eq-none
+snapshots:
+  flag = value != None:
+    labels:
+    - source: value != None
+      style: primary
+      start: 7
+      end: 20
+  flag = value == None:
+    labels:
+    - source: value == None
+      style: primary
+      start: 7
+      end: 20

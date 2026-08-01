@@ -277,8 +277,8 @@ function checkpointComponentSet(
     .sort()
     .flatMap((nodeId) =>
       changedFields(
-        source.processingSummary.logicalStageCheckpoints[nodeId],
-        target.processingSummary.logicalStageCheckpoints[nodeId],
+        source.processingSummary.logicalStageCheckpoints[nodeId] ?? {},
+        target.processingSummary.logicalStageCheckpoints[nodeId] ?? {},
       )
         .filter((component) => component !== "terminalDigest")
         .map((component) => `${nodeId}.${component}`),

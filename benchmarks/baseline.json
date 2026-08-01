@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "captured": "2026-07-31",
+    "machine": "arm64 Darwin 25.2.0",
+    "source": "CRITERION_HOME=benchmarks/criterion cargo bench --no-default-features --bench matcher_bench",
+    "threshold": "mean regression > 25% fails scripts/check_bench_regression.py"
+  },
+  "match_app_usage_core_100": {
+    "mean_ns": 511.38723215879554
+  },
+  "match_app_usage_core_1000": {
+    "mean_ns": 4480.4521918851115
+  },
+  "match_app_usage_core_10000": {
+    "mean_ns": 45202.569942244205
+  },
+  "match_app_usage_update_indices_core_100": {
+    "mean_ns": 745.2823545431784
+  },
+  "match_app_usage_update_indices_core_1000": {
+    "mean_ns": 4277.86071227297
+  },
+  "match_app_usage_update_indices_core_10000": {
+    "mean_ns": 38494.469925024416
+  }
+}

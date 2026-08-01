@@ -82,11 +82,13 @@ function runShard(index) {
 
 /** @param {ShardResult[]} shards @param {string} field @returns {any} */
 function sameAcross(shards, field) {
-  const first = JSON.stringify(shards[0].evidence[field]);
+  const firstShard = shards[0];
+  if (!firstShard) throw new Error("no shard results to aggregate");
+  const first = JSON.stringify(firstShard.evidence[field]);
   if (shards.some((shard) => JSON.stringify(shard.evidence[field]) !== first)) {
     throw new Error(`interaction influence shards disagree on ${field}`);
   }
-  return shards[0].evidence[field];
+  return firstShard.evidence[field];
 }
 
 /** @param {ShardResult[]} shards @param {string} field */
@@ -121,7 +123,7 @@ try {
     .flatMap((shard) => shard.pairOrder)
     .sort((left, right) => left.ordinal - right.ordinal);
   for (let index = 0; index < pairOrder.length; index += 1) {
-    if (pairOrder[index].ordinal !== index) {
+    if (pairOrder[index]?.ordinal !== index) {
       throw new Error(`interaction pair ordinal ${index} is missing or duplicated`);
     }
   }
@@ -150,7 +152,9 @@ try {
   const pairCaseDigest = `sha256:${createHash("sha256")
     .update(pairCases.join("\n"))
     .digest("hex")}`;
-  const firstCoverage = shards[0].evidence.coverage;
+  const firstShard = shards[0];
+  if (!firstShard) throw new Error("no shard results to aggregate");
+  const firstCoverage = firstShard.evidence.coverage;
   const validPairContrasts = sumCoverage(shards, "validPairContrasts");
   const invalidPairContrasts = sumCoverage(shards, "invalidPairContrasts");
   const enumeratedPairContrasts = validPairContrasts + invalidPairContrasts;

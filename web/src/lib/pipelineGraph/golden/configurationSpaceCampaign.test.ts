@@ -758,12 +758,14 @@ describe("deterministic catalog-derived synthetic corpus", () => {
       ]);
       expect(first.usedPackages.length).toBeGreaterThanOrEqual(5);
     }
+    const [profileA, profileB] = SYNTHETIC_CORPUS_PROFILES;
+    if (profileA === undefined || profileB === undefined) {
+      throw new Error("expected at least two synthetic corpus profiles");
+    }
     expect(
-      generateSyntheticChronicleCorpus(SYNTHETIC_CORPUS_PROFILES[0], catalog)
-        .csv,
+      generateSyntheticChronicleCorpus(profileA, catalog).csv,
     ).not.toBe(
-      generateSyntheticChronicleCorpus(SYNTHETIC_CORPUS_PROFILES[1], catalog)
-        .csv,
+      generateSyntheticChronicleCorpus(profileB, catalog).csv,
     );
   });
 });

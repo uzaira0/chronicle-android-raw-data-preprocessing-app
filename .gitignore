@@ -214,6 +214,7 @@ preprocessors/survey_data_preprocessor.py
 !web/scripts/benchmark_browser_processing.mjs
 !web/scripts/benchmark_runtime_wasm.mts
 !web/scripts/generate_benchmark_fixture.mts
+!benchmarks/
  Chronicle Android Automatically Preprocessed Data/
 
 # Benchmark run outputs (baseline.json is tracked; per-run results are not)

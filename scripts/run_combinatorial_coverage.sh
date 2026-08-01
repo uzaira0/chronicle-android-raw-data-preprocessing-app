@@ -74,13 +74,62 @@ echo "  existing tests only:"
 echo "  existing + covering arrays:"
 (cd "$WEB" && ./node_modules/.bin/vite-node scripts/generate_combinatorial_model.mts verify-coverage 2,3 "$OUT/with_covering_arrays.csv")
 
+run_campaign_batch() {
+  local batch_name="$1"
+  shift
+  local batch_dir="$CAMPAIGN_LOG_ROOT/$batch_name"
+  local names=()
+  local pids=()
+  mkdir -p "$batch_dir"
+
+  while [ "$#" -gt 0 ]; do
+    local name="$1"
+    local script="$2"
+    shift 2
+    names+=("$name")
+    (
+      cd "$WEB"
+      npm run "$script"
+    ) >"$batch_dir/$name.log" 2>&1 &
+    pids+=("$!")
+  done
+
+  local failed=0
+  local index
+  local rc
+  for index in "${!pids[@]}"; do
+    rc=0
+    wait "${pids[$index]}" || rc=$?
+    if [ "$rc" -ne 0 ]; then
+      failed=1
+      echo "── campaign: ${names[$index]} FAILED (exit $rc)"
+    else
+      echo "── campaign: ${names[$index]}"
+    fi
+    cat "$batch_dir/${names[$index]}.log"
+  done
+  [ "$failed" -eq 0 ]
+}
+
 echo "── 6/7 Rust/WASM synthetic configuration campaign"
-(cd "$WEB" && npm run test:configuration-space)
-(cd "$WEB" && npm run test:artifact-influence)
-(cd "$WEB" && npm run test:raw-boundary-influence)
-(cd "$WEB" && npm run test:interaction-influence)
-(cd "$WEB" && npm run test:mixed-influence)
-(cd "$WEB" && npm run test:semantic-mutations)
+CAMPAIGN_LOG_ROOT="$OUT/campaign_logs"
+rm -rf "$CAMPAIGN_LOG_ROOT"
+mkdir -p "$CAMPAIGN_LOG_ROOT"
+trap 'rm -rf "$CAMPAIGN_LOG_ROOT"' EXIT INT TERM
+
+# Each verifier is process-isolated and read-only in checked mode. The batches
+# keep total process pressure bounded while overlapping the three longest
+# independent campaigns, then the three shorter campaigns.
+run_campaign_batch long \
+  configuration-space test:configuration-space \
+  interaction-influence test:interaction-influence \
+  mixed-influence test:mixed-influence
+run_campaign_batch short \
+  artifact-influence test:artifact-influence \
+  raw-boundary-influence test:raw-boundary-influence \
+  semantic-mutations test:semantic-mutations
+rm -rf "$CAMPAIGN_LOG_ROOT"
+trap - EXIT INT TERM
 
 # Covering-array reports, goldens, and synthetic proof fixtures are evidence,
 # not executable build inputs. Running the campaign must leave the checked

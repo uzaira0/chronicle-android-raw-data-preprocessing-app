@@ -1,0 +1,5 @@
+id: chronicle-pytz-replace-tzinfo
+valid:
+  - aware = tz.localize(naive_dt)
+invalid:
+  - aware = naive_dt.replace(tzinfo=pytz.timezone("America/New_York"))

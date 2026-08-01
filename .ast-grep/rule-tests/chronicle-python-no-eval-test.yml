@@ -1,0 +1,5 @@
+id: chronicle-python-no-eval
+valid:
+  - result = json.loads(raw_text)
+invalid:
+  - result = eval(raw_text)

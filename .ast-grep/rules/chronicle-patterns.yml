@@ -20,7 +20,9 @@ files:
   - src/**/*.py
   - scripts/**/*.py
 rule:
-  pattern: "if len($X) == 0:"
+  pattern: |
+    if len($X) == 0:
+        $$$
 ---
 id: chronicle-python-len-nonzero-check
 language: python
@@ -30,7 +32,9 @@ files:
   - src/**/*.py
   - scripts/**/*.py
 rule:
-  pattern: "if len($X) > 0:"
+  pattern: |
+    if len($X) > 0:
+        $$$
 ---
 id: chronicle-python-eq-none
 language: python

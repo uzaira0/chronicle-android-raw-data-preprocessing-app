@@ -666,6 +666,9 @@ describe("raw timestamp boundary tomography", () => {
           coldSource.processingSummary.logicalStageCheckpoints.parse_events;
         const targetParse =
           coldTarget.processingSummary.logicalStageCheckpoints.parse_events;
+        if (sourceParse === undefined || targetParse === undefined) {
+          throw new Error(`${caseId}: missing parse_events checkpoint`);
+        }
         expect(
           targetParse.temporalStateDigest,
           `${caseId}: timestamp edit lacks temporal witness`,

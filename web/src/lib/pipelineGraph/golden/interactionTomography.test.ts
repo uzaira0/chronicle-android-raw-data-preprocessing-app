@@ -441,6 +441,7 @@ describe("two-factor interaction tomography", () => {
       ) {
         const leftKey = keys[leftIndex];
         const rightKey = keys[rightIndex];
+        if (leftKey === undefined || rightKey === undefined) continue;
         for (const leftValue of alternates.get(leftKey)!) {
           for (const rightValue of alternates.get(rightKey)!) {
             const leftId = valueId(leftKey, leftValue);
