@@ -30,7 +30,7 @@
     },
     "rust_product_runtime": {
       "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
-      "digest": "sha256:5032858b30aae39eaa9e9d245c69b907c9ea35197130ea4da36605bfedf19a24",
+      "digest": "sha256:e318f329b449cdb12ade8cba53a9c9e4493238288799009b73caa1863781ca2e",
       "coverage": "production-worker-authority"
     }
   },
@@ -336,10 +336,10 @@
   },
   "physical_incremental_execution_status": "runtime-cutover-active-release-blocked",
   "typescript_production_authority_capabilities": [],
-  "runtime_authority_surface_count": 23,
+  "runtime_authority_surface_count": 24,
   "dependency_certificate": {
     "path": ".semantic-federation/proofs/dependency-certificate.json",
-    "digest": "sha256:d6dbbc666080d41622d6b6196c04b06b2e61af3a88d6c19028f1713f92fc8b3e",
+    "digest": "sha256:c09ccdd62c3a3e3c0c6fa61e77c381e04c27d2ec29dbc5b236c14537a3168617",
     "fallback": "full-logical-recompute"
   },
   "resolved_baseline_findings": [

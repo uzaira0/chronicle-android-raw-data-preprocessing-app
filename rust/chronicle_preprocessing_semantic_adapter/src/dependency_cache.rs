@@ -248,6 +248,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(stale_evidence.mode, DependencyCacheMode::ConservativeFull);
+        assert!(!stale_evidence.empirical_evidence_current);
         assert!(stale_evidence
             .reasons
             .iter()

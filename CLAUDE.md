@@ -17,7 +17,7 @@ The Rust/WASM cold-oracle and dependency campaigns are now the **sole executable
 - A new flag/option must default such that, **with the flag off, golden output is byte-identical** to before. Add capability as opt-in. Goldens are re-recorded only deliberately (`UPDATE_GOLDEN=1`), never to make a red run green.
 - Green self-validation has shipped real logic bugs before. For logic-dense changes, get an independent review (spawn a code-reviewer subagent / use an independent oracle) before merging.
 
-⚠ **Consumer coupling:** the `research-pipeline` monorepo installs this repo as an **editable path dependency** (`chronicle-android-preprocessor = { path = "/home/opt/chronicle-android-raw-data-preprocessing-app", editable = true }`) and imports `chronicle_preprocessing_app` from this working tree (`v1_engine.py`). Do not check this branch out on the production machine, and do not merge it, until that consumer is repointed (vendored copy or pinned pre-removal ref).
+⚠ **Consumer coupling:** the `research-pipeline` monorepo installs this repo as an **editable path dependency** (`chronicle-android-preprocessor = { path = "/home/opt/chronicle-android-raw-data-preprocessing-app", editable = true }`) and imports `chronicle_preprocessing_app` (`v1_engine.py`) — a Python surface that no longer exists on `main`. Until that consumer is repointed (vendored copy or pinned ref), the production machine's checkout must stay on the tag **`last-python-engine`** (81e626d, the final Python-bearing commit); do not pull current `main` there.
 
 ## Commands
 
@@ -192,7 +192,7 @@ credited-session cap — not an attention timeout — bounds the tail. See
 - App category in plots is **derived** by coalescing four per-source columns + normalizing UPPERCASE; the old `broad_app_category` input column is deprecated. The derived `include_category_column` output is opt-in and golden-checked.
 - `main` is protected (`enforce_admins`). Land via PR (squash).
 - **Merging does NOT deploy.** `web-pwa-deploy.yml` is `workflow_dispatch` only — publishing to the live GitHub Pages app is an explicit decision, never a side effect of landing a PR. Review builds are local: `npm run host:local` serves the production build on `127.0.0.1:4173`. Do not add a `push` trigger, and do not run the deploy workflow without being asked to. The deploy also runs **no** tests, so `make all` locally is the real gate.
-- **This branch deploys to preview only.** Development deployment goes solely to `uzaira0/chronicle-web-preview` `gh-pages`. Do not merge or push `main` or touch production Pages from `codex/chronicle-55-step-authority` until the research-pipeline consumer is repointed (see consumer-coupling warning above).
+- **Development deployment goes to preview only** (`uzaira0/chronicle-web-preview` `gh-pages`), never production Pages. The old `codex/chronicle-55-step-authority` lane landed via #81 and its branch is deleted; the consumer-coupling constraint above (production checkout pinned to `last-python-engine`) is what remains of that warning.
 - GitHub Pages does not provide cross-origin isolation, so shared-memory WASM threads are unavailable. File-level parallelism (independent files across workers) is the browser concurrency model.
 
 ## Conventions (from user's global rules)

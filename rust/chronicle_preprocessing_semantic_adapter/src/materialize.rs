@@ -485,4 +485,64 @@ mod tests {
             MaterializationState::Invalid
         );
     }
+
+    #[test]
+    fn qualification_requiredness_is_the_materialization_authority() {
+        let result = evaluate_materialization(
+            &embedded_plan(),
+            &BTreeMap::new(),
+            &serde_json::json!({"use_filter_file": true}),
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+        );
+        let requirement = |role_id: &str| {
+            result
+                .requirement_traces
+                .iter()
+                .find(|trace| trace.role_id == role_id)
+                .expect("role requirement trace")
+        };
+
+        assert!(requirement("raw_chronicle_csv").required);
+        assert!(requirement("filter_file").required);
+        assert!(!requirement("survey_attribution_file").required);
+        assert_eq!(
+            result.role_states["raw_chronicle_csv"],
+            MaterializationState::Open
+        );
+        assert_eq!(
+            result.role_states["filter_file"],
+            MaterializationState::Open
+        );
+        assert_eq!(
+            result.role_states["survey_attribution_file"],
+            MaterializationState::NotApplicable
+        );
+    }
+
+    #[test]
+    fn explicit_invalid_node_wins_without_invalid_support_or_root() {
+        let plan = embedded_plan();
+        let assignments = BTreeMap::from([
+            ("raw_chronicle_csv".into(), assignment("raw_chronicle_csv")),
+            (
+                "processing_options".into(),
+                assignment("processing_options"),
+            ),
+        ]);
+        let satisfied = plan.nodes.iter().map(|node| node.node_id.clone()).collect();
+        let invalid = BTreeSet::from(["normalize_timezones".to_string()]);
+        let result = evaluate_materialization(
+            &plan,
+            &assignments,
+            &serde_json::json!({"process_app_usage": true, "process_screen_usage": false}),
+            &satisfied,
+            &invalid,
+        );
+
+        assert_eq!(
+            result.node_states["normalize_timezones"],
+            MaterializationState::Invalid
+        );
+    }
 }

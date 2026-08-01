@@ -197,6 +197,12 @@ RUNTIME_SURFACES = [
         "result_cell_correspondence_arrow",
     ),
     rust_surface(
+        "source_result_influence_witness",
+        "evidence-authority",
+        "rust/chronicle_preprocessing_runtime_wasm/src/binary_exports.rs",
+        "source_result_influence_witness_arrow",
+    ),
+    rust_surface(
         "bidirectional_correspondence",
         "evidence-authority",
         "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",

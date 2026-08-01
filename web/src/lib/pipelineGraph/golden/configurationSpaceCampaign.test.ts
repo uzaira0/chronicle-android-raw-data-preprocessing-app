@@ -477,6 +477,7 @@ const OUTPUT_ARTIFACT_KINDS = new Set([
   "row-lineage-arrow",
   "source-coordinate-index-arrow",
   "result-cell-correspondence-arrow",
+  "source-result-influence-arrow",
 ]);
 
 function outputArtifacts(manifest: RuntimeManifest): Array<{
@@ -1032,8 +1033,13 @@ describe("Rust/WASM configuration-space campaign", () => {
       if ((VIEW_BROWSER_OPTION_KEYS as readonly string[]).includes(key)) {
         const viewDependentKinds = new Set([
           "source-coordinate-index-arrow",
-          "result-cell-correspondence-arrow",
-          ...(key === "enablePlotting" ? ["visualization-data-json"] : []),
+          ...(key === "enablePlotting"
+            ? [
+                "result-cell-correspondence-arrow",
+                "source-result-influence-arrow",
+                "visualization-data-json",
+              ]
+            : []),
         ]);
         const withoutViewDependentArtifacts = (manifest: RuntimeManifest) =>
           outputArtifacts(manifest).filter(

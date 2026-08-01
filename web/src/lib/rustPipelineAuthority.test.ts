@@ -259,6 +259,7 @@ function fullExecution(): RustRuntimeExecution {
     "row-lineage-arrow",
     "source-coordinate-index-arrow",
     "result-cell-correspondence-arrow",
+    "source-result-influence-arrow",
   ]) {
     artifacts.set(kind, enc.encode(kind));
   }
@@ -341,7 +342,8 @@ function fullExecution(): RustRuntimeExecution {
       kind.endsWith("-csv") ||
       kind === "row-lineage-arrow" ||
       kind === "source-coordinate-index-arrow" ||
-      kind === "result-cell-correspondence-arrow"
+      kind === "result-cell-correspondence-arrow" ||
+      kind === "source-result-influence-arrow"
         ? 7
         : undefined,
     previewRows: kind.endsWith("-csv")
@@ -642,6 +644,7 @@ describe("Rust authority browser projection", () => {
         "Raw P01 Row Lineage.arrow",
         "Raw P01 Source Coordinate Index.arrow",
         "Raw P01 Result Cell Correspondence.arrow",
+        "Raw P01 Source-Result Influence Witness.arrow",
       ]),
     );
     expect(result.timelineView).toBeUndefined();
@@ -988,7 +991,7 @@ describe("Rust authority browser projection", () => {
       {},
       { persistRustWorkspace: false },
     );
-    expect(result.outputs).toHaveLength(11);
+    expect(result.outputs).toHaveLength(12);
     expect(result.outputs).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1002,6 +1005,10 @@ describe("Rust authority browser projection", () => {
         expect.objectContaining({
           kind: "lineage",
           outputFileName: "Raw Result Cell Correspondence.arrow",
+        }),
+        expect.objectContaining({
+          kind: "lineage",
+          outputFileName: "Raw Source-Result Influence Witness.arrow",
         }),
         expect.objectContaining({
           outputFileName: "Raw Evidence Journal.cbor",
