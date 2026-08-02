@@ -2,11 +2,14 @@
 
 This report records what the Chronicle raw-data preprocessing app currently
 proves as the first full implementation target for the generalized semantic
-federation scaffold. The branch now has 55 real tracked Rust computations,
-complete four-mode fused-oracle parity, zero-body unchanged reuse, and exact
-output-only reuse. Runtime reporting now consumes actual executed-step IDs. It
-is not yet a completed production-incrementality claim: persistence,
-regenerated campaigns, saved-view proof, and final gates remain. The
+federation scaffold. It describes `main` at `3c598ee`. `main` now has 55 real
+tracked Rust computations, complete four-mode fused-oracle parity, zero-body
+unchanged reuse, and exact output-only reuse. Runtime reporting consumes actual
+executed-step IDs. Typed step-16/step-28 persistence is implemented and fails
+closed, all six empirical campaign ledgers were regenerated against physical
+Salsa events in `3c598ee`, and `make gate-truth` and `make semantic-federation`
+pass. It is still not a completed production-incrementality claim; the
+remaining blockers listed at the end of this file are open and specific. The
 [55-step incremental Rust plan](55-step-incremental-rust-plan.md) is the active
 release plan. A high aggregate coverage percentage is not a substitute for
 boundary, failure, architecture, security, performance, or actual-execution
@@ -123,9 +126,9 @@ evidence.
 |---|---|---|---|---|---|---|---|---|---|
 | Profile and lock protocol | deterministic fixtures | schema and digest tests | tamper, cycle, license, missing resource | offline exact closure | scaffold smoke | secret/license checks | resolve budget | no product ontology in protocol | Verified by federation gates |
 | Rust product contract | 15-node plan fixture | binding and graph tests | unknown/duplicate/cyclic bindings | generated-registry drift | native/WASM contract load | profiles cannot inject code | compile/build budget | Chronicle-owned semantics | Verified |
-| Rust preprocessing runtime | synthetic raw CSVs | Rust suites | malformed request/artifact states | native/WASM and cold/incremental parity suites | full browser processing | bounded inputs and fail-closed digests | browser baseline, cached digest | property/mutation checks | Verified; coverage debt below |
+| Rust preprocessing runtime | synthetic raw CSVs | Rust suites | malformed request/artifact states | native/WASM and cold/incremental parity suites | full browser processing | bounded inputs and fail-closed digests | browser baseline, cached digest | property/mutation checks | Verified; the crate itself clears its 95/94/70 floor at 95.19%/94.12%/75.00% and its suite passes 60/60. The coverage debt in item 1 below is the chrono kernel, not this crate |
 | Incremental materializer | warm/cold replay | node/role/status tests | changed support/config/input cones | persisted prior-root execution | graph/status/explanation views | immutable assignment evidence | declared-cone checks | deterministic replay | Role/qualification behavior verified; tracked runtime integration active |
-| Physical 55-step executor | fused Rust oracle | one callable/query test per step | missing/duplicate/untracked input and under/over-invalidation | real intermediate and terminal cache | actual execution events in graph/status/explanation views | cache cannot bypass input/contract verification | cold/no-change/upstream/middle/downstream/binding budgets | random mutation sequences, early cutoff, native/WASM parity | 55 queries and four-mode parity verified; root-bound cache persistence is implemented; read-set campaigns, real-WASM reload/crash, runtime views, and performance remain release blockers |
+| Physical 55-step executor | fused Rust oracle | one callable/query test per step | missing/duplicate/untracked input and under/over-invalidation | real intermediate and terminal cache | actual execution events in graph/status/explanation views | cache cannot bypass input/contract verification | cold/no-change/upstream/middle/downstream/binding budgets | random mutation sequences, early cutoff, native/WASM parity | 55 queries and four-mode parity verified; root-bound cache persistence is implemented; the read-set campaigns now run against actual Salsa events and were regenerated in `3c598ee`. Remaining release blockers: cross-browser real-WASM reload/crash proof, randomized change sequences, and the chrono-kernel coverage/mutation debt |
 | OPFS durability | alternating-root fixtures | store tests | corruption, missing objects, both roots bad | closure export/import and verification | reload/recovery browser flows | digest/path/size/object limits | GC retains two roots | crash/fault-injection matrix | Verified in Chromium |
 | Worker protocol | real transferred CSV | dispatcher tests | malformed/unsupported commands | Comlink plus Rust/WASM | Playwright workflow | UI cannot write evidence | transfer and cache bounds | TypeScript renderer boundary | Verified |
 | Typed semantic views | root-bound fixtures | registered-query tests | missing/wrong-root view rejected | Rust index plus UI projection | graph and result panels | no arbitrary production SPARQL | query benchmarks sampled | view is derived, not authority | Verified; cache opportunity remains |
@@ -161,16 +164,21 @@ evidence.
   traces became runtime authority. Semantic-index source v2 now projects
   candidate qualification, every rule evaluation, and all ten role-requirement
   traces, with two new registered queries verified through browser WASM.
-- Vitest passed 1,039 tests in 78 files. Coverage is 99.11% statements, 95.04%
-  branches, 99.36% functions, and 99.38% lines. The runtime-manifest boundary
+- `cd web && npm run test:coverage` passed 485 tests in 48 files. Coverage over
+  `src/lib/**/*.ts` — the `vitest.config.ts` include set, minus the six
+  browser-glue files excluded there with written justification — is 99.02%
+  statements, 95.27% branches, 99.83% functions, and 99.47% lines, against
+  enforced floors of 99/95/99/99. The runtime-manifest boundary
   now has adversarial cases for malformed qualifications, requirements,
   obligations, checkpoint domains, cache claims, identity fields, row
   accounting, artifact catalogs, and scalar/array option-shape drift; its
   decoder is not excluded from the coverage floor.
-- The Rust semantic adapter, runtime, and semantic index remain above their
-  enforced line/region floors. The product runtime measures
-  98.54% lines and 99.43% regions. The lower core-kernel baselines are measured
-  and ratcheted rather than excluded from the authority manifest.
+- The Rust semantic adapter, product runtime, semantic index, and app-usage
+  matcher are above their enforced line/region/function floors; the chrono
+  kernel is not. Every figure and the exact command are in blocker item 1
+  below. The lower core-kernel baseline is measured and ratcheted rather than
+  excluded from the authority manifest — but the ratchet is currently unmet and
+  `make coverage-rust` cannot reach it.
 - All 31 semantic-index mutants and all 194 viable product-runtime mutants were
   killed. Twenty-one runtime mutants were compiler-unviable; none survived.
   The requirements-report facade initially admitted two arbitrary-success
@@ -191,11 +199,33 @@ evidence.
 
 ## Remaining production blockers or bounded debt
 
-1. Core Rust coverage is now measured honestly but is not yet at the desired
-   floor: the chrono kernel is 41.54% line/40.80% region/40.71% function
-   coverage; the matcher is 85.44%/84.53%/86.05%. The rails ratchet these real baselines and
-   forbid omission, but additional tests are required before claiming 95% for
-   all computational authority.
+1. Core Rust coverage is measured honestly but the chrono kernel is below its
+   own declared floor, and the gate that should catch that cannot currently
+   run. Measured on `main` at `3c598ee` with
+   `rustup run stable cargo llvm-cov --manifest-path <crate> --summary-only`
+   plus the feature flags each entry of
+   `.semantic-federation/quality/rust-authority-manifests.txt` declares:
+
+   | Authority crate | Lines | Regions | Functions | Floor (L/R/F) | Result |
+   |---|---:|---:|---:|---|---|
+   | `chronicle_preprocessing_semantic_adapter` | 99.16% | 98.33% | 96.84% | 95/94/70 | pass |
+   | `chronicle_preprocessing_runtime_wasm` | 95.19% | 94.12% | 75.00% | 95/94/70 | pass |
+   | `chronicle_semantic_index_wasm` | 97.07% | 96.65% | 82.22% | 95/94/70 | pass |
+   | `chronicle_app_usage_matcher` (`--no-default-features`) | 94.69% | 94.10% | 90.09% | 93/93/90 | pass |
+   | `chronicle_chrono_kernel_wasm` (`--features incremental-v2`) | 89.78% | 89.36% | 84.30% | 90/89/85 | **fails lines and functions** |
+
+   The earlier `41.54%/40.80%/40.71%` kernel figure and `85.44%/84.53%/86.05%`
+   matcher figure in this document, and the `90.84% lines / 90.21% regions`
+   kernel figure in the 55-step plan, are all wrong; the table above replaces
+   them. Adding `--fail-under-lines 90` or `--fail-under-functions 85` to the
+   kernel command exits 1, while `--fail-under-regions 89` exits 0. Separately,
+   `make coverage-rust` reports only the first crate:
+   `.semantic-federation/scripts/check-rust-quality.sh` splits each manifest
+   line with `IFS='|'`, and the runtime entry's mutation-exclusion regex
+   contains the alternation `(physical_data_row_count|duplicate_safe_headers)`,
+   so `duplicate_safe_headers)` reaches `--fail-under-lines` and cargo-llvm-cov
+   aborts the loop with `error: invalid float literal`. Both the splitter and
+   the kernel gap must be fixed before claiming the ratchets hold.
 2. Browser durability and E2E evidence is Chromium-only. WebKit/Firefox support
    and OPFS crash behavior require explicit capability decisions and tests.
 3. Runtime JSON returned across the WASM boundary now has a fail-closed decoder
@@ -222,14 +252,49 @@ evidence.
     and existing `run_pipeline_v2*` wrapper mutants before the expensive
     1,258-mutant campaign was stopped. The earlier seven-wrapper-only inventory
     was incomplete; a full core-kernel mutation burn-down remains release debt.
-10. **Release blocker:** the 55 callable tracked Rust computations, typed
-    in-worker reuse, four-mode parity, unchanged reuse, output-only exact
-    invalidation, version-bound Salsa snapshot, optional OPFS cache roots, and
-    browser restore/save path now exist. Production readiness still requires
-    current empirical dependency campaigns to run against actual query events,
-    real-WASM worker-replacement/crash/size proof, and the full mutation,
-    browser, security, and performance gates. A step may be reported cached
-    only when its tracked body did not execute.
+10. **Release blocker:** the engine work is done; the proof obligations around
+    it are not. Splitting what `3c598ee` demonstrably landed from what is
+    still owed:
+
+    Landed and checked on `main`:
+    - 55 callable tracked Rust computations in contract order, with 24
+      separately reported internal derived caches (79 `#[salsa::tracked]`
+      functions total), pinned by `check-execution-claims.py`.
+    - Typed in-worker reuse, four-mode fused-oracle parity, zero-body unchanged
+      reuse, and exact output-only invalidation.
+    - Verified OPFS step-16/step-28 resume: a replacement worker checks header,
+      object digest, options, implementation, contract, schema, and row count
+      and falls back to the full cold Rust path on any mismatch.
+    - All six empirical dependency campaigns regenerated against actual Salsa
+      execution events with `make dependency-evidence`, together with
+      `.semantic-federation/proofs/dependency-certificate.json`. The runtime
+      suite passes 60/60 with no stale-receipt failures.
+    - `make gate-truth` reports all eight seeded-defect gates firing, and
+      `make security` passes every scanner. A step is reported cached only when
+      its tracked body did not execute.
+
+    Still open, and not softened by the above:
+    - Exact raw-field and support-record to output-cell contribution. The
+      influence witness is normalized and conservative by construction; no
+      field-level exact contributor set is claimed.
+    - The influence witness's own unresolved result-family gaps, which are
+      recorded as explicit gap rows rather than resolved edges.
+    - The per-field × configuration tomography space. Only one empirically
+      activating mutation per raw/support role has been crossed with the
+      configuration axes; the full record/field × configuration space is
+      unexplored.
+    - Chrono-kernel mutation burn-down. The 1,258-mutant campaign was stopped
+      partway with surviving timestamp-formatting, CSV parsing/sorting,
+      WASM-facade, and `run_pipeline_v2*` wrapper mutants (see item 9).
+    - Cross-browser durability. Everything durable is Chromium-only; WebKit and
+      Firefox OPFS behavior has neither a test nor a fail-closed restriction.
+    - The hand-maintained WASM-boundary validator. It is fail-closed and
+      drift-tested, but its schema/decoder is written by hand rather than
+      generated from the Rust serialization model (see item 3).
+    - Streaming workspace archive export/import. The full closure is still
+      materialized in memory (see item 7).
+    - Large-file peak WASM memory and crash/fault injection across every
+      supported browser (see item 8).
 
 Database migration, server-concurrency load, mobile-device, container, and
 cluster tests are not applicable: this proof is a local-first browser/WASM app
