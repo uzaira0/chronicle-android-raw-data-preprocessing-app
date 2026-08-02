@@ -201,14 +201,19 @@ evidence.
   obligations, checkpoint domains, cache claims, identity fields, row
   accounting, artifact catalogs, and scalar/array option-shape drift; its
   decoder is not excluded from the coverage floor.
-- The Rust semantic adapter, product runtime, semantic index, and app-usage
-  matcher are above their enforced line/region/function floors; the chrono
-  kernel is not. Every figure and the exact command are in blocker item 1
-  below. The lower core-kernel baseline is measured and ratcheted rather than
-  excluded from the authority manifest — but the ratchet is currently unmet and
-  `make coverage-rust` cannot reach it.
-- All 31 semantic-index mutants and all 194 viable product-runtime mutants were
-  killed. Twenty-one runtime mutants were compiler-unviable; none survived.
+- All five Rust crates — semantic adapter, product runtime, semantic index,
+  app-usage matcher, and chrono kernel — are above their enforced
+  line/region/function floors, and `make coverage-rust` exits 0 on the merged
+  tree. Every figure and the exact command are in item 1 below. The lower
+  core-kernel baseline is measured and ratcheted rather than excluded from the
+  authority manifest; the ratchet was unmet when it first ran and the mutation
+  lane's kill tests cleared it without the floor being lowered.
+- Every viable mutant outside the matcher is killed, re-measured on the merged
+  tree: semantic index 76 tested (75 caught, 1 unviable), semantic adapter 150
+  tested (122 caught, 28 unviable) behind 4 audited exclusions, product runtime
+  659 tested (599 caught, 60 unviable) behind 14, and chrono kernel 3,035 tested
+  (2,316 caught, 719 unviable) behind 154. No crate reports a miss or a timeout,
+  and every exclusion set is re-run first and required to stay uncaught.
   The requirements-report facade initially admitted two arbitrary-success
   mutants; a direct exported-facade contract test now kills both.
 - The optimized screen-lineage function killed all five of its direct mutants.
@@ -351,13 +356,17 @@ evidence.
 9. Mostly closed 2026-08-01; the matcher is the one remaining red. Evidence:
    `docs/validation/KERNEL_MUTATION.md`.
 
-   - **chrono-kernel**: 2,771 tested, 2,069 caught, 702 unviable, **0 missed,
-     0 timeout**. 175 survivors are classified across 11 named classes over 113
-     expressions in `.semantic-federation/quality/kernel-mutation-exclusions.txt`
+   - **chrono-kernel**: 3,035 tested, 2,316 caught, 719 unviable, **0 missed,
+     0 timeout**, in 66 min on the merged tree. 154 survivors are classified
+     across 11 named classes over 97 expressions in
+     `.semantic-federation/quality/kernel-mutation-exclusions.txt`
      with no `accepted` entries; the seven `run_pipeline_v2*` field-deletion
      mutants previously carried as equivalence debt are caught, not excluded.
-   - **product runtime**: first campaign ever run — 646 tested, 586 caught, 60
-     unviable, 0 missed, 0 timeout. A test written to kill one mutant exposed a
+     The exclusions are re-run as their own campaign first and the gate fails if
+     the suite catches any of them: `audited=154 caught=0`.
+   - **product runtime**: 659 tested, 599 caught, 60 unviable, 0 missed,
+     0 timeout, with `audited=14 caught=0` on its exclusions. A test written to
+     kill one mutant exposed a
      real defect: `build_runtime_step_executions` reused the previous run's
      bound-input key whenever Salsa reported no execution, but the key binds
      *declared* request fields and `split_concurrent` declares
@@ -433,10 +442,14 @@ evidence.
       injection sets; ephemeral WebKit is fail-closed by the capability gate;
       peak WASM memory and the 192 MiB reconstruction refusal are identical on
       all three engines (items 2 and 8).
-    - Chrono-kernel and product-runtime mutation (2026-08-01): both campaigns
-      run to zero missed and zero timeout, with every survivor classified
-      against a named exclusion class and the kernel coverage ratchet cleared at
-      96.04/95.30/92.33 against an unchanged 90/89/85 floor (items 1 and 9).
+    - Chrono-kernel and product-runtime mutation (re-measured 2026-08-02 on the
+      merged tree, not on a lane branch): both campaigns run to zero missed and
+      zero timeout — kernel 3,035 tested / 2,316 caught / 719 unviable, runtime
+      659 / 599 / 60 — with every survivor classified against a named exclusion
+      class, every exclusion set re-run and required to stay uncaught, and the
+      kernel coverage ratchet cleared at 96.20/95.42/92.73 against an unchanged
+      90/89/85 floor (items 1 and 9). The kernel campaign's 13 misses were
+      closed by tests; the exclusion file is byte-identical across that work.
 
     Still open, and not softened by the above:
     - Witness coverage of the 7,756 structurally-declared-but-unwitnessed
