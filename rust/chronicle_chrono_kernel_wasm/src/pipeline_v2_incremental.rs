@@ -10555,6 +10555,97 @@ mod tracked {
             );
         }
 
+        fn checkpoint_rows() -> Vec<Row> {
+            let raw = super::super::csv_parse(&csv());
+            let model = super::super::detect_device_model(&raw);
+            super::super::build_canonical_rows(&raw, "America/Chicago", &BTreeMap::new(), &model)
+                .expect("canonical rows")
+        }
+
+        /// `same_row_state` is what lets a step hand its consumers the upstream
+        /// row allocation instead of a copy. Answering yes when any one of the
+        /// six checkpoint components disagrees would publish rows that do not
+        /// match the checkpoint describing them, so every component has to be
+        /// able to say no on its own.
+        #[test]
+        fn same_row_state_needs_every_checkpoint_component_to_agree() {
+            let rows = checkpoint_rows();
+            let checkpoint = logical_stage_rows_checkpoint("probe", &rows);
+            assert!(
+                same_row_state(&checkpoint, &checkpoint.clone()),
+                "a checkpoint has to describe the same row state as itself",
+            );
+
+            let components: [(&str, fn(&mut LogicalStageCheckpoint)); 6] = [
+                ("row_membership_digest", |checkpoint| {
+                    checkpoint.row_membership_digest.push('x')
+                }),
+                ("row_order_digest", |checkpoint| {
+                    checkpoint.row_order_digest.push('x')
+                }),
+                ("temporal_state_digest", |checkpoint| {
+                    checkpoint.temporal_state_digest.push('x')
+                }),
+                ("classification_digest", |checkpoint| {
+                    checkpoint.classification_digest.push('x')
+                }),
+                ("payload_digest", |checkpoint| {
+                    checkpoint.payload_digest.push('x')
+                }),
+                ("schema_digest", |checkpoint| {
+                    checkpoint.schema_digest.push('x')
+                }),
+            ];
+            for (component, disturb) in components {
+                let mut other = checkpoint.clone();
+                disturb(&mut other);
+                assert!(
+                    !same_row_state(&checkpoint, &other),
+                    "a checkpoint differing only in {component} was called the same row state",
+                );
+                assert!(
+                    !same_row_state(&other, &checkpoint),
+                    "{component} disagreement has to be symmetric",
+                );
+            }
+        }
+
+        /// A threshold edit moves the temporal columns of a handful of rows and
+        /// leaves identity and classification alone, so the temporal digest is
+        /// patched in place rather than rebuilt from every row. The patched
+        /// value is only usable because it is the same digest an ordinary full
+        /// checkpoint of those rows produces.
+        #[test]
+        fn patching_changed_rows_reproduces_a_full_temporal_checkpoint() {
+            let mut rows = checkpoint_rows();
+            assert!(rows.len() >= 4, "the fixture must have rows to patch");
+            let order = canonical_row_order(&rows);
+            let base = canonical_temporal_sequence_with_order(&rows, &order);
+            let unpatched = temporal_digest_with_changed_rows(&base, &rows, &[]);
+            assert_eq!(
+                unpatched,
+                logical_stage_rows_checkpoint("probe", &rows).temporal_state_digest,
+                "patching nothing has to reproduce the digest the sequence was built from",
+            );
+
+            let changed: Vec<u32> = vec![1, 3];
+            for &row_index in &changed {
+                let data = rows[row_index as usize].edit_temporal();
+                data.duration_seconds = Some(data.duration_seconds.unwrap_or_default() + 5.0);
+                data.duration_minutes = Some(data.duration_minutes.unwrap_or_default() + 0.0834);
+            }
+            let patched = temporal_digest_with_changed_rows(&base, &rows, &changed);
+            assert_ne!(
+                patched, unpatched,
+                "a temporal edit has to move the temporal digest",
+            );
+            assert_eq!(
+                patched,
+                logical_stage_rows_checkpoint("probe", &rows).temporal_state_digest,
+                "the patched digest has to equal a full checkpoint of the same rows",
+            );
+        }
+
         fn assert_result_parity(
             actual: &PipelineV2Result,
             expected: &PipelineV2Result,
@@ -11052,13 +11143,16 @@ mod tracked {
                 ),
             ];
 
-            let check = |engine: &mut TrackedEngine, options: &PipelineV2Options, label: &str| {
-                let warm = engine.execute(&csv(), options, support, true).unwrap();
+            let check = |engine: &mut TrackedEngine,
+                         options: &PipelineV2Options,
+                         full: bool,
+                         label: &str| {
+                let warm = engine.execute(&csv(), options, support, full).unwrap();
                 let mut cold = TrackedEngine::default();
-                let expected = cold.execute(&csv(), options, support, true).unwrap();
+                let expected = cold.execute(&csv(), options, support, full).unwrap();
                 assert_result_parity(&warm.result, &expected.result, options.usage_session_mode);
 
-                let repeat = engine.execute(&csv(), options, support, true).unwrap();
+                let repeat = engine.execute(&csv(), options, support, full).unwrap();
                 assert!(
                     repeat.executed_steps.is_empty()
                         && repeat.internal_executed_queries.is_empty(),
@@ -11069,13 +11163,24 @@ mod tracked {
                 assert_result_parity(&repeat.result, &expected.result, options.usage_session_mode);
             };
 
-            let mut engine = TrackedEngine::default();
-            check(&mut engine, &baseline, "baseline");
-            for (label, edit) in &edits {
-                let mut changed = baseline.clone();
-                edit(&mut changed);
-                check(&mut engine, &changed, label);
-                check(&mut engine, &baseline, &format!("{label} reverted"));
+            // Full output and review are different physical cones: review runs
+            // the fused annotation/reconstruction path and its content-committing
+            // checkpoints, which the full path never touches. Both have to hold
+            // the same two properties, so the sweep runs twice.
+            for full in [true, false] {
+                let mut engine = TrackedEngine::default();
+                check(&mut engine, &baseline, full, &format!("baseline full={full}"));
+                for (label, edit) in &edits {
+                    let mut changed = baseline.clone();
+                    edit(&mut changed);
+                    check(&mut engine, &changed, full, &format!("{label} full={full}"));
+                    check(
+                        &mut engine,
+                        &baseline,
+                        full,
+                        &format!("{label} reverted full={full}"),
+                    );
+                }
             }
         }
 
