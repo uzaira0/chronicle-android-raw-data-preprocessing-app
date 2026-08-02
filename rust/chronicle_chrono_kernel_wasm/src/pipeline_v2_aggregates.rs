@@ -610,3 +610,109 @@ pub(super) fn build_aggregate_outputs(
     }
     outputs
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MINUTE: i64 = 60_000_000_000;
+
+    /// (package, usage layer, start minute, stop minute, interaction type)
+    type Session<'a> = (&'a str, Option<&'a str>, i64, Option<i64>, &'a str);
+
+    fn sessions(rows: &[Session<'_>]) -> Vec<Row> {
+        let stamps = [
+            "2026-03-07 10:00:00",
+            "2026-03-07 10:01:00",
+            "2026-03-07 10:02:00",
+            "2026-03-07 10:03:00",
+        ];
+        let events: Vec<(&str, &str, &str)> = rows
+            .iter()
+            .enumerate()
+            .map(|(index, _)| (stamps[index], "Activity Resumed", "com.example.chat"))
+            .collect();
+        let mut built = crate::pipeline_v2::tests::rows_from_events(&events);
+        for (row, (package, layer, start, stop, kind)) in built.iter_mut().zip(rows) {
+            let data = row.edit_all();
+            data.study_id = "Study".into();
+            data.participant_id = "P01".into();
+            data.date = "2026-03-07".into();
+            data.interaction_type = (*kind).into();
+            data.app_package_name = (*package).into();
+            data.application_label = (*package).into();
+            data.usage_layer = layer.map(SharedString::from);
+            data.start_timestamp_ns = Some(*start * MINUTE);
+            data.stop_timestamp_ns = stop.map(|stop| stop * MINUTE);
+            data.duration_minutes = stop.map(|stop| (stop - *start) as f64);
+        }
+        built
+    }
+
+    fn csv_rows(bytes: &[u8]) -> Vec<Vec<String>> {
+        String::from_utf8(bytes.to_vec())
+            .expect("aggregate CSV is UTF-8")
+            .lines()
+            .map(|line| line.split(',').map(str::to_owned).collect())
+            .collect()
+    }
+
+    /// The aggregates describe app usage, so they count only completed app
+    /// sessions: a screen session sitting in the same row list is a different
+    /// kind, and an app session that never got a stop is not a session yet.
+    #[test]
+    fn aggregates_count_only_completed_sessions_of_their_own_kind() {
+        let rows = sessions(&[
+            ("com.example.counted", None, 0, Some(10), APP_USAGE),
+            ("com.example.screen", None, 0, Some(10), SCREEN_USAGE),
+            ("com.example.unfinished", None, 0, None, APP_USAGE),
+        ]);
+        let (bytes, count) = top_apps_csv(&rows, "Study");
+        assert_eq!(count, 1, "only the completed app session may be ranked");
+        let lines = csv_rows(&bytes);
+        assert_eq!(lines.len(), 2, "one header and one ranked app");
+        assert!(
+            lines[1].contains(&"com.example.counted".to_string()),
+            "{:?}",
+            lines[1],
+        );
+    }
+
+    /// The top-apps table ranks by the whole day an app was used: foreground
+    /// and background minutes added together, not one weighed against the
+    /// other. An app with less foreground time can still outrank one with more.
+    #[test]
+    fn top_apps_rank_by_foreground_and_background_minutes_together() {
+        let rows = sessions(&[
+            ("com.example.foreground", None, 0, Some(10), APP_USAGE),
+            ("com.example.mixed", None, 20, Some(26), APP_USAGE),
+            (
+                "com.example.mixed",
+                Some("secondary"),
+                30,
+                Some(38),
+                APP_USAGE,
+            ),
+        ]);
+        let (bytes, count) = top_apps_csv(&rows, "Study");
+        assert_eq!(count, 2);
+        let lines = csv_rows(&bytes);
+        let column = |name: &str| {
+            lines[0]
+                .iter()
+                .position(|header| header == name)
+                .unwrap_or_else(|| panic!("{name} is not a top-apps column"))
+        };
+        let package = column("app_package_name");
+        let total = column("total_minutes");
+        assert_eq!(
+            (lines[1][package].as_str(), lines[1][total].as_str()),
+            ("com.example.mixed", "14"),
+            "6 foreground plus 8 background minutes outranks 10 foreground",
+        );
+        assert_eq!(
+            (lines[2][package].as_str(), lines[2][total].as_str()),
+            ("com.example.foreground", "10"),
+        );
+    }
+}
