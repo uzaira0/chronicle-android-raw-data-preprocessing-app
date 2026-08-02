@@ -9,7 +9,12 @@
 # detected them by timeout, but reports any timeout as a failed gate. Exact
 # output tests retain the ordinary decrement mutations. `cargo mutants --list`
 # proves no other runtime mutant matches these file/column/operator expressions.
-# Multiple exact exclusion expressions are comma-separated.
+# Multiple exact inline exclusion expressions are comma-separated, and the
+# entry's own fields are '|'-separated, so an inline expression can contain
+# neither character: a regex carrying one is split in half and cargo-mutants
+# rejects the unclosed group. The runtime and matcher entries each shipped
+# such a regex and their mutation gate could not start; both are now written
+# as separate expressions, which match exactly the same mutants.
 # The kernel's contract-export binary is exercised by the contract drift gate;
 # cargo test cannot call its `main` in a mutant sandbox. The matcher's optional
 # Python-only facade is outside the browser product and creates 703,742 bogus
@@ -22,33 +27,14 @@
 # A seventh `no-default-features` field keeps a gate on the exact feature set
 # linked into the browser when a crate's defaults only expose another product.
 #
-# Kernel exclusions, one justification per expression, all verified against
-# `cargo mutants --list` so no other mutant matches:
-# - count_duplicate_groups `> 1` -> `>= 1`: a run length is at least 1 at both
-#   sites and a run of one adds `len - 1`, which is zero.
-# - unalign_duplicate_timestamps `rows[i - 1]` -> `rows[i / 1]`: the scan then
-#   compares a row to itself, so `has_dupes` is always true and the early
-#   return is skipped; on rows with no tie the block loop rewrites nothing.
-# - unalign_duplicate_timestamps `start < len` -> `<=`: the extra iteration
-#   finds a run of one, indexes nothing, and writes nothing.
-# - unalign_duplicate_timestamps `end = start + 1` -> `start * 1`: the inner
-#   scan then compares row `start` to itself, always equal, and settles on the
-#   same run end.
-# - creditable_intervals `cursor < end` -> `<=`: a segment can never end past
-#   the session end, so the extra iteration emits nothing.
-# - intersect_intervals `left.1 < right.1` -> `<=`: at equal ends advancing
-#   either list is the same; the other list's interval then produces an empty
-#   overlap and is advanced on the next turn.
-# - csv_parse `terminated.reserve(len + 1)` -> `* 1`, the `== b'\n'` row
-#   estimate feeding `Vec::with_capacity`, and the `field_buf.len() * 2`
-#   growth: allocation sizing only. The carried-bytes fix means any growth
-#   step produces the same parsed value.
-# - Loop-counter mutants that cargo-mutants already detects by timeout
-#   (`+=` -> `*=` in the three interval/duplicate loops, `+=` -> `-=` on the
-#   review-summary day cursor, `* 2` -> `/ 2` buffer shrink): detected, but
-#   reported as a failed gate. Same precedent as the runtime exclusions above.
+# The kernel's exclusion set is too large and too regex-heavy for the
+# inline field, so it names a file instead: @kernel-mutation-exclusions.txt,
+# one expression per line, grouped under the reason each class is
+# equivalent. That file is also the only place an expression may contain a
+# ',' or a '|'.
+#
 ../rust/chronicle_preprocessing_semantic_adapter/Cargo.toml|wasm::
-../rust/chronicle_preprocessing_runtime_wasm/Cargo.toml|src/lib\.rs:[0-9]+:1[37]: replace && with,replace \+= with .* in (physical_data_row_count|duplicate_safe_headers)
+../rust/chronicle_preprocessing_runtime_wasm/Cargo.toml|src/lib\.rs:[0-9]+:1[37]: replace && with,replace \+= with .* in physical_data_row_count,replace \+= with .* in duplicate_safe_headers
 ../rust/chronicle_semantic_index_wasm/Cargo.toml
-../rust/chronicle_chrono_kernel_wasm/Cargo.toml|src/bin/,:20: replace > with >= in count_duplicate_groups,:12: replace > with >= in count_duplicate_groups,:70: replace - with / in unalign_duplicate_timestamps,:17: replace < with <= in unalign_duplicate_timestamps,:29: replace \+ with \* in unalign_duplicate_timestamps,replace \+= with \*= in unalign_duplicate_timestamps,:18: replace < with <= in creditable_intervals,replace \+= with \*= in creditable_intervals,:31: replace < with <= in intersect_intervals,replace \+= with \*= in intersect_intervals,src/pipeline_v2\.rs:4085:24: replace \+= with -= in build_review_summary,:44: replace \+ with \* in csv_parse,:60: replace == with != in csv_parse,:50: replace \* with (\+|/) in csv_parse|90|89|85|incremental-v2
-../rust/chronicle_app_usage_matcher/Cargo.toml| in (to_py_error|match_app_usage(_update_(indices|arrays)|_arrays)?|split_overlapping_sessions_py|_rust_app_usage_matcher)|93|93|90||no-default-features
+../rust/chronicle_chrono_kernel_wasm/Cargo.toml|@kernel-mutation-exclusions.txt|90|89|85|incremental-v2
+../rust/chronicle_app_usage_matcher/Cargo.toml| in to_py_error, in match_app_usage, in split_overlapping_sessions_py, in _rust_app_usage_matcher|93|93|90||no-default-features
