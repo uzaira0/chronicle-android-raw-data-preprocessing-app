@@ -3,10 +3,10 @@
   "claimBoundary": "Aggregate of independently recycled per-source-column shards. Each shard selects one empirically branch-activating intervention that rewrites exactly that supplied column, crosses it with every computational configuration axis the field-level step contract predicts can interact with the column, and adds a deterministic control sample of axes it predicts cannot. Under every executed configuration every changed canonical output cell belongs to a declared output-cell family of that column, and no control axis introduces a family the base configuration did not move. Columns without an activating intervention in the checked catalog are outside this claim, and a declared family no configuration moved is recorded rather than asserted.",
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:4dae57256028ac64be1dd71c951f250366561c5db8a5aa9d0bbbb38b3413ff68",
+    "implementationDigest": "sha256:c3c839300cb7c40e7f5a294da63eb43426eff1d1b1a44af81efe23092538e442",
     "planDigest": "sha256:e6acec3530cef7f3e67443077affb86632db8485d771c3fa9a754dc810ff8e20",
-    "profileDigest": "sha256:855a8da1bae72abbb203cb6be00a0a5de0f06b277a9e9b950281dff470d5ab8b",
-    "profileLockDigest": "sha256:eb825eef578c47f27311d9ac15968e08f28e1be6841a436e953e40aa02993afb",
+    "profileDigest": "sha256:014dfe1a84dd0633d69eb070714c7e57e0a8e6fb2892146ca185fec4ae809644",
+    "profileLockDigest": "sha256:3b2aac27429e34500d13f028526ab5e66b14c096f688c73884aa4c09e98e0b70",
     "runtimeAuthorityDigest": "sha256:7598af2d710ac32563dd8e0bff49a9447e7f450c618c4689004025fbb6826ed4",
     "productContractDigest": "sha256:3855791ad25992d95e055d5c672253cb06ac3e4320463bc46f984b7bc8f05f95"
   },
@@ -27,7 +27,7 @@
     {
       "sourceField": "app_codebook_file.bcm_play_store_genreId",
       "path": "field-mixed-tomography-app_codebook_file-bcm_play_store_genreId.json",
-      "contentDigest": "sha256:b27b37dd85e8916f078ba256de6c083b173c6aa48e29ffba0e2374aa18020b44",
+      "contentDigest": "sha256:0cbe64a94951b6b30d10b1a04d0569835469a94ab0544b023aabaa7ac36e8b52",
       "interventionId": "support:codebook-edit-category",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 5,
@@ -39,7 +39,7 @@
     {
       "sourceField": "apps_forcing_screen_open_file.label_or_note",
       "path": "field-mixed-tomography-apps_forcing_screen_open_file-label_or_note.json",
-      "contentDigest": "sha256:c90ee53d143c9abd81b64d6f97c1b96e88648f9c26975607897d12b468197a0b",
+      "contentDigest": "sha256:6e1d04f846b8f30bee70b3c9a7aa32f0a5971be676030fa08058f4fce6388690",
       "interventionId": "support:forcing-activate-screen-tail-package",
       "corpusId": "support-intersections",
       "declaredStepConeSize": 49,
@@ -51,7 +51,7 @@
     {
       "sourceField": "apps_forcing_screen_open_file.package_name",
       "path": "field-mixed-tomography-apps_forcing_screen_open_file-package_name.json",
-      "contentDigest": "sha256:ebfef55bc8d30537ea9fe2fc5d06d6f26d22f773f48a0077010971cc58c1d43d",
+      "contentDigest": "sha256:ed814bc82aed8a099056dcf558ed436203c68d69d386c6bc2cccdec8a0d40fce",
       "interventionId": "support:forcing-activate-screen-tail-package",
       "corpusId": "support-intersections",
       "declaredStepConeSize": 49,
@@ -63,7 +63,7 @@
     {
       "sourceField": "background_apps_file.app_package_name",
       "path": "field-mixed-tomography-background_apps_file-app_package_name.json",
-      "contentDigest": "sha256:071eae05b1206c4ba59ede9c69ba9419186fb123b25994ece8f416608b1527a6",
+      "contentDigest": "sha256:28b8d66cfd76aff6d3658b3cf05400f6c677cc5b4da066b14dcb18558bb89f08",
       "interventionId": "support:background-remove-used-package",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 49,
@@ -75,7 +75,7 @@
     {
       "sourceField": "background_apps_file.package_name",
       "path": "field-mixed-tomography-background_apps_file-package_name.json",
-      "contentDigest": "sha256:a8cc872a7ecd113aecdfee722e2c5d419aa4bd04345295da0875322a03196d5a",
+      "contentDigest": "sha256:7702ac0a0b463c0df5113308d2e28beeffd83700033f7a20dc79bf8528eefd42",
       "interventionId": "support:background-remove-used-package",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 49,
@@ -87,7 +87,7 @@
     {
       "sourceField": "device_sharing_file.sharing_status",
       "path": "field-mixed-tomography-device_sharing_file-sharing_status.json",
-      "contentDigest": "sha256:bd12023af426c1cda143adbad7a39fb693e5e18be21b9dd5365ade464ebab671",
+      "contentDigest": "sha256:934ffa105e14cec801989ca9b1785a862d07fe406fdd71f86305ac17f9d88d53",
       "interventionId": "support:sharing-shared-to-nonshared",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 50,
@@ -99,7 +99,7 @@
     {
       "sourceField": "enrolled_devices_file.device_count",
       "path": "field-mixed-tomography-enrolled_devices_file-device_count.json",
-      "contentDigest": "sha256:3d121a0c29b0cb99e9d8593f80b6ba224c2cdec1e1a65b94ba4559c83d5f8a3f",
+      "contentDigest": "sha256:39daeb31a9cad7a139ff5cc1da2aba8d155a174bd0c3060496bdb7a545e92a71",
       "interventionId": "support:enrollment-one-to-two-devices",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 1,
@@ -111,7 +111,7 @@
     {
       "sourceField": "filter_file.app_package_name",
       "path": "field-mixed-tomography-filter_file-app_package_name.json",
-      "contentDigest": "sha256:a377c0f65222caec2c70aaa6e294c8371d7ef14b3817bff75c77172651949642",
+      "contentDigest": "sha256:4222906057e0ea2e39b1db7bbcc506b2638dd5e85188aabe7463c8f2955dc974",
       "interventionId": "support:filter-activate-used-package",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 49,
@@ -123,7 +123,7 @@
     {
       "sourceField": "filter_file.known_application_labels",
       "path": "field-mixed-tomography-filter_file-known_application_labels.json",
-      "contentDigest": "sha256:551517a726082e826d6cd67178590b93980f94ec6807b394c1333adfc8b6baa3",
+      "contentDigest": "sha256:5c77af4c9ca2f19735239ea14a94f375563cdd2f328cdb3e10619ff1acc1ba49",
       "interventionId": "support:filter-activate-used-package",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 49,
@@ -135,7 +135,7 @@
     {
       "sourceField": "raw_chronicle_csv.app_package_name",
       "path": "field-mixed-tomography-raw_chronicle_csv-app_package_name.json",
-      "contentDigest": "sha256:f997fdfbf4e195fded6dcaec4d3ae6ee6f9f3e59365f859a5a141ad9376afc56",
+      "contentDigest": "sha256:28bfe09875c65d3fc51aa4ed9abb0a0f9d9aa694c3a01e7d9d2785c31c650ccf",
       "interventionId": "raw-field:app_package_name",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 49,
@@ -147,7 +147,7 @@
     {
       "sourceField": "raw_chronicle_csv.application_label",
       "path": "field-mixed-tomography-raw_chronicle_csv-application_label.json",
-      "contentDigest": "sha256:1d29f40b5f7b9a71e32a4579636b6d6b0697e98ae7a3a62248adde499208f7df",
+      "contentDigest": "sha256:bea358ca4b181cdcf450dff6ce4fd38e8c8e023ef5c919adcfc01c78646b9d4d",
       "interventionId": "raw-field:application_label",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 49,
@@ -159,7 +159,7 @@
     {
       "sourceField": "raw_chronicle_csv.event_timestamp",
       "path": "field-mixed-tomography-raw_chronicle_csv-event_timestamp.json",
-      "contentDigest": "sha256:288be78c07e73827e8edd3b494da88acf8d55e0310784555303dbb66b88b0d8d",
+      "contentDigest": "sha256:a1a6902846b6d51d38221aacdf94a0caaeab0de40ec8ca479a4340b56d96bbd8",
       "interventionId": "raw-field:event_timestamp",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 49,
@@ -171,7 +171,7 @@
     {
       "sourceField": "raw_chronicle_csv.interaction_type",
       "path": "field-mixed-tomography-raw_chronicle_csv-interaction_type.json",
-      "contentDigest": "sha256:03092eb4cb39359ba04fbd218a123cef111c12e179e303d88d4d1e4557ba1d47",
+      "contentDigest": "sha256:2154f17f821ac4a4a93c052f4ba81427ae1fe8930e8859c62129e1ff6cca4eb4",
       "interventionId": "raw-field:interaction_type",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 49,
@@ -183,7 +183,7 @@
     {
       "sourceField": "raw_chronicle_csv.participant_id",
       "path": "field-mixed-tomography-raw_chronicle_csv-participant_id.json",
-      "contentDigest": "sha256:66925b89c0fbe4de8ee570c60c32d9e5f544229d8800725a3a18aec74d02e538",
+      "contentDigest": "sha256:defa390b8681fae278455b42357c3f11d825af87d38f6f969ce4b02ce7614490",
       "interventionId": "raw-field:participant_id",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 51,
@@ -195,7 +195,7 @@
     {
       "sourceField": "raw_chronicle_csv.study_id",
       "path": "field-mixed-tomography-raw_chronicle_csv-study_id.json",
-      "contentDigest": "sha256:01f23902b5dc1b17a048310f2fdcbcc12e3b619f353813006fe860b8dbd57de2",
+      "contentDigest": "sha256:a8ccea2d9c967463eb267eacd9a52f7c1bbf1efce948580535f9b95619067208",
       "interventionId": "raw-field:study_id",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 3,
@@ -207,7 +207,7 @@
     {
       "sourceField": "raw_chronicle_csv.timezone",
       "path": "field-mixed-tomography-raw_chronicle_csv-timezone.json",
-      "contentDigest": "sha256:121e650042140e320c64013711db5f4525db74283d8ba698967197c3f38528c8",
+      "contentDigest": "sha256:caab24e868921e690279df83c4b40896ac0d289462216317c093376a84f2b781",
       "interventionId": "raw-field:timezone",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 49,
@@ -219,7 +219,7 @@
     {
       "sourceField": "raw_chronicle_csv.username",
       "path": "field-mixed-tomography-raw_chronicle_csv-username.json",
-      "contentDigest": "sha256:0967ad6a321142fe80b44012e0f0446010768ddfaa776bb9c90eec3a77337bba",
+      "contentDigest": "sha256:aa490d6baca1aa9580bc64467d4cec17462b747bf9378961d63261e4f3f78721",
       "interventionId": "raw-field:username",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 49,
@@ -231,7 +231,7 @@
     {
       "sourceField": "study_dates_file.end_date",
       "path": "field-mixed-tomography-study_dates_file-end_date.json",
-      "contentDigest": "sha256:fdeda7392fbe3f569d6f3ab893e6a29fc661cc3b0142b91aa2a5fd3b834ec1fc",
+      "contentDigest": "sha256:46f05c6b89b19026ff6b6cc25a2a078027ea6df0c2c4b07676ef55fba502e6fb",
       "interventionId": "support:study-window-narrow",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 14,
@@ -243,7 +243,7 @@
     {
       "sourceField": "study_dates_file.start_date",
       "path": "field-mixed-tomography-study_dates_file-start_date.json",
-      "contentDigest": "sha256:eba00ddc3f633fb6975460a974dd6aec2b3a39642f85621f04d55747ffca724a",
+      "contentDigest": "sha256:8869fe9def5e03e95b49fa17f520c64e1a8e26dfdafaf111baafaab031bf663f",
       "interventionId": "support:study-window-narrow",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 14,
@@ -255,7 +255,7 @@
     {
       "sourceField": "survey_attribution_file.users",
       "path": "field-mixed-tomography-survey_attribution_file-users.json",
-      "contentDigest": "sha256:9cdaeacbfe034cfcfdf9a70ff61c846ff2bd9d386bcf57cd2fdc185cd6c96b65",
+      "contentDigest": "sha256:286456dcb2b79405d99413b3c88840b9b57b849bcdfe394d57004b4cf9d2f03f",
       "interventionId": "support:survey-target-to-other",
       "corpusId": "catalog-random",
       "declaredStepConeSize": 50,

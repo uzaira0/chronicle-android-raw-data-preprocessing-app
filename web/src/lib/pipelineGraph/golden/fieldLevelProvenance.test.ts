@@ -335,7 +335,13 @@ describe("field-level provenance reconciliation", () => {
       sha256Uri(readFileSync(EXPECTED_FILE, "utf8")),
     );
     expect(serialized).toBe(readFileSync(EXPECTED_FILE, "utf8"));
-  });
+    // Vitest's 5 s default is not a budget this test can hold: it gunzips both
+    // multi-megabyte correspondence sidecars and reconciles ~202k changed cell
+    // addresses. It measures ~3 s idle and ~6.6 s while the machine is busy —
+    // and `make dependency-evidence` schedules it immediately after the six
+    // parallel WASM campaigns, so the default timed it out and rolled back the
+    // whole regeneration. Match the sibling golden campaigns' explicit budget.
+  }, 600_000);
 
   it("keeps the three unread raw columns out of the declared field graph", () => {
     // `RawRow` carries eight of the eleven raw columns. The parser never reads
