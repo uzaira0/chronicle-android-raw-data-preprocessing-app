@@ -10722,6 +10722,445 @@ mod tracked {
             }
         }
 
+        /// The warm engine reuses a tracked value whenever the value's own
+        /// equality says nothing consumers can see has changed. Two failures
+        /// hide behind that: an equality that is too permissive keeps a stale
+        /// value after a real edit, and one that is too strict throws away work
+        /// that was still valid. Both are invisible to a single-run test.
+        ///
+        /// This drives one engine through every option a researcher can move,
+        /// and after each move checks the two properties that pin the equality
+        /// from both sides:
+        ///
+        /// 1. the warm result is byte-identical to a cold engine's, so no stale
+        ///    value survived the edit; and
+        /// 2. repeating the same request executes nothing at all, so nothing
+        ///    valid was discarded.
+        ///
+        /// Each edit is then reverted and checked the same way, because
+        /// returning to a value the engine has already seen is exactly where a
+        /// backdating decision is made.
+        #[test]
+        fn every_option_edit_keeps_warm_results_exact_and_repeat_requests_free() {
+            let study_dates =
+                b"participant_id,start_date,end_date\nP01,2026-03-07,2026-03-07\n".to_vec();
+            let device_sharing = b"participant_id,sharing_status\nP01,Shared\n".to_vec();
+            let survey_attribution =
+                b"participant_id,event_timestamp,users\nP01,2026-03-07 10:00:00,Target Child\n"
+                    .to_vec();
+            let enrolled_devices = b"participant_id,device_count\nP01,1\n".to_vec();
+            let filter = b"app_package_name\ncom.example.chat\n".to_vec();
+            let apps_forcing = b"package_name\ncom.example.chat\n".to_vec();
+            let background_apps = b"app_package_name\ncom.example.chat\n".to_vec();
+            let codebook = b"app_package_name,application_label,bcm_play_store_genreId,bcm_play_store_broad_app_category,dataset\ncom.example.chat,Chat,Social,Communication,test\n".to_vec();
+            let support = PipelineV2SupportFiles {
+                filter_csv: &filter,
+                apps_forcing_csv: &apps_forcing,
+                background_apps_csv: &background_apps,
+                codebook_csv: &codebook,
+                study_dates_csv: &study_dates,
+                device_sharing_csv: &device_sharing,
+                survey_attribution_csv: &survey_attribution,
+                enrolled_devices_csv: &enrolled_devices,
+            };
+
+            let mut baseline = late_pipeline_options();
+            baseline.use_filter_file = true;
+            baseline.use_apps_forcing_screen_open = true;
+            baseline.use_background_apps_file = true;
+            baseline.use_app_codebook = true;
+            baseline.include_app_output = true;
+            baseline.include_screen_output = true;
+            baseline.include_category_column = true;
+            baseline.enable_aggregates = true;
+            baseline.model_concurrent_usage = true;
+            baseline.minimum_usage_duration = 30.0;
+            let baseline = baseline;
+
+            type Edit = (&'static str, Box<dyn Fn(&mut PipelineV2Options)>);
+            let edits: Vec<Edit> = vec![
+                (
+                    "study_name",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.study_name = "Edited study".into()
+                    }),
+                ),
+                (
+                    "timezone",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.timezone = "America/New_York".into()
+                    }),
+                ),
+                (
+                    "timezone_handling",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.timezone_handling = "primary-convert".into()
+                    }),
+                ),
+                (
+                    "usage_session_mode",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.usage_session_mode = UsageSessionMode::AppUsage
+                    }),
+                ),
+                (
+                    "include_screen_output",
+                    Box::new(|options: &mut PipelineV2Options| options.include_screen_output = false),
+                ),
+                (
+                    "use_filter_file",
+                    Box::new(|options: &mut PipelineV2Options| options.use_filter_file = false),
+                ),
+                (
+                    "use_apps_forcing_screen_open",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.use_apps_forcing_screen_open = false
+                    }),
+                ),
+                (
+                    "use_background_apps_file",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.use_background_apps_file = false
+                    }),
+                ),
+                (
+                    "use_app_codebook",
+                    Box::new(|options: &mut PipelineV2Options| options.use_app_codebook = false),
+                ),
+                (
+                    "include_category_column",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.include_category_column = false
+                    }),
+                ),
+                (
+                    "deduplicate_exact_rows",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.deduplicate_exact_rows = false
+                    }),
+                ),
+                (
+                    "interaction_type_remap",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.interaction_type_remap =
+                            vec!["User Interaction=Activity Resumed".into()]
+                    }),
+                ),
+                (
+                    "correct_duplicate_event_timestamps",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.correct_duplicate_event_timestamps = false
+                    }),
+                ),
+                (
+                    "allow_stop_event_reuse",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.allow_stop_event_reuse = true
+                    }),
+                ),
+                (
+                    "use_activity_stopped_as_fallback",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.use_activity_stopped_as_fallback = false
+                    }),
+                ),
+                (
+                    "apply_threshold_to_fallback",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.apply_threshold_to_fallback = false
+                    }),
+                ),
+                (
+                    "long_duration_threshold_ns",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.long_duration_threshold_ns = 21_600_000_000_000
+                    }),
+                ),
+                (
+                    "proximity_interval_ns",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.proximity_interval_ns = 2_000_000_000
+                    }),
+                ),
+                (
+                    "same_app_stop_types",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.same_app_stop_types = vec!["Activity Paused".into()]
+                    }),
+                ),
+                (
+                    "other_stop_types",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.other_stop_types = vec!["Device Shutdown".into()]
+                    }),
+                ),
+                (
+                    "interaction_types_to_remove",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.interaction_types_to_remove = vec!["User Interaction".into()]
+                    }),
+                ),
+                (
+                    "custom_app_engagement_duration",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.custom_app_engagement_duration = 45.0
+                    }),
+                ),
+                (
+                    "long_data_time_gap_thresholds",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.long_data_time_gap_thresholds = vec![0.25, 2.0]
+                    }),
+                ),
+                (
+                    "long_usage_duration_thresholds",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.long_usage_duration_thresholds = vec![0.5]
+                    }),
+                ),
+                (
+                    "model_concurrent_usage",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.model_concurrent_usage = false
+                    }),
+                ),
+                (
+                    "minimum_usage_duration",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.minimum_usage_duration = 90.0
+                    }),
+                ),
+                (
+                    "apply_minimum_usage_duration_to_concurrent_subintervals",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.apply_minimum_usage_duration_to_concurrent_subintervals = true
+                    }),
+                ),
+                (
+                    "filter_zero_duration_sessions",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.filter_zero_duration_sessions = true
+                    }),
+                ),
+                (
+                    "screen_auto_lock_timeout_seconds",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.screen_auto_lock_timeout_seconds = 45.0
+                    }),
+                ),
+                (
+                    "screen_auto_lock_tolerance_seconds",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.screen_auto_lock_tolerance_seconds = 5.0
+                    }),
+                ),
+                (
+                    "screen_manual_lock_max_tail_seconds",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.screen_manual_lock_max_tail_seconds = 5.0
+                    }),
+                ),
+                (
+                    "screen_keyguard_near_stop_seconds",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.screen_keyguard_near_stop_seconds = 10.0
+                    }),
+                ),
+                (
+                    "enable_screen_gated_crediting",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.enable_screen_gated_crediting = false
+                    }),
+                ),
+                (
+                    "credited_session_cap_minutes",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.credited_session_cap_minutes = 5.0
+                    }),
+                ),
+                (
+                    "device_liveness_gap_tolerance_minutes",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.device_liveness_gap_tolerance_minutes = 1.0
+                    }),
+                ),
+                (
+                    "auto_lock_bridge_seconds",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.auto_lock_bridge_seconds = 5.0
+                    }),
+                ),
+                (
+                    "no_witness_min_day_apps",
+                    Box::new(|options: &mut PipelineV2Options| options.no_witness_min_day_apps = 1),
+                ),
+                (
+                    "enable_study_window_filter",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.enable_study_window_filter = false
+                    }),
+                ),
+                (
+                    "enable_person_attribution",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.enable_person_attribution = false
+                    }),
+                ),
+                (
+                    "add_no_activity_placeholder_days",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.add_no_activity_placeholder_days = false
+                    }),
+                ),
+                (
+                    "enable_day_coverage",
+                    Box::new(|options: &mut PipelineV2Options| options.enable_day_coverage = false),
+                ),
+                (
+                    "enable_compliance_scoring",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.enable_compliance_scoring = false
+                    }),
+                ),
+                (
+                    "compliance_threshold_percent",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.compliance_threshold_percent = 20.0
+                    }),
+                ),
+                (
+                    "enable_aggregates",
+                    Box::new(|options: &mut PipelineV2Options| options.enable_aggregates = false),
+                ),
+                (
+                    "aggregate_shape",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.aggregate_shape = "long".into()
+                    }),
+                ),
+                (
+                    "materialize_visualization_data",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.materialize_visualization_data = false
+                    }),
+                ),
+                (
+                    "datetime_of_preprocessing",
+                    Box::new(|options: &mut PipelineV2Options| {
+                        options.datetime_of_preprocessing = "2026-07-24 00:00:00 UTC".into()
+                    }),
+                ),
+            ];
+
+            let check = |engine: &mut TrackedEngine, options: &PipelineV2Options, label: &str| {
+                let warm = engine.execute(&csv(), options, support, true).unwrap();
+                let mut cold = TrackedEngine::default();
+                let expected = cold.execute(&csv(), options, support, true).unwrap();
+                assert_result_parity(&warm.result, &expected.result, options.usage_session_mode);
+
+                let repeat = engine.execute(&csv(), options, support, true).unwrap();
+                assert!(
+                    repeat.executed_steps.is_empty()
+                        && repeat.internal_executed_queries.is_empty(),
+                    "{label}: repeating an unchanged request reran {:?} / {:?}",
+                    repeat.executed_steps,
+                    repeat.internal_executed_queries,
+                );
+                assert_result_parity(&repeat.result, &expected.result, options.usage_session_mode);
+            };
+
+            let mut engine = TrackedEngine::default();
+            check(&mut engine, &baseline, "baseline");
+            for (label, edit) in &edits {
+                let mut changed = baseline.clone();
+                edit(&mut changed);
+                check(&mut engine, &changed, label);
+                check(&mut engine, &baseline, &format!("{label} reverted"));
+            }
+        }
+
+        /// The same two properties for edits to the inputs rather than the
+        /// options: a changed raw export and a changed support file.
+        #[test]
+        fn input_edits_keep_warm_results_exact_and_repeat_requests_free() {
+            let mut options = pipeline_options();
+            options.include_app_output = true;
+            options.include_screen_output = true;
+            options.use_filter_file = true;
+            options.use_app_codebook = true;
+            let options = options;
+
+            let filter = b"app_package_name\ncom.example.chat\n".to_vec();
+            let other_filter = b"app_package_name\ncom.example.other\n".to_vec();
+            let codebook = b"app_package_name,application_label,bcm_play_store_genreId,bcm_play_store_broad_app_category,dataset\ncom.example.chat,Chat,Social,Communication,test\n".to_vec();
+            let other_codebook = b"app_package_name,application_label,bcm_play_store_genreId,bcm_play_store_broad_app_category,dataset\ncom.example.chat,Chat,Games,Entertainment,test\n".to_vec();
+            let base_support = PipelineV2SupportFiles {
+                filter_csv: &filter,
+                codebook_csv: &codebook,
+                ..PipelineV2SupportFiles::default()
+            };
+
+            let extended_csv = {
+                let mut bytes = csv().as_ref().clone();
+                bytes.extend_from_slice(
+                    b"Study,P01,Target Child,Music,Activity Resumed,com.example.music,2026-03-07 10:02:00,America/Chicago\n",
+                );
+                bytes.extend_from_slice(
+                    b"Study,P01,Target Child,Music,Activity Paused,com.example.music,2026-03-07 10:09:00,America/Chicago\n",
+                );
+                Arc::new(bytes)
+            };
+
+            let cases: Vec<(&str, Arc<Vec<u8>>, PipelineV2SupportFiles<'_>)> = vec![
+                ("baseline", csv(), base_support),
+                (
+                    "extra raw rows",
+                    Arc::clone(&extended_csv),
+                    base_support,
+                ),
+                (
+                    "different filter file",
+                    csv(),
+                    PipelineV2SupportFiles {
+                        filter_csv: &other_filter,
+                        ..base_support
+                    },
+                ),
+                (
+                    "different codebook",
+                    csv(),
+                    PipelineV2SupportFiles {
+                        codebook_csv: &other_codebook,
+                        ..base_support
+                    },
+                ),
+                ("back to baseline", csv(), base_support),
+                (
+                    "extra raw rows again",
+                    Arc::clone(&extended_csv),
+                    base_support,
+                ),
+            ];
+
+            let mut engine = TrackedEngine::default();
+            for (label, bytes, support) in cases {
+                let warm = engine.execute(&bytes, &options, support, true).unwrap();
+                let mut cold = TrackedEngine::default();
+                let expected = cold.execute(&bytes, &options, support, true).unwrap();
+                assert_result_parity(&warm.result, &expected.result, options.usage_session_mode);
+
+                let repeat = engine.execute(&bytes, &options, support, true).unwrap();
+                assert!(
+                    repeat.executed_steps.is_empty()
+                        && repeat.internal_executed_queries.is_empty(),
+                    "{label}: repeating an unchanged request reran {:?} / {:?}",
+                    repeat.executed_steps,
+                    repeat.internal_executed_queries,
+                );
+                assert_result_parity(&repeat.result, &expected.result, options.usage_session_mode);
+            }
+        }
+
         /// Native attribution for the review hot path. The only runner for the
         /// query-timing sub-timers in review_usage_rows_before_floor and
         /// review_static_annotations; it never runs in normal gates. Timings
