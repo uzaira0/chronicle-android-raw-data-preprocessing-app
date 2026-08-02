@@ -1896,8 +1896,8 @@ struct ProductStageInputKey<'a> {
 }
 
 /// `Recomputed` is a claim about physical execution, so it is reachable only
-/// from a member query that actually ran (`has_recomputed_step`, sourced from
-/// the Salsa execution events) or from a group the run deactivated.
+/// from a member query that actually ran (`has_executed_member`, read straight
+/// off the Salsa execution events) or from a group the run deactivated.
 ///
 /// The stage's published `input_key` deliberately does *not* feed this. That
 /// key binds every member step's own key, and a step's key can legitimately
@@ -1908,12 +1908,20 @@ struct ProductStageInputKey<'a> {
 /// manifest whose own `stepExecutions` reported 0 of 55 steps recomputed.
 /// Callers that need "the projection key moved" read `input_key`, which is
 /// published on every `NodeExecution`.
+///
+/// `has_executed_member` is the Salsa event set and not "some member is badged
+/// `Recomputed`", because the member ladder in `build_runtime_step_executions`
+/// resolves `Bypassed` and `Skipped` ahead of `Recomputed`. A step that is not
+/// applicable but whose query still ran is therefore badged `Bypassed`, and
+/// reading the badges back would lose the execution — leaving this function
+/// free to answer `Cached`, whose published reason is
+/// `all-active-queries-reused`, for a stage in which a query ran.
 fn product_stage_status(
     has_error: bool,
     bypassed: bool,
     has_skipped_step: bool,
     group_deactivated: bool,
-    has_recomputed_step: bool,
+    has_executed_member: bool,
 ) -> ExecutionStatus {
     if has_error {
         ExecutionStatus::Error
@@ -1921,7 +1929,7 @@ fn product_stage_status(
         ExecutionStatus::Bypassed
     } else if has_skipped_step {
         ExecutionStatus::Skipped
-    } else if group_deactivated || has_recomputed_step {
+    } else if group_deactivated || has_executed_member {
         ExecutionStatus::Recomputed
     } else {
         ExecutionStatus::Cached
@@ -1934,6 +1942,7 @@ fn project_product_stages(
     semantic_options: &Value,
     result: &PipelineV2Result,
     step_executions: &[RuntimeStepExecution],
+    executed_steps: &BTreeSet<&str>,
     deactivated_groups: &BTreeSet<&str>,
     previous_stage_inputs: &mut BTreeMap<String, String>,
     previous_stage_outputs: &mut BTreeMap<String, ArtifactRef>,
@@ -2060,7 +2069,7 @@ fn project_product_stages(
             deactivated_groups.contains(node.node_id.as_str()),
             members
                 .iter()
-                .any(|execution| execution.status == ExecutionStatus::Recomputed),
+                .any(|execution| executed_steps.contains(execution.step_id.as_str())),
         );
         let reason = match status {
             ExecutionStatus::Cached => "all-active-queries-reused",
@@ -2300,6 +2309,7 @@ fn execute_incremental_pipeline(
             options_value,
             &result,
             &step_executions,
+            &executed_steps.iter().map(String::as_str).collect(),
             &deactivated_groups,
             &mut state.previous_stage_inputs,
             &mut state.previous_stage_outputs,
@@ -7975,18 +7985,30 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             let bypassed = bits & 2 != 0;
             let has_skipped_step = bits & 4 != 0;
             let group_deactivated = bits & 8 != 0;
-            let has_recomputed_step = bits & 16 != 0;
+            let has_executed_member = bits & 16 != 0;
             let status = product_stage_status(
                 has_error,
                 bypassed,
                 has_skipped_step,
                 group_deactivated,
-                has_recomputed_step,
+                has_executed_member,
             );
             if status == ExecutionStatus::Recomputed {
                 assert!(
-                    group_deactivated || has_recomputed_step,
+                    group_deactivated || has_executed_member,
                     "recomputed without an executed member or a deactivated group: {bits:05b}"
+                );
+            }
+            // The converse, which the original assertion left open: `cached`
+            // publishes the reason `all-active-queries-reused`, so it may not
+            // be reachable from an input set in which a member query ran. Only
+            // `error`, `bypassed` and `skipped` -- each of which withdraws the
+            // reuse claim rather than making one -- outrank an execution.
+            if status == ExecutionStatus::Cached {
+                assert!(
+                    !has_executed_member,
+                    "cached claims every active query was reused, but a member \
+                     query executed: {bits:05b}"
                 );
             }
         }
@@ -8031,6 +8053,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             &result,
             &step_executions,
             &BTreeSet::new(),
+            &BTreeSet::new(),
             &mut previous_stage_inputs,
             &mut previous_stage_outputs,
             true,
@@ -8061,6 +8084,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         let executed = &PIPELINE_STEPS[0];
         let mut with_execution = step_executions.clone();
         with_execution[0].status = ExecutionStatus::Recomputed;
+        let executed_steps = BTreeSet::from([executed.id]);
         let mut previous_stage_inputs = plan
             .nodes
             .iter()
@@ -8072,6 +8096,7 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             &semantic_options,
             &result,
             &with_execution,
+            &executed_steps,
             &BTreeSet::new(),
             &mut previous_stage_inputs,
             &mut previous_stage_outputs,
@@ -8084,6 +8109,92 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
             .map(|execution| execution.node_id.as_str())
             .collect::<Vec<_>>();
         assert_eq!(recomputed, vec![executed.group]);
+    }
+
+    /// The step ladder in `build_runtime_step_executions` resolves `Bypassed`
+    /// ahead of `Recomputed`, so a step that is not applicable is badged
+    /// `Bypassed` even when Salsa ran its query. Deriving the stage badge from
+    /// the member badges therefore loses that execution, and the stage answers
+    /// `Cached` -- published as `all-active-queries-reused` -- for a run in
+    /// which a query ran.
+    ///
+    /// `day_coverage` is where the two applicability conditions genuinely
+    /// differ (`step_contract.rs`): the group is applicable when
+    /// `add_no_activity_placeholder_days` alone is on, while its member
+    /// `build_coverage_table` additionally requires `enable_day_coverage`. So
+    /// the stage is not bypassed, no member is badged `Recomputed`, and the
+    /// contradiction is reachable rather than theoretical.
+    #[test]
+    fn a_bypassed_member_whose_query_ran_still_recomputes_its_stage() {
+        let csv = csv();
+        let (_request, result, mut semantic_options, _exact_options) =
+            direct_pipeline_result(&csv, false);
+        semantic_options["process_app_usage"] = Value::Bool(true);
+        semantic_options["add_no_activity_placeholder_days"] = Value::Bool(true);
+        semantic_options["enable_day_coverage"] = Value::Bool(false);
+        let plan = embedded_plan();
+        let node = plan
+            .nodes
+            .iter()
+            .find(|node| node.node_id == "day_coverage")
+            .expect("day_coverage stage");
+        assert!(
+            node.applicability.evaluate(&semantic_options),
+            "the stage must stay applicable, or `bypassed` would outrank the \
+             execution for an unrelated reason"
+        );
+
+        // Salsa ran exactly one query in this stage, and it is the member the
+        // options make inapplicable.
+        let executed_id = "build_coverage_table";
+        let step_executions = PIPELINE_STEPS
+            .iter()
+            .map(|definition| RuntimeStepExecution {
+                step_id: definition.id.to_string(),
+                unit_id: definition.group.to_string(),
+                status: if definition.id == executed_id {
+                    ExecutionStatus::Bypassed
+                } else {
+                    ExecutionStatus::Cached
+                },
+                input_key: format!("sha256:{}", "1".repeat(64)),
+                output_digest: format!("sha256:{}", "2".repeat(64)),
+                reason_id: format!("sha256:{}", "3".repeat(64)),
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            !step_executions
+                .iter()
+                .any(|execution| execution.status == ExecutionStatus::Recomputed),
+            "no member is badged recomputed, which is exactly why reading the \
+             badges back reported this stage cached"
+        );
+
+        let mut previous_stage_inputs = BTreeMap::new();
+        let mut previous_stage_outputs = BTreeMap::new();
+        let (executions, _artifacts) = project_product_stages(
+            &plan,
+            &semantic_options,
+            &result,
+            &step_executions,
+            &BTreeSet::from([executed_id]),
+            &BTreeSet::new(),
+            &mut previous_stage_inputs,
+            &mut previous_stage_outputs,
+            true,
+        )
+        .expect("projection with one executed but inapplicable member");
+        let status = executions
+            .iter()
+            .find(|execution| execution.node_id == "day_coverage")
+            .map(|execution| execution.status)
+            .expect("day_coverage stage execution");
+        assert_eq!(
+            status,
+            ExecutionStatus::Recomputed,
+            "a stage whose member query ran may not claim every active query \
+             was reused"
+        );
     }
 
     #[test]
