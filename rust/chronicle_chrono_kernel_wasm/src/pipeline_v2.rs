@@ -19,7 +19,7 @@ use crate::{parse_chronicle_timestamp_ns, weekday_chronicle, write_csv_field};
 use _rust_app_usage_matcher::{split_overlapping_sessions, UsageLayer};
 
 #[path = "pipeline_v2_aggregates.rs"]
-mod aggregates;
+pub mod aggregates;
 #[path = "pipeline_v2_incremental.rs"]
 mod incremental;
 #[cfg(feature = "incremental-v2")]
@@ -148,6 +148,13 @@ const COLLAPSED_GENRE_FIELD_INDICES: [usize; 4] = [1, 9, 17, 18];
 
 fn codebook_output_columns() -> Vec<&'static str> {
     CODEBOOK_RENAME_PAIRS.iter().map(|(_, v)| *v).collect()
+}
+
+/// The codebook join's own supplied-column to output-column table. The
+/// field-level step contract binds `app_codebook_file` columns and the codebook
+/// output columns through this table instead of restating either list.
+pub fn codebook_column_renames() -> &'static [(&'static str, &'static str)] {
+    CODEBOOK_RENAME_PAIRS
 }
 
 // Stable column index lookup for codebook fields, matching the order above.
