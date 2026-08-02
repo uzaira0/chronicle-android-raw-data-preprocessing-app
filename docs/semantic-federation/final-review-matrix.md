@@ -227,20 +227,23 @@ evidence.
 
 ## Remaining production blockers or bounded debt
 
-1. Core Rust coverage is measured honestly but the chrono kernel is below its
-   own declared floor, and the gate that should catch that cannot currently
-   run. Measured on `main` at `3c598ee` with
-   `rustup run stable cargo llvm-cov --manifest-path <crate> --summary-only`
-   plus the feature flags each entry of
+1. Closed. Core Rust coverage is measured honestly, every authority crate is
+   above its own declared floor, and the gate that should catch a regression
+   now runs: `make coverage-rust` exits 0 and prints
+   `rust_authority_quality=coverage manifests=5`. Re-measured on **this merged
+   wave** — the figures below are not the lane-branch numbers the previous
+   revision of this table published — by that gate, which runs
+   `cargo llvm-cov --summary-only` per crate with the feature flags and
+   ratchets each entry of
    `.semantic-federation/quality/rust-authority-manifests.txt` declares:
 
    | Authority crate | Lines | Regions | Functions | Floor (L/R/F) | Result |
    |---|---:|---:|---:|---|---|
    | `chronicle_preprocessing_semantic_adapter` | 99.16% | 98.33% | 96.84% | 95/94/70 | pass |
-   | `chronicle_preprocessing_runtime_wasm` | 95.19% | 94.12% | 75.00% | 95/94/70 | pass |
-   | `chronicle_semantic_index_wasm` | 97.07% | 96.65% | 82.22% | 95/94/70 | pass |
+   | `chronicle_preprocessing_runtime_wasm` | 95.54% | 94.47% | 76.18% | 95/94/70 | pass |
+   | `chronicle_semantic_index_wasm` | 96.97% | 96.51% | 80.85% | 95/94/70 | pass |
    | `chronicle_app_usage_matcher` (`--no-default-features`) | 94.69% | 94.10% | 90.09% | 93/93/90 | pass |
-   | `chronicle_chrono_kernel_wasm` (`--features incremental-v2`) | 96.04% | 95.30% | 92.33% | 90/89/85 | pass (was 89.78/89.36/84.30 before the mutation lane's tests) |
+   | `chronicle_chrono_kernel_wasm` (`--features incremental-v2`) | 96.20% | 95.42% | 92.73% | 90/89/85 | pass (was 89.78/89.36/84.30 before the mutation lane's tests) |
 
    The earlier `41.54%/40.80%/40.71%` kernel figure and `85.44%/84.53%/86.05%`
    matcher figure in this document, and the `90.84% lines / 90.21% regions`
@@ -262,7 +265,7 @@ evidence.
    truncated — so the alternation case is impossible to express inline instead
    of merely repaired. The kernel gap that this exposed is closed:
    the ratchet ran for the first time at 89.78/89.36/84.30 and the mutation
-   lane's kill tests lifted it to 96.04/95.30/92.33 against the unchanged
+   lane's kill tests lifted it to 96.20/95.42/92.73 against the unchanged
    90/89/85 floor. The floor was not lowered.
 2. Closed 2026-08-01. All three engines are supported, and the two exclusions
    this item recorded turned out to be product defects rather than missing
