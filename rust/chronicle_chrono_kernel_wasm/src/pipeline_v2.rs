@@ -10573,7 +10573,7 @@ mod tests {
 
     /// Build real canonical rows from raw events, so tests operate on the same
     /// values the pipeline does rather than on hand-assembled structs.
-    fn rows_from_events(events: &[(&str, &str, &str)]) -> Vec<Row> {
+    pub(super) fn rows_from_events(events: &[(&str, &str, &str)]) -> Vec<Row> {
         let mut csv = String::from(
             "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
         );
