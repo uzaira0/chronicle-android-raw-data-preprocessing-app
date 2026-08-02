@@ -194,12 +194,17 @@ function firstKey(value: Record<string, unknown>): string {
   return key;
 }
 
-// The encoded size of `source-result-influence-arrow` on the 600-event fixture
+// Sizes and counts of the correspondence artifacts on the 600-event fixture
 // below. `docs/semantic-federation/production-proof.md` and
-// `final-review-matrix.md` publish this exact number, so it is pinned here
-// rather than left to a generous upper bound — the schema change to v3 moved
-// it, and nothing failed.
-const EXPECTED_INFLUENCE_WITNESS_BYTES = 61_778;
+// `final-review-matrix.md` publish these exact numbers, so they are pinned here
+// rather than left to generous upper bounds — the witness schema change to v3
+// moved its byte size and nothing failed, because a 262,144-byte ceiling
+// happily accommodates any drift a reader would care about.
+const EXPECTED_SOURCE_COORDINATE_ROWS = 4_885;
+const EXPECTED_SOURCE_COORDINATE_BYTES = 37_866;
+const EXPECTED_RESULT_CELL_ROWS = 9_902;
+const EXPECTED_RESULT_CELL_BYTES = 45_810;
+const EXPECTED_INFLUENCE_WITNESS_BYTES = 64_658;
 
 function representativeSourceFixture(): Uint8Array {
   const rows = [
@@ -2082,11 +2087,22 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
         execution.manifest.artifacts.find((artifact) => artifact.kind === kind)!
           .digest,
     );
+    const resultCellMetadata = execution.manifest.artifacts.find(
+      ({ kind }) => kind === "result-cell-correspondence-arrow",
+    );
     expect(metadata).toBeDefined();
     expect(bytes).toBeDefined();
     expect(metadata?.rowCount).toBeGreaterThanOrEqual(4_800);
     expect(metadata?.size).toBe(bytes?.byteLength);
     expect(metadata?.size).toBeLessThanOrEqual(raw.byteLength * 3 + 65_536);
+    // Pinned exactly for the same reason as the witness size below: the
+    // semantic-federation documents publish these counts and byte sizes, and
+    // only an upper bound stood between a schema change and a stale published
+    // figure.
+    expect(metadata?.rowCount).toBe(EXPECTED_SOURCE_COORDINATE_ROWS);
+    expect(metadata?.size).toBe(EXPECTED_SOURCE_COORDINATE_BYTES);
+    expect(resultCellMetadata?.rowCount).toBe(EXPECTED_RESULT_CELL_ROWS);
+    expect(resultCellMetadata?.size).toBe(EXPECTED_RESULT_CELL_BYTES);
     expect(influenceMetadata).toBeDefined();
     expect(influenceBytes).toBeDefined();
     // v2 of the witness added the three field-level precision classes on top of
