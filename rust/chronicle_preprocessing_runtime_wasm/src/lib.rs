@@ -5540,23 +5540,31 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
     #[test]
     fn a_warm_review_after_an_option_edit_projects_the_stages_a_cold_review_reports() {
         reset_tracked_execution_count();
-        let csv = csv();
+        // The plain `csv()` fixture carries only unrecognized interaction
+        // types, so it produces no sessions and no duration option can move
+        // its output. This fixture has two 60 s Resumed/Paused pairs.
+        let csv = mixed_timezone_csv();
         let support = RuntimeSupportFiles::default();
 
         let mut first_request = request_for_workspace(&csv, '3');
         first_request["command"] = Value::String(QUERY_REVIEW_COMMAND.into());
-        execute_workspace_native(&first_request.to_string(), &csv, &support).unwrap();
+        let first = execute_workspace_native(&first_request.to_string(), &csv, &support).unwrap();
+        let first: ReviewRuntimeManifest = serde_json::from_str(&first.manifest_json).unwrap();
 
+        // 90 s raises the floor above both 60 s sessions in the fixture, so the
+        // edit moves the summary as well as the keys. An edit that only moved
+        // keys would leave a stale cached stage output indistinguishable from a
+        // fresh one.
         let mut edited_request = first_request.clone();
         edited_request["requestId"] = Value::String("warm-review-after-edit".into());
-        edited_request["options"]["minimum_usage_duration"] = serde_json::json!(31.0);
+        edited_request["options"]["minimum_usage_duration"] = serde_json::json!(90.0);
         let warm = execute_workspace_native(&edited_request.to_string(), &csv, &support).unwrap();
         let warm: ReviewRuntimeManifest = serde_json::from_str(&warm.manifest_json).unwrap();
 
         let mut cold_request = request_for_workspace(&csv, '4');
         cold_request["command"] = Value::String(QUERY_REVIEW_COMMAND.into());
         cold_request["requestId"] = Value::String("cold-review-oracle".into());
-        cold_request["options"]["minimum_usage_duration"] = serde_json::json!(31.0);
+        cold_request["options"]["minimum_usage_duration"] = serde_json::json!(90.0);
         let cold = execute_workspace_native(&cold_request.to_string(), &csv, &support).unwrap();
         let cold: ReviewRuntimeManifest = serde_json::from_str(&cold.manifest_json).unwrap();
 
@@ -5565,6 +5573,10 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
                 .iter()
                 .any(|execution| execution.status == ExecutionStatus::Cached),
             "the warm review recomputed every stage, so it never exercised the projection cache"
+        );
+        assert_ne!(
+            warm.review_summary_digest, first.review_summary_digest,
+            "the option edit left the review summary unchanged, so a stale stage output would be invisible"
         );
         assert_eq!(warm.review_summary_digest, cold.review_summary_digest);
 
@@ -6816,6 +6828,44 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         INCREMENTAL_RUNTIME_STATES.with(|states| {
             assert_eq!(states.borrow().states.len(), MAX_INCREMENTAL_RUNTIME_STATES);
         });
+        // Pinned because an exclusion depends on it: at a capacity of one,
+        // `state_for` removes the revisited id from the LRU list before the
+        // admission check, so the list is empty and `pop_front` evicts nothing
+        // however that check is written. Raising the capacity makes the
+        // admission check load-bearing again — see the state-cache entry in
+        // .semantic-federation/quality/runtime-mutation-exclusions.txt.
+        assert_eq!(MAX_INCREMENTAL_RUNTIME_STATES, 1);
+    }
+
+    /// A warm review resumes from Salsa state already in this worker instead
+    /// of reparsing the input. Both halves of that claim have to hold: the
+    /// workspace must be at the root the request expects, and the engine must
+    /// already have verified *this* input. Accepting either one alone would
+    /// resume a review against a digest the engine never parsed.
+    #[test]
+    fn a_warm_review_needs_the_workspace_root_and_the_verified_input_together() {
+        let mut cache = IncrementalRuntimeStateCache::default();
+        let workspace = "warm-review-workspace";
+        let root = format!("sha256:{}", "a".repeat(64));
+        let input = format!("sha256:{}", "b".repeat(64));
+        cache.state_for(workspace).last_workspace_root = Some(root.clone());
+
+        assert!(
+            !cache.has_warm_review_input(workspace, Some(root.as_str()), &input),
+            "a matching workspace root alone claimed a warm review input the engine never verified"
+        );
+        assert!(
+            !cache.has_warm_review_input(workspace, Some("sha256:other"), &input),
+            "a workspace at a different root claimed a warm review input"
+        );
+        assert!(
+            !cache.has_warm_review_input(workspace, None, &input),
+            "a request carrying no workspace root claimed a warm review input"
+        );
+        assert!(
+            !cache.has_warm_review_input("unknown-workspace", Some(root.as_str()), &input),
+            "a workspace with no state at all claimed a warm review input"
+        );
     }
 
     #[test]
