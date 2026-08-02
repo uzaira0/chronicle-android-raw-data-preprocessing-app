@@ -29,7 +29,11 @@ pub(crate) mod golden {
 
     pub(crate) fn assert_matches(name: &str, actual: &[u8]) {
         let path = path(name);
-        if std::env::var_os("UPDATE_GOLDEN").is_some() {
+        // Exactly "1", never merely present: `UPDATE_GOLDEN=0` and an empty
+        // `UPDATE_GOLDEN=` must compare, not silently overwrite every golden in
+        // the crate and report green. This matches the web campaigns and every
+        // documented invocation.
+        if std::env::var("UPDATE_GOLDEN").as_deref() == Ok("1") {
             std::fs::create_dir_all(path.parent().expect("golden directory"))
                 .expect("create golden directory");
             std::fs::write(&path, actual).expect("write golden");
