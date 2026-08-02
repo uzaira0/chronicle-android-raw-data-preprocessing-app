@@ -11,19 +11,36 @@
 # cargo test cannot call its `main` in a mutant sandbox. The matcher's optional
 # Python-only facade is outside the browser product and creates the bulk of the
 # crate's 704,021 mutants as combinatorial tuple-return replacements — 702,769
-# for `match_app_usage_update_arrays` alone. The ` in <function>` expressions
-# below only ever matched operator mutants *inside* a function body: a
+# for `match_app_usage_update_arrays` alone. `PyResult<` and `PyErr` name that
+# facade by its return types, which appear nowhere above the crate's
+# `#[cfg(feature = "python")]` block at src/lib.rs:1246, and remove 703,741 of
+# the 704,021. They are written without the `->`: an exclusion expression may
+# not begin with `-`, which cargo-mutants' argument parser reads as a flag.
+#
+# The entry also carried ` in to_py_error`, ` in match_app_usage`,
+# ` in split_overlapping_sessions_py` and ` in _rust_app_usage_matcher`. That
+# shape only matches operator mutants *inside* a function body — a
 # function-replacement mutant is named `replace <fn> -> <type> with <value>`
-# and carries no ` in `, so they excluded 35 of 704,021 and the entry could
-# never finish. `PyResult<` and `PyErr` name the facade by its return types,
-# which appear nowhere above the crate's `#[cfg(feature = "python")]` block,
-# and leave the 245 binding-agnostic core mutants in scope. They are written
-# without the `->`: an exclusion expression may not begin with `-`, which
-# cargo-mutants' argument parser reads as a flag.
-# That core currently has 34 survivors — comparison boundaries in
-# split_overlapping_sessions, both proximity matchers, and SparseOpenStarts.
-# They are recorded in docs/validation/KERNEL_MUTATION.md and are a campaign of
-# their own; this entry is left honest and red rather than blanket-excluded.
+# and carries no ` in ` — so ` in to_py_error` and ` in _rust_app_usage_matcher`
+# matched nothing at all, and ` in match_app_usage` matched 34 mutants of which
+# not one was in the PyO3 `match_app_usage`: all 34 were in
+# match_app_usage_core, match_app_usage_update_indices_core and
+# match_app_usage_update_indices_with_proximity_core, the binding-agnostic core
+# this repo names as the single source of truth for session matching, and 24 of
+# them are caught. Excluding them cut the entry from 279 mutants to 245 and
+# deleted 24 real kills from its score. Those three fragments are gone;
+# ` in split_overlapping_sessions_py$` stays because it matches exactly one real
+# facade mutant, the `==` at src/lib.rs:1433:35 inside the wrapper body.
+# The core has 44 survivors — comparison boundaries in
+# split_overlapping_sessions, both proximity matchers, the update-indices core
+# and SparseOpenStarts. They are recorded in docs/validation/KERNEL_MUTATION.md
+# and are a campaign of their own; this entry is left honest and red rather
+# than blanket-excluded.
+#
+# check-rust-quality.sh enforces both halves of that before every campaign: an
+# expression matching zero mutants fails the gate by name, and the excluded
+# mutants are themselves run so an expression covering a caught mutant fails
+# instead of quietly inflating the score.
 # Optional fields after the exclusion regex ratchet line, region, and function
 # coverage for an established authority below the shared new-code defaults.
 # The final field lists product features required by both coverage and mutation;
@@ -42,4 +59,4 @@
 ../rust/chronicle_preprocessing_runtime_wasm/Cargo.toml|@runtime-mutation-exclusions.txt
 ../rust/chronicle_semantic_index_wasm/Cargo.toml
 ../rust/chronicle_chrono_kernel_wasm/Cargo.toml|@kernel-mutation-exclusions.txt|90|89|85|incremental-v2
-../rust/chronicle_app_usage_matcher/Cargo.toml|PyResult<,PyErr, in to_py_error, in match_app_usage, in split_overlapping_sessions_py, in _rust_app_usage_matcher|93|93|90||no-default-features
+../rust/chronicle_app_usage_matcher/Cargo.toml|PyResult<,PyErr, in split_overlapping_sessions_py$|93|93|90||no-default-features
