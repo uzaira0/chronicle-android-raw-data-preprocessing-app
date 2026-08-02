@@ -825,6 +825,96 @@ describe("OPFS content-addressed runtime workspace", () => {
     }
   });
 
+  it("flushes staged payloads past the staging budget without changing the bytes", async () => {
+    const workspaceId = `sha256:${"c".repeat(64)}`;
+    const source = new MemoryDirectoryHandle();
+    // Six 1 MiB objects cross the 4 MiB staging budget, so the builder hands
+    // parts to blob storage mid-export instead of only at `finish()`.
+    const payloads: PersistedRuntimeArtifact[] = [];
+    for (let index = 0; index < 6; index += 1) {
+      payloads.push(
+        await artifact("app-csv", `${String(index)}${"x".repeat(1024 * 1024)}`),
+      );
+    }
+    const rootArtifact = await artifact(
+      "workspace-root-json",
+      JSON.stringify({
+        workspaceId,
+        previousWorkspaceRootDigest: null,
+        artifactDigests: payloads.map(({ digest }) => digest),
+      }),
+    );
+    const slot = await persistRuntimeWorkspace(rootHandle(source), {
+      workspaceRootDigest: rootArtifact.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [rootArtifact, ...payloads],
+    });
+
+    const archive = await exportRuntimeClosure(rootHandle(source), slot);
+    expect(archive.size).toBeGreaterThan(4 * 1024 * 1024);
+    // Staging is an allocation strategy, never a format decision: a flushed
+    // archive is byte-identical to the whole-buffer writer's output. Compared
+    // by digest because element-wise deep equality over megabytes of typed
+    // array costs seconds and proves nothing extra.
+    const legacy = await legacyExportRuntimeClosure(rootHandle(source), slot);
+    expect(archive.size).toBe(legacy.byteLength);
+    expect(await digest(await blobBytes(archive))).toBe(await digest(legacy));
+
+    const destination = new MemoryDirectoryHandle();
+    const imported = await importRuntimeClosure(
+      rootHandle(destination),
+      archive,
+      () => Promise.resolve(),
+    );
+    expect(imported.workspaceRootDigest).toBe(rootArtifact.digest);
+    for (const value of [rootArtifact, ...payloads]) {
+      const stored = await readRuntimeObject(rootHandle(destination), value.digest);
+      expect(stored.byteLength).toBe(value.size);
+      expect(await digest(stored)).toBe(value.digest);
+    }
+  });
+
+  it("fails the export when filesystem metadata disagrees with the object it reads", async () => {
+    const source = new MemoryDirectoryHandle();
+    const workspaceId = `sha256:${"b".repeat(64)}`;
+    const payload = await artifact("app-csv", "metadata-disagreement");
+    const rootArtifact = await artifact(
+      "workspace-root-json",
+      JSON.stringify({
+        workspaceId,
+        previousWorkspaceRootDigest: null,
+        artifactDigests: [payload.digest],
+      }),
+    );
+    const slot = await persistRuntimeWorkspace(rootHandle(source), {
+      workspaceRootDigest: rootArtifact.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [rootArtifact, payload],
+    });
+
+    // The manifest is written from `file.size`; the payload comes from a later
+    // full read. A store that reports the wrong size would shift every offset
+    // after this object, so the export refuses rather than emitting a manifest
+    // that does not describe its own payload.
+    const handle = objectFile(source, payload.digest);
+    const honest = handle.getFile.bind(handle);
+    handle.getFile = async () => {
+      const file = await honest();
+      return new Proxy(file, {
+        get(target, property, receiver) {
+          if (property === "size") return target.size + 1;
+          const value: unknown = Reflect.get(target, property, receiver);
+          return typeof value === "function"
+            ? (value as (...args: never[]) => unknown).bind(target)
+            : value;
+        },
+      });
+    };
+    await expect(exportRuntimeClosure(rootHandle(source), slot)).rejects.toThrow(
+      /changed while exporting/,
+    );
+  });
+
   it("rejects an archive truncated inside an object without writing anything", async () => {
     const workspaceId = `sha256:${"2".repeat(64)}`;
     const source = new MemoryDirectoryHandle();
@@ -1585,6 +1675,14 @@ describe("OPFS content-addressed runtime workspace", () => {
     await expect(
       runtimeClosureWorkspaceId(asArchive(new Uint8Array(magic.byteLength + 3))),
     ).rejects.toThrow(/invalid runtime closure magic/);
+    // Long enough to carry a header, but the magic itself is wrong: the framing
+    // check reads the header range and compares every byte, so this is rejected
+    // without reading a manifest or a payload.
+    const wrongMagic = new Uint8Array(valid);
+    wrongMagic[magic.byteLength - 1] ^= 0xff;
+    await expect(runtimeClosureWorkspaceId(asArchive(wrongMagic))).rejects.toThrow(
+      /invalid runtime closure magic/,
+    );
     const zeroManifest = new Uint8Array(magic.byteLength + 4);
     zeroManifest.set(magic);
     await expect(
