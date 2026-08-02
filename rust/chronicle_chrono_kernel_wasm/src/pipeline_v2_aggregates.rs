@@ -621,16 +621,14 @@ mod tests {
     type Session<'a> = (&'a str, Option<&'a str>, i64, Option<i64>, &'a str);
 
     fn sessions(rows: &[Session<'_>]) -> Vec<Row> {
-        let stamps = [
-            "2026-03-07 10:00:00",
-            "2026-03-07 10:01:00",
-            "2026-03-07 10:02:00",
-            "2026-03-07 10:03:00",
-        ];
-        let events: Vec<(&str, &str, &str)> = rows
+        let stamps = rows
             .iter()
             .enumerate()
-            .map(|(index, _)| (stamps[index], "Activity Resumed", "com.example.chat"))
+            .map(|(index, _)| format!("2026-03-07 10:{index:02}:00"))
+            .collect::<Vec<_>>();
+        let events: Vec<(&str, &str, &str)> = stamps
+            .iter()
+            .map(|stamp| (stamp.as_str(), "Activity Resumed", "com.example.chat"))
             .collect();
         let mut built = crate::pipeline_v2::tests::rows_from_events(&events);
         for (row, (package, layer, start, stop, kind)) in built.iter_mut().zip(rows) {
@@ -713,6 +711,49 @@ mod tests {
         assert_eq!(
             (lines[2][package].as_str(), lines[2][total].as_str()),
             ("com.example.foreground", "10"),
+        );
+    }
+
+    /// A period summary describes completed sessions of one kind. A row of the
+    /// other kind sitting in the same list, and a session that never got a
+    /// stop, are both excluded — from the counts and from the minutes — and the
+    /// active window spans the first start to the last stop across both kinds.
+    #[test]
+    fn period_summaries_count_only_completed_sessions_of_the_matching_kind() {
+        let app = sessions(&[
+            ("com.example.chat", None, 0, Some(10), APP_USAGE),
+            ("com.example.mail", None, 12, None, APP_USAGE),
+            ("com.example.screen", None, 0, Some(30), SCREEN_USAGE),
+            (
+                "com.example.player",
+                Some("secondary"),
+                0,
+                Some(4),
+                APP_USAGE,
+            ),
+        ]);
+        let screen = sessions(&[
+            ("com.example.screen", None, 0, Some(14), SCREEN_USAGE),
+            ("com.example.screen", None, 20, None, SCREEN_USAGE),
+        ]);
+
+        let summaries = compute_period_summaries(&app, &screen, str::to_owned);
+        assert_eq!(summaries.len(), 1);
+        let summary = &summaries[0].summary;
+        assert_eq!(summaries[0].period, "2026-03-07");
+        assert_eq!(
+            (summary.app_session_count, summary.screen_session_count),
+            (1, 1),
+            "the unfinished session and the other kind's row are not sessions here",
+        );
+        assert_eq!(summary.total_app_usage_minutes, 10.0);
+        assert_eq!(summary.total_background_app_usage_minutes, 4.0);
+        assert_eq!(summary.total_screen_usage_minutes, 14.0);
+        assert_eq!(summary.mean_app_session_minutes, 10.0);
+        assert_eq!(summary.longest_app_session_minutes, 10.0);
+        assert_eq!(
+            summary.active_window_minutes, 14.0,
+            "the window runs from the first start to the last stop of either kind",
         );
     }
 }
