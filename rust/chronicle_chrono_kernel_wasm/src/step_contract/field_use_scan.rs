@@ -107,6 +107,11 @@ pub(super) struct StepFieldUse {
     pub(super) reads: BTreeSet<String>,
     pub(super) writes: BTreeSet<String>,
     pub(super) source_columns: BTreeSet<String>,
+    /// Function keys the call walk reached from this step's tracked query,
+    /// including the root itself. This is the walk's own `seen` set: it is what
+    /// decides which implementations contribute fields, so it is reported
+    /// rather than dropped.
+    pub(super) reached: BTreeSet<String>,
 }
 
 struct StructFieldCollector {
@@ -362,11 +367,18 @@ impl<'ast, 'a> Visit<'ast> for FnCollector<'a> {
 
 /// Every data field name of the canonical row and raw-row carriers.
 pub(super) fn data_field_universe() -> BTreeSet<String> {
+    data_field_universe_from(SOURCES)
+}
+
+/// The carrier data fields declared by `sources`. `data_field_universe` passes
+/// the real step implementations; the unit tests below pass small synthetic
+/// sources so the same walk can be driven over a known input.
+fn data_field_universe_from(sources: &[(&str, &str)]) -> BTreeSet<String> {
     let mut collector = StructFieldCollector {
         wanted: CARRIER_STRUCTS.iter().copied().collect(),
         fields: BTreeSet::new(),
     };
-    for (name, source) in SOURCES {
+    for (name, source) in sources {
         let file = syn::parse_file(source).unwrap_or_else(|error| panic!("{name}: {error}"));
         collector.visit_file(&file);
     }
@@ -390,7 +402,17 @@ fn codebook_source_columns() -> Vec<&'static str> {
 
 /// Per-step field usage observed in the reachable Rust implementations.
 pub(super) fn scan(step_ids: &BTreeSet<&str>) -> BTreeMap<String, StepFieldUse> {
-    let universe = data_field_universe();
+    scan_sources(step_ids, SOURCES)
+}
+
+/// The one scan implementation, over whichever `(name, source)` pairs it is
+/// given. `scan` passes the real step implementations; the unit tests below
+/// pass synthetic sources that exercise one expression shape at a time.
+fn scan_sources(
+    step_ids: &BTreeSet<&str>,
+    sources: &[(&str, &str)],
+) -> BTreeMap<String, StepFieldUse> {
+    let universe = data_field_universe_from(sources);
     let mut collector = FnCollector {
         universe: &universe,
         current: None,
@@ -398,7 +420,7 @@ pub(super) fn scan(step_ids: &BTreeSet<&str>) -> BTreeMap<String, StepFieldUse> 
         facts: BTreeMap::new(),
         tracked_fns: BTreeSet::new(),
     };
-    for (name, source) in SOURCES {
+    for (name, source) in sources {
         let file = syn::parse_file(source).unwrap_or_else(|error| panic!("{name}: {error}"));
         collector.visit_file(&file);
     }
@@ -482,7 +504,320 @@ pub(super) fn scan(step_ids: &BTreeSet<&str>) -> BTreeMap<String, StepFieldUse> 
                 enqueue(called, false);
             }
         }
+        use_set.reached = seen;
         result.insert((*step).to_string(), use_set);
     }
     result
+}
+
+/// Unit tests over synthetic sources.
+///
+/// `declared_field_edges_equal_scanned_field_use` in `step_contract.rs` runs
+/// this scanner over the real `pipeline_v2*.rs` files and only compares the
+/// aggregate result against the declared field graph. That is insensitive to
+/// most of the scanner's individual decisions: an expression shape it stops
+/// unwrapping simply drops those writes from the observed set, and the
+/// declared set is then reconciled against an under-reported one while the
+/// suite stays green. These tests drive the same `scan_sources` /
+/// `data_field_universe_from` entry points the production call uses, over
+/// sources small enough to state the exact expected read, write, source-column
+/// and reached-function sets.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The carrier every synthetic source declares. `scan_sources` derives its
+    /// data-field universe from the sources it is given, so these are the only
+    /// field names in play.
+    const CARRIER: &str = r"
+struct RowData {
+    alpha: i64,
+    beta: i64,
+    handle: i64,
+    items: Vec<i64>,
+    text: String,
+}
+";
+
+    fn source(body: &str) -> String {
+        format!("{CARRIER}{body}")
+    }
+
+    /// Runs the production scan over one synthetic source file.
+    fn scan_one(body: &str, step: &str) -> StepFieldUse {
+        let text = source(body);
+        let sources = [("synthetic.rs", text.as_str())];
+        let step_ids = BTreeSet::from([step]);
+        let mut scanned = scan_sources(&step_ids, &sources);
+        scanned
+            .remove(step)
+            .expect("the scan reports the step it was asked for")
+    }
+
+    fn names(items: &[&str]) -> BTreeSet<String> {
+        items.iter().map(|item| (*item).to_string()).collect()
+    }
+
+    #[test]
+    fn the_synthetic_carrier_defines_the_data_field_universe() {
+        let text = source("");
+        let universe = data_field_universe_from(&[("synthetic.rs", text.as_str())]);
+        assert_eq!(
+            universe,
+            names(&["alpha", "beta", "handle", "items", "text"])
+        );
+    }
+
+    /// `*row.handle = value` is `Expr::Unary(Expr::Field)`: without the unary
+    /// arm of `record_write_target` the write disappears and only the read the
+    /// assignment walk records survives.
+    #[test]
+    fn a_write_through_a_dereference_records_the_field_write() {
+        let use_set = scan_one(
+            r"
+mod tracked {
+    fn step_deref_write(row: &mut RowData) {
+        *row.handle = 1;
+    }
+}
+",
+            "step_deref_write",
+        );
+        assert_eq!(use_set.writes, names(&["handle"]));
+        assert_eq!(use_set.reads, names(&["handle"]));
+    }
+
+    /// `row.items[position] = value` is `Expr::Index(Expr::Field)`.
+    #[test]
+    fn a_write_through_an_index_records_the_field_write() {
+        let use_set = scan_one(
+            r"
+mod tracked {
+    fn step_index_write(row: &mut RowData, position: usize) {
+        row.items[position] = 1;
+    }
+}
+",
+            "step_index_write",
+        );
+        assert_eq!(use_set.writes, names(&["items"]));
+        assert_eq!(use_set.reads, names(&["items"]));
+    }
+
+    /// `(row.alpha) = value` is `Expr::Paren(Expr::Field)`.
+    #[test]
+    fn a_write_through_parentheses_records_the_field_write() {
+        let use_set = scan_one(
+            r"
+mod tracked {
+    fn step_paren_write(row: &mut RowData) {
+        (row.alpha) = 1;
+    }
+}
+",
+            "step_paren_write",
+        );
+        assert_eq!(use_set.writes, names(&["alpha"]));
+        assert_eq!(use_set.reads, names(&["alpha"]));
+    }
+
+    /// The outer `&mut` of `&mut &row.beta` is handled by
+    /// `visit_expr_reference`, which then hands the *inner* `&row.beta` to
+    /// `record_write_target`. A nested reference is therefore the shape that
+    /// reaches the reference arm; a plain `&mut row.beta` never does, because
+    /// the visitor already unwrapped it.
+    #[test]
+    fn a_write_through_a_nested_reference_records_the_field_write() {
+        let use_set = scan_one(
+            r"
+mod tracked {
+    fn step_nested_reference_write(row: &RowData) {
+        let _ = &mut &row.beta;
+    }
+}
+",
+            "step_nested_reference_write",
+        );
+        assert_eq!(use_set.writes, names(&["beta"]));
+        assert_eq!(use_set.reads, names(&["beta"]));
+    }
+
+    /// `&mut row.items.as_mut_slice()` hands `record_write_target` an
+    /// `Expr::MethodCall` whose receiver is the field: mutable access reached
+    /// through a method is still a write of the receiver field.
+    #[test]
+    fn a_write_through_a_method_receiver_records_the_field_write() {
+        let use_set = scan_one(
+            r"
+mod tracked {
+    fn step_method_receiver_write(row: &mut RowData) {
+        let _ = &mut row.items.as_mut_slice();
+    }
+}
+",
+            "step_method_receiver_write",
+        );
+        assert_eq!(use_set.writes, names(&["items"]));
+        assert_eq!(use_set.reads, names(&["items"]));
+    }
+
+    /// `visit_impl_item_fn` both scopes an inherent method to its own
+    /// `impl::` key and walks its body. The walk is what makes a free function
+    /// *declared inside* a method visible to the scan at all; the scoping is
+    /// what keeps a method's own field use out of the enclosing function.
+    #[test]
+    fn impl_method_bodies_are_walked_and_scoped_to_their_own_key() {
+        let use_set = scan_one(
+            r"
+mod tracked {
+    fn step_impl_bodies(row: &mut RowData) {
+        row.alpha = 1;
+        helper_declared_in_impl(row);
+        outer_holding_an_impl(row);
+    }
+}
+
+struct Holder;
+
+impl Holder {
+    fn wrapper(&self) {
+        fn helper_declared_in_impl(row: &mut RowData) {
+            row.beta = 2;
+        }
+    }
+}
+
+fn outer_holding_an_impl(row: &mut RowData) {
+    row.handle = 3;
+    struct Local;
+    impl Local {
+        fn inner(other: &mut RowData) {
+            other.text = 4;
+        }
+    }
+}
+",
+            "step_impl_bodies",
+        );
+        // `beta` proves the impl method body was walked; `handle` is the plain
+        // helper; `text` is written by an inherent method, which belongs to
+        // `impl::inner` and is reachable from no call name.
+        assert_eq!(use_set.writes, names(&["alpha", "beta", "handle"]));
+        assert_eq!(use_set.reads, BTreeSet::new());
+        assert_eq!(
+            use_set.reached,
+            names(&[
+                "tracked::step_impl_bodies",
+                "helper_declared_in_impl",
+                "outer_holding_an_impl",
+            ])
+        );
+    }
+
+    /// `support_value(&row, "column")` names a supplied column by string
+    /// literal, and a parse helper in `PARSE_FN_ROLES` attributes it to that
+    /// helper's source role.
+    #[test]
+    fn support_value_arguments_are_attributed_to_the_parse_helper_role() {
+        let use_set = scan_one(
+            r#"
+mod tracked {
+    fn step_support_value(row: &RowData) {
+        csv_parse(row);
+    }
+}
+
+fn csv_parse(row: &RowData) {
+    let value = support_value(row, "Event Timestamp");
+}
+"#,
+            "step_support_value",
+        );
+        assert_eq!(
+            use_set.source_columns,
+            names(&["raw_chronicle_csv.Event Timestamp"])
+        );
+    }
+
+    /// `require_support_columns(label, &rows, &["a", "b"])` names columns only
+    /// in its array argument. The label is a string literal too, and must not
+    /// be recorded as a column.
+    #[test]
+    fn require_support_columns_records_the_array_columns_and_not_the_label() {
+        let use_set = scan_one(
+            r#"
+mod tracked {
+    fn step_require_support_columns(rows: &[RowData]) {
+        csv_parse(rows);
+    }
+}
+
+fn csv_parse(rows: &[RowData]) {
+    require_support_columns("Screen usage", rows, &["Column A", "Column B"]);
+}
+"#,
+            "step_require_support_columns",
+        );
+        assert_eq!(
+            use_set.source_columns,
+            names(&[
+                "raw_chronicle_csv.Column A",
+                "raw_chronicle_csv.Column B",
+            ])
+        );
+    }
+
+    /// A call that is not made from a tracked query never resolves to the
+    /// tracked query of the same name, even when one exists. Resolving it
+    /// there would pull another Salsa query's field use into this step's
+    /// observed set, which is exactly the over-reporting the `allow_tracked`
+    /// guard prevents.
+    #[test]
+    fn a_qualified_call_resolves_to_the_pure_helper_not_the_tracked_query() {
+        let use_set = scan_one(
+            r"
+mod tracked {
+    fn step_qualified_call(row: &mut RowData) {
+        row.alpha = 1;
+        super::shared_helper(row);
+    }
+
+    fn shared_helper(row: &mut RowData) {
+        row.handle = 3;
+    }
+}
+
+fn shared_helper(row: &mut RowData) {
+    row.beta = 2;
+}
+",
+            "step_qualified_call",
+        );
+        assert_eq!(use_set.writes, names(&["alpha", "beta"]));
+        assert_eq!(
+            use_set.reached,
+            names(&["tracked::step_qualified_call", "shared_helper"])
+        );
+    }
+
+    /// A call to something the scanned sources do not define is not a reached
+    /// function. Enqueuing it would put a name with no facts on the frontier
+    /// and record it as walked; the walk must stay inside the sources it was
+    /// given.
+    #[test]
+    fn a_call_to_a_function_outside_the_sources_is_never_reached() {
+        let use_set = scan_one(
+            r"
+mod tracked {
+    fn step_external_call(row: &mut RowData) {
+        row.alpha = 1;
+        helper_defined_elsewhere(row);
+    }
+}
+",
+            "step_external_call",
+        );
+        assert_eq!(use_set.writes, names(&["alpha"]));
+        assert_eq!(use_set.reached, names(&["tracked::step_external_call"]));
+    }
 }
