@@ -10603,9 +10603,30 @@ mod tests {
     fn allocation_free_fixed_rounding_matches_the_decimal_reference() {
         let reference = |value: f64| ecma_to_fixed(value, 2).parse::<f64>().unwrap();
         for value in [
-            -21.625, -0.045, -0.025, 0.0, 0.025, 0.045, 0.05, 0.0833333, 2.675, 21.625,
+            -21.625,
+            -0.045,
+            -0.025,
+            0.0,
+            0.025,
+            0.045,
+            0.05,
+            0.0833333,
+            2.675,
+            21.625,
+            // Values below the smallest normal f64 carry a different exponent
+            // encoding. toFixed(2) still reports them as zero, and the
+            // allocation-free path has to agree there too.
+            f64::MIN_POSITIVE,
+            -f64::MIN_POSITIVE,
+            f64::MIN_POSITIVE / 2.0,
+            f64::from_bits(1),
+            -f64::from_bits(1),
         ] {
-            assert_eq!(ecma_round_fixed_f64(value, 2), reference(value));
+            assert_eq!(
+                ecma_round_fixed_f64(value, 2),
+                reference(value),
+                "allocation-free rounding disagrees for {value:e}",
+            );
         }
 
         // Exercise the exact nanosecond values immediately around every
