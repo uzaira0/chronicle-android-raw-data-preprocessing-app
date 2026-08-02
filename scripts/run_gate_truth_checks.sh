@@ -25,6 +25,8 @@ cp "$WEB/schema/chronicle-output-columns.yaml" "$BACKUP_DIR/"
 cp "$WEB/src/lib/generatedContract.ts" "$BACKUP_DIR/"
 cp "$WEB/schema/contract-baseline.json" "$BACKUP_DIR/"
 cp "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/src/step_contract.rs" "$BACKUP_DIR/"
+cp "$WEB/src/lib/generatedRuntimeBoundary.ts" "$BACKUP_DIR/"
+cp "$REPO_ROOT/rust/chronicle_preprocessing_runtime_wasm/src/lib.rs" "$BACKUP_DIR/runtime_lib.rs"
 
 restore() {
   cp "$BACKUP_DIR/chronicle-pipeline-graph.yaml" "$WEB/schema/chronicle-pipeline-graph.yaml"
@@ -32,6 +34,8 @@ restore() {
   cp "$BACKUP_DIR/generatedContract.ts" "$WEB/src/lib/generatedContract.ts"
   cp "$BACKUP_DIR/contract-baseline.json" "$WEB/schema/contract-baseline.json"
   cp "$BACKUP_DIR/step_contract.rs" "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/src/step_contract.rs"
+  cp "$BACKUP_DIR/generatedRuntimeBoundary.ts" "$WEB/src/lib/generatedRuntimeBoundary.ts"
+  cp "$BACKUP_DIR/runtime_lib.rs" "$REPO_ROOT/rust/chronicle_preprocessing_runtime_wasm/src/lib.rs"
   rm -rf "$BACKUP_DIR"
 }
 trap restore EXIT
@@ -133,6 +137,26 @@ grep -qF 'runRustV2Shadow' "$WEB/src/lib/generatedContract.ts" || {
 expect_gate_fires "TypeScript authority boundary" \
   "$VITE_NODE" scripts/check_no_typescript_authority.mts
 cp "$BACKUP_DIR/generatedContract.ts" "$WEB/src/lib/generatedContract.ts"
+
+# 8. WASM-boundary validator drift: the generated browser validator must match
+#    the Rust serialization model byte for byte.
+seed "$WEB/src/lib/generatedRuntimeBoundary.ts" \
+  's/export const RUNTIME_BOUNDARY_MODEL/export const SEEDED_DEFECT_MODEL/' 'SEEDED_DEFECT_MODEL'
+expect_gate_fires "runtime boundary artifact drift gate" \
+  "$VITE_NODE" scripts/generate_runtime_boundary_artifacts.mts --check
+cp "$BACKUP_DIR/generatedRuntimeBoundary.ts" "$WEB/src/lib/generatedRuntimeBoundary.ts"
+
+# 9. The same gate must be bound to the RUST model, not merely to itself.
+#    Retyping a manifest digest field as a bare String still compiles (the
+#    boundary digest types are transparent aliases) and still serializes the
+#    same bytes, but it downgrades what the browser is allowed to accept from
+#    "sha256 digest" to "any non-empty string" — so the gate must fire.
+seed "$REPO_ROOT/rust/chronicle_preprocessing_runtime_wasm/src/lib.rs" \
+  's/pub journal_digest: Sha256Digest,/pub journal_digest: String,/' \
+  'pub journal_digest: String,'
+expect_gate_fires "runtime boundary Rust-model binding" \
+  "$VITE_NODE" scripts/generate_runtime_boundary_artifacts.mts --check
+cp "$BACKUP_DIR/runtime_lib.rs" "$REPO_ROOT/rust/chronicle_preprocessing_runtime_wasm/src/lib.rs"
 
 if [ "$fails" -gt 0 ]; then
   echo "gate-truth: $fails gate(s) failed to fire"

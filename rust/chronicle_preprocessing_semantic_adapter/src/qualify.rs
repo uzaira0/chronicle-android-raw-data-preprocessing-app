@@ -1,4 +1,4 @@
-use crate::model::{ArtifactRef, ChroniclePlan, MaterializationState, RoleAssignment};
+use crate::model::{ArtifactRef, ChroniclePlan, MaterializationState, RoleAssignment, Sha256Digest};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -49,8 +49,8 @@ pub struct QualificationTrace {
     pub trace_id: String,
     pub candidate_id: String,
     pub candidate_revision: u64,
-    pub artifact_digest: String,
-    pub qualifiers_digest: String,
+    pub artifact_digest: Sha256Digest,
+    pub qualifiers_digest: Sha256Digest,
     pub asserted_role_ids: Vec<String>,
     pub selected_role_id: Option<String>,
     pub decision: QualificationDecision,
