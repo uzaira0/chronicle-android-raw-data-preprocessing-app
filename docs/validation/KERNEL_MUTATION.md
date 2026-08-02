@@ -185,6 +185,56 @@ mutants of which only 4 time out, and an unanchored
 All 7 are tested again, and every expression in the new file is anchored to
 the mutants it justifies.
 
+## Gate status, per entry
+
+`make mutation-rust` runs five entries. Measured on this branch:
+
+| crate | tested | caught | unviable | missed | timeout | exit |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `chronicle_preprocessing_semantic_adapter` | 150 | 122 | 28 | 0 | 0 | 0 |
+| `chronicle_preprocessing_runtime_wasm` | 646 | 586 | 60 | 0 | 0 | 0 |
+| `chronicle_semantic_index_wasm` | 75 | 74 | 1 | 0 | 0 | 0 |
+| `chronicle_chrono_kernel_wasm` | 2771 | 2069 | 702 | 0 | 0 | 0 |
+| `chronicle_app_usage_matcher` | 245 | 176 | 35 | 27 | 7 | 3 |
+
+The kernel run took 54 min at `--jobs 8 --timeout 90`. The aggregate exit is
+the matcher's, for the reason in the next section.
+
+## The matcher's campaign: measurable now, not finished
+
+`rust/chronicle_app_usage_matcher` is the repo's declared single source of
+truth for session matching, and its mutation entry could never run either. The
+crate has **704,021** mutants, **702,769** of which are combinatorial
+tuple-return replacements for one PyO3 function, `match_app_usage_update_arrays`.
+
+The entry's exclusions were written as ` in to_py_error`, ` in match_app_usage`
+and so on. That shape only matches operator mutants *inside* a function body: a
+function-replacement mutant is named `replace <fn> -> <type> with <value>` and
+carries no ` in `, so the four expressions excluded **35 of 704,021** and the
+gate sat on a run that cannot finish. Naming the facade by its return types
+instead — `PyResult<` and `PyErr`, neither of which appears above the crate's
+`#[cfg(feature = "python")]` block — leaves the **245** binding-agnostic core
+mutants, which run in 2 minutes.
+
+They do not pass: **176 caught, 35 unviable, 27 missed, 7 timeouts**.
+
+| function | survivors |
+| --- | ---: |
+| `match_sorted_app_usage_update_indices_with_proximity` | 10 |
+| `split_overlapping_sessions` | 14 (7 missed, 7 timeout) |
+| `match_legacy_app_usage_update_indices_with_proximity` | 5 |
+| `SparseOpenStarts::close_matching_global` | 3 |
+| `SparseOpenStarts::prune_global_head` | 1 |
+| `is_compatible_open_start_for_stop` | 1 |
+| **total** | **34** |
+
+They are comparison boundaries (`<` vs `<=`, `>` vs `>=`), `&&`/`||` in the
+proximity compatibility predicates, and whole-method replacements in the
+open-start bookkeeping — the exact places an off-by-one in session matching
+would live. This is a campaign of its own and is left **red and honest**: no
+blanket expression is added to make the entry green, because that is what hid
+it in the first place.
+
 ## Three defects found outside the mutant list
 
 The gate could not run at all, and finishing this campaign meant fixing that.
