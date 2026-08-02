@@ -40,13 +40,6 @@ type WorkerSlot = {
   retired: boolean;
   completedTasks: number;
   terminated: boolean;
-  /**
-   * Rejects the submission currently in flight on this slot. `worker.terminate()`
-   * fires no error event and drops the pending Comlink reply, so without this the
-   * in-flight promise would never settle and the caller (batch cancel) would wait
-   * on it forever. Set for the duration of a submission, cleared afterwards.
-   */
-  abortInFlight?: (error: Error) => void;
 };
 
 /** Never settles — stand-in fault for spawns (e.g. test stubs) that provide none. */
@@ -185,16 +178,25 @@ export class WorkerPool {
   private readonly maxTasksPerWorker: number;
   private terminated = false;
   /**
-   * Rejects the moment {@link terminate} is called. Every in-flight task races
-   * it, because `Worker.terminate()` does NOT settle the Comlink RPC promises
-   * already awaiting a reply from that worker: the worker simply stops, no
-   * message ever comes back, and `onerror`/`onmessageerror` (which is all
-   * `slot.fault` watches) never fires. Without this, cancelling a batch left
+   * Rejects the moment {@link terminate} is called. Every submission races it in
+   * {@link runOnSlot}, because `Worker.terminate()` does NOT settle the Comlink
+   * RPC promises already awaiting a reply from that worker: the worker simply
+   * stops, no message ever comes back, and `onerror`/`onmessageerror` (which is
+   * all `slot.fault` watches) never fires. Without this, cancelling a batch left
    * the caller's `await` pending forever — the run's `Promise.all` never
    * resolved and the UI stayed wedged on "Processing…" with no way out. That is
    * exactly the half-finished state cancellation exists to prevent, and
    * `App.tsx`'s runner already documents the opposite contract ("a terminate()
    * during cancel rejects the in-flight file").
+   *
+   * It is deliberately pool-scoped and created in the constructor rather than
+   * being a per-slot hook installed by `runOnSlot`. `submit()` reaches
+   * `runOnSlot` only after `await this.acquire()` yields a microtask, so a
+   * `submit()` immediately followed by `terminate()` in the SAME synchronous
+   * turn lands while no per-slot hook exists yet: `terminate()` would find
+   * nothing to fire, empty `this.slots`, and the resumed continuation would then
+   * await an RPC to an already-dead worker with no abort in the race at all.
+   * A promise that exists for the pool's whole life cannot miss that window.
    */
   private readonly aborted: Promise<never>;
   private abort: () => void = () => {};
@@ -352,25 +354,19 @@ export class WorkerPool {
   }
 
   /**
-   * Run one submission on an acquired slot, racing the worker's fault AND an
-   * abort hook that `terminate()` fires. Terminating a worker mid-call produces
-   * no error event and no Comlink reply, so the abort hook is the only thing
-   * that settles the promise — without it a cancelled batch waits forever.
+   * Run one submission on an acquired slot, racing the worker's fault AND the
+   * pool-wide {@link aborted} that `terminate()` fires. Terminating a worker
+   * mid-call produces no error event and no Comlink reply, so that abort is the
+   * only thing that settles the promise — without it a cancelled batch waits
+   * forever.
    */
   private async runOnSlot<T>(
     slot: WorkerSlot,
     body: () => Promise<T>,
   ): Promise<T> {
-    const aborted = new Promise<never>((_, reject) => {
-      slot.abortInFlight = reject;
-    });
-    // The abort promise may be left unsettled when the body wins the race; an
-    // unobserved rejection would otherwise surface as an unhandled rejection.
-    aborted.catch(() => {});
     try {
-      return await Promise.race([body(), slot.fault, aborted]);
+      return await Promise.race([body(), slot.fault, this.aborted]);
     } finally {
-      slot.abortInFlight = undefined;
       this.release(slot);
     }
   }
@@ -403,8 +399,10 @@ export class WorkerPool {
 
   terminate(): void {
     this.terminated = true;
-    // Settle in-flight tasks first: the workers below are about to stop without
-    // ever answering their pending RPCs.
+    // Settle every submission FIRST — before killing the workers that owe them a
+    // reply — so a cancel unwinds the batch instead of wedging it. One pool-wide
+    // rejection covers all of them, including a submission still suspended in
+    // `await this.acquire()` that has not reached `runOnSlot` yet.
     this.abort();
     while (this.waiters.length) {
       this.waiters
@@ -412,9 +410,6 @@ export class WorkerPool {
         .reject(new Error("Worker pool has been terminated."));
     }
     this.slots.forEach((slot) => {
-      // Settle the in-flight submission BEFORE killing the worker that owed it a
-      // reply, so a cancel unwinds the batch instead of wedging it.
-      slot.abortInFlight?.(new Error("Worker pool has been terminated."));
       this.terminateSlot(slot);
     });
     this.slots.length = 0;
