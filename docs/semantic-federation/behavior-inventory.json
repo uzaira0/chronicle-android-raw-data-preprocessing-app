@@ -8,7 +8,7 @@
   "sources": {
     "rust_step_contract": {
       "path": "rust/chronicle_chrono_kernel_wasm/src/step_contract.rs",
-      "digest": "sha256:b02864e709c46062584e0176c44d2c55d9223253baf24efc47ffd24731bd6dd9",
+      "digest": "sha256:84fdda632bf7049bdbe25c1ac799456c66858ec72d5e4aaaa774c9976e885b7a",
       "executable": false,
       "production_authority": true,
       "purpose": "declares the exact 55 Rust query ids and edges"
@@ -25,12 +25,12 @@
         "rust/chronicle_chrono_kernel_wasm/src/pipeline_v2_incremental.rs",
         "rust/chronicle_chrono_kernel_wasm/src/step_contract.rs"
       ],
-      "digest": "sha256:09ac96f96bd4d887620e77ccf4bafdf9fc18b4fd9bb1de800e34a7ed3d0216a3",
+      "digest": "sha256:98614426a08717b03c537014f0872a5e32e7a505fef1779b213d0948dcb1fe7b",
       "coverage": "active-55-query-salsa-kernel-plus-fused-cold-test-oracle"
     },
     "rust_product_runtime": {
       "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
-      "digest": "sha256:cc9642e50c48de911109f6d1fae9d3501a6a3ec34baf99983b2a52ac15641fc0",
+      "digest": "sha256:e318f329b449cdb12ade8cba53a9c9e4493238288799009b73caa1863781ca2e",
       "coverage": "production-worker-authority"
     }
   },
@@ -339,7 +339,7 @@
   "runtime_authority_surface_count": 24,
   "dependency_certificate": {
     "path": ".semantic-federation/proofs/dependency-certificate.json",
-    "digest": "sha256:2a66d58616a4f29c5461e19604318a0f8070dffd4f746b6f05957aabe1be1d72",
+    "digest": "sha256:897305845d0d68a35609f87bf0e171d9a83d3db36bcbf5e175df90a4d4d0ff9b",
     "fallback": "full-logical-recompute"
   },
   "resolved_baseline_findings": [
