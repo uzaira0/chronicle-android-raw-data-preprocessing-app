@@ -1609,6 +1609,24 @@ mod tests {
         );
     }
 
+    /// The exported contract is a product artifact, not internal metadata:
+    /// `src/bin/export_pipeline_step_contract.rs` prints exactly these bytes and
+    /// `web/scripts/generate_pipeline_graph_artifacts.mts` and
+    /// `web/scripts/check_contract_compat.mts` consume them to build the
+    /// browser's option panel, group sections, support-file requirements, and
+    /// bypass indicators. Nothing in Rust reads `group_knobs`,
+    /// `group_support_roles`, `group_applicability`, or `step_applicability`, so
+    /// this is the only place a dropped table entry can be observed on this
+    /// side of the boundary — and a dropped entry silently removes a control,
+    /// a support-file requirement, or a bypass condition from the app.
+    #[test]
+    fn exported_step_contract_is_byte_exact() {
+        let mut serialized =
+            serde_json::to_vec_pretty(&pipeline_step_contract()).expect("serialize contract");
+        serialized.push(b'\n');
+        crate::golden::assert_matches("pipeline_step_contract.json", &serialized);
+    }
+
     #[test]
     fn serialized_contract_is_deterministic() {
         let first = serde_json::to_vec(&pipeline_step_contract()).expect("serialize contract");
