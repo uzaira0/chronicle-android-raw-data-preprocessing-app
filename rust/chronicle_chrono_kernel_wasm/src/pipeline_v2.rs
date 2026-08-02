@@ -8214,6 +8214,16 @@ mod tests {
             vec![long_label],
         );
 
+        // The record parser grows the same buffer in both of its passes, so a
+        // column name and a cell that each exceed it have to round trip too.
+        let long_header = "H".repeat(5_000);
+        let long_value = "V".repeat(5_000);
+        let wide = format!("app_package_name,{long_header}\ncom.example.chat,{long_value}\n");
+        let wide = parse_csv_to_records_with_physical_rows(wide.as_bytes());
+        assert_eq!(wide.len(), 1);
+        assert_eq!(wide[0].1[long_header.as_str()], long_value);
+        assert_eq!(wide[0].1["app_package_name"], "com.example.chat");
+
         // Real exports contain records with more cells than the header
         // declares. The extra cells are dropped and the declared columns still
         // parse; indexing past the header would panic instead.
@@ -11525,9 +11535,10 @@ mod tests {
             "the placeholder must copy the day's first raw event",
         );
         assert_eq!(
-            placeholder.username.as_str(),
-            raw[1].username.as_str(),
-            "a tie at the first instant keeps the earlier row",
+            placeholder.index,
+            raw[1].index + 2_000_000,
+            "a tie at the first instant keeps the earlier row, and the \
+             placeholder's index is pushed past every real row",
         );
 
         let position = |package: &str| {
