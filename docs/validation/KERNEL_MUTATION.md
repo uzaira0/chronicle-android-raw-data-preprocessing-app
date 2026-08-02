@@ -327,26 +327,28 @@ the mutants it justifies.
 
 ## Gate status, per entry
 
-`make mutation-rust` runs five entries. The adapter, runtime and matcher rows
-are measured on the merged integration tree with the exclusion gate in place;
-the index and kernel rows are the last full sweep's and the kernel's exclusion
-set was re-checked against the merged tree by listing only (113 expressions,
-178 mutants, none matching zero):
+`make mutation-rust` runs five entries. **Every row below is one run of that
+target on the merged integration tree with the exclusion gate in place** — no
+row is carried over from a lane branch or an earlier sweep. The kernel's
+exclusion set matches 97 expressions to 154 mutants (plus the 7 unfilterable
+`delete field` mutants that ride along), none matching zero:
 
 | crate | tested | caught | unviable | missed | timeout | exit |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | `chronicle_preprocessing_semantic_adapter` | 150 | 122 | 28 | 0 | 0 | 0 |
-| `chronicle_preprocessing_runtime_wasm` | 661 | 599 | 60 | 2 | 0 | 2 |
-| `chronicle_semantic_index_wasm` | 75 | 74 | 1 | 0 | 0 | 0 |
-| `chronicle_chrono_kernel_wasm` | 2771 | 2069 | 702 | 0 | 0 | 0 |
+| `chronicle_preprocessing_runtime_wasm` | 659 | 599 | 60 | 0 | 0 | 0 |
+| `chronicle_semantic_index_wasm` | 76 | 75 | 1 | 0 | 0 | 0 |
+| `chronicle_chrono_kernel_wasm` | 3035 | 2316 | 719 | 0 | 0 | 0 |
 | `chronicle_app_usage_matcher` | 279 | 200 | 35 | 37 | 7 | 3 |
 
-The kernel run took 54 min at `--jobs 8 --timeout 90`; the runtime entry takes
-31 min and the matcher 9. Two entries are now red: the matcher for the reason
-in the next section, and the runtime for the two `append_binary_exports`
-mutants above. Every entry's exclusions pass the gate — adapter
+Wall clock for that run: kernel 66 min, runtime 13 min, matcher 3 min, adapter
+2 min, index 69 s. **One entry is red — the matcher**, for the reason in the
+next section, and `make mutation-rust` exits 3 on its account alone. Every
+entry that declares exclusions passes the audit gate: adapter
 `mode=every-mutant audited=4 caught=0`, runtime `mode=every-mutant audited=14
-caught=0`, matcher `mode=one-per-site audited=8 caught=0`.
+caught=0`, kernel `mode=every-mutant audited=154 caught=0`, matcher
+`mode=one-per-site audited=8 caught=0`. The semantic index declares none, so
+its 76 are the whole crate.
 
 ## The matcher's campaign: measurable now, not finished
 

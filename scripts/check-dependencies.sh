@@ -11,10 +11,12 @@ FAIL=0
 # ---------------------------------------------------------------------------
 echo "=== npm dependency audit ==="
 if [ -d "$REPO_ROOT/web/node_modules" ]; then
-  (
-    cd "$REPO_ROOT/web"
-    npm audit --audit-level=high --omit=dev 2>&1 || FAIL=1
-  )
+  # `|| FAIL=1` must sit OUTSIDE the subshell. Assigning FAIL inside `( ... )`
+  # sets it in the child, the parent keeps FAIL=0, and the subshell's own exit
+  # status becomes that of the successful assignment — so a high/critical
+  # advisory printed "All dependency audits passed." and exited 0. The cargo
+  # audit loop below has always had it in the right place; this half did not.
+  (cd "$REPO_ROOT/web" && npm audit --audit-level=high --omit=dev 2>&1) || FAIL=1
 else
   echo "web/node_modules not found — run 'npm ci' in web/ first" >&2
   FAIL=1
@@ -53,17 +55,25 @@ echo "=== Trivy filesystem scan ==="
 #   2. Trivy globs do not let * cross a "/", so "*.csv" only ever matched CSVs at
 #      the scan root -- never the 121 MB files one directory down, which are
 #      exactly what the walk timed out on. "**/*.csv" matches those.
+#   3. ".claude" holds agent worktrees, each with its own target/ and, during a
+#      mutation campaign, cargo-mutants scratch copies of the whole crate. One
+#      lane left 208 GB there and trivy died with the same semaphore timeout.
+#      None of it is repository source, so it is never in scope for this scan.
 if command -v trivy &>/dev/null; then
   trivy fs \
     --exit-code 1 \
     --severity HIGH,CRITICAL \
     --ignore-unfixed \
     --scanners vuln,secret \
-    --skip-dirs "web/node_modules,web/dist,target,OutputSize*" \
+    --skip-dirs "web/node_modules,web/dist,target,OutputSize*,.claude" \
     --skip-files "**/*.csv" \
     "$REPO_ROOT" 2>&1 || FAIL=1
 else
   echo "trivy not found — install with: brew install trivy" >&2
+  # A missing scanner is an unrun check, not a passed one. The npm and
+  # cargo-audit branches above both fail closed when their tool is absent; this
+  # one used to warn and let the script report "All dependency audits passed."
+  FAIL=1
 fi
 echo
 

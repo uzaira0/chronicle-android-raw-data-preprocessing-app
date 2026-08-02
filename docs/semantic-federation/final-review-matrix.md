@@ -107,7 +107,7 @@ evidence.
 - The runtime now emits a normalized, compressed result-cell correspondence
   table. Exact canonical cell identities join to the existing row-lineage keys
   without relabeling conservative raw-row contributors as exact. A 600-event
-  storage-ratio gate pins 13,834 cells at 278,602 bytes (1.39× canonical
+  storage-ratio gate pins 9,902 cells at 45,810 bytes (0.51× canonical
   output bytes) and the correspondence index exposes exact output/index edges.
 - The complementary `source-coordinate-index-arrow` assigns stable exact
   coordinates to every qualified raw/support CSV cell and canonical
@@ -121,7 +121,7 @@ evidence.
   scope for the result families that carry no row lineage, declared
   source-scope→checkpoint edges, and the explicit gaps that survive all of
   them. Protocol `chronicle-source-result-influence/v3`; its 986 rows occupy
-  64,658 bytes on the 600-event fixture, two orders of magnitude smaller than
+  65,394 bytes on the 600-event fixture, two orders of magnitude smaller than
   the rejected Cartesian expansion.
 - Declared per-step field reads/writes now exist for all 55 computations and
   are reconciled against the recorded per-column changed-cell evidence. An
@@ -162,8 +162,8 @@ evidence.
 | Supply chain | lockfile reproduction | dependency checks | known advisory review | license and audit rails | fresh-build smoke | gitleaks/audit/deny | dependency/bundle budgets | generated code drift | Verified; one allowed unmaintained transitive dependency |
 | General scaffold | representative render | rail script tests | empty/missing command fails closed | Copier update/smoke | fresh generated project | no secret defaults | injected performance commands | no universal graph runtime | Verified across all scaffold slices and update lifecycle |
 | Configuration space | five goldens, mixed-timezone fixture, five seeded pathological corpora, dedicated influence probes | generator and execution tests | missing support bindings, absent timezone qualifications, and computational axes without an activating case fail closed | LinkML/PICT domains ⇄ Rust/WASM evidence snapshots | 500 campaign cold runs; controlled ledger: 1,194 cold + 2,760 incremental runs across 1,380 ordered transitions; all 15 stage checkpoints compared warm/cold; seven preprocessing-invariance proofs; one annotation dependency proof | canonical case-set digests, implementation receipt, and no TS computational authority | full Rust cold oracle, exact logical invalidation/minimality and artifact effects; actual Salsa execution recorded separately | exact t=3 plus 128 high-order cases and exhaustive one-factor transitions over 97 declared values | Verified for the recorded implementation/domain/context/corpus scope |
-| Raw/support artifact tomography | six catalog-derived synthetic corpora | all 11 raw columns, four row mutations, eight support mutations, nine representation controls, 21 adjacent-gap values and six calendar/DST joints | exactly one source artifact changes; unresolved roles and failed stages fail closed | plan role owners ⇄ Rust input keys ⇄ 15 typed semantic checkpoints ⇄ canonical output cells | artifact: 384 cold + 384 incremental; boundary: 324 cold + 324 incremental; every warm target and cell map compared with a cold oracle | source digests, implementation receipt, case-set digests, compressed cell-evidence digests | exact predicted/observed percolation; component orthogonality; 864,557 changed-cell addresses; computational and correspondence identity remain distinct | branch-activating, context-convergent, boundary, and exact no-effect controls | Verified for the recorded fixtures/intervention catalogs |
-| Per-result backward correspondence | 600-event deterministic fixture plus complete runtime fixture | exact source and result CSV/JSON addresses, value digests, terminal nodes, row keys, deterministic Arrow bytes | malformed canonical JSON fails closed; unresolved joins are labeled; absence of an influence edge is never a non-influence claim; a cell not justified as exact never carries the exact-field class | qualified source artifacts ⇄ source-coordinate index ⇄ normalized influence witness ⇄ logical checkpoints/output rows/output columns ⇄ result-cell and row-lineage indexes | emitted, closure-bound, digest-verified, browser-WASM transported, and researcher-exportable on every run | no raw values are copied into indexes; hashes, normalization, precision classes, and unresolved scopes are explicit | result-cell index: 9,902 cells, 45,810 bytes, 0.51× canonical bytes; source index: 4,885 coordinates, 37,866 bytes, 0.62× the 60,719-byte raw/config source; influence witness: 986 rows, 64,658 bytes, two orders of magnitude smaller than Cartesian expansion | exact single raw cell→output cell contribution where the write chain is a verbatim single-source copy and row lineage is a singleton with no search; exact coordinate and row-join identity; conservative raw-row ranges and lineage-search windows; declared column scope for lineage-free families; declared-transitive checkpoint reachability | Verified, including exact raw-field-to-output-cell contribution for the six columns that qualify; support-record-to-output-cell contribution remains conservative |
+| Raw/support artifact tomography | six catalog-derived synthetic corpora | all 11 raw columns, four row mutations, eight support mutations, nine representation controls, 21 adjacent-gap values and six calendar/DST joints | exactly one source artifact changes; unresolved roles and failed stages fail closed | plan role owners ⇄ Rust input keys ⇄ 15 typed semantic checkpoints ⇄ canonical output cells | artifact: 384 cold + 384 incremental; boundary: 324 cold + 324 incremental; every warm target and cell map compared with a cold oracle | source digests, implementation receipt, case-set digests, compressed cell-evidence digests | exact predicted/observed percolation; component orthogonality; 853,947 changed-cell addresses; computational and correspondence identity remain distinct | branch-activating, context-convergent, boundary, and exact no-effect controls | Verified for the recorded fixtures/intervention catalogs |
+| Per-result backward correspondence | 600-event deterministic fixture plus complete runtime fixture | exact source and result CSV/JSON addresses, value digests, terminal nodes, row keys, deterministic Arrow bytes | malformed canonical JSON fails closed; unresolved joins are labeled; absence of an influence edge is never a non-influence claim; a cell not justified as exact never carries the exact-field class | qualified source artifacts ⇄ source-coordinate index ⇄ normalized influence witness ⇄ logical checkpoints/output rows/output columns ⇄ result-cell and row-lineage indexes | emitted, closure-bound, digest-verified, browser-WASM transported, and researcher-exportable on every run | no raw values are copied into indexes; hashes, normalization, precision classes, and unresolved scopes are explicit | result-cell index: 9,902 cells, 45,810 bytes, 0.51× canonical bytes; source index: 4,885 coordinates, 37,866 bytes, 0.62× the 60,719-byte raw/config source; influence witness: 986 rows, 65,394 bytes, two orders of magnitude smaller than Cartesian expansion | exact single raw cell→output cell contribution where the write chain is a verbatim single-source copy and row lineage is a singleton with no search; exact coordinate and row-join identity; conservative raw-row ranges and lineage-search windows; declared column scope for lineage-free families; declared-transitive checkpoint reachability | Verified, including exact raw-field-to-output-cell contribution for the six columns that qualify; support-record-to-output-cell contribution remains conservative |
 | Field-level provenance | declared per-step field reads/writes for all 55 computations, reconciled against the checked artifact and raw-boundary changed-cell sidecars | reachability closure, output-cell binding coverage for both aggregate shapes, pure-copy chain derivation | an observed changed cell unreachable from the intervened column fails the build; a mutation confined to unread columns must change no cell; a partial edge-override table fails the build | LinkML option keys ⇄ step contract field edges ⇄ output cell bindings ⇄ recorded changed-cell addresses | regenerated by `make dependency-evidence` after every pipeline/contract source change | declarations are Rust constants checked against a `syn` scan of the step implementations | closure and reconciliation run over the existing sidecars; no new execution | three unread raw columns and two unread filter-file columns are checked non-reachability results, not omissions | Verified for the recorded intervention catalog; declared reach that no intervention exercised is enumerated, not claimed |
 | Per-field source×configuration tomography | twenty supplied source columns, one activating intervention each, from the six synthetic corpora | declared field cone, declared output-cell reach, axis prediction from the cone's request fields | a changed cell outside the declared reach fails; a control axis that widens the reach fails; a column no configuration activates fails | field contract ⇄ `buildRustV2Options` axis mapping ⇄ canonical output cells | 729 predicted axis crossings, 65 control axes, 1,682 Rust/WASM executions | one implementation receipt shared by every shard, digest-bound per column | twenty process-recycled shards, three in parallel | step checkpoints recorded as carry-inclusive context, never asserted as a read-level claim | Verified for one activating intervention per column; the full record×field×configuration space remains open |
 | Mixed source×configuration interactions | nine empirically activated role fixtures from six existing corpora | all 50 valid alternate values across 46 computational axes for every raw/support role | one invalid selected-timezone value retained with qualification reason | data-first and configuration-first input-key cones ⇄ cold target checkpoints/artifacts/cells | 450 role/value pairs; 3,620 Rust/WASM executions; 2,700 warm/cold comparisons | exact implementation/contract receipt and digest-bound role shards | three isolated shards in parallel; 900 exact cone comparisons | 150 introduced/masked checkpoint-or-cell interactions retained | Verified for one activating mutation per role; the per-field row above narrows this to one activating intervention per supplied column, and the full record×field×configuration space remains open |
@@ -217,9 +217,11 @@ evidence.
   The requirements-report facade initially admitted two arbitrary-success
   mutants; a direct exported-facade contract test now kills both.
 - The optimized screen-lineage function killed all five of its direct mutants.
-  Cargo Mutants also generated seven surviving field-deletion mutants in the
-  existing `run_pipeline_v2*` wrapper expressions; these are retained as explicit
-  equivalence-test debt rather than presented as a perfect mutation score.
+  Cargo Mutants also generates seven field-deletion mutants in the existing
+  `run_pipeline_v2*` wrapper expressions that its `--re`/`--exclude-re` filters
+  cannot address; they ride along with the exclusion audit and are **caught**,
+  not survivors — the earlier "retained as equivalence-test debt" wording here
+  was stale, and item 9 below records the same result.
 - The production browser profile completed the reproducible 601-line
   (600-data-row) input in 549.1 ms, produced 4,272 app rows and 3,892
   screen rows, remained under all
@@ -248,7 +250,7 @@ evidence.
    | `chronicle_preprocessing_runtime_wasm` | 95.54% | 94.47% | 76.18% | 95/94/70 | pass |
    | `chronicle_semantic_index_wasm` | 96.97% | 96.51% | 80.85% | 95/94/70 | pass |
    | `chronicle_app_usage_matcher` (`--no-default-features`) | 94.69% | 94.10% | 90.09% | 93/93/90 | pass |
-   | `chronicle_chrono_kernel_wasm` (`--features incremental-v2`) | 96.20% | 95.42% | 92.73% | 90/89/85 | pass (was 89.78/89.36/84.30 before the mutation lane's tests) |
+   | `chronicle_chrono_kernel_wasm` (`--features incremental-v2`) | 96.24% | 95.47% | 92.80% | 90/89/85 | pass (was 89.78/89.36/84.30 before the mutation lane's tests) |
 
    The earlier `41.54%/40.80%/40.71%` kernel figure and `85.44%/84.53%/86.05%`
    matcher figure in this document, and the `90.84% lines / 90.21% regions`
@@ -270,7 +272,7 @@ evidence.
    truncated — so the alternation case is impossible to express inline instead
    of merely repaired. The kernel gap that this exposed is closed:
    the ratchet ran for the first time at 89.78/89.36/84.30 and the mutation
-   lane's kill tests lifted it to 96.20/95.42/92.73 against the unchanged
+   lane's kill tests lifted it to 96.24/95.47/92.80 against the unchanged
    90/89/85 floor. The floor was not lowered.
 2. Closed 2026-08-01. All three engines are supported, and the two exclusions
    this item recorded turned out to be product defects rather than missing
@@ -421,7 +423,7 @@ evidence.
     - All six empirical dependency campaigns regenerated against actual Salsa
       execution events with `make dependency-evidence`, together with
       `.semantic-federation/proofs/dependency-certificate.json`. The runtime
-      suite reports `62 passed; 0 failed; 3 ignored` with no stale-receipt
+      suite reports `69 passed; 0 failed; 3 ignored` with no stale-receipt
       failures.
     - `make gate-truth` requires every gate to pass on the clean tree and then
       fire on its seeded defect — all ten gates, including the two
@@ -447,7 +449,7 @@ evidence.
       zero timeout — kernel 3,035 tested / 2,316 caught / 719 unviable, runtime
       659 / 599 / 60 — with every survivor classified against a named exclusion
       class, every exclusion set re-run and required to stay uncaught, and the
-      kernel coverage ratchet cleared at 96.20/95.42/92.73 against an unchanged
+      kernel coverage ratchet cleared at 96.24/95.47/92.80 against an unchanged
       90/89/85 floor (items 1 and 9). The kernel campaign's 13 misses were
       closed by tests; the exclusion file is byte-identical across that work.
 
