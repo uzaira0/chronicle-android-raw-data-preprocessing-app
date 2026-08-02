@@ -194,6 +194,13 @@ function firstKey(value: Record<string, unknown>): string {
   return key;
 }
 
+// The encoded size of `source-result-influence-arrow` on the 600-event fixture
+// below. `docs/semantic-federation/production-proof.md` and
+// `final-review-matrix.md` publish this exact number, so it is pinned here
+// rather than left to a generous upper bound — the schema change to v3 moved
+// it, and nothing failed.
+const EXPECTED_INFLUENCE_WITNESS_BYTES = 61_778;
+
 function representativeSourceFixture(): Uint8Array {
   const rows = [
     "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone",
@@ -2082,12 +2089,18 @@ describe("Rust/WASM runtime manifest contract firewall", () => {
     expect(metadata?.size).toBeLessThanOrEqual(raw.byteLength * 3 + 65_536);
     expect(influenceMetadata).toBeDefined();
     expect(influenceBytes).toBeDefined();
-    // v2 of the witness adds the three field-level precision classes on top of
+    // v2 of the witness added the three field-level precision classes on top of
     // the v1 scope/checkpoint and row-lineage rows: exact single-source field
     // contributions, conservative lineage-search windows, and declared column
-    // scope for the output kinds that have no row lineage.
+    // scope for the output kinds that have no row lineage. v3 then moved the
+    // search-window bounds into their own `lineage-search-window` key kind and
+    // named index space, which changes the encoded size but not the row count.
     expect(influenceMetadata?.rowCount).toBe(986);
     expect(influenceMetadata?.size).toBe(influenceBytes?.byteLength);
+    // Pinned exactly, not merely bounded. `docs/semantic-federation` publishes
+    // this byte count, and a bound of 262,144 let the published figure drift
+    // away from the artifact unnoticed while every test stayed green.
+    expect(influenceMetadata?.size).toBe(EXPECTED_INFLUENCE_WITNESS_BYTES);
     expect(influenceMetadata?.size).toBeLessThanOrEqual(262_144);
     expect(influenceMetadata?.derivedFrom).toEqual(
       expect.arrayContaining(dependencyDigests),
