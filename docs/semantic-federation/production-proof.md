@@ -21,10 +21,11 @@ Runtime computation and step reporting consume actual executed-step IDs. There i
 TypeScript scheduler: Rust groups the 55 step events into 15 readable UI
 sections after execution. The generated empirical evidence is no longer stale:
 all six implementation-bound dependency ledgers and the dependency certificate
-were regenerated with `make dependency-evidence` and landed in `3c598ee`
-(PR #88), and `cargo test --locked --manifest-path
-rust/chronicle_preprocessing_runtime_wasm/Cargo.toml` now reports `60 passed;
-0 failed; 1 ignored`, with zero stale-receipt failures. The authoritative live status and remaining checks
+were regenerated with `make dependency-evidence` on this merged provenance
+wave, not on the `3c598ee` tree the earlier revision of this document cited,
+and `cargo test --locked --manifest-path
+rust/chronicle_preprocessing_runtime_wasm/Cargo.toml` reports `69 passed;
+0 failed; 3 ignored`, with zero stale-receipt failures. The authoritative live status and remaining checks
 are in the [55-step incremental Rust plan](55-step-incremental-rust-plan.md).
 This document is still not a completed production claim, but the list of what is
 unproven is shorter than it was. The first provenance wave closed cross-browser
@@ -223,8 +224,8 @@ independent cold target and compare the observed invalidation set with the
 deterministically predicted semantic percolation cluster. Both mismatch counts
 are zero. This proves logical minimality for the recorded scope. The checked
 ledger was regenerated against the physical query executor with
-`make dependency-evidence` and landed in `3c598ee`; it now carries the current
-implementation receipt rather than a pre-cutover one. In the current
+`make dependency-evidence` on this merged wave; it carries this tree's
+implementation receipt rather than a pre-cutover or lane-branch one. In the current
 implementation, actual Salsa `WillExecute` events, not the old 15-stage cache
 projection, are the only source for physical `cached` versus `recomputed`
 status.
