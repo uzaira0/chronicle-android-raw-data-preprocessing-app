@@ -10,6 +10,42 @@ use chrono_tz::Tz;
 pub mod pipeline_v2;
 pub mod step_contract;
 
+/// Byte-exact expectation files for product artifacts, shared by every golden
+/// test in this crate so there is one recorded location and one re-record
+/// switch:
+///
+/// ```text
+/// UPDATE_GOLDEN=1 cargo test --features incremental-v2 \
+///   --manifest-path rust/chronicle_chrono_kernel_wasm/Cargo.toml
+/// ```
+#[cfg(test)]
+pub(crate) mod golden {
+    pub(crate) fn path(name: &str) -> std::path::PathBuf {
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("golden")
+            .join(name)
+    }
+
+    pub(crate) fn assert_matches(name: &str, actual: &[u8]) {
+        let path = path(name);
+        if std::env::var_os("UPDATE_GOLDEN").is_some() {
+            std::fs::create_dir_all(path.parent().expect("golden directory"))
+                .expect("create golden directory");
+            std::fs::write(&path, actual).expect("write golden");
+            return;
+        }
+        let expected = std::fs::read(&path)
+            .unwrap_or_else(|error| panic!("missing golden {}: {error}", path.display()));
+        assert_eq!(
+            String::from_utf8_lossy(actual),
+            String::from_utf8_lossy(&expected),
+            "product output drifted from {}",
+            path.display(),
+        );
+    }
+}
+
 pub(crate) fn weekday_chronicle(weekday: chrono::Weekday) -> u8 {
     match weekday {
         chrono::Weekday::Sun => 1,
