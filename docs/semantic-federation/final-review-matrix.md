@@ -113,7 +113,7 @@ evidence.
   conservative lineage-search windows, declared source-column→output-column
   scope for the result families that carry no row lineage, declared
   source-scope→checkpoint edges, and the explicit gaps that survive all of
-  them. Protocol `chronicle-source-result-influence/v2`; its 986 rows occupy
+  them. Protocol `chronicle-source-result-influence/v3`; its 986 rows occupy
   61,778 bytes on the 600-event fixture, two orders of magnitude smaller than
   the rejected Cartesian expansion.
 - Declared per-step field reads/writes now exist for all 55 computations and
@@ -411,7 +411,7 @@ evidence.
     - Field-level provenance (2026-08-01): every step declares its field-level
       read/write sets in the step contract; a reconciliation ledger checks the
       declared edges against 853,947 observed changed-cell addresses in both
-      directions; the influence witness (`v2`, 986 rows on the 600-event
+      directions; the influence witness (`v3`, 986 rows on the 600-event
       fixture) carries per-row precision classes; six exact field→cell edge
       families are claimed only where a verbatim single-source copy with
       single-record lineage holds, with a pinned negative control that a
