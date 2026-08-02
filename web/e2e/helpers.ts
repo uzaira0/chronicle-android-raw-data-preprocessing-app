@@ -236,3 +236,51 @@ export function parseCsv(csvText: string): Array<Record<string, string>> {
 export function csvHeaders(csvText: string): string[] {
   return csvText.split("\n", 1)[0]?.split(",") ?? [];
 }
+
+const CLOSURE_MAGIC = Buffer.from("CHRONICLE-CLOSURE-V1\n", "utf-8");
+
+export type ClosureManifest = {
+  protocolVersion: "chronicle-runtime-closure/v1";
+  workspaceId: string;
+  workspaceRootDigest: string;
+  previousWorkspaceRootDigest: string | null;
+  objects: Array<{ digest: string; size: number; offset: number }>;
+};
+
+/** Click the workspace export button and return the downloaded archive bytes. */
+export async function downloadClosure(page: Page): Promise<Uint8Array> {
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByTestId("export-workspace-closure").first().click();
+  const download = await downloadPromise;
+  const path = await download.path();
+  if (!path) throw new Error("Playwright did not provide the workspace backup path");
+  return new Uint8Array(await readFile(path));
+}
+
+/** Parse a portable closure archive: its manifest plus its declared root object. */
+export function inspectClosure(bytes: Uint8Array): {
+  manifest: ClosureManifest;
+  root: { workspaceId: string; previousWorkspaceRootDigest: string | null };
+} {
+  expect(Buffer.from(bytes.subarray(0, CLOSURE_MAGIC.byteLength))).toEqual(CLOSURE_MAGIC);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const manifestSize = view.getUint32(CLOSURE_MAGIC.byteLength, true);
+  const manifestStart = CLOSURE_MAGIC.byteLength + 4;
+  const payloadStart = manifestStart + manifestSize;
+  const manifest = JSON.parse(
+    new TextDecoder().decode(bytes.subarray(manifestStart, payloadStart)),
+  ) as ClosureManifest;
+  const rootEntry = manifest.objects.find(
+    ({ digest }) => digest === manifest.workspaceRootDigest,
+  );
+  if (!rootEntry) throw new Error("portable closure omitted its declared root object");
+  const root = JSON.parse(
+    new TextDecoder().decode(
+      bytes.subarray(
+        payloadStart + rootEntry.offset,
+        payloadStart + rootEntry.offset + rootEntry.size,
+      ),
+    ),
+  ) as { workspaceId: string; previousWorkspaceRootDigest: string | null };
+  return { manifest, root };
+}

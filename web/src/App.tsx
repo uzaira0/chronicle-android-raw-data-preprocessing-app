@@ -400,10 +400,16 @@ export default function App(): ReactElement {
 
   // Ask once for persistent storage so projects + the cached run aren't evicted
   // under disk pressure (best-effort; ignored where unsupported/denied).
+  //
+  // The durability gate must NOT be sequenced behind that request. Firefox 148
+  // never settles navigator.storage.persist() without a user gesture — it waits
+  // on a permission prompt that headless and un-gestured sessions never answer —
+  // so chaining the probe to it left the durable-workspace probe permanently
+  // pending and the fail-closed banner unreachable on Firefox. Nothing reads
+  // `evictionProtected`, so there is no reason to wait for the answer.
   useEffect(() => {
-    void requestPersistentStorage().finally(() => {
-      void probeDurableWorkspaceCapability().then(setWorkspaceCapability);
-    });
+    void requestPersistentStorage();
+    void probeDurableWorkspaceCapability().then(setWorkspaceCapability);
   }, []);
 
   // Warm the matcher worker on boot: faster first run, and a still-live worker
