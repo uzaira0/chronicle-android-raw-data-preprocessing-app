@@ -46,6 +46,34 @@ export function assertNoExternalRequests(tracker: ExternalRequestTracker): void 
   expect(tracker.externalRequests).toEqual([]);
 }
 
+/**
+ * Switch the colour theme and wait for the swap to actually finish.
+ *
+ * Several components animate `background`/`border-color` over 140–200 ms, so a
+ * colour measurement (axe contrast, a screenshot) taken right after the click
+ * reads a half-faded blend that no user ever sees — e.g. #787d8b on #8e9198.
+ * Wait on the real running animations rather than a fixed sleep, skipping
+ * infinite ones (the Graph node pulse never "finishes") and capping the wait so
+ * a stuck animation can never hang a test.
+ */
+export async function setTheme(page: Page, theme: "light" | "dark"): Promise<void> {
+  await page.getByTestId(`theme-${theme}`).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+  await page.evaluate(async () => {
+    const settling = document
+      .getAnimations()
+      .filter(
+        (animation) =>
+          animation.effect?.getComputedTiming().iterations !== Infinity,
+      )
+      .map((animation) => animation.finished.catch(() => undefined));
+    await Promise.race([
+      Promise.all(settling),
+      new Promise((resolve) => setTimeout(resolve, 1_000)),
+    ]);
+  });
+}
+
 export async function waitForServiceWorkerControl(page: Page): Promise<void> {
   await page.waitForFunction(async () => {
     if (!("serviceWorker" in navigator)) {

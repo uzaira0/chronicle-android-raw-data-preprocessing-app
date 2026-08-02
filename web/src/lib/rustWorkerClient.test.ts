@@ -143,6 +143,39 @@ describe("WorkerPool", () => {
     });
   });
 
+  it("rejects an in-flight submission when the pool is terminated", async () => {
+    // `worker.terminate()` fires no error event and never delivers the pending
+    // Comlink reply, so a submission that is already running has no natural way
+    // to settle. Without an explicit abort it hangs forever, and the batch
+    // cancel in App.tsx waits on it — leaving the UI stuck on "Processing…".
+    const { spawn, workers } = makeSpawn();
+    const pool = new WorkerPool(2, spawn);
+    const neverSettles = new Promise<string>(() => {});
+    const inFlight = pool.submit(() => neverSettles);
+    const queued = pool.submit(() => neverSettles);
+    const alsoQueued = pool.submit(() => neverSettles);
+    await Promise.resolve();
+
+    pool.terminate();
+
+    await expect(inFlight).rejects.toThrow(/Worker pool has been terminated/);
+    await expect(queued).rejects.toThrow(/Worker pool has been terminated/);
+    await expect(alsoQueued).rejects.toThrow(/Worker pool has been terminated/);
+    workers.forEach((worker) => {
+      expect(worker.terminate).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("does not reject a submission that completes before termination", async () => {
+    const { spawn } = makeSpawn();
+    const pool = new WorkerPool(1, spawn);
+    const gate = deferred<string>();
+    const running = pool.submit(() => gate.promise);
+    gate.resolve("done");
+    await expect(running).resolves.toBe("done");
+    pool.terminate();
+  });
+
   it("replaces a retired slot lazily after its configured task limit", async () => {
     const { spawn, apis, workers } = makeSpawn();
     const pool = new WorkerPool(1, { spawn, maxTasksPerWorker: 1 });
@@ -257,8 +290,12 @@ describe("WorkerPool", () => {
     await Promise.resolve();
 
     pool.terminate();
+    // The in-flight submission is rejected by termination, not left to settle:
+    // a real terminated worker never sends its reply, so waiting for the body
+    // is waiting forever. A late resolve must not resurrect the pool either.
+    await expect(running).rejects.toThrow(/Worker pool has been terminated/);
     gate.resolve();
-    await expect(running).resolves.toBeUndefined();
+    await Promise.resolve();
     expect(workers).toHaveLength(1);
     expect(workers[0]?.terminate).toHaveBeenCalledTimes(1);
   });
@@ -382,8 +419,10 @@ describe("WorkerPool", () => {
     const queued = pool.submit(() => Promise.resolve("queued"));
 
     pool.terminate();
+    // Both the in-flight blocker and the queued waiter are settled by
+    // termination; the blocker's own late resolve is irrelevant by then.
+    await expect(blocker).rejects.toThrow(/terminated/);
     releaseBlocker();
-    await blocker;
     await expect(queued).rejects.toThrow(/terminated/);
     // A terminated pool refuses new work outright.
     await expect(pool.submit(() => Promise.resolve("late"))).rejects.toThrow(
