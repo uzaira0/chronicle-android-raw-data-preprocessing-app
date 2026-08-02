@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 
@@ -14,6 +15,25 @@ PLAN_PATH = FEDERATION_ROOT / "semantic/resources/chronicle.plan.json"
 INVENTORY_PATH = REPOSITORY_ROOT / "docs/semantic-federation/behavior-inventory.json"
 IMPLEMENTATION_PLAN_PATH = (
     REPOSITORY_ROOT / "docs/semantic-federation/55-step-incremental-rust-plan.md"
+)
+
+# The published influence-witness protocol. The Rust constant is the only
+# source; the documents below quote it and must never name a superseded one.
+INFLUENCE_PROTOCOL_SOURCE = (
+    REPOSITORY_ROOT / "rust/chronicle_preprocessing_runtime_wasm/src/binary_exports.rs"
+)
+INFLUENCE_PROTOCOL_PATTERN = re.compile(
+    r'const SOURCE_RESULT_INFLUENCE_PROTOCOL: &str = "([^"]+)";'
+)
+INFLUENCE_PROTOCOL_MENTION = re.compile(r"chronicle-source-result-influence/v\d+")
+# The witness publishes its own precision vocabulary. A class the runtime emits
+# but no document explains is an unexplained label in a researcher's export.
+INFLUENCE_PRECISION_CLASSES = re.compile(
+    r'"precisionClasses"\.into\(\),\s*"([^"]+)"\.into\(\),'
+)
+PROTOCOL_DOCUMENTS = (
+    REPOSITORY_ROOT / "docs/semantic-federation/production-proof.md",
+    REPOSITORY_ROOT / "docs/semantic-federation/final-review-matrix.md",
 )
 
 REQUIRED_DOCUMENT_TEXT = {
@@ -264,7 +284,75 @@ def check_source_shape() -> None:
         fail("exact 55-step bindings must not collapse back to a 15-stage projection")
 
 
+def protocol_version_failures(current: str, documents: dict[Path, str]) -> list[str]:
+    """Every fully-qualified protocol slug in the docs must name `current`.
+
+    History stays writable: a bare version word such as "v1" carries no slug and
+    is not matched, so a sentence describing how the protocol has moved is fine.
+    What this refuses is a document publishing a superseded protocol as if it
+    were the one the runtime emits, which is how `/v2` outlived the constant.
+    """
+    failures = []
+    for path, text in documents.items():
+        for number, line in enumerate(text.splitlines(), 1):
+            for named in INFLUENCE_PROTOCOL_MENTION.findall(line):
+                if named != current:
+                    failures.append(
+                        f"{path.relative_to(REPOSITORY_ROOT)}:{number} publishes "
+                        f"protocol {named}, but the runtime emits {current}. "
+                        "Update the document, or write the history with a bare "
+                        "version word instead of the full protocol name."
+                    )
+    return failures
+
+
+def check_published_protocol_version() -> str:
+    source = INFLUENCE_PROTOCOL_SOURCE.read_text(encoding="utf-8")
+    match = INFLUENCE_PROTOCOL_PATTERN.search(source)
+    if match is None:
+        fail(
+            "influence-witness protocol constant is unreadable in "
+            f"{INFLUENCE_PROTOCOL_SOURCE.relative_to(REPOSITORY_ROOT)}; the "
+            "document check below derives from it and would silently pass"
+        )
+    current = match.group(1)
+    documents = {
+        path: path.read_text(encoding="utf-8") for path in PROTOCOL_DOCUMENTS
+    }
+    for message in protocol_version_failures(current, documents):
+        fail(message)
+    if not any(current in text for text in documents.values()):
+        fail(
+            f"no document publishes the current influence protocol {current}; "
+            "the runtime emits a protocol nothing describes"
+        )
+
+    classes = INFLUENCE_PRECISION_CLASSES.search(source)
+    if classes is None:
+        fail(
+            "influence-witness precisionClasses metadata is unreadable in "
+            f"{INFLUENCE_PROTOCOL_SOURCE.relative_to(REPOSITORY_ROOT)}"
+        )
+    emitted = [name.strip() for name in classes.group(1).split(",") if name.strip()]
+    for name in emitted:
+        if not any(name in text for text in documents.values()):
+            fail(
+                f"influence witness emits precision class {name!r} that no "
+                "document explains; a researcher reading the export would find "
+                "a label with no published meaning"
+            )
+    return current
+
+
 def self_test() -> None:
+    seeded = REPOSITORY_ROOT / "doc.md"
+    stale = {seeded: "Its protocol is now `chronicle-source-result-influence/v2`."}
+    if not protocol_version_failures("chronicle-source-result-influence/v3", stale):
+        fail("protocol checker self-test did not detect its seeded stale version")
+    history = {seeded: "The version moved from v1 to v2 rather than forking."}
+    if protocol_version_failures("chronicle-source-result-influence/v3", history):
+        fail("protocol checker self-test rejected a legitimate history sentence")
+
     forbidden = "This repository is the first complete consumer."
     phrase = FORBIDDEN_DOCUMENT_TEXT[REPOSITORY_ROOT / "README.md"][0]
     if not contains_phrase(forbidden, phrase):
@@ -284,10 +372,12 @@ def main() -> int:
     check_document_text()
     groups, steps = check_machine_state()
     check_source_shape()
+    protocol = check_published_protocol_version()
     print(
         "execution_claims=valid "
         f"groups={groups} declared_steps={steps} tracked_executors=1 "
         "independently_callable_steps=55 independently_cached_steps=55 "
+        f"influence_protocol={protocol} "
         "physical_incrementality=runtime-cutover-active-release-blocked"
     )
     return 0
