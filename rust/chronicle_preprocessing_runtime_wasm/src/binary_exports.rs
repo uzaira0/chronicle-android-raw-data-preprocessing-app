@@ -32,7 +32,24 @@ const ROW_LINEAGE_PROTOCOL: &str = "chronicle-row-lineage/v2";
 /// precision classes. The published Pages build is a deliberate older rollback
 /// and no consumer holds v1 bytes, so the shape moved rather than growing a
 /// parallel v1-compatible table.
-const SOURCE_RESULT_INFLUENCE_PROTOCOL: &str = "chronicle-source-result-influence/v2";
+///
+/// v3 takes the lineage-search rows out of the `raw-row` key space. They count
+/// pipeline-internal events, not one-based raw data rows, so joining them to
+/// the source-coordinate index produced a range that was a different set of
+/// records than the one actually scanned. They now carry
+/// `LINEAGE_SEARCH_SOURCE_KEY_KIND`, name their ordering in the new
+/// `source_index_space` column, and are excluded from `sourceCoordinateJoin`.
+const SOURCE_RESULT_INFLUENCE_PROTOCOL: &str = "chronicle-source-result-influence/v3";
+
+/// The `source_key_kind` of a lineage-search window. Deliberately not
+/// `raw-row`: its `source_record_index` / `source_record_last` are positions in
+/// the ordering named by `source_index_space`, so a consumer that joins by raw
+/// record must skip this kind rather than silently mis-address records.
+const LINEAGE_SEARCH_SOURCE_KEY_KIND: &str = "lineage-search-window";
+
+/// The record-index space of the source-coordinate index, and therefore of
+/// every witness row whose `source_index_space` is null.
+const SOURCE_COORDINATE_RECORD_INDEX_BASE: &str = "one-based-data-row";
 
 struct RunCachedStringDictionaryBuilder {
     keys: Int32Builder,
@@ -324,7 +341,10 @@ fn source_coordinate_schema() -> Arc<Schema> {
         "claimBoundary".into(),
         "Exact role-bound source coordinates and value identities. Coordinates are dependency-witness endpoints; output contribution is not implied without a separate witness edge.".into(),
     );
-    metadata.insert("recordIndexBase".into(), "one-based-data-row".into());
+    metadata.insert(
+        "recordIndexBase".into(),
+        SOURCE_COORDINATE_RECORD_INDEX_BASE.into(),
+    );
     metadata.insert("recordBatchCompression".into(), "lz4-frame".into());
     metadata.insert(
         "recordBatchRows".into(),
@@ -1225,6 +1245,7 @@ struct InfluenceWitnessRecord {
     source_field: Option<String>,
     source_record_index: Option<u32>,
     source_record_last: Option<u32>,
+    source_index_space: Option<String>,
     target_kind: &'static str,
     target_id: String,
     target_logical_node: String,
@@ -1246,6 +1267,12 @@ struct InfluenceWitnessSpec<'a> {
     source_field: Option<&'a str>,
     source_record_index: Option<u32>,
     source_record_last: Option<u32>,
+    /// Names the ordering `source_record_index` / `source_record_last` are
+    /// positions in, whenever that is *not* the source-coordinate index's
+    /// `one-based-data-row` space. Non-null exactly on the
+    /// `lineage-search-window` rows, which count pipeline-internal events and
+    /// are therefore excluded from `sourceCoordinateJoin`.
+    source_index_space: Option<&'a str>,
     target_kind: &'static str,
     target_id: String,
     target_logical_node: String,
@@ -1391,7 +1418,7 @@ fn append_influence_witness(
     spec: InfluenceWitnessSpec<'_>,
 ) {
     let source_key = format!(
-        "{}:{}:{}:{}:{}",
+        "{}:{}:{}:{}:{}:{}",
         spec.source_key_kind,
         spec.source_role_id,
         spec.source_selector_prefix.unwrap_or("*"),
@@ -1400,7 +1427,8 @@ fn append_influence_witness(
             (Some(first), Some(last)) => format!("{first}-{last}"),
             (Some(first), None) => first.to_string(),
             _ => "*".into(),
-        }
+        },
+        spec.source_index_space.unwrap_or("*"),
     );
     let evidence_digest = influence_evidence_digest(
         context,
@@ -1417,6 +1445,7 @@ fn append_influence_witness(
         source_field: spec.source_field.map(str::to_string),
         source_record_index: spec.source_record_index,
         source_record_last: spec.source_record_last,
+        source_index_space: spec.source_index_space.map(str::to_string),
         target_kind: spec.target_kind,
         target_id: spec.target_id,
         target_logical_node: spec.target_logical_node,
@@ -1437,6 +1466,11 @@ fn append_influence_witness(
 /// cell closure. Consumers join source coordinates by role/selector-prefix or
 /// raw-row key, then join result cells by output-kind/output-row key. This
 /// retains the exact endpoints while avoiding redundant Cartesian expansion.
+///
+/// One kind never joins to the source-coordinate index:
+/// `LINEAGE_SEARCH_SOURCE_KEY_KIND` rows address pipeline-internal event
+/// positions in the ordering their `source_index_space` names, not raw data
+/// rows, and the published `sourceCoordinateJoin` excludes them.
 pub fn source_result_influence_witness_arrow(
     sources: &[CanonicalSource<'_>],
     outputs: &[CanonicalOutput<'_>],
@@ -1473,6 +1507,7 @@ pub fn source_result_influence_witness_arrow(
                         source_selector_prefix: scope.selector_prefix.as_deref(),
                         source_record_index: None,
                         source_record_last: None,
+                        source_index_space: None,
                         source_field: None,
                         target_kind: "logical-checkpoint",
                         target_id: checkpoint.terminal_digest.clone(),
@@ -1518,6 +1553,7 @@ pub fn source_result_influence_witness_arrow(
                     source_field: None,
                     source_record_index: Some(source_range.first),
                     source_record_last: Some(source_range.last),
+                    source_index_space: None,
                     target_kind: "result-row",
                     target_id,
                     target_logical_node: lineage.terminal_logical_node.to_string(),
@@ -1536,6 +1572,17 @@ pub fn source_result_influence_witness_arrow(
         // ranges do not carry: the scanned records that were rejected still
         // decided which stop was selected. Routing it here is what keeps the
         // search channel from being silently absent from the witness.
+        //
+        // These bounds are positions in a pipeline-internal ordering — either
+        // `pipeline-event-order` (post-`drop_empty_timestamp`, post-sort,
+        // post-dedupe) or the 0-based `participant-source-event-order` — never
+        // the source-coordinate index's `one-based-data-row` space. They carry
+        // their own `source_key_kind`, name the space in `source_index_space`,
+        // and are excluded from `sourceCoordinateJoin`. Publishing them as
+        // `raw-row` asserted a raw-record range that is a *different* set, not
+        // a superset, of what was scanned — a `participant-source-event-order`
+        // search starting at 0 addressed a record outside the one-based space
+        // entirely, so the `conservative-search-window` claim was false.
         for search in &lineage.searches {
             if search.end_event_index_exclusive <= search.start_event_index {
                 continue;
@@ -1547,12 +1594,13 @@ pub fn source_result_influence_witness_arrow(
                 &mut records,
                 context,
                 InfluenceWitnessSpec {
-                    source_key_kind: "raw-row",
+                    source_key_kind: LINEAGE_SEARCH_SOURCE_KEY_KIND,
                     source_role_id: "raw_chronicle_csv",
                     source_selector_prefix: None,
                     source_field: None,
                     source_record_index: Some(search.start_event_index),
                     source_record_last: Some(search.end_event_index_exclusive - 1),
+                    source_index_space: Some(search.index_space.as_str()),
                     target_kind: "result-row",
                     target_id,
                     target_logical_node: lineage.terminal_logical_node.to_string(),
@@ -1596,6 +1644,7 @@ pub fn source_result_influence_witness_arrow(
                     source_field: Some(contribution.source_field),
                     source_record_index: Some(record_index),
                     source_record_last: Some(record_index),
+                    source_index_space: None,
                     target_kind: "result-cell",
                     target_id,
                     target_logical_node: lineage.terminal_logical_node.to_string(),
@@ -1648,6 +1697,7 @@ pub fn source_result_influence_witness_arrow(
                     source_field: Some(reach.source_field),
                     source_record_index: None,
                     source_record_last: None,
+                    source_index_space: None,
                     target_kind: "result-column",
                     target_id,
                     target_logical_node: (*terminal_node).into(),
@@ -1692,6 +1742,7 @@ pub fn source_result_influence_witness_arrow(
                         source_field: None,
                         source_record_index: None,
                         source_record_last: None,
+                        source_index_space: None,
                         target_kind: "result-scope",
                         target_id: (*output_kind).into(),
                         target_logical_node: (*terminal_node).into(),
@@ -1718,6 +1769,7 @@ pub fn source_result_influence_witness_arrow(
             left.source_role_id.as_str(),
             left.source_selector_prefix.as_deref(),
             left.source_field.as_deref(),
+            left.source_index_space.as_deref(),
             left.source_record_index,
             left.source_record_last,
             left.target_kind,
@@ -1729,6 +1781,7 @@ pub fn source_result_influence_witness_arrow(
                 right.source_role_id.as_str(),
                 right.source_selector_prefix.as_deref(),
                 right.source_field.as_deref(),
+                right.source_index_space.as_deref(),
                 right.source_record_index,
                 right.source_record_last,
                 right.target_kind,
@@ -1756,6 +1809,7 @@ pub fn source_result_influence_witness_arrow(
             .map(|record| record.source_record_last)
             .collect::<Vec<_>>(),
     );
+    let mut source_index_space = StringDictionaryBuilder::<Int32Type>::new();
     let mut target_kind = StringDictionaryBuilder::<Int32Type>::new();
     let mut target_id = StringDictionaryBuilder::<Int32Type>::new();
     let mut target_logical_node = StringDictionaryBuilder::<Int32Type>::new();
@@ -1792,6 +1846,13 @@ pub fn source_result_influence_witness_arrow(
                 .map_err(|error| error.to_string())?;
         } else {
             source_field.append_null();
+        }
+        if let Some(value) = &record.source_index_space {
+            source_index_space
+                .append(value)
+                .map_err(|error| error.to_string())?;
+        } else {
+            source_index_space.append_null();
         }
         target_kind
             .append(record.target_kind)
@@ -1837,11 +1898,15 @@ pub fn source_result_influence_witness_arrow(
     );
     metadata.insert(
         "claimBoundary".into(),
-        "Every row states its own strength in `precision`. `exact-field`: the result cell in `target_output_column` holds a verbatim copy of the supplied cell named by `source_field` in raw record `source_record_index`; the step contract shows that column has exactly one contributor along every declared write of it, and the kernel row lineage shows exactly one contributing raw record with no stop-event search. Whether the row exists and where it sits stay governed by the row-set and row-order dependencies the conservative rows carry, so the exact claim is about the value in an existing cell, not about its presence or position. `declared-column-scope`: the declared field edges connect `source_field` to the named `target_output_column`; it is a may-influence over-approximation and never asserts the cell did change. `conservative-row-lineage`: the inclusive raw-record range may contribute to that result row. `conservative-search-window`: the scanned stop-event candidate range decided the selection for that result row, so records in it influenced the row without appearing in its contributing range. `declared-transitive`: plan reachability to a logical checkpoint. `unresolved`: an explicit gap where no lineage information of any kind exists for that scope. Absence of a row is never a non-influence claim.".into(),
+        "Every row states its own strength in `precision`. `exact-field`: the result cell in `target_output_column` holds a verbatim copy of the supplied cell named by `source_field` in raw record `source_record_index`; the step contract shows that column has exactly one contributor along every declared write of it, and the kernel row lineage shows exactly one contributing raw record with no stop-event search. Whether the row exists and where it sits stay governed by the row-set and row-order dependencies the conservative rows carry, so the exact claim is about the value in an existing cell, not about its presence or position. `declared-column-scope`: the declared field edges connect `source_field` to the named `target_output_column`; it is a may-influence over-approximation and never asserts the cell did change. `conservative-row-lineage`: the inclusive raw-record range may contribute to that result row. `conservative-search-window`: the kernel scanned exactly that inclusive index range while selecting a stop event or establishing that none qualified, so events in it decided the row without appearing in its contributing range; the range is stated in the pipeline-internal ordering named by `source_index_space`, never in raw data rows, and it is not a raw-record claim. `declared-transitive`: plan reachability to a logical checkpoint. `unresolved`: an explicit gap where no lineage information of any kind exists for that scope. Absence of a row is never a non-influence claim.".into(),
     );
     metadata.insert(
         "sourceCoordinateJoin".into(),
-        "role_id=source_role_id AND (source_selector_prefix is null OR selector=source_selector_prefix OR selector starts source_selector_prefix + '/') AND (source_field is null OR column = split_part(source_field, '.', 2)) AND (source_record_index is null OR (source_record_index <= record_index AND record_index <= coalesce(source_record_last, source_record_index)))".into(),
+        "source_key_kind <> 'lineage-search-window' AND role_id=source_role_id AND (source_selector_prefix is null OR selector=source_selector_prefix OR selector starts source_selector_prefix + '/') AND (source_field is null OR column = split_part(source_field, '.', 2)) AND (source_record_index is null OR (source_record_index <= record_index AND record_index <= coalesce(source_record_last, source_record_index)))".into(),
+    );
+    metadata.insert(
+        "sourceIndexSpace".into(),
+        "Null means `source_record_index` / `source_record_last` are source-coordinate record indices in the `one-based-data-row` base the source-coordinate index publishes, and the row joins by `sourceCoordinateJoin`. Non-null names a pipeline-internal ordering those two columns are positions in instead — `pipeline-event-order` counts normalized events after `drop_empty_timestamp`, sorting and dedupe; `participant-source-event-order` is the 0-based per-participant screen-event order. Rows in a non-null space carry `source_key_kind` = 'lineage-search-window', address no raw record, and are excluded from `sourceCoordinateJoin`. Join them instead to the row-lineage artifact's candidate-search rows, which publish the same bounds under `search_index_space`.".into(),
     );
     metadata.insert(
         "resultCellJoin".into(),
@@ -1873,6 +1938,7 @@ pub fn source_result_influence_witness_arrow(
             Field::new("source_field", dictionary_type(), true),
             Field::new("source_record_index", DataType::UInt32, true),
             Field::new("source_record_last", DataType::UInt32, true),
+            Field::new("source_index_space", dictionary_type(), true),
             Field::new("target_kind", dictionary_type(), false),
             Field::new("target_id", dictionary_type(), false),
             Field::new("target_logical_node", dictionary_type(), false),
@@ -1893,6 +1959,7 @@ pub fn source_result_influence_witness_arrow(
         Arc::new(source_field.finish()),
         Arc::new(source_record_index),
         Arc::new(source_record_last),
+        Arc::new(source_index_space.finish()),
         Arc::new(target_kind.finish()),
         Arc::new(target_id.finish()),
         Arc::new(target_logical_node.finish()),
@@ -3477,6 +3544,7 @@ mod tests {
                 "source_field",
                 "source_record_index",
                 "source_record_last",
+                "source_index_space",
                 "target_kind",
                 "target_id",
                 "target_logical_node",
@@ -3513,7 +3581,7 @@ mod tests {
         // column-granular declared scope does not apply and the unresolved gap
         // survives for the option selector prefixes that reach it.
         assert_eq!(
-            dictionary_values(12),
+            dictionary_values(13),
             BTreeSet::from([
                 "cell-contribution-unresolved".to_string(),
                 "exact-field-contribution".to_string(),
@@ -3522,7 +3590,7 @@ mod tests {
             ])
         );
         assert_eq!(
-            dictionary_values(13),
+            dictionary_values(14),
             BTreeSet::from([
                 "conservative-row-lineage".to_string(),
                 "declared-transitive".to_string(),
@@ -3551,7 +3619,7 @@ mod tests {
             .downcast_ref::<UInt32Array>()
             .unwrap();
         let target_rows = batch
-            .column(10)
+            .column(11)
             .as_any()
             .downcast_ref::<UInt32Array>()
             .unwrap();
@@ -3578,7 +3646,7 @@ mod tests {
             .downcast_ref::<StringArray>()
             .unwrap();
         let relations = batch
-            .column(12)
+            .column(13)
             .as_any()
             .downcast_ref::<DictionaryArray<Int32Type>>()
             .unwrap();
@@ -3600,7 +3668,7 @@ mod tests {
         // the row lineage is a single raw record, and it still must not be
         // claimed exact because the pipeline computes it.
         let precision_column = batch
-            .column(13)
+            .column(14)
             .as_any()
             .downcast_ref::<DictionaryArray<Int32Type>>()
             .unwrap();
@@ -3633,8 +3701,8 @@ mod tests {
             .map(|index| {
                 (
                     read_dictionary(3, index),
-                    read_dictionary(9, index),
-                    read_dictionary(11, index),
+                    read_dictionary(10, index),
+                    read_dictionary(12, index),
                     source_rows.value(index),
                     target_rows.value(index),
                 )
@@ -3673,7 +3741,7 @@ mod tests {
             let precision =
                 precision_values.value(precision_column.keys().value(index) as usize);
             let has_source_field = read_dictionary(3, index).is_some();
-            let has_target_column = read_dictionary(11, index).is_some();
+            let has_target_column = read_dictionary(12, index).is_some();
             match precision {
                 "exact-field" => assert!(has_source_field && has_target_column),
                 "declared-column-scope" => {
@@ -3721,20 +3789,41 @@ mod tests {
                 chronicle_chrono_kernel_wasm::pipeline_v2::SourceDataRowRange { first: 1, last: 1 },
             ],
             source_data_row_count: 1,
-            searches: vec![chronicle_chrono_kernel_wasm::pipeline_v2::LineageSearchEvidence {
-                protocol_version: Arc::new("chronicle-lineage-search/v1".to_string()),
-                reason: Arc::new("no-qualifying-stop".to_string()),
-                index_space: Arc::new("pipeline-event-order".to_string()),
-                start_participant_id: Arc::new("P01".to_string()),
-                start_event_index: 1,
-                end_event_index_exclusive: 4,
-                candidate_event_count: 3,
-                candidate_chain_digest:
-                    chronicle_chrono_kernel_wasm::pipeline_v2::LineageSearchDigest::parse(
-                        &format!("blake3:{}", "c".repeat(64)),
-                    )
-                    .unwrap(),
-            }],
+            searches: vec![
+                chronicle_chrono_kernel_wasm::pipeline_v2::LineageSearchEvidence {
+                    protocol_version: Arc::new("chronicle-lineage-search/v1".to_string()),
+                    reason: Arc::new("no-qualifying-stop".to_string()),
+                    index_space: Arc::new("pipeline-event-order".to_string()),
+                    start_participant_id: Arc::new("P01".to_string()),
+                    start_event_index: 1,
+                    end_event_index_exclusive: 4,
+                    candidate_event_count: 3,
+                    candidate_chain_digest:
+                        chronicle_chrono_kernel_wasm::pipeline_v2::LineageSearchDigest::parse(
+                            &format!("blake3:{}", "c".repeat(64)),
+                        )
+                        .unwrap(),
+                },
+                // The screen-credit window counts per-participant source
+                // events from zero — the shape the checked-in
+                // `row_lineage.json` carries. Index 0 is not a record at all
+                // in the one-based data-row space, so this is the case that
+                // proves the search bounds are never published as raw records.
+                chronicle_chrono_kernel_wasm::pipeline_v2::LineageSearchEvidence {
+                    protocol_version: Arc::new("chronicle-lineage-search/v1".to_string()),
+                    reason: Arc::new("screen-credit-liveness-window".to_string()),
+                    index_space: Arc::new("participant-source-event-order".to_string()),
+                    start_participant_id: Arc::new("P01".to_string()),
+                    start_event_index: 0,
+                    end_event_index_exclusive: 3,
+                    candidate_event_count: 3,
+                    candidate_chain_digest:
+                        chronicle_chrono_kernel_wasm::pipeline_v2::LineageSearchDigest::parse(
+                            &format!("blake3:{}", "d".repeat(64)),
+                        )
+                        .unwrap(),
+                },
+            ],
             terminal_logical_node: Arc::new("outputs".to_string()),
         }];
         let plan = crate::embedded_plan();
@@ -3783,28 +3872,74 @@ mod tests {
             .downcast_ref::<UInt32Array>()
             .unwrap();
 
-        // The searches channel now carries its scanned range.
-        assert!((0..batch.num_rows()).any(|index| {
-            text(13, index).as_deref() == Some("conservative-search-window")
-                && (source_rows.value(index), source_last_rows.value(index)) == (1, 3)
+        // The searches channel carries its scanned range under its own key
+        // kind, in its own named index space — not as a raw-record range.
+        let search_rows = (0..batch.num_rows())
+            .filter(|index| text(14, *index).as_deref() == Some("conservative-search-window"))
+            .map(|index| {
+                (
+                    text(0, index),
+                    text(6, index),
+                    source_rows.value(index),
+                    source_last_rows.value(index),
+                )
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            search_rows,
+            BTreeSet::from([
+                (
+                    Some(LINEAGE_SEARCH_SOURCE_KEY_KIND.to_string()),
+                    Some("participant-source-event-order".to_string()),
+                    0,
+                    2,
+                ),
+                (
+                    Some(LINEAGE_SEARCH_SOURCE_KEY_KIND.to_string()),
+                    Some("pipeline-event-order".to_string()),
+                    1,
+                    3,
+                ),
+            ])
+        );
+        // No search window is published in the raw-record key space, and no
+        // row outside that channel claims a non-default index space.
+        assert!(!(0..batch.num_rows()).any(|index| {
+            text(0, index).as_deref() == Some("raw-row")
+                && text(14, index).as_deref() == Some("conservative-search-window")
         }));
+        for index in 0..batch.num_rows() {
+            assert_eq!(
+                text(6, index).is_some(),
+                text(0, index).as_deref() == Some(LINEAGE_SEARCH_SOURCE_KEY_KIND),
+                "source_index_space is non-null exactly on lineage-search rows"
+            );
+        }
+        // The join the witness publishes must not invite a raw-record join on
+        // those rows.
+        let metadata = batch.schema().metadata().clone();
+        assert!(
+            metadata["sourceCoordinateJoin"].contains("source_key_kind <> 'lineage-search-window'")
+        );
+        assert!(metadata["sourceIndexSpace"].contains(SOURCE_COORDINATE_RECORD_INDEX_BASE));
         // A row whose lineage carries a search is not claimed exact.
-        assert!(!(0..batch.num_rows())
-            .any(|index| text(13, index).as_deref() == Some("exact-field")));
+        assert!(
+            !(0..batch.num_rows()).any(|index| text(14, index).as_deref() == Some("exact-field"))
+        );
         // compliance-csv has no row lineage and is still resolved to columns.
         let compliance_columns = (0..batch.num_rows())
             .filter(|index| {
-                text(9, *index).as_deref() == Some("compliance-csv")
-                    && text(13, *index).as_deref() == Some("declared-column-scope")
+                text(10, *index).as_deref() == Some("compliance-csv")
+                    && text(14, *index).as_deref() == Some("declared-column-scope")
             })
-            .filter_map(|index| text(11, index))
+            .filter_map(|index| text(12, index))
             .collect::<BTreeSet<_>>();
         assert!(compliance_columns.contains("compliance_percent"));
         assert!(compliance_columns.contains("expected_device_count"));
         // No unresolved gap survives for a scope the column reach resolved.
         assert!(!(0..batch.num_rows()).any(|index| {
-            text(9, index).as_deref() == Some("compliance-csv")
-                && text(13, index).as_deref() == Some("unresolved")
+            text(10, index).as_deref() == Some("compliance-csv")
+                && text(14, index).as_deref() == Some("unresolved")
         }));
     }
 
