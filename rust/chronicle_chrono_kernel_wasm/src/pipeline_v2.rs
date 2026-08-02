@@ -9106,6 +9106,7 @@ mod tests {
 
         add_app_usage_detail_columns(&mut rows, custom_duration);
 
+        #[allow(clippy::type_complexity)]
         let observed: Vec<(i32, i32, i32, f64, i32, i32, i32, f64)> = rows
             .iter()
             .map(|row| {
@@ -9466,6 +9467,7 @@ mod tests {
         );
 
         type Disturb = fn(&mut Row);
+        #[allow(clippy::type_complexity)]
         let cases: [(&str, Disturb, (bool, bool, bool, bool)); 3] = [
             (
                 "identity",
@@ -11026,7 +11028,7 @@ mod tests {
                 ("2026-03-07 16:00:00", "Activity Paused", "com.example.chat"),
             ]),
             &same_app_stop_types,
-            &vec![
+            &[
                 "Device Shutdown".to_string(),
                 "Screen Non-Interactive".to_string(),
             ],
@@ -11827,6 +11829,7 @@ mod tests {
             )
         };
 
+        #[allow(clippy::type_complexity)]
         let cases: &[([Option<&str>; 4], Option<&str>, bool, Option<&str>, bool)] = &[
             // (columns, genre before, cleared before, genre after, cleared after)
             ([None, None, None, None], None, false, Some("Unknown"), false),
@@ -12149,6 +12152,7 @@ mod tests {
 
         let shared = BTreeSet::from(["P01".to_string()]);
         let scored = incremental::score_attribution_days(&minutes, &shared, 70.0);
+        #[allow(clippy::type_complexity)]
         let observed: Vec<(&str, &str, &str, f64, f64, f64, bool, bool)> = scored
             .days
             .iter()
@@ -13546,6 +13550,7 @@ mod output_contract {
         };
         let baseline_output = baseline_bytes(&baseline);
 
+        #[allow(clippy::type_complexity)]
         let perturbations: Vec<(&str, Box<dyn Fn(&mut PipelineV2Options)>)> = vec![
             (
                 "use_filter_file",
@@ -13664,6 +13669,7 @@ mod output_contract {
         }
 
         // Each support file must reach the pipeline through the support struct.
+        #[allow(clippy::type_complexity)]
         let support_roles: [(&str, fn(&mut PipelineV2SupportFiles<'static>)); 4] = [
             ("filter_csv", |support| support.filter_csv = b""),
             ("apps_forcing_csv", |support| support.apps_forcing_csv = b""),

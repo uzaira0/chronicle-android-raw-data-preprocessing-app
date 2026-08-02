@@ -11406,6 +11406,7 @@ mod tracked {
                 "a checkpoint has to describe the same row state as itself",
             );
 
+            #[allow(clippy::type_complexity)]
             let components: [(&str, fn(&mut LogicalStageCheckpoint)); 6] = [
                 ("row_membership_digest", |checkpoint| {
                     checkpoint.row_membership_digest.push('x')
