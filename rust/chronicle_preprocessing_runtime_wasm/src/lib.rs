@@ -1895,11 +1895,23 @@ struct ProductStageInputKey<'a> {
     step_inputs: BTreeMap<&'a str, (&'a str, &'a str)>,
 }
 
+/// `Recomputed` is a claim about physical execution, so it is reachable only
+/// from a member query that actually ran (`has_recomputed_step`, sourced from
+/// the Salsa execution events) or from a group the run deactivated.
+///
+/// The stage's published `input_key` deliberately does *not* feed this. That
+/// key binds every member step's own key, and a step's key can legitimately
+/// move while the step does not execute — a support artifact rewritten with
+/// CRLF line endings changes `active_source_roles`' raw digest but parses to
+/// the same rows, so Salsa recomputes nothing. Folding that into the status
+/// badged eight support-file byte rewrites per corpus as "recomputed" inside a
+/// manifest whose own `stepExecutions` reported 0 of 55 steps recomputed.
+/// Callers that need "the projection key moved" read `input_key`, which is
+/// published on every `NodeExecution`.
 fn product_stage_status(
     has_error: bool,
     bypassed: bool,
     has_skipped_step: bool,
-    projection_changed: bool,
     group_deactivated: bool,
     has_recomputed_step: bool,
 ) -> ExecutionStatus {
@@ -1909,7 +1921,7 @@ fn product_stage_status(
         ExecutionStatus::Bypassed
     } else if has_skipped_step {
         ExecutionStatus::Skipped
-    } else if projection_changed || group_deactivated || has_recomputed_step {
+    } else if group_deactivated || has_recomputed_step {
         ExecutionStatus::Recomputed
     } else {
         ExecutionStatus::Cached
@@ -2045,7 +2057,6 @@ fn project_product_stages(
             members
                 .iter()
                 .any(|execution| execution.status == ExecutionStatus::Skipped),
-            projection_changed,
             deactivated_groups.contains(node.node_id.as_str()),
             members
                 .iter()
@@ -7930,31 +7941,149 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         assert!(!should_report_salsa_memory(true, true, &[recomputed]));
 
         assert_eq!(
-            product_stage_status(true, false, false, false, false, false),
+            product_stage_status(true, false, false, false, false),
             ExecutionStatus::Error
         );
         assert_eq!(
-            product_stage_status(false, true, false, false, false, false),
+            product_stage_status(false, true, false, false, false),
             ExecutionStatus::Bypassed
         );
         assert_eq!(
-            product_stage_status(false, false, true, false, false, false),
+            product_stage_status(false, false, true, false, false),
             ExecutionStatus::Skipped
         );
-        for changed in [
-            (true, false, false),
-            (false, true, false),
-            (false, false, true),
-        ] {
+        for changed in [(true, false), (false, true)] {
             assert_eq!(
-                product_stage_status(false, false, false, changed.0, changed.1, changed.2),
+                product_stage_status(false, false, false, changed.0, changed.1),
                 ExecutionStatus::Recomputed
             );
         }
         assert_eq!(
-            product_stage_status(false, false, false, false, false, false),
+            product_stage_status(false, false, false, false, false),
             ExecutionStatus::Cached
         );
+    }
+
+    /// A product stage may report `recomputed` only when a member query
+    /// actually executed or the run deactivated the group. Nothing else — no
+    /// projection key move, no artifact rebuild — may reach that status, so a
+    /// stage badge can never contradict the manifest's own `stepExecutions`.
+    #[test]
+    fn no_product_stage_reports_recomputed_without_an_executed_member() {
+        for bits in 0..(1_u8 << 5) {
+            let has_error = bits & 1 != 0;
+            let bypassed = bits & 2 != 0;
+            let has_skipped_step = bits & 4 != 0;
+            let group_deactivated = bits & 8 != 0;
+            let has_recomputed_step = bits & 16 != 0;
+            let status = product_stage_status(
+                has_error,
+                bypassed,
+                has_skipped_step,
+                group_deactivated,
+                has_recomputed_step,
+            );
+            if status == ExecutionStatus::Recomputed {
+                assert!(
+                    group_deactivated || has_recomputed_step,
+                    "recomputed without an executed member or a deactivated group: {bits:05b}"
+                );
+            }
+        }
+    }
+
+    /// The end-to-end pin for the same invariant: drive the real projection
+    /// with a previous run whose stage keys all differ, every member query
+    /// reported cached by Salsa, and no deactivated group. Every stage must
+    /// come back `cached`, because a moved projection key is not an execution
+    /// event. A support artifact rewritten with CRLF line endings is exactly
+    /// this shape — the raw digest inside `active_source_roles` moves, the
+    /// parsed rows do not, and Salsa runs nothing.
+    #[test]
+    fn a_moved_projection_key_alone_never_badges_a_stage_recomputed() {
+        let csv = csv();
+        let (_request, result, semantic_options, _exact_options) =
+            direct_pipeline_result(&csv, false);
+        let plan = embedded_plan();
+        // Salsa reported every member query cached: nothing physically ran.
+        let step_executions = PIPELINE_STEPS
+            .iter()
+            .map(|definition| RuntimeStepExecution {
+                step_id: definition.id.to_string(),
+                unit_id: definition.group.to_string(),
+                status: ExecutionStatus::Cached,
+                input_key: format!("sha256:{}", "1".repeat(64)),
+                output_digest: format!("sha256:{}", "2".repeat(64)),
+                reason_id: format!("sha256:{}", "3".repeat(64)),
+            })
+            .collect::<Vec<_>>();
+        // Every stage's remembered key differs from the one this run builds,
+        // so `projection_changed` is true for all of them.
+        let mut previous_stage_inputs = plan
+            .nodes
+            .iter()
+            .map(|node| (node.node_id.clone(), format!("sha256:{}", "9".repeat(64))))
+            .collect::<BTreeMap<_, _>>();
+        let mut previous_stage_outputs = BTreeMap::new();
+        let (executions, _artifacts) = project_product_stages(
+            &plan,
+            &semantic_options,
+            &result,
+            &step_executions,
+            &BTreeSet::new(),
+            &mut previous_stage_inputs,
+            &mut previous_stage_outputs,
+            true,
+        )
+        .expect("projection over cached members");
+        assert_eq!(executions.len(), plan.nodes.len());
+        let recomputed = executions
+            .iter()
+            .filter(|execution| execution.status == ExecutionStatus::Recomputed)
+            .map(|execution| execution.node_id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            recomputed,
+            Vec::<&str>::new(),
+            "a moved projection key alone reported physical recomputation"
+        );
+        // The projection still rebuilt the stage artifacts, and the moved key
+        // is still published — only the execution claim is withheld.
+        assert!(executions
+            .iter()
+            .all(|execution| execution.output.is_some()));
+        assert!(plan.nodes.iter().all(|node| previous_stage_inputs
+            .get(&node.node_id)
+            .is_some_and(|key| key != &format!("sha256:{}", "9".repeat(64)))));
+
+        // One member query that actually executed is what makes its stage
+        // recomputed, and only that stage.
+        let executed = &PIPELINE_STEPS[0];
+        let mut with_execution = step_executions.clone();
+        with_execution[0].status = ExecutionStatus::Recomputed;
+        let mut previous_stage_inputs = plan
+            .nodes
+            .iter()
+            .map(|node| (node.node_id.clone(), format!("sha256:{}", "9".repeat(64))))
+            .collect::<BTreeMap<_, _>>();
+        let mut previous_stage_outputs = BTreeMap::new();
+        let (executions, _artifacts) = project_product_stages(
+            &plan,
+            &semantic_options,
+            &result,
+            &with_execution,
+            &BTreeSet::new(),
+            &mut previous_stage_inputs,
+            &mut previous_stage_outputs,
+            true,
+        )
+        .expect("projection with one executed member");
+        let recomputed = executions
+            .iter()
+            .filter(|execution| execution.status == ExecutionStatus::Recomputed)
+            .map(|execution| execution.node_id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(recomputed, vec![executed.group]);
     }
 
     #[test]
