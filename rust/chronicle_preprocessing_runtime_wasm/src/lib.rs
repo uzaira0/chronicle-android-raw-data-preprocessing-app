@@ -31,7 +31,7 @@ use chronicle_preprocessing_semantic_adapter::{
     journal::{EvidenceJournal, Transition},
     views::{artifact_view, encode_view, explanation_view, obligation_view, stage_view},
     ArtifactRef, DependencyCacheDecision, DependencyCacheMode, ExecutionStatus,
-    MaterializationState, NodeExecution, RoleAssignment, CERTIFIED_OPTION_KEYS,
+    MaterializationState, NodeExecution, RoleAssignment, Sha256Digest, CERTIFIED_OPTION_KEYS,
     EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256, EMBEDDED_PLAN_SHA256, EMBEDDED_PRODUCT_CONTRACT_SHA256,
     EMBEDDED_PROFILE_LOCK_SHA256, EMBEDDED_PROFILE_SHA256, EMBEDDED_RUNTIME_AUTHORITY_SHA256,
 };
@@ -649,19 +649,24 @@ impl RuntimeRequest {
     }
 }
 
+/// A single rendered preview cell. Unlike every other boundary string this one
+/// is legitimately empty when the source column is empty, so the generated
+/// browser validator only requires a string here.
+pub type PreviewCell = String;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeArtifactMetadata {
     pub artifact_id: String,
     pub kind: String,
     pub media_type: String,
-    pub digest: String,
+    pub digest: Sha256Digest,
     pub size: u64,
     pub derived_from: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub row_count: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub preview_rows: Option<Vec<Vec<String>>>,
+    pub preview_rows: Option<Vec<Vec<PreviewCell>>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -678,9 +683,9 @@ pub struct RuntimeStepExecution {
     pub step_id: String,
     pub unit_id: String,
     pub status: ExecutionStatus,
-    pub input_key: String,
-    pub output_digest: String,
-    pub reason_id: String,
+    pub input_key: Sha256Digest,
+    pub output_digest: Sha256Digest,
+    pub reason_id: Sha256Digest,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -692,14 +697,14 @@ pub struct RuntimeProcessingSummary {
     pub rows_before_timezone_handling: u32,
     pub rows_after_timezone_handling: u32,
     pub rows_removed_by_timezone: u32,
-    pub timezone_retained_source_rows_digest: String,
-    pub timezone_stage_digest: String,
-    pub logical_stage_digests: BTreeMap<String, String>,
+    pub timezone_retained_source_rows_digest: Sha256Digest,
+    pub timezone_stage_digest: Sha256Digest,
+    pub logical_stage_digests: BTreeMap<String, Sha256Digest>,
     pub logical_stage_checkpoints: BTreeMap<String, LogicalStageCheckpoint>,
-    pub pipeline_step_digests: BTreeMap<String, String>,
+    pub pipeline_step_digests: BTreeMap<String, Sha256Digest>,
     pub pipeline_step_checkpoints: BTreeMap<String, LogicalStageCheckpoint>,
-    pub published_outputs_digest: String,
-    pub provenance_digest: String,
+    pub published_outputs_digest: Sha256Digest,
+    pub provenance_digest: Sha256Digest,
     pub duplicate_timestamps_corrected: u32,
     pub exact_duplicate_rows_removed: u32,
 }
@@ -712,19 +717,19 @@ pub struct RuntimeManifest {
     pub request_id: String,
     pub command: String,
     pub implementation: String,
-    pub implementation_digest: String,
-    pub build_environment_digest: String,
+    pub implementation_digest: Sha256Digest,
+    pub build_environment_digest: Sha256Digest,
     pub scope: String,
-    pub plan_digest: String,
-    pub profile_digest: String,
-    pub profile_lock_digest: String,
-    pub runtime_authority_digest: String,
-    pub product_contract_digest: String,
-    pub dependency_certificate_digest: String,
+    pub plan_digest: Sha256Digest,
+    pub profile_digest: Sha256Digest,
+    pub profile_lock_digest: Sha256Digest,
+    pub runtime_authority_digest: Sha256Digest,
+    pub product_contract_digest: Sha256Digest,
+    pub dependency_certificate_digest: Sha256Digest,
     pub dependency_cache_decision: DependencyCacheDecision,
-    pub previous_workspace_root_digest: Option<String>,
-    pub workspace_id: String,
-    pub workspace_root_digest: String,
+    pub previous_workspace_root_digest: Option<Sha256Digest>,
+    pub workspace_id: Sha256Digest,
+    pub workspace_root_digest: Sha256Digest,
     pub input: ArtifactRef,
     pub role_assignments: Vec<RoleAssignment>,
     pub qualification_traces: Vec<chronicle_preprocessing_semantic_adapter::QualificationTrace>,
@@ -736,7 +741,7 @@ pub struct RuntimeManifest {
     pub artifacts: Vec<RuntimeArtifactMetadata>,
     pub counts: RuntimeCounts,
     pub processing_summary: RuntimeProcessingSummary,
-    pub journal_digest: String,
+    pub journal_digest: Sha256Digest,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -746,17 +751,17 @@ pub struct ReviewRuntimeManifest {
     pub preprocessor_version: String,
     pub request_id: String,
     pub command: String,
-    pub workspace_id: String,
-    pub previous_workspace_root_digest: Option<String>,
-    pub input_digest: String,
-    pub options_digest: String,
-    pub implementation_digest: String,
-    pub build_environment_digest: String,
-    pub plan_digest: String,
-    pub profile_digest: String,
-    pub profile_lock_digest: String,
-    pub product_contract_digest: String,
-    pub dependency_certificate_digest: String,
+    pub workspace_id: Sha256Digest,
+    pub previous_workspace_root_digest: Option<Sha256Digest>,
+    pub input_digest: Sha256Digest,
+    pub options_digest: Sha256Digest,
+    pub implementation_digest: Sha256Digest,
+    pub build_environment_digest: Sha256Digest,
+    pub plan_digest: Sha256Digest,
+    pub profile_digest: Sha256Digest,
+    pub profile_lock_digest: Sha256Digest,
+    pub product_contract_digest: Sha256Digest,
+    pub dependency_certificate_digest: Sha256Digest,
     pub dependency_cache_decision: DependencyCacheDecision,
     pub counts: RuntimeCounts,
     pub available_timezones: Vec<String>,
@@ -770,8 +775,8 @@ pub struct ReviewRuntimeManifest {
     pub node_executions: Vec<NodeExecution>,
     pub step_executions: Vec<RuntimeStepExecution>,
     pub cache_sources: Vec<String>,
-    pub review_summary_digest: String,
-    pub comparison_digest: String,
+    pub review_summary_digest: Sha256Digest,
+    pub comparison_digest: Sha256Digest,
     /// True when the request's `knownReviewSummaryDigests` list matched the
     /// recomputed summary, so no artifact bytes accompany this manifest and
     /// the caller keeps its cached copy.

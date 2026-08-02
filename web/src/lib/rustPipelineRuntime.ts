@@ -17,6 +17,23 @@ import defaultBackgroundAppsUrl from "@/assets/defaults/Chronicle_Android_raw_da
 import { fetchBundledAssetBytes } from "@/lib/bundledAssetLoader";
 import { canonicalJson } from "@/lib/canonicalJson";
 import {
+  RUNTIME_BOUNDARY_MODEL,
+  type LogicalStageCheckpoint,
+  type RuntimeArtifactMetadata,
+  type ReviewRuntimeManifest as SerializedReviewRuntimeManifest,
+  type RuntimeManifest as SerializedRuntimeManifest,
+} from "@/lib/generatedRuntimeBoundary";
+import {
+  arrayAt,
+  checkpointComponentDigestAt,
+  contractError,
+  decodeBoundaryStruct,
+  digestAt,
+  integerAt,
+  objectAt,
+  stringAt,
+} from "@/lib/runtimeBoundaryModel";
+import {
   collectRuntimeHistoryDigests,
   commitPersistedRuntimeWorkspace,
   exportRuntimeClosure,
@@ -108,331 +125,100 @@ type KernelModule = {
   verify_evidence_journal_cbor(bytes: Uint8Array): number;
 };
 
-type RuntimeArtifactMetadata = {
-  artifactId: string;
-  kind: string;
-  mediaType: string;
-  digest: string;
-  size: number;
-  derivedFrom: string[];
-  rowCount?: number;
-  previewRows?: string[][];
-};
-
-type RuntimeCheckpoint = {
-  protocolVersion: string;
-  nodeId: string;
-  rowMembershipDigest: string;
-  rowOrderDigest: string;
-  temporalStateDigest: string;
-  classificationDigest: string;
-  payloadDigest: string;
-  schemaDigest: string;
-  terminalDigest: string;
-};
-
-type RuntimeMaterializationState =
-  "open" | "ready" | "satisfied" | "blocked" | "invalid" | "not_applicable";
-
-type RuntimeQualificationTrace = {
-  trace_id: string;
-  candidate_id: string;
-  candidate_revision: number;
-  artifact_digest: string;
-  qualifiers_digest: string;
-  asserted_role_ids: string[];
-  selected_role_id: string | null;
-  decision: "accepted" | "rejected" | "ambiguous";
-  rule_evaluations: Array<{
-    rule_id: string;
-    passed: boolean;
-    expected: string;
-    observed: string;
-  }>;
-  reason_id: string;
-};
-
-type RuntimeRequirementTrace = {
-  trace_id: string;
-  role_id: string;
-  required: boolean;
-  unconditional: boolean;
-  condition_id: string | null;
-  condition_result: boolean | null;
-  candidate_trace_ids: string[];
-  accepted_assignment_ids: string[];
-  state: RuntimeMaterializationState;
-  reason_id: string;
-};
-
-type RuntimeOpenObligation = {
-  obligation_id: string;
-  role_id: string;
-  node_id: string | null;
-  state: RuntimeMaterializationState;
-  reason_id: string;
-};
-
-type RuntimeStateReason = {
-  reason_id: string;
-  subject_id: string;
-  state: RuntimeMaterializationState;
-  source_id: string;
-  message: string;
-};
-
-export type RuntimeManifest = {
+/**
+ * The manifest as the browser consumes it: the generated Rust serialization
+ * type, narrowed on the three values whose vocabulary lives in the product
+ * rather than in a Rust enum — the protocol pin, the command pin, and the
+ * timezone action. Every other field, including its nullability and value
+ * domain, comes from `generatedRuntimeBoundary.ts`, so a Rust rename or retype
+ * fails `npm run typecheck` here instead of silently passing through.
+ */
+export type RuntimeManifest = Omit<
+  SerializedRuntimeManifest,
+  "protocolVersion" | "command" | "processingSummary"
+> & {
   protocolVersion: "chronicle-preprocessing-runtime/v1";
-  preprocessorVersion: string;
-  requestId: string;
   command: "ExecuteWorkspace";
-  implementation: string;
-  scope: string;
-  counts: { original: number; processed: number; app: number; screen: number };
-  input: {
-    artifact_id: string;
-    digest: string;
-    media_type: string;
-    size: number;
-    derived_from: string[];
-    qualifiers: Record<string, string>;
-  };
-  workspaceRootDigest: string;
-  workspaceId: string;
-  planDigest: string;
-  implementationDigest: string;
-  buildEnvironmentDigest: string;
-  profileDigest: string;
-  profileLockDigest: string;
-  runtimeAuthorityDigest: string;
-  productContractDigest: string;
-  dependencyCertificateDigest: string;
-  dependencyCacheDecision: {
-    mode: "certified_narrow" | "conservative_full";
-    certificate_digest: string | null;
-    binding_surface_digest: string | null;
-    empirical_evidence_current: boolean;
-    reasons: string[];
-  };
-  qualificationTraces: RuntimeQualificationTrace[];
-  requirementTraces: RuntimeRequirementTrace[];
-  openObligations: RuntimeOpenObligation[];
-  stateReasons: RuntimeStateReason[];
-  journalDigest: string;
-  artifacts: RuntimeArtifactMetadata[];
-  previousWorkspaceRootDigest: string | null;
-  roleAssignments: Array<{
-    assignment_id: string;
-    role_id: string;
-    artifact: RuntimeManifest["input"];
-    qualifiers: Record<string, string>;
-    revision: number;
-  }>;
-  nodeExecutions: Array<{
-    node_id: string;
-    capability_id: string;
-    status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
-    input_key: string;
-    output: RuntimeManifest["input"] | null;
-    reason_id: string;
-  }>;
-  stepExecutions: Array<{
-    step_id: string;
-    unit_id: string;
-    status: "cached" | "recomputed" | "error" | "skipped" | "bypassed";
-    input_key: string;
-    output_digest: string;
-    reason_id: string;
-  }>;
-  processingSummary: {
-    availableTimezones: string[];
-    timezone: string;
-    timezoneAction:
-      | "none"
-      | "filtered_to_selected"
-      | "converted_to_selected"
-      | "filtered_to_primary"
-      | "converted_to_primary";
-    rowsBeforeTimezoneHandling: number;
-    rowsAfterTimezoneHandling: number;
-    rowsRemovedByTimezone: number;
-    timezoneRetainedSourceRowsDigest: string;
-    timezoneStageDigest: string;
-    logicalStageDigests: Record<string, string>;
-    logicalStageCheckpoints: Record<string, RuntimeCheckpoint>;
-    pipelineStepDigests: Record<string, string>;
-    pipelineStepCheckpoints: Record<string, RuntimeCheckpoint>;
-    publishedOutputsDigest: string;
-    provenanceDigest: string;
-    duplicateTimestampsCorrected: number;
-    exactDuplicateRowsRemoved: number;
-  };
+  processingSummary: Omit<
+    SerializedRuntimeManifest["processingSummary"],
+    "timezoneAction"
+  > & { timezoneAction: TimezoneAction };
 };
 
-type JsonObject = Record<string, unknown>;
-
-const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
-const CHECKPOINT_COMPONENT_PATTERN = /^xxh3:[0-9a-f]{32}$/;
-const EXECUTION_STATUSES = new Set([
-  "cached",
-  "recomputed",
-  "error",
-  "skipped",
-  "bypassed",
-]);
-const TIMEZONE_ACTIONS = new Set([
+const TIMEZONE_ACTIONS = new Set<string>([
   "none",
   "filtered_to_selected",
   "converted_to_selected",
   "filtered_to_primary",
   "converted_to_primary",
 ]);
-const MATERIALIZATION_STATES = new Set([
-  "open",
-  "ready",
-  "satisfied",
-  "blocked",
-  "invalid",
-  "not_applicable",
+const CHECKPOINT_PROTOCOL_VERSION = "chronicle-logical-stage-checkpoint/v7";
+const SUPPORTED_CACHE_SOURCES = new Set<string>([
+  "salsa-memory",
+  "verified-review-base",
+  "verified-reconstruction-base",
 ]);
 
-function contractError(path: string, expectation: string): never {
-  throw new Error(
-    `runtime manifest contract violation at ${path}: ${expectation}`,
+/**
+ * Artifact metadata reaches the browser in three places — the manifest
+ * catalog, the persisted artifact-closure JSON, and each
+ * `artifact_metadata_json()` payload — and all three are the same Rust
+ * `RuntimeArtifactMetadata`, so all three decode through the generated model.
+ */
+function artifactMetadataAt(
+  value: unknown,
+  path: string,
+): RuntimeArtifactMetadata {
+  return decodeBoundaryStruct<RuntimeArtifactMetadata>(
+    RUNTIME_BOUNDARY_MODEL,
+    "RuntimeArtifactMetadata",
+    value,
+    path,
   );
 }
 
-function objectAt(value: unknown, path: string): JsonObject {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    contractError(path, "expected an object");
-  }
-  return value as JsonObject;
-}
-
-function arrayAt(value: unknown, path: string): unknown[] {
-  if (!Array.isArray(value)) contractError(path, "expected an array");
-  return value;
-}
-
-function stringAt(value: unknown, path: string): string {
-  if (typeof value !== "string" || value.length === 0) {
-    contractError(path, "expected a non-empty string");
-  }
-  return value;
-}
-
-function nullableStringAt(value: unknown, path: string): string | null {
-  return value === null ? null : stringAt(value, path);
-}
-
-function booleanAt(value: unknown, path: string): boolean {
-  if (typeof value !== "boolean") contractError(path, "expected a boolean");
-  return value;
-}
-
-function nullableBooleanAt(value: unknown, path: string): boolean | null {
-  return value === null ? null : booleanAt(value, path);
-}
-
-function integerAt(value: unknown, path: string): number {
-  if (!Number.isSafeInteger(value) || (value as number) < 0) {
-    contractError(path, "expected a non-negative safe integer");
-  }
-  return value as number;
-}
-
-function digestAt(value: unknown, path: string): string {
-  const digest = stringAt(value, path);
-  if (!SHA256_PATTERN.test(digest)) {
-    contractError(path, "expected a lowercase sha256 digest");
-  }
-  return digest;
-}
-
-function checkpointComponentDigestAt(value: unknown, path: string): string {
-  const digest = stringAt(value, path);
-  if (!CHECKPOINT_COMPONENT_PATTERN.test(digest)) {
-    contractError(path, "expected a lowercase xxh3-128 digest");
-  }
-  return digest;
-}
-
-function nullableDigestAt(value: unknown, path: string): string | null {
-  return value === null ? null : digestAt(value, path);
-}
-
-function checkpointDomainAt(
-  digestsValue: unknown,
-  checkpointsValue: unknown,
+/**
+ * Semantic check over one checkpoint domain. The structural pass already
+ * proved the maps and their fields exist and are strings; what stays here is
+ * the product agreement the Rust types cannot express: the checkpoint protocol
+ * pin, the xxh3-128 component family, the stage identity, the terminal digest
+ * matching its domain entry, and the exact domain size.
+ */
+function verifyCheckpointDomain(
+  digests: Record<string, string>,
+  checkpoints: Record<string, LogicalStageCheckpoint>,
   path: string,
   expectedCount: number,
-): {
-  digests: Record<string, string>;
-  checkpoints: Record<string, RuntimeCheckpoint>;
-} {
-  const digests = Object.fromEntries(
-    Object.entries(objectAt(digestsValue, `${path}Digests`)).map(
-      ([id, digest]) => [id, digestAt(digest, `${path}Digests.${id}`)],
-    ),
-  );
-  const checkpoints = Object.fromEntries(
-    Object.entries(objectAt(checkpointsValue, `${path}Checkpoints`)).map(
-      ([id, value]) => {
-        const checkpointPath = `${path}Checkpoints.${id}`;
-        const checkpoint = objectAt(value, checkpointPath);
-        const decoded: RuntimeCheckpoint = {
-          protocolVersion: stringAt(
-            checkpoint.protocolVersion,
-            `${checkpointPath}.protocolVersion`,
-          ),
-          nodeId: stringAt(checkpoint.nodeId, `${checkpointPath}.nodeId`),
-          rowMembershipDigest: checkpointComponentDigestAt(
-            checkpoint.rowMembershipDigest,
-            `${checkpointPath}.rowMembershipDigest`,
-          ),
-          rowOrderDigest: checkpointComponentDigestAt(
-            checkpoint.rowOrderDigest,
-            `${checkpointPath}.rowOrderDigest`,
-          ),
-          temporalStateDigest: checkpointComponentDigestAt(
-            checkpoint.temporalStateDigest,
-            `${checkpointPath}.temporalStateDigest`,
-          ),
-          classificationDigest: checkpointComponentDigestAt(
-            checkpoint.classificationDigest,
-            `${checkpointPath}.classificationDigest`,
-          ),
-          payloadDigest: checkpointComponentDigestAt(
-            checkpoint.payloadDigest,
-            `${checkpointPath}.payloadDigest`,
-          ),
-          schemaDigest: checkpointComponentDigestAt(
-            checkpoint.schemaDigest,
-            `${checkpointPath}.schemaDigest`,
-          ),
-          terminalDigest: digestAt(
-            checkpoint.terminalDigest,
-            `${checkpointPath}.terminalDigest`,
-          ),
-        };
-        if (
-          decoded.protocolVersion !== "chronicle-logical-stage-checkpoint/v7"
-        ) {
-          contractError(
-            `${checkpointPath}.protocolVersion`,
-            "unsupported checkpoint protocol",
-          );
-        }
-        if (decoded.nodeId !== id || decoded.terminalDigest !== digests[id]) {
-          contractError(
-            checkpointPath,
-            "checkpoint identity or terminal digest does not match its domain",
-          );
-        }
-        return [id, decoded];
-      },
-    ),
-  );
+): void {
+  for (const [id, checkpoint] of Object.entries(checkpoints)) {
+    const checkpointPath = `${path}Checkpoints.${id}`;
+    for (const component of [
+      "rowMembershipDigest",
+      "rowOrderDigest",
+      "temporalStateDigest",
+      "classificationDigest",
+      "payloadDigest",
+      "schemaDigest",
+    ] as const) {
+      checkpointComponentDigestAt(
+        checkpoint[component],
+        `${checkpointPath}.${component}`,
+      );
+    }
+    digestAt(checkpoint.terminalDigest, `${checkpointPath}.terminalDigest`);
+    if (checkpoint.protocolVersion !== CHECKPOINT_PROTOCOL_VERSION) {
+      contractError(
+        `${checkpointPath}.protocolVersion`,
+        "unsupported checkpoint protocol",
+      );
+    }
+    if (checkpoint.nodeId !== id || checkpoint.terminalDigest !== digests[id]) {
+      contractError(
+        checkpointPath,
+        "checkpoint identity or terminal digest does not match its domain",
+      );
+    }
+  }
   const digestIds = Object.keys(digests).sort();
   const checkpointIds = Object.keys(checkpoints).sort();
   if (
@@ -444,228 +230,58 @@ function checkpointDomainAt(
       `digest and checkpoint domains must contain the same ${expectedCount} identities`,
     );
   }
-  return { digests, checkpoints };
-}
-
-function stringArrayAt(value: unknown, path: string): string[] {
-  return arrayAt(value, path).map((item, index) =>
-    stringAt(item, `${path}[${index}]`),
-  );
-}
-
-function stringMapAt(value: unknown, path: string): Record<string, string> {
-  const object = objectAt(value, path);
-  return Object.fromEntries(
-    Object.entries(object).map(([key, item]) => [
-      key,
-      stringAt(item, `${path}.${key}`),
-    ]),
-  );
-}
-
-function artifactRefAt(value: unknown, path: string): RuntimeManifest["input"] {
-  const artifact = objectAt(value, path);
-  return {
-    artifact_id: stringAt(artifact.artifact_id, `${path}.artifact_id`),
-    digest: digestAt(artifact.digest, `${path}.digest`),
-    media_type: stringAt(artifact.media_type, `${path}.media_type`),
-    size: integerAt(artifact.size, `${path}.size`),
-    derived_from: stringArrayAt(artifact.derived_from, `${path}.derived_from`),
-    qualifiers: stringMapAt(artifact.qualifiers, `${path}.qualifiers`),
-  };
-}
-
-function artifactMetadataAt(
-  value: unknown,
-  path: string,
-): RuntimeArtifactMetadata {
-  const artifact = objectAt(value, path);
-  const rowCount = artifact.rowCount;
-  const previewRows = artifact.previewRows;
-  return {
-    artifactId: stringAt(artifact.artifactId, `${path}.artifactId`),
-    kind: stringAt(artifact.kind, `${path}.kind`),
-    mediaType: stringAt(artifact.mediaType, `${path}.mediaType`),
-    digest: digestAt(artifact.digest, `${path}.digest`),
-    size: integerAt(artifact.size, `${path}.size`),
-    derivedFrom: stringArrayAt(artifact.derivedFrom, `${path}.derivedFrom`),
-    ...(rowCount === undefined
-      ? {}
-      : { rowCount: integerAt(rowCount, `${path}.rowCount`) }),
-    ...(previewRows === undefined
-      ? {}
-      : {
-          previewRows: arrayAt(previewRows, `${path}.previewRows`).map(
-            (row, index) =>
-              arrayAt(row, `${path}.previewRows[${index}]`).map(
-                (cell, cellIndex) => {
-                  if (typeof cell !== "string") {
-                    contractError(
-                      `${path}.previewRows[${index}][${cellIndex}]`,
-                      "expected a string",
-                    );
-                  }
-                  return cell;
-                },
-              ),
-          ),
-        }),
-  };
-}
-
-function materializationStateAt(
-  value: unknown,
-  path: string,
-): RuntimeMaterializationState {
-  const state = stringAt(value, path);
-  if (!MATERIALIZATION_STATES.has(state)) {
-    contractError(path, "unknown materialization state");
-  }
-  return state as RuntimeMaterializationState;
-}
-
-function qualificationTraceAt(
-  value: unknown,
-  path: string,
-): RuntimeQualificationTrace {
-  const trace = objectAt(value, path);
-  const decision = stringAt(trace.decision, `${path}.decision`);
-  if (!["accepted", "rejected", "ambiguous"].includes(decision)) {
-    contractError(`${path}.decision`, "unknown qualification decision");
-  }
-  return {
-    trace_id: stringAt(trace.trace_id, `${path}.trace_id`),
-    candidate_id: stringAt(trace.candidate_id, `${path}.candidate_id`),
-    candidate_revision: integerAt(
-      trace.candidate_revision,
-      `${path}.candidate_revision`,
-    ),
-    artifact_digest: digestAt(trace.artifact_digest, `${path}.artifact_digest`),
-    qualifiers_digest: digestAt(
-      trace.qualifiers_digest,
-      `${path}.qualifiers_digest`,
-    ),
-    asserted_role_ids: stringArrayAt(
-      trace.asserted_role_ids,
-      `${path}.asserted_role_ids`,
-    ),
-    selected_role_id: nullableStringAt(
-      trace.selected_role_id,
-      `${path}.selected_role_id`,
-    ),
-    decision: decision as RuntimeQualificationTrace["decision"],
-    rule_evaluations: arrayAt(
-      trace.rule_evaluations,
-      `${path}.rule_evaluations`,
-    ).map((value, index) => {
-      const rulePath = `${path}.rule_evaluations[${index}]`;
-      const rule = objectAt(value, rulePath);
-      return {
-        rule_id: stringAt(rule.rule_id, `${rulePath}.rule_id`),
-        passed: booleanAt(rule.passed, `${rulePath}.passed`),
-        expected: stringAt(rule.expected, `${rulePath}.expected`),
-        observed: stringAt(rule.observed, `${rulePath}.observed`),
-      };
-    }),
-    reason_id: stringAt(trace.reason_id, `${path}.reason_id`),
-  };
-}
-
-function requirementTraceAt(
-  value: unknown,
-  path: string,
-): RuntimeRequirementTrace {
-  const trace = objectAt(value, path);
-  return {
-    trace_id: stringAt(trace.trace_id, `${path}.trace_id`),
-    role_id: stringAt(trace.role_id, `${path}.role_id`),
-    required: booleanAt(trace.required, `${path}.required`),
-    unconditional: booleanAt(trace.unconditional, `${path}.unconditional`),
-    condition_id: nullableStringAt(trace.condition_id, `${path}.condition_id`),
-    condition_result: nullableBooleanAt(
-      trace.condition_result,
-      `${path}.condition_result`,
-    ),
-    candidate_trace_ids: stringArrayAt(
-      trace.candidate_trace_ids,
-      `${path}.candidate_trace_ids`,
-    ),
-    accepted_assignment_ids: stringArrayAt(
-      trace.accepted_assignment_ids,
-      `${path}.accepted_assignment_ids`,
-    ),
-    state: materializationStateAt(trace.state, `${path}.state`),
-    reason_id: stringAt(trace.reason_id, `${path}.reason_id`),
-  };
-}
-
-function openObligationAt(value: unknown, path: string): RuntimeOpenObligation {
-  const obligation = objectAt(value, path);
-  return {
-    obligation_id: stringAt(obligation.obligation_id, `${path}.obligation_id`),
-    role_id: stringAt(obligation.role_id, `${path}.role_id`),
-    node_id: nullableStringAt(obligation.node_id, `${path}.node_id`),
-    state: materializationStateAt(obligation.state, `${path}.state`),
-    reason_id: stringAt(obligation.reason_id, `${path}.reason_id`),
-  };
-}
-
-function stateReasonAt(value: unknown, path: string): RuntimeStateReason {
-  const reason = objectAt(value, path);
-  return {
-    reason_id: stringAt(reason.reason_id, `${path}.reason_id`),
-    subject_id: stringAt(reason.subject_id, `${path}.subject_id`),
-    state: materializationStateAt(reason.state, `${path}.state`),
-    source_id: stringAt(reason.source_id, `${path}.source_id`),
-    message: stringAt(reason.message, `${path}.message`),
-  };
 }
 
 /**
  * Fail-closed decoder for the product-owned Rust/WASM execution contract.
- * Unknown fields remain forward-transportable, but every field consumed by the
- * browser and every identity/invalidation field is validated before use.
+ *
+ * The STRUCTURAL half — which fields exist, their JSON names, nullability,
+ * value domains (non-empty string, sha256 digest, non-negative integer,
+ * boolean), collection shapes, and legal enum spellings — is checked against
+ * `RUNTIME_BOUNDARY_MODEL`, generated from the Rust serialization model by
+ * `rust/chronicle_preprocessing_runtime_wasm/examples/boundary_model.rs`.
+ * Unknown fields remain forward-transportable and are dropped.
+ *
+ * The SEMANTIC half stays here because no Rust type expresses it: protocol and
+ * command pins, the two-mode dependency-cache claim and its agreement with the
+ * manifest certificate, exactly 55 unique step executions, the checkpoint
+ * domains, step output agreeing with its Rust checkpoint, timezone row
+ * accounting, and identity uniqueness across artifacts, roles, and nodes.
  */
 export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
-  const manifest = objectAt(value, "manifest");
-  if (manifest.protocolVersion !== "chronicle-preprocessing-runtime/v1") {
+  const source = objectAt(value, "manifest");
+  if (source.protocolVersion !== "chronicle-preprocessing-runtime/v1") {
     contractError("manifest.protocolVersion", "unsupported protocol version");
   }
-  if (manifest.command !== "ExecuteWorkspace") {
+  if (source.command !== "ExecuteWorkspace") {
     contractError("manifest.command", "expected ExecuteWorkspace");
   }
-  const cache = objectAt(
-    manifest.dependencyCacheDecision,
+  // Pinned before the structural pass so an unrecognized mode names the two
+  // modes the browser accepts rather than reporting a generic enum rejection.
+  const declaredMode = objectAt(
+    source.dependencyCacheDecision,
     "manifest.dependencyCacheDecision",
-  );
-  const mode = stringAt(cache.mode, "manifest.dependencyCacheDecision.mode");
-  if (mode !== "certified_narrow" && mode !== "conservative_full") {
+  ).mode;
+  if (
+    declaredMode !== "certified_narrow" &&
+    declaredMode !== "conservative_full"
+  ) {
     contractError(
       "manifest.dependencyCacheDecision.mode",
       "expected certified_narrow or conservative_full",
     );
   }
-  const cacheDecision = {
-    mode,
-    certificate_digest: nullableDigestAt(
-      cache.certificate_digest,
-      "manifest.dependencyCacheDecision.certificate_digest",
-    ),
-    binding_surface_digest: nullableDigestAt(
-      cache.binding_surface_digest,
-      "manifest.dependencyCacheDecision.binding_surface_digest",
-    ),
-    empirical_evidence_current: booleanAt(
-      cache.empirical_evidence_current,
-      "manifest.dependencyCacheDecision.empirical_evidence_current",
-    ),
-    reasons: stringArrayAt(
-      cache.reasons,
-      "manifest.dependencyCacheDecision.reasons",
-    ),
-  } satisfies RuntimeManifest["dependencyCacheDecision"];
+
+  const manifest = decodeBoundaryStruct<SerializedRuntimeManifest>(
+    RUNTIME_BOUNDARY_MODEL,
+    "RuntimeManifest",
+    value,
+    "manifest",
+  );
+
+  const cacheDecision = manifest.dependencyCacheDecision;
   if (
-    mode === "certified_narrow" &&
+    cacheDecision.mode === "certified_narrow" &&
     (!cacheDecision.certificate_digest || !cacheDecision.binding_surface_digest)
   ) {
     contractError(
@@ -673,66 +289,17 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
       "certified_narrow requires certificate and binding-surface identity",
     );
   }
+  if (
+    cacheDecision.certificate_digest !== null &&
+    cacheDecision.certificate_digest !== manifest.dependencyCertificateDigest
+  ) {
+    contractError(
+      "manifest.dependencyCacheDecision.certificate_digest",
+      "does not match manifest dependency certificate",
+    );
+  }
 
-  const roleAssignments = arrayAt(
-    manifest.roleAssignments,
-    "manifest.roleAssignments",
-  ).map((value, index) => {
-    const path = `manifest.roleAssignments[${index}]`;
-    const assignment = objectAt(value, path);
-    const qualifiers = stringMapAt(assignment.qualifiers, `${path}.qualifiers`);
-    return {
-      assignment_id: stringAt(
-        assignment.assignment_id,
-        `${path}.assignment_id`,
-      ),
-      role_id: stringAt(assignment.role_id, `${path}.role_id`),
-      artifact: artifactRefAt(assignment.artifact, `${path}.artifact`),
-      qualifiers,
-      revision: integerAt(assignment.revision, `${path}.revision`),
-    };
-  });
-  const nodeExecutions = arrayAt(
-    manifest.nodeExecutions,
-    "manifest.nodeExecutions",
-  ).map((value, index) => {
-    const path = `manifest.nodeExecutions[${index}]`;
-    const execution = objectAt(value, path);
-    const status = stringAt(execution.status, `${path}.status`);
-    if (!EXECUTION_STATUSES.has(status)) {
-      contractError(`${path}.status`, "unknown execution status");
-    }
-    return {
-      node_id: stringAt(execution.node_id, `${path}.node_id`),
-      capability_id: stringAt(execution.capability_id, `${path}.capability_id`),
-      status: status as RuntimeManifest["nodeExecutions"][number]["status"],
-      input_key: digestAt(execution.input_key, `${path}.input_key`),
-      output:
-        execution.output === null
-          ? null
-          : artifactRefAt(execution.output, `${path}.output`),
-      reason_id: stringAt(execution.reason_id, `${path}.reason_id`),
-    };
-  });
-  const stepExecutions = arrayAt(
-    manifest.stepExecutions,
-    "manifest.stepExecutions",
-  ).map((value, index) => {
-    const path = `manifest.stepExecutions[${index}]`;
-    const execution = objectAt(value, path);
-    const status = stringAt(execution.status, `${path}.status`);
-    if (!EXECUTION_STATUSES.has(status)) {
-      contractError(`${path}.status`, "unknown execution status");
-    }
-    return {
-      step_id: stringAt(execution.step_id, `${path}.step_id`),
-      unit_id: stringAt(execution.unit_id, `${path}.unit_id`),
-      status: status as RuntimeManifest["stepExecutions"][number]["status"],
-      input_key: digestAt(execution.input_key, `${path}.input_key`),
-      output_digest: digestAt(execution.output_digest, `${path}.output_digest`),
-      reason_id: digestAt(execution.reason_id, `${path}.reason_id`),
-    };
-  });
+  const { stepExecutions, artifacts, processingSummary: summary } = manifest;
   if (
     stepExecutions.length !== 55 ||
     new Set(stepExecutions.map((execution) => execution.step_id)).size !== 55
@@ -743,62 +310,37 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
     );
   }
 
-  const countsSource = objectAt(manifest.counts, "manifest.counts");
-  const counts = {
-    original: integerAt(countsSource.original, "manifest.counts.original"),
-    processed: integerAt(countsSource.processed, "manifest.counts.processed"),
-    app: integerAt(countsSource.app, "manifest.counts.app"),
-    screen: integerAt(countsSource.screen, "manifest.counts.screen"),
-  };
-  const summary = objectAt(
-    manifest.processingSummary,
-    "manifest.processingSummary",
-  );
-  const timezoneAction = stringAt(
-    summary.timezoneAction,
-    "manifest.processingSummary.timezoneAction",
-  );
-  if (!TIMEZONE_ACTIONS.has(timezoneAction)) {
+  if (!TIMEZONE_ACTIONS.has(summary.timezoneAction)) {
     contractError(
       "manifest.processingSummary.timezoneAction",
       "unknown timezone action",
     );
   }
-  const logicalStages = checkpointDomainAt(
+  verifyCheckpointDomain(
     summary.logicalStageDigests,
     summary.logicalStageCheckpoints,
     "manifest.processingSummary.logicalStage",
     15,
   );
-  const pipelineSteps = checkpointDomainAt(
+  verifyCheckpointDomain(
     summary.pipelineStepDigests,
     summary.pipelineStepCheckpoints,
     "manifest.processingSummary.pipelineStep",
     55,
   );
   for (const execution of stepExecutions) {
-    if (pipelineSteps.digests[execution.step_id] !== execution.output_digest) {
+    if (
+      summary.pipelineStepDigests[execution.step_id] !== execution.output_digest
+    ) {
       contractError(
         `manifest.stepExecutions.${execution.step_id}`,
         "step execution output does not match its Rust checkpoint",
       );
     }
   }
-  const rowsBeforeTimezoneHandling = integerAt(
-    summary.rowsBeforeTimezoneHandling,
-    "manifest.processingSummary.rowsBeforeTimezoneHandling",
-  );
-  const rowsAfterTimezoneHandling = integerAt(
-    summary.rowsAfterTimezoneHandling,
-    "manifest.processingSummary.rowsAfterTimezoneHandling",
-  );
-  const rowsRemovedByTimezone = integerAt(
-    summary.rowsRemovedByTimezone,
-    "manifest.processingSummary.rowsRemovedByTimezone",
-  );
   if (
-    rowsBeforeTimezoneHandling - rowsRemovedByTimezone !==
-    rowsAfterTimezoneHandling
+    summary.rowsBeforeTimezoneHandling - summary.rowsRemovedByTimezone !==
+    summary.rowsAfterTimezoneHandling
   ) {
     contractError(
       "manifest.processingSummary",
@@ -806,152 +348,18 @@ export function decodeRuntimeManifest(value: unknown): RuntimeManifest {
     );
   }
 
-  const artifacts = arrayAt(manifest.artifacts, "manifest.artifacts").map(
-    (value, index) => artifactMetadataAt(value, `manifest.artifacts[${index}]`),
-  );
   for (const [field, values] of [
     ["artifact kind", artifacts.map(({ kind }) => kind)],
     ["artifact id", artifacts.map(({ artifactId }) => artifactId)],
-    ["role", roleAssignments.map(({ role_id }) => role_id)],
-    ["node", nodeExecutions.map(({ node_id }) => node_id)],
+    ["role", manifest.roleAssignments.map(({ role_id }) => role_id)],
+    ["node", manifest.nodeExecutions.map(({ node_id }) => node_id)],
   ] as const) {
     if (new Set(values).size !== values.length) {
       contractError("manifest", `duplicate ${field}`);
     }
   }
 
-  const dependencyCertificateDigest = digestAt(
-    manifest.dependencyCertificateDigest,
-    "manifest.dependencyCertificateDigest",
-  );
-  if (
-    cacheDecision.certificate_digest !== null &&
-    cacheDecision.certificate_digest !== dependencyCertificateDigest
-  ) {
-    contractError(
-      "manifest.dependencyCacheDecision.certificate_digest",
-      "does not match manifest dependency certificate",
-    );
-  }
-
-  return {
-    protocolVersion: "chronicle-preprocessing-runtime/v1",
-    preprocessorVersion: stringAt(
-      manifest.preprocessorVersion,
-      "manifest.preprocessorVersion",
-    ),
-    requestId: stringAt(manifest.requestId, "manifest.requestId"),
-    command: "ExecuteWorkspace",
-    implementation: stringAt(
-      manifest.implementation,
-      "manifest.implementation",
-    ),
-    scope: stringAt(manifest.scope, "manifest.scope"),
-    counts,
-    input: artifactRefAt(manifest.input, "manifest.input"),
-    workspaceRootDigest: digestAt(
-      manifest.workspaceRootDigest,
-      "manifest.workspaceRootDigest",
-    ),
-    workspaceId: digestAt(manifest.workspaceId, "manifest.workspaceId"),
-    planDigest: digestAt(manifest.planDigest, "manifest.planDigest"),
-    implementationDigest: digestAt(
-      manifest.implementationDigest,
-      "manifest.implementationDigest",
-    ),
-    buildEnvironmentDigest: digestAt(
-      manifest.buildEnvironmentDigest,
-      "manifest.buildEnvironmentDigest",
-    ),
-    profileDigest: digestAt(manifest.profileDigest, "manifest.profileDigest"),
-    profileLockDigest: digestAt(
-      manifest.profileLockDigest,
-      "manifest.profileLockDigest",
-    ),
-    runtimeAuthorityDigest: digestAt(
-      manifest.runtimeAuthorityDigest,
-      "manifest.runtimeAuthorityDigest",
-    ),
-    productContractDigest: digestAt(
-      manifest.productContractDigest,
-      "manifest.productContractDigest",
-    ),
-    dependencyCertificateDigest,
-    dependencyCacheDecision: cacheDecision,
-    qualificationTraces: arrayAt(
-      manifest.qualificationTraces,
-      "manifest.qualificationTraces",
-    ).map((value, index) =>
-      qualificationTraceAt(value, `manifest.qualificationTraces[${index}]`),
-    ),
-    requirementTraces: arrayAt(
-      manifest.requirementTraces,
-      "manifest.requirementTraces",
-    ).map((value, index) =>
-      requirementTraceAt(value, `manifest.requirementTraces[${index}]`),
-    ),
-    openObligations: arrayAt(
-      manifest.openObligations,
-      "manifest.openObligations",
-    ).map((value, index) =>
-      openObligationAt(value, `manifest.openObligations[${index}]`),
-    ),
-    stateReasons: arrayAt(manifest.stateReasons, "manifest.stateReasons").map(
-      (value, index) => stateReasonAt(value, `manifest.stateReasons[${index}]`),
-    ),
-    journalDigest: digestAt(manifest.journalDigest, "manifest.journalDigest"),
-    artifacts,
-    previousWorkspaceRootDigest: nullableDigestAt(
-      manifest.previousWorkspaceRootDigest,
-      "manifest.previousWorkspaceRootDigest",
-    ),
-    roleAssignments,
-    nodeExecutions,
-    stepExecutions,
-    processingSummary: {
-      availableTimezones: stringArrayAt(
-        summary.availableTimezones,
-        "manifest.processingSummary.availableTimezones",
-      ),
-      timezone: stringAt(
-        summary.timezone,
-        "manifest.processingSummary.timezone",
-      ),
-      timezoneAction:
-        timezoneAction as RuntimeManifest["processingSummary"]["timezoneAction"],
-      rowsBeforeTimezoneHandling,
-      rowsAfterTimezoneHandling,
-      rowsRemovedByTimezone,
-      timezoneRetainedSourceRowsDigest: digestAt(
-        summary.timezoneRetainedSourceRowsDigest,
-        "manifest.processingSummary.timezoneRetainedSourceRowsDigest",
-      ),
-      timezoneStageDigest: digestAt(
-        summary.timezoneStageDigest,
-        "manifest.processingSummary.timezoneStageDigest",
-      ),
-      logicalStageDigests: logicalStages.digests,
-      logicalStageCheckpoints: logicalStages.checkpoints,
-      pipelineStepDigests: pipelineSteps.digests,
-      pipelineStepCheckpoints: pipelineSteps.checkpoints,
-      publishedOutputsDigest: digestAt(
-        summary.publishedOutputsDigest,
-        "manifest.processingSummary.publishedOutputsDigest",
-      ),
-      provenanceDigest: digestAt(
-        summary.provenanceDigest,
-        "manifest.processingSummary.provenanceDigest",
-      ),
-      duplicateTimestampsCorrected: integerAt(
-        summary.duplicateTimestampsCorrected,
-        "manifest.processingSummary.duplicateTimestampsCorrected",
-      ),
-      exactDuplicateRowsRemoved: integerAt(
-        summary.exactDuplicateRowsRemoved,
-        "manifest.processingSummary.exactDuplicateRowsRemoved",
-      ),
-    },
-  };
+  return manifest as RuntimeManifest;
 }
 
 export function verifyRuntimeArtifactCatalog(
@@ -1053,159 +461,84 @@ export function decodeReviewRuntimeManifest(
   | "suppliedReviewBaseBytes"
   | "suppliedReconstructionBaseBytes"
 > {
-  const manifest = objectAt(value, "reviewManifest");
-  if (manifest.protocolVersion !== "chronicle-preprocessing-runtime/v1") {
+  const source = objectAt(value, "reviewManifest");
+  if (source.protocolVersion !== "chronicle-preprocessing-runtime/v1") {
     contractError(
       "reviewManifest.protocolVersion",
       "unsupported protocol version",
     );
   }
-  if (manifest.command !== "QueryReview") {
+  if (source.command !== "QueryReview") {
     contractError("reviewManifest.command", "expected QueryReview");
   }
-  const timezoneAction = stringAt(
-    manifest.timezoneAction,
-    "reviewManifest.timezoneAction",
+
+  const manifest = decodeBoundaryStruct<SerializedReviewRuntimeManifest>(
+    RUNTIME_BOUNDARY_MODEL,
+    "ReviewRuntimeManifest",
+    value,
+    "reviewManifest",
   );
-  if (!TIMEZONE_ACTIONS.has(timezoneAction)) {
+
+  if (!TIMEZONE_ACTIONS.has(manifest.timezoneAction)) {
     contractError("reviewManifest.timezoneAction", "unknown timezone action");
   }
-  const countsValue = objectAt(manifest.counts, "reviewManifest.counts");
-  const steps = arrayAt(
-    manifest.stepExecutions,
-    "reviewManifest.stepExecutions",
-  ).map((value, index) => {
-    const path = `reviewManifest.stepExecutions[${index}]`;
-    const step = objectAt(value, path);
-    const status = stringAt(step.status, `${path}.status`);
-    if (!EXECUTION_STATUSES.has(status)) {
-      contractError(`${path}.status`, "unknown execution status");
-    }
-    return { id: stringAt(step.step_id, `${path}.step_id`), status };
-  });
-  if (steps.length !== 55 || new Set(steps.map(({ id }) => id)).size !== 55) {
+  const steps = manifest.stepExecutions;
+  if (
+    steps.length !== 55 ||
+    new Set(steps.map(({ step_id }) => step_id)).size !== 55
+  ) {
     contractError(
       "reviewManifest.stepExecutions",
       "expected exactly 55 unique Rust step executions",
     );
   }
-  const cacheSources = stringArrayAt(
-    manifest.cacheSources,
-    "reviewManifest.cacheSources",
-  );
-  const supportedCacheSources = new Set([
-    "salsa-memory",
-    "verified-review-base",
-    "verified-reconstruction-base",
-  ]);
+  const { cacheSources } = manifest;
   if (
     new Set(cacheSources).size !== cacheSources.length ||
-    cacheSources.some((source) => !supportedCacheSources.has(source))
+    cacheSources.some((source) => !SUPPORTED_CACHE_SOURCES.has(source))
   ) {
     contractError(
       "reviewManifest.cacheSources",
       "unknown or duplicate cache source",
     );
   }
+  const stepIdsWithStatus = (
+    status: SerializedReviewRuntimeManifest["stepExecutions"][number]["status"],
+  ): string[] =>
+    steps
+      .filter((step) => step.status === status)
+      .map(({ step_id }) => step_id);
+
   return {
-    workspaceId: digestAt(manifest.workspaceId, "reviewManifest.workspaceId"),
-    previousWorkspaceRootDigest: nullableDigestAt(
-      manifest.previousWorkspaceRootDigest,
-      "reviewManifest.previousWorkspaceRootDigest",
-    ),
-    inputDigest: digestAt(manifest.inputDigest, "reviewManifest.inputDigest"),
-    optionsDigest: digestAt(
-      manifest.optionsDigest,
-      "reviewManifest.optionsDigest",
-    ),
-    implementationDigest: digestAt(
-      manifest.implementationDigest,
-      "reviewManifest.implementationDigest",
-    ),
-    buildEnvironmentDigest: digestAt(
-      manifest.buildEnvironmentDigest,
-      "reviewManifest.buildEnvironmentDigest",
-    ),
-    planDigest: digestAt(manifest.planDigest, "reviewManifest.planDigest"),
-    profileDigest: digestAt(
-      manifest.profileDigest,
-      "reviewManifest.profileDigest",
-    ),
-    profileLockDigest: digestAt(
-      manifest.profileLockDigest,
-      "reviewManifest.profileLockDigest",
-    ),
-    productContractDigest: digestAt(
-      manifest.productContractDigest,
-      "reviewManifest.productContractDigest",
-    ),
-    dependencyCertificateDigest: digestAt(
-      manifest.dependencyCertificateDigest,
-      "reviewManifest.dependencyCertificateDigest",
-    ),
-    comparisonDigest: digestAt(
-      manifest.comparisonDigest,
-      "reviewManifest.comparisonDigest",
-    ),
-    reviewSummaryDigest: digestAt(
-      manifest.reviewSummaryDigest,
-      "reviewManifest.reviewSummaryDigest",
-    ),
-    reviewSummaryReused: manifest.reviewSummaryReused === true,
-    counts: {
-      original: integerAt(
-        countsValue.original,
-        "reviewManifest.counts.original",
-      ),
-      processed: integerAt(
-        countsValue.processed,
-        "reviewManifest.counts.processed",
-      ),
-      app: integerAt(countsValue.app, "reviewManifest.counts.app"),
-      screen: integerAt(countsValue.screen, "reviewManifest.counts.screen"),
-    },
-    availableTimezones: stringArrayAt(
-      manifest.availableTimezones,
-      "reviewManifest.availableTimezones",
-    ),
-    timezone: stringAt(manifest.timezone, "reviewManifest.timezone"),
-    timezoneAction: timezoneAction as TimezoneAction,
-    rowsBeforeTimezoneHandling: integerAt(
-      manifest.rowsBeforeTimezoneHandling,
-      "reviewManifest.rowsBeforeTimezoneHandling",
-    ),
-    rowsAfterTimezoneHandling: integerAt(
-      manifest.rowsAfterTimezoneHandling,
-      "reviewManifest.rowsAfterTimezoneHandling",
-    ),
-    rowsRemovedByTimezone: integerAt(
-      manifest.rowsRemovedByTimezone,
-      "reviewManifest.rowsRemovedByTimezone",
-    ),
-    duplicateTimestampsCorrected: integerAt(
-      manifest.duplicateTimestampsCorrected,
-      "reviewManifest.duplicateTimestampsCorrected",
-    ),
-    exactDuplicateRowsRemoved: integerAt(
-      manifest.exactDuplicateRowsRemoved,
-      "reviewManifest.exactDuplicateRowsRemoved",
-    ),
+    workspaceId: manifest.workspaceId,
+    previousWorkspaceRootDigest: manifest.previousWorkspaceRootDigest,
+    inputDigest: manifest.inputDigest,
+    optionsDigest: manifest.optionsDigest,
+    implementationDigest: manifest.implementationDigest,
+    buildEnvironmentDigest: manifest.buildEnvironmentDigest,
+    planDigest: manifest.planDigest,
+    profileDigest: manifest.profileDigest,
+    profileLockDigest: manifest.profileLockDigest,
+    productContractDigest: manifest.productContractDigest,
+    dependencyCertificateDigest: manifest.dependencyCertificateDigest,
+    comparisonDigest: manifest.comparisonDigest,
+    reviewSummaryDigest: manifest.reviewSummaryDigest,
+    reviewSummaryReused: manifest.reviewSummaryReused,
+    counts: manifest.counts,
+    availableTimezones: manifest.availableTimezones,
+    timezone: manifest.timezone,
+    timezoneAction: manifest.timezoneAction as TimezoneAction,
+    rowsBeforeTimezoneHandling: manifest.rowsBeforeTimezoneHandling,
+    rowsAfterTimezoneHandling: manifest.rowsAfterTimezoneHandling,
+    rowsRemovedByTimezone: manifest.rowsRemovedByTimezone,
+    duplicateTimestampsCorrected: manifest.duplicateTimestampsCorrected,
+    exactDuplicateRowsRemoved: manifest.exactDuplicateRowsRemoved,
     cacheSources: cacheSources as RustReviewExecution["cacheSources"],
-    recomputedStepIds: steps
-      .filter(({ status }) => status === "recomputed")
-      .map(({ id }) => id),
-    cachedStepIds: steps
-      .filter(({ status }) => status === "cached")
-      .map(({ id }) => id),
-    bypassedStepIds: steps
-      .filter(({ status }) => status === "bypassed")
-      .map(({ id }) => id),
-    skippedStepIds: steps
-      .filter(({ status }) => status === "skipped")
-      .map(({ id }) => id),
-    errorStepIds: steps
-      .filter(({ status }) => status === "error")
-      .map(({ id }) => id),
+    recomputedStepIds: stepIdsWithStatus("recomputed"),
+    cachedStepIds: stepIdsWithStatus("cached"),
+    bypassedStepIds: stepIdsWithStatus("bypassed"),
+    skippedStepIds: stepIdsWithStatus("skipped"),
+    errorStepIds: stepIdsWithStatus("error"),
   };
 }
 
