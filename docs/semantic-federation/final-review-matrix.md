@@ -241,8 +241,15 @@ evidence.
 6. Parquet and SPSS export paths independently parse CSV output, and visualization
    payloads are eagerly materialized. These are measurable optimization targets,
    not correctness defects at the current fixture size.
-7. Workspace archive export/import still materializes the full closure in memory.
-   Large-workspace streaming remains a release-scale memory obligation.
+7. Closed 2026-08-01: workspace archive export/import streams object-at-a-time
+   with bounded peak memory. The `chronicle-runtime-closure/v1` format was
+   already incrementally consumable, so archives are byte-identical to the
+   previous writer (proven against the retained legacy writer and two
+   pre-change browser-build archives). Evidence:
+   `docs/perf/WORKSPACE_ARCHIVE_MEMORY.md` — on a 293 MiB archive, main-thread
+   export heap peak fell from 245.7 MB to 0.4 MB and renderer RSS from
+   595.6 MB to 236.8 MB (export) and 540.6 MB to 295.9 MB (import), with the
+   fail-closed verification order unchanged.
 8. Large-file peak WASM memory and crash/fault injection across all supported
    browsers have not yet been demonstrated.
 9. The all-authority mutation target is not clean. The semantic adapter,
@@ -292,8 +299,6 @@ evidence.
     - The hand-maintained WASM-boundary validator. It is fail-closed and
       drift-tested, but its schema/decoder is written by hand rather than
       generated from the Rust serialization model (see item 3).
-    - Streaming workspace archive export/import. The full closure is still
-      materialized in memory (see item 7).
     - Large-file peak WASM memory and crash/fault injection across every
       supported browser (see item 8).
 
