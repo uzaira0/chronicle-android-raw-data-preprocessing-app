@@ -11791,14 +11791,17 @@ mod tracked {
                 "the exported base carried no reusable screen sessions: {:?}",
                 resumed.internal_executed_queries
             );
-            assert!(
-                !resumed
-                    .executed_steps
-                    .iter()
-                    .any(|step| step == "build_classified_sessions"),
-                "restored screen sessions were rebuilt anyway: {:?}",
-                resumed.executed_steps
-            );
+            for step in [
+                "build_classified_sessions",
+                "walk_screen_state_machine",
+                "collect_keyguard_timestamps",
+            ] {
+                assert!(
+                    !resumed.executed_steps.iter().any(|executed| executed == step),
+                    "restored screen sessions were rebuilt anyway through {step}: {:?}",
+                    resumed.executed_steps
+                );
+            }
 
             let mut edited = baseline.clone();
             edited.screen_auto_lock_timeout_seconds = 60.0;
