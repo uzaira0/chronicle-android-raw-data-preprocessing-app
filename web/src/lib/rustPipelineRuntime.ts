@@ -2049,8 +2049,11 @@ async function verifyPortableClosure(
   kernel: KernelModule,
   workspaceId: string,
 ): Promise<void> {
+  // verifyRootClosure already reads objects lazily through this accessor and
+  // caches only objects under 1 MiB, so an archive-backed accessor keeps the
+  // semantic closure check bounded no matter how large the closure is.
   await verifyRootClosure(
-    closure.object(closure.manifest.workspaceRootDigest),
+    await closure.object(closure.manifest.workspaceRootDigest),
     (digest) => closure.object(digest),
     closure.manifest.objects.map(({ digest }) => digest),
     closure.manifest.previousWorkspaceRootDigest,
@@ -2129,7 +2132,7 @@ export async function verifyPersistedRustWorkspace(
 
 export async function exportPersistedRustWorkspace(
   workspaceId: string,
-): Promise<Uint8Array> {
+): Promise<Blob> {
   const [kernel, root] = await Promise.all([
     loadKernel(),
     openOpfsWorkspace(workspaceId),
@@ -2142,9 +2145,9 @@ export async function exportPersistedRustWorkspace(
 
 export async function importPersistedRustWorkspace(
   workspaceId: string,
-  archive: Uint8Array,
+  archive: Blob,
 ): Promise<WorkspaceRootSlot> {
-  if (runtimeClosureWorkspaceId(archive) !== workspaceId) {
+  if ((await runtimeClosureWorkspaceId(archive)) !== workspaceId) {
     throw new Error(
       "runtime closure workspace identity does not match the import target",
     );
@@ -2161,9 +2164,9 @@ export async function importPersistedRustWorkspace(
 }
 
 export async function importPersistedRustWorkspaceArchive(
-  archive: Uint8Array,
+  archive: Blob,
 ): Promise<{ workspaceId: string; slot: WorkspaceRootSlot }> {
-  const workspaceId = runtimeClosureWorkspaceId(archive);
+  const workspaceId = await runtimeClosureWorkspaceId(archive);
   return {
     workspaceId,
     slot: await importPersistedRustWorkspace(workspaceId, archive),

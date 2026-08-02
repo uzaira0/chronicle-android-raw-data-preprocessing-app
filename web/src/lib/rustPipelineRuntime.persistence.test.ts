@@ -72,7 +72,7 @@ function viewDigest(index: number): string {
   return digest;
 }
 const root = {} as FileSystemDirectoryHandle;
-const archive = enc.encode("archive");
+const archive = new Blob([enc.encode("archive")]);
 const workspaceLockRequest = vi.fn();
 
 function digestBytes(bytes: Uint8Array): string {
@@ -417,11 +417,11 @@ beforeEach(() => {
   );
   opfs.exportRuntimeClosure.mockResolvedValue(archive);
   opfs.garbageCollectRuntimeObjects.mockResolvedValue(4);
-  opfs.runtimeClosureWorkspaceId.mockReturnValue(workspaceId);
+  opfs.runtimeClosureWorkspaceId.mockResolvedValue(workspaceId);
   opfs.importRuntimeClosure.mockImplementation(
     async (
       _root: FileSystemDirectoryHandle,
-      _archive: Uint8Array,
+      _archive: Blob,
       verify: (closure: unknown) => Promise<void>,
     ) => {
       await verify({
@@ -443,7 +443,7 @@ beforeEach(() => {
             offset: 0,
           })),
         },
-        object: (digest: string) => bytesByDigest.get(digest)!,
+        object: (digest: string) => Promise.resolve(bytesByDigest.get(digest)!),
       });
       return slot;
     },
@@ -832,11 +832,11 @@ describe("persisted Rust workspace boundary", () => {
   });
 
   it("rejects import identity drift and absent artifact assignments", async () => {
-    opfs.runtimeClosureWorkspaceId.mockReturnValue(`sha256:${"9".repeat(64)}`);
+    opfs.runtimeClosureWorkspaceId.mockResolvedValue(`sha256:${"9".repeat(64)}`);
     await expect(
       importPersistedRustWorkspace(workspaceId, archive),
     ).rejects.toThrow(/identity does not match/);
-    opfs.runtimeClosureWorkspaceId.mockReturnValue(workspaceId);
+    opfs.runtimeClosureWorkspaceId.mockResolvedValue(workspaceId);
     const missing = { ...validClosure, artifacts: [] };
     bytesByDigest.set(closureDigest, enc.encode(JSON.stringify(missing)));
     await expect(
