@@ -30,7 +30,7 @@
     },
     "rust_product_runtime": {
       "path": "rust/chronicle_preprocessing_runtime_wasm/src/lib.rs",
-      "digest": "sha256:bbef53f9f45ffdd62de0efe68575eda184d4f25f8277eb96ae204246b3b80d9b",
+      "digest": "sha256:1194dc19388652db309946cb6791fed5c76da8b112b95771a3968f449ef09c5c",
       "coverage": "production-worker-authority"
     }
   },
