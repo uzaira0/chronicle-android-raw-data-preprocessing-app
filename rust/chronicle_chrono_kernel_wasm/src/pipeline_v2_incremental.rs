@@ -11440,6 +11440,76 @@ mod tracked {
             }
         }
 
+        /// Each persisted base has a one-entry decode cache. Reviewing a
+        /// second file right after a first one is the ordinary browser
+        /// sequence, so a decode request for a different base has to return
+        /// that base — never the rows still sitting in the cache.
+        #[test]
+        fn a_base_decode_never_returns_the_previous_file() {
+            let support = PipelineV2SupportFiles::default();
+            let options = pipeline_options();
+            let longer = {
+                let mut bytes = csv().as_ref().clone();
+                bytes.extend_from_slice(
+                    b"Study,P01,Target Child,Mail,Activity Resumed,com.example.mail,2026-03-07 10:02:00,America/Chicago\n",
+                );
+                bytes.extend_from_slice(
+                    b"Study,P01,Target Child,Mail,Activity Paused,com.example.mail,2026-03-07 10:03:00,America/Chicago\n",
+                );
+                Arc::new(bytes)
+            };
+
+            let export = |raw: &[u8]| {
+                let mut engine = TrackedEngine::default();
+                engine
+                    .execute(raw, &options, support, true)
+                    .expect("export execute");
+                (
+                    engine.export_review_base().expect("review base"),
+                    engine
+                        .export_reconstruction_base()
+                        .expect("reconstruction base"),
+                )
+            };
+            let (short_review, short_reconstruction) = export(&csv());
+            let (long_review, long_reconstruction) = export(&longer);
+
+            REVIEW_BASE_DECODE_CACHE.with(|cache| cache.borrow_mut().take());
+            let short_rows = decode_review_base_cached(&short_review).unwrap().rows.len();
+            let long_rows = decode_review_base_cached(&long_review).unwrap().rows.len();
+            assert!(
+                long_rows > short_rows,
+                "the two fixtures have to produce different review bases",
+            );
+            assert_eq!(
+                decode_review_base_cached(&short_review).unwrap().rows.len(),
+                short_rows,
+                "the review-base decode came back with the other file's rows",
+            );
+
+            RECONSTRUCTION_BASE_DECODE_CACHE.with(|cache| cache.borrow_mut().take());
+            let short_rows = decode_reconstruction_base_cached(&short_reconstruction)
+                .unwrap()
+                .rows
+                .len();
+            let long_rows = decode_reconstruction_base_cached(&long_reconstruction)
+                .unwrap()
+                .rows
+                .len();
+            assert!(
+                long_rows > short_rows,
+                "the two fixtures have to produce different reconstruction bases",
+            );
+            assert_eq!(
+                decode_reconstruction_base_cached(&short_reconstruction)
+                    .unwrap()
+                    .rows
+                    .len(),
+                short_rows,
+                "the reconstruction-base decode came back with the other file's rows",
+            );
+        }
+
         /// Both row-removing options are reported as product counts. A raw
         /// export that carries an exact duplicate row and a session that opens
         /// and closes at the same instant has to keep or lose those rows
