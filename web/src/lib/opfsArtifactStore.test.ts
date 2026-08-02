@@ -1679,7 +1679,8 @@ describe("OPFS content-addressed runtime workspace", () => {
     // check reads the header range and compares every byte, so this is rejected
     // without reading a manifest or a payload.
     const wrongMagic = new Uint8Array(valid);
-    wrongMagic[magic.byteLength - 1] ^= 0xff;
+    wrongMagic[magic.byteLength - 1] =
+      (wrongMagic[magic.byteLength - 1] ?? 0) ^ 0xff;
     await expect(runtimeClosureWorkspaceId(asArchive(wrongMagic))).rejects.toThrow(
       /invalid runtime closure magic/,
     );
