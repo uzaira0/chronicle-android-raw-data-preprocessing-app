@@ -39,6 +39,7 @@
     "benchmark:many-files": "node scripts/verify-many-files.mjs",
     "benchmark:runtime-wasm": "node scripts/run-clean-env.mjs vite-node scripts/benchmark_runtime_wasm.mts",
     "measure:review-batch": "node scripts/measure_review_batch.mjs",
+    "measure:perf-debt": "node scripts/run-clean-env.mjs vite-node scripts/measure_perf_debt.mts",
     "measure:unique-review-batch": "node scripts/measure_unique_review_batch.mjs",
     "generate:benchmark-fixture": "node scripts/run-clean-env.mjs vite-node scripts/generate_benchmark_fixture.mts",
     "build:wasm": "node scripts/build_wasm.mjs && node scripts/check_wasm_exports.mjs",
