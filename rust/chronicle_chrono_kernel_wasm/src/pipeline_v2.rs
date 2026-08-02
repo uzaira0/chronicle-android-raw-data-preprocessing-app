@@ -11636,6 +11636,23 @@ mod tests {
                 None,
                 false,
             ),
+            // Disagreement has to withdraw a stale answer whichever half of it
+            // is stale: the genre without the consumed mark, or the mark
+            // without the genre.
+            (
+                [Some("Social"), Some("Games"), None, None],
+                Some("Social"),
+                false,
+                None,
+                false,
+            ),
+            (
+                [Some("Social"), Some("Games"), None, None],
+                None,
+                true,
+                None,
+                false,
+            ),
         ];
         for (columns, genre_before, cleared_before, genre_after, cleared_after) in cases {
             assert_eq!(

@@ -683,9 +683,9 @@ mod tests {
     fn top_apps_rank_by_foreground_and_background_minutes_together() {
         let rows = sessions(&[
             ("com.example.foreground", None, 0, Some(10), APP_USAGE),
-            ("com.example.mixed", None, 20, Some(26), APP_USAGE),
+            ("com.example.both", None, 20, Some(26), APP_USAGE),
             (
-                "com.example.mixed",
+                "com.example.both",
                 Some("secondary"),
                 30,
                 Some(38),
@@ -705,7 +705,7 @@ mod tests {
         let total = column("total_minutes");
         assert_eq!(
             (lines[1][package].as_str(), lines[1][total].as_str()),
-            ("com.example.mixed", "14"),
+            ("com.example.both", "14"),
             "6 foreground plus 8 background minutes outranks 10 foreground",
         );
         assert_eq!(
