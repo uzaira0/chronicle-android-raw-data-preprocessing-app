@@ -11969,10 +11969,19 @@ mod tracked {
                 // graph is wrong, so the full-output result is also checked
                 // against the sequential path, which computes the same 55 steps
                 // through separate code.
+                let oracle = run_pipeline_v2_with_supports(&csv(), options, support)
+                    .unwrap_or_else(|error| panic!("{label}: sequential oracle: {error}"));
                 if full {
-                    let oracle = run_pipeline_v2_with_supports(&csv(), options, support)
-                        .unwrap_or_else(|error| panic!("{label}: sequential oracle: {error}"));
                     assert_result_parity(&warm.result, &oracle, options.usage_session_mode);
+                } else {
+                    // Review mode is a different cone that produces one artifact:
+                    // the summary. That is what the sequential path is compared
+                    // against, so a review-only value that goes stale is caught.
+                    assert_eq!(
+                        warm.result.review_summary_json_bytes,
+                        oracle.review_summary_json_bytes,
+                        "{label}: review summary differs from the sequential path",
+                    );
                 }
 
                 let repeat = engine.execute(&csv(), options, support, full).unwrap();
@@ -12084,6 +12093,23 @@ mod tracked {
                         &expected.result,
                         options.usage_session_mode,
                     );
+
+                    // Both engines run the same query graph, so they agree even
+                    // when it is wrong. The sequential path computes the same 55
+                    // steps through separate code and settles it.
+                    let oracle = run_pipeline_v2_with_supports(bytes, &options, *support)
+                        .unwrap_or_else(|error| {
+                            panic!("{label} full={full}: sequential oracle: {error}")
+                        });
+                    if full {
+                        assert_result_parity(&warm.result, &oracle, options.usage_session_mode);
+                    } else {
+                        assert_eq!(
+                            warm.result.review_summary_json_bytes,
+                            oracle.review_summary_json_bytes,
+                            "{label} full={full}: review summary differs from the sequential path",
+                        );
+                    }
 
                     let repeat = engine.execute(bytes, &options, *support, full).unwrap();
                     assert!(
