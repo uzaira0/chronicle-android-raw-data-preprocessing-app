@@ -9043,3 +9043,421 @@ mod tests {
         );
     }
 }
+
+/// Exact product-output contract for the fused cold-oracle pipeline.
+///
+/// The browser runtime hands these bytes to researchers unchanged, and the
+/// step digests are the evidence a step may be reported as cached from, so
+/// both are pinned byte-for-byte against checked-in expected files for one
+/// fixture that reaches every option-gated stage.
+///
+/// Re-record deliberately, never to turn a red run green:
+/// ```text
+/// UPDATE_GOLDEN=1 cargo test --features incremental-v2 \
+///   --manifest-path rust/chronicle_chrono_kernel_wasm/Cargo.toml \
+///   output_contract
+/// ```
+#[cfg(test)]
+mod output_contract {
+    use super::*;
+
+    // Every row reaches a specific option-gated stage:
+    //   09:59 Screen Interactive / 10:10 Screen Non-Interactive -> screen session
+    //   10:00-10:02 chat Resumed/Paused                         -> app session
+    //   10:02 third event on a duplicate timestamp              -> nudge stage
+    //   10:01-10:09:30 music, overlapping chat and video        -> concurrent split
+    //   10:03-10:05 chat again (same package)                   -> switched_app 0
+    //   10:06-10:09 video (different package)                   -> switched_app 1
+    //   10:20 Screen Interactive + Keyguard Shown               -> screen classify
+    //   11:30 Device Shutdown / 11:31 Device Startup            -> liveness break
+    //   12:00-12:01 com.example.secret                          -> filter relabel
+    //   13:00 video Resumed (closes the background span above)  -> background model
+    //   14:00 news Resumed, 14:10 news Activity Stopped         -> stop fallback
+    //   next day 09:00-09:30 chat                               -> two-day coverage
+    // The chat label carries a comma and an embedded double quote, so the
+    // emitted CSV must quote the field and double the inner quote.
+    const FIXTURE_CSV: &str = concat!(
+        "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+        "Study,P01,Target Child,,Screen Interactive,,2026-03-07 09:59:00,America/Chicago\n",
+        "Study,P01,Target Child,\"Chat, \"\"Bot\"\"\",Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+        "Study,P01,Target Child,\"Chat, \"\"Bot\"\"\",Activity Paused,com.example.chat,2026-03-07 10:02:00,America/Chicago\n",
+        "Study,P01,Target Child,\"Chat, \"\"Bot\"\"\",User Interaction,com.example.chat,2026-03-07 10:02:00,America/Chicago\n",
+        "Study,P01,Target Child,Music,Activity Resumed,com.example.music,2026-03-07 10:01:00,America/Chicago\n",
+        "Study,P01,Target Child,\"Chat, \"\"Bot\"\"\",Activity Resumed,com.example.chat,2026-03-07 10:03:00,America/Chicago\n",
+        "Study,P01,Target Child,\"Chat, \"\"Bot\"\"\",Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago\n",
+        "Study,P01,Target Child,Video,Activity Resumed,com.example.video,2026-03-07 10:06:00,America/Chicago\n",
+        "Study,P01,Target Child,Video,Activity Paused,com.example.video,2026-03-07 10:09:00,America/Chicago\n",
+        "Study,P01,Target Child,Music,Activity Paused,com.example.music,2026-03-07 10:09:30,America/Chicago\n",
+        "Study,P01,Target Child,,Screen Non-Interactive,,2026-03-07 10:10:00,America/Chicago\n",
+        "Study,P01,Target Child,,Screen Interactive,,2026-03-07 10:20:00,America/Chicago\n",
+        "Study,P01,Target Child,,Keyguard Shown,,2026-03-07 10:20:30,America/Chicago\n",
+        "Study,P01,Target Child,,Screen Non-Interactive,,2026-03-07 10:21:00,America/Chicago\n",
+        "Study,P01,Target Child,,Device Shutdown,,2026-03-07 11:30:00,America/Chicago\n",
+        "Study,P01,Target Child,,Device Startup,,2026-03-07 11:31:00,America/Chicago\n",
+        "Study,P01,Target Child,Secret,Activity Resumed,com.example.secret,2026-03-07 12:00:00,America/Chicago\n",
+        "Study,P01,Target Child,Secret,Activity Paused,com.example.secret,2026-03-07 12:01:00,America/Chicago\n",
+        "Study,P01,Target Child,Video,Activity Resumed,com.example.video,2026-03-07 13:00:00,America/Chicago\n",
+        "Study,P01,Target Child,Video,Activity Stopped,com.example.video,2026-03-07 13:05:00,America/Chicago\n",
+        "Study,P01,Target Child,News,Activity Resumed,com.example.news,2026-03-07 14:00:00,America/Chicago\n",
+        "Study,P01,Target Child,News,Activity Stopped,com.example.news,2026-03-07 14:10:00,America/Chicago\n",
+        "Study,P01,Target Child,\"Chat, \"\"Bot\"\"\",Activity Resumed,com.example.chat,2026-03-08 09:00:00,America/Chicago\n",
+        "Study,P01,Target Child,\"Chat, \"\"Bot\"\"\",Activity Paused,com.example.chat,2026-03-08 09:30:00,America/Chicago\n",
+    );
+
+    const FILTER_CSV: &[u8] =
+        b"app_package_name,known_application_labels\ncom.example.secret,Secret\n";
+    const APPS_FORCING_CSV: &[u8] = b"package_name,label_or_note\ncom.example.video,Video\n";
+    const BACKGROUND_APPS_CSV: &[u8] = b"app_package_name\ncom.example.video\n";
+    const CODEBOOK_CSV: &[u8] = concat!(
+        "app_package_name,bcm_play_store_broad_app_category,genreId\n",
+        "com.example.chat,Social,SOCIAL\n",
+        "com.example.video,Entertainment,ENTERTAINMENT\n",
+    )
+    .as_bytes();
+    const STUDY_DATES_CSV: &[u8] =
+        b"participant_id,start_date,end_date\nP01,2026-03-07,2026-03-08\n";
+    const DEVICE_SHARING_CSV: &[u8] = b"participant_id,sharing_status\nP01,Shared\n";
+    const SURVEY_ATTRIBUTION_CSV: &[u8] = concat!(
+        "participant_id,event_timestamp,users\n",
+        "P01,2026-03-07 10:00:00,Target Child\n",
+    )
+    .as_bytes();
+    const ENROLLED_DEVICES_CSV: &[u8] = b"participant_id,device_count\nP01,1\n";
+
+    fn golden_path(name: &str) -> std::path::PathBuf {
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("golden")
+            .join(name)
+    }
+
+    fn assert_golden(name: &str, actual: &[u8]) {
+        let path = golden_path(name);
+        if std::env::var_os("UPDATE_GOLDEN").is_some() {
+            std::fs::create_dir_all(path.parent().expect("golden directory"))
+                .expect("create golden directory");
+            std::fs::write(&path, actual).expect("write golden");
+            return;
+        }
+        let expected = std::fs::read(&path)
+            .unwrap_or_else(|error| panic!("missing golden {}: {error}", path.display()));
+        assert_eq!(
+            String::from_utf8_lossy(actual),
+            String::from_utf8_lossy(&expected),
+            "product output drifted from {}",
+            path.display(),
+        );
+    }
+
+    fn contract_options() -> PipelineV2Options {
+        PipelineV2Options {
+            study_name: "Kernel Output Contract".into(),
+            timezone: "America/Chicago".into(),
+            timezone_handling: "selected-convert".into(),
+            usage_session_mode: UsageSessionMode::AppAndScreenUsage,
+            include_app_output: true,
+            include_screen_output: true,
+            use_filter_file: true,
+            use_apps_forcing_screen_open: true,
+            use_background_apps_file: true,
+            use_app_codebook: true,
+            include_category_column: true,
+            deduplicate_exact_rows: true,
+            interaction_type_remap: Vec::new(),
+            correct_duplicate_event_timestamps: true,
+            allow_stop_event_reuse: false,
+            use_activity_stopped_as_fallback: true,
+            apply_threshold_to_fallback: true,
+            long_duration_threshold_ns: 21_600_000_000_000,
+            proximity_interval_ns: 2_000_000_000,
+            custom_app_engagement_duration: 300.0,
+            long_data_time_gap_thresholds: vec![1.0, 6.0, 12.0],
+            long_usage_duration_thresholds: vec![1.0, 6.0, 12.0],
+            same_app_stop_types: vec!["Activity Paused".into(), "Activity Resumed".into()],
+            other_stop_types: vec!["Activity Resumed".into(), "Device Shutdown".into()],
+            interaction_types_to_remove: Vec::new(),
+            screen_auto_lock_timeout_seconds: 120.0,
+            screen_auto_lock_tolerance_seconds: 30.0,
+            screen_manual_lock_max_tail_seconds: 30.0,
+            screen_keyguard_near_stop_seconds: 2.0,
+            datetime_of_preprocessing: "2026-07-21 12:00:00 UTC".into(),
+            model_concurrent_usage: true,
+            minimum_usage_duration: 60.0,
+            apply_minimum_usage_duration_to_concurrent_subintervals: true,
+            filter_zero_duration_sessions: true,
+            add_no_activity_placeholder_days: true,
+            enable_study_window_filter: true,
+            enable_person_attribution: true,
+            enable_day_coverage: true,
+            enable_compliance_scoring: true,
+            compliance_threshold_percent: 70.0,
+            enable_screen_gated_crediting: true,
+            enable_aggregates: true,
+            aggregate_shape: "wide".into(),
+            materialize_visualization_data: true,
+            credited_session_cap_minutes: 360.0,
+            device_liveness_gap_tolerance_minutes: 120.0,
+            auto_lock_bridge_seconds: 120.0,
+            no_witness_min_day_apps: 2,
+        }
+    }
+
+    fn support_files() -> PipelineV2SupportFiles<'static> {
+        PipelineV2SupportFiles {
+            filter_csv: FILTER_CSV,
+            apps_forcing_csv: APPS_FORCING_CSV,
+            background_apps_csv: BACKGROUND_APPS_CSV,
+            codebook_csv: CODEBOOK_CSV,
+            study_dates_csv: STUDY_DATES_CSV,
+            device_sharing_csv: DEVICE_SHARING_CSV,
+            survey_attribution_csv: SURVEY_ATTRIBUTION_CSV,
+            enrolled_devices_csv: ENROLLED_DEVICES_CSV,
+        }
+    }
+
+    fn run_contract_fixture() -> PipelineV2Result {
+        run_pipeline_v2_with_supports(FIXTURE_CSV.as_bytes(), &contract_options(), support_files())
+            .expect("the contract fixture must preprocess cleanly")
+    }
+
+    /// The support files, session-mode flags, and threshold knobs above are
+    /// not decoration: flipping any one of them must move the emitted product
+    /// bytes. Without this, a golden could stay green while an option stopped
+    /// reaching the pipeline at all.
+    #[test]
+    fn every_contract_option_and_support_file_changes_the_emitted_output() {
+        let baseline = run_contract_fixture();
+        let baseline_bytes = |result: &PipelineV2Result| {
+            (
+                result.app_csv_bytes.to_vec(),
+                result.screen_csv_bytes.to_vec(),
+                result.credited_app_csv_bytes.to_vec(),
+                result.day_coverage_csv_bytes.to_vec(),
+                result.compliance_csv_bytes.to_vec(),
+            )
+        };
+        let baseline_output = baseline_bytes(&baseline);
+
+        let perturbations: Vec<(&str, Box<dyn Fn(&mut PipelineV2Options)>)> = vec![
+            (
+                "use_filter_file",
+                Box::new(|options: &mut PipelineV2Options| options.use_filter_file = false),
+            ),
+            (
+                "use_apps_forcing_screen_open",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.use_apps_forcing_screen_open = false
+                }),
+            ),
+            (
+                "use_background_apps_file",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.use_background_apps_file = false
+                }),
+            ),
+            (
+                "use_app_codebook",
+                Box::new(|options: &mut PipelineV2Options| options.use_app_codebook = false),
+            ),
+            (
+                "include_category_column",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.include_category_column = false
+                }),
+            ),
+            (
+                "enable_person_attribution",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.enable_person_attribution = false
+                }),
+            ),
+            (
+                "enable_day_coverage",
+                Box::new(|options: &mut PipelineV2Options| options.enable_day_coverage = false),
+            ),
+            (
+                "enable_compliance_scoring",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.enable_compliance_scoring = false
+                }),
+            ),
+            (
+                "enable_screen_gated_crediting",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.enable_screen_gated_crediting = false
+                }),
+            ),
+            (
+                "correct_duplicate_event_timestamps",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.correct_duplicate_event_timestamps = false
+                }),
+            ),
+            (
+                "use_activity_stopped_as_fallback",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.use_activity_stopped_as_fallback = false
+                }),
+            ),
+            (
+                "model_concurrent_usage",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.model_concurrent_usage = false
+                }),
+            ),
+            (
+                "minimum_usage_duration",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.minimum_usage_duration = 240.0
+                }),
+            ),
+            (
+                "long_data_time_gap_thresholds",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.long_data_time_gap_thresholds = vec![48.0]
+                }),
+            ),
+            (
+                "long_usage_duration_thresholds",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.long_usage_duration_thresholds = vec![48.0]
+                }),
+            ),
+            (
+                "custom_app_engagement_duration",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.custom_app_engagement_duration = 45.0
+                }),
+            ),
+            (
+                "screen_auto_lock_timeout_seconds",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.screen_auto_lock_timeout_seconds = 3_600.0
+                }),
+            ),
+            (
+                "study_name",
+                Box::new(|options: &mut PipelineV2Options| {
+                    options.study_name = "Other Study".into()
+                }),
+            ),
+        ];
+        for (name, perturb) in perturbations {
+            let mut options = contract_options();
+            perturb(&mut options);
+            let perturbed =
+                run_pipeline_v2_with_supports(FIXTURE_CSV.as_bytes(), &options, support_files())
+                    .unwrap_or_else(|error| panic!("{name} perturbation must still run: {error}"));
+            assert_ne!(
+                baseline_output,
+                baseline_bytes(&perturbed),
+                "changing {name} left every product output identical",
+            );
+        }
+
+        // Each support file must reach the pipeline through the support struct.
+        let support_roles: [(&str, fn(&mut PipelineV2SupportFiles<'static>)); 4] = [
+            ("filter_csv", |support| support.filter_csv = b""),
+            ("apps_forcing_csv", |support| support.apps_forcing_csv = b""),
+            ("background_apps_csv", |support| {
+                support.background_apps_csv = b""
+            }),
+            ("codebook_csv", |support| support.codebook_csv = b""),
+        ];
+        for (name, clear) in support_roles {
+            let mut support = support_files();
+            clear(&mut support);
+            let perturbed =
+                run_pipeline_v2_with_supports(FIXTURE_CSV.as_bytes(), &contract_options(), support)
+                    .unwrap_or_else(|error| panic!("{name} removal must still run: {error}"));
+            assert_ne!(
+                baseline_output,
+                baseline_bytes(&perturbed),
+                "removing {name} left every product output identical",
+            );
+        }
+    }
+
+    #[test]
+    fn product_csv_and_json_outputs_are_exact() {
+        let result = run_contract_fixture();
+        assert_golden("app.csv", &result.app_csv_bytes);
+        assert_golden("screen.csv", &result.screen_csv_bytes);
+        assert_golden("credited_app.csv", &result.credited_app_csv_bytes);
+        assert_golden("day_coverage.csv", &result.day_coverage_csv_bytes);
+        assert_golden("compliance.csv", &result.compliance_csv_bytes);
+        assert_golden("review_summary.json", &result.review_summary_json_bytes);
+        assert_golden(
+            "visualization_data.json",
+            &result.visualization_data_json_bytes,
+        );
+        let kinds = result
+            .aggregate_csv_outputs
+            .iter()
+            .map(|output| output.kind.clone())
+            .collect::<Vec<_>>();
+        assert_golden("aggregate_kinds.json", format!("{kinds:?}").as_bytes());
+        for output in result.aggregate_csv_outputs.iter() {
+            assert_golden(&format!("{}.csv", output.kind), &output.bytes);
+        }
+    }
+
+    #[test]
+    fn step_digests_and_row_lineage_are_exact() {
+        let result = run_contract_fixture();
+        assert_golden(
+            "pipeline_step_digests.json",
+            serde_json::to_string_pretty(&result.pipeline_step_digests)
+                .expect("step digests serialize")
+                .as_bytes(),
+        );
+        assert_golden(
+            "pipeline_step_checkpoints.json",
+            serde_json::to_string_pretty(&result.pipeline_step_checkpoints)
+                .expect("step checkpoints serialize")
+                .as_bytes(),
+        );
+        assert_golden(
+            "logical_stage_checkpoints.json",
+            serde_json::to_string_pretty(&result.logical_stage_checkpoints)
+                .expect("logical stage checkpoints serialize")
+                .as_bytes(),
+        );
+        assert_golden(
+            "row_lineage.json",
+            serde_json::to_string_pretty(&result.row_lineage)
+                .expect("row lineage serializes")
+                .as_bytes(),
+        );
+    }
+
+    #[test]
+    fn reported_counts_and_timezone_resolution_are_exact() {
+        let result = run_contract_fixture();
+        assert_golden(
+            "counts.json",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "originalRowCount": result.original_row_count,
+                "processedRowCount": result.processed_row_count,
+                "appRowCount": result.app_row_count,
+                "screenRowCount": result.screen_row_count,
+                "dayCoverageRowCount": result.day_coverage_row_count,
+                "complianceRowCount": result.compliance_row_count,
+                "creditedAppRowCount": result.credited_app_row_count,
+                "duplicateTimestampsCorrected": result.duplicate_timestamps_corrected,
+                "exactDuplicateRowsRemoved": result.exact_duplicate_rows_removed,
+                "availableTimezones": result.available_timezones,
+                "timezone": result.timezone,
+                "timezoneAction": result.timezone_action,
+                "rowsBeforeTimezoneHandling": result.rows_before_timezone_handling,
+                "rowsAfterTimezoneHandling": result.rows_after_timezone_handling,
+                "rowsRemovedByTimezone": result.rows_removed_by_timezone,
+                "timezoneRetainedSourceRowsDigest": result.timezone_retained_source_rows_digest,
+                "timezoneStageDigest": result.timezone_stage_digest,
+                "logicalStageDigests": result.logical_stage_digests,
+            }))
+            .expect("counts serialize")
+            .as_bytes(),
+        );
+    }
+}
