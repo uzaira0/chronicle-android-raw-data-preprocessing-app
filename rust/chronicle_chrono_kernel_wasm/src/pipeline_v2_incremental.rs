@@ -3237,13 +3237,25 @@ mod tracked {
     }
 
     fn encode_review_base(base: &ReviewBase) -> Result<Vec<u8>, String> {
+        encode_review_base_within(base, MAX_REVIEW_BASE_UNCOMPRESSED_BYTES)
+    }
+
+    /// The ceiling is a hard reject bound, not a buffer hint: past it the base
+    /// is refused and the step-16 typed resume stops engaging. It is taken as
+    /// an argument so the exact reject boundary can be exercised without
+    /// serializing a base the size of the real ceiling; the wrapper above is
+    /// the only caller that chooses which ceiling applies.
+    fn encode_review_base_within(
+        base: &ReviewBase,
+        max_uncompressed_bytes: usize,
+    ) -> Result<Vec<u8>, String> {
         let bytes = with_serialized_row_string_table(|| postcard::to_allocvec(base))
             .map_err(|error| format!("encode review base: {error}"))?;
-        if bytes.len() > MAX_REVIEW_BASE_UNCOMPRESSED_BYTES {
+        if bytes.len() > max_uncompressed_bytes {
             return Err(format!(
                 "review base is too large: {} bytes exceeds {}",
                 bytes.len(),
-                MAX_REVIEW_BASE_UNCOMPRESSED_BYTES
+                max_uncompressed_bytes
             ));
         }
         let compressed = lz4_flex::block::compress(&bytes);
@@ -3574,14 +3586,23 @@ mod tracked {
     }
 
     fn encode_reconstruction_base(base: &ReconstructionBase) -> Result<Vec<u8>, String> {
+        encode_reconstruction_base_within(base, MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES)
+    }
+
+    /// Same hard reject bound as `encode_review_base_within`, for the step-28
+    /// resume base.
+    fn encode_reconstruction_base_within(
+        base: &ReconstructionBase,
+        max_uncompressed_bytes: usize,
+    ) -> Result<Vec<u8>, String> {
         let persisted = persist_reconstruction_base(base)?;
         let bytes = with_serialized_row_string_table(|| postcard::to_allocvec(&persisted))
             .map_err(|error| format!("encode reconstruction base: {error}"))?;
-        if bytes.len() > MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES {
+        if bytes.len() > max_uncompressed_bytes {
             return Err(format!(
                 "reconstruction base is too large: {} bytes exceeds {}",
                 bytes.len(),
-                MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES
+                max_uncompressed_bytes
             ));
         }
         let compressed = lz4_flex::block::compress(&bytes);
@@ -10033,6 +10054,99 @@ mod tracked {
             assert!(mismatch.contains("digest mismatch"), "{mismatch}");
         }
 
+        /// The two uncompressed ceilings are hard reject bounds, not buffer
+        /// hints. `encode_review_base` and `encode_reconstruction_base` refuse
+        /// a base past them, and `verify_review_base_payload` and
+        /// `verify_reconstruction_base_payload` refuse to read one back, so a
+        /// ceiling that fell to a few hundred kilobytes would stop the step-16
+        /// and step-28 typed resume from ever engaging on a real export. The
+        /// 100k-row production fixture needs about 25 MiB decoded, while every
+        /// fixture in this file is a handful of rows - so only the ceiling's
+        /// own magnitude can catch that.
+        #[test]
+        fn the_resume_ceilings_stay_far_above_a_real_production_base() {
+            let hundred_mib = 100 * 1024 * 1024;
+            let review_ceiling = MAX_REVIEW_BASE_UNCOMPRESSED_BYTES;
+            let reconstruction_ceiling = MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES;
+            assert!(
+                review_ceiling >= hundred_mib,
+                "the review-base ceiling is {review_ceiling} bytes, which refuses a production \
+                 review base and disables the step-16 resume",
+            );
+            assert!(
+                reconstruction_ceiling >= hundred_mib,
+                "the reconstruction-base ceiling is {reconstruction_ceiling} bytes, which \
+                 refuses a production reconstruction base and disables the step-28 resume",
+            );
+            // Reconstruction carries the review rows plus the matcher-side
+            // checkpoints, so its ceiling can never be the tighter of the two.
+            assert!(
+                reconstruction_ceiling >= review_ceiling,
+                "the reconstruction-base ceiling dropped below the review-base ceiling",
+            );
+            // Both are declared in the header as a little-endian u32, so a
+            // ceiling above that range could never be reached by a declared
+            // size and the reject bound would be unreachable.
+            assert!(review_ceiling <= u32::MAX as usize);
+            assert!(reconstruction_ceiling <= u32::MAX as usize);
+        }
+
+        /// The ceiling is enforced at the exact byte: a base whose serialized
+        /// payload is exactly the ceiling is still encoded unchanged, and one
+        /// byte past it is refused. Serializing a base the size of the real
+        /// ceiling is not practical, so the boundary is driven at the ceiling
+        /// the encoder is handed - the same comparison the production entry
+        /// points reach through.
+        #[test]
+        fn a_base_is_encoded_at_the_ceiling_and_refused_one_byte_past_it() {
+            let support = PipelineV2SupportFiles::default();
+            let options = pipeline_options();
+            let mut engine = TrackedEngine::default();
+            engine
+                .execute(&csv(), &options, support, true)
+                .expect("export execute");
+            let review_bytes = engine.export_review_base().expect("review base");
+            let reconstruction_bytes = engine
+                .export_reconstruction_base()
+                .expect("reconstruction base");
+            let review = decode_review_base_cached(&review_bytes).expect("decode review base");
+            let reconstruction = decode_reconstruction_base_cached(&reconstruction_bytes)
+                .expect("decode reconstruction base");
+            let declared = |encoded: &[u8], magic_bytes: usize| {
+                u32::from_le_bytes(
+                    encoded[magic_bytes..magic_bytes + 4]
+                        .try_into()
+                        .expect("four-byte declared size"),
+                ) as usize
+            };
+
+            let unbounded =
+                encode_review_base_within(&review, usize::MAX).expect("an unbounded review base");
+            let payload_bytes = declared(&unbounded, REVIEW_BASE_MAGIC.len());
+            let at_ceiling = encode_review_base_within(&review, payload_bytes)
+                .expect("a review base whose payload is exactly the ceiling");
+            assert_eq!(
+                at_ceiling, unbounded,
+                "encoding at the ceiling changed the review base",
+            );
+            let over = encode_review_base_within(&review, payload_bytes - 1)
+                .expect_err("a review base one byte past the ceiling");
+            assert!(over.contains("too large"), "{over}");
+
+            let unbounded = encode_reconstruction_base_within(&reconstruction, usize::MAX)
+                .expect("an unbounded reconstruction base");
+            let payload_bytes = declared(&unbounded, RECONSTRUCTION_BASE_MAGIC.len());
+            let at_ceiling = encode_reconstruction_base_within(&reconstruction, payload_bytes)
+                .expect("a reconstruction base whose payload is exactly the ceiling");
+            assert_eq!(
+                at_ceiling, unbounded,
+                "encoding at the ceiling changed the reconstruction base",
+            );
+            let over = encode_reconstruction_base_within(&reconstruction, payload_bytes - 1)
+                .expect_err("a reconstruction base one byte past the ceiling");
+            assert!(over.contains("too large"), "{over}");
+        }
+
         #[test]
         fn sixteen_tracked_steps_match_the_sequential_oracle_and_reuse_exactly() {
             let mut db = EarlyDatabase::default();
@@ -12024,6 +12138,157 @@ mod tracked {
                     .len(),
                 short_rows,
                 "the reconstruction-base decode came back with the other file's rows",
+            );
+        }
+
+        /// Salsa decides whether a recomputed value may be backdated by
+        /// comparing it with the previous one, so these four hand-written
+        /// `PartialEq` impls are the only thing standing between a warm review
+        /// and rows built from a different persisted base or a different
+        /// upstream table. `DecodedReviewBase::eq` compares nothing but
+        /// `encoded_digest`: report two different bases equal and Salsa
+        /// backdates `decoded_review_base` after recomputing it from other
+        /// bytes, so a review resumed against workspace base B keeps the rows
+        /// reconstructed from base A. Each impl therefore has to separate two
+        /// values whose identity differs - varied one field at a time, since a
+        /// widened `||` would let any single equal field decide the answer -
+        /// and still recognise an unchanged value, which is what earns the
+        /// reuse.
+        #[test]
+        fn the_review_cone_equalities_separate_two_different_values() {
+            let support = PipelineV2SupportFiles::default();
+            let options = pipeline_options();
+            let longer = {
+                let mut bytes = csv().as_ref().clone();
+                bytes.extend_from_slice(
+                    b"Study,P01,Target Child,Mail,Activity Resumed,com.example.mail,2026-03-07 10:02:00,America/Chicago\n",
+                );
+                bytes.extend_from_slice(
+                    b"Study,P01,Target Child,Mail,Activity Paused,com.example.mail,2026-03-07 10:03:00,America/Chicago\n",
+                );
+                Arc::new(bytes)
+            };
+            let export = |raw: &[u8]| {
+                let mut engine = TrackedEngine::default();
+                engine
+                    .execute(raw, &options, support, true)
+                    .expect("export execute");
+                (
+                    engine.export_review_base().expect("review base"),
+                    engine
+                        .export_reconstruction_base()
+                        .expect("reconstruction base"),
+                )
+            };
+            let (short_review, short_reconstruction) = export(&csv());
+            let (long_review, long_reconstruction) = export(&longer);
+
+            // Built exactly the way `decoded_review_base` and
+            // `decoded_reconstruction_base` build the values Salsa compares.
+            let decoded_review = |bytes: &[u8]| {
+                let digest_offset = REVIEW_BASE_MAGIC.len() + 4;
+                DecodedReviewBase {
+                    encoded_digest: bytes[digest_offset..digest_offset + 32]
+                        .try_into()
+                        .expect("32-byte review-base payload digest"),
+                    value: decode_review_base_cached(bytes).expect("decode review base"),
+                }
+            };
+            let decoded_reconstruction = |bytes: &[u8]| DecodedReconstructionBase {
+                encoded_digest: *blake3::hash(&bytes[..RECONSTRUCTION_BASE_HEADER_BYTES])
+                    .as_bytes(),
+                value: decode_reconstruction_base_cached(bytes)
+                    .expect("decode reconstruction base"),
+            };
+            assert_ne!(
+                decoded_review(&short_review),
+                decoded_review(&long_review),
+                "two persisted review bases with different payload digests compared equal, so a \
+                 warm review would keep the rows reconstructed from the other file",
+            );
+            assert_eq!(
+                decoded_review(&short_review),
+                decoded_review(&short_review),
+                "one persisted review base compared unequal to itself, which costs the reuse",
+            );
+            assert_ne!(
+                decoded_reconstruction(&short_reconstruction),
+                decoded_reconstruction(&long_reconstruction),
+                "two persisted reconstruction bases with different header digests compared equal",
+            );
+            assert_eq!(
+                decoded_reconstruction(&short_reconstruction),
+                decoded_reconstruction(&short_reconstruction),
+                "one persisted reconstruction base compared unequal to itself",
+            );
+
+            let checkpoint = |node: &str, terminal: &str| LogicalStageCheckpoint {
+                protocol_version: "chronicle-logical-stage/v6".into(),
+                node_id: node.into(),
+                row_membership_digest: "sha256:membership".into(),
+                row_order_digest: "sha256:order".into(),
+                temporal_state_digest: "sha256:temporal".into(),
+                classification_digest: "sha256:classification".into(),
+                payload_digest: "sha256:payload".into(),
+                schema_digest: "sha256:schema".into(),
+                terminal_digest: terminal.into(),
+            };
+            let before_floor =
+                |terminal: &str, floor: &[u32], filtered: &[&str]| ReviewUsageRowsBeforeFloor {
+                    rows: Arc::new(Vec::new()),
+                    floor_candidate_indices: Arc::new(floor.to_vec()),
+                    filtered_packages: Arc::new(
+                        filtered
+                            .iter()
+                            .map(|package| (*package).to_string())
+                            .collect::<BTreeSet<String>>(),
+                    ),
+                    checkpoint: checkpoint("review_usage_rows_before_floor", terminal),
+                    temporal_sequence: CanonicalTemporalSequence {
+                        encoded_rows: Arc::new(Vec::new()),
+                        canonical_positions: Arc::new(Vec::new()),
+                    },
+                };
+            let baseline = before_floor("sha256:before-floor", &[0, 1], &["com.example.junk"]);
+            assert!(
+                baseline == before_floor("sha256:before-floor", &[0, 1], &["com.example.junk"]),
+                "an unchanged before-floor table compared unequal to itself, which is the reuse \
+                 a matcher-config edit that leaves the result alone is supposed to keep",
+            );
+            for (field, other) in [
+                (
+                    "its rows checkpoint",
+                    before_floor("sha256:other", &[0, 1], &["com.example.junk"]),
+                ),
+                (
+                    "its floor candidates",
+                    before_floor("sha256:before-floor", &[0], &["com.example.junk"]),
+                ),
+                (
+                    "its filtered packages",
+                    before_floor("sha256:before-floor", &[0, 1], &["com.example.other"]),
+                ),
+            ] {
+                assert!(
+                    baseline != other,
+                    "two before-floor tables differing in {field} compared equal, so the duration \
+                     floor would be applied to the other table's rows",
+                );
+            }
+
+            let static_annotations = |input_key: &str| ReviewStaticAnnotations {
+                rows: Arc::new(Vec::new()),
+                input_key: input_key.into(),
+                checkpoint: checkpoint("review_static_annotations", "sha256:static"),
+            };
+            assert!(
+                static_annotations("blake3:aa") == static_annotations("blake3:aa"),
+                "an unchanged static-annotation table compared unequal to itself",
+            );
+            assert!(
+                static_annotations("blake3:aa") != static_annotations("blake3:bb"),
+                "two static-annotation tables built from different inputs compared equal, so the \
+                 annotation columns of the other input would be overlaid onto these rows",
             );
         }
 
