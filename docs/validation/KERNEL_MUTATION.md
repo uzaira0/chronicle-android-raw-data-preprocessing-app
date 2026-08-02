@@ -16,9 +16,44 @@ cargo mutants \
   --jobs 8 --timeout 90
 ```
 
-Full sweep 2026-08-02T04:34:14Z → 05:30:45Z, **56 min 31 s**.
-`mutants.json` holds **2947** mutants, which is also `outcomes.json`'s
-`total_mutants`, so every mutant below is accounted for exactly once.
+### The result on the merged tree
+
+This is the campaign the gate runs, re-measured on the merged provenance wave
+rather than on the lane branch that produced the classification below.
+`cargo mutants --list` finds **3183** mutants in the crate. The 97 exclusion
+expressions match **154** of them, leaving **3029** for the scored campaign,
+which ran in **81 min**:
+
+| outcome | count |
+| --- | ---: |
+| caught | 2297 |
+| unviable (does not compile) | 719 |
+| missed | 13 |
+| timeout | 0 |
+| **scored total** | **3029** |
+| excluded, audited separately | 154 |
+| **crate total** | **3183** |
+
+The 13 misses are being killed by tests, not moved into the exclusion file.
+Three were `output_cell_dependencies`, whose only consumer calls it as a filter
+predicate so a wrong answer silently emptied the declared column-granular reach
+instead of failing anything; the other ten are in the syn-based
+`field_use_scan.rs`, whose read/write sets are the implementation-bound half of
+the field-level provenance claim.
+
+The 154 excluded mutants are run as their own campaign before the scored one,
+which fails if the suite catches any of them — an exclusion covering a mutant
+the tests already kill would remove a real kill from the score. That audit
+reports `audited=154 caught=0`. It tests 161: the 7 `delete field` mutants
+cargo-mutants cannot filter ride along in every `-E` run, are all caught, and
+are part of what the audit tests and none of what it judges.
+
+### The sweep that produced the classification
+
+The classification below came from an earlier full sweep on the lane branch,
+2026-08-02T04:34:14Z → 05:30:45Z, **56 min 31 s**, whose `mutants.json` held
+**2947** mutants — the crate has grown since, so that total and this one are
+not comparable and only the withdrawal delta below is like-for-like.
 
 | outcome | count |
 | --- | ---: |
