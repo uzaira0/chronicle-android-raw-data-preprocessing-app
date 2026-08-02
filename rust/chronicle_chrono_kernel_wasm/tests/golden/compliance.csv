@@ -1,0 +1,3 @@
+participant_id,date,sharing_status,known_minutes,unknown_minutes,compliance_percent,zero_real_usage,is_valid,expected_device_count
+P01,2026-03-07,Shared,200.5,0,100,0,1,1
+P01,2026-03-08,Shared,30,0,100,0,1,1

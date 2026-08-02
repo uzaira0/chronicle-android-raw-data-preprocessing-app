@@ -3,10 +3,13 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
+      # The kernel output-contract expectations are byte-exact copies of what
+      # the pipeline emits; rewriting their whitespace would make the contract
+      # test assert bytes the product never produces.
       - id: trailing-whitespace
-        exclude: '\.md$'
+        exclude: '\.md$|^rust/chronicle_chrono_kernel_wasm/tests/golden/'
       - id: end-of-file-fixer
-        exclude: 'web/src/wasm/'
+        exclude: 'web/src/wasm/|^rust/chronicle_chrono_kernel_wasm/tests/golden/'
       - id: check-yaml
         exclude: '\.ast-grep/'
       - id: check-toml
