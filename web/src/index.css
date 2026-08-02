@@ -41,13 +41,19 @@
   --color-success-ink: #087455;
   --color-warning: #b9550c;
   --color-warning-soft: #fdf1e2;
+  --color-warning-ink: #a85a00;
   --color-danger: #b42318;
   --color-danger-soft: #fdecea;
   --color-info: #1f63d2;
   --color-info-soft: #e7eefc;
+  --color-cyan: #0b7d8e;
 
-  /* Color: per-group accents (section card stripes + headers) */
+  /* Color: per-group accents (section card stripes + headers).
+     The base value is tuned for stripes/borders/swatches. `-ink` variants exist
+     only where an accent is rendered as TEXT and the base value would miss WCAG
+     AA 4.5:1 (amber on white is 3.45:1); everything else reads its base token. */
   --accent-files: #c97614;
+  --accent-files-ink: #9c5a0d;
   --accent-files-soft: #fdf1e2;
   --accent-timezone: #0e8a82;
   --accent-timezone-soft: #e2f4f3;
@@ -153,10 +159,24 @@
   --color-success-ink: #35d39a;
   --color-warning: #f0a559;
   --color-warning-soft: #382711;
+  --color-warning-ink: #f0a559;
   --color-danger: #ff6f63;
   --color-danger-soft: #3a1a18;
   --color-info: #6fa6ff;
   --color-info-soft: #15233f;
+  --color-cyan: #4fc3d6;
+
+  /* The light per-group accents are dark inks meant for white surfaces; on the
+     dark surfaces they fall to 2.6–3.1:1 as node/legend text. Dark mode gets its
+     own lifted set so stripes, swatches and Graph-node labels clear AA. */
+  --accent-files: #e2953f;
+  --accent-files-ink: #e2953f;
+  --accent-timezone: #3fc4bb;
+  --accent-session: #99a4ff;
+  --accent-screen: #b18cf0;
+  --accent-interaction: #ef86b4;
+  --accent-performance: #9aa5bf;
+  --accent-study: #4cc47e;
 
   --accent-files-soft: #382711;
   --accent-timezone-soft: #0f302d;
@@ -1265,6 +1285,13 @@ a:hover {
   font-weight: 700;
 }
 
+/* Amber is the one group accent that misses AA as ~10px text on the node
+   surface (3.45:1). The border/legend swatch keeps the brighter identity
+   colour; only the label switches to the ink variant. */
+.graph-node--clean .graph-node__section {
+  color: var(--accent-files-ink);
+}
+
 .graph-node__label {
   font-weight: 600;
 }
@@ -1283,9 +1310,12 @@ a:hover {
   color: var(--color-info);
 }
 
-.graph-node__status--recomputed { background: var(--color-success-soft, #e5f6ec); color: var(--color-success, #157f3d); }
+/* Badge text sits at ~10px on a tinted pill, so it uses the `-ink` status
+   tokens: the plain --color-success/--color-warning values are 3.15:1 and
+   4.32:1 there, under WCAG AA. */
+.graph-node__status--recomputed { background: var(--color-success-soft); color: var(--color-success-ink); }
 .graph-node__status--error { background: var(--color-danger-soft); color: var(--color-danger); }
-.graph-node__status--skipped { background: var(--color-warning-soft); color: var(--color-warning); }
+.graph-node__status--skipped { background: var(--color-warning-soft); color: var(--color-warning-ink); }
 .graph-node__status--bypassed { background: var(--color-border, #e2e8f0); color: var(--color-text-muted, #64748b); }
 
 /* Ledger metrics from the last run: rows in→out and wall-clock duration. */
@@ -1301,7 +1331,7 @@ a:hover {
   padding: 1px 6px;
   border-radius: 999px;
   background: var(--color-warning-soft);
-  color: var(--color-warning);
+  color: var(--color-warning-ink);
   white-space: nowrap;
 }
 
@@ -1313,12 +1343,17 @@ a:hover {
 .graph-flow-node { transition: opacity 160ms ease; }
 .graph-flow-node.is-dimmed { opacity: 0.22; }
 
-/* React Flow's attribution ships at #999 on white (2.84:1) — below WCAG AA at
- * its 10px size. Keep the attribution visible but darken it to meet 4.5:1
+/* React Flow's attribution ships at #999 on its own translucent white chip
+ * (2.84:1) — below WCAG AA at its 10px size, and worse in dark mode where the
+ * chip stays white-ish over a dark canvas (2.13:1). Pin both the chip and the
+ * ink to theme tokens so it meets 4.5:1 in either theme
  * (persona-accessibility graph-panel scan enforces this). */
+.graph-canvas .react-flow__attribution {
+  background: var(--color-surface);
+}
 .graph-canvas .react-flow__attribution,
 .graph-canvas .react-flow__attribution a {
-  color: #595959;
+  color: var(--color-text-muted);
 }
 /* Gated off by the current settings: present in the map, inert in the run. */
 .graph-flow-node.is-off .graph-node {
@@ -3498,8 +3533,10 @@ a:hover {
 .review-mcard--a h3 {
   /* Darker amber than the #c66a00 bar/legend fill so heading text clears the
      4.5:1 AA contrast threshold on the white card surface (the bright amber is
-     only 3.84:1 as text). The bars/ticks keep the brighter identity colour. */
-  color: #a85a00;
+     only 3.84:1 as text). The bars/ticks keep the brighter identity colour.
+     --color-warning-ink is that same amber, and flips light in dark mode where
+     the fixed value was only 3.33:1. */
+  color: var(--color-warning-ink);
 }
 
 .review-mrows {
@@ -3788,17 +3825,20 @@ a:hover {
   white-space: nowrap;
 }
 
+/* Arm/Δ headings and signed deltas are ~13px bold-to-normal text on the plain
+   card surface, so they use the ink tokens: --color-success itself is only
+   3.49:1 on white, and the fixed cyan only 3.5:1 on the dark surface. */
 .review-mcard--b h3 {
-  color: var(--color-cyan, #0b7d8e);
+  color: var(--color-cyan);
 }
 
 .review-mcard--d h3 {
-  color: var(--color-success, #178a4c);
+  color: var(--color-success-ink);
 }
 
 .review-mrow__value.is-pos,
 .review-day-table td.is-pos {
-  color: var(--color-success, #178a4c);
+  color: var(--color-success-ink);
 }
 
 .review-mrow__value.is-neg,
