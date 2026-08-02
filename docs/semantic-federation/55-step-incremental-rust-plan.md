@@ -741,15 +741,16 @@ and no production deployment change is allowed.
   `assemble_result`, grouped as `day_coverage` and `outputs`.
 - Evidence currency: all six implementation-bound dependency ledgers and
   `.semantic-federation/proofs/dependency-certificate.json` were regenerated
-  with `make dependency-evidence` and landed in `3c598ee` (PR #88). The two
+  with `make dependency-evidence` on this merged provenance wave. The two
   intentional stale-receipt failures are gone: `cargo test --locked
-  --manifest-path rust/chronicle_preprocessing_runtime_wasm/Cargo.toml` now
-  reports `60 passed; 0 failed; 1 ignored`. `make semantic-federation` reports
+  --manifest-path rust/chronicle_preprocessing_runtime_wasm/Cargo.toml`
+  reports `69 passed; 0 failed; 3 ignored`. `make semantic-federation` reports
   `check-artifacts-in-sync: closure digests correct and no drift`.
-- Next proof: bring `chronicle_chrono_kernel_wasm` back above its declared
-  coverage ratchet and repair `make coverage-rust`, which cannot currently
-  reach the kernel at all (see the coverage row in the backlog below), then
-  complete the cross-browser durability decision and the final aggregate
+- `chronicle_chrono_kernel_wasm` is back above its declared coverage ratchet at
+  96.20%/95.42%/92.73% against 90/89/85, and `make coverage-rust` — which could
+  not reach the kernel at all — is repaired and exits 0 across all five
+  authority crates.
+- Next proof: the final aggregate
   review.
 - Main risk: an omitted actual read could keep a stale value. Every option,
   support-file, qualification, and binding campaign therefore compares the warm

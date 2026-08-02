@@ -152,7 +152,7 @@ evidence.
 |---|---|---|---|---|---|---|---|---|---|
 | Profile and lock protocol | deterministic fixtures | schema and digest tests | tamper, cycle, license, missing resource | offline exact closure | scaffold smoke | secret/license checks | resolve budget | no product ontology in protocol | Verified by federation gates |
 | Rust product contract | 15-node plan fixture | binding and graph tests | unknown/duplicate/cyclic bindings | generated-registry drift | native/WASM contract load | profiles cannot inject code | compile/build budget | Chronicle-owned semantics | Verified |
-| Rust preprocessing runtime | synthetic raw CSVs | Rust suites | malformed request/artifact states | native/WASM and cold/incremental parity suites | full browser processing | bounded inputs and fail-closed digests | browser baseline, cached digest | property/mutation checks | Verified; the crate itself clears its 95/94/70 floor at 95.19%/94.12%/75.00% and its suite reports `60 passed; 0 failed; 1 ignored`. The coverage debt in item 1 below is the chrono kernel, not this crate |
+| Rust preprocessing runtime | synthetic raw CSVs | Rust suites | malformed request/artifact states | native/WASM and cold/incremental parity suites | full browser processing | bounded inputs and fail-closed digests | browser baseline, cached digest | property/mutation checks | Verified; the crate itself clears its 95/94/70 floor at 95.54%/94.47%/76.18% and its suite reports `69 passed; 0 failed; 3 ignored`. The chrono-kernel coverage debt recorded in item 1 below is closed |
 | Incremental materializer | warm/cold replay | node/role/status tests | changed support/config/input cones | persisted prior-root execution | graph/status/explanation views | immutable assignment evidence | declared-cone checks | deterministic replay | Role/qualification behavior verified; tracked runtime integration active |
 | Physical 55-step executor | fused Rust oracle | one callable/query test per step | missing/duplicate/untracked input and under/over-invalidation | real intermediate and terminal cache | actual execution events in graph/status/explanation views | cache cannot bypass input/contract verification | cold/no-change/upstream/middle/downstream/binding budgets | random mutation sequences, early cutoff, native/WASM parity | 55 queries and four-mode parity verified; root-bound cache persistence is implemented; the read-set campaigns now run against actual Salsa events and were regenerated on this merged provenance wave. Cross-browser real-WASM reload/crash proof landed 2026-08-01 on all three engines (items 2 and 8). Remaining release blockers: randomized change sequences and the chrono-kernel coverage/mutation debt |
 | OPFS durability | alternating-root fixtures | store tests | corruption, missing objects, both roots bad | closure export/import and verification | reload/recovery browser flows | digest/path/size/object limits | GC retains two roots | crash/fault-injection matrix | Verified in Chromium |
@@ -192,10 +192,10 @@ evidence.
   traces became runtime authority. Semantic-index source v2 now projects
   candidate qualification, every rule evaluation, and all ten role-requirement
   traces, with two new registered queries verified through browser WASM.
-- `cd web && npm run test:coverage` passed 485 tests in 48 files. Coverage over
+- `cd web && npm run test:coverage` passes 517 tests in 51 files. Coverage over
   `src/lib/**/*.ts` — the `vitest.config.ts` include set, minus the six
-  browser-glue files excluded there with written justification — is 99.02%
-  statements, 95.27% branches, 99.83% functions, and 99.47% lines, against
+  browser-glue files excluded there with written justification — is 99.27%
+  statements, 95.84% branches, 99.83% functions, and 99.83% lines, against
   enforced floors of 99/95/99/99. The runtime-manifest boundary
   now has adversarial cases for malformed qualifications, requirements,
   obligations, checkpoint domains, cache claims, identity fields, row
