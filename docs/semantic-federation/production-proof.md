@@ -3,21 +3,38 @@
 This repository is the first full implementation target for the generalized
 semantic federation. It already proves the shared profile, qualification,
 storage, provenance, browser, and product-ownership boundaries described below.
-The kernel now proves minimal reuse for unchanged and output-only changes across
+The kernel proves minimal reuse for unchanged and output-only changes across
 55 real tracked Rust computations, plus complete parity in all four usage
-modes. It does **not** yet prove the full production requirement across browser
-reload, every configuration/support/binding intervention, runtime provenance,
-and the existing large empirical campaigns.
+modes. Browser reload and worker replacement, the configuration/support/binding
+intervention campaigns, and runtime provenance from actual query events are now
+implemented and checked on `main`. What it does **not** yet prove is listed in
+"Remaining production blockers or bounded debt" in the
+[final review matrix](final-review-matrix.md); those items are open, not
+softened.
 
-The current branch contains 55 Salsa-tracked Rust product computations and a
-stateful engine that produces complete `PipelineV2Result` values. Two internal
-derived-cache queries are observable separately and are not product steps.
+`main` at `3c598ee` contains 55 Salsa-tracked Rust product computations and a
+stateful engine that produces complete `PipelineV2Result` values. Twenty-four
+internal derived-cache queries are observable separately and are not product
+steps; `pipeline_v2_incremental.rs` therefore holds 79 `#[salsa::tracked]`
+functions of which exactly 55 are product transformations.
 Runtime computation and step reporting consume actual executed-step IDs. There is no second
 TypeScript scheduler: Rust groups the 55 step events into 15 readable UI
-sections after execution. The generated empirical evidence is still
-stale and must be rebuilt. The authoritative live status and remaining checks are in the
-[55-step incremental Rust plan](55-step-incremental-rust-plan.md). Until those
-checks pass, this document must not be read as a completed production claim.
+sections after execution. The generated empirical evidence is no longer stale:
+all six implementation-bound dependency ledgers and the dependency certificate
+were regenerated with `make dependency-evidence` on this merged provenance
+wave, not on the `3c598ee` tree the earlier revision of this document cited,
+and `cargo test --locked --manifest-path
+rust/chronicle_preprocessing_runtime_wasm/Cargo.toml` reports `69 passed;
+0 failed; 3 ignored`, with zero stale-receipt failures. The authoritative live status and remaining checks
+are in the [55-step incremental Rust plan](55-step-incremental-rust-plan.md).
+This document is still not a completed production claim, but the list of what is
+unproven is shorter than it was. The first provenance wave closed cross-browser
+durability, large-file memory and crash injection, streaming archive
+export/import, the chrono-kernel mutation and coverage debt, and exact
+raw-field-to-output-cell contribution for the six columns that qualify for it.
+Support-record-to-output-cell contribution remains conservative, and the
+remaining blockers are enumerated in the
+[final review matrix](final-review-matrix.md); they are open, not softened.
 
 ## Reusable authority layers
 
@@ -129,8 +146,9 @@ recalculates from it. No opaque query cache can hide a required computation.
   [the product-trial report](../perf/SALSA_PRODUCT_TRIAL.md). Salsa `0.28.1` is selected
   and all 55 real step queries now pass native complete-result parity, exact
   unchanged reuse, output-only invalidation, Clippy, and browser-WASM compile
-  checks. Production cutover still requires the broader actual-read campaigns,
-  runtime event/view truth, persistence safety, memory, and bundle checks. The
+  checks. The broader actual-read campaigns, runtime event truth, and the
+  step-16/step-28 persistence-safety checks have run and are checked in;
+  cross-browser durability and large-file memory/crash injection have not. The
   comparison with the other researched Rust incremental libraries is closed in
   the [authoritative plan](55-step-incremental-rust-plan.md#existing-software-decision).
   If a
@@ -204,11 +222,13 @@ empirical result into a permanent anti-staleness contract rather than a manual
 observation. All 1,380 transitions compare all 15 logical checkpoints with an
 independent cold target and compare the observed invalidation set with the
 deterministically predicted semantic percolation cluster. Both mismatch counts
-are zero. This proves logical minimality for the recorded pre-cutover scope.
-The checked ledger must be regenerated before it can claim current physical
-execution. In the current implementation, actual Salsa `WillExecute` events,
-not the old 15-stage cache projection, are the only source for physical
-`cached` versus `recomputed` status.
+are zero. This proves logical minimality for the recorded scope. The checked
+ledger was regenerated against the physical query executor with
+`make dependency-evidence` on this merged wave; it carries this tree's
+implementation receipt rather than a pre-cutover or lane-branch one. In the current
+implementation, actual Salsa `WillExecute` events, not the old 15-stage cache
+projection, are the only source for physical `cached` versus `recomputed`
+status.
 
 Code and contract changes are also explicit intervention dimensions. Every
 logical node input key commits independently to (1) the production Rust source,
@@ -279,7 +299,9 @@ comparisons. They identify 150 pairs where context introduces or masks a
 checkpoint or cell effect. Those are the measured wide/narrow sections of the
 configuration–data funnel; they are retained as exact counterexamples rather
 than flattened into a binary dependency edge. One representative mutation per
-role does not yet exhaust every record/field×configuration interaction.
+role does not by itself exhaust every record/field×configuration interaction;
+the per-field campaign described below narrows it to one activating
+intervention per supplied source column.
 
 The artifact dependency tomography applies the same falsification protocol to
 source changes. It covers all eleven supplied raw columns, row
@@ -295,7 +317,7 @@ gap values and six calendar/DST joints; it also proved and fixed false coupling
 between row order, membership, and classification checkpoint components. See
 [the artifact dependency tomography proof](artifact-dependency-tomography.md).
 The two campaigns additionally compare canonical output cells on every warm
-and cold run. Digest-bound compressed sidecars retain 864,557 exact changed-cell
+and cold run. Digest-bound compressed sidecars retain 853,947 exact changed-cell
 addresses, yielding an empirical forward correspondence from each named
 raw/support mutation to affected CSV/JSON coordinates without turning large
 row/cell evidence into RDF or bloating the review ledger.
@@ -316,21 +338,94 @@ uses dictionary encoding plus LZ4 frame compression. On the checked 600-event
 representative fixture it contains 9,902 cells in 45,810 bytes, 0.51 times
 the 89,709 canonical output bytes. The precision labels remain load-bearing:
 source and result coordinate identity and row-table joins are exact, raw-row
-contributor sets are conservative, semantic dependencies are
-declared-transitive, and exact raw-field/support-record contributors are not yet
-claimed.
+contributor sets are conservative, and semantic dependencies are
+declared-transitive.
 
 `source-result-influence-arrow` makes those precision boundaries executable.
-It contains 686 normalized witness rows in 47,042 bytes on the same fixture:
-role/selector-prefix to logical checkpoint, contiguous raw source-row range
-(`source_record_index`..`source_record_last`) to output row, and
-explicit unresolved source-scope to result-family gaps. The first Cartesian
-prototype (measured on the development fixture during design) emitted 240,540
-rows and 13,759,858 bytes; normalization reduces the bridge by two orders of
-magnitude while preserving lossless
-joins into the source-coordinate, result-cell, and row-lineage tables. The
-artifact is closure-bound, deterministic, researcher-exportable, and states
-that a missing row/cell edge is never evidence of non-influence.
+Its protocol is now `chronicle-source-result-influence/v3` and it contains 986
+normalized witness rows in 65,394 bytes on the same fixture. The first
+Cartesian prototype (measured on the development fixture during design) emitted
+240,540 rows and 13,759,858 bytes; normalization reduces the bridge by two
+orders of magnitude while preserving lossless joins into the source-coordinate,
+result-cell, and row-lineage tables. Every row carries one of six precision
+classes, and the two new coordinates `source_field` and
+`target_output_column` are populated exactly where the class justifies them:
+
+- `exact-field` — one supplied raw cell determines one output cell. Emitted
+  only where the field contract derives the output column as a verbatim
+  single-source copy along its whole write chain *and* kernel row lineage
+  resolves that output row to a single contiguous source record *and* no
+  lineage search participated. Six columns qualify today:
+  `study_id` and `participant_id` in `app-csv`, `credited-app-csv`, and
+  `screen-csv`.
+- `conservative-row-lineage` — a contiguous raw source-row range
+  (`source_record_index`..`source_record_last`) contributed to an output row.
+- `conservative-search-window` — the kernel scanned a bounded index range while
+  selecting a stop event or establishing that none qualified, so events in that
+  range decided the row without appearing in its contributing range. Every
+  event in the window is a possible contributor and none is claimed as the
+  contributor. The range is stated in the pipeline-internal ordering named by
+  `source_index_space` — `pipeline-event-order` counts normalized events after
+  `drop_empty_timestamp`, sorting and dedupe; `participant-source-event-order`
+  is the 0-based per-participant screen-event order — and never in raw data
+  rows. These rows carry `source_key_kind` = `lineage-search-window`, address
+  no raw record, and are excluded from `sourceCoordinateJoin`; join them
+  instead to the row-lineage artifact's candidate-search rows, which publish
+  the same bounds under `search_index_space`.
+- `declared-column-scope` — a supplied source column may affect a named output
+  column of a result family that carries no row lineage at all. This closes
+  what were previously whole-artifact unresolved gaps for `compliance-csv`,
+  `day-coverage-csv`, `review-summary-json`, `visualization-data-json`, and
+  all five `aggregate-*` families.
+- `declared-transitive` / `unresolved` — role or selector scope to logical
+  checkpoint, and the explicit gaps that survive when no lineage information of
+  any kind exists.
+
+The artifact is closure-bound, deterministic, researcher-exportable, and states
+that a missing row/cell edge is never evidence of non-influence. The version
+has moved twice rather than adding a parallel artifact, each time because a
+reader of the older schema would silently mis-join the newer bytes. v1 to v2
+added two coordinate columns and four new `relation`/`precision` values. v2 to
+v3 added the nullable `source_index_space` column and the
+`lineage-search-window` source key kind, which together stop search-window
+rows from reading as raw-record ranges: under v2 those rows stated their
+scanned bounds in the same columns raw-record contributors use, so a consumer
+joining them to the source-coordinate index would have addressed raw records
+the kernel never claimed. No consumer holds v1 or v2 bytes — the deployed
+Pages build is a deliberate rollback and every checked ledger is regenerated
+from source by `make dependency-evidence`.
+
+The declared field-level reads and writes behind those classes are reconciled
+against the recorded per-column changed-cell evidence by
+`web/src/lib/pipelineGraph/golden/fieldLevelProvenance.test.ts`. Direction one
+is a hard gate: every canonical cell that a recorded intervention changed must
+be reachable from that intervention's own source columns through the declared
+field edges, and a mutation confined to columns no step declares as read must
+change no output cell at all. Direction two is enumerated rather than asserted:
+a declared reach that no recorded intervention exercised is written to
+`family-expected/field-level-provenance-ledger.json` as structurally declared
+but unwitnessed, so a widening declaration cannot pass silently. That gate
+found the two real declaration defects fixed here: `build_canonical_rows`
+listed contributors for only 16 of the 43 fields it produces, so the remaining
+27 constant initializers fell back to "every read determines every write" and
+made every raw column reach every downstream field; and the aggregate
+`study_name` column plus the review summary's `/participants/*` addressing
+omitted the grouping keys that decide which rows and participants exist.
+
+`web/src/lib/pipelineGraph/golden/fieldMixedTomography.test.ts` then crosses
+each supplied source column with configuration. Twenty columns each get one
+empirically branch-activating intervention crossed with every computational
+axis the field contract predicts can interact with that column plus a
+deterministic control sample of axes it predicts cannot — 729 predicted axis
+crossings, 65 control axes, and 1,682 Rust/WASM executions across twenty
+process-recycled shards. Under every executed configuration, every canonical
+cell the column moved belonged to a declared output-cell family of that column,
+and no control axis introduced a family the base configuration did not move.
+Two supplied columns are recorded as having no declared reach at all rather
+than being dropped: `filter_file.app_filter_category` and
+`filter_file.filter_bool` appear in the shipped filter file and in the review
+UI, but no kernel step reads either — the filter map is built from the package
+and label columns alone.
 
 The combined empirical and structural sweep found both kinds of ontology drift.
 Output assembly directly consumed attribution and observation-window products
@@ -373,14 +468,19 @@ From this repository:
 
 ```sh
 # Local production rails require cargo-deny, cargo-llvm-cov and cargo-mutants.
-pnpm --dir web run build:wasm
+# The web package is npm-locked (web/package-lock.json). Run `npm ci` in web/
+# once per checkout: `make gate-truth` asserts that a seeded defect makes each
+# gate exit non-zero, so in a checkout with no web/node_modules every probe
+# exits non-zero for the wrong reason (`spawn vite-node ENOENT`) and the whole
+# suite prints the same all-green report it prints when the gates really work.
+cd web && npm ci && npm run build:wasm && cd ..
 make all SEM_PROF_BIN=/Users/u/semantic-profile-toolchain/target/debug/semprof
 make coverage-all
 make cargo-deny
 make combinatorial
 make gate-truth
 make mutation
-pnpm --dir web run lint
+cd web && npm run lint && cd ..
 ```
 
 Reusable authorities:
@@ -398,19 +498,62 @@ contract tests, semantic lock/binding/closure verification, real-browser smoke,
 offline workspace recovery/import/corruption rejection, and deploy-artifact and
 bundle-budget validation.
 
-The production Rust quality rails currently enforce at least 95% line, 94%
-region, and 70% function coverage on each new semantic authority crate. The
-measured proof is stronger: semantic adapter 97.98% lines/97.46% regions,
-product runtime 96.94%/95.88%, semantic index 97.06%/96.15%, and the new
-product runtime 98.54%/99.43%. The semantic-layer mutation runs
-have zero survivors and zero timeouts: adapter 76 killed/25 compiler-rejected,
-product runtime 194 killed/21 compiler-rejected, and semantic index 31 killed.
+The production Rust quality rails enforce at least 95% line, 94% region, and
+70% function coverage on each new semantic authority crate, with two
+established authorities ratcheted lower in
+`.semantic-federation/quality/rust-authority-manifests.txt`. Re-measured on
+**this merged provenance wave** — not the `3c598ee` tree the previous revision
+of this table cited — by `make coverage-rust`, which exits 0 and prints
+`rust_authority_quality=coverage manifests=5`:
+
+| Authority crate | Lines | Regions | Functions | Enforced floor (L/R/F) | Result |
+|---|---:|---:|---:|---|---|
+| `chronicle_preprocessing_semantic_adapter` | 99.16% | 98.33% | 96.84% | 95/94/70 | pass |
+| `chronicle_preprocessing_runtime_wasm` | 95.54% | 94.47% | 76.18% | 95/94/70 | pass |
+| `chronicle_semantic_index_wasm` | 96.97% | 96.51% | 80.85% | 95/94/70 | pass |
+| `chronicle_app_usage_matcher` (`--no-default-features`) | 94.69% | 94.10% | 90.09% | 93/93/90 | pass |
+| `chronicle_chrono_kernel_wasm` (`--features incremental-v2`) | 96.24% | 95.47% | 92.80% | 90/89/85 | pass |
+
+Both facts this section previously recorded as release-blocking are closed, and
+neither was closed by moving a floor. The chrono kernel was below its own
+ratchet at 89.78/89.36/84.30; the mutation lane's kill tests lifted it against
+the unchanged 90/89/85. And `make coverage-rust` really did report only the
+first crate: `.semantic-federation/scripts/check-rust-quality.sh` split each
+manifest line with `IFS='|'`, and the runtime entry's exclusion regex contained
+the alternation `(physical_data_row_count|duplicate_safe_headers)`, so
+`duplicate_safe_headers)` reached `--fail-under-lines` and cargo-llvm-cov
+aborted the loop with `error: invalid float literal` — which is why the kernel
+ratchet had never once run. A multi-expression exclusion set now lives in its
+own `@file` where no delimiter can reach it, and an inline expression
+containing `(` or `{` is rejected with exit 2. The table above is that gate's
+own output rather than five hand-run commands.
+
+The semantic-layer mutation runs have zero survivors and zero timeouts on this
+tree: adapter 150 tested (122 caught, 28 compiler-rejected), product runtime
+659 tested (599 caught, 60 compiler-rejected), semantic index 76 tested (75
+caught, 1 compiler-rejected). The chrono kernel joins them at 3,035 tested
+(2,316 caught, 719 compiler-rejected). Each crate that declares exclusions runs
+them as their own campaign first, which fails if the suite catches a mutant the
+exclusion claims is equivalent; adapter `audited=4`, product runtime
+`audited=14` and chrono kernel `audited=154` all report `caught=0`. The
+semantic index declares no exclusions, so its 76 are the whole crate.
+`chronicle_app_usage_matcher` is the one crate still red — 279 tested, 200
+caught, 35 compiler-rejected, 37 missed and 7 timeouts — so `make mutation-rust`
+exits 3 on its account alone; the survivors are sized and named in
+`docs/validation/KERNEL_MUTATION.md` rather than blanket-excluded green.
 The adapter's target-incompatible `cfg(wasm)` facade exclusion is declared in
 the authority manifest rather than hidden in an aggregate percentage, and its
 delegate/build/browser path is tested separately. TypeScript coverage remains
 a separate UI/oracle boundary measurement, not a substitute for Rust authority
-coverage. The broader chrono-kernel mutation debt remains explicit in the final
-review matrix; it is not hidden by the clean semantic-layer result.
+coverage. The chrono-kernel mutation ledger is
+[docs/validation/KERNEL_MUTATION.md](../validation/KERNEL_MUTATION.md).
 
-Production deployment, `main`, research-pipeline, GitOps, homelab provisioning
-and CI runner infrastructure are intentionally not part of this proof.
+This work now lives on `main`: PR #81 (`121e7b5`) landed the 55-step Rust/WASM
+single-engine cutover and PR #88 (`3c598ee`) landed the source-result influence
+witness, both as squash merges. Landing on `main` is not a deployment.
+`web-pwa-deploy.yml` is `workflow_dispatch` only since PR #85 (`b315858`), the
+live GitHub Pages app still serves the manually dispatched
+`rollback/2026-06-27-build` artifact from 2026-07-29, and the `research-pipeline`
+consumer remains pinned to the `last-python-engine` tag. Production deployment,
+research-pipeline, GitOps, homelab provisioning and CI runner infrastructure are
+intentionally not part of this proof.

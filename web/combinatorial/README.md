@@ -97,7 +97,7 @@ Notes:
   boundary campaign adds 162 timestamp cases and 648 executions at adjacent-
   gap, calendar, and DST joints. Both campaigns also compare canonical
   Rust-produced CSV/JSON cells warm versus cold. Their compressed,
-  digest-addressed correspondence sidecars retain 864,557 exact changed-cell
+  digest-addressed correspondence sidecars retain 853,947 exact changed-cell
   addresses without inflating the human-reviewable ledgers.
 - Exact two-factor tomography enumerates all 1,269 non-baseline value-level
   contrasts across the 46 computational axes: 1,222 valid warm/cold proofs, 47

@@ -10,6 +10,46 @@ use chrono_tz::Tz;
 pub mod pipeline_v2;
 pub mod step_contract;
 
+/// Byte-exact expectation files for product artifacts, shared by every golden
+/// test in this crate so there is one recorded location and one re-record
+/// switch:
+///
+/// ```text
+/// UPDATE_GOLDEN=1 cargo test --features incremental-v2 \
+///   --manifest-path rust/chronicle_chrono_kernel_wasm/Cargo.toml
+/// ```
+#[cfg(test)]
+pub(crate) mod golden {
+    pub(crate) fn path(name: &str) -> std::path::PathBuf {
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("golden")
+            .join(name)
+    }
+
+    pub(crate) fn assert_matches(name: &str, actual: &[u8]) {
+        let path = path(name);
+        // Exactly "1", never merely present: `UPDATE_GOLDEN=0` and an empty
+        // `UPDATE_GOLDEN=` must compare, not silently overwrite every golden in
+        // the crate and report green. This matches the web campaigns and every
+        // documented invocation.
+        if std::env::var("UPDATE_GOLDEN").as_deref() == Ok("1") {
+            std::fs::create_dir_all(path.parent().expect("golden directory"))
+                .expect("create golden directory");
+            std::fs::write(&path, actual).expect("write golden");
+            return;
+        }
+        let expected = std::fs::read(&path)
+            .unwrap_or_else(|error| panic!("missing golden {}: {error}", path.display()));
+        assert_eq!(
+            String::from_utf8_lossy(actual),
+            String::from_utf8_lossy(&expected),
+            "product output drifted from {}",
+            path.display(),
+        );
+    }
+}
+
 pub(crate) fn weekday_chronicle(weekday: chrono::Weekday) -> u8 {
     match weekday {
         chrono::Weekday::Sun => 1,
@@ -200,5 +240,95 @@ mod tests {
         assert!(is_valid_chronicle_timezone("America/Chicago"));
         assert!(!is_valid_chronicle_timezone("Not/AZone"));
         assert!(!is_valid_chronicle_timezone(""));
+    }
+
+    #[test]
+    fn csv_fields_are_quoted_and_escaped_exactly_when_rfc4180_requires_it() {
+        let render = |field: &str| {
+            let mut out = Vec::new();
+            write_csv_field(&mut out, field.as_bytes());
+            String::from_utf8(out).expect("CSV field stays UTF-8")
+        };
+
+        // Plain values are emitted verbatim. Quoting every field instead would
+        // change every column of every researcher-facing output file.
+        assert_eq!(render("com.example.chat"), "com.example.chat");
+        assert_eq!(render(""), "");
+        assert_eq!(render(" leading and trailing "), " leading and trailing ");
+
+        // A separator, quote, or record terminator inside a value must be
+        // quoted, and an embedded quote must be doubled, or reading the file
+        // back silently gains a column or a row.
+        assert_eq!(render("Chat, Inc"), "\"Chat, Inc\"");
+        assert_eq!(render("say \"hi\""), "\"say \"\"hi\"\"\"");
+        assert_eq!(render("\"\""), "\"\"\"\"\"\"");
+        assert_eq!(render("line1\nline2"), "\"line1\nline2\"");
+        assert_eq!(render("line1\r\nline2"), "\"line1\r\nline2\"");
+
+        // Round trip through a real reader: the emitted record must decode to
+        // the original cells.
+        let mut record = Vec::new();
+        write_csv_field(&mut record, b"Chat, \"Bot\"");
+        record.push(b',');
+        write_csv_field(&mut record, b"plain");
+        record.push(b'\n');
+        let mut reader = csv::ReaderBuilder::new()
+            .has_headers(false)
+            .from_reader(record.as_slice());
+        let decoded = reader
+            .records()
+            .next()
+            .expect("one record")
+            .expect("well-formed record");
+        assert_eq!(decoded.len(), 2);
+        assert_eq!(&decoded[0], "Chat, \"Bot\"");
+        assert_eq!(&decoded[1], "plain");
+    }
+
+    #[test]
+    fn chronicle_timestamps_parse_every_accepted_spelling_and_reject_the_rest() {
+        // Naive timestamps are read as UTC; the four accepted spellings must
+        // land on the same instant so an export's offset notation cannot shift
+        // a participant's event.
+        let base = parse_chronicle_timestamp_ns("2026-03-07 10:00:00").expect("naive timestamp");
+        // 20454 days from the epoch to 2026-01-01, +65 days to 2026-03-07,
+        // +10 h = 1_772_877_600 s.
+        assert_eq!(base, 1_772_877_600_000_000_000);
+        assert_eq!(
+            parse_chronicle_timestamp_ns("2026-03-07T10:00:00Z"),
+            Some(base)
+        );
+        assert_eq!(
+            parse_chronicle_timestamp_ns("2026-03-07 10:00:00+00:00"),
+            Some(base)
+        );
+        assert_eq!(
+            parse_chronicle_timestamp_ns("2026-03-07 04:00:00-06:00"),
+            Some(base)
+        );
+        // Fractional seconds are kept at nanosecond resolution, which is what
+        // duplicate-timestamp nudging depends on.
+        assert_eq!(
+            parse_chronicle_timestamp_ns("2026-03-07 10:00:00.000001"),
+            Some(base + 1_000)
+        );
+        assert_eq!(
+            parse_chronicle_timestamp_ns("2026-03-07 10:00:00.000001+00:00"),
+            Some(base + 1_000)
+        );
+
+        for rejected in [
+            "",
+            "not-a-timestamp",
+            "2026-03-07",
+            "2026-13-07 10:00:00",
+            "03/07/2026 10:00:00",
+        ] {
+            assert_eq!(
+                parse_chronicle_timestamp_ns(rejected),
+                None,
+                "{rejected:?} must not parse",
+            );
+        }
     }
 }

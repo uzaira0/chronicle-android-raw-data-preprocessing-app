@@ -17,7 +17,25 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WEB="$REPO_ROOT/web"
 VITE_NODE="$WEB/node_modules/.bin/vite-node"
-BACKUP_DIR="$(mktemp -d)"
+# Repo-scoped backups: /tmp is wiped on reboot, and a reboot mid-run would
+# otherwise destroy the only copies of the seeded files and leave the tree
+# dirty with defects. A leftover dir here is visible in `git status`, which is
+# the recovery signal.
+BACKUP_DIR="$(mktemp -d "$REPO_ROOT/.gate-truth-backup.XXXXXX")"
+
+# A missing runner must be a hard error, not a fired gate: `expect_gate_fires`
+# once scored `spawn vite-node ENOENT` as ✓ and printed an all-green report
+# from a checkout with no web/node_modules.
+if [[ ! -x "$VITE_NODE" ]]; then
+  echo "gate-truth: $VITE_NODE is missing or not executable (run npm ci in web/); refusing to report vacuous results" >&2
+  rm -rf "$BACKUP_DIR"
+  exit 2
+fi
+if ! command -v cargo >/dev/null 2>&1; then
+  echo "gate-truth: cargo is not on PATH; refusing to report vacuous results" >&2
+  rm -rf "$BACKUP_DIR"
+  exit 2
+fi
 
 # Backups FIRST — the restore trap must never run before its sources exist.
 cp "$WEB/schema/chronicle-pipeline-graph.yaml" "$BACKUP_DIR/"
@@ -25,6 +43,8 @@ cp "$WEB/schema/chronicle-output-columns.yaml" "$BACKUP_DIR/"
 cp "$WEB/src/lib/generatedContract.ts" "$BACKUP_DIR/"
 cp "$WEB/schema/contract-baseline.json" "$BACKUP_DIR/"
 cp "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/src/step_contract.rs" "$BACKUP_DIR/"
+cp "$WEB/src/lib/generatedRuntimeBoundary.ts" "$BACKUP_DIR/"
+cp "$REPO_ROOT/rust/chronicle_preprocessing_runtime_wasm/src/lib.rs" "$BACKUP_DIR/runtime_lib.rs"
 
 restore() {
   cp "$BACKUP_DIR/chronicle-pipeline-graph.yaml" "$WEB/schema/chronicle-pipeline-graph.yaml"
@@ -32,15 +52,39 @@ restore() {
   cp "$BACKUP_DIR/generatedContract.ts" "$WEB/src/lib/generatedContract.ts"
   cp "$BACKUP_DIR/contract-baseline.json" "$WEB/schema/contract-baseline.json"
   cp "$BACKUP_DIR/step_contract.rs" "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/src/step_contract.rs"
+  cp "$BACKUP_DIR/generatedRuntimeBoundary.ts" "$WEB/src/lib/generatedRuntimeBoundary.ts"
+  cp "$BACKUP_DIR/runtime_lib.rs" "$REPO_ROOT/rust/chronicle_preprocessing_runtime_wasm/src/lib.rs"
   rm -rf "$BACKUP_DIR"
 }
 trap restore EXIT
 
 fails=0
 
+# A drift gate is truthful only if it PASSES on the clean tree AND FIRES on the
+# seeded defect. Checking only the second half scores an always-red gate
+# (broken harness, stale runner, compile error) as ✓. Each check command is
+# therefore run once on the clean tree before its seed; a clean-tree failure is
+# the gate being broken, not the gate firing.
+expect_clean_pass() {
+  local name="$1"; shift
+  local rc=0
+  (cd "$WEB" && "$@" >/dev/null 2>&1) || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "✗ $name: check failed on the CLEAN tree (exit $rc) — the gate is broken, a seeded run would be vacuous"
+    fails=$((fails + 1))
+  else
+    echo "✓ $name passes"
+  fi
+}
+
 expect_gate_fires() {
   local name="$1"; shift
-  if (cd "$WEB" && "$@" >/dev/null 2>&1); then
+  local rc=0
+  (cd "$WEB" && "$@" >/dev/null 2>&1) || rc=$?
+  if [ "$rc" -eq 126 ] || [ "$rc" -eq 127 ]; then
+    echo "✗ $name: runner missing or not executable (exit $rc) — this is NOT a fired gate"
+    fails=$((fails + 1))
+  elif [ "$rc" -eq 0 ]; then
     echo "✗ $name: gate DID NOT FIRE on the seeded defect"
     fails=$((fails + 1))
   else
@@ -62,6 +106,25 @@ seed() {
     exit 1
   fi
 }
+
+echo "── gate-truth: every gate must pass on the clean tree first"
+expect_clean_pass "pipeline-graph drift gate (clean)" \
+  "$VITE_NODE" scripts/generate_pipeline_graph_artifacts.mts --check
+expect_clean_pass "output-codebook bijection gate (clean)" \
+  "$VITE_NODE" scripts/generate_output_codebook_artifacts.mts --check
+expect_clean_pass "contract artifact drift gate (clean)" \
+  "$VITE_NODE" scripts/generate_contract_artifacts.mts --check
+expect_clean_pass "Rust step-dataflow gate (clean)" \
+  cargo test --quiet --locked \
+    --manifest-path "$REPO_ROOT/rust/chronicle_chrono_kernel_wasm/Cargo.toml" \
+    --features incremental-v2 \
+    step_contract::tests::declared_step_edges_equal_direct_salsa_query_calls
+expect_clean_pass "contract-compat gate (clean)" \
+  "$VITE_NODE" scripts/check_contract_compat.mts
+expect_clean_pass "TypeScript authority boundary (clean)" \
+  "$VITE_NODE" scripts/check_no_typescript_authority.mts
+expect_clean_pass "runtime boundary drift gate (clean)" \
+  "$VITE_NODE" scripts/generate_runtime_boundary_artifacts.mts --check
 
 echo "── gate-truth: seeded defects must trip every drift gate"
 
@@ -133,6 +196,26 @@ grep -qF 'runRustV2Shadow' "$WEB/src/lib/generatedContract.ts" || {
 expect_gate_fires "TypeScript authority boundary" \
   "$VITE_NODE" scripts/check_no_typescript_authority.mts
 cp "$BACKUP_DIR/generatedContract.ts" "$WEB/src/lib/generatedContract.ts"
+
+# 8. WASM-boundary validator drift: the generated browser validator must match
+#    the Rust serialization model byte for byte.
+seed "$WEB/src/lib/generatedRuntimeBoundary.ts" \
+  's/export const RUNTIME_BOUNDARY_MODEL/export const SEEDED_DEFECT_MODEL/' 'SEEDED_DEFECT_MODEL'
+expect_gate_fires "runtime boundary artifact drift gate" \
+  "$VITE_NODE" scripts/generate_runtime_boundary_artifacts.mts --check
+cp "$BACKUP_DIR/generatedRuntimeBoundary.ts" "$WEB/src/lib/generatedRuntimeBoundary.ts"
+
+# 9. The same gate must be bound to the RUST model, not merely to itself.
+#    Retyping a manifest digest field as a bare String still compiles (the
+#    boundary digest types are transparent aliases) and still serializes the
+#    same bytes, but it downgrades what the browser is allowed to accept from
+#    "sha256 digest" to "any non-empty string" — so the gate must fire.
+seed "$REPO_ROOT/rust/chronicle_preprocessing_runtime_wasm/src/lib.rs" \
+  's/pub journal_digest: Sha256Digest,/pub journal_digest: String,/' \
+  'pub journal_digest: String,'
+expect_gate_fires "runtime boundary Rust-model binding" \
+  "$VITE_NODE" scripts/generate_runtime_boundary_artifacts.mts --check
+cp "$BACKUP_DIR/runtime_lib.rs" "$REPO_ROOT/rust/chronicle_preprocessing_runtime_wasm/src/lib.rs"
 
 if [ "$fails" -gt 0 ]; then
   echo "gate-truth: $fails gate(s) failed to fire"
