@@ -2173,6 +2173,77 @@ mod tests {
         );
     }
 
+    /// Day coverage reports one row per day of the participant's study window:
+    /// a day with usage, a day the export recorded but nothing was used, and a
+    /// day with no data at all. Data recorded outside the window is not part of
+    /// that report and must not be treated as a day the spine failed to cover.
+    #[test]
+    fn day_coverage_reports_the_study_window_and_ignores_data_outside_it() {
+        let mut usage = rows(&[(APP_USAGE, "com.example.chat", 0)]);
+        {
+            let data = usage[0].edit_all();
+            data.date = "2026-03-03".into();
+            data.duration_minutes = Some(5.0);
+        }
+        let raw_dates = BTreeMap::from([(
+            "P01".to_string(),
+            BTreeSet::from([
+                "2026-03-01".to_string(),
+                "2026-03-02".to_string(),
+                "2026-03-03".to_string(),
+                "2026-03-05".to_string(),
+            ]),
+        )]);
+        let windows = [StudyWindow {
+            participant_id: "P01".to_string(),
+            start_date: "2026-03-02".to_string(),
+            end_date: "2026-03-04".to_string(),
+        }];
+
+        let coverage = build_coverage(&usage, &raw_dates, &windows)
+            .expect("data outside the window is not a coverage failure");
+        assert_eq!(
+            coverage
+                .report
+                .coverage
+                .iter()
+                .map(|day| (day.date.as_str(), day.status.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("2026-03-02", "no_activity"),
+                ("2026-03-03", "usage"),
+                ("2026-03-04", "no_data"),
+            ],
+        );
+        assert_eq!(
+            (
+                coverage.report.usage_days,
+                coverage.report.no_activity_days,
+                coverage.report.no_data_days,
+            ),
+            (1, 1, 1),
+        );
+
+        let unwindowed =
+            build_coverage(&usage, &raw_dates, &[]).expect("coverage without a study window");
+        assert_eq!(
+            unwindowed
+                .report
+                .coverage
+                .iter()
+                .map(|day| day.date.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "2026-03-01",
+                "2026-03-02",
+                "2026-03-03",
+                "2026-03-04",
+                "2026-03-05",
+            ],
+            "with no window the spine runs from the first observed day to the last",
+        );
+    }
+
     const SECOND_NS: i64 = 1_000_000_000;
 
     /// The event instant `second` seconds after the fixture's 10:00:00 origin.
