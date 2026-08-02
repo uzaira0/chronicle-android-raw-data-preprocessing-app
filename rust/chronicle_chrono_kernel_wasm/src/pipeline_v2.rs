@@ -1865,13 +1865,10 @@ fn decimal_to_exponential(s: &str) -> String {
     let Some(first_nonzero) = first_nonzero else {
         return format!("{sign}0e+0");
     };
-    // Exponent = (int_len - 1) - first_nonzero  if first_nonzero < int_len
-    //          = -(first_nonzero - int_len + 1) otherwise
-    let exp: i32 = if first_nonzero < int_len {
-        (int_len as i32 - 1) - first_nonzero as i32
-    } else {
-        -((first_nonzero as i32 - int_len as i32) + 1)
-    };
+    // Exponent = (int_len - 1) - first_nonzero, whether the first significant
+    // digit sits in the integer part or past the decimal point: the "0.000ddd"
+    // form -(first_nonzero - int_len + 1) is the same expression rearranged.
+    let exp: i32 = (int_len as i32 - 1) - first_nonzero as i32;
     // Mantissa: digit at first_nonzero, then optional ".rest"
     let mantissa_digits: String = combined.chars().skip(first_nonzero).collect();
     let trimmed = mantissa_digits.trim_end_matches('0');
@@ -7822,6 +7819,102 @@ mod tests {
             .contains("unsupported support role"));
     }
 
+    /// The device-sharing and survey files are read again during processing,
+    /// not just at upload time, and each parser is the last chance to catch a
+    /// file that qualified on its header but cannot be used. Sharing status is
+    /// written several ways by hand, timestamps arrive in seconds,
+    /// milliseconds, nanoseconds or as text, and a row with no answer must be
+    /// dropped rather than recorded as an empty user.
+    #[test]
+    fn support_parsers_reject_unusable_files_and_accept_every_written_form() {
+        let sharing = parse_device_sharing(
+            concat!(
+                "participant_id,sharing_status\n",
+                "P01,Shared\n",
+                "P02,Non-Shared\n",
+                "P03,nonshared\n",
+                "P04,not shared\n",
+                "P05,SHARED\n",
+                " ,Shared\n",
+            )
+            .as_bytes(),
+        )
+        .expect("every written sharing status parses");
+        assert_eq!(
+            sharing
+                .iter()
+                .map(|entry| (entry.participant_id.as_str(), entry.status))
+                .collect::<Vec<_>>(),
+            vec![
+                ("P01", SharingStatus::Shared),
+                ("P02", SharingStatus::NonShared),
+                ("P03", SharingStatus::NonShared),
+                ("P04", SharingStatus::NonShared),
+                ("P05", SharingStatus::Shared),
+            ],
+            "a blank participant is skipped and every spelling maps to a status",
+        );
+        let unknown = parse_device_sharing(b"participant_id,sharing_status\nP01,maybe\n")
+            .expect_err("an unknown status must not be guessed");
+        assert!(unknown.contains("unknown sharing_status for P01"), "{unknown}");
+        let missing = parse_device_sharing(b"participant_id\nP01\n")
+            .expect_err("a file without sharing_status cannot be used");
+        assert_eq!(
+            missing,
+            "Device sharing file: missing required column(s) sharing_status",
+        );
+
+        // Ten digits are seconds, thirteen are milliseconds, nineteen are
+        // nanoseconds, and anything else goes through the Chronicle timestamp
+        // parser. All four describe the same instant here.
+        let expected = 1_772_000_000_000_000_000_i64;
+        assert_eq!(parse_survey_timestamp_ns("1772000000").expect("seconds"), expected);
+        assert_eq!(
+            parse_survey_timestamp_ns("1772000000000").expect("milliseconds"),
+            expected,
+        );
+        assert_eq!(
+            parse_survey_timestamp_ns(" 1772000000000000000 ").expect("nanoseconds"),
+            expected,
+        );
+        assert!(parse_survey_timestamp_ns("123456789").is_err(), "nine digits is not a timestamp");
+        assert!(parse_survey_timestamp_ns("not a timestamp").is_err());
+
+        let lookup = parse_survey_lookup(
+            concat!(
+                "participant_id,event_timestamp,users\n",
+                "P01,1772000000,\"{Target Child}\"\n",
+                "P02,1772000000000,Parent\n",
+                "P03,1772000000,\n",
+                ",1772000000,Target Child\n",
+                "P04,,Target Child\n",
+            )
+            .as_bytes(),
+        )
+        .expect("survey rows parse");
+        assert_eq!(
+            lookup,
+            BTreeMap::from([
+                (("P01".to_string(), expected), "Target Child".to_string()),
+                (("P02".to_string(), expected), "Parent".to_string()),
+            ]),
+            "a row missing any of the three values is dropped, not stored blank",
+        );
+        assert!(parse_survey_lookup(b"").expect("no file at all").is_empty());
+        let missing = parse_survey_lookup(b"participant_id,event_timestamp\nP01,1772000000\n")
+            .expect_err("a file without users cannot attribute anything");
+        assert_eq!(
+            missing,
+            "Survey attribution file: missing required column(s) users",
+        );
+        let unparseable = parse_survey_lookup(
+            b"participant_id,event_timestamp,users\nP01,not a timestamp,Target Child\n",
+        )
+        .expect_err("an unparseable timestamp is named by participant");
+        assert!(unparseable.contains("(participant P01)"), "{unparseable}");
+        assert!(!unparseable.contains("not a timestamp"), "{unparseable}");
+    }
+
     #[test]
     fn study_dates_validation_requires_at_least_one_usable_participant_window() {
         // The row counter and the parsed-window check are separate gates: an
@@ -7840,11 +7933,83 @@ mod tests {
                 .unwrap_err(),
             "study_dates_file: no participant study windows found",
         );
+        // A row with dates but no participant is a real data row that still
+        // produces no window, so the two gates have to be checked separately.
+        assert_eq!(
+            validate_support_csv(
+                "study_dates_file",
+                b"participant_id,start_date,end_date\n,2026-03-07,2026-03-08\n",
+            )
+            .unwrap_err(),
+            "study_dates_file: no participant study windows found",
+        );
         validate_support_csv(
             "study_dates_file",
             b"participant_id,start_date,end_date\n,,\nP01,2026-03-07,2026-03-08\n",
         )
         .expect("one usable window is enough");
+    }
+
+    /// Study-dates files arrive with either ISO or US dates, and their
+    /// participant IDs rarely match the raw data exactly - a tablet exports
+    /// `TECH-1042-D2` where the study file says `1042`. The numerical fallback
+    /// is what links them, so it has to accept a real ID run and refuse a
+    /// coincidental pair of digits.
+    #[test]
+    fn support_dates_and_participant_ids_are_read_the_way_study_files_write_them() {
+        assert_eq!(
+            normalize_support_date("2026-03-07T08:00:00Z").expect("ISO prefix"),
+            "2026-03-07",
+        );
+        assert_eq!(normalize_support_date(" 3/7/2026 ").expect("US date"), "2026-03-07");
+        // Ten characters are not a date on their own: both separators have to
+        // be in place before the prefix is trusted.
+        assert!(normalize_support_date("2026-03/07").is_err());
+        assert!(normalize_support_date("2026/03-07").is_err());
+        // A slash date needs all three parts, and none of the errors may echo
+        // the cell.
+        for value in ["03/07", "03/07/2026/01", "March 7 2026", ""] {
+            let error = normalize_support_date(value).expect_err("not a date");
+            assert_eq!(error, "unparseable date value");
+        }
+
+        // A numerical ID is a run of at least three digits, anywhere in the
+        // string, including at its end.
+        assert_eq!(numerical_id("TECH-1042-D2"), Some("1042"));
+        assert_eq!(numerical_id("participant 1042"), Some("1042"));
+        assert_eq!(numerical_id("1042"), Some("1042"));
+        assert_eq!(numerical_id("P01-D2"), None);
+        assert_eq!(numerical_id("ab12cd"), None);
+        assert_eq!(numerical_id("ab12"), None);
+        assert_eq!(numerical_id("no digits"), None);
+
+        let windows = vec![
+            StudyWindow {
+                participant_id: "1042".to_string(),
+                start_date: "2026-03-01".to_string(),
+                end_date: "2026-03-31".to_string(),
+            },
+            StudyWindow {
+                participant_id: "TECH-2001-D1".to_string(),
+                start_date: "2026-04-01".to_string(),
+                end_date: "2026-04-30".to_string(),
+            },
+        ];
+        assert_eq!(
+            window_for("TECH-1042-D2", &windows).map(|window| window.start_date.as_str()),
+            Some("2026-03-01"),
+            "a device-suffixed ID falls back to its numerical run",
+        );
+        assert_eq!(
+            window_for("TECH-2001-D1", &windows).map(|window| window.start_date.as_str()),
+            Some("2026-04-01"),
+            "an exact ID match wins",
+        );
+        assert!(
+            window_for("TECH-9999-D1", &windows).is_none(),
+            "an unrelated numerical run must not borrow another participant's window",
+        );
+        assert!(window_for("P01", &windows).is_none());
     }
 
     #[test]
