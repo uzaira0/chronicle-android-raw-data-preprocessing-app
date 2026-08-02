@@ -11820,6 +11820,137 @@ mod tracked {
                 rebuilt.result.review_summary_json_bytes, oracle.review_summary_json_bytes,
                 "a resumed review drifted from the sequential path after a screen edit",
             );
+
+            // Materializing the full outputs re-checks the same screen key in a
+            // second place, so the saved sessions have to be accepted and
+            // rejected there on exactly the same terms.
+            for (label, options, expect_reuse) in [
+                ("the settings that built them", &baseline, true),
+                ("edited screen settings", &edited, false),
+            ] {
+                let mut full_engine = TrackedEngine::default();
+                let full = full_engine
+                    .execute_with_review_base(&csv(), &review_base, options, support, true)
+                    .unwrap_or_else(|error| panic!("full run under {label}: {error}"));
+                assert_eq!(
+                    full.executed_steps
+                        .iter()
+                        .any(|step| step == "build_classified_sessions"),
+                    !expect_reuse,
+                    "full run under {label} reported {:?}",
+                    full.executed_steps,
+                );
+                let full_oracle = run_pipeline_v2_with_supports(&csv(), options, support)
+                    .unwrap_or_else(|error| panic!("sequential oracle under {label}: {error}"));
+                assert_eq!(
+                    full.result.screen_csv_bytes, full_oracle.screen_csv_bytes,
+                    "a full run under {label} drifted from the sequential screen output",
+                );
+            }
+        }
+
+        /// A warm engine reuses the digest it already verified for the raw
+        /// bytes it holds. That shortcut is only sound while those really are
+        /// the bytes in hand: reviewing a second file on the same engine has to
+        /// re-identify it, or the second file is offered the first file's
+        /// persisted bases and answered with the first file's rows.
+        #[test]
+        fn a_warm_engine_re_identifies_a_different_file_before_selecting_a_base() {
+            let support = PipelineV2SupportFiles::default();
+            let options = pipeline_options();
+            let longer = {
+                let mut bytes = csv().as_ref().clone();
+                bytes.extend_from_slice(
+                    b"Study,P01,Target Child,Mail,Activity Resumed,com.example.mail,2026-03-07 10:02:00,America/Chicago\n",
+                );
+                bytes.extend_from_slice(
+                    b"Study,P01,Target Child,Mail,Activity Paused,com.example.mail,2026-03-07 10:03:00,America/Chicago\n",
+                );
+                bytes
+            };
+
+            let mut engine = TrackedEngine::default();
+            engine
+                .execute(&csv(), &options, support, true)
+                .expect("process the first file");
+            let review_base = engine.export_review_base().expect("review base");
+            let reconstruction_base = engine
+                .export_reconstruction_base()
+                .expect("reconstruction base");
+
+            let second = engine
+                .execute_with_review_bases(
+                    &longer,
+                    &review_base,
+                    &reconstruction_base,
+                    &options,
+                    support,
+                    false,
+                )
+                .expect("review a second file on the warm engine");
+            for query in ["restore_review_base", "restore_reconstruction_base"] {
+                assert!(
+                    !second
+                        .internal_executed_queries
+                        .iter()
+                        .any(|executed| executed == query),
+                    "a second file was served the first file's base through {query}: {:?}",
+                    second.internal_executed_queries,
+                );
+            }
+            let oracle = run_pipeline_v2_with_supports(&longer, &options, support)
+                .expect("sequential oracle for the second file");
+            assert_eq!(
+                second.result.review_summary_json_bytes, oracle.review_summary_json_bytes,
+                "the warm engine answered the second file with the first file's rows",
+            );
+        }
+
+        /// The app CSV's codebook alias columns are decided by the codebook
+        /// settings alone. Cover every combination that can move that decision
+        /// — codebook off, codebook on with nothing in it, codebook on with a
+        /// match, and the category column either way — against the sequential
+        /// path, so the incremental output path cannot decide the header
+        /// differently from the engine that defines it.
+        #[test]
+        fn a_full_run_writes_the_same_app_columns_as_the_sequential_path() {
+            let header = "app_package_name,application_label,bcm_play_store_genreId,bcm_play_store_broad_app_category,dataset\n";
+            let populated_codebook =
+                format!("{header}com.example.chat,Chat,Social,Communication,test\n").into_bytes();
+            let empty_codebook = header.as_bytes().to_vec();
+
+            for use_app_codebook in [false, true] {
+                for include_category_column in [false, true] {
+                    for populated in [false, true] {
+                        let codebook: &[u8] = if populated {
+                            &populated_codebook
+                        } else {
+                            &empty_codebook
+                        };
+                        let support = PipelineV2SupportFiles {
+                            codebook_csv: codebook,
+                            ..PipelineV2SupportFiles::default()
+                        };
+                        let mut options = pipeline_options();
+                        options.usage_session_mode = UsageSessionMode::AppUsage;
+                        options.include_app_output = true;
+                        options.use_app_codebook = use_app_codebook;
+                        options.include_category_column = include_category_column;
+
+                        let mut engine = TrackedEngine::default();
+                        let tracked = engine
+                            .execute(&csv(), &options, support, true)
+                            .expect("full run");
+                        let oracle = run_pipeline_v2_with_supports(&csv(), &options, support)
+                            .expect("sequential oracle for the app output");
+                        assert_eq!(
+                            tracked.result.app_csv_bytes, oracle.app_csv_bytes,
+                            "app output drifted with codebook={use_app_codebook} \
+                             category={include_category_column} populated={populated}",
+                        );
+                    }
+                }
+            }
         }
 
         /// Each persisted base has a one-entry decode cache. Reviewing a
