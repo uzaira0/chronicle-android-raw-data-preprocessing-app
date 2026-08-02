@@ -8,17 +8,17 @@
   },
   "implementationReceipt": {
     "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
-    "implementationDigest": "sha256:b90f620dba100d0e0ba3f1f15ae04c46921e8d91e11cef16a57ebb8f6ddb1ba5",
+    "implementationDigest": "sha256:0604cadca6c5b46bfcf23696f9618688dfb48f5f96cc266b297acfba2f5307c9",
     "planDigest": "sha256:e6acec3530cef7f3e67443077affb86632db8485d771c3fa9a754dc810ff8e20",
-    "profileDigest": "sha256:00307a41cc0ac0f1d5bf22dbf8eb56623a4623072a2d5555a7dbcd422cd37498",
-    "profileLockDigest": "sha256:cdbee8e72e6c8ae268baf4544634464a5ea67a9fd54b88dafdaa694fc27e4e8f",
+    "profileDigest": "sha256:80397f23291f79d791215138f965779312b2c22ebcdaf65186b8d724b3f8380b",
+    "profileLockDigest": "sha256:0e011b2cd1167a9aee0f1c5cfc26e5e52f9cb70b393b974305288cfeeedb22a2",
     "runtimeAuthorityDigest": "sha256:7598af2d710ac32563dd8e0bff49a9447e7f450c618c4689004025fbb6826ed4",
     "productContractDigest": "sha256:3855791ad25992d95e055d5c672253cb06ac3e4320463bc46f984b7bc8f05f95"
   },
   "cellEvidence": {
-    "protocolVersion": "chronicle-output-cell-correspondence/v2",
+    "protocolVersion": "chronicle-output-cell-correspondence/v1",
     "path": "raw-boundary-output-cell-correspondence.json.gz",
-    "contentDigest": "sha256:e3d42cd340ff7091f8eeaa3aecf3d0a2812e60f0bb94e4cb78aba11599a959fd",
+    "contentDigest": "sha256:ad2d8ec1bdb6877dc47441f810bc8f6a0a4d524ca7decf49f9976376bd919c89",
     "cases": 162,
     "changedCellAddresses": 651823
   },
