@@ -126,10 +126,10 @@ try {
     .sort((left, right) => left.caseId.localeCompare(right.caseId));
   const cellEvidenceSerialized = `${JSON.stringify(
     {
-      protocolVersion: "chronicle-output-cell-correspondence/v1",
+      protocolVersion: "chronicle-output-cell-correspondence/v2",
       implementationReceipt: receipt,
       claimBoundary:
-        "Exact changed canonical CSV/JSON output cell addresses for each named raw timestamp boundary intervention. Binary exports and the Arrow lineage sidecar are digest-bound separately and are not interpreted as cells.",
+        "Exact changed canonical CSV/JSON output cell addresses for each named raw timestamp boundary intervention. Each case also names the exact supplied source columns that intervention rewrote (sourceFields), in the Rust step contract's field namespace, using source.raw_row_set / source.raw_row_order for structural raw changes and an empty list for representation-only controls. Binary exports and the Arrow lineage sidecar are digest-bound separately and are not interpreted as cells.",
       cases: cellEvidenceCases,
     },
     null,
@@ -153,7 +153,7 @@ try {
     plan: sameAcross(shards, "plan"),
     implementationReceipt: receipt,
     cellEvidence: {
-      protocolVersion: "chronicle-output-cell-correspondence/v1",
+      protocolVersion: "chronicle-output-cell-correspondence/v2",
       path: "raw-boundary-output-cell-correspondence.json.gz",
       contentDigest: cellEvidenceDigest,
       cases: cellEvidenceCases.length,

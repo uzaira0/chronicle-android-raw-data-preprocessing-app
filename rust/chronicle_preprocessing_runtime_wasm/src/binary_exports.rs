@@ -27,7 +27,12 @@ use std::sync::Arc;
 const RESULT_CELL_CORRESPONDENCE_PROTOCOL: &str = "chronicle-result-cell-correspondence/v4";
 const SOURCE_COORDINATE_PROTOCOL: &str = "chronicle-source-coordinate-index/v3";
 const ROW_LINEAGE_PROTOCOL: &str = "chronicle-row-lineage/v2";
-const SOURCE_RESULT_INFLUENCE_PROTOCOL: &str = "chronicle-source-result-influence/v1";
+/// v2 adds the `source_field` / `target_output_column` coordinates and the
+/// `exact-field`, `declared-column-scope`, and `conservative-search-window`
+/// precision classes. The published Pages build is a deliberate older rollback
+/// and no consumer holds v1 bytes, so the shape moved rather than growing a
+/// parallel v1-compatible table.
+const SOURCE_RESULT_INFLUENCE_PROTOCOL: &str = "chronicle-source-result-influence/v2";
 
 struct RunCachedStringDictionaryBuilder {
     keys: Int32Builder,
@@ -1217,6 +1222,7 @@ struct InfluenceWitnessRecord {
     source_key_kind: &'static str,
     source_role_id: String,
     source_selector_prefix: Option<String>,
+    source_field: Option<String>,
     source_record_index: Option<u32>,
     source_record_last: Option<u32>,
     target_kind: &'static str,
@@ -1224,6 +1230,7 @@ struct InfluenceWitnessRecord {
     target_logical_node: String,
     target_output_kind: Option<String>,
     target_output_row_index: Option<u32>,
+    target_output_column: Option<String>,
     relation: &'static str,
     precision: &'static str,
     evidence_kind: &'static str,
@@ -1234,6 +1241,9 @@ struct InfluenceWitnessSpec<'a> {
     source_key_kind: &'static str,
     source_role_id: &'a str,
     source_selector_prefix: Option<&'a str>,
+    /// The exact supplied column, in the step contract's `<role>.<column>`
+    /// field namespace. Null on rows that claim only role-level reach.
+    source_field: Option<&'a str>,
     source_record_index: Option<u32>,
     source_record_last: Option<u32>,
     target_kind: &'static str,
@@ -1241,6 +1251,9 @@ struct InfluenceWitnessSpec<'a> {
     target_logical_node: String,
     target_output_kind: Option<String>,
     target_output_row_index: Option<u32>,
+    /// The exact output column, or the `*`-globbed JSON pointer family the step
+    /// contract binds. Null on rows that claim only whole-artifact reach.
+    target_output_column: Option<&'a str>,
     relation: &'static str,
     precision: &'static str,
     evidence_kind: &'static str,
@@ -1378,10 +1391,11 @@ fn append_influence_witness(
     spec: InfluenceWitnessSpec<'_>,
 ) {
     let source_key = format!(
-        "{}:{}:{}:{}",
+        "{}:{}:{}:{}:{}",
         spec.source_key_kind,
         spec.source_role_id,
         spec.source_selector_prefix.unwrap_or("*"),
+        spec.source_field.unwrap_or("*"),
         match (spec.source_record_index, spec.source_record_last) {
             (Some(first), Some(last)) => format!("{first}-{last}"),
             (Some(first), None) => first.to_string(),
@@ -1400,6 +1414,7 @@ fn append_influence_witness(
         source_key_kind: spec.source_key_kind,
         source_role_id: spec.source_role_id.into(),
         source_selector_prefix: spec.source_selector_prefix.map(str::to_string),
+        source_field: spec.source_field.map(str::to_string),
         source_record_index: spec.source_record_index,
         source_record_last: spec.source_record_last,
         target_kind: spec.target_kind,
@@ -1407,6 +1422,7 @@ fn append_influence_witness(
         target_logical_node: spec.target_logical_node,
         target_output_kind: spec.target_output_kind,
         target_output_row_index: spec.target_output_row_index,
+        target_output_column: spec.target_output_column.map(str::to_string),
         relation: spec.relation,
         precision: spec.precision,
         evidence_kind: spec.evidence_kind,
@@ -1457,11 +1473,13 @@ pub fn source_result_influence_witness_arrow(
                         source_selector_prefix: scope.selector_prefix.as_deref(),
                         source_record_index: None,
                         source_record_last: None,
+                        source_field: None,
                         target_kind: "logical-checkpoint",
                         target_id: checkpoint.terminal_digest.clone(),
                         target_logical_node: node_id.clone(),
                         target_output_kind: None,
                         target_output_row_index: None,
+                        target_output_column: None,
                         relation: "may-affect-checkpoint",
                         precision: "declared-transitive",
                         evidence_kind: "product-plan-and-typed-checkpoint",
@@ -1470,6 +1488,17 @@ pub fn source_result_influence_witness_arrow(
                 );
             }
         }
+    }
+
+    // Output cell families whose value is a verbatim copy of one supplied
+    // column, grouped by the output kind that carries them.
+    let exact_contributions = chronicle_chrono_kernel_wasm::step_contract::exact_cell_contributions();
+    let mut exact_by_output_kind: BTreeMap<&str, Vec<_>> = BTreeMap::new();
+    for contribution in &exact_contributions {
+        exact_by_output_kind
+            .entry(contribution.output_kind)
+            .or_default()
+            .push(contribution);
     }
 
     for lineage in row_lineages {
@@ -1486,6 +1515,7 @@ pub fn source_result_influence_witness_arrow(
                     source_key_kind: "raw-row",
                     source_role_id: "raw_chronicle_csv",
                     source_selector_prefix: None,
+                    source_field: None,
                     source_record_index: Some(source_range.first),
                     source_record_last: Some(source_range.last),
                     target_kind: "result-row",
@@ -1493,10 +1523,141 @@ pub fn source_result_influence_witness_arrow(
                     target_logical_node: lineage.terminal_logical_node.to_string(),
                     target_output_kind: Some(lineage.output_kind.to_string()),
                     target_output_row_index: Some(lineage.output_row_index),
+                    target_output_column: None,
                     relation: "may-contribute-via-row-lineage",
                     precision: "conservative-row-lineage",
                     evidence_kind: "kernel-row-lineage",
                     extra_evidence: extra.as_bytes(),
+                },
+            );
+        }
+
+        // The stop-event search window is a real control dependency the row
+        // ranges do not carry: the scanned records that were rejected still
+        // decided which stop was selected. Routing it here is what keeps the
+        // search channel from being silently absent from the witness.
+        for search in &lineage.searches {
+            if search.end_event_index_exclusive <= search.start_event_index {
+                continue;
+            }
+            let target_id = format!("{}:{}", lineage.output_kind, lineage.output_row_index);
+            let mut extra = format!("{}:{}:", search.reason, search.index_space).into_bytes();
+            extra.extend_from_slice(search.candidate_chain_digest.as_bytes());
+            append_influence_witness(
+                &mut records,
+                context,
+                InfluenceWitnessSpec {
+                    source_key_kind: "raw-row",
+                    source_role_id: "raw_chronicle_csv",
+                    source_selector_prefix: None,
+                    source_field: None,
+                    source_record_index: Some(search.start_event_index),
+                    source_record_last: Some(search.end_event_index_exclusive - 1),
+                    target_kind: "result-row",
+                    target_id,
+                    target_logical_node: lineage.terminal_logical_node.to_string(),
+                    target_output_kind: Some(lineage.output_kind.to_string()),
+                    target_output_row_index: Some(lineage.output_row_index),
+                    target_output_column: None,
+                    relation: "may-contribute-via-lineage-search",
+                    precision: "conservative-search-window",
+                    evidence_kind: "kernel-lineage-search",
+                    extra_evidence: &extra,
+                },
+            );
+        }
+
+        // Exactly one contributing raw record and no search window means the
+        // verbatim-copy columns of this output row came from that one record.
+        let single_record = match lineage.source_data_row_ranges.as_slice() {
+            [only] if only.first == only.last && lineage.searches.is_empty() => Some(only.first),
+            _ => None,
+        };
+        let Some(record_index) = single_record else {
+            continue;
+        };
+        for contribution in exact_by_output_kind
+            .get(lineage.output_kind.as_str())
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+        {
+            let target_id = format!(
+                "{}:{}:{}",
+                lineage.output_kind, lineage.output_row_index, contribution.column
+            );
+            let extra = format!("{}:{}", contribution.source_field, record_index);
+            append_influence_witness(
+                &mut records,
+                context,
+                InfluenceWitnessSpec {
+                    source_key_kind: "source-column-record",
+                    source_role_id: "raw_chronicle_csv",
+                    source_selector_prefix: None,
+                    source_field: Some(contribution.source_field),
+                    source_record_index: Some(record_index),
+                    source_record_last: Some(record_index),
+                    target_kind: "result-cell",
+                    target_id,
+                    target_logical_node: lineage.terminal_logical_node.to_string(),
+                    target_output_kind: Some(lineage.output_kind.to_string()),
+                    target_output_row_index: Some(lineage.output_row_index),
+                    target_output_column: Some(contribution.column),
+                    relation: "exact-field-contribution",
+                    precision: "exact-field",
+                    evidence_kind: "kernel-row-lineage-and-field-contract",
+                    extra_evidence: extra.as_bytes(),
+                },
+            );
+        }
+    }
+
+    // Column-granular declared reach. Output families that carry no row
+    // lineage at all (compliance, day coverage, review summary, visualization
+    // data, every aggregate) would otherwise be one unresolved whole-artifact
+    // gap; the field contract resolves them to named output columns.
+    let present_roles = sources
+        .iter()
+        .map(|source| source.role_id)
+        .collect::<BTreeSet<_>>();
+    let cell_scope_kinds = output_scopes
+        .iter()
+        .filter(|(output_kind, _)| !row_lineage_outputs.contains(output_kind))
+        .copied()
+        .collect::<BTreeMap<_, _>>();
+    let mut column_witnessed_scopes = BTreeSet::new();
+    for reach in chronicle_chrono_kernel_wasm::step_contract::source_column_output_reach() {
+        let Some((role_id, _column)) = reach.source_field.split_once('.') else {
+            continue;
+        };
+        if !present_roles.contains(role_id) {
+            continue;
+        }
+        for cell in &reach.cells {
+            let Some(terminal_node) = cell_scope_kinds.get(cell.output_kind) else {
+                continue;
+            };
+            column_witnessed_scopes.insert((role_id, cell.output_kind));
+            let target_id = format!("{}:{}", cell.output_kind, cell.column);
+            append_influence_witness(
+                &mut records,
+                context,
+                InfluenceWitnessSpec {
+                    source_key_kind: "source-column",
+                    source_role_id: role_id,
+                    source_selector_prefix: None,
+                    source_field: Some(reach.source_field),
+                    source_record_index: None,
+                    source_record_last: None,
+                    target_kind: "result-column",
+                    target_id,
+                    target_logical_node: (*terminal_node).into(),
+                    target_output_kind: Some(cell.output_kind.into()),
+                    target_output_row_index: None,
+                    target_output_column: Some(cell.column),
+                    relation: "may-affect-output-column",
+                    precision: "declared-column-scope",
+                    evidence_kind: "field-level-step-contract",
+                    extra_evidence: cell.emitting_step.as_bytes(),
                 },
             );
         }
@@ -1513,7 +1674,14 @@ pub fn source_result_influence_witness_arrow(
             let reached_output = scope.reached_nodes.contains(*terminal_node);
             let has_row_witness =
                 scope.role_id == "raw_chronicle_csv" && row_lineage_outputs.contains(*output_kind);
-            if no_declared_binding || (reached_output && !has_row_witness) {
+            // A scope now also counts as witnessed when the field contract
+            // resolved it to named output columns above. An explicit gap row
+            // survives only where no lineage information exists at all.
+            let has_column_witness = column_witnessed_scopes
+                .contains(&(scope.role_id.as_str(), *output_kind));
+            if no_declared_binding
+                || (reached_output && !has_row_witness && !has_column_witness)
+            {
                 append_influence_witness(
                     &mut records,
                     context,
@@ -1521,6 +1689,7 @@ pub fn source_result_influence_witness_arrow(
                         source_key_kind: source_kind,
                         source_role_id: &scope.role_id,
                         source_selector_prefix: scope.selector_prefix.as_deref(),
+                        source_field: None,
                         source_record_index: None,
                         source_record_last: None,
                         target_kind: "result-scope",
@@ -1528,6 +1697,7 @@ pub fn source_result_influence_witness_arrow(
                         target_logical_node: (*terminal_node).into(),
                         target_output_kind: Some((*output_kind).into()),
                         target_output_row_index: None,
+                        target_output_column: None,
                         relation: if no_declared_binding {
                             "semantic-scope-unresolved"
                         } else {
@@ -1547,6 +1717,7 @@ pub fn source_result_influence_witness_arrow(
             left.source_key_kind,
             left.source_role_id.as_str(),
             left.source_selector_prefix.as_deref(),
+            left.source_field.as_deref(),
             left.source_record_index,
             left.source_record_last,
             left.target_kind,
@@ -1557,6 +1728,7 @@ pub fn source_result_influence_witness_arrow(
                 right.source_key_kind,
                 right.source_role_id.as_str(),
                 right.source_selector_prefix.as_deref(),
+                right.source_field.as_deref(),
                 right.source_record_index,
                 right.source_record_last,
                 right.target_kind,
@@ -1571,6 +1743,7 @@ pub fn source_result_influence_witness_arrow(
     let mut source_key_kind = StringDictionaryBuilder::<Int32Type>::new();
     let mut source_role_id = StringDictionaryBuilder::<Int32Type>::new();
     let mut source_selector_prefix = StringDictionaryBuilder::<Int32Type>::new();
+    let mut source_field = StringDictionaryBuilder::<Int32Type>::new();
     let source_record_index = UInt32Array::from(
         records
             .iter()
@@ -1593,6 +1766,7 @@ pub fn source_result_influence_witness_arrow(
             .map(|record| record.target_output_row_index)
             .collect::<Vec<_>>(),
     );
+    let mut target_output_column = StringDictionaryBuilder::<Int32Type>::new();
     let mut relation = StringDictionaryBuilder::<Int32Type>::new();
     let mut precision = StringDictionaryBuilder::<Int32Type>::new();
     let mut evidence_kind = StringDictionaryBuilder::<Int32Type>::new();
@@ -1612,6 +1786,13 @@ pub fn source_result_influence_witness_arrow(
         } else {
             source_selector_prefix.append_null();
         }
+        if let Some(value) = &record.source_field {
+            source_field
+                .append(value)
+                .map_err(|error| error.to_string())?;
+        } else {
+            source_field.append_null();
+        }
         target_kind
             .append(record.target_kind)
             .map_err(|error| error.to_string())?;
@@ -1627,6 +1808,13 @@ pub fn source_result_influence_witness_arrow(
                 .map_err(|error| error.to_string())?;
         } else {
             target_output_kind.append_null();
+        }
+        if let Some(value) = &record.target_output_column {
+            target_output_column
+                .append(value)
+                .map_err(|error| error.to_string())?;
+        } else {
+            target_output_column.append_null();
         }
         relation
             .append(record.relation)
@@ -1649,15 +1837,19 @@ pub fn source_result_influence_witness_arrow(
     );
     metadata.insert(
         "claimBoundary".into(),
-        "Plan reachability is declared-transitive; raw-row candidate contribution is conservative; scopes without row/cell witnesses are explicitly unresolved. The table is normalized: join source coordinates by role plus selector-prefix or the inclusive one-based raw-row range [source_record_index, source_record_last], and join result cells by output kind plus zero-based output row. Absence of a row/cell edge is never a non-influence claim, and no field-level exact contribution is claimed.".into(),
+        "Every row states its own strength in `precision`. `exact-field`: the result cell in `target_output_column` holds a verbatim copy of the supplied cell named by `source_field` in raw record `source_record_index`; the step contract shows that column has exactly one contributor along every declared write of it, and the kernel row lineage shows exactly one contributing raw record with no stop-event search. Whether the row exists and where it sits stay governed by the row-set and row-order dependencies the conservative rows carry, so the exact claim is about the value in an existing cell, not about its presence or position. `declared-column-scope`: the declared field edges connect `source_field` to the named `target_output_column`; it is a may-influence over-approximation and never asserts the cell did change. `conservative-row-lineage`: the inclusive raw-record range may contribute to that result row. `conservative-search-window`: the scanned stop-event candidate range decided the selection for that result row, so records in it influenced the row without appearing in its contributing range. `declared-transitive`: plan reachability to a logical checkpoint. `unresolved`: an explicit gap where no lineage information of any kind exists for that scope. Absence of a row is never a non-influence claim.".into(),
     );
     metadata.insert(
         "sourceCoordinateJoin".into(),
-        "role_id=source_role_id AND (selector-prefix is null OR selector=prefix OR selector starts prefix + '/') AND (source_record_index is null OR (source_record_index <= record_index AND record_index <= coalesce(source_record_last, source_record_index)))".into(),
+        "role_id=source_role_id AND (source_selector_prefix is null OR selector=source_selector_prefix OR selector starts source_selector_prefix + '/') AND (source_field is null OR column = split_part(source_field, '.', 2)) AND (source_record_index is null OR (source_record_index <= record_index AND record_index <= coalesce(source_record_last, source_record_index)))".into(),
     );
     metadata.insert(
         "resultCellJoin".into(),
-        "output_kind=target_output_kind AND output_row_index=target_output_row_index".into(),
+        "output_kind=target_output_kind AND (target_output_row_index is null OR output_row_index=target_output_row_index) AND (target_output_column is null OR column matches target_output_column, where a '*' segment stands for any index or key)".into(),
+    );
+    metadata.insert(
+        "precisionClasses".into(),
+        "exact-field, declared-column-scope, conservative-row-lineage, conservative-search-window, declared-transitive, unresolved".into(),
     );
     metadata.insert(
         "implementationDigest".into(),
@@ -1678,6 +1870,7 @@ pub fn source_result_influence_witness_arrow(
             Field::new("source_key_kind", dictionary_type(), false),
             Field::new("source_role_id", dictionary_type(), false),
             Field::new("source_selector_prefix", dictionary_type(), true),
+            Field::new("source_field", dictionary_type(), true),
             Field::new("source_record_index", DataType::UInt32, true),
             Field::new("source_record_last", DataType::UInt32, true),
             Field::new("target_kind", dictionary_type(), false),
@@ -1685,6 +1878,7 @@ pub fn source_result_influence_witness_arrow(
             Field::new("target_logical_node", dictionary_type(), false),
             Field::new("target_output_kind", dictionary_type(), true),
             Field::new("target_output_row_index", DataType::UInt32, true),
+            Field::new("target_output_column", dictionary_type(), true),
             Field::new("relation", dictionary_type(), false),
             Field::new("precision", dictionary_type(), false),
             Field::new("evidence_kind", dictionary_type(), false),
@@ -1696,6 +1890,7 @@ pub fn source_result_influence_witness_arrow(
         Arc::new(source_key_kind.finish()),
         Arc::new(source_role_id.finish()),
         Arc::new(source_selector_prefix.finish()),
+        Arc::new(source_field.finish()),
         Arc::new(source_record_index),
         Arc::new(source_record_last),
         Arc::new(target_kind.finish()),
@@ -1703,6 +1898,7 @@ pub fn source_result_influence_witness_arrow(
         Arc::new(target_logical_node.finish()),
         Arc::new(target_output_kind.finish()),
         Arc::new(target_output_row_index),
+        Arc::new(target_output_column.finish()),
         Arc::new(relation.finish()),
         Arc::new(precision.finish()),
         Arc::new(evidence_kind.finish()),
@@ -3266,12 +3462,33 @@ mod tests {
             SOURCE_RESULT_INFLUENCE_PROTOCOL
         );
         assert!(batch.schema().metadata()["claimBoundary"]
-            .contains("Absence of a row/cell edge is never a non-influence claim"));
-        assert_eq!(batch.schema().field(0).name(), "source_key_kind");
-        assert_eq!(batch.schema().field(3).name(), "source_record_index");
-        assert_eq!(batch.schema().field(4).name(), "source_record_last");
-        assert_eq!(batch.schema().field(9).name(), "target_output_row_index");
-        assert_eq!(batch.schema().field(13).name(), "evidence_sha256");
+            .contains("Absence of a row is never a non-influence claim"));
+        assert_eq!(
+            batch
+                .schema()
+                .fields()
+                .iter()
+                .map(|field| field.name().as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "source_key_kind",
+                "source_role_id",
+                "source_selector_prefix",
+                "source_field",
+                "source_record_index",
+                "source_record_last",
+                "target_kind",
+                "target_id",
+                "target_logical_node",
+                "target_output_kind",
+                "target_output_row_index",
+                "target_output_column",
+                "relation",
+                "precision",
+                "evidence_kind",
+                "evidence_sha256",
+            ]
+        );
 
         let dictionary_values = |column: usize| {
             let dictionary = batch
@@ -3292,19 +3509,24 @@ mod tests {
                 })
                 .collect::<BTreeSet<_>>()
         };
+        // `app-csv` is the only output here and it carries row lineage, so the
+        // column-granular declared scope does not apply and the unresolved gap
+        // survives for the option selector prefixes that reach it.
         assert_eq!(
-            dictionary_values(10),
+            dictionary_values(12),
             BTreeSet::from([
                 "cell-contribution-unresolved".to_string(),
+                "exact-field-contribution".to_string(),
                 "may-affect-checkpoint".to_string(),
                 "may-contribute-via-row-lineage".to_string(),
             ])
         );
         assert_eq!(
-            dictionary_values(11),
+            dictionary_values(13),
             BTreeSet::from([
                 "conservative-row-lineage".to_string(),
                 "declared-transitive".to_string(),
+                "exact-field".to_string(),
                 "unresolved".to_string(),
             ])
         );
@@ -3315,20 +3537,21 @@ mod tests {
                 "raw-row".to_string(),
                 "role-scope".to_string(),
                 "selector-prefix".to_string(),
+                "source-column-record".to_string(),
             ])
         );
         let source_rows = batch
-            .column(3)
-            .as_any()
-            .downcast_ref::<UInt32Array>()
-            .unwrap();
-        let source_last_rows = batch
             .column(4)
             .as_any()
             .downcast_ref::<UInt32Array>()
             .unwrap();
+        let source_last_rows = batch
+            .column(5)
+            .as_any()
+            .downcast_ref::<UInt32Array>()
+            .unwrap();
         let target_rows = batch
-            .column(9)
+            .column(10)
             .as_any()
             .downcast_ref::<UInt32Array>()
             .unwrap();
@@ -3355,7 +3578,7 @@ mod tests {
             .downcast_ref::<StringArray>()
             .unwrap();
         let relations = batch
-            .column(10)
+            .column(12)
             .as_any()
             .downcast_ref::<DictionaryArray<Int32Type>>()
             .unwrap();
@@ -3370,7 +3593,219 @@ mod tests {
                 && relation_values.value(relations.keys().value(index) as usize)
                     == "cell-contribution-unresolved"
         }));
+
+        // The exact-field class must never appear on a cell the field contract
+        // does not name as a verbatim single-source copy. `duration_seconds`
+        // is the negative control: it is an app-csv column of the same row,
+        // the row lineage is a single raw record, and it still must not be
+        // claimed exact because the pipeline computes it.
+        let precision_column = batch
+            .column(13)
+            .as_any()
+            .downcast_ref::<DictionaryArray<Int32Type>>()
+            .unwrap();
+        let precision_values = precision_column
+            .values()
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        let read_dictionary = |column: usize, index: usize| {
+            let dictionary = batch
+                .column(column)
+                .as_any()
+                .downcast_ref::<DictionaryArray<Int32Type>>()
+                .unwrap();
+            if !dictionary.is_valid(index) {
+                return None;
+            }
+            let values = dictionary
+                .values()
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap();
+            Some(values.value(dictionary.keys().value(index) as usize).to_string())
+        };
+        let exact_rows = (0..batch.num_rows())
+            .filter(|index| {
+                precision_values.value(precision_column.keys().value(*index) as usize)
+                    == "exact-field"
+            })
+            .map(|index| {
+                (
+                    read_dictionary(3, index),
+                    read_dictionary(9, index),
+                    read_dictionary(11, index),
+                    source_rows.value(index),
+                    target_rows.value(index),
+                )
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            exact_rows,
+            BTreeSet::from([
+                (
+                    Some("raw_chronicle_csv.participant_id".to_string()),
+                    Some("app-csv".to_string()),
+                    Some("participant_id".to_string()),
+                    1,
+                    0,
+                ),
+                (
+                    Some("raw_chronicle_csv.study_id".to_string()),
+                    Some("app-csv".to_string()),
+                    Some("study_id".to_string()),
+                    1,
+                    0,
+                ),
+            ])
+        );
+        assert!(
+            !exact_rows
+                .iter()
+                .any(|(_, _, column, _, _)| column.as_deref() == Some("duration_seconds")),
+            "a computed column must never carry the exact-field precision class"
+        );
+
+        // Every exact-field row must name both coordinates; every row that is
+        // not exact-field must leave `source_field` null unless it is the
+        // column-granular declared scope.
+        for index in 0..batch.num_rows() {
+            let precision =
+                precision_values.value(precision_column.keys().value(index) as usize);
+            let has_source_field = read_dictionary(3, index).is_some();
+            let has_target_column = read_dictionary(11, index).is_some();
+            match precision {
+                "exact-field" => assert!(has_source_field && has_target_column),
+                "declared-column-scope" => {
+                    assert!(has_source_field && has_target_column);
+                    assert!(!target_rows.is_valid(index));
+                }
+                _ => assert!(!has_source_field && !has_target_column),
+            }
+        }
         assert!(reader.next().is_none());
+    }
+
+    /// The stop-event search window is real lineage the row ranges do not
+    /// carry, and a result family with no row lineage must still be resolved
+    /// to named output columns rather than reported as one unresolved gap.
+    #[test]
+    fn search_windows_and_row_lineage_free_outputs_both_carry_witness_rows() {
+        let raw_digest = format!("sha256:{}", "a".repeat(64));
+        let sources = [CanonicalSource {
+            role_id: "raw_chronicle_csv",
+            source_artifact_digest: &raw_digest,
+            source_media_type: "text/csv",
+            coordinate_media_type: "text/csv",
+            normalization: "identity-csv",
+            bytes: b"participant_id\nP01\n",
+        }];
+        let outputs = [
+            CanonicalOutput {
+                kind: "app-csv",
+                media_type: "text/csv",
+                bytes: b"participant_id\nP01\n",
+                terminal_logical_node: "outputs",
+            },
+            CanonicalOutput {
+                kind: "compliance-csv",
+                media_type: "text/csv",
+                bytes: b"participant_id\nP01\n",
+                terminal_logical_node: "outputs",
+            },
+        ];
+        let lineages = [PipelineRowLineage {
+            output_kind: Arc::new("app-csv".to_string()),
+            output_row_index: 0,
+            source_data_row_ranges: vec![
+                chronicle_chrono_kernel_wasm::pipeline_v2::SourceDataRowRange { first: 1, last: 1 },
+            ],
+            source_data_row_count: 1,
+            searches: vec![chronicle_chrono_kernel_wasm::pipeline_v2::LineageSearchEvidence {
+                protocol_version: Arc::new("chronicle-lineage-search/v1".to_string()),
+                reason: Arc::new("no-qualifying-stop".to_string()),
+                index_space: Arc::new("pipeline-event-order".to_string()),
+                start_participant_id: Arc::new("P01".to_string()),
+                start_event_index: 1,
+                end_event_index_exclusive: 4,
+                candidate_event_count: 3,
+                candidate_chain_digest:
+                    chronicle_chrono_kernel_wasm::pipeline_v2::LineageSearchDigest::parse(
+                        &format!("blake3:{}", "c".repeat(64)),
+                    )
+                    .unwrap(),
+            }],
+            terminal_logical_node: Arc::new("outputs".to_string()),
+        }];
+        let plan = crate::embedded_plan();
+        let checkpoints = BTreeMap::new();
+        let context = InfluenceContext {
+            implementation_digest: crate::IMPLEMENTATION_BUILD_DIGEST,
+            plan_digest: crate::EMBEDDED_PLAN_SHA256,
+            profile_lock_digest: crate::EMBEDDED_PROFILE_LOCK_SHA256,
+            dependency_certificate_digest: crate::EMBEDDED_DEPENDENCY_CERTIFICATE_SHA256,
+        };
+        let (bytes, _rows) = source_result_influence_witness_arrow(
+            &sources,
+            &outputs,
+            &lineages,
+            &plan,
+            &checkpoints,
+            &context,
+        )
+        .unwrap();
+        let mut reader = FileReader::try_new(Cursor::new(bytes), None).unwrap();
+        let batch = reader.next().unwrap().unwrap();
+        let text = |column: usize, index: usize| {
+            let dictionary = batch
+                .column(column)
+                .as_any()
+                .downcast_ref::<DictionaryArray<Int32Type>>()
+                .unwrap();
+            if !dictionary.is_valid(index) {
+                return None;
+            }
+            let values = dictionary
+                .values()
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap();
+            Some(values.value(dictionary.keys().value(index) as usize).to_string())
+        };
+        let source_rows = batch
+            .column(4)
+            .as_any()
+            .downcast_ref::<UInt32Array>()
+            .unwrap();
+        let source_last_rows = batch
+            .column(5)
+            .as_any()
+            .downcast_ref::<UInt32Array>()
+            .unwrap();
+
+        // The searches channel now carries its scanned range.
+        assert!((0..batch.num_rows()).any(|index| {
+            text(13, index).as_deref() == Some("conservative-search-window")
+                && (source_rows.value(index), source_last_rows.value(index)) == (1, 3)
+        }));
+        // A row whose lineage carries a search is not claimed exact.
+        assert!(!(0..batch.num_rows())
+            .any(|index| text(13, index).as_deref() == Some("exact-field")));
+        // compliance-csv has no row lineage and is still resolved to columns.
+        let compliance_columns = (0..batch.num_rows())
+            .filter(|index| {
+                text(9, *index).as_deref() == Some("compliance-csv")
+                    && text(13, *index).as_deref() == Some("declared-column-scope")
+            })
+            .filter_map(|index| text(11, index))
+            .collect::<BTreeSet<_>>();
+        assert!(compliance_columns.contains("compliance_percent"));
+        assert!(compliance_columns.contains("expected_device_count"));
+        // No unresolved gap survives for a scope the column reach resolved.
+        assert!(!(0..batch.num_rows()).any(|index| {
+            text(9, index).as_deref() == Some("compliance-csv")
+                && text(13, index).as_deref() == Some("unresolved")
+        }));
     }
 
     #[test]

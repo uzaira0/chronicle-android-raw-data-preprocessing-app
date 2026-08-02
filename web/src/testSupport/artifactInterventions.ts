@@ -45,6 +45,21 @@ export type ArtifactIntervention = {
     | "boundary-edit"
     | "representation-only";
   changedComponents: string[];
+  /**
+   * Every supplied source column this mutation rewrites, named in the Rust
+   * step contract's field namespace (`<role>.<column>`), plus the structural
+   * pseudo-fields `source.raw_row_set` / `source.raw_row_order` when the raw
+   * row multiset or its order changes. Representation-only controls declare
+   * `[]` because they change no field value.
+   *
+   * `changedComponents` above is prose addressed at a human reading the
+   * ledger; this list is the machine-checkable claim the field-level
+   * reconciliation gate (`fieldLevelProvenance.test.ts`) seeds its reachability
+   * closure from. Columns the engine never reads may appear here — the gate
+   * partitions them out and then requires that a mutation confined to unread
+   * columns changes no output cell at all.
+   */
+  sourceFields: string[];
   description: string;
   expectedSemanticEffect: "required" | "equivalent";
   apply: (source: ArtifactFixtureState) => ArtifactFixtureState;
@@ -156,6 +171,7 @@ function rawFieldIntervention(
     roleId: "raw_chronicle_csv",
     mutationClass: "field-edit",
     changedComponents: [`raw.row[application-event].${field}`],
+    sourceFields: [`raw_chronicle_csv.${field}`],
     description: `Edit exactly one application-event ${field} field`,
     expectedSemanticEffect,
     apply: (source) =>
@@ -347,6 +363,7 @@ export function buildArtifactInterventions(input: {
       roleId: "raw_chronicle_csv",
       mutationClass: "row-add",
       changedComponents: ["raw.rows"],
+      sourceFields: ["source.raw_row_set"],
       description: "Add one valid application event",
       expectedSemanticEffect: "required",
       apply: (source) =>
@@ -362,6 +379,7 @@ export function buildArtifactInterventions(input: {
       roleId: "raw_chronicle_csv",
       mutationClass: "row-remove",
       changedComponents: ["raw.rows"],
+      sourceFields: ["source.raw_row_set"],
       description: "Remove one application event",
       expectedSemanticEffect: "required",
       apply: (source) =>
@@ -375,6 +393,7 @@ export function buildArtifactInterventions(input: {
       roleId: "raw_chronicle_csv",
       mutationClass: "row-duplicate",
       changedComponents: ["raw.rows"],
+      sourceFields: ["source.raw_row_set"],
       description: "Duplicate one application event exactly",
       expectedSemanticEffect: "required",
       apply: (source) =>
@@ -388,6 +407,7 @@ export function buildArtifactInterventions(input: {
       roleId: "raw_chronicle_csv",
       mutationClass: "row-reorder",
       changedComponents: ["raw.row_order", "raw.source_row_correspondence"],
+      sourceFields: ["source.raw_row_order"],
       description: "Reverse raw record order while preserving record values",
       expectedSemanticEffect: "required",
       apply: (source) =>
@@ -404,6 +424,12 @@ export function buildArtifactInterventions(input: {
       mutationClass: "row-add",
       changedComponents: [
         `filter_file.package[${packageColumn(filterActivationEvent)}]`,
+      ],
+      sourceFields: [
+        "filter_file.app_package_name",
+        "filter_file.known_application_labels",
+        "filter_file.app_filter_category",
+        "filter_file.filter_bool",
       ],
       description: "Add a package-wide filter rule for one previously unfiltered used package",
       expectedSemanticEffect: "required",
@@ -431,6 +457,10 @@ export function buildArtifactInterventions(input: {
       changedComponents: [
         `apps_forcing_screen_open_file.package[${packageColumn(forcingActivationEvent)}]`,
       ],
+      sourceFields: [
+        "apps_forcing_screen_open_file.package_name",
+        "apps_forcing_screen_open_file.label_or_note",
+      ],
       description: "Mark the last meaningful package before a screen stop as screen-forcing",
       expectedSemanticEffect: "required",
       apply: (source) =>
@@ -450,6 +480,10 @@ export function buildArtifactInterventions(input: {
       roleId: "background_apps_file",
       mutationClass: "record-remove",
       changedComponents: [`background_apps_file.package[${backgroundPackage}]`],
+      sourceFields: [
+        "background_apps_file.package_name",
+        "background_apps_file.app_package_name",
+      ],
       description: "Remove one used background package",
       expectedSemanticEffect: "required",
       apply: (source) =>
@@ -462,6 +496,7 @@ export function buildArtifactInterventions(input: {
       roleId: "app_codebook_file",
       mutationClass: "record-edit",
       changedComponents: [`app_codebook_file.package[${codebookPackage}].bcm_play_store_genreId`],
+      sourceFields: ["app_codebook_file.bcm_play_store_genreId"],
       description: "Change one used package's codebook category",
       expectedSemanticEffect: "required",
       apply: (source) =>
@@ -479,6 +514,7 @@ export function buildArtifactInterventions(input: {
         `study_dates_file.participant[${corpus.participantId}].start_date`,
         `study_dates_file.participant[${corpus.participantId}].end_date`,
       ],
+      sourceFields: ["study_dates_file.start_date", "study_dates_file.end_date"],
       description: "Narrow the participant study window to its first day",
       expectedSemanticEffect: "required",
       apply: (source) =>
@@ -498,6 +534,7 @@ export function buildArtifactInterventions(input: {
       changedComponents: [
         `device_sharing_file.participant[${corpus.participantId}].sharing_status`,
       ],
+      sourceFields: ["device_sharing_file.sharing_status"],
       description: "Change one participant from shared to non-shared",
       expectedSemanticEffect: "required",
       apply: (source) =>
@@ -516,6 +553,7 @@ export function buildArtifactInterventions(input: {
       changedComponents: [
         `survey_attribution_file.participant[${corpus.participantId}].users[*]`,
       ],
+      sourceFields: ["survey_attribution_file.users"],
       description: "Change every exact session-start survey attribution to Other",
       expectedSemanticEffect: "required",
       apply: (source) =>
@@ -534,6 +572,7 @@ export function buildArtifactInterventions(input: {
       changedComponents: [
         `enrolled_devices_file.participant[${corpus.participantId}].device_count`,
       ],
+      sourceFields: ["enrolled_devices_file.device_count"],
       description: "Change one participant's enrolled-device denominator",
       expectedSemanticEffect: "required",
       apply: (source) =>
@@ -553,6 +592,7 @@ export function buildArtifactInterventions(input: {
       roleId: "raw_chronicle_csv",
       mutationClass: "representation-only",
       changedComponents: ["raw.line_endings"],
+      sourceFields: [],
       description: "Replace LF record separators with CRLF",
       expectedSemanticEffect: "equivalent",
       apply: (source) => ({ ...cloneState(source), rawCsv: toCrLf(source.rawCsv) }),
@@ -563,6 +603,7 @@ export function buildArtifactInterventions(input: {
         roleId,
         mutationClass: "representation-only",
         changedComponents: [`${roleId}.line_endings`],
+        sourceFields: [],
         description: `Replace ${roleId} LF record separators with CRLF`,
         expectedSemanticEffect: "equivalent",
         apply: (source) => {
@@ -605,6 +646,7 @@ export function buildRawBoundaryInterventions(): ArtifactIntervention[] {
       "raw.row[second-application-event].event_timestamp",
       `boundary.adjacent_gap_seconds.${seconds}`,
     ],
+    sourceFields: ["raw_chronicle_csv.event_timestamp"],
     description: `Move the second application event to exactly ${seconds} second(s) after the first`,
     expectedSemanticEffect: "required",
     apply: (source) =>
@@ -646,6 +688,7 @@ export function buildRawBoundaryInterventions(): ArtifactIntervention[] {
       "raw.row[application-event].event_timestamp",
       `boundary.calendar.${label}`,
     ],
+    sourceFields: ["raw_chronicle_csv.event_timestamp"],
     description: `Move one application event to the ${label} calendar joint`,
     expectedSemanticEffect: "required",
     apply: (source) =>
