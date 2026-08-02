@@ -39,6 +39,13 @@ type WorkerSlot = {
   retired: boolean;
   completedTasks: number;
   terminated: boolean;
+  /**
+   * Rejects the submission currently in flight on this slot. `worker.terminate()`
+   * fires no error event and drops the pending Comlink reply, so without this the
+   * in-flight promise would never settle and the caller (batch cancel) would wait
+   * on it forever. Set for the duration of a submission, cleared afterwards.
+   */
+  abortInFlight?: (error: Error) => void;
 };
 
 /** Never settles — stand-in fault for spawns (e.g. test stubs) that provide none. */
@@ -321,17 +328,39 @@ export class WorkerPool {
     this.pump();
   }
 
+  /**
+   * Run one submission on an acquired slot, racing the worker's fault AND an
+   * abort hook that `terminate()` fires. Terminating a worker mid-call produces
+   * no error event and no Comlink reply, so the abort hook is the only thing
+   * that settles the promise — without it a cancelled batch waits forever.
+   */
+  private async runOnSlot<T>(
+    slot: WorkerSlot,
+    body: () => Promise<T>,
+  ): Promise<T> {
+    const aborted = new Promise<never>((_, reject) => {
+      slot.abortInFlight = reject;
+    });
+    // The abort promise may be left unsettled when the body wins the race; an
+    // unobserved rejection would otherwise surface as an unhandled rejection.
+    aborted.catch(() => {});
+    try {
+      return await Promise.race([body(), slot.fault, aborted]);
+    } finally {
+      slot.abortInFlight = undefined;
+      this.release(slot);
+    }
+  }
+
   async submit<T>(
     action: (api: Comlink.Remote<ChronicleWorkerApi>) => Promise<T>,
   ): Promise<T> {
     const slot = await this.acquire();
-    try {
+    return this.runOnSlot(slot, async () => {
       // Race the worker's fault so a dead worker rejects loudly, not silently.
       await Promise.race([slot.ready, slot.fault]);
-      return await Promise.race([action(slot.api), slot.fault]);
-    } finally {
-      this.release(slot);
-    }
+      return action(slot.api);
+    });
   }
 
   async submitWithSetup<T>(
@@ -340,15 +369,13 @@ export class WorkerPool {
     action: (api: Comlink.Remote<ChronicleWorkerApi>) => Promise<T>,
   ): Promise<T> {
     const slot = await this.acquire();
-    try {
+    return this.runOnSlot(slot, async () => {
       await Promise.race([slot.ready, slot.fault]);
       if (!(await Promise.race([hasSetup(slot.api), slot.fault]))) {
         await Promise.race([setup(slot.api), slot.fault]);
       }
-      return await Promise.race([action(slot.api), slot.fault]);
-    } finally {
-      this.release(slot);
-    }
+      return action(slot.api);
+    });
   }
 
   terminate(): void {
@@ -359,6 +386,9 @@ export class WorkerPool {
         .reject(new Error("Worker pool has been terminated."));
     }
     this.slots.forEach((slot) => {
+      // Settle the in-flight submission BEFORE killing the worker that owed it a
+      // reply, so a cancel unwinds the batch instead of wedging it.
+      slot.abortInFlight?.(new Error("Worker pool has been terminated."));
       this.terminateSlot(slot);
     });
     this.slots.length = 0;
