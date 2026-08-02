@@ -201,4 +201,94 @@ mod tests {
         assert!(!is_valid_chronicle_timezone("Not/AZone"));
         assert!(!is_valid_chronicle_timezone(""));
     }
+
+    #[test]
+    fn csv_fields_are_quoted_and_escaped_exactly_when_rfc4180_requires_it() {
+        let render = |field: &str| {
+            let mut out = Vec::new();
+            write_csv_field(&mut out, field.as_bytes());
+            String::from_utf8(out).expect("CSV field stays UTF-8")
+        };
+
+        // Plain values are emitted verbatim. Quoting every field instead would
+        // change every column of every researcher-facing output file.
+        assert_eq!(render("com.example.chat"), "com.example.chat");
+        assert_eq!(render(""), "");
+        assert_eq!(render(" leading and trailing "), " leading and trailing ");
+
+        // A separator, quote, or record terminator inside a value must be
+        // quoted, and an embedded quote must be doubled, or reading the file
+        // back silently gains a column or a row.
+        assert_eq!(render("Chat, Inc"), "\"Chat, Inc\"");
+        assert_eq!(render("say \"hi\""), "\"say \"\"hi\"\"\"");
+        assert_eq!(render("\"\""), "\"\"\"\"\"\"");
+        assert_eq!(render("line1\nline2"), "\"line1\nline2\"");
+        assert_eq!(render("line1\r\nline2"), "\"line1\r\nline2\"");
+
+        // Round trip through a real reader: the emitted record must decode to
+        // the original cells.
+        let mut record = Vec::new();
+        write_csv_field(&mut record, b"Chat, \"Bot\"");
+        record.push(b',');
+        write_csv_field(&mut record, b"plain");
+        record.push(b'\n');
+        let mut reader = csv::ReaderBuilder::new()
+            .has_headers(false)
+            .from_reader(record.as_slice());
+        let decoded = reader
+            .records()
+            .next()
+            .expect("one record")
+            .expect("well-formed record");
+        assert_eq!(decoded.len(), 2);
+        assert_eq!(&decoded[0], "Chat, \"Bot\"");
+        assert_eq!(&decoded[1], "plain");
+    }
+
+    #[test]
+    fn chronicle_timestamps_parse_every_accepted_spelling_and_reject_the_rest() {
+        // Naive timestamps are read as UTC; the four accepted spellings must
+        // land on the same instant so an export's offset notation cannot shift
+        // a participant's event.
+        let base = parse_chronicle_timestamp_ns("2026-03-07 10:00:00").expect("naive timestamp");
+        // 20454 days from the epoch to 2026-01-01, +65 days to 2026-03-07,
+        // +10 h = 1_772_877_600 s.
+        assert_eq!(base, 1_772_877_600_000_000_000);
+        assert_eq!(
+            parse_chronicle_timestamp_ns("2026-03-07T10:00:00Z"),
+            Some(base)
+        );
+        assert_eq!(
+            parse_chronicle_timestamp_ns("2026-03-07 10:00:00+00:00"),
+            Some(base)
+        );
+        assert_eq!(
+            parse_chronicle_timestamp_ns("2026-03-07 04:00:00-06:00"),
+            Some(base)
+        );
+        // Fractional seconds are kept at nanosecond resolution, which is what
+        // duplicate-timestamp nudging depends on.
+        assert_eq!(
+            parse_chronicle_timestamp_ns("2026-03-07 10:00:00.000001"),
+            Some(base + 1_000)
+        );
+        assert_eq!(
+            parse_chronicle_timestamp_ns("2026-03-07 10:00:00.000001+00:00"),
+            Some(base + 1_000)
+        );
+
+        for rejected in [
+            "",
+            "not-a-timestamp",
+            "2026-03-07",
+            "2026-13-07 10:00:00",
+            "03/07/2026 10:00:00",
+        ] {
+            assert_eq!(
+                parse_chronicle_timestamp_ns(rejected),
+                None,
+                "{rejected:?} must not parse",
+            );
+        }
+    }
 }
