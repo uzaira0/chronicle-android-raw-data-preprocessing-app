@@ -369,29 +369,23 @@ export async function getRuntimeVersion(): Promise<string> {
   return onSharedWorker((api) => api.runtimeVersion());
 }
 
+/**
+ * Both directions move the archive as a Blob. Structured cloning a Blob copies
+ * a handle to browser-managed storage, not the bytes, so a multi-hundred-MB
+ * backup never has to exist as a contiguous buffer on either side of the worker
+ * boundary — which is exactly what the picked `File` already is on import.
+ */
 export async function exportVerifiedWorkspaceClosure(
   workspaceId: string,
-): Promise<Uint8Array> {
+): Promise<Blob> {
   return onSharedWorker((api) => api.exportWorkspaceClosure(workspaceId));
 }
 
-export async function importVerifiedWorkspaceClosure(
-  archive: Uint8Array,
-): Promise<{
+export async function importVerifiedWorkspaceClosure(archive: Blob): Promise<{
   workspaceId: string;
   slot: { generation: number; workspaceRootDigest: string };
 }> {
-  const owned =
-    archive.buffer instanceof ArrayBuffer &&
-    archive.byteOffset === 0 &&
-    archive.byteLength === archive.buffer.byteLength
-      ? archive
-      : Uint8Array.from(archive);
-  return onSharedWorker((api) =>
-    api.importWorkspaceClosureArchive(
-      Comlink.transfer(owned, [owned.buffer as ArrayBuffer]),
-    ),
-  );
+  return onSharedWorker((api) => api.importWorkspaceClosureArchive(archive));
 }
 
 /**

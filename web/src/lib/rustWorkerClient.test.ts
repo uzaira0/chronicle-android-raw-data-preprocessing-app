@@ -788,7 +788,9 @@ describe("shared worker fault handling (fake Worker global)", () => {
     lastWorker().fire("error", { message: "export failed" });
     await expect(exported).rejects.toThrow("export failed");
 
-    const imported = importVerifiedWorkspaceClosure(new Uint8Array([1, 2, 3]));
+    const imported = importVerifiedWorkspaceClosure(
+      new Blob([new Uint8Array([1, 2, 3])]),
+    );
     lastWorker().fire("error", { message: "import failed" });
     await expect(imported).rejects.toThrow("import failed");
 
@@ -891,7 +893,7 @@ describe("shared worker successful routing and WASM compilation", () => {
       initializeRuntime: vi.fn(() => Promise.resolve()),
       runtimeVersion: vi.fn(() => Promise.resolve("runtime-v1")),
       exportWorkspaceClosure: vi.fn(() =>
-        Promise.resolve(new Uint8Array([1, 2, 3])),
+        Promise.resolve(new Blob([new Uint8Array([1, 2, 3])])),
       ),
       importWorkspaceClosureArchive: vi.fn(() => Promise.resolve(imported)),
       planStageView: vi.fn(() => Promise.resolve({ payload: {} })),
@@ -914,12 +916,17 @@ describe("shared worker successful routing and WASM compilation", () => {
     expect(compileStreaming).toHaveBeenCalledTimes(1);
     expect(compile).not.toHaveBeenCalled();
 
+const exportedArchive = await client.exportVerifiedWorkspaceClosure(
+      `sha256:${"1".repeat(64)}`,
+    );
+    expect(new Uint8Array(await exportedArchive.arrayBuffer())).toEqual(
+      new Uint8Array([1, 2, 3]),
+    );
+    // The archive crosses the boundary as a Blob handle: no copy, no transfer
+    // list, and the picked File itself is what gets forwarded.
+    const archiveBlob = new Blob([new Uint8Array([9, 1, 2, 8])]);
     await expect(
-      client.exportVerifiedWorkspaceClosure(`sha256:${"1".repeat(64)}`),
-    ).resolves.toEqual(new Uint8Array([1, 2, 3]));
-    const archiveBacking = new Uint8Array([9, 1, 2, 8]);
-    await expect(
-      client.importVerifiedWorkspaceClosure(archiveBacking.subarray(1, 3)),
+      client.importVerifiedWorkspaceClosure(archiveBlob),
     ).resolves.toEqual(imported);
     await expect(
       client.getPlanStageView({} as BrowserProcessingOptions),
@@ -958,9 +965,7 @@ describe("shared worker successful routing and WASM compilation", () => {
         "digest",
       ),
     ).resolves.toBe(result);
-    expect(api.importWorkspaceClosureArchive).toHaveBeenCalledWith(
-      expect.objectContaining({ byteLength: 2 }),
-    );
+    expect(api.importWorkspaceClosureArchive).toHaveBeenCalledWith(archiveBlob);
     expect(api.processRawCsvBytes).toHaveBeenCalledWith(
       "raw.csv",
       expect.any(ArrayBuffer),
