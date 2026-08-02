@@ -1,0 +1,231 @@
+{
+  "protocolVersion": "chronicle-field-mixed-tomography/v1",
+  "sourceField": "enrolled_devices_file.device_count",
+  "claimBoundary": "One supplied source column, one empirically branch-activating intervention on it, crossed with every computational configuration axis the field-level step contract predicts can interact with that column, plus a deterministic control sample of axes it predicts cannot. Under every configuration executed, every canonical output cell the intervention changes belongs to a declared output-cell family of that column, and no control axis introduces a family the base configuration did not move. Declared families no configuration moved are listed, not asserted: a declared edge no run exercised is not evidence the edge is unreal. Changed step checkpoints are recorded as context only, because a step checkpoint also moves when the step merely carries a changed field through its records.",
+  "implementationReceipt": {
+    "implementation": "chronicle_preprocessing_runtime_wasm/0.1.0",
+    "implementationDigest": "sha256:b90f620dba100d0e0ba3f1f15ae04c46921e8d91e11cef16a57ebb8f6ddb1ba5",
+    "planDigest": "sha256:e6acec3530cef7f3e67443077affb86632db8485d771c3fa9a754dc810ff8e20",
+    "profileDigest": "sha256:00307a41cc0ac0f1d5bf22dbf8eb56623a4623072a2d5555a7dbcd422cd37498",
+    "profileLockDigest": "sha256:cdbee8e72e6c8ae268baf4544634464a5ea67a9fd54b88dafdaa694fc27e4e8f",
+    "runtimeAuthorityDigest": "sha256:7598af2d710ac32563dd8e0bff49a9447e7f450c618c4689004025fbb6826ed4",
+    "productContractDigest": "sha256:3855791ad25992d95e055d5c672253cb06ac3e4320463bc46f984b7bc8f05f95"
+  },
+  "fixture": {
+    "corpusId": "catalog-random",
+    "seed": 12648430,
+    "interventionId": "support:enrollment-one-to-two-devices",
+    "roleId": "enrolled_devices_file",
+    "sourceFields": [
+      "enrolled_devices_file.device_count"
+    ],
+    "movedCanonicalCellsAtBaseConfiguration": true
+  },
+  "declaredStepCone": [
+    "assemble_result"
+  ],
+  "declaredCellFamilies": [
+    "compliance-csv#expected_device_count",
+    "compliance-csv#is_valid"
+  ],
+  "coverage": {
+    "computationalAxes": 45,
+    "predictedAffectedAxes": 15,
+    "predictedUnaffectedAxes": 30,
+    "controlAxesExecuted": 4,
+    "activationExecutions": 2,
+    "crossExecutions": 40,
+    "totalRustExecutions": 42
+  },
+  "baseConfigurationChangedFamilies": [
+    "compliance-csv#expected_device_count"
+  ],
+  "baseConfigurationChangedCellAddresses": 2,
+  "witnessedCellFamiliesAcrossAllConfigurations": [
+    "compliance-csv#expected_device_count"
+  ],
+  "structurallyDeclaredButUnwitnessedFamilies": [
+    "compliance-csv#is_valid"
+  ],
+  "observedStepsAcrossAllConfigurations": [
+    "assemble_result"
+  ],
+  "stepsOutsideDeclaredConeCarryingChangedFields": [],
+  "axisObservations": [
+    {
+      "axisId": "processAppUsage=false",
+      "predictedAffected": true,
+      "changedCellAddresses": 0,
+      "changedCellFamilies": 0,
+      "sameFamiliesAsBaseConfiguration": false,
+      "introducedFamilies": [],
+      "maskedFamilies": [
+        "compliance-csv#expected_device_count"
+      ]
+    },
+    {
+      "axisId": "processScreenUsage=false",
+      "predictedAffected": true,
+      "changedCellAddresses": 2,
+      "changedCellFamilies": 1,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    },
+    {
+      "axisId": "correctDuplicateEventTimestamps=false",
+      "predictedAffected": true,
+      "changedCellAddresses": 2,
+      "changedCellFamilies": 1,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    },
+    {
+      "axisId": "deduplicateExactRows=false",
+      "predictedAffected": true,
+      "changedCellAddresses": 2,
+      "changedCellFamilies": 1,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    },
+    {
+      "axisId": "timezoneHandling=selected_filter",
+      "predictedAffected": true,
+      "changedCellAddresses": 2,
+      "changedCellFamilies": 1,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    },
+    {
+      "axisId": "useBackgroundAppsFile=false",
+      "predictedAffected": true,
+      "changedCellAddresses": 2,
+      "changedCellFamilies": 1,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    },
+    {
+      "axisId": "useAppCodebook=false",
+      "predictedAffected": true,
+      "changedCellAddresses": 2,
+      "changedCellFamilies": 1,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    },
+    {
+      "axisId": "includeCategoryColumn=false",
+      "predictedAffected": true,
+      "changedCellAddresses": 2,
+      "changedCellFamilies": 1,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    },
+    {
+      "axisId": "enableAggregates=true",
+      "predictedAffected": true,
+      "changedCellAddresses": 2,
+      "changedCellFamilies": 1,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    },
+    {
+      "axisId": "aggregateShape=long",
+      "predictedAffected": true,
+      "changedCellAddresses": 2,
+      "changedCellFamilies": 1,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    },
+    {
+      "axisId": "customAppEngagementDuration=s0",
+      "predictedAffected": true,
+      "changedCellAddresses": 2,
+      "changedCellFamilies": 1,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    },
+    {
+      "axisId": "modelConcurrentUsage=false",
+      "predictedAffected": true,
+      "changedCellAddresses": 2,
+      "changedCellFamilies": 1,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    },
+    {
+      "axisId": "enableScreenGatedCrediting=false",
+      "predictedAffected": true,
+      "changedCellAddresses": 2,
+      "changedCellFamilies": 1,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    },
+    {
+      "axisId": "enableComplianceScoring=false",
+      "predictedAffected": true,
+      "changedCellAddresses": 0,
+      "changedCellFamilies": 0,
+      "sameFamiliesAsBaseConfiguration": false,
+      "introducedFamilies": [],
+      "maskedFamilies": [
+        "compliance-csv#expected_device_count"
+      ]
+    },
+    {
+      "axisId": "enableDayCoverage=false",
+      "predictedAffected": true,
+      "changedCellAddresses": 2,
+      "changedCellFamilies": 1,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    },
+    {
+      "axisId": "allowStopEventReuse=true",
+      "predictedAffected": false,
+      "changedCellAddresses": 2,
+      "changedCellFamilies": 1,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    },
+    {
+      "axisId": "useActivityStoppedAsFallback=false",
+      "predictedAffected": false,
+      "changedCellAddresses": 2,
+      "changedCellFamilies": 1,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    },
+    {
+      "axisId": "applyThresholdToFallback=false",
+      "predictedAffected": false,
+      "changedCellAddresses": 2,
+      "changedCellFamilies": 1,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    },
+    {
+      "axisId": "longDurationThresholdHours=h1",
+      "predictedAffected": false,
+      "changedCellAddresses": 2,
+      "changedCellFamilies": 1,
+      "sameFamiliesAsBaseConfiguration": true,
+      "introducedFamilies": [],
+      "maskedFamilies": []
+    }
+  ]
+}
