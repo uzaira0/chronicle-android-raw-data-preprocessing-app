@@ -25,6 +25,24 @@ while IFS= read -r entry || [[ -n "$entry" ]]; do
   entry=${entry%"${entry##*[![:space:]]}"}
   [[ -z "$entry" ]] && continue
   IFS='|' read -r manifest exclude_re entry_lines entry_regions entry_functions features no_default_features <<< "$entry"
+  # The entry is split on '|' and its exclusion field on ',', so neither
+  # character can appear inside an exclusion expression: a regex carrying one
+  # is silently truncated into an unclosed group. An expression list that needs
+  # them — alternation, a repetition bound — lives in its own file instead,
+  # named here as `@<file>` relative to the manifest list, one expression per
+  # line with '#' comments.
+  exclude_file=""
+  if [[ "$exclude_re" == @* ]]; then
+    exclude_file="$(dirname "$manifest_list")/${exclude_re#@}"
+    if [[ ! -f "$exclude_file" ]]; then
+      echo "Configured mutation exclusion file does not exist: $exclude_file" >&2
+      exit 2
+    fi
+    exclude_re=""
+  elif [[ "$exclude_re" == *'('* || "$exclude_re" == *'{'* ]]; then
+    echo "Inline exclusion expressions cannot contain '(' or '{': the entry is split on '|' and ',', so a group or a repetition bound is cut in half. Move them to an @file: $manifest" >&2
+    exit 2
+  fi
   coverage_lines=${entry_lines:-$minimum_lines}
   coverage_regions=${entry_regions:-$minimum_regions}
   coverage_functions=${entry_functions:-$minimum_functions}
@@ -53,6 +71,19 @@ while IFS= read -r entry || [[ -n "$entry" ]]; do
         for pattern in "${exclude_patterns[@]}"; do
           args+=(-E "$pattern")
         done
+      fi
+      if [[ -n "$exclude_file" ]]; then
+        excluded=0
+        while IFS= read -r pattern || [[ -n "$pattern" ]]; do
+          [[ "$pattern" =~ ^[[:space:]]*(#.*)?$ ]] && continue
+          args+=(-E "$pattern")
+          excluded=$((excluded + 1))
+        done < "$exclude_file"
+        if (( excluded == 0 )); then
+          echo "Mutation exclusion file has no expressions: $exclude_file" >&2
+          exit 2
+        fi
+        echo "rust_authority_mutation_exclusions manifest=$manifest file=$exclude_file expressions=$excluded"
       fi
       [[ "$no_default_features" == "no-default-features" ]] && args+=(--no-default-features)
       [[ -n "$features" ]] && args+=(--features "$features")
