@@ -1,19 +1,31 @@
 severity:
   - HIGH
   - CRITICAL
-scanners:
-  - vuln
-  - misconfig
-  - secret
 exit-code: 1
 format: table
-ignore-unfixed: true
-# skip-dirs and skip-files MUST be nested under `scan:`. Declared at the top
-# level they parse without error and are silently ignored, which is how this
-# file sat for months: the `**/*.csv` rule below never applied and trivy was
-# secret-scanning every fixture CSV in the tree. Verified by observing the
-# large-file warnings for those CSVs disappear only once the keys moved here.
+# Keys that belong to a section MUST be nested in it. Declared at the top level
+# they parse without error and are silently ignored, which is how this file sat
+# for months with three inert declarations:
+#
+#   scan.scanners   - top-level `scanners:` left trivy on its default set for
+#                     `fs`, which is vuln+secret. `misconfig` was declared and
+#                     never ran. Proven with a two-line Dockerfile
+#                     (`FROM alpine:3.10` + `USER root`): top-level reports
+#                     "Vulnerabilities | Secrets" and finds nothing, nested
+#                     reports "Misconfigurations 2".
+#   scan.skip-dirs  - the `**/*.csv` rule never applied and trivy was
+#   scan.skip-files   secret-scanning every fixture CSV in the tree.
+#   vulnerability.ignore-unfixed
+#
+# Whatever is added here, check it takes effect by observing trivy's output
+# change. Trivy does not warn about a key it does not recognize.
+vulnerability:
+  ignore-unfixed: true
 scan:
+  scanners:
+    - vuln
+    - misconfig
+    - secret
   skip-dirs:
     - .git
     # Agent worktrees are gitignored (.gitignore:185) and hold duplicate
@@ -23,6 +35,18 @@ scan:
     # scan timeout.
     - .claude
     - .venv
+    # Dependency trees, not our source. Turning `misconfig` on for the first
+    # time surfaced two findings in web/node_modules/comlink/Dockerfile — a
+    # third-party image definition this repo never builds. Dependency
+    # vulnerabilities are still covered, and covered better, from the lockfiles
+    # (web/package-lock.json, web/bun.lock, every Cargo.lock), which trivy scans
+    # regardless of this skip.
+    #
+    # The `**/` matters: a pattern with no wildcard is matched against the path
+    # relative to the scan root, so a bare `node_modules` skips only one at the
+    # repository root and leaves `web/node_modules` scanned. Checked by watching
+    # the comlink Dockerfile stay in the report until the glob was added.
+    - "**/node_modules"
     - .tmp_benchmarks
     - .tmp_pathological_one
     - .tmp_pathological_rich_raw
