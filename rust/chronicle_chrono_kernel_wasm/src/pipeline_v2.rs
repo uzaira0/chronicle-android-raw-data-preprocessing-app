@@ -8622,6 +8622,11 @@ mod tests {
     /// not change the fingerprint, and no payload length may push either buffer
     /// past its end, so the sweep walks every length across both boundaries and
     /// checks that the same content always fingerprints the same way.
+    ///
+    /// A string tail always occupies at least nine bytes, so it can never start
+    /// on the sink buffer's last free slot. A `u8` is the smallest write the
+    /// sink accepts, and the sweep pairs one with every payload length so the
+    /// single-byte landing on that last slot is covered too.
     #[test]
     fn the_checkpoint_fingerprint_follows_content_and_not_buffer_alignment() {
         let mut seen = std::collections::BTreeSet::new();
@@ -8638,6 +8643,21 @@ mod tests {
             assert!(
                 seen.insert(fingerprint),
                 "payload of {length} bytes reused an earlier fingerprint"
+            );
+
+            let single_byte_tail = (text.as_str(), 7_u8);
+            let tail_fingerprint =
+                value_fingerprint(&single_byte_tail).expect("fingerprint a one-byte tail");
+            assert_eq!(
+                tail_fingerprint,
+                value_fingerprint(&(text.clone(), 7_u8))
+                    .expect("fingerprint an owned one-byte tail"),
+                "payload of {length} bytes with a one-byte tail fingerprinted differently \
+                 when borrowed"
+            );
+            assert!(
+                seen.insert(tail_fingerprint),
+                "payload of {length} bytes with a one-byte tail reused an earlier fingerprint"
             );
         }
     }
