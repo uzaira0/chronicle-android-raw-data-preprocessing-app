@@ -11494,6 +11494,98 @@ mod tracked {
             );
         }
 
+        /// The review cone reaches its annotations by two different routes.
+        /// With concurrent modelling off and no background apps it overlays a
+        /// threshold-independent static table; otherwise it annotates the
+        /// reconstructed rows inline. Either way the review performs the same
+        /// annotation and cleaning steps, so both routes have to report them —
+        /// a route that runs a step without reporting it makes the step's
+        /// status invented rather than observed.
+        #[test]
+        fn a_review_reports_its_annotation_steps_on_both_annotation_paths() {
+            for concurrent in [false, true] {
+                let mut options = pipeline_options();
+                options.model_concurrent_usage = concurrent;
+                let mut engine = TrackedEngine::default();
+                let review = engine
+                    .execute(&csv(), &options, PipelineV2SupportFiles::default(), false)
+                    .expect("cold review");
+                for step in [
+                    "codebook_join",
+                    "derive_broad_category",
+                    "collapse_genre",
+                    "engagement_walk",
+                    "flag_and_retain",
+                    "blank_junk_timing",
+                    "drop_selected_types",
+                ] {
+                    assert!(
+                        review.executed_steps.iter().any(|reported| reported == step),
+                        "review with concurrent={concurrent} never reported {step}: {:?}",
+                        review.executed_steps,
+                    );
+                }
+                assert_eq!(
+                    review.executed_steps.len(),
+                    review.executed_steps.iter().collect::<BTreeSet<_>>().len(),
+                    "review with concurrent={concurrent} reported a step twice: {:?}",
+                    review.executed_steps,
+                );
+            }
+        }
+
+        /// A session whose app is on the filter file is emitted as filtered app
+        /// usage with its timing blanked, so it contributes no minutes to the
+        /// review's per-app totals. The fused annotation pass that does the
+        /// blanking only runs on the inline route, so check both routes against
+        /// the sequential path, and prove the filter is doing something by
+        /// comparing against the same review without it.
+        #[test]
+        fn a_review_blanks_filtered_usage_timing_on_both_annotation_paths() {
+            let raw = concat!(
+                "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+                "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+                "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:05:00,America/Chicago\n",
+            )
+            .as_bytes();
+            let filter = b"app_package_name\ncom.example.chat\n".to_vec();
+            let support = PipelineV2SupportFiles {
+                filter_csv: &filter,
+                ..PipelineV2SupportFiles::default()
+            };
+
+            for concurrent in [false, true] {
+                let mut filtered = pipeline_options();
+                filtered.usage_session_mode = UsageSessionMode::AppUsage;
+                filtered.model_concurrent_usage = concurrent;
+                filtered.use_filter_file = true;
+                let mut unfiltered = filtered.clone();
+                unfiltered.use_filter_file = false;
+
+                let mut engine = TrackedEngine::default();
+                let review = engine
+                    .execute(raw, &filtered, support, false)
+                    .expect("review with the filter file");
+                let plain = engine
+                    .execute(raw, &unfiltered, support, false)
+                    .expect("review without the filter file");
+                assert_ne!(
+                    review.result.review_summary_json_bytes,
+                    plain.result.review_summary_json_bytes,
+                    "the filter file has to change the summary or this proves nothing \
+                     (concurrent={concurrent})",
+                );
+
+                let oracle = run_pipeline_v2_with_supports(raw, &filtered, support)
+                    .expect("sequential oracle for a filtered review");
+                assert_eq!(
+                    review.result.review_summary_json_bytes, oracle.review_summary_json_bytes,
+                    "filtered usage timing survived into the review summary \
+                     (concurrent={concurrent})",
+                );
+            }
+        }
+
         /// A matcher-option edit can change the session a row belongs to. With
         /// concurrent modelling off, review annotations are carried on the
         /// pre-floor row table rather than rebuilt from reconstructed
