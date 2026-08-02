@@ -25,7 +25,7 @@ SEM_PROF_BIN ?= $(if $(wildcard $(LOCAL_SEM_PROF_BIN)),$(LOCAL_SEM_PROF_BIN),sem
 .PHONY: help ci all security web \
         rust \
         semgrep ast-grep cargo-audit cargo-deny trivy gitleaks \
-        typecheck web-test contract semantic-federation combinatorial gate-truth \
+        typecheck web-test contract boundary semantic-federation combinatorial gate-truth \
         mutation mutation-web mutation-rust coverage coverage-rust coverage-all \
         knip profile profile-current profile-many e2e deploy-artifact dependency-evidence \
         bench-regression
@@ -36,10 +36,10 @@ help:
 	@echo '  make ci        rust tests + all security scanners'
 	@echo '  make all       ci + web checks + e2e smoke + deploy artifact'
 	@echo '  make security  semgrep ast-grep cargo-audit cargo-deny trivy gitleaks'
-	@echo '  make web       typecheck + unit tests + contract check'
+	@echo '  make web       typecheck + unit tests + contract + boundary checks'
 	@echo ''
 	@echo '  Individual:  rust semgrep ast-grep cargo-audit cargo-deny trivy gitleaks'
-	@echo '               typecheck web-test contract e2e gate-truth mutation'
+	@echo '               typecheck web-test contract boundary e2e gate-truth mutation'
 	@echo '               mutation-web mutation-rust coverage coverage-rust coverage-all'
 	@echo '               knip profile profile-current profile-many combinatorial deploy-artifact dependency-evidence'
 	@echo '               bench-regression (criterion matcher benches vs benchmarks/baseline.json; local-only)'
@@ -68,7 +68,7 @@ all:
 
 security: semgrep ast-grep cargo-audit cargo-deny trivy gitleaks
 
-web: typecheck web-test contract semantic-federation
+web: typecheck web-test contract boundary semantic-federation
 
 # ---------- Rust tests ----------
 # The matcher core is a library dependency of the production Rust/WASM runtime;
@@ -125,6 +125,15 @@ web-test:
 
 contract:
 	cd web && npm run check:contract
+
+# The browser's WASM-boundary validator is generated from the Rust
+# serialization model (RuntimeManifest / ReviewRuntimeManifest and the types
+# they embed) by the runtime crate's `boundary_model` example. This fails when
+# web/src/lib/generatedRuntimeBoundary.ts no longer matches those Rust types;
+# regenerate with `cd web && npm run generate:boundary`. Needs cargo, like the
+# WASM build the rest of the web gate already depends on.
+boundary:
+	cd web && npm run check:boundary
 
 semantic-federation:
 	$(MAKE) -C .semantic-federation check SEM_PROF_BIN=$(SEM_PROF_BIN)
