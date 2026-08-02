@@ -1,66 +1,19 @@
-import { readFile } from "node:fs/promises";
-
-import { expect, test, type Page } from "@playwright/test";
-
+import { expect, test } from "./durabilityContext";
 import { APP_ONLY_RAW_CSV } from "./fixtures";
 import {
   assertNoExternalRequests,
+  downloadClosure,
   gotoApp,
+  inspectClosure,
   installDeterministicRuntime,
   processFiles,
   setInputFile,
   trackExternalRequests,
 } from "./helpers";
 
-const MAGIC = Buffer.from("CHRONICLE-CLOSURE-V1\n", "utf-8");
-
-type ClosureManifest = {
-  protocolVersion: "chronicle-runtime-closure/v1";
-  workspaceId: string;
-  workspaceRootDigest: string;
-  previousWorkspaceRootDigest: string | null;
-  objects: Array<{ digest: string; size: number; offset: number }>;
-};
-
-async function downloadClosure(page: Page): Promise<Uint8Array> {
-  const downloadPromise = page.waitForEvent("download");
-  await page.getByTestId("export-workspace-closure").first().click();
-  const download = await downloadPromise;
-  const path = await download.path();
-  if (!path) throw new Error("Playwright did not provide the workspace backup path");
-  return new Uint8Array(await readFile(path));
-}
-
-function inspectClosure(bytes: Uint8Array): {
-  manifest: ClosureManifest;
-  root: { workspaceId: string; previousWorkspaceRootDigest: string | null };
-} {
-  expect(Buffer.from(bytes.subarray(0, MAGIC.byteLength))).toEqual(MAGIC);
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const manifestSize = view.getUint32(MAGIC.byteLength, true);
-  const manifestStart = MAGIC.byteLength + 4;
-  const payloadStart = manifestStart + manifestSize;
-  const manifest = JSON.parse(
-    new TextDecoder().decode(bytes.subarray(manifestStart, payloadStart)),
-  ) as ClosureManifest;
-  const rootEntry = manifest.objects.find(
-    ({ digest }) => digest === manifest.workspaceRootDigest,
-  );
-  if (!rootEntry) throw new Error("portable closure omitted its declared root object");
-  const root = JSON.parse(
-    new TextDecoder().decode(
-      bytes.subarray(
-        payloadStart + rootEntry.offset,
-        payloadStart + rootEntry.offset + rootEntry.size,
-      ),
-    ),
-  ) as { workspaceId: string; previousWorkspaceRootDigest: string | null };
-  return { manifest, root };
-}
-
 test("@smoke @opfs verified workspace closure survives reload, imports into a fresh origin, rejects corruption, and resumes its root chain", async ({
   page,
-  browser,
+  freshOriginPage,
 }) => {
   const requests = trackExternalRequests(page);
   await installDeterministicRuntime(page);
@@ -98,12 +51,12 @@ test("@smoke @opfs verified workspace closure survives reload, imports into a fr
   );
   assertNoExternalRequests(requests);
 
-  // A second browser context is a fresh origin store. Import must derive its
+  // A fresh origin store (a second context where the engine isolates one, an
+  // explicit origin wipe on WebKit, which does not). Import must derive its
   // destination from the signed closure identity, reject tampering, then let
   // the same raw input continue from the imported root.
-  const restoredContext = await browser.newContext();
-  try {
-    const restoredPage = await restoredContext.newPage();
+  {
+    const restoredPage = await freshOriginPage();
     const restoredRequests = trackExternalRequests(restoredPage);
     await installDeterministicRuntime(restoredPage);
     await gotoApp(restoredPage);
@@ -113,13 +66,14 @@ test("@smoke @opfs verified workspace closure survives reload, imports into a fr
       mimeType: "application/vnd.chronicle.workspace",
       buffer: Buffer.from(reloadedArchive),
     });
-    // The fresh context imports into a worker that is still fetching and
-    // compiling the runtime WASM, so the first status can legitimately take
-    // longer than the 5 s default — same reason the reload assertion above
-    // carries its own timeout. Observed once as a Firefox flake at 5 s.
+    // Importing this closure means rewriting every object of a ~4.5 MB
+    // content-addressed archive through OPFS, in a fresh context whose worker
+    // is still fetching and compiling the runtime WASM. Measured on Firefox
+    // 148 that takes 2.5-16 s depending on machine load, so the 5 s default
+    // expect timeout decided this assertion by luck, not by behaviour.
     await expect(restoredPage.getByTestId("workspace-backup-status")).toContainText(
       "Verified workspace restored at generation 1",
-      { timeout: 20_000 },
+      { timeout: 60_000 },
     );
 
     const corrupt = Uint8Array.from(reloadedArchive);
@@ -131,7 +85,7 @@ test("@smoke @opfs verified workspace closure survives reload, imports into a fr
     });
     await expect(restoredPage.getByTestId("workspace-backup-status")).toContainText(
       "digest mismatch",
-      { timeout: 20_000 },
+      { timeout: 60_000 },
     );
 
     await setInputFile(
@@ -151,7 +105,5 @@ test("@smoke @opfs verified workspace closure survives reload, imports into a fr
       first.manifest.workspaceRootDigest,
     );
     assertNoExternalRequests(restoredRequests);
-  } finally {
-    await restoredContext.close();
   }
 });

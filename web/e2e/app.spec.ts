@@ -1,8 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
-import { expect, test } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
+
+// The @opfs tests in this file need a real origin-private filesystem, which
+// WebKit only grants against an on-disk profile; the fixture is a no-op for
+// every other project.
+import { expect, test } from "./durabilityContext";
 
 import {
   APP_AND_SCREEN_RAW_CSV,

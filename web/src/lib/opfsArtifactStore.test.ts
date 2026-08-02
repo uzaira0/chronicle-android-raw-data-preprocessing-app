@@ -24,10 +24,21 @@ import {
   verifyRuntimeWorkspace,
 } from "@/lib/opfsArtifactStore";
 
+/**
+ * Geometry of the last BufferSource handed to `write()`. WebKit's
+ * FileSystemWritableFileStream ignores byteOffset/byteLength and writes the
+ * whole underlying ArrayBuffer, so passing a partial view is a real
+ * cross-browser corruption bug that an in-memory mock (which copies the view
+ * faithfully) can never reproduce. Recording the geometry lets a test assert
+ * the constraint directly.
+ */
+type WriteGeometry = { byteOffset: number; byteLength: number; bufferBytes: number };
+
 class MemoryFileHandle {
   readonly kind = "file" as const;
   bytes = new Uint8Array();
   reads = 0;
+  lastWriteGeometry: WriteGeometry | undefined;
   nextReadError: Error | undefined;
   nextWriteTransform:
     | ((bytes: Uint8Array<ArrayBuffer>) => Promise<Uint8Array<ArrayBuffer>>)
@@ -46,10 +57,22 @@ class MemoryFileHandle {
   createWritable(): Promise<FileSystemWritableFileStream> {
     let pending = new Uint8Array();
     return Promise.resolve({
-      write(data: FileSystemWriteChunkType) {
-        if (data instanceof Uint8Array) pending = Uint8Array.from(data);
-        else if (data instanceof ArrayBuffer) pending = new Uint8Array(data);
-        else throw new Error("unsupported test write");
+      write: (data: FileSystemWriteChunkType) => {
+        if (data instanceof Uint8Array) {
+          this.lastWriteGeometry = {
+            byteOffset: data.byteOffset,
+            byteLength: data.byteLength,
+            bufferBytes: data.buffer.byteLength,
+          };
+          pending = Uint8Array.from(data);
+        } else if (data instanceof ArrayBuffer) {
+          this.lastWriteGeometry = {
+            byteOffset: 0,
+            byteLength: data.byteLength,
+            bufferBytes: data.byteLength,
+          };
+          pending = new Uint8Array(data);
+        } else throw new Error("unsupported test write");
         return Promise.resolve();
       },
       close: async () => {
@@ -1566,6 +1589,46 @@ describe("OPFS content-addressed runtime workspace", () => {
     ).toEqual(source);
   });
 
+  it("never hands the browser a partial view of a larger buffer", async () => {
+    // `importRuntimeClosure` slices every object out of one archive buffer, so
+    // the artifacts it persists are subarray views. WebKit's
+    // FileSystemWritableFileStream.write() ignores byteOffset/byteLength and
+    // stores the WHOLE underlying ArrayBuffer (WebKit 26.4; Chromium 147 and
+    // Firefox 148 honour the view), which wrote the entire archive in place of
+    // each object and failed the store's own read-back check. The store must
+    // therefore only ever pass a buffer the view completely spans.
+    const root = new MemoryDirectoryHandle();
+    const source = new TextEncoder().encode(
+      JSON.stringify({
+        workspaceId: `sha256:${"1".repeat(64)}`,
+        previousWorkspaceRootDigest: null,
+        artifactDigests: [],
+      }),
+    );
+    const archive = new Uint8Array(source.byteLength + 64);
+    archive.set(source, 32);
+    const viewArtifact: PersistedRuntimeArtifact = {
+      kind: "workspace-root-json",
+      digest: await digest(source),
+      size: source.byteLength,
+      bytes: archive.subarray(32, 32 + source.byteLength),
+    };
+    await persistRuntimeWorkspace(rootHandle(root), {
+      workspaceRootDigest: viewArtifact.digest,
+      previousWorkspaceRootDigest: null,
+      artifacts: [viewArtifact],
+    });
+    const written = objectFile(root, viewArtifact.digest).lastWriteGeometry;
+    expect(written).toEqual({
+      byteOffset: 0,
+      byteLength: source.byteLength,
+      bufferBytes: source.byteLength,
+    });
+    expect(
+      await readRuntimeObject(rootHandle(root), viewArtifact.digest),
+    ).toEqual(source);
+  });
+
   it("distinguishes a new empty workspace from a corrupt existing workspace", async () => {
     await expect(
       recoverRuntimeWorkspace(rootHandle(new MemoryDirectoryHandle())),
@@ -1642,6 +1705,76 @@ describe("OPFS content-addressed runtime workspace", () => {
       evictionProtected: null,
     });
 
+    // A browser that hands out a directory handle but refuses the write is the
+    // exact half-run this gate exists to stop: an existence-only probe reports
+    // "ready" and the run dies at commit time instead of before it starts.
+    const writeDenied = new MemoryDirectoryHandle();
+    writeDenied.getDirectoryHandle = () =>
+      Promise.resolve({
+        getFileHandle: () =>
+          Promise.reject(new DOMException("quota", "QuotaExceededError")),
+      } as unknown as FileSystemDirectoryHandle);
+    vi.stubGlobal("navigator", {
+      storage: { getDirectory: () => Promise.resolve(rootHandle(writeDenied)) },
+      locks: { request: vi.fn() },
+    });
+    await expect(probeOpfsCapability()).resolves.toEqual({
+      status: "unavailable",
+      reason: "Origin-private file storage is open but not writable: quota",
+    });
+
+    // A store that accepts the write and returns different bytes cannot back a
+    // verified workspace at all, so it must fail closed too.
+    const lyingStore = new MemoryDirectoryHandle();
+    const probeDirectory = (await lyingStore.getDirectoryHandle(
+      "chronicle-capability-probe-v1",
+      { create: true },
+    )) as unknown as MemoryDirectoryHandle;
+    const originalGetFileHandle =
+      probeDirectory.getFileHandle.bind(probeDirectory);
+    probeDirectory.getFileHandle = async (name, options) => {
+      const handle = (await originalGetFileHandle(
+        name,
+        options,
+      )) as unknown as MemoryFileHandle;
+      handle.nextWriteTransform = (bytes) =>
+        Promise.resolve(Uint8Array.from(bytes, (byte) => byte ^ 0xff));
+      return handle as unknown as FileSystemFileHandle;
+    };
+    vi.stubGlobal("navigator", {
+      storage: { getDirectory: () => Promise.resolve(rootHandle(lyingStore)) },
+      locks: { request: vi.fn() },
+    });
+    await expect(probeOpfsCapability()).resolves.toEqual({
+      status: "unavailable",
+      reason:
+        "Origin-private file storage returned different bytes than were written, so verified persistence is impossible.",
+    });
+
+    // Deletion is not a durability primitive — a store that cannot remove the
+    // probe file still persists verified objects, so it must stay "ready".
+    const noDelete = new MemoryDirectoryHandle();
+    const noDeleteProbe = (await noDelete.getDirectoryHandle(
+      "chronicle-capability-probe-v1",
+      { create: true },
+    )) as unknown as MemoryDirectoryHandle;
+    noDeleteProbe.removeEntry = () =>
+      Promise.reject(new DOMException("read-only", "NoModificationAllowedError"));
+    vi.stubGlobal("navigator", {
+      storage: { getDirectory: () => Promise.resolve(rootHandle(noDelete)) },
+      locks: { request: vi.fn() },
+    });
+    await expect(probeOpfsCapability()).resolves.toEqual({
+      status: "ready",
+      evictionProtected: null,
+    });
+
+    vi.stubGlobal("navigator", {
+      storage: {
+        getDirectory: () => Promise.resolve(rootHandle(root)),
+      },
+      locks: { request: vi.fn() },
+    });
     const first = await openOpfsWorkspace(`sha256:${"1".repeat(64)}`);
     const second = await openOpfsWorkspace(`sha256:${"2".repeat(64)}`);
     expect(first).not.toBe(second);
