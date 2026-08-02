@@ -8,19 +8,31 @@ scanners:
 exit-code: 1
 format: table
 ignore-unfixed: true
-skip-dirs:
-  - .git
-  - .venv
-  - .tmp_benchmarks
-  - .tmp_pathological_one
-  - .tmp_pathological_rich_raw
-  - .tmp_pathological_smoke
-  - __pycache__
-  - archive
-  - build
-  - dist
-  - src/chronicle_android_preprocessor.egg-info
-skip-files:
-  - "**/*.csv"
-  - src/chronicle_preprocessing_app/_rust_app_usage_matcher.cpython-313-darwin.so
-  - src/chronicle_preprocessing_app/_rust_app_usage_matcher.cpython-314-darwin.so
+# skip-dirs and skip-files MUST be nested under `scan:`. Declared at the top
+# level they parse without error and are silently ignored, which is how this
+# file sat for months: the `**/*.csv` rule below never applied and trivy was
+# secret-scanning every fixture CSV in the tree. Verified by observing the
+# large-file warnings for those CSVs disappear only once the keys moved here.
+scan:
+  skip-dirs:
+    - .git
+    # Agent worktrees are gitignored (.gitignore:185) and hold duplicate
+    # checkouts of the source already scanned here, plus multi-hundred-MB build
+    # scratch. Scanning them adds no coverage and made `make all` fail
+    # non-deterministically — once on a directory removed mid-walk, once on a
+    # scan timeout.
+    - .claude
+    - .venv
+    - .tmp_benchmarks
+    - .tmp_pathological_one
+    - .tmp_pathological_rich_raw
+    - .tmp_pathological_smoke
+    - __pycache__
+    - archive
+    - build
+    - dist
+    - src/chronicle_android_preprocessor.egg-info
+  skip-files:
+    - "**/*.csv"
+    - src/chronicle_preprocessing_app/_rust_app_usage_matcher.cpython-313-darwin.so
+    - src/chronicle_preprocessing_app/_rust_app_usage_matcher.cpython-314-darwin.so
