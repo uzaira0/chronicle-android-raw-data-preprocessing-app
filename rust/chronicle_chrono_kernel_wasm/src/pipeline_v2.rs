@@ -7711,6 +7711,189 @@ pub fn run_pipeline_v2_with_supports(
 mod tests {
     use super::*;
 
+    /// Both hash sinks batch small writes so per-call overhead cannot dominate.
+    /// Batching is only allowed to change *where* the byte stream is split
+    /// across `update` calls; the digest has to stay the digest of the
+    /// concatenation. This is the property that makes every flush-schedule
+    /// change in `BufferedCheckpointHasher::checkpoint_update` and
+    /// `FingerprintSink::write`/`flush` unobservable, and it is what would
+    /// break if a buffered byte were ever dropped, duplicated, or reordered.
+    #[test]
+    fn the_buffered_checkpoint_hasher_digests_the_concatenation_whatever_the_chunking() {
+        let sizes = [
+            0,
+            1,
+            7,
+            CHECKPOINT_HASH_BUFFER_BYTES - 1,
+            3,
+            CHECKPOINT_HASH_BUFFER_BYTES,
+            5,
+            CHECKPOINT_HASH_BUFFER_BYTES + 1,
+            2 * CHECKPOINT_HASH_BUFFER_BYTES,
+            11,
+        ];
+        let mut buffered = BufferedCheckpointHasher::new();
+        let mut flat = Vec::new();
+        for (chunk_index, size) in sizes.iter().enumerate() {
+            let chunk: Vec<u8> = (0..*size)
+                .map(|offset| (offset.wrapping_mul(31).wrapping_add(chunk_index)) as u8)
+                .collect();
+            buffered.checkpoint_update(&chunk);
+            flat.extend_from_slice(&chunk);
+        }
+        let mut unbuffered = Xxh3::new();
+        unbuffered.update(&flat);
+        assert_eq!(
+            buffered.finalize128(),
+            unbuffered.digest128(),
+            "buffering changed the checkpoint digest of a {}-byte stream",
+            flat.len()
+        );
+    }
+
+    #[test]
+    fn the_fingerprint_sink_digests_the_concatenation_whatever_the_chunking() {
+        let buffer_bytes = FingerprintSink::new().buffer.len();
+        let sizes = [
+            0,
+            1,
+            9,
+            buffer_bytes - 1,
+            2,
+            buffer_bytes,
+            4,
+            buffer_bytes + 1,
+            2 * buffer_bytes,
+            13,
+        ];
+        let mut sink = FingerprintSink::new();
+        let mut flat = Vec::new();
+        for (chunk_index, size) in sizes.iter().enumerate() {
+            let chunk: Vec<u8> = (0..*size)
+                .map(|offset| (offset.wrapping_mul(17).wrapping_add(chunk_index)) as u8)
+                .collect();
+            sink.write(&chunk);
+            flat.extend_from_slice(&chunk);
+        }
+        let mut unbuffered = Xxh3::new();
+        unbuffered.update(&flat);
+        assert_eq!(
+            sink.finish(),
+            unbuffered.digest128(),
+            "buffering changed the fingerprint of a {}-byte stream",
+            flat.len()
+        );
+    }
+
+    /// The fingerprint protocol tags every value it serializes. A value that
+    /// contributed no bytes at all would fingerprint as the empty stream and
+    /// so collide with every other such value, which is exactly the collision
+    /// the tags exist to prevent.
+    #[test]
+    fn every_serialized_value_contributes_bytes_to_its_fingerprint() {
+        let empty_stream = FingerprintSink::new().finish().to_le_bytes();
+        for (label, fingerprint) in [
+            ("a unit", value_fingerprint(&()).expect("fingerprint a unit")),
+            (
+                "an empty string",
+                value_fingerprint("").expect("fingerprint an empty string"),
+            ),
+            (
+                "an empty vector",
+                value_fingerprint(&Vec::<u8>::new()).expect("fingerprint an empty vector"),
+            ),
+            (
+                "an absent option",
+                value_fingerprint(&None::<u8>).expect("fingerprint an absent option"),
+            ),
+        ] {
+            assert_ne!(
+                fingerprint, empty_stream,
+                "{label} fingerprinted as an empty protocol stream"
+            );
+        }
+    }
+
+    /// `emit_csv_i32` short-circuits the two most common values. The fast path
+    /// is only sound while it renders byte-for-byte what the general path
+    /// would have written.
+    #[test]
+    fn the_small_integer_csv_fast_path_renders_exactly_like_the_general_path() {
+        for value in [i32::MIN, -24, -1, 0, 1, 2, 23, 24, i32::MAX] {
+            let mut fast = Vec::new();
+            let mut fast_first = true;
+            emit_csv_i32(&mut fast, value, &mut fast_first);
+
+            let mut general = Vec::new();
+            let mut general_first = true;
+            begin_csv_field(&mut general, &mut general_first);
+            append_csv_field(&mut general, &value.to_string());
+
+            assert_eq!(
+                fast, general,
+                "the CSV fast path rendered {value} differently from the general path"
+            );
+            assert_eq!(fast_first, general_first);
+        }
+    }
+
+    /// JS `parseFloat(value.toPrecision(n))` returns the input unchanged for
+    /// the non-finite and zero cases, including the sign of a negative zero —
+    /// which the CSV writer would otherwise render as `-0` instead of `0`.
+    #[test]
+    fn rounding_to_significant_digits_keeps_the_javascript_edge_cases() {
+        assert!(
+            round_to_precision(-0.0, 4).is_sign_negative(),
+            "rounding lost the sign of a negative zero"
+        );
+        assert!(round_to_precision(0.0, 4).is_sign_positive());
+        assert!(round_to_precision(f64::NAN, 4).is_nan());
+        assert_eq!(round_to_precision(f64::INFINITY, 4), f64::INFINITY);
+        assert_eq!(round_to_precision(f64::NEG_INFINITY, 4), f64::NEG_INFINITY);
+        assert_eq!(round_to_precision(1.0 / 3.0, 4), 0.3333);
+        assert_eq!(round_to_precision(-1.0 / 3.0, 4), -0.3333);
+    }
+
+    /// `ecma_round_fixed_f64` decodes subnormals through a separate exponent
+    /// branch, whose exponent is at most `-1074`. The scaled mantissa is a
+    /// `u128`, so it is below `2^128` and the right shift by more than 128
+    /// bits drives every subnormal to zero — at every precision the `u128`
+    /// scale can represent, and for any exponent within a hundred-odd bits of
+    /// the real one.
+    #[test]
+    fn subnormals_round_to_zero_at_every_precision_the_scale_admits() {
+        for value in [
+            f64::from_bits(1),
+            f64::from_bits(1 << 26),
+            f64::MIN_POSITIVE / 2.0,
+            -f64::MIN_POSITIVE / 2.0,
+        ] {
+            for frac_digits in [0_u32, 2, 9, 22] {
+                let rounded = ecma_round_fixed_f64(value, frac_digits);
+                assert_eq!(
+                    rounded, 0.0,
+                    "subnormal {value:e} did not round to zero at {frac_digits} digits"
+                );
+            }
+        }
+    }
+
+    /// A span that only touches the window edge contributes no credited time,
+    /// so whether the scan stops before or after it cannot change the result.
+    #[test]
+    fn clipping_alive_spans_drops_the_spans_that_only_touch_the_window_edges() {
+        let spans: Vec<CreditInterval> = vec![(0, 5), (5, 10), (10, 20), (20, 30), (30, 40)];
+        assert_eq!(
+            clip_alive_spans(&spans, 10, 20),
+            vec![(10, 20)],
+            "a span ending at the window start or starting at the window end was credited"
+        );
+        assert_eq!(clip_alive_spans(&spans, 12, 18), vec![(12, 18)]);
+        assert_eq!(clip_alive_spans(&spans, 5, 10), vec![(5, 10)]);
+        assert!(clip_alive_spans(&spans, 40, 50).is_empty());
+        assert!(clip_alive_spans(&[], 0, 10).is_empty());
+    }
+
     #[test]
     fn support_role_validation_uses_real_headers_and_value_parsers() {
         assert!(validate_support_csv(
