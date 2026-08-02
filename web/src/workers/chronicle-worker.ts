@@ -161,17 +161,20 @@ const api = {
   async verifyWorkspace(workspaceId: string) {
     return (await verifyPersistedRustWorkspace(workspaceId)) ?? null;
   },
-  async exportWorkspaceClosure(workspaceId: string): Promise<Uint8Array> {
-    const archive = await exportPersistedRustWorkspace(workspaceId);
-    return Comlink.transfer(archive, [archive.buffer]);
+  // The archive crosses the worker boundary as a Blob, not a buffer: a
+  // structured-cloned Blob is a reference to browser-held (disk-backed)
+  // storage, so neither side ever materializes the whole closure to hand it
+  // over, and no transfer list is needed.
+  async exportWorkspaceClosure(workspaceId: string): Promise<Blob> {
+    return exportPersistedRustWorkspace(workspaceId);
   },
-  async importWorkspaceClosure(workspaceId: string, bytes: Uint8Array) {
-    const result = await importPersistedRustWorkspace(workspaceId, bytes);
+  async importWorkspaceClosure(workspaceId: string, archive: Blob) {
+    const result = await importPersistedRustWorkspace(workspaceId, archive);
     invalidateSemanticIndex(workspaceId);
     return result;
   },
-  async importWorkspaceClosureArchive(bytes: Uint8Array) {
-    const result = await importPersistedRustWorkspaceArchive(bytes);
+  async importWorkspaceClosureArchive(archive: Blob) {
+    const result = await importPersistedRustWorkspaceArchive(archive);
     invalidateSemanticIndex(result.workspaceId);
     return result;
   },
