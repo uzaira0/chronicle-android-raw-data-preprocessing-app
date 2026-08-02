@@ -4050,12 +4050,12 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
             .map(SharedString::as_str)
             .unwrap_or_default();
         let mut per_day = Vec::new();
-        if let (Ok(mut cursor), Ok(end)) = (
+        if let (Ok(start), Ok(end)) = (
             NaiveDate::parse_from_str(first, "%Y-%m-%d"),
             NaiveDate::parse_from_str(last, "%Y-%m-%d"),
         ) {
-            while cursor <= end {
-                let date = cursor.format("%Y-%m-%d").to_string();
+            for day in start.iter_days().take_while(|day| *day <= end) {
+                let date = day.format("%Y-%m-%d").to_string();
                 per_day.push(observed_days.get(date.as_str()).cloned().unwrap_or(
                     ReviewDayMetrics {
                         date: SharedString::from(date),
@@ -4067,7 +4067,6 @@ fn build_review_summary(app_rows: &[Row], screen_rows: &[Row]) -> ReviewSummary 
                         flags: vec!["no_usage_day".into()],
                     },
                 ));
-                cursor += Duration::days(1);
             }
         }
 
