@@ -10,6 +10,10 @@
 # output tests retain the ordinary decrement mutations. `cargo mutants --list`
 # proves no other runtime mutant matches these file/column/operator expressions.
 # Multiple exact exclusion expressions are comma-separated.
+# Fields are TAB-separated: exclusion regexes legitimately contain `|`
+# (alternation), which corrupted the original `|`-delimited format — the
+# coverage gate then read a regex fragment as its --fail-under-lines value
+# and aborted before ever reaching the kernel entry.
 # The kernel's contract-export binary is exercised by the contract drift gate;
 # cargo test cannot call its `main` in a mutant sandbox. The matcher's optional
 # Python-only facade is outside the browser product and creates 703,742 bogus
@@ -21,8 +25,8 @@
 # kernel build instead of the production 55-step query engine.
 # A seventh `no-default-features` field keeps a gate on the exact feature set
 # linked into the browser when a crate's defaults only expose another product.
-../rust/chronicle_preprocessing_semantic_adapter/Cargo.toml|wasm::
-../rust/chronicle_preprocessing_runtime_wasm/Cargo.toml|src/lib\.rs:[0-9]+:1[37]: replace && with,replace \+= with .* in (physical_data_row_count|duplicate_safe_headers)
+../rust/chronicle_preprocessing_semantic_adapter/Cargo.toml	wasm::
+../rust/chronicle_preprocessing_runtime_wasm/Cargo.toml	src/lib\.rs:[0-9]+:1[37]: replace && with,replace \+= with .* in (physical_data_row_count|duplicate_safe_headers)
 ../rust/chronicle_semantic_index_wasm/Cargo.toml
-../rust/chronicle_chrono_kernel_wasm/Cargo.toml|src/bin/|90|89|85|incremental-v2
-../rust/chronicle_app_usage_matcher/Cargo.toml| in (to_py_error|match_app_usage(_update_(indices|arrays)|_arrays)?|split_overlapping_sessions_py|_rust_app_usage_matcher)|93|93|90||no-default-features
+../rust/chronicle_chrono_kernel_wasm/Cargo.toml	src/bin/	90	89	85	incremental-v2
+../rust/chronicle_app_usage_matcher/Cargo.toml	 in (to_py_error|match_app_usage(_update_(indices|arrays)|_arrays)?|split_overlapping_sessions_py|_rust_app_usage_matcher)	93	93	90		no-default-features
