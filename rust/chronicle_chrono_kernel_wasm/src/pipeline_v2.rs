@@ -10091,6 +10091,633 @@ mod tests {
         assert_eq!(session.index, rows[0].index + 1_000_000);
     }
 
+    /// Build usage rows for the analysis stages, which read only the
+    /// participant, date, username, interaction type and duration.
+    fn usage_rows(rows: &[(&str, &str, &str, &str, Option<f64>)]) -> Vec<Row> {
+        let mut built = rows_from_events(
+            &rows
+                .iter()
+                .enumerate()
+                .map(|(index, _)| {
+                    (
+                        [
+                            "2026-03-07 10:00:00",
+                            "2026-03-07 10:01:00",
+                            "2026-03-07 10:02:00",
+                            "2026-03-07 10:03:00",
+                            "2026-03-07 10:04:00",
+                            "2026-03-07 10:05:00",
+                            "2026-03-07 10:06:00",
+                            "2026-03-07 10:07:00",
+                        ][index],
+                        "Activity Resumed",
+                        "com.example.chat",
+                    )
+                })
+                .collect::<Vec<_>>(),
+        );
+        for (row, (participant, date, username, interaction, minutes)) in built.iter_mut().zip(rows)
+        {
+            let data = row.edit_all();
+            data.participant_id = (*participant).into();
+            data.date = (*date).into();
+            data.username = (*username).into();
+            data.interaction_type = (*interaction).into();
+            data.duration_minutes = *minutes;
+        }
+        built
+    }
+
+    /// The day-coverage table tells a researcher, for every day of a
+    /// participant's study window, whether the device produced usage, produced
+    /// raw events but no usage, or went silent. The spine is the study window
+    /// when one exists and the observed span otherwise.
+    #[test]
+    fn day_coverage_labels_every_day_of_the_spine_and_refuses_data_outside_it() {
+        let rows = usage_rows(&[
+            ("P01", "2026-03-07", "Target Child", APP_USAGE, Some(5.0)),
+            // A zero-length session is not usage, so its day is not a usage day.
+            ("P01", "2026-03-09", "Target Child", APP_USAGE, Some(0.0)),
+            // A screen row is not app usage either.
+            ("P01", "2026-03-10", "Target Child", SCREEN_USAGE, Some(9.0)),
+        ]);
+        let raw_dates = BTreeMap::from([(
+            "P01".to_string(),
+            BTreeSet::from([
+                "2026-03-07".to_string(),
+                "2026-03-09".to_string(),
+                "2026-03-10".to_string(),
+            ]),
+        )]);
+
+        let coverage = incremental::build_coverage(&rows, &raw_dates, &[]).expect("coverage");
+        assert_eq!(
+            String::from_utf8(coverage.csv_bytes.clone()).expect("coverage csv is UTF-8"),
+            concat!(
+                "participant_id,date,status\n",
+                "P01,2026-03-07,usage\n",
+                "P01,2026-03-08,no_data\n",
+                "P01,2026-03-09,no_activity\n",
+                "P01,2026-03-10,no_activity",
+            )
+        );
+        assert_eq!(
+            (
+                coverage.report.usage_days,
+                coverage.report.no_activity_days,
+                coverage.report.no_data_days
+            ),
+            (1, 2, 1)
+        );
+
+        // A study window replaces the observed span as the spine, so days
+        // before the first event and after the last one are still reported.
+        let windows = vec![StudyWindow {
+            participant_id: "P01".to_string(),
+            start_date: "2026-03-06".to_string(),
+            end_date: "2026-03-11".to_string(),
+        }];
+        let windowed =
+            incremental::build_coverage(&rows, &raw_dates, &windows).expect("windowed coverage");
+        assert_eq!(
+            String::from_utf8(windowed.csv_bytes).expect("coverage csv is UTF-8"),
+            concat!(
+                "participant_id,date,status\n",
+                "P01,2026-03-06,no_data\n",
+                "P01,2026-03-07,usage\n",
+                "P01,2026-03-08,no_data\n",
+                "P01,2026-03-09,no_activity\n",
+                "P01,2026-03-10,no_activity\n",
+                "P01,2026-03-11,no_data",
+            )
+        );
+
+        // Data outside the window is deliberately ignored rather than treated
+        // as a spine hole...
+        let narrow = vec![StudyWindow {
+            participant_id: "P01".to_string(),
+            start_date: "2026-03-09".to_string(),
+            end_date: "2026-03-10".to_string(),
+        }];
+        let clipped =
+            incremental::build_coverage(&rows, &raw_dates, &narrow).expect("clipped coverage");
+        assert_eq!(
+            String::from_utf8(clipped.csv_bytes).expect("coverage csv is UTF-8"),
+            concat!(
+                "participant_id,date,status\n",
+                "P01,2026-03-09,no_activity\n",
+                "P01,2026-03-10,no_activity",
+            )
+        );
+
+        // ...but a participant with no window at all must never have data the
+        // spine misses, so a bad spine is an error rather than a silent drop.
+        let other_window = vec![StudyWindow {
+            participant_id: "P02".to_string(),
+            start_date: "2026-03-09".to_string(),
+            end_date: "2026-03-10".to_string(),
+        }];
+        assert!(incremental::build_coverage(&rows, &raw_dates, &other_window)
+            .is_ok_and(|coverage| String::from_utf8(coverage.csv_bytes)
+                .expect("coverage csv is UTF-8")
+                .contains("P01,2026-03-07,usage")));
+    }
+
+    /// Compliance scoring splits each participant-day's minutes into time a
+    /// named person is responsible for and time nobody is, then reports what
+    /// share of the day was attributable. Only shared devices can fail.
+    #[test]
+    fn compliance_scoring_splits_known_from_unknown_minutes_per_participant_day() {
+        let rows = usage_rows(&[
+            ("P01", "2026-03-07", "Target Child", APP_USAGE, Some(30.0)),
+            ("P01", "2026-03-07", "", APP_USAGE, Some(10.0)),
+            ("P01", "2026-03-07", "None", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-07", "nan", APP_USAGE, Some(5.0)),
+            (
+                "P01",
+                "2026-03-07",
+                "Sibling",
+                NON_TARGET_CHILD_APP_USAGE,
+                Some(10.0),
+            ),
+            // A non-usage row still marks the day as seen but contributes no
+            // minutes, which is how a zero-usage day is reported at all.
+            ("P01", "2026-03-08", "Target Child", SCREEN_USAGE, Some(9.0)),
+            ("P02", "2026-03-07", "", APP_USAGE, Some(12.0)),
+        ]);
+
+        let minutes = incremental::accumulate_minutes(&rows);
+        assert_eq!(
+            minutes.participants_seen,
+            BTreeMap::from([
+                (
+                    "P01".to_string(),
+                    BTreeSet::from(["2026-03-07".to_string(), "2026-03-08".to_string()])
+                ),
+                (
+                    "P02".to_string(),
+                    BTreeSet::from(["2026-03-07".to_string()])
+                ),
+            ])
+        );
+        assert_eq!(
+            minutes.buckets,
+            BTreeMap::from([
+                (
+                    ("P01".to_string(), "2026-03-07".to_string()),
+                    (40.0, 20.0)
+                ),
+                (("P02".to_string(), "2026-03-07".to_string()), (0.0, 12.0)),
+            ]),
+            "a named user's minutes are known; empty, None and nan are not",
+        );
+
+        let shared = BTreeSet::from(["P01".to_string()]);
+        let scored = incremental::score_attribution_days(&minutes, &shared, 70.0);
+        let observed: Vec<(&str, &str, &str, f64, f64, f64, bool, bool)> = scored
+            .days
+            .iter()
+            .map(|day| {
+                (
+                    day.participant_id.as_str(),
+                    day.date.as_str(),
+                    day.sharing_status.as_str(),
+                    day.known_minutes,
+                    day.unknown_minutes,
+                    day.compliance_percent,
+                    day.zero_real_usage,
+                    day.is_valid,
+                )
+            })
+            .collect();
+        assert_eq!(
+            observed,
+            vec![
+                // 40 of 60 minutes are attributable: 66.67%, under the 70%
+                // threshold, so the day does not count.
+                (
+                    "P01",
+                    "2026-03-07",
+                    "Shared",
+                    40.0,
+                    20.0,
+                    66.67,
+                    false,
+                    false
+                ),
+                // A day with no usage at all on a shared device is scored 100%
+                // rather than divided by zero, and is flagged as zero usage.
+                ("P01", "2026-03-08", "Shared", 0.0, 0.0, 100.0, true, true),
+                // A non-shared device is always fully attributable.
+                (
+                    "P02",
+                    "2026-03-07",
+                    "Non-Shared",
+                    0.0,
+                    12.0,
+                    100.0,
+                    false,
+                    true
+                ),
+            ]
+        );
+        assert_eq!(
+            (
+                scored.valid_days,
+                scored.invalid_days,
+                scored.zero_usage_days
+            ),
+            (2, 1, 1)
+        );
+
+        // The threshold is inclusive at its edge.
+        let at_threshold = incremental::score_attribution_days(&minutes, &shared, 66.67);
+        assert!(at_threshold.days[0].is_valid);
+        let above_threshold = incremental::score_attribution_days(&minutes, &shared, 66.68);
+        assert!(!above_threshold.days[0].is_valid);
+    }
+
+    /// On a shared device, usage the study cannot attribute to the target child
+    /// is retyped so it does not count as the child's screen time. The counts
+    /// in the attribution report are what tells a researcher how much of their
+    /// data that decision moved.
+    #[test]
+    fn person_attribution_names_every_row_and_counts_what_it_changed() {
+        let mut rows = usage_rows(&[
+            // Non-shared device: a blank username is the target child.
+            ("P01", "2026-03-07", "", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-07", "nan", APP_USAGE, Some(5.0)),
+            // ...and an already-named user is left alone.
+            ("P01", "2026-03-07", "Parent", APP_USAGE, Some(5.0)),
+            // Shared device: a blank username becomes nobody...
+            ("P02", "2026-03-07", "", APP_USAGE, Some(5.0)),
+            // ...unless the app is a kids shell, which only the child uses.
+            ("P02", "2026-03-07", "", APP_USAGE, Some(5.0)),
+            // A named non-child on a shared device is retyped.
+            ("P02", "2026-03-07", "Parent", APP_USAGE, Some(5.0)),
+            // A named target child on a shared device keeps App Usage.
+            ("P02", "2026-03-07", "Target Child", APP_USAGE, Some(5.0)),
+            // A screen row is never retyped whatever the username says.
+            ("P02", "2026-03-07", "Parent", SCREEN_USAGE, Some(5.0)),
+        ]);
+        rows[4].edit_identity().app_package_name = "com.amazon.tahoe".into();
+        let survey_timestamp = rows[5].event_timestamp_ns;
+
+        let resolution = SharingResolution {
+            status_by_participant: BTreeMap::from([
+                ("P01".to_string(), SharingStatus::NonShared),
+                ("P02".to_string(), SharingStatus::Shared),
+            ]),
+            shared_participants: vec!["P02".to_string()],
+            non_shared_participants: vec!["P01".to_string()],
+        };
+        let survey = BTreeMap::from([(
+            ("P02".to_string(), survey_timestamp),
+            "Target Child".to_string(),
+        )]);
+
+        let (attributed, report) =
+            attribute_person(rows, &resolution, &survey).expect("attribution resolves");
+        assert_eq!(
+            attributed
+                .iter()
+                .map(|row| (
+                    row.username.as_str().to_string(),
+                    row.interaction_type.as_str().to_string()
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("Target Child".to_string(), APP_USAGE.to_string()),
+                ("Target Child".to_string(), APP_USAGE.to_string()),
+                ("Parent".to_string(), APP_USAGE.to_string()),
+                ("None".to_string(), NON_TARGET_CHILD_APP_USAGE.to_string()),
+                ("Target Child".to_string(), APP_USAGE.to_string()),
+                // The survey names this row's user, which also rescues it from
+                // being retyped.
+                (
+                    "Target Child (From Survey)".to_string(),
+                    APP_USAGE.to_string()
+                ),
+                ("Target Child".to_string(), APP_USAGE.to_string()),
+                ("Parent".to_string(), SCREEN_USAGE.to_string()),
+            ]
+        );
+        assert_eq!(
+            (
+                report.null_usernames_filled,
+                report.kids_shell_attributions,
+                report.survey_relabels,
+                report.non_target_rows,
+            ),
+            (4, 1, 1, 1)
+        );
+        assert_eq!(report.shared_participants, vec!["P02".to_string()]);
+        assert_eq!(report.non_shared_participants, vec!["P01".to_string()]);
+
+        // A participant with no resolved sharing status is an error, not a
+        // silently unattributed row.
+        let orphan = usage_rows(&[("P99", "2026-03-07", "", APP_USAGE, Some(5.0))]);
+        let error = match attribute_person(orphan, &resolution, &survey) {
+            Ok(_) => panic!("an unresolved participant must not be attributed"),
+            Err(error) => error,
+        };
+        assert!(error.contains("unresolved sharing status"), "{error}");
+    }
+
+    /// Observation-window filtering drops the days a participant was not
+    /// enrolled for. Both edges are inclusive, and a participant the study
+    /// dates file never mentions keeps every row rather than losing all of
+    /// them.
+    #[test]
+    fn the_study_window_keeps_both_edges_and_never_silently_empties_a_participant() {
+        let rows = usage_rows(&[
+            ("P01", "2026-03-05", "Target Child", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-06", "Target Child", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-07", "Target Child", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-08", "Target Child", APP_USAGE, Some(5.0)),
+            ("P01", "2026-03-09", "Target Child", APP_USAGE, Some(5.0)),
+            ("P02", "2026-03-01", "Target Child", APP_USAGE, Some(5.0)),
+        ]);
+        let windows = vec![StudyWindow {
+            participant_id: "P01".to_string(),
+            start_date: "2026-03-06".to_string(),
+            end_date: "2026-03-08".to_string(),
+        }];
+
+        let resolved = resolve_participant_windows(&rows, &windows);
+        assert_eq!(
+            resolved
+                .iter()
+                .map(|entry| (
+                    entry.participant_id.as_str(),
+                    entry.window.as_ref().map(|window| window.start_date.as_str())
+                ))
+                .collect::<Vec<_>>(),
+            vec![("P01", Some("2026-03-06")), ("P02", None)]
+        );
+
+        let (kept, dropped, without_window) = apply_study_window(rows, &resolved);
+        assert_eq!(
+            kept.iter()
+                .map(|row| (row.participant_id.to_string(), row.date.to_string()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("P01".to_string(), "2026-03-06".to_string()),
+                ("P01".to_string(), "2026-03-07".to_string()),
+                ("P01".to_string(), "2026-03-08".to_string()),
+                ("P02".to_string(), "2026-03-01".to_string()),
+            ],
+            "the window is inclusive at both edges, and an unmatched participant is untouched",
+        );
+        assert_eq!(dropped, 2);
+        assert_eq!(without_window, vec!["P02".to_string()]);
+    }
+
+    /// Build paired episode rows for the reconstruction stages: an interaction
+    /// type, a package, and the matched start/stop the matcher produced.
+    fn episode_rows(rows: &[(&str, &str, Option<i64>, Option<i64>)]) -> Vec<Row> {
+        let mut built = rows_from_events(
+            &rows
+                .iter()
+                .enumerate()
+                .map(|(index, (_, package, _, _))| {
+                    (
+                        [
+                            "2026-03-07 10:00:00",
+                            "2026-03-07 10:01:00",
+                            "2026-03-07 10:02:00",
+                            "2026-03-07 10:03:00",
+                            "2026-03-07 10:04:00",
+                            "2026-03-07 10:05:00",
+                        ][index],
+                        "Activity Resumed",
+                        *package,
+                    )
+                })
+                .collect::<Vec<_>>(),
+        );
+        for (row, (interaction, _, start, stop)) in built.iter_mut().zip(rows) {
+            let data = row.edit_all();
+            data.interaction_type = (*interaction).into();
+            data.start_timestamp_ns = *start;
+            data.stop_timestamp_ns = *stop;
+        }
+        built
+    }
+
+    /// The minimum-usage floor blanks the duration of a session that is too
+    /// short to count, without removing the session. The same pass retypes a
+    /// paired Activity Resumed into App Usage, drops the spent Activity Paused
+    /// rows, and drops a start that never found its stop.
+    #[test]
+    fn the_minimum_usage_floor_blanks_short_sessions_without_dropping_them() {
+        const SECOND: i64 = 1_000_000_000;
+        let filtered = BTreeSet::from(["com.example.secret".to_string()]);
+
+        let rows = episode_rows(&[
+            // Exactly at the floor: kept, because the floor is "shorter than".
+            (
+                "Activity Resumed",
+                "com.example.chat",
+                Some(0),
+                Some(60 * SECOND),
+            ),
+            // One second under the floor: retyped, but its duration is blanked.
+            (
+                "Activity Resumed",
+                "com.example.chat",
+                Some(100 * SECOND),
+                Some(159 * SECOND),
+            ),
+            // A filtered package loses its timing whatever its length.
+            (
+                "Activity Resumed",
+                "com.example.secret",
+                Some(200 * SECOND),
+                Some(500 * SECOND),
+            ),
+            // A start with no stop is not an episode at all.
+            ("Activity Resumed", "com.example.chat", Some(600 * SECOND), None),
+            // A stop with no start likewise.
+            ("Activity Resumed", "com.example.chat", None, Some(700 * SECOND)),
+            // Spent stop events do not survive the pass.
+            ("Activity Paused", "com.example.chat", None, None),
+        ]);
+
+        let observed = |rows: Vec<Row>| -> Vec<(String, String, Option<f64>)> {
+            rows.iter()
+                .map(|row| {
+                    (
+                        row.interaction_type.to_string(),
+                        row.app_package_name.to_string(),
+                        row.duration_seconds,
+                    )
+                })
+                .collect()
+        };
+
+        assert_eq!(
+            observed(incremental::relabel_usage_with_floor(
+                rows.clone(),
+                &filtered,
+                60.0
+            )),
+            vec![
+                (APP_USAGE.to_string(), "com.example.chat".to_string(), Some(60.0)),
+                (APP_USAGE.to_string(), "com.example.chat".to_string(), None),
+                (
+                    FILTERED_APP_USAGE.to_string(),
+                    "com.example.secret".to_string(),
+                    None
+                ),
+            ]
+        );
+
+        // With no floor at all every paired session keeps its duration.
+        assert_eq!(
+            observed(incremental::relabel_usage_with_floor(rows, &filtered, 0.0)),
+            vec![
+                (APP_USAGE.to_string(), "com.example.chat".to_string(), Some(60.0)),
+                (APP_USAGE.to_string(), "com.example.chat".to_string(), Some(59.0)),
+                (
+                    FILTERED_APP_USAGE.to_string(),
+                    "com.example.secret".to_string(),
+                    None
+                ),
+            ]
+        );
+    }
+
+    /// Concurrent-usage modelling splits overlapping sessions into a primary
+    /// and a secondary layer so the same minute is not counted twice. It runs
+    /// when the option is on *or* when background apps are declared, because a
+    /// background app can hold a session open underneath another one.
+    #[test]
+    fn concurrent_modelling_runs_whenever_either_reason_to_run_is_present() {
+        const SECOND: i64 = 1_000_000_000;
+        let filtered = BTreeSet::new();
+        let no_background = AHashSet::new();
+        let background: AHashSet<String> =
+            std::iter::once("com.example.music".to_string()).collect();
+
+        // Two overlapping sessions: chat 0..100 and music 50..150.
+        let rows = episode_rows(&[
+            (APP_USAGE, "com.example.chat", Some(0), Some(100 * SECOND)),
+            (
+                APP_USAGE,
+                "com.example.music",
+                Some(50 * SECOND),
+                Some(150 * SECOND),
+            ),
+        ]);
+
+        let layers = |rows: Vec<Row>| -> Vec<(String, Option<String>, Option<f64>)> {
+            rows.iter()
+                .map(|row| {
+                    (
+                        row.app_package_name.to_string(),
+                        row.usage_layer.as_ref().map(|layer| layer.to_string()),
+                        row.duration_seconds,
+                    )
+                })
+                .collect()
+        };
+
+        // Neither reason present: the rows are only sorted.
+        assert_eq!(
+            layers(
+                incremental::split_concurrent(
+                    rows.clone(),
+                    &filtered,
+                    &no_background,
+                    false,
+                    0.0,
+                    false
+                )
+                .expect("no split requested")
+            ),
+            vec![
+                ("com.example.chat".to_string(), None, None),
+                ("com.example.music".to_string(), None, None),
+            ]
+        );
+
+        // The option alone is enough, with no background apps declared.
+        let by_option = layers(
+            incremental::split_concurrent(rows.clone(), &filtered, &no_background, true, 0.0, false)
+                .expect("split by option"),
+        );
+        assert_eq!(
+            by_option,
+            vec![
+                (
+                    "com.example.chat".to_string(),
+                    Some("primary".to_string()),
+                    Some(50.0)
+                ),
+                (
+                    "com.example.chat".to_string(),
+                    Some("secondary".to_string()),
+                    Some(50.0)
+                ),
+                (
+                    "com.example.music".to_string(),
+                    Some("primary".to_string()),
+                    Some(100.0)
+                ),
+            ],
+            "the app that started last owns the overlapping minutes; the app it \
+             covered keeps them on the secondary layer",
+        );
+
+        // A declared background app alone is enough, with the option off.
+        assert_eq!(
+            layers(
+                incremental::split_concurrent(
+                    rows.clone(),
+                    &filtered,
+                    &background,
+                    false,
+                    0.0,
+                    false
+                )
+                .expect("split by background apps")
+            ),
+            by_option
+        );
+
+        // The floor reaches the sub-intervals only when it is asked to.
+        assert_eq!(
+            layers(
+                incremental::split_concurrent(
+                    rows.clone(),
+                    &filtered,
+                    &no_background,
+                    true,
+                    50.0,
+                    true
+                )
+                .expect("split with a sub-interval floor")
+            )
+            .iter()
+            .map(|(_, _, duration)| *duration)
+            .collect::<Vec<_>>(),
+            vec![Some(50.0), Some(50.0), Some(100.0)],
+            "a sub-interval exactly at the floor is not shorter than the floor",
+        );
+        assert_eq!(
+            layers(
+                incremental::split_concurrent(rows, &filtered, &no_background, true, 51.0, true)
+                    .expect("split with a sub-interval floor")
+            )
+            .iter()
+            .map(|(_, _, duration)| *duration)
+            .collect::<Vec<_>>(),
+            vec![None, None, Some(100.0)],
+            "only the sub-intervals under the floor lose their duration",
+        );
+    }
+
     fn credit_point(timestamp_ns: i64, state: ScreenCreditState) -> ScreenChangePoint {
         ScreenChangePoint {
             timestamp_ns,
