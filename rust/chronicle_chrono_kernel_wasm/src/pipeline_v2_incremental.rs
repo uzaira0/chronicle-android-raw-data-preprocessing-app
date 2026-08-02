@@ -12242,21 +12242,30 @@ mod tracked {
 
             // Full output and review are different physical cones: review runs
             // the fused annotation/reconstruction path and its content-committing
-            // checkpoints, which the full path never touches. Both have to hold
-            // the same two properties, so the sweep runs twice.
-            for full in [true, false] {
-                let mut engine = TrackedEngine::default();
-                check(&mut engine, &baseline, full, &format!("baseline full={full}"));
-                for (label, edit) in &edits {
-                    let mut changed = baseline.clone();
-                    edit(&mut changed);
-                    check(&mut engine, &changed, full, &format!("{label} full={full}"));
-                    check(
-                        &mut engine,
-                        &baseline,
-                        full,
-                        &format!("{label} reverted full={full}"),
-                    );
+            // checkpoints, which the full path never touches. Concurrent
+            // modelling splits the review cone again: with it off, annotation
+            // columns are carried on the prepared row table instead of being
+            // rebuilt from reconstructed intervals. Every combination has to
+            // hold the same two properties, so the sweep runs over all four.
+            for concurrent in [true, false] {
+                let mut baseline = baseline.clone();
+                baseline.model_concurrent_usage = concurrent;
+                let baseline = baseline;
+                for full in [true, false] {
+                    let mut engine = TrackedEngine::default();
+                    let suffix = format!("full={full} concurrent={concurrent}");
+                    check(&mut engine, &baseline, full, &format!("baseline {suffix}"));
+                    for (label, edit) in &edits {
+                        let mut changed = baseline.clone();
+                        edit(&mut changed);
+                        check(&mut engine, &changed, full, &format!("{label} {suffix}"));
+                        check(
+                            &mut engine,
+                            &baseline,
+                            full,
+                            &format!("{label} reverted {suffix}"),
+                        );
+                    }
                 }
             }
         }
