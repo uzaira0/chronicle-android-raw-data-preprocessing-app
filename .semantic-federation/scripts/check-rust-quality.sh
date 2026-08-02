@@ -36,7 +36,7 @@ while IFS= read -r entry || [[ -n "$entry" ]]; do
   entry=${entry#"${entry%%[![:space:]]*}"}
   entry=${entry%"${entry##*[![:space:]]}"}
   [[ -z "$entry" ]] && continue
-  IFS='|' read -r manifest exclude_re entry_lines entry_regions entry_functions features no_default_features <<< "$entry"
+  IFS='|' read -r manifest exclude_re entry_lines entry_regions entry_functions features no_default_features coverage_ignore_re <<< "$entry"
   # The entry is split on '|' and its exclusion field on ',', so neither
   # character can appear inside an exclusion expression: a regex carrying one
   # is silently truncated into an unclosed group. An expression list that needs
@@ -71,6 +71,20 @@ while IFS= read -r entry || [[ -n "$entry" ]]; do
         --fail-under-lines "$coverage_lines"
         --fail-under-regions "$coverage_regions"
         --fail-under-functions "$coverage_functions")
+      if [[ -n "$coverage_ignore_re" ]]; then
+        # A coverage scope that matches nothing is worse than none at all: it
+        # reads as a considered decision while measuring the whole crate, which
+        # is how drifted mutation anchors hid seven phantom misses. Resolve it
+        # against the crate's real sources and fail if it anchors on nothing.
+        crate_src=$(cd "$(dirname "$manifest")" && pwd -P)/src
+        matched=$(find "$crate_src" -name '*.rs' | grep -cE "$coverage_ignore_re" || true)
+        if (( matched == 0 )); then
+          echo "Coverage scope regex matches no source under $crate_src: $coverage_ignore_re" >&2
+          exit 2
+        fi
+        echo "rust_authority_coverage_scope manifest=$manifest excluded_files=$matched regex=$coverage_ignore_re"
+        args+=(--ignore-filename-regex "$coverage_ignore_re")
+      fi
       [[ "$no_default_features" == "no-default-features" ]] && args+=(--no-default-features)
       [[ -n "$features" ]] && args+=(--features "$features")
       rustup run stable cargo "${args[@]}"

@@ -8291,6 +8291,85 @@ S,P1,Chat,Activity Paused,pkg,2026-03-07 12:03:00,Middle_Earth/Shire"
         }));
     }
 
+    /// `encode_export_family`'s guard, `!include || !(parquet || spss)`, decides
+    /// two independent things: whether this CSV family is published at all, and
+    /// whether any binary encoding of it was asked for. A run with both families
+    /// included and both formats on separates neither — it enters the body
+    /// however the operators are read, which is why
+    /// `every_optional_output_family_is_emitted_by_the_rust_authority` above
+    /// leaves both operators free. Sweep the cases that do separate them.
+    #[test]
+    fn export_encoding_is_gated_on_the_family_and_on_at_least_one_format() {
+        let csv = concat!(
+            "study_id,participant_id,username,application_label,interaction_type,app_package_name,event_timestamp,timezone\n",
+            "Study,P01,Target Child,Screen,Screen Interactive,android,2026-03-07 09:59:00,America/Chicago\n",
+            "Study,P01,Target Child,Chat,Activity Resumed,com.example.chat,2026-03-07 10:00:00,America/Chicago\n",
+            "Study,P01,Target Child,Chat,Activity Paused,com.example.chat,2026-03-07 10:01:00,America/Chicago\n",
+            "Study,P01,Target Child,Screen,Screen Non-interactive,android,2026-03-07 10:02:00,America/Chicago\n"
+        )
+        .as_bytes()
+        .to_vec();
+        let export_kinds =
+            |marker: char, include_app: bool, include_screen: bool, parquet: bool, spss: bool| {
+                let mut request_value = request_for_workspace(&csv, marker);
+                request_value["options"]["usage_session_mode"] =
+                    Value::String("app_and_screen_usage".into());
+                request_value["options"]["include_app_output"] = Value::Bool(include_app);
+                request_value["options"]["include_screen_output"] = Value::Bool(include_screen);
+                request_value["options"]["enable_parquet_export"] = Value::Bool(parquet);
+                request_value["options"]["enable_spss_export"] = Value::Bool(spss);
+                let handle = execute_workspace_native(
+                    &request_value.to_string(),
+                    &csv,
+                    &RuntimeSupportFiles::default(),
+                )
+                .unwrap();
+                (0..handle.artifact_count())
+                    .map(|index| {
+                        let metadata: RuntimeArtifactMetadata =
+                            serde_json::from_str(&handle.artifact_metadata_json(index).unwrap())
+                                .unwrap();
+                        metadata.kind
+                    })
+                    .filter(|kind| kind.ends_with("-parquet") || kind.ends_with("-spss"))
+                    .collect::<BTreeSet<_>>()
+            };
+
+        // One format on is enough to enter the body. Reading the inner `||` as
+        // `&&` makes `!(true && false)` true and skips every export.
+        assert_eq!(
+            export_kinds('0', true, true, true, false),
+            BTreeSet::from(["app-parquet".to_string(), "screen-parquet".to_string()]),
+            "parquet alone must still be encoded"
+        );
+        assert_eq!(
+            export_kinds('1', true, true, false, true),
+            BTreeSet::from(["app-spss".to_string(), "screen-spss".to_string()]),
+            "spss alone must still be encoded"
+        );
+
+        // An excluded family is never encoded, whatever the formats say.
+        // Reading the outer `||` as `&&` makes the guard false for the excluded
+        // family, which then gets parsed and published anyway.
+        assert_eq!(
+            export_kinds('5', false, true, true, true),
+            BTreeSet::from(["screen-parquet".to_string(), "screen-spss".to_string()]),
+            "an excluded app family must not be encoded"
+        );
+        assert_eq!(
+            export_kinds('6', true, false, true, true),
+            BTreeSet::from(["app-parquet".to_string(), "app-spss".to_string()]),
+            "an excluded screen family must not be encoded"
+        );
+
+        // Neither format on: nothing is encoded and no CSV is reparsed.
+        assert_eq!(
+            export_kinds('8', true, true, false, false),
+            BTreeSet::new(),
+            "no export format means no binary export"
+        );
+    }
+
     #[test]
     fn internal_error_and_recovery_helpers_are_observable() {
         let mut artifacts = Vec::new();
