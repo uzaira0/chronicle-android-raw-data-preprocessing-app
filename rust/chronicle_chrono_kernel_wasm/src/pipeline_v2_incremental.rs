@@ -11440,6 +11440,60 @@ mod tracked {
             }
         }
 
+        /// Persisted bases are keyed by the configuration that produced them.
+        /// A review that arrives with bases exported under a different app
+        /// policy has to ignore them and recompute, rather than splice their
+        /// recorded checkpoints into the key it is about to use.
+        #[test]
+        fn bases_exported_under_a_different_app_policy_are_ignored() {
+            let filter = b"app_package_name\ncom.example.chat\n".to_vec();
+            let support = PipelineV2SupportFiles {
+                filter_csv: &filter,
+                ..PipelineV2SupportFiles::default()
+            };
+            let mut produced = pipeline_options();
+            produced.use_filter_file = false;
+
+            let mut producer = TrackedEngine::default();
+            producer
+                .execute(&csv(), &produced, support, true)
+                .expect("produce bases without the filter file");
+            let review_base = producer.export_review_base().expect("review base");
+            let reconstruction_base = producer
+                .export_reconstruction_base()
+                .expect("reconstruction base");
+
+            let mut scanned = produced.clone();
+            scanned.use_filter_file = true;
+
+            let mut engine = TrackedEngine::default();
+            let resumed = engine
+                .execute_with_review_bases(
+                    &csv(),
+                    &review_base,
+                    &reconstruction_base,
+                    &scanned,
+                    support,
+                    false,
+                )
+                .expect("review with foreign bases");
+            assert!(
+                !resumed
+                    .internal_executed_queries
+                    .iter()
+                    .any(|query| query == "restore_review_base"),
+                "a base exported under another app policy was restored: {:?}",
+                resumed.internal_executed_queries
+            );
+
+            let oracle = run_pipeline_v2_with_supports(&csv(), &scanned, support)
+                .expect("sequential oracle for a foreign-base review");
+            assert_eq!(
+                resumed.result.review_summary_json_bytes, oracle.review_summary_json_bytes,
+                "a foreign base changed the answer",
+            );
+        }
+
         /// A matcher-option edit can change the session a row belongs to. With
         /// concurrent modelling off, review annotations are carried on the
         /// pre-floor row table rather than rebuilt from reconstructed
