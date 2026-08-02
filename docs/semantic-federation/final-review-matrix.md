@@ -248,14 +248,12 @@ evidence.
    `(physical_data_row_count|duplicate_safe_headers)`, so
    `duplicate_safe_headers)` reached `--fail-under-lines` and cargo-llvm-cov
    aborted the loop with `error: invalid float literal` — the kernel ratchet
-   had therefore never run. `rust-authority-manifests.txt` is now TAB-delimited
-   (a delimiter the regexes cannot contain) and the script splits it manually
-   rather than through `IFS`, because tab is IFS whitespace and `read` would
-   collapse the matcher entry's deliberately empty features field. The three
-   exclusion expressions live in their own `@file` (one expression per line),
-   and an inline expression containing `(` or `{` is rejected with exit 2 rather
-   than silently truncated — the alternation case is now impossible to express
-   inline instead of merely fixed. The kernel gap that this exposed is closed:
+   had therefore never run. The manifest stays `|`-delimited; what changed is
+   that a multi-expression exclusion set now lives in its own `@file` (one
+   expression per line, where no delimiter can reach it), and an inline
+   expression containing `(` or `{` is rejected with exit 2 rather than silently
+   truncated — so the alternation case is impossible to express inline instead
+   of merely repaired. The kernel gap that this exposed is closed:
    the ratchet ran for the first time at 89.78/89.36/84.30 and the mutation
    lane's kill tests lifted it to 96.04/95.30/92.33 against the unchanged
    90/89/85 floor. The floor was not lowered.
@@ -362,15 +360,24 @@ evidence.
      also never run: 704,021 mutants, 702,769 of them tuple-return replacements
      for one PyO3 function, and its exclusions used the ` in <fn>` form, which
      only matches operator mutants inside a body, so they excluded 35 of
-     704,021. Scoping the facade by return type leaves 245 core mutants that run
-     in about two minutes, and they do not pass: 176 caught, 35 unviable, **27
-     missed, 7 timeouts — 34 survivors**, in `split_overlapping_sessions` (14),
-     `match_sorted_..._with_proximity` (10), `match_legacy_..._with_proximity`
-     (5), `SparseOpenStarts` (4), and `is_compatible_open_start_for_stop` (1).
+     704,021. Scoping the facade by return type was the first correction, but it
+     was not sufficient: the entry still carried the unanchored fragment
+     ` in match_app_usage`, which matched **34 mutants of which not one was in
+     the PyO3 `match_app_usage`** — all 34 were in `match_app_usage_core`,
+     `match_app_usage_update_indices_core` and
+     `match_app_usage_update_indices_with_proximity_core`, the binding-agnostic
+     core, and **24 of them were caught**, so the fragment was deleting real
+     kills. Two sibling fragments (` in to_py_error`, ` in _rust_app_usage_matcher`)
+     matched nothing at all. With those removed the entry tests **279** mutants:
+     200 caught, 35 unviable, **37 missed, 7 timeouts — 44 survivors**, in
+     `split_overlapping_sessions`, both proximity matchers, `SparseOpenStarts`,
+     `is_compatible_open_start_for_stop`, and now also
+     `match_app_usage_update_indices_core` (8) and `match_app_usage_core` (1).
      Those are comparison boundaries and open-start bookkeeping in the repo's
      declared single source of truth for session matching. `make mutation-rust`
-     exits 3 on account of this crate alone; the other four entries are
-     zero-missed. It was sized and recorded rather than blanket-excluded green.
+     exits 3 on account of this crate alone. It is sized and recorded rather
+     than blanket-excluded green — and the earlier "no blanket expression is
+     added to make the entry green" claim was itself false until this pass.
 
    Three defects of one family had to be fixed before any of this could run:
    two crates' campaigns never started because the manifest split truncated
@@ -432,9 +439,10 @@ evidence.
       source columns (1,682 executions recorded); the remaining 39 columns
       need catalog interventions before their declared reach can be crossed
       with configuration axes.
-    - `chronicle_app_usage_matcher` mutation: 34 survivors across
+    - `chronicle_app_usage_matcher` mutation: 44 survivors across
       `split_overlapping_sessions`, both proximity matchers, `SparseOpenStarts`,
-      and `is_compatible_open_start_for_stop`, so `make mutation-rust` exits 3.
+      `is_compatible_open_start_for_stop`, and the two
+      `match_app_usage_*_core` functions, so `make mutation-rust` exits 3.
       This is the repo's declared single source of truth for session matching
       and the survivors sit on comparison boundaries and open-start
       bookkeeping — the exact place an off-by-one would live (see item 9).
