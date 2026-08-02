@@ -462,7 +462,7 @@ pub(super) fn junk_blind_fold(mut rows: Vec<Row>) -> Vec<Row> {
     rows
 }
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct MatcherInput {
     pub app_codes: Vec<i32>,
@@ -1771,6 +1771,408 @@ pub(super) fn build_classified_sessions(
         sessions.push(session);
     }
     sessions
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Canonical rows from `(interaction type, package, seconds after
+    /// 2026-03-07 10:00:00 America/Chicago)` triples, in the order given.
+    fn rows(events: &[(&str, &str, i64)]) -> Vec<Row> {
+        let stamps = events
+            .iter()
+            .map(|(_, _, second)| {
+                format!(
+                    "2026-03-07 {:02}:{:02}:{:02}",
+                    10 + second / 3_600,
+                    (second / 60) % 60,
+                    second % 60,
+                )
+            })
+            .collect::<Vec<_>>();
+        let built = events
+            .iter()
+            .zip(&stamps)
+            .map(|((interaction, package, _), stamp)| (stamp.as_str(), *interaction, *package))
+            .collect::<Vec<_>>();
+        crate::pipeline_v2::tests::rows_from_events(&built)
+    }
+
+    fn kinds(rows: &[Row]) -> Vec<&str> {
+        rows.iter()
+            .map(|row| row.interaction_type.as_str())
+            .collect()
+    }
+
+    /// A remap entry renames one interaction type to another, so both halves
+    /// have to be present: an entry that names no source, or no replacement,
+    /// installs nothing rather than a rename from or to an empty type.
+    #[test]
+    fn an_interaction_remap_entry_needs_a_source_and_a_replacement() {
+        let entries = [
+            "  Activity Resumed  =>  Custom Resumed  ".to_string(),
+            "=>Custom Paused".to_string(),
+            "Activity Paused=>".to_string(),
+            "   =>   ".to_string(),
+            "Activity Stopped".to_string(),
+        ];
+        assert_eq!(
+            parse_remap_config(&entries),
+            BTreeMap::from([(
+                "Activity Resumed".to_string(),
+                "Custom Resumed".to_string(),
+            )]),
+        );
+    }
+
+    /// The two order predicates decide whether a sort or a de-duplication pass
+    /// can be skipped. Event order is the full sort key — timestamp, then the
+    /// original row index — while the strict-increase check exists to catch the
+    /// one case that key allows and a per-timestamp lookup cannot resolve: a
+    /// tie.
+    #[test]
+    fn the_row_order_predicates_answer_for_the_whole_sort_key() {
+        assert!(rows_are_event_ordered(&[]));
+        assert!(rows_have_strictly_increasing_timestamps(&[]));
+
+        let mut ascending = rows(&[
+            ("Activity Resumed", "com.example.chat", 0),
+            ("Activity Paused", "com.example.chat", 1),
+        ]);
+        assert!(rows_are_event_ordered(&ascending));
+        assert!(rows_have_strictly_increasing_timestamps(&ascending));
+        ascending.swap(0, 1);
+        assert!(
+            !rows_are_event_ordered(&ascending),
+            "a later event placed first is out of order",
+        );
+        assert!(!rows_have_strictly_increasing_timestamps(&ascending));
+
+        let mut tied = rows(&[
+            ("Activity Resumed", "com.example.chat", 0),
+            ("Activity Paused", "com.example.chat", 0),
+        ]);
+        assert!(
+            rows_are_event_ordered(&tied),
+            "a tie in ascending index order is ordered",
+        );
+        assert!(
+            !rows_have_strictly_increasing_timestamps(&tied),
+            "a tie is not a strict increase",
+        );
+        tied.swap(0, 1);
+        assert!(
+            !rows_are_event_ordered(&tied),
+            "a tie in descending index order is not ordered",
+        );
+    }
+
+    /// The dominant timezone is the one the most rows were recorded in. Rows
+    /// with no timezone cell do not get a vote, and an exact tie keeps the zone
+    /// that reached the count first rather than handing it to the later zone.
+    #[test]
+    fn the_dominant_timezone_is_the_most_recorded_one_and_a_tie_keeps_the_incumbent() {
+        let zoned = |zones: &[&str]| {
+            let mut built = rows(&zones
+                .iter()
+                .enumerate()
+                .map(|(index, _)| ("Activity Resumed", "com.example.chat", index as i64))
+                .collect::<Vec<_>>());
+            for (row, zone) in built.iter_mut().zip(zones) {
+                row.edit_temporal().timezone = (*zone).into();
+            }
+            compute_dominant_timezone(&built)
+        };
+
+        assert_eq!(compute_dominant_timezone(&[]), "UTC");
+        assert_eq!(zoned(&["", ""]), "UTC", "a blank cell is not a vote");
+        assert_eq!(zoned(&["", "Europe/Berlin"]), "Europe/Berlin");
+        assert_eq!(
+            zoned(&["America/Chicago", "Europe/Berlin"]),
+            "America/Chicago",
+            "one row each keeps the zone that got there first",
+        );
+        assert_eq!(
+            zoned(&["America/Chicago", "Europe/Berlin", "Europe/Berlin"]),
+            "Europe/Berlin",
+        );
+    }
+
+    /// Filtering to a timezone keeps exactly the rows recorded in that zone and
+    /// drops the rest — including the case where no row carries the target zone
+    /// at all, which has to empty the table rather than quietly keep every row.
+    #[test]
+    fn timezone_filtering_keeps_only_the_rows_recorded_in_the_target_zone() {
+        let mixed = || {
+            let mut built = rows(&[
+                ("Activity Resumed", "com.example.chat", 0),
+                ("Activity Paused", "com.example.chat", 1),
+                ("Activity Resumed", "com.example.chat", 2),
+            ]);
+            built[1].edit_temporal().timezone = "Europe/Berlin".into();
+            Arc::new(built)
+        };
+
+        let primary = select_timezone_strategy(mixed(), "", "primary-filter", "America/Chicago")
+            .expect("primary filter");
+        assert_eq!(primary.target_timezone, "America/Chicago");
+        assert_eq!(primary.action, "filtered_to_primary");
+        assert_eq!(primary.rows.len(), 2);
+        assert!(primary
+            .rows
+            .iter()
+            .all(|row| row.timezone == "America/Chicago"));
+
+        let absent = select_timezone_strategy(mixed(), "", "primary-filter", "Asia/Tokyo")
+            .expect("primary filter");
+        assert!(
+            absent.rows.is_empty(),
+            "filtering to a zone no row carries removes every row",
+        );
+
+        let selected =
+            select_timezone_strategy(mixed(), "Europe/Berlin", "selected-filter", "America/Chicago")
+                .expect("selected filter");
+        assert_eq!(selected.rows.len(), 1);
+        assert_eq!(selected.rows[0].timezone, "Europe/Berlin");
+
+        let converted =
+            select_timezone_strategy(mixed(), "", "primary-convert", "America/Chicago")
+                .expect("primary convert");
+        assert_eq!(
+            converted.rows.len(),
+            3,
+            "converting keeps every row, whatever zone it was recorded in",
+        );
+    }
+
+    /// Restamping moves the whole table into one zone: a row already recorded
+    /// there is left alone, and every other row takes the target zone with its
+    /// local calendar columns recomputed for it.
+    #[test]
+    fn restamping_rewrites_every_row_that_is_not_already_in_the_target_zone() {
+        let mut built = rows(&[
+            ("Activity Resumed", "com.example.chat", 0),
+            ("Activity Paused", "com.example.chat", 60),
+        ]);
+        // Same instant, mislabelled: the row claims UTC, so restamping to
+        // America/Chicago has to relabel it and recompute its local hour.
+        built[1].edit_temporal().timezone = "UTC".into();
+        built[1].edit_temporal().hour = 16;
+
+        let restamped = restamp_rows(built, "America/Chicago").expect("restamp");
+        assert!(restamped
+            .iter()
+            .all(|row| row.timezone == "America/Chicago"));
+        assert_eq!(
+            (restamped[0].hour, restamped[1].hour),
+            (4, 4),
+            "both instants read as the 4 a.m. hour in Chicago",
+        );
+        assert_eq!(restamped[1].date.as_str(), "2026-03-07");
+    }
+
+    /// Blind-folding hands the matcher ordinary activity events by undoing the
+    /// "Filtered" prefix the junk pass applied. Every filtered type has to map
+    /// back to its unfiltered counterpart, and a type that was never filtered
+    /// is left exactly as it is.
+    #[test]
+    fn blind_folding_restores_every_filtered_activity_type() {
+        let mut built = rows(&[
+            ("Activity Resumed", "com.example.chat", 0),
+            ("Activity Resumed", "com.example.chat", 1),
+            ("Activity Resumed", "com.example.chat", 2),
+            ("Activity Resumed", "com.example.chat", 3),
+            ("Activity Resumed", "com.example.chat", 4),
+        ]);
+        for (row, kind) in built.iter_mut().zip([
+            FILTERED_RESUMED,
+            FILTERED_PAUSED,
+            FILTERED_STOPPED,
+            "Filtered App Destroyed",
+            SCREEN_USAGE,
+        ]) {
+            row.edit_classification().interaction_type = kind.into();
+        }
+
+        assert_eq!(
+            kinds(&junk_blind_fold(built)),
+            vec![
+                ACTIVITY_RESUMED,
+                ACTIVITY_PAUSED,
+                ACTIVITY_STOPPED,
+                "Activity Destroyed",
+                SCREEN_USAGE,
+            ],
+        );
+    }
+
+    /// The matcher pairs resumes with pauses, so a stream carrying neither is a
+    /// study period with no app usage in it and has to be reported as such
+    /// instead of producing an empty match.
+    #[test]
+    fn the_matcher_input_refuses_a_stream_with_no_resume_and_no_pause() {
+        let background = AHashSet::from(["com.example.player".to_string()]);
+        let stop_types = ["Activity Stopped".to_string()];
+
+        let error = build_matcher_input(
+            &rows(&[("Activity Stopped", "com.example.chat", 0)]),
+            &stop_types,
+            &[],
+            &AHashSet::new(),
+            false,
+        )
+        .expect_err("a stopped-only stream has no usage");
+        assert_eq!(error, "No valid app usage data during the study period");
+
+        let paused = build_matcher_input(
+            &rows(&[
+                ("Activity Paused", "com.example.chat", 0),
+                ("Activity Stopped", "com.example.player", 1),
+            ]),
+            &stop_types,
+            &[],
+            &background,
+            false,
+        )
+        .expect("a pause is app usage");
+        assert_eq!(paused.background, vec![false, true]);
+        assert_eq!(
+            paused.stopped,
+            vec![false, false],
+            "a background app's stop is not a foreground stop",
+        );
+        assert_eq!(paused.app_codes, vec![0, 1]);
+    }
+
+    /// Once a package is filtered, its usage row keeps its place in the table
+    /// but stops counting: a background app's usage is marked as filtered
+    /// background usage, ordinary filtered usage loses its duration, and any
+    /// other event of that package is stripped of timing entirely.
+    #[test]
+    fn marking_filtered_packages_downgrades_each_kind_of_row_differently() {
+        let filtered = BTreeSet::from([
+            "com.example.player".to_string(),
+            "com.example.chat".to_string(),
+        ]);
+        let background = AHashSet::from(["com.example.player".to_string()]);
+
+        let mut built = rows(&[
+            (APP_USAGE, "com.example.player", 0),
+            (APP_USAGE, "com.example.chat", 1),
+            (ACTIVITY_STOPPED, "com.example.chat", 2),
+            (APP_USAGE, "com.example.kept", 3),
+        ]);
+        for row in built.iter_mut() {
+            let temporal = row.edit_temporal();
+            temporal.start_timestamp_ns = Some(0);
+            temporal.stop_timestamp_ns = Some(60_000_000_000);
+            temporal.duration_seconds = Some(60.0);
+            temporal.duration_minutes = Some(1.0);
+        }
+
+        let marked = junk_downstream_mark(built, &filtered, &background);
+        assert_eq!(
+            kinds(&marked),
+            vec![
+                FILTERED_APP_BACKGROUND_USAGE,
+                FILTERED_APP_USAGE,
+                FILTERED_STOPPED,
+                APP_USAGE,
+            ],
+        );
+        assert_eq!(
+            marked[0].duration_minutes,
+            Some(1.0),
+            "filtered background usage keeps the minutes it accrued",
+        );
+        assert_eq!(marked[1].duration_minutes, None);
+        assert_eq!(
+            marked[1].start_timestamp_ns,
+            Some(0),
+            "filtered foreground usage keeps its interval and loses only the duration",
+        );
+        assert_eq!(marked[2].start_timestamp_ns, None);
+        assert_eq!(marked[2].duration_minutes, None);
+        assert_eq!(marked[3].duration_minutes, Some(1.0));
+    }
+
+    /// Dropping interaction types is a display choice, but the long-data-gap
+    /// flag is evidence about the recording itself: a row of a dropped type
+    /// still has to survive when its own gap reaches the smallest configured
+    /// threshold, and a row of a kept type is never dropped for a short gap.
+    #[test]
+    fn dropping_interaction_types_spares_the_rows_that_carry_a_long_data_gap() {
+        let build = || {
+            let mut built = rows(&[
+                (ACTIVITY_STOPPED, "com.example.chat", 0),
+                (ACTIVITY_STOPPED, "com.example.chat", 1),
+                (APP_USAGE, "com.example.chat", 2),
+            ]);
+            for (row, gap) in built.iter_mut().zip([0.5_f64, 9.0, 0.5]) {
+                row.edit_temporal().data_time_gap_hours = gap;
+            }
+            built
+        };
+
+        let removed = [ACTIVITY_STOPPED.to_string()];
+        let kept = drop_selected_types(build(), &removed, &[6.0, 12.0]);
+        assert_eq!(
+            kinds(&kept),
+            vec![ACTIVITY_STOPPED, APP_USAGE],
+            "the 9-hour gap row survives its type being dropped; the 0.5-hour one does not",
+        );
+        assert_eq!(kept[0].data_time_gap_hours, 9.0);
+
+        assert_eq!(
+            drop_selected_types(build(), &[], &[6.0]).len(),
+            3,
+            "no types to remove leaves the table alone",
+        );
+    }
+
+    /// A zero-length app-usage session is a matcher artefact, not usage, so the
+    /// opt-in drop removes it. It is scoped to app usage — a screen or activity
+    /// row that happens to carry no duration is a different kind of record and
+    /// stays — and with the option off nothing is removed at all.
+    #[test]
+    fn dropping_zero_duration_rows_touches_only_app_usage_and_only_when_enabled() {
+        let build = || {
+            let mut built = rows(&[
+                (APP_USAGE, "com.example.chat", 0),
+                (APP_USAGE, "com.example.chat", 1),
+                (SCREEN_USAGE, "com.example.chat", 2),
+                (APP_USAGE, "com.example.chat", 3),
+            ]);
+            for (row, duration) in built
+                .iter_mut()
+                .zip([Some(0.0), Some(60.0), Some(0.0), None])
+            {
+                row.edit_temporal().duration_seconds = duration;
+            }
+            built
+        };
+
+        let dropped = drop_zero_duration(build(), true);
+        assert_eq!(
+            dropped
+                .iter()
+                .map(|row| (row.interaction_type.as_str(), row.duration_seconds))
+                .collect::<Vec<_>>(),
+            vec![
+                (APP_USAGE, Some(60.0)),
+                (SCREEN_USAGE, Some(0.0)),
+                (APP_USAGE, None),
+            ],
+        );
+        assert_eq!(
+            drop_zero_duration(build(), false).len(),
+            4,
+            "with the option off the zero-duration session stays",
+        );
+    }
+
 }
 
 #[cfg(feature = "incremental-v2")]
