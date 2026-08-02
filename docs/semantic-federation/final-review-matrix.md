@@ -147,7 +147,7 @@ evidence.
 | Rust product contract | 15-node plan fixture | binding and graph tests | unknown/duplicate/cyclic bindings | generated-registry drift | native/WASM contract load | profiles cannot inject code | compile/build budget | Chronicle-owned semantics | Verified |
 | Rust preprocessing runtime | synthetic raw CSVs | Rust suites | malformed request/artifact states | native/WASM and cold/incremental parity suites | full browser processing | bounded inputs and fail-closed digests | browser baseline, cached digest | property/mutation checks | Verified; the crate itself clears its 95/94/70 floor at 95.19%/94.12%/75.00% and its suite reports `60 passed; 0 failed; 1 ignored`. The coverage debt in item 1 below is the chrono kernel, not this crate |
 | Incremental materializer | warm/cold replay | node/role/status tests | changed support/config/input cones | persisted prior-root execution | graph/status/explanation views | immutable assignment evidence | declared-cone checks | deterministic replay | Role/qualification behavior verified; tracked runtime integration active |
-| Physical 55-step executor | fused Rust oracle | one callable/query test per step | missing/duplicate/untracked input and under/over-invalidation | real intermediate and terminal cache | actual execution events in graph/status/explanation views | cache cannot bypass input/contract verification | cold/no-change/upstream/middle/downstream/binding budgets | random mutation sequences, early cutoff, native/WASM parity | 55 queries and four-mode parity verified; root-bound cache persistence is implemented; the read-set campaigns now run against actual Salsa events and were regenerated in `3c598ee`. Remaining release blockers: cross-browser real-WASM reload/crash proof, randomized change sequences, and the chrono-kernel coverage/mutation debt |
+| Physical 55-step executor | fused Rust oracle | one callable/query test per step | missing/duplicate/untracked input and under/over-invalidation | real intermediate and terminal cache | actual execution events in graph/status/explanation views | cache cannot bypass input/contract verification | cold/no-change/upstream/middle/downstream/binding budgets | random mutation sequences, early cutoff, native/WASM parity | 55 queries and four-mode parity verified; root-bound cache persistence is implemented; the read-set campaigns now run against actual Salsa events and were regenerated in `3c598ee`. Cross-browser real-WASM reload/crash proof landed 2026-08-01 on all three engines (items 2 and 8). Remaining release blockers: randomized change sequences and the chrono-kernel coverage/mutation debt |
 | OPFS durability | alternating-root fixtures | store tests | corruption, missing objects, both roots bad | closure export/import and verification | reload/recovery browser flows | digest/path/size/object limits | GC retains two roots | crash/fault-injection matrix | Verified in Chromium |
 | Worker protocol | real transferred CSV | dispatcher tests | malformed/unsupported commands | Comlink plus Rust/WASM | Playwright workflow | UI cannot write evidence | transfer and cache bounds | TypeScript renderer boundary | Verified |
 | Typed semantic views | root-bound fixtures | registered-query tests | missing/wrong-root view rejected | Rust index plus UI projection | graph and result panels | no arbitrary production SPARQL | query benchmarks sampled | view is derived, not authority | Verified; cache opportunity remains |
@@ -239,16 +239,45 @@ evidence.
    matcher figure in this document, and the `90.84% lines / 90.21% regions`
    kernel figure in the 55-step plan, are all wrong; the table above replaces
    them. Adding `--fail-under-lines 90` or `--fail-under-functions 85` to the
-   kernel command exits 1, while `--fail-under-regions 89` exits 0. Separately,
-   `make coverage-rust` reports only the first crate:
-   `.semantic-federation/scripts/check-rust-quality.sh` splits each manifest
-   line with `IFS='|'`, and the runtime entry's mutation-exclusion regex
-   contains the alternation `(physical_data_row_count|duplicate_safe_headers)`,
-   so `duplicate_safe_headers)` reaches `--fail-under-lines` and cargo-llvm-cov
-   aborts the loop with `error: invalid float literal`. Both the splitter and
-   the kernel gap must be fixed before claiming the ratchets hold.
-2. Browser durability and E2E evidence is Chromium-only. WebKit/Firefox support
-   and OPFS crash behavior require explicit capability decisions and tests.
+   kernel command exits 1, while `--fail-under-regions 89` exits 0.
+
+   The splitter half is fixed (2026-08-01). `make coverage-rust` had reported
+   only the first crate: `.semantic-federation/scripts/check-rust-quality.sh`
+   split each manifest line with `IFS='|'`, and the runtime entry's
+   mutation-exclusion regex contains the alternation
+   `(physical_data_row_count|duplicate_safe_headers)`, so
+   `duplicate_safe_headers)` reached `--fail-under-lines` and cargo-llvm-cov
+   aborted the loop with `error: invalid float literal` — the kernel ratchet
+   had therefore never run. `rust-authority-manifests.txt` is now TAB-delimited
+   (a delimiter the regexes cannot contain) and the script splits it manually
+   rather than through `IFS`, because tab is IFS whitespace and `read` would
+   collapse the matcher entry's deliberately empty features field. The three
+   thresholds are validated as numbers, so a malformed field exits 2 naming the
+   manifest instead of being passed to the coverage tool. The kernel gap itself
+   remains open: the gate now bites honestly at 89.78/89.36/84.30 against the
+   90/89/85 floor, and the floor is not to be lowered to make it pass.
+2. Closed 2026-08-01. All three engines are supported, and the two exclusions
+   this item recorded turned out to be product defects rather than missing
+   browser capabilities. Firefox 148 never settles `navigator.storage.persist()`
+   without a user gesture, and `App.tsx` had chained the durability probe to it,
+   making the gate unreachable; Firefox now runs the full durability set (16/16).
+   WebKit supports OPFS completely given an on-disk profile, so the
+   `webkit-durable` Playwright project uses `launchPersistentContext` with
+   `workers: 1` — measured, WebKit keeps origin-private storage outside the
+   profile directory, so parallel workers would share it. Playwright's default
+   ephemeral WebKit context has Safari private-browsing semantics and genuinely
+   has no storage; there the fail-closed capability gate IS the product
+   behavior, and `durability-capability-gate.spec.ts` asserts the banner, the
+   disabled Process button, and zero result panels. The gate requires a verified
+   OPFS write/read-back from both the main thread and the writing worker, plus
+   `navigator.locks`. Fault injection (`durability-fault-injection.spec.ts`)
+   runs on every engine that can hold a workspace: three runs in one page, a
+   bit-rotted content object refused, a missing referenced object refused,
+   recovery from the alternating root slot, and a damaged workspace refusing to
+   be overwritten by an import. Two product bugs fell out of this: wasm-opt's
+   `--merge-similar-functions` corrupted Salsa 0.28 jar identity (removed, see
+   the runtime crate's `Cargo.toml`), and `WorkerPool.terminate()` never settled
+   in-flight Comlink RPCs, so cancelling a batch wedged the UI on "Processing…".
 3. Closed 2026-08-01: the boundary validator's structural layer is generated
    from the Rust serialization model by
    `rust/chronicle_preprocessing_runtime_wasm/examples/boundary_model.rs` into
@@ -291,8 +320,23 @@ evidence.
    export heap peak fell from 245.7 MB to 0.4 MB and renderer RSS from
    595.6 MB to 236.8 MB (export) and 540.6 MB to 295.9 MB (import), with the
    fail-closed verification order unchanged.
-8. Large-file peak WASM memory and crash/fault injection across all supported
-   browsers have not yet been demonstrated.
+8. Closed 2026-08-01. Fault injection now runs on every engine (see item 2).
+   Large-file peak memory is measured in
+   `docs/perf/results/browser-peak-memory.json` by
+   `web/scripts/measure_browser_peak_memory.mjs`: at 34.6 MB / 181,798 raw rows
+   all three engines complete with a byte-identical WASM high-water mark of
+   1,025,900,544 B (978 MiB) and identical row counts (181,798 → 175,131), so
+   peak WASM memory is a property of the Rust pipeline rather than of the
+   browser. At 115.3 MB / 605,915 rows all three refuse identically with
+   `reconstruction base is too large: 260554624 bytes exceeds 201326592` —
+   `MAX_RECONSTRUCTION_BASE_UNCOMPRESSED_BYTES` (192 MiB) at
+   `pipeline_v2_incremental.rs:1842`. That is a fail-closed product cap, not an
+   engine limit, and no engine ran out of memory before reaching it. Mechanics
+   stated honestly in the artifact: `wasmMemoryBytes` is read from the shipped
+   `chronicle-last-run` record (the production path, exact on all engines),
+   `jsHeapBytes` is Chromium-only and null elsewhere, process RSS is
+   deliberately not reported because it is not attributable across engines, and
+   no threshold is enforced.
 9. The all-authority mutation target is not clean. The semantic adapter,
     product runtime and semantic
     index have zero survivors, but a partial current chrono-kernel campaign
@@ -332,6 +376,11 @@ evidence.
       computed column can never carry the exact class; and every result family
       is routed through row lineage or column-granular declared scope, so no
       family is silently absent.
+    - Cross-browser durability and large-file memory (2026-08-01): Chromium,
+      Firefox and WebKit-with-a-profile all run the full durability and fault
+      injection sets; ephemeral WebKit is fail-closed by the capability gate;
+      peak WASM memory and the 192 MiB reconstruction refusal are identical on
+      all three engines (items 2 and 8).
 
     Still open, and not softened by the above:
     - Witness coverage of the 7,756 structurally-declared-but-unwitnessed
@@ -347,10 +396,9 @@ evidence.
     - Chrono-kernel mutation burn-down. The 1,258-mutant campaign was stopped
       partway with surviving timestamp-formatting, CSV parsing/sorting,
       WASM-facade, and `run_pipeline_v2*` wrapper mutants (see item 9).
-    - Cross-browser durability. Everything durable is Chromium-only; WebKit and
-      Firefox OPFS behavior has neither a test nor a fail-closed restriction.
-    - Large-file peak WASM memory and crash/fault injection across every
-      supported browser (see item 8).
+    - The chrono-kernel coverage ratchet itself: 89.78/89.36/84.30 against the
+      90/89/85 floor. The gate now runs (see item 1); it did not before, so
+      this is a newly visible gap rather than a new regression.
 
 Database migration, server-concurrency load, mobile-device, container, and
 cluster tests are not applicable: this proof is a local-first browser/WASM app
