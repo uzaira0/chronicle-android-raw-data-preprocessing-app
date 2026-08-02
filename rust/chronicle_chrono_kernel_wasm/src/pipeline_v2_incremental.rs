@@ -11440,6 +11440,68 @@ mod tracked {
             }
         }
 
+        /// A review base exported while screen processing was on carries the
+        /// classified screen sessions, so a resumed review reuses them instead
+        /// of walking the screen state machine again. That reuse is only
+        /// allowed while the settings that shaped those sessions are
+        /// unchanged; after a screen-settings edit the sessions have to be
+        /// rebuilt, and either way the answer has to match the sequential path.
+        #[test]
+        fn a_resumed_review_reuses_screen_sessions_only_while_their_settings_hold() {
+            let support = PipelineV2SupportFiles::default();
+            let mut baseline = pipeline_options();
+            baseline.usage_session_mode = UsageSessionMode::AppAndScreenUsage;
+            baseline.include_screen_output = true;
+
+            let mut producer = TrackedEngine::default();
+            producer
+                .execute(&csv(), &baseline, support, true)
+                .expect("produce a screen-bearing review base");
+            let review_base = producer.export_review_base().expect("review base");
+
+            let mut engine = TrackedEngine::default();
+            let resumed = engine
+                .execute_with_review_base(&csv(), &review_base, &baseline, support, false)
+                .expect("resume from the review base");
+            assert!(
+                resumed
+                    .internal_executed_queries
+                    .iter()
+                    .any(|query| query == "restore_review_screen"),
+                "the exported base carried no reusable screen sessions: {:?}",
+                resumed.internal_executed_queries
+            );
+            assert!(
+                !resumed
+                    .executed_steps
+                    .iter()
+                    .any(|step| step == "build_classified_sessions"),
+                "restored screen sessions were rebuilt anyway: {:?}",
+                resumed.executed_steps
+            );
+
+            let mut edited = baseline.clone();
+            edited.screen_auto_lock_timeout_seconds = 60.0;
+            let rebuilt = engine
+                .execute_with_review_base(&csv(), &review_base, &edited, support, false)
+                .expect("resume after a screen-settings edit");
+            assert!(
+                rebuilt
+                    .executed_steps
+                    .iter()
+                    .any(|step| step == "build_classified_sessions"),
+                "a screen-settings edit reused sessions built under the old settings: {:?}",
+                rebuilt.executed_steps
+            );
+
+            let oracle = run_pipeline_v2_with_supports(&csv(), &edited, support)
+                .expect("sequential oracle for an edited screen resume");
+            assert_eq!(
+                rebuilt.result.review_summary_json_bytes, oracle.review_summary_json_bytes,
+                "a resumed review drifted from the sequential path after a screen edit",
+            );
+        }
+
         /// Each persisted base has a one-entry decode cache. Reviewing a
         /// second file right after a first one is the ordinary browser
         /// sequence, so a decode request for a different base has to return
