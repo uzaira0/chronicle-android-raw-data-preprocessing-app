@@ -8425,6 +8425,103 @@ mod tests {
         assert!(row.0.checkpoint_parts.classification.get().is_none());
     }
 
+    /// Two ways of asking the same question: which parts of the previous
+    /// step's checkpoint may be carried into this one. One compares cached
+    /// checkpoint parts on both sides, the other re-derives the previous side
+    /// from the rows themselves. Carrying a component that actually moved
+    /// publishes a digest describing values the rows no longer hold, so each
+    /// component has to be able to say no on its own — and the two ways have
+    /// to give the same answer.
+    #[test]
+    fn component_reuse_says_no_for_exactly_the_parts_that_moved() {
+        let rows = rows_from_events(&[
+            (
+                "2026-03-07 10:00:00",
+                "Activity Resumed",
+                "com.example.chat",
+            ),
+            (
+                "2026-03-07 10:01:00",
+                "Activity Paused",
+                "com.example.chat",
+            ),
+            (
+                "2026-03-07 10:02:00",
+                "Activity Resumed",
+                "com.example.video",
+            ),
+        ]);
+        let parts = row_checkpoint_parts_for_rows(&rows);
+        assert_eq!(
+            reusable_row_components_from_parts(&parts, &parts),
+            (true, true, true, true),
+            "unchanged rows share every component",
+        );
+        assert_eq!(
+            reusable_row_components_from_rows(&parts, &rows),
+            (true, true, true, true),
+            "unchanged rows share every component",
+        );
+
+        type Disturb = fn(&mut Row);
+        let cases: [(&str, Disturb, (bool, bool, bool, bool)); 3] = [
+            (
+                "identity",
+                |row| row.edit_identity().source_data_rows = SourceDataRows::single(9_999),
+                (false, false, false, false),
+            ),
+            (
+                "temporal",
+                |row| {
+                    let data = row.edit_temporal();
+                    data.duration_seconds = Some(data.duration_seconds.unwrap_or_default() + 1.0);
+                },
+                (true, true, false, true),
+            ),
+            (
+                "classification",
+                |row| row.edit_classification().application_label = "Moved".into(),
+                (true, true, true, false),
+            ),
+        ];
+        for (component, disturb, expected) in cases {
+            let mut changed = rows.clone();
+            disturb(&mut changed[0]);
+            let changed_parts = row_checkpoint_parts_for_rows(&changed);
+            assert_eq!(
+                reusable_row_components_from_parts(&changed_parts, &parts),
+                expected,
+                "a {component} change was answered wrongly from cached parts",
+            );
+            assert_eq!(
+                reusable_row_components_from_rows(&changed_parts, &rows),
+                expected,
+                "a {component} change was answered wrongly from the previous rows",
+            );
+        }
+
+        // A step that added or dropped rows shares nothing, whichever row
+        // count the two sides happen to have.
+        let shorter = rows[..rows.len() - 1].to_vec();
+        let shorter_parts = row_checkpoint_parts_for_rows(&shorter);
+        assert_eq!(
+            reusable_row_components_from_parts(&shorter_parts, &parts),
+            (false, false, false, false),
+        );
+        assert_eq!(
+            reusable_row_components_from_rows(&shorter_parts, &rows),
+            (false, false, false, false),
+        );
+        assert_eq!(
+            reusable_row_components_from_parts(&parts, &shorter_parts),
+            (false, false, false, false),
+        );
+        assert_eq!(
+            reusable_row_components_from_rows(&parts, &shorter),
+            (false, false, false, false),
+        );
+    }
+
     #[test]
     fn canonical_checkpoint_fast_path_matches_unsorted_fallback() {
         let csv = concat!(
